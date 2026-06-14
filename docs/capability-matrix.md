@@ -54,7 +54,10 @@ working + verified here; **Bridge** = via the Blender/Bonsai desktop editor (Pha
   storey at a 1.2 m cut height; X/Y sections), served at `/projects/{id}/drawings/*`.
 - ~~Sheet composer~~ ✅ done — `compose()` lays out multiple views in a grid with a title
   block; renders to SVG and PDF (reportlab). `GET /drawings/sheet.{svg,pdf}`.
-- **Elevations & dimension lines**: orthographic outlines + automatic dimensioning.
-- **Annotations on sheets**: tags, leaders, room labels on the composed views.
+- ~~Dimension lines + grid bubbles~~ ✅ done — structural grid derived from IfcColumn
+  positions (no IfcGrid needed); plans draw numbered/lettered grid bubbles, grid lines, and
+  grid-spacing dimensions (mm). `GET /drawings/plan.svg`.
+- **Elevations**: orthographic outline views (not just section cuts).
+- **Annotations on sheets**: room tags, leaders on the composed views; grid on sheet cells.
 - **Federation UI**: a discipline picker to load several `.frag` and toggle by model.
 - **Authoring in-browser**: stays a Bonsai-bridge concern by design (GPL boundary).

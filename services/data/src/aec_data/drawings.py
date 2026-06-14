@@ -125,10 +125,135 @@ def to_svg(polylines: list[np.ndarray], title: str = "", subtitle: str = "",
     )
 
 
+def _cluster(values: list[float], tol: float) -> list[float]:
+    """Group near-equal coordinates into single grid lines (their mean)."""
+    if not values:
+        return []
+    vals = sorted(values)
+    groups, cur = [], [vals[0]]
+    for v in vals[1:]:
+        if v - cur[-1] <= tol:
+            cur.append(v)
+        else:
+            groups.append(cur); cur = [v]
+    groups.append(cur)
+    return [float(np.mean(g)) for g in groups]
+
+
+def grid_from_meshes(meshes, tol: float = 0.4) -> dict[str, list[tuple[float, str]]]:
+    """Derive a structural grid from IfcColumn centres (no IfcGrid in many IFC exports).
+    Vertical lines (constant X) are numbered 1,2,3…; horizontal lines (constant Y) A,B,C…"""
+    cxs, cys = [], []
+    for cls, mesh in meshes:
+        if cls.lower() != "ifccolumn":
+            continue
+        c = mesh.bounds.mean(axis=0) if mesh.bounds is not None else None
+        if c is not None:
+            cxs.append(float(c[0])); cys.append(float(c[1]))
+    xlines = _cluster(cxs, tol)
+    ylines = _cluster(cys, tol)
+    labels_x = [str(i + 1) for i in range(len(xlines))]
+    labels_y = [chr(ord("A") + i) for i in range(len(ylines))]
+    return {"x": list(zip(xlines, labels_x)), "y": list(zip(ylines, labels_y))}
+
+
+def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
+                     grid: dict | None = None, dims: bool = True, width: int = 1200) -> str:
+    polys = cut_baked(meshes, "plan", elevation + cut_height)
+    grid = grid or {"x": [], "y": []}
+    if not polys and not (grid["x"] or grid["y"]):
+        return to_svg([], title=title, subtitle="no geometry")
+
+    pts = [np.vstack(polys)] if polys else []
+    gx = [c for c, _ in grid["x"]]; gy = [c for c, _ in grid["y"]]
+    xs = ([p[:, 0] for p in pts] or [np.array(gx)]) + ([np.array(gx)] if gx else [])
+    ys = ([p[:, 1] for p in pts] or [np.array(gy)]) + ([np.array(gy)] if gy else [])
+    mn = np.array([min(np.concatenate(xs)), min(np.concatenate(ys))])
+    mx = np.array([max(np.concatenate(xs)), max(np.concatenate(ys))])
+    span = np.maximum(mx - mn, 1e-6)
+
+    gutter = 70  # room for bubbles + dimension lines
+    pad = 30
+    draw_w = width - 2 * pad - gutter
+    scale = draw_w / span[0]
+    draw_h = span[1] * scale
+    height = int(draw_h + 2 * pad + gutter + 60)
+    ox = pad + gutter
+    oy = pad + gutter
+
+    def T(x, y):
+        return ox + (x - mn[0]) * scale, oy + draw_h - (y - mn[1]) * scale
+
+    out = ['<?xml version="1.0" encoding="UTF-8"?>',
+           f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+           f'viewBox="0 0 {width} {height}"><rect width="{width}" height="{height}" fill="#fff"/>']
+
+    # grid lines + bubbles
+    bub = 13
+    for x, label in grid["x"]:
+        sx, _ = T(x, mn[1]); _, ty = T(x, mx[1])
+        out.append(f'<line x1="{sx:.1f}" y1="{oy-40:.1f}" x2="{sx:.1f}" y2="{oy+draw_h:.1f}" '
+                   f'stroke="#bbb" stroke-width="0.6" stroke-dasharray="6 4"/>')
+        out.append(f'<circle cx="{sx:.1f}" cy="{oy-40:.1f}" r="{bub}" fill="#fff" stroke="#111"/>'
+                   f'<text x="{sx:.1f}" y="{oy-40+4:.1f}" text-anchor="middle" '
+                   f'font-family="sans-serif" font-size="13" font-weight="700">{label}</text>')
+    for y, label in grid["y"]:
+        _, sy = T(mn[0], y)
+        out.append(f'<line x1="{ox-40:.1f}" y1="{sy:.1f}" x2="{ox+draw_w:.1f}" y2="{sy:.1f}" '
+                   f'stroke="#bbb" stroke-width="0.6" stroke-dasharray="6 4"/>')
+        out.append(f'<circle cx="{ox-40:.1f}" cy="{sy:.1f}" r="{bub}" fill="#fff" stroke="#111"/>'
+                   f'<text x="{ox-40:.1f}" y="{sy+4:.1f}" text-anchor="middle" '
+                   f'font-family="sans-serif" font-size="13" font-weight="700">{label}</text>')
+
+    # cut geometry
+    for poly in polys:
+        pp = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
+        out.append(f'<polyline points="{pp}" fill="none" stroke="#111" stroke-width="0.8"/>')
+
+    # dimension strings between consecutive grid lines (mm)
+    if dims:
+        dy = oy + draw_h + 26
+        for (x0, _), (x1, _) in zip(grid["x"], grid["x"][1:]):
+            ax, _ = T(x0, mn[1]); bx, _ = T(x1, mn[1])
+            mm = round((x1 - x0) * 1000)
+            out.append(_dim_h(ax, bx, dy, mm))
+        dx = ox - 26
+        for (y0, _), (y1, _) in zip(grid["y"], grid["y"][1:]):
+            _, ay = T(mn[0], y0); _, byy = T(mn[0], y1)
+            mm = round((y1 - y0) * 1000)
+            out.append(_dim_v(dx, ay, byy, mm))
+
+    sub = f"cut @ {elevation + cut_height:.2f} m" + (f"  ·  grid {len(grid['x'])}×{len(grid['y'])}" if (grid["x"] or grid["y"]) else "")
+    ty = height - 24
+    out.append(f'<line x1="{pad}" y1="{ty-12}" x2="{width-pad}" y2="{ty-12}" stroke="#111" stroke-width="1"/>'
+               f'<text x="{pad}" y="{ty+8}" font-family="sans-serif" font-size="16" font-weight="700">{title}</text>'
+               f'<text x="{width-pad}" y="{ty+8}" text-anchor="end" font-family="sans-serif" '
+               f'font-size="12" fill="#555">{sub}</text>')
+    out.append("</svg>")
+    return "".join(out)
+
+
+def _dim_h(x0, x1, y, mm):
+    return (f'<line x1="{x0:.1f}" y1="{y:.1f}" x2="{x1:.1f}" y2="{y:.1f}" stroke="#0a6" stroke-width="0.8"/>'
+            f'<line x1="{x0:.1f}" y1="{y-4:.1f}" x2="{x0:.1f}" y2="{y+4:.1f}" stroke="#0a6" stroke-width="0.8"/>'
+            f'<line x1="{x1:.1f}" y1="{y-4:.1f}" x2="{x1:.1f}" y2="{y+4:.1f}" stroke="#0a6" stroke-width="0.8"/>'
+            f'<text x="{(x0+x1)/2:.1f}" y="{y-4:.1f}" text-anchor="middle" font-family="sans-serif" '
+            f'font-size="10" fill="#0a6">{mm}</text>')
+
+
+def _dim_v(x, y0, y1, mm):
+    return (f'<line x1="{x:.1f}" y1="{y0:.1f}" x2="{x:.1f}" y2="{y1:.1f}" stroke="#0a6" stroke-width="0.8"/>'
+            f'<line x1="{x-4:.1f}" y1="{y0:.1f}" x2="{x+4:.1f}" y2="{y0:.1f}" stroke="#0a6" stroke-width="0.8"/>'
+            f'<line x1="{x-4:.1f}" y1="{y1:.1f}" x2="{x+4:.1f}" y2="{y1:.1f}" stroke="#0a6" stroke-width="0.8"/>'
+            f'<text x="{x-6:.1f}" y="{(y0+y1)/2:.1f}" text-anchor="middle" font-family="sans-serif" '
+            f'font-size="10" fill="#0a6" transform="rotate(-90 {x-6:.1f} {(y0+y1)/2:.1f})">{mm}</text>')
+
+
 def plan_svg(model: ifcopenshell.file, elevation: float, cut_height: float = 1.2,
-             title: str = "PLAN") -> str:
-    polys = cut(model, "plan", elevation + cut_height)
-    return to_svg(polys, title=title, subtitle=f"cut @ {elevation + cut_height:.2f} m")
+             title: str = "PLAN", grid: bool = True, dims: bool = True) -> str:
+    meshes = bake(model)
+    g = grid_from_meshes(meshes) if grid else {"x": [], "y": []}
+    return plan_drawing_svg(meshes, elevation, cut_height, title, g, dims)
 
 
 def section_svg(model: ifcopenshell.file, axis: str, offset: float, title: str = "SECTION") -> str:
