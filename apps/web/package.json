@@ -1,0 +1,29 @@
+{
+  "name": "@aec/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/copy-wasm.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/copy-wasm.mjs",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "copy-wasm": "node scripts/copy-wasm.mjs"
+  },
+  "dependencies": {
+    "@thatopen/components": "3.4.6",
+    "@thatopen/components-front": "3.4.3",
+    "@thatopen/fragments": "3.4.5",
+    "@thatopen/ui": "3.4.3",
+    "camera-controls": "3.1.2",
+    "three": "0.184.0",
+    "web-ifc": "0.0.77"
+  },
+  "devDependencies": {
+    "@types/three": "0.184.1",
+    "typescript": "5.9.3",
+    "vite": "6.4.3"
+  }
+}

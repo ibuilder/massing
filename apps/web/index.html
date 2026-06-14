@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AEC BIM Viewer</title>
+  </head>
+  <body>
+    <div id="app">
+      <header id="toolbar">
+        <strong>AEC BIM Viewer</strong>
+        <label class="file-btn">Open IFC<input id="ifc-input" type="file" accept=".ifc" hidden /></label>
+        <label class="file-btn">Open .frag<input id="frag-input" type="file" accept=".frag" hidden /></label>
+        <span id="status">ready</span>
+      </header>
+
+      <nav id="sidebar">
+        <div id="tabs">
+          <button class="tab active" data-tab="tree">Tree</button>
+          <button class="tab" data-tab="layers">Layers</button>
+          <button class="tab" data-tab="issues">Issues</button>
+        </div>
+        <div id="panel-tree" class="panel active"></div>
+        <div id="panel-layers" class="panel"></div>
+        <div id="panel-issues" class="panel"></div>
+      </nav>
+
+      <div id="container"></div>
+
+      <aside id="props" hidden>
+        <h3>Properties</h3>
+        <pre id="props-body"></pre>
+      </aside>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

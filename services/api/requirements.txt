@@ -1,0 +1,7 @@
+# API service — BCF-shaped backend (guide §7)
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sqlalchemy>=2.0
+pydantic>=2.7
+python-multipart>=0.0.9   # file uploads (attachments)
+# psycopg[binary]>=3.1     # enable for Postgres (prod); sqlite used for dev

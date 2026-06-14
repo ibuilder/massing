@@ -1,0 +1,18 @@
+{
+  "_comment": "Bonsai-MCP connection config (guide §9). The add-on runs a socket server inside Blender; the MCP server bridges Claude Code to it. Adjust host/port to match the Blender add-on panel.",
+  "socket": {
+    "host": "127.0.0.1",
+    "port": 9876
+  },
+  "safety": {
+    "save_before_execute": true,
+    "confirm_execute_blender_code": true,
+    "max_elements_per_call": 200,
+    "_note": "execute_blender_code runs arbitrary Python — gate it, save first, chunk large ops."
+  },
+  "families_dir": "../../families",
+  "publish_on_save": {
+    "enabled": true,
+    "_note": "On IFC save, re-run Phase 1 conversion (services/converter) to refresh .frag tiles. Pins/RFIs survive because they reference GUIDs."
+  }
+}

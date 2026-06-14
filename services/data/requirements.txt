@@ -1,0 +1,4 @@
+# Data service — IfcOpenShell extraction & export (guide §8)
+ifcopenshell>=0.8.0,<0.9
+openpyxl>=3.1          # XLSX export
+numpy>=1.26           # geometry-derived quantities

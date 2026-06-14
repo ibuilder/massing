@@ -1,0 +1,116 @@
+:root {
+  --bg: #1e1f22;
+  --panel: #2b2d31;
+  --panel2: #25272b;
+  --text: #e7e7e7;
+  --muted: #9aa0a6;
+  --accent: #4a8cff;
+  --line: #16171a;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app {
+  margin: 0;
+  height: 100%;
+  font-family: system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+#app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 280px 1fr auto;
+  grid-template-areas:
+    "toolbar toolbar toolbar"
+    "sidebar container props";
+  height: 100vh;
+}
+
+#toolbar {
+  grid-area: toolbar;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+#container { grid-area: container; position: relative; min-width: 0; }
+
+/* sidebar */
+#sidebar {
+  grid-area: sidebar;
+  background: var(--panel2);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#tabs { display: flex; border-bottom: 1px solid var(--line); }
+.tab {
+  flex: 1; padding: 8px; cursor: pointer; font-size: 12px;
+  background: transparent; color: var(--muted); border: none; border-bottom: 2px solid transparent;
+}
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.panel { display: none; overflow: auto; padding: 8px 10px; flex: 1; font-size: 12px; }
+.panel.active { display: block; }
+
+/* buttons */
+.file-btn { cursor: pointer; padding: 5px 12px; background: var(--accent); border-radius: 4px; font-size: 13px; }
+.file-btn:hover { filter: brightness(1.1); }
+.tool-btn {
+  cursor: pointer; padding: 4px 9px; background: #3a3d44; color: var(--text);
+  border: 1px solid var(--line); border-radius: 4px; font-size: 12px;
+}
+.tool-btn:hover { background: #45484f; }
+.tool-btn.on { background: var(--accent); }
+
+#status { font-size: 12px; opacity: 0.7; margin-left: auto; }
+
+/* tree */
+.tree, .tree ul { list-style: none; margin: 0; padding-left: 12px; }
+.tree { padding-left: 0; }
+.tree-node { cursor: pointer; padding: 2px 0; user-select: none; }
+.tree-node:hover { color: var(--accent); }
+.tree-leaf { cursor: pointer; padding: 2px 0 2px 14px; color: var(--muted); }
+.tree-leaf:hover { color: var(--text); }
+
+/* layers */
+.layer-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+.layer-row input[type=checkbox] { margin: 0; }
+.layer-row .name { flex: 1; }
+.layer-row .count { color: var(--muted); font-size: 11px; }
+.swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); cursor: pointer; }
+
+/* issues */
+.issue { padding: 7px 8px; margin-bottom: 6px; background: var(--panel); border-radius: 5px; cursor: pointer; border-left: 3px solid var(--accent); }
+.issue:hover { background: #34373d; }
+.issue .t { font-weight: 600; }
+.issue .meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: #3a3d44; }
+.badge.rfi { background: #4a8cff44; }
+.badge.punch { background: #ff8c0044; }
+.badge.open { color: #ffd479; }
+.badge.answered, .badge.closed { color: #8fd98f; }
+.section-title { font-size: 11px; text-transform: uppercase; color: var(--muted); margin: 4px 0 8px; letter-spacing: .04em; }
+
+/* properties */
+#props { grid-area: props; width: 320px; overflow: auto; padding: 12px 14px; background: var(--panel); border-left: 1px solid var(--line); }
+#props h3 { margin-top: 0; }
+#props-body { white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.4; }
+
+/* pin markers */
+.pin {
+  width: 22px; height: 22px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; box-shadow: 0 1px 4px #000a; cursor: pointer; border: 2px solid #fff;
+}
+.pin > * { transform: rotate(45deg); }
+.pin-rfi { background: #4a8cff; }
+.pin-punch { background: #ff8c00; }
+.pin-clash { background: #e0457b; }
+.pin-info { background: #6aa84f; }

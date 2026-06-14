@@ -1,0 +1,13 @@
+{
+  "name": "@aec/converter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "IFC→Fragments tiling (open path) + optional RVT→IFC via APS. See guide §4.",
+  "bin": {
+    "ifc2frag": "./src/cli.mjs"
+  },
+  "scripts": {
+    "convert": "node src/cli.mjs"
+  }
+}

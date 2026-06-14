@@ -1,0 +1,55 @@
+# dependencies
+node_modules/
+**/node_modules/
+.pnp/
+.pnp.js
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# data / artifacts (do NOT commit models or tiles)
+*.ifc
+*.rvt
+*.frag
+*.xkt
+*.bcfzip
+/data/
+/tmp/
+samples/
+
+# object storage local volumes
+minio-data/
+postgres-data/
+
+# dev databases & local storage
+*.db
+storage/
+test_storage/
+samples/out/
+
+# editor / os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+npm-debug.log*
