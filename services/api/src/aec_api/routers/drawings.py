@@ -59,6 +59,16 @@ def section(pid: str, axis: str = "x", offset: float = 0.0, title: str = "SECTIO
     return _svg(svg)
 
 
+@router.get("/projects/{pid}/drawings/elevation.svg")
+def elevation(pid: str, direction: str = "north", db: Session = Depends(get_db)):
+    from aec_data import drawings  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    svg = drawings.elevation(open_model(_source_ifc(db, pid)), direction,
+                             f"{direction.upper()} ELEVATION")
+    return _svg(svg)
+
+
 def _sheet_meta(db: Session, pid: str, sheet: str) -> dict:
     from datetime import date
 

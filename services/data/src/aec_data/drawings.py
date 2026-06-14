@@ -256,6 +256,91 @@ def plan_svg(model: ifcopenshell.file, elevation: float, cut_height: float = 1.2
     return plan_drawing_svg(meshes, elevation, cut_height, title, g, dims)
 
 
+# --- elevations (orthographic outline projections) --------------------------
+# direction -> (projected horizontal axis, vertical axis=Z, flip horizontal?)
+_DIRS = {
+    "north": ((0, 2), False), "south": ((0, 2), True),   # look along Y, draw X/Z
+    "east": ((1, 2), True), "west": ((1, 2), False),     # look along X, draw Y/Z
+}
+
+
+def elevation_outlines(meshes, direction: str):
+    """Element silhouettes (convex hull of projected vertices) for an orthographic view."""
+    from shapely.geometry import MultiPoint
+
+    axes, flip = _DIRS.get(direction, _DIRS["north"])
+    outs = []
+    for _cls, mesh in meshes:
+        pts = mesh.vertices[:, axes]
+        if len(pts) < 3:
+            continue
+        try:
+            hull = MultiPoint(pts).convex_hull
+            if hull.geom_type == "Polygon":
+                coords = np.asarray(hull.exterior.coords)
+                if flip:
+                    coords = coords.copy()
+                    coords[:, 0] = -coords[:, 0]
+                outs.append(coords)
+        except Exception:
+            pass
+    return outs
+
+
+def elevation_svg(meshes, direction: str, levels: list[dict], title: str,
+                  width: int = 1300) -> str:
+    outs = elevation_outlines(meshes, direction)
+    if not outs:
+        return to_svg([], title=title, subtitle="no geometry")
+    allp = np.vstack(outs)
+    mn, mx = allp.min(axis=0), allp.max(axis=0)
+    span = np.maximum(mx - mn, 1e-6)
+    gutter, pad = 120, 30
+    draw_w = width - 2 * pad - gutter
+    scale = draw_w / span[0]
+    draw_h = span[1] * scale
+    height = int(draw_h + 2 * pad + 60)
+    ox, oy = pad + gutter, pad
+
+    def T(x, z):
+        return ox + (x - mn[0]) * scale, oy + draw_h - (z - mn[1]) * scale
+
+    out = ['<?xml version="1.0" encoding="UTF-8"?>',
+           f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+           f'viewBox="0 0 {width} {height}"><rect width="{width}" height="{height}" fill="#fff"/>']
+
+    # storey level lines (Z) — standard elevation annotation
+    flip = _DIRS.get(direction, _DIRS["north"])[1]
+    for lv in levels:
+        z = lv["elevation"]
+        if z < mn[1] - 0.1 or z > mx[1] + 0.1:
+            continue
+        _, ly = T(mn[0], z)
+        out.append(f'<line x1="{ox-70:.1f}" y1="{ly:.1f}" x2="{ox+draw_w:.1f}" y2="{ly:.1f}" '
+                   f'stroke="#0a6" stroke-width="0.6" stroke-dasharray="8 4"/>')
+        out.append(f'<circle cx="{ox-70:.1f}" cy="{ly:.1f}" r="4" fill="#0a6"/>'
+                   f'<text x="{ox-62:.1f}" y="{ly-3:.1f}" font-family="sans-serif" font-size="10" '
+                   f'fill="#0a6">{lv["name"]}  +{z*1000:.0f}</text>')
+
+    for poly in outs:
+        pp = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
+        out.append(f'<polyline points="{pp}" fill="none" stroke="#111" stroke-width="0.6"/>')
+
+    ty = height - 24
+    out.append(f'<line x1="{pad}" y1="{ty-12}" x2="{width-pad}" y2="{ty-12}" stroke="#111" stroke-width="1"/>'
+               f'<text x="{pad}" y="{ty+8}" font-family="sans-serif" font-size="16" font-weight="700">{title}</text>'
+               f'<text x="{width-pad}" y="{ty+8}" text-anchor="end" font-family="sans-serif" '
+               f'font-size="12" fill="#555">{direction.upper()} elevation  ·  {len(outs)} elements</text>')
+    out.append("</svg>")
+    return "".join(out)
+
+
+def elevation(model: ifcopenshell.file, direction: str = "north", title: str | None = None) -> str:
+    meshes = bake(model)
+    levels = storey_elevations(model)
+    return elevation_svg(meshes, direction, levels, title or f"{direction.upper()} ELEVATION")
+
+
 def section_svg(model: ifcopenshell.file, axis: str, offset: float, title: str = "SECTION") -> str:
     view = "section-x" if axis == "x" else "section-y"
     polys = cut(model, view, offset)

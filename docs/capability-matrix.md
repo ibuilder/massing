@@ -57,7 +57,9 @@ working + verified here; **Bridge** = via the Blender/Bonsai desktop editor (Pha
 - ~~Dimension lines + grid bubbles~~ ✅ done — structural grid derived from IfcColumn
   positions (no IfcGrid needed); plans draw numbered/lettered grid bubbles, grid lines, and
   grid-spacing dimensions (mm). `GET /drawings/plan.svg`.
-- **Elevations**: orthographic outline views (not just section cuts).
+- ~~Elevations~~ ✅ done — orthographic outline views (N/S/E/W) via per-element convex-hull
+  silhouettes + storey level lines. `GET /drawings/elevation.svg?direction=`.
 - **Annotations on sheets**: room tags, leaders on the composed views; grid on sheet cells.
+- **Hidden-line removal**: elevations are outline silhouettes (no depth sorting yet).
 - **Federation UI**: a discipline picker to load several `.frag` and toggle by model.
 - **Authoring in-browser**: stays a Bonsai-bridge concern by design (GPL boundary).
