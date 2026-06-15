@@ -389,6 +389,37 @@ function buildToolsPanel() {
   }
   panel.appendChild(qa);
 
+  // --- Energy & MEP analysis ---
+  const an = document.createElement("div");
+  an.innerHTML = `<div class="section-title" style="margin-top:14px">Energy & MEP</div>`;
+  const anOut = document.createElement("div"); anOut.className = "meta"; anOut.id = "an-out";
+  if (!projectId) {
+    anOut.textContent = "connect a project for analysis";
+    an.appendChild(anOut);
+  } else {
+    const eBtn = document.createElement("button");
+    eBtn.className = "tool-btn"; eBtn.textContent = "⚡ Energy analysis";
+    eBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
+    eBtn.onclick = async () => {
+      anOut.textContent = "analyzing envelope…";
+      const e = await api.energy(projectId!);
+      anOut.innerHTML = `<b>EUI ${e.eui_kwh_m2_yr} kWh/m²·yr</b><br>` +
+        `Heating ${e.loads.design_heating_kw} kW · Cooling ${e.loads.design_cooling_kw} kW<br>` +
+        `UA ${e.ua_w_per_k.total} W/K · annual ${e.annual_kwh.total.toLocaleString()} kWh<br>` +
+        `floor ${e.areas_m2.conditioned_floor_area} m² · WWR ${e.areas_m2.window_wall_ratio}`;
+    };
+    const mBtn = document.createElement("button");
+    mBtn.className = "tool-btn"; mBtn.textContent = "⚙ MEP inventory";
+    mBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
+    mBtn.onclick = async () => {
+      const m = await api.mep(projectId!);
+      anOut.innerHTML = `<b>${m.total_distribution_elements} distribution elements</b><br>` +
+        Object.entries(m.by_class).map(([k, v]) => `${k}: ${v}`).join("<br>");
+    };
+    an.append(eBtn, mBtn, anOut);
+  }
+  panel.appendChild(an);
+
   // --- Authoring round-trip (Phase 6) ---
   const au = document.createElement("div");
   au.innerHTML = `<div class="section-title" style="margin-top:14px">Authoring (round-trip)</div>`;
@@ -591,8 +622,11 @@ async function startup() {
     } catch { /* discipline frag not present */ }
   }
   await fitToModels();
-  if (projectId) await buildPanels();
-  buildToolsPanel();
+  if (projectId) {
+    try { await buildPanels(); }
+    catch (e) { console.warn("panels:", e); setStatus("connected (no properties index for this project)"); }
+  }
+  buildToolsPanel();  // always render Tools, even if the data panels fail
 }
 
 // debug hook for automated/preview testing

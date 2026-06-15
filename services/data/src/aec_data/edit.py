@@ -54,6 +54,87 @@ def place_type(model: ifcopenshell.file, type_guid: str, storey_name: str) -> st
     return element.GlobalId
 
 
+def add_spaces(model: ifcopenshell.file, rooms_per_storey: int = 4,
+               ceiling_height: float = 3.0) -> int:
+    """Author IfcSpace rooms per storey as a grid over the real building footprint, with
+    extruded geometry, base quantities and Pset_SpaceCommon — so the model gains a usable
+    space/room schedule. Returns the number of spaces created."""
+    import math
+    import multiprocessing
+
+    import ifcopenshell.geom as geom
+    import numpy as np
+
+    # building XY footprint from envelope elements only (exclude site/terrain)
+    building = {"ifcwall", "ifcwallstandardcase", "ifcslab", "ifcroof", "ifcwindow",
+                "ifcdoor", "ifccolumn", "ifcbeam", "ifcstair", "ifccovering"}
+    settings = geom.settings()
+    it = geom.iterator(settings, model, max(1, multiprocessing.cpu_count() - 1))
+    mn = np.array([1e18, 1e18, 1e18]); mx = -mn
+    if it.initialize():
+        while True:
+            sh = it.get()
+            el = model.by_guid(sh.guid)
+            if el and el.is_a().lower() in building:
+                v = np.asarray(sh.geometry.verts, dtype=float).reshape(-1, 3)
+                if v.size:
+                    mn = np.minimum(mn, v.min(axis=0)); mx = np.maximum(mx, v.max(axis=0))
+            if not it.next():
+                break
+    if not np.isfinite(mn).all():
+        return 0
+
+    # body context for the representations
+    body = next((c for c in model.by_type("IfcGeometricRepresentationSubContext")
+                 if c.ContextIdentifier == "Body"), None) or \
+        (model.by_type("IfcGeometricRepresentationContext") or [None])[0]
+
+    storeys = sorted(model.by_type("IfcBuildingStorey"),
+                     key=lambda s: float(getattr(s, "Elevation", 0) or 0))
+    cols = int(math.ceil(math.sqrt(rooms_per_storey)))
+    rows = int(math.ceil(rooms_per_storey / cols))
+    w = (mx[0] - mn[0]) / cols
+    d = (mx[1] - mn[1]) / rows
+    import ifcopenshell.util.unit as uunit
+    scale = uunit.calculate_unit_scale(model)  # meters -> file units for placement
+    count = 0
+    for storey in storeys:
+        elev = float(getattr(storey, "Elevation", 0) or 0)  # file units
+        n = 0
+        for r in range(rows):
+            for c in range(cols):
+                if n >= rooms_per_storey:
+                    break
+                n += 1
+                space = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcSpace",
+                                             name=f"{storey.Name} - Room {n:02d}")
+                space.LongName = f"Room {n:02d}"
+                # placement (file units): geometry is meters → divide by scale
+                ox = (mn[0] + c * w) / scale
+                oy = (mn[1] + r * d) / scale
+                matrix = np.eye(4); matrix[0, 3] = ox; matrix[1, 3] = oy; matrix[2, 3] = elev
+                ifcopenshell.api.run("geometry.edit_object_placement", model, product=space, matrix=matrix)
+                # extruded rectangle (meters)
+                profile = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA",
+                                              XDim=w, YDim=d)
+                rep = ifcopenshell.api.run("geometry.add_profile_representation", model,
+                                           context=body, profile=profile, depth=ceiling_height)
+                ifcopenshell.api.run("geometry.assign_representation", model, product=space, representation=rep)
+                ifcopenshell.api.run("aggregate.assign_object", model, products=[space], relating_object=storey)
+                # base quantities + common pset
+                qto = ifcopenshell.api.run("pset.add_qto", model, product=space, name="Qto_SpaceBaseQuantities")
+                ifcopenshell.api.run("pset.edit_qto", model, qto=qto,
+                                     properties={"NetFloorArea": round(w * d, 2),
+                                                 "GrossFloorArea": round(w * d, 2),
+                                                 "NetVolume": round(w * d * ceiling_height, 2),
+                                                 "Height": ceiling_height})
+                ps = ifcopenshell.api.run("pset.add_pset", model, product=space, name="Pset_SpaceCommon")
+                ifcopenshell.api.run("pset.edit_pset", model, pset=ps,
+                                     properties={"Reference": "ROOM", "Category": "Habitable"})
+                count += 1
+    return count
+
+
 # recipe registry — what an API endpoint / Bonsai-MCP can invoke by name
 RECIPES = {
     "set_pset": lambda m, p: set_pset_on_class(
@@ -61,6 +142,8 @@ RECIPES = {
         _coerce(p.get("value"), p.get("dtype", "str"))),
     "batch_tag": lambda m, p: batch_tag(m, p["ifc_class"], p["label"]),
     "place_type": lambda m, p: place_type(m, p["type_guid"], p["storey"]),
+    "add_spaces": lambda m, p: add_spaces(m, int(p.get("rooms_per_storey", 4)),
+                                          float(p.get("ceiling_height", 3.0))),
 }
 
 

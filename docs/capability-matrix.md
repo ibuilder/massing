@@ -25,7 +25,7 @@ working + verified here; **Bridge** = via the Blender/Bonsai desktop editor (Pha
 | 5D quantification / cost | Yes | Partial | Yes | **Built** — QTO + cost-code map + geometry fallback |
 | **ANALYSIS & QA** | | | | |
 | Structural / load visualization | Yes | Yes | No | **Built (partial)** — color-by-data overlay |
-| Energy / MEP systems analysis | No | Yes | No | Out of scope |
+| Energy / MEP systems analysis | No | Yes | No | **Built** — envelope energy model (UA + degree-day → loads/EUI from real geometry) + MEP inventory |
 | **IDS / model validation (QA)** | Yes | Partial | Partial | **Built** — ifctester, → highlight failures |
 | Photorealistic rendering | Yes | Partial | Yes | **Bridge** (Blender render engine) |
 | **INTEROP & AUTOMATION** | | | | |

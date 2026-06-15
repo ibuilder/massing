@@ -55,6 +55,15 @@ export interface ModuleRecord {
   available_actions?: { action: string; to: string; party: string[] }[];
 }
 
+export interface EnergyResult {
+  areas_m2: Record<string, number>;
+  ua_w_per_k: Record<string, number>;
+  loads: { design_heating_kw: number; design_cooling_kw: number };
+  annual_kwh: { heating: number; cooling: number; total: number };
+  eui_kwh_m2_yr: number;
+  element_counts: Record<string, number>;
+}
+
 export interface Dashboard {
   party: string;
   kpis: Record<string, number>;
@@ -142,6 +151,12 @@ export class ApiClient {
   }
   validate(pid: string) {
     return fetch(this.url(`/projects/${pid}/validate`), { method: "POST" }).then((r) => r.json() as Promise<ValidationResult>);
+  }
+  energy(pid: string) {
+    return this.json<EnergyResult>(`/projects/${pid}/energy`);
+  }
+  mep(pid: string) {
+    return this.json<{ by_class: Record<string, number>; systems: Record<string, string>; total_distribution_elements: number }>(`/projects/${pid}/mep`);
   }
 
   // 2D documentation

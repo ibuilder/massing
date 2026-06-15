@@ -110,6 +110,28 @@ def run_clash_federated(
             "clashes": results[:limit], "truncated": len(results) > limit}
 
 
+@router.get("/projects/{pid}/energy")
+def energy(pid: str, u_wall: float | None = None, u_window: float | None = None,
+           ach: float | None = None, hdd: float | None = None, cdd: float | None = None,
+           delta_t: float | None = None, db: Session = Depends(get_db)):
+    """Envelope energy analysis (UA + degree-day) computed from the model geometry.
+    Construction U-values and climate degree-days are overridable via query params."""
+    from aec_data import energy as en  # type: ignore
+
+    overrides = {k: v for k, v in dict(u_wall=u_wall, u_window=u_window, ach=ach,
+                                       hdd=hdd, cdd=cdd, delta_t=delta_t).items() if v is not None}
+    return en.analyze_file(_source_ifc(db, pid), overrides)
+
+
+@router.get("/projects/{pid}/mep")
+def mep(pid: str, db: Session = Depends(get_db)):
+    """MEP systems inventory from the model."""
+    from aec_data import energy as en  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    return en.mep_inventory(open_model(_source_ifc(db, pid)))
+
+
 @router.post("/projects/{pid}/validate")
 async def run_validate(
     pid: str,
