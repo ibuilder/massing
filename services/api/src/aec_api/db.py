@@ -26,8 +26,29 @@ def get_db() -> Iterator[Session]:
         db.close()
 
 
+def _ensure_columns() -> None:
+    """Additive, dbDelta-style schema sync: create_all never ALTERs existing tables, so add
+    any model columns missing from already-created tables. Additive only — never drops.
+    Keeps SQLite (dev) and Postgres (prod) in sync as the models gain nullable columns."""
+    from sqlalchemy import inspect, text
+
+    insp = inspect(engine)
+    existing = set(insp.get_table_names())
+    for table in Base.metadata.sorted_tables:
+        if table.name not in existing:
+            continue
+        have = {c["name"] for c in insp.get_columns(table.name)}
+        for col in table.columns:
+            if col.name in have:
+                continue
+            coltype = col.type.compile(engine.dialect)
+            with engine.begin() as conn:
+                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {coltype}'))
+
+
 def init_db() -> None:
     from . import models  # noqa: F401  (register mappers)
     from . import modules  # GC portal: register one mod_<key> table per module.json
     modules.load_registry()
     Base.metadata.create_all(bind=engine)
+    _ensure_columns()

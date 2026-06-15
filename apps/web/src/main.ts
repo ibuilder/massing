@@ -615,7 +615,7 @@ async function openPortfolioTab() {
   const kpis: [string, string][] = [
     ["Deals", String(p.deal_count)], ["Total cap", m(t.total_capitalization)],
     ["Total equity", m(t.total_equity)], ["Blended LTC", pc(t.blended_ltc)],
-    ["Blended equity IRR", pc(t.blended_equity_irr)], ["Portfolio EM", `${t.portfolio_equity_multiple ?? "—"}×`],
+    ["Portfolio IRR", pc(t.portfolio_irr)], ["Portfolio EM", `${t.portfolio_equity_multiple ?? "—"}×`],
   ];
   const rows = p.deals.map((d) =>
     `<tr><th style="text-align:left">${d.name}</th><td>${m(d.total_uses)}</td>` +

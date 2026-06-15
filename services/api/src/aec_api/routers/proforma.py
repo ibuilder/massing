@@ -270,12 +270,21 @@ def draw_package(sid: str, body: DrawPackageIn, db: Session = Depends(get_db)):
 def portfolio(db: Session = Depends(get_db)):
     """Multi-deal roll-up across all solved scenarios: total capitalization, equity-weighted
     blended IRR, aggregate equity multiple, and per-deal metrics."""
+    from collections import defaultdict
+    from datetime import date as _date
+
+    from ..proforma.returns import xirr
+
     scens = [s for s in db.query(Scenario).order_by(Scenario.created_at).all() if s.result]
     deals = []
     tot_uses = tot_equity = tot_debt = 0.0
     w_eq = w_irr = 0.0
     tot_contrib = tot_dist = 0.0
+    combined: dict = defaultdict(float)   # date -> summed equity cash flow across deals
     for s in scens:
+        cf = s.result.get("cash_flow", {})
+        for d, amt in zip(cf.get("dates", []), cf.get("equity", [])):
+            combined[d] += float(amt)
         su = s.result.get("sources_uses", {})
         ret = s.result.get("returns", {})
         eq = float(su.get("equity", 0))
@@ -293,6 +302,9 @@ def portfolio(db: Session = Depends(get_db)):
             "equity": round(eq, 0), "loan": round(float(su.get("loan_amount", 0)), 0),
             "equity_irr": eirr, "equity_multiple": ret.get("equity_multiple"),
         })
+    # true portfolio IRR: XIRR on the combined dated equity cash flows across all deals
+    combined_cf = sorted((_date.fromisoformat(d), v) for d, v in combined.items())
+    portfolio_irr = xirr(combined_cf) if len(combined_cf) > 1 else None
     return {
         "deal_count": len(deals),
         "totals": {
@@ -300,6 +312,7 @@ def portfolio(db: Session = Depends(get_db)):
             "total_equity": round(tot_equity, 0),
             "total_debt": round(tot_debt, 0),
             "blended_ltc": round(tot_debt / tot_uses, 3) if tot_uses else 0,
+            "portfolio_irr": round(portfolio_irr, 4) if portfolio_irr is not None else None,
             "blended_equity_irr": round(w_irr / w_eq, 4) if w_eq else None,
             "portfolio_equity_multiple": round(tot_dist / tot_contrib, 3) if tot_contrib else 0,
         },
