@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db import init_db
-from .routers import analysis, bim, drawings, exports, properties
+from .routers import analysis, authoring, bim, drawings, exports, properties
 
 
 @asynccontextmanager
@@ -31,6 +31,7 @@ app.include_router(properties.router, tags=["properties"])
 app.include_router(exports.router, tags=["exports"])
 app.include_router(analysis.router, tags=["analysis"])
 app.include_router(drawings.router, tags=["drawings"])
+app.include_router(authoring.router, tags=["authoring"])
 
 
 @app.get("/health")

@@ -331,6 +331,37 @@ function buildToolsPanel() {
   }
   panel.appendChild(qa);
 
+  // --- Authoring round-trip (Phase 6) ---
+  const au = document.createElement("div");
+  au.innerHTML = `<div class="section-title" style="margin-top:14px">Authoring (round-trip)</div>`;
+  const auOut = document.createElement("div"); auOut.className = "meta"; auOut.id = "au-out";
+  if (!projectId) {
+    auOut.textContent = "connect a project to author";
+    au.appendChild(auOut);
+  } else {
+    const fixBtn = document.createElement("button");
+    fixBtn.className = "tool-btn"; fixBtn.textContent = "✎ Fix slabs: set LoadBearing";
+    fixBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
+    fixBtn.onclick = async () => {
+      auOut.textContent = "editing IFC + republishing…";
+      const r = await api.editIfc(projectId!, "set_pset",
+        { ifc_class: "IfcSlab", pset: "Pset_SlabCommon", prop: "LoadBearing", value: true, dtype: "bool" }, true);
+      const v = await api.validate(projectId!);
+      auOut.innerHTML = `edited ${r.changed} slabs · republished<br><b>IDS now: ${v.status.toUpperCase()}</b> ` +
+        `(${v.summary.passed} pass / ${v.summary.failed} fail)`;
+    };
+    const pubBtn = document.createElement("button");
+    pubBtn.className = "tool-btn"; pubBtn.textContent = "⟳ Republish (reconvert + reindex)";
+    pubBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
+    pubBtn.onclick = async () => {
+      auOut.textContent = "publishing…";
+      const r = await api.publish(projectId!);
+      auOut.textContent = `reconverted=${r.reconverted} · reindexed ${r.reindexed} elements`;
+    };
+    au.append(fixBtn, pubBtn, auOut);
+  }
+  panel.appendChild(au);
+
   // --- 2D documentation (plans / sections) ---
   const dr = document.createElement("div");
   dr.innerHTML = `<div class="section-title" style="margin-top:14px">Drawings (2D)</div>`;

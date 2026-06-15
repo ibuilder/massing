@@ -8,8 +8,8 @@ working + verified here; **Bridge** = via the Blender/Bonsai desktop editor (Pha
 |---|---|---|---|---|
 | **MODELING & AUTHORING** | | | | |
 | Parametric model authoring | Yes | Native | No | **Bridge** (Blender+Bonsai via Bonsai-MCP) |
-| Native IFC authoring (model IS IFC) | Native | No | No | **Bridge** — IFC is our source of truth |
-| Parametric families / components | Partial | Native | No | **Bridge** + `families/` IFC type libraries + `recipes.py` |
+| Native IFC authoring (model IS IFC) | Native | No | No | **Built (headless)** — `ifcopenshell.api` recipes + `/edit` round-trip; **Bridge** for GUI |
+| Parametric families / components | Partial | Native | No | **Built** — `place_type` recipe instantiates IFC types; `families/` libraries; **Bridge** for parametric authoring |
 | Parametric stairs/roofs/complex | Yes | Yes | No | **Bridge** |
 | **DOCUMENTATION** | | | | |
 | Construction drawings (plans/sections) | Partial | Native | No | **Built** — IFC section-cut → SVG plans (per storey) + sections |

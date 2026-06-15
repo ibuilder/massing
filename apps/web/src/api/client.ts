@@ -109,6 +109,16 @@ export class ApiClient {
   drawingStoreys(pid: string) {
     return this.json<{ name: string; elevation: number }[]>(`/projects/${pid}/drawings/storeys`);
   }
+
+  // authoring round-trip (Phase 6)
+  editIfc(pid: string, recipe: string, params: Record<string, unknown>, publish = true) {
+    return this.json<{ recipe: string; changed: number; published: unknown }>(
+      `/projects/${pid}/edit`, { method: "POST", body: JSON.stringify({ recipe, params, publish }) });
+  }
+  publish(pid: string) {
+    return this.json<{ reconverted: boolean; reindexed: number }>(
+      `/projects/${pid}/publish`, { method: "POST", body: JSON.stringify({ reconvert: true }) });
+  }
 }
 
 export interface ClashResult {
