@@ -215,9 +215,11 @@ function closeMenus(keep?: Element) {
 }
 // Robust dismissal: capture phase fires before the viewer's camera controls can
 // stopPropagation, and covers click-drags on the canvas that never emit a "click".
-document.addEventListener("pointerdown", (e) => {
-  if (!(e.target as HTMLElement).closest(".menu")) closeMenus();
-}, true);
+// Listen on both pointerdown and click so a dropdown can never get stuck open.
+const dismissMenusIfOutside = (e: Event) => { if (!(e.target as HTMLElement).closest(".menu")) closeMenus(); };
+document.addEventListener("pointerdown", dismissMenusIfOutside, true);
+document.addEventListener("click", dismissMenusIfOutside, true);
+window.addEventListener("blur", () => closeMenus());
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenus(); });
 buildMenu("open-menu", "Open ▾", [
   { label: "Open IFC…", onClick: () => $("ifc-input").click() },
