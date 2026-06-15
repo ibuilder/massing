@@ -2,13 +2,16 @@
 endpoints (guide §7). Modeled on BCF-API so issues round-trip with other BIM tools."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from sqlalchemy.orm import Session
 
-from .. import audit, bcf_io, storage
-from ..auth import require_writer
+from pydantic import BaseModel
+
+from .. import audit, bcf_io, rbac, storage
 from ..db import get_db
-from ..models import Attachment, Comment, Project, Topic, Viewpoint
+from ..models import Attachment, Comment, Project, ProjectMember, Topic, Viewpoint
+from ..rbac import current_user, require_role
+from ..serving import range_response
 from ..schemas import (
     AttachmentOut, CommentIn, CommentOut, ProjectIn, ProjectOut, ProjectPatch,
     TopicIn, TopicOut, TopicPatch, ViewpointIn, ViewpointOut,
@@ -20,13 +23,38 @@ router = APIRouter()
 # --- projects ----------------------------------------------------------------
 @router.post("/projects", response_model=ProjectOut, status_code=201)
 def create_project(body: ProjectIn, db: Session = Depends(get_db),
-                   actor: str = Depends(require_writer)):
+                   actor: str = Depends(current_user)):
     p = Project(name=body.name, origin=body.origin, source_ifc=body.source_ifc)
     db.add(p)
+    db.flush()
+    rbac.grant(db, p.id, actor, "admin")  # creator becomes project admin
     audit.record(db, action="project.create", actor=actor, method="POST",
                  path="/projects", detail={"name": body.name})
     db.commit()
     return p
+
+
+# --- members (RBAC) ----------------------------------------------------------
+class MemberIn(BaseModel):
+    user: str
+    role: str
+
+
+@router.get("/projects/{pid}/members")
+def list_members(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    rows = db.query(ProjectMember).filter(ProjectMember.project_id == pid).all()
+    return [{"user": m.user, "role": m.role} for m in rows]
+
+
+@router.post("/projects/{pid}/members", status_code=201)
+def add_member(pid: str, body: MemberIn, db: Session = Depends(get_db),
+               actor: str = Depends(require_role("admin"))):
+    _project(db, pid)
+    m = rbac.grant(db, pid, body.user, body.role)
+    audit.record(db, action="member.grant", actor=actor, method="POST",
+                 path=f"/projects/{pid}/members", detail={"user": body.user, "role": body.role})
+    db.commit()
+    return {"user": m.user, "role": m.role}
 
 
 @router.get("/projects", response_model=list[ProjectOut])
@@ -41,7 +69,7 @@ def get_project(pid: str, db: Session = Depends(get_db)):
 
 @router.patch("/projects/{pid}", response_model=ProjectOut)
 def patch_project(pid: str, body: ProjectPatch, db: Session = Depends(get_db),
-                  actor: str = Depends(require_writer)):
+                  actor: str = Depends(require_role("admin"))):
     p = _project(db, pid)
     changes = body.model_dump(exclude_unset=True)
     for k, v in changes.items():
@@ -55,7 +83,7 @@ def patch_project(pid: str, body: ProjectPatch, db: Session = Depends(get_db),
 # --- topics ------------------------------------------------------------------
 @router.post("/projects/{pid}/topics", response_model=TopicOut, status_code=201)
 def create_topic(pid: str, body: TopicIn, db: Session = Depends(get_db),
-                 actor: str = Depends(require_writer)):
+                 actor: str = Depends(require_role("reviewer"))):
     _project(db, pid)
     t = Topic(project_id=pid, **body.model_dump())
     db.add(t)
@@ -84,7 +112,7 @@ def get_topic(pid: str, tid: str, db: Session = Depends(get_db)):
 
 @router.patch("/projects/{pid}/topics/{tid}", response_model=TopicOut)
 def patch_topic(pid: str, tid: str, body: TopicPatch, db: Session = Depends(get_db),
-                actor: str = Depends(require_writer)):
+                actor: str = Depends(require_role("reviewer"))):
     t = _topic(db, pid, tid)
     changes = body.model_dump(exclude_unset=True)
     for k, v in changes.items():
@@ -103,7 +131,8 @@ def list_pins(pid: str, db: Session = Depends(get_db)):
 
 # --- comments ----------------------------------------------------------------
 @router.post("/projects/{pid}/topics/{tid}/comments", response_model=CommentOut, status_code=201)
-def add_comment(pid: str, tid: str, body: CommentIn, db: Session = Depends(get_db)):
+def add_comment(pid: str, tid: str, body: CommentIn, db: Session = Depends(get_db),
+                _: str = Depends(require_role("reviewer"))):
     _topic(db, pid, tid)
     c = Comment(topic_id=tid, **body.model_dump())
     db.add(c)
@@ -121,7 +150,8 @@ def list_comments(pid: str, tid: str, db: Session = Depends(get_db)):
 
 # --- viewpoints --------------------------------------------------------------
 @router.post("/projects/{pid}/topics/{tid}/viewpoints", response_model=ViewpointOut, status_code=201)
-def add_viewpoint(pid: str, tid: str, body: ViewpointIn, db: Session = Depends(get_db)):
+def add_viewpoint(pid: str, tid: str, body: ViewpointIn, db: Session = Depends(get_db),
+                  _: str = Depends(require_role("reviewer"))):
     _topic(db, pid, tid)
     v = Viewpoint(topic_id=tid, **body.model_dump())
     db.add(v)
@@ -140,7 +170,8 @@ def list_viewpoints(pid: str, tid: str, db: Session = Depends(get_db)):
 # --- attachments (drawings, photos, PDFs) -----------------------------------
 @router.post("/projects/{pid}/topics/{tid}/attachments", response_model=AttachmentOut, status_code=201)
 async def add_attachment(pid: str, tid: str, kind: str = Form("file"),
-                         file: UploadFile = File(...), db: Session = Depends(get_db)):
+                         file: UploadFile = File(...), db: Session = Depends(get_db),
+                         _: str = Depends(require_role("reviewer"))):
     _topic(db, pid, tid)
     data = await file.read()
     key = f"{pid}/{tid}/{file.filename}"
@@ -161,12 +192,19 @@ def list_attachments(pid: str, tid: str, db: Session = Depends(get_db)):
 
 
 @router.get("/attachments/{aid}/download")
-def download_attachment(aid: str, db: Session = Depends(get_db)):
+def download_attachment(aid: str, request: Request, db: Session = Depends(get_db)):
     a = db.get(Attachment, aid)
     if not a:
         raise HTTPException(404, "attachment not found")
-    return Response(storage.get(a.storage_key), media_type=a.content_type or "application/octet-stream",
-                    headers={"Content-Disposition": f'attachment; filename="{a.filename}"'})
+    return range_response(request, a.storage_key, a.content_type or "application/octet-stream",
+                          filename=a.filename, disposition="attachment")
+
+
+@router.get("/projects/{pid}/model.frag")
+def model_frag(pid: str, request: Request):
+    """Serve the published Fragments tile with HTTP range support (streaming)."""
+    return range_response(request, f"{pid}/model.frag", "application/octet-stream",
+                          filename="model.frag")
 
 
 # --- BCF interoperability ----------------------------------------------------
@@ -179,7 +217,8 @@ def bcf_export(pid: str, db: Session = Depends(get_db)):
 
 
 @router.post("/projects/{pid}/bcf/import")
-async def bcf_import(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def bcf_import(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
+                     _: str = Depends(require_role("editor"))):
     _project(db, pid)
     count = bcf_io.import_bcfzip(db, pid, await file.read())
     audit.record(db, action="bcf.import", method="POST", path=f"/projects/{pid}/bcf/import",

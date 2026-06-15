@@ -1,14 +1,12 @@
-# IFC→Fragments converter worker (Node). web-ifc WASM is bundled via node_modules.
+# IFC→Fragments converter (Node). Build context = repo root.
 FROM node:20-slim
-
 WORKDIR /app
-# converter deps are hoisted at the monorepo root; copy root manifest + installed modules.
-COPY package.json package-lock.json* ./
-COPY services/converter/package.json ./services/converter/package.json
-RUN npm install --omit=dev --workspaces --include-workspace-root || npm install --omit=dev
 
-COPY services/converter ./services/converter
-COPY node_modules ./node_modules
+# install just what the converter needs; web-ifc ships its own WASM
+RUN npm init -y >/dev/null 2>&1 \
+    && npm install @thatopen/fragments@3.4.5 web-ifc@0.0.77
 
-WORKDIR /app/services/converter
-ENTRYPOINT ["node", "src/cli.mjs"]
+COPY services/converter /app/services/converter
+
+# usage: docker compose run --rm converter /data/model.ifc /data/model.frag
+ENTRYPOINT ["node", "services/converter/src/cli.mjs"]

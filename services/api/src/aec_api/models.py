@@ -32,6 +32,16 @@ class Project(Base):
     topics: Mapped[list["Topic"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
+class ProjectMember(Base):
+    """Project-scoped role (guide §7/§10): viewer < reviewer < editor < admin."""
+    __tablename__ = "project_members"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    user: Mapped[str] = mapped_column(String, index=True)
+    role: Mapped[str] = mapped_column(String, default="viewer")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class Topic(Base):
     """An RFI / punchlist item / clash / info note. A *pin* is a Topic with an anchor."""
     __tablename__ = "topics"

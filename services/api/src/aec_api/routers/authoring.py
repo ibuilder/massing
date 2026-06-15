@@ -13,7 +13,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import audit, storage
-from ..auth import require_writer
+from ..rbac import require_role
 from ..db import get_db
 from ..models import Project
 from . import properties as props_router
@@ -39,7 +39,7 @@ def _project(db: Session, pid: str) -> Project:
 @router.post("/projects/{pid}/edit")
 def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
          publish: bool = Body(default=False), db: Session = Depends(get_db),
-         actor: str = Depends(require_writer)):
+         actor: str = Depends(require_role("editor"))):
     """Apply an authoring recipe (set_pset | batch_tag | place_type) to the source IFC,
     saving a new version. GUIDs of existing elements are preserved."""
     from aec_data import edit as ed  # type: ignore
@@ -58,7 +58,7 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
 
 @router.post("/projects/{pid}/publish")
 def publish(pid: str, reconvert: bool = Body(default=True), db: Session = Depends(get_db),
-            actor: str = Depends(require_writer)):
+            actor: str = Depends(require_role("editor"))):
     """Re-run the pipeline on the current source IFC: convert to .frag + rebuild the
     properties index, so the viewer streams the updated model."""
     p = _project(db, pid)

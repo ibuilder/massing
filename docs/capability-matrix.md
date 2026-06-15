@@ -33,7 +33,7 @@ working + verified here; **Bridge** = via the Blender/Bonsai desktop editor (Pha
 | Vendor-neutral / openBIM | Yes | No | No | **Built** — IFC + BCF + IDS throughout |
 | Scripting / API | Yes | Yes | Partial | **Built** — FastAPI + Python; MCP bridge |
 | **COLLABORATION & COST** | | | | |
-| Multi-user / cloud collab | Partial | Yes | Partial | **Built (foundation)** — server API + roles/auth hook |
+| Multi-user / cloud collab | Partial | Yes | Partial | **Built** — server API + project-scoped RBAC (viewer/reviewer/editor/admin), audit log; Postgres/MinIO stack |
 | Licensing | Free | Paid | Paid | **Free / open** (GPL editor kept separate) |
 
 ## Verified this round

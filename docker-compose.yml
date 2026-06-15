@@ -1,8 +1,5 @@
-# Dev/self-host stack. The converter (Node) and APS worker are added in Phase 1;
-# `web` is served as static built assets in prod. For local dev, run the web app with
-# `npm run dev` instead of the `web` service.
-version: "3.9"
-
+# Self-host / prod stack. Boot the core with:  docker compose --profile full up --build
+# Convert a model (job):       docker compose run --rm converter /data/model.ifc /data/model.frag
 services:
   postgres:
     image: postgres:16
@@ -10,10 +7,8 @@ services:
       POSTGRES_USER: bim
       POSTGRES_PASSWORD: bim
       POSTGRES_DB: bim
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+    ports: ["5432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bim"]
       interval: 5s
@@ -26,11 +21,8 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # console
-    volumes:
-      - minio-data:/data
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["minio-data:/data"]
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -38,25 +30,37 @@ services:
       retries: 10
 
   api:
-    build: ./services/api
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
     depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      postgres: { condition: service_healthy }
+      minio: { condition: service_healthy }
     environment:
       DATABASE_URL: postgresql+psycopg://bim:bim@postgres:5432/bim
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
-    ports:
-      - "8000:8000"
+      S3_BUCKET: aec-bim
+      AEC_RBAC: "${AEC_RBAC:-0}"           # set 1 to enforce project roles
+      AEC_API_KEY: "${AEC_API_KEY:-}"
+    ports: ["8000:8000"]
     profiles: ["full"]
 
-  # converter:  # Phase 1 — Node worker (IFC→.frag). Added when implemented.
-  #   build: ./services/converter
-  #   depends_on: [minio]
-  #   profiles: ["full"]
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on: [api]
+    ports: ["8080:80"]
+    profiles: ["full"]
+
+  converter:
+    build:
+      context: .
+      dockerfile: services/converter/Dockerfile
+    volumes: ["./data:/data"]            # drop IFCs here; .frag written here
+    profiles: ["tools"]                  # job-style: `docker compose run --rm converter ...`
 
 volumes:
   postgres-data:

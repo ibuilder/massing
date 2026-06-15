@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import audit
-from ..auth import require_writer
+from ..rbac import require_role
 from ..db import get_db
 from ..models import Project, Topic
 
@@ -45,7 +45,7 @@ def run_clash(
     create_topics: bool = False,
     limit: int = 200,
     db: Session = Depends(get_db),
-    actor: str = Depends(require_writer),
+    actor: str = Depends(require_role("editor")),
 ):
     """Detect clashes between two IFC-class groups (comma-separated in `a` / `b`).
     narrow=true runs the mesh boolean-intersection narrow phase (exact penetration volume).

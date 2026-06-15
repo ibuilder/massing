@@ -50,6 +50,10 @@ apps/web/public/wasm/*.wasm
 # local editor/agent settings
 .claude/settings.local.json
 
+# converter drop dir (IFCs in / .frag out) — keep the dir, not the contents
+data/*
+!data/.gitkeep
+
 # editor / os
 .vscode/
 .idea/
