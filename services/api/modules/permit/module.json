@@ -1,0 +1,44 @@
+{
+  "key": "permit",
+  "name": "Permitting",
+  "section": "Engineering",
+  "icon": "\u25a3",
+  "ref_prefix": "PMT",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Permit",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "authority",
+      "label": "Authority",
+      "type": "text"
+    },
+    {
+      "name": "expires",
+      "label": "Expires",
+      "type": "date"
+    }
+  ],
+  "workflow": {
+    "initial": "applied",
+    "states": [
+      "applied",
+      "issued"
+    ],
+    "transitions": [
+      {
+        "from": "applied",
+        "to": "issued",
+        "action": "issue",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

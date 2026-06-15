@@ -1,0 +1,39 @@
+{
+  "key": "as_built",
+  "name": "As-Builts",
+  "section": "Closeout",
+  "icon": "\u25ad",
+  "ref_prefix": "AB",
+  "title_field": "number",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "number",
+      "label": "Sheet",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "status",
+      "label": "Status",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

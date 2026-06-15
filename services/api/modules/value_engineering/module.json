@@ -1,0 +1,48 @@
+{
+  "key": "value_engineering",
+  "name": "Value Engineering",
+  "section": "Preconstruction",
+  "icon": "\u25c6",
+  "ref_prefix": "VE",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "VE Item",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "savings",
+      "label": "Est. Savings",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "proposed",
+    "states": [
+      "accepted",
+      "proposed",
+      "rejected"
+    ],
+    "transitions": [
+      {
+        "from": "proposed",
+        "to": "accepted",
+        "action": "accept",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "proposed",
+        "to": "rejected",
+        "action": "reject",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

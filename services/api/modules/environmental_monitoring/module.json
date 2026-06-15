@@ -1,0 +1,44 @@
+{
+  "key": "environmental_monitoring",
+  "name": "Environmental Monitoring",
+  "section": "Sustainability",
+  "icon": "\u25c9",
+  "ref_prefix": "ENV",
+  "title_field": "metric",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "metric",
+      "label": "Metric",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "value",
+      "label": "Value",
+      "type": "number"
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

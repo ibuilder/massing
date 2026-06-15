@@ -1,0 +1,44 @@
+{
+  "key": "delivery",
+  "name": "Deliveries",
+  "section": "Field",
+  "icon": "\u25a4",
+  "ref_prefix": "DEL",
+  "title_field": "description",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "description",
+      "label": "Material",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date"
+    },
+    {
+      "name": "supplier",
+      "label": "Supplier",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

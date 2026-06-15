@@ -1,0 +1,46 @@
+{
+  "key": "owner_invoice",
+  "name": "Owner Invoices",
+  "section": "Cost",
+  "icon": "$",
+  "ref_prefix": "OINV",
+  "title_field": "number",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "number",
+      "label": "Invoice No.",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "amount",
+      "label": "Amount",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "paid",
+      "submitted"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "submitted",
+        "action": "submit",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "submitted",
+        "to": "paid",
+        "action": "mark_paid",
+        "party": "Owner"
+      }
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "key": "observation",
+  "name": "Safety Observations",
+  "section": "Safety",
+  "icon": "\u25ce",
+  "ref_prefix": "OBS",
+  "title_field": "description",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "description",
+      "label": "Observation",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "type",
+      "label": "Type",
+      "type": "select",
+      "options": [
+        "Safe",
+        "At-Risk"
+      ]
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

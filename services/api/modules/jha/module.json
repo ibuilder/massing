@@ -1,0 +1,44 @@
+{
+  "key": "jha",
+  "name": "Job Hazard Analyses",
+  "section": "Safety",
+  "icon": "\u26a0",
+  "ref_prefix": "JHA",
+  "title_field": "task",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "task",
+      "label": "Task",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "hazards",
+      "label": "Hazards",
+      "type": "textarea"
+    },
+    {
+      "name": "controls",
+      "label": "Controls",
+      "type": "textarea"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

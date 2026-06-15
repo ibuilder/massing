@@ -1,0 +1,44 @@
+{
+  "key": "equipment_log",
+  "name": "Equipment Log",
+  "section": "Field",
+  "icon": "\u2699",
+  "ref_prefix": "EQ",
+  "title_field": "equipment",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "equipment",
+      "label": "Equipment",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date"
+    },
+    {
+      "name": "hours",
+      "label": "Hours",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

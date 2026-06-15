@@ -1,0 +1,48 @@
+{
+  "key": "change_event",
+  "name": "Change Events",
+  "section": "Cost",
+  "icon": "\u271a",
+  "ref_prefix": "CE",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Change Event",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "rom",
+      "label": "ROM Cost",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "closed",
+      "open",
+      "pending"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "pending",
+        "action": "submit",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "pending",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

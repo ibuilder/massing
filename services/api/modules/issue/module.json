@@ -1,0 +1,58 @@
+{
+  "key": "issue",
+  "name": "Issues",
+  "section": "Engineering",
+  "icon": "!",
+  "ref_prefix": "ISS",
+  "title_field": "subject",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Issue",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "textarea"
+    },
+    {
+      "name": "priority",
+      "label": "Priority",
+      "type": "select",
+      "options": [
+        "Low",
+        "Medium",
+        "High"
+      ]
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "closed",
+      "open",
+      "resolved"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "resolved",
+        "action": "resolve",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "resolved",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

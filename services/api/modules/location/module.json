@@ -1,0 +1,39 @@
+{
+  "key": "location",
+  "name": "Locations",
+  "section": "Resources",
+  "icon": "\u25ce",
+  "ref_prefix": "LOC",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Location",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "level",
+      "label": "Level",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

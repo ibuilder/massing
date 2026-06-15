@@ -1,0 +1,50 @@
+{
+  "key": "site_logistics",
+  "name": "Site Logistics",
+  "section": "Field",
+  "icon": "\u25a6",
+  "ref_prefix": "LOG",
+  "title_field": "resource",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "resource",
+      "label": "Resource",
+      "type": "select",
+      "required": true,
+      "options": [
+        "Crane",
+        "Hoist",
+        "Laydown",
+        "Gate"
+      ]
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date"
+    },
+    {
+      "name": "company",
+      "label": "Booked By",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

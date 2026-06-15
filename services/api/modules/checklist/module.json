@@ -1,0 +1,39 @@
+{
+  "key": "checklist",
+  "name": "Checklists",
+  "section": "Field",
+  "icon": "\u2611",
+  "ref_prefix": "CL",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Checklist",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

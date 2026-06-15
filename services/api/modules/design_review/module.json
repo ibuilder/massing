@@ -1,0 +1,39 @@
+{
+  "key": "design_review",
+  "name": "Design Reviews",
+  "section": "Engineering",
+  "icon": "\u25c9",
+  "ref_prefix": "DR",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Review",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "comments",
+      "label": "Comments",
+      "type": "textarea"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "closed",
+      "open"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

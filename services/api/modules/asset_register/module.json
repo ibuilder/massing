@@ -1,0 +1,49 @@
+{
+  "key": "asset_register",
+  "name": "Asset Register",
+  "section": "Closeout",
+  "icon": "\u25a6",
+  "ref_prefix": "AST",
+  "title_field": "name",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Asset",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "tag",
+      "label": "Tag",
+      "type": "text"
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text"
+    },
+    {
+      "name": "warranty_expires",
+      "label": "Warranty Expires",
+      "type": "date"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "key": "schedule_activity",
+  "name": "Schedule",
+  "section": "Field",
+  "icon": "\u25b8",
+  "ref_prefix": "ACT",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Activity",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "wbs",
+      "label": "WBS",
+      "type": "text"
+    },
+    {
+      "name": "start",
+      "label": "Start",
+      "type": "date"
+    },
+    {
+      "name": "finish",
+      "label": "Finish",
+      "type": "date"
+    },
+    {
+      "name": "percent",
+      "label": "% Complete",
+      "type": "number"
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

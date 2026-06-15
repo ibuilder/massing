@@ -1,0 +1,49 @@
+{
+  "key": "production_quantity",
+  "name": "Production Quantities",
+  "section": "Field",
+  "icon": "\u03a3",
+  "ref_prefix": "PQTY",
+  "title_field": "description",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "description",
+      "label": "Item",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "quantity",
+      "label": "Qty Installed",
+      "type": "number"
+    },
+    {
+      "name": "unit",
+      "label": "Unit",
+      "type": "text"
+    },
+    {
+      "name": "cost_code",
+      "label": "Cost Code",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

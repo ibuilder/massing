@@ -1,0 +1,39 @@
+{
+  "key": "coi",
+  "name": "Insurance Certificates",
+  "section": "Contracts",
+  "icon": "\u25a3",
+  "ref_prefix": "COI",
+  "title_field": "vendor",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "vendor",
+      "label": "Vendor",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "expires",
+      "label": "Expires",
+      "type": "date"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

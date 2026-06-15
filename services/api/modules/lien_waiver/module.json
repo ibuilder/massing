@@ -1,0 +1,44 @@
+{
+  "key": "lien_waiver",
+  "name": "Lien Waivers",
+  "section": "Contracts",
+  "icon": "\u2713",
+  "ref_prefix": "LW",
+  "title_field": "vendor",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "vendor",
+      "label": "Vendor",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "amount",
+      "label": "Through Amount",
+      "type": "number"
+    },
+    {
+      "name": "signature",
+      "label": "Signature",
+      "type": "signature"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

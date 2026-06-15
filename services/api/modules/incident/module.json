@@ -1,0 +1,59 @@
+{
+  "key": "incident",
+  "name": "Incidents",
+  "section": "Safety",
+  "icon": "\u2691",
+  "ref_prefix": "INC",
+  "title_field": "subject",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Incident",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "textarea"
+    },
+    {
+      "name": "severity",
+      "label": "Severity",
+      "type": "select",
+      "options": [
+        "Near Miss",
+        "First Aid",
+        "Recordable",
+        "Lost Time"
+      ]
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "closed",
+      "investigating",
+      "open"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "investigating",
+        "action": "investigate",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "investigating",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

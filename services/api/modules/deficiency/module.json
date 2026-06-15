@@ -1,0 +1,39 @@
+{
+  "key": "deficiency",
+  "name": "Deficiencies",
+  "section": "Quality",
+  "icon": "\u2717",
+  "ref_prefix": "DEF",
+  "title_field": "description",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "description",
+      "label": "Deficiency",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "key": "bid_package",
+  "name": "Bid Packages",
+  "section": "Preconstruction",
+  "icon": "\u25a6",
+  "ref_prefix": "BP",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Package",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "trade",
+      "label": "Trade",
+      "type": "text"
+    },
+    {
+      "name": "budget",
+      "label": "Budget",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

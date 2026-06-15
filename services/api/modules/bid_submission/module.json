@@ -1,0 +1,44 @@
+{
+  "key": "bid_submission",
+  "name": "Bid Submissions",
+  "section": "Preconstruction",
+  "icon": "$",
+  "ref_prefix": "BID",
+  "title_field": "bidder",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "bidder",
+      "label": "Bidder",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "package",
+      "label": "Package",
+      "type": "text"
+    },
+    {
+      "name": "amount",
+      "label": "Amount",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

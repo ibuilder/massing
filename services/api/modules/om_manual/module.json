@@ -1,0 +1,39 @@
+{
+  "key": "om_manual",
+  "name": "O&M Manuals",
+  "section": "Closeout",
+  "icon": "\u25a4",
+  "ref_prefix": "OM",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Manual",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "system",
+      "label": "System",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

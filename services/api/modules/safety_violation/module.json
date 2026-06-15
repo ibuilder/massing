@@ -1,0 +1,39 @@
+{
+  "key": "safety_violation",
+  "name": "Safety Violations",
+  "section": "Safety",
+  "icon": "\u2717",
+  "ref_prefix": "SV",
+  "title_field": "description",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "description",
+      "label": "Violation",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "company",
+      "label": "Company",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

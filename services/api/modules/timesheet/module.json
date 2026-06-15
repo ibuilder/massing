@@ -1,0 +1,49 @@
+{
+  "key": "timesheet",
+  "name": "Timesheets",
+  "section": "Field",
+  "icon": "\u23f1",
+  "ref_prefix": "TS",
+  "title_field": "worker",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "worker",
+      "label": "Worker",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date"
+    },
+    {
+      "name": "hours",
+      "label": "Hours",
+      "type": "number"
+    },
+    {
+      "name": "cost_code",
+      "label": "Cost Code",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "approved",
+      "draft"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "approved",
+        "action": "approve",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

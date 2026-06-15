@@ -1,0 +1,49 @@
+{
+  "key": "drawing",
+  "name": "Drawings & Specs",
+  "section": "Engineering",
+  "icon": "\u25ad",
+  "ref_prefix": "DWG",
+  "title_field": "number",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "number",
+      "label": "Sheet No.",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "title",
+      "label": "Title",
+      "type": "text"
+    },
+    {
+      "name": "revision",
+      "label": "Rev",
+      "type": "text"
+    },
+    {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "key": "commissioning",
+  "name": "Commissioning",
+  "section": "Closeout",
+  "icon": "\u25c9",
+  "ref_prefix": "CX",
+  "title_field": "system",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "system",
+      "label": "System",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "status",
+      "label": "Status",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "accepted",
+      "open",
+      "tested"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "tested",
+        "action": "test",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "tested",
+        "to": "accepted",
+        "action": "accept",
+        "party": "Owner"
+      }
+    ]
+  }
+}

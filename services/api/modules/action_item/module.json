@@ -1,0 +1,44 @@
+{
+  "key": "action_item",
+  "name": "Action Items",
+  "section": "Engineering",
+  "icon": "\u25a1",
+  "ref_prefix": "AI",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Action",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "assignee",
+      "label": "Assignee",
+      "type": "text"
+    },
+    {
+      "name": "due_date",
+      "label": "Due",
+      "type": "date"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "done",
+      "open"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "done",
+        "action": "complete",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "key": "toolbox_talk",
+  "name": "Toolbox Talks",
+  "section": "Safety",
+  "icon": "\u2637",
+  "ref_prefix": "TBT",
+  "title_field": "topic",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "topic",
+      "label": "Topic",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date"
+    },
+    {
+      "name": "attendees",
+      "label": "Attendees",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

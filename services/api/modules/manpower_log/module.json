@@ -1,0 +1,44 @@
+{
+  "key": "manpower_log",
+  "name": "Manpower Log",
+  "section": "Field",
+  "icon": "\u263a",
+  "ref_prefix": "MP",
+  "title_field": "company",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "company",
+      "label": "Company",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date"
+    },
+    {
+      "name": "count",
+      "label": "Headcount",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

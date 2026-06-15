@@ -1,0 +1,58 @@
+{
+  "key": "prequalification",
+  "name": "Prequalification",
+  "section": "Preconstruction",
+  "icon": "\u2713",
+  "ref_prefix": "PQ",
+  "title_field": "company",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "company",
+      "label": "Company",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "trade",
+      "label": "Trade",
+      "type": "text"
+    },
+    {
+      "name": "emr",
+      "label": "EMR Rate",
+      "type": "number"
+    },
+    {
+      "name": "bonding_capacity",
+      "label": "Bonding Capacity",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "submitted",
+    "states": [
+      "approved",
+      "rejected",
+      "submitted"
+    ],
+    "transitions": [
+      {
+        "from": "submitted",
+        "to": "approved",
+        "action": "approve",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "submitted",
+        "to": "rejected",
+        "action": "reject",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

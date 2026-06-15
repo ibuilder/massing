@@ -1,0 +1,44 @@
+{
+  "key": "test_record",
+  "name": "Test Records",
+  "section": "Quality",
+  "icon": "\u25a3",
+  "ref_prefix": "TST",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Test",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "result",
+      "label": "Result",
+      "type": "text"
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

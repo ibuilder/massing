@@ -1,0 +1,44 @@
+{
+  "key": "photo",
+  "name": "Photo Library",
+  "section": "Field",
+  "icon": "\u25a3",
+  "ref_prefix": "PH",
+  "title_field": "caption",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "caption",
+      "label": "Caption",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text"
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "key": "bid_solicitation",
+  "name": "Bid Solicitations (ITB)",
+  "section": "Preconstruction",
+  "icon": "\u2709",
+  "ref_prefix": "ITB",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Solicitation",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "due_date",
+      "label": "Bids Due",
+      "type": "date"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "closed",
+      "open"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

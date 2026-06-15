@@ -1,0 +1,59 @@
+{
+  "key": "ncr",
+  "name": "Non-Conformance Reports",
+  "section": "Quality",
+  "icon": "\u26a0",
+  "ref_prefix": "NCR",
+  "title_field": "subject",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Non-conformance",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "textarea"
+    },
+    {
+      "name": "disposition",
+      "label": "Disposition",
+      "type": "select",
+      "options": [
+        "Rework",
+        "Repair",
+        "Use-as-is",
+        "Reject"
+      ]
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "closed",
+      "dispositioned",
+      "open"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "dispositioned",
+        "action": "disposition",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "dispositioned",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

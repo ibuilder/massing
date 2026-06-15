@@ -1,0 +1,44 @@
+{
+  "key": "waste_diversion",
+  "name": "Waste Diversion",
+  "section": "Sustainability",
+  "icon": "\u267a",
+  "ref_prefix": "WD",
+  "title_field": "material",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "material",
+      "label": "Material",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "tons",
+      "label": "Tons",
+      "type": "number"
+    },
+    {
+      "name": "diverted",
+      "label": "Diverted %",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

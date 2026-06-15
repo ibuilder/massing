@@ -1,0 +1,44 @@
+{
+  "key": "material_rate",
+  "name": "Material Rates",
+  "section": "Resources",
+  "icon": "$",
+  "ref_prefix": "MR",
+  "title_field": "material",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "material",
+      "label": "Material",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "rate",
+      "label": "Unit Rate",
+      "type": "number"
+    },
+    {
+      "name": "unit",
+      "label": "Unit",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

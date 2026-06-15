@@ -1,0 +1,44 @@
+{
+  "key": "meeting",
+  "name": "Meetings",
+  "section": "Engineering",
+  "icon": "\u2637",
+  "ref_prefix": "MTG",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Meeting",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date"
+    },
+    {
+      "name": "minutes",
+      "label": "Minutes",
+      "type": "textarea"
+    }
+  ],
+  "workflow": {
+    "initial": "agenda",
+    "states": [
+      "agenda",
+      "minutes"
+    ],
+    "transitions": [
+      {
+        "from": "agenda",
+        "to": "minutes",
+        "action": "publish_minutes",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

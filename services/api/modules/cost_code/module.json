@@ -1,0 +1,39 @@
+{
+  "key": "cost_code",
+  "name": "Cost Codes",
+  "section": "Resources",
+  "icon": "#",
+  "ref_prefix": "CC",
+  "title_field": "code",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "code",
+      "label": "Code",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

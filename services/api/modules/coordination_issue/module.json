@@ -1,0 +1,64 @@
+{
+  "key": "coordination_issue",
+  "name": "Coordination Issues",
+  "section": "BIM",
+  "icon": "\u2736",
+  "ref_prefix": "CI",
+  "title_field": "subject",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Issue",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "text"
+    },
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "textarea"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "assigned",
+      "closed",
+      "open",
+      "resolved"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "assigned",
+        "action": "assign",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "assigned",
+        "to": "resolved",
+        "action": "resolve",
+        "party": [
+          "Subcontractor",
+          "Consultant",
+          "GC"
+        ]
+      },
+      {
+        "from": "resolved",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

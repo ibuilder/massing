@@ -1,0 +1,49 @@
+{
+  "key": "budget",
+  "name": "Budget & Forecast",
+  "section": "Cost",
+  "icon": "\u03a3",
+  "ref_prefix": "BUD",
+  "title_field": "cost_code",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "cost_code",
+      "label": "Cost Code",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "text"
+    },
+    {
+      "name": "budget",
+      "label": "Budget",
+      "type": "number"
+    },
+    {
+      "name": "forecast",
+      "label": "Forecast",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

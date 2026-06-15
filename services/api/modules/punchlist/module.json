@@ -1,0 +1,62 @@
+{
+  "key": "punchlist",
+  "name": "Punchlist",
+  "section": "Field",
+  "icon": "\u2717",
+  "ref_prefix": "PL",
+  "title_field": "description",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "description",
+      "label": "Item",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text"
+    },
+    {
+      "name": "trade",
+      "label": "Trade",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "ready",
+      "verified"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "ready",
+        "action": "ready_to_inspect",
+        "party": [
+          "Subcontractor",
+          "GC"
+        ]
+      },
+      {
+        "from": "ready",
+        "to": "verified",
+        "action": "verify",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "ready",
+        "to": "open",
+        "action": "reject",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

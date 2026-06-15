@@ -1,0 +1,44 @@
+{
+  "key": "warranty",
+  "name": "Warranties",
+  "section": "Closeout",
+  "icon": "\u25a3",
+  "ref_prefix": "WAR",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Warranty",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "vendor",
+      "label": "Vendor",
+      "type": "text"
+    },
+    {
+      "name": "expires",
+      "label": "Expires",
+      "type": "date"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

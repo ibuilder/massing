@@ -1,0 +1,50 @@
+{
+  "key": "prime_contract",
+  "name": "Prime Contract",
+  "section": "Contracts",
+  "icon": "\u25a3",
+  "ref_prefix": "PC",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Contract",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "type",
+      "label": "Type",
+      "type": "select",
+      "options": [
+        "GMP",
+        "Cost Plus",
+        "Lump Sum",
+        "CMAR"
+      ]
+    },
+    {
+      "name": "value",
+      "label": "Value",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

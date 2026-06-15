@@ -1,0 +1,44 @@
+{
+  "key": "pretask_plan",
+  "name": "Pre-Task Plans",
+  "section": "Safety",
+  "icon": "\u25a4",
+  "ref_prefix": "PTP",
+  "title_field": "task",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "task",
+      "label": "Task",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "hazards",
+      "label": "Hazards",
+      "type": "textarea"
+    },
+    {
+      "name": "signature",
+      "label": "Signature",
+      "type": "signature"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

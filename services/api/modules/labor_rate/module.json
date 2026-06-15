@@ -1,0 +1,39 @@
+{
+  "key": "labor_rate",
+  "name": "Labor Rates",
+  "section": "Resources",
+  "icon": "$",
+  "ref_prefix": "LR",
+  "title_field": "trade",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "trade",
+      "label": "Trade",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "rate",
+      "label": "Rate $/hr",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

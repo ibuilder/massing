@@ -1,0 +1,41 @@
+{
+  "key": "completion_certificate",
+  "name": "Completion Certificates",
+  "section": "Closeout",
+  "icon": "\u2713",
+  "ref_prefix": "CC",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Certificate",
+      "type": "text",
+      "required": true
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "accepted",
+      "draft",
+      "issued"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "issued",
+        "action": "issue",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "issued",
+        "to": "accepted",
+        "action": "accept",
+        "party": "Owner"
+      }
+    ]
+  }
+}

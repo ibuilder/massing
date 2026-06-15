@@ -1,0 +1,44 @@
+{
+  "key": "subcontract",
+  "name": "Subcontracts",
+  "section": "Contracts",
+  "icon": "\u25a4",
+  "ref_prefix": "SC",
+  "title_field": "vendor",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "vendor",
+      "label": "Subcontractor",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "trade",
+      "label": "Trade",
+      "type": "text"
+    },
+    {
+      "name": "value",
+      "label": "Value",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "executed"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "executed",
+        "action": "execute",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

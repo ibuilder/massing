@@ -1,0 +1,58 @@
+{
+  "key": "inspection",
+  "name": "Inspections",
+  "section": "Quality",
+  "icon": "\u2713",
+  "ref_prefix": "INS",
+  "title_field": "subject",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Inspection",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text"
+    },
+    {
+      "name": "result",
+      "label": "Result",
+      "type": "select",
+      "options": [
+        "Pass",
+        "Fail",
+        "Conditional"
+      ]
+    }
+  ],
+  "workflow": {
+    "initial": "scheduled",
+    "states": [
+      "failed",
+      "passed",
+      "scheduled"
+    ],
+    "transitions": [
+      {
+        "from": "scheduled",
+        "to": "passed",
+        "action": "pass",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "scheduled",
+        "to": "failed",
+        "action": "fail",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

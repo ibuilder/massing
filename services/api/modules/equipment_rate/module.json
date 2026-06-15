@@ -1,0 +1,39 @@
+{
+  "key": "equipment_rate",
+  "name": "Equipment Rates",
+  "section": "Resources",
+  "icon": "$",
+  "ref_prefix": "ER",
+  "title_field": "equipment",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "equipment",
+      "label": "Equipment",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "rate",
+      "label": "Rate $/hr",
+      "type": "number"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

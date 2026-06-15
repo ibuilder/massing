@@ -1,0 +1,44 @@
+{
+  "key": "leed_credit",
+  "name": "LEED / Green Credits",
+  "section": "Sustainability",
+  "icon": "\u2756",
+  "ref_prefix": "LEED",
+  "title_field": "credit",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "credit",
+      "label": "Credit",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "points",
+      "label": "Points",
+      "type": "number"
+    },
+    {
+      "name": "status",
+      "label": "Status",
+      "type": "text"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

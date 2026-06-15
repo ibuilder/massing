@@ -1,0 +1,49 @@
+{
+  "key": "orientation",
+  "name": "Employee Orientations",
+  "section": "Safety",
+  "icon": "\u263a",
+  "ref_prefix": "ORI",
+  "title_field": "worker",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "worker",
+      "label": "Worker",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "company",
+      "label": "Company",
+      "type": "text"
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date"
+    },
+    {
+      "name": "signature",
+      "label": "Signature",
+      "type": "signature"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}

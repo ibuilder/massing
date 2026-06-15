@@ -1,0 +1,44 @@
+{
+  "key": "transmittal",
+  "name": "Transmittals",
+  "section": "Engineering",
+  "icon": "\u279f",
+  "ref_prefix": "TR",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Subject",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "to_company",
+      "label": "To",
+      "type": "text"
+    },
+    {
+      "name": "contents",
+      "label": "Contents",
+      "type": "textarea"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "sent"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "sent",
+        "action": "send",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  }
+}
