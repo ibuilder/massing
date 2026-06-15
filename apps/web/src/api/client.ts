@@ -55,6 +55,14 @@ export interface ModuleRecord {
   available_actions?: { action: string; to: string; party: string[] }[];
 }
 
+export interface ProformaResult {
+  sources_uses: { total_uses: number; loan_amount: number; loan_fees: number; interest_reserve: number; equity: number; ltc: number; lp_contribution: number; gp_contribution: number };
+  operations: { stabilized_noi_annual: number; reversion: Record<string, number> };
+  returns: { project_irr: number | null; equity_irr: number | null; equity_multiple: number; npv: number; yield_on_cost: number; dev_spread: number; total_contributions: number; total_distributions: number };
+  waterfall: { lp_irr: number | null; gp_irr: number | null; lp_equity_multiple: number; gp_equity_multiple: number; lp_distributions: number; gp_distributions: number; style: string };
+  cash_flow: { dates: string[]; equity: number[]; project: number[]; noi_monthly: number[] };
+}
+
 export interface EnergyResult {
   areas_m2: Record<string, number>;
   ua_w_per_k: Record<string, number>;
@@ -162,6 +170,11 @@ export class ApiClient {
   // 2D documentation
   drawingStoreys(pid: string) {
     return this.json<{ name: string; elevation: number }[]>(`/projects/${pid}/drawings/storeys`);
+  }
+
+  // real-estate development finance (Proforma)
+  solveProforma(assumptions: unknown) {
+    return this.json<ProformaResult>(`/proforma/solve`, { method: "POST", body: JSON.stringify(assumptions) });
   }
 
   // GC portal modules + model pins

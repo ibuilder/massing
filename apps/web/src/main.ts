@@ -13,6 +13,7 @@ import { OriginTool } from "./tools/origin";
 import { buildTree } from "./tree/tree";
 import { PinOverlay, restoreCamera } from "./pins/pins";
 import { PortalUI } from "./portal/portal";
+import { ProformaUI } from "./proforma/proforma";
 import { ApiClient, type ElementProps, type Topic } from "./api/client";
 import { toast, withLoading } from "./ui/feedback";
 
@@ -166,6 +167,7 @@ document.querySelectorAll<HTMLButtonElement>(".tab").forEach((tab) => {
     tab.classList.add("active");
     $(`panel-${tab.dataset.tab}`).classList.add("active");
     if (tab.dataset.tab === "portal") openPortalTab();
+    if (tab.dataset.tab === "proforma") openProformaTab();
   };
 });
 
@@ -523,6 +525,15 @@ function openPortalTab() {
   if (portalReady) return;
   portalReady = true;
   void portal.init();
+}
+
+// Proforma — real-estate development underwriting (independent of the BIM model)
+const proforma = new ProformaUI($("panel-proforma"), api, setStatus);
+let proformaReady = false;
+function openProformaTab() {
+  if (proformaReady) return;
+  proformaReady = true;
+  void proforma.init();
 }
 
 async function refreshIssues() {

@@ -32,6 +32,19 @@ class Project(Base):
     topics: Mapped[list["Topic"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
+class Scenario(Base):
+    """A modeled version of a development deal (Proforma). assumptions + last solved result
+    stored as JSON so scenarios version/diff cheaply (guide §5)."""
+    __tablename__ = "scenarios"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    project_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    assumptions: Mapped[dict] = mapped_column(JSON, nullable=False)
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    is_locked: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class ProjectMember(Base):
     """Project-scoped roles. Two dimensions (GC portal):
       - CRUD capability role: viewer < reviewer < editor < admin

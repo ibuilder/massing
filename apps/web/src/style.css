@@ -176,3 +176,11 @@ kbd {
   background: #3a3d44; border: 1px solid var(--line); border-radius: 3px;
   padding: 1px 5px; font-size: 11px; font-family: ui-monospace, monospace;
 }
+
+/* proforma form */
+.pf-form { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 8px; margin: 6px 0; }
+.pf-field { display: flex; flex-direction: column; font-size: 10px; color: var(--muted); }
+.pf-field input {
+  margin-top: 2px; padding: 4px; background: #1e1f22; color: var(--text);
+  border: 1px solid var(--line); border-radius: 4px; font-size: 12px;
+}

@@ -9,4 +9,5 @@ scipy>=1.11           # trimesh path assembly (section drawings)
 networkx>=3.0         # trimesh path traversal (section drawings)
 shapely>=2.0          # trimesh planar paths
 reportlab>=4.0        # PDF sheet composition
-svglib>=1.5           # SVG→PNG rasterization (docs/gallery images)
+# svglib (SVG→PNG for docs gallery) is a dev-only tool — it pulls pycairo/cairo and is not
+# needed at runtime (the API serves SVG directly). Install ad hoc when regenerating docs/img.
