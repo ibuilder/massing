@@ -68,7 +68,11 @@ real structural + architectural discipline frags loaded together. `POST /project
   silhouettes + storey level lines. `GET /drawings/elevation.svg?direction=`.
 - ~~Grid on sheet cells~~ ✅ done — composed sheet plan cells now carry grid bubbles, grid
   lines, and overall dimensions (per-cell transform via drawing primitives, SVG + PDF).
-- **Room tags / leaders**: text annotations bound to elements on the views.
-- **Hidden-line removal**: elevations are outline silhouettes (no depth sorting yet).
+- ~~Hidden-line removal~~ ✅ done — elevations use a depth-sorted painter's algorithm
+  (opaque silhouettes; nearer occludes farther) + grid bubbles + level datums.
+- **Room tags / leaders**: needs `IfcSpace` (architectural model; only its `.frag` is published
+  for this sample, not the IFC) — wire once an arch IFC is available.
+- **Grid on section/elevation *sheet cells***: standalone elevations/sections are annotated;
+  composed-sheet cells carry grid on plan cells so far.
 - **Federation UI**: a discipline picker to load several `.frag` and toggle by model.
 - **Authoring in-browser**: stays a Bonsai-bridge concern by design (GPL boundary).

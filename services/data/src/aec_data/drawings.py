@@ -257,18 +257,19 @@ def plan_svg(model: ifcopenshell.file, elevation: float, cut_height: float = 1.2
 
 
 # --- elevations (orthographic outline projections) --------------------------
-# direction -> (projected horizontal axis, vertical axis=Z, flip horizontal?)
+# direction -> (kept axes, flip horizontal?, depth axis, near sign)
 _DIRS = {
-    "north": ((0, 2), False), "south": ((0, 2), True),   # look along Y, draw X/Z
-    "east": ((1, 2), True), "west": ((1, 2), False),     # look along X, draw Y/Z
+    "north": ((0, 2), False, 1, +1), "south": ((0, 2), True, 1, -1),   # look along Y, draw X/Z
+    "east": ((1, 2), True, 0, +1), "west": ((1, 2), False, 0, -1),     # look along X, draw Y/Z
 }
 
 
-def elevation_outlines(meshes, direction: str):
-    """Element silhouettes (convex hull of projected vertices) for an orthographic view."""
+def elevation_outlines(meshes, direction: str, with_depth: bool = False):
+    """Element silhouettes (convex hull of projected vertices). With with_depth, also returns
+    a painter's-algorithm sort key (far→near) per element for hidden-line removal."""
     from shapely.geometry import MultiPoint
 
-    axes, flip = _DIRS.get(direction, _DIRS["north"])
+    axes, flip, depth_axis, near = _DIRS.get(direction, _DIRS["north"])
     outs = []
     for _cls, mesh in meshes:
         pts = mesh.vertices[:, axes]
@@ -276,11 +277,16 @@ def elevation_outlines(meshes, direction: str):
             continue
         try:
             hull = MultiPoint(pts).convex_hull
-            if hull.geom_type == "Polygon":
-                coords = np.asarray(hull.exterior.coords)
-                if flip:
-                    coords = coords.copy()
-                    coords[:, 0] = -coords[:, 0]
+            if hull.geom_type != "Polygon":
+                continue
+            coords = np.asarray(hull.exterior.coords)
+            if flip:
+                coords = coords.copy()
+                coords[:, 0] = -coords[:, 0]
+            if with_depth:
+                depth = near * float(mesh.vertices[:, depth_axis].mean())  # larger = nearer
+                outs.append((coords, depth))
+            else:
                 outs.append(coords)
         except Exception:
             pass
@@ -288,19 +294,21 @@ def elevation_outlines(meshes, direction: str):
 
 
 def elevation_svg(meshes, direction: str, levels: list[dict], title: str,
-                  width: int = 1300) -> str:
-    outs = elevation_outlines(meshes, direction)
-    if not outs:
+                  width: int = 1300, hidden_line: bool = True, grid: dict | None = None) -> str:
+    items = elevation_outlines(meshes, direction, with_depth=True)
+    if not items:
         return to_svg([], title=title, subtitle="no geometry")
+    items.sort(key=lambda it: it[1])  # far → near (painter's algorithm)
+    outs = [c for c, _ in items]
     allp = np.vstack(outs)
     mn, mx = allp.min(axis=0), allp.max(axis=0)
     span = np.maximum(mx - mn, 1e-6)
-    gutter, pad = 120, 30
+    gutter, pad, top = 120, 30, 40  # `top` leaves room for grid bubbles
     draw_w = width - 2 * pad - gutter
     scale = draw_w / span[0]
     draw_h = span[1] * scale
-    height = int(draw_h + 2 * pad + 60)
-    ox, oy = pad + gutter, pad
+    height = int(draw_h + pad + top + 60)
+    ox, oy = pad + gutter, top
 
     def T(x, z):
         return ox + (x - mn[0]) * scale, oy + draw_h - (z - mn[1]) * scale
@@ -309,8 +317,29 @@ def elevation_svg(meshes, direction: str, levels: list[dict], title: str,
            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
            f'viewBox="0 0 {width} {height}"><rect width="{width}" height="{height}" fill="#fff"/>']
 
-    # storey level lines (Z) — standard elevation annotation
-    flip = _DIRS.get(direction, _DIRS["north"])[1]
+    # geometry first — painter's algorithm: opaque white fill so nearer silhouettes
+    # occlude farther edges (hidden-line removal)
+    fill = "#fff" if hidden_line else "none"
+    for poly in outs:
+        pp = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
+        out.append(f'<polygon points="{pp}" fill="{fill}" stroke="#111" stroke-width="0.6"/>')
+
+    # grid bubbles on top: N/S elevations show the numbered (X) grid, E/W the lettered (Y)
+    _, gflip, depth_axis, _ = _DIRS.get(direction, _DIRS["north"])
+    if grid:
+        glines = grid["x"] if depth_axis == 1 else grid["y"]   # depth Y → horizontal X
+        for g, label in glines:
+            h = -g if gflip else g
+            if h < mn[0] - 0.5 or h > mx[0] + 0.5:
+                continue
+            gx, _ = T(h, mn[1])
+            out.append(f'<line x1="{gx:.1f}" y1="{oy-24:.1f}" x2="{gx:.1f}" y2="{oy+draw_h:.1f}" '
+                       f'stroke="#bbb" stroke-width="0.5" stroke-dasharray="5 3"/>')
+            out.append(f'<circle cx="{gx:.1f}" cy="{oy-24:.1f}" r="9" fill="#fff" stroke="#111"/>'
+                       f'<text x="{gx:.1f}" y="{oy-21:.1f}" text-anchor="middle" '
+                       f'font-family="sans-serif" font-size="10" font-weight="700">{label}</text>')
+
+    # storey level lines (Z) drawn on top — standard elevation annotation
     for lv in levels:
         z = lv["elevation"]
         if z < mn[1] - 0.1 or z > mx[1] + 0.1:
@@ -321,10 +350,6 @@ def elevation_svg(meshes, direction: str, levels: list[dict], title: str,
         out.append(f'<circle cx="{ox-70:.1f}" cy="{ly:.1f}" r="4" fill="#0a6"/>'
                    f'<text x="{ox-62:.1f}" y="{ly-3:.1f}" font-family="sans-serif" font-size="10" '
                    f'fill="#0a6">{lv["name"]}  +{z*1000:.0f}</text>')
-
-    for poly in outs:
-        pp = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
-        out.append(f'<polyline points="{pp}" fill="none" stroke="#111" stroke-width="0.6"/>')
 
     ty = height - 24
     out.append(f'<line x1="{pad}" y1="{ty-12}" x2="{width-pad}" y2="{ty-12}" stroke="#111" stroke-width="1"/>'
@@ -338,7 +363,8 @@ def elevation_svg(meshes, direction: str, levels: list[dict], title: str,
 def elevation(model: ifcopenshell.file, direction: str = "north", title: str | None = None) -> str:
     meshes = bake(model)
     levels = storey_elevations(model)
-    return elevation_svg(meshes, direction, levels, title or f"{direction.upper()} ELEVATION")
+    grid = grid_from_meshes(meshes)
+    return elevation_svg(meshes, direction, levels, title or f"{direction.upper()} ELEVATION", grid=grid)
 
 
 def section_svg(model: ifcopenshell.file, axis: str, offset: float, title: str = "SECTION") -> str:
