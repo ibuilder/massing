@@ -141,9 +141,11 @@ async function loadFile(input: HTMLInputElement, load: (b: Uint8Array, id: strin
 
 // ---- toolbar ----------------------------------------------------------------
 const viewerTools = $("viewer-tools");
-function toolBtn(label: string, onClick: (b: HTMLButtonElement) => void) {
+function toolBtn(icon: string, title: string, onClick: (b: HTMLButtonElement) => void) {
   const b = document.createElement("button");
-  b.textContent = label; b.className = "tool-btn"; b.onclick = () => onClick(b);
+  b.textContent = icon; b.className = "tool-btn icon-btn"; b.title = title;
+  b.setAttribute("aria-label", title);
+  b.onclick = () => onClick(b);
   viewerTools.appendChild(b);   // floating toolbar over the 3D viewport, not the top bar
   return b;
 }
@@ -153,12 +155,12 @@ const setMeasure = (m: MeasureMode) => {
   const ro = document.getElementById("measure-readout");
   if (ro) ro.textContent = m === "off" ? "mode: off — labels show values in 3D" : `mode: ${m} — click points; values appear as 3D labels`;
 };
-toolBtn("Dist", (b) => { const on = measure.mode !== "length"; setMeasure(on ? "length" : "off"); b.classList.toggle("on", on); });
-toolBtn("Area", (b) => { const on = measure.mode !== "area"; setMeasure(on ? "area" : "off"); b.classList.toggle("on", on); });
-toolBtn("Section", (b) => { section.enabled = !section.enabled; b.classList.toggle("on", section.enabled); setStatus(`section ${section.enabled ? "on (dbl-click face)" : "off"}`); });
-toolBtn("Isolate", () => selection && visibility.isolate(selection));
-toolBtn("Color", () => selection && colorize.color(selection, "#ffb000"));
-toolBtn("Show all", async () => { await visibility.showAll(); await colorize.reset(); });
+toolBtn("↔", "Measure distance (M)", (b) => { const on = measure.mode !== "length"; setMeasure(on ? "length" : "off"); b.classList.toggle("on", on); });
+toolBtn("▱", "Measure area (A)", (b) => { const on = measure.mode !== "area"; setMeasure(on ? "area" : "off"); b.classList.toggle("on", on); });
+toolBtn("✂", "Section plane (S) — dbl-click a face", (b) => { section.enabled = !section.enabled; b.classList.toggle("on", section.enabled); setStatus(`section ${section.enabled ? "on (dbl-click face)" : "off"}`); });
+toolBtn("⊙", "Isolate selection", () => selection && visibility.isolate(selection));
+toolBtn("◐", "Color selection", () => selection && colorize.color(selection, "#ffb000"));
+toolBtn("⊞", "Show all (H)", async () => { await visibility.showAll(); await colorize.reset(); });
 
 // ---- tabs -------------------------------------------------------------------
 document.querySelectorAll<HTMLButtonElement>(".tab").forEach((tab) => {
@@ -182,8 +184,13 @@ const PERSONA_TABS: Record<string, string[] | null> = {
   engineer: ["tree", "layers", "tools", "issues"],
   subcontractor: ["portal", "issues", "tools"],
 };
+// each persona lands on the tab most relevant to their lifecycle stage
+const PERSONA_HOME: Record<string, string> = {
+  developer: "portfolio", gc: "portal", architect: "tree",
+  engineer: "tools", subcontractor: "portal",
+};
 const personaSel = document.getElementById("persona") as HTMLSelectElement;
-function applyPersona(p: string) {
+function applyPersona(p: string, goHome = false) {
   const allow = PERSONA_TABS[p] ?? null;
   let activeHidden = false;
   document.querySelectorAll<HTMLButtonElement>(".tab").forEach((t) => {
@@ -191,20 +198,44 @@ function applyPersona(p: string) {
     t.hidden = !show;
     if (!show && t.classList.contains("active")) activeHidden = true;
   });
-  if (activeHidden) {
-    const first = document.querySelector<HTMLButtonElement>(".tab:not([hidden])");
-    first?.click();
+  const home = goHome ? PERSONA_HOME[p] : null;
+  if (home) {
+    document.querySelector<HTMLButtonElement>(`.tab[data-tab="${home}"]`)?.click();
+  } else if (activeHidden) {
+    document.querySelector<HTMLButtonElement>(".tab:not([hidden])")?.click();
   }
   localStorage.setItem("persona", p);
 }
 personaSel.value = localStorage.getItem("persona") || "all";
-personaSel.onchange = () => applyPersona(personaSel.value);
+personaSel.onchange = () => applyPersona(personaSel.value, true);  // jump to the role's home tab
 applyPersona(personaSel.value);
 
 // ---- collapsible / responsive sidebar ---------------------------------------
 const appEl = document.getElementById("app")!;
 function toggleSidebar() { appEl.classList.toggle("sidebar-collapsed"); }
 (document.getElementById("sidebar-toggle") as HTMLButtonElement).onclick = toggleSidebar;
+
+// drag-to-resize the side panel (persisted)
+const savedW = localStorage.getItem("sidebar-w");
+if (savedW) appEl.style.setProperty("--sidebar-w", savedW);
+const resizer = document.createElement("div");
+resizer.id = "sidebar-resize"; resizer.title = "Drag to resize";
+$("sidebar").appendChild(resizer);
+resizer.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  resizer.setPointerCapture(e.pointerId);
+  const move = (ev: PointerEvent) => {
+    const w = Math.min(Math.max(ev.clientX, 220), 560);  // clamp 220–560px
+    appEl.style.setProperty("--sidebar-w", `${w}px`);
+  };
+  const up = () => {
+    resizer.removeEventListener("pointermove", move);
+    resizer.removeEventListener("pointerup", up);
+    localStorage.setItem("sidebar-w", getComputedStyle(appEl).getPropertyValue("--sidebar-w").trim());
+  };
+  resizer.addEventListener("pointermove", move);
+  resizer.addEventListener("pointerup", up);
+});
 
 // ---- camera fit -------------------------------------------------------------
 async function fitToModels() {
