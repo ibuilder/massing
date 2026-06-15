@@ -162,6 +162,12 @@ export class ApiClient {
       method: "POST", body: JSON.stringify({ action, note }) });
   }
 
+  // cost / financials (GC portal)
+  costSummary(pid: string) {
+    return this.json<{ budget: number; committed: number; actual: number; forecast: number; projected_over_under: number; pct_committed: number; pct_spent: number }>(
+      `/projects/${pid}/cost/summary`);
+  }
+
   // authoring round-trip (Phase 6)
   editIfc(pid: string, recipe: string, params: Record<string, unknown>, publish = true) {
     return this.json<{ recipe: string; changed: number; published: unknown }>(

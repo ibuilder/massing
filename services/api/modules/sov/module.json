@@ -1,0 +1,24 @@
+{
+  "key": "sov",
+  "name": "Schedule of Values",
+  "section": "Cost",
+  "icon": "▦",
+  "ref_prefix": "SOV",
+  "title_field": "description",
+  "pinnable": false,
+  "fields": [
+    {"name": "item_no", "label": "Item No.", "type": "text", "required": true},
+    {"name": "description", "label": "Description of Work", "type": "text", "required": true},
+    {"name": "cost_code", "label": "Cost Code", "type": "text"},
+    {"name": "scheduled_value", "label": "Scheduled Value", "type": "number", "required": true},
+    {"name": "completed_prev", "label": "Completed (Previous)", "type": "number"},
+    {"name": "completed_this", "label": "Completed (This Period)", "type": "number"},
+    {"name": "materials_stored", "label": "Materials Stored", "type": "number"},
+    {"name": "retainage_pct", "label": "Retainage %", "type": "number"}
+  ],
+  "workflow": {
+    "initial": "active",
+    "states": ["active", "closed"],
+    "transitions": [{"from": "active", "to": "closed", "action": "close", "party": ["GC"]}]
+  }
+}

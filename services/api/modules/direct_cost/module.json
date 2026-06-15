@@ -1,0 +1,20 @@
+{
+  "key": "direct_cost",
+  "name": "Direct Costs",
+  "section": "Cost",
+  "icon": "=",
+  "ref_prefix": "DC",
+  "title_field": "description",
+  "pinnable": false,
+  "fields": [
+    {"name": "description", "label": "Description", "type": "text", "required": true},
+    {"name": "cost_code", "label": "Cost Code", "type": "text"},
+    {"name": "type", "label": "Type", "type": "select", "options": ["Labor", "Material", "Equipment", "Subcontract", "Other"]},
+    {"name": "amount", "label": "Actual Amount", "type": "number", "required": true}
+  ],
+  "workflow": {
+    "initial": "posted",
+    "states": ["posted"],
+    "transitions": []
+  }
+}

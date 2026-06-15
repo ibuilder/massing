@@ -306,6 +306,33 @@ function buildToolsPanel() {
   }
   panel.appendChild(ex);
 
+  // --- Cost / Pay Apps (GC portal financials) ---
+  const cst = document.createElement("div");
+  cst.innerHTML = `<div class="section-title" style="margin-top:14px">Cost / Pay Apps</div>`;
+  const cstOut = document.createElement("div"); cstOut.className = "meta"; cstOut.id = "cost-out";
+  if (!projectId) {
+    cstOut.textContent = "connect a project for cost roll-up";
+    cst.appendChild(cstOut);
+  } else {
+    const sumBtn = document.createElement("button");
+    sumBtn.className = "tool-btn"; sumBtn.textContent = "Σ Cost Summary";
+    sumBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
+    sumBtn.onclick = async () => {
+      cstOut.textContent = "computing…";
+      const s = await api.costSummary(projectId!);
+      const m = (v: number) => `$${v.toLocaleString()}`;
+      cstOut.innerHTML = `Budget ${m(s.budget)}<br>Committed ${m(s.committed)} (${s.pct_committed}%)<br>` +
+        `Actual ${m(s.actual)} (${s.pct_spent}%)<br>Forecast ${m(s.forecast)}<br>` +
+        `<b>Over/Under ${m(s.projected_over_under)}</b>`;
+    };
+    const g702Btn = document.createElement("button");
+    g702Btn.className = "tool-btn"; g702Btn.textContent = "↓ G702/G703 Pay App (PDF)";
+    g702Btn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
+    g702Btn.onclick = () => window.open(api.url(`/projects/${projectId}/cost/g702.pdf?app_no=1`), "_blank");
+    cst.append(sumBtn, g702Btn, cstOut);
+  }
+  panel.appendChild(cst);
+
   // --- Coordination & QA (clash + IDS validation) ---
   const qa = document.createElement("div");
   qa.innerHTML = `<div class="section-title" style="margin-top:14px">Coordination & QA</div>`;
