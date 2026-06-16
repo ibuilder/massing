@@ -277,6 +277,14 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (!a) return;
     await authorAndReload("rotate_element", { guid: selectedGuid, angle: a }, "rotate");
   });
+  toolBtn("✎", "Edit a property on the selected element", async () => {
+    if (!selectedGuid) { notify("select an element first", "error"); return; }
+    if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
+    const pset = prompt("Pset name:", "Pset_WallCommon"); if (!pset) return;
+    const propName = prompt("Property:", "FireRating"); if (!propName) return;
+    const value = prompt(`Value for ${propName}:`, ""); if (value === null) return;
+    await authorAndReload("set_element_pset", { guid: selectedGuid, pset, prop: propName, value }, "property edit");
+  });
 
   async function capturePlacePoint(e: MouseEvent, hitPoint: THREE.Vector3 | null) {
     if (!placeMode) return;

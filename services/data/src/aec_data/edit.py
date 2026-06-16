@@ -356,6 +356,19 @@ def _element(model: ifcopenshell.file, guid: str):
     return el
 
 
+def set_element_pset(model: ifcopenshell.file, guid: str, pset: str, prop: str,
+                     value, dtype: str = "str") -> str:
+    """Set a single property in a Pset on one element (by GUID). GUID-stable."""
+    import ifcopenshell.util.element as ue
+
+    el = _element(model, guid)
+    existing = ue.get_pset(el, pset, prop="id")
+    ps = model.by_id(existing) if existing else \
+        ifcopenshell.api.run("pset.add_pset", model, product=el, name=pset)
+    ifcopenshell.api.run("pset.edit_pset", model, pset=ps, properties={prop: _coerce(value, dtype)})
+    return guid
+
+
 def move_element(model: ifcopenshell.file, guid: str, dx: float = 0.0, dy: float = 0.0,
                  dz: float = 0.0) -> str:
     """Translate an element by (dx,dy,dz) metres in IFC E/N/Z. GUID-stable."""
@@ -409,6 +422,8 @@ RECIPES = {
     "move_element": lambda m, p: move_element(m, p["guid"], float(p.get("dx", 0)),
                                               float(p.get("dy", 0)), float(p.get("dz", 0))),
     "rotate_element": lambda m, p: rotate_element(m, p["guid"], float(p.get("angle", 0))),
+    "set_element_pset": lambda m, p: set_element_pset(m, p["guid"], p["pset"], p["prop"],
+                                                      p.get("value"), p.get("dtype", "str")),
     "set_pset": lambda m, p: set_pset_on_class(
         m, p["ifc_class"], p["pset"], p["prop"],
         _coerce(p.get("value"), p.get("dtype", "str"))),

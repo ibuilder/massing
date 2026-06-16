@@ -50,8 +50,13 @@ author → reload). Verified at the data layer on `basichouse.ifc`.
 - **Move / rotate by GUID** ✅ — `move_element` (E/N/Z metre delta) and `rotate_element`
   (degrees about Z) edit the world placement via `geometry.edit_object_placement(is_si=True)`;
   viewer Move (✥) / Rotate (⟲) tools act on the selection. Verified: wall moves
-  (2.5,0,0)→(4.5,1,0) m, column rotates 45°. Copy is next.
-- Property/Pset edit (already have property read; `set_pset` recipe exists for batch).
+  (2.5,0,0)→(4.5,1,0) m, column rotates 45°.
+- **Per-element Pset edit** ✅ — `set_element_pset` (pset/prop/value/dtype on one GUID);
+  viewer **Edit property** (✎) tool. Verified: FireRating → "2HR" round-trips.
+- **Copy** *(deferred)* — `root.copy_class` gives a new GUID + independent placement but
+  doesn't copy the representation; deep-copy rendered empty and sharing broke the original's
+  geometry in the python geom iterator. Needs proper representation duplication, verified via
+  the web-ifc converter (what actually renders) rather than the geom iterator.
 
 > **Unit fix (this phase):** all authoring recipes now build placement matrices in **metres**
 > and let `edit_object_placement(is_si=True)` convert to file units. Previously they divided by
