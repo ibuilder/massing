@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api-tests:
+    name: API test gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # system libs the scientific wheels expect (mirrors services/api/Dockerfile)
+      - name: System deps
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+
+      - name: Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r services/api/requirements.txt -r services/api/requirements-dev.txt
+          pip install -r services/data/requirements.txt
+
+      - name: Run test gate
+        run: python services/api/run_tests.py
+
+  web-build:
+    name: Web typecheck + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck + build
+        run: npm run build

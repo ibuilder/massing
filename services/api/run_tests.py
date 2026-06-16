@@ -22,7 +22,9 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
 
 
 def main() -> int:
-    base = {**os.environ, "PYTHONPATH": str(HERE / "src")}
+    # api src + the data service src (analysis/export bridge), mirroring the runtime image
+    pp = os.pathsep.join([str(HERE / "src"), str(HERE.parent / "data" / "src")])
+    base = {**os.environ, "PYTHONPATH": pp}
     results: list[tuple[str, bool, float]] = []
     for t in TESTS:
         if not (HERE / f"{t}.py").exists():
