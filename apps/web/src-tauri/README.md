@@ -37,3 +37,6 @@ VITE_API_URL=https://api.your-host npx tauri build
 - **WebGL** — the system WebView (WebView2/WKWebView/WebKitGTK) must handle the Three.js/
   Fragments renderer; test on each target. Electron (bundled Chromium) is the fallback if a
   WebView underperforms (see `docs/roadmap-platforms.md`).
+- **Native dialogs** — Open/Save already use `@tauri-apps/plugin-dialog` + `-fs` when running
+  inside Tauri (browser keeps the `<input>`/download path); the plugins are registered in
+  `Cargo.toml`, `src/lib.rs`, and `capabilities/default.json`.
