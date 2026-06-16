@@ -45,6 +45,7 @@ services:
       AEC_RBAC: "${AEC_RBAC:-0}"                       # set 1 to enforce project roles
       AEC_API_KEY: "${AEC_API_KEY:-}"                  # bearer token = admin (set in prod)
       AEC_CORS_ORIGINS: "${AEC_CORS_ORIGINS:-http://localhost:5173}"
+      UVICORN_WORKERS: "${UVICORN_WORKERS:-4}"        # multi-worker (Postgres) so a reconvert can't freeze the API
       APS_CLIENT_ID: "${APS_CLIENT_ID:-}"              # optional paid Autodesk RVT bridge
       APS_CLIENT_SECRET: "${APS_CLIENT_SECRET:-}"
     ports: ["8000:8000"]

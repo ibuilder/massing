@@ -42,4 +42,6 @@ COPY --from=converter /conv/node_modules /app/node_modules
 COPY services/converter /app/services/converter
 
 EXPOSE 8000
-CMD ["uvicorn", "aec_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# multiple workers so one slow request (e.g. an IFC reconvert) can't freeze the whole
+# API. Default 1 (safe for sqlite dev); compose sets UVICORN_WORKERS higher for Postgres.
+CMD ["sh", "-c", "uvicorn aec_api.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-1}"]
