@@ -44,9 +44,11 @@ author → reload). Verified at the data layer on `basichouse.ifc`.
   representation / voids); viewer **Delete** tool acts on the current selection.
 - **Door / window placement** ✅ — `add_door` / `add_window` recipes create an
   `IfcOpeningElement` that voids the host wall (`feature.add_feature`) and an `IfcDoor`/
-  `IfcWindow` that fills it (`feature.add_filling`). Viewer tools act on the selected wall.
-  Centered for now (positioning along the wall + swing/hand are future). Verified at the data
-  layer: door 8→9 with +1 void/+1 fill; window 19→20.
+  `IfcWindow` that fills it (`feature.add_filling`). **Positioned along the wall:** an optional
+  `position` plan point is projected onto the wall axis (verified: door placed at x=6.0 on an
+  8 m wall, not the 4.0 center); the viewer passes where you clicked the wall. Verified at the
+  data layer: door 8→9 with +1 void/+1 fill; window 19→20. *(Geometric swing arcs skipped —
+  they don't render from Fragments.)*
 - **Move / rotate by GUID** ✅ — `move_element` (E/N/Z metre delta) and `rotate_element`
   (degrees about Z) edit the world placement via `geometry.edit_object_placement(is_si=True)`;
   viewer Move (✥) / Rotate (⟲) tools act on the selection. Verified: wall moves
@@ -66,13 +68,14 @@ author → reload). Verified at the data layer on `basichouse.ifc`.
 ### Phase C — drafting aids (client-only, no IFC write)
 - **Grid snap** ✅ — bottom-bar Snap selector (off / 0.1 / 0.5 / 1 m); authoring placement
   clicks round their plan coords to the increment and the coordinate readout reflects it.
-- **Geometry (corner) snap** ✅ — a placement click on an element snaps to that element's
-  nearest bounding-box corner within ~0.4 m (endpoint/corner snap for aligning to existing
-  geometry), falling back to grid snap. *(True per-vertex/edge snap needs fragment mesh
-  vertices — corner snap covers the common orthogonal cases.)*
+- **Geometry snap** ✅ — a placement click snaps to the hit element's nearest **mesh vertex**
+  (`model.getPositions`) within ~0.4 m (true endpoint/edge snap), falling back to bbox corners,
+  then grid snap.
+- **Ortho lock** ✅ — hold **Shift** on the 2nd placement point to constrain to horizontal/
+  vertical from the first.
 - **Section box** ✅ — 6 renderer clipping planes shrunk inside the model bounds (toggle ⬚).
 - **Levels overlay** ✅ — a horizontal grid at each storey elevation from the API (toggle ☰).
-- Ortho lock, temp dimensions — remaining.
+- Temp dimensions (live length/angle while sketching) — remaining.
 - Section box / clip plane (the ✂ tool already exists — extend to a 6-face box).
 - Grids & levels overlay (read from `IfcGrid` / storey elevations already parsed).
 - Measure (already shipped: ↔ distance, ▱ area).

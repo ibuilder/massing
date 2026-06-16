@@ -343,7 +343,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const addOpening = async (kind: "door" | "window") => {
     if (!selectedGuid) { notify(`select a wall first, then add the ${kind}`, "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to author", "error"); return; }
-    await authorAndReload(kind === "window" ? "add_window" : "add_door", { host_guid: selectedGuid }, kind);
+    // use where you clicked the wall as the position (projected onto the wall axis); else centered
+    const params: Record<string, unknown> = { host_guid: selectedGuid };
+    if (lastPoint) params.position = [lastPoint.x, -lastPoint.z];
+    await authorAndReload(kind === "window" ? "add_window" : "add_door", params, kind);
   };
   toolBtn("◧", "Add door to selected wall", () => void addOpening("door"));
   toolBtn("◨", "Add window to selected wall", () => void addOpening("window"));
@@ -386,30 +389,43 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
 
   type Hit = { point: THREE.Vector3; fragments: { modelId: string }; localId: number };
-  /** Snap to the nearest bounding-box corner of the hit element (endpoint/corner snap),
-   *  within ~0.4 m, before falling back to grid snap. */
+  /** Snap to the hit element's nearest mesh vertex within ~0.4 m (true endpoint/edge snap),
+   *  falling back to its bounding-box corners, then to grid snap. */
   async function snapToGeometry(raw: THREE.Vector3, hit: Hit | null): Promise<THREE.Vector3 | null> {
     if (!hit) return null;
+    const nearest = (pts: THREE.Vector3[]) => {
+      let best: THREE.Vector3 | null = null, bd = 0.4;
+      for (const v of pts) { const d = raw.distanceTo(v); if (d < bd) { bd = d; best = v; } }
+      return best ? best.clone() : null;
+    };
+    try {
+      const model = loader.fragments.list.get(hit.fragments.modelId);
+      const verts = model ? await model.getPositions([hit.localId]) : null;
+      if (verts?.length) { const v = nearest(verts); if (v) return v; }
+    } catch { /* fall back to bbox corners */ }
     try {
       const boxes = await loader.fragments.getBBoxes({ [hit.fragments.modelId]: new Set([hit.localId]) });
       if (!boxes.length) return null;
       const bx = boxes[0];
-      const corners = [bx.min.x, bx.max.x].flatMap((x) =>
-        [bx.min.y, bx.max.y].flatMap((y) => [bx.min.z, bx.max.z].map((z) => new THREE.Vector3(x, y, z))));
-      let best: THREE.Vector3 | null = null, bd = 0.4;
-      for (const c of corners) { const d = raw.distanceTo(c); if (d < bd) { bd = d; best = c; } }
-      return best;
+      return nearest([bx.min.x, bx.max.x].flatMap((x) =>
+        [bx.min.y, bx.max.y].flatMap((y) => [bx.min.z, bx.max.z].map((z) => new THREE.Vector3(x, y, z)))));
     } catch { return null; }
   }
 
   async function capturePlacePoint(e: MouseEvent, hit: Hit | null) {
     if (!placeMode) return;
     const raw = hit?.point ?? screenToGround(e);
-    const p = raw ? (await snapToGeometry(raw, hit)) ?? snapPoint(raw) : null;
+    let p = raw ? (await snapToGeometry(raw, hit)) ?? snapPoint(raw) : null;
+    // ortho lock: hold Shift on the 2nd point to constrain to H/V from the 1st
+    if (p && e.shiftKey && placePts.length === 1) {
+      const a = placePts[0];
+      if (Math.abs(p.x - a.x) >= Math.abs(p.z - a.z)) p = new THREE.Vector3(p.x, p.y, a.z);
+      else p = new THREE.Vector3(a.x, p.y, p.z);
+    }
     if (!p) { notify("couldn't pick a point — click on the floor or grid", "error"); return; }
     showCoords(p);
     placePts.push(p.clone());
-    if (placePts.length < PLACE_PTS[placeMode]) { notify(`${placeMode}: click the end point`, "info"); return; }
+    if (placePts.length < PLACE_PTS[placeMode]) { notify(`${placeMode}: click the end point (hold Shift = ortho)`, "info"); return; }
     const kind = placeMode; setPlaceMode(null);
     if (!projectId) { notify("connect a project with a source IFC to author", "error"); return; }
     // plan coordinates: E = world x, N = -world z (matches the origin/coords convention)

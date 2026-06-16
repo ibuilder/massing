@@ -296,10 +296,12 @@ def add_roof(model: ifcopenshell.file, points, thickness: float = 0.3,
 
 
 def add_opening(model: ifcopenshell.file, host_guid: str, width: float = 0.9, height: float = 2.1,
-                sill: float = 0.0, kind: str = "door", storey: str | None = None) -> str:
-    """Cut a centered opening in the host wall (IfcOpeningElement voiding it) and fill it with
-    an IfcDoor/IfcWindow. `kind` ∈ door|window; `sill` is the bottom height (meters).
-    Centered on the wall for now — positioning along the wall is a future enhancement."""
+                sill: float = 0.0, kind: str = "door", storey: str | None = None,
+                position=None) -> str:
+    """Cut an opening in the host wall (IfcOpeningElement voiding it) and fill it with an
+    IfcDoor/IfcWindow. `kind` ∈ door|window; `sill` is the bottom height (m). `position` is an
+    optional [E,N] plan point — projected onto the wall axis to place the opening there;
+    omit it to center on the wall."""
     import ifcopenshell.util.placement as uplace
     import ifcopenshell.util.unit as uunit
     import numpy as np
@@ -309,10 +311,17 @@ def add_opening(model: ifcopenshell.file, host_guid: str, width: float = 0.9, he
         raise ValueError(f"host wall {host_guid} not found (select a wall first)")
     scale = uunit.calculate_unit_scale(model)
     body = _body_context(model)
-    # opening placement = wall world placement (in metres), raised by the sill (local +Z up)
+    # opening placement = wall world placement (in metres), raised by the sill (local +Z up),
+    # and (if a position is given) offset along the wall axis to the projected click point
     wm = np.array(uplace.get_local_placement(host.ObjectPlacement), dtype=float)
     wm[0:3, 3] *= scale   # file units -> metres
     off = np.eye(4); off[2, 3] = float(sill)
+    if position is not None:
+        origin, xaxis = wm[0:3, 3], wm[0:3, 0].copy()
+        n = float(np.linalg.norm(xaxis)) or 1.0
+        xaxis /= n
+        p = np.array([float(position[0]), float(position[1]), origin[2]])
+        off[0, 3] = float(np.dot(p - origin, xaxis))   # signed distance along the wall axis
     opm = wm @ off
 
     opening = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcOpeningElement", name=f"{kind} opening")
@@ -433,9 +442,11 @@ RECIPES = {
                                       float(p.get("depth", 0.5)), p.get("storey")),
     "add_roof": lambda m, p: add_roof(m, p["points"], float(p.get("thickness", 0.3)), p.get("storey")),
     "add_door": lambda m, p: add_opening(m, p["host_guid"], float(p.get("width", 0.9)),
-                                         float(p.get("height", 2.1)), float(p.get("sill", 0.0)), "door", p.get("storey")),
+                                         float(p.get("height", 2.1)), float(p.get("sill", 0.0)), "door",
+                                         p.get("storey"), p.get("position")),
     "add_window": lambda m, p: add_opening(m, p["host_guid"], float(p.get("width", 1.2)),
-                                           float(p.get("height", 1.2)), float(p.get("sill", 0.9)), "window", p.get("storey")),
+                                           float(p.get("height", 1.2)), float(p.get("sill", 0.9)), "window",
+                                           p.get("storey"), p.get("position")),
     "delete_element": lambda m, p: delete_element(m, p["guid"]),
     "move_element": lambda m, p: move_element(m, p["guid"], float(p.get("dx", 0)),
                                               float(p.get("dy", 0)), float(p.get("dz", 0))),
