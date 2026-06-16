@@ -1,0 +1,62 @@
+name: Deploy viewer demo to GitHub Pages
+
+# Builds the *viewer-only* web app (no API needed — it streams the committed sample
+# .frag tiles from public/) and publishes it to GitHub Pages at https://<owner>.github.io/ModelMaker/.
+# VITE_PAGES=1 swaps the Workbox PWA SW for the coi-serviceworker so SharedArrayBuffer
+# (needed by @thatopen/fragments) works on Pages, which can't set COOP/COEP headers itself.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# allow only one in-flight Pages deploy; don't cancel a running one mid-publish
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # npm workspace: install at the root, then build the web workspace
+      - name: Install
+        run: npm ci
+
+      - name: Build viewer demo
+        run: npm run build --workspace apps/web
+        env:
+          VITE_PAGES: "1"
+          VITE_BASE: "/ModelMaker/"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

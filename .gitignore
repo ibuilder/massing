@@ -29,6 +29,8 @@ venv/
 *.rvt
 *.frag
 *.xkt
+# but track the small demo tiles the web app + GitHub Pages demo ship
+!apps/web/public/*.frag
 *.bcfzip
 /data/
 /tmp/

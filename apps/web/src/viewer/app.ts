@@ -173,7 +173,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
   async function loadSample(file: string, label: string) {
     await withLoading(container, `loading ${label}`, async () => {
-      const res = await fetch(file);
+      const res = await fetch(import.meta.env.BASE_URL + file.replace(/^\//, ""));   // respect the deploy base
       if (!res.ok) throw new Error(`${label} not found`);
       await loader.loadFragments(await res.arrayBuffer(), nextId());
       await fitToModels();
@@ -868,7 +868,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       if (projectId && await loadProjectModel()) return;
       const frags = ctx.projectName ? fragsForProject(ctx.projectName) : [["/school_str.frag", "school-STR"], ["/school_arq.frag", "school-ARQ"]];
       for (const [file, id] of frags) {
-        const res = await fetch(file);
+        const res = await fetch(import.meta.env.BASE_URL + file.replace(/^\//, ""));
         if (res.ok) await loader.loadFragments(await res.arrayBuffer(), id);
       }
       await fitToModels();

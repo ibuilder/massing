@@ -16,7 +16,7 @@ export class ModelLoader {
 
   constructor(viewer: Viewer) {
     // local web-ifc WASM copied into public/wasm/ by scripts/copy-wasm.mjs
-    this.importer.wasm = { absolute: true, path: "/wasm/" };
+    this.importer.wasm = { absolute: true, path: import.meta.env.BASE_URL + "wasm/" };
 
     this.fragments = viewer.components.get(OBC.FragmentsManager);
     this.fragments.init(workerUrl);

@@ -33,9 +33,6 @@ jobs:
   web-build:
     name: Web typecheck + build
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
 
@@ -43,10 +40,11 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          cache-dependency-path: package-lock.json
 
+      # this is an npm workspace (root lock); install at the root, then build the web workspace
       - name: Install
         run: npm ci
 
       - name: Typecheck + build
-        run: npm run build
+        run: npm run build --workspace apps/web

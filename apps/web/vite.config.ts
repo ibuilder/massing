@@ -1,8 +1,21 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+// GitHub Pages build (VITE_PAGES=1): served from a subpath, no server headers — so it can't
+// set COOP/COEP. Inject the coi-serviceworker instead of the Workbox PWA SW (which would
+// conflict), so web-ifc/@thatopen multithreaded WASM (SharedArrayBuffer) still works.
+const PAGES = process.env.VITE_PAGES === "1";
+const BASE = process.env.VITE_BASE || "/";
+
+const coiInject: Plugin = {
+  name: "coi-serviceworker-inject",
+  transformIndexHtml: (html) =>
+    html.replace("</head>", `  <script src="${BASE}coi-serviceworker.js"></script>\n</head>`),
+};
+
 export default defineConfig({
-  plugins: [
+  base: BASE,
+  plugins: PAGES ? [coiInject] : [
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
