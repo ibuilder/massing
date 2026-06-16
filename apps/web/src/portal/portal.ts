@@ -1,7 +1,5 @@
 import type { ApiClient, ModuleDef, ModuleRecord } from "../api/client";
 
-interface SavedView { name: string; q?: string; state?: string; sort?: { col: string; dir: 1 | -1 }; }
-
 /**
  * GC portal UI — one config-driven engine renders every module's list / form / record pages
  * from its module.json (fetched at /modules). No per-module code: the same views drive RFIs,
@@ -153,11 +151,6 @@ export class PortalUI {
   // --- record list (sortable / filterable data table + bulk actions) ---------
   private sort: Record<string, { col: string; dir: 1 | -1 } | undefined> = {};
 
-  private loadViews(key: string): SavedView[] {
-    try { return JSON.parse(localStorage.getItem(`views:${key}`) || "[]"); }
-    catch { return []; }
-  }
-
   private async openModule(m: ModuleDef, filter: { q?: string; state?: string } = {}) {
     const pid = this.host.projectId()!;
     const records = await this.host.api.moduleRecordsFiltered(pid, m.key, filter);
@@ -180,19 +173,17 @@ export class PortalUI {
     for (const s of m.workflow.states ?? []) { const o = document.createElement("option"); o.value = o.textContent = s; stateSel.appendChild(o); }
     stateSel.value = filter.state ?? "";
     stateSel.onchange = () => this.openModule(m, { ...filter, state: stateSel.value || undefined });
-    // saved views (per module, localStorage)
-    const views = this.loadViews(m.key);
+    // saved views (server-side, per user+module; falls back to empty if offline)
+    const views = await this.host.api.listViews(pid, m.key).catch(() => []);
     const viewSel = document.createElement("select"); viewSel.className = "sb-sel"; viewSel.title = "Saved views";
     const vNone = document.createElement("option"); vNone.value = ""; vNone.textContent = "views…"; viewSel.appendChild(vNone);
-    for (const v of views) { const o = document.createElement("option"); o.value = v.name; o.textContent = v.name; viewSel.appendChild(o); }
-    viewSel.onchange = () => { const v = views.find((x) => x.name === viewSel.value); if (v) { this.sort[m.key] = v.sort; this.openModule(m, { q: v.q, state: v.state }); } };
+    for (const v of views) { const o = document.createElement("option"); o.value = v.id; o.textContent = v.name; viewSel.appendChild(o); }
+    viewSel.onchange = () => { const v = views.find((x) => x.id === viewSel.value); if (v) { this.sort[m.key] = v.config.sort; this.openModule(m, { q: v.config.q, state: v.config.state }); } };
     const saveView = document.createElement("button"); saveView.className = "tool-btn"; saveView.textContent = "＋view";
-    saveView.title = "Save current filter/sort as a view";
-    saveView.onclick = () => {
+    saveView.title = "Save current filter/sort as a view (synced to your account)";
+    saveView.onclick = async () => {
       const name = prompt("Save view as:"); if (!name) return;
-      const next = views.filter((v) => v.name !== name);
-      next.push({ name, q: filter.q, state: filter.state, sort: this.sort[m.key] });
-      localStorage.setItem(`views:${m.key}`, JSON.stringify(next));
+      await this.host.api.saveView(pid, m.key, name, { q: filter.q, state: filter.state, sort: this.sort[m.key] });
       this.openModule(m, filter);
     };
     actions.append(newBtn, boardBtn, csvBtn, fbox, stateSel, viewSel, saveView);

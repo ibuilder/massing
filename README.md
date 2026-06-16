@@ -1,5 +1,7 @@
 # AEC BIM Platform + GC Portal
 
+[![CI](https://github.com/ibuilder/ModelMaker/actions/workflows/ci.yml/badge.svg)](https://github.com/ibuilder/ModelMaker/actions/workflows/ci.yml)
+
 A standalone, open, web-based **BIM viewer + data + coordination platform** for AEC firms,
 built on the IfcOpenShell / That Open (Fragments) ecosystem, **plus a general-contracting
 portal** (RFIs, change-order chain, pay apps, dashboards) whose records pin to the 3D model.

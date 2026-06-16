@@ -135,8 +135,88 @@ def add_spaces(model: ifcopenshell.file, rooms_per_storey: int = 4,
     return count
 
 
+def _body_context(model):
+    return next((c for c in model.by_type("IfcGeometricRepresentationSubContext")
+                 if c.ContextIdentifier == "Body"), None) or \
+        (model.by_type("IfcGeometricRepresentationContext") or [None])[0]
+
+
+def _first_storey(model, name=None):
+    sts = sorted(model.by_type("IfcBuildingStorey"),
+                 key=lambda s: float(getattr(s, "Elevation", 0) or 0))
+    if name:
+        return next((s for s in sts if s.Name == name), sts[0] if sts else None)
+    return sts[0] if sts else None
+
+
+def add_wall(model: ifcopenshell.file, start, end, height: float = 3.0,
+             thickness: float = 0.2, storey: str | None = None) -> str:
+    """Author an IfcWall from two XY points (meters): a rectangular profile (length ×
+    thickness) extruded to `height`, placed + rotated along the start→end axis. Mirrors
+    add_spaces' unit handling (geometry in meters, placement translation / unit scale).
+    Returns the new wall's GUID."""
+    import math
+
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    scale = uunit.calculate_unit_scale(model)
+    body = _body_context(model)
+    sx, sy, ex, ey = float(start[0]), float(start[1]), float(end[0]), float(end[1])
+    length = math.hypot(ex - sx, ey - sy) or 1.0
+    ang = math.atan2(ey - sy, ex - sx)
+    st = _first_storey(model, storey)
+    elev = float(getattr(st, "Elevation", 0) or 0) if st else 0.0   # file units
+    wall = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcWall", name="Wall")
+    mx, my = (sx + ex) / 2, (sy + ey) / 2
+    c, s = math.cos(ang), math.sin(ang)
+    matrix = np.array([[c, -s, 0, mx / scale], [s, c, 0, my / scale],
+                       [0, 0, 1, elev], [0, 0, 0, 1]], dtype=float)
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=wall, matrix=matrix)
+    profile = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA",
+                                  XDim=length, YDim=float(thickness))
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model,
+                               context=body, profile=profile, depth=float(height))
+    ifcopenshell.api.run("geometry.assign_representation", model, product=wall, representation=rep)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[wall], relating_structure=st)
+    ps = ifcopenshell.api.run("pset.add_pset", model, product=wall, name="Pset_WallCommon")
+    ifcopenshell.api.run("pset.edit_pset", model, pset=ps,
+                         properties={"LoadBearing": False, "IsExternal": True})
+    return wall.GlobalId
+
+
+def add_slab(model: ifcopenshell.file, points, thickness: float = 0.2,
+             storey: str | None = None) -> str:
+    """Author an IfcSlab from a polygon of XY points (meters) extruded by `thickness`.
+    Returns the new slab's GUID."""
+    import numpy as np
+
+    body = _body_context(model)
+    st = _first_storey(model, storey)
+    elev = float(getattr(st, "Elevation", 0) or 0) if st else 0.0
+    slab = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcSlab", name="Slab")
+    matrix = np.eye(4); matrix[2, 3] = elev
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=slab, matrix=matrix)
+    pts = [model.create_entity("IfcCartesianPoint", Coordinates=(float(p[0]), float(p[1]))) for p in points]
+    pts.append(pts[0])  # close the loop
+    poly = model.create_entity("IfcPolyline", Points=pts)
+    profile = model.create_entity("IfcArbitraryClosedProfileDef", ProfileType="AREA", OuterCurve=poly)
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model,
+                               context=body, profile=profile, depth=float(thickness))
+    ifcopenshell.api.run("geometry.assign_representation", model, product=slab, representation=rep)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[slab], relating_structure=st)
+    ps = ifcopenshell.api.run("pset.add_pset", model, product=slab, name="Pset_SlabCommon")
+    ifcopenshell.api.run("pset.edit_pset", model, pset=ps, properties={"LoadBearing": True})
+    return slab.GlobalId
+
+
 # recipe registry — what an API endpoint / Bonsai-MCP can invoke by name
 RECIPES = {
+    "add_wall": lambda m, p: add_wall(m, p["start"], p["end"], float(p.get("height", 3.0)),
+                                      float(p.get("thickness", 0.2)), p.get("storey")),
+    "add_slab": lambda m, p: add_slab(m, p["points"], float(p.get("thickness", 0.2)), p.get("storey")),
     "set_pset": lambda m, p: set_pset_on_class(
         m, p["ifc_class"], p["pset"], p["prop"],
         _coerce(p.get("value"), p.get("dtype", "str"))),

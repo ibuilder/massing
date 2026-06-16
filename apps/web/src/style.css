@@ -60,6 +60,8 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .ws-btn { background: transparent; border: none; color: var(--muted); font-size: 12px; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
 .ws-btn:hover { color: var(--text); }
 .ws-btn.active { background: var(--accent); color: #fff; }
+.ws-btn { position: relative; }
+.ws-badge { margin-left: 5px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; border-radius: 8px; background: #e2554a; color: #fff; display: inline-block; }
 
 /* stage holds the three workspaces; only the active one shows */
 #stage { grid-area: stage; position: relative; min-height: 0; }

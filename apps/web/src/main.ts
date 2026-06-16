@@ -119,6 +119,8 @@ container.addEventListener("click", async (e) => {
   const hit = await loader.fragments.raycast({
     camera: viewer.world.camera.three, mouse, dom: viewer.world.renderer!.three.domElement,
   });
+  // wall authoring mode: capture two ground points, then author the wall server-side
+  if (wallMode) { await captureWallPoint(e, hit?.point ?? null); return; }
   if (!hit) { await selectMap(null); return; }
   lastPoint = hit.point.clone();
   showCoords(lastPoint);
@@ -260,6 +262,50 @@ toolBtn("✂", "Section plane (S) — dbl-click a face", (b) => { section.enable
 toolBtn("⊙", "Isolate selection", () => selection && visibility.isolate(selection));
 toolBtn("◐", "Color selection", () => selection && colorize.color(selection, "#ffb000"));
 toolBtn("⊞", "Show all (H)", async () => { await visibility.showAll(); await colorize.reset(); });
+
+// ---- modeling: author a wall from two ground clicks (server-side ifcopenshell) ----
+let wallMode = false;
+const wallPts: THREE.Vector3[] = [];
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const groundRay = new THREE.Raycaster();
+const wallBtn = toolBtn("▭", "Add wall (click two points)", (b) => { setWallMode(!wallMode); b.classList.toggle("on", wallMode); });
+
+function setWallMode(on: boolean) {
+  wallMode = on; wallPts.length = 0;
+  wallBtn.classList.toggle("on", on);
+  if (on) notify("wall: click the start point on the floor/grid", "info");
+}
+
+/** Project a screen click onto the y=0 ground plane (fallback when no geometry was hit). */
+function screenToGround(e: MouseEvent): THREE.Vector3 | null {
+  const dom = viewer.world.renderer!.three.domElement;
+  const r = dom.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  groundRay.setFromCamera(ndc, viewer.world.camera.three);
+  const pt = new THREE.Vector3();
+  return groundRay.ray.intersectPlane(groundPlane, pt) ? pt : null;
+}
+
+async function captureWallPoint(e: MouseEvent, hitPoint: THREE.Vector3 | null) {
+  const p = hitPoint ?? screenToGround(e);
+  if (!p) { notify("couldn't pick a point — click on the floor or grid", "error"); return; }
+  wallPts.push(p.clone());
+  if (wallPts.length === 1) { notify("wall: click the end point", "info"); return; }
+  const [a, b] = wallPts;
+  const height = Number(prompt("Wall height (m):", "3.0")) || 3.0;
+  const thickness = Number(prompt("Wall thickness (m):", "0.2")) || 0.2;
+  setWallMode(false);
+  if (!projectId) { notify("connect a project with a source IFC to author walls", "error"); return; }
+  // plan coordinates: E = world x, N = -world z (matches the origin/coords convention)
+  await withLoading(container, "authoring wall + republishing", async () => {
+    try {
+      const r = await api.editIfc(projectId!, "add_wall",
+        { start: [a.x, -a.z], end: [b.x, -b.z], height, thickness }, true);
+      notify(`wall authored (${String(r.changed).slice(0, 8)}) — model republished`, "success");
+      await reloadModelPins();
+    } catch (err) { notify(`author failed: ${(err as Error).message}`, "error"); }
+  });
+}
 
 // ---- workspaces + left icon rail (replaces the old tab strip) ---------------
 const appEl = document.getElementById("app")!;
@@ -965,8 +1011,24 @@ async function startup() {
   if (projectId) {
     try { await buildPanels(); }
     catch (e) { console.warn("panels:", e); setStatus("connected (no properties index for this project)"); }
+    connectNotifications();
   }
   buildToolsPanel();  // always render Tools, even if the data panels fail
+}
+
+// live notification badge on the Construction workspace tab (server-sent events)
+function connectNotifications() {
+  if (!projectId) return;
+  const ws = document.querySelector<HTMLElement>('.ws-btn[data-ws="construction"]');
+  if (!ws) return;
+  let badge = ws.querySelector<HTMLElement>(".ws-badge");
+  if (!badge) { badge = document.createElement("span"); badge.className = "ws-badge"; ws.appendChild(badge); }
+  try {
+    api.notificationStream(projectId, ({ count }) => {
+      badge!.textContent = count > 0 ? String(count) : "";
+      badge!.style.display = count > 0 ? "" : "none";
+    });
+  } catch { /* SSE unsupported / offline */ }
 }
 
 // ---- keyboard shortcuts -----------------------------------------------------

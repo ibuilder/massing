@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, File, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Request, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import modules as mod_engine
@@ -44,6 +44,69 @@ def my_work(pid: str, db: Session = Depends(get_db), user: str = Depends(current
 def notifications(pid: str, db: Session = Depends(get_db), user: str = Depends(current_user)):
     """Recent activity relevant to the caller (assigned / ball-in-court), newest first."""
     return mod_engine.notifications(db, pid, user, _party(pid, db, user))
+
+
+@router.get("/projects/{pid}/notifications/stream")
+async def notifications_stream(pid: str, request: Request, user: str = Depends(current_user)):
+    """Server-sent events: pushes the notification feed to the client and re-pushes when
+    the relevant activity count changes (polled server-side every few seconds). Uses a
+    fresh DB session per poll since the generator outlives the request scope."""
+    import asyncio
+    import json as _json
+
+    from fastapi.responses import StreamingResponse
+
+    from ..db import SessionLocal
+
+    async def gen():
+        last = None
+        while not await request.is_disconnected():
+            with SessionLocal() as db:
+                party = _party(pid, db, user)
+                items = mod_engine.notifications(db, pid, user, party)
+            sig = len(items), (items[0]["ts"] if items else None)
+            if sig != last:
+                last = sig
+                yield f"data: {_json.dumps({'count': len(items), 'items': items[:8]})}\n\n"
+            await asyncio.sleep(5)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# --- saved views (server-side, per user+module) -----------------------------
+@router.get("/projects/{pid}/modules/{key}/views")
+def list_views(pid: str, key: str, db: Session = Depends(get_db), user: str = Depends(current_user)):
+    from ..models import SavedView
+    rows = db.query(SavedView).filter(SavedView.project_id == pid, SavedView.module == key,
+                                      SavedView.user == user).order_by(SavedView.created_at).all()
+    return [{"id": v.id, "name": v.name, "config": v.config} for v in rows]
+
+
+@router.post("/projects/{pid}/modules/{key}/views", status_code=201)
+def save_view(pid: str, key: str, name: str = Body(..., embed=True),
+              config: dict = Body(default={}, embed=True),
+              db: Session = Depends(get_db), user: str = Depends(current_user)):
+    from ..models import SavedView
+    v = db.query(SavedView).filter(SavedView.project_id == pid, SavedView.module == key,
+                                   SavedView.user == user, SavedView.name == name).first()
+    if v:
+        v.config = config
+    else:
+        v = SavedView(project_id=pid, module=key, user=user, name=name, config=config)
+        db.add(v)
+    db.commit()
+    return {"id": v.id, "name": v.name, "config": v.config}
+
+
+@router.delete("/projects/{pid}/modules/{key}/views/{vid}")
+def delete_view(pid: str, key: str, vid: str, db: Session = Depends(get_db),
+                user: str = Depends(current_user)):
+    from ..models import SavedView
+    v = db.get(SavedView, vid)
+    if v and v.user == user:
+        db.delete(v); db.commit()
+    return {"deleted": bool(v)}
 
 
 @router.get("/projects/{pid}/search")

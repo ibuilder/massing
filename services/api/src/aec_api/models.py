@@ -72,6 +72,19 @@ class RecordComment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class SavedView(Base):
+    """A user's saved filter/sort/column config for a module's list (server-side, so it
+    follows them across devices). Keyed by project + module + user + name."""
+    __tablename__ = "saved_views"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(String, index=True)
+    module: Mapped[str] = mapped_column(String, index=True)
+    user: Mapped[str] = mapped_column(String, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class RecordAttachment(Base):
     """File attached to any GC module record (object bytes live in storage/MinIO)."""
     __tablename__ = "record_attachments"

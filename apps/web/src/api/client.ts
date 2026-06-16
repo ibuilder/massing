@@ -84,6 +84,7 @@ export interface NotifItem {
   module: string; module_name: string; icon: string; record_id: string; ref: string;
   title: string | null; action: string; actor: string | null; ts: string | null; reason: string;
 }
+export interface SavedViewDef { id: string; name: string; config: { q?: string; state?: string; sort?: { col: string; dir: 1 | -1 } }; }
 
 export interface ProformaResult {
   sources_uses: { total_uses: number; loan_amount: number; loan_fees: number; interest_reserve: number; equity: number; ltc: number; lp_contribution: number; gp_contribution: number };
@@ -289,6 +290,22 @@ export class ApiClient {
   notifications(pid: string) {
     return this.json<NotifItem[]>(`/projects/${pid}/notifications`);
   }
+  listViews(pid: string, key: string) {
+    return this.json<SavedViewDef[]>(`/projects/${pid}/modules/${key}/views`);
+  }
+  saveView(pid: string, key: string, name: string, config: Record<string, unknown>) {
+    return this.json<SavedViewDef>(`/projects/${pid}/modules/${key}/views`, {
+      method: "POST", body: JSON.stringify({ name, config }) });
+  }
+  deleteView(pid: string, key: string, vid: string) {
+    return this.json<{ deleted: boolean }>(`/projects/${pid}/modules/${key}/views/${vid}`, { method: "DELETE" });
+  }
+  /** SSE stream of the notification feed; returns the EventSource so callers can close it. */
+  notificationStream(pid: string, onMessage: (d: { count: number; items: NotifItem[] }) => void): EventSource {
+    const es = new EventSource(this.url(`/projects/${pid}/notifications/stream`));
+    es.onmessage = (e) => { try { onMessage(JSON.parse(e.data)); } catch { /* ignore */ } };
+    return es;
+  }
   searchAll(pid: string, q: string, limit = 50) {
     return this.json<WorkItem[]>(`/projects/${pid}/search?q=${encodeURIComponent(q)}&limit=${limit}`);
   }
@@ -326,7 +343,7 @@ export class ApiClient {
 
   // authoring round-trip (Phase 6)
   editIfc(pid: string, recipe: string, params: Record<string, unknown>, publish = true) {
-    return this.json<{ recipe: string; changed: number; published: unknown }>(
+    return this.json<{ recipe: string; changed: number | string; published: unknown }>(
       `/projects/${pid}/edit`, { method: "POST", body: JSON.stringify({ recipe, params, publish }) });
   }
   publish(pid: string) {
