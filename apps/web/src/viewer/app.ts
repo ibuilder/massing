@@ -198,18 +198,59 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     a.href = URL.createObjectURL(blob); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
+  // running inside the Tauri desktop shell? then use native file dialogs + fs
+  const isTauri = () => "__TAURI_INTERNALS__" in window;
+
+  async function tauriOpen(kind: "ifc" | "frag" | "convert") {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const { readFile } = await import("@tauri-apps/plugin-fs");
+    const exts = kind === "ifc" ? ["ifc"] : kind === "frag" ? ["frag"] : ["rvt", "dwg", "nwc"];
+    const path = await open({ multiple: false, filters: [{ name: kind.toUpperCase(), extensions: exts }] });
+    if (!path || typeof path !== "string") return;
+    const bytes = await readFile(path);
+    const name = path.split(/[\\/]/).pop() || "model";
+    await withLoading(container, `loading ${name}`, async () => {
+      if (kind === "frag") await loader.loadFragments(bytes, nextId());
+      else if (kind === "ifc") await loader.loadIfc(bytes, nextId());
+      else {
+        const fd = new FormData(); fd.append("file", new Blob([bytes as BlobPart]), name);
+        const res = await fetch(api.url("/convert"), { method: "POST", body: fd });
+        if (!res.ok) { const m = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(m.detail || "conversion unavailable"); }
+        await loader.loadFragments(await res.arrayBuffer(), nextId());
+      }
+      await fitToModels();
+      notify(`loaded ${name}`, "success");
+    });
+  }
+  function triggerOpen(kind: "ifc" | "frag" | "convert") {
+    if (isTauri()) void tauriOpen(kind); else $(`${kind}-input`).click();
+  }
+
+  async function tauriSave(defaultName: string, ext: string, bytes: Uint8Array): Promise<boolean> {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeFile } = await import("@tauri-apps/plugin-fs");
+    const path = await save({ defaultPath: defaultName, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
+    if (!path) return false;
+    await writeFile(path, bytes); notify(`saved ${path}`, "success"); return true;
+  }
   async function exportFrag() {
     const id = [...loader.fragments.list.keys()][0];
     if (!id) { notify("no model loaded", "error"); return; }
-    const buf = await loader.fragments.list.get(id)!.getBuffer(false);
+    const buf = new Uint8Array(await loader.fragments.list.get(id)!.getBuffer(false));
+    if (isTauri()) { await tauriSave(`${id}.frag`, "frag", buf); return; }
     download(new Blob([buf]), `${id}.frag`);
     notify(`exported ${id}.frag`, "success");
   }
-  function exportIfc() {
+  async function exportIfc() {
     if (!projectId) { notify("connect a project to export its IFC", "error"); return; }
+    if (isTauri()) {
+      const res = await fetch(api.url(`/projects/${projectId}/source.ifc`));
+      if (!res.ok) { notify("no source IFC to export", "error"); return; }
+      await tauriSave("model.ifc", "ifc", new Uint8Array(await res.arrayBuffer()));
+      return;
+    }
     window.open(api.url(`/projects/${projectId}/source.ifc`), "_blank");
   }
-  function triggerOpen(kind: "ifc" | "frag" | "convert") { $(`${kind}-input`).click(); }
 
   // ---- floating toolbar ----------------------------------------------------
   const viewerTools = $("viewer-tools");

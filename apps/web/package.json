@@ -14,6 +14,8 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-fs": "^2.5.1",
     "@thatopen/components": "3.4.6",
     "@thatopen/components-front": "3.4.3",
     "@thatopen/fragments": "3.4.5",
