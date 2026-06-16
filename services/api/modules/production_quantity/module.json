@@ -25,8 +25,15 @@
     },
     {
       "name": "cost_code",
-      "label": "Cost Code",
-      "type": "text"
+      "label": "Cost code",
+      "type": "reference",
+      "module": "cost_code"
+    },
+    {
+      "name": "activity",
+      "label": "Schedule activity",
+      "type": "reference",
+      "module": "schedule_activity"
     }
   ],
   "workflow": {

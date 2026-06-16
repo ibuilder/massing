@@ -22,6 +22,12 @@
       "name": "date",
       "label": "Date",
       "type": "date"
+    },
+    {
+      "name": "permit",
+      "label": "Permit",
+      "type": "reference",
+      "module": "permit"
     }
   ],
   "workflow": {

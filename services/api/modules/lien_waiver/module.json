@@ -16,12 +16,18 @@
     {
       "name": "amount",
       "label": "Through Amount",
-      "type": "number"
+      "type": "currency"
     },
     {
       "name": "signature",
       "label": "Signature",
       "type": "signature"
+    },
+    {
+      "name": "subcontract",
+      "label": "Subcontract",
+      "type": "reference",
+      "module": "subcontract"
     }
   ],
   "workflow": {

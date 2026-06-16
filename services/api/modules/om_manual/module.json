@@ -17,6 +17,12 @@
       "name": "system",
       "label": "System",
       "type": "text"
+    },
+    {
+      "name": "submittal",
+      "label": "Submittal",
+      "type": "reference",
+      "module": "submittal"
     }
   ],
   "workflow": {

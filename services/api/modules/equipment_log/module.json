@@ -22,6 +22,12 @@
       "name": "hours",
       "label": "Hours",
       "type": "number"
+    },
+    {
+      "name": "daily_report",
+      "label": "Daily report",
+      "type": "reference",
+      "module": "daily_report"
     }
   ],
   "workflow": {

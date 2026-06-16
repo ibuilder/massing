@@ -22,6 +22,12 @@
       "name": "description",
       "label": "Description",
       "type": "textarea"
+    },
+    {
+      "name": "meeting",
+      "label": "Raised in meeting",
+      "type": "reference",
+      "module": "meeting"
     }
   ],
   "workflow": {

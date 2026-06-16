@@ -21,7 +21,15 @@
     {
       "name": "budget",
       "label": "Budget",
-      "type": "number"
+      "type": "currency"
+    },
+    {
+      "name": "submission_count",
+      "label": "# Bids",
+      "type": "rollup",
+      "source_module": "bid_submission",
+      "source_field": "amount",
+      "op": "count"
     }
   ],
   "workflow": {

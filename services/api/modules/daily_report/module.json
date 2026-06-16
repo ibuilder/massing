@@ -2,22 +2,70 @@
   "key": "daily_report",
   "name": "Daily Reports",
   "section": "Field",
-  "icon": "☼",
+  "icon": "\u263c",
   "ref_prefix": "DR",
   "title_field": "report_date",
   "pinnable": false,
   "fields": [
-    {"name": "report_date", "label": "Date", "type": "date", "required": true},
-    {"name": "weather", "label": "Weather", "type": "text"},
-    {"name": "manpower", "label": "Manpower Count", "type": "number"},
-    {"name": "work_performed", "label": "Work Performed", "type": "textarea"},
-    {"name": "deliveries", "label": "Deliveries", "type": "textarea"}
+    {
+      "name": "report_date",
+      "label": "Date",
+      "type": "date",
+      "required": true
+    },
+    {
+      "name": "weather",
+      "label": "Weather",
+      "type": "text"
+    },
+    {
+      "name": "manpower",
+      "label": "Manpower Count",
+      "type": "number"
+    },
+    {
+      "name": "work_performed",
+      "label": "Work Performed",
+      "type": "textarea"
+    },
+    {
+      "name": "deliveries",
+      "label": "Deliveries",
+      "type": "textarea"
+    },
+    {
+      "name": "crew_total",
+      "label": "Crew (total)",
+      "type": "rollup",
+      "source_module": "manpower_log",
+      "source_field": "count",
+      "op": "sum"
+    },
+    {
+      "name": "equip_hours",
+      "label": "Equipment hrs",
+      "type": "rollup",
+      "source_module": "equipment_log",
+      "source_field": "hours",
+      "op": "sum"
+    }
   ],
   "workflow": {
     "initial": "draft",
-    "states": ["draft", "submitted"],
+    "states": [
+      "draft",
+      "submitted"
+    ],
     "transitions": [
-      {"from": "draft", "to": "submitted", "action": "submit", "party": ["GC", "Subcontractor"]}
+      {
+        "from": "draft",
+        "to": "submitted",
+        "action": "submit",
+        "party": [
+          "GC",
+          "Subcontractor"
+        ]
+      }
     ]
   }
 }

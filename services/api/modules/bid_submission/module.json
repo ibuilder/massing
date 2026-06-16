@@ -15,13 +15,14 @@
     },
     {
       "name": "package",
-      "label": "Package",
-      "type": "text"
+      "label": "Bid package",
+      "type": "reference",
+      "module": "bid_package"
     },
     {
       "name": "amount",
       "label": "Amount",
-      "type": "number"
+      "type": "currency"
     }
   ],
   "workflow": {

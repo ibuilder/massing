@@ -22,6 +22,12 @@
       "name": "expires",
       "label": "Expires",
       "type": "date"
+    },
+    {
+      "name": "submittal",
+      "label": "Backed by submittal",
+      "type": "reference",
+      "module": "submittal"
     }
   ],
   "workflow": {

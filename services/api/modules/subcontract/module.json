@@ -22,6 +22,12 @@
       "name": "value",
       "label": "Value",
       "type": "currency"
+    },
+    {
+      "name": "awarded_from",
+      "label": "Awarded from bid",
+      "type": "reference",
+      "module": "bid_submission"
     }
   ],
   "workflow": {

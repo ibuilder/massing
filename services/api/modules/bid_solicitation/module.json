@@ -17,6 +17,12 @@
       "name": "due_date",
       "label": "Bids Due",
       "type": "date"
+    },
+    {
+      "name": "package",
+      "label": "Bid package",
+      "type": "reference",
+      "module": "bid_package"
     }
   ],
   "workflow": {

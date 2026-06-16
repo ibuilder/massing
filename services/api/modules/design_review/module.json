@@ -17,6 +17,12 @@
       "name": "comments",
       "label": "Comments",
       "type": "textarea"
+    },
+    {
+      "name": "drawing",
+      "label": "Drawing",
+      "type": "reference",
+      "module": "drawing"
     }
   ],
   "workflow": {
