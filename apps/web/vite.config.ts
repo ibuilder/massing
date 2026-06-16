@@ -1,6 +1,40 @@
 import { defineConfig } from "vite";
+import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  plugins: [
+    VitePWA({
+      registerType: "autoUpdate",
+      includeAssets: ["icon.svg"],
+      manifest: {
+        name: "AEC BIM Platform + GC Portal",
+        short_name: "AEC BIM",
+        description: "Web BIM viewer + general-contracting portal + development proforma.",
+        theme_color: "#1e1f22",
+        background_color: "#16171a",
+        display: "standalone",
+        start_url: "/",
+        icons: [
+          { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
+        ],
+      },
+      workbox: {
+        // precache only the lean app shell; the heavy viewer libs (three/@thatopen/worker),
+        // WASM, and streamed .frag tiles are runtime-cached on first use so the precache and
+        // the per-deploy background download stay small.
+        globPatterns: ["**/*.{css,html,svg}", "assets/index-*.js", "assets/app-*.js"],
+        navigateFallbackDenylist: [/^\/api\//],            // never serve the API from cache
+        runtimeCaching: [
+          { urlPattern: /\/assets\/(three|thatopen|worker)-.*\.(js|mjs)$/, handler: "CacheFirst",
+            options: { cacheName: "viewer-libs", expiration: { maxEntries: 10 } } },
+          { urlPattern: /\/wasm\/.*\.(wasm|js|mjs)$/, handler: "CacheFirst",
+            options: { cacheName: "wasm", expiration: { maxEntries: 20 } } },
+          { urlPattern: /\.frag$/, handler: "CacheFirst",
+            options: { cacheName: "fragments", expiration: { maxEntries: 30, maxAgeSeconds: 2592000 } } },
+        ],
+      },
+    }),
+  ],
   // force a single copy of three — the app, @thatopen/* and camera-controls each
   // depend on it; without this they can resolve to different instances ("Multiple
   // instances of Three.js being imported"), bloating the bundle and breaking

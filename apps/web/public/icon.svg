@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="96" fill="#1e1f22"/>
+  <!-- isometric building / BIM mark -->
+  <g fill="none" stroke="#4a8cff" stroke-width="18" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M256 96 L400 176 L400 336 L256 416 L112 336 L112 176 Z"/>
+    <path d="M256 96 L256 416" stroke="#33d17a"/>
+    <path d="M112 176 L256 256 L400 176" stroke="#33d17a"/>
+    <path d="M112 256 L256 336 L400 256" opacity="0.55"/>
+  </g>
+</svg>
