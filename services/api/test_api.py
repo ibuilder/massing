@@ -73,7 +73,11 @@ with TestClient(app) as c:
     assert t2[0]["title"] == "Beam clash at grid C3"
 
     # 10. properties index upload + lookup by GUID
-    with open("../../samples/school_str.props.json", "rb") as fh:
+    #     fixture lives in the repo (tests/fixtures); fall back to the local samples/ dir
+    _fx = "tests/fixtures/school_str.props.json"
+    if not os.path.exists(_fx):
+        _fx = "../../samples/school_str.props.json"
+    with open(_fx, "rb") as fh:
         up = c.post(f"/projects/{pid}/properties/index", files={"file": ("props.json", fh, "application/json")}).json()
     assert up["loaded"] > 1000, up
     el = c.get(f"/projects/{pid}/elements/1WrzGm1SD2ev45B_OWQ39B").json()
