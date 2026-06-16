@@ -146,7 +146,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const hit = await loader.fragments.raycast({
       camera: viewer.world.camera.three, mouse, dom: viewer.world.renderer!.three.domElement,
     });
-    if (placeMode) { await capturePlacePoint(e, hit?.point ?? null); return; }
+    if (placeMode) { await capturePlacePoint(e, hit ?? null); return; }
     if (!hit) { await selectMap(null); return; }
     lastPoint = hit.point.clone();
     showCoords(lastPoint);
@@ -234,6 +234,49 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   toolBtn("◐", "Color selection", () => selection && colorize.color(selection, "#ffb000"));
   toolBtn("⊞", "Show all (H)", async () => { await visibility.showAll(); await colorize.reset(); });
 
+  // section box: 6 clipping planes shrunk inside the model bounds (renderer-level clip)
+  let sectionBox: THREE.Plane[] | null = null;
+  toolBtn("⬚", "Section box (clip to model bounds)", (b) => {
+    const r = viewer.world.renderer!.three;
+    if (sectionBox) { r.clippingPlanes = []; sectionBox = null; b.classList.remove("on"); void loader.fragments.core.update(true); return; }
+    const box = new THREE.Box3();
+    viewer.world.scene.three.traverse((o) => { const msh = o as THREE.Mesh; if (msh.isMesh) box.expandByObject(msh); });
+    if (box.isEmpty()) { notify("no model to clip", "error"); return; }
+    const c = box.getCenter(new THREE.Vector3());
+    const s = box.getSize(new THREE.Vector3()).multiplyScalar(0.35);   // keep the middle ~70%
+    const mn = c.clone().sub(s), mx = c.clone().add(s);
+    sectionBox = [
+      new THREE.Plane(new THREE.Vector3(1, 0, 0), -mn.x), new THREE.Plane(new THREE.Vector3(-1, 0, 0), mx.x),
+      new THREE.Plane(new THREE.Vector3(0, 1, 0), -mn.y), new THREE.Plane(new THREE.Vector3(0, -1, 0), mx.y),
+      new THREE.Plane(new THREE.Vector3(0, 0, 1), -mn.z), new THREE.Plane(new THREE.Vector3(0, 0, -1), mx.z),
+    ];
+    r.localClippingEnabled = true; r.clippingPlanes = sectionBox;
+    b.classList.add("on"); void loader.fragments.core.update(true);
+    setStatus("section box on (toggle to clear)");
+  });
+
+  // levels overlay: a horizontal grid + label at each storey elevation (from the API)
+  const levelObjs: THREE.Object3D[] = [];
+  toolBtn("☰", "Toggle storey levels overlay", async (b) => {
+    if (levelObjs.length) { for (const o of levelObjs) viewer.world.scene.three.remove(o); levelObjs.length = 0; b.classList.remove("on"); void loader.fragments.core.update(true); return; }
+    if (!projectId) { notify("connect a project for storey levels", "error"); return; }
+    let storeys: { name: string; elevation: number }[] = [];
+    try { storeys = await api.drawingStoreys(projectId); } catch { notify("no storeys (needs source IFC)", "error"); return; }
+    const box = new THREE.Box3();
+    viewer.world.scene.three.traverse((o) => { const msh = o as THREE.Mesh; if (msh.isMesh) box.expandByObject(msh); });
+    const size = box.isEmpty() ? 20 : Math.max(box.getSize(new THREE.Vector3()).x, box.getSize(new THREE.Vector3()).z) * 1.1;
+    const cx = box.isEmpty() ? 0 : box.getCenter(new THREE.Vector3()).x;
+    const cz = box.isEmpty() ? 0 : box.getCenter(new THREE.Vector3()).z;
+    for (const s of storeys) {
+      const grid = new THREE.GridHelper(size, 10, 0x4a8cff, 0x33384a);
+      grid.position.set(cx, s.elevation, cz);   // model Y is up; elevation in metres
+      (grid.material as THREE.Material).opacity = 0.35; (grid.material as THREE.Material).transparent = true;
+      viewer.world.scene.three.add(grid); levelObjs.push(grid);
+    }
+    b.classList.add("on"); void loader.fragments.core.update(true);
+    setStatus(`levels: ${storeys.length} storeys`);
+  });
+
   // ---- modeling: author walls / columns / beams from ground clicks ---------
   type PlaceKind = "wall" | "column" | "beam";
   const PLACE_PTS: Record<PlaceKind, number> = { wall: 2, column: 1, beam: 2 };
@@ -286,6 +329,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const value = prompt(`Value for ${propName}:`, ""); if (value === null) return;
     await authorAndReload("set_element_pset", { guid: selectedGuid, pset, prop: propName, value }, "property edit");
   });
+  toolBtn("⧉", "Copy selected element (offset E,N,Z metres)", async () => {
+    if (!selectedGuid) { notify("select an element first", "error"); return; }
+    if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
+    const v = prompt("Copy with offset E, N, Z metres:", "1, 0, 0"); if (!v) return;
+    const [dx, dy, dz] = v.split(",").map((n) => Number(n.trim()) || 0);
+    await authorAndReload("copy_element", { guid: selectedGuid, dx, dy, dz }, "copy");
+  });
 
   /** Round a point's plan coords (x,z) to the grid-snap increment; leave height (y). */
   function snapPoint(p: THREE.Vector3): THREE.Vector3 {
@@ -294,10 +344,27 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     return new THREE.Vector3(Math.round(p.x / inc) * inc, p.y, Math.round(p.z / inc) * inc);
   }
 
-  async function capturePlacePoint(e: MouseEvent, hitPoint: THREE.Vector3 | null) {
+  type Hit = { point: THREE.Vector3; fragments: { modelId: string }; localId: number };
+  /** Snap to the nearest bounding-box corner of the hit element (endpoint/corner snap),
+   *  within ~0.4 m, before falling back to grid snap. */
+  async function snapToGeometry(raw: THREE.Vector3, hit: Hit | null): Promise<THREE.Vector3 | null> {
+    if (!hit) return null;
+    try {
+      const boxes = await loader.fragments.getBBoxes({ [hit.fragments.modelId]: new Set([hit.localId]) });
+      if (!boxes.length) return null;
+      const bx = boxes[0];
+      const corners = [bx.min.x, bx.max.x].flatMap((x) =>
+        [bx.min.y, bx.max.y].flatMap((y) => [bx.min.z, bx.max.z].map((z) => new THREE.Vector3(x, y, z))));
+      let best: THREE.Vector3 | null = null, bd = 0.4;
+      for (const c of corners) { const d = raw.distanceTo(c); if (d < bd) { bd = d; best = c; } }
+      return best;
+    } catch { return null; }
+  }
+
+  async function capturePlacePoint(e: MouseEvent, hit: Hit | null) {
     if (!placeMode) return;
-    const raw = hitPoint ?? screenToGround(e);
-    const p = raw ? snapPoint(raw) : null;
+    const raw = hit?.point ?? screenToGround(e);
+    const p = raw ? (await snapToGeometry(raw, hit)) ?? snapPoint(raw) : null;
     if (!p) { notify("couldn't pick a point — click on the floor or grid", "error"); return; }
     showCoords(p);
     placePts.push(p.clone());

@@ -53,10 +53,10 @@ author → reload). Verified at the data layer on `basichouse.ifc`.
   (2.5,0,0)→(4.5,1,0) m, column rotates 45°.
 - **Per-element Pset edit** ✅ — `set_element_pset` (pset/prop/value/dtype on one GUID);
   viewer **Edit property** (✎) tool. Verified: FireRating → "2HR" round-trips.
-- **Copy** *(deferred)* — `root.copy_class` gives a new GUID + independent placement but
-  doesn't copy the representation; deep-copy rendered empty and sharing broke the original's
-  geometry in the python geom iterator. Needs proper representation duplication, verified via
-  the web-ifc converter (what actually renders) rather than the geom iterator.
+- **Copy** ✅ — `copy_element`: `root.copy_class` (new GUID + independent placement) +
+  `util.element.copy_deep` of the representation + storey containment + offset. Verified
+  through the **web-ifc converter** (the real render path; the python geom iterator was the
+  wrong engine to check) — walls 14→15, frag converts cleanly. Viewer **Copy** (⧉) tool.
 
 > **Unit fix (this phase):** all authoring recipes now build placement matrices in **metres**
 > and let `edit_object_placement(is_si=True)` convert to file units. Previously they divided by
@@ -66,8 +66,13 @@ author → reload). Verified at the data layer on `basichouse.ifc`.
 ### Phase C — drafting aids (client-only, no IFC write)
 - **Grid snap** ✅ — bottom-bar Snap selector (off / 0.1 / 0.5 / 1 m); authoring placement
   clicks round their plan coords to the increment and the coordinate readout reflects it.
-  *(Endpoint/midpoint/edge snap to model geometry is next — needs nearest-vertex from the
-  fragment, more involved than the grid round.)*
+- **Geometry (corner) snap** ✅ — a placement click on an element snaps to that element's
+  nearest bounding-box corner within ~0.4 m (endpoint/corner snap for aligning to existing
+  geometry), falling back to grid snap. *(True per-vertex/edge snap needs fragment mesh
+  vertices — corner snap covers the common orthogonal cases.)*
+- **Section box** ✅ — 6 renderer clipping planes shrunk inside the model bounds (toggle ⬚).
+- **Levels overlay** ✅ — a horizontal grid at each storey elevation from the API (toggle ☰).
+- Ortho lock, temp dimensions — remaining.
 - Section box / clip plane (the ✂ tool already exists — extend to a 6-face box).
 - Grids & levels overlay (read from `IfcGrid` / storey elevations already parsed).
 - Measure (already shipped: ↔ distance, ▱ area).

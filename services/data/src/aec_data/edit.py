@@ -356,6 +356,24 @@ def _element(model: ifcopenshell.file, guid: str):
     return el
 
 
+def copy_element(model: ifcopenshell.file, guid: str, dx: float = 0.0, dy: float = 0.0,
+                 dz: float = 0.0) -> str:
+    """Duplicate an element (new GUID, deep-copied representation, contained in a storey) and
+    offset it by (dx,dy,dz) metres. copy_class alone drops the representation, so deep-copy it."""
+    import ifcopenshell.util.element as ue
+
+    el = _element(model, guid)
+    new = ifcopenshell.api.run("root.copy_class", model, product=el)
+    if el.Representation:
+        new.Representation = ue.copy_deep(model, el.Representation)
+    st = _first_storey(model)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[new], relating_structure=st)
+    if dx or dy or dz:
+        move_element(model, new.GlobalId, dx, dy, dz)
+    return new.GlobalId
+
+
 def set_element_pset(model: ifcopenshell.file, guid: str, pset: str, prop: str,
                      value, dtype: str = "str") -> str:
     """Set a single property in a Pset on one element (by GUID). GUID-stable."""
@@ -424,6 +442,8 @@ RECIPES = {
     "rotate_element": lambda m, p: rotate_element(m, p["guid"], float(p.get("angle", 0))),
     "set_element_pset": lambda m, p: set_element_pset(m, p["guid"], p["pset"], p["prop"],
                                                       p.get("value"), p.get("dtype", "str")),
+    "copy_element": lambda m, p: copy_element(m, p["guid"], float(p.get("dx", 1)),
+                                              float(p.get("dy", 0)), float(p.get("dz", 0))),
     "set_pset": lambda m, p: set_pset_on_class(
         m, p["ifc_class"], p["pset"], p["prop"],
         _coerce(p.get("value"), p.get("dtype", "str"))),
