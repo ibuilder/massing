@@ -2,7 +2,11 @@
    PYTHONPATH=src ./.venv/Scripts/python.exe test_api.py
 """
 import io
+import json
 import os
+import subprocess
+import sys
+import tempfile
 import zipfile
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_aec.db"
@@ -73,12 +77,32 @@ with TestClient(app) as c:
     assert t2[0]["title"] == "Beam clash at grid C3"
 
     # 10. properties index upload + lookup by GUID
-    #     fixture lives in the repo (tests/fixtures); fall back to the local samples/ dir
-    _fx = "tests/fixtures/school_str.props.json"
-    if not os.path.exists(_fx):
-        _fx = "../../samples/school_str.props.json"
-    with open(_fx, "rb") as fh:
-        up = c.post(f"/projects/{pid}/properties/index", files={"file": ("props.json", fh, "application/json")}).json()
+    #     generate the props.json dynamically using aec_data.cli (like smoke-stack.sh does)
+    ifc_path = "../../samples/school_str.ifc"
+    if not os.path.exists(ifc_path):
+        raise FileNotFoundError(f"Sample IFC not found at {ifc_path}")
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+        tmp_path = tmp.name
+    
+    try:
+        # Generate props.json from the sample IFC using the data service
+        result = subprocess.run(
+            [sys.executable, "-m", "aec_data.cli", "index", ifc_path, tmp_path],
+            cwd=os.path.join(os.path.dirname(__file__), "..", "data"),
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONPATH": os.path.join(os.path.dirname(__file__), "..", "data", "src")}
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to generate props.json: {result.stderr}")
+        
+        with open(tmp_path, "rb") as fh:
+            up = c.post(f"/projects/{pid}/properties/index", files={"file": ("props.json", fh, "application/json")}).json()
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+    
     assert up["loaded"] > 1000, up
     el = c.get(f"/projects/{pid}/elements/1WrzGm1SD2ev45B_OWQ39B").json()
     assert el["ifc_class"] == "IfcBeam", el
