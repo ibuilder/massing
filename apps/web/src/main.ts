@@ -276,6 +276,20 @@ function setWallMode(on: boolean) {
   if (on) notify("wall: click the start point on the floor/grid", "info");
 }
 
+/** Load the server-published model.frag for the current project (reflects authored edits).
+ *  Returns false if the project hasn't been published (404) so callers can fall back. */
+async function loadProjectModel(): Promise<boolean> {
+  if (!projectId) return false;
+  try {
+    const res = await fetch(api.url(`/projects/${projectId}/model.frag`));
+    if (!res.ok) return false;
+    await loader.disposeAll();
+    await loader.loadFragments(await res.arrayBuffer(), `project-${projectId}`);
+    await fitToModels();
+    return true;
+  } catch { return false; }
+}
+
 /** Project a screen click onto the y=0 ground plane (fallback when no geometry was hit). */
 function screenToGround(e: MouseEvent): THREE.Vector3 | null {
   const dom = viewer.world.renderer!.three.domElement;
@@ -301,7 +315,8 @@ async function captureWallPoint(e: MouseEvent, hitPoint: THREE.Vector3 | null) {
     try {
       const r = await api.editIfc(projectId!, "add_wall",
         { start: [a.x, -a.z], end: [b.x, -b.z], height, thickness }, true);
-      notify(`wall authored (${String(r.changed).slice(0, 8)}) — model republished`, "success");
+      const shown = await loadProjectModel();   // reload published frag so the wall appears
+      notify(`wall authored (${String(r.changed).slice(0, 8)})${shown ? " — shown" : " — republished"}`, "success");
       await reloadModelPins();
     } catch (err) { notify(`author failed: ${(err as Error).message}`, "error"); }
   });
@@ -999,9 +1014,11 @@ async function startup() {
   } else {
     setStatus("offline — open a .frag to view (API not reachable)");
   }
-  // load the chosen project's model frag(s) from public/
-  const frags = projectName ? fragsForProject(projectName) : [["/school_str.frag", "school-STR"], ["/school_arq.frag", "school-ARQ"]];
+  // prefer the server-published model.frag (reflects authored edits); fall back to the
+  // demo frags in public/ when the project hasn't been published yet
   await withLoading(container, `Loading ${projectName || "model"}`, async () => {
+    if (projectId && await loadProjectModel()) return;
+    const frags = projectName ? fragsForProject(projectName) : [["/school_str.frag", "school-STR"], ["/school_arq.frag", "school-ARQ"]];
     for (const [file, id] of frags) {
       const res = await fetch(file);
       if (res.ok) await loader.loadFragments(await res.arrayBuffer(), id);

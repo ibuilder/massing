@@ -45,4 +45,12 @@ export class ModelLoader {
     await this.fragments.core.update(true);
     return model;
   }
+
+  /** Remove every loaded model (used before reloading a republished project). */
+  async disposeAll() {
+    for (const id of [...this.fragments.list.keys()]) {
+      await this.fragments.core.disposeModel(id);
+    }
+    await this.fragments.core.update(true);
+  }
 }
