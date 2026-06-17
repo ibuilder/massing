@@ -40,6 +40,9 @@ samples/
 minio-data/
 postgres-data/
 
+# backup tarballs (scripts/backup.sh)
+/backups/
+
 # dev databases & local storage
 *.db
 storage/

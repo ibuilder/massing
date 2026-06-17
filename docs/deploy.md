@@ -59,8 +59,28 @@ CDN stream large models. Verified: `test_serving.py` (200 full / 206 ranged / 41
 
 ## Audit & backups
 Every write records an `AuditLog` row (actor, action, method, path, topic, detail) — RFIs/
-punchlist are contractual records. Back up Postgres + the object store on a schedule; `.frag`
-tiles are reproducible from source IFC, the DB + attachments are the system of record.
+punchlist are contractual records. The DB + attachments + uploaded source IFCs are the system
+of record; `.frag` tiles are reproducible from source IFC.
+
+**Backup/restore runbook** (`scripts/backup.sh` / `scripts/restore.sh`, run from the repo root
+with the stack up; Windows: Git Bash or WSL):
+
+```bash
+# back up DB (pg_dump) + MinIO objects + uploaded source IFCs → one timestamped tarball
+./scripts/backup.sh                      # → ./backups/aec-backup-<ts>.tgz
+
+# schedule it (crontab): nightly at 02:00, then prune backups older than 14 days
+0 2 * * *  cd /srv/modelmaker && ./scripts/backup.sh >> /var/log/aec-backup.log 2>&1
+0 3 * * *  find /srv/modelmaker/backups -name 'aec-backup-*.tgz' -mtime +14 -delete
+
+# restore (DESTRUCTIVE — overwrites DB, objects, IFCs; stops the app while restoring)
+./scripts/restore.sh ./backups/aec-backup-<ts>.tgz
+```
+
+`backup.sh` logically dumps Postgres (`pg_dump --clean`) and tars the MinIO + IFC volumes via a
+throwaway `alpine` container (`--volumes-from`, so no volume-name or S3-credential coupling).
+Verify a backup by restoring into a throwaway compose project and hitting `/health` + a known
+project before trusting it. Keep backups off-box (e.g. `aws s3 cp`, `rclone`) for DR.
 
 ## Deploy to a cloud VM with HTTPS (turnkey demo / production)
 

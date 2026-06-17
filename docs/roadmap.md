@@ -71,7 +71,10 @@ signing-ready); GitHub Pages viewer demo.
 - **SSO / OIDC** integration for enterprise identity (current auth is self-contained).
 - ✅ **DONE** (metrics + logs) — **Observability.** `/metrics` (Prometheus text: request
   counts/latencies by route template, in-flight, uptime) + structured JSON access logs
-  (`aec.access`). _Still open: a tested backup/restore runbook._
+  (`aec.access`).
+- ✅ **DONE** — **Backup/restore runbook.** `scripts/backup.sh` (pg_dump + MinIO/IFC volume
+  tars → one timestamped tarball) + `scripts/restore.sh`; cron + retention + DR notes in
+  `docs/deploy.md`.
 
 ### P3 — external dependency / environment-gated
 - **Desktop installers** must be built once on a Rust machine / via the CI workflow to verify
