@@ -243,8 +243,8 @@ export class PortalUI {
       const cell = (html: string) => { const td = document.createElement("td"); td.innerHTML = html; tr.appendChild(td); };
       cell(r.ref); cell(r.title ?? "");
       for (const c of cols) cell(this.fmtCell(c, r.data[c.name]));
-      cell(r.assignee ?? "—");
-      cell(`<span class="badge">${r.workflow_state}</span>`);
+      tr.appendChild(this.assigneeCell(pid, m, r));   // inline-editable
+      tr.appendChild(this.statusCell(pid, m, r));     // inline workflow transition
       tr.onclick = () => this.openRecord(m, r.id);
       tb.appendChild(tr);
     }
@@ -259,6 +259,59 @@ export class PortalUI {
     if (f.type === "multiselect" && Array.isArray(v)) return (v as string[]).join(", ");
     if (f.type === "reference") return String(v).slice(0, 8);
     return String(v).slice(0, 40);
+  }
+
+  /** Inline-editable assignee cell — click to reassign without opening the record.
+   *  Mutates r in place + persists via the assign endpoint (server still gates by role). */
+  private assigneeCell(pid: string, m: ModuleDef, r: ModuleRecord): HTMLTableCellElement {
+    const td = document.createElement("td"); td.className = "editable"; td.title = "Click to reassign";
+    const show = () => { td.textContent = r.assignee ?? "—"; };
+    show();
+    td.onclick = (e) => {
+      e.stopPropagation();
+      if (td.querySelector("input")) return;
+      const inp = document.createElement("input"); inp.className = "portal-filter";
+      inp.value = r.assignee ?? ""; inp.style.width = "110px"; inp.placeholder = "user";
+      td.textContent = ""; td.appendChild(inp); inp.focus();
+      inp.onclick = (ev) => ev.stopPropagation();
+      inp.onkeydown = (ev) => { if (ev.key === "Enter") inp.blur(); else if (ev.key === "Escape") { inp.value = r.assignee ?? ""; inp.blur(); } };
+      inp.onblur = async () => {
+        const v = inp.value.trim();
+        if (v === (r.assignee ?? "")) { show(); return; }
+        try { const u = await this.host.api.assignRecord(pid, m.key, r.id, v || null); r.assignee = u.assignee ?? null; this.host.setStatus(`${r.ref} assigned → ${r.assignee ?? "unassigned"}`); }
+        catch (err) { this.host.setStatus(`assign blocked: ${(err as Error).message}`); }
+        show();
+      };
+    };
+    return td;
+  }
+
+  /** Inline status cell — a dropdown of the workflow transitions valid from the current state
+   *  (terminal states stay read-only). Selecting one calls /transition; party gates apply server-side. */
+  private statusCell(pid: string, m: ModuleDef, r: ModuleRecord): HTMLTableCellElement {
+    const td = document.createElement("td");
+    const render = () => { td.innerHTML = `<span class="badge">${r.workflow_state}</span>`; };
+    render();
+    const nexts = (m.workflow.transitions ?? []).filter((t) => t.from === r.workflow_state);
+    if (!nexts.length) return td;          // terminal — nothing to transition to
+    td.className = "editable"; td.title = "Click to change status";
+    td.onclick = (e) => {
+      e.stopPropagation();
+      if (td.querySelector("select")) return;
+      const sel = document.createElement("select"); sel.className = "sb-sel";
+      const cur = document.createElement("option"); cur.value = ""; cur.textContent = r.workflow_state; sel.appendChild(cur);
+      for (const t of nexts) { const o = document.createElement("option"); o.value = t.action; o.textContent = `${t.action} → ${t.to}`; sel.appendChild(o); }
+      td.textContent = ""; td.appendChild(sel); sel.focus();
+      sel.onclick = (ev) => ev.stopPropagation();
+      sel.onblur = () => render();
+      sel.onchange = async () => {
+        if (!sel.value) { render(); return; }
+        try { const u = await this.host.api.transitionRecord(pid, m.key, r.id, sel.value); r.workflow_state = u.workflow_state; this.host.setStatus(`${r.ref} → ${r.workflow_state}`); }
+        catch (err) { this.host.setStatus(`transition blocked: ${(err as Error).message}`); }
+        render();
+      };
+    };
+    return td;
   }
 
   // --- create / edit form (fields from module.json) --------------------------

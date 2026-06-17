@@ -230,6 +230,8 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .portal-table th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--line); }
 .portal-table td { padding: 5px 6px; border-bottom: 1px solid #2b2d31; cursor: pointer; }
 .portal-table tr:hover td { background: #34373d; }
+/* inline-editable cells (assignee / status) — subtle dashed affordance on hover */
+.portal-table td.editable:hover { outline: 1px dashed var(--accent, #4a8cff); outline-offset: -2px; }
 .portal-field { display: block; font-size: 11px; color: var(--muted); margin: 6px 0; }
 .portal-field input, .portal-field textarea, .portal-field select {
   display: block; width: 100%; margin-top: 3px; padding: 5px; background: #1e1f22;
