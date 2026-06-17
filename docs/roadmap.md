@@ -52,12 +52,13 @@ signing-ready); GitHub Pages viewer demo.
 - ✅ **DONE** — **Proforma debt sizing.** Loan is now the **lesser-of LTC / LTV / DSCR / debt
   yield** (optional caps on the Debt input); `debt_sizing` reports the binding constraint +
   actual DSCR/LTV/DY, surfaced in the proforma UI.
-- **Forgot-password / password-reset flow** (email or admin-issued one-time token) — today only
-  an admin can reset another user's password; there's no self-recovery.
-- **Audit-log viewer UI.** The server records an audit trail; expose an admin read-only view
-  (filter by actor/action/date) instead of DB-only access.
-- **Federation UI.** A discipline picker to load several `.frag` and toggle by model (the
-  engine already federates; the UI loads one model at a time).
+- ✅ **DONE** — **Password reset.** Admin-issued single-use, 1-hour reset token (no email
+  infra); the user sets their own password (Sign in → "Have a reset token?"). Purpose-separated
+  so it can't be used as a bearer token; single-use via a password-hash fingerprint.
+- ✅ **DONE** — **Audit-log viewer.** `GET /audit` (admin, filter by action/actor/since) +
+  an account-menu viewer; admin user-management actions are now audited.
+- ✅ **DONE** — **Federation UI.** A "Models (federation)" panel lists every loaded model with
+  a visibility toggle + remove; models load additively via Open ▾.
 
 ### P2 — meaningful, larger
 - **Capacitor mobile** wrapper + touch tuning + on-site photo→BCF (per platform roadmap).
@@ -74,6 +75,9 @@ signing-ready); GitHub Pages viewer demo.
 - **RVT→IFC** via Autodesk APS — skeleton only; needs a paid APS account (behind a cost flag).
 
 ## Execution order
-P0 (web test harness) → P1 (debt sizing → password reset → audit viewer → federation UI) →
-P2 → P3. Each item is independently shippable; P3 items are gated on external accounts/hardware
-and are user-performed steps.
+~~P0 (web test harness)~~ ✅ → ~~P1 (debt sizing → password reset → audit viewer → federation
+UI)~~ ✅ → **P2 next** → P3. Each item is independently shippable; P3 items are gated on
+external accounts/hardware and are user-performed steps.
+
+_P0 and all P1 items shipped 2026-06-17. Next up: P2 (Capacitor mobile, email digests, drawing
+leaders/callouts, SSO/OIDC, observability)._
