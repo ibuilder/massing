@@ -17,6 +17,7 @@ drives) — no proprietary format, no per-seat license.
 > waterfall) — switched via a Model / Construction / Finance workspace bar.
 
 📄 **Project page:** [ibuilder.github.io/ModelMaker](https://ibuilder.github.io/ModelMaker/) — overview + how to run it.
+🧊 **Live viewer demo:** [ibuilder.github.io/ModelMaker/app/](https://ibuilder.github.io/ModelMaker/app/) — the BIM viewer running in-browser (no backend) on bundled sample models.
 
 ## What it does (vs. Bonsai / Revit / Navisworks)
 

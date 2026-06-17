@@ -1,7 +1,8 @@
 name: Deploy viewer demo to GitHub Pages
 
-# Builds the *viewer-only* web app (no API needed — it streams the committed sample
-# .frag tiles from public/) and publishes it to GitHub Pages at https://<owner>.github.io/ModelMaker/.
+# Publishes the GitHub Pages site at https://<owner>.github.io/ModelMaker/:
+#   /            → the static landing page (docs/index.html)
+#   /app/        → the *viewer-only* web app (no API — it streams the committed sample .frag tiles)
 # VITE_PAGES=1 swaps the Workbox PWA SW for the coi-serviceworker so SharedArrayBuffer
 # (needed by @thatopen/fragments) works on Pages, which can't set COOP/COEP headers itself.
 
@@ -10,6 +11,7 @@ on:
     branches: [main]
     paths:
       - "apps/web/**"
+      - "docs/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -43,13 +45,21 @@ jobs:
         run: npm run build --workspace apps/web
         env:
           VITE_PAGES: "1"
-          VITE_BASE: "/ModelMaker/"
+          VITE_BASE: "/ModelMaker/app/"
+
+      # assemble the Pages site: landing page at the root, viewer demo under /app/
+      - name: Assemble site
+        run: |
+          mkdir -p _site/app
+          cp -r docs/. _site/
+          cp -r apps/web/dist/. _site/app/
+          touch _site/.nojekyll
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/web/dist
+          path: _site
 
   deploy:
     needs: build
