@@ -71,6 +71,27 @@ def add_member(pid: str, body: MemberIn, db: Session = Depends(get_db),
     return {"user": m.user, "role": m.role, "party_role": m.party_role}
 
 
+@router.delete("/projects/{pid}/members/{member}")
+def remove_member(pid: str, member: str, db: Session = Depends(get_db),
+                  actor: str = Depends(require_role("admin"))):
+    """Remove a member from the project. Won't remove the last admin (avoids an orphaned project)."""
+    m = db.query(ProjectMember).filter(
+        ProjectMember.project_id == pid, ProjectMember.user == member).first()
+    if not m:
+        raise HTTPException(404, "not a member of this project")
+    if m.role == "admin":
+        others = db.query(ProjectMember).filter(
+            ProjectMember.project_id == pid, ProjectMember.role == "admin",
+            ProjectMember.user != member).count()
+        if others == 0:
+            raise HTTPException(400, "cannot remove the last project admin")
+    db.delete(m)
+    audit.record(db, action="member.remove", actor=actor, method="DELETE",
+                 path=f"/projects/{pid}/members/{member}", detail={"user": member})
+    db.commit()
+    return {"ok": True}
+
+
 @router.get("/projects", response_model=list[ProjectOut])
 def list_projects(db: Session = Depends(get_db)):
     return db.query(Project).all()

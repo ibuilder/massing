@@ -361,6 +361,7 @@ function accountMenu(anchor: HTMLElement, role: string | null) {
     return b;
   };
   if (role === "admin") menu.append(item("Manage users…", adminModal));
+  if (isProjectAdmin && projectId) menu.append(item("Project members…", () => membersModal(projectId!)));
   menu.append(item("Change password…", passwordModal));
   menu.append(item("Sign out", async () => { await api.logout(); api.setToken(""); location.reload(); }));
   document.body.appendChild(menu);
@@ -460,11 +461,78 @@ function adminModal() {
   void render();
 }
 
+/** Project-member management (project admins): grant/change role + party, set company, remove.
+ * Complements the global "Manage users" panel — that creates accounts; this assigns them to a
+ * project with a capability role (viewer/reviewer/editor/admin) and a workflow party. */
+const PROJECT_ROLES = ["viewer", "reviewer", "editor", "admin"] as const;
+const PARTY_ROLES = ["", "GC", "Owner", "OwnersRep", "Consultant", "Subcontractor"];
+function membersModal(pid: string) {
+  const { card, msg } = modalShell("Project members", 520);
+  const list = document.createElement("div"); list.style.cssText = "display:flex;flex-direction:column;gap:6px";
+  msg.style.color = "#e2554a";
+  const sel = (opts: readonly string[], value: string) => {
+    const s = document.createElement("select"); s.className = "portal-filter";
+    for (const o of opts) { const op = document.createElement("option"); op.value = o; op.textContent = o || "— party —"; s.appendChild(op); }
+    s.value = value; return s;
+  };
+
+  const render = async () => {
+    list.textContent = "";
+    let members: import("./api/client").ProjectMember[] = [];
+    try { members = await api.members(pid); } catch { msg.textContent = "could not load members"; return; }
+    for (const m of members) {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:6px";
+      const nm = document.createElement("span"); nm.textContent = m.user; nm.style.cssText = "font-weight:600;min-width:90px";
+      const meta = document.createElement("span"); meta.className = "meta"; meta.style.flex = "1";
+      meta.textContent = m.company || "";
+      const roleSel = sel(PROJECT_ROLES, m.role);
+      const partySel = sel(PARTY_ROLES, m.party_role ?? "");
+      const save = async () => {
+        try { await api.addMember(pid, { user: m.user, role: roleSel.value as import("./api/client").ProjectRole, party_role: partySel.value || null, company: m.company }); await render(); }
+        catch { msg.textContent = `could not update ${m.user}`; }
+      };
+      roleSel.onchange = save; partySel.onchange = save;
+      const rm = document.createElement("button"); rm.className = "tool-btn"; rm.textContent = "Remove";
+      rm.onclick = async () => {
+        if (!confirm(`Remove ${m.user} from this project?`)) return;
+        try { await api.removeMember(pid, m.user); await render(); }
+        catch { msg.textContent = `could not remove ${m.user} (last admin?)`; }
+      };
+      row.append(nm, roleSel, partySel, meta, rm);
+      list.append(row);
+    }
+  };
+
+  // add-member form
+  const form = document.createElement("div"); form.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center";
+  const nu = document.createElement("input"); nu.placeholder = "username"; nu.className = "portal-filter"; nu.style.flex = "1";
+  const nrole = sel(PROJECT_ROLES, "viewer");
+  const nparty = sel(PARTY_ROLES, "");
+  const nco = document.createElement("input"); nco.placeholder = "company (optional)"; nco.className = "portal-filter"; nco.style.flex = "1";
+  const add = document.createElement("button"); add.className = "file-btn"; add.textContent = "Add";
+  add.onclick = async () => {
+    msg.textContent = "";
+    if (!nu.value.trim()) { msg.textContent = "enter a username"; return; }
+    try {
+      await api.addMember(pid, { user: nu.value.trim(), role: nrole.value as import("./api/client").ProjectRole, party_role: nparty.value || null, company: nco.value.trim() || null });
+      nu.value = ""; nco.value = ""; await render();
+    } catch { msg.textContent = "could not add member"; }
+  };
+  form.append(nu, nrole, nparty, nco, add);
+
+  const hint = document.createElement("div"); hint.className = "meta";
+  hint.textContent = "Role = capability (viewer→admin). Party = workflow side (GC, Owner, …). The account must already exist (Manage users).";
+  card.append(list, document.createElement("hr"), form, hint, msg);
+  void render();
+}
+
 // ---- per-project RBAC capability gating -------------------------------------
 // Reflect the caller's project role in the UI: tag actionable controls with data-cap
 // ("review" | "edit") and hide those above the caller's role. The API still enforces;
 // this just removes the "click → 403" rough edge. Fully open when RBAC is off / offline.
 const CAP_RANK: Record<string, number> = { viewer: 0, reviewer: 1, editor: 2, admin: 3 };
+let isProjectAdmin = false;   // gates the "Project members…" account-menu item
 async function applyCapabilities() {
   let review = true, edit = true, admin = true;
   if (connected && projectId) {
@@ -476,6 +544,7 @@ async function applyCapabilities() {
       }
     } catch { /* keep defaults (don't hide on a transient error) */ }
   }
+  isProjectAdmin = admin && !!projectId;
   const b = document.body;
   b.dataset.capReview = review ? "on" : "off";
   b.dataset.capEdit = edit ? "on" : "off";

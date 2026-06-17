@@ -52,4 +52,10 @@ with TestClient(app) as c:
     dan_me = c.get(f"/projects/{pid}/me", headers=H("dan")).json()   # non-member
     assert dan_me["role"] is None, dan_me
 
-    print("RBAC OK — admin/reviewer/editor/viewer enforced; default-deny for non-members; /me role")
+    # member removal: admin can remove bob; the last admin can't be removed
+    assert c.delete(f"/projects/{pid}/members/bob", headers=H("bob")).status_code == 403   # needs admin
+    assert c.delete(f"/projects/{pid}/members/bob", headers=H("alice")).status_code == 200
+    assert "bob" not in [m["user"] for m in c.get(f"/projects/{pid}/members", headers=H("alice")).json()]
+    assert c.delete(f"/projects/{pid}/members/alice", headers=H("alice")).status_code == 400  # last admin
+
+    print("RBAC OK — admin/reviewer/editor/viewer enforced; default-deny for non-members; /me role; member removal")

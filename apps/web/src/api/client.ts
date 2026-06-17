@@ -14,6 +14,14 @@ export interface ElementProps {
 /** Project-scoped capability role, least→most privileged. */
 export type ProjectRole = "viewer" | "reviewer" | "editor" | "admin";
 
+/** A user's membership of one project: capability role + optional workflow party + company. */
+export interface ProjectMember {
+  user: string;
+  role: ProjectRole;
+  party_role: string | null;
+  company: string | null;
+}
+
 /** A global account (identity). Per-project authorization lives in project members. */
 export interface AccountUser {
   username: string;
@@ -245,6 +253,18 @@ export class ApiClient {
   myRole(pid: string) {
     return this.json<{ user: string; role: ProjectRole | null; party_role: string | null; rbac: boolean }>(
       `/projects/${pid}/me`);
+  }
+  // --- project members (admin) -------------------------------------------
+  members(pid: string) {
+    return this.json<ProjectMember[]>(`/projects/${pid}/members`);
+  }
+  addMember(pid: string, body: { user: string; role: ProjectRole; party_role?: string | null; company?: string | null }) {
+    return this.json<{ user: string; role: ProjectRole; party_role: string | null }>(
+      `/projects/${pid}/members`, { method: "POST", body: JSON.stringify(body) });
+  }
+  removeMember(pid: string, user: string) {
+    return this.json<{ ok: boolean }>(
+      `/projects/${pid}/members/${encodeURIComponent(user)}`, { method: "DELETE" });
   }
   meta(pid: string) {
     return this.json<{ schema: string; counts: Record<string, number>; facets: { classes: string[]; storeys: string[] } }>(
