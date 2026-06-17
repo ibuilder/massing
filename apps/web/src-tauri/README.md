@@ -3,10 +3,19 @@
 Wraps the existing web build (`apps/web/dist`) in a native window — Windows/macOS/Linux,
 and (with `tauri android`/`tauri ios`) mobile too. No app logic lives here; it's a thin shell.
 
-This directory is a **build-ready scaffold**: it was authored without a Rust toolchain, so it
-has not been compiled here. Build it on a machine with Rust + the Tauri CLI.
+This directory is a **build-ready scaffold**. The app icons are committed (generated from
+`public/icon.svg`); CI compiles it. You don't need a Rust toolchain locally:
 
-## Build
+- **Release** — push a tag like `v0.1.0`. The [`Desktop release`](../../../.github/workflows/desktop.yml)
+  workflow builds Windows (`.msi`/`.exe`), macOS (universal `.dmg`/`.app`), and Linux
+  (`.deb`/`.AppImage`) installers and attaches them to a **draft** GitHub Release for review.
+- **Smoke test** — run the workflow manually (Actions → Desktop release → Run workflow) to
+  build all three platforms and download the bundles as workflow artifacts, with no tag/release.
+
+Builds are **unsigned** for now; Apple notarization / Windows Authenticode is a follow-up that
+needs certificate secrets. To build locally instead:
+
+## Build (local)
 
 ```bash
 # one-time: Rust toolchain (https://rustup.rs) + Tauri CLI + platform deps

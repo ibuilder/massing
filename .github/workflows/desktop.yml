@@ -1,0 +1,90 @@
+name: Desktop release
+
+# Builds the Tauri 2 desktop shell (apps/web/src-tauri) for Windows, macOS, and Linux.
+# Push a version tag (e.g. v0.1.0) to produce installers and attach them to a *draft*
+# GitHub Release for review. A manual run (workflow_dispatch) just builds and uploads the
+# bundles as workflow artifacts — no tag, no release — so you can smoke-test the toolchain.
+#
+# Builds are UNSIGNED. Code signing (Apple notarization / Windows Authenticode) is a
+# follow-up that needs certificate secrets; see docs/deploy.md.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # create/update the Release and upload assets
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest # arm64 runner; cross-compiles a universal binary
+            args: "--target universal-apple-darwin"
+            rust-targets: "aarch64-apple-darwin,x86_64-apple-darwin"
+          - platform: ubuntu-22.04 # older glibc → broader Linux compatibility
+            args: "--bundles deb,appimage" # skip rpm (no rpmbuild on the runner)
+            rust-targets: ""
+          - platform: windows-latest
+            args: ""
+            rust-targets: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/web/src-tauri -> target
+
+      # npm workspace: install at the root so the web build (beforeBuildCommand) has its deps
+      - name: Install web dependencies
+        run: npm ci
+
+      - id: tauri
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/web
+          # release only on a tag push; a manual run leaves tagName empty → build, no release
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: "AEC BIM Platform __VERSION__"
+          releaseBody: "Desktop builds (unsigned). Download the installer for your platform below."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+      # manual runs don't make a release; keep the installers as downloadable artifacts
+      - name: Upload bundles as artifacts (manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: aec-bim-${{ matrix.platform }}
+          if-no-files-found: warn
+          path: |
+            apps/web/src-tauri/target/release/bundle/**
+            apps/web/src-tauri/target/*/release/bundle/**
