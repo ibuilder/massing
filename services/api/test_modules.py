@@ -107,6 +107,13 @@ with TestClient(app) as c:
     pdf = c.get(f"/projects/{pid}/modules/cor/{cor['id']}/pdf", headers=H("gc")).content
     assert pdf[:5] == b"%PDF-" and len(pdf) > 1000, len(pdf)
 
+    # ---- cross-module work queue (SQL-filtered: assigned OR party-actionable) -
+    gc_work = c.get(f"/projects/{pid}/my-work", headers=H("gc")).json()
+    assert gc_work and all(w["reason"] in ("assigned", "ball-in-court") for w in gc_work), gc_work
+    assert all({"module", "ref", "state"} <= set(w) for w in gc_work)
+    # a user with no membership/party sees nothing actionable and nothing assigned to them
+    assert c.get(f"/projects/{pid}/my-work", headers=H("nobody")).json() == []
+
     # ---- email digests: per-member work-queue summaries ----------------------
     # register gc as an account (first user → admin) and give it an email
     assert c.post("/auth/register", json={"username": "gc", "password": "gcpassword"}).status_code == 201

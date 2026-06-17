@@ -91,13 +91,16 @@ def party_role_for(db: Session, project_id: str, user: str) -> str | None:
     return m.party_role if m else None
 
 
-def party_allowed(party: str | None, allowed: list[str]) -> bool:
-    """GC and the api-key/admin always pass so the workflow never stalls (per spec)."""
+def party_allowed(party: str | None, allowed: list[str] | str | None) -> bool:
+    """GC and the api-key/admin always pass so the workflow never stalls (per spec).
+    `allowed` may be a list, a single party string, or None — and `party` may be None."""
     if not RBAC_ON:
         return True
     if party in ("GC", "GeneralContractor"):
         return True
-    return party in (allowed or [])
+    if isinstance(allowed, str):
+        allowed = [allowed]
+    return party is not None and party in (allowed or [])
 
 
 def grant(db: Session, project_id: str, user: str, role: str,

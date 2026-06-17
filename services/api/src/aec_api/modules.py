@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import JSON, Column, DateTime, String, Table, func, insert, select, update
+from sqlalchemy import JSON, Column, DateTime, String, Table, func, insert, or_, select, update
 from sqlalchemy.orm import Session
 
 from . import rbac
@@ -431,19 +431,26 @@ def notifications(db: Session, project_id: str, user: str, party: str | None,
 
 
 def my_work(db: Session, project_id: str, user: str, party: str | None) -> list[dict]:
-    """Cross-module: records assigned to me, plus those where my party can act now."""
+    """Cross-module: records assigned to me, plus those where my party can act now.
+
+    Filters in SQL — assignee = me OR workflow_state in the set of states my party can act from
+    (precomputed per module from the workflow) — so it doesn't load every row of all 68 tables."""
     out = []
     for key, mod in REGISTRY.items():
         t = TABLES[key]
-        for r in db.execute(select(t).where(t.c.project_id == project_id)):
+        # states from which `party` has at least one available action (no DB, just the workflow)
+        actionable_states = {tr["from"] for tr in mod.get("workflow", {}).get("transitions", [])
+                             if rbac.party_allowed(party, tr.get("party", []))}
+        conds = [t.c.assignee == user]
+        if actionable_states:
+            conds.append(t.c.workflow_state.in_(actionable_states))
+        for r in db.execute(select(t).where(t.c.project_id == project_id, or_(*conds))):
             m = r._mapping
             mine = m["assignee"] == user
-            actionable = bool(available_actions(mod, m["workflow_state"], party))
-            if mine or actionable:
-                out.append({"module": key, "module_name": mod.get("name", key),
-                            "icon": mod.get("icon", "•"), "id": m["id"], "ref": m["ref"],
-                            "title": m["title"], "state": m["workflow_state"],
-                            "assignee": m["assignee"], "reason": "assigned" if mine else "ball-in-court"})
+            out.append({"module": key, "module_name": mod.get("name", key),
+                        "icon": mod.get("icon", "•"), "id": m["id"], "ref": m["ref"],
+                        "title": m["title"], "state": m["workflow_state"],
+                        "assignee": m["assignee"], "reason": "assigned" if mine else "ball-in-court"})
     return out
 
 
