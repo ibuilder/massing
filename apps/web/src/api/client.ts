@@ -317,6 +317,11 @@ export class ApiClient {
   element(pid: string, guid: string) {
     return this.json<ElementProps>(`/projects/${pid}/elements/${guid}`);
   }
+  /** Placeable types ("families") in the project's source IFC, for the place-family picker. */
+  types(pid: string) {
+    return this.json<{ types: { guid: string; name: string; ifc_class: string; has_geometry: boolean }[] }>(
+      `/projects/${pid}/types`);
+  }
   /** AI-draft an RFI from an element's context (Claude when keyed, else a template draft). */
   draftRfi(pid: string, element: unknown, note?: string) {
     return this.json<{ ai_enabled: boolean; subject: string; question: string; discipline: string; suggested_priority: string; source: string }>(

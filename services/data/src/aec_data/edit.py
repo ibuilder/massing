@@ -38,19 +38,47 @@ def batch_tag(model: ifcopenshell.file, ifc_class: str, label: str) -> int:
     return set_pset_on_class(model, ifc_class, "AEC_Tags", "Label", label)
 
 
-def place_type(model: ifcopenshell.file, type_guid: str, storey_name: str) -> str | None:
-    """Instantiate an occurrence of an IFC type ("family") and put it on a storey.
-    Returns the new element's GUID (geometry/placement is set by the caller / Bonsai)."""
+def list_types(model: ifcopenshell.file) -> list[dict]:
+    """Catalog of placeable types ("families") in the model — IfcTypeProduct, deduped by
+    (class, name) so the picker shows distinct families rather than one per instance."""
+    seen: set[tuple[str, str]] = set()
+    out: list[dict] = []
+    for t in model.by_type("IfcTypeProduct"):
+        name = getattr(t, "Name", None) or t.is_a()
+        key = (t.is_a(), name)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"guid": t.GlobalId, "name": name, "ifc_class": t.is_a(),
+                    "has_geometry": bool(getattr(t, "RepresentationMaps", None))})
+    out.sort(key=lambda x: (x["ifc_class"], x["name"]))
+    return out
+
+
+def place_type(model: ifcopenshell.file, type_guid: str, storey_name: str,
+               position=None) -> str | None:
+    """Instantiate an occurrence of an IFC type ("family") on a storey, optionally positioned
+    at an [E, N] point (meters). assign_type maps the type's geometry to the occurrence when the
+    type carries RepresentationMaps. Returns the new element's GUID."""
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
     el_type = next((t for t in model.by_type("IfcTypeProduct") if t.GlobalId == type_guid), None)
     if el_type is None:
         return None
-    storey = next((s for s in model.by_type("IfcBuildingStorey") if s.Name == storey_name), None)
+    st = _first_storey(model, storey_name)
     occ_class = el_type.is_a().replace("Type", "")
     element = ifcopenshell.api.run("root.create_entity", model, ifc_class=occ_class)
     ifcopenshell.api.run("type.assign_type", model, related_objects=[element], relating_type=el_type)
-    if storey:
+    if position is not None:
+        scale = uunit.calculate_unit_scale(model)
+        elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale  # file units -> m
+        matrix = np.array([[1, 0, 0, float(position[0])], [0, 1, 0, float(position[1])],
+                           [0, 0, 1, elev], [0, 0, 0, 1]], dtype=float)
+        ifcopenshell.api.run("geometry.edit_object_placement", model, product=element, matrix=matrix)
+    if st:
         ifcopenshell.api.run("spatial.assign_container", model,
-                             products=[element], relating_structure=storey)
+                             products=[element], relating_structure=st)
     return element.GlobalId
 
 
@@ -459,7 +487,7 @@ RECIPES = {
         m, p["ifc_class"], p["pset"], p["prop"],
         _coerce(p.get("value"), p.get("dtype", "str"))),
     "batch_tag": lambda m, p: batch_tag(m, p["ifc_class"], p["label"]),
-    "place_type": lambda m, p: place_type(m, p["type_guid"], p["storey"]),
+    "place_type": lambda m, p: place_type(m, p["type_guid"], p.get("storey"), p.get("position")),
     "add_spaces": lambda m, p: add_spaces(m, int(p.get("rooms_per_storey", 4)),
                                           float(p.get("ceiling_height", 3.0))),
 }

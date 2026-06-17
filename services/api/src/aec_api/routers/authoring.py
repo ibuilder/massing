@@ -41,6 +41,17 @@ def _project(db: Session, pid: str) -> Project:
     return p
 
 
+@router.get("/projects/{pid}/types")
+def list_types(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Catalog of placeable types ("families") in the project's source IFC, for the place-family
+    picker. Deduped by (class, name)."""
+    from aec_data import edit as ed  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return {"types": ed.list_types(open_model(p.source_ifc))}
+
+
 @router.post("/projects/{pid}/edit")
 def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
          publish: bool = Body(default=False), db: Session = Depends(get_db),

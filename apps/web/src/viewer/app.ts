@@ -364,10 +364,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     setStatus(`levels: ${storeys.length} storeys`);
   });
 
-  // ---- modeling: author walls / columns / beams from ground clicks ---------
-  type PlaceKind = "wall" | "column" | "beam";
-  const PLACE_PTS: Record<PlaceKind, number> = { wall: 2, column: 1, beam: 2 };
+  // ---- modeling: author walls / columns / beams / families from ground clicks
+  type PlaceKind = "wall" | "column" | "beam" | "family";
+  const PLACE_PTS: Record<PlaceKind, number> = { wall: 2, column: 1, beam: 2, family: 1 };
   let placeMode: PlaceKind | null = null;
+  let familyType: { guid: string; name: string } | null = null;
   const placePts: THREE.Vector3[] = [];
   const placeBtns = {} as Record<PlaceKind, HTMLButtonElement>;
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -380,6 +381,43 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   placeBtns.wall = toolBtn("▭", "Add wall (click two points)", () => setPlaceMode(placeMode === "wall" ? null : "wall"), "edit");
   placeBtns.column = toolBtn("▮", "Add column (click one point)", () => setPlaceMode(placeMode === "column" ? null : "column"), "edit");
   placeBtns.beam = toolBtn("▬", "Add beam (click two points)", () => setPlaceMode(placeMode === "beam" ? null : "beam"), "edit");
+  placeBtns.family = toolBtn("❏", "Place a family/type (pick, then click a point)", () => {
+    if (placeMode === "family") { setPlaceMode(null); return; }
+    void openFamilyPicker();
+  }, "edit");
+  function pickFromList<T>(items: { label: string; value: T }[], title: string): Promise<T | null> {
+    return new Promise((resolve) => {
+      const ov = document.createElement("div");
+      ov.style.cssText = "position:fixed;inset:0;z-index:300;background:#000a;display:flex;align-items:center;justify-content:center";
+      const card = document.createElement("div");
+      card.style.cssText = "background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:340px;max-height:70vh;display:flex;flex-direction:column;gap:8px";
+      const h = document.createElement("strong"); h.textContent = title; h.style.fontSize = "14px";
+      const search = document.createElement("input"); search.placeholder = "filter…"; search.className = "portal-filter";
+      const list = document.createElement("div"); list.style.cssText = "overflow:auto;display:flex;flex-direction:column;gap:2px";
+      const done = (v: T | null) => { ov.remove(); resolve(v); };
+      const render = (q = "") => {
+        list.textContent = "";
+        for (const it of items.filter((i) => i.label.toLowerCase().includes(q.toLowerCase())).slice(0, 200)) {
+          const b = document.createElement("button"); b.className = "tool-btn"; b.textContent = it.label;
+          b.style.cssText = "justify-content:flex-start;text-align:left;width:100%"; b.onclick = () => done(it.value);
+          list.appendChild(b);
+        }
+      };
+      search.oninput = () => render(search.value);
+      const cancel = document.createElement("button"); cancel.className = "tool-btn"; cancel.textContent = "Cancel"; cancel.onclick = () => done(null);
+      render(); card.append(h, search, list, cancel); ov.append(card);
+      ov.addEventListener("pointerdown", (e) => { if (e.target === ov) done(null); });
+      document.body.appendChild(ov); search.focus();
+    });
+  }
+  async function openFamilyPicker() {
+    if (!projectId) { notify("connect a project with a source IFC to place families", "error"); return; }
+    let types: { guid: string; name: string; ifc_class: string; has_geometry: boolean }[] = [];
+    try { types = (await api.types(projectId)).types; } catch { notify("no type catalog (needs a source IFC)", "error"); return; }
+    if (!types.length) { notify("no placeable types in this model", "error"); return; }
+    pickFromList(types.map((t) => ({ label: `${t.name}  ·  ${t.ifc_class.replace("Ifc", "").replace("Type", "")}`, value: t })), "Place family — pick a type")
+      .then((t) => { if (!t) return; familyType = { guid: t.guid, name: t.name }; setPlaceMode("family"); notify(`click where to place “${t.name}”`, "info"); });
+  }
   toolBtn("␡", "Delete selected element", async () => {
     if (!selectedGuid) { notify("select an element first", "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
@@ -483,12 +521,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     } else if (kind === "column") {
       recipe = "add_column";
       params = { point: pl(placePts[0]), height: Number(prompt("Column height (m):", "3.0")) || 3.0 };
+    } else if (kind === "family") {
+      if (!familyType) { notify("no family selected", "error"); return; }
+      recipe = "place_type";
+      params = { type_guid: familyType.guid, position: pl(placePts[0]) };
     } else {
       recipe = "add_beam";
       const [a, b] = placePts;
       params = { start: pl(a), end: pl(b), depth: Number(prompt("Beam depth (m):", "0.5")) || 0.5 };
     }
-    await authorAndReload(recipe, params, kind);
+    await authorAndReload(recipe, params, kind === "family" ? `family ${familyType?.name ?? ""}` : kind);
   }
 
   async function authorAndReload(recipe: string, params: Record<string, unknown>, label: string) {
