@@ -1,0 +1,43 @@
+{
+  "key": "document",
+  "name": "Documents",
+  "section": "Engineering",
+  "icon": "📄",
+  "ref_prefix": "DOC",
+  "title_field": "title",
+  "pinnable": false,
+  "revisable": true,
+  "fields": [
+    {
+      "name": "title",
+      "label": "Title",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "doc_type",
+      "label": "Type",
+      "type": "select",
+      "options": ["Specification", "Contract", "Permit", "Report", "Procedure", "Other"]
+    },
+    {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "select",
+      "options": ["General", "Architectural", "Structural", "MEP", "Civil"]
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": ["draft", "issued", "void"],
+    "transitions": [
+      { "from": "draft", "to": "issued", "action": "issue", "party": ["GC"] },
+      { "from": "issued", "to": "void", "action": "void", "party": ["GC"] }
+    ]
+  }
+}

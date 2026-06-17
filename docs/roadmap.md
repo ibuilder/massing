@@ -20,7 +20,7 @@ walls, slabs, columns, beams, roofs, doors/windows, move/rotate/copy/delete, pse
 reconvert → reindex. Offline (local WASM, self-hosted tiles), PWA, Tauri 2 desktop shell.
 
 ### 2. GC portal — mature
-68 config-driven modules. Per-module: record CRUD, party-gated **workflow transitions**,
+69 config-driven modules. Per-module: record CRUD, party-gated **workflow transitions**,
 kanban board, filter/sort, cross-module **relations/links**, comments, assignment, file
 attachments, saved views (per-user), per-record PDF, CSV export. Cross-cutting: full-text
 search, bulk actions, role-tailored dashboard with KPIs + "ball in your court", live

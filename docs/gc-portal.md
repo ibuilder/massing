@@ -30,7 +30,7 @@ activity timeline. Adding a module = dropping a JSON file in `services/api/modul
 }
 ```
 
-**68 modules across 12 sections** ship today (Preconstruction, Engineering, Change
+**69 modules across 12 sections** ship today (Preconstruction, Engineering, Change
 Management, Field, Quality, Safety, Sustainability, Contracts, Cost, BIM, Closeout,
 Resources). Regenerate/extend via `services/api/generate_modules.py`.
 

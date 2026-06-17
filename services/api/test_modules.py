@@ -149,6 +149,11 @@ with TestClient(app) as c:
     # the catalog advertises which modules are revisable
     cat = {m["key"]: m for m in c.get("/modules").json()}
     assert cat["rfi"]["revisable"] is True and cat["daily_report"]["revisable"] is False
+    # controlled Documents register: a config-only module that's revisable (version history) + attachments
+    assert cat.get("document", {}).get("revisable") is True, "document module should load + be revisable"
+    doc = c.post(f"/projects/{pid}/modules/document", headers=H("gc"), json={"data": {"title": "Spec 03 30 00", "doc_type": "Specification"}}).json()
+    docrev = c.post(f"/projects/{pid}/modules/document/{doc['id']}/revise", headers=H("gc")).json()
+    assert docrev["ref"] == "DOC-001.1", docrev.get("ref")
 
     # ---- AI Draft RFI (template fallback when no ANTHROPIC_API_KEY) -----------
     d = c.post(f"/projects/{pid}/ai/draft-rfi", headers=H("gc"), json={

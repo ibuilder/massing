@@ -50,7 +50,7 @@ A construction-management portal on top of the viewer — full writeup in
 [docs/gc-portal.md](docs/gc-portal.md). Highlights:
 
 - **Module engine** — every process (RFIs, Submittals, PCO/Change-Order chain, Daily
-  Reports, …) is a `module.json` → its own auto-created table. **68 modules / 12 sections**,
+  Reports, …) is a `module.json` → its own auto-created table. **69 modules / 12 sections**,
   no per-module code. Each gets CRUD, role-gated workflow, comments, CSV/PDF, pins, timeline.
 - **Two role dimensions** — capability roles (viewer→admin) + party roles
   (GC/Owner/OwnersRep/Consultant/Subcontractor) that gate workflow transitions.
@@ -169,7 +169,7 @@ apps/editor-bridge/  Bonsai-MCP config + authoring recipes (desktop path)
 services/converter/  IFC→.frag (Node) + optional RVT→IFC via APS (paid, flagged)
 services/api/        FastAPI: BCF, properties, exports, clash/validate, drawings, edit/publish,
                        GC portal (modules, cost, schedule, dashboard)
-services/api/modules/  68 module.json definitions (GC portal — one table each)
+services/api/modules/  69 module.json definitions (GC portal — one table each)
 services/data/       IfcOpenShell: index, QTO, COBie, spaces, schedule, clash, IDS, drawings, edit
 packages/            shared types
 families/            IFC type libraries (versioned)
