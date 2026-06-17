@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, File, Request, Response, UploadFile
 from sqlalchemy.orm import Session
 
+from .. import ai
 from .. import mailer
 from .. import modules as mod_engine
 from .. import rbac
@@ -48,6 +49,17 @@ def list_modules():
          "relations": m.get("relations", []), "list_columns": m.get("list_columns")}
         for m in mod_engine.REGISTRY.values()
     ]
+
+
+@router.post("/projects/{pid}/ai/draft-rfi")
+def draft_rfi(pid: str, element: dict = Body(default={}, embed=True),
+              note: str | None = Body(default=None, embed=True),
+              _: str = Depends(require_role("reviewer"))):
+    """Draft an RFI (subject/question/discipline/priority) from a selected element's IFC context.
+    Uses Claude when ANTHROPIC_API_KEY is set; otherwise returns a deterministic template draft.
+    Reviewer+ (same gate as creating RFIs; avoids anonymous LLM-token burn)."""
+    draft = ai.draft_rfi(element or {}, note)
+    return {"ai_enabled": ai.ai_enabled(), **draft}
 
 
 @router.get("/projects/{pid}/my-work")

@@ -52,7 +52,7 @@ We match or lead on: open/IFC-native, offline viewer, in-browser authoring round
 - **P0 (now, safe, high value):** ✅ MC on-demand · ✅ inline list edit (assignee + status) ·
   viewer empty-states (deferred — the 404/409 are benign + already handled; not worth extra probes).
 - **P1:** ✅ work-queue query optimization (SQL-filtered my_work + party_allowed hardening) ·
-  AI Draft RFI · loading/skeleton states · RFI revisions.
+  ✅ AI Draft RFI (Claude when keyed, template fallback) · loading/skeleton states · RFI revisions.
 - **P2:** real-time presence + shared viewpoints · document/version management · mobile field
   capture · report builder · list/tree virtualization.
 - **P3 (external-gated):** SSO/OIDC (IdP) · Capacitor build (Android SDK/Xcode) · APS RVT→IFC
@@ -63,7 +63,11 @@ We match or lead on: open/IFC-native, offline viewer, in-browser authoring round
 - `7958e85` — inline list editing of assignee + status in the portal (P0 UX, Procore parity).
 - `fe56b9e` — SQL-filtered cross-module work queue + `party_allowed` hardening (P1 perf + a
   latent-crash fix).
+- AI **Draft RFI** — `POST /projects/{pid}/ai/draft-rfi` (`ai.py`): Claude (`claude-opus-4-8`,
+  structured output, low effort) when `ANTHROPIC_API_KEY` is set, deterministic template draft
+  otherwise. Wired into "+ RFI from selection" (prefills subject + question). Closes the
+  headline competitive gap (Procore Draft-RFI parity).
 
 ## Next up
-AI Draft RFI (P1, needs an LLM provider — scaffold pluggable), loading/skeleton states (P1 UX),
-RFI revisions (P2). Then the P2 program (real-time presence, doc/version mgmt, mobile, reports).
+Loading/skeleton states (P1 UX), RFI revisions (P2). Then the P2 program (real-time presence,
+doc/version mgmt, mobile, reports).

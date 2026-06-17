@@ -107,6 +107,16 @@ with TestClient(app) as c:
     pdf = c.get(f"/projects/{pid}/modules/cor/{cor['id']}/pdf", headers=H("gc")).content
     assert pdf[:5] == b"%PDF-" and len(pdf) > 1000, len(pdf)
 
+    # ---- AI Draft RFI (template fallback when no ANTHROPIC_API_KEY) -----------
+    d = c.post(f"/projects/{pid}/ai/draft-rfi", headers=H("gc"), json={
+        "element": {"ifc_class": "IfcBeam", "name": "B-12", "storey": "Level 3"},
+        "note": "Is it OK to core a 50mm penetration?"}).json()
+    assert d["ai_enabled"] is False and d["source"] == "template", d
+    assert "B-12" in d["subject"] and d["question"] and d["discipline"] == "Structural"
+    assert d["suggested_priority"] in ("low", "normal", "high", "urgent")
+    # reviewer-gated: a party-less / no-role user can't draft
+    assert c.post(f"/projects/{pid}/ai/draft-rfi", headers=H("nobody"), json={"element": {}}).status_code == 403
+
     # ---- cross-module work queue (SQL-filtered: assigned OR party-actionable) -
     gc_work = c.get(f"/projects/{pid}/my-work", headers=H("gc")).json()
     assert gc_work and all(w["reason"] in ("assigned", "ball-in-court") for w in gc_work), gc_work

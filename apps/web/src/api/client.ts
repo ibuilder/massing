@@ -306,6 +306,11 @@ export class ApiClient {
   element(pid: string, guid: string) {
     return this.json<ElementProps>(`/projects/${pid}/elements/${guid}`);
   }
+  /** AI-draft an RFI from an element's context (Claude when keyed, else a template draft). */
+  draftRfi(pid: string, element: unknown, note?: string) {
+    return this.json<{ ai_enabled: boolean; subject: string; question: string; discipline: string; suggested_priority: string; source: string }>(
+      `/projects/${pid}/ai/draft-rfi`, { method: "POST", body: JSON.stringify({ element, note }) });
+  }
   elements(pid: string, params: { ifc_class?: string; storey?: string; limit?: number } = {}) {
     const q = new URLSearchParams(params as Record<string, string>).toString();
     return this.json<ElementProps[]>(`/projects/${pid}/elements?${q}`);

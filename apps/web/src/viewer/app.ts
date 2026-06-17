@@ -864,9 +864,22 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const model = loader.fragments.list.get(modelId);
     const localId = [...ids][0];
     const [guid] = model ? await model.getGuidsByLocalIds([localId]) : [null];
-    const title = prompt("RFI title:", "New RFI") || "New RFI";
+    // AI/template draft from the selected element's context (Procore Draft-RFI parity)
+    let suggestedTitle = "New RFI";
+    let description: string | undefined;
+    if (guid) {
+      const note = prompt("Briefly describe the issue (optional — leave blank to let AI draft it):", "") || undefined;
+      try {
+        const el = await api.element(projectId, guid);
+        const d = await api.draftRfi(projectId, el, note);
+        suggestedTitle = d.subject || suggestedTitle;
+        description = d.question;
+        setStatus(d.source === "claude" ? `AI-drafted RFI (${d.discipline})` : `drafted RFI (${d.discipline})`);
+      } catch { if (note) description = note; }
+    }
+    const title = prompt("RFI title:", suggestedTitle) || suggestedTitle;
     const topic = await api.createTopic(projectId, {
-      type: "rfi", title, status: "open",
+      type: "rfi", title, description, status: "open",
       anchor: lastPoint ? { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z } : undefined,
       element_guids: guid ? [guid] : undefined,
     });
