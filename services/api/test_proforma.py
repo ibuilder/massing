@@ -99,7 +99,28 @@ assert fc["irr_delta"] is not None and fc["irr_delta"] < 0                    # 
 hard = next(L for L in fc["lines"] if L["category"] == "hard")
 assert hard["forecast_at_completion"] == 9_000_000 + 15_000_000              # actual + CTC
 
+# --- Monte Carlo: probabilistic risk distribution ---------------------------
+from aec_api.proforma.monte_carlo import monte_carlo  # noqa: E402
+
+mc_vars = [
+    {"path": "exit.exit_cap", "dist": {"kind": "triangular", "low": 0.05, "mode": 0.055, "high": 0.065}},
+    {"path": "cost_lines.1.amount", "dist": {"kind": "triangular", "low": 18_000_000, "mode": 20_000_000, "high": 24_000_000}},
+    {"path": "operations.potential_rent_annual", "dist": {"kind": "normal", "mean": 3_600_000, "std": 200_000, "min": 3_000_000}},
+]
+mc = monte_carlo(deal, mc_vars, iterations=600, seed=7, targets={"returns.equity_irr": 0.15})
+assert mc["solved"] + mc["failures"] == 600 and mc["failures"] == 0, mc["failures"]
+eq = mc["metrics"]["returns.equity_irr"]
+assert eq["p10"] < eq["p50"] < eq["p90"], eq                       # ordered percentiles
+assert 0.0 <= eq["prob_at_least"] <= 1.0                            # P[IRR ≥ 15%] is a probability
+assert sum(eq["histogram"]["counts"]) == eq["n"]                   # histogram covers every sample
+assert eq["p5"] <= res["returns"]["equity_irr"] <= eq["p95"]       # base case sits inside the spread
+# reproducible: same seed → identical distribution; clamp respected (rent never < 3.0M is implicit)
+mc_again = monte_carlo(deal, mc_vars, iterations=600, seed=7, targets={"returns.equity_irr": 0.15})
+assert mc_again["metrics"]["returns.equity_irr"]["p50"] == eq["p50"], "seeded run must reproduce"
+
 print("PROFORMA OK")
+print(f"  monte-carlo (600 draws): equity IRR P10 {eq['p10']*100:.1f}% | P50 {eq['p50']*100:.1f}%"
+      f" | P90 {eq['p90']*100:.1f}% | P[IRR>=15%] {eq['prob_at_least']*100:.0f}%")
 print(f"  S&U: uses ${su_r['total_uses']:,.0f} = loan ${su_r['loan_amount']:,.0f} + equity ${su_r['equity']:,.0f}"
       f" (int reserve ${su_r['interest_reserve']:,.0f})")
 print(f"  returns: project IRR {res['returns']['project_irr']*100:.1f}% | equity IRR {res['returns']['equity_irr']*100:.1f}%"

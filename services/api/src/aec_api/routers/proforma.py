@@ -18,6 +18,7 @@ from ..db import get_db
 from ..models import Scenario
 from ..rbac import current_user
 from ..proforma.draws import reforecast
+from ..proforma.monte_carlo import monte_carlo
 from ..proforma.sensitivity import sensitivity
 from ..proforma.solve import solve
 
@@ -114,6 +115,41 @@ def run_sensitivity(body: SensitivityIn):
     """Two-variable data table: the metric solved across the x×y grid of two drivers."""
     return sensitivity(body.assumptions.model_dump(), body.x.path, body.x.values,
                        body.y.path, body.y.values, body.metric)
+
+
+class Distribution(BaseModel):
+    kind: Literal["normal", "uniform", "triangular"]
+    mean: float | None = None      # normal
+    std: float | None = None       # normal
+    low: float | None = None       # uniform / triangular
+    high: float | None = None      # uniform / triangular
+    mode: float | None = None      # triangular
+    min: float | None = None       # optional clamp
+    max: float | None = None       # optional clamp
+
+
+class MonteCarloVar(BaseModel):
+    path: str                       # dotted assumption path, e.g. "exit.exit_cap"
+    dist: Distribution
+
+
+class MonteCarloIn(BaseModel):
+    assumptions: Assumptions
+    variables: list[MonteCarloVar] = Field(min_length=1)
+    iterations: int = Field(default=1000, ge=100, le=5000)  # ~3ms/solve → 1000≈3s, 5000≈16s
+    seed: int = 42
+    metrics: list[str] | None = None       # default: equity/project IRR, multiple, NPV
+    targets: dict[str, float] | None = None  # metric → threshold for P[metric ≥ threshold]
+
+
+@router.post("/proforma/monte-carlo")
+def run_monte_carlo(body: MonteCarloIn):
+    """Probabilistic risk analysis: sample the given drivers, solve each draw, and return the
+    distribution (percentiles, mean/std, P[≥target], histogram) of each output metric."""
+    return monte_carlo(body.assumptions.model_dump(),
+                       [{"path": v.path, "dist": v.dist.model_dump(exclude_none=True)}
+                        for v in body.variables],
+                       body.iterations, body.seed, body.metrics, body.targets)
 
 
 # --- scenarios (persisted, versioned) ---------------------------------------

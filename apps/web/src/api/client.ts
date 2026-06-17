@@ -114,6 +114,19 @@ export interface ProformaForecast {
   irr_delta: number | null;
 }
 
+/** One metric's sampled distribution from a Monte Carlo run. */
+export interface MonteCarloMetric {
+  mean: number; std: number; min: number; max: number; n: number;
+  p5: number; p10: number; p25: number; p50: number; p75: number; p90: number; p95: number;
+  target?: number; prob_at_least?: number;
+  histogram: { counts: number[]; edges: number[] };
+}
+export interface MonteCarloResult {
+  iterations: number; solved: number; failures: number; seed: number;
+  variables: { path: string; dist: Record<string, unknown> }[];
+  metrics: Record<string, MonteCarloMetric>;
+}
+
 export interface EnergyResult {
   areas_m2: Record<string, number>;
   ua_w_per_k: Record<string, number>;
@@ -291,6 +304,10 @@ export class ApiClient {
   sensitivity(body: unknown) {
     return this.json<{ metric: string; x_values: number[]; y_values: number[]; matrix: (number | null)[][] }>(
       `/proforma/sensitivity`, { method: "POST", body: JSON.stringify(body) });
+  }
+  monteCarlo(body: unknown) {
+    return this.json<MonteCarloResult>(
+      `/proforma/monte-carlo`, { method: "POST", body: JSON.stringify(body) });
   }
   forecast(assumptions: unknown, actuals: unknown[], as_of_month: number) {
     return this.json<ProformaForecast>(`/proforma/forecast`, {

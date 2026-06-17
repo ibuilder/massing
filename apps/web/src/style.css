@@ -318,3 +318,9 @@ kbd {
 body[data-cap-review="off"] [data-cap="review"],
 body[data-cap-edit="off"] [data-cap="edit"],
 body[data-cap-admin="off"] [data-cap="admin"] { display: none !important; }
+
+/* Proforma Monte Carlo histogram */
+.pf-hist { display: flex; align-items: flex-end; gap: 1px; height: 52px; margin: 8px 0 4px;
+  padding: 2px; background: var(--code, #0f1012); border: 1px solid var(--line); border-radius: 6px; }
+.pf-hist .pf-bar { flex: 1; background: var(--accent, #4a8cff); border-radius: 1px 1px 0 0; opacity: .8; }
+.pf-hist .pf-bar:hover { opacity: 1; }

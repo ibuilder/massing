@@ -87,6 +87,8 @@ export class ProformaUI {
     this.root.appendChild(out);
     const sens = document.createElement("div"); sens.id = "pf-sens";
     this.root.appendChild(sens);
+    const mc = document.createElement("div"); mc.id = "pf-mc";
+    this.root.appendChild(mc);
     this.renderDraws();
   }
 
@@ -163,6 +165,48 @@ export class ProformaUI {
     this.renderResult(r);
     this.setStatus(`equity IRR ${pct(r.returns.equity_irr)} · EM ${r.returns.equity_multiple}`);
     void this.renderSensitivity();
+    void this.renderMonteCarlo();
+  }
+
+  /** Monte Carlo risk: sample exit cap, hard cost, and rent; show the equity-IRR distribution. */
+  private async renderMonteCarlo() {
+    const host = document.getElementById("pf-mc");
+    if (!host) return;
+    const cap = get(this.a, "exit.exit_cap") as number;
+    const hard = get(this.a, "cost_lines.1.amount") as number;
+    const rent = get(this.a, "operations.potential_rent_annual") as number;
+    const target = 0.15;
+    let mc;
+    try {
+      mc = await this.api.monteCarlo({
+        assumptions: this.a,
+        iterations: 1000,
+        variables: [
+          // exit cap & cost skew worse than base; rent is symmetric — a realistic downside tilt
+          { path: "exit.exit_cap", dist: { kind: "triangular", low: cap - 0.005, mode: cap, high: cap + 0.012 } },
+          { path: "cost_lines.1.amount", dist: { kind: "triangular", low: hard * 0.95, mode: hard, high: hard * 1.2 } },
+          { path: "operations.potential_rent_annual", dist: { kind: "normal", mean: rent, std: rent * 0.06, min: rent * 0.8 } },
+        ],
+        metrics: ["returns.equity_irr"],
+        targets: { "returns.equity_irr": target },
+      });
+    } catch { return; }
+    const m = mc.metrics["returns.equity_irr"];
+    if (!m || !m.n) return;
+    const hmax = Math.max(...m.histogram.counts, 1);
+    const bars = m.histogram.counts.map((c, i) => {
+      const lo = m.histogram.edges[i];
+      return `<span class="pf-bar" title="${(lo * 100).toFixed(1)}%: ${c}" style="height:${Math.round((c / hmax) * 48) + 1}px"></span>`;
+    }).join("");
+    const prob = Math.round((m.prob_at_least ?? 0) * 100);
+    host.innerHTML =
+      `<div class="section-title">Monte Carlo — Equity IRR (${mc.solved} draws: exit cap × hard cost × rent)</div>` +
+      `<div class="kpi-grid">` +
+      [["P10", pct(m.p10)], ["P50 (median)", pct(m.p50)], ["P90", pct(m.p90)], [`P(IRR ≥ ${target * 100}%)`, `${prob}%`]]
+        .map(([l, v]) => `<div class="kpi"><div class="kpi-v">${v}</div><div class="kpi-l">${l}</div></div>`).join("") +
+      `</div>` +
+      `<div class="pf-hist" title="equity IRR distribution (P10 → P90)">${bars}</div>` +
+      `<div class="meta">downside-tilted: exit cap and hard cost skew worse than base; rent ±6%.</div>`;
   }
 
   /** Two-variable data table: Equity IRR vs exit cap × hard cost (around the base case). */
