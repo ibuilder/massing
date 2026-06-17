@@ -102,6 +102,12 @@ asserts RFI-001→RFI-001.1→.2, supersede-block (409), non-revisable reject (4
 with reportlab + pagination. A "↓ Status report (PDF)" button sits on the construction dashboard.
 Verified: `test_dashboard` asserts a valid `%PDF-` response.
 
+## Real-time presence + shared viewpoints (P2) — done
+`presence.py` (in-memory heartbeat store, per-process) + `POST/GET /projects/{pid}/presence`:
+clients heartbeat every 20s (optionally sharing their camera viewpoint), peers read the live
+roster. Viewer shows a "👥 N" indicator (click → jump to a peer's shared view) and a "⤴ Share
+view" button. Verified: `test_presence` (roster, shared viewpoint, self-exclude, TTL prune).
+_Note: per-process — back with Redis for multi-worker._
+
 ## Next up
-The P2 program: real-time presence + shared viewpoints, document/version management, mobile
-field capture, list/tree virtualization.
+The P2 program: document/version management, mobile field capture, list/tree virtualization.

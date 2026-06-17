@@ -281,6 +281,11 @@ export class ApiClient {
   projects() {
     return this.json<{ id: string; name: string }[]>(`/projects`);
   }
+  /** Heartbeat presence (optionally sharing the current camera viewpoint) → live peer roster. */
+  presence(pid: string, viewpoint?: unknown) {
+    return this.json<{ user: string; active: { user: string; seconds_ago: number; viewpoint: { position: Vec3; target: Vec3 } | null }[] }>(
+      `/projects/${pid}/presence`, { method: "POST", body: JSON.stringify({ viewpoint }) });
+  }
   /** The caller's own effective role on a project (drives UI capability gating). */
   myRole(pid: string) {
     return this.json<{ user: string; role: ProjectRole | null; party_role: string | null; rbac: boolean }>(

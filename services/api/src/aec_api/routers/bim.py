@@ -2,7 +2,7 @@
 endpoints (guide §7). Modeled on BCF-API so issues round-trip with other BIM tools."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from pydantic import BaseModel
@@ -49,6 +49,23 @@ def my_membership(pid: str, db: Session = Depends(get_db), user: str = Depends(c
     when it's off the client should treat the user as fully capable (matching the open API)."""
     return {"user": user, "role": rbac.role_for(db, pid, user),
             "party_role": rbac.party_role_for(db, pid, user), "rbac": rbac.RBAC_ON}
+
+
+@router.post("/projects/{pid}/presence")
+def heartbeat(pid: str, viewpoint: dict | None = Body(default=None, embed=True),
+              user: str = Depends(current_user)):
+    """Heartbeat presence (optionally sharing the current camera viewpoint) and get the live
+    roster of other users viewing this project."""
+    from .. import presence
+    presence.touch(pid, user, viewpoint)
+    return {"user": user, "active": presence.active(pid, exclude=user)}
+
+
+@router.get("/projects/{pid}/presence")
+def presence_roster(pid: str, user: str = Depends(current_user)):
+    """Other users currently viewing this project (heartbeat within the TTL)."""
+    from .. import presence
+    return {"active": presence.active(pid, exclude=user)}
 
 
 @router.get("/projects/{pid}/members")

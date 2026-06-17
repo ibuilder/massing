@@ -284,6 +284,43 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   toolBtn("◐", "Color selection", () => selection && colorize.color(selection, "#ffb000"));
   toolBtn("⊞", "Show all (H)", async () => { await visibility.showAll(); await colorize.reset(); });
 
+  // ---- live presence + shared viewpoints ----------------------------------
+  type Peer = { user: string; seconds_ago: number; viewpoint: { position: THREE.Vector3Like; target: THREE.Vector3Like } | null };
+  let peers: Peer[] = [];
+  function captureViewpoint() {
+    const p = new THREE.Vector3(), t = new THREE.Vector3();
+    viewer.world.camera.controls.getPosition(p); viewer.world.camera.controls.getTarget(t);
+    return { position: { x: p.x, y: p.y, z: p.z }, target: { x: t.x, y: t.y, z: t.z } };
+  }
+  function jumpToViewpoint(vp: Peer["viewpoint"]) {
+    if (!vp) return;
+    void viewer.world.camera.controls.setLookAt(
+      vp.position.x, vp.position.y, vp.position.z, vp.target.x, vp.target.y, vp.target.z, true);
+  }
+  function updatePresence(active: Peer[]) {
+    peers = active || [];
+    presenceBtn.textContent = peers.length ? `👥 ${peers.length}` : "👥";
+    presenceBtn.title = peers.length
+      ? `Viewing: ${peers.map((p) => p.user).join(", ")} — click to jump to a shared view`
+      : "Live presence — no one else viewing";
+    presenceBtn.classList.toggle("on", peers.length > 0);
+  }
+  const presenceBtn = toolBtn("👥", "Live presence", () => {
+    const shared = peers.find((p) => p.viewpoint);
+    if (shared) { jumpToViewpoint(shared.viewpoint); notify(`jumped to ${shared.user}'s shared view`, "info"); }
+    else notify(peers.length ? `Viewing: ${peers.map((p) => p.user).join(", ")}` : "no one else viewing this model", "info");
+  });
+  toolBtn("⤴", "Share your current view with everyone", async () => {
+    if (!projectId) { notify("connect a project to share views", "error"); return; }
+    try { const r = await api.presence(projectId, captureViewpoint()); updatePresence(r.active); notify("view shared with peers", "success"); }
+    catch { notify("could not share view", "error"); }
+  });
+  if (projectId) {
+    const beat = async () => { try { updatePresence((await api.presence(projectId!)).active); } catch { /* offline */ } };
+    void beat();
+    window.setInterval(beat, 20000);   // heartbeat keeps presence live while the tab is open
+  }
+
   // section box: 6 clipping planes shrunk inside the model bounds (renderer-level clip)
   let sectionBox: THREE.Plane[] | null = null;
   toolBtn("⬚", "Section box (clip to model bounds)", (b) => {
