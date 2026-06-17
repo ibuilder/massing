@@ -42,6 +42,15 @@ class MemberIn(BaseModel):
     company: str | None = None
 
 
+@router.get("/projects/{pid}/me")
+def my_membership(pid: str, db: Session = Depends(get_db), user: str = Depends(current_user)):
+    """The caller's own effective role on this project — drives UI capability gating. No role
+    required (a non-member gets role=null). `rbac` tells the client whether gating is enforced;
+    when it's off the client should treat the user as fully capable (matching the open API)."""
+    return {"user": user, "role": rbac.role_for(db, pid, user),
+            "party_role": rbac.party_role_for(db, pid, user), "rbac": rbac.RBAC_ON}
+
+
 @router.get("/projects/{pid}/members")
 def list_members(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     rows = db.query(ProjectMember).filter(ProjectMember.project_id == pid).all()

@@ -11,6 +11,9 @@ export interface ElementProps {
   qtos: Record<string, Record<string, unknown>>;
 }
 
+/** Project-scoped capability role, least→most privileged. */
+export type ProjectRole = "viewer" | "reviewer" | "editor" | "admin";
+
 /** A global account (identity). Per-project authorization lives in project members. */
 export interface AccountUser {
   username: string;
@@ -224,6 +227,11 @@ export class ApiClient {
 
   projects() {
     return this.json<{ id: string; name: string }[]>(`/projects`);
+  }
+  /** The caller's own effective role on a project (drives UI capability gating). */
+  myRole(pid: string) {
+    return this.json<{ user: string; role: ProjectRole | null; party_role: string | null; rbac: boolean }>(
+      `/projects/${pid}/me`);
   }
   meta(pid: string) {
     return this.json<{ schema: string; counts: Record<string, number>; facets: { classes: string[]; storeys: string[] } }>(

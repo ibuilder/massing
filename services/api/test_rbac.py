@@ -44,4 +44,12 @@ with TestClient(app) as c:
     assert c.post(f"/projects/{pid}/members", json={"user": "carol", "role": "viewer"},
                   headers=H("bob")).status_code == 403
 
-    print("RBAC OK — admin/reviewer/editor/viewer enforced; default-deny for non-members")
+    # /me reports the caller's own effective role (drives web UI capability gating)
+    alice_me = c.get(f"/projects/{pid}/me", headers=H("alice")).json()
+    assert alice_me == {"user": "alice", "role": "admin", "party_role": "GC", "rbac": True}, alice_me
+    bob_me = c.get(f"/projects/{pid}/me", headers=H("bob")).json()
+    assert bob_me["role"] == "reviewer" and bob_me["rbac"] is True, bob_me
+    dan_me = c.get(f"/projects/{pid}/me", headers=H("dan")).json()   # non-member
+    assert dan_me["role"] is None, dan_me
+
+    print("RBAC OK — admin/reviewer/editor/viewer enforced; default-deny for non-members; /me role")

@@ -158,7 +158,7 @@ export class PortalUI {
     this.root.appendChild(this.bar(m.name, () => this.renderHome()));
 
     const actions = document.createElement("div"); actions.style.cssText = "display:flex;gap:6px;margin:6px 0;flex-wrap:wrap;align-items:center";
-    const newBtn = document.createElement("button"); newBtn.className = "tool-btn"; newBtn.textContent = "+ New";
+    const newBtn = document.createElement("button"); newBtn.className = "tool-btn"; newBtn.dataset.cap = "review"; newBtn.textContent = "+ New";
     newBtn.onclick = () => this.renderForm(m);
     const boardBtn = document.createElement("button"); boardBtn.className = "tool-btn"; boardBtn.textContent = "▦ Board";
     boardBtn.onclick = () => this.renderBoard(m);

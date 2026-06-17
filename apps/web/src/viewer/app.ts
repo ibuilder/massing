@@ -254,10 +254,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
   // ---- floating toolbar ----------------------------------------------------
   const viewerTools = $("viewer-tools");
-  function toolBtn(icon: string, title: string, onClick: (b: HTMLButtonElement) => void) {
+  function toolBtn(icon: string, title: string, onClick: (b: HTMLButtonElement) => void, cap?: "edit" | "review") {
     const b = document.createElement("button");
     b.textContent = icon; b.className = "tool-btn icon-btn"; b.title = title;
     b.setAttribute("aria-label", title);
+    if (cap) b.dataset.cap = cap;   // hidden by CSS when the caller lacks the project capability
     b.onclick = () => onClick(b);
     viewerTools.appendChild(b);
     return b;
@@ -331,15 +332,15 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     (Object.keys(placeBtns) as PlaceKind[]).forEach((k) => placeBtns[k].classList.toggle("on", k === kind));
     if (kind) notify(`${kind}: click the ${PLACE_PTS[kind] === 1 ? "point" : "start point"} on the floor/grid`, "info");
   }
-  placeBtns.wall = toolBtn("▭", "Add wall (click two points)", () => setPlaceMode(placeMode === "wall" ? null : "wall"));
-  placeBtns.column = toolBtn("▮", "Add column (click one point)", () => setPlaceMode(placeMode === "column" ? null : "column"));
-  placeBtns.beam = toolBtn("▬", "Add beam (click two points)", () => setPlaceMode(placeMode === "beam" ? null : "beam"));
+  placeBtns.wall = toolBtn("▭", "Add wall (click two points)", () => setPlaceMode(placeMode === "wall" ? null : "wall"), "edit");
+  placeBtns.column = toolBtn("▮", "Add column (click one point)", () => setPlaceMode(placeMode === "column" ? null : "column"), "edit");
+  placeBtns.beam = toolBtn("▬", "Add beam (click two points)", () => setPlaceMode(placeMode === "beam" ? null : "beam"), "edit");
   toolBtn("␡", "Delete selected element", async () => {
     if (!selectedGuid) { notify("select an element first", "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
     if (!confirm(`Delete element ${selectedGuid.slice(0, 8)}? This re-authors the IFC.`)) return;
     await authorAndReload("delete_element", { guid: selectedGuid }, "delete");
-  });
+  }, "edit");
   const addOpening = async (kind: "door" | "window") => {
     if (!selectedGuid) { notify(`select a wall first, then add the ${kind}`, "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to author", "error"); return; }
@@ -348,8 +349,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (lastPoint) params.position = [lastPoint.x, -lastPoint.z];
     await authorAndReload(kind === "window" ? "add_window" : "add_door", params, kind);
   };
-  toolBtn("◧", "Add door to selected wall", () => void addOpening("door"));
-  toolBtn("◨", "Add window to selected wall", () => void addOpening("window"));
+  toolBtn("◧", "Add door to selected wall", () => void addOpening("door"), "edit");
+  toolBtn("◨", "Add window to selected wall", () => void addOpening("window"), "edit");
   toolBtn("✥", "Move selected element (E,N,Z metres)", async () => {
     if (!selectedGuid) { notify("select an element first", "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
@@ -357,14 +358,14 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (!v) return;
     const [dx, dy, dz] = v.split(",").map((n) => Number(n.trim()) || 0);
     await authorAndReload("move_element", { guid: selectedGuid, dx, dy, dz }, "move");
-  });
+  }, "edit");
   toolBtn("⟲", "Rotate selected element (degrees about Z)", async () => {
     if (!selectedGuid) { notify("select an element first", "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
     const a = Number(prompt("Rotate by degrees (about vertical axis):", "90"));
     if (!a) return;
     await authorAndReload("rotate_element", { guid: selectedGuid, angle: a }, "rotate");
-  });
+  }, "edit");
   toolBtn("✎", "Edit a property on the selected element", async () => {
     if (!selectedGuid) { notify("select an element first", "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
@@ -372,14 +373,14 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const propName = prompt("Property:", "FireRating"); if (!propName) return;
     const value = prompt(`Value for ${propName}:`, ""); if (value === null) return;
     await authorAndReload("set_element_pset", { guid: selectedGuid, pset, prop: propName, value }, "property edit");
-  });
+  }, "edit");
   toolBtn("⧉", "Copy selected element (offset E,N,Z metres)", async () => {
     if (!selectedGuid) { notify("select an element first", "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
     const v = prompt("Copy with offset E, N, Z metres:", "1, 0, 0"); if (!v) return;
     const [dx, dy, dz] = v.split(",").map((n) => Number(n.trim()) || 0);
     await authorAndReload("copy_element", { guid: selectedGuid, dx, dy, dz }, "copy");
-  });
+  }, "edit");
 
   /** Round a point's plan coords (x,z) to the grid-snap increment; leave height (y). */
   function snapPoint(p: THREE.Vector3): THREE.Vector3 {
@@ -718,12 +719,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     panel.appendChild(an);
 
     const au = document.createElement("div");
+    au.dataset.cap = "edit";   // whole authoring section hidden for non-editors
     au.innerHTML = `<div class="section-title" style="margin-top:14px">Authoring (round-trip)</div>`;
     const auOut = document.createElement("div"); auOut.className = "meta"; auOut.id = "au-out";
     if (!projectId) { auOut.textContent = "connect a project to author"; au.appendChild(auOut); }
     else {
       const fixBtn = document.createElement("button");
-      fixBtn.className = "tool-btn"; fixBtn.textContent = "✎ Fix slabs: set LoadBearing"; fixBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
+      fixBtn.className = "tool-btn"; fixBtn.dataset.cap = "edit"; fixBtn.textContent = "✎ Fix slabs: set LoadBearing"; fixBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
       fixBtn.onclick = async () => {
         auOut.textContent = "editing IFC…";
         const r = await api.editIfc(projectId, "set_pset", { ifc_class: "IfcSlab", pset: "Pset_SlabCommon", prop: "LoadBearing", value: true, dtype: "bool" }, true);
@@ -734,7 +736,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         auOut.innerHTML += `<br>publish: ${state}`;
       };
       const pubBtn = document.createElement("button");
-      pubBtn.className = "tool-btn"; pubBtn.textContent = "⟳ Republish (reconvert + reindex)"; pubBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
+      pubBtn.className = "tool-btn"; pubBtn.dataset.cap = "edit"; pubBtn.textContent = "⟳ Republish (reconvert + reindex)"; pubBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
       pubBtn.onclick = async () => {
         auOut.textContent = "publishing… (running in background)";
         await api.publish(projectId);
@@ -796,7 +798,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const panel = $("panel-issues");
     panel.innerHTML = `<div class="section-title">Issues (${topics.length})</div>`;
     const newBtn = document.createElement("button");
-    newBtn.className = "tool-btn"; newBtn.textContent = "+ RFI from selection"; newBtn.style.marginBottom = "8px";
+    newBtn.className = "tool-btn"; newBtn.dataset.cap = "review"; newBtn.textContent = "+ RFI from selection"; newBtn.style.marginBottom = "8px";
     newBtn.onclick = createRfiFromSelection;
     panel.appendChild(newBtn);
     for (const t of topics) panel.appendChild(issueCard(t));

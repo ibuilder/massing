@@ -460,6 +460,28 @@ function adminModal() {
   void render();
 }
 
+// ---- per-project RBAC capability gating -------------------------------------
+// Reflect the caller's project role in the UI: tag actionable controls with data-cap
+// ("review" | "edit") and hide those above the caller's role. The API still enforces;
+// this just removes the "click → 403" rough edge. Fully open when RBAC is off / offline.
+const CAP_RANK: Record<string, number> = { viewer: 0, reviewer: 1, editor: 2, admin: 3 };
+async function applyCapabilities() {
+  let review = true, edit = true, admin = true;
+  if (connected && projectId) {
+    try {
+      const m = await api.myRole(projectId);
+      if (m.rbac) {
+        const r = m.role ? CAP_RANK[m.role] : -1;
+        review = r >= CAP_RANK.reviewer; edit = r >= CAP_RANK.editor; admin = r >= CAP_RANK.admin;
+      }
+    } catch { /* keep defaults (don't hide on a transient error) */ }
+  }
+  const b = document.body;
+  b.dataset.capReview = review ? "on" : "off";
+  b.dataset.capEdit = edit ? "on" : "off";
+  b.dataset.capAdmin = admin ? "on" : "off";
+}
+
 // live notification badge on the Construction workspace tab (SSE)
 function connectNotifications() {
   if (!projectId) return;
@@ -502,6 +524,7 @@ async function startup() {
     setStatus("offline — open a .frag to view (API not reachable)");
   }
   if (projectId) connectNotifications();
+  void applyCapabilities();
   void buildAuthControl();
 }
 

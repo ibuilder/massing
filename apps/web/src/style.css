@@ -312,3 +312,9 @@ kbd {
 .sens-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
 .sens-table th { color: var(--muted); font-weight: 600; padding: 3px; }
 .sens-table td { text-align: center; padding: 4px 2px; color: #fff; font-variant-numeric: tabular-nums; }
+
+/* RBAC capability gating — hide actions above the caller's project role. The API still
+   enforces; this removes the "click → 403" rough edge. Set on <body> by applyCapabilities(). */
+body[data-cap-review="off"] [data-cap="review"],
+body[data-cap-edit="off"] [data-cap="edit"],
+body[data-cap-admin="off"] [data-cap="admin"] { display: none !important; }
