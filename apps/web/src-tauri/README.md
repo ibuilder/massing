@@ -34,15 +34,49 @@ VITE_API_URL=http://localhost:8000 npx tauri dev
 VITE_API_URL=https://api.your-host npx tauri build
 ```
 
+## Two build flavors
+
+The same shell ships in two configurations:
+
+1. **Pro / cloud client** — the frontend points at a hosted API (`VITE_API_URL=https://api.your-host`),
+   accounts + admin gates on. This is what `npm run build` + the commands above produce.
+2. **Free single-project app (offline)** — the shell bundles and spawns a **local API sidecar**
+   so the whole platform runs on the machine with no server, à la Bluebeam controlling one site.
+
+### Free single-project build (local sidecar)
+
+The backend already runs as one self-contained process — see
+[`services/api/src/aec_api/desktop.py`](../../../services/api/src/aec_api/desktop.py):
+FastAPI serves both the API **and** the web app from one origin, backed by SQLite + local file
+storage, in single-operator local mode (`AEC_LOCAL_MODE=1`, no login). Run it directly with
+`python -m aec_api.desktop` (opens `http://127.0.0.1:8765`). The web side is built for it with:
+
+```bash
+cd apps/web && npm run build:desktop   # vite --mode desktop -> SPA calls the same-origin root
+```
+
+To wrap this as the `.exe`, the remaining packaging steps (toolchain-dependent, done in CI or on
+the target machine — not in a sandbox):
+
+1. **Freeze the API sidecar** — PyInstaller the `aec_api.desktop` entry into a per-platform binary
+   (bundling `ifcopenshell`'s native libs is the fiddly part; build on each target OS).
+2. **Declare the sidecar** in `tauri.conf.json → bundle.externalBin` and **spawn it on startup**
+   from `src/lib.rs` (tauri-plugin-shell `Command::new_sidecar(...).spawn()`), pointing the window
+   at `http://127.0.0.1:<port>` once `/health` responds.
+3. **CI** — extend [`desktop.yml`](../../../.github/workflows/desktop.yml) to build the sidecar
+   per platform before `tauri-action`, and use `build:desktop` for the frontend.
+
+Until those land, `desktop.yml` builds the **Pro/cloud client** flavor (thin shell → remote API).
+
 ## App-specific notes (validate on the target WebView)
 - **Cross-origin isolation** — `tauri.conf.json → app.security.headers` sets COOP/COEP so
   web-ifc's multithreaded WASM (SharedArrayBuffer) works in the WebView, mirroring nginx/Vite.
   If a given OS WebView won't isolate, web-ifc falls back to single-threaded (only the rare
   in-browser IFC import is affected; the viewer streams server-converted `.frag`).
-- **Backend** — the bundled frontend is served from `tauri://` / asset protocol, so the
-  production `/api` same-origin proxy is *not* present. Build with `VITE_API_URL` pointing at
-  the hosted API (or add a Tauri sidecar that runs the API locally for fully-offline desktop).
-  Note: COEP `require-corp` means the API must send CORP/appropriate CORS for cross-origin calls.
+- **Backend** — for the Pro/cloud client the frontend is served from `tauri://`, so build with
+  `VITE_API_URL` pointing at the hosted API (COEP `require-corp` means it must send CORP / proper
+  CORS). For the free offline app, the bundled sidecar serves API + SPA same-origin, so no CORS
+  and no `/api` prefix — see "Free single-project build" above.
 - **WebGL** — the system WebView (WebView2/WKWebView/WebKitGTK) must handle the Three.js/
   Fragments renderer; test on each target. Electron (bundled Chromium) is the fallback if a
   WebView underperforms (see `docs/roadmap-platforms.md`).

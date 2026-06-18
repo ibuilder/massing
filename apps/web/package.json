@@ -8,6 +8,8 @@
     "dev": "vite",
     "prebuild": "node scripts/copy-wasm.mjs",
     "build": "tsc --noEmit && vite build",
+    "prebuild:desktop": "node scripts/copy-wasm.mjs",
+    "build:desktop": "tsc --noEmit && vite build --mode desktop",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

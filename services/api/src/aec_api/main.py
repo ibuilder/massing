@@ -114,3 +114,22 @@ def health() -> dict[str, str]:
 def prometheus_metrics() -> Response:
     """Prometheus text exposition (request counts, latencies, in-flight, uptime)."""
     return Response(metrics.render(), media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
+# Single-process desktop build: serve the built web app from the same origin as the API, so the
+# Tauri .exe (or `python -m aec_api.desktop`) needs no nginx. Gated on AEC_WEB_DIST so the Docker
+# deployment (nginx serves the SPA, proxies /api) is unaffected. Registered LAST so every explicit
+# API route still wins; the catch-all mount only handles the SPA + its assets. COOP/COEP keep the
+# page cross-origin isolated for web-ifc's multithreaded WASM (SharedArrayBuffer).
+_WEB_DIST = os.environ.get("AEC_WEB_DIST")
+if _WEB_DIST and os.path.isdir(_WEB_DIST):
+    from fastapi.staticfiles import StaticFiles
+
+    @app.middleware("http")
+    async def _cross_origin_isolation(request: Request, call_next):
+        resp = await call_next(request)
+        resp.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        resp.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+        return resp
+
+    app.mount("/", StaticFiles(directory=_WEB_DIST, html=True), name="web")
