@@ -279,6 +279,15 @@ export class ApiClient {
     return this.json<{ columns?: string[]; rows?: unknown[][]; row_count?: number; error?: string }>(
       `/connections/${id}/query`, { method: "POST", body: JSON.stringify({ sql, limit }) });
   }
+  /** Editable Procore->module field mapping for a connection (admin). */
+  connectionMappings(id: string) {
+    return this.json<{ mappings: Record<string, { module: string; fields: { field: string; label: string; default: string; path: string }[] }> }>(
+      `/connections/${id}/mappings`);
+  }
+  /** Save per-field Procore source-path overrides ({kind: {field: path}}). */
+  saveConnectionMappings(id: string, mappings: Record<string, Record<string, string>>) {
+    return this.json<{ ok: boolean }>(`/connections/${id}/mappings`, { method: "PUT", body: JSON.stringify({ mappings }) });
+  }
   /** Import a Procore project's RFIs / submittals / change events into the matching modules. */
   syncProcore(pid: string, connectionId: string, procoreProjectId: string, kinds?: string[]) {
     return this.json<{ source: string; imported_total: number; results: Record<string, { module: string; fetched: number; imported: number; skipped: number }> }>(

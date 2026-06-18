@@ -68,7 +68,7 @@ def sync_procore(pid: str, connection_id: str = Body(..., embed=True),
     if not token:
         raise HTTPException(400, "Procore connection has no access token")
     return sync_engine.sync_procore(db, pid, token, str(procore_project_id), kinds, user,
-                                    _party(pid, db, user))
+                                    _party(pid, db, user), (c.config or {}).get("mappings"))
 
 
 @router.post("/projects/{pid}/sync/procore/push")

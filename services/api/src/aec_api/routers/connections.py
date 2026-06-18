@@ -121,3 +121,41 @@ def connection_query(cid: str, sql: str = Body(..., embed=True), limit: int = Bo
     """Run a read-only SELECT against a SQL connection (local / Postgres / Supabase)."""
     ctype, config = _resolve(cid, db)
     return connectors.query(ctype, config, sql, limit)
+
+
+@router.get("/connections/{cid}/mappings")
+def get_mappings(cid: str, db: Session = Depends(get_db), _: User = Depends(require_admin_user)):
+    """Editable Procore→module field mapping: per kind, each module field with its default and
+    current Procore source path. Drives the field-mapping editor."""
+    from .. import modules as mod_engine
+    from .. import sync as sync_engine
+    c = db.get(Connection, cid)
+    if not c or c.type != "procore":
+        raise HTTPException(400, "field mapping applies to Procore connections")
+    override = (c.config or {}).get("mappings") or {}
+    out: dict = {}
+    for kind, (module_key, _f) in sync_engine.KINDS.items():
+        default = connectors.DEFAULT_MAPPINGS.get(kind, {})
+        ov = override.get(kind, {})
+        mod = mod_engine.get_module(module_key)
+        fields = [{"field": f["name"], "label": f.get("label", f["name"]),
+                   "default": default[f["name"]], "path": ov.get(f["name"]) or default[f["name"]]}
+                  for f in mod["fields"] if f.get("type") != "rollup" and f["name"] in default]
+        out[kind] = {"module": module_key, "fields": fields}
+    return {"mappings": out}
+
+
+@router.put("/connections/{cid}/mappings")
+def put_mappings(cid: str, mappings: dict = Body(..., embed=True), db: Session = Depends(get_db),
+                 admin: User = Depends(require_admin_user)):
+    """Save per-field Procore source-path overrides ({kind: {field: path}}) on the connection."""
+    c = db.get(Connection, cid)
+    if not c or c.type != "procore":
+        raise HTTPException(400, "field mapping applies to Procore connections")
+    cfg = dict(c.config or {})
+    cfg["mappings"] = {k: {f: p for f, p in (v or {}).items()} for k, v in (mappings or {}).items()}
+    c.config = cfg
+    audit.record(db, action="connection.mappings", actor=admin.username, method="PUT",
+                 path=f"/connections/{cid}/mappings", detail={"kinds": sorted(mappings or {})})
+    db.commit()
+    return {"ok": True}

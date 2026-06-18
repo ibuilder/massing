@@ -10,24 +10,23 @@ from sqlalchemy.orm import Session
 from . import connectors
 from . import modules as me
 
-# kind -> (module key, connectors fetch attr, connectors mapper attr)
-KINDS: dict[str, tuple[str, str, str]] = {
-    "rfi": ("rfi", "procore_rfis", "map_procore_rfi"),
-    "submittal": ("submittal", "procore_submittals", "map_procore_submittal"),
-    "change_event": ("change_event", "procore_change_events", "map_procore_change_event"),
+# kind -> (module key, connectors fetch attr)
+KINDS: dict[str, tuple[str, str]] = {
+    "rfi": ("rfi", "procore_rfis"),
+    "submittal": ("submittal", "procore_submittals"),
+    "change_event": ("change_event", "procore_change_events"),
 }
 
 
 def _sync_kind(db: Session, project_id: str, kind: str, token: str, procore_project_id: str,
-               actor: str, party: str | None) -> dict[str, Any]:
-    module_key, fetch_attr, map_attr = KINDS[kind]
+               actor: str, party: str | None, mappings: dict | None = None) -> dict[str, Any]:
+    module_key, fetch_attr = KINDS[kind]
     items = getattr(connectors, fetch_attr)(token, procore_project_id)
-    mapper = getattr(connectors, map_attr)
     existing = me.list_records(db, module_key, project_id, limit=1_000_000)
     have = {(r.get("data") or {}).get("procore_id") for r in existing}
     imported = 0
     for it in items:
-        m = mapper(it)
+        m = connectors.map_procore(kind, it, mappings)        # admin field mapping applied
         if not m["procore_id"] or m["procore_id"] in have:
             continue
         me.create_record(db, module_key, project_id,
@@ -39,10 +38,11 @@ def _sync_kind(db: Session, project_id: str, kind: str, token: str, procore_proj
 
 
 def sync_procore(db: Session, project_id: str, token: str, procore_project_id: str,
-                 kinds: list[str], actor: str, party: str | None) -> dict[str, Any]:
-    """Import the requested Procore record kinds into their modules (idempotent). Re-running only
-    imports records not already present (matched by procore_id)."""
-    results = {k: _sync_kind(db, project_id, k, token, procore_project_id, actor, party)
+                 kinds: list[str], actor: str, party: str | None,
+                 mappings: dict | None = None) -> dict[str, Any]:
+    """Import the requested Procore record kinds into their modules (idempotent), applying the
+    connection's admin field mapping. Re-running only imports records not already present."""
+    results = {k: _sync_kind(db, project_id, k, token, procore_project_id, actor, party, mappings)
                for k in kinds if k in KINDS}
     return {"source": "procore", "results": results,
             "imported_total": sum(r["imported"] for r in results.values())}
@@ -93,7 +93,8 @@ def run_schedule(db: Session, sched, actor: str = "procore-sync") -> dict[str, A
     if not c or c.type != "procore" or not (c.config or {}).get("access_token"):
         return {"error": "connection missing or not a configured Procore connection"}
     token, kinds = c.config["access_token"], (sched.kinds or list(KINDS))
-    out = sync_procore(db, sched.project_id, token, str(sched.procore_project_id), kinds, actor, None)
+    mappings = (c.config or {}).get("mappings")
+    out = sync_procore(db, sched.project_id, token, str(sched.procore_project_id), kinds, actor, None, mappings)
     if getattr(sched, "push", False):           # two-way schedule: also push local changes back
         out["push"] = push_procore(db, sched.project_id, token, str(sched.procore_project_id), ["rfi"], actor)
     return out

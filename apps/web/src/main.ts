@@ -643,6 +643,48 @@ function schedulesModal(connectionId: string) {
   card.appendChild(msg); void render();
 }
 
+/** Field-mapping editor (admin): remap which Procore field feeds each module field, per kind.
+ *  Blank input = use the default path shown as the placeholder. Closes the last-mile interop gap. */
+function mappingModal(connectionId: string, name: string) {
+  const { card, msg } = modalShell(`Field mapping — ${name}`, 560);
+  msg.style.color = "#e2554a";
+  const intro = document.createElement("div"); intro.className = "meta"; intro.style.marginBottom = "8px";
+  intro.textContent = "Map each module field to a Procore source path (dotted, e.g. questions.0.body). Leave blank to use the default.";
+  card.appendChild(intro);
+  const body = document.createElement("div"); card.appendChild(body);
+  const inputs: { kind: string; field: string; def: string; el: HTMLInputElement }[] = [];
+  const render = async () => {
+    body.textContent = ""; inputs.length = 0;
+    let data: Awaited<ReturnType<typeof api.connectionMappings>>;
+    try { data = await api.connectionMappings(connectionId); } catch { msg.textContent = "admin only — could not load mapping"; return; }
+    for (const [kind, m] of Object.entries(data.mappings)) {
+      const sec = document.createElement("div"); sec.style.cssText = "border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px";
+      sec.innerHTML = `<div class="meta" style="font-weight:600;color:var(--text);margin-bottom:6px">${kind} <span style="font-weight:400">→ ${m.module}</span></div>`;
+      for (const f of m.fields) {
+        const r = document.createElement("div"); r.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:4px";
+        const lab = document.createElement("span"); lab.className = "meta"; lab.style.cssText = "width:130px;font-size:12px"; lab.textContent = f.label;
+        const inp = document.createElement("input"); inp.className = "portal-filter"; inp.style.cssText = "flex:1;font-family:ui-monospace,monospace;font-size:12px";
+        inp.placeholder = f.default; if (f.path !== f.default) inp.value = f.path;
+        inputs.push({ kind, field: f.field, def: f.default, el: inp });
+        r.append(lab, inp); sec.appendChild(r);
+      }
+      body.appendChild(sec);
+    }
+    const bar = document.createElement("div"); bar.style.cssText = "display:flex;gap:8px;margin-top:4px";
+    const save = document.createElement("button"); save.className = "file-btn"; save.textContent = "Save mapping";
+    save.onclick = async () => {
+      const out: Record<string, Record<string, string>> = {};
+      for (const i of inputs) { const v = i.el.value.trim(); if (v && v !== i.def) (out[i.kind] ||= {})[i.field] = v; }
+      try { await api.saveConnectionMappings(connectionId, out); toast("Field mapping saved", "info"); await render(); }
+      catch { msg.textContent = "could not save mapping"; }
+    };
+    const reset = document.createElement("button"); reset.className = "tool-btn"; reset.textContent = "Reset to defaults";
+    reset.onclick = async () => { try { await api.saveConnectionMappings(connectionId, {}); toast("Mapping reset to defaults", "info"); await render(); } catch { msg.textContent = "could not reset"; } };
+    bar.append(save, reset); body.appendChild(bar);
+  };
+  card.appendChild(msg); void render();
+}
+
 function connectionsModal() {
   const { card, msg } = modalShell("Data connections", 560);
   msg.style.color = "#e2554a";
@@ -693,6 +735,7 @@ function connectionsModal() {
           if (!projectId) { msg.textContent = "open a project first to schedule auto-sync"; return; }
           schedulesModal(cx.id);
         }));
+        row.append(act("Mapping", async () => mappingModal(cx.id, cx.name)));
       }
       if (!cx.builtin) {
         row.append(

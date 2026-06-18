@@ -110,6 +110,29 @@ with TestClient(app) as c:
     assert c.post(f"/projects/{proj}/sync/procore", headers=BEARER(tok),
                   json={"connection_id": "local", "procore_project_id": "1"}).status_code in (400, 404)
 
+    # --- field-mapping editor: admins remap Procore source paths per field -----
+    mp = c.get(f"/connections/{pc['id']}/mappings", headers=BEARER(tok)).json()["mappings"]
+    rfi_fields = {f["field"]: f for f in mp["rfi"]["fields"]}
+    assert rfi_fields["subject"]["default"] == "subject", rfi_fields           # editable + carries default
+    assert rfi_fields["question"]["path"] == "questions.0.body"                # no override yet -> default
+    assert mp["rfi"]["module"] == "rfi" and "submittal" in mp and "change_event" in mp, mp
+    # override: pull the RFI subject from the Procore 'number' field instead
+    assert c.put(f"/connections/{pc['id']}/mappings", headers=BEARER(tok),
+                 json={"mappings": {"rfi": {"subject": "number"}}}).json()["ok"]
+    got = c.get(f"/connections/{pc['id']}/mappings", headers=BEARER(tok)).json()["mappings"]
+    assert {f["field"]: f["path"] for f in got["rfi"]["fields"]}["subject"] == "number"
+    # a fresh project sync now applies the override (subject := Procore number)
+    proj2 = c.post("/projects", json={"name": "Remapped"}).json()["id"]
+    sm = c.post(f"/projects/{proj2}/sync/procore", headers=BEARER(tok),
+                json={"connection_id": pc["id"], "procore_project_id": "9999", "kinds": ["rfi"]}).json()
+    assert sm["results"]["rfi"]["imported"] == 2, sm
+    subjects = {x["data"]["subject"] for x in c.get(f"/projects/{proj2}/modules/rfi").json()}
+    assert subjects == {"1", "2"}, subjects                                    # remapped, not "Beam penetration"
+    # clear the override so the rest of the suite uses defaults
+    assert c.put(f"/connections/{pc['id']}/mappings", headers=BEARER(tok), json={"mappings": {}}).json()["ok"]
+    # field mapping is a Procore-only concept
+    assert c.get("/connections/local/mappings", headers=BEARER(tok)).status_code == 400
+
     # --- scheduled / auto-sync ------------------------------------------------
     sch = c.post(f"/projects/{proj}/sync/schedules", headers=BEARER(tok),
                  json={"connection_id": pc["id"], "procore_project_id": "9999", "kinds": ["rfi"],
@@ -158,5 +181,6 @@ with TestClient(app) as c:
     assert c.post(f"/projects/{proj}/sync/procore/push", headers=BEARER(tok),
                   json={"connection_id": "local", "procore_project_id": "1"}).status_code in (400, 404)
 
-    print("CONNECTIONS OK — status, masked secrets, test, CRUD, validation, read-only browse/query, "
-          "Procore->rfi/submittal/change_event sync (idempotent), auto-sync schedules + run_due")
+    print("CONNECTIONS OK - status, masked secrets, test, CRUD, validation, read-only browse/query, "
+          "Procore->rfi/submittal/change_event sync (idempotent), field-mapping editor, "
+          "auto-sync schedules + run_due, two-way push")
