@@ -16,6 +16,7 @@ class Backend(Protocol):
     def put(self, key: str, data: bytes) -> str: ...
     def get(self, key: str) -> bytes: ...
     def exists(self, key: str) -> bool: ...
+    def delete(self, key: str) -> None: ...
     def size(self, key: str) -> int: ...
     def get_range(self, key: str, start: int, end: int) -> bytes: ...
 
@@ -38,6 +39,9 @@ class LocalBackend:
 
     def exists(self, key: str) -> bool:
         return self._p(key).exists()
+
+    def delete(self, key: str) -> None:
+        self._p(key).unlink(missing_ok=True)
 
     def size(self, key: str) -> int:
         return self._p(key).stat().st_size
@@ -81,6 +85,9 @@ class S3Backend:
         except Exception:
             return False
 
+    def delete(self, key: str) -> None:
+        self.client.delete_object(Bucket=self.bucket, Key=key)
+
     def size(self, key: str) -> int:
         return self.client.head_object(Bucket=self.bucket, Key=key)["ContentLength"]
 
@@ -116,6 +123,10 @@ def get(key: str) -> bytes:
 
 def exists(key: str) -> bool:
     return backend().exists(key)
+
+
+def delete(key: str) -> None:
+    backend().delete(key)
 
 
 def size(key: str) -> int:

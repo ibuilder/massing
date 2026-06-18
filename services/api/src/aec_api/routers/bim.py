@@ -201,6 +201,17 @@ def get_project(pid: str, db: Session = Depends(get_db)):
     return _with_kind(_project(db, pid))
 
 
+@router.delete("/projects/{pid}")
+def delete_project(pid: str, db: Session = Depends(get_db),
+                   actor: str = Depends(require_role("admin"))):
+    """Delete a project and everything it owns (rows + geometry + attachment blobs)."""
+    from .. import bundle as bundle_io
+    p = _project(db, pid)
+    audit.record(db, action="project.delete", actor=actor, method="DELETE",
+                 path=f"/projects/{pid}", detail={"id": pid, "name": p.name})
+    return bundle_io.delete_project(db, pid)
+
+
 @router.get("/projects/{pid}/bundle")
 def export_bundle(pid: str, db: Session = Depends(get_db)):
     """Download the whole project as a portable .mmproj bundle (geometry + all data + blobs)."""

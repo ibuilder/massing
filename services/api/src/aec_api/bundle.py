@@ -198,3 +198,36 @@ def import_bundle(db: Session, data: bytes, *, new_name: str | None = None) -> s
             db.execute(t.insert().values({k: v for k, v in r.items() if k in t.c}))
     db.commit()
     return new_pid
+
+
+# --- delete -------------------------------------------------------------------
+def delete_project(db: Session, pid: str) -> dict:
+    """Remove a project and everything it owns — project-scoped rows (ORM + mod_* tables), BCF
+    topic children, the published Fragments tile, and attachment blobs. Mirrors export_bundle's
+    surface so nothing is orphaned."""
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "no such project")
+    # storage blobs first (best-effort) — attachments + the published model tile
+    for key in _attachment_keys(db, pid) + [f"{pid}/model.frag"]:
+        try:
+            if storage.exists(key):
+                storage.delete(key)
+        except Exception:                        # noqa: BLE001 — a missing blob mustn't block delete
+            pass
+    deleted: dict[str, int] = {}
+    # BCF topic children (no project_id) before the topics they hang off
+    from .models import Topic
+    topic_ids = [tid for (tid,) in db.query(Topic.id).filter(Topic.project_id == pid).all()]
+    if topic_ids:
+        for t in _topic_child_tables():
+            n = db.execute(t.delete().where(t.c.topic_id.in_(topic_ids))).rowcount or 0
+            if n:
+                deleted[t.name] = n
+    for t in _project_tables():
+        n = db.execute(t.delete().where(t.c.project_id == pid)).rowcount or 0
+        if n:
+            deleted[t.name] = n
+    db.delete(p)                                 # cascades topics (relationship delete-orphan)
+    db.commit()
+    return {"deleted": True, "id": pid, "rows": deleted}

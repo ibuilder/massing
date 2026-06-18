@@ -71,10 +71,20 @@ with TestClient(app) as c:
     assert len(c.get(f"/projects/{pid}/modules/rfi").json()) == 1
     assert len(c.get(f"/projects/{pid}/topics", headers=BEARER(tok)).json()) == 1
 
+    # delete the restored project — rows + geometry gone, original still intact
+    d = c.delete(f"/projects/{npid}", headers=BEARER(tok))
+    assert d.status_code == 200 and d.json()["deleted"] is True, (d.status_code, d.text)
+    assert d.json()["rows"].get("mod_rfi") == 1, d.json()["rows"]        # reports what it removed
+    assert c.get(f"/projects/{npid}").status_code == 404
+    assert npid not in {p["id"] for p in c.get("/projects").json()}
+    assert len(c.get(f"/projects/{pid}/modules/rfi").json()) == 1         # source untouched
+    assert c.delete("/projects/does-not-exist", headers=BEARER(tok)).status_code == 404
+
     # garbage upload is rejected cleanly
     bad = c.post("/projects/import-bundle", headers=BEARER(tok),
                  files={"file": ("x.mmproj", b"not a zip", "application/zip")})
     assert bad.status_code == 400, bad.status_code
 
     print("BUNDLE OK - export (geometry+data+blobs manifest), import as new project "
-          "(id regen, topic/record FK remap, comment+markup restored), original untouched, bad-file 400")
+          "(id regen, topic/record FK remap, comment+markup restored), original untouched, "
+          "delete-project (rows+geometry gone, 404 after), bad-file 400")

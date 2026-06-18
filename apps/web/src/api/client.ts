@@ -405,6 +405,11 @@ export class ApiClient {
   bundleUrl(pid: string) {
     return this.url(`/projects/${pid}/bundle`);
   }
+  /** Delete a project and everything it owns (rows + geometry + blobs). */
+  deleteProject(pid: string) {
+    return this.json<{ deleted: boolean; id: string; rows: Record<string, number> }>(
+      `/projects/${pid}`, { method: "DELETE" });
+  }
   /** Open a .mmproj bundle as a new project (fresh id). */
   async importBundle(file: File, name?: string) {
     const fd = new FormData();

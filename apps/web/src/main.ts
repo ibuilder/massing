@@ -344,6 +344,20 @@ function buildProjectPicker(projects: { id: string; name: string; model_kind?: s
   }
   sel.onchange = () => { window.location.search = `?project=${sel.value}`; };
   toolbar.insertBefore(sel, statusEl);
+  // delete the current project (rows + geometry); confirm, then reload to the next one
+  const del = document.createElement("button");
+  del.className = "tool-btn"; del.style.marginLeft = "4px"; del.textContent = "🗑"; del.title = "Delete current project";
+  del.onclick = async () => {
+    const cur = projects.find((p) => p.id === sel.value);
+    if (!cur || !confirm(`Delete project “${cur.name}” and all its data? This can't be undone.`)) return;
+    try {
+      await api.deleteProject(cur.id);
+      toast(`Deleted “${cur.name}”`, "info");
+      const next = projects.find((p) => p.id !== cur.id);
+      window.location.search = next ? `?project=${next.id}` : "";
+    } catch { toast("Couldn't delete project", "error"); }
+  };
+  toolbar.insertBefore(del, statusEl);
 }
 
 // ---- auth: sign-in control + modal ------------------------------------------
