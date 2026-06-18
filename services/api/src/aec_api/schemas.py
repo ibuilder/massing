@@ -28,6 +28,9 @@ class ProjectOut(ProjectIn):
     # what geometry the project actually has, for the picker: "frag" (published tile, loads in
     # the 3D viewer), "ifc" (source IFC only — drawings render, can be published), or None (empty).
     model_kind: str | None = None
+    # whether a source IFC is on disk — gates IFC-only tools (drawings, clash/IDS, energy, authoring).
+    # Independent of model_kind, since a project can have a published .frag with no source IFC.
+    has_source_ifc: bool = False
 
 
 class TopicIn(BaseModel):

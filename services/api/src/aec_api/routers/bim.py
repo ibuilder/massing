@@ -187,7 +187,9 @@ def _model_kind(p: Project) -> str | None:
 
 
 def _with_kind(p: Project) -> Project:
-    p.model_kind = _model_kind(p)               # set the (non-column) field ProjectOut reads
+    from pathlib import Path
+    p.model_kind = _model_kind(p)               # set the (non-column) fields ProjectOut reads
+    p.has_source_ifc = bool(p.source_ifc and Path(p.source_ifc).exists())
     return p
 
 

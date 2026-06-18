@@ -17,6 +17,7 @@ import { buildTree } from "../tree/tree";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type ElementProps, type Topic } from "../api/client";
 import { toast, withLoading } from "../ui/feedback";
+import { showResult, kvTable, metricGrid, resultNote } from "../ui/result";
 
 /** View options the settings bar owns (in main) and the viewer applies. */
 export type Settings = {
@@ -282,6 +283,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   toolBtn("✂", "Section plane (S) — dbl-click a face", (b) => { section.enabled = !section.enabled; b.classList.toggle("on", section.enabled); setStatus(`section ${section.enabled ? "on (dbl-click face)" : "off"}`); });
   toolBtn("⊙", "Isolate selection", () => selection && visibility.isolate(selection));
   toolBtn("◐", "Color selection", () => selection && colorize.color(selection, "#ffb000"));
+  toolBtn("⌫", "Clear measurements", () => measure.deleteCurrent());
   toolBtn("⊞", "Show all (H)", async () => { await visibility.showAll(); await colorize.reset(); });
 
   // ---- live presence + shared viewpoints ----------------------------------
@@ -692,190 +694,225 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     }
   }
 
-  function buildToolsPanel() {
+  // Which tool sections matter most per persona — primary ones sit on top, expanded; the rest
+  // fold under a "More tools" divider, collapsed. `all` (no entry) keeps everything primary.
+  const ALL_TOOLS = ["exports", "cost", "schedule", "qa", "energy", "authoring", "drawings"];
+  const TOOLS_BY_PERSONA: Record<string, string[]> = {
+    gc: ["cost", "schedule", "qa", "exports"],
+    developer: ["cost", "schedule", "exports"],
+    architect: ["drawings", "authoring", "exports"],
+    engineer: ["qa", "energy", "authoring"],
+  };
+  const toolBtn2 = (label: string, onClick: () => void) => {
+    const b = document.createElement("button");
+    b.className = "tool-btn"; b.textContent = label;
+    b.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
+    b.onclick = onClick;
+    return b;
+  };
+
+  async function buildToolsPanel() {
     const panel = $("panel-tools");
     panel.innerHTML = "";
 
-    const fed = document.createElement("div");
-    fed.innerHTML = `<div class="section-title">Models (federation)</div>`;
-    const fedList = document.createElement("div"); fedList.id = "fed-models";
-    fed.appendChild(fedList); panel.appendChild(fed);
-    refreshFederation();
+    // model metadata gates IFC-only tools (drawings, QA, energy, authoring, exports)
+    let hasIfc = false;
+    if (projectId) { try { hasIfc = !!(await api.project(projectId)).has_source_ifc; } catch { /* offline */ } }
+    const pid = projectId as string;   // tool builders below only run inside project-gated sections
 
-    const o = document.createElement("div");
-    o.innerHTML = `<div class="section-title" style="margin-top:14px">Working origin (E / N / Z)</div>`;
-    const inputs: Record<string, HTMLInputElement> = {};
-    const cur = origin.getOrigin();
-    for (const k of ["e", "n", "z"] as const) {
-      const row = document.createElement("div"); row.className = "layer-row";
-      const label = document.createElement("span"); label.className = "name"; label.textContent = k.toUpperCase();
-      const inp = document.createElement("input"); inp.type = "number"; inp.value = String(cur[k]); inp.style.width = "110px";
-      inputs[k] = inp; row.append(label, inp); o.appendChild(row);
-    }
-    const fromPt = document.createElement("button");
-    fromPt.className = "tool-btn"; fromPt.textContent = "Set from selected point";
-    fromPt.onclick = () => {
-      if (!lastPoint) { setStatus("click a point first"); return; }
-      inputs.e.value = lastPoint.x.toFixed(3); inputs.n.value = (-lastPoint.z).toFixed(3); inputs.z.value = lastPoint.y.toFixed(3);
-    };
-    const apply = document.createElement("button");
-    apply.className = "tool-btn"; apply.textContent = "Apply origin"; apply.style.marginLeft = "6px";
-    apply.onclick = async () => {
-      origin.setOrigin({ e: +inputs.e.value, n: +inputs.n.value, z: +inputs.z.value });
-      for (const [, model] of loader.fragments.list) origin.applyTo(model);
-      await loader.fragments.core.update(true);
-      if (connected && projectId) {
-        fetch(api.url(`/projects/${projectId}`), { method: "PATCH", headers: { "Content-Type": "application/json", ...api.authHeaders() }, body: JSON.stringify({ origin: origin.getOrigin() }) }).catch(() => {});
+    const persona = localStorage.getItem("persona") || "all";
+    const primary = TOOLS_BY_PERSONA[persona];
+    const order = primary ? [...primary, ...ALL_TOOLS.filter((t) => !primary.includes(t))] : ALL_TOOLS;
+    let moreShown = false;
+
+    /** Collapsible section. Returns the body to fill, or null when its precondition is unmet
+     *  (in which case it renders one muted reason line and stays collapsed). */
+    function section(key: string, title: string,
+                     opts: { requires?: "project" | "sourceIfc"; tool?: boolean } = {}): HTMLElement | null {
+      const ok = opts.requires === "project" ? !!projectId
+        : opts.requires === "sourceIfc" ? (!!projectId && hasIfc) : true;
+      const reason = opts.requires === "sourceIfc" ? "needs a source IFC"
+        : opts.requires === "project" ? "needs a project" : "";
+      const isPrimary = !opts.tool || !primary || primary.includes(key);
+      if (opts.tool && primary && !isPrimary && !moreShown) {
+        const sep = document.createElement("div"); sep.className = "tools-more"; sep.textContent = "More tools";
+        panel.appendChild(sep); moreShown = true;
       }
-      setStatus(`origin set to E${inputs.e.value} N${inputs.n.value} Z${inputs.z.value}`);
-    };
-    o.append(fromPt, apply); panel.appendChild(o);
-
-    const m = document.createElement("div");
-    m.innerHTML = `<div class="section-title" style="margin-top:14px">Measure</div>`;
-    const readout = document.createElement("div"); readout.id = "measure-readout"; readout.className = "meta";
-    readout.textContent = "mode: off — labels show values in 3D";
-    const clr = document.createElement("button"); clr.className = "tool-btn"; clr.textContent = "Clear current"; clr.style.marginTop = "6px";
-    clr.onclick = () => measure.deleteCurrent();
-    m.append(readout, clr); panel.appendChild(m);
-
-    const ex = document.createElement("div");
-    ex.innerHTML = `<div class="section-title" style="margin-top:14px">Exports</div>`;
-    if (!projectId) { const note = document.createElement("div"); note.className = "meta"; note.textContent = "connect a project to export"; ex.appendChild(note); }
-    else {
-      for (const [label, file] of [["Quantity takeoff (QTO/5D)", "qto"], ["COBie", "cobie"], ["Space schedule", "spaces"], ["4D schedule", "schedule"]] as const) {
-        const b = document.createElement("button");
-        b.className = "tool-btn"; b.textContent = `↓ ${label}`;
-        b.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
-        b.onclick = () => window.open(api.url(`/projects/${projectId}/exports/${file}.xlsx`), "_blank");
-        ex.appendChild(b);
-      }
-    }
-    panel.appendChild(ex);
-
-    const cst = document.createElement("div");
-    cst.innerHTML = `<div class="section-title" style="margin-top:14px">Cost / Pay Apps</div>`;
-    const cstOut = document.createElement("div"); cstOut.className = "meta"; cstOut.id = "cost-out";
-    if (!projectId) { cstOut.textContent = "connect a project for cost roll-up"; cst.appendChild(cstOut); }
-    else {
-      const sumBtn = document.createElement("button");
-      sumBtn.className = "tool-btn"; sumBtn.textContent = "Σ Cost Summary"; sumBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
-      sumBtn.onclick = async () => {
-        cstOut.textContent = "computing…";
-        const s = await api.costSummary(projectId);
-        const fmt = (v: number) => `$${v.toLocaleString()}`;
-        cstOut.innerHTML = `Budget ${fmt(s.budget)}<br>Committed ${fmt(s.committed)} (${s.pct_committed}%)<br>Actual ${fmt(s.actual)} (${s.pct_spent}%)<br>Forecast ${fmt(s.forecast)}<br><b>Over/Under ${fmt(s.projected_over_under)}</b>`;
+      const group = document.createElement("section"); group.className = "tool-group"; group.dataset.tool = key;
+      const head = document.createElement("button"); head.type = "button"; head.className = "tool-group-head";
+      head.innerHTML = `<span class="chev">▸</span><span class="t">${title}</span>` + (ok ? "" : `<span class="why">${reason}</span>`);
+      const body = document.createElement("div"); body.className = "tool-group-body";
+      group.append(head, body);
+      const saved = localStorage.getItem(`tools-open:${key}`);
+      const open = saved == null ? (ok && isPrimary) : saved === "1";
+      group.classList.toggle("open", open);
+      head.onclick = () => {
+        const o = !group.classList.contains("open");
+        group.classList.toggle("open", o); localStorage.setItem(`tools-open:${key}`, o ? "1" : "0");
       };
-      const g702Btn = document.createElement("button");
-      g702Btn.className = "tool-btn"; g702Btn.textContent = "↓ G702/G703 Pay App (PDF)"; g702Btn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
-      g702Btn.onclick = () => window.open(api.url(`/projects/${projectId}/cost/g702.pdf?app_no=1`), "_blank");
-      cst.append(sumBtn, g702Btn, cstOut);
+      panel.appendChild(group);
+      if (!ok) { const n = document.createElement("div"); n.className = "meta"; n.textContent = `${reason} to use this.`; body.appendChild(n); return null; }
+      return body;
     }
-    panel.appendChild(cst);
 
-    const sch = document.createElement("div");
-    sch.innerHTML = `<div class="section-title" style="margin-top:14px">Schedule</div>`;
-    if (!projectId) { const n = document.createElement("div"); n.className = "meta"; n.textContent = "connect a project for schedule"; sch.appendChild(n); }
-    else {
-      for (const [label, file] of [["Gantt chart", "gantt"], ["Line of Balance", "lob"]] as const) {
-        const b = document.createElement("button");
-        b.className = "tool-btn"; b.textContent = `▤ ${label}`; b.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
-        b.onclick = () => window.open(api.url(`/projects/${projectId}/schedule/${file}.svg`), "_blank");
-        sch.appendChild(b);
+    // --- always-on: model setup ----------------------------------------------
+    const fedBody = section("models", "Models (federation)");
+    if (fedBody) { const l = document.createElement("div"); l.id = "fed-models"; fedBody.appendChild(l); refreshFederation(); }
+
+    const ob = section("origin", "Working origin (E / N / Z)");
+    if (ob) {
+      const inputs: Record<string, HTMLInputElement> = {};
+      const cur = origin.getOrigin();
+      for (const k of ["e", "n", "z"] as const) {
+        const row = document.createElement("div"); row.className = "layer-row";
+        const label = document.createElement("span"); label.className = "name"; label.textContent = k.toUpperCase();
+        const inp = document.createElement("input"); inp.type = "number"; inp.value = String(cur[k]); inp.style.width = "110px";
+        inputs[k] = inp; row.append(label, inp); ob.appendChild(row);
       }
-    }
-    panel.appendChild(sch);
-
-    const qa = document.createElement("div");
-    qa.innerHTML = `<div class="section-title" style="margin-top:14px">Coordination & QA</div>`;
-    const qaOut = document.createElement("div"); qaOut.className = "meta"; qaOut.id = "qa-out";
-    if (!projectId) { qaOut.textContent = "connect a project to run analysis"; qa.appendChild(qaOut); }
-    else {
-      const clashBtn = document.createElement("button");
-      clashBtn.className = "tool-btn"; clashBtn.textContent = "⚡ Run clash (struct)"; clashBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
-      clashBtn.onclick = () => withLoading(container, "Running clash detection", async () => {
-        const r = await api.runClash(projectId, { a: "IfcBeam,IfcSlab", b: "IfcColumn", min_volume: 0.05 });
-        qaOut.textContent = `${r.count} clashes — ${r.created_topics} topics created (see Issues)`;
-        toast(`Clash: ${r.count} found, ${r.created_topics} topics created`, r.count ? "info" : "success");
-        await refreshIssues(); await reloadModelPins();
+      const fromPt = toolBtn2("Set from selected point", () => {
+        if (!lastPoint) { setStatus("click a point first"); return; }
+        inputs.e.value = lastPoint.x.toFixed(3); inputs.n.value = (-lastPoint.z).toFixed(3); inputs.z.value = lastPoint.y.toFixed(3);
       });
-      const idsBtn = document.createElement("button");
-      idsBtn.className = "tool-btn"; idsBtn.textContent = "✓ Validate (IDS)"; idsBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
-      idsBtn.onclick = () => withLoading(container, "Validating (IDS)", async () => {
-        const r = await api.validate(projectId);
-        toast(`IDS ${r.status.toUpperCase()} — ${r.summary.passed} pass / ${r.summary.failed} fail`, r.status === "pass" ? "success" : "error");
-        const failing = r.specifications.flatMap((s) => s.failed_guids);
-        qaOut.innerHTML = `<b>IDS: ${r.status.toUpperCase()}</b> — ${r.summary.passed} pass / ${r.summary.failed} fail<br>` +
-          r.specifications.map((s) => `${s.status === "pass" ? "✓" : "✗"} ${s.name} (${s.passed}/${s.applicable})`).join("<br>");
-        if (failing.length) {
-          const hl = document.createElement("button");
-          hl.className = "tool-btn"; hl.textContent = `Highlight ${failing.length} failures`; hl.style.marginTop = "6px";
-          hl.onclick = async () => { await selectMap(await sets.fromGuids(failing), { fit: true }); };
-          qaOut.appendChild(document.createElement("br")); qaOut.appendChild(hl);
+      fromPt.style.cssText = "";
+      const apply = document.createElement("button");
+      apply.className = "tool-btn"; apply.textContent = "Apply origin"; apply.style.marginLeft = "6px";
+      apply.onclick = async () => {
+        origin.setOrigin({ e: +inputs.e.value, n: +inputs.n.value, z: +inputs.z.value });
+        for (const [, model] of loader.fragments.list) origin.applyTo(model);
+        await loader.fragments.core.update(true);
+        if (connected && projectId) {
+          fetch(api.url(`/projects/${projectId}`), { method: "PATCH", headers: { "Content-Type": "application/json", ...api.authHeaders() }, body: JSON.stringify({ origin: origin.getOrigin() }) }).catch(() => {});
         }
-      });
-      qa.append(clashBtn, idsBtn, qaOut);
-    }
-    panel.appendChild(qa);
-
-    const an = document.createElement("div");
-    an.innerHTML = `<div class="section-title" style="margin-top:14px">Energy & MEP</div>`;
-    const anOut = document.createElement("div"); anOut.className = "meta"; anOut.id = "an-out";
-    if (!projectId) { anOut.textContent = "connect a project for analysis"; an.appendChild(anOut); }
-    else {
-      const eBtn = document.createElement("button");
-      eBtn.className = "tool-btn"; eBtn.textContent = "⚡ Energy analysis"; eBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
-      eBtn.onclick = () => withLoading(container, "Analyzing building envelope", async () => {
-        const e = await api.energy(projectId);
-        anOut.innerHTML = `<b>EUI ${e.eui_kwh_m2_yr} kWh/m²·yr</b><br>Heating ${e.loads.design_heating_kw} kW · Cooling ${e.loads.design_cooling_kw} kW<br>UA ${e.ua_w_per_k.total} W/K · annual ${e.annual_kwh.total.toLocaleString()} kWh<br>floor ${e.areas_m2.conditioned_floor_area} m² · WWR ${e.areas_m2.window_wall_ratio}`;
-        toast(`Energy: EUI ${e.eui_kwh_m2_yr} kWh/m²·yr`, "success");
-      });
-      const mBtn = document.createElement("button");
-      mBtn.className = "tool-btn"; mBtn.textContent = "⚙ MEP inventory"; mBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
-      mBtn.onclick = async () => {
-        const mep = await api.mep(projectId);
-        anOut.innerHTML = `<b>${mep.total_distribution_elements} distribution elements</b><br>` + Object.entries(mep.by_class).map(([k, v]) => `${k}: ${v}`).join("<br>");
+        setStatus(`origin set to E${inputs.e.value} N${inputs.n.value} Z${inputs.z.value}`);
       };
-      an.append(eBtn, mBtn, anOut);
+      ob.append(fromPt, apply);
     }
-    panel.appendChild(an);
 
-    const au = document.createElement("div");
-    au.dataset.cap = "edit";   // whole authoring section hidden for non-editors
-    au.innerHTML = `<div class="section-title" style="margin-top:14px">Authoring (round-trip)</div>`;
-    const auOut = document.createElement("div"); auOut.className = "meta"; auOut.id = "au-out";
-    if (!projectId) { auOut.textContent = "connect a project to author"; au.appendChild(auOut); }
-    else {
-      const fixBtn = document.createElement("button");
-      fixBtn.className = "tool-btn"; fixBtn.dataset.cap = "edit"; fixBtn.textContent = "✎ Fix slabs: set LoadBearing"; fixBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
-      fixBtn.onclick = async () => {
-        auOut.textContent = "editing IFC…";
-        const r = await api.editIfc(projectId, "set_pset", { ifc_class: "IfcSlab", pset: "Pset_SlabCommon", prop: "LoadBearing", value: true, dtype: "bool" }, true);
-        const v = await api.validate(projectId);
-        auOut.innerHTML = `edited ${r.changed} slabs · IDS now: <b>${v.status.toUpperCase()}</b> (${v.summary.passed} pass / ${v.summary.failed} fail) · converting…`;
-        const state = await waitForPublish(projectId);
-        if (state === "done") await loadProjectModel();
-        auOut.innerHTML += `<br>publish: ${state}`;
-      };
-      const pubBtn = document.createElement("button");
-      pubBtn.className = "tool-btn"; pubBtn.dataset.cap = "edit"; pubBtn.textContent = "⟳ Republish (reconvert + reindex)"; pubBtn.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";
-      pubBtn.onclick = async () => {
-        auOut.textContent = "publishing… (running in background)";
-        await api.publish(projectId);
-        const state = await waitForPublish(projectId, (s) => (auOut.textContent = `publish: ${s}…`));
-        if (state === "done") await loadProjectModel();
-        auOut.textContent = `publish ${state}`;
-      };
-      au.append(fixBtn, pubBtn, auOut);
-    }
-    panel.appendChild(au);
-
-    const dr = document.createElement("div");
-    dr.innerHTML = `<div class="section-title" style="margin-top:14px">Drawings (2D)</div>`;
-    const drBody = document.createElement("div"); drBody.className = "meta";
-    dr.appendChild(drBody); panel.appendChild(dr);
-    if (projectId) void buildDrawings(drBody);
-    else drBody.textContent = "connect a project for plans/sections";
+    // --- persona-ordered tool sections ---------------------------------------
+    const builders: Record<string, () => void> = {
+      exports: () => {
+        const b = section("exports", "Exports", { requires: "sourceIfc", tool: true });
+        if (!b) return;
+        for (const [label, file] of [["Quantity takeoff (QTO/5D)", "qto"], ["COBie", "cobie"], ["Space schedule", "spaces"], ["4D schedule", "schedule"]] as const)
+          b.appendChild(toolBtn2(`↓ ${label}`, () => window.open(api.url(`/projects/${projectId}/exports/${file}.xlsx`), "_blank")));
+      },
+      cost: () => {
+        const b = section("cost", "Cost / Pay Apps", { requires: "project", tool: true });
+        if (!b) return;
+        const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "4px";
+        b.appendChild(toolBtn2("Σ Cost Summary", async () => {
+          out.textContent = "computing…";
+          const s = await api.costSummary(pid);
+          const fmt = (v: number) => `$${v.toLocaleString()}`;
+          out.textContent = `Over/Under ${fmt(s.projected_over_under)} · spent ${s.pct_spent}%`;
+          showResult("Cost summary", (body) => body.appendChild(kvTable([
+            { k: "Budget", v: fmt(s.budget) },
+            { k: "Committed", v: `${fmt(s.committed)} (${s.pct_committed}%)`, bar: s.pct_committed / 100 },
+            { k: "Actual", v: `${fmt(s.actual)} (${s.pct_spent}%)`, bar: s.pct_spent / 100 },
+            { k: "Forecast", v: fmt(s.forecast) },
+            { k: "Projected over / under", v: fmt(s.projected_over_under), strong: true },
+          ])));
+        }));
+        b.appendChild(toolBtn2("↓ G702/G703 Pay App (PDF)", () => window.open(api.url(`/projects/${projectId}/cost/g702.pdf?app_no=1`), "_blank")));
+        b.appendChild(out);
+      },
+      schedule: () => {
+        const b = section("schedule", "Schedule", { requires: "project", tool: true });
+        if (!b) return;
+        for (const [label, file] of [["Gantt chart", "gantt"], ["Line of Balance", "lob"]] as const)
+          b.appendChild(toolBtn2(`▤ ${label}`, () => window.open(api.url(`/projects/${projectId}/schedule/${file}.svg`), "_blank")));
+      },
+      qa: () => {
+        const b = section("qa", "Coordination & QA", { requires: "sourceIfc", tool: true });
+        if (!b) return;
+        const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "4px";
+        b.appendChild(toolBtn2("⚡ Run clash (struct)", () => withLoading(container, "Running clash detection", async () => {
+          const r = await api.runClash(pid, { a: "IfcBeam,IfcSlab", b: "IfcColumn", min_volume: 0.05 });
+          out.textContent = `${r.count} clashes · ${r.created_topics} topics`;
+          toast(`Clash: ${r.count} found, ${r.created_topics} topics created`, r.count ? "info" : "success");
+          await refreshIssues(); await reloadModelPins();
+          showResult("Clash detection", (body) => {
+            body.appendChild(resultNote(`<b>${r.count}</b> clashes found · <b>${r.created_topics}</b> RFI topics created.`, r.count ? "bad" : "ok"));
+            body.appendChild(toolBtn2("Open Issues panel", () => (document.querySelector('.rail-btn[data-rail="issues"]') as HTMLElement)?.click()));
+          });
+        })));
+        b.appendChild(toolBtn2("✓ Validate (IDS)", () => withLoading(container, "Validating (IDS)", async () => {
+          const r = await api.validate(pid);
+          out.textContent = `IDS ${r.status.toUpperCase()} — ${r.summary.passed}/${r.summary.passed + r.summary.failed}`;
+          toast(`IDS ${r.status.toUpperCase()} — ${r.summary.passed} pass / ${r.summary.failed} fail`, r.status === "pass" ? "success" : "error");
+          const failing = r.specifications.flatMap((s) => s.failed_guids);
+          showResult("IDS validation", (body) => {
+            body.appendChild(resultNote(`<b>IDS: ${r.status.toUpperCase()}</b> — ${r.summary.passed} pass / ${r.summary.failed} fail`, r.status === "pass" ? "ok" : "bad"));
+            body.appendChild(kvTable(r.specifications.map((s) => ({
+              k: `${s.status === "pass" ? "✓" : "✗"} ${s.name}`, v: `${s.passed}/${s.applicable}` }))));
+            if (failing.length) {
+              const hl = toolBtn2(`Highlight ${failing.length} failures in 3D`, async () => { await selectMap(await sets.fromGuids(failing), { fit: true }); });
+              body.appendChild(hl);
+            }
+          });
+        })));
+        b.appendChild(out);
+      },
+      energy: () => {
+        const b = section("energy", "Energy & MEP", { requires: "sourceIfc", tool: true });
+        if (!b) return;
+        const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "4px";
+        b.appendChild(toolBtn2("⚡ Energy analysis", () => withLoading(container, "Analyzing building envelope", async () => {
+          const e = await api.energy(pid);
+          out.textContent = `EUI ${e.eui_kwh_m2_yr} kWh/m²·yr`;
+          toast(`Energy: EUI ${e.eui_kwh_m2_yr} kWh/m²·yr`, "success");
+          showResult("Energy analysis", (body) => body.appendChild(metricGrid([
+            { label: "EUI (kWh/m²·yr)", value: String(e.eui_kwh_m2_yr) },
+            { label: "Design heating", value: `${e.loads.design_heating_kw} kW` },
+            { label: "Design cooling", value: `${e.loads.design_cooling_kw} kW` },
+            { label: "UA", value: `${e.ua_w_per_k.total} W/K` },
+            { label: "Annual energy", value: `${e.annual_kwh.total.toLocaleString()} kWh` },
+            { label: "Conditioned floor", value: `${e.areas_m2.conditioned_floor_area} m²` },
+            { label: "Window-wall ratio", value: String(e.areas_m2.window_wall_ratio) },
+          ])));
+        })));
+        b.appendChild(toolBtn2("⚙ MEP inventory", async () => {
+          const mep = await api.mep(pid);
+          out.textContent = `${mep.total_distribution_elements} distribution elements`;
+          showResult("MEP inventory", (body) => {
+            body.appendChild(resultNote(`<b>${mep.total_distribution_elements}</b> distribution elements`));
+            body.appendChild(kvTable(Object.entries(mep.by_class).map(([k, v]) => ({ k, v: String(v) }))));
+          });
+        }));
+        b.appendChild(out);
+      },
+      authoring: () => {
+        const b = section("authoring", "Authoring (round-trip)", { requires: "sourceIfc", tool: true });
+        const group = panel.querySelector('.tool-group[data-tool="authoring"]') as HTMLElement | null;
+        if (group) group.dataset.cap = "edit";   // whole section hidden for non-editors
+        if (!b) return;
+        const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "4px"; out.id = "au-out";
+        const fix = toolBtn2("✎ Fix slabs: set LoadBearing", async () => {
+          out.textContent = "editing IFC…";
+          const r = await api.editIfc(pid, "set_pset", { ifc_class: "IfcSlab", pset: "Pset_SlabCommon", prop: "LoadBearing", value: true, dtype: "bool" }, true);
+          const v = await api.validate(pid);
+          out.innerHTML = `edited ${r.changed} slabs · IDS now: <b>${v.status.toUpperCase()}</b> · converting…`;
+          const state = await waitForPublish(pid);
+          if (state === "done") await loadProjectModel();
+          out.innerHTML += `<br>publish: ${state}`;
+        });
+        fix.dataset.cap = "edit";
+        const pub = toolBtn2("⟳ Republish (reconvert + reindex)", async () => {
+          out.textContent = "publishing… (running in background)";
+          await api.publish(pid);
+          const state = await waitForPublish(pid, (s) => (out.textContent = `publish: ${s}…`));
+          if (state === "done") await loadProjectModel();
+          out.textContent = `publish ${state}`;
+        });
+        pub.dataset.cap = "edit";
+        b.append(fix, pub, out);
+      },
+      drawings: () => {
+        const b = section("drawings", "Drawings (2D)", { requires: "sourceIfc", tool: true });
+        if (b) void buildDrawings(b);
+      },
+    };
+    for (const key of order) builders[key]?.();
   }
 
   async function buildDrawings(host: HTMLElement) {
@@ -1016,8 +1053,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (projectId) {
       try { await buildPanels(); } catch (e) { console.warn("panels:", e); }
     }
-    buildToolsPanel();
+    void buildToolsPanel();
   })();
+
+  // rebuild the tools panel when the persona changes (reorders primary vs "More tools")
+  window.addEventListener("aec:persona", () => void buildToolsPanel());
 
   return {
     applySettings, selectByGuid, reloadModelPins, fitToModels, refreshIssues,

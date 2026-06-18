@@ -189,6 +189,8 @@ function applyPersona(p: string, goHome = false) {
   if (!activeRail || !allowedRail.includes(activeRail.dataset.rail!)) showRail(allowedRail[0]);
   if (goHome || (cfg.ws && !cfg.ws.includes(currentWs))) setWorkspace(cfg.home);
   localStorage.setItem("persona", p);
+  document.body.dataset.persona = p;
+  window.dispatchEvent(new CustomEvent("aec:persona", { detail: p }));   // reorder the tools panel
 }
 personaSel.value = localStorage.getItem("persona") || "all";
 personaSel.onchange = () => applyPersona(personaSel.value, true);
