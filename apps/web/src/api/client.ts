@@ -262,6 +262,16 @@ export class ApiClient {
     return this.json<{ status: { ok: boolean; detail: string }; info: Record<string, unknown> }>(
       `/connections/${id}/test`, { method: "POST" });
   }
+  /** Browse a connection: tables (SQL) or projects (Procore). */
+  connectionTables(id: string) {
+    return this.json<{ kind?: string; tables?: string[]; projects?: string[]; error?: string }>(
+      `/connections/${id}/tables`);
+  }
+  /** Run a read-only SELECT against a SQL connection. */
+  connectionQuery(id: string, sql: string, limit = 200) {
+    return this.json<{ columns?: string[]; rows?: unknown[][]; row_count?: number; error?: string }>(
+      `/connections/${id}/query`, { method: "POST", body: JSON.stringify({ sql, limit }) });
+  }
   login(username: string, password: string) {
     return this.json<{ token: string; username: string; role: string }>(
       "/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });

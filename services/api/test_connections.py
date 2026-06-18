@@ -55,4 +55,27 @@ with TestClient(app) as c:
     ids = {x["id"] for x in c.get("/connections", headers=BEARER(tok)).json()["connections"]}
     assert pg["id"] not in ids and proc["id"] in ids
 
-    print("CONNECTIONS OK — local status, masked secrets, test (graceful), CRUD, validation")
+    # --- data plane: read-only browse / query on the local app DB --------------
+    tbls = c.get("/connections/local/tables", headers=BEARER(tok)).json()
+    assert tbls["kind"] == "sql" and "users" in tbls["tables"], tbls
+    # a real SELECT returns rows (we registered users above)
+    q = c.post("/connections/local/query", headers=BEARER(tok),
+               json={"sql": "SELECT username, role FROM users", "limit": 50}).json()
+    assert "username" in q["columns"] and q["row_count"] >= 1, q
+    # the LIMIT is enforced even if the query omits it
+    q2 = c.post("/connections/local/query", headers=BEARER(tok),
+                json={"sql": "SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3", "limit": 2}).json()
+    assert q2["row_count"] == 2, q2
+    # security: writes / DDL / multiple statements are rejected
+    for bad in ("DELETE FROM users", "DROP TABLE users", "UPDATE users SET role='admin'",
+                "SELECT 1; DROP TABLE users", "INSERT INTO users VALUES ('x')"):
+        r = c.post("/connections/local/query", headers=BEARER(tok), json={"sql": bad}).json()
+        assert "error" in r and "rows" not in r, (bad, r)
+    assert c.post("/connections/local/query", headers=BEARER(tok),
+                  json={"sql": "SELECT 1"}).status_code == 200
+    # data-plane is admin-gated too (clear the login cookie so the request is truly unauthenticated)
+    c.cookies.clear()
+    assert c.get("/connections/local/tables").status_code == 403
+
+    print("CONNECTIONS OK — local status, masked secrets, test, CRUD, validation, "
+          "read-only browse/query (SELECT-only guard)")

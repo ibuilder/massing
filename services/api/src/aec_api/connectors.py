@@ -117,3 +117,71 @@ def info(ctype: str, config: dict | None) -> dict[str, Any]:
         except Exception:                        # noqa: BLE001
             return {}
     return {}
+
+
+# --- data plane: read-only browse / query --------------------------------------
+_FORBIDDEN = re.compile(
+    r"\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|attach|pragma|vacuum|replace|merge|call|exec|execute|copy)\b",
+    re.IGNORECASE)
+
+
+def _engine_for(ctype: str, config: dict):
+    """An engine for a SQL connection, or the app engine for 'local'. Caller disposes non-local."""
+    if ctype == "local":
+        from .db import engine
+        return engine, False
+    from sqlalchemy import create_engine
+    dsn = _normalize_dsn((config or {}).get("dsn", ""))
+    args = {"connect_timeout": 6} if "postgresql" in dsn else {}
+    return create_engine(dsn, connect_args=args, pool_pre_ping=True), True
+
+
+def tables(ctype: str, config: dict | None) -> dict[str, Any]:
+    """List tables (SQL) or projects (Procore) available on the connection."""
+    config = config or {}
+    if ctype == "procore":
+        return {"kind": "procore", **info("procore", config)}
+    if ctype not in ("local", "postgres", "supabase"):
+        return {"error": f"{ctype} is not browsable"}
+    from sqlalchemy import inspect
+    eng, owned = _engine_for(ctype, config)
+    try:
+        return {"kind": "sql", "tables": sorted(inspect(eng).get_table_names())}
+    except ModuleNotFoundError as e:
+        return {"error": f"{e} — install the PostgreSQL driver (psycopg) on the server"}
+    except Exception as e:                       # noqa: BLE001
+        return {"error": str(e).splitlines()[0][:160]}
+    finally:
+        if owned:
+            eng.dispose()
+
+
+def query(ctype: str, config: dict | None, sql: str, limit: int = 200) -> dict[str, Any]:
+    """Run a READ-ONLY SELECT/WITH query and return {columns, rows}. Rejects anything that
+    isn't a single SELECT/WITH (no writes/DDL/multiple statements). Result is row-capped."""
+    config = config or {}
+    if ctype not in ("local", "postgres", "supabase"):
+        return {"error": "this connection is not a SQL data source"}
+    sql = (sql or "").strip().rstrip(";").strip()
+    if not re.match(r"(?is)^\s*(select|with)\b", sql):
+        return {"error": "only SELECT / WITH queries are allowed"}
+    if ";" in sql or _FORBIDDEN.search(sql):
+        return {"error": "query rejected: writes, DDL, and multiple statements are not allowed"}
+    limit = max(1, min(int(limit or 200), 1000))
+    eng, owned = _engine_for(ctype, config)
+    try:
+        with eng.connect() as c:
+            if "postgres" in str(eng.url):
+                c.exec_driver_sql("SET TRANSACTION READ ONLY")
+            res = c.exec_driver_sql(f"SELECT * FROM ({sql}) AS _q LIMIT {limit}")
+            cols = list(res.keys())
+            rows = [[(v if isinstance(v, (int, float, str, bool, type(None))) else str(v)) for v in r]
+                    for r in res.fetchall()]
+        return {"columns": cols, "rows": rows, "row_count": len(rows), "limit": limit}
+    except ModuleNotFoundError as e:
+        return {"error": f"{e} — install the PostgreSQL driver (psycopg) on the server"}
+    except Exception as e:                       # noqa: BLE001
+        return {"error": str(e).splitlines()[0][:160]}
+    finally:
+        if owned:
+            eng.dispose()

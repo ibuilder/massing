@@ -609,6 +609,9 @@ function connectionsModal() {
       detail.textContent = cx.status?.detail ?? (cx.builtin ? "" : "not tested");
       const act = (label: string, fn: () => Promise<unknown>) => { const b = document.createElement("button"); b.className = "tool-btn"; b.textContent = label; b.onclick = async () => { try { await fn(); } catch { msg.textContent = `action failed`; } }; return b; };
       row.append(dot, nm, detail);
+      if (["local", "postgres", "supabase"].includes(cx.type)) {
+        row.append(act("Browse", async () => browseConnection(cx.id, cx.name)));
+      }
       if (!cx.builtin) {
         row.append(
           act("Test", async () => { detail.textContent = "testing…"; const r = await api.testConnection(cx.id); badge(r.status.ok); detail.textContent = r.status.detail + (r.info.project_count ? ` · ${r.info.project_count} projects` : ""); }),
@@ -646,6 +649,52 @@ function connectionsModal() {
   };
   card.appendChild(msg);
   void render();
+}
+
+/** Read-only data browser for a SQL connection (local / Postgres / Supabase): table list +
+ *  a SELECT console with a results grid. Closes the interoperability gap — data, not just config. */
+function browseConnection(id: string, name: string) {
+  const { card, msg } = modalShell(`Browse — ${name}`, 720);
+  msg.style.color = "#e2554a";
+  const tablesBox = document.createElement("div"); tablesBox.className = "meta"; tablesBox.textContent = "loading tables…";
+  const sql = document.createElement("textarea"); sql.className = "portal-filter";
+  sql.style.cssText = "width:100%;height:60px;font-family:ui-monospace,monospace;margin:8px 0";
+  sql.placeholder = "SELECT … (read-only; SELECT/WITH only)";
+  const runRow = document.createElement("div"); runRow.style.cssText = "display:flex;gap:8px;align-items:center";
+  const run = document.createElement("button"); run.className = "file-btn"; run.textContent = "Run";
+  const info = document.createElement("span"); info.className = "meta";
+  runRow.append(run, info);
+  const grid = document.createElement("div"); grid.style.cssText = "overflow:auto;max-height:46vh;margin-top:8px";
+
+  const renderGrid = (cols: string[], rows: unknown[][]) => {
+    if (!cols.length) { grid.innerHTML = `<div class="meta">no columns</div>`; return; }
+    const th = cols.map((c) => `<th>${c}</th>`).join("");
+    const tr = rows.map((r) => `<tr>${r.map((v) => `<td>${v == null ? "<span class='meta'>null</span>" : String(v).slice(0, 120)}</td>`).join("")}</tr>`).join("");
+    grid.innerHTML = `<table class="portal-table"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
+  };
+  const runSql = async (q: string) => {
+    sql.value = q; msg.textContent = ""; info.textContent = "running…";
+    const r = await api.connectionQuery(id, q, 200);
+    if (r.error) { info.textContent = ""; msg.textContent = r.error; grid.innerHTML = ""; return; }
+    info.textContent = `${r.row_count} row${r.row_count === 1 ? "" : "s"}`;
+    renderGrid(r.columns ?? [], r.rows ?? []);
+  };
+  run.onclick = () => { if (sql.value.trim()) void runSql(sql.value.trim()); };
+
+  void api.connectionTables(id).then((t) => {
+    if (t.error) { tablesBox.textContent = ""; msg.textContent = t.error; return; }
+    const names = t.tables ?? [];
+    tablesBox.textContent = "";
+    const label = document.createElement("span"); label.className = "meta"; label.textContent = `${names.length} tables — click to preview: `;
+    tablesBox.appendChild(label);
+    for (const n of names) {
+      const b = document.createElement("button"); b.className = "tool-btn"; b.textContent = n; b.style.margin = "2px";
+      b.onclick = () => void runSql(`SELECT * FROM "${n}"`);
+      tablesBox.appendChild(b);
+    }
+  }).catch(() => { tablesBox.textContent = "could not list tables"; });
+
+  card.append(tablesBox, sql, runRow, grid, msg);
 }
 
 /** Project-member management (project admins): grant/change role + party, set company, remove.

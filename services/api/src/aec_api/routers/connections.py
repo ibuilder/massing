@@ -96,3 +96,28 @@ def test_connection(cid: str, db: Session = Depends(get_db), _: User = Depends(r
     if not c:
         raise HTTPException(404, "no such connection")
     return {"status": connectors.test(c.type, c.config), "info": connectors.info(c.type, c.config)}
+
+
+def _resolve(cid: str, db: Session) -> tuple[str, dict]:
+    """Resolve a connection id to (type, config) — including the built-in 'local' app DB."""
+    if cid == "local":
+        return "local", {}
+    c = db.get(Connection, cid)
+    if not c:
+        raise HTTPException(404, "no such connection")
+    return c.type, (c.config or {})
+
+
+@router.get("/connections/{cid}/tables")
+def connection_tables(cid: str, db: Session = Depends(get_db), _: User = Depends(require_admin_user)):
+    """List the connection's tables (SQL) or projects (Procore) — the data-plane browse entrypoint."""
+    ctype, config = _resolve(cid, db)
+    return connectors.tables(ctype, config)
+
+
+@router.post("/connections/{cid}/query")
+def connection_query(cid: str, sql: str = Body(..., embed=True), limit: int = Body(200, embed=True),
+                     db: Session = Depends(get_db), _: User = Depends(require_admin_user)):
+    """Run a read-only SELECT against a SQL connection (local / Postgres / Supabase)."""
+    ctype, config = _resolve(cid, db)
+    return connectors.query(ctype, config, sql, limit)
