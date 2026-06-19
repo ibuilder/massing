@@ -1,4 +1,5 @@
 import type { ApiClient, ModuleDef, ModuleRecord, RecordBrief } from "../api/client";
+import { toast } from "../ui/feedback";
 
 /**
  * GC portal UI — one config-driven engine renders every module's list / form / record pages
@@ -318,11 +319,21 @@ export class PortalUI {
     const bulkBar = document.createElement("div"); bulkBar.className = "bulk-bar"; bulkBar.hidden = true;
     const bulkCount = document.createElement("span"); bulkCount.className = "meta";
     const syncBulk = () => { bulkBar.hidden = selected.size === 0; bulkCount.textContent = `${selected.size} selected`; };
-    const mkBulk = (label: string, fn: () => Promise<void>) => { const b = document.createElement("button"); b.className = "tool-btn"; b.textContent = label; b.onclick = () => void fn().then(() => this.openModule(m, filter)); return b; };
+    // each action returns the number of records it acted on, or null if the user cancelled —
+    // so we only toast + reload on a real change (no spurious reload on a cancelled prompt).
+    const mkBulk = (label: string, verb: string, fn: () => Promise<number | null>) => {
+      const b = document.createElement("button"); b.className = "tool-btn"; b.textContent = label;
+      b.onclick = () => void fn().then((n) => {
+        if (n == null) return;
+        toast(`${verb} ${n} ${m.name.toLowerCase()} record${n === 1 ? "" : "s"}`, "info");
+        this.openModule(m, filter);
+      }).catch((e) => this.host.setStatus(`bulk action failed: ${(e as Error).message}`));
+      return b;
+    };
     bulkBar.append(bulkCount,
-      mkBulk("Assign…", async () => { const who = prompt("Assign selected to:"); if (who !== null) await this.host.api.bulkAction(pid, m.key, [...selected], "assign", who.trim()); }),
-      mkBulk("Transition…", async () => { const act = prompt("Workflow action to apply:"); if (act) await this.host.api.bulkAction(pid, m.key, [...selected], "transition", act.trim()); }),
-      mkBulk("Delete", async () => { if (confirm(`Delete ${selected.size} record(s)?`)) await this.host.api.bulkAction(pid, m.key, [...selected], "delete"); }));
+      mkBulk("Assign…", "Assigned", async () => { const who = prompt("Assign selected to:"); if (who === null) return null; const n = selected.size; await this.host.api.bulkAction(pid, m.key, [...selected], "assign", who.trim()); return n; }),
+      mkBulk("Transition…", "Transitioned", async () => { const act = prompt("Workflow action to apply:"); if (!act) return null; const n = selected.size; await this.host.api.bulkAction(pid, m.key, [...selected], "transition", act.trim()); return n; }),
+      mkBulk("Delete", "Deleted", async () => { if (!confirm(`Delete ${selected.size} record(s)?`)) return null; const n = selected.size; await this.host.api.bulkAction(pid, m.key, [...selected], "delete"); return n; }));
     this.root.appendChild(bulkBar);
 
     const table = document.createElement("table"); table.className = "portal-table";

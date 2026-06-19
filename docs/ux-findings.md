@@ -42,11 +42,15 @@ Severity: **High** (hurts daily use / blocks discovery) · **Med** (friction) ·
   `aria-expanded` and toggle it. (Minor remaining: the catalog ★ favorite is a span-in-button —
   click works, keyboard focus doesn't, without invalid nested-interactive markup.)
 
+- ✅ **Result/feedback reuse.** Bulk actions (assign/transition/delete) now `toast` the result count
+  and only reload on a real change (cancelling a prompt no longer reloads); sync/push/schedules
+  already used toasts.
+
 ### Low (remaining)
-- **Result/feedback reuse.** Extend the `toast` + `showResult` pattern to any remaining inline portal
-  output (already used for sync/push/schedules; audit bulk-action feedback).
 - **Responsive / mobile** layout (rail + floating toolbar) — pairs with the Capacitor/Tauri-mobile
-  wrapper.
+  wrapper (environment-gated).
+- **Catalog ★ favorite keyboard focus** — currently a span-in-button; needs a non-nested-interactive
+  restructure to be Tab-focusable.
 - **Responsive / mobile** layout was not reviewed; the rail + floating toolbar likely need a
   narrow-viewport treatment.
 
