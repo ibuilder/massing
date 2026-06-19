@@ -12,6 +12,10 @@ build/
 # desktop .exe (PyInstaller) — built on demand / in CI, never committed
 dist_desktop/
 build_desktop/
+dist_sidecar/
+build_sidecar/
+# Tauri sidecar binary (built per-platform by build_sidecar.py / CI)
+apps/web/src-tauri/binaries/
 
 # python
 __pycache__/

@@ -22,9 +22,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest # arm64 runner; cross-compiles a universal binary
-            args: "--target universal-apple-darwin"
-            rust-targets: "aarch64-apple-darwin,x86_64-apple-darwin"
+          - platform: macos-latest # arm64 (Apple Silicon). Per-arch (not universal) so the
+            args: "--target aarch64-apple-darwin"   # PyInstaller sidecar's triple matches the bundle
+            rust-targets: "aarch64-apple-darwin"
           - platform: ubuntu-22.04 # older glibc → broader Linux compatibility
             args: "--bundles deb,appimage" # skip rpm (no rpmbuild on the runner)
             rust-targets: ""
@@ -63,6 +63,23 @@ jobs:
       # npm workspace: install at the root so the web build (beforeBuildCommand) has its deps
       - name: Install web dependencies
         run: npm ci
+
+      # The desktop shell spawns a bundled Python backend ("aec-bim-server" sidecar). Build it
+      # per-platform with PyInstaller and place it where tauri.conf's externalBin expects it.
+      # (tauri-action runs beforeBuildCommand = `npm run build:desktop` to produce the SPA the
+      # sidecar serves, so this only needs the Python side.)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build the backend sidecar
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip pyinstaller
+          pip install -r services/api/requirements.txt -r services/data/requirements.txt
+          # the SPA the sidecar serves (tauri-action also builds it, but the sidecar bundles a copy)
+          npm --prefix apps/web run build:desktop
+          python services/api/build_sidecar.py
 
       # Windows Authenticode: if a code-signing cert is configured, import the PFX and point
       # tauri.conf at its thumbprint so `tauri build` signs the .exe/.msi. No secret → unsigned.

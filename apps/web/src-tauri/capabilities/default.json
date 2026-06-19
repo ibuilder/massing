@@ -5,9 +5,14 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:webview:allow-navigate",
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:allow-read-file",
-    "fs:allow-write-file"
+    "fs:allow-write-file",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [{ "name": "binaries/aec-bim-server", "sidecar": true }]
+    }
   ]
 }

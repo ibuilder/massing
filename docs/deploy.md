@@ -140,10 +140,20 @@ A native-window wrapper (Tauri, below) can host this same backend; the PyInstall
 ships a complete, double-clickable app on its own (it opens the system browser).
 
 ## Desktop installers (Tauri) & code signing
-`.github/workflows/desktop.yml` builds Windows/macOS/Linux installers. Push a tag (`v0.1.0`)
-for a draft Release; run it manually (Actions → Desktop release → Run workflow) for artifact-only
-smoke builds. Without the secrets below, builds are **unsigned** (Gatekeeper / SmartScreen warn
-on first launch) — everything still works; add the secrets to sign + notarize.
+`.github/workflows/desktop.yml` builds Windows / macOS (arm64) / Linux installers. Push a tag
+(`v0.1.0`) for a draft Release; run it manually (Actions → Desktop release → Run workflow) for
+artifact-only smoke builds. Without the secrets below, builds are **unsigned** (Gatekeeper /
+SmartScreen warn on first launch) — everything still works; add the secrets to sign + notarize.
+
+**Native window + bundled backend (sidecar).** The Tauri shell ([`src/lib.rs`](../apps/web/src-tauri/src/lib.rs))
+spawns the Python backend as a sidecar (`binaries/aec-bim-server`, declared in `tauri.conf.json`
+`externalBin`), waits for `127.0.0.1:8765`, then points the WebView at it — so the installed app is
+the full platform (API + SPA + SQLite, local mode), same-origin, fully offline, in a native window.
+CI builds that sidecar per-platform with `services/api/build_sidecar.py` (PyInstaller can't
+cross-compile, so each runner builds its own; the binary is named with the Rust target triple).
+The shell's `beforeBuildCommand` is `npm run build:desktop` so the bundled SPA targets the
+same-origin API. To build locally: `npm run build:desktop` → `python services/api/build_sidecar.py`
+→ `npm --prefix apps/web run tauri build` (needs the Rust toolchain).
 
 | Platform | Repo secrets | Notes |
 |---|---|---|
