@@ -205,7 +205,15 @@ auto-populate → model→proforma link)~~ ✅ → **P3 (external-gated)**. Each
 shippable; P3 items are gated on paid accounts / certs / hardware and are user-performed steps.
 
 _Shipped: P0 + P1 (2026-06-17); interoperability, free desktop `.exe`, UX pass (2026-06-18);
-signed Win/macOS/Linux installers + auto-update (v0.1.2), IFC-auto-populate, and the
-model→proforma link (2026-06-19). **Remaining = P3 only** (code-signing certs, mobile wrapper,
-Bonsai/Blender, RVT/APS) plus three roadmapped follow-ons: deeper model→proforma (QTO/units),
-model version/diff, and portfolio cost-overrun forecasting._
+signed installers + auto-update (v0.1.2), IFC-auto-populate, model→proforma link (2026-06-19).
+**2026-06-21 — the full competitor-driven backlog:** GC-tools deep-dive (51-module enrichment +
+workflow depth + evidence gate), no-IFC project creation, CPM scheduling (float/critical path),
+model-based estimating & takeoff, QuickBooks (ERP) connector, risk register, selections, bid
+leveling, TRIR safety analytics, and the construction program portfolio + cost-overrun roll-up._
+
+**Remaining — larger standalone features (each its own focused pass):**
+- **Model version history / diff** (Speckle-style) — per-publish snapshots + changed-elements view.
+- **Reusable checklist / inspection templates** (Procore parity) — template store + apply-to-record.
+- **Branded per-tool PDFs** (generic per-record PDF already ships) + **Sage / Viewpoint** connectors
+  (same shape as QuickBooks).
+- **P3 external-gated:** code-signing certs, Capacitor/mobile, Bonsai/Blender, RVT/APS.
