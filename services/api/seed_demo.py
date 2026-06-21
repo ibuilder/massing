@@ -87,9 +87,9 @@ new("cor", {"subject": "COR 001 — steel", "amount": 92_500, "justification": "
 new("proposal", {"subject": "Proposal — steel add", "amount": 92_500, "pco": pco})
 
 # --- QA / inspection chain ---------------------------------------------------
-insp = new("inspection", {"subject": "Level 2 deck pour", "location": "Grid C-E", "result": "Fail"}, "qa")
-new("ncr", {"subject": "Honeycomb at column", "description": "Voids on north face", "inspection": insp}, "sub")
-new("deficiency", {"description": "Cold joint", "location": "Grid D3", "inspection": insp})
+insp = new("inspection", {"subject": "Level 2 deck pour", "location": "Grid C-E", "result": "Fail", "date": "2026-06-14"}, "qa")
+new("ncr", {"subject": "Honeycomb at column", "description": "Voids on north face", "severity": "Major", "inspection": insp}, "sub")
+new("deficiency", {"description": "Cold joint", "location": "Grid D3", "severity": "Minor", "inspection": insp})
 
 # --- bidding chain -----------------------------------------------------------
 bp = new("bid_package", {"name": "Concrete package", "trade": "Concrete", "budget": 5_000_000})
@@ -103,6 +103,7 @@ for d, weather, crews in [("2026-06-13", "Clear", [12, 8]), ("2026-06-14", "Rain
         new("manpower_log", {"company": "Self-perform", "date": d, "count": c, "daily_report": dr})
 
 # --- safety ------------------------------------------------------------------
-new("incident", {"subject": "Near miss — dropped tool", "description": "No injury", "severity": "Low"}, "safety")
+new("incident", {"subject": "Near miss — dropped tool", "description": "No injury",
+                 "date": "2026-06-13", "classification": "Near Miss", "severity": "Near Miss"}, "safety")
 
 print("seed complete — open the Construction workspace to see populated dashboard / board / search")
