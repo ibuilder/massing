@@ -665,6 +665,11 @@ export class ApiClient {
   }
 
   // authoring round-trip (Phase 6)
+  /** Conceptual estimate from the IFC takeoff × unit rates — priced line items + total. */
+  estimateFromModel(pid: string) {
+    return this.json<{ total: number; element_count: number; lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number }[]; unpriced: { ifc_class: string; count: number }[] }>(
+      `/projects/${pid}/estimate/from-model`);
+  }
   /** CPM analysis of the schedule activities — float + critical path. */
   scheduleCpm(pid: string) {
     return this.json<{ project_duration: number; activity_count: number; critical_count: number; has_cycle: boolean; critical_path: string[]; activities: { ref: string | null; name: string; duration: number; es: number; ef: number; total_float: number; critical: boolean }[] }>(

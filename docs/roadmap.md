@@ -111,8 +111,11 @@ be measured against, and where we're light. (Categories & products per market re
    `duration` + `predecessors` (FS, resolved by ref/WBS; cycle-safe). `GET /projects/{id}/schedule/cpm`
    + a "⛓ Critical path" tool that opens the result. Verified (test_cpm + live). *Next: lags, SS/FF
    dependency types, data-date/progress, DCMA-14 checks, a network/Gantt overlay of the critical path.*
-2. **Estimating & takeoff** — quantity/assembly takeoff + unit-cost estimating that feeds the budget +
-   proforma (extends the existing QTO + model→proforma link). *(High.)*
+2. ✅ **DONE (v1)** — **Estimating & takeoff.** `estimate.estimate_from_takeoff()` aggregates the IFC
+   quantity takeoff by element class and applies unit rates → a priced conceptual estimate (line items
+   + total + unpriced classes; per-class overrides). `GET /projects/{id}/estimate/from-model` + a
+   "📐 Estimate from model" cost tool. Verified (test_estimate + live: basichouse → ~$254k).
+   *Next: assembly/cost-code rollup, editable rate table UI, push the total to budget/proforma hard cost.*
 3. **Accounting/ERP connectors** — QuickBooks / Sage / Viewpoint adapters in the Connections
    framework (mirror the Procore/ACC pattern). *(Medium.)*
 4. **Owner capital-program controls** — risk register module + cross-project program portfolio view.

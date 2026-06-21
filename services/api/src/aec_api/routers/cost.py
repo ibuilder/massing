@@ -34,6 +34,17 @@ def summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_ro
     return cost.summary(db, pid)
 
 
+@router.get("/projects/{pid}/estimate/from-model")
+def estimate_from_model(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Conceptual estimate from the IFC quantity takeoff × unit rates — priced line items by element
+    class + a grand total (feeds the budget / proforma hard cost). 409 if no source IFC."""
+    from ..deps import source_ifc_path
+    from aec_data.qto import takeoff_file  # type: ignore
+    from .. import estimate as est
+    rows = takeoff_file(source_ifc_path(db, pid))     # quantities only (no cost map needed)
+    return est.estimate_from_takeoff(rows)
+
+
 @router.post("/projects/{pid}/cost/tm")
 def price_tm(pid: str, eticket_id: str = Body(...), lines: list[dict] = Body(...),
              db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):

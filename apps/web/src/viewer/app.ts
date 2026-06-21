@@ -855,6 +855,21 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           ])));
         }));
         b.appendChild(toolBtn2("↓ G702/G703 Pay App (PDF)", () => window.open(api.url(`/projects/${projectId}/cost/g702.pdf?app_no=1`), "_blank")));
+        b.appendChild(toolBtn2("📐 Estimate from model (takeoff)", async () => {
+          out.textContent = "taking off…";
+          let r;
+          try { r = await api.estimateFromModel(pid); }
+          catch { out.textContent = "needs a source IFC (open one in Model)"; return; }
+          const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
+          out.textContent = `est. ${money(r.total)} · ${r.element_count} elements`;
+          showResult("Conceptual estimate (from model takeoff)", (body) => {
+            body.appendChild(resultNote(`<b>${money(r.total)}</b> across ${r.lines.length} priced trades · ${r.element_count} elements`
+              + (r.unpriced.length ? ` · ${r.unpriced.length} class(es) unpriced` : ""), "ok"));
+            body.appendChild(kvTable(r.lines.map((l) => ({
+              k: `${l.ifc_class.replace("Ifc", "")} (${l.quantity} ${l.unit} @ ${money(l.rate)})`,
+              v: money(l.amount) }))));
+          });
+        }));
         b.appendChild(out);
         const link = document.createElement("a"); link.href = "#"; link.className = "ref-link"; link.style.cssText = "display:inline-block;margin-top:6px;font-size:11px";
         link.textContent = "Manage budgets & change orders in Construction →";
