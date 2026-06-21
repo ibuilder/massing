@@ -188,13 +188,17 @@ be measured against, and where we're light. (Categories & products per market re
   (`tauri-plugin-updater` + `latest.json`) plus an in-app update banner. Download section on the
   GitHub Pages landing page → latest release.
 
-### P3 — external dependency / environment-gated
-- **Code signing** — installers are unsigned (SmartScreen/Gatekeeper warn). Add the
-  `WINDOWS_CERTIFICATE` / `APPLE_*` secrets (paid certs) the workflow already supports.
-- **Capacitor / Tauri-mobile** wrapper — needs the mobile toolchain/devices/store accounts.
-  (✅ **responsive web layout done** — ≤560px phone breakpoint + ≤820px overlays, so the portal/
-  proforma are already usable in a mobile browser; the native wrapper is the remaining piece.)
-- **Bonsai bridge (M5)** — parametric authoring recipes are written but need Blender + Bonsai-MCP.
+### P3 — scaffolded & turnkey; each needs one external piece (no more code)
+- **Mobile (Capacitor)** — ✅ scaffolded + verified: `capacitor.config.ts`, `build:mobile` mode
+  (+ `.env.mobile`), `cap add android` syncs the web build. *External:* Android SDK/JDK + Xcode/macOS
+  to build the binaries, on-device WASM validation, Apple/Google store accounts. Responsive web layout
+  already shipped (≤560px / ≤820px).
+- **Code signing** — ✅ turnkey: the Windows PFX-import/thumbprint + macOS notarize steps are wired
+  and guarded (unsigned stays green). *External:* buy a cert (CA OV/EV or Azure Trusted Signing for
+  Windows; Apple Developer Program for macOS) and add the secrets — next tag signs automatically.
+- **Bonsai bridge** — ✅ bridge client (`bridge.py`) with the save-first/chunk/confirm gates built +
+  unit-tested; recipes + authoring engine verified. *External:* a running Blender 4.x + Bonsai +
+  Bonsai-MCP socket to point it at.
 - **RVT→IFC** via Autodesk APS — skeleton only; needs a paid APS account (behind a cost flag).
 
 ## Product improvement plan (audit) — folded in
