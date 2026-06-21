@@ -1010,7 +1010,38 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           out.textContent = `publish ${state}`;
         });
         pub.dataset.cap = "edit";
-        b.append(fix, pub, out);
+        // Furnish & equip — add starter-library families (furniture / sanitary / appliances /
+        // plants). Works on a generated massing model too, since the types are generated on demand.
+        const furnish = document.createElement("div"); furnish.style.marginTop = "6px";
+        const hint = document.createElement("div"); hint.className = "meta";
+        hint.textContent = "Click a point in the model to set placement, then pick a family.";
+        const sel = document.createElement("select"); sel.className = "tool-btn";
+        sel.style.cssText = "display:block;width:100%;margin:4px 0"; sel.dataset.cap = "edit";
+        sel.innerHTML = `<option value="">＋ Furnish & equip…</option>`;
+        void api.familyCatalog().then((c) => {
+          for (const [cat, items] of Object.entries(c.categories)) {
+            const og = document.createElement("optgroup"); og.label = cat;
+            for (const it of items) {
+              const o = document.createElement("option"); o.value = it.key; o.textContent = it.label; og.appendChild(o);
+            }
+            sel.appendChild(og);
+          }
+        }).catch(() => { hint.textContent = "Family library unavailable (API offline)."; });
+        const place = toolBtn2("⊕ Place selected family", async () => {
+          const key = sel.value;
+          if (!key) { out.textContent = "pick a family first"; return; }
+          const label = sel.options[sel.selectedIndex].text;
+          const pos: [number, number] | null = lastPoint ? [lastPoint.x, -lastPoint.z] : null;
+          out.textContent = `adding ${label}…`;
+          await api.addFamily(pid, key, pos);
+          out.textContent = `${label} added · converting…`;
+          const state = await waitForPublish(pid);
+          if (state === "done") await loadProjectModel();
+          out.innerHTML = `added <b>${label}</b>${pos ? ` at ${pos[0].toFixed(1)}, ${pos[1].toFixed(1)} m` : " at origin"}<br>publish: ${state}`;
+        });
+        place.dataset.cap = "edit";
+        furnish.append(hint, sel, place);
+        b.append(fix, pub, furnish, out);
       },
       drawings: () => {
         const b = section("drawings", "Drawings (2D)", { requires: "sourceIfc", tool: true });

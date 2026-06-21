@@ -69,7 +69,7 @@ Quick scan of the field to find where we're behind. Sources:
 | Procore / ACC | model viewer **inside** the CM workflow (RFIs/submittals/punch on the model) | model pins + BCF + 68-module portal | parity; keep two-way Procore/ACC sync deepening |
 | Revizto | real-time multi-model **coordination** | federation + clash + IDS + live presence | parity; add issue-tracker round-trip polish |
 | Speckle | open BIM **data** platform / versioning | open, IFC-native, .mmproj bundles | add model **version history / diff** |
-| **TestFit** | model **and proforma linked** — yield-on-cost from the layout | proforma is **manually keyed**, disconnected from the model | **★ link model → proforma** (areas/unit-count/QTO → assumptions) |
+| **TestFit** | model **and proforma linked** + generative massing from zoning | ✅ model→proforma link **and** ✅ generative massing → IFC + acquisition proforma (IFC-native) | parking ratios, multi-scheme yield compare, unit mix |
 | Northspyre | predictive **cost-overrun** flagging across a portfolio | per-project rules/AI risk + Monte Carlo | portfolio-level cost-overrun forecasting |
 
 ### Top gaps to act on
@@ -82,6 +82,45 @@ Quick scan of the field to find where we're behind. Sources:
   panel applies editable $/sf hard-cost and rent rates to seed `cost_lines[hard]` +
   `operations.potential_rent_annual` and re-solves. The deal now underwrites against the real model.
   *Next: extend to unit count + envelope/structural quantities (QTO) and exit-value drivers.*
+- ✅ **DONE — ★ Generative massing from zoning (TestFit/Forma differentiator, IFC-native).**
+  `aec_data.massing.compute_massing()` turns a municipal envelope (lot dims / lot area, FAR,
+  coverage, front/side/rear setbacks, height limit, floor-to-floor, efficiency, avg unit size) into a
+  buildable program — footprint, floor count, GFA, units, and the **binding constraint** (FAR /
+  coverage / height). `generate_ifc()` writes a real **IFC4** model from scratch (project → site →
+  building → one storey + floor-plate `IfcSpace` per level, with `Qto_SpaceBaseQuantities` so the
+  spaces/estimate/proforma engines read the areas). `POST /projects/{id}/generate/massing` generates
+  the model, sets it as the project's source IFC, publishes it (convert→.frag + reindex, off-thread),
+  and returns the program **plus a solved starter acquisition proforma** (land + hard/soft/contingency
+  from $/sf, rent from units or $/sf·yr → S&U, IRR, equity multiple). `POST /generate/massing/preview`
+  does the same math **stateless** (no model written) for instant "what would this lot yield?". The
+  Finance view's "🏗️ Generate from zoning" panel drives both: **Estimate yield** previews,
+  **Generate IFC model + apply** writes the model and adopts the generated assumptions as the live
+  proforma. *Our edge vs TestFit/Forma: the output is openBIM (IFC), so the generated massing flows
+  straight into the viewer, drawings, QTO, the estimate and underwriting — one chain from lot → deal.*
+  Verified: unit test (FAR/coverage/height binding, units, area-only, validation + IFC round-trip:
+  5 storeys / 5 represented floor-plate spaces, sited); live HTTP — 50×40 lot, FAR 3, 24 m cap →
+  5 floors / 17.5 m / 64,583 sf / 65 units, IFC written + published, $22.0M acquisition proforma solved.
+  *Next: parking ratios, multiple massing schemes (compare yield), unit-mix breakdown, real lot polygons.*
+- ✅ **DONE — Starter IFC family/type library (furnish & equip a model).** `aec_data.families`
+  generates a curated catalog parametrically (16 families: furniture / sanitary / appliances /
+  plants — `IfcFurnitureType`, `IfcSanitaryTerminalType`, `IfcElectricApplianceType`,
+  `IfcGeographicElementType`), building each `IfcTypeProduct` with a mapped representation on demand
+  so it's placeable into **any** model incl. a from-scratch massing one. `GET /families/catalog`
+  feeds a "Furnish & equip" picker in the viewer's Authoring tools; the `add_family` edit recipe
+  (`POST /projects/{id}/edit`) find-or-builds the type and places a GUID-stable occurrence at a
+  clicked point, then publishes the round-trip. Placement reuses the existing `place_type`/
+  `type.assign_type` machinery — the library is the *content* layer; richer/real manufacturer IFC
+  content can replace a builder later without changing the contract. Verified: unit test (catalog +
+  build/place/dedup/round-trip) and live (placed Sofa/Tree → real `IfcFurniture`/`IfcGeographicElement`
+  render in the viewer). *Next: glTF prop layer for presentation-only dressing; Bonsai bulk placement.*
+- ✅ **DONE — Renderable massing + web-ifc geometry fix.** Two bugs that made generated geometry
+  invisible: (1) `generate_ifc` used the default **millimetre** unit (model shrank 1000×) — now METRE;
+  (2) `IfcRectangleProfileDef.Position` was null — **web-ifc silently skips** profiles with no Position
+  (ifcopenshell tolerates it), so the `.frag` came out empty. Both fixed in `massing.py` + `families.py`
+  (and a per-level renderable `IfcSlab` floor plate added, since the Fragments importer forces
+  `IfcSpace` transparent). Regression-guarded by a geometry-span assertion in `test_massing`. Verified
+  via the real converter (bare massing 3.3 KB → furnished 5.3 KB) and a viewer screenshot of the
+  stacked massing.
 - ✅ **DONE** — **GC + proforma usable without an IFC.** A "＋ New" toolbar button creates a blank
   project (no model required); the GC portal + development proforma run on `projectId` alone, so the
   whole non-geometry side works cold. Model-derived tools (drawings/clash/energy/authoring/

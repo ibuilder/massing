@@ -17,7 +17,7 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import audit, storage
-from ..rbac import require_role
+from ..rbac import current_user, require_role
 from ..db import get_db
 from ..models import Project
 from . import properties as props_router
@@ -50,6 +50,20 @@ def list_types(pid: str, db: Session = Depends(get_db), _: str = Depends(require
 
     p = _project(db, pid)
     return {"types": ed.list_types(open_model(p.source_ifc))}
+
+
+@router.get("/families/catalog")
+def family_catalog(_: str = Depends(current_user)):
+    """Starter IFC family library (furniture / sanitary / appliances / plants) you can add to any
+    model — generated parametrically, so it's available even for a from-scratch massing model. Place
+    one via the `add_family` edit recipe (POST /projects/{id}/edit, recipe='add_family')."""
+    from aec_data import families  # type: ignore
+
+    items = families.catalog()
+    cats: dict[str, list] = {}
+    for it in items:
+        cats.setdefault(it["category"], []).append(it)
+    return {"count": len(items), "categories": cats}
 
 
 @router.post("/projects/{pid}/edit")
