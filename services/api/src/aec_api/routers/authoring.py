@@ -136,6 +136,11 @@ def _publish(p: Project, reconvert: bool = True) -> dict:
     props_router._load(p.id, idx)  # hot-swap the in-memory index
     storage.put(f"{p.id}/props.json", __import__("json").dumps(idx).encode("utf-8"))
     out["reindexed"] = idx["counts"]["elements"]
+    try:                              # snapshot a model version (GUID set) for history/diff
+        from .. import versions
+        out["version"] = versions.snapshot(p.id, idx)
+    except Exception as e:            # noqa: BLE001 — versioning must never break a publish
+        out["version_error"] = str(e)[:160]
     return out
 
 

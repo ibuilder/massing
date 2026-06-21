@@ -665,6 +665,14 @@ export class ApiClient {
   }
 
   // authoring round-trip (Phase 6)
+  /** Model version history (one snapshot per publish). */
+  modelVersions(pid: string) {
+    return this.json<{ version: number; element_count: number; note: string | null; created_at: string | null }[]>(`/projects/${pid}/versions`);
+  }
+  /** Diff two model versions — added/removed element GUIDs + unchanged count. */
+  versionDiff(pid: string, a: number, b: number) {
+    return this.json<{ from: number; to: number; added_count: number; removed_count: number; unchanged_count: number }>(`/projects/${pid}/versions/diff?a=${a}&b=${b}`);
+  }
   /** Reusable templates for a module (save a project's records → apply to another project). */
   templates(module: string) {
     return this.json<{ id: string; module: string; name: string; item_count: number }[]>(`/templates?module=${encodeURIComponent(module)}`);

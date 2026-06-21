@@ -215,8 +215,13 @@ leveling, TRIR safety analytics, and the construction program portfolio + cost-o
   records as a named template, list per module, and apply to any project (one record per item) —
   `save-template` / `apply-template` + a "⌹ Templates" portal button. Verified (test_templates).
 
-**Remaining — larger standalone features (each its own focused pass):**
-- **Model version history / diff** (Speckle-style) — per-publish snapshots + changed-elements view.
+- ✅ **DONE — Model version history / diff** (Speckle-style). Each publish snapshots the element
+  GUID set (`ModelVersion`); `GET /projects/{id}/versions` + `/versions/diff?a=&b=` give the
+  history and added/removed elements between versions (no-op republishes skipped). "🕔 Version
+  history" tool shows it. Verified (test_versions: A,B,C→B,C,D = +D/−A).
+
+**Remaining — smaller follow-ons / external-gated:**
 - **Branded per-tool PDFs** (generic per-record PDF already ships) + **Sage / Viewpoint** connectors
-  (same shape as QuickBooks).
+  (same shape as the QuickBooks adapter) + **changed-element geometry diff** (current diff is by
+  GUID add/remove; modified-geometry detection needs per-element hashes).
 - **P3 external-gated:** code-signing certs, Capacitor/mobile, Bonsai/Blender, RVT/APS.

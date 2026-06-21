@@ -214,6 +214,20 @@ def delete_project(pid: str, db: Session = Depends(get_db),
     return bundle_io.delete_project(db, pid)
 
 
+@router.get("/projects/{pid}/versions")
+def list_versions(pid: str, db: Session = Depends(get_db)):
+    """Model version history — one snapshot per publish (version, element count, +N/-N note)."""
+    from .. import versions
+    return versions.history(db, pid)
+
+
+@router.get("/projects/{pid}/versions/diff")
+def diff_versions(pid: str, a: int, b: int, db: Session = Depends(get_db)):
+    """Changed elements between two model versions — added / removed GUIDs + unchanged count."""
+    from .. import versions
+    return versions.diff(db, pid, a, b)
+
+
 @router.get("/projects/{pid}/bundle")
 def export_bundle(pid: str, db: Session = Depends(get_db)):
     """Download the whole project as a portable .mmproj bundle (geometry + all data + blobs)."""

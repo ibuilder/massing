@@ -798,7 +798,22 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
     // --- always-on: model setup ----------------------------------------------
     const fedBody = section("models", "Models (federation)");
-    if (fedBody) { const l = document.createElement("div"); l.id = "fed-models"; fedBody.appendChild(l); refreshFederation(); }
+    if (fedBody) {
+      const l = document.createElement("div"); l.id = "fed-models"; fedBody.appendChild(l); refreshFederation();
+      if (projectId) fedBody.appendChild(toolBtn2("🕔 Version history", async () => {
+        const h = await api.modelVersions(pid);
+        showResult("Model version history", async (body) => {
+          if (!h.length) { body.appendChild(resultNote("No versions yet — publish the model (Authoring) to snapshot one.")); return; }
+          if (h.length >= 2) {
+            const d = await api.versionDiff(pid, h[1].version, h[0].version);
+            body.appendChild(resultNote(`v${h[1].version} → v${h[0].version}: <b>+${d.added_count}</b> / <b>−${d.removed_count}</b> elements · ${d.unchanged_count} unchanged`, "ok"));
+          }
+          body.appendChild(kvTable(h.map((v) => ({
+            k: `v${v.version}${v.note ? " (" + v.note + ")" : ""}`,
+            v: `${v.element_count} elements · ${(v.created_at || "").slice(0, 10)}` }))));
+        });
+      }));
+    }
 
     const ob = section("origin", "Working origin (E / N / Z)");
     if (ob) {

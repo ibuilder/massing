@@ -235,6 +235,19 @@ class Template(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class ModelVersion(Base):
+    """A snapshot of a project's model at each publish — the GUID set + count, so versions can be
+    diffed (added/removed elements). GUID-stable authoring makes the diff meaningful."""
+    __tablename__ = "model_versions"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(String, index=True)
+    version: Mapped[int] = mapped_column(default=1)
+    element_count: Mapped[int] = mapped_column(default=0)
+    guids: Mapped[list] = mapped_column(JSON, default=list)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class DrawingMarkup(Base):
     """A pin/redline note on a 2D sheet (plan/elevation/section). Stored in the sheet's intrinsic
     coordinate space (x,y) so it pans/zooms with the drawing. Can be promoted to a Topic (RFI)."""
