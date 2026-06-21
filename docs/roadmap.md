@@ -199,7 +199,11 @@ be measured against, and where we're light. (Categories & products per market re
 - **Bonsai bridge** — ✅ bridge client (`bridge.py`) with the save-first/chunk/confirm gates built +
   unit-tested; recipes + authoring engine verified. *External:* a running Blender 4.x + Bonsai +
   Bonsai-MCP socket to point it at.
-- **RVT→IFC** via Autodesk APS — skeleton only; needs a paid APS account (behind a cost flag).
+- **RVT→IFC** via Autodesk APS — ✅ implemented + wired: full Model Derivative flow in
+  `rvtToIfc.mjs` (2-legged OAuth → OSS signed-upload → translate → poll manifest → download IFC),
+  a `cli.mjs --rvt` mode, and the `/convert` endpoint subprocesses it when configured (503-gated
+  otherwise; node-syntax + gate verified). *External:* a paid Autodesk APS account
+  (`APS_CLIENT_ID/SECRET`) — per-translation cost, surfaced before invoking.
 
 ## Product improvement plan (audit) — folded in
 The 2026-06-17 full-codebase performance/UX/competitive audit is fully executed (e.g. proforma

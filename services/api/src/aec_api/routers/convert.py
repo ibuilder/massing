@@ -9,10 +9,15 @@ fully offline via the normal Open flow."""
 from __future__ import annotations
 
 import os
+import subprocess
+import tempfile
+from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Response, UploadFile
 
 router = APIRouter()
+
+_CONVERTER = Path(__file__).resolve().parents[4] / "services" / "converter" / "src" / "cli.mjs"
 
 
 def _aps_configured() -> bool:
@@ -29,10 +34,22 @@ async def convert(file: UploadFile = File(...)):
             raise HTTPException(503, "Revit (.rvt) import needs the Autodesk APS bridge "
                                      "(paid, per-translation cost). Set APS_CLIENT_ID and "
                                      "APS_CLIENT_SECRET and retry — there is no open-source RVT reader.")
-        # APS configured: the OSS-upload + Model-Derivative-polling flow lives in
-        # services/converter/src/rvtToIfc.mjs (documented skeleton). Wire it to enable.
-        raise HTTPException(501, "APS is configured but the RVT→IFC bridge isn't fully wired "
-                                 "in this build (see services/converter/src/rvtToIfc.mjs).")
+        # APS configured: RVT → IFC (Model Derivative) → .frag via the Node converter (cli --rvt).
+        with tempfile.TemporaryDirectory() as td:
+            rvt = Path(td) / (file.filename or "model.rvt")
+            frag = Path(td) / "out.frag"
+            rvt.write_bytes(await file.read())
+            try:
+                subprocess.run(["node", str(_CONVERTER), "--rvt", str(rvt), str(frag)],
+                               check=True, capture_output=True, timeout=1800)
+            except subprocess.CalledProcessError as e:
+                raise HTTPException(502, f"APS RVT→IFC translation failed: {(e.stderr or b'').decode()[:300]}")
+            except FileNotFoundError:
+                raise HTTPException(500, "Node is required for the RVT converter but isn't installed on the server.")
+            if not frag.exists():
+                raise HTTPException(502, "APS translation produced no fragments output.")
+            return Response(frag.read_bytes(), media_type="application/octet-stream",
+                            headers={"Content-Disposition": 'attachment; filename="model.frag"'})
     if ext in ("dwg", "nwc"):
         raise HTTPException(501, f".{ext} is a closed Autodesk format with no open-source "
                                  f"converter. It requires the paid Autodesk APS / ODA SDK bridge. "
