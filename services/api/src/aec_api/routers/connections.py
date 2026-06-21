@@ -161,6 +161,25 @@ def quickbooks_read(cid: str, entity: str, db: Session = Depends(get_db),
     return {"kind": f"quickbooks-{entity}", "count": len(rows), entity: rows}
 
 
+@router.get("/connections/{cid}/erp/{entity}")
+def erp_read(cid: str, entity: str, db: Session = Depends(get_db),
+             _: User = Depends(require_admin_user)):
+    """Read accounts / vendors / bills from a Sage or Viewpoint (generic REST ERP) connection."""
+    if entity not in ("accounts", "vendors", "bills"):
+        raise HTTPException(400, "entity must be one of ['accounts', 'bills', 'vendors']")
+    c = db.get(Connection, cid)
+    if not c or c.type not in ("sage", "viewpoint"):
+        raise HTTPException(400, "ERP browse applies to Sage / Viewpoint connections")
+    cfg = c.config or {}
+    if not (cfg.get("access_token") and (cfg.get("base_url") or "").strip()):
+        raise HTTPException(400, "connection needs an access token + base_url")
+    try:
+        rows = connectors.erp_read(cfg, entity)
+    except Exception as e:                        # noqa: BLE001
+        return {"error": str(e).splitlines()[0][:160]}
+    return {"kind": f"{c.type}-{entity}", "count": len(rows), entity: rows}
+
+
 @router.get("/connections/{cid}/mappings")
 def get_mappings(cid: str, db: Session = Depends(get_db), _: User = Depends(require_admin_user)):
     """Editable Procore→module field mapping: per kind, each module field with its default and

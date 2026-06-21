@@ -218,6 +218,19 @@ with TestClient(app) as c:
     assert bills["kind"] == "quickbooks-bills" and bills["count"] == 1, bills
     assert c.get(f"/connections/{qb['id']}/quickbooks/widgets", headers=BEARER(tok)).status_code == 400  # bad entity
 
+    # --- Sage / Viewpoint (generic REST ERP): same shape, configurable base_url --
+    assert "sage" in c.get("/connections", headers=BEARER(tok)).json()["types"]
+    _conn.erp_read = lambda cfg, entity: [{"name": "1000 Cash"}, {"name": "5000 COGS"}] if entity == "accounts" else [{"id": "b1"}]
+    sg = c.post("/connections", headers=BEARER(tok),
+                json={"name": "Sage", "type": "sage",
+                      "config": {"access_token": "sage-tok", "base_url": "https://api.sage.example.com"}}).json()
+    assert sg["config"].get("access_token_set") is True and sg["config"].get("base_url"), sg["config"]
+    st = c.post(f"/connections/{sg['id']}/test", headers=BEARER(tok)).json()
+    assert st["status"]["ok"] and "2 accounts" in st["status"]["detail"], st
+    erp = c.get(f"/connections/{sg['id']}/erp/bills", headers=BEARER(tok)).json()
+    assert erp["kind"] == "sage-bills" and erp["count"] == 1, erp
+    assert c.get(f"/connections/{sg['id']}/erp/nope", headers=BEARER(tok)).status_code == 400  # bad entity
+
     print("CONNECTIONS OK - status, masked secrets, test, CRUD, validation, read-only browse/query, "
           "Procore->rfi/submittal/change_event sync (idempotent), field-mapping editor, "
-          "auto-sync schedules + run_due, two-way push, ACC + QuickBooks read")
+          "auto-sync schedules + run_due, two-way push, ACC + QuickBooks + Sage/Viewpoint read")

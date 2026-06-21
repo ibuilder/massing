@@ -17,7 +17,7 @@ import re
 import urllib.request
 from typing import Any
 
-TYPES = ("local", "postgres", "supabase", "procore", "acc", "quickbooks")
+TYPES = ("local", "postgres", "supabase", "procore", "acc", "quickbooks", "sage", "viewpoint")
 
 
 def _mask_dsn(dsn: str) -> str:
@@ -331,6 +331,48 @@ def _info_quickbooks(config: dict) -> dict[str, Any]:
         return {}
 
 
+# --- Sage / Viewpoint (generic REST ERP) ---------------------------------------
+# Same adapter shape as QuickBooks but vendor-agnostic: the operator supplies their tenant's API
+# `base_url` + token; we read accounts / vendors / bills as JSON lists. Exact paths vary by tenant,
+# so base_url is configurable and the read is an overridable seam (testable without a live ERP).
+def _erp_get(base_url: str, path: str, token: str) -> Any:
+    req = urllib.request.Request(f"{base_url.rstrip('/')}{path}",
+                                 headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=8) as r:  # noqa: S310 — operator-supplied tenant host
+        return json.loads(r.read().decode())
+
+
+def _erp_read(config: dict, entity: str) -> list[dict]:
+    return _acc_list(_erp_get(config.get("base_url") or "", f"/{entity}", config.get("access_token") or ""))
+
+
+# overridable seam so tests can drive Sage/Viewpoint reads without a live ERP tenant
+erp_read = _erp_read
+
+
+def _test_erp(config: dict) -> dict[str, Any]:
+    token, base = (config or {}).get("access_token"), (config.get("base_url") or "").strip()
+    if not token:
+        return {"ok": False, "detail": "no access token"}
+    if not base:
+        return {"ok": False, "detail": "no base_url (your ERP tenant API root)"}
+    try:
+        return {"ok": True, "detail": f"connected · {len(erp_read(config, 'accounts'))} accounts"}
+    except Exception as e:                       # noqa: BLE001
+        return {"ok": False, "detail": str(e)[:140]}
+
+
+def _info_erp(config: dict) -> dict[str, Any]:
+    if not (config.get("access_token") and config.get("base_url")):
+        return {"hint": "set base_url + access token"} if config.get("access_token") else {}
+    try:
+        accts = erp_read(config, "accounts")
+        return {"account_count": len(accts),
+                "accounts": [(a.get("name") or a.get("Name")) for a in accts[:5] if isinstance(a, dict)]}
+    except Exception:                            # noqa: BLE001
+        return {}
+
+
 def _test_procore(config: dict) -> dict[str, Any]:
     token = (config or {}).get("access_token")
     if not token:
@@ -355,6 +397,8 @@ def test(ctype: str, config: dict | None) -> dict[str, Any]:
         return _test_acc(config)
     if ctype == "quickbooks":
         return _test_quickbooks(config)
+    if ctype in ("sage", "viewpoint"):
+        return _test_erp(config)
     return {"ok": False, "detail": f"unknown connection type {ctype!r}"}
 
 
@@ -372,6 +416,8 @@ def info(ctype: str, config: dict | None) -> dict[str, Any]:
         return _info_acc(config)
     if ctype == "quickbooks":
         return _info_quickbooks(config)
+    if ctype in ("sage", "viewpoint"):
+        return _info_erp(config)
     return {}
 
 
@@ -401,6 +447,8 @@ def tables(ctype: str, config: dict | None) -> dict[str, Any]:
         return {"kind": "acc", **info("acc", config)}
     if ctype == "quickbooks":
         return {"kind": "quickbooks", **info("quickbooks", config)}
+    if ctype in ("sage", "viewpoint"):
+        return {"kind": ctype, **info(ctype, config)}
     if ctype not in ("local", "postgres", "supabase"):
         return {"error": f"{ctype} is not browsable"}
     from sqlalchemy import inspect
