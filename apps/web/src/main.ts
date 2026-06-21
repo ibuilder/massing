@@ -334,6 +334,22 @@ async function openPortfolioTab() {
     `</div>` +
     (p.deal_count ? `<table class="sens-table"><tr><th>Deal</th><th>Cap</th><th>Equity</th><th>IRR</th><th>EM</th></tr>${rows}</table>`
                   : `<div class="meta" style="margin-top:8px">No solved scenarios yet — build one in the Proforma tab and it rolls up here.</div>`);
+
+  // construction program roll-up (owner view): cost over/under + risk + safety across projects
+  try {
+    const cp = await api.constructionPortfolio();
+    if (cp.project_count) {
+      const ct = cp.totals;
+      const prows = cp.projects.map((r) =>
+        `<tr><th style="text-align:left">${r.name}</th><td style="color:${r.over_budget ? "#e2554a" : "var(--text)"}">${m(r.projected_over_under)}</td>` +
+        `<td>${r.open_risks} (${m(r.risk_exposure)})</td><td>${r.recordables}</td><td>${r.open_rfis}</td></tr>`).join("");
+      panel.insertAdjacentHTML("beforeend",
+        `<div class="section-title" style="margin-top:14px">Construction program — ${cp.project_count} project(s)`
+        + (ct.over_budget_count ? ` · <span style="color:#e2554a">${ct.over_budget_count} over budget</span>` : "") + `</div>`
+        + `<table class="sens-table"><tr><th>Project</th><th>Over/Under</th><th>Open risks ($)</th><th>Recordables</th><th>Open RFIs</th></tr>${prows}`
+        + `<tr style="font-weight:700"><th style="text-align:left">Total</th><td>${m(ct.projected_over_under)}</td><td>${ct.open_risks} (${m(ct.risk_exposure)})</td><td>${ct.recordables}</td><td>${ct.open_rfis}</td></tr></table>`);
+    }
+  } catch { /* program roll-up optional */ }
 }
 
 // loadable geometry per project -> the type tag shown in the picker. RVT/DWG/NWC origin isn't

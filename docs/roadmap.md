@@ -86,8 +86,10 @@ Quick scan of the field to find where we're behind. Sources:
   model→proforma) still gate on the source IFC. Verified: blank project → RFI 201, dashboard 200.
 - **Model version history / diff** (Speckle-style) — the `.mmproj` bundle + GUID-stable authoring
   already give the substrate; add per-publish snapshots + a changed-elements view.
-- **Portfolio cost-overrun forecasting** (Northspyre-style) — extend the risk engine across the
-  multi-deal portfolio roll-up.
+- ✅ **DONE — Portfolio cost-overrun + program roll-up** (Northspyre/Mastt-style).
+  `GET /portfolio/construction` aggregates every project's cost over/under (flags forecast
+  overruns), open risks + cost exposure, recordable incidents, and open RFIs into a program view
+  (shown under the Finance → Portfolio tab). Verified (test_portfolio).
 - ✅ **DONE — Safety analytics (TRIR).** incident gains OSHA `classification` + `lost_days`;
   `GET /projects/{id}/safety/metrics` returns by-class counts, recordable/lost-time, lost days, and
   **TRIR/DART** per 200k hours (man-hours from `hours` or summed timesheets + manpower logs). Surfaced

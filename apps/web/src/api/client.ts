@@ -665,6 +665,11 @@ export class ApiClient {
   }
 
   // authoring round-trip (Phase 6)
+  /** Construction program portfolio — cost over/under + risk + safety across all projects. */
+  constructionPortfolio() {
+    return this.json<{ project_count: number; totals: { projected_over_under: number; over_budget_count: number; open_risks: number; risk_exposure: number; recordables: number; open_rfis: number }; projects: { id: string; name: string; projected_over_under: number; over_budget: boolean; open_risks: number; risk_exposure: number; recordables: number; open_rfis: number }[] }>(
+      "/portfolio/construction");
+  }
   /** Safety analytics — incidents by OSHA class, recordable/lost-time counts, TRIR/DART. */
   safetyMetrics(pid: string) {
     return this.json<{ incident_count: number; recordable_count: number; lost_time_count: number; lost_days: number; hours_worked: number; trir: number | null; dart: number | null; observation_count: number; toolbox_talk_count: number }>(

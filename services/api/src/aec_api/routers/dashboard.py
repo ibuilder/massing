@@ -25,6 +25,36 @@ _RECORDABLE = {"Recordable", "Lost Time", "Fatality"}
 _LOST_TIME = {"Lost Time", "Fatality"}
 
 
+@router.get("/portfolio/construction")
+def construction_portfolio(db: Session = Depends(get_db), _: str = Depends(rbac.current_user)):
+    """Owner / program view: construction health across all projects — cost over/under (flags
+    forecast overruns), open risks + cost exposure, recordable incidents, open RFIs."""
+    from .. import cost as cost_engine
+    rows = []
+    tot = {"budget": 0.0, "projected_over_under": 0.0, "open_risks": 0, "risk_exposure": 0.0,
+           "recordables": 0, "open_rfis": 0, "over_budget_count": 0}
+    for p in db.query(Project).all():
+        cs = cost_engine.summary(db, p.id)
+        risks = [r for r in me.list_records(db, "risk", p.id, limit=1_000_000)
+                 if r.get("workflow_state") in ("open", "mitigating")]
+        exposure = sum(float((r.get("data") or {}).get("cost_exposure") or 0) for r in risks)
+        recordables = sum(1 for i in me.list_records(db, "incident", p.id, limit=1_000_000)
+                          if (i.get("data") or {}).get("classification") in _RECORDABLE)
+        open_rfis = len(me.list_records(db, "rfi", p.id, state="open", limit=1_000_000))
+        over_under = float(cs.get("projected_over_under") or 0)
+        rows.append({"id": p.id, "name": p.name, "budget": cs.get("budget", 0),
+                     "projected_over_under": over_under, "pct_spent": cs.get("pct_spent", 0),
+                     "over_budget": over_under > 0, "open_risks": len(risks),
+                     "risk_exposure": round(exposure, 2), "recordables": recordables, "open_rfis": open_rfis})
+        tot["budget"] += cs.get("budget", 0); tot["projected_over_under"] += over_under
+        tot["open_risks"] += len(risks); tot["risk_exposure"] += exposure
+        tot["recordables"] += recordables; tot["open_rfis"] += open_rfis
+        tot["over_budget_count"] += 1 if over_under > 0 else 0
+    tot["risk_exposure"] = round(tot["risk_exposure"], 2)
+    rows.sort(key=lambda r: r["projected_over_under"], reverse=True)
+    return {"projects": rows, "totals": tot, "project_count": len(rows)}
+
+
 @router.get("/projects/{pid}/safety/metrics")
 def safety_metrics(pid: str, hours: float | None = None, db: Session = Depends(get_db),
                    _: str = Depends(require_role("viewer"))):
