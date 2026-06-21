@@ -167,9 +167,34 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   container.addEventListener("dblclick", () => { if (section.enabled) section.createPlane(); });
 
   // ---- file loading --------------------------------------------------------
-  $("ifc-input").addEventListener("change", (e) => loadFile(e.target as HTMLInputElement, (b, id) => loader.loadIfc(b, id), "converting"));
+  $("ifc-input").addEventListener("change", (e) => void openIfc(e.target as HTMLInputElement));
   $("frag-input").addEventListener("change", (e) => loadFile(e.target as HTMLInputElement, (b, id) => loader.loadFragments(b, id), "loading"));
   $("convert-input").addEventListener("change", (e) => convertAndLoad(e.target as HTMLInputElement));
+  // Open an IFC: show it instantly (client-side parse), and — when a project is open — also
+  // register it as the project's source model so drawings / clash / IDS / energy / exports /
+  // authoring populate automatically (they're all generated server-side from the source IFC).
+  async function openIfc(input: HTMLInputElement) {
+    const file = input.files?.[0]; input.value = "";
+    if (!file) return;
+    await withLoading(container, `loading ${file.name}`, async () => {
+      await loader.loadIfc(new Uint8Array(await file.arrayBuffer()), nextId(file.name));
+      await fitToModels();
+    });
+    if (!connected || !projectId) { notify(`loaded ${file.name} (no project — view only)`, "success"); return; }
+    let replace = true;
+    try { if ((await api.project(projectId)).has_source_ifc) replace = confirm(`Replace this project's model with ${file.name}? Drawings & analysis will regenerate.`); }
+    catch { /* offline check — proceed */ }
+    if (!replace) { notify(`loaded ${file.name} (project model unchanged)`, "info"); return; }
+    notify(`Adding ${file.name} to the project — generating drawings & analysis…`, "info");
+    try {
+      await api.uploadSourceIfc(projectId, file);     // saves + sets source_ifc + publishes off-thread
+      const state = await waitForPublish(projectId, (s) => setStatus(`processing model: ${s}…`));
+      void buildToolsPanel();                          // re-checks has_source_ifc → un-gates the tools
+      notify(state === "done"
+        ? `${file.name} is the project model — drawings, QA, energy & authoring are ready`
+        : `model added; server processing: ${state}`, state === "done" ? "success" : "info");
+    } catch (e) { notify(`couldn't add to project: ${(e as Error).message}`, "error"); }
+  }
   async function loadFile(input: HTMLInputElement, load: (b: Uint8Array, id: string) => Promise<unknown>, verb: string) {
     const file = input.files?.[0];
     if (!file) return;

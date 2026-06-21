@@ -661,6 +661,15 @@ export class ApiClient {
   }
 
   // authoring round-trip (Phase 6)
+  /** Upload an IFC as the project's source model (sets source_ifc + publishes) — what lights up
+   *  drawings, clash/IDS, energy, exports, and authoring for the project. */
+  async uploadSourceIfc(pid: string, file: File, publish = true) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/source-ifc?publish=${publish}`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `upload -> ${res.status}`); }
+    return res.json() as Promise<{ source_ifc: string; publish?: string }>;
+  }
   editIfc(pid: string, recipe: string, params: Record<string, unknown>, publish = true) {
     return this.json<{ recipe: string; changed: number | string; published: unknown }>(
       `/projects/${pid}/edit`, { method: "POST", body: JSON.stringify({ recipe, params, publish }) });
