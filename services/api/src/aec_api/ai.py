@@ -129,6 +129,40 @@ def risk_summary(kpis: dict[str, Any], cost: dict[str, Any] | None = None) -> di
         return _template_risks(kpis, cost)
 
 
+_ASK_SYSTEM = (
+    "You are an assistant embedded in an AEC project platform. Answer the user's question about "
+    "THIS project using only the supplied JSON snapshot (dashboard KPIs, cost, open items, model "
+    "metrics). Be concise and concrete — cite the numbers. If the snapshot doesn't contain the "
+    "answer, say so plainly and suggest where in the app to look. Never invent figures."
+)
+
+
+def ask(question: str, context: dict[str, Any]) -> dict[str, Any]:
+    """Natural-language Q&A grounded in a project snapshot. Uses Claude when configured; without a
+    key it returns the snapshot so the user still gets the underlying data (graceful degradation)."""
+    if not ai_enabled():
+        return {"answer": "The AI assistant isn't configured yet — set an Anthropic API key in "
+                          "Settings to ask questions in plain English. Meanwhile, here is the "
+                          "current project snapshot the assistant would use.",
+                "snapshot": context, "source": "disabled"}
+    try:
+        from anthropic import Anthropic  # lazy: only when a key is configured
+
+        client = Anthropic(api_key=settings_store.get("ANTHROPIC_API_KEY"))
+        msg = ("Project snapshot (JSON):\n" + json.dumps(context, default=str)
+               + f"\n\nQuestion: {question.strip()}\n\nAnswer using only this data.")
+        resp = client.messages.create(
+            model=settings_store.get("AEC_AI_MODEL", "claude-opus-4-8"), max_tokens=1024,
+            system=_ASK_SYSTEM, messages=[{"role": "user", "content": msg}],
+            output_config={"effort": "low"})
+        text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text")
+        return {"answer": text.strip(), "source": "claude"}
+    except Exception as e:           # noqa: BLE001 — never fail the request over an AI assist
+        _log.warning("AI ask failed (%s)", e)
+        return {"answer": "Couldn't reach the AI service just now. Here is the project snapshot.",
+                "snapshot": context, "source": "error"}
+
+
 def draft_rfi(element: dict[str, Any], note: str | None = None) -> dict[str, Any]:
     """Return {subject, question, discipline, suggested_priority, source}. Uses Claude when
     configured; on any error (or no key) returns a deterministic template draft."""

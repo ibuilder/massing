@@ -114,6 +114,38 @@ export class PortalUI {
             + `<span>${r.text}</span></div>`).join("");
       }).catch(() => { risk.innerHTML = ""; });
 
+      // Ask AI — natural-language Q&A grounded on the live project snapshot
+      const ask = document.createElement("div"); ask.style.cssText = "margin:10px 0";
+      ask.innerHTML = `<div class="section-title">Ask AI</div>`;
+      const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;margin:4px 0";
+      const input = document.createElement("input"); input.className = "portal-filter"; input.style.flex = "1";
+      input.placeholder = "Ask about this project — e.g. “what’s overdue?”, “open RFIs?”, “are we over budget?”";
+      const go = document.createElement("button"); go.className = "file-btn"; go.textContent = "Ask";
+      const out = document.createElement("div"); out.className = "meta"; out.style.cssText = "white-space:pre-wrap;margin-top:4px";
+      const run = async () => {
+        const q = input.value.trim(); if (!q) return;
+        out.textContent = "thinking…";
+        try {
+          const r = await this.host.api.aiAsk(pid, q);
+          let text = r.answer;
+          // graceful no-key/error path: surface the key snapshot numbers so it isn't a dead end
+          const snap = r.snapshot as { record_counts?: Record<string, number>; kpis?: Record<string, number> } | undefined;
+          if (r.source !== "claude" && snap) {
+            const k = snap.kpis || {}, c = snap.record_counts || {};
+            const line = (label: string, v: unknown) => (v ? `\n• ${label}: ${v}` : "");
+            text += line("Open RFIs", k.open_rfis) + line("Overdue", k.overdue)
+              + line("Pending change orders", k.pending_change_orders)
+              + line("Open punchlist", k.open_punchlist)
+              + line("RFIs (total)", c.rfi) + line("Change events", c.change_event);
+            if (!r.ai_enabled) text += "\n\n(Set an Anthropic API key in Settings for full plain-English answers.)";
+          }
+          out.textContent = text;
+        } catch { out.textContent = "Couldn’t reach the assistant."; }
+      };
+      go.onclick = () => void run();
+      input.onkeydown = (e) => { if (e.key === "Enter") void run(); };
+      row.append(input, go); ask.append(row, out); this.root.appendChild(ask);
+
       if (d.cost) {
         const cd = document.createElement("div"); cd.className = "meta";
         cd.style.margin = "6px 0";

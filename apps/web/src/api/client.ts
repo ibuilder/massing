@@ -330,6 +330,11 @@ export class ApiClient {
     return this.json<{ headline: string; risks: { level: string; text: string }[]; source: string; ai_enabled: boolean }>(
       `/projects/${pid}/ai/risk-summary`);
   }
+  /** Ask a natural-language question about the project; grounded on a live snapshot. */
+  aiAsk(pid: string, question: string) {
+    return this.json<{ answer: string; source: string; ai_enabled: boolean; snapshot?: unknown }>(
+      `/projects/${pid}/ai/ask`, { method: "POST", body: JSON.stringify({ question }) });
+  }
   login(username: string, password: string) {
     return this.json<{ token: string; username: string; role: string }>(
       "/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });

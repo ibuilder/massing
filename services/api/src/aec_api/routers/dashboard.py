@@ -105,6 +105,50 @@ def risk_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(requi
     return {**ai.risk_summary(d.get("kpis", {}), d.get("cost")), "ai_enabled": ai.ai_enabled()}
 
 
+_ASK_COUNT_MODULES = ("rfi", "submittal", "change_event", "pco_request", "cor", "punchlist",
+                      "ncr", "deficiency", "inspection", "incident", "daily_report", "commitment")
+
+
+def _ask_context(db: Session, pid: str) -> dict:
+    """A compact, token-bounded snapshot of the project for grounding the AI assistant: dashboard
+    KPIs + cost, per-module record counts, and a sample of open RFIs/change events."""
+    d = dashboard.build(db, pid, "GC")
+    ctx: dict = {"kpis": d.get("kpis", {}), "cost": d.get("cost")}
+    counts: dict[str, int] = {}
+    for m in _ASK_COUNT_MODULES:
+        if m in me.TABLES:
+            try:
+                counts[m] = len(me.list_records(db, m, pid, limit=1_000_000))
+            except Exception:        # noqa: BLE001 — a missing/odd module never breaks the snapshot
+                pass
+    ctx["record_counts"] = counts
+    def _sample(mod: str, n: int = 15) -> list[dict]:
+        if mod not in me.TABLES:
+            return []
+        out = []
+        for r in me.list_records(db, mod, pid, limit=n):
+            data = r.get("data") or {}
+            out.append({"ref": r.get("ref"), "title": data.get("subject") or r.get("title"),
+                        "status": r.get("workflow_state")})
+        return out
+    ctx["open_rfis"] = _sample("rfi")
+    ctx["change_events"] = _sample("change_event")
+    return ctx
+
+
+@router.post("/projects/{pid}/ai/ask")
+def ai_ask(pid: str, body: dict, db: Session = Depends(get_db),
+           _: str = Depends(require_role("viewer"))):
+    """Ask a natural-language question about the project; answered (by Claude when configured)
+    against a live snapshot of KPIs, costs and open items. Degrades to returning the snapshot."""
+    from fastapi import HTTPException
+    question = (body or {}).get("question", "").strip()
+    if not question:
+        raise HTTPException(422, "question is required")
+    ctx = _ask_context(db, pid)
+    return {**ai.ask(question, ctx), "ai_enabled": ai.ai_enabled()}
+
+
 @router.get("/projects/{pid}/report.pdf")
 def status_report(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """One-page project status report (KPIs, cost, open items by module, ball-in-court) as a PDF."""
