@@ -30,6 +30,30 @@
       ]
     },
     {
+      "name": "date",
+      "label": "Date",
+      "type": "date",
+      "required": true
+    },
+    {
+      "name": "classification",
+      "label": "OSHA Class",
+      "type": "select",
+      "options": [
+        "Near Miss",
+        "First Aid",
+        "Recordable",
+        "Lost Time",
+        "Fatality"
+      ],
+      "required": true
+    },
+    {
+      "name": "lost_days",
+      "label": "Lost Days",
+      "type": "number"
+    },
+    {
       "name": "jha",
       "label": "Related JHA",
       "type": "reference",
@@ -70,5 +94,10 @@
   },
   "close_requires_attachment": [
     "closed"
+  ],
+  "list_columns": [
+    "classification",
+    "severity",
+    "date"
   ]
 }

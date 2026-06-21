@@ -88,6 +88,10 @@ Quick scan of the field to find where we're behind. Sources:
   already give the substrate; add per-publish snapshots + a changed-elements view.
 - **Portfolio cost-overrun forecasting** (Northspyre-style) — extend the risk engine across the
   multi-deal portfolio roll-up.
+- ✅ **DONE — Safety analytics (TRIR).** incident gains OSHA `classification` + `lost_days`;
+  `GET /projects/{id}/safety/metrics` returns by-class counts, recordable/lost-time, lost days, and
+  **TRIR/DART** per 200k hours (man-hours from `hours` or summed timesheets + manpower logs). Surfaced
+  on the portal dashboard. Verified (test_safety: TRIR 4.0 / DART 2.0 @100k hrs).
 
 ## Broader competitor landscape (2026-06) & the gaps it surfaces
 A wider scan beyond the BIM-viewer category — the GC-lifecycle / owner / precon / field tools we'd

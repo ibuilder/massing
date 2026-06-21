@@ -665,6 +665,11 @@ export class ApiClient {
   }
 
   // authoring round-trip (Phase 6)
+  /** Safety analytics — incidents by OSHA class, recordable/lost-time counts, TRIR/DART. */
+  safetyMetrics(pid: string) {
+    return this.json<{ incident_count: number; recordable_count: number; lost_time_count: number; lost_days: number; hours_worked: number; trir: number | null; dart: number | null; observation_count: number; toolbox_talk_count: number }>(
+      `/projects/${pid}/safety/metrics`);
+  }
   /** Bid leveling — submissions tabulated by package with low/high/avg/spread. */
   bidLeveling(pid: string) {
     return this.json<{ package_count: number; bid_count: number; packages: { package: string; bid_count: number; low: number | null; high: number | null; avg: number | null; spread: number; bids: { bidder: string | null; amount: number | null; is_low: boolean }[] }[] }>(

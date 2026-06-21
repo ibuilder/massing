@@ -121,6 +121,16 @@ export class PortalUI {
         this.root.appendChild(cd);
       }
 
+      // safety analytics line (TRIR/DART + recordables) — shown once any incidents are logged
+      const safety = document.createElement("div"); safety.className = "meta"; safety.style.margin = "2px 0 6px";
+      this.root.appendChild(safety);
+      void this.host.api.safetyMetrics(pid).then((s) => {
+        if (!s.incident_count) return;
+        const trir = s.trir != null ? ` · TRIR ${s.trir}` : "";
+        const dart = s.dart != null ? ` · DART ${s.dart}` : "";
+        safety.textContent = `Safety: ${s.recordable_count} recordable / ${s.incident_count} incidents · ${s.lost_days} lost days${trir}${dart}`;
+      }).catch(() => {});
+
       // charts from by_module: workflow-state mix + busiest sections
       const states = new Map<string, number>();
       const sections = new Map<string, number>();
