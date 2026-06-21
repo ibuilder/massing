@@ -92,5 +92,8 @@
     "severity",
     "disposition",
     "due_date"
+  ],
+  "close_requires_attachment": [
+    "closed"
   ]
 }

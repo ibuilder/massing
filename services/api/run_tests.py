@@ -18,7 +18,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
-         "test_rbac", "test_auth", "test_connections", "test_presence", "test_serving", "test_api"]
+         "test_rbac", "test_auth", "test_connections", "test_presence", "test_serving", "test_api",
+         "test_evidence_gate"]
 
 
 def main() -> int:

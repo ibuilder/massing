@@ -549,6 +549,14 @@ def transition(db: Session, key: str, project_id: str, rid: str, action: str,
     if not rbac.party_allowed(party, tr.get("party", [])):
         raise HTTPException(403, f"party {party or 'none'} cannot {action} "
                                  f"(requires {tr.get('party')})")
+    # evidence gate: modules can require a photo/attachment before entering a sign-off state
+    if tr["to"] in (mod.get("close_requires_attachment") or []):
+        from .models import RecordAttachment
+        n = db.query(RecordAttachment).filter(
+            RecordAttachment.project_id == project_id, RecordAttachment.module == key,
+            RecordAttachment.record_id == rid).count()
+        if not n:
+            raise HTTPException(400, f"{action!r} requires at least one attachment (photo/evidence) first")
     db.execute(update(t).where(t.c.id == rid).values(workflow_state=tr["to"], modified_at=_now()))
     _log(db, project_id, key, rid, actor, party, f"transition:{action}",
          {"from": rec["workflow_state"], "to": tr["to"], "note": note})

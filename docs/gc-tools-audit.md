@@ -49,27 +49,30 @@ location, cost_code) and already-rich modules (**rfi, submittal, sov, commitment
 daily_report, equipment_log, production_quantity, schedule_activity, cor, pco_request, change_event,
 warranty, subcontract, prime_contract**).
 
-## Batch 2+ — remaining todos (deeper, cross-cutting)
-These need engine-level or per-module workflow/relation work, not just fields:
+## Batch 2 — DONE (workflow depth + cost chain + required fields)
+- **Workflow depth** — real party-gated lifecycles for **observation** (open→assigned→corrected→
+  closed), **deficiency** (corrective loop), **coi** (open→active→closed), **lien_waiver**
+  (open→received→closed), **permit** (applied→issued→closed), **toolbox_talk**, **checklist**.
+  Every replacement keeps the module's prior states, so no live record is stranded.
+- **Reference/rollup audit** — the chains were already extensive (deficiency/ncr/test→inspection,
+  daily_report→manpower/equipment, change_event→pco, prime_contract→sov/invoiced, cost_code rollups,
+  etc.). Completed the one missing cost link: **direct_cost → commitment** + **commitment.spent**
+  rollup (sum of direct costs).
+- **Required-field validation** — marked 10 truly-required fields (ncr/deficiency severity,
+  inspection date, permit/coi expiry, lien_waiver/direct_cost amount, test result, …).
 
-1. **Workflow depth** — many tools still use a 2-state draft→done flow. Add real party-gated states:
-   punchlist (open→ready→verified is good; add *disputed*), inspection (add *re-inspect*),
-   submittal (already 6-state; add *revise & resubmit* loop), NCR (open→disposition→verify→closed),
-   safety incident (reported→investigating→closed + OSHA-recordable flag).
-2. **Reference wiring** (the chains that make it a system, not 69 silos):
-   - deficiency/ncr/test_record → **inspection** (already rolled up; add the back-reference field).
-   - punchlist → **observation** (exists) and → **room/location**.
-   - lien_waiver/coi/subcontract → **commitment** (cost tie-out).
-   - submittal → **spec section / drawing**; transmittal → the documents it carries.
-   - daily_report → manpower_log / delivery / production_quantity (roll the day up).
-3. **Rollups** — commitment ▸ invoiced/paid; bid_package ▸ low bid; inspection ▸ pass-rate;
-   safety ▸ recordable count / TRIR inputs.
-4. **Required-field + validation** — mark the truly-required fields per tool (engine supports
-   `required`); add number/date min-max where sensible.
-5. **PDF/report templates** — per-tool branded PDFs (RFI/submittal/COR have logic; extend to
-   daily report, inspection, JHA, toolbox talk, incident — the field-signable forms).
-6. **Templates / boilerplate** — reusable checklists & inspection templates (Procore parity).
-7. **Attachments-required gates** — photos required on punch/observation/incident close.
+## Batch 3 — DONE (evidence gate, engine-level)
+- **Attachment-required sign-off** — a `close_requires_attachment` flag (engine-enforced in the
+  transition path) blocks a record from entering a sign-off state until it has a photo/attachment.
+  Enabled on **punchlist** (verify), **observation/incident/deficiency/ncr** (close). Other tools
+  and the test suite are unaffected (opt-in). Covered by `test_evidence_gate.py`.
+
+## Remaining (optional, larger engine features)
+- **Reusable checklist / inspection templates** (Procore parity) — a templates store + apply-to-record
+  UI. Largest remaining item.
+- **Per-tool branded PDFs** — the engine already emits a generic per-record PDF + CSV; branded,
+  form-specific layouts (signable daily report / JHA / toolbox talk) are polish.
+- **TRIR / safety analytics** — recordable-count rollups feeding a safety KPI on the dashboard.
 
 ## How to extend
 Edit `services/api/modules/<key>/module.json` (field types: text, textarea, number, currency, date,

@@ -90,5 +90,8 @@
     "severity",
     "trade",
     "due_date"
+  ],
+  "close_requires_attachment": [
+    "closed"
   ]
 }

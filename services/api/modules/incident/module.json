@@ -2,7 +2,7 @@
   "key": "incident",
   "name": "Incidents",
   "section": "Safety",
-  "icon": "\u2691",
+  "icon": "⚑",
   "ref_prefix": "INC",
   "title_field": "subject",
   "pinnable": true,
@@ -67,5 +67,8 @@
         ]
       }
     ]
-  }
+  },
+  "close_requires_attachment": [
+    "closed"
+  ]
 }

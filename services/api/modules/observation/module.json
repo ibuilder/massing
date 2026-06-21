@@ -116,5 +116,8 @@
     "category",
     "severity",
     "location"
+  ],
+  "close_requires_attachment": [
+    "closed"
   ]
 }
