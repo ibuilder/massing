@@ -55,6 +55,7 @@ postgres-data/
 *.db
 storage/
 test_storage/
+test_storage_*/
 samples/out/
 
 # generated offline assets (recreated by copy-wasm on predev/prebuild)

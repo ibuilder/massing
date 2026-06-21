@@ -734,6 +734,39 @@ export class ApiClient {
     return this.json<{ state: "idle" | "running" | "done" | "error"; detail?: Record<string, unknown> }>(
       `/projects/${pid}/publish/status`);
   }
+  /** Generative massing — zoning envelope → program (+ proforma) WITHOUT writing a model. Instant. */
+  previewMassing(params: MassingParams) {
+    return this.json<MassingResult>("/generate/massing/preview", { method: "POST", body: JSON.stringify(params) });
+  }
+  /** Generate an IFC massing model from a zoning envelope, set it as the project's source IFC,
+   *  publish it (off-thread), and return the program + a starter acquisition proforma. */
+  generateMassing(pid: string, params: MassingParams) {
+    return this.json<MassingResult & { source_ifc: string; publish: string }>(
+      `/projects/${pid}/generate/massing`, { method: "POST", body: JSON.stringify(params) });
+  }
+}
+
+export interface MassingParams {
+  name?: string; use_type?: "residential" | "commercial";
+  lot_width?: number | null; lot_depth?: number | null; lot_area?: number | null;
+  far?: number; coverage_max?: number; front_setback?: number; rear_setback?: number;
+  side_setback?: number; height_limit?: number | null; floor_to_floor?: number;
+  efficiency?: number; avg_unit_m2?: number;
+  land_cost?: number; hard_cost_psf?: number; rent_per_unit_month?: number; rent_psf_year?: number;
+  exit_cap?: number; ltc?: number; rate?: number;
+}
+export interface MassingMetrics {
+  lot_area_m2: number; far: number; far_achieved: number; footprint_m2: number;
+  plate_w: number; plate_d: number; floors: number; floor_to_floor: number;
+  building_height_m: number; buildable_gfa_m2: number; buildable_gfa_sf: number;
+  net_sellable_m2: number; units: number; binding_constraint: string;
+}
+export interface MassingResult {
+  metrics: MassingMetrics;
+  proforma: { assumptions: Record<string, unknown>;
+    returns?: { equity_irr?: number; equity_multiple?: number } | null;
+    sources_uses?: { total_uses?: number; equity?: number; loan_amount?: number } | null;
+    solve_error?: string };
 }
 
 export interface ClashResult {

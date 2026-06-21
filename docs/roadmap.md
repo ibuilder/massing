@@ -69,7 +69,7 @@ Quick scan of the field to find where we're behind. Sources:
 | Procore / ACC | model viewer **inside** the CM workflow (RFIs/submittals/punch on the model) | model pins + BCF + 68-module portal | parity; keep two-way Procore/ACC sync deepening |
 | Revizto | real-time multi-model **coordination** | federation + clash + IDS + live presence | parity; add issue-tracker round-trip polish |
 | Speckle | open BIM **data** platform / versioning | open, IFC-native, .mmproj bundles | add model **version history / diff** |
-| **TestFit** | model **and proforma linked** — yield-on-cost from the layout | proforma is **manually keyed**, disconnected from the model | **★ link model → proforma** (areas/unit-count/QTO → assumptions) |
+| **TestFit** | model **and proforma linked** + generative massing from zoning | ✅ model→proforma link **and** ✅ generative massing → IFC + acquisition proforma (IFC-native) | parking ratios, multi-scheme yield compare, unit mix |
 | Northspyre | predictive **cost-overrun** flagging across a portfolio | per-project rules/AI risk + Monte Carlo | portfolio-level cost-overrun forecasting |
 
 ### Top gaps to act on
@@ -82,6 +82,25 @@ Quick scan of the field to find where we're behind. Sources:
   panel applies editable $/sf hard-cost and rent rates to seed `cost_lines[hard]` +
   `operations.potential_rent_annual` and re-solves. The deal now underwrites against the real model.
   *Next: extend to unit count + envelope/structural quantities (QTO) and exit-value drivers.*
+- ✅ **DONE — ★ Generative massing from zoning (TestFit/Forma differentiator, IFC-native).**
+  `aec_data.massing.compute_massing()` turns a municipal envelope (lot dims / lot area, FAR,
+  coverage, front/side/rear setbacks, height limit, floor-to-floor, efficiency, avg unit size) into a
+  buildable program — footprint, floor count, GFA, units, and the **binding constraint** (FAR /
+  coverage / height). `generate_ifc()` writes a real **IFC4** model from scratch (project → site →
+  building → one storey + floor-plate `IfcSpace` per level, with `Qto_SpaceBaseQuantities` so the
+  spaces/estimate/proforma engines read the areas). `POST /projects/{id}/generate/massing` generates
+  the model, sets it as the project's source IFC, publishes it (convert→.frag + reindex, off-thread),
+  and returns the program **plus a solved starter acquisition proforma** (land + hard/soft/contingency
+  from $/sf, rent from units or $/sf·yr → S&U, IRR, equity multiple). `POST /generate/massing/preview`
+  does the same math **stateless** (no model written) for instant "what would this lot yield?". The
+  Finance view's "🏗️ Generate from zoning" panel drives both: **Estimate yield** previews,
+  **Generate IFC model + apply** writes the model and adopts the generated assumptions as the live
+  proforma. *Our edge vs TestFit/Forma: the output is openBIM (IFC), so the generated massing flows
+  straight into the viewer, drawings, QTO, the estimate and underwriting — one chain from lot → deal.*
+  Verified: unit test (FAR/coverage/height binding, units, area-only, validation + IFC round-trip:
+  5 storeys / 5 represented floor-plate spaces, sited); live HTTP — 50×40 lot, FAR 3, 24 m cap →
+  5 floors / 17.5 m / 64,583 sf / 65 units, IFC written + published, $22.0M acquisition proforma solved.
+  *Next: parking ratios, multiple massing schemes (compare yield), unit-mix breakdown, real lot polygons.*
 - ✅ **DONE** — **GC + proforma usable without an IFC.** A "＋ New" toolbar button creates a blank
   project (no model required); the GC portal + development proforma run on `projectId` alone, so the
   whole non-geometry side works cold. Model-derived tools (drawings/clash/energy/authoring/

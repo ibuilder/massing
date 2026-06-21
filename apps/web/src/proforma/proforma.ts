@@ -1,4 +1,4 @@
-import type { ApiClient, ProformaResult } from "../api/client";
+import type { ApiClient, MassingParams, MassingResult, ProformaResult } from "../api/client";
 
 /**
  * Real-estate development finance (Proforma) view — edit the key deal drivers, solve live,
@@ -100,6 +100,7 @@ export class ProformaUI {
     sizingField("Max LTV", "debt.max_ltv", 100, "off");
     sizingField("Min DSCR", "debt.min_dscr", 1, "off");
     this.root.appendChild(form);
+    this.renderMassing();
     this.renderModelLink();
     const out = document.createElement("div"); out.id = "pf-out";
     this.root.appendChild(out);
@@ -108,6 +109,88 @@ export class ProformaUI {
     const mc = document.createElement("div"); mc.id = "pf-mc";
     this.root.appendChild(mc);
     this.renderDraws();
+  }
+
+  /** Zoning → model: enter a lot + zoning envelope (FAR, setbacks, height) and generate a real IFC
+   *  massing model + a starter acquisition proforma in one click. The IFC-native answer to TestFit/
+   *  Forma feasibility — the generated model flows into the viewer, drawings, QTO and this proforma. */
+  private renderMassing() {
+    const host = document.createElement("div"); host.id = "pf-massing";
+    host.style.cssText = "margin:8px 0;padding:8px 10px;border:1px dashed var(--line);border-radius:8px";
+    host.innerHTML = `<div class="section-title" style="margin:0 0 6px">🏗️ Generate from zoning</div>` +
+      `<div class="meta" style="margin-bottom:6px">Lot + zoning envelope → buildable program, an IFC massing model, and an acquisition proforma.</div>`;
+    // [label, key, default, step]
+    const fields: [string, keyof MassingParams, number, string][] = [
+      ["Lot width (m)", "lot_width", 50, "any"], ["Lot depth (m)", "lot_depth", 40, "any"],
+      ["FAR", "far", 3.0, "0.1"], ["Coverage max", "coverage_max", 0.6, "0.05"],
+      ["Front setback (m)", "front_setback", 6, "any"], ["Rear setback (m)", "rear_setback", 6, "any"],
+      ["Side setback (m)", "side_setback", 3, "any"], ["Height limit (m)", "height_limit", 0, "any"],
+      ["Floor-to-floor (m)", "floor_to_floor", 3.5, "0.1"], ["Avg unit (m²)", "avg_unit_m2", 75, "any"],
+      ["Land cost $", "land_cost", 4_000_000, "any"], ["Hard $/sf", "hard_cost_psf", 225, "any"],
+      ["Rent $/unit·mo", "rent_per_unit_month", 2200, "any"], ["Exit cap", "exit_cap", 0.055, "0.005"],
+    ];
+    const grid = document.createElement("div"); grid.className = "pf-form";
+    // use type selector
+    const useWrap = document.createElement("label"); useWrap.className = "pf-field";
+    useWrap.innerHTML = `<span>Use type</span>`;
+    const useSel = document.createElement("select");
+    useSel.innerHTML = `<option value="residential">Residential</option><option value="commercial">Commercial</option>`;
+    useWrap.appendChild(useSel); grid.appendChild(useWrap);
+    const inputs: Record<string, HTMLInputElement> = {};
+    for (const [label, key, def, step] of fields) {
+      const wrap = document.createElement("label"); wrap.className = "pf-field";
+      wrap.innerHTML = `<span>${label}</span>`;
+      const inp = document.createElement("input"); inp.type = "number"; inp.step = step; inp.value = String(def);
+      if (key === "height_limit") inp.placeholder = "none";
+      inputs[key] = inp; wrap.appendChild(inp); grid.appendChild(wrap);
+    }
+    host.appendChild(grid);
+
+    const params = (): MassingParams => {
+      const p: MassingParams = { use_type: useSel.value as "residential" | "commercial", name: "Massing Study" };
+      for (const [, key] of fields) {
+        const v = parseFloat(inputs[key].value);
+        if (key === "height_limit") { p.height_limit = isNaN(v) || v <= 0 ? null : v; }
+        else if (!isNaN(v)) (p as Record<string, unknown>)[key] = v;
+      }
+      return p;
+    };
+    const out = document.createElement("div"); out.style.marginTop = "6px";
+    const showResult = (r: MassingResult, generated: boolean) => {
+      const m = r.metrics, ret = r.proforma.returns, su = r.proforma.sources_uses;
+      out.innerHTML =
+        `<div class="meta" style="margin-bottom:4px"><b>${m.floors} floors</b> · ${Math.round(m.building_height_m)} m · ` +
+        `<b>${m.buildable_gfa_sf.toLocaleString()} sf</b> GFA · ${m.units} units · ${m.footprint_m2.toLocaleString()} m² plate ` +
+        `<span class="meta">(bound by ${m.binding_constraint}, ${m.far_achieved} FAR)</span></div>` +
+        (su ? `<div class="meta">Total cost ${money(su.total_uses ?? 0)} · equity ${money(su.equity ?? 0)} · ` +
+              `IRR <b>${pct(ret?.equity_irr ?? null)}</b> · ${ret?.equity_multiple ?? "—"}× EM</div>` : "") +
+        (r.proforma.solve_error ? `<div class="meta" style="color:#e2554a">proforma: ${r.proforma.solve_error}</div>` : "") +
+        (generated ? `<div class="meta" style="color:var(--accent)">✓ IFC model generated & publishing — open the Model workspace to view.</div>` : "");
+    };
+
+    const btnRow = document.createElement("div"); btnRow.style.cssText = "display:flex;gap:6px;margin-top:6px";
+    const estBtn = document.createElement("button"); estBtn.className = "tool-btn"; estBtn.textContent = "Estimate yield";
+    estBtn.onclick = async () => {
+      out.innerHTML = `<span class="meta">computing…</span>`;
+      try { showResult(await this.api.previewMassing(params()), false); }
+      catch (e) { out.innerHTML = `<div class="meta" style="color:#e2554a">${(e as Error).message}</div>`; }
+    };
+    const genBtn = document.createElement("button"); genBtn.className = "file-btn"; genBtn.textContent = "Generate IFC model + apply";
+    genBtn.onclick = async () => {
+      const pid = this.projectId();
+      if (!pid) { out.innerHTML = `<div class="meta">Open or create a project first (＋ New), then generate its model.</div>`; return; }
+      out.innerHTML = `<span class="meta">generating model + proforma…</span>`;
+      try {
+        const r = await this.api.generateMassing(pid, params());
+        showResult(r, true);
+        // adopt the generated acquisition assumptions as the live proforma
+        this.a = structuredClone(r.proforma.assumptions) as typeof this.a;
+        this.render(); void this.solve();
+        this.setStatus(`generated ${r.metrics.floors}-floor massing (${r.metrics.buildable_gfa_sf.toLocaleString()} sf) → proforma seeded`);
+      } catch (e) { out.innerHTML = `<div class="meta" style="color:#e2554a">${(e as Error).message}</div>`; }
+    };
+    btnRow.append(estBtn, genBtn); host.append(btnRow, out);
+    this.root.appendChild(host);
   }
 
   /** Model → proforma: pull GFA from the project's source IFC and seed hard cost + rent from it,

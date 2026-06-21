@@ -1,0 +1,145 @@
+"""Generative design (Phase 6+): turn a municipal zoning envelope into a real IFC model + a
+basic acquisition proforma. This is the IFC-native answer to TestFit/Forma feasibility — the
+output is openBIM, so the same model flows into the viewer, drawings, QTO, the estimate, and the
+proforma underwriting (areas → hard cost / rent). One click goes lot → building → deal.
+
+Math lives in aec_data.massing (pure, unit-tested); this router wires it to a project: generate
+the IFC, set it as the project's source of truth, publish (convert→.frag + reindex) off-thread,
+and solve a starter acquisition proforma seeded from the generated program."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from .. import audit, storage
+from ..db import get_db
+from ..models import Project
+from ..proforma.solve import solve
+from ..rbac import require_role
+from .authoring import _DATA_SRC, _IFC_DIR, _publish_bg
+
+if str(_DATA_SRC) not in sys.path:
+    sys.path.insert(0, str(_DATA_SRC))
+
+router = APIRouter()
+
+M2_TO_SF = 10.7639
+
+
+class MassingIn(BaseModel):
+    """Zoning envelope (metres) + acquisition assumptions for the starter proforma."""
+    name: str = "Massing Study"
+    use_type: str = "residential"          # residential | commercial
+    # --- zoning envelope ---
+    lot_width: float | None = Field(default=None, gt=0)
+    lot_depth: float | None = Field(default=None, gt=0)
+    lot_area: float | None = Field(default=None, gt=0)        # use if width/depth unknown
+    far: float = Field(default=2.0, gt=0)
+    coverage_max: float = Field(default=0.6, gt=0, le=1)
+    front_setback: float = Field(default=6.0, ge=0)
+    rear_setback: float = Field(default=6.0, ge=0)
+    side_setback: float = Field(default=3.0, ge=0)
+    height_limit: float | None = Field(default=None, gt=0)
+    floor_to_floor: float = Field(default=3.5, gt=0)
+    efficiency: float = Field(default=0.82, gt=0, le=1)       # GFA → net sellable/leasable
+    avg_unit_m2: float = Field(default=75.0, ge=0)            # for unit count (residential)
+    # --- acquisition proforma seed ---
+    land_cost: float = Field(default=0.0, ge=0)
+    hard_cost_psf: float = Field(default=225.0, ge=0)         # $/sf GFA
+    soft_cost_pct: float = Field(default=0.15, ge=0)          # of hard
+    contingency_pct: float = Field(default=0.05, ge=0)        # of hard
+    rent_per_unit_month: float = Field(default=2200.0, ge=0)  # residential
+    rent_psf_year: float = Field(default=32.0, ge=0)          # commercial $/sf/yr
+    opex_ratio: float = Field(default=0.35, ge=0, le=1)       # of effective gross income
+    exit_cap: float = Field(default=0.055, gt=0)
+    ltc: float = Field(default=0.6, ge=0, le=1)
+    rate: float = Field(default=0.075, ge=0)
+
+
+def _proforma_seed(p: MassingIn, m: dict) -> dict:
+    """Build a starter Assumptions payload from the generated program, then solve it. Numbers are
+    transparent defaults the underwriter overrides — the point is an instant lot→deal first cut."""
+    gfa_sf = m["buildable_gfa_sf"]
+    hard = gfa_sf * p.hard_cost_psf
+    if p.use_type == "commercial":
+        net_lsf = m["net_sellable_m2"] * M2_TO_SF
+        pgi = net_lsf * p.rent_psf_year
+    else:
+        pgi = m["units"] * p.rent_per_unit_month * 12
+    assumptions = {
+        "timing": {"construction_months": 18, "leaseup_months": 6, "hold_years": 5},
+        "cost_lines": [
+            {"category": "land", "name": "Land acquisition", "amount": p.land_cost, "curve": "upfront"},
+            {"category": "hard", "name": "Hard costs", "amount": round(hard), "curve": "scurve"},
+            {"category": "soft", "name": "Soft costs", "amount": round(hard * p.soft_cost_pct), "curve": "linear"},
+            {"category": "contingency", "name": "Contingency", "amount": round(hard * p.contingency_pct), "curve": "scurve"},
+        ],
+        "debt": {"ltc": p.ltc, "rate": p.rate},
+        "equity": {"lp_pct": 0.9, "gp_pct": 0.1},
+        "operations": {
+            "potential_rent_annual": round(pgi),
+            "opex_annual": round(pgi * p.opex_ratio),
+            "stabilized_occ": 0.95,
+            "credit_loss_pct": 0.02,
+        },
+        "exit": {"exit_cap": p.exit_cap, "selling_cost_pct": 0.02},
+        "waterfall": {"pref_rate": 0.08, "style": "american",
+                      "tiers": [{"hurdle": None, "lp": 0.8, "gp": 0.2}]},
+        "discount_rate": 0.10,
+    }
+    try:
+        result = solve(assumptions)
+    except Exception as e:  # noqa: BLE001 — proforma is a bonus; never fail the generate
+        return {"assumptions": assumptions, "solve_error": str(e)[:200]}
+    return {"assumptions": assumptions,
+            "returns": result.get("returns"), "sources_uses": result.get("sources_uses")}
+
+
+@router.post("/projects/{pid}/generate/massing")
+def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
+                     actor: str = Depends(require_role("editor"))):
+    """Generate an IFC massing model from a zoning envelope, set it as the project's source IFC,
+    publish it (off-thread), and return the buildable program + a starter acquisition proforma."""
+    from aec_data.massing import compute_massing, generate_ifc  # type: ignore
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    try:
+        metrics = compute_massing(body.model_dump())
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+    _IFC_DIR.joinpath(pid).mkdir(parents=True, exist_ok=True)
+    ifc_path = _IFC_DIR / pid / "source.ifc"
+    generate_ifc(metrics, str(ifc_path), name=body.name)
+    storage.put(f"{pid}/source.ifc", ifc_path.read_bytes())   # durable copy
+    p.source_ifc = str(ifc_path)
+    db.commit()
+    audit.record(db, action="ifc.generate", actor=actor, method="POST",
+                 path=f"/projects/{pid}/generate/massing", detail=metrics)
+    db.commit()
+
+    _publish_bg(pid)                                            # convert→.frag + reindex off-thread
+    return {"metrics": metrics, "proforma": _proforma_seed(body, metrics),
+            "source_ifc": str(ifc_path), "publish": "running"}
+
+
+@router.post("/generate/massing/preview")
+def preview_massing(body: MassingIn):
+    """Compute the program + proforma WITHOUT writing an IFC or touching a project — for the
+    'what would this lot yield?' form before committing to a model. Stateless, instant."""
+    try:
+        metrics = compute_massing_only(body)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return {"metrics": metrics, "proforma": _proforma_seed(body, metrics)}
+
+
+def compute_massing_only(body: MassingIn) -> dict:
+    from aec_data.massing import compute_massing  # type: ignore
+    return compute_massing(body.model_dump())
