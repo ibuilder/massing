@@ -35,6 +35,18 @@ resolves after the model is re-authored and re-published.
    large operations (`max_elements_per_call` in the config).
 4. On save, the platform re-runs Phase 1 conversion + index (the `publish` step).
 
-> This machine has Blender 3.5; Bonsai requires 4.x, so the GUI path here is documented
-> rather than run. The authoring engine itself (ifcopenshell.api) is verified end-to-end
-> via `edit.py` and the `/edit` + `/publish` endpoints.
+## Bridge client (`bridge.py`) — runs recipes with the safety gates
+`BonsaiBridge` turns a recipe into a gated, ordered plan and sends it to the Bonsai socket:
+```bash
+python bridge.py set_pset '{"ifc_class":"IfcSlab","pset":"Pset_SlabCommon","prop":"LoadBearing","value":true}'   # dry-run (default): prints the plan
+python bridge.py set_pset '{...}' --run                                                                          # live: requires Blender on the socket
+```
+It enforces CLAUDE.md's gates from `bonsai-mcp.config.json`: **save before execute**, **chunk** to
+`max_elements_per_call`, and **confirm** before any arbitrary-Python execute (`--run`). `plan()` is
+pure (no Blender/socket) so the gating is unit-tested in `test_bridge.py` (save-first ordering,
+3-way chunking, dry-run default, confirm gate) — run `python test_bridge.py`.
+
+> The gating + plan generation are verified offline; the live socket send needs **Blender 4.x +
+> Bonsai + Bonsai-MCP** running (this machine has Blender 3.5). The authoring engine itself
+> (ifcopenshell.api) is verified end-to-end via `edit.py` and the `/edit` + `/publish` endpoints —
+> so the bridge is the last hop, ready to point at a Blender session.
