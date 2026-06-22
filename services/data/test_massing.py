@@ -31,6 +31,13 @@ assert mh["floors"] == 4 and mh["binding_constraint"] == "height", mh
 ma = massing.compute_massing({"lot_area": 1000, "far": 2.0})
 assert ma["floors"] >= 1 and ma["buildable_gfa_m2"] > 0, ma
 
+# lot polygon (real parcel): shoelace area drives the program — a 50×40 rect polygon == lot_area 2000
+mp = massing.compute_massing({"lot_polygon": [[0, 0], [50, 0], [50, 40], [0, 40]], "far": 3.0})
+assert abs(mp["lot_area_m2"] - 2000.0) < 1.0, mp["lot_area_m2"]
+# an L-shaped parcel has less area than its bounding box (1600 vs 2500)
+lshape = massing.compute_massing({"lot_polygon": [[0, 0], [50, 0], [50, 20], [20, 20], [20, 50], [0, 50]], "far": 2.0})
+assert abs(lshape["lot_area_m2"] - 1600.0) < 1.0, lshape["lot_area_m2"]
+
 # bad input is rejected
 try:
     massing.compute_massing({"far": 2.0})

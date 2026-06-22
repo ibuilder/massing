@@ -15,13 +15,30 @@ from typing import Any
 M2_TO_SF = 10.7639
 
 
+def _polygon_area(poly: list) -> float:
+    """Shoelace area (m²) of a closed polygon given as [[x,y],...] in metres."""
+    n = len(poly)
+    a = 0.0
+    for i in range(n):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % n]
+        a += x1 * y2 - x2 * y1
+    return abs(a) / 2.0
+
+
 def compute_massing(p: dict) -> dict[str, Any]:
-    """Zoning envelope → program. Inputs (metres): lot_width/lot_depth or lot_area, far,
-    coverage_max, front/side/rear_setback, height_limit, floor_to_floor, efficiency, avg_unit_m2."""
+    """Zoning envelope → program. Inputs (metres): lot_width/lot_depth or lot_area or lot_polygon
+    ([[x,y],…]), far, coverage_max, front/side/rear_setback, height_limit, floor_to_floor,
+    efficiency, avg_unit_m2."""
     lot_w, lot_d = float(p.get("lot_width") or 0), float(p.get("lot_depth") or 0)
     lot_area = float(p.get("lot_area") or (lot_w * lot_d))
+    poly = p.get("lot_polygon")
+    if poly and len(poly) >= 3:                  # real parcel: area from shoelace, dims from bbox
+        lot_area = _polygon_area(poly)
+        xs = [float(pt[0]) for pt in poly]; ys = [float(pt[1]) for pt in poly]
+        lot_w, lot_d = max(xs) - min(xs), max(ys) - min(ys)
     if lot_area <= 0:
-        raise ValueError("provide lot_area or lot_width × lot_depth")
+        raise ValueError("provide lot_area, lot_width × lot_depth, or a lot_polygon")
     far = float(p.get("far", 1.0))
     coverage = float(p.get("coverage_max", 0.6))
     f2f = float(p.get("floor_to_floor", 3.5))

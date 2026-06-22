@@ -38,6 +38,7 @@ class MassingIn(BaseModel):
     lot_width: float | None = Field(default=None, gt=0)
     lot_depth: float | None = Field(default=None, gt=0)
     lot_area: float | None = Field(default=None, gt=0)        # use if width/depth unknown
+    lot_polygon: list[list[float]] | None = Field(default=None)  # real parcel [[x,y],…] in metres
     far: float = Field(default=2.0, gt=0)
     coverage_max: float = Field(default=0.6, gt=0, le=1)
     front_setback: float = Field(default=6.0, ge=0)
