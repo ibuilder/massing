@@ -120,11 +120,21 @@ A developer/owner platform that goes **lot → building → deal → investor pa
 - **S-curve draws**, **XIRR / NPV / equity multiple / yield-on-cost**, a **JV waterfall** (pref +
   promote tiers, American/European, clawback), **debt sizing** (LTC/LTV/DSCR/debt-yield), **sensitivity**
   tables and **Monte Carlo** risk.
+- **Underwriting realism** — specialty/operating revenue is **risk-adjusted** (not booked as de-risked
+  rent), and **guardrails** flag returns outside market bands (IRR / equity-multiple / dev-spread /
+  DSCR) so the IRR is credible, surfaced on a sticky returns bar.
 - **Actuals/draws bridge** → re-forecast IRR + AIA G702/G703 pay apps off the *same* cost tree.
 - **Multi-deal portfolio** roll-up (true XIRR) and **LP-shared** read-only scenarios.
 
+The Finance workspace is organized into sub-tabs — **Feasibility · Budget & Capital · Underwriting ·
+Deliverables** — with a sticky live-solved returns bar.
+
 ## Recent platform work
 
+- **Underwriting realism + Finance revamp** — specialty/operating revenue is now risk-adjusted before
+  it hits the deal, and `underwrite.guardrails()` flags returns outside market bands (the
+  vertical-farm scenario's once-inflated IRR is now credible). The Finance view is reorganized into
+  sub-tabs with a sticky returns bar that carries a live guardrail badge.
 - **Developer portal + Test Fit** — line-item hard/soft **cost budgets**, **Sources & Uses**,
   **property/tax** assumptions, **specialty assets** (on-site energy + vertical-farm revenue), an
   **investment-memo PDF**, plus **Test Fit** (corridor unit-mix layout, parking solver, scheme
