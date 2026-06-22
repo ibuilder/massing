@@ -40,9 +40,19 @@ def estimate_from_model(pid: str, db: Session = Depends(get_db), _: str = Depend
     class + a grand total (feeds the budget / proforma hard cost). 409 if no source IFC."""
     from ..deps import source_ifc_path
     from aec_data.qto import takeoff_file  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+    from aec_data import spaces as sp  # type: ignore
     from .. import estimate as est
-    rows = takeoff_file(source_ifc_path(db, pid))     # quantities only (no cost map needed)
-    return est.estimate_from_takeoff(rows)
+    path = source_ifc_path(db, pid)
+    rows = takeoff_file(path, force_geometry=True)    # real geometry quantities (no cost map needed)
+    # GFA (sf) from the model's spaces → a benchmark floor so a sparse model doesn't return a
+    # misleadingly tiny number; the response flags which source to trust.
+    try:
+        net_m2 = sum(r.get("net_area") or 0 for r in sp.space_schedule(open_model(path)))
+        gfa_sf = net_m2 * est.M2_TO_SF
+    except Exception:                                 # noqa: BLE001 — benchmark is best-effort
+        gfa_sf = None
+    return est.estimate_from_takeoff(rows, gfa_sf=gfa_sf)
 
 
 @router.post("/projects/{pid}/cost/tm")

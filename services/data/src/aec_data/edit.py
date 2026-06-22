@@ -169,6 +169,17 @@ def _body_context(model):
         (model.by_type("IfcGeometricRepresentationContext") or [None])[0]
 
 
+def _rect_profile(model, xdim: float, ydim: float):
+    """An IfcRectangleProfileDef WITH a Position. web-ifc requires the profile placement to be set
+    (ifcopenshell tolerates a null Position, but web-ifc silently skips the element → it renders
+    invisible in the viewer). Always give parametric profiles an origin placement."""
+    pos = model.create_entity("IfcAxis2Placement2D",
+                              Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0)),
+                              RefDirection=model.create_entity("IfcDirection", (1.0, 0.0)))
+    return model.create_entity("IfcRectangleProfileDef", ProfileType="AREA", Position=pos,
+                               XDim=float(xdim), YDim=float(ydim))
+
+
 def _first_storey(model, name=None):
     sts = sorted(model.by_type("IfcBuildingStorey"),
                  key=lambda s: float(getattr(s, "Elevation", 0) or 0))
@@ -202,8 +213,7 @@ def add_wall(model: ifcopenshell.file, start, end, height: float = 3.0,
     matrix = np.array([[c, -s, 0, mx], [s, c, 0, my],
                        [0, 0, 1, elev], [0, 0, 0, 1]], dtype=float)
     ifcopenshell.api.run("geometry.edit_object_placement", model, product=wall, matrix=matrix)
-    profile = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA",
-                                  XDim=length, YDim=float(thickness))
+    profile = _rect_profile(model, length, float(thickness))
     rep = ifcopenshell.api.run("geometry.add_profile_representation", model,
                                context=body, profile=profile, depth=float(height))
     ifcopenshell.api.run("geometry.assign_representation", model, product=wall, representation=rep)
@@ -257,7 +267,7 @@ def add_column(model: ifcopenshell.file, point, height: float = 3.0, width: floa
     matrix = np.eye(4)
     matrix[0, 3] = float(point[0]); matrix[1, 3] = float(point[1]); matrix[2, 3] = elev
     ifcopenshell.api.run("geometry.edit_object_placement", model, product=col, matrix=matrix)
-    profile = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA", XDim=float(width), YDim=float(depth))
+    profile = _rect_profile(model, float(width), float(depth))
     rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body, profile=profile, depth=float(height))
     ifcopenshell.api.run("geometry.assign_representation", model, product=col, representation=rep)
     if st:
@@ -288,7 +298,7 @@ def add_beam(model: ifcopenshell.file, start, end, width: float = 0.3, depth: fl
     matrix = np.array([[-dy, 0, dx, sx], [dx, 0, dy, sy],
                        [0, 1, 0, elev], [0, 0, 0, 1]], dtype=float)
     ifcopenshell.api.run("geometry.edit_object_placement", model, product=beam, matrix=matrix)
-    profile = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA", XDim=float(width), YDim=float(depth))
+    profile = _rect_profile(model, float(width), float(depth))
     rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body, profile=profile, depth=length)
     ifcopenshell.api.run("geometry.assign_representation", model, product=beam, representation=rep)
     if st:
@@ -355,7 +365,7 @@ def add_opening(model: ifcopenshell.file, host_guid: str, width: float = 0.9, he
     opening = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcOpeningElement", name=f"{kind} opening")
     ifcopenshell.api.run("geometry.edit_object_placement", model, product=opening, matrix=opm)
     # generous Y so the box cuts fully through the wall thickness
-    cut = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA", XDim=float(width), YDim=1.0)
+    cut = _rect_profile(model, float(width), 1.0)
     crep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body, profile=cut, depth=float(height))
     ifcopenshell.api.run("geometry.assign_representation", model, product=opening, representation=crep)
     ifcopenshell.api.run("feature.add_feature", model, feature=opening, element=host)
@@ -367,7 +377,7 @@ def add_opening(model: ifcopenshell.file, host_guid: str, width: float = 0.9, he
     except Exception:
         pass
     ifcopenshell.api.run("geometry.edit_object_placement", model, product=el, matrix=opm)
-    panel = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA", XDim=float(width), YDim=0.06)
+    panel = _rect_profile(model, float(width), 0.06)
     prep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body, profile=panel, depth=float(height))
     ifcopenshell.api.run("geometry.assign_representation", model, product=el, representation=prep)
     ifcopenshell.api.run("feature.add_filling", model, opening=opening, element=el)

@@ -143,9 +143,14 @@ def create_record(db: Session, key: str, project_id: str, body: dict, actor: str
     mod = get_module(key)
     t = TABLES[key]
     data = body.get("data", {})
+    title_field = mod.get("title_field") or (mod["fields"][0]["name"] if mod.get("fields") else None)
+    # `subject` is a universal title alias: modules name their title field differently
+    # (title/name/number/system); if it's absent but `subject` was supplied, fill it — so callers,
+    # scripts and integrations don't have to special-case each module's field name.
+    if title_field and title_field != "subject" and not data.get(title_field) and data.get("subject"):
+        data[title_field] = data["subject"]
     _validate_fields(mod, data)
     rid = str(uuid.uuid4())
-    title_field = mod.get("title_field") or (mod["fields"][0]["name"] if mod.get("fields") else None)
     row = {
         "id": rid, "project_id": project_id,
         "ref": _next_ref(db, key, project_id, mod),

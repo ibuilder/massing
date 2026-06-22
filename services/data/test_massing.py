@@ -71,6 +71,71 @@ if _have_ifc:
         assert span > 5.0, f"slab too small ({span:.3f} m) — unit/scale regression"
         print(f"IFC OK - {len(storeys)} storeys, {len(spaces)} floor-plate spaces + "
               f"{len(slabs)} renderable slabs, sited + represented")
+
+        # --- generative structural frame (frame=True) -----------------------
+        fd2, fpath = tempfile.mkstemp(suffix=".ifc"); os.close(fd2)
+        try:
+            massing.generate_ifc(m, fpath, name="Framed", frame=True, bay=7.5)
+            fm = open_model(fpath)
+            gx = massing.gridlines(m["plate_w"], 7.5); gy = massing.gridlines(m["plate_d"], 7.5)
+            exp_cols = len(gx) * len(gy) * m["floors"]
+            exp_beams = (len(gy) * (len(gx) - 1) + len(gx) * (len(gy) - 1)) * m["floors"]
+            cols, beams = fm.by_type("IfcColumn"), fm.by_type("IfcBeam")
+            assert len(cols) == exp_cols, (len(cols), exp_cols)
+            assert len(beams) == exp_beams, (len(beams), exp_beams)
+            assert all(c.Representation is not None for c in cols), "columns missing geometry"
+            ch = ifcopenshell.geom.create_shape(ifcopenshell.geom.settings(), cols[0])
+            zs = ch.geometry.verts[2::3]
+            assert max(zs) - min(zs) > 2.0, "column height not metre-scale"
+            print(f"FRAME OK - {len(cols)} columns + {len(beams)} beams on a {len(gx)}x{len(gy)} grid")
+        finally:
+            os.remove(fpath)
+
+        # --- unit subdivision (units=True) ----------------------------------
+        fd3, upath = tempfile.mkstemp(suffix=".ifc"); os.close(fd3)
+        try:
+            massing.generate_ifc(m, upath, name="Unitized", units=True)
+            um = open_model(upath)
+            upf = max(1, round(m["units"] / m["floors"]))
+            uspaces = [s for s in um.by_type("IfcSpace")]
+            assert len(uspaces) == upf * m["floors"], (len(uspaces), upf * m["floors"])
+            # every unit space carries a real area
+            import ifcopenshell.util.element as _ue
+            areas = [(_ue.get_pset(s, "Qto_SpaceBaseQuantities") or {}).get("NetFloorArea") for s in uspaces]
+            assert all(a and a > 0 for a in areas), "unit space missing area"
+            print(f"UNITS OK - {len(uspaces)} unit spaces ({upf}/floor x {m['floors']} floors), each with area")
+        finally:
+            os.remove(upath)
+
+        # --- envelope (facade walls + windows feed the energy model) --------
+        fd4, epath = tempfile.mkstemp(suffix=".ifc"); os.close(fd4)
+        try:
+            massing.generate_ifc(m, epath, name="Enclosed", envelope=True, wwr=0.4)
+            em = open_model(epath)
+            assert len(em.by_type("IfcWall")) == 4 * m["floors"], len(em.by_type("IfcWall"))
+            assert len(em.by_type("IfcWindow")) == 4 * m["floors"], len(em.by_type("IfcWindow"))
+            from aec_data import energy
+            e = energy.analyze_file(epath)
+            assert e["areas_m2"]["window"] > 0 and e["areas_m2"]["exterior_wall_net"] > 0, e["areas_m2"]
+            assert e["ua_w_per_k"]["total"] > 0, e["ua_w_per_k"]
+            print(f"ENVELOPE OK - {len(em.by_type('IfcWall'))} walls + {len(em.by_type('IfcWindow'))} windows; "
+                  f"energy WWR {e['areas_m2']['window_wall_ratio']}, UA {e['ua_w_per_k']['total']} W/K")
+        finally:
+            os.remove(epath)
+
+        # --- service core + MEP risers (core=True) --------------------------
+        fd5, cpath = tempfile.mkstemp(suffix=".ifc"); os.close(fd5)
+        try:
+            massing.generate_ifc(m, cpath, name="Cored", core=True)
+            cm = open_model(cpath)
+            assert len(cm.by_type("IfcTransportElement")) == m["floors"], "elevator per floor"
+            assert len(cm.by_type("IfcStair")) == m["floors"], "stair per floor"
+            assert len(cm.by_type("IfcDuctSegment")) == m["floors"], "supply riser per floor"
+            assert len(cm.by_type("IfcPipeSegment")) == m["floors"], "plumbing riser per floor"
+            assert len(cm.by_type("IfcWall")) == 4 * m["floors"], "core walls"
+            print(f"CORE OK - elevator/stair + duct/pipe risers + core walls across {m['floors']} floors")
+        finally:
+            os.remove(cpath)
     finally:
         os.remove(path)
 else:

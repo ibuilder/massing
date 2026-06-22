@@ -83,6 +83,9 @@ class User(Base):
     # Deactivated accounts can't log in and their existing tokens stop authenticating.
     active: Mapped[bool | None] = mapped_column(Boolean, default=True)
     email: Mapped[str | None] = mapped_column(String, nullable=True)   # for digest emails
+    # subscription tier seam — everyone is "free" today; gating lives in entitlements.py so the
+    # paid tiers are a one-place change later. Nullable for the additive schema sync; NULL = free.
+    tier: Mapped[str | None] = mapped_column(String, default="free")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

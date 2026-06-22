@@ -76,9 +76,15 @@ def safety_metrics(pid: str, hours: float | None = None, db: Session = Depends(g
         except (TypeError, ValueError):
             pass
     if hours is None:                              # derive man-hours from the logs if not supplied
-        def _sum(key, field):
-            return sum(float((x.get("data") or {}).get(field) or 0) for x in me.list_records(db, key, pid, limit=1_000_000))
-        hours = _sum("timesheet", "hours") + _sum("manpower_log", "hours")
+        SHIFT = 8.0                                # standard crew shift when a log gives headcount, not hours
+        hours = sum(float((x.get("data") or {}).get("hours") or 0)
+                    for x in me.list_records(db, "timesheet", pid, limit=1_000_000))
+        for x in me.list_records(db, "manpower_log", pid, limit=1_000_000):
+            d = x.get("data") or {}
+            h = float(d.get("hours") or 0)
+            if not h:                              # crew count × an 8h shift = man-hours for the day
+                h = float(d.get("count") or d.get("headcount") or 0) * SHIFT
+            hours += h
     trir = round(recordable * 200000 / hours, 2) if hours else None
     dart = round(lost_time * 200000 / hours, 2) if hours else None
     return {"incident_count": len(incs), "by_class": by_class, "recordable_count": recordable,
@@ -103,6 +109,50 @@ def risk_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(requi
     """AI/rules risk read over the project dashboard (owner/PM reporting)."""
     d = dashboard.build(db, pid, "GC")
     return {**ai.risk_summary(d.get("kpis", {}), d.get("cost")), "ai_enabled": ai.ai_enabled()}
+
+
+_ASK_COUNT_MODULES = ("rfi", "submittal", "change_event", "pco_request", "cor", "punchlist",
+                      "ncr", "deficiency", "inspection", "incident", "daily_report", "commitment")
+
+
+def _ask_context(db: Session, pid: str) -> dict:
+    """A compact, token-bounded snapshot of the project for grounding the AI assistant: dashboard
+    KPIs + cost, per-module record counts, and a sample of open RFIs/change events."""
+    d = dashboard.build(db, pid, "GC")
+    ctx: dict = {"kpis": d.get("kpis", {}), "cost": d.get("cost")}
+    counts: dict[str, int] = {}
+    for m in _ASK_COUNT_MODULES:
+        if m in me.TABLES:
+            try:
+                counts[m] = len(me.list_records(db, m, pid, limit=1_000_000))
+            except Exception:        # noqa: BLE001 — a missing/odd module never breaks the snapshot
+                pass
+    ctx["record_counts"] = counts
+    def _sample(mod: str, n: int = 15) -> list[dict]:
+        if mod not in me.TABLES:
+            return []
+        out = []
+        for r in me.list_records(db, mod, pid, limit=n):
+            data = r.get("data") or {}
+            out.append({"ref": r.get("ref"), "title": data.get("subject") or r.get("title"),
+                        "status": r.get("workflow_state")})
+        return out
+    ctx["open_rfis"] = _sample("rfi")
+    ctx["change_events"] = _sample("change_event")
+    return ctx
+
+
+@router.post("/projects/{pid}/ai/ask")
+def ai_ask(pid: str, body: dict, db: Session = Depends(get_db),
+           _: str = Depends(require_role("viewer"))):
+    """Ask a natural-language question about the project; answered (by Claude when configured)
+    against a live snapshot of KPIs, costs and open items. Degrades to returning the snapshot."""
+    from fastapi import HTTPException
+    question = (body or {}).get("question", "").strip()
+    if not question:
+        raise HTTPException(422, "question is required")
+    ctx = _ask_context(db, pid)
+    return {**ai.ask(question, ctx), "ai_enabled": ai.ai_enabled()}
 
 
 @router.get("/projects/{pid}/report.pdf")

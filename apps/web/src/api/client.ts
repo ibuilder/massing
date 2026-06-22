@@ -330,6 +330,11 @@ export class ApiClient {
     return this.json<{ headline: string; risks: { level: string; text: string }[]; source: string; ai_enabled: boolean }>(
       `/projects/${pid}/ai/risk-summary`);
   }
+  /** Ask a natural-language question about the project; grounded on a live snapshot. */
+  aiAsk(pid: string, question: string) {
+    return this.json<{ answer: string; source: string; ai_enabled: boolean; snapshot?: unknown }>(
+      `/projects/${pid}/ai/ask`, { method: "POST", body: JSON.stringify({ question }) });
+  }
   login(username: string, password: string) {
     return this.json<{ token: string; username: string; role: string }>(
       "/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
@@ -339,7 +344,8 @@ export class ApiClient {
       "/auth/register", { method: "POST", body: JSON.stringify({ username, password }) });
   }
   me() {
-    return this.json<{ username: string; role: string | null; authenticated: boolean }>("/auth/me");
+    return this.json<{ username: string; role: string | null; authenticated: boolean;
+      tier?: string; features?: Record<string, boolean>; platform_admin?: boolean }>("/auth/me");
   }
   logout() {
     return this.json<{ ok: boolean }>("/auth/logout", { method: "POST" }).catch(() => ({ ok: false }));
@@ -768,6 +774,7 @@ export interface MassingParams {
   far?: number; coverage_max?: number; front_setback?: number; rear_setback?: number;
   side_setback?: number; height_limit?: number | null; floor_to_floor?: number;
   efficiency?: number; avg_unit_m2?: number;
+  frame?: boolean; bay_m?: number; units?: boolean; envelope?: boolean; wwr?: number; core?: boolean;
   land_cost?: number; hard_cost_psf?: number; rent_per_unit_month?: number; rent_psf_year?: number;
   exit_cap?: number; ltc?: number; rate?: number;
 }

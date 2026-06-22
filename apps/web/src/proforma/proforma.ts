@@ -126,8 +126,8 @@ export class ProformaUI {
       ["Front setback (m)", "front_setback", 6, "any"], ["Rear setback (m)", "rear_setback", 6, "any"],
       ["Side setback (m)", "side_setback", 3, "any"], ["Height limit (m)", "height_limit", 0, "any"],
       ["Floor-to-floor (m)", "floor_to_floor", 3.5, "0.1"], ["Avg unit (m²)", "avg_unit_m2", 75, "any"],
-      ["Land cost $", "land_cost", 4_000_000, "any"], ["Hard $/sf", "hard_cost_psf", 225, "any"],
-      ["Rent $/unit·mo", "rent_per_unit_month", 2200, "any"], ["Exit cap", "exit_cap", 0.055, "0.005"],
+      ["Land cost $", "land_cost", 2_500_000, "any"], ["Hard $/sf", "hard_cost_psf", 225, "any"],
+      ["Rent $/unit·mo", "rent_per_unit_month", 3000, "any"], ["Exit cap", "exit_cap", 0.05, "0.005"],
     ];
     const grid = document.createElement("div"); grid.className = "pf-form";
     // use type selector
@@ -146,6 +146,28 @@ export class ProformaUI {
     }
     host.appendChild(grid);
 
+    // structural frame option — turns the massing into a real concrete frame (columns + beams)
+    const frameWrap = document.createElement("label");
+    frameWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
+    const frameChk = document.createElement("input"); frameChk.type = "checkbox";
+    frameWrap.append(frameChk, document.createTextNode("Generate concrete structural frame (columns + beams on a 7.5 m grid)"));
+    host.appendChild(frameWrap);
+    const unitWrap = document.createElement("label");
+    unitWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
+    const unitChk = document.createElement("input"); unitChk.type = "checkbox";
+    unitWrap.append(unitChk, document.createTextNode("Subdivide floors into units (per-apartment spaces)"));
+    host.appendChild(unitWrap);
+    const envWrap = document.createElement("label");
+    envWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
+    const envChk = document.createElement("input"); envChk.type = "checkbox";
+    envWrap.append(envChk, document.createTextNode("Wrap in facade + windows (envelope @ 40% WWR)"));
+    host.appendChild(envWrap);
+    const coreWrap = document.createElement("label");
+    coreWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
+    const coreChk = document.createElement("input"); coreChk.type = "checkbox";
+    coreWrap.append(coreChk, document.createTextNode("Add service core (elevator + stair + MEP risers)"));
+    host.appendChild(coreWrap);
+
     const params = (): MassingParams => {
       const p: MassingParams = { use_type: useSel.value as "residential" | "commercial", name: "Massing Study" };
       for (const [, key] of fields) {
@@ -153,6 +175,10 @@ export class ProformaUI {
         if (key === "height_limit") { p.height_limit = isNaN(v) || v <= 0 ? null : v; }
         else if (!isNaN(v)) (p as Record<string, unknown>)[key] = v;
       }
+      p.frame = frameChk.checked;
+      p.units = unitChk.checked;
+      p.envelope = envChk.checked;
+      p.core = coreChk.checked;
       return p;
     };
     const out = document.createElement("div"); out.style.marginTop = "6px";

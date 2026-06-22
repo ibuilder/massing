@@ -333,6 +333,21 @@ def export_csv(pid: str, key: str, db: Session = Depends(get_db),
                     headers={"Content-Disposition": f'attachment; filename="{key}.csv"'})
 
 
+@router.get("/projects/{pid}/modules/{key}/log.pdf")
+def module_log(pid: str, key: str, db: Session = Depends(get_db),
+               _: str = Depends(require_role("viewer"))):
+    """Printable register (log) of every record in a module — the RFI log, submittal log,
+    change-order log, etc., all from the same engine."""
+    from .. import report
+    from ..models import Project
+    if key not in mod_engine.TABLES:
+        raise HTTPException(404, "unknown module")
+    p = db.get(Project, pid)
+    pdf = report.module_log_pdf(db, pid, key, p.name if p else pid)
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{key}_log.pdf"'})
+
+
 # NOTE: must precede the /{rid} route so "board" isn't captured as a record id.
 @router.get("/projects/{pid}/modules/{key}/board")
 def module_board(pid: str, key: str, db: Session = Depends(get_db),

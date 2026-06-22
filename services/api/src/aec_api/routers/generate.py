@@ -47,15 +47,21 @@ class MassingIn(BaseModel):
     floor_to_floor: float = Field(default=3.5, gt=0)
     efficiency: float = Field(default=0.82, gt=0, le=1)       # GFA → net sellable/leasable
     avg_unit_m2: float = Field(default=75.0, ge=0)            # for unit count (residential)
+    frame: bool = Field(default=False)                        # also generate a concrete structural frame
+    bay_m: float = Field(default=7.5, gt=2)                   # column-grid bay spacing (m)
+    units: bool = Field(default=False)                        # subdivide floors into per-unit spaces
+    envelope: bool = Field(default=False)                     # wrap floors in facade walls + windows
+    wwr: float = Field(default=0.4, gt=0, le=0.95)            # window-to-wall ratio
+    core: bool = Field(default=False)                         # service core: shafts + stair + MEP risers
     # --- acquisition proforma seed ---
-    land_cost: float = Field(default=0.0, ge=0)
+    land_cost: float = Field(default=2_500_000.0, ge=0)
     hard_cost_psf: float = Field(default=225.0, ge=0)         # $/sf GFA
     soft_cost_pct: float = Field(default=0.15, ge=0)          # of hard
     contingency_pct: float = Field(default=0.05, ge=0)        # of hard
-    rent_per_unit_month: float = Field(default=2200.0, ge=0)  # residential
-    rent_psf_year: float = Field(default=32.0, ge=0)          # commercial $/sf/yr
+    rent_per_unit_month: float = Field(default=3000.0, ge=0)  # residential
+    rent_psf_year: float = Field(default=38.0, ge=0)          # commercial $/sf/yr
     opex_ratio: float = Field(default=0.35, ge=0, le=1)       # of effective gross income
-    exit_cap: float = Field(default=0.055, gt=0)
+    exit_cap: float = Field(default=0.05, gt=0)
     ltc: float = Field(default=0.6, ge=0, le=1)
     rate: float = Field(default=0.075, ge=0)
 
@@ -116,7 +122,12 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
 
     _IFC_DIR.joinpath(pid).mkdir(parents=True, exist_ok=True)
     ifc_path = _IFC_DIR / pid / "source.ifc"
-    generate_ifc(metrics, str(ifc_path), name=body.name)
+    generate_ifc(metrics, str(ifc_path), name=body.name, frame=body.frame, bay=body.bay_m,
+                 units=body.units, envelope=body.envelope, wwr=body.wwr, core=body.core)
+    metrics["framed"] = body.frame
+    metrics["unitized"] = body.units
+    metrics["enclosed"] = body.envelope
+    metrics["cored"] = body.core
     storage.put(f"{pid}/source.ifc", ifc_path.read_bytes())   # durable copy
     p.source_ifc = str(ifc_path)
     db.commit()

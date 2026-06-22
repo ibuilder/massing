@@ -30,7 +30,9 @@ with TestClient(app) as c:
     login = c.post("/auth/login", json={"username": "admin", "password": "supersecret"})
     assert login.status_code == 200
     me = c.get("/auth/me")                 # no Authorization header → cookie carries it
-    assert me.json() == {"username": "admin", "role": "admin", "authenticated": True}, me.text
+    mj = me.json()
+    assert (mj["username"], mj["role"], mj["authenticated"]) == ("admin", "admin", True), me.text
+    assert mj["tier"] == "free" and mj["platform_admin"] is True, mj   # legacy admin role → platform admin
     c.cookies.clear()
 
     # --- admin creates a regular user -----------------------------------------

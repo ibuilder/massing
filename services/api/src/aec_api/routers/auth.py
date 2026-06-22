@@ -20,15 +20,34 @@ from ..rbac import current_user
 router = APIRouter()
 
 
+def _platform_admin_emails() -> set[str]:
+    """Ops-controlled platform admins for the cloud build (no in-app admin tier for end users).
+    Set AEC_ADMIN_EMAILS to a comma-separated list of usernames/emails who may touch platform
+    Settings / audit. Lower-cased for case-insensitive match."""
+    raw = os.environ.get("AEC_ADMIN_EMAILS", "")
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+
+def _is_platform_admin(u: User | None) -> bool:
+    """A user is a platform admin if listed in AEC_ADMIN_EMAILS, or (back-compat) carries the
+    legacy global `admin` role. Regular SSO users are never platform admins."""
+    if u is None:
+        return False
+    allow = _platform_admin_emails()
+    if (u.username or "").lower() in allow or (u.email or "").lower() in allow:
+        return True
+    return u.role == "admin"
+
+
 def require_admin_user(db: Session = Depends(get_db), user: str = Depends(current_user)) -> User:
-    """Gate user-management endpoints on a global admin account (independent of AEC_RBAC,
-    which governs per-project routes). In single-operator local mode there is no login — the
-    local user is implicitly the owner/admin, so admin features open without an account."""
+    """Gate platform settings / audit / user-management. The cloud product has **no admin tier
+    for end users** — these are ops endpoints: open in single-operator local mode, otherwise
+    allowed for AEC_ADMIN_EMAILS (or a legacy `admin` account for back-compat)."""
     if rbac.LOCAL_MODE:
         return User(username="local", password_hash="", role="admin", active=True)
     u = db.get(User, user)
-    if not u or u.role != "admin":
-        raise HTTPException(403, "an admin account is required")
+    if not _is_platform_admin(u):
+        raise HTTPException(403, "platform-admin access required (set AEC_ADMIN_EMAILS)")
     return u
 
 
@@ -115,7 +134,7 @@ def oauth_login(provider: str, request: Request):
 def oauth_callback(provider: str, request: Request, code: str | None = None,
                    state: str | None = None, db: Session = Depends(get_db)):
     """Exchange the code, map the verified email to an account, mint the session, and return
-    to the app. First SSO account bootstraps as admin (same rule as /auth/register)."""
+    to the app. SSO accounts are always plain free-tier users (no admin tier for end users)."""
     if not oauth.is_enabled(provider):
         raise HTTPException(404, f"{provider} sign-in is not configured")
     if not code or auth.verify_oauth_state(state or "") != provider:
@@ -130,9 +149,10 @@ def oauth_callback(provider: str, request: Request, code: str | None = None,
 
     u = db.get(User, email)
     if u is None:
-        bootstrap = db.query(User).count() == 0
+        # SSO accounts are always plain users — no admin tier for end users. Platform admins are
+        # ops, set via AEC_ADMIN_EMAILS. Free tier by default (entitlements seam).
         u = User(username=email, password_hash="oauth!" + provider,  # unusable for password login
-                 role="admin" if bootstrap else "user", email=email)
+                 role="user", email=email, tier="free")
         db.add(u)
     elif not u.email:
         u.email = email
@@ -148,8 +168,12 @@ def oauth_callback(provider: str, request: Request, code: str | None = None,
 
 @router.get("/auth/me")
 def me(db: Session = Depends(get_db), user: str = Depends(current_user)):
+    from .. import entitlements
     u = db.get(User, user)
-    return {"username": user, "role": (u.role if u else None), "authenticated": u is not None}
+    tier = entitlements.normalize(u.tier if u else None)
+    return {"username": user, "role": (u.role if u else None), "authenticated": u is not None,
+            "tier": tier, "features": entitlements.features_for(tier),
+            "platform_admin": _is_platform_admin(u)}
 
 
 # --- self-service -------------------------------------------------------------

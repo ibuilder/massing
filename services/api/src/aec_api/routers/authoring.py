@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -75,8 +76,12 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
     from aec_data import edit as ed  # type: ignore
 
     p = _project(db, pid)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    out = str(Path(p.source_ifc).with_name(f"{Path(p.source_ifc).stem}_{stamp}.ifc"))
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    # Strip any prior version timestamp(s) so chained edits don't compound the filename into an
+    # ever-growing path (which blew past Windows' 260-char limit and failed the write). Each edit
+    # produces "<base>_<stamp>.ifc" off the ORIGINAL stem, not the previous versioned name.
+    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+    out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
     result = ed.apply_recipe(p.source_ifc, recipe, params, out)
     p.source_ifc = out  # new version becomes the source of truth
     audit.record(db, action="ifc.edit", actor=actor, method="POST",

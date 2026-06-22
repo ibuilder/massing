@@ -5,6 +5,7 @@ import { ProformaUI } from "./proforma/proforma";
 import { ApiClient } from "./api/client";
 import { toast } from "./ui/feedback";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
+import { maybeWelcome, showWelcome } from "./ui/onboarding";
 import type { Settings, ViewerApp } from "./viewer/app";
 
 // ---- shell DOM + shared state (no three/@thatopen here — those load lazily) --
@@ -356,6 +357,20 @@ async function openPortfolioTab() {
 // tracked (those need the paid Autodesk bridge and convert to IFC/frag first), so a project is
 // only ever ".frag" (published tile), ".ifc" (source IFC on disk), or has no model yet.
 const MODEL_TAG: Record<string, string> = { frag: " (.frag)", ifc: " (.ifc)" };
+/** Onboarding quick-start actions, shared by the welcome modal and the empty state. */
+function onboardCtx() {
+  return {
+    connected,
+    newProject: () => void newProject(),
+    openSample: () => { setWorkspace("model"); withViewer((v) => void v.loadSample("/basichouse.frag", "BasicHouse")); },
+    generate: () => {
+      setWorkspace("finance");
+      // let the proforma render, then reveal the "Generate from zoning" panel
+      setTimeout(() => document.getElementById("pf-massing")?.scrollIntoView({ behavior: "smooth", block: "center" }), 400);
+    },
+  };
+}
+
 /** Create a blank project (no IFC) and switch to it — GC portal + proforma work immediately. */
 async function newProject() {
   const name = prompt("New project name:");
@@ -367,7 +382,7 @@ async function newProject() {
 function buildProjectPicker(projects: { id: string; name: string; model_kind?: string | null }[]) {
   if (projects.length) {
     const sel = document.createElement("select");
-    sel.className = "tool-btn"; sel.title = "Project";
+    sel.className = "tool-btn"; sel.title = "Project"; sel.dataset.tour = "projects";
     for (const p of projects) {
       const o = document.createElement("option");
       o.value = p.id;
@@ -382,6 +397,7 @@ function buildProjectPicker(projects: { id: string; name: string; model_kind?: s
   const add = document.createElement("button");
   add.className = "tool-btn"; add.style.marginLeft = "4px"; add.textContent = "＋ New"; add.title = "New project (no IFC needed)";
   add.onclick = () => void newProject();
+  if (!projects.length) add.dataset.tour = "projects";   // anchor the tour here when there's no picker yet
   toolbar.insertBefore(add, statusEl);
   if (!projects.length) return;   // nothing more to render (no current project to delete)
   // delete the current project (rows + geometry); confirm, then reload to the next one
@@ -462,13 +478,17 @@ function resetModal() {
 
 async function buildAuthControl() {
   const el = document.createElement("button");
-  el.className = "tool-btn"; el.style.marginLeft = "6px";
+  el.className = "tool-btn"; el.style.marginLeft = "6px"; el.dataset.tour = "account";
   if (api.authed) {
-    let name = "account", role: string | null = null;
-    try { const m = await api.me(); if (m.authenticated) { name = m.username; role = m.role; } else api.setToken(""); }
+    let name = "account", platformAdmin = false, tier = "free";
+    try {
+      const m = await api.me();
+      if (m.authenticated) { name = m.username; platformAdmin = !!m.platform_admin; tier = m.tier || "free"; }
+      else api.setToken("");
+    }
     catch { /* keep token; offline */ }
     el.textContent = `${name} ▾`; el.title = "Account";
-    el.onclick = () => accountMenu(el, role);
+    el.onclick = () => accountMenu(el, platformAdmin, tier);
   } else {
     el.textContent = "Sign in"; el.title = "Sign in";
     el.onclick = loginModal;
@@ -476,23 +496,30 @@ async function buildAuthControl() {
   toolbar.insertBefore(el, statusEl);
 }
 
-/** Small dropdown anchored to the account button: self-service + (for admins) user management. */
-function accountMenu(anchor: HTMLElement, role: string | null) {
+/** Small dropdown anchored to the account button: self-service + (for platform admins/ops) the
+ *  platform consoles. End users have no admin tier — they manage their own projects' members. */
+function accountMenu(anchor: HTMLElement, platformAdmin = false, tier = "free") {
   document.querySelector(".acct-menu")?.remove();
   const menu = document.createElement("div");
   menu.className = "acct-menu";
   const r = anchor.getBoundingClientRect();
   menu.style.cssText = `position:fixed;top:${r.bottom + 4}px;right:${window.innerWidth - r.right}px;z-index:200;`
     + "background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px;display:flex;flex-direction:column;min-width:160px";
+  // tier badge (everyone is Free today; the seam is ready for paid plans)
+  const badge = document.createElement("div");
+  badge.className = "meta";
+  badge.style.cssText = "padding:4px 8px;display:flex;justify-content:space-between;gap:8px;align-items:center";
+  badge.innerHTML = `<span>Plan</span><span style="text-transform:capitalize;color:var(--text)">${tier}</span>`;
+  menu.append(badge);
   const item = (label: string, fn: () => void) => {
     const b = document.createElement("button");
     b.className = "tool-btn"; b.textContent = label; b.style.cssText = "justify-content:flex-start;width:100%;text-align:left";
     b.onclick = () => { menu.remove(); fn(); };
     return b;
   };
-  if (role === "admin") menu.append(item("Manage users…", adminModal));
-  if (role === "admin") menu.append(item("Audit log…", auditModal));
-  if (role === "admin") menu.append(item("Data connections…", connectionsModal));
+  if (platformAdmin) menu.append(item("Manage users…", adminModal));
+  if (platformAdmin) menu.append(item("Audit log…", auditModal));
+  if (platformAdmin) menu.append(item("Data connections…", connectionsModal));
   if (isProjectAdmin && projectId) menu.append(item("Project members…", () => membersModal(projectId!)));
   menu.append(item("Settings…", settingsModal));
   menu.append(item("Change password…", passwordModal));
@@ -1127,6 +1154,13 @@ async function startup() {
     try { localMode = (await api.capabilities()).local_mode === true; } catch { /* default off */ }
     if (!localMode) void buildAuthControl();
   }
+  // Help (?) — relaunch the welcome / tour any time
+  const help = document.createElement("button");
+  help.className = "tool-btn"; help.style.marginLeft = "6px"; help.textContent = "?"; help.title = "Help & tour";
+  help.onclick = () => showWelcome(onboardCtx());
+  toolbar.insertBefore(help, statusEl);
+  // first run: welcome the user (skippable). Anchors must exist first, so defer a tick.
+  setTimeout(() => maybeWelcome(onboardCtx()), 600);
 }
 
 function initNav() {

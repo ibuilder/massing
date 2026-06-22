@@ -107,3 +107,50 @@ def project_status_pdf(db: Session, pid: str, project_name: str) -> bytes:
     c.showPage()
     c.save()
     return buf.getvalue()
+
+
+def module_log_pdf(db: Session, pid: str, key: str, project_name: str) -> bytes:
+    """A printable register (log) of one module's records — ref, title, status, assignee, date.
+    Drives the RFI log, submittal log, change-order log, etc. from the same engine."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+
+    from . import modules as me
+
+    mod = me.get_module(key)
+    recs = me.list_records(db, key, pid, limit=100000)
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    w, h = letter
+    margin = 40
+    y = h - 50
+    cols = [(margin, "Ref"), (margin + 80, "Title"), (w - 200, "Status"), (w - 110, "Assignee")]
+
+    def header_row():
+        nonlocal y
+        c.setFont("Helvetica-Bold", 9)
+        for x, label in cols:
+            c.drawString(x, y, label)
+        y -= 4
+        c.setStrokeColor(colors.grey); c.line(margin, y, w - margin, y); c.setStrokeColor(colors.black)
+        y -= 14
+
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(margin, y, f"{mod.get('title', key)} Log"); y -= 20
+    c.setFont("Helvetica", 10); c.drawString(margin, y, project_name or pid)
+    c.drawRightString(w - margin, y, f"{len(recs)} records"); y -= 16
+    header_row()
+    c.setFont("Helvetica", 9)
+    for r in recs:
+        if y < 50:
+            c.showPage(); y = h - 50; header_row(); c.setFont("Helvetica", 9)
+        c.drawString(cols[0][0], y, str(r.get("ref") or "")[:11])
+        c.drawString(cols[1][0], y, str(r.get("title") or "")[:62])
+        c.drawString(cols[2][0], y, str(r.get("workflow_state") or "")[:14])
+        c.drawString(cols[3][0], y, str(r.get("assignee") or "")[:14])
+        y -= 14
+    c.setFont("Helvetica-Oblique", 8)
+    c.drawString(margin, 30, "AEC BIM Platform — generated from live project data")
+    c.showPage(); c.save()
+    return buf.getvalue()

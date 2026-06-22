@@ -57,8 +57,26 @@ def compute_massing(p: dict) -> dict[str, Any]:
     }
 
 
-def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study") -> str:
-    """Write an IFC4 massing model: site → building → one storey + floor-plate space per level."""
+def gridlines(extent: float, bay: float) -> list[float]:
+    """Evenly-spaced grid line positions across `extent` (centred on 0) with spacing ≈ `bay` —
+    columns land on both edges and the interior. Returns n+1 coordinates for n bays."""
+    n = max(1, round(extent / max(0.5, bay)))
+    step = extent / n
+    return [round(-extent / 2 + i * step, 3) for i in range(n + 1)]
+
+
+def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
+                 frame: bool = False, bay: float = 7.5, units: bool = False,
+                 envelope: bool = False, wwr: float = 0.4, core: bool = False) -> str:
+    """Write an IFC4 model: site → building → one storey + slab per level. Each floor gets either a
+    single floor-plate space, or — with `units=True` — the floor subdivided into per-unit IfcSpaces
+    (the proforma's unit count), so areas/COBie/rent are grounded in real apartments. With
+    `frame=True`, also generate a concrete structural frame on a ~`bay`-metre column grid. With
+    `envelope=True`, wrap each floor in perimeter facade walls + ribbon windows at the given
+    window-to-wall ratio `wwr` — so elevations show an enclosure and the energy model has real
+    exterior-wall + glazing areas."""
+    import math
+
     import ifcopenshell
     import ifcopenshell.api
     import numpy as np
@@ -66,8 +84,10 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study") -> s
     floors = int(metrics["floors"])
     fw, fd, f2f = float(metrics["plate_w"]), float(metrics["plate_d"]), float(metrics["floor_to_floor"])
     plate_area = round(fw * fd, 2)
+    units_per_floor = max(1, round(int(metrics.get("units", 0)) / floors)) if units else 0
     SLAB_T = 0.3   # m — thin floor plate per level: physical (renders) so the massing is visible
     #              (IfcSpace is forced transparent by the Fragments importer, so spaces alone show empty)
+    COL, BEAM_W, BEAM_D = 0.6, 0.4, 0.6      # concrete column side, beam width, beam depth (m)
 
     def rect_profile(m, w, d):
         # web-ifc REQUIRES IfcProfileDef.Position (ifcopenshell tolerates None, web-ifc skips the
@@ -90,26 +110,112 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study") -> s
     ifcopenshell.api.run("aggregate.assign_object", model, products=[site], relating_object=project)
     ifcopenshell.api.run("aggregate.assign_object", model, products=[building], relating_object=site)
 
+    def add_column(storey, elev, x, y):
+        col = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcColumn", name="Column",
+                                   predefined_type="COLUMN")
+        m = np.eye(4); m[0, 3] = x; m[1, 3] = y; m[2, 3] = elev
+        ifcopenshell.api.run("geometry.edit_object_placement", model, product=col, matrix=m)
+        rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                   profile=rect_profile(model, COL, COL), depth=f2f)
+        ifcopenshell.api.run("geometry.assign_representation", model, product=col, representation=rep)
+        ifcopenshell.api.run("spatial.assign_container", model, products=[col], relating_structure=storey)
+
+    def add_beam(storey, elev, x1, y1, x2, y2):
+        import math
+        length = math.hypot(x2 - x1, y2 - y1) or 1.0
+        dx, dy = (x2 - x1) / length, (y2 - y1) / length
+        beam = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcBeam", name="Beam",
+                                    predefined_type="BEAM")
+        m = np.array([[-dy, 0, dx, x1], [dx, 0, dy, y1], [0, 1, 0, elev], [0, 0, 0, 1]], dtype=float)
+        ifcopenshell.api.run("geometry.edit_object_placement", model, product=beam, matrix=m)
+        rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                   profile=rect_profile(model, BEAM_W, BEAM_D), depth=length)
+        ifcopenshell.api.run("geometry.assign_representation", model, product=beam, representation=rep)
+        ifcopenshell.api.run("spatial.assign_container", model, products=[beam], relating_structure=storey)
+
+    def make_space(storey, elev, name, longname, cx, cy, w, d, reference):
+        sp = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcSpace", name=name)
+        sp.LongName = longname
+        m = np.eye(4); m[0, 3] = cx; m[1, 3] = cy; m[2, 3] = elev
+        ifcopenshell.api.run("geometry.edit_object_placement", model, product=sp, matrix=m)
+        rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                   profile=rect_profile(model, w, d), depth=f2f)
+        ifcopenshell.api.run("geometry.assign_representation", model, product=sp, representation=rep)
+        ifcopenshell.api.run("aggregate.assign_object", model, products=[sp], relating_object=storey)
+        area = round(w * d, 2)
+        qto = ifcopenshell.api.run("pset.add_qto", model, product=sp, name="Qto_SpaceBaseQuantities")
+        ifcopenshell.api.run("pset.edit_qto", model, qto=qto,
+                             properties={"NetFloorArea": area, "GrossFloorArea": area,
+                                         "NetVolume": round(area * f2f, 2), "Height": f2f})
+        ps = ifcopenshell.api.run("pset.add_pset", model, product=sp, name="Pset_SpaceCommon")
+        ifcopenshell.api.run("pset.edit_pset", model, pset=ps, properties={"Reference": reference})
+        return sp
+
+    def unit_grid(n, w, d):
+        cols = max(1, round(math.sqrt(n * w / d)))
+        rows = max(1, math.ceil(n / cols))
+        return cols, rows
+
+    def add_box(cls, storey, elev, cx, cy, w, d, h, predefined=None, name=None):
+        """A vertical box element (cx,cy plan centre, extruded up by h) — for cores/MEP stubs."""
+        kw = {"predefined_type": predefined} if predefined else {}
+        try:
+            el = ifcopenshell.api.run("root.create_entity", model, ifc_class=cls,
+                                      name=name or cls.replace("Ifc", ""), **kw)
+        except Exception:                        # noqa: BLE001 — invalid predefined enum for this class
+            el = ifcopenshell.api.run("root.create_entity", model, ifc_class=cls, name=name or cls.replace("Ifc", ""))
+        m = np.eye(4); m[0, 3] = cx; m[1, 3] = cy; m[2, 3] = elev
+        ifcopenshell.api.run("geometry.edit_object_placement", model, product=el, matrix=m)
+        rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                   profile=rect_profile(model, w, d), depth=h)
+        ifcopenshell.api.run("geometry.assign_representation", model, product=el, representation=rep)
+        ifcopenshell.api.run("spatial.assign_container", model, products=[el], relating_structure=storey)
+        return el
+
+    def add_planar(cls, storey, elev, x1, y1, x2, y2, length_frac, depth, height, psets=None):
+        """A vertical planar element (wall/window) along the x1y1->x2y2 edge: a rectangular profile
+        (edge length × `depth`) extruded up by `height`, centred on the edge and rotated to it."""
+        length = math.hypot(x2 - x1, y2 - y1) or 1.0
+        ang = math.atan2(y2 - y1, x2 - x1)
+        c, s = math.cos(ang), math.sin(ang)
+        mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+        el = ifcopenshell.api.run("root.create_entity", model, ifc_class=cls, name=cls.replace("Ifc", ""))
+        m = np.array([[c, -s, 0, mx], [s, c, 0, my], [0, 0, 1, elev], [0, 0, 0, 1]], dtype=float)
+        ifcopenshell.api.run("geometry.edit_object_placement", model, product=el, matrix=m)
+        rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                   profile=rect_profile(model, length * length_frac, depth), depth=height)
+        ifcopenshell.api.run("geometry.assign_representation", model, product=el, representation=rep)
+        ifcopenshell.api.run("spatial.assign_container", model, products=[el], relating_structure=storey)
+        for pset_name, props in (psets or {}).items():
+            ps = ifcopenshell.api.run("pset.add_pset", model, product=el, name=pset_name)
+            ifcopenshell.api.run("pset.edit_pset", model, pset=ps, properties=props)
+        return el
+
+    gx = gridlines(fw, bay)
+    gy = gridlines(fd, bay)
     for i in range(floors):
         elev = i * f2f
         storey = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcBuildingStorey",
                                       name=f"Level {i + 1}")
         storey.Elevation = elev
         ifcopenshell.api.run("aggregate.assign_object", model, products=[storey], relating_object=building)
-        space = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcSpace",
-                                     name=f"Level {i + 1} floor plate")
-        space.LongName = f"Floor plate {i + 1}"
-        matrix = np.eye(4); matrix[2, 3] = elev
-        ifcopenshell.api.run("geometry.edit_object_placement", model, product=space, matrix=matrix)
-        profile = rect_profile(model, fw, fd)
-        rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
-                                   profile=profile, depth=f2f)
-        ifcopenshell.api.run("geometry.assign_representation", model, product=space, representation=rep)
-        ifcopenshell.api.run("aggregate.assign_object", model, products=[space], relating_object=storey)
-        qto = ifcopenshell.api.run("pset.add_qto", model, product=space, name="Qto_SpaceBaseQuantities")
-        ifcopenshell.api.run("pset.edit_qto", model, qto=qto,
-                             properties={"NetFloorArea": plate_area, "GrossFloorArea": plate_area,
-                                         "NetVolume": round(plate_area * f2f, 2), "Height": f2f})
+        if units_per_floor:                    # subdivide the floor into per-unit apartments
+            cols, rows = unit_grid(units_per_floor, fw, fd)
+            cw, cd = fw / cols, fd / rows
+            k = 0
+            for r in range(rows):
+                for c in range(cols):
+                    if k >= units_per_floor:
+                        break
+                    k += 1
+                    cx = -fw / 2 + (c + 0.5) * cw
+                    cy = -fd / 2 + (r + 0.5) * cd
+                    # 0.96 leaves a hair of demising-wall gap so units read as separate volumes
+                    make_space(storey, elev, f"L{i + 1} Unit {k:02d}", f"Unit {k:02d}",
+                               cx, cy, cw * 0.96, cd * 0.96, "UNIT")
+        else:
+            make_space(storey, elev, f"Level {i + 1} floor plate", f"Floor plate {i + 1}",
+                       0.0, 0.0, fw, fd, "PLATE")
         # renderable floor plate (IfcSlab) so the massing is visible in the viewer
         slab = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcSlab",
                                     name=f"Level {i + 1} plate", predefined_type="FLOOR")
@@ -120,5 +226,51 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study") -> s
                                     profile=sprofile, depth=SLAB_T)
         ifcopenshell.api.run("geometry.assign_representation", model, product=slab, representation=srep)
         ifcopenshell.api.run("spatial.assign_container", model, products=[slab], relating_structure=storey)
+
+        if frame:                              # concrete frame: columns on the grid + beams both ways
+            for x in gx:
+                for y in gy:
+                    add_column(storey, elev, x, y)
+            for y in gy:                       # beams along X
+                for j in range(len(gx) - 1):
+                    add_beam(storey, elev, gx[j], y, gx[j + 1], y)
+            for x in gx:                       # beams along Y
+                for j in range(len(gy) - 1):
+                    add_beam(storey, elev, x, gy[j], x, gy[j + 1])
+
+        if envelope:                           # perimeter facade walls + ribbon windows per floor
+            hw, hd = fw / 2, fd / 2
+            edges = [(-hw, -hd, hw, -hd), (hw, hd, -hw, hd),     # front, back (along X)
+                     (hw, -hd, hw, hd), (-hw, hd, -hw, -hd)]      # right, left (along Y)
+            sill = f2f * 0.1
+            for (x1, y1, x2, y2) in edges:
+                add_planar("IfcWall", storey, elev, x1, y1, x2, y2, 1.0, 0.2, f2f,
+                           psets={"Pset_WallCommon": {"IsExternal": True, "LoadBearing": False}})
+                win = add_planar("IfcWindow", storey, elev + sill, x1, y1, x2, y2, 0.9, 0.05,
+                                 max(0.3, f2f * float(wwr)))
+                length = math.hypot(x2 - x1, y2 - y1) or 1.0
+                try:
+                    win.OverallWidth = length * 0.9
+                    win.OverallHeight = max(0.3, f2f * float(wwr))
+                except Exception:                # noqa: BLE001 — attributes are optional
+                    pass
+
+        if core:                               # service core: shafts + stair + MEP risers
+            cw, cd = min(7.0, fw * 0.4), min(5.0, fd * 0.5)
+            ccx, ccy = 0.0, fd / 2 - cd / 2 - 1.0    # core to the rear, off the facade
+            half_w, half_d = cw / 2, cd / 2
+            for (x1, y1, x2, y2) in [(ccx - half_w, ccy - half_d, ccx + half_w, ccy - half_d),
+                                     (ccx + half_w, ccy + half_d, ccx - half_w, ccy + half_d),
+                                     (ccx + half_w, ccy - half_d, ccx + half_w, ccy + half_d),
+                                     (ccx - half_w, ccy + half_d, ccx - half_w, ccy - half_d)]:
+                add_planar("IfcWall", storey, elev, x1, y1, x2, y2, 1.0, 0.2, f2f,
+                           psets={"Pset_WallCommon": {"IsExternal": False, "LoadBearing": True}})
+            add_box("IfcTransportElement", storey, elev, ccx - 1.4, ccy, 2.0, 2.4, f2f,
+                    predefined="ELEVATOR", name="Elevator")
+            add_box("IfcStair", storey, elev, ccx + 1.6, ccy, 2.6, cd * 0.8, f2f, name="Stair")
+            add_box("IfcDuctSegment", storey, elev, ccx - half_w + 0.4, ccy + half_d - 0.4,
+                    0.5, 0.5, f2f, name="Supply riser")
+            add_box("IfcPipeSegment", storey, elev, ccx + half_w - 0.4, ccy + half_d - 0.4,
+                    0.3, 0.3, f2f, name="Plumbing riser")
     model.write(out_path)
     return out_path

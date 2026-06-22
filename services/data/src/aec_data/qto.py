@@ -81,10 +81,14 @@ def takeoff(
     model: ifcopenshell.file,
     cost_map: dict[str, CostCodeRow] | None = None,
     geometry_fallback: bool = True,
+    force_geometry: bool = False,
 ) -> list[dict[str, Any]]:
+    """`force_geometry`: compute area+volume from geometry for EVERY element that lacks them
+    (independent of a cost map), so a model-based estimate prices real quantities even without
+    Qto psets or a cost-code mapping. Slightly slower; meant for on-demand estimating."""
     cost_map = cost_map or {}
     settings = None
-    if geometry_fallback and _GEOM_OK:
+    if (geometry_fallback or force_geometry) and _GEOM_OK:
         settings = _geom.settings()  # meters, triangulated
 
     rows: list[dict[str, Any]] = []
@@ -94,6 +98,10 @@ def takeoff(
         q = _quantities(el)
         el_type = ue.get_type(el)
         cc = cost_map.get(el.is_a())
+
+        if force_geometry and settings is not None and ("area" not in q or "volume" not in q):
+            for k, v in _geom_quantities(el, settings).items():
+                q.setdefault(k, v)
 
         amount = None
         if cc and cc.unit == "count":
@@ -123,5 +131,6 @@ def takeoff(
     return rows
 
 
-def takeoff_file(ifc_path: str, cost_map_path: str | None = None) -> list[dict[str, Any]]:
-    return takeoff(open_model(ifc_path), load_cost_map(cost_map_path))
+def takeoff_file(ifc_path: str, cost_map_path: str | None = None,
+                 force_geometry: bool = False) -> list[dict[str, Any]]:
+    return takeoff(open_model(ifc_path), load_cost_map(cost_map_path), force_geometry=force_geometry)
