@@ -54,7 +54,34 @@ Severity: **High** (hurts daily use / blocks discovery) · **Med** (friction) ·
 - **Responsive / mobile** layout was not reviewed; the rail + floating toolbar likely need a
   narrow-viewport treatment.
 
+## Finance / Proforma — revamp analysis (2026-06) ★
+The Finance view grew from a proforma form into **11 stacked panels** in a single scroll
+(drivers form · 🏗️ generate-from-zoning · 📐 Test Fit · 🏢 property · 🧱 budget · 🏦 Sources & Uses ·
+⚡ specialty · 📐 model-link · sensitivity · Monte Carlo · draws). It works but no longer scales —
+needs information architecture. Findings, by severity:
+
+- **High — no IA / everything in one scroll.** Feasibility, capital, underwriting, and deliverables
+  are interleaved with no grouping; the **returns (the whole point) are buried** mid-page and scroll
+  away. *Fix:* reorganize the Finance workspace into sub-tabs (the `#fin-tabs` bar already exists with
+  Proforma/Portfolio — extend it):
+  - **Feasibility** — generate-from-zoning · Test Fit (compare/optimize) · property & tax.
+  - **Budget & Capital** — cost budget · Sources & Uses · specialty assets.
+  - **Underwriting** — deal-driver form · sensitivity · Monte Carlo · actuals/draws.
+  - **Deliverables** — investment memo · pitch deck · model-link.
+- **High — no persistent returns summary.** IRR / EM / yield-on-cost / NPV render inline and scroll
+  off. *Fix:* a **sticky returns bar** (top of the Finance view) that re-solves live, always visible.
+- **Med — implicit data flow.** Budget→cost-lines, specialty→ops, property→opex all have separate
+  "Apply to proforma" buttons; the dependency isn't visible. *Fix:* one "inputs → proforma" status
+  line (or auto-apply with an undo) so the user sees what feeds the deal.
+- **Med — underwriting credibility cues missing** (ties to roadmap **U5**): no flag when IRR/YoC/cap
+  fall outside market bands. *Fix:* surface guardrail badges on the returns bar.
+- **Low — panel visual sameness.** Every panel is a dashed-border box; sub-tabs + section headers
+  would give scan­nable hierarchy.
+
+Broader app (post-feature-growth): the **persona system** should gate Finance sub-tabs too (a GC
+rarely needs Monte Carlo); and a short **Finance landing/deal-summary** (key metrics + "what's next")
+would orient new users — pairs with the onboarding tour.
+
 ## Not yet reviewed
-- **Finance / Proforma** workspace (scenarios, sensitivity, portfolio roll-up) — needs its own pass.
 - **Drawings set** workspace beyond the earlier layout fix — the sheet register / markup flow looks
   solid but deserves a task-flow review (create → markup → promote-to-RFI).

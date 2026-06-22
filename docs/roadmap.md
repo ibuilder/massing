@@ -78,6 +78,36 @@ contingency 5–10%; Uses = Acquisition + Hard + Soft + Financing; Sources = Deb
   total) → OPEX, purchase → acquisition line; per-SF ratios. *Next: appraisal/market comps section.*
 - **B6 — Pitch-deck variant** of the memo (10–20 slides) + market/timeline sections, photos.
 
+## U. Underwriting realism  ★ next major theme
+The engine solves the math correctly, but it accepts un-risk-adjusted inputs — e.g. feeding
+specialty *operating* revenue (a farm/energy business) straight in as if it were de-risked rent
+produced an implausible ~71% IRR in the vertical-farm E2E. "Real underwriting" adds the discipline,
+defaults, and guardrails that make the IRR credible. Grounded in CRE practice:
+[NOI stress-testing](https://bsreconsulting.com/blog/noi-in-real-estate),
+[capital reserves](https://www.adventuresincre.com/the-road-to-a-stabilized-noi-capital-reserves-case-study/),
+[market vs contract rent](https://www.mmcginvest.com/post/market-rent-vs-contract-rent-normalizing-leases-in-real-estate-underwriting),
+[reviewing assumptions](https://thefractionalanalyst.com/tfa-blog/3-steps-to-review-underwriting-assumptions),
+[accurate pro formas](https://wiss.com/real-estate-pro-forma-projections/).
+
+- **U1 — Revenue realism.** Market-rent vs contract-rent (underwrite the **lower** for debt), a
+  **lease-up / absorption curve** to stabilization, vacancy (5–7%), credit loss, and concessions —
+  not a single flat "potential rent."
+- **U2 — Opex build + reserves.** A real opex schedule (management ≈ 5% of EGI, utilities, insurance,
+  R&M, payroll) + **capital reserves above NOI** ($/unit or $/sf), instead of a flat opex ratio.
+- **U3 — Cap-rate & comp discipline.** Stabilized vs value-add cap-rate bands (≈4–5.5% stabilized,
+  5.5–7.5% value-add), an exit-cap **spread** over going-in, and a **Comparables** record (market
+  rent/cap/$-per-sf) the deal is validated against (the thesis model has a Comparables tab).
+- **U4 — Specialty businesses underwritten separately.** PFAL/energy are **operating businesses**,
+  not real estate — model them with their own P&L, ramp, and **risk discount** (or a contracted
+  offtake / lower multiple), and report blended vs real-estate-only returns so the rent-equivalent
+  isn't overstated. (Resolves the E2E's inflated IRR.)
+- **U5 — Underwriting guardrails / validation.** Sanity flags when IRR / yield-on-cost / DSCR /
+  exit-cap fall outside market bands or vs comps ("this pencils too well — check assumptions"),
+  surfaced in the proforma + the investment memo. Wire the existing **Monte Carlo** to specialty
+  risk so P5–P95 reflects crop/energy variance.
+- **U6 — Tie Test Fit optimize to the live proforma** (vs the proxy) so generative yield-on-cost
+  uses the real cost budget + underwritten NOI.
+
 ## C. Lifecycle / construction depth
 - ✅ Field capture (offline), module-log PDFs, closeout package ZIP, auto-TRIR, subject alias.
 - **C1 — Multi-period pay apps** (draws across periods, retainage release) + auto lien waivers.
