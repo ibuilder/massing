@@ -80,9 +80,11 @@ hand. To carry a *real* tower to turnover it needs to be generated, not hand-pla
 - ✅ **DONE — Logs to PDF.** `GET /projects/{id}/modules/{key}/log.pdf` renders any module as a
   printable register (RFI log, submittal log, change-order log, …) from the same engine —
   ref/title/status/assignee. Verified (test_closeout).
-- **Multi-period pay apps** *(remaining)* — G702/G703 across draws (period N, retainage release) +
-  **lien waivers** auto-generated per pay app. (The single-period G702/G703 + SOV bridge already work;
-  this is the multi-draw accounting layer.)
+- ✅ **DONE — Multi-period pay apps + auto lien waivers.** `POST /cost/pay-app/advance` closes a
+  period (rolls each SOV line's `completed_this` → `completed_prev`, zeroes this) so the next
+  G702/G703 application shows prior work as previous certificates; `POST /cost/lien-waiver` generates
+  a lien-waiver record for the current pay app (amount = G702 current payment due). Verified
+  (test_closeout: $237,500 waiver, advance rolls this→prev).
 - **Field/mobile capture** *(remaining — separate app effort)* — photo → daily report / punchlist with
   offline support (the Capacitor scaffold exists). Where GC adoption is won.
 
@@ -91,9 +93,13 @@ hand. To carry a *real* tower to turnover it needs to be generated, not hand-pla
   as-built IFC, COBie / QTO / space-schedule workbooks, the status-report PDF, and a JSON manifest of
   the closeout records (commissioning, O&M, warranties, as-builts, asset register, completion
   certificate, punchlist). Verified (test_closeout: ZIP contents + manifest).
-- **COBie field enrichment** *(remaining)* — fold the asset register + commissioning + warranty data
-  into the COBie workbook tabs (today the package ships them as a separate manifest alongside COBie).
-- **Warranty tracking** *(remaining)* — start/expiry dates + reminders.
+- ✅ **DONE — COBie field enrichment.** The COBie export (and the closeout package) now fold the
+  closeout records into the workbook as **Warranty / System (commissioning) / Asset (asset register) /
+  Document (O&M)** tabs alongside the model-derived Facility/Space/Type/Component sheets. Verified
+  (test_closeout: tabs present).
+- ✅ **DONE — Warranty expiry tracking.** `GET /projects/{id}/warranties/expiring?within_days=N`
+  returns warranties expiring within the window + any already expired (with `days_left`), reading the
+  `expires` date — so warranties don't lapse silently. Verified (test_closeout: expiring + expired).
 
 ### E. Cross-cutting consistency ✅ DONE
 - ✅ **`subject` is now a universal title alias.** Modules name their title field differently

@@ -44,16 +44,30 @@ and verified** in this repo unless noted:
   move, rotate, copy, per-element Pset edit. **Drafting aids:** grid + corner snap, a 6-face
   section box, a storey-levels overlay. Verified live end-to-end (upload IFC → add wall →
   republish → updated `.frag` + reindex). Desktop GUI authoring is the Blender + Bonsai bridge.
-- **Generative design (zoning → IFC + proforma)** — the IFC-native answer to TestFit/Forma:
-  enter a municipal zoning envelope (lot, FAR, coverage, setbacks, height limit, floor-to-floor)
-  and the platform computes the buildable program (footprint, floor count, GFA, units, **binding
-  constraint**), **generates a real IFC4 massing model** (site → building → storey + floor-plate
-  per level, base quantities), publishes it, and solves a **starter acquisition proforma** in one
-  click. Because the output is openBIM, the generated model flows straight into the viewer,
-  drawings, QTO, the estimate and underwriting — one chain from lot → deal.
+- **Generative design — zoning → a fully-developed IFC building + proforma** — the IFC-native
+  answer to TestFit/Forma: enter a municipal zoning envelope (lot, FAR, coverage, setbacks, height
+  limit, floor-to-floor) and the platform computes the buildable program (footprint, floors, GFA,
+  units, **binding constraint**) and **generates a real IFC4 model** in one call — optionally with a
+  **concrete structural frame** (columns + beams on a bay grid), **per-apartment unit layout**, a
+  **facade envelope** (walls + ribbon windows at a WWR, feeding the energy model), and a **service
+  core** (elevator + stair + MEP risers) — then publishes it and solves a **starter acquisition
+  proforma**. Because the output is openBIM, the generated building flows straight into the viewer,
+  drawings, energy, QTO, the **assembly-based estimate** (+ GFA benchmark) and underwriting — one
+  chain from lot → deal → turnover. Driven end-to-end through a full lifecycle harness (63/63).
 - **Furnish & equip (starter IFC family library)** — a curated 16-family catalog (furniture /
   sanitary / appliances / plants) generated parametrically, placeable into *any* model (incl. a
   generated massing) as real, **GUID-stable, typed** IFC occurrences via `type.assign_type`.
+- **Sign-in (SSO) + free tier, no admin** — log in with **Google / Microsoft / Procore** (OAuth2);
+  SSO users are plain **free-tier** accounts and there's **no admin tier for end users** (project
+  owners manage their own teams; platform config is ops/env). A `tier` seam (`entitlements.py`)
+  makes the eventual paid plans a one-place change.
+- **First-run onboarding + AI assistant** — a skippable welcome + coach-mark tour for new users, and
+  an **"Ask AI"** box that answers natural-language questions about a project (open RFIs, overdue,
+  cost) grounded in a live snapshot (Claude when keyed; graceful no-key fallback).
+- **Turnover** — a one-click **closeout package** (`/closeout/package.zip`: as-built IFC +
+  COBie/QTO/spaces + status PDF + closeout manifest), **module-log PDFs** (RFI/submittal/CO
+  registers), **multi-period pay apps** (period advance + auto **lien waivers**), **COBie tabs**
+  enriched with warranties/assets/commissioning, and **warranty-expiry** tracking.
 
 ## General Contracting Portal
 

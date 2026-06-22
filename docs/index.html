@@ -81,9 +81,10 @@
       <span class="pill"><b>Web</b> · Vite + Three.js + Fragments</span>
       <span class="pill"><b>API</b> · FastAPI + Postgres + MinIO</span>
       <span class="pill"><b>Geometry</b> · IfcOpenShell</span>
-      <span class="pill"><b>Secure</b> · accounts + project RBAC</span>
+      <span class="pill"><b>Sign in</b> · Google / Microsoft / Procore SSO</span>
       <span class="pill"><b>Interop</b> · Procore + ACC + QuickBooks/Sage + SQL</span>
-      <span class="pill"><b>Generative</b> · zoning → IFC + proforma</span>
+      <span class="pill"><b>Generative</b> · zoning → frame + units + envelope + core</span>
+      <span class="pill"><b>AI</b> · ask your project anything</span>
       <span class="pill"><b>Financials</b> · CPM + estimating + proforma</span>
       <span class="pill"><b>Desktop</b> · free single-project .exe</span>
       <span class="pill"><b>Deploy</b> · Docker Compose + /metrics</span>
@@ -126,7 +127,7 @@
       </div>
       <div class="card">
         <h3><span class="ic">🏗️</span> GC portal</h3>
-        <p>71 config-driven modules (RFIs, submittals, the change-order chain, daily reports…) — role-gated workflows, relations + rollups, kanban, search, bulk actions, reusable templates. <b>CPM scheduling</b> (float + critical path), <b>model-based estimating &amp; takeoff</b>, <b>bid leveling</b>, AIA G702/G703 pay apps, <b>TRIR safety analytics</b>, and model pins. Works on a blank project — <b>no IFC required</b>.</p>
+        <p>71 config-driven modules (RFIs, submittals, the change-order chain, daily reports…) — role-gated workflows, relations + rollups, kanban, search, bulk actions, reusable templates. <b>CPM scheduling</b>, <b>assembly estimating &amp; takeoff</b>, <b>bid leveling</b>, <b>multi-period</b> AIA G702/G703 pay apps + auto lien waivers, <b>TRIR safety</b>, model pins, an <b>"Ask AI"</b> project assistant, and a one-click <b>turnover package</b> (as-built IFC + COBie + closeout). Works on a blank project — <b>no IFC required</b>.</p>
       </div>
       <div class="card">
         <h3><span class="ic">💲</span> Development proforma</h3>
@@ -138,12 +139,16 @@
 
 <section>
   <div class="wrap">
-    <h2>From a lot to a deal — generate the building</h2>
+    <h2>From a lot to a developed building — generate it all</h2>
     <p class="sub">The IFC-native answer to TestFit / Forma feasibility. Enter a municipal zoning
       envelope (lot, FAR, coverage, setbacks, height limit) and the platform computes the buildable
-      program, <b>generates a real IFC massing model</b>, and solves a <b>starter acquisition
-      proforma</b> — one click, lot → building → underwriting. Because the output is openBIM, the
-      same model flows into the viewer, drawings, takeoff, the estimate and the deal.</p>
+      program and <b>generates a real IFC building</b> — optionally with a <b>concrete structural
+      frame</b> (columns + beams), a <b>per-apartment unit layout</b>, a <b>facade envelope</b>
+      (walls + windows feeding the energy model), and a <b>service core</b> (elevator + stair + MEP
+      risers) — then solves a <b>starter acquisition proforma</b>. One click, lot → building →
+      underwriting. Because the output is openBIM, the same model flows into the viewer, drawings,
+      energy, takeoff, the <b>assembly-based estimate</b> and the deal — driven end-to-end through a
+      full lifecycle (acquisition → turnover).</p>
     <img src="img/massing_generate.svg" alt="Generate a building from a zoning envelope: inputs to an IFC massing model and acquisition proforma" style="width:100%;border:1px solid var(--line);border-radius:12px;display:block" />
     <p class="sub" style="margin:22px 0 12px">Then <b>furnish &amp; equip</b> the model from a starter
       IFC family library — furniture, sanitary fixtures, appliances, plants — placed as real,

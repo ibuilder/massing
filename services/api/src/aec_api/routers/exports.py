@@ -52,12 +52,44 @@ def export_qto(pid: str, db: Session = Depends(get_db)):
     return _xlsx_response({"QTO": _rows_to_sheet(rows)}, "qto.xlsx")
 
 
+def _closeout_cobie_sheets(db, pid: str) -> dict:
+    """COBie workbook tabs built from the closeout modules (DB, not the IFC): Warranty, System
+    (commissioning), Asset (asset register), Document (O&M manuals) — folding turnover data into
+    the same deliverable as the model-derived Facility/Space/Type/Component sheets."""
+    from .. import modules as me
+
+    def recs(mod):
+        return me.list_records(db, mod, pid, limit=1_000_000) if mod in me.TABLES else []
+
+    def col(r, *keys):
+        d = r.get("data") or {}
+        return next((d[k] for k in keys if d.get(k)), None)
+
+    sheets: dict = {}
+    w = [{"Name": r.get("title") or col(r, "name"), "Vendor": col(r, "vendor"),
+          "ExpiresDate": col(r, "expires"), "Asset": col(r, "asset")} for r in recs("warranty")]
+    if w:
+        sheets["Warranty"] = w
+    sysr = [{"Name": r.get("title") or col(r, "system"), "Status": r.get("workflow_state")} for r in recs("commissioning")]
+    if sysr:
+        sheets["System"] = sysr
+    asr = [{"Name": r.get("title") or col(r, "name"), "Tag": col(r, "tag", "asset_tag"),
+            "Location": col(r, "location")} for r in recs("asset_register")]
+    if asr:
+        sheets["Asset"] = asr
+    docs = [{"Name": r.get("title") or col(r, "name"), "Category": "O&M Manual"} for r in recs("om_manual")]
+    if docs:
+        sheets["Document"] = docs
+    return sheets
+
+
 @router.get("/projects/{pid}/exports/cobie.xlsx")
 def export_cobie(pid: str, db: Session = Depends(get_db)):
     from aec_data import cobie  # type: ignore
 
-    sheets = cobie.cobie_file(_source_ifc(db, pid))
-    return _xlsx_response({k: _rows_to_sheet(v) for k, v in sheets.items()}, "cobie.xlsx")
+    sheets = {k: _rows_to_sheet(v) for k, v in cobie.cobie_file(_source_ifc(db, pid)).items()}
+    sheets.update({k: _rows_to_sheet(v) for k, v in _closeout_cobie_sheets(db, pid).items()})
+    return _xlsx_response(sheets, "cobie.xlsx")
 
 
 @router.get("/projects/{pid}/exports/spaces.xlsx")
@@ -107,8 +139,9 @@ def closeout_package(pid: str, db: Session = Depends(get_db)):
             z.writestr("as-built/model.ifc", Path(p.source_ifc).read_bytes())
             try:
                 from aec_data import cobie, qto, spaces  # type: ignore
-                z.writestr("data/cobie.xlsx", _xlsx_bytes({k: _rows_to_sheet(v)
-                           for k, v in cobie.cobie_file(p.source_ifc).items()}))
+                _cobie = {k: _rows_to_sheet(v) for k, v in cobie.cobie_file(p.source_ifc).items()}
+                _cobie.update({k: _rows_to_sheet(v) for k, v in _closeout_cobie_sheets(db, pid).items()})
+                z.writestr("data/cobie.xlsx", _xlsx_bytes(_cobie))
                 z.writestr("data/qto.xlsx", _xlsx_bytes({"QTO": _rows_to_sheet(qto.takeoff_file(p.source_ifc))}))
                 z.writestr("data/spaces.xlsx", _xlsx_bytes({"Spaces": _rows_to_sheet(spaces.space_schedule_file(p.source_ifc))}))
             except Exception as e:                # noqa: BLE001 — model exports are best-effort
