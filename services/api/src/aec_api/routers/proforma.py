@@ -63,6 +63,7 @@ class Ops(BaseModel):
     potential_rent_annual: float
     other_income_annual: float = 0
     opex_annual: float
+    reserves_annual: float = 0.0           # capital reserves, deducted above NOI (U2)
     stabilized_occ: float = Field(gt=0, le=1)
     credit_loss_pct: float = 0.0
 

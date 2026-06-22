@@ -202,15 +202,28 @@ class OptimizeIn(BaseModel):
     floors: int = Field(default=1, ge=1)
     targets: dict = Field(default_factory=dict)   # min_units, min_efficiency, max_parking_ratio, min_yoc, objective
     econ: dict = Field(default_factory=dict)       # rent_psf_yr, hard_psf, stall_cost, opex_ratio, land
+    pid: str | None = None                         # if set, pull live project land + hard $/sf (U6)
 
 
 @router.post("/test-fit/optimize")
-def test_fit_optimize(body: OptimizeIn):
+def test_fit_optimize(body: OptimizeIn, db: Session = Depends(get_db)):
     """Generative design — sweep unit-mix × parking presets, filter by targets, rank by yield-on-cost
-    (or another objective). Returns the ranked feasible schemes + the winner ("find the deal that
-    pencils")."""
+    (or another objective). With `pid`, seed the econ from the project's real land price + cost budget
+    so the ranking reflects the actual deal, not a generic proxy (U6)."""
     from .. import test_fit as tf
-    return tf.optimize(body.plate_w, body.plate_d, body.floors, body.targets, body.econ)
+    econ = dict(body.econ)
+    if body.pid:
+        from ..models import Project as _P
+        p = db.get(_P, body.pid)
+        if p:
+            prop = (p.dev_property or {})
+            if prop.get("purchase_price"):
+                econ.setdefault("land", float(prop["purchase_price"]))
+            # hard $/sf from the cost budget's hard line, if the user keyed one
+            for ln in ((p.dev_budget or {}).get("lines") or []):
+                if ln.get("category") == "hard" and ln.get("unit_cost") and ln.get("quantity", 1) and "sf" in (ln.get("description") or "").lower():
+                    econ.setdefault("hard_psf", float(ln["unit_cost"])); break
+    return tf.optimize(body.plate_w, body.plate_d, body.floors, body.targets, econ)
 
 
 @router.post("/generate/massing/preview")

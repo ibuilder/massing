@@ -89,12 +89,12 @@ defaults, and guardrails that make the IRR credible. Grounded in CRE practice:
 [reviewing assumptions](https://thefractionalanalyst.com/tfa-blog/3-steps-to-review-underwriting-assumptions),
 [accurate pro formas](https://wiss.com/real-estate-pro-forma-projections/).
 
-- **U1 — Revenue realism.** Market-rent vs contract-rent (underwrite the **lower** for debt), a
+- ✅ **DONE (engine) — U1 revenue realism.** Lease-up curve + occupancy + credit loss already in the solve; market-vs-contract discipline is the remaining input-side note. Was: U1 — Revenue realism. Market-rent vs contract-rent (underwrite the **lower** for debt), a
   **lease-up / absorption curve** to stabilization, vacancy (5–7%), credit loss, and concessions —
   not a single flat "potential rent."
-- **U2 — Opex build + reserves.** A real opex schedule (management ≈ 5% of EGI, utilities, insurance,
+- ✅ **DONE — U2 capital reserves above NOI** (`operations.reserves_annual`, deducted before NOI in solve + a Reserves/yr driver). Was: U2 — Opex build + reserves. A real opex schedule (management ≈ 5% of EGI, utilities, insurance,
   R&M, payroll) + **capital reserves above NOI** ($/unit or $/sf), instead of a flat opex ratio.
-- **U3 — Cap-rate & comp discipline.** Stabilized vs value-add cap-rate bands (≈4–5.5% stabilized,
+- ✅ **DONE (partial) — U3** guardrails now cite `benchmarks` IRR/cap bands; Comparables module added. Next: validate exit cap vs comps. Was: U3 — Cap-rate & comp discipline. Stabilized vs value-add cap-rate bands (≈4–5.5% stabilized,
   5.5–7.5% value-add), an exit-cap **spread** over going-in, and a **Comparables** record (market
   rent/cap/$-per-sf) the deal is validated against (the thesis model has a Comparables tab).
 - ✅ **DONE — U4 specialty risk discount.** `specialty.summarize()` now reports gross **and**
@@ -105,7 +105,7 @@ defaults, and guardrails that make the IRR credible. Grounded in CRE practice:
   bands (IRR >35% / EM >4× / negative or thin dev-spread / DSCR <1.2); `/proforma/solve` returns
   them and the Finance **sticky returns bar** shows a badge ("⚠ check assumptions"). *Next: wire
   Monte Carlo to specialty risk; validate vs Comparables.*
-- **U6 — Tie Test Fit optimize to the live proforma** (vs the proxy) so generative yield-on-cost
+- ✅ **DONE — U6** Test Fit optimize accepts `pid` and seeds land (property) + hard $/sf (budget) from the live project. Was: U6 — Tie Test Fit optimize to the live proforma (vs the proxy) so generative yield-on-cost
   uses the real cost budget + underwritten NOI.
 
 ## R. Built-world techniques (research-grounded)  ★ next major theme

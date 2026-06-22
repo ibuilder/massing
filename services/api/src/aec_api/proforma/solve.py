@@ -32,11 +32,14 @@ def solve(a: dict) -> dict:
     debt, eq = a["debt"], a["equity"]
     o, ex, wf = a["operations"], a["exit"], a["waterfall"]
 
-    # stabilized NOI is needed up front to size debt by value/coverage (LTV / DSCR / debt yield)
+    # stabilized NOI is needed up front to size debt by value/coverage (LTV / DSCR / debt yield).
+    # Capital reserves are deducted "above NOI" (institutional convention) so value/coverage and the
+    # exit are underwritten on a reserve-funded NOI (U2).
+    reserves_annual = float(o.get("reserves_annual", 0))
     stabilized_noi_annual = (float(o["potential_rent_annual"]) * float(o["stabilized_occ"])
                              * (1 - float(o.get("credit_loss_pct", 0)))
                              + float(o.get("other_income_annual", 0)) * float(o["stabilized_occ"])
-                             - float(o["opex_annual"]))
+                             - float(o["opex_annual"]) - reserves_annual)
 
     # debt sizing: loan = lesser of LTC and any value/coverage cap supplied (all optional).
     # LTV uses the as-stabilized value (NOI / exit cap); DSCR/debt-yield assume interest-only debt.
@@ -69,7 +72,7 @@ def solve(a: dict) -> dict:
     # 4. operating proforma (monthly NOI over the hold)
     pr_m = float(o["potential_rent_annual"]) / 12.0
     oi_m = float(o.get("other_income_annual", 0)) / 12.0
-    opex_m = float(o["opex_annual"]) / 12.0
+    opex_m = (float(o["opex_annual"]) + reserves_annual) / 12.0   # reserves above NOI (U2)
     noi_monthly = ops.operating_noi(ops_m, pr_m, oi_m, opex_m, leaseup,
                                     float(o["stabilized_occ"]), float(o.get("credit_loss_pct", 0)))
     # (stabilized_noi_annual computed up front for debt sizing)

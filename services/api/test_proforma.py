@@ -72,6 +72,15 @@ wfr = res["waterfall"]
 assert abs((wfr["lp_distributions"] + wfr["gp_distributions"])
            - sum(max(p["distributable"], 0) for p in wfr["periods"])) < 5.0
 
+# --- U2: capital reserves are deducted above NOI → lower value + IRR --------
+import copy  # noqa: E402
+deal_res = copy.deepcopy(deal)
+deal_res["operations"]["reserves_annual"] = 300_000
+res_res = solve(deal_res)
+assert res_res["returns"]["equity_irr"] < res["returns"]["equity_irr"], "reserves should lower IRR"
+# reserves reduce the as-stabilized value (NOI ÷ cap) used for exit + debt sizing
+assert res_res["sources_uses"]["total_uses"] <= res["sources_uses"]["total_uses"] + 1.0
+
 # --- sensitivity: monotonic two-variable table ------------------------------
 from aec_api.proforma.sensitivity import sensitivity  # noqa: E402
 

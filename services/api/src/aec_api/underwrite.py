@@ -9,7 +9,10 @@ from typing import Any
 
 def guardrails(result: dict[str, Any]) -> dict[str, Any]:
     """Return {flags:[{level, metric, message}], ok: bool} for a solved proforma result.
-    level ∈ high|med|info. `high` = likely-unrealistic input; `med` = thin/marginal; `info` = note."""
+    level ∈ high|med|info. `high` = likely-unrealistic input; `med` = thin/marginal; `info` = note.
+    Bands are sourced from `benchmarks` (R5) so the checks are citable, not magic numbers (U3)."""
+    from . import benchmarks as bm
+    irr_lo, irr_hi = bm.BENCHMARKS["equity_irr"]["typical"]   # citable IRR band
     ret = result.get("returns") or {}
     flags: list[dict[str, str]] = []
 
@@ -21,12 +24,12 @@ def guardrails(result: dict[str, Any]) -> dict[str, Any]:
         if irr > 0.35:
             flag("high", "equity_irr", f"Equity IRR {irr * 100:.0f}% is implausibly high — check that "
                  "operating/specialty revenue is risk-adjusted (not gross) and opex is fully built.")
-        elif irr > 0.25:
-            flag("med", "equity_irr", f"Equity IRR {irr * 100:.0f}% is above typical stabilized range "
-                 "(8–25%) — confirm the upside is defensible.")
-        elif irr < 0.08:
-            flag("med", "equity_irr", f"Equity IRR {irr * 100:.0f}% is below the ~8% equity threshold "
-                 "most LPs require.")
+        elif irr > irr_hi:
+            flag("med", "equity_irr", f"Equity IRR {irr * 100:.0f}% is above the typical "
+                 f"{irr_lo * 100:.0f}–{irr_hi * 100:.0f}% band — confirm the upside is defensible.")
+        elif irr < irr_lo:
+            flag("med", "equity_irr", f"Equity IRR {irr * 100:.0f}% is below the ~{irr_lo * 100:.0f}% "
+                 "equity threshold most LPs require.")
 
     em = ret.get("equity_multiple")
     if isinstance(em, (int, float)) and em > 4:
