@@ -26,17 +26,21 @@ prioritized backlog. Sources: [FastAPI security](https://davidmuraya.com/blog/fa
   single-use reset tokens; deactivation revokes live tokens.
 - **Secrets** (OAuth/AI/ERP) are write-only/masked via `settings_store`; never echoed.
 
+### ✅ Fixed in this pass
+- **First-layer rate limiting.** A per-IP fixed-window middleware, opt-in via `AEC_RATE_LIMIT_RPM>0`
+  (off in dev/test); `/health` + `/metrics` exempt; returns 429 + `Retry-After`. In-process (single
+  worker) — multi-worker still wants a shared store (Redis); documented.
+- **Security headers / HSTS.** nginx now sends `Strict-Transport-Security`, `X-Content-Type-Options:
+  nosniff`, `Referrer-Policy`, and `X-Frame-Options: SAMEORIGIN` (server-level + repeated on the
+  index.html location). `client_max_body_size 1024m` + proxy timeouts were already set.
+
 ### ▢ Remaining (prioritized)
-1. **Rate limiting** — none today. Add per-IP (anon) + per-user (authed) limits; needs Redis for
-   multi-worker (do it once, not half-way). Pair with proxy/Cloudflare bot protection.
-2. **Request-size limits + timeouts** — enforce at the nginx layer (`client_max_body_size`, sane
-   proxy timeouts); IFC uploads are legitimately large, so this belongs at the proxy, not a global
-   app cap.
-3. **Security headers / HSTS / TrustedHost** — set HSTS + `X-Content-Type-Options` + frame options at
-   the proxy; add `TrustedHostMiddleware` when the host set is known.
-4. **Bonsai bridge** — `execute_blender_code` runs arbitrary Python; keep it gated/off by default in
+1. **Per-user rate limits + Redis backend** for multi-worker, paired with Cloudflare/WAF bot
+   protection (the in-process limiter above is the single-worker first layer).
+2. **`TrustedHostMiddleware`** once the production host set is fixed; consider a CSP header.
+3. **Bonsai bridge** — `execute_blender_code` runs arbitrary Python; keep it gated/off by default in
    any hosted context (already isolated in `apps/editor-bridge`, dry-run default).
-5. **Dependency + container scanning** in CI (pip-audit / npm audit / image scan).
+4. **Dependency + container scanning** in CI (pip-audit / npm audit / image scan).
 
 ## Performance
 
@@ -56,20 +60,27 @@ prioritized backlog. Sources: [FastAPI security](https://davidmuraya.com/blog/fa
 - **Composite DB index.** Module tables gain `(project_id, workflow_state)` (the dashboard/list hot
   path), with an idempotent `_ensure_indexes()` that backfills it on existing DBs (SQLite + Postgres).
 
+### ✅ Also fixed in this pass
+- **First-call takeoff backgrounded.** The background publish now warms the takeoff cache (size-gated:
+  skips >25 MB imports to not waste the worker), so the first estimate after a publish is instant for
+  typical/generated models.
+
 ### ▢ Remaining (prioritized)
-1. **First-call takeoff on huge imports** is still ~minutes (inherent geometry meshing) — background
-   it with a progress poll so the first estimate doesn't block the request.
-2. **N+1 in dashboard / portfolio rollups** — the cross-module aggregations re-query per module;
-   batch into fewer queries for projects with many records.
+1. **Dashboard / portfolio rollups** query each module table once (71 tables) and read the full row
+   incl. the `data` JSON (needed for `due_date`). The `(project_id, workflow_state)` index helps the
+   filter; a deeper win needs DB-specific JSON extraction (`json_extract` / `->>`) to fetch only the
+   light columns — deferred to keep it cross-DB-safe.
+2. **First takeoff on a >25 MB import** is still ~minutes on first request (not pre-warmed); add an
+   async compute + progress poll if that path matters.
 4. **SSE feed** keeps a long-lived connection (correct), but add a heartbeat + capped reconnect
    backoff; it also defeats "network-idle" tooling (a test note, not a user bug).
 
 ## Modularity / maintainability
 
-- **`apps/web/src/main.ts` split (in progress).** ✅ First extraction done: the shared `modalShell`
-  moved to `ui/modal.ts` (and gained Esc-to-close + focus + ARIA — see UX). ▢ Next: pull the
-  auth/account modals into `ui/account.ts`, connections into `ui/connections.ts`, and a thin
-  `bootstrap.ts`. Behavior-preserving; incremental behind the passing typecheck + vitest.
+- **`apps/web/src/main.ts` split (in progress).** ✅ Extracted so far: the shared `modalShell` →
+  `ui/modal.ts` and the Open/Save dropdown helpers → `ui/menus.ts` (both behavior-preserving, verified
+  live). ▢ Next (deferred — bigger/riskier, do behind the gate): pull the auth/account modals into
+  `ui/account.ts`, connections into `ui/connections.ts`, and a thin `bootstrap.ts`.
 - **Backend routers are already well-factored** (one router per domain; a config-driven module engine
   for the 71 GC modules). `massing.py`/`edit.py` generation helpers are cohesive. Keep `services/data`
   pure (no FastAPI imports) — currently true.

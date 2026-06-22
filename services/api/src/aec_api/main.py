@@ -78,6 +78,31 @@ app.add_middleware(
     expose_headers=["Content-Disposition"],
 )
 
+# First-layer per-IP rate limit (opt-in: set AEC_RATE_LIMIT_RPM>0 in production). Fixed 60s window,
+# in-process — fine for a single worker; multi-worker needs a shared store (Redis). Off by default
+# so dev/tests aren't throttled. health/metrics are exempt.
+_RATE_RPM = int(os.environ.get("AEC_RATE_LIMIT_RPM", "0") or "0")
+if _RATE_RPM > 0:
+    _rl_buckets: dict[str, list[int]] = {}      # ip -> [window_minute, count]
+
+    @app.middleware("http")
+    async def _rate_limit(request: Request, call_next):
+        if request.url.path in ("/health", "/metrics"):
+            return await call_next(request)
+        ip = request.client.host if request.client else "?"
+        win = int(time.time() // 60)
+        b = _rl_buckets.get(ip)
+        if not b or b[0] != win:
+            b = [win, 0]
+            if len(_rl_buckets) > 10_000:        # bound memory: drop stale windows
+                _rl_buckets.clear()
+            _rl_buckets[ip] = b
+        b[1] += 1
+        if b[1] > _RATE_RPM:
+            return Response('{"detail":"rate limit exceeded"}', status_code=429,
+                            media_type="application/json", headers={"Retry-After": "60"})
+        return await call_next(request)
+
 app.include_router(bim.router, tags=["bim"])
 app.include_router(properties.router, tags=["properties"])
 app.include_router(exports.router, tags=["exports"])
