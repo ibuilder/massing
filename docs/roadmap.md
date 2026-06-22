@@ -1,297 +1,87 @@
-# Platform evaluation & roadmap
+# Roadmap
 
-A consolidated, honest snapshot of what's built across the three pillars + platform, and a
-prioritized list of gaps. This is the **single roadmap** — the former `roadmap-platforms.md`,
-`roadmap-modeling-tools.md`, and `improvement-plan.md` are folded in below. Feature-by-feature
-detail lives in the [capability matrix](capability-matrix.md); the GC-tools deep-dive in
-[gc-tools-audit.md](gc-tools-audit.md); UX backlog in [ux-findings.md](ux-findings.md).
+The single product roadmap. Supporting detail lives in:
+[production-readiness.md](production-readiness.md) (security/perf/ops checklist),
+[capability-matrix.md](capability-matrix.md) (vs Bonsai/Revit/Navisworks),
+[gc-portal.md](gc-portal.md), [gc-tools-audit.md](gc-tools-audit.md),
+[competitive-plan.md](competitive-plan.md), [ux-findings.md](ux-findings.md).
 
-_Last evaluated: 2026-06-19._
+Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
+**developer/finance** (proforma). Shipped continuously — latest release **v0.1.11**.
 
-## What's built (by pillar)
+---
 
-### 1. BIM viewer + modeling — mature
-Three.js + Fragments viewer (lazy-loaded), spatial tree, layers, isolate/ghost, section
-plane + section box, measure (distance/area), color-by-data, storey levels, set-origin/CRS.
-Coordination: model federation, **clash** (AABB broad + mesh narrow phase, exact volume;
-intra + cross-discipline) → BCF topics; markup pins/viewpoints. Documentation: 2D plans
-(per storey), sections, elevations (HLR), sheet composer (SVG+PDF), grid bubbles/dimensions,
-room tags. Analysis: envelope energy (UA/EUI), MEP inventory, IDS validation. 4D/5D: activity↔
-element timeline, QTO + cost-code 5D. Authoring round-trip (server-side `ifcopenshell.api`):
-walls, slabs, columns, beams, roofs, doors/windows, move/rotate/copy/delete, pset edit →
-reconvert → reindex. Offline (local WASM, self-hosted tiles), PWA, Tauri 2 desktop shell.
+## Shipped (highlights)
+- **Viewer** — Three.js + Fragments, offline WASM; tree/layers/isolate/section/measure; federation;
+  clash (AABB + mesh boolean → BCF); IDS validation; 2D plans/sections/elevations + PDF sheets.
+- **Authoring round-trip** — server-side `ifcopenshell` recipes (walls/slabs/columns/beams/roofs,
+  openings, edit/move/copy, Pset) → background republish; GUID-stable. Family/type library.
+- **Generative massing** — zoning envelope → massing + structural frame + per-unit spaces + envelope
+  (facade + windows) + service core (elevator/stair/MEP risers), one click. (Test Fit extends this — §A.)
+- **GC portal** — config-driven modules (RFIs, submittals, CO chain, daily, QA, safety, closeout…),
+  role-gated workflow, relations/rollups, kanban, search, pay apps (G702/G703), CPM, bid leveling,
+  dashboards, **field capture** (offline photo→record), module-log PDFs, closeout package ZIP.
+- **Developer/finance** — proforma (S&U w/ interest reserve, XIRR/NPV/EM, JV waterfall, sensitivity,
+  Monte Carlo), **line-item hard/soft cost budgets**, **specialty assets** (on-site energy +
+  vertical-farm/PFAL revenue), **investment-memo PDF**, model→proforma seeding.
+- **AI** — "Ask AI" over a live project snapshot; AI risk summary; AI-drafted RFIs.
+- **Platform** — SSO (Google/Microsoft/Procore), no-admin model, onboarding + tour, connectors
+  (Procore/ACC/QuickBooks/Sage/Viewpoint/SQL), PWA + signed auto-updating desktop app, rate limiting,
+  security headers, takeoff caching. Full lifecycle verified acquisition→turnover (E2E 63/63).
 
-### 2. GC portal — mature
-69 config-driven modules. Per-module: record CRUD, party-gated **workflow transitions**,
-kanban board, filter/sort, cross-module **relations/links**, comments, assignment, file
-attachments, saved views (per-user), per-record PDF, CSV export. Cross-cutting: full-text
-search, bulk actions, role-tailored dashboard with KPIs + "ball in your court", live
-**notifications** (SSE badge), AIA G702/G703 pay-app PDF, Gantt/Line-of-Balance schedule viz.
+---
 
-### 3. Development proforma — mature
-Sources & uses with **interest-reserve circularity**, S-curve cost draws, levered/unlevered
-cash flows, XIRR/NPV/equity-multiple/yield-on-cost/dev-spread, **JV waterfall** (American/
-European, pref + tiered promote, clawback), 2-variable **sensitivity** tables, **Monte Carlo**
-risk (percentiles, P[≥target], histogram), actuals→re-forecast **draw bridge**, scenario CRUD
-+ sharing + clone, multi-deal **portfolio** roll-up, scenario **compare**, and a **model→proforma
-link** (seed hard cost + rent from the source IFC's net floor area).
+## A. Model generation & **Test Fit** (TestFit-style)  ★ next major theme
+We have generative *massing*; Test Fit is the optimization layer above it — making the program
+actually **fit** the site/floor-plate and **optimizing yield**, with side-by-side scenarios. Our
+edge stays IFC-native (every fit is real openBIM, flowing into drawings/QTO/estimate/proforma).
+Grounded in [TestFit Site Solver](https://www.testfit.io/product/site-solver),
+[Parking Solver](https://www.testfit.io/product/parking-solver),
+[Generative Design](https://www.testfit.io/blog/unleash-boundless-building-optimization-with-testfit-generative-design).
 
-### Interoperability — new
-A data-source **Connections** framework (one adapter pattern): **Postgres/Supabase** read-only
-browse + guarded SELECT console; **Procore** two-way sync (import RFIs/submittals/change-events,
-push resolved RFI status/answers back, scheduled auto-sync); **Autodesk Construction Cloud**
-project/issue read. Admin **field-mapping editor** remaps external→module fields per connection;
-secrets write-only + masked; admin-gated. Portable **`.mmproj` project bundles** (export/import
-geometry + all data + attachments) and a **delete-project** path.
+- ✅ **DONE — generative massing** (zoning → massing/frame/units/envelope/core).
+- **A1 — Unit-mix configurator.** Define unit *types* (studio/1BR/2BR… target SF + mix %/count) and
+  tile them along a **double-loaded corridor** on the floor plate (not a naive grid) — real unit
+  modules + demising walls + corridor. Import/save unit presets.
+- **A2 — Circulation & egress.** Auto corridors, egress stairs, elevators positioned for code
+  (max travel distance, two means of egress); core placement from the unit layout.
+- **A3 — Parking solver.** Surface / podium / structured parking to a target **stalls/unit** ratio,
+  with drive aisles + ramps; auto stall count; parking as IFC spaces/slabs.
+- **A4 — Yield metrics & scenario compare.** Live GSF/NSF, **efficiency (load factor)**, units,
+  units/acre, parking ratio, FAR achieved, **yield-on-cost** — multiple fits compared side-by-side.
+- **A5 — Generative design (targets).** Define targets/filters (FAR, parking ratio, yield-on-cost)
+  → search massing/unit-mix/parking permutations and rank — "find the deal that pencils."
+- **A6 — Site test-fit (urban/parcel).** Real lot polygon (not a rectangle) → place building
+  footprint(s) + parking + drive aisles + setbacks on the actual parcel.
 
-### Desktop / packaging — new
-The whole platform runs in **one process** (FastAPI + SPA + SQLite, single-operator local mode,
-no login) and ships as a self-contained **`.exe`** (PyInstaller; `desktop.py` + `build-desktop.ps1`)
-— the free Bluebeam-style single-project app, verified booting + serving the full stack. The
-Tauri 2 shell spawns it as a sidecar for a native window (CI-built; compile pending a CI run).
+## B. Developer / finance portal
+Grounded in an institutional model (M. Emma thesis) + CRE practice (hard 70–80% / soft 20–30%,
+contingency 5–10%; Uses = Acquisition + Hard + Soft + Financing; Sources = Debt + Equity).
+- ✅ **DONE — B1 line-item hard/soft cost budgets** (`dev_budget.py`, Finance budget panel).
+- ✅ **DONE — B4 specialty assets** (energy + vertical-farm revenue → capex/revenue/opex).
+- ✅ **DONE — B5 investment memo PDF** ("presentation with financials").
+- **B2 — Sources & Uses (first-class view).** ★ *in progress* — grouped Uses (from the cost budget +
+  acquisition + financing) vs Sources (senior debt sized by LTC/LTV/DSCR/debt-yield, mezz, LP/GP
+  equity); per-period draw spread feeding interest reserve. Endpoint + Finance S&U view + memo section.
+- **B3 — Property & tax assumptions.** Address/block-lot, land/building/parking SF, appraisal,
+  purchase price, and a tax table (school/county/town/fire → total) feeding OPEX.
+- **B6 — Pitch-deck variant** of the memo (10–20 slides) + market/timeline sections, photos.
 
-### Platform / identity / infra — mature
-Token + httpOnly-cookie auth, bootstrap admin, **user management** (create/list/role/activate/
-deactivate/reset), self-service password, deactivation revokes tokens immediately. **Project
-RBAC** (viewer<reviewer<editor<admin + workflow party), member-management UI, web capability
-gating. Audit log (server-side). Docker compose (dev + prod Caddy auto-HTTPS), nginx `/api`
-proxy, Postgres/MinIO. **CI**: multi-suite Python gate (incl. connections/bundle/desktop/
-local-mode); desktop release workflow (Win/macOS/Linux, signing-ready); GitHub Pages viewer demo.
+## C. Lifecycle / construction depth
+- ✅ Field capture (offline), module-log PDFs, closeout package ZIP, auto-TRIR, subject alias.
+- **C1 — Multi-period pay apps** (draws across periods, retainage release) + auto lien waivers.
+- **C2 — COBie field-enrichment** (fold assets/warranties/commissioning into the COBie tabs) +
+  warranty date tracking + O&M reminders.
+- **C3 — 4D sequencing** from the CPM schedule against the model (timeline scrub).
 
-## Competitor benchmark & gaps (2026-06)
-Quick scan of the field to find where we're behind. Sources:
-[Procore vs Autodesk](https://www.procore.com/compare/procore-vs-autodesk),
-[Revizto best-BIM-2026](https://revizto.com/resources/blog/best-bim-software-tools-2023),
-[TestFit](https://www.testfit.io/), [Northspyre](https://www.northspyre.com/real-estate-pro-forma-software).
+## D. Platform / production
+Tracked in [production-readiness.md](production-readiness.md): main.ts account/connections split,
+dashboard JSON-extraction perf, Redis-backed rate limits (multi-worker), CI dependency scanning,
+a11y pass. Plus: mobile (Capacitor) build hardening; RVT→IFC (APS) polish.
 
-| Competitor | Their strength | Us | Gap to close |
-|---|---|---|---|
-| Procore / ACC | model viewer **inside** the CM workflow (RFIs/submittals/punch on the model) | model pins + BCF + 68-module portal | parity; keep two-way Procore/ACC sync deepening |
-| Revizto | real-time multi-model **coordination** | federation + clash + IDS + live presence | parity; add issue-tracker round-trip polish |
-| Speckle | open BIM **data** platform / versioning | open, IFC-native, .mmproj bundles | add model **version history / diff** |
-| **TestFit** | model **and proforma linked** + generative massing from zoning | ✅ model→proforma link **and** ✅ generative massing → IFC + acquisition proforma (IFC-native) | parking ratios, multi-scheme yield compare, unit mix |
-| Northspyre | predictive **cost-overrun** flagging across a portfolio | per-project rules/AI risk + Monte Carlo | portfolio-level cost-overrun forecasting |
+---
 
-### Top gaps to act on
-- ✅ **DONE** — **Loading an IFC auto-populates the project.** Opening an IFC with a project open
-  now sets it as the source model (publish) so drawings / clash / IDS / energy / exports /
-  authoring light up automatically — no separate "upload source IFC" step.
-- ✅ **DONE** — **★ Model → Proforma link (TestFit-style differentiator).**
-  `GET /projects/{id}/proforma/model-metrics` derives net floor area (m²+sf) + space/storey counts
-  from the source IFC (reuses the spaces + drawings engines); the Finance view's "📐 From model"
-  panel applies editable $/sf hard-cost and rent rates to seed `cost_lines[hard]` +
-  `operations.potential_rent_annual` and re-solves. The deal now underwrites against the real model.
-  *Next: extend to unit count + envelope/structural quantities (QTO) and exit-value drivers.*
-- ✅ **DONE — ★ Generative massing from zoning (TestFit/Forma differentiator, IFC-native).**
-  `aec_data.massing.compute_massing()` turns a municipal envelope (lot dims / lot area, FAR,
-  coverage, front/side/rear setbacks, height limit, floor-to-floor, efficiency, avg unit size) into a
-  buildable program — footprint, floor count, GFA, units, and the **binding constraint** (FAR /
-  coverage / height). `generate_ifc()` writes a real **IFC4** model from scratch (project → site →
-  building → one storey + floor-plate `IfcSpace` per level, with `Qto_SpaceBaseQuantities` so the
-  spaces/estimate/proforma engines read the areas). `POST /projects/{id}/generate/massing` generates
-  the model, sets it as the project's source IFC, publishes it (convert→.frag + reindex, off-thread),
-  and returns the program **plus a solved starter acquisition proforma** (land + hard/soft/contingency
-  from $/sf, rent from units or $/sf·yr → S&U, IRR, equity multiple). `POST /generate/massing/preview`
-  does the same math **stateless** (no model written) for instant "what would this lot yield?". The
-  Finance view's "🏗️ Generate from zoning" panel drives both: **Estimate yield** previews,
-  **Generate IFC model + apply** writes the model and adopts the generated assumptions as the live
-  proforma. *Our edge vs TestFit/Forma: the output is openBIM (IFC), so the generated massing flows
-  straight into the viewer, drawings, QTO, the estimate and underwriting — one chain from lot → deal.*
-  Verified: unit test (FAR/coverage/height binding, units, area-only, validation + IFC round-trip:
-  5 storeys / 5 represented floor-plate spaces, sited); live HTTP — 50×40 lot, FAR 3, 24 m cap →
-  5 floors / 17.5 m / 64,583 sf / 65 units, IFC written + published, $22.0M acquisition proforma solved.
-  *Next: parking ratios, multiple massing schemes (compare yield), unit-mix breakdown, real lot polygons.*
-- ✅ **DONE — Starter IFC family/type library (furnish & equip a model).** `aec_data.families`
-  generates a curated catalog parametrically (16 families: furniture / sanitary / appliances /
-  plants — `IfcFurnitureType`, `IfcSanitaryTerminalType`, `IfcElectricApplianceType`,
-  `IfcGeographicElementType`), building each `IfcTypeProduct` with a mapped representation on demand
-  so it's placeable into **any** model incl. a from-scratch massing one. `GET /families/catalog`
-  feeds a "Furnish & equip" picker in the viewer's Authoring tools; the `add_family` edit recipe
-  (`POST /projects/{id}/edit`) find-or-builds the type and places a GUID-stable occurrence at a
-  clicked point, then publishes the round-trip. Placement reuses the existing `place_type`/
-  `type.assign_type` machinery — the library is the *content* layer; richer/real manufacturer IFC
-  content can replace a builder later without changing the contract. Verified: unit test (catalog +
-  build/place/dedup/round-trip) and live (placed Sofa/Tree → real `IfcFurniture`/`IfcGeographicElement`
-  render in the viewer). *Next: glTF prop layer for presentation-only dressing; Bonsai bulk placement.*
-- ✅ **DONE — Renderable massing + web-ifc geometry fix.** Two bugs that made generated geometry
-  invisible: (1) `generate_ifc` used the default **millimetre** unit (model shrank 1000×) — now METRE;
-  (2) `IfcRectangleProfileDef.Position` was null — **web-ifc silently skips** profiles with no Position
-  (ifcopenshell tolerates it), so the `.frag` came out empty. Both fixed in `massing.py` + `families.py`
-  (and a per-level renderable `IfcSlab` floor plate added, since the Fragments importer forces
-  `IfcSpace` transparent). Regression-guarded by a geometry-span assertion in `test_massing`. Verified
-  via the real converter (bare massing 3.3 KB → furnished 5.3 KB) and a viewer screenshot of the
-  stacked massing.
-- ✅ **DONE** — **GC + proforma usable without an IFC.** A "＋ New" toolbar button creates a blank
-  project (no model required); the GC portal + development proforma run on `projectId` alone, so the
-  whole non-geometry side works cold. Model-derived tools (drawings/clash/energy/authoring/
-  model→proforma) still gate on the source IFC. Verified: blank project → RFI 201, dashboard 200.
-- **Model version history / diff** (Speckle-style) — the `.mmproj` bundle + GUID-stable authoring
-  already give the substrate; add per-publish snapshots + a changed-elements view.
-- ✅ **DONE — Portfolio cost-overrun + program roll-up** (Northspyre/Mastt-style).
-  `GET /portfolio/construction` aggregates every project's cost over/under (flags forecast
-  overruns), open risks + cost exposure, recordable incidents, and open RFIs into a program view
-  (shown under the Finance → Portfolio tab). Verified (test_portfolio).
-- ✅ **DONE — Safety analytics (TRIR).** incident gains OSHA `classification` + `lost_days`;
-  `GET /projects/{id}/safety/metrics` returns by-class counts, recordable/lost-time, lost days, and
-  **TRIR/DART** per 200k hours (man-hours from `hours` or summed timesheets + manpower logs). Surfaced
-  on the portal dashboard. Verified (test_safety: TRIR 4.0 / DART 2.0 @100k hrs).
-
-## Broader competitor landscape (2026-06) & the gaps it surfaces
-A wider scan beyond the BIM-viewer category — the GC-lifecycle / owner / precon / field tools we'd
-be measured against, and where we're light. (Categories & products per market research.)
-
-| Category | Key players | Where we stand / gap |
-|---|---|---|
-| End-to-end GC PM | **Procore**, **Autodesk Construction Cloud** (Build/BIM360/BuildingConnected), INGENIOUS.BUILD, Archdesk, Buildern, ClickUp | Strong: 69-module portal + model + proforma + interop. Match, keep deepening. |
-| Enterprise doc control / capital PM | Oracle **Aconex / Primavera Unifier**, **e-Builder**, Kahua, PMWeb | Gap: **formal transmittal/correspondence control** (ISO 19650), submittal registers at scale. |
-| Owner / capital program & portfolio | **Mastt**, Kahua, PMWeb | Gap: **owner risk registers + portfolio program controls** (we have deal-level risk + proforma portfolio roll-up). |
-| Residential / homebuilder | **Buildertrend/CoConstruct**, ServiceTitan | Gap: **client portal + selections + e-signatures**; AIA-style progress billing (we have G702/G703). |
-| Field / punch / collab | **Fieldwire**, PlanGrid (→ ACC), eSUB, ConstructionOnline | Gap: **deep offline mobile field app** (we have PWA offline viewer + field modules + the evidence gate). |
-| Scheduling (CPM) | **Planera**, Oracle **Primavera P6**, MS Project (sunsetting 2026) | Gap: **true CPM** — forward/backward pass, **float**, critical path, DCMA-14 checks (we have Gantt/Line-of-Balance only; even Procore lacks float). |
-| Precon — estimating & takeoff | **Sage Estimating**, Trimble WinEst/B2W, DESTINI, STACK, ProEst, PlanSwift, **Bluebeam**, Togal.AI/Beam.AI | Gap: **takeoff + estimating** (we have IFC-driven QTO + a thin `estimate` module; no on-screen takeoff). Procore bought Esticom — head-to-head. |
-| Bidding / ITB / leads | **BuildingConnected**, ConstructConnect, PlanHub, **Dodge** | Gap: **ITB distribution + bid leveling + project-lead intelligence** (we have bid_package/solicitation/submission records, no distribution/intel). |
-| Accounting / ERP | Sage 300 CRE / **Intacct**, **Viewpoint**, Foundation, CMiC | Gap: **job-cost accounting / ERP sync** (we have cost modules + Procore/ACC connectors; add QuickBooks/Sage adapters via the Connections framework). |
-
-### New backlog from this scan (priority order)
-1. ✅ **DONE (v1)** — **CPM scheduling engine.** `schedule_cpm.compute()` does the forward/backward
-   pass → early/late dates, **total + free float**, and the **critical path** from each activity's
-   `duration` + `predecessors` (FS, resolved by ref/WBS; cycle-safe). `GET /projects/{id}/schedule/cpm`
-   + a "⛓ Critical path" tool that opens the result. Verified (test_cpm + live). *Next: lags, SS/FF
-   dependency types, data-date/progress, DCMA-14 checks, a network/Gantt overlay of the critical path.*
-2. ✅ **DONE (v1)** — **Estimating & takeoff.** `estimate.estimate_from_takeoff()` aggregates the IFC
-   quantity takeoff by element class and applies unit rates → a priced conceptual estimate (line items
-   + total + unpriced classes; per-class overrides). `GET /projects/{id}/estimate/from-model` + a
-   "📐 Estimate from model" cost tool. Verified (test_estimate + live: basichouse → ~$254k).
-   *Next: assembly/cost-code rollup, editable rate table UI, push the total to budget/proforma hard cost.*
-3. ✅ **DONE (QuickBooks)** — **Accounting/ERP connector.** `quickbooks` connection type (token +
-   realm_id → CompanyInfo, chart-of-accounts in browse, read accounts/vendors/bills) via the same
-   adapter as Procore/ACC. *Next: Sage / Viewpoint adapters (same shape), and reconcile cost-module
-   actuals against the books.*
-4. ✅ **DONE (risk register)** — **Owner capital-program controls.** New `risk` module
-   (category/probability/impact/cost-exposure/mitigation, open→mitigating→accepted→closed).
-   *Next: cross-project program portfolio view.*
-5. ✅ **DONE (selections)** — **Residential.** New `selection` module (item/allowance/actual-cost +
-   client_approval signature, open→selected→approved). *Next: a shared client/owner portal view.*
-6. ✅ **DONE (bid leveling)** — **ITB.** `GET /projects/{id}/bids/leveling` tabulates bid_submission
-   by package (low/high/avg/spread + low-bidder flag) + a "⚖ Bid leveling" tool. *Next: outbound ITB
-   invitation/distribution flow.*
-
-## Gaps (prioritized)
-
-### P0 — foundational
-- ✅ **DONE** — **Frontend automated tests.** Vitest + happy-dom harness wired into CI
-  (`apps/web/vitest.config.ts`); first suites cover the selection-set helpers and the API
-  client (token/auth/persistence). Grow coverage as logic is extracted from DOM code.
-
-### P1 — high-value, self-contained
-- ✅ **DONE** — **Proforma debt sizing.** Loan is now the **lesser-of LTC / LTV / DSCR / debt
-  yield** (optional caps on the Debt input); `debt_sizing` reports the binding constraint +
-  actual DSCR/LTV/DY, surfaced in the proforma UI.
-- ✅ **DONE** — **Password reset.** Admin-issued single-use, 1-hour reset token (no email
-  infra); the user sets their own password (Sign in → "Have a reset token?"). Purpose-separated
-  so it can't be used as a bearer token; single-use via a password-hash fingerprint.
-- ✅ **DONE** — **Audit-log viewer.** `GET /audit` (admin, filter by action/actor/since) +
-  an account-menu viewer; admin user-management actions are now audited.
-- ✅ **DONE** — **Federation UI.** A "Models (federation)" panel lists every loaded model with
-  a visibility toggle + remove; models load additively via Open ▾.
-
-### P2 — meaningful, larger
-- **Capacitor mobile** wrapper + touch tuning + on-site photo→BCF (per platform roadmap).
-- ✅ **DONE** — **Email notifications / digests.** Stdlib `mailer` (SMTP via `AEC_SMTP_*`,
-  no-op-but-logged when unconfigured); `User.email`; per-member work-queue digests with
-  preview + send endpoints (admin); admin UI sets emails. Complements the in-app SSE badge.
-- ✅ **DONE** — **Drawing leaders/callouts.** `element_callouts()` tags doors/windows (Tag→Name)
-  with leader lines + boxed labels on plans; `plan.svg?callouts=true` + a "Plan + callouts"
-  button. Verified: 27 callouts extracted from the sample house.
-- ✅ **DONE** — **SSO / OIDC.** OAuth login for **Google, Microsoft (Entra), Procore** (`oauth.py`); enable per provider via `AEC_OAUTH_<P>_CLIENT_ID/_SECRET`. First SSO user bootstraps admin; SSO identities join the same RBAC layer.
-- ✅ **DONE** (metrics + logs) — **Observability.** `/metrics` (Prometheus text: request
-  counts/latencies by route template, in-flight, uptime) + structured JSON access logs
-  (`aec.access`).
-- ✅ **DONE** — **Backup/restore runbook.** `scripts/backup.sh` (pg_dump + MinIO/IFC volume
-  tars → one timestamped tarball) + `scripts/restore.sh`; cron + retention + DR notes in
-  `docs/deploy.md`.
-
-### P2 — recently shipped
-- ✅ **DONE** — **Interoperability** (the #1 2026 AEC gap). Connections framework
-  (Postgres/Supabase/Procore/ACC), Procore **two-way** sync + scheduled auto-sync, ACC
-  project/issue read, and an admin **field-mapping editor**. Verified by `test_connections`.
-- ✅ **DONE** — **Free single-project desktop `.exe`** (PyInstaller one-process build) + portable
-  `.mmproj` bundles + delete-project. Verified booting + serving API/SPA/SQLite standalone.
-- ✅ **DONE** — **UX pass**: persona-ordered collapsible Tools panel with result modals; the
-  68-module portal catalog (favorites + collapsible persona sections + filter); grouped viewer
-  toolbar; model-type tags in the project picker. Backlog tracked in [ux-findings.md](ux-findings.md).
-
-### P2 — recently shipped (cont.)
-- ✅ **DONE** — **Tauri native-window installers** — CI builds Win/macOS/Linux installers that
-  bundle the Python backend as a sidecar; **v0.1.2 published** with **signed auto-update**
-  (`tauri-plugin-updater` + `latest.json`) plus an in-app update banner. Download section on the
-  GitHub Pages landing page → latest release.
-
-### P3 — scaffolded & turnkey; each needs one external piece (no more code)
-- **Mobile (Capacitor)** — ✅ scaffolded + verified: `capacitor.config.ts`, `build:mobile` mode
-  (+ `.env.mobile`), `cap add android` syncs the web build. *External:* Android SDK/JDK + Xcode/macOS
-  to build the binaries, on-device WASM validation, Apple/Google store accounts. Responsive web layout
-  already shipped (≤560px / ≤820px).
-- **Code signing** — ✅ turnkey: the Windows PFX-import/thumbprint + macOS notarize steps are wired
-  and guarded (unsigned stays green). *External:* buy a cert (CA OV/EV or Azure Trusted Signing for
-  Windows; Apple Developer Program for macOS) and add the secrets — next tag signs automatically.
-- **Bonsai bridge** — ✅ bridge client (`bridge.py`) with the save-first/chunk/confirm gates built +
-  unit-tested; recipes + authoring engine verified. *External:* a running Blender 4.x + Bonsai +
-  Bonsai-MCP socket to point it at.
-- **RVT→IFC** via Autodesk APS — ✅ implemented + wired: full Model Derivative flow in
-  `rvtToIfc.mjs` (2-legged OAuth → OSS signed-upload → translate → poll manifest → download IFC),
-  a `cli.mjs --rvt` mode, and the `/convert` endpoint subprocesses it when configured (503-gated
-  otherwise; node-syntax + gate verified). *External:* a paid Autodesk APS account
-  (`APS_CLIENT_ID/SECRET`) — per-translation cost, surfaced before invoking.
-
-## Product improvement plan (audit) — folded in
-The 2026-06-17 full-codebase performance/UX/competitive audit is fully executed (e.g. proforma
-Monte Carlo made on-demand; empty-state polish). Its content lives in the sections above.
-
-## Execution order
-~~P0 (web test harness)~~ ✅ → ~~P1 (debt sizing → password reset → audit viewer → federation
-UI)~~ ✅ → ~~P2 (interop → desktop `.exe` → UX pass → signed installers + auto-update → IFC
-auto-populate → model→proforma link)~~ ✅ → **P3 (external-gated)**. Each item is independently
-shippable; P3 items are gated on paid accounts / certs / hardware and are user-performed steps.
-
-_Shipped: P0 + P1 (2026-06-17); interoperability, free desktop `.exe`, UX pass (2026-06-18);
-signed installers + auto-update (v0.1.2), IFC-auto-populate, model→proforma link (2026-06-19).
-**2026-06-21 — the full competitor-driven backlog:** GC-tools deep-dive (51-module enrichment +
-workflow depth + evidence gate), no-IFC project creation, CPM scheduling (float/critical path),
-model-based estimating & takeoff, QuickBooks (ERP) connector, risk register, selections, bid
-leveling, TRIR safety analytics, and the construction program portfolio + cost-overrun roll-up._
-
-- ✅ **DONE — Reusable templates** (Procore parity). `Template` store + router: save a module's
-  records as a named template, list per module, and apply to any project (one record per item) —
-  `save-template` / `apply-template` + a "⌹ Templates" portal button. Verified (test_templates).
-
-- ✅ **DONE — Model version history / diff** (Speckle-style). Each publish snapshots the element
-  GUID set (`ModelVersion`); `GET /projects/{id}/versions` + `/versions/diff?a=&b=` give the
-  history and added/removed elements between versions (no-op republishes skipped). "🕔 Version
-  history" tool shows it. Verified (test_versions: A,B,C→B,C,D = +D/−A).
-
-- ✅ **DONE — Sage + Viewpoint connectors.** Generic-REST ERP adapter (base_url + token →
-  accounts/vendors/bills) completing the financial-backbone set (QuickBooks/Sage/Viewpoint).
-
-**Remaining — smaller follow-ons / external-gated:**
-- **Branded per-tool PDFs** (generic per-record PDF already ships) + **changed-element geometry
-  diff** (current diff is GUID add/remove; modified-geometry needs per-element hashes).
-- **P3 external-gated:** code-signing certs, Capacitor/mobile, Bonsai/Blender, RVT/APS.
-
-## Packaging & modeling (merged sub-roadmaps)
-*(Former `roadmap-platforms.md` + `roadmap-modeling-tools.md`, folded in.)*
-
-**Platform packaging — one web core, thin native shells.** Web/PWA ✅ (offline, COOP/COEP SW).
-Desktop ✅ — Tauri 2 shell spawns the bundled Python backend as a sidecar; signed Win/macOS/Linux
-installers + auto-update shipped (v0.1.2). Also a standalone PyInstaller `.exe` (browser UI).
-**Mobile** (Capacitor or Tauri-mobile wrapping the same build; site-photo→BCF) is the remaining
-target — pending WebView validation of the threaded-WASM viewer on mobile.
-
-**Modeling tools — author server-side, stream Fragments back.** ✅ Shipped: the floating toolbar
-collects intent (polyline+height, boundary) → POSTs params → `ifcopenshell.api` mutates the project
-IFC → reconvert/reindex → updated `.frag` streamed back (GUID-stable). Walls/slabs/columns/beams/
-roofs, doors/windows, move/rotate/copy/delete, Pset edit, plus grid/snap, section box, levels.
-Heavy parametric edits route to **Blender + Bonsai** over Bonsai-MCP (gated; needs Blender — P3).
-
-*(`improvement-plan.md` (2026-06-17 audit) is fully executed — its items, e.g. on-demand Monte
-Carlo and empty-state polish, shipped; superseded by this file.)*
+## Near-term execution order
+**B2 Sources & Uses** → **B3 property/tax assumptions** → **A1 unit-mix configurator** →
+**A3 parking solver** → **A4 yield compare** → **A5 generative targets**. Each ships independently
+behind tests + a release.
