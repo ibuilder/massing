@@ -245,6 +245,21 @@ export class ProformaUI {
     const wi = inp("Plate width (m)", 40), di = inp("Plate depth (m)", 18), fi = inp("Floors", 6);
     host.appendChild(grid);
     const out = document.createElement("div"); out.style.marginTop = "6px";
+    const opt = document.createElement("button"); opt.className = "tool-btn"; opt.style.marginLeft = "6px";
+    opt.textContent = "⚡ Optimize (find the deal that pencils)";
+    opt.onclick = async () => {
+      out.innerHTML = `<span class="meta">sweeping schemes…</span>`;
+      try {
+        const r = await this.api.testFitOptimize({ plate_w: +wi.value, plate_d: +di.value, floors: +fi.value, targets: { min_units: 1 } });
+        if (!r.best) { out.innerHTML = `<div class="meta">no feasible scheme for these targets</div>`; return; }
+        const rows = r.ranked.map((s, n) => `<tr${n === 0 ? ' style="font-weight:700"' : ""}>`
+          + `<th style="text-align:left">${s.name}${n === 0 ? " ★" : ""}</th>`
+          + `<td style="text-align:right">${s.total_units}</td><td style="text-align:right">${(s.efficiency * 100).toFixed(0)}%</td>`
+          + `<td style="text-align:right">${s.parking_stalls}</td><td style="text-align:right">${(s.yield_on_cost * 100).toFixed(1)}%</td></tr>`).join("");
+        out.innerHTML = `<div class="meta" style="margin-bottom:2px">Swept ${r.considered} schemes · ${r.feasible} feasible · ranked by ${r.objective.replace(/_/g, " ")}</div>`
+          + `<table class="sens-table" style="font-size:12px"><tr><th style="text-align:left">Scheme</th><th>Units</th><th>Eff.</th><th>Stalls</th><th>YoC</th></tr>${rows}</table>`;
+      } catch { out.innerHTML = `<div class="meta">optimize unavailable (API offline)</div>`; }
+    };
     const run = document.createElement("button"); run.className = "file-btn"; run.textContent = "Compare schemes";
     run.onclick = async () => {
       out.innerHTML = `<span class="meta">fitting…</span>`;
@@ -260,7 +275,7 @@ export class ProformaUI {
           + `<div class="meta" style="margin-top:4px">Best by units: <b>${r.best}</b></div>`;
       } catch { out.innerHTML = `<div class="meta">test-fit unavailable (API offline)</div>`; }
     };
-    host.append(run, out); this.root.appendChild(host);
+    host.append(run, opt, out); this.root.appendChild(host);
   }
 
   /** Property & tax assumptions: parcel/areas/purchase/taxes; taxes → OPEX, price → acquisition. */

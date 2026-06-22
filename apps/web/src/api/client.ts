@@ -739,6 +739,11 @@ export class ApiClient {
     return this.json<{ best: string | null; schemes: { name: string; total_units: number; efficiency: number; total_nsf: number; total_gsf: number; avg_unit_sf: number; parking_stalls: number; mix: Record<string, number> }[] }>(
       "/test-fit/compare", { method: "POST", body: JSON.stringify(params) });
   }
+  /** Generative design: sweep schemes, filter by targets, rank by yield-on-cost. */
+  testFitOptimize(params: { plate_w: number; plate_d: number; floors: number; targets?: Record<string, number | string>; econ?: Record<string, number> }) {
+    return this.json<{ considered: number; feasible: number; objective: string; best: OptScheme | null; ranked: OptScheme[] }>(
+      "/test-fit/optimize", { method: "POST", body: JSON.stringify(params) });
+  }
   /** Sources & Uses built from the project's cost budget (grouped uses vs sized debt + equity). */
   sourcesUses(pid: string) {
     return this.json<{ uses: { label: string; amount: number }[]; sources: { label: string; amount: number }[];
@@ -818,6 +823,10 @@ export interface DevBudgetSummary {
 export interface DevBudgetResponse {
   budget: { lines: DevBudgetLine[]; contingency: Record<string, number> };
   summary: DevBudgetSummary;
+}
+export interface OptScheme {
+  name: string; mix_preset: string; parking_ratio: number; total_units: number;
+  efficiency: number; total_nsf: number; parking_stalls: number; yield_on_cost: number;
 }
 export interface SpecialtySummary {
   capex_total: number; annual_revenue: number; annual_opex: number;

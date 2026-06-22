@@ -86,6 +86,54 @@ def parking(units: int, ratio: float = 1.2, kind: str = "surface") -> dict[str, 
             "area_sf": stalls * sf_per, "cost": stalls * cost_per}
 
 
+# candidate unit-mix presets the optimizer sweeps
+_PRESETS: dict[str, list[dict]] = {
+    "Studio-heavy": [{"name": "Studio", "target_sf": 480, "mix_pct": 0.6}, {"name": "1BR", "target_sf": 720, "mix_pct": 0.4}],
+    "1BR-heavy": [{"name": "Studio", "target_sf": 480, "mix_pct": 0.2}, {"name": "1BR", "target_sf": 720, "mix_pct": 0.6}, {"name": "2BR", "target_sf": 1000, "mix_pct": 0.2}],
+    "Balanced": DEFAULT_MIX,
+    "2BR-heavy": [{"name": "1BR", "target_sf": 750, "mix_pct": 0.3}, {"name": "2BR", "target_sf": 1050, "mix_pct": 0.5}, {"name": "3BR", "target_sf": 1350, "mix_pct": 0.2}],
+    "Family": [{"name": "2BR", "target_sf": 1100, "mix_pct": 0.6}, {"name": "3BR", "target_sf": 1400, "mix_pct": 0.4}],
+}
+
+
+def optimize(plate_w: float, plate_d: float, floors: int, targets: dict | None = None,
+             econ: dict | None = None) -> dict[str, Any]:
+    """Generative design — sweep unit-mix presets × parking ratios, score each on a yield-on-cost
+    proxy, filter by `targets` (min_units, min_efficiency, max_parking_ratio, min_yoc), and rank.
+    `econ`: rent_psf_yr, hard_psf, stall_cost, opex_ratio, land. "Find the deal that pencils.\""""
+    t = targets or {}
+    e = {"rent_psf_yr": 34.0, "hard_psf": 220.0, "stall_cost": 12_000.0, "opex_ratio": 0.35, "land": 0.0,
+         **(econ or {})}
+    candidates = []
+    for mix_name, mix in _PRESETS.items():
+        for pr in (0.5, 1.0, 1.5):
+            lay = layout(plate_w, plate_d, floors, mix)
+            m = lay["metrics"]
+            pk = parking(m["total_units"], pr)
+            nsf, gsf = m["total_nsf"], m["total_gsf"]
+            revenue = nsf * e["rent_psf_yr"]
+            noi = revenue * (1 - e["opex_ratio"])
+            cost = gsf * e["hard_psf"] + pk["cost"] + e["land"]
+            yoc = round(noi / cost, 4) if cost else 0.0
+            candidates.append({
+                "name": f"{mix_name} · {pr:g}/unit pkg", "mix_preset": mix_name, "parking_ratio": pr,
+                "total_units": m["total_units"], "efficiency": m["efficiency"],
+                "total_nsf": nsf, "parking_stalls": pk["stalls"], "yield_on_cost": yoc,
+            })
+    # filter by targets
+    def passes(c: dict) -> bool:
+        return (c["total_units"] >= t.get("min_units", 0)
+                and c["efficiency"] >= t.get("min_efficiency", 0)
+                and c["parking_ratio"] <= t.get("max_parking_ratio", 99)
+                and c["yield_on_cost"] >= t.get("min_yoc", 0))
+    feasible = [c for c in candidates if passes(c)]
+    objective = t.get("objective", "yield_on_cost")
+    feasible.sort(key=lambda c: c.get(objective, 0), reverse=True)
+    return {"considered": len(candidates), "feasible": len(feasible),
+            "ranked": feasible[:8], "best": feasible[0] if feasible else None,
+            "objective": objective}
+
+
 def compare(plate_w: float, plate_d: float, floors: int, schemes: list[dict]) -> dict[str, Any]:
     """Evaluate several schemes side-by-side. Each scheme: {name, unit_types?, parking_ratio?,
     parking_kind?}. Returns per-scheme yield metrics + parking, ranked by total units."""

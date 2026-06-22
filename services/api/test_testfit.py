@@ -40,6 +40,18 @@ b = next(s for s in cmp["schemes"] if s["name"] == "B")
 assert a["total_units"] > b["total_units"], (a["total_units"], b["total_units"])
 assert cmp["best"] == "A", cmp["best"]
 
+# --- generative optimize: sweep + rank by yield-on-cost ----------------------
+opt = tf.optimize(40, 18, 6, targets={"min_units": 1}, econ={"rent_psf_yr": 34, "hard_psf": 220})
+assert opt["considered"] == 15, opt["considered"]            # 5 presets × 3 parking ratios
+assert opt["feasible"] >= 1 and opt["best"], opt
+assert opt["best"]["yield_on_cost"] == max(c["yield_on_cost"] for c in opt["ranked"]), "best ranks top"
+# targets filter: an impossible yield floor yields nothing feasible
+none_feasible = tf.optimize(40, 18, 6, targets={"min_yoc": 9.99})
+assert none_feasible["feasible"] == 0 and none_feasible["best"] is None, none_feasible
+# objective switch: rank by units
+by_units = tf.optimize(40, 18, 6, targets={"objective": "total_units"})
+assert by_units["best"]["total_units"] == max(c["total_units"] for c in by_units["ranked"]), by_units
+
 # --- property & tax summary ----------------------------------------------------
 ps = dp.summarize({"purchase_price": 15_744_700, "building_sf": 249_749, "land_sf": 598_668,
                    "taxes": {"school": 955_533, "county": 239_731, "town": 228_906, "fire": 79_055}})
@@ -51,6 +63,8 @@ with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "Fit"}).json()["id"]
     r = c.post("/test-fit/compare", json={"plate_w": 40, "plate_d": 18, "floors": 5, "schemes": []})
     assert r.status_code == 200 and len(r.json()["schemes"]) == 3, r.text   # default schemes
+    o = c.post("/test-fit/optimize", json={"plate_w": 40, "plate_d": 18, "floors": 6, "targets": {"min_units": 1}})
+    assert o.status_code == 200 and o.json()["best"] and o.json()["considered"] == 15, o.text
     pr = c.put(f"/projects/{pid}/property", json={"purchase_price": 15_744_700, "building_sf": 249_749,
                                                   "taxes": {"school": 955_533}})
     assert pr.status_code == 200 and pr.json()["summary"]["total_taxes"] == 955_533, pr.text
@@ -58,4 +72,5 @@ with TestClient(app) as c:
 
 print(f"TESTFIT OK - corridor layout {m['units_per_floor']} units/floor @ {m['efficiency']*100:.0f}% eff; "
       f"parking {pk['stalls']} stalls; compare ranks studio>2BR ({a['total_units']}>{b['total_units']}); "
+      f"optimize swept {opt['considered']} schemes -> best YoC {opt['best']['yield_on_cost']*100:.1f}%; "
       f"property taxes ${ps['total_taxes']:,} -> opex; endpoints ok")

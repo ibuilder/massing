@@ -57,8 +57,12 @@ Grounded in [TestFit Site Solver](https://www.testfit.io/product/site-solver),
   units/acre, parking ratio, FAR achieved, **yield-on-cost** — multiple fits compared side-by-side.
 - **A5 — Generative design (targets).** Define targets/filters (FAR, parking ratio, yield-on-cost)
   → search massing/unit-mix/parking permutations and rank — "find the deal that pencils."
-- **A6 — Site test-fit (urban/parcel).** Real lot polygon (not a rectangle) → place building
-  footprint(s) + parking + drive aisles + setbacks on the actual parcel.
+- ✅ **DONE — A5 generative design (targets).** `test_fit.optimize()` sweeps unit-mix × parking
+  presets, scores yield-on-cost, filters by targets (units/efficiency/parking/YoC), ranks. `POST
+  /test-fit/optimize` + "⚡ Optimize" button. *Next: tie YoC to the live proforma vs the proxy.*
+- ✅ **DONE — A6 (lite) real lot polygons.** `compute_massing(lot_polygon=[[x,y],…])` — shoelace
+  area drives the program (L-shaped parcels yield less than their bbox). *Next: true polygon-offset
+  footprint + parking/drive-aisle placement on the parcel.*
 
 ## B. Developer / finance portal
 Grounded in an institutional model (M. Emma thesis) + CRE practice (hard 70–80% / soft 20–30%,

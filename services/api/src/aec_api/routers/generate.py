@@ -38,6 +38,7 @@ class MassingIn(BaseModel):
     lot_width: float | None = Field(default=None, gt=0)
     lot_depth: float | None = Field(default=None, gt=0)
     lot_area: float | None = Field(default=None, gt=0)        # use if width/depth unknown
+    lot_polygon: list[list[float]] | None = Field(default=None)  # real parcel [[x,y],…] in metres
     far: float = Field(default=2.0, gt=0)
     coverage_max: float = Field(default=0.6, gt=0, le=1)
     front_setback: float = Field(default=6.0, ge=0)
@@ -168,6 +169,24 @@ def test_fit_compare(body: TestFitIn):
             {"name": "3BR", "target_sf": 1400, "mix_pct": 0.2}], "parking_ratio": 1.5},
     ]
     return tf.compare(body.plate_w, body.plate_d, body.floors, schemes)
+
+
+class OptimizeIn(BaseModel):
+    """Generative design: sweep schemes and rank by an objective, filtered by targets."""
+    plate_w: float = Field(gt=0)
+    plate_d: float = Field(gt=0)
+    floors: int = Field(default=1, ge=1)
+    targets: dict = Field(default_factory=dict)   # min_units, min_efficiency, max_parking_ratio, min_yoc, objective
+    econ: dict = Field(default_factory=dict)       # rent_psf_yr, hard_psf, stall_cost, opex_ratio, land
+
+
+@router.post("/test-fit/optimize")
+def test_fit_optimize(body: OptimizeIn):
+    """Generative design — sweep unit-mix × parking presets, filter by targets, rank by yield-on-cost
+    (or another objective). Returns the ranked feasible schemes + the winner ("find the deal that
+    pencils")."""
+    from .. import test_fit as tf
+    return tf.optimize(body.plate_w, body.plate_d, body.floors, body.targets, body.econ)
 
 
 @router.post("/generate/massing/preview")
