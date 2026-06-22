@@ -860,6 +860,8 @@ export interface MassingMetrics {
   plate_w: number; plate_d: number; floors: number; floor_to_floor: number;
   building_height_m: number; buildable_gfa_m2: number; buildable_gfa_sf: number;
   net_sellable_m2: number; units: number; binding_constraint: string;
+  structure?: { system: string; lateral_system: string; rationale: string; load_path: string;
+    slenderness: number; members_mm: { slab: number; beam_depth: number; column: number; uses_beams: boolean }; flags: string[] };
 }
 export interface MassingResult {
   metrics: MassingMetrics;

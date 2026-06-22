@@ -122,15 +122,23 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
     except ValueError as e:
         raise HTTPException(422, str(e))
 
+    # R3: pick a plausible structural system + member sizes for the building's scale
+    from .. import structure as st
+    rec = st.recommend(metrics["building_height_m"], metrics["floors"], body.bay_m, body.use_type)
+    mm = rec["members_mm"]
+    members = {"slab_m": mm["slab"] / 1000, "column_m": mm["column"] / 1000,
+               "beam_depth_m": mm["beam_depth"] / 1000, "beam_width_m": max(0.3, mm["beam_depth"] / 1000 * 0.6)}
+
     _IFC_DIR.joinpath(pid).mkdir(parents=True, exist_ok=True)
     ifc_path = _IFC_DIR / pid / "source.ifc"
     generate_ifc(metrics, str(ifc_path), name=body.name, frame=body.frame, bay=body.bay_m,
                  units=body.units, envelope=body.envelope, wwr=body.wwr, core=body.core,
-                 unit_layout=body.unit_layout)
+                 unit_layout=body.unit_layout, members=members)
     metrics["framed"] = body.frame
     metrics["unitized"] = body.units
     metrics["enclosed"] = body.envelope
     metrics["cored"] = body.core
+    metrics["structure"] = rec
     storage.put(f"{pid}/source.ifc", ifc_path.read_bytes())   # durable copy
     p.source_ifc = str(ifc_path)
     db.commit()
@@ -141,6 +149,22 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
     _publish_bg(pid)                                            # convert→.frag + reindex off-thread
     return {"metrics": metrics, "proforma": _proforma_seed(body, metrics),
             "source_ifc": str(ifc_path), "publish": "running"}
+
+
+class StructureIn(BaseModel):
+    """Structural-system advice for a given scale."""
+    height_m: float = Field(gt=0)
+    floors: int = Field(default=1, ge=1)
+    span_m: float = Field(default=7.5, gt=0)
+    use_type: str = "residential"
+
+
+@router.post("/structure/recommend")
+def structure_recommend(body: StructureIn):
+    """Recommend a structural system + rough member sizes + load path for a building's scale (R3,
+    Salvadori). Stateless; the same advisor drives the generated frame's member sizing."""
+    from .. import structure as st
+    return st.recommend(body.height_m, body.floors, body.span_m, body.use_type)
 
 
 class TestFitIn(BaseModel):

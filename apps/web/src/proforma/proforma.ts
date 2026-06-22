@@ -237,6 +237,8 @@ export class ProformaUI {
         (su ? `<div class="meta">Total cost ${money(su.total_uses ?? 0)} · equity ${money(su.equity ?? 0)} · ` +
               `IRR <b>${pct(ret?.equity_irr ?? null)}</b> · ${ret?.equity_multiple ?? "—"}× EM</div>` : "") +
         (r.proforma.solve_error ? `<div class="meta" style="color:#e2554a">proforma: ${r.proforma.solve_error}</div>` : "") +
+        (m.structure ? `<div class="meta">🏛 Structure: <b>${m.structure.system}</b> · ${m.structure.lateral_system}` +
+              ` · cols ${m.structure.members_mm.column} mm</div>` : "") +
         (generated ? `<div class="meta" style="color:var(--accent)">✓ IFC model generated & publishing — open the Model workspace to view.</div>` : "");
     };
 

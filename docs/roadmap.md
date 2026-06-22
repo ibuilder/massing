@@ -130,10 +130,12 @@ and ASU.
   finished 45 days early. Model the schedule as a **takt / line-of-balance flow with production
   rates** (floors/week per trade), a **JIT delivery/logistics plan** tied to the takt, and **daily
   crew-by-trade** actuals vs plan (we already capture daily reports + manpower — close the loop).
-- **R3 — Structural-system advisor.** Salvadori: systems are chosen by span, height, and load path.
-  Replace the fixed 0.6 m / 7.5 m frame with a **height/span-aware system selector** (steel moment
-  frame · concrete flat-plate · braced/shear-core · outrigger for supertall) + rough member sizing
-  and a load-path sanity check — so the generated structure is plausible for the building's scale.
+- ✅ **DONE — R3 structural-system advisor.** `structure.recommend(height, floors, span)` picks the
+  system by scale — flat-plate (low) · flat-plate + shear walls (mid) · shear-core + frame (high) ·
+  outrigger/tube (supertall) — with rough member sizing (slab ≈ span/30, beam ≈ span/16, columns grow
+  with floors, capped 1200 mm), a load-path read, and span/slenderness flags. `POST /structure/
+  recommend`; the **generated frame now uses these sizes** (vs the fixed 0.6 m/7.5 m frame) and the
+  system shows in the massing result. *Next: per-floor column taper; lateral core geometry.*
 - **R4 — Lean / productivity analytics.** VT lean-construction research (Last Planner): track **Plan
   Percent Complete (PPC)**, a **constraint/look-ahead log**, **rework**, and **production-rate**
   actuals vs plan, surfaced on the dashboard — measured improvements in the literature (PPC +13%,

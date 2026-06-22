@@ -85,7 +85,7 @@ def gridlines(extent: float, bay: float) -> list[float]:
 def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
                  frame: bool = False, bay: float = 7.5, units: bool = False,
                  envelope: bool = False, wwr: float = 0.4, core: bool = False,
-                 unit_layout: str = "grid") -> str:
+                 unit_layout: str = "grid", members: dict | None = None) -> str:
     """Write an IFC4 model: site → building → one storey + slab per level. Each floor gets either a
     single floor-plate space, or — with `units=True` — the floor subdivided into per-unit IfcSpaces
     (the proforma's unit count), so areas/COBie/rent are grounded in real apartments. With
@@ -103,9 +103,12 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
     fw, fd, f2f = float(metrics["plate_w"]), float(metrics["plate_d"]), float(metrics["floor_to_floor"])
     plate_area = round(fw * fd, 2)
     units_per_floor = max(1, round(int(metrics.get("units", 0)) / floors)) if units else 0
-    SLAB_T = 0.3   # m — thin floor plate per level: physical (renders) so the massing is visible
-    #              (IfcSpace is forced transparent by the Fragments importer, so spaces alone show empty)
-    COL, BEAM_W, BEAM_D = 0.6, 0.4, 0.6      # concrete column side, beam width, beam depth (m)
+    # member sizes — defaults, overridable by the structural advisor (R3) via `members` (metres)
+    mem = members or {}
+    SLAB_T = float(mem.get("slab_m", 0.3))   # thin floor plate per level (renders the massing)
+    COL = float(mem.get("column_m", 0.6))
+    BEAM_W = float(mem.get("beam_width_m", 0.4))
+    BEAM_D = float(mem.get("beam_depth_m", 0.6))
 
     def rect_profile(m, w, d):
         # web-ifc REQUIRES IfcProfileDef.Position (ifcopenshell tolerates None, web-ifc skips the
