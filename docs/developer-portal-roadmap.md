@@ -68,4 +68,10 @@ These attach to generated massing (areas → counts) so feasibility flows model 
   `GET /projects/{id}/investment-memo.pdf`: cover · executive summary · Sources & Uses · cost
   budget · returns (from the latest solved scenario) · risk read. "📄 Investment memo" button in
   Finance. *Next: pitch-deck (slide) variant, market/timeline sections, property photos.*
-- ⏳ 2 Sources & Uses (first-class view) · 3 property/tax assumptions · 4 specialty energy/PFAL — next.
+- ✅ **DONE — 4. Specialty assets (energy + vertical farm)** — `specialty.py` /
+  `GET/PUT /projects/{id}/specialty`: on-site solar/wind/battery/rainwater → capex + annual energy
+  offset; PFAL towers (from area) → produce revenue + lighting opex + startup capex. Rolls into the
+  proforma (capex→hard line, revenue+offset→other income, opex→opex). "⚡ Specialty" Finance panel
+  with toggles + Apply. Thesis-grounded defaults. Verified end-to-end. *Next: wind generation curve,
+  crop-mix presets, energy storage dispatch.*
+- ⏳ 2 Sources & Uses (first-class view) · 3 property/tax assumptions — next.

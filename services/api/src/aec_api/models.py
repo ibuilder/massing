@@ -29,6 +29,8 @@ class Project(Base):
     source_ifc: Mapped[str | None] = mapped_column(String, nullable=True)
     # developer cost budget: line-item hard/soft/acquisition costs + contingencies (dev_budget.py)
     dev_budget: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # specialty assets: on-site energy + vertical-farm (PFAL) revenue params (specialty.py)
+    dev_specialty: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     topics: Mapped[list["Topic"]] = relationship(back_populates="project", cascade="all, delete-orphan")

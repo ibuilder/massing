@@ -102,6 +102,7 @@ export class ProformaUI {
     this.root.appendChild(form);
     this.renderMassing();
     this.renderBudget();
+    this.renderSpecialty();
     this.renderModelLink();
     const out = document.createElement("div"); out.id = "pf-out";
     this.root.appendChild(out);
@@ -218,6 +219,79 @@ export class ProformaUI {
     };
     btnRow.append(estBtn, genBtn); host.append(btnRow, out);
     this.root.appendChild(host);
+  }
+
+  /** Specialty assets: on-site energy (solar/wind/battery/rainwater) + vertical-farm (PFAL) tower
+   *  revenue. Capex + annual revenue/opex/energy-offset flow into the proforma — the thesis-grounded
+   *  differentiator tying the physical program to the deal economics. */
+  private renderSpecialty() {
+    const host = document.createElement("div"); host.id = "pf-specialty";
+    host.style.cssText = "margin:8px 0;padding:8px 10px;border:1px dashed var(--line);border-radius:8px";
+    const pid = this.projectId();
+    host.innerHTML = `<div class="section-title" style="margin:0 0 6px">⚡ Specialty: energy & vertical farm</div>`;
+    if (!pid) { host.insertAdjacentHTML("beforeend", `<div class="meta">Open a project to model on-site energy + farm revenue.</div>`); this.root.appendChild(host); return; }
+    const bodyEl = document.createElement("div"); host.appendChild(bodyEl); this.root.appendChild(host);
+    bodyEl.innerHTML = `<div class="meta">loading…</div>`;
+
+    void this.api.specialty(pid).then((resp) => {
+      const params = resp.params as Record<string, Record<string, number> & { [k: string]: unknown }> & { energy_enabled?: boolean; pfal_enabled?: boolean };
+      let timer = 0;
+      const save = () => { clearTimeout(timer); timer = window.setTimeout(() => void this.api.saveSpecialty(pid, params).then((r) => paint(r.summary)), 500); };
+      // [label, group, key]
+      const FIELDS: [string, "energy" | "pfal", string][] = [
+        ["Solar SF", "energy", "solar_sf"], ["$/panel", "energy", "cost_per_panel"],
+        ["Battery units", "energy", "battery_units"], ["Rainwater $", "energy", "rainwater_capex"],
+        ["PFAL SF", "pfal", "pfal_sf"], ["Greens $/lb", "pfal", "green_price_lb"], ["Herbs $/lb", "pfal", "herb_price_lb"],
+      ];
+      const paint = (sum?: import("../api/client").SpecialtySummary) => {
+        bodyEl.innerHTML = "";
+        // enable toggles
+        const tog = document.createElement("div"); tog.style.cssText = "display:flex;gap:14px;margin-bottom:6px";
+        for (const [k, lbl] of [["energy_enabled", "On-site energy"], ["pfal_enabled", "Vertical farm (PFAL)"]] as const) {
+          const w = document.createElement("label"); w.style.cssText = "display:flex;align-items:center;gap:5px;font-size:12px";
+          const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = params[k] !== false;
+          cb.onchange = () => { (params as Record<string, unknown>)[k] = cb.checked; save(); paint(); };
+          w.append(cb, document.createTextNode(lbl)); tog.appendChild(w);
+        }
+        bodyEl.appendChild(tog);
+        const grid = document.createElement("div"); grid.className = "pf-form";
+        for (const [label, group, key] of FIELDS) {
+          params[group] = params[group] || {};
+          const wrap = document.createElement("label"); wrap.className = "pf-field"; wrap.innerHTML = `<span>${label}</span>`;
+          const inp = document.createElement("input"); inp.type = "number"; inp.step = "any";
+          inp.value = String((params[group] as Record<string, number>)[key] ?? 0);
+          inp.oninput = () => { (params[group] as Record<string, number>)[key] = parseFloat(inp.value) || 0; save(); };
+          wrap.appendChild(inp); grid.appendChild(wrap);
+        }
+        bodyEl.appendChild(grid);
+        if (sum) {
+          const s = document.createElement("div"); s.className = "meta"; s.style.marginTop = "6px";
+          s.innerHTML = `Capex <b>${money(sum.capex_total)}</b>`
+            + (sum.energy ? ` · ${sum.energy.solar_panels.toLocaleString()} panels` : "")
+            + (sum.pfal ? ` · ${sum.pfal.towers.toLocaleString()} towers` : "")
+            + `<br>Produce revenue <b>${money(sum.annual_revenue)}</b>/yr · energy offset ${money(sum.annual_energy_offset)}/yr · farm opex ${money(sum.annual_opex)}/yr`
+            + `<br>Net operating contribution <b>${money(sum.annual_net_contribution)}</b>/yr`;
+          bodyEl.appendChild(s);
+        }
+        const apply = document.createElement("button"); apply.className = "file-btn"; apply.style.marginTop = "6px";
+        apply.textContent = "Apply to proforma";
+        apply.onclick = async () => {
+          const r = await this.api.saveSpecialty(pid, params);
+          const d = r.deltas;
+          const a = this.a as { cost_lines: { category: string; name: string; amount: number }[]; operations: { other_income_annual: number; opex_annual: number } };
+          if (d.cost_line) {
+            const ex = a.cost_lines.find((c) => c.name === d.cost_line!.name);
+            if (ex) ex.amount = d.cost_line.amount; else a.cost_lines.push({ ...d.cost_line, start_month: 0, end_month: 0 } as never);
+          }
+          a.operations.other_income_annual = (a.operations.other_income_annual || 0) + d.other_income_annual_add;
+          a.operations.opex_annual = (a.operations.opex_annual || 0) + d.opex_annual_add;
+          this.render(); void this.solve();
+          this.setStatus(`applied specialty assets: ${money(r.summary.capex_total)} capex, ${money(r.summary.annual_net_contribution)}/yr net`);
+        };
+        bodyEl.appendChild(apply);
+      };
+      paint(resp.summary);
+    }).catch(() => { bodyEl.innerHTML = `<div class="meta">specialty assets unavailable (API offline)</div>`; });
   }
 
   /** Developer cost budget: line-item hard/soft/acquisition costs (description × $/unit × qty) with

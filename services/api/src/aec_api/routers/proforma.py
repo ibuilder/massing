@@ -134,6 +134,32 @@ def put_dev_budget(pid: str, body: DevBudgetIn, db: Session = Depends(get_db)):
     return {"budget": budget, "summary": dvb.summarize(budget)}
 
 
+@router.get("/projects/{pid}/specialty")
+def get_specialty(pid: str, db: Session = Depends(get_db)):
+    """Specialty assets (on-site energy + vertical-farm/PFAL) params + computed summary (capex,
+    annual revenue/opex/energy-offset). Starter params if none saved."""
+    from .. import specialty as sp
+    from ..models import Project as _P
+    p = db.get(_P, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    params = p.dev_specialty or sp.starter()
+    return {"params": params, "summary": sp.summarize(params), "deltas": sp.to_proforma_deltas(params)}
+
+
+@router.put("/projects/{pid}/specialty")
+def put_specialty(pid: str, body: dict, db: Session = Depends(get_db)):
+    """Save specialty-asset params; returns the recomputed summary + proforma deltas."""
+    from .. import specialty as sp
+    from ..models import Project as _P
+    p = db.get(_P, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    p.dev_specialty = body
+    db.commit()
+    return {"params": body, "summary": sp.summarize(body), "deltas": sp.to_proforma_deltas(body)}
+
+
 @router.get("/projects/{pid}/investment-memo.pdf")
 def investment_memo(pid: str, db: Session = Depends(get_db)):
     """Confidential investment memorandum (PDF) composed from live project data — executive summary,

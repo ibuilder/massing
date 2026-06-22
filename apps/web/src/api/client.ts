@@ -725,6 +725,13 @@ export class ApiClient {
     return this.json<{ cost_lines: { category: string; name: string; amount: number; curve: string }[]; summary: DevBudgetSummary }>(
       `/projects/${pid}/dev-budget/cost-lines`);
   }
+  /** Specialty assets (on-site energy + vertical-farm/PFAL) params + computed summary + deltas. */
+  specialty(pid: string) {
+    return this.json<SpecialtyResponse>(`/projects/${pid}/specialty`);
+  }
+  saveSpecialty(pid: string, params: Record<string, unknown>) {
+    return this.json<SpecialtyResponse>(`/projects/${pid}/specialty`, { method: "PUT", body: JSON.stringify(params) });
+  }
   /** Proforma seed metrics derived from the project's source IFC (areas / space + storey counts). */
   proformaModelMetrics(pid: string) {
     return this.json<{ space_count: number; spaces_with_area: number; storey_count: number; net_floor_area_m2: number; net_floor_area_sf: number }>(
@@ -791,6 +798,18 @@ export interface DevBudgetSummary {
 export interface DevBudgetResponse {
   budget: { lines: DevBudgetLine[]; contingency: Record<string, number> };
   summary: DevBudgetSummary;
+}
+export interface SpecialtySummary {
+  capex_total: number; annual_revenue: number; annual_opex: number;
+  annual_energy_offset: number; annual_net_contribution: number;
+  energy: { solar_panels: number; capex: number; generation_kwh_yr: number; annual_energy_offset: number } | null;
+  pfal: { towers: number; annual_revenue: number; annual_opex: number; startup_capex: number } | null;
+}
+export interface SpecialtyResponse {
+  params: Record<string, unknown>;
+  summary: SpecialtySummary;
+  deltas: { cost_line: { category: string; name: string; amount: number; curve: string } | null;
+    other_income_annual_add: number; opex_annual_add: number };
 }
 export interface FamilyItem {
   key: string; label: string; ifc_class: string; category: string; dims: [number, number, number];
