@@ -290,7 +290,10 @@ export class ProformaUI {
           this.render(); void this.solve();
           this.setStatus(`applied cost budget: ${money(r.summary.grand_total)} total uses`);
         };
-        const fwrap = document.createElement("div"); fwrap.style.marginTop = "6px"; fwrap.appendChild(apply);
+        const memo = document.createElement("button"); memo.className = "tool-btn"; memo.style.marginLeft = "6px";
+        memo.textContent = "📄 Investment memo (PDF)"; memo.title = "Open a confidential investment memorandum generated from this project";
+        memo.onclick = () => window.open(this.api.url(`/projects/${pid}/investment-memo.pdf`), "_blank");
+        const fwrap = document.createElement("div"); fwrap.style.marginTop = "6px"; fwrap.append(apply, memo);
         body.append(foot, fwrap);
       };
       paint(resp);

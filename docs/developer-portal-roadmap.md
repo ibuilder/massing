@@ -63,5 +63,9 @@ These attach to generated massing (areas → counts) so feasibility flows model 
 1, 2 and 5 are the headline asks.
 
 ## Status
-- ✅ **DONE — 1. Line-item hard/soft cost budgets** (see dev_budget.py / `/projects/{id}/dev-budget`).
-- ⏳ 2 Sources & Uses · 5 Investment memo PDF · 3 assumptions · 4 specialty — next.
+- ✅ **DONE — 1. Line-item hard/soft cost budgets** (dev_budget.py / `/projects/{id}/dev-budget`).
+- ✅ **DONE — 5. Investment memo (PDF)** — `report.investment_memo_pdf()` /
+  `GET /projects/{id}/investment-memo.pdf`: cover · executive summary · Sources & Uses · cost
+  budget · returns (from the latest solved scenario) · risk read. "📄 Investment memo" button in
+  Finance. *Next: pitch-deck (slide) variant, market/timeline sections, property photos.*
+- ⏳ 2 Sources & Uses (first-class view) · 3 property/tax assumptions · 4 specialty energy/PFAL — next.

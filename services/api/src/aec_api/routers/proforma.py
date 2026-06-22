@@ -134,6 +134,22 @@ def put_dev_budget(pid: str, body: DevBudgetIn, db: Session = Depends(get_db)):
     return {"budget": budget, "summary": dvb.summarize(budget)}
 
 
+@router.get("/projects/{pid}/investment-memo.pdf")
+def investment_memo(pid: str, db: Session = Depends(get_db)):
+    """Confidential investment memorandum (PDF) composed from live project data — executive summary,
+    Sources & Uses, the development cost budget, returns (from the latest solved scenario), and a
+    risk read. The 'generate a presentation with financials' deliverable."""
+    from fastapi import Response
+    from .. import report
+    from ..models import Project as _P
+    p = db.get(_P, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    pdf = report.investment_memo_pdf(db, pid, p.name)
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="investment-memo-{pid[:8]}.pdf"'})
+
+
 @router.get("/projects/{pid}/dev-budget/cost-lines")
 def dev_budget_cost_lines(pid: str, db: Session = Depends(get_db)):
     """The budget rolled into proforma cost_lines (the seed the Finance view applies)."""

@@ -109,6 +109,162 @@ def project_status_pdf(db: Session, pid: str, project_name: str) -> bytes:
     return buf.getvalue()
 
 
+def _memo_proforma(db: Session, pid: str):
+    """Returns (result, source) for the memo: the project's most recent solved scenario when one
+    exists (the real underwriting), else None — the memo then shows the capital stack from the
+    cost budget alone (returns need operating assumptions, which a scenario carries)."""
+    from .models import Scenario
+    s = (db.query(Scenario).filter(Scenario.project_id == pid)
+         .order_by(Scenario.created_at.desc()).first())
+    if s and s.result:
+        return s.result, s.name
+    return None, None
+
+
+def _pct(v) -> str:
+    return f"{v * 100:.1f}%" if isinstance(v, (int, float)) else "n/a"
+
+
+def investment_memo_pdf(db: Session, pid: str, project_name: str) -> bytes:
+    """A confidential investment memorandum composed from live project data: executive summary,
+    Sources & Uses, the hard/soft cost budget, returns, and a risk read. Returns scenario figures
+    when the project has a solved proforma; otherwise the capital stack from the cost budget."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+
+    from . import ai, dashboard, dev_budget as dvb
+    from .models import Project
+
+    p = db.get(Project, pid)
+    budget = (p.dev_budget if p and p.dev_budget else dvb.starter_budget())
+    bs = dvb.summarize(budget)
+    result, scenario_name = _memo_proforma(db, pid)
+    su = (result or {}).get("sources_uses", {})
+    ret = (result or {}).get("returns", {})
+    d = dashboard.build(db, pid, "GC")
+    risk = ai.risk_summary(d.get("kpis", {}), d.get("cost"))
+
+    total_uses = su.get("total_uses") or bs["grand_total"]
+    loan = su.get("loan_amount")
+    equity = su.get("equity")
+    if loan is None:                       # no scenario → size a default stack off the budget
+        loan = round(total_uses * 0.65); equity = round(total_uses - loan)
+
+    buf = io.BytesIO(); c = canvas.Canvas(buf, pagesize=letter); w, h = letter
+    margin = 40; y = h - 60
+
+    def newpage():
+        nonlocal y
+        c.showPage(); y = h - 50
+
+    def heading(text: str):
+        nonlocal y
+        if y < 110:
+            newpage()
+        c.setFont("Helvetica-Bold", 13); c.drawString(margin, y, text); y -= 6
+        c.setStrokeColor(colors.grey); c.line(margin, y, w - margin, y); c.setStrokeColor(colors.black); y -= 16
+
+    def row(label: str, value: str, indent: int = 0, bold: bool = False):
+        nonlocal y
+        if y < 60:
+            newpage()
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", 10)
+        c.drawString(margin + indent, y, label[:70]); c.drawRightString(w - margin, y, value); y -= 15
+
+    def para(text: str):
+        nonlocal y
+        c.setFont("Helvetica", 10)
+        words = text.split(); line = ""
+        for word in words:
+            if c.stringWidth(line + " " + word, "Helvetica", 10) > w - 2 * margin:
+                if y < 60:
+                    newpage()
+                c.drawString(margin, y, line); y -= 14; line = word
+            else:
+                line = (line + " " + word).strip()
+        if line:
+            if y < 60:
+                newpage()
+            c.drawString(margin, y, line); y -= 14
+
+    # --- cover ---
+    c.setFillColor(colors.HexColor("#16324f")); c.rect(0, h - 200, w, 200, fill=1, stroke=0)
+    c.setFillColor(colors.white)
+    c.setFont("Helvetica-Bold", 11); c.drawString(margin, h - 70, "CONFIDENTIAL INVESTMENT MEMORANDUM")
+    c.setFont("Helvetica-Bold", 26); c.drawString(margin, h - 110, (project_name or pid)[:46])
+    c.setFont("Helvetica", 12); c.drawString(margin, h - 134, "Real-Estate Development Opportunity")
+    c.setFont("Helvetica", 10); c.drawString(margin, h - 170, datetime.now(timezone.utc).strftime("Prepared %B %d, %Y"))
+    c.setFillColor(colors.black); y = h - 240
+
+    heading("Executive Summary")
+    if result:
+        para(f"This memorandum presents the development of {project_name}. On total project costs "
+             f"of {_money(total_uses)}, the deal is underwritten to a {_pct(ret.get('equity_irr'))} "
+             f"equity IRR and a {ret.get('equity_multiple', 'n/a')}x equity multiple"
+             + (f" (yield-on-cost {_pct(ret.get('yield_on_cost'))})." if ret.get('yield_on_cost') is not None else "."))
+    else:
+        para(f"This memorandum presents the development of {project_name}. Total project costs are "
+             f"{_money(total_uses)}, funded with {_money(loan)} of senior debt and {_money(equity)} "
+             f"of equity. Save a proforma scenario to include underwritten returns (IRR, multiple, "
+             f"yield-on-cost) in this section.")
+    y -= 6
+    row("Total project cost", _money(total_uses), bold=True)
+    row("Equity IRR", _pct(ret.get("equity_irr")) if result else "—")
+    row("Equity multiple", f"{ret.get('equity_multiple', '—')}x" if result else "—")
+    row("Hard / soft split", f"{bs['hard_pct'] * 100:.0f}% / {bs['soft_pct'] * 100:.0f}%")
+    y -= 8
+
+    heading("Sources & Uses")
+    row("USES", "", bold=True)
+    for cat, lbl in (("acquisition", "Acquisition"), ("hard", "Hard costs"), ("soft", "Soft costs")):
+        cc = bs["categories"][cat]
+        if cc["subtotal"]:
+            row(lbl, _money(cc["subtotal"]), indent=8)
+        if cc["contingency"]:
+            row(f"{lbl} contingency ({cc['contingency_pct'] * 100:.0f}%)", _money(cc["contingency"]), indent=16)
+    row("Total uses", _money(total_uses), indent=8, bold=True)
+    y -= 4
+    row("SOURCES", "", bold=True)
+    row(f"Senior debt ({_pct(loan / total_uses) if total_uses else 'n/a'} LTC)", _money(loan), indent=8)
+    row("Equity", _money(equity), indent=8)
+    row("Total sources", _money((loan or 0) + (equity or 0)), indent=8, bold=True)
+    y -= 8
+
+    heading("Development Cost Budget")
+    for cat, lbl in (("acquisition", "Acquisition"), ("hard", "Hard costs"), ("soft", "Soft costs")):
+        cc = bs["categories"][cat]
+        if not cc["lines"]:
+            continue
+        row(lbl, _money(cc["total"]), bold=True)
+        for ln in cc["lines"][:12]:
+            qty = ln["quantity"]
+            desc = ln["description"] + (f"  ({qty:g} × {_money(ln['unit_cost'])})" if qty and qty != 1 else "")
+            row(desc, _money(ln["total"]), indent=12)
+    y -= 8
+
+    if result:
+        heading("Returns")
+        row("Project IRR", _pct(ret.get("project_irr")))
+        row("Equity IRR", _pct(ret.get("equity_irr")))
+        row("Equity multiple", f"{ret.get('equity_multiple', 'n/a')}x")
+        if ret.get("npv") is not None:
+            row("NPV", _money(ret.get("npv")))
+        if ret.get("yield_on_cost") is not None:
+            row("Yield on cost", _pct(ret.get("yield_on_cost")))
+        y -= 8
+
+    heading("Risk Summary")
+    para(risk.get("headline", ""))
+    for r in risk.get("risks", [])[:8]:
+        row(f"[{r['level'].upper()}] {r['text']}"[:78], "", indent=8)
+
+    c.setFont("Helvetica-Oblique", 8)
+    c.drawString(margin, 30, "AEC BIM Platform — generated from live project data · Confidential")
+    c.showPage(); c.save()
+    return buf.getvalue()
+
+
 def module_log_pdf(db: Session, pid: str, key: str, project_name: str) -> bytes:
     """A printable register (log) of one module's records — ref, title, status, assignee, date.
     Drives the RFI log, submittal log, change-order log, etc. from the same engine."""

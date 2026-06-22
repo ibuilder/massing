@@ -56,5 +56,23 @@ with TestClient(app) as c:
     clr = c.get(f"/projects/{pid}/dev-budget/cost-lines").json()
     assert round(sum(x["amount"] for x in clr["cost_lines"]), 2) == s["grand_total"], clr
 
+    # --- investment memo PDF -------------------------------------------------
+    # no scenario yet → memo still renders (capital stack from the budget)
+    m1 = c.get(f"/projects/{pid}/investment-memo.pdf")
+    assert m1.status_code == 200 and m1.content[:4] == b"%PDF" and len(m1.content) > 2000, (m1.status_code, len(m1.content))
+    # add a solved scenario → memo includes underwritten returns (and is larger)
+    assumptions = {
+        "timing": {"construction_months": 18, "hold_years": 5},
+        "cost_lines": clr["cost_lines"],
+        "debt": {"ltc": 0.65, "rate": 0.075}, "equity": {"lp_pct": 0.9, "gp_pct": 0.1},
+        "operations": {"potential_rent_annual": 3_000_000, "opex_annual": 1_000_000, "stabilized_occ": 0.93},
+        "exit": {"exit_cap": 0.05}, "waterfall": {"pref_rate": 0.08, "tiers": [{"hurdle": None, "lp": 0.8, "gp": 0.2}]},
+    }
+    sc = c.post("/proforma/scenarios", json={"name": "Base", "project_id": pid, "assumptions": assumptions})
+    assert sc.status_code == 201, sc.text
+    m2 = c.get(f"/projects/{pid}/investment-memo.pdf")
+    assert m2.status_code == 200 and m2.content[:4] == b"%PDF", m2.status_code
+
 print(f"DEV-BUDGET OK - line totals + per-category contingency + grand ${s['grand_total']:,.0f}; "
-      f"hard {s['hard_pct']*100:.0f}% / soft {s['soft_pct']*100:.0f}%; cost_lines reconcile; persisted via API")
+      f"hard {s['hard_pct']*100:.0f}% / soft {s['soft_pct']*100:.0f}%; cost_lines reconcile; "
+      f"persisted via API; investment-memo PDF renders (no-scenario + with-scenario)")
