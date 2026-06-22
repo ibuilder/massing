@@ -53,6 +53,7 @@ class MassingIn(BaseModel):
     envelope: bool = Field(default=False)                     # wrap floors in facade walls + windows
     wwr: float = Field(default=0.4, gt=0, le=0.95)            # window-to-wall ratio
     core: bool = Field(default=False)                         # service core: shafts + stair + MEP risers
+    unit_layout: str = Field(default="grid")                  # "grid" | "corridor" (double-loaded test-fit)
     # --- acquisition proforma seed ---
     land_cost: float = Field(default=2_500_000.0, ge=0)
     hard_cost_psf: float = Field(default=225.0, ge=0)         # $/sf GFA
@@ -123,7 +124,8 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
     _IFC_DIR.joinpath(pid).mkdir(parents=True, exist_ok=True)
     ifc_path = _IFC_DIR / pid / "source.ifc"
     generate_ifc(metrics, str(ifc_path), name=body.name, frame=body.frame, bay=body.bay_m,
-                 units=body.units, envelope=body.envelope, wwr=body.wwr, core=body.core)
+                 units=body.units, envelope=body.envelope, wwr=body.wwr, core=body.core,
+                 unit_layout=body.unit_layout)
     metrics["framed"] = body.frame
     metrics["unitized"] = body.units
     metrics["enclosed"] = body.envelope
@@ -138,6 +140,34 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
     _publish_bg(pid)                                            # convert→.frag + reindex off-thread
     return {"metrics": metrics, "proforma": _proforma_seed(body, metrics),
             "source_ifc": str(ifc_path), "publish": "running"}
+
+
+class TestFitIn(BaseModel):
+    """Fit a unit mix to a floor plate and compare schemes (TestFit-style)."""
+    plate_w: float = Field(gt=0)
+    plate_d: float = Field(gt=0)
+    floors: int = Field(default=1, ge=1)
+    schemes: list[dict] = Field(default_factory=list)   # [{name, unit_types?, parking_ratio?, parking_kind?}]
+
+
+@router.post("/test-fit/compare")
+def test_fit_compare(body: TestFitIn):
+    """Compare unit-mix schemes on a floor plate — yield metrics (units, efficiency, NSF/GSF, mix)
+    + parking — ranked so you can find the scheme that pencils. Stateless; the rects also feed the
+    IFC massing generator (unit_layout='corridor')."""
+    from .. import test_fit as tf
+    schemes = body.schemes or [
+        {"name": "Efficient (more 1BR)", "unit_types": [
+            {"name": "Studio", "target_sf": 480, "mix_pct": 0.3},
+            {"name": "1BR", "target_sf": 720, "mix_pct": 0.55},
+            {"name": "2BR", "target_sf": 1000, "mix_pct": 0.15}], "parking_ratio": 1.0},
+        {"name": "Balanced", "unit_types": None, "parking_ratio": 1.2},
+        {"name": "Family (more 2BR)", "unit_types": [
+            {"name": "1BR", "target_sf": 780, "mix_pct": 0.35},
+            {"name": "2BR", "target_sf": 1100, "mix_pct": 0.45},
+            {"name": "3BR", "target_sf": 1400, "mix_pct": 0.2}], "parking_ratio": 1.5},
+    ]
+    return tf.compare(body.plate_w, body.plate_d, body.floors, schemes)
 
 
 @router.post("/generate/massing/preview")

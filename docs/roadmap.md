@@ -40,7 +40,13 @@ Grounded in [TestFit Site Solver](https://www.testfit.io/product/site-solver),
 [Generative Design](https://www.testfit.io/blog/unleash-boundless-building-optimization-with-testfit-generative-design).
 
 - ✅ **DONE — generative massing** (zoning → massing/frame/units/envelope/core).
-- **A1 — Unit-mix configurator.** Define unit *types* (studio/1BR/2BR… target SF + mix %/count) and
+- ✅ **DONE — A1 unit-mix configurator + corridor layout.** `test_fit.layout()` tiles a unit mix on a
+  double-loaded corridor (units both sides) → placed rects + yield; `generate_ifc(unit_layout=
+  "corridor")` builds real corridor + unit IfcSpaces. "Double-loaded corridor" toggle on the form.
+- ✅ **DONE — A3 parking (lite) + A4 yield compare.** `test_fit.parking()` (stalls/unit ratio →
+  count/area/cost) and `compare()` rank schemes; `POST /test-fit/compare` + a "📐 Test Fit" Finance
+  panel (units/efficiency/avg-SF/NSF/stalls, best ★). *Next: parking as real IFC geometry, egress.*
+- **A1b/A2 — Circulation & egress (full).** Define unit *types* (studio/1BR/2BR… target SF + mix %/count) and
   tile them along a **double-loaded corridor** on the floor plate (not a naive grid) — real unit
   modules + demising walls + corridor. Import/save unit presets.
 - **A2 — Circulation & egress.** Auto corridors, egress stairs, elevators positioned for code
@@ -63,8 +69,9 @@ contingency 5–10%; Uses = Acquisition + Hard + Soft + Financing; Sources = Deb
 - **B2 — Sources & Uses (first-class view).** ★ *in progress* — grouped Uses (from the cost budget +
   acquisition + financing) vs Sources (senior debt sized by LTC/LTV/DSCR/debt-yield, mezz, LP/GP
   equity); per-period draw spread feeding interest reserve. Endpoint + Finance S&U view + memo section.
-- **B3 — Property & tax assumptions.** Address/block-lot, land/building/parking SF, appraisal,
-  purchase price, and a tax table (school/county/town/fire → total) feeding OPEX.
+- ✅ **DONE — B3 property & tax assumptions.** `dev_property.py` + GET/PUT `/projects/{id}/property`
+  + "🏢 Property & tax" Finance panel: parcel/areas/purchase + tax table (school/county/town/fire →
+  total) → OPEX, purchase → acquisition line; per-SF ratios. *Next: appraisal/market comps section.*
 - **B6 — Pitch-deck variant** of the memo (10–20 slides) + market/timeline sections, photos.
 
 ## C. Lifecycle / construction depth

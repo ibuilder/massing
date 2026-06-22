@@ -160,6 +160,31 @@ def put_specialty(pid: str, body: dict, db: Session = Depends(get_db)):
     return {"params": body, "summary": sp.summarize(body), "deltas": sp.to_proforma_deltas(body)}
 
 
+@router.get("/projects/{pid}/property")
+def get_property(pid: str, db: Session = Depends(get_db)):
+    """Property & tax assumptions + computed summary (totals, per-SF ratios, proforma deltas)."""
+    from .. import dev_property as dp
+    from ..models import Project as _P
+    p = db.get(_P, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    prop = p.dev_property or dp.starter()
+    return {"property": prop, "summary": dp.summarize(prop)}
+
+
+@router.put("/projects/{pid}/property")
+def put_property(pid: str, body: dict, db: Session = Depends(get_db)):
+    """Save property & tax assumptions; returns the recomputed summary."""
+    from .. import dev_property as dp
+    from ..models import Project as _P
+    p = db.get(_P, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    p.dev_property = body
+    db.commit()
+    return {"property": body, "summary": dp.summarize(body)}
+
+
 @router.get("/projects/{pid}/sources-uses")
 def get_sources_uses(pid: str, ltc: float = 0.65, rate: float = 0.075,
                      construction_months: int = 18, lp_pct: float = 0.9,

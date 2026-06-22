@@ -123,6 +123,20 @@ if _have_ifc:
         finally:
             os.remove(epath)
 
+        # --- corridor (double-loaded test-fit) unit layout ------------------
+        fd6, lpath = tempfile.mkstemp(suffix=".ifc"); os.close(fd6)
+        try:
+            massing.generate_ifc(m, lpath, name="Corridor", units=True, unit_layout="corridor")
+            lm = open_model(lpath)
+            spaces = [s for s in lm.by_type("IfcSpace")]
+            corridors = [s for s in spaces if (s.LongName or "") == "Corridor"]
+            assert len(corridors) == m["floors"], "one corridor per floor"
+            assert len(spaces) > len(corridors), "units placed alongside corridors"
+            print(f"CORRIDOR OK - double-loaded layout: {len(corridors)} corridors + "
+                  f"{len(spaces) - len(corridors)} unit spaces across {m['floors']} floors")
+        finally:
+            os.remove(lpath)
+
         # --- service core + MEP risers (core=True) --------------------------
         fd5, cpath = tempfile.mkstemp(suffix=".ifc"); os.close(fd5)
         try:

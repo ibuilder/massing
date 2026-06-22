@@ -67,7 +67,8 @@ def gridlines(extent: float, bay: float) -> list[float]:
 
 def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
                  frame: bool = False, bay: float = 7.5, units: bool = False,
-                 envelope: bool = False, wwr: float = 0.4, core: bool = False) -> str:
+                 envelope: bool = False, wwr: float = 0.4, core: bool = False,
+                 unit_layout: str = "grid") -> str:
     """Write an IFC4 model: site → building → one storey + slab per level. Each floor gets either a
     single floor-plate space, or — with `units=True` — the floor subdivided into per-unit IfcSpaces
     (the proforma's unit count), so areas/COBie/rent are grounded in real apartments. With
@@ -199,7 +200,23 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
                                       name=f"Level {i + 1}")
         storey.Elevation = elev
         ifcopenshell.api.run("aggregate.assign_object", model, products=[storey], relating_object=building)
-        if units_per_floor:                    # subdivide the floor into per-unit apartments
+        if units_per_floor and unit_layout == "corridor":   # double-loaded corridor test-fit layout
+            corridor_w = min(2.0, fd * 0.2)
+            bay_d = max(2.5, (fd - corridor_w) / 2)
+            per_side = math.ceil(units_per_floor / 2)
+            uw = fw / per_side
+            k = 0
+            for side in (1, -1):                  # N then S of the central corridor
+                cy = side * (corridor_w / 2 + bay_d / 2)
+                for c in range(per_side):
+                    if k >= units_per_floor:
+                        break
+                    k += 1
+                    cx = -fw / 2 + (c + 0.5) * uw
+                    make_space(storey, elev, f"L{i + 1} Unit {k:02d}", f"Unit {k:02d}",
+                               cx, cy, uw * 0.96, bay_d * 0.96, "UNIT")
+            make_space(storey, elev, f"L{i + 1} Corridor", "Corridor", 0.0, 0.0, fw, corridor_w, "CIRCULATION")
+        elif units_per_floor:                    # subdivide the floor into per-unit apartments
             cols, rows = unit_grid(units_per_floor, fw, fd)
             cw, cd = fw / cols, fd / rows
             k = 0

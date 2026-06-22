@@ -31,6 +31,8 @@ class Project(Base):
     dev_budget: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # specialty assets: on-site energy + vertical-farm (PFAL) revenue params (specialty.py)
     dev_specialty: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # property & tax assumptions: parcel/areas/purchase/taxes (dev_property.py)
+    dev_property: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     topics: Mapped[list["Topic"]] = relationship(back_populates="project", cascade="all, delete-orphan")

@@ -101,6 +101,8 @@ export class ProformaUI {
     sizingField("Min DSCR", "debt.min_dscr", 1, "off");
     this.root.appendChild(form);
     this.renderMassing();
+    this.renderTestFit();
+    this.renderProperty();
     this.renderBudget();
     this.renderSourcesUses();
     this.renderSpecialty();
@@ -170,6 +172,11 @@ export class ProformaUI {
     const coreChk = document.createElement("input"); coreChk.type = "checkbox";
     coreWrap.append(coreChk, document.createTextNode("Add service core (elevator + stair + MEP risers)"));
     host.appendChild(coreWrap);
+    const corrWrap = document.createElement("label");
+    corrWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
+    const corrChk = document.createElement("input"); corrChk.type = "checkbox";
+    corrWrap.append(corrChk, document.createTextNode("Double-loaded corridor unit layout (test-fit)"));
+    host.appendChild(corrWrap);
 
     const params = (): MassingParams => {
       const p: MassingParams = { use_type: useSel.value as "residential" | "commercial", name: "Massing Study" };
@@ -182,6 +189,7 @@ export class ProformaUI {
       p.units = unitChk.checked;
       p.envelope = envChk.checked;
       p.core = coreChk.checked;
+      if (corrChk.checked) { p.units = true; p.unit_layout = "corridor"; }
       return p;
     };
     const out = document.createElement("div"); out.style.marginTop = "6px";
@@ -220,6 +228,75 @@ export class ProformaUI {
     };
     btnRow.append(estBtn, genBtn); host.append(btnRow, out);
     this.root.appendChild(host);
+  }
+
+  /** Test Fit: compare unit-mix schemes on a floor plate — yield (units, efficiency, NSF) + parking,
+   *  ranked. The TestFit-style "explore scenarios, find the deal that pencils" surface. */
+  private renderTestFit() {
+    const host = document.createElement("div"); host.id = "pf-testfit";
+    host.style.cssText = "margin:8px 0;padding:8px 10px;border:1px dashed var(--line);border-radius:8px";
+    host.innerHTML = `<div class="section-title" style="margin:0 0 6px">📐 Test Fit — compare unit-mix schemes</div>`
+      + `<div class="meta" style="margin-bottom:6px">Fit a unit mix to a floor plate; compare yield + parking across schemes.</div>`;
+    const grid = document.createElement("div"); grid.className = "pf-form";
+    const inp = (label: string, val: number) => {
+      const w = document.createElement("label"); w.className = "pf-field"; w.innerHTML = `<span>${label}</span>`;
+      const i = document.createElement("input"); i.type = "number"; i.step = "any"; i.value = String(val); w.appendChild(i); grid.appendChild(w); return i;
+    };
+    const wi = inp("Plate width (m)", 40), di = inp("Plate depth (m)", 18), fi = inp("Floors", 6);
+    host.appendChild(grid);
+    const out = document.createElement("div"); out.style.marginTop = "6px";
+    const run = document.createElement("button"); run.className = "file-btn"; run.textContent = "Compare schemes";
+    run.onclick = async () => {
+      out.innerHTML = `<span class="meta">fitting…</span>`;
+      try {
+        const r = await this.api.testFitCompare({ plate_w: +wi.value, plate_d: +di.value, floors: +fi.value });
+        const rows = r.schemes.map((s) => `<tr${s.name === r.best ? ' style="font-weight:700"' : ""}>`
+          + `<th style="text-align:left">${s.name}${s.name === r.best ? " ★" : ""}</th>`
+          + `<td style="text-align:right">${s.total_units}</td><td style="text-align:right">${(s.efficiency * 100).toFixed(0)}%</td>`
+          + `<td style="text-align:right">${s.avg_unit_sf.toLocaleString()}</td><td style="text-align:right">${s.total_nsf.toLocaleString()}</td>`
+          + `<td style="text-align:right">${s.parking_stalls}</td></tr>`).join("");
+        out.innerHTML = `<table class="sens-table" style="font-size:12px"><tr><th style="text-align:left">Scheme</th>`
+          + `<th>Units</th><th>Eff.</th><th>Avg SF</th><th>NSF</th><th>Stalls</th></tr>${rows}</table>`
+          + `<div class="meta" style="margin-top:4px">Best by units: <b>${r.best}</b></div>`;
+      } catch { out.innerHTML = `<div class="meta">test-fit unavailable (API offline)</div>`; }
+    };
+    host.append(run, out); this.root.appendChild(host);
+  }
+
+  /** Property & tax assumptions: parcel/areas/purchase/taxes; taxes → OPEX, price → acquisition. */
+  private renderProperty() {
+    const host = document.createElement("div"); host.id = "pf-property";
+    host.style.cssText = "margin:8px 0;padding:8px 10px;border:1px dashed var(--line);border-radius:8px";
+    const pid = this.projectId();
+    host.innerHTML = `<div class="section-title" style="margin:0 0 6px">🏢 Property & tax assumptions</div>`;
+    if (!pid) { host.insertAdjacentHTML("beforeend", `<div class="meta">Open a project to set property facts.</div>`); this.root.appendChild(host); return; }
+    const body = document.createElement("div"); body.innerHTML = `<div class="meta">loading…</div>`; host.appendChild(body); this.root.appendChild(host);
+    void this.api.property(pid).then((resp) => {
+      const prop = resp.property as Record<string, number> & { taxes?: Record<string, number> };
+      let timer = 0; const save = () => { clearTimeout(timer); timer = window.setTimeout(() => void this.api.saveProperty(pid, prop).then((r) => { sumEl.textContent = summary(r.summary.total_taxes, r.summary.purchase_price); }), 500); };
+      const grid = document.createElement("div"); grid.className = "pf-form";
+      const field = (label: string, key: string, taxes = false) => {
+        const w = document.createElement("label"); w.className = "pf-field"; w.innerHTML = `<span>${label}</span>`;
+        const i = document.createElement("input"); i.type = "number"; i.step = "any";
+        i.value = String(taxes ? (prop.taxes?.[key] ?? 0) : (prop[key] ?? 0));
+        i.oninput = () => { const v = parseFloat(i.value) || 0; if (taxes) { prop.taxes = prop.taxes || {}; prop.taxes[key] = v; } else prop[key] = v; save(); };
+        w.appendChild(i); grid.appendChild(w);
+      };
+      field("Purchase price $", "purchase_price"); field("Building SF", "building_sf"); field("Land SF", "land_sf");
+      field("School tax $", "school", true); field("County tax $", "county", true); field("Town tax $", "town", true); field("Fire tax $", "fire", true);
+      const summary = (tax: number, price: number) => `Total taxes ${money(tax)}/yr → OPEX · purchase ${money(price)} → acquisition`;
+      const sumEl = document.createElement("div"); sumEl.className = "meta"; sumEl.style.marginTop = "4px";
+      sumEl.textContent = summary(resp.summary.total_taxes, resp.summary.purchase_price);
+      const apply = document.createElement("button"); apply.className = "file-btn"; apply.style.marginTop = "6px"; apply.textContent = "Apply to proforma";
+      apply.onclick = async () => {
+        const r = await this.api.saveProperty(pid, prop); const d = r.summary.deltas;
+        const a = this.a as { cost_lines: { name: string; amount: number }[]; operations: { opex_annual: number } };
+        if (d.acquisition_amount) { const land = a.cost_lines.find((c) => /acquisition|land/i.test(c.name)); if (land) land.amount = d.acquisition_amount; }
+        a.operations.opex_annual = (a.operations.opex_annual || 0) + d.opex_annual_add;
+        this.render(); void this.solve(); this.setStatus(`applied property: ${money(d.acquisition_amount)} acquisition, ${money(d.opex_annual_add)}/yr taxes`);
+      };
+      body.innerHTML = ""; body.append(grid, sumEl, apply);
+    }).catch(() => { body.innerHTML = `<div class="meta">property unavailable (API offline)</div>`; });
   }
 
   /** Sources & Uses: the capital plan from the cost budget — grouped uses vs sized debt + equity. */

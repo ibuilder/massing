@@ -725,6 +725,20 @@ export class ApiClient {
     return this.json<{ cost_lines: { category: string; name: string; amount: number; curve: string }[]; summary: DevBudgetSummary }>(
       `/projects/${pid}/dev-budget/cost-lines`);
   }
+  /** Property & tax assumptions + computed summary (totals, per-SF ratios, proforma deltas). */
+  property(pid: string) {
+    return this.json<{ property: Record<string, unknown>; summary: { total_taxes: number; purchase_price: number; price_per_building_sf: number; tax_per_building_sf: number; far_existing: number; deltas: { opex_annual_add: number; acquisition_amount: number } } }>(
+      `/projects/${pid}/property`);
+  }
+  saveProperty(pid: string, body: Record<string, unknown>) {
+    return this.json<{ property: Record<string, unknown>; summary: { total_taxes: number; purchase_price: number; deltas: { opex_annual_add: number; acquisition_amount: number } } }>(
+      `/projects/${pid}/property`, { method: "PUT", body: JSON.stringify(body) });
+  }
+  /** Test-fit: compare unit-mix schemes on a floor plate (yield + parking, ranked). */
+  testFitCompare(params: { plate_w: number; plate_d: number; floors: number; schemes?: unknown[] }) {
+    return this.json<{ best: string | null; schemes: { name: string; total_units: number; efficiency: number; total_nsf: number; total_gsf: number; avg_unit_sf: number; parking_stalls: number; mix: Record<string, number> }[] }>(
+      "/test-fit/compare", { method: "POST", body: JSON.stringify(params) });
+  }
   /** Sources & Uses built from the project's cost budget (grouped uses vs sized debt + equity). */
   sourcesUses(pid: string) {
     return this.json<{ uses: { label: string; amount: number }[]; sources: { label: string; amount: number }[];
@@ -827,6 +841,7 @@ export interface MassingParams {
   side_setback?: number; height_limit?: number | null; floor_to_floor?: number;
   efficiency?: number; avg_unit_m2?: number;
   frame?: boolean; bay_m?: number; units?: boolean; envelope?: boolean; wwr?: number; core?: boolean;
+  unit_layout?: "grid" | "corridor";
   land_cost?: number; hard_cost_psf?: number; rent_per_unit_month?: number; rent_psf_year?: number;
   exit_cap?: number; ltc?: number; rate?: number;
 }
