@@ -49,22 +49,27 @@ prioritized backlog. Sources: [FastAPI security](https://davidmuraya.com/blog/fa
   tiles, metadata via the API (never parse full IFC in the browser).
 - Background publish (off-thread) + polled status; PWA runtime-caches WASM/tiles.
 
+### ✅ Fixed in this pass
+- **Takeoff caching.** `qto.takeoff_file` now caches results keyed by `(path, mtime, …)` — content-safe
+  (a new published version is a new path; any change bumps mtime). Measured on the 52 MB sample: first
+  takeoff **169 s**, repeat **0.000 s**. Estimate + QTO export + closeout package now share the cache.
+- **Composite DB index.** Module tables gain `(project_id, workflow_state)` (the dashboard/list hot
+  path), with an idempotent `_ensure_indexes()` that backfills it on existing DBs (SQLite + Postgres).
+
 ### ▢ Remaining (prioritized)
-1. **Model-estimate takeoff** computes geometry for every element when `force_geometry=True`; fine
-   on generated models, slow on a 50 MB import. Cache the takeoff per published version (key by the
-   model version snapshot) so repeat estimates are instant.
-2. **DB indices** — audit hot query paths (module list filters, dashboard rollups); add composite
-   indices on `(project_id, workflow_state)` and the rollup source columns.
-3. **N+1 in dashboard / portfolio rollups** — the cross-module aggregations re-query per module;
+1. **First-call takeoff on huge imports** is still ~minutes (inherent geometry meshing) — background
+   it with a progress poll so the first estimate doesn't block the request.
+2. **N+1 in dashboard / portfolio rollups** — the cross-module aggregations re-query per module;
    batch into fewer queries for projects with many records.
 4. **SSE feed** keeps a long-lived connection (correct), but add a heartbeat + capped reconnect
    backoff; it also defeats "network-idle" tooling (a test note, not a user bug).
 
 ## Modularity / maintainability
 
-- **`apps/web/src/main.ts` is large** (~1,100 lines: shell + menus + modals + auth + portal wiring).
-  Split into `ui/menus.ts`, `ui/account.ts` (auth/admin modals), `ui/connections.ts`, and a thin
-  `bootstrap.ts`. Behavior-preserving; do it incrementally behind the passing typecheck + vitest.
+- **`apps/web/src/main.ts` split (in progress).** ✅ First extraction done: the shared `modalShell`
+  moved to `ui/modal.ts` (and gained Esc-to-close + focus + ARIA — see UX). ▢ Next: pull the
+  auth/account modals into `ui/account.ts`, connections into `ui/connections.ts`, and a thin
+  `bootstrap.ts`. Behavior-preserving; incremental behind the passing typecheck + vitest.
 - **Backend routers are already well-factored** (one router per domain; a config-driven module engine
   for the 71 GC modules). `massing.py`/`edit.py` generation helpers are cohesive. Keep `services/data`
   pure (no FastAPI imports) — currently true.
@@ -75,8 +80,10 @@ prioritized backlog. Sources: [FastAPI security](https://davidmuraya.com/blog/fa
   state-aware tools panel; ✅ readable result modals; ✅ mobile field-capture.
 - ▢ **Empty-state consistency** — a few panels still show terse "no project" rows; route them through
   the shared empty-state + the onboarding quick-starts.
-- ▢ **Accessibility pass** — keyboard focus traps in modals, ARIA on the icon-only toolbar, contrast
-  check on the light theme.
+- ✅ **Modal a11y** — the shared `modalShell` now sets `role="dialog"`/`aria-modal`, closes on Esc +
+  backdrop, autofocuses the first field, and restores focus on close — applied to every modal at once.
+- ▢ **Accessibility (remaining)** — ARIA labels on the icon-only viewer toolbar, a full focus-trap
+  (Tab cycling) in modals, and a contrast check on the light theme.
 
 ## Testing
 

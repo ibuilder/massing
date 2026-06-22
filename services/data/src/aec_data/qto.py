@@ -6,6 +6,7 @@ MasterFormat / UniFormat) via a user-editable table; multiply by unit cost → 5
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -131,6 +132,28 @@ def takeoff(
     return rows
 
 
+# Takeoff is expensive (geometry meshing with force_geometry) and the same published model is hit
+# repeatedly (estimate + QTO export + closeout package). Cache by (path, mtime, …) — a new published
+# version writes a new file path, and any in-place change bumps mtime, so the cache is content-safe.
+_TAKEOFF_CACHE: dict[tuple, list[dict[str, Any]]] = {}
+_TAKEOFF_CACHE_MAX = 24
+
+
+def _mtime(path: str | None) -> float:
+    try:
+        return os.path.getmtime(path) if path else 0.0
+    except OSError:
+        return 0.0
+
+
 def takeoff_file(ifc_path: str, cost_map_path: str | None = None,
                  force_geometry: bool = False) -> list[dict[str, Any]]:
-    return takeoff(open_model(ifc_path), load_cost_map(cost_map_path), force_geometry=force_geometry)
+    key = (ifc_path, _mtime(ifc_path), bool(force_geometry), cost_map_path or "", _mtime(cost_map_path))
+    cached = _TAKEOFF_CACHE.get(key)
+    if cached is not None:
+        return cached
+    rows = takeoff(open_model(ifc_path), load_cost_map(cost_map_path), force_geometry=force_geometry)
+    if len(_TAKEOFF_CACHE) >= _TAKEOFF_CACHE_MAX:
+        _TAKEOFF_CACHE.pop(next(iter(_TAKEOFF_CACHE)))   # evict oldest (dict preserves insert order)
+    _TAKEOFF_CACHE[key] = rows
+    return rows
