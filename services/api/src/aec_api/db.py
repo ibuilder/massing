@@ -46,12 +46,25 @@ def _ensure_columns() -> None:
                 conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {coltype}'))
 
 
+def _ensure_indexes() -> None:
+    """Create any index defined on the models that's missing from an already-created table —
+    create_all() only makes indexes for *new* tables, so this backfills new indexes (e.g. the
+    module (project_id, workflow_state) composite) on existing DBs. Idempotent (checkfirst)."""
+    for table in Base.metadata.sorted_tables:
+        for index in table.indexes:
+            try:
+                index.create(bind=engine, checkfirst=True)
+            except Exception:        # noqa: BLE001 — never block startup on an index backfill
+                pass
+
+
 def init_db() -> None:
     from . import models  # noqa: F401  (register mappers)
     from . import modules  # GC portal: register one mod_<key> table per module.json
     modules.load_registry()
     Base.metadata.create_all(bind=engine)
     _ensure_columns()
+    _ensure_indexes()
     # load admin-configured integration settings into the in-process cache
     from . import settings_store
     with SessionLocal() as _s:

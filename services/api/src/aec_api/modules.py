@@ -18,7 +18,8 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import JSON, Column, DateTime, String, Table, func, insert, or_, select, update
+from sqlalchemy import (JSON, Column, DateTime, Index, String, Table, func, insert, or_, select,
+                        update)
 from sqlalchemy.orm import Session
 
 from . import rbac
@@ -73,6 +74,9 @@ def _table(key: str) -> Table:
         Column("element_guids", JSON, nullable=True),  # referenced IFC GlobalIds
         Column("links", JSON, nullable=True),          # [{module,id,ref}] change-order chain
         Column("data", JSON),                          # module-defined fields
+        # composite index for the hot path: "records in this project in this state" (dashboard
+        # rollups, list filters) — more selective than the single-column indexes alone.
+        Index(f"ix_mod_{key}_proj_state", "project_id", "workflow_state"),
         extend_existing=True,
     )
 

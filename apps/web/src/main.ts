@@ -7,6 +7,7 @@ import { toast } from "./ui/feedback";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
 import { maybeWelcome, showWelcome } from "./ui/onboarding";
 import { FieldCapture } from "./field/field";
+import { modalShell } from "./ui/modal";
 import type { Settings, ViewerApp } from "./viewer/app";
 
 // ---- shell DOM + shared state (no three/@thatopen here — those load lazily) --
@@ -532,18 +533,7 @@ function accountMenu(anchor: HTMLElement, platformAdmin = false, tier = "free") 
 }
 
 /** Generic modal shell matching the sign-in dialog. */
-function modalShell(titleText: string, minWidth = 280) {
-  const ov = document.createElement("div");
-  ov.style.cssText = "position:fixed;inset:0;z-index:201;background:#000a;display:flex;align-items:center;justify-content:center";
-  const card = document.createElement("div");
-  card.style.cssText = `background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;min-width:${minWidth}px;max-height:80vh;overflow:auto;display:flex;flex-direction:column;gap:10px`;
-  const title = document.createElement("strong"); title.textContent = titleText; title.style.fontSize = "15px";
-  const msg = document.createElement("div"); msg.className = "meta";
-  card.append(title); ov.append(card);
-  ov.addEventListener("pointerdown", (e) => { if (e.target === ov) ov.remove(); });
-  document.body.appendChild(ov);
-  return { ov, card, msg };
-}
+// modalShell moved to ./ui/modal (shared shell + Esc-to-close, focus, ARIA). Imported at top.
 
 /** Self-service password change (available to any signed-in user). */
 function passwordModal() {

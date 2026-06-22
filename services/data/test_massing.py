@@ -136,6 +136,19 @@ if _have_ifc:
             print(f"CORE OK - elevator/stair + duct/pipe risers + core walls across {m['floors']} floors")
         finally:
             os.remove(cpath)
+
+        # --- takeoff cache (content-keyed by path+mtime) --------------------
+        from aec_data import qto
+        qto._TAKEOFF_CACHE.clear()
+        r1 = qto.takeoff_file(path)
+        r2 = qto.takeoff_file(path)
+        assert r1 is r2, "second takeoff should be a cache hit (same object)"
+        assert len(qto._TAKEOFF_CACHE) == 1, "one cache entry expected"
+        import time as _t
+        _t.sleep(0.01); os.utime(path, None)          # bump mtime → content-key changes → miss
+        r3 = qto.takeoff_file(path)
+        assert r3 is not r2, "mtime change should invalidate the cache"
+        print("TAKEOFF CACHE OK - cache hit on repeat, invalidated on mtime change")
     finally:
         os.remove(path)
 else:
