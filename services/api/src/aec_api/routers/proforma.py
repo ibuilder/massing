@@ -98,8 +98,11 @@ class Assumptions(BaseModel):
 
 @router.post("/proforma/solve")
 def solve_stateless(a: Assumptions):
-    """Solve a deal without persisting — full S&U, cash flows, returns, waterfall."""
-    return solve(a.model_dump())
+    """Solve a deal without persisting — full S&U, cash flows, returns, waterfall, plus underwriting
+    guardrails (U5) that flag returns outside typical market bands."""
+    from .. import underwrite
+    result = solve(a.model_dump())
+    return {**result, "guardrails": underwrite.guardrails(result)}
 
 
 @router.get("/projects/{pid}/dev-budget")

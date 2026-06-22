@@ -379,6 +379,18 @@ kbd {
 }
 
 /* proforma form */
+/* Finance sub-tabs + sticky returns bar (Finance-view revamp) */
+.pf-subtabs { display: flex; gap: 4px; margin: 8px 0 6px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.pf-subtab { background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--muted);
+  font-size: 12.5px; padding: 6px 10px; cursor: pointer; }
+.pf-subtab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.pf-returns-bar { position: sticky; top: 0; z-index: 5; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; margin: 4px 0; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.pf-rk { display: flex; flex-direction: column; line-height: 1.1; }
+.pf-rk b { font-size: 16px; color: var(--text); } .pf-rk span { font-size: 10px; color: var(--muted); }
+.pf-guard { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+.pf-guard.high { background: #e2554a22; color: #e2554a; } .pf-guard.med { background: #ffd47922; color: #b9831f; }
+.pf-guard.ok { background: #33d17a22; color: #2a9d5a; }
 .pf-form { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 8px; margin: 6px 0; }
 .pf-field { display: flex; flex-direction: column; font-size: 10px; color: var(--muted); }
 .pf-field input {

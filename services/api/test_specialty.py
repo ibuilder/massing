@@ -33,11 +33,30 @@ assert s["capex_total"] == s["energy"]["capex"] + s["pfal"]["startup_capex"], s[
 assert s["annual_net_contribution"] == s["annual_revenue"] + s["annual_energy_offset"] - s["annual_opex"]
 d = sp.to_proforma_deltas(params)
 assert d["cost_line"]["category"] == "hard" and d["cost_line"]["amount"] == s["capex_total"]
-assert d["other_income_annual_add"] == s["annual_revenue"] + s["annual_energy_offset"]
+# deltas now use the risk-adjusted (underwritten) figures, not gross (U4)
+assert d["other_income_annual_add"] == s["annual_revenue_underwritten"] + s["annual_offset_underwritten"]
 
 # disabled assets contribute nothing
 none = sp.summarize({"energy_enabled": False, "pfal_enabled": False})
 assert none["capex_total"] == 0 and none["annual_revenue"] == 0, none
+
+# --- U4: risk discount — underwritten revenue < gross; deltas use the haircut --------
+sd = sp.summarize({**params, "risk_discount": 0.35})
+assert sd["annual_revenue_underwritten"] == round(sd["annual_revenue"] * 0.65), sd
+assert sd["annual_net_underwritten"] < sd["annual_net_contribution"], "risk-adjusted < gross"
+dl = sp.to_proforma_deltas({**params, "risk_discount": 0.35})
+assert dl["other_income_annual_add"] == sd["annual_revenue_underwritten"] + sd["annual_offset_underwritten"], dl
+# a bigger discount underwrites less
+assert sp.summarize({**params, "risk_discount": 0.6})["annual_revenue_underwritten"] < sd["annual_revenue_underwritten"]
+
+# --- U5: underwriting guardrails flag implausible returns ----------------------------
+from aec_api import underwrite  # noqa: E402
+hot = underwrite.guardrails({"returns": {"equity_irr": 0.71, "equity_multiple": 23.0, "dev_spread": 600}})
+assert not hot["ok"] and any(f["metric"] == "equity_irr" and f["level"] == "high" for f in hot["flags"]), hot
+sane = underwrite.guardrails({"returns": {"equity_irr": 0.16, "equity_multiple": 2.1, "dev_spread": 180}})
+assert sane["ok"] and any(f["metric"] == "ok" for f in sane["flags"]), sane
+thin = underwrite.guardrails({"returns": {"equity_irr": 0.10, "equity_multiple": 1.6, "dev_spread": -20}})
+assert any(f["metric"] == "dev_spread" and f["level"] == "high" for f in thin["flags"]), thin
 
 # --- persistence round-trip --------------------------------------------------
 with TestClient(app) as c:

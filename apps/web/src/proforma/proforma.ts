@@ -99,21 +99,56 @@ export class ProformaUI {
     };
     sizingField("Max LTV", "debt.max_ltv", 100, "off");
     sizingField("Min DSCR", "debt.min_dscr", 1, "off");
-    this.root.appendChild(form);
-    this.renderMassing();
-    this.renderTestFit();
-    this.renderProperty();
-    this.renderBudget();
-    this.renderSourcesUses();
-    this.renderSpecialty();
-    this.renderModelLink();
-    const out = document.createElement("div"); out.id = "pf-out";
-    this.root.appendChild(out);
-    const sens = document.createElement("div"); sens.id = "pf-sens";
-    this.root.appendChild(sens);
-    const mc = document.createElement("div"); mc.id = "pf-mc";
-    this.root.appendChild(mc);
-    this.renderDraws();
+    // sticky returns summary bar — always visible, re-solved live (populated by renderResult)
+    const bar = document.createElement("div"); bar.id = "pf-returns-bar"; bar.className = "pf-returns-bar";
+    bar.innerHTML = `<span class="meta">Edit assumptions to solve the deal…</span>`;
+    this.root.appendChild(bar);
+
+    // sub-tabs group the (now many) panels: Feasibility · Budget & Capital · Underwriting · Deliverables
+    const TABS: [string, string][] = [["feas", "Feasibility"], ["cap", "Budget & Capital"],
+                                      ["uw", "Underwriting"], ["deliver", "Deliverables"]];
+    const tabbar = document.createElement("div"); tabbar.className = "pf-subtabs";
+    const sections: Record<string, HTMLElement> = {}; const tabBtns: Record<string, HTMLButtonElement> = {};
+    for (const [key, label] of TABS) {
+      const b = document.createElement("button"); b.className = "pf-subtab"; b.textContent = label; b.dataset.k = key;
+      b.onclick = () => showTab(key); tabbar.appendChild(b); tabBtns[key] = b;
+      const s = document.createElement("div"); s.className = "pf-section"; sections[key] = s;
+    }
+    this.root.appendChild(tabbar);
+    for (const [key] of TABS) this.root.appendChild(sections[key]);
+    const showTab = (k: string) => {
+      for (const [key] of TABS) { sections[key].style.display = key === k ? "block" : "none"; tabBtns[key].classList.toggle("active", key === k); }
+      localStorage.setItem("pf-tab", k);
+    };
+    // route each panel into its section by temporarily pointing this.root at the section
+    const self = this as unknown as { root: HTMLElement };
+    const into = (el: HTMLElement, fn: () => void) => { const r = self.root; self.root = el; try { fn(); } finally { self.root = r; } };
+    into(sections.feas, () => { this.renderMassing(); this.renderTestFit(); this.renderProperty(); });
+    into(sections.cap, () => { this.renderBudget(); this.renderSourcesUses(); this.renderSpecialty(); });
+    into(sections.uw, () => {
+      sections.uw.appendChild(form);
+      const out = document.createElement("div"); out.id = "pf-out"; sections.uw.appendChild(out);
+      const sens = document.createElement("div"); sens.id = "pf-sens"; sections.uw.appendChild(sens);
+      const mc = document.createElement("div"); mc.id = "pf-mc"; sections.uw.appendChild(mc);
+      this.renderDraws();
+    });
+    into(sections.deliver, () => { this.renderDeliverables(); this.renderModelLink(); });
+    showTab(localStorage.getItem("pf-tab") || "uw");
+  }
+
+  /** Deliverables tab: the investor outputs (investment memo + pitch deck PDFs). */
+  private renderDeliverables() {
+    const pid = this.projectId();
+    const host = document.createElement("div");
+    host.style.cssText = "margin:8px 0;padding:8px 10px;border:1px dashed var(--line);border-radius:8px";
+    host.innerHTML = `<div class="section-title" style="margin:0 0 6px">📑 Investor deliverables</div>`;
+    if (!pid) { host.insertAdjacentHTML("beforeend", `<div class="meta">Open a project to generate the memo / deck.</div>`); this.root.appendChild(host); return; }
+    const row = document.createElement("div"); row.style.cssText = "display:flex;gap:8px;flex-wrap:wrap";
+    const memo = document.createElement("button"); memo.className = "file-btn"; memo.textContent = "📄 Investment memo (PDF)";
+    memo.onclick = () => window.open(this.api.url(`/projects/${pid}/investment-memo.pdf`), "_blank");
+    const deck = document.createElement("button"); deck.className = "file-btn"; deck.textContent = "📊 Pitch deck (PDF)";
+    deck.onclick = () => window.open(this.api.url(`/projects/${pid}/investment-deck.pdf`), "_blank");
+    row.append(memo, deck); host.appendChild(row); this.root.appendChild(host);
   }
 
   /** Zoning → model: enter a lot + zoning envelope (FAR, setbacks, height) and generate a real IFC
@@ -482,13 +517,7 @@ export class ProformaUI {
           this.render(); void this.solve();
           this.setStatus(`applied cost budget: ${money(r.summary.grand_total)} total uses`);
         };
-        const memo = document.createElement("button"); memo.className = "tool-btn"; memo.style.marginLeft = "6px";
-        memo.textContent = "📄 Investment memo (PDF)"; memo.title = "Open a confidential investment memorandum generated from this project";
-        memo.onclick = () => window.open(this.api.url(`/projects/${pid}/investment-memo.pdf`), "_blank");
-        const deck = document.createElement("button"); deck.className = "tool-btn"; deck.style.marginLeft = "6px";
-        deck.textContent = "📊 Pitch deck (PDF)"; deck.title = "Open a slide-style pitch deck generated from this project";
-        deck.onclick = () => window.open(this.api.url(`/projects/${pid}/investment-deck.pdf`), "_blank");
-        const fwrap = document.createElement("div"); fwrap.style.marginTop = "6px"; fwrap.append(apply, memo, deck);
+        const fwrap = document.createElement("div"); fwrap.style.marginTop = "6px"; fwrap.append(apply);
         body.append(foot, fwrap);
       };
       paint(resp);
@@ -607,6 +636,22 @@ export class ProformaUI {
     this.renderMonteCarloPrompt();   // on-demand: a 1000-solve run shouldn't fire on every edit
   }
 
+  /** Sticky returns bar: the headline KPIs + underwriting guardrail badges, always visible. */
+  private updateReturnsBar(r: ProformaResult) {
+    const bar = document.getElementById("pf-returns-bar"); if (!bar) return;
+    const ret = r.returns;
+    const kpi = (v: string, l: string) => `<div class="pf-rk"><b>${v}</b><span>${l}</span></div>`;
+    let html = kpi(pct(ret.equity_irr), "Equity IRR") + kpi(`${ret.equity_multiple}×`, "Equity mult.")
+      + kpi(pct(ret.yield_on_cost), "Yield on cost") + kpi(money(ret.npv), "NPV");
+    const g = r.guardrails;
+    if (g && g.flags.length) {
+      const worst = g.flags.find((f) => f.level === "high") || g.flags.find((f) => f.level === "med") || g.flags[0];
+      html += `<span class="pf-guard ${worst.level === "info" ? "ok" : worst.level}" title="${g.flags.map((f) => f.message).join(" · ").replace(/"/g, "'")}">`
+        + `${worst.level === "info" ? "✓ within market bands" : (worst.level === "high" ? "⚠ check assumptions" : "△ review") + ` · ${worst.message.slice(0, 60)}…`}</span>`;
+    }
+    bar.innerHTML = html;
+  }
+
   /** Cheap placeholder with a Run button — Monte Carlo (~1000 solves) runs only when asked,
    *  so editing assumptions stays snappy (solve + sensitivity are the live-updating views). */
   private renderMonteCarloPrompt() {
@@ -700,6 +745,7 @@ export class ProformaUI {
 
   private renderResult(r: ProformaResult) {
     const su = r.sources_uses, ret = r.returns, wf = r.waterfall;
+    this.updateReturnsBar(r);
     const kpis: [string, string][] = [
       ["Project IRR", pct(ret.project_irr)], ["Equity IRR", pct(ret.equity_irr)],
       ["Equity Mult.", `${ret.equity_multiple}×`], ["NPV", money(ret.npv)],

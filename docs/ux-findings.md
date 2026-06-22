@@ -54,6 +54,13 @@ Severity: **High** (hurts daily use / blocks discovery) · **Med** (friction) ·
 - **Responsive / mobile** layout was not reviewed; the rail + floating toolbar likely need a
   narrow-viewport treatment.
 
+## Finance / Proforma — revamp ✅ (2026-06, first pass shipped)
+Shipped: the Finance view is now organized into **sub-tabs** (Feasibility · Budget & Capital ·
+Underwriting · Deliverables) with a **sticky returns bar** (IRR / EM / yield-on-cost / NPV) that
+re-solves live and shows an **underwriting guardrail badge** (U5). Investor memo + pitch deck moved
+to the Deliverables tab. *Remaining (below): persona-gate the sub-tabs, visible inputs→proforma
+flow, a Finance landing/deal-summary.*
+
 ## Finance / Proforma — revamp analysis (2026-06) ★
 The Finance view grew from a proforma form into **11 stacked panels** in a single scroll
 (drivers form · 🏗️ generate-from-zoning · 📐 Test Fit · 🏢 property · 🧱 budget · 🏦 Sources & Uses ·

@@ -153,6 +153,7 @@ export interface ProformaResult {
   returns: { project_irr: number | null; equity_irr: number | null; equity_multiple: number; npv: number; yield_on_cost: number; dev_spread: number; total_contributions: number; total_distributions: number };
   waterfall: { lp_irr: number | null; gp_irr: number | null; lp_equity_multiple: number; gp_equity_multiple: number; lp_distributions: number; gp_distributions: number; style: string };
   cash_flow: { dates: string[]; equity: number[]; project: number[]; noi_monthly: number[] };
+  guardrails?: { ok: boolean; flags: { level: "high" | "med" | "info"; metric: string; message: string }[] };
 }
 
 export interface ProformaForecast {

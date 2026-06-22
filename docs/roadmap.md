@@ -97,14 +97,14 @@ defaults, and guardrails that make the IRR credible. Grounded in CRE practice:
 - **U3 — Cap-rate & comp discipline.** Stabilized vs value-add cap-rate bands (≈4–5.5% stabilized,
   5.5–7.5% value-add), an exit-cap **spread** over going-in, and a **Comparables** record (market
   rent/cap/$-per-sf) the deal is validated against (the thesis model has a Comparables tab).
-- **U4 — Specialty businesses underwritten separately.** PFAL/energy are **operating businesses**,
-  not real estate — model them with their own P&L, ramp, and **risk discount** (or a contracted
-  offtake / lower multiple), and report blended vs real-estate-only returns so the rent-equivalent
-  isn't overstated. (Resolves the E2E's inflated IRR.)
-- **U5 — Underwriting guardrails / validation.** Sanity flags when IRR / yield-on-cost / DSCR /
-  exit-cap fall outside market bands or vs comps ("this pencils too well — check assumptions"),
-  surfaced in the proforma + the investment memo. Wire the existing **Monte Carlo** to specialty
-  risk so P5–P95 reflects crop/energy variance.
+- ✅ **DONE — U4 specialty risk discount.** `specialty.summarize()` now reports gross **and**
+  risk-adjusted (underwritten) revenue/offset (default 35% haircut on produce, lighter on energy
+  savings); `to_proforma_deltas` flows the **underwritten** figures into the deal so the blended IRR
+  isn't overstated. *Next: full specialty P&L + ramp; report blended vs real-estate-only.*
+- ✅ **DONE — U5 underwriting guardrails.** `underwrite.guardrails()` flags returns outside market
+  bands (IRR >35% / EM >4× / negative or thin dev-spread / DSCR <1.2); `/proforma/solve` returns
+  them and the Finance **sticky returns bar** shows a badge ("⚠ check assumptions"). *Next: wire
+  Monte Carlo to specialty risk; validate vs Comparables.*
 - **U6 — Tie Test Fit optimize to the live proforma** (vs the proxy) so generative yield-on-cost
   uses the real cost budget + underwritten NOI.
 

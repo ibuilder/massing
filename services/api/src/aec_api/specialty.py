@@ -72,25 +72,36 @@ def summarize(params: dict[str, Any]) -> dict[str, Any]:
     annual_revenue = (f["annual_revenue"] if f else 0)
     annual_opex = (f["annual_opex"] if f else 0)
     energy_offset = (e["annual_energy_offset"] if e else 0)
+    # U4: specialty assets are operating businesses, not de-risked real estate — underwrite their
+    # revenue with a risk discount (default 35% haircut) so the blended deal IRR isn't overstated.
+    # Energy offset (a cost avoided, contracted-ish) is discounted lightly; produce revenue heavily.
+    rd = float(params.get("risk_discount", 0.35))
+    uw_revenue = annual_revenue * (1 - rd)
+    uw_offset = energy_offset * (1 - rd * 0.4)        # savings are more certain than produce sales
     return {
-        "energy": e, "pfal": f,
+        "energy": e, "pfal": f, "risk_discount": rd,
         "capex_total": round(capex),
         "annual_revenue": round(annual_revenue),
         "annual_opex": round(annual_opex),
         "annual_energy_offset": round(energy_offset),
-        # net first-year operating contribution (produce revenue + energy saved − farm opex)
+        # gross (potential) first-year operating contribution
         "annual_net_contribution": round(annual_revenue + energy_offset - annual_opex),
+        # risk-adjusted figures that actually flow into the underwriting
+        "annual_revenue_underwritten": round(uw_revenue),
+        "annual_offset_underwritten": round(uw_offset),
+        "annual_net_underwritten": round(uw_revenue + uw_offset - annual_opex),
     }
 
 
 def to_proforma_deltas(params: dict[str, Any]) -> dict[str, Any]:
-    """How the specialty assets adjust a proforma: a hard-cost capex line, plus operations deltas
-    (produce revenue + energy savings → other income; farm lighting/labor → opex)."""
+    """How the specialty assets adjust a proforma: a hard-cost capex line, plus operations deltas.
+    Uses the **risk-adjusted** (underwritten) revenue/offset — not the gross potential — so the deal
+    pencils on credible numbers (U4)."""
     s = summarize(params)
     return {
         "cost_line": {"category": "hard", "name": "Specialty assets (energy + farm)",
                       "amount": s["capex_total"], "curve": "scurve"} if s["capex_total"] else None,
-        "other_income_annual_add": s["annual_revenue"] + s["annual_energy_offset"],
+        "other_income_annual_add": s["annual_revenue_underwritten"] + s["annual_offset_underwritten"],
         "opex_annual_add": s["annual_opex"],
         "summary": s,
     }
