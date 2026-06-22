@@ -31,9 +31,18 @@ export function modalShell(titleText: string, minWidth = 280): ModalHandle {
     document.removeEventListener("keydown", onKey);
     prevFocus?.focus?.();
   };
+  const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
   function onKey(e: KeyboardEvent) {
     if (!document.body.contains(ov)) { document.removeEventListener("keydown", onKey); return; }  // caller closed it directly
-    if (e.key === "Escape") close();
+    if (e.key === "Escape") { close(); return; }
+    if (e.key === "Tab") {                    // trap focus within the dialog
+      const items = [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement;
+      if (e.shiftKey && (active === first || !card.contains(active))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+    }
   }
   ov.addEventListener("pointerdown", (e) => { if (e.target === ov) close(); });
   document.addEventListener("keydown", onKey);

@@ -160,6 +160,15 @@ def _publish(p: Project, reconvert: bool = True) -> dict:
         out["version"] = versions.snapshot(p.id, idx)
     except Exception as e:            # noqa: BLE001 — versioning must never break a publish
         out["version_error"] = str(e)[:160]
+    # 3. warm the model-takeoff cache so the first estimate is instant — but skip very large
+    #    imports (geometry meshing is minutes) to avoid wasting the publish worker on them.
+    try:
+        if Path(p.source_ifc).stat().st_size < 25_000_000:
+            from aec_data import qto  # type: ignore
+            qto.takeoff_file(p.source_ifc, force_geometry=True)
+            out["takeoff_warmed"] = True
+    except Exception as e:            # noqa: BLE001 — warming is best-effort
+        out["takeoff_warm_error"] = str(e)[:120]
     return out
 
 

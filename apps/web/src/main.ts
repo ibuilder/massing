@@ -8,6 +8,7 @@ import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
 import { maybeWelcome, showWelcome } from "./ui/onboarding";
 import { FieldCapture } from "./field/field";
 import { modalShell } from "./ui/modal";
+import { buildMenu, closeMenus } from "./ui/menus";
 import type { Settings, ViewerApp } from "./viewer/app";
 
 // ---- shell DOM + shared state (no three/@thatopen here — those load lazily) --
@@ -41,26 +42,7 @@ async function ensureViewer(): Promise<ViewerApp> {
 }
 const withViewer = (fn: (v: ViewerApp) => void) => void ensureViewer().then(fn);
 
-// ---- Open / Save dropdown menus ---------------------------------------------
-interface MenuItem { label: string; sep?: boolean; onClick?: () => void; }
-function buildMenu(mountId: string, label: string, items: MenuItem[], onOpen?: () => void) {
-  const mount = $(mountId);
-  const btn = document.createElement("button");
-  btn.className = "file-btn menu-btn"; btn.textContent = label;
-  const panel = document.createElement("div"); panel.className = "menu-panel"; panel.hidden = true;
-  for (const it of items) {
-    if (it.sep) { const s = document.createElement("div"); s.className = "menu-sep"; s.textContent = it.label; panel.appendChild(s); continue; }
-    const mi = document.createElement("button"); mi.className = "menu-item"; mi.textContent = it.label;
-    mi.onclick = () => { panel.hidden = true; it.onClick?.(); };
-    panel.appendChild(mi);
-  }
-  const place = () => { const r = btn.getBoundingClientRect(); panel.style.left = `${r.left}px`; panel.style.top = `${r.bottom + 4}px`; };
-  btn.onclick = (e) => { e.stopPropagation(); closeMenus(panel); const open = panel.hidden; if (open) { place(); onOpen?.(); } panel.hidden = !open; };
-  mount.append(btn, panel);
-}
-function closeMenus(keep?: Element) {
-  document.querySelectorAll(".menu-panel").forEach((p) => { if (p !== keep) (p as HTMLElement).hidden = true; });
-}
+// ---- Open / Save dropdown menus (extracted to ./ui/menus) -------------------
 const dismissMenusIfOutside = (e: Event) => { if (!(e.target as HTMLElement).closest(".menu")) closeMenus(); };
 document.addEventListener("pointerdown", dismissMenusIfOutside, true);
 document.addEventListener("click", dismissMenusIfOutside, true);
