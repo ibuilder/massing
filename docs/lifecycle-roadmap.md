@@ -38,9 +38,13 @@ certificate:
 ### A. Design / modeling depth (biggest gap)
 The generated model is **massing-grade** (floor-plate spaces + slabs) plus whatever you author by
 hand. To carry a *real* tower to turnover it needs to be generated, not hand-placed:
-1. **Generative structural framing** — auto-frame every floor on a column grid (columns + perimeter
-   & interior beams + two-way slabs), sized from spans, not 3 hand-framed floors. *Make the massing
-   → structural model one click.*
+1. ✅ **DONE — Generative structural framing.** `generate_ifc(frame=True, bay=…)` auto-frames every
+   floor on a ~bay-metre column grid: columns at each grid intersection + beams along both axes,
+   GUID-stable and metre-scale. Exposed via the generate endpoint (`frame`, `bay_m`) and a
+   "Generate concrete structural frame" checkbox in the massing form — massing → structural model in
+   one click. Verified (test_massing: 175 columns + 290 beams on a 7×5 grid) and visually (a framed
+   tower renders columns/beams/slabs across all floors). *Next: size members from spans, two-way
+   slab bands, and a proper core (stairs/elevator shafts) instead of a single shear wall.*
 2. **Unit-layout generator** — subdivide each floor plate into real apartments (the corridor + unit
    mix the proforma already assumes), each an `IfcSpace` with the right area, so areas/COBie/rent are
    grounded in actual units rather than one plate-sized space per floor.

@@ -774,6 +774,7 @@ export interface MassingParams {
   far?: number; coverage_max?: number; front_setback?: number; rear_setback?: number;
   side_setback?: number; height_limit?: number | null; floor_to_floor?: number;
   efficiency?: number; avg_unit_m2?: number;
+  frame?: boolean; bay_m?: number;
   land_cost?: number; hard_cost_psf?: number; rent_per_unit_month?: number; rent_psf_year?: number;
   exit_cap?: number; ltc?: number; rate?: number;
 }

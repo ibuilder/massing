@@ -57,8 +57,20 @@ def compute_massing(p: dict) -> dict[str, Any]:
     }
 
 
-def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study") -> str:
-    """Write an IFC4 massing model: site → building → one storey + floor-plate space per level."""
+def gridlines(extent: float, bay: float) -> list[float]:
+    """Evenly-spaced grid line positions across `extent` (centred on 0) with spacing ≈ `bay` —
+    columns land on both edges and the interior. Returns n+1 coordinates for n bays."""
+    n = max(1, round(extent / max(0.5, bay)))
+    step = extent / n
+    return [round(-extent / 2 + i * step, 3) for i in range(n + 1)]
+
+
+def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
+                 frame: bool = False, bay: float = 7.5) -> str:
+    """Write an IFC4 model: site → building → one storey + floor-plate space + slab per level.
+    With `frame=True`, also generate a concrete structural frame on a ~`bay`-metre column grid —
+    columns at every grid intersection (per floor) and beams along both axes — turning the massing
+    into a real, GUID-stable structural model in one pass."""
     import ifcopenshell
     import ifcopenshell.api
     import numpy as np
@@ -68,6 +80,7 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study") -> s
     plate_area = round(fw * fd, 2)
     SLAB_T = 0.3   # m — thin floor plate per level: physical (renders) so the massing is visible
     #              (IfcSpace is forced transparent by the Fragments importer, so spaces alone show empty)
+    COL, BEAM_W, BEAM_D = 0.6, 0.4, 0.6      # concrete column side, beam width, beam depth (m)
 
     def rect_profile(m, w, d):
         # web-ifc REQUIRES IfcProfileDef.Position (ifcopenshell tolerates None, web-ifc skips the
@@ -90,6 +103,31 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study") -> s
     ifcopenshell.api.run("aggregate.assign_object", model, products=[site], relating_object=project)
     ifcopenshell.api.run("aggregate.assign_object", model, products=[building], relating_object=site)
 
+    def add_column(storey, elev, x, y):
+        col = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcColumn", name="Column",
+                                   predefined_type="COLUMN")
+        m = np.eye(4); m[0, 3] = x; m[1, 3] = y; m[2, 3] = elev
+        ifcopenshell.api.run("geometry.edit_object_placement", model, product=col, matrix=m)
+        rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                   profile=rect_profile(model, COL, COL), depth=f2f)
+        ifcopenshell.api.run("geometry.assign_representation", model, product=col, representation=rep)
+        ifcopenshell.api.run("spatial.assign_container", model, products=[col], relating_structure=storey)
+
+    def add_beam(storey, elev, x1, y1, x2, y2):
+        import math
+        length = math.hypot(x2 - x1, y2 - y1) or 1.0
+        dx, dy = (x2 - x1) / length, (y2 - y1) / length
+        beam = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcBeam", name="Beam",
+                                    predefined_type="BEAM")
+        m = np.array([[-dy, 0, dx, x1], [dx, 0, dy, y1], [0, 1, 0, elev], [0, 0, 0, 1]], dtype=float)
+        ifcopenshell.api.run("geometry.edit_object_placement", model, product=beam, matrix=m)
+        rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                   profile=rect_profile(model, BEAM_W, BEAM_D), depth=length)
+        ifcopenshell.api.run("geometry.assign_representation", model, product=beam, representation=rep)
+        ifcopenshell.api.run("spatial.assign_container", model, products=[beam], relating_structure=storey)
+
+    gx = gridlines(fw, bay)
+    gy = gridlines(fd, bay)
     for i in range(floors):
         elev = i * f2f
         storey = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcBuildingStorey",
@@ -120,5 +158,16 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study") -> s
                                     profile=sprofile, depth=SLAB_T)
         ifcopenshell.api.run("geometry.assign_representation", model, product=slab, representation=srep)
         ifcopenshell.api.run("spatial.assign_container", model, products=[slab], relating_structure=storey)
+
+        if frame:                              # concrete frame: columns on the grid + beams both ways
+            for x in gx:
+                for y in gy:
+                    add_column(storey, elev, x, y)
+            for y in gy:                       # beams along X
+                for j in range(len(gx) - 1):
+                    add_beam(storey, elev, gx[j], y, gx[j + 1], y)
+            for x in gx:                       # beams along Y
+                for j in range(len(gy) - 1):
+                    add_beam(storey, elev, x, gy[j], x, gy[j + 1])
     model.write(out_path)
     return out_path

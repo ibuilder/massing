@@ -146,6 +146,13 @@ export class ProformaUI {
     }
     host.appendChild(grid);
 
+    // structural frame option — turns the massing into a real concrete frame (columns + beams)
+    const frameWrap = document.createElement("label");
+    frameWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
+    const frameChk = document.createElement("input"); frameChk.type = "checkbox";
+    frameWrap.append(frameChk, document.createTextNode("Generate concrete structural frame (columns + beams on a 7.5 m grid)"));
+    host.appendChild(frameWrap);
+
     const params = (): MassingParams => {
       const p: MassingParams = { use_type: useSel.value as "residential" | "commercial", name: "Massing Study" };
       for (const [, key] of fields) {
@@ -153,6 +160,7 @@ export class ProformaUI {
         if (key === "height_limit") { p.height_limit = isNaN(v) || v <= 0 ? null : v; }
         else if (!isNaN(v)) (p as Record<string, unknown>)[key] = v;
       }
+      p.frame = frameChk.checked;
       return p;
     };
     const out = document.createElement("div"); out.style.marginTop = "6px";

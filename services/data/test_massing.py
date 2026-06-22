@@ -71,6 +71,25 @@ if _have_ifc:
         assert span > 5.0, f"slab too small ({span:.3f} m) — unit/scale regression"
         print(f"IFC OK - {len(storeys)} storeys, {len(spaces)} floor-plate spaces + "
               f"{len(slabs)} renderable slabs, sited + represented")
+
+        # --- generative structural frame (frame=True) -----------------------
+        fd2, fpath = tempfile.mkstemp(suffix=".ifc"); os.close(fd2)
+        try:
+            massing.generate_ifc(m, fpath, name="Framed", frame=True, bay=7.5)
+            fm = open_model(fpath)
+            gx = massing.gridlines(m["plate_w"], 7.5); gy = massing.gridlines(m["plate_d"], 7.5)
+            exp_cols = len(gx) * len(gy) * m["floors"]
+            exp_beams = (len(gy) * (len(gx) - 1) + len(gx) * (len(gy) - 1)) * m["floors"]
+            cols, beams = fm.by_type("IfcColumn"), fm.by_type("IfcBeam")
+            assert len(cols) == exp_cols, (len(cols), exp_cols)
+            assert len(beams) == exp_beams, (len(beams), exp_beams)
+            assert all(c.Representation is not None for c in cols), "columns missing geometry"
+            ch = ifcopenshell.geom.create_shape(ifcopenshell.geom.settings(), cols[0])
+            zs = ch.geometry.verts[2::3]
+            assert max(zs) - min(zs) > 2.0, "column height not metre-scale"
+            print(f"FRAME OK - {len(cols)} columns + {len(beams)} beams on a {len(gx)}x{len(gy)} grid")
+        finally:
+            os.remove(fpath)
     finally:
         os.remove(path)
 else:
