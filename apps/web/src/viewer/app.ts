@@ -3,7 +3,7 @@
 // Construction (GC portal) or Finance (proforma) workspaces.
 import * as THREE from "three";
 import CameraControls from "camera-controls";
-import { createViewer } from "./world";
+import { createViewer, renderMode } from "./world";
 import { ModelLoader } from "./loader";
 import { type ModelIdMap } from "./modelIds";
 import { SelectionSets } from "./selectionSets";
@@ -381,6 +381,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     setStatus("section box on (toggle to clear)");
   });
 
+  // render mode: presentation lighting + soft shadows (off by default — flat is cheaper/faster)
+  let renderOn = false;
+  toolBtn("◓", "Render mode — sun, soft shadows & PBR lighting", (b) => {
+    renderOn = !renderOn;
+    renderMode(viewer.world, renderOn);
+    b.classList.toggle("on", renderOn);
+    setStatus(renderOn ? "render mode on — sun + soft shadows" : "render mode off (flat shading)");
+    void loader.fragments.core.update(true);
+  });
+
   // levels overlay: a horizontal grid + label at each storey elevation (from the API)
   const levelObjs: THREE.Object3D[] = [];
   toolBtn("☰", "Toggle storey levels overlay", async (b) => {
@@ -659,6 +669,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const box = new THREE.Box3();
     viewer.world.scene.three.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) box.expandByObject(m); });
     if (box.isEmpty()) return;
+    if (renderOn) renderMode(viewer.world, true);   // newly loaded meshes need cast/receive flags set
     await viewer.world.camera.controls.fitToSphere(box.getBoundingSphere(new THREE.Sphere()), true);
     await loader.fragments.core.update(true);
   }

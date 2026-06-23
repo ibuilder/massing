@@ -4,6 +4,32 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.29 — render mode (M2 start)
+- **Viewer render mode** (◓ toolbar) — a directional **sun with soft (PCF) shadows**, hemisphere
+  sky/ground fill + fill light, **ACES tone mapping** and sRGB output, and a shadow-catching ground
+  plane. Off by default (flat shading stays the cheap default); re-applies as new models load.
+  First step toward Revit/Rhino/Matterport-style rendering.
+
+## v0.1.28 — faster large-model loading
+- **Download progress** — large models stream with a live "downloading N% (x/y MB) → preparing
+  geometry" label instead of a generic spinner that looked frozen.
+- **ETag revalidation** — `model.frag` now serves an ETag + `must-revalidate`: unchanged models
+  re-open instantly via **304**, while a republished/edited model is always refetched (fixes a
+  stale-cache bug where an immutable 1-year cache served the old geometry forever).
+
+## v0.1.27 — computational graph (M4 start)
+- **Dynamo-style node graph** over the pure engines: `GET /compute/nodes` (palette) and
+  `POST /compute/graph` run a {nodes, edges} graph in dependency order (zoning → structure / takt /
+  cost → yield-on-cost). Zero-touch: function params become input ports, dict returns become outputs.
+
+## v0.1.26 — IFC materials & surface colours (M1 start)
+- **Materials & surface styles** — generated/dome models get an IfcMaterial + IfcSurfaceStyle colour
+  per element class (concrete, glazing, steel, vegetation…), so models carry real material data.
+
+## v0.1.25 — gamified getting-started
+- **Getting-started checklist** — a floating progress pill guides new users through the 6 core
+  actions (load a model, generate, test-fit, budget, project, memo) with a progress bar + celebration.
+
 ## v0.1.22 — 4D & the vertical assembly line
 - **4D construction sequencing** — map model elements onto a takt plan; **scrub the build sequence
   in the viewer** (a slider isolates what's built to date).
