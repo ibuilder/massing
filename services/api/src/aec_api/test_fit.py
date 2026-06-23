@@ -171,12 +171,17 @@ _PRESETS: dict[str, list[dict]] = {
 
 def optimize(plate_w: float, plate_d: float, floors: int, targets: dict | None = None,
              econ: dict | None = None) -> dict[str, Any]:
-    """Generative design — sweep unit-mix presets × parking ratios, score each on a yield-on-cost
-    proxy, filter by `targets` (min_units, min_efficiency, max_parking_ratio, min_yoc), and rank.
-    `econ`: rent_psf_yr, hard_psf, stall_cost, opex_ratio, land. "Find the deal that pencils.\""""
+    """Generative design — sweep unit-mix presets × parking ratios, score each on yield-on-cost and
+    the development spread, filter by `targets` (min_units, min_efficiency, max_parking_ratio,
+    min_yoc), and rank. `econ`: rent_psf_yr, hard_psf, stall_cost, opex_ratio, land, **stabilized_occ**
+    (lease-up vacancy) and **exit_cap** (for the dev spread). Yield-on-cost and the spread use the
+    canonical proforma functions, so this generative screen is consistent with the full underwriting.
+    "Find the deal that pencils.\""""
+    from .proforma import returns                  # canonical YoC + dev-spread (untie from a proxy)
+
     t = targets or {}
-    e = {"rent_psf_yr": 34.0, "hard_psf": 220.0, "stall_cost": 12_000.0, "opex_ratio": 0.35, "land": 0.0,
-         **(econ or {})}
+    e = {"rent_psf_yr": 34.0, "hard_psf": 220.0, "stall_cost": 12_000.0, "opex_ratio": 0.35,
+         "land": 0.0, "stabilized_occ": 0.93, "exit_cap": 0.05, **(econ or {})}
     candidates = []
     for mix_name, mix in _PRESETS.items():
         for pr in (0.5, 1.0, 1.5):
@@ -184,14 +189,17 @@ def optimize(plate_w: float, plate_d: float, floors: int, targets: dict | None =
             m = lay["metrics"]
             pk = parking(m["total_units"], pr)
             nsf, gsf = m["total_nsf"], m["total_gsf"]
-            revenue = nsf * e["rent_psf_yr"]
-            noi = revenue * (1 - e["opex_ratio"])
+            egi = nsf * e["rent_psf_yr"] * e["stabilized_occ"]      # effective gross income (vacancy)
+            noi = egi * (1 - e["opex_ratio"])
             cost = gsf * e["hard_psf"] + pk["cost"] + e["land"]
-            yoc = round(noi / cost, 4) if cost else 0.0
+            yoc = round(returns.yield_on_cost(noi, cost), 4)
+            spread = round(returns.dev_spread(yoc, e["exit_cap"]) * 10000)   # basis points vs exit cap
             candidates.append({
                 "name": f"{mix_name} · {pr:g}/unit pkg", "mix_preset": mix_name, "parking_ratio": pr,
                 "total_units": m["total_units"], "efficiency": m["efficiency"],
-                "total_nsf": nsf, "parking_stalls": pk["stalls"], "yield_on_cost": yoc,
+                "total_nsf": nsf, "parking_stalls": pk["stalls"],
+                "noi": round(noi), "total_cost": round(cost),
+                "yield_on_cost": yoc, "dev_spread_bps": spread,
             })
     # filter by targets
     def passes(c: dict) -> bool:

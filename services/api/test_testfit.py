@@ -74,6 +74,14 @@ opt = tf.optimize(40, 18, 6, targets={"min_units": 1}, econ={"rent_psf_yr": 34, 
 assert opt["considered"] == 15, opt["considered"]            # 5 presets × 3 parking ratios
 assert opt["feasible"] >= 1 and opt["best"], opt
 assert opt["best"]["yield_on_cost"] == max(c["yield_on_cost"] for c in opt["ranked"]), "best ranks top"
+# YoC + dev-spread now come from the canonical proforma functions (not a local proxy)
+from aec_api.proforma import returns as _ret  # noqa: E402
+b0 = opt["best"]
+assert b0["yield_on_cost"] == round(_ret.yield_on_cost(b0["noi"], b0["total_cost"]), 4), b0
+assert b0["dev_spread_bps"] == round((b0["yield_on_cost"] - 0.05) * 10000), b0   # vs default 5% exit cap
+# rank by the development spread (the real "does it pencil" metric)
+by_spread = tf.optimize(40, 18, 6, targets={"objective": "dev_spread_bps"})
+assert by_spread["best"]["dev_spread_bps"] == max(c["dev_spread_bps"] for c in by_spread["ranked"]), by_spread
 # targets filter: an impossible yield floor yields nothing feasible
 none_feasible = tf.optimize(40, 18, 6, targets={"min_yoc": 9.99})
 assert none_feasible["feasible"] == 0 and none_feasible["best"] is None, none_feasible

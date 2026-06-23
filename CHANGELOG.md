@@ -4,7 +4,7 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.1.35 — Test Fit depth (A2 egress + real parking geometry)
+## v0.1.35 — Test Fit depth (egress · parking · polygon footprint · proforma)
 - **Deeper egress / life-safety check (A2)** — `test_fit.egress` now screens the big four IBC fails:
   max travel distance, **occupant load** & required **egress width**, minimum **number of exits**, and
   **exit separation** (½ diagonal / ⅓ sprinklered) — with per-check detail + flags (e.g. an assembly
@@ -12,6 +12,12 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 - **Parking as real IFC geometry** — `generate(..., parking=N)` lays out a surface lot of `N`
   IfcSpace `PARKING` stalls (2.5×5 m + drive aisles) on a dedicated *Site Parking* storey, each with
   area QTOs. Exposed on the generate API + a "Surface parking stalls" field in the proforma form.
+- **True polygon-offset footprint** — for `lot_polygon` parcels the buildable footprint is now a real
+  inward setback (`offset_polygon`, handles reflex vertices + over-collapse), surfaced as
+  `buildable_polygon`, instead of a bounding-box approximation.
+- **Optimize tied to the proforma** — the generative sweep's yield-on-cost + new **development
+  spread** (bps vs exit cap) come from the canonical `proforma.returns` functions (with stabilized
+  occupancy), so the quick screen matches the full underwriting; you can rank by `dev_spread_bps`.
 
 ## v0.1.34 — import external IFC families (M3) + visual node editor (M4 complete)
 - **Import IFC type content** — bring manufacturer / 3rd-party families into a project from any IFC:

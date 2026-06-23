@@ -249,10 +249,12 @@ the production-blocking hardening (see [production-readiness.md](production-read
 shippable). 26/26 CI gate + a report-only dependency scan.
 
 Remaining = incremental depth (not blockers), in rough priority:
-1. **Test Fit depth** — ✅ **A2 egress** deepened (occupant load, required egress width, min exits,
-   exit separation — not just travel distance); ✅ **parking as real IFC geometry** (surface lot of
-   IfcSpace `PARKING` stalls on a dedicated *Site Parking* storey, `parking=N` on generate). *Next:
-   true polygon-offset footprint on the parcel; tie optimize's yield-on-cost to the live proforma.*
+1. **Test Fit depth** — ✅ **DONE.** A2 egress deepened (occupant load, required egress width, min
+   exits, exit separation — not just travel distance); parking as real IFC geometry (IfcSpace
+   `PARKING` stalls on a *Site Parking* storey); true **polygon-offset footprint** (`offset_polygon`,
+   real inward setback on arbitrary parcels, surfaced as `buildable_polygon`); and optimize's
+   yield-on-cost + **dev spread** now use the canonical proforma `returns` functions (with stabilized
+   occupancy), not a local proxy.
 2. **Developer** — ✅ B6 pitch-deck (slide) variant shipped (`/investment-deck.pdf` + 📊 button);
    next: market/timeline sections, property photos.
 3. **Construction** — C1 multi-period pay-app accounting + lien waivers; C2 COBie field-enrichment;
