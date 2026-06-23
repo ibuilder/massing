@@ -42,6 +42,25 @@ def get_benchmarks():
     return bm.all_benchmarks()
 
 
+@router.get("/compute/nodes")
+def compute_nodes():
+    """Node palette for the computational graph — zero-touch nodes over the pure engines (M4)."""
+    from .. import compute_graph
+    return compute_graph.node_catalog()
+
+
+@router.post("/compute/graph")
+def compute_run(graph: dict):
+    """Run a Dynamo/Hypar-style node graph: {nodes, edges} → each node's outputs, in dependency order (M4)."""
+    from fastapi import HTTPException
+
+    from .. import compute_graph
+    try:
+        return compute_graph.run_graph(graph)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
 @router.get("/projects/{pid}/schedule/4d")
 def schedule_4d(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """4D construction sequence (C3): map the published model's elements onto a takt plan derived

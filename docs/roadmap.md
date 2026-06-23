@@ -169,9 +169,11 @@ material info). Grounded in: [IfcMaterial layer sets](https://forums.buildingsma
 - **M3 — Family & material depth** (Revit-parity): **IfcMaterialLayerSet** wall/floor/roof assemblies
   (e.g. plasterboard · stud · plasterboard), an expanded parametric **family library** with materials,
   and **import of external IFC type content**.
-- **M4 — Visual data relationships** (Dynamo/Hypar-style): a **visual graph** of the config-driven
-  module relations + rollups (we have the data graph — make it visual), and a **computational rules →
-  model** step (parametric, IFC/glTF out, like Hypar). Pairs with the existing **Ask AI** automation.
+- ✅ **DONE (M4 start) — computational graph** (Dynamo/Hypar-style, zero-touch). `compute_graph.py`
+  exposes the pure engines as **nodes** (params→input ports, dict return→output ports) + an executor:
+  `GET /compute/nodes` (palette) and `POST /compute/graph` run a {nodes, edges} graph in dependency
+  order (zoning → structure/takt/cost → yield). After the Dynamo zero-touch primer. *Next: a visual
+  node editor + the module-relations graph view.*
 
 ## D. Platform / production
 Tracked in [production-readiness.md](production-readiness.md): main.ts account/connections split,
