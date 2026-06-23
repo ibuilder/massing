@@ -26,6 +26,57 @@ def _polygon_area(poly: list) -> float:
     return abs(a) / 2.0
 
 
+def _signed_area(poly: list) -> float:
+    n = len(poly); a = 0.0
+    for i in range(n):
+        x1, y1 = poly[i]; x2, y2 = poly[(i + 1) % n]
+        a += x1 * y2 - x2 * y1
+    return a / 2.0
+
+
+def offset_polygon(poly: list, d: float) -> list:
+    """Inward-offset (shrink) a simple polygon by `d` metres — the real buildable footprint after a
+    uniform setback, instead of approximating with the bounding box. Each edge is pushed inward along
+    its normal and consecutive edges re-intersected. Returns the offset polygon, or [] if it collapses
+    (setback larger than the parcel can take). Robust for convex parcels and mild concavity."""
+    import math as _m
+
+    pts = [[float(x), float(y)] for x, y in poly]
+    if len(pts) < 3 or d <= 0:
+        return pts
+    if _signed_area(pts) < 0:                 # normalise to CCW so the left normal points inward
+        pts = pts[::-1]
+    n = len(pts)
+    lines = []                                # each shifted edge as (point, unit-direction)
+    for i in range(n):
+        ax, ay = pts[i]; bx, by = pts[(i + 1) % n]
+        ex, ey = bx - ax, by - ay
+        ln = _m.hypot(ex, ey) or 1e-9
+        ux, uy = ex / ln, ey / ln
+        nx, ny = -uy, ux                      # inward (left) normal for CCW
+        lines.append(((ax + nx * d, ay + ny * d), (ux, uy)))
+
+    def _intersect(l1, l2):
+        (p1, d1), (p2, d2) = l1, l2
+        denom = d1[0] * d2[1] - d1[1] * d2[0]
+        if abs(denom) < 1e-9:                 # parallel — fall back to the shifted endpoint
+            return p2
+        t = ((p2[0] - p1[0]) * d2[1] - (p2[1] - p1[1]) * d2[0]) / denom
+        return [p1[0] + d1[0] * t, p1[1] + d1[1] * t]
+
+    out = [_intersect(lines[i - 1], lines[i]) for i in range(n)]
+    # collapsed / over-offset (setback deeper than the parcel can take) → no buildable area. A
+    # double-inversion can keep positive area, so also reject if any edge flipped direction.
+    for i in range(n):
+        ix, iy = pts[(i + 1) % n][0] - pts[i][0], pts[(i + 1) % n][1] - pts[i][1]
+        ox, oy = out[(i + 1) % n][0] - out[i][0], out[(i + 1) % n][1] - out[i][1]
+        if ix * ox + iy * oy < 0:             # edge reversed → polygon turned inside-out
+            return []
+    if _polygon_area(out) < 1.0 or _signed_area(out) <= 0:
+        return []
+    return [[round(x, 3), round(y, 3)] for x, y in out]
+
+
 def compute_massing(p: dict) -> dict[str, Any]:
     """Zoning envelope → program. Inputs (metres): lot_width/lot_depth or lot_area or lot_polygon
     ([[x,y],…]), far, coverage_max, front/side/rear_setback, height_limit, floor_to_floor,
@@ -33,23 +84,42 @@ def compute_massing(p: dict) -> dict[str, Any]:
     lot_w, lot_d = float(p.get("lot_width") or 0), float(p.get("lot_depth") or 0)
     lot_area = float(p.get("lot_area") or (lot_w * lot_d))
     poly = p.get("lot_polygon")
+    ss, fs, rs = float(p.get("side_setback", 0)), float(p.get("front_setback", 0)), float(p.get("rear_setback", 0))
+    far = float(p.get("far", 1.0))
+    coverage = float(p.get("coverage_max", 0.6))
+    f2f = float(p.get("floor_to_floor", 3.5))
+    height_limit = p.get("height_limit")
+    buildable_poly = None
+
     if poly and len(poly) >= 3:                  # real parcel: area from shoelace, dims from bbox
         lot_area = _polygon_area(poly)
         xs = [float(pt[0]) for pt in poly]; ys = [float(pt[1]) for pt in poly]
         lot_w, lot_d = max(xs) - min(xs), max(ys) - min(ys)
+        # true inward polygon offset by a uniform setback — the real buildable footprint, not a
+        # bounding-box guess. A polygon has no front/rear/side semantics, so use the average of the
+        # provided (nonzero) setbacks.
+        _nz = [v for v in (ss, fs, rs) if v > 0]
+        sb = sum(_nz) / len(_nz) if _nz else 0.0
+        if sb > 0:
+            buildable_poly = offset_polygon(poly, sb)
+            poly_fp = _polygon_area(buildable_poly) if buildable_poly else 0.0
+        else:
+            buildable_poly = [[float(x), float(y)] for x, y in poly]
+            poly_fp = lot_area
     if lot_area <= 0:
         raise ValueError("provide lot_area, lot_width × lot_depth, or a lot_polygon")
-    far = float(p.get("far", 1.0))
-    coverage = float(p.get("coverage_max", 0.6))
-    f2f = float(p.get("floor_to_floor", 3.5))
-    ss, fs, rs = float(p.get("side_setback", 0)), float(p.get("front_setback", 0)), float(p.get("rear_setback", 0))
-    height_limit = p.get("height_limit")
 
-    if lot_w and lot_d:
+    if buildable_poly is not None:               # polygon parcel → use the offset footprint area
+        fp_raw = poly_fp
+        bx = [pt[0] for pt in buildable_poly] or [0]; by = [pt[1] for pt in buildable_poly] or [0]
+        fw, fd = (max(bx) - min(bx)) or 1.0, (max(by) - min(by)) or 1.0
+    elif lot_w and lot_d:
         fw, fd = max(1.0, lot_w - 2 * ss), max(1.0, lot_d - fs - rs)
+        fp_raw = fw * fd
     else:
         side = math.sqrt(lot_area); fw = fd = max(1.0, side - 2 * ss)
-    footprint = min(fw * fd, lot_area * coverage)
+        fp_raw = fw * fd
+    footprint = min(fp_raw, lot_area * coverage)
     # rescale plate dims to the coverage-capped footprint (keep aspect ratio)
     if fw * fd > footprint and fw * fd > 0:
         k = math.sqrt(footprint / (fw * fd)); fw, fd = fw * k, fd * k
@@ -71,6 +141,7 @@ def compute_massing(p: dict) -> dict[str, Any]:
         "floors": floors, "floor_to_floor": f2f, "building_height_m": round(floors * f2f, 1),
         "buildable_gfa_m2": round(gfa, 1), "buildable_gfa_sf": round(gfa * M2_TO_SF),
         "net_sellable_m2": round(gfa * eff, 1), "units": units, "binding_constraint": binding,
+        **({"buildable_polygon": buildable_poly} if buildable_poly is not None else {}),
     }
 
 

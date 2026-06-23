@@ -38,6 +38,16 @@ assert abs(mp["lot_area_m2"] - 2000.0) < 1.0, mp["lot_area_m2"]
 lshape = massing.compute_massing({"lot_polygon": [[0, 0], [50, 0], [50, 20], [20, 20], [20, 50], [0, 50]], "far": 2.0})
 assert abs(lshape["lot_area_m2"] - 1600.0) < 1.0, lshape["lot_area_m2"]
 
+# true inward polygon offset (real setback footprint, not the bounding box):
+sq = [[0, 0], [50, 0], [50, 40], [0, 40]]
+assert abs(massing._polygon_area(massing.offset_polygon(sq, 5)) - 1200.0) < 1.0   # 40×30 inset
+# compute_massing applies the offset to the parcel footprint (coverage relaxed so the offset binds)
+mo = massing.compute_massing({"lot_polygon": sq, "far": 3.0, "side_setback": 5, "coverage_max": 0.99})
+assert abs(mo["footprint_m2"] - 1200.0) < 5.0 and len(mo["buildable_polygon"]) == 4, mo["footprint_m2"]
+# a setback deeper than the parcel collapses → zero buildable area (no crash, no inside-out polygon)
+collapsed = massing.compute_massing({"lot_polygon": sq, "far": 3.0, "side_setback": 40})
+assert collapsed["footprint_m2"] == 0.0 and collapsed["buildable_polygon"] == [], collapsed["footprint_m2"]
+
 # bad input is rejected
 try:
     massing.compute_massing({"far": 2.0})
