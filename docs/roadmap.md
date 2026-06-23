@@ -139,18 +139,18 @@ and ASU.
   `GET /projects/{id}/lean/ppc`: Plan Percent Complete + ranked reasons for non-completion + a
   rating (good ≥ 80%). *Next: surface on the dashboard; production-rate actual vs takt.*
 - ✅ **DONE — R5 research-grade data & comps.** `benchmarks.py` + `GET /benchmarks` (citable cost/sf,
-  cap-rate, soft-cost, productivity, PPC ranges) + a `comparable` module for deal comps. *Next: wire
-  benchmark bands into the underwriting guardrails + seed defaults from them.* (superseded:)
-<!--
-  rates) in citable benchmarks and a **Comparables** record. -->
+  cap-rate, soft-cost, productivity, PPC ranges, wired into the underwriting guardrails) + a
+  `comparable` module for deal comps.
 
 ## C. Lifecycle / construction depth
 - ✅ Field capture (offline), module-log PDFs, closeout package ZIP, auto-TRIR, subject alias.
-- ✅ **DONE — C1 multi-period pay apps.** `cost.advance_period()` rolls completed-this→prev across SOV lines (POST .../cost/advance-period); g702 `release_retainage` for the final app. *Next: auto lien waivers.*
-- ✅ **DONE — C2 COBie field-enrichment** (Warranty/System/Asset/Document tabs fold closeout data into the COBie export).
-  <!-- was: C2 — COBie field-enrichment (fold assets/warranties/commissioning into the COBie tabs) +
-  warranty date tracking + O&M reminders.
-- ✅ **DONE (engine) — C3 4D sequencing.** `fourd.timeline()` + `GET /projects/{id}/schedule/4d` maps elements onto the takt plan (trade × floor) → scrubable frames (cumulative % built/day). *Next: viewer timeline-scrub UI.*
+- ✅ **DONE — C1 multi-period pay apps.** `cost.advance_period()` rolls completed-this → prev across
+  SOV lines for successive draws; g702 `release_retainage` on the final app. *Next: auto lien waivers.*
+- ✅ **DONE — C2 COBie field-enrichment** — Warranty / System / Asset / Document tabs fold closeout
+  data into the COBie export.
+- ✅ **DONE — C3 4D sequencing.** `fourd.timeline()` + `GET /projects/{id}/schedule/4d` maps elements
+  onto the takt plan (trade × floor) → scrubable frames (cumulative % built/day), with a **viewer
+  scrub** (the Schedule tools slider isolates built-to-date) + a takt **line-of-balance chart**.
 
 ## D. Platform / production
 Tracked in [production-readiness.md](production-readiness.md): main.ts account/connections split,

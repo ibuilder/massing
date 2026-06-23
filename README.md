@@ -131,6 +131,12 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
+- **Built-world techniques (research-grounded)** — direction from Carol Willis (*Form Follows
+  Finance*, *Building the Empire State*), Salvadori (*Why Buildings Stand Up*), and CM/RE research:
+  **form-follows-finance** massing (daylight-limited rentable depth + core efficiency), a
+  **structural-system advisor** (flat-plate · shear-core · outrigger by height/span + member sizing),
+  **takt / line-of-balance** scheduling with a JIT delivery plan, **4D sequencing** with a viewer
+  scrub, **lean / Last-Planner PPC**, and citable **benchmarks + comparables**.
 - **Underwriting realism + Finance revamp** — specialty/operating revenue is now risk-adjusted before
   it hits the deal, and `underwrite.guardrails()` flags returns outside market bands (the
   vertical-farm scenario's once-inflated IRR is now credible). The Finance view is reorganized into
