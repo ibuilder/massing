@@ -6,6 +6,7 @@ import { ApiClient } from "./api/client";
 import { toast } from "./ui/feedback";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
 import { maybeWelcome, showWelcome } from "./ui/onboarding";
+import { mountChecklist, reopenChecklist } from "./ui/checklist";
 import { FieldCapture } from "./field/field";
 import { modalShell } from "./ui/modal";
 import { buildMenu, closeMenus } from "./ui/menus";
@@ -1127,13 +1128,15 @@ async function startup() {
     try { localMode = (await api.capabilities()).local_mode === true; } catch { /* default off */ }
     if (!localMode) void buildAuthControl();
   }
-  // Help (?) — relaunch the welcome / tour any time
+  // Help (?) — relaunch the welcome / tour, the guides, or the getting-started checklist
   const help = document.createElement("button");
-  help.className = "tool-btn"; help.style.marginLeft = "6px"; help.textContent = "?"; help.title = "Help & tour";
-  help.onclick = () => showWelcome(onboardCtx());
+  help.className = "tool-btn"; help.style.marginLeft = "6px"; help.textContent = "?"; help.title = "Help, tour & guides";
+  help.onclick = () => { reopenChecklist(); showWelcome(onboardCtx()); };
   toolbar.insertBefore(help, statusEl);
   // field capture (mobile-first quick capture with offline queue) — needs the backend
   if (!demo) new FieldCapture(api, () => projectId).mount();
+  // gamified getting-started checklist (feature discovery + activation)
+  mountChecklist();
   // first run: welcome the user (skippable). Anchors must exist first, so defer a tick.
   setTimeout(() => maybeWelcome(onboardCtx()), 600);
 }
