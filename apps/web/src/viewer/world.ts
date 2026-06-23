@@ -1,5 +1,6 @@
 import * as OBC from "@thatopen/components";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 export type World = OBC.SimpleWorld<OBC.SimpleScene, OBC.OrthoPerspectiveCamera, OBC.SimpleRenderer>;
 
@@ -40,15 +41,67 @@ export function createViewer(container: HTMLElement): Viewer {
 
 const SUN = "aec-sun", HEMI = "aec-hemi", FILL = "aec-fill", GROUND = "aec-shadow-ground";
 
+let envMap: THREE.Texture | null = null;   // PMREM-prefiltered IBL, built lazily from the renderer
+
+/** A neutral studio environment for image-based lighting/reflections (built once, cached). */
+function studioEnv(r: THREE.WebGLRenderer): THREE.Texture {
+  if (envMap) return envMap;
+  const pmrem = new THREE.PMREMGenerator(r);
+  envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
+  return envMap;
+}
+
+/** Only these plain lit materials are safe to upgrade to PBR. We deliberately skip Fragments'
+ *  own `ShaderMaterial` meshes — they carry `onBeforeRender` hooks that feed custom uniforms, so
+ *  swapping their material would break the engine's rendering/highlighting. */
+const PBR_CONVERTIBLE = new Set(["MeshLambertMaterial", "MeshBasicMaterial", "MeshPhongMaterial"]);
+
 /**
- * "Render mode": a presentation-grade lighting rig over the flat default scene — a directional sun
- * with soft shadows, hemisphere sky/ground fill, ACES tone mapping and sRGB output, plus a large
- * shadow-catching ground plane. Off by default (cheaper, flat); toggled from the viewer toolbar.
- * Idempotent — safe to call repeatedly and after new models load (re-applies mesh shadow flags).
+ * Swap a Fragments mesh between its default lit material and a PBR `MeshStandardMaterial` that adds
+ * roughness/metalness + responds to the IBL environment (reflections), preserving the per-element
+ * IFC surface colours (M1). The original is stashed on `userData` so toggling render mode off
+ * restores it exactly. Idempotent, and a no-op for materials we shouldn't touch (see above).
+ */
+function setMeshPbr(m: THREE.Mesh, on: boolean): void {
+  const ud = m.userData as { _flatMat?: THREE.Material | THREE.Material[] };
+  const first = Array.isArray(m.material) ? m.material[0] : m.material;
+  if (on) {
+    if (ud._flatMat || !first || !PBR_CONVERTIBLE.has(first.type)) return;   // already done / not safe
+    const make = (src: THREE.Material): THREE.Material => {
+      const b = src as THREE.MeshLambertMaterial;
+      return new THREE.MeshStandardMaterial({
+        color: b.color?.clone?.() ?? new THREE.Color(0xcfd3da),
+        map: b.map ?? null,
+        vertexColors: b.vertexColors,              // keep the per-element IFC surface colours (M1)
+        transparent: b.transparent, opacity: b.opacity, side: b.side,
+        alphaTest: b.alphaTest, depthWrite: b.depthWrite,
+        roughness: 0.82, metalness: 0.0, envMapIntensity: 0.9,   // matte architectural default
+      });
+    };
+    ud._flatMat = m.material;
+    m.material = Array.isArray(m.material) ? m.material.map(make) : make(m.material);
+  } else if (ud._flatMat) {
+    const cur = m.material;                         // dispose the PBR clone(s) we created
+    (Array.isArray(cur) ? cur : [cur]).forEach((mat) => mat.dispose());
+    m.material = ud._flatMat;
+    delete ud._flatMat;
+  }
+}
+
+/**
+ * "Render mode": a presentation-grade upgrade over the flat default scene — a directional sun with
+ * soft shadows, hemisphere sky/ground fill, ACES tone mapping + sRGB output, a shadow-catching
+ * ground plane, **IBL environment lighting**, and a **PBR material swap** (plain lit surfaces →
+ * `MeshStandardMaterial`) so they gain roughness/metalness + environment reflections on top of the
+ * sun. Off by default (cheaper, flat); toggled from the viewer toolbar. Idempotent — safe to call
+ * repeatedly and after new models load.
  */
 export function renderMode(world: World, on: boolean): void {
   const r = world.renderer!.three;
   const s = world.scene.three;
+
+  s.environment = on ? studioEnv(r) : null;   // IBL ambient + reflections (PBR materials only)
 
   r.shadowMap.enabled = on;
   r.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -96,12 +149,13 @@ export function renderMode(world: World, on: boolean): void {
     }
   }
 
-  // (Re)apply cast/receive flags to all current model meshes.
+  // (Re)apply cast/receive flags + the PBR material swap to all current model meshes.
   s.traverse((o) => {
     const m = o as THREE.Mesh;
     if (m.isMesh && m.name !== GROUND) {
       m.castShadow = on;
       m.receiveShadow = on;
+      setMeshPbr(m, on);
     }
   });
 }

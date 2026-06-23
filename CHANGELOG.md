@@ -4,6 +4,18 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.30 — PBR materials + free Revit import
+- **PBR pass (M2)** — render mode now upgrades plain lit surfaces to `MeshStandardMaterial`
+  (roughness/metalness, keeps the M1 IFC colours) lit by an **IBL studio environment** for soft
+  ambient + reflections, on top of the sun/shadows. Reversible; Fragments' own shader meshes are
+  left untouched so the engine renderer is never at risk.
+- **Free Revit → IFC path** — the Open menu now has *"Free: export IFC from Revit (no bridge)…"*:
+  a guide to Revit's built-in IFC export + the free, open-source **pyRevit**, so getting a model in
+  doesn't require the paid Autodesk bridge.
+- **Docs** — library interoperability evaluation (roadmap §L: IFClite, pyRevit, FreeCAD, Pascal
+  Editor) and ADR 0001 on dependency bundling & the signed-update policy (deps are pinned and ship
+  inside the app update — never background-updated independently).
+
 ## v0.1.29 — render mode (M2 start)
 - **Viewer render mode** (◓ toolbar) — a directional **sun with soft (PCF) shadows**, hemisphere
   sky/ground fill + fill light, **ACES tone mapping** and sRGB output, and a shadow-catching ground

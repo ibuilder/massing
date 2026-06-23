@@ -58,10 +58,11 @@ buildMenu("open-menu", "Open ▾", [
   { label: "School — Structural", onClick: () => withViewer((v) => void v.loadSample("/school_str.frag", "School (Structural)")) },
   { label: "School — Architectural", onClick: () => withViewer((v) => void v.loadSample("/school_arq.frag", "School (Architectural)")) },
   { label: "BasicHouse", onClick: () => withViewer((v) => void v.loadSample("/basichouse.frag", "BasicHouse")) },
-  { label: "Import (Autodesk — paid bridge)", sep: true },
-  { label: "Revit (.rvt)…", onClick: () => withViewer((v) => v.triggerOpen("convert")) },
-  { label: "AutoCAD (.dwg)…", onClick: () => withViewer((v) => v.triggerOpen("convert")) },
-  { label: "Navisworks (.nwc)…", onClick: () => withViewer((v) => v.triggerOpen("convert")) },
+  { label: "Import from Revit / CAD", sep: true },
+  { label: "Free: export IFC from Revit (no bridge)…", onClick: () => showFreeImportHelp() },
+  { label: "Revit (.rvt) — paid Autodesk bridge…", onClick: () => withViewer((v) => v.triggerOpen("convert")) },
+  { label: "AutoCAD (.dwg) — paid bridge…", onClick: () => withViewer((v) => v.triggerOpen("convert")) },
+  { label: "Navisworks (.nwc) — paid bridge…", onClick: () => withViewer((v) => v.triggerOpen("convert")) },
 ], () => void ensureViewer());
 buildMenu("save-menu", "Save ▾", [
   { label: "Save Project (.mmproj)", onClick: () => saveProjectBundle() },
@@ -69,6 +70,42 @@ buildMenu("save-menu", "Save ▾", [
   { label: "Export Fragments (.frag)", onClick: () => withViewer((v) => void v.exportFrag()) },
   { label: "Export source IFC (.ifc)", onClick: () => withViewer((v) => v.exportIfc()) },
 ], () => void ensureViewer());
+
+/**
+ * The free, offline way to get a Revit/CAD model into the viewer — IFC is the source of truth, so
+ * users don't need the paid Autodesk bridge: export IFC from Revit (built-in) or batch it with the
+ * free, open-source pyRevit, then "Open IFC…". Surfaced so the mission's "free single-project"
+ * promise is actually reachable from the UI, not just the paid path.
+ */
+function showFreeImportHelp() {
+  const { card, msg } = modalShell("Import from Revit for free (no paid bridge)", 540);
+  msg.innerHTML = `
+    <p><b>IFC is the source of truth here</b> — you only need the paid Autodesk bridge if you want to
+    drop a raw <code>.rvt</code> in directly. The free path is to export IFC from Revit, then use
+    <b>Open&nbsp;IFC…</b>:</p>
+    <ol style="margin:8px 0 8px 18px;line-height:1.5">
+      <li><b>One model — Revit built-in:</b> <i>File ▸ Export ▸ IFC</i>. Pick <b>IFC 4</b> (or IFC 2x3
+          for older tools) and a coordinate base of <i>Project / Shared</i>. Save the <code>.ifc</code>.</li>
+      <li><b>Many models / repeatable — pyRevit (free, open-source):</b> install
+          <code>pyRevit</code>, then use its IFC export tools to batch-export views/models to IFC.</li>
+      <li>Back here: <b>Open ▸ Open&nbsp;IFC…</b> — we pre-convert it to Fragments on the server and
+          it streams in like any other model.</li>
+    </ol>
+    <p class="meta">DWG/NWC: export to IFC from their host app the same way, or use the paid bridge.</p>`;
+  card.appendChild(msg);
+  const links = document.createElement("div");
+  links.style.cssText = "display:flex;gap:10px;flex-wrap:wrap;margin-top:6px";
+  for (const [t, href] of [
+    ["pyRevit (free)", "https://github.com/pyrevitlabs/pyRevit"],
+    ["Revit IFC export docs", "https://help.autodesk.com/view/RVT/2024/ENU/?guid=GUID-6708CFD6-0AD7-4D85-8479-A2A8657C9181"],
+  ] as const) {
+    const a = document.createElement("a");
+    a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.textContent = t; a.className = "btn-secondary"; a.style.textDecoration = "none";
+    links.appendChild(a);
+  }
+  card.appendChild(links);
+}
 
 /** Save the whole project (geometry + all data + blobs) as a portable .mmproj bundle. */
 function saveProjectBundle() {
