@@ -177,6 +177,41 @@ material info). Grounded in: [IfcMaterial layer sets](https://forums.buildingsma
   order (zoning → structure/takt/cost → yield). After the Dynamo zero-touch primer. *Next: a visual
   node editor + the module-relations graph view.*
 
+## L. Library & interoperability evaluations  ★ research pass (2026-06)
+Surveyed external libraries against the mission (IFC source-of-truth, server-side IFC→Fragments,
+offline viewer, Blender/Bonsai as the *desktop* editor). Verdicts — adopt only what serves the
+mission; see [adr/0001-dependencies-and-updates.md](adr/0001-dependencies-and-updates.md) for the
+bundling/auto-update policy these feed into.
+
+- **IFClite / `@ifc-lite/*`** (MPL-2.0, Rust+WASM, 25 npm pkgs — [ifc-lite](https://github.com/louistrue/ifc-lite)).
+  Claims ~5× faster geometry than web-ifc and, crucially, **IFC5 / IFCX (JSON) support**. *Verdict:
+  evaluate — but do **not** swap the browser engine* (our non-negotiable is "never parse full IFC in
+  the browser at runtime"; ThatOpen pin coupling). Two useful, contained spikes: **(L1)** trial
+  `@ifc-lite/geometry` (the "ifclite-geom" tessellator) as a faster **server-side** converter behind
+  the existing convert API; **(L2)** track `@ifc-lite/parser` for **IFC5/IFCX readiness** so IFC
+  stays the source of truth as the schema evolves. MPL-2.0 is compatible with our stack.
+- **pyRevit** (free, open-source Revit add-in — [pyrevitlabs/pyRevit](https://github.com/pyrevitlabs/pyRevit)).
+  *Verdict: adopt as guidance, not code.* ✅ **DONE (L3)** — Open menu now has *"Free: export IFC
+  from Revit (no bridge)…"* documenting Revit's built-in IFC export + pyRevit batch export, so the
+  free single-project promise is reachable without the paid Autodesk bridge. Not bundled (it runs
+  inside desktop Revit; we never read .rvt offline).
+- **FreeCAD** (LGPL — [FreeCAD](https://github.com/FreeCAD/FreeCAD)). Scriptable, **headless-capable**
+  via the same `ifcopenshell` we already run, with NativeIFC bidirectional linking + 2D drawing
+  generation. *Verdict: evaluate (L4)* as an optional **headless server engine** for parametric
+  family generation and 2D-drawing export — additive to our pipeline, no new client weight. Lower
+  priority than L1/L2.
+- **Pascal Editor** ([pascalorg/editor](https://github.com/pascalorg/editor), R3F + WebGPU, IFC
+  importer). A browser **3D building editor**. *Verdict: reference only — out of scope.* The mission
+  is explicit that **Blender/Bonsai is the desktop editor, not the web viewer**; in-browser authoring
+  would contradict it. Keep as a UX reference for the existing edit-gated place-tools; do not adopt.
+
+**Do we need to create/import libraries to "run on its own"? Do they auto-update?** No new library is
+required — the desktop build already runs standalone (Tauri shell + bundled PyInstaller FastAPI
+sidecar + self-hosted web-ifc WASM), and the *whole app* auto-updates via signed GitHub releases.
+Third-party geometry/WASM deps are **pinned and shipped inside that signed update**, never
+background-updated independently (that would break the offline guarantee and the ThatOpen
+`components`↔`fragments` version coupling). Policy recorded in the ADR above.
+
 ## D. Platform / production
 Tracked in [production-readiness.md](production-readiness.md): main.ts account/connections split,
 dashboard JSON-extraction perf, Redis-backed rate limits (multi-worker), CI dependency scanning,
