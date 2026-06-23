@@ -4,6 +4,11 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.32 — first-person walkthrough (M2 complete)
+- **Walkthrough mode** (🚶 toolbar) — Matterport-style first-person navigation: drops to eye height
+  (1.6 m), **W/A/S/D** to walk (locked horizontal so you stay on the floor) and drag to look around.
+  Switches to a perspective view on enter and restores your prior camera on exit. Completes M2.
+
 ## v0.1.31 — sun & shadow study (M2)
 - **Sun / shadow study** (☀ toolbar) — drive the render-mode sun by **date, time-of-day and
   latitude/longitude** with a live panel; shadows track the real solar arc (NOAA solar-position

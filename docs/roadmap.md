@@ -172,7 +172,10 @@ material info). Grounded in: [IfcMaterial layer sets](https://forums.buildingsma
   on demand (flat stays the cheap default), reversible, re-applied as new models load. A **sun /
   shadow study** (☀) drives the render-mode sun by **date · time-of-day · latitude/longitude** (NOAA
   solar position), so shadows track the real sun arc live — including warm low-angle light and a
-  below-horizon night state. *Next: a Matterport-style first-person walkthrough.*
+  below-horizon night state. A **first-person walkthrough** (🚶, Matterport-style) drops you to eye
+  height (1.6 m) with **W/A/S/D** to walk (horizontal-locked, feet on the floor) and drag-to-look;
+  toggling off restores the prior camera. **M2 is complete** — next rendering depth lives under a
+  future theme (real-time GI / baked AO, exterior HDRI skies).
 - **M3 — Family & material depth** (Revit-parity): **IfcMaterialLayerSet** wall/floor/roof assemblies
   (e.g. plasterboard · stud · plasterboard), an expanded parametric **family library** with materials,
   and **import of external IFC type content**.

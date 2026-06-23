@@ -446,6 +446,67 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     recompute();
   });
 
+  // first-person walkthrough (Matterport-style): WASD to walk at eye height, drag to look. Movement
+  // is locked horizontal (feet on the floor) while look can still pitch; cooperates with the orbit
+  // controls rather than fighting them — when no key is held, normal drag-to-look is untouched.
+  const EYE_HEIGHT = 1.6;   // metres (model units are METRE per project convention)
+  let walkRAF = 0; const walkKeys = new Set<string>();
+  let walkSaved: Peer["viewpoint"] = null;
+  function onWalkKey(e: KeyboardEvent) {
+    const k = e.key.toLowerCase();
+    if (!["w", "a", "s", "d"].includes(k)) return;
+    if (e.type === "keydown") walkKeys.add(k); else walkKeys.delete(k);
+    e.preventDefault();
+  }
+  function setWalk(on: boolean) {
+    const c = viewer.world.camera.controls;
+    if (on) {
+      walkSaved = captureViewpoint();
+      void viewer.world.camera.projection.set("Perspective");   // ortho walk feels wrong
+      const p = new THREE.Vector3(), t = new THREE.Vector3();
+      c.getPosition(p); c.getTarget(t);
+      const dir = new THREE.Vector3().subVectors(t, p); dir.y = 0;
+      if (dir.lengthSq() < 1e-4) dir.set(0, 0, -1); dir.normalize();
+      const eye = new THREE.Vector3(p.x, EYE_HEIGHT, p.z);
+      const look = eye.clone().addScaledVector(dir, 6); look.y = EYE_HEIGHT;
+      void c.setLookAt(eye.x, eye.y, eye.z, look.x, look.y, look.z, true);
+      window.addEventListener("keydown", onWalkKey);
+      window.addEventListener("keyup", onWalkKey);
+      const sp = 0.07;   // metres per frame ≈ a brisk walk at 60fps
+      const step = () => {
+        walkRAF = requestAnimationFrame(step);
+        if (!walkKeys.size) return;
+        c.getPosition(p); c.getTarget(t);
+        const fwd = new THREE.Vector3().subVectors(t, p); fwd.y = 0;
+        if (fwd.lengthSq() < 1e-6) return; fwd.normalize();
+        const right = new THREE.Vector3(-fwd.z, 0, fwd.x);   // 90° CW in plan
+        let dx = 0, dz = 0;
+        if (walkKeys.has("w")) { dx += fwd.x; dz += fwd.z; }
+        if (walkKeys.has("s")) { dx -= fwd.x; dz -= fwd.z; }
+        if (walkKeys.has("d")) { dx += right.x; dz += right.z; }
+        if (walkKeys.has("a")) { dx -= right.x; dz -= right.z; }
+        // keep eye at EYE_HEIGHT (feet on floor); shift the look-target by the same plan delta so
+        // the view direction (incl. any pitch from dragging) is preserved as you walk.
+        void c.setLookAt(p.x + dx * sp, EYE_HEIGHT, p.z + dz * sp,
+          t.x + dx * sp, t.y, t.z + dz * sp, false);
+      };
+      step();
+      notify("walk mode — W/A/S/D to move, drag to look. Toggle to exit.", "info");
+    } else {
+      cancelAnimationFrame(walkRAF); walkRAF = 0; walkKeys.clear();
+      window.removeEventListener("keydown", onWalkKey);
+      window.removeEventListener("keyup", onWalkKey);
+      void viewer.world.camera.projection.set(ctx.getSettings().projection);
+      if (walkSaved) jumpToViewpoint(walkSaved);
+    }
+  }
+  toolBtn("🚶", "Walk through (first-person — W/A/S/D, drag to look)", (b) => {
+    const on = !walkRAF;
+    setWalk(on);
+    b.classList.toggle("on", on);
+    setStatus(on ? "walk mode on — W/A/S/D + drag" : "walk mode off");
+  });
+
   // levels overlay: a horizontal grid + label at each storey elevation (from the API)
   const levelObjs: THREE.Object3D[] = [];
   toolBtn("☰", "Toggle storey levels overlay", async (b) => {
