@@ -35,6 +35,23 @@ def get_benchmarks():
     return bm.all_benchmarks()
 
 
+@router.get("/projects/{pid}/schedule/4d")
+def schedule_4d(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """4D construction sequence (C3): map the published model's elements onto a takt plan derived
+    from the storey count, returning scrubable timeline frames (cumulative % built per day)."""
+    import json
+
+    from .. import fourd, storage, takt
+    try:
+        idx = json.loads(storage.get(f"{pid}/props.json"))
+        elements = idx.get("elements", [])
+    except Exception:                                # noqa: BLE001 — no published index yet
+        elements = []
+    floors = max([fourd._floor_index(e.get("storey")) for e in elements] + [0]) + 1
+    plan = takt.plan(floors)
+    return {"floors": floors, "duration_days": plan["duration_days"], **fourd.timeline(plan, elements)}
+
+
 @router.get("/projects/{pid}/lean/ppc")
 def lean_ppc(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Last-Planner Plan Percent Complete + reasons for non-completion from the weekly-plan module (R4)."""

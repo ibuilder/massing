@@ -146,10 +146,11 @@ and ASU.
 
 ## C. Lifecycle / construction depth
 - ✅ Field capture (offline), module-log PDFs, closeout package ZIP, auto-TRIR, subject alias.
-- **C1 — Multi-period pay apps** (draws across periods, retainage release) + auto lien waivers.
-- **C2 — COBie field-enrichment** (fold assets/warranties/commissioning into the COBie tabs) +
+- ✅ **DONE — C1 multi-period pay apps.** `cost.advance_period()` rolls completed-this→prev across SOV lines (POST .../cost/advance-period); g702 `release_retainage` for the final app. *Next: auto lien waivers.*
+- ✅ **DONE — C2 COBie field-enrichment** (Warranty/System/Asset/Document tabs fold closeout data into the COBie export).
+  <!-- was: C2 — COBie field-enrichment (fold assets/warranties/commissioning into the COBie tabs) +
   warranty date tracking + O&M reminders.
-- **C3 — 4D sequencing** from the CPM schedule against the model (timeline scrub).
+- ✅ **DONE (engine) — C3 4D sequencing.** `fourd.timeline()` + `GET /projects/{id}/schedule/4d` maps elements onto the takt plan (trade × floor) → scrubable frames (cumulative % built/day). *Next: viewer timeline-scrub UI.*
 
 ## D. Platform / production
 Tracked in [production-readiness.md](production-readiness.md): main.ts account/connections split,

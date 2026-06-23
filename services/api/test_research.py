@@ -30,6 +30,24 @@ assert takt.plan(20)["duration_days"] > p["duration_days"]
 fast = takt.plan(10, [{"name": "Structure", "takt_days": 2}])
 assert fast["floors_per_week"] > p["floors_per_week"]
 
+# --- C3: 4D sequencing — elements appear when their trade reaches their floor -
+from aec_api import fourd  # noqa: E402
+els = [{"guid": "c1", "ifc_class": "IfcColumn", "storey": "Level 1"},
+       {"guid": "c2", "ifc_class": "IfcColumn", "storey": "Level 3"},
+       {"guid": "w1", "ifc_class": "IfcWall", "storey": "Level 1"},
+       {"guid": "s1", "ifc_class": "IfcSpace", "storey": "Level 1"}]
+tl = fourd.timeline(takt.plan(3), els)
+assert tl["element_count"] == 4 and tl["frames"], tl
+# cumulative is monotonic and ends at 100%
+assert tl["frames"][-1]["completed_cumulative"] == 4 and tl["frames"][-1]["pct"] == 100.0, tl["frames"][-1]
+# structure (column L1) completes before interiors (space L1) — trades chase in order
+col_day = min(f["day"] for f in tl["frames"] if "c1" in f["new_guids"])
+space_day = min(f["day"] for f in tl["frames"] if "s1" in f["new_guids"])
+assert col_day < space_day, (col_day, space_day)
+# a higher floor's column finishes after the ground floor's
+c2_day = min(f["day"] for f in tl["frames"] if "c2" in f["new_guids"])
+assert c2_day > col_day, (c2_day, col_day)
+
 # --- R4: lean PPC ------------------------------------------------------------
 recs = [{"data": {"status": "Complete"}}, {"data": {"status": "Complete"}},
         {"data": {"status": "Complete"}}, {"data": {"status": "Complete"}},
@@ -55,6 +73,9 @@ with TestClient(app) as c:
     # comparables module auto-created
     cmp = c.post(f"/projects/{pid}/modules/comparable", json={"data": {"address": "123 Main", "cap_rate": 5.5}})
     assert cmp.status_code in (200, 201), cmp.text
+    # 4D endpoint responds even with no published model (empty timeline)
+    fd = c.get(f"/projects/{pid}/schedule/4d")
+    assert fd.status_code == 200 and "frames" in fd.json() and "duration_days" in fd.json(), fd.text
 
 print(f"RESEARCH OK - takt {p['duration_days']}d / {p['floors_per_week']} fl-wk / {len(p['delivery_plan'])} JIT deliveries; "
       f"lean PPC {m['ppc']} ({m['rating']}); benchmarks + weekly_plan + comparable modules + endpoints verified")
