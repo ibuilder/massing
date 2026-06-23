@@ -4,6 +4,12 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.31 — sun & shadow study (M2)
+- **Sun / shadow study** (☀ toolbar) — drive the render-mode sun by **date, time-of-day and
+  latitude/longitude** with a live panel; shadows track the real solar arc (NOAA solar-position
+  math), with warm low-angle light and a below-horizon night state. Opening it auto-enables render
+  mode. Pure solar math is unit-tested.
+
 ## v0.1.30 — PBR materials + free Revit import
 - **PBR pass (M2)** — render mode now upgrades plain lit surfaces to `MeshStandardMaterial`
   (roughness/metalness, keeps the M1 IFC colours) lit by an **IBL studio environment** for soft

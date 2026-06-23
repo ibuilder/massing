@@ -159,3 +159,20 @@ export function renderMode(world: World, on: boolean): void {
     }
   });
 }
+
+/**
+ * Aim the render-mode sun from a scene-space direction (unit vector *toward* the sun) — used by the
+ * sun/shadow study. Warms the colour and dims the sun near the horizon (and below it) so dawn/dusk
+ * and night read correctly. No-op if render mode isn't on. Returns true when the sun is up.
+ */
+export function positionSun(world: World, dir: { x: number; y: number; z: number }, distance = 160): boolean {
+  const sun = world.scene.three.getObjectByName(SUN) as THREE.DirectionalLight | null;
+  if (!sun) return false;
+  sun.position.set(dir.x * distance, Math.max(dir.y, -0.2) * distance, dir.z * distance);
+  const up = dir.y > 0;
+  // intensity fades to 0 at/below the horizon; warmer + softer when low in the sky
+  const t = Math.max(0, Math.min(1, dir.y / 0.25));            // 0 at horizon → 1 once well up
+  sun.intensity = up ? 0.6 + 2.0 * Math.min(1, dir.y * 3) : 0;
+  sun.color.setHSL(0.09 + 0.04 * t, 0.55 - 0.25 * t, 0.5 + 0.08 * t); // sunrise orange → midday white
+  return up;
+}

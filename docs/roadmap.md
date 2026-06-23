@@ -169,8 +169,10 @@ material info). Grounded in: [IfcMaterial layer sets](https://forums.buildingsma
   `MeshStandardMaterial` (roughness/metalness, keeps the M1 IFC colours) lit by an **IBL studio
   environment** (RoomEnvironment via PMREM) for soft ambient + reflections — Fragments' own
   `ShaderMaterial` meshes are deliberately left untouched (they carry engine render hooks). Toggled
-  on demand (flat stays the cheap default), reversible, re-applied as new models load. *Next: a
-  sun/shadow study by date/location, and a Matterport-style first-person walkthrough.*
+  on demand (flat stays the cheap default), reversible, re-applied as new models load. A **sun /
+  shadow study** (☀) drives the render-mode sun by **date · time-of-day · latitude/longitude** (NOAA
+  solar position), so shadows track the real sun arc live — including warm low-angle light and a
+  below-horizon night state. *Next: a Matterport-style first-person walkthrough.*
 - **M3 — Family & material depth** (Revit-parity): **IfcMaterialLayerSet** wall/floor/roof assemblies
   (e.g. plasterboard · stud · plasterboard), an expanded parametric **family library** with materials,
   and **import of external IFC type content**.

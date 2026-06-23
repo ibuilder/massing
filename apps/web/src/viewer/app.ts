@@ -3,7 +3,8 @@
 // Construction (GC portal) or Finance (proforma) workspaces.
 import * as THREE from "three";
 import CameraControls from "camera-controls";
-import { createViewer, renderMode } from "./world";
+import { createViewer, renderMode, positionSun } from "./world";
+import { sunAltAz, sunSceneDir } from "./solar";
 import { ModelLoader } from "./loader";
 import { type ModelIdMap } from "./modelIds";
 import { SelectionSets } from "./selectionSets";
@@ -389,6 +390,60 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     b.classList.toggle("on", renderOn);
     setStatus(renderOn ? "render mode on — sun + soft shadows" : "render mode off (flat shading)");
     void loader.fragments.core.update(true);
+  });
+
+  // sun / shadow study: drive the render-mode sun by date · time · location (live shadows)
+  let sunPanel: HTMLElement | null = null;
+  function applySun(lat: number, lon: number, date: Date) {
+    const pos = sunAltAz(date, lat, lon);
+    const up = positionSun(viewer.world, sunSceneDir(pos));
+    void loader.fragments.core.update(true);
+    const compass = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(pos.azimuth / 45) % 8];
+    const out = document.getElementById("sun-readout");
+    if (out) out.textContent = up
+      ? `altitude ${pos.altitude.toFixed(0)}° · azimuth ${pos.azimuth.toFixed(0)}° (${compass})`
+      : `sun below horizon — night (alt ${pos.altitude.toFixed(0)}°)`;
+  }
+  toolBtn("☀", "Sun & shadow study (date · time · location)", (b) => {
+    if (sunPanel) { sunPanel.remove(); sunPanel = null; b.classList.remove("on"); return; }
+    if (!renderOn) {   // the study drives the render-mode sun, so make sure it's on
+      renderOn = true; renderMode(viewer.world, true);
+      [...viewerTools.children].forEach((c) => { if ((c as HTMLElement).title?.startsWith("Render mode")) (c as HTMLElement).classList.add("on"); });
+    }
+    b.classList.add("on");
+    const p = document.createElement("div");
+    p.id = "sun-study-panel"; p.className = "floating-panel";
+    p.style.cssText = "position:absolute;right:12px;top:64px;z-index:30;background:var(--panel);border:1px solid var(--line);"
+      + "border-radius:10px;padding:12px;width:230px;display:flex;flex-direction:column;gap:8px;font-size:12px;box-shadow:0 6px 24px #0007";
+    const today = new Date();
+    p.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>☀ Sun &amp; shadow study</strong>
+        <button id="sun-close" class="icon-btn" title="Close" style="width:22px;height:22px">✕</button>
+      </div>
+      <label style="display:flex;justify-content:space-between;gap:6px">Lat
+        <input id="sun-lat" type="number" step="0.1" value="40.7" style="width:80px"></label>
+      <label style="display:flex;justify-content:space-between;gap:6px">Lon
+        <input id="sun-lon" type="number" step="0.1" value="-74.0" style="width:80px"></label>
+      <label style="display:flex;justify-content:space-between;gap:6px">Date
+        <input id="sun-date" type="date" value="${today.toISOString().slice(0, 10)}" style="width:130px"></label>
+      <label>Time of day <span id="sun-time" style="float:right">12:00</span>
+        <input id="sun-hour" type="range" min="0" max="1439" step="5" value="720" style="width:100%"></label>
+      <div id="sun-readout" class="meta" style="min-height:16px"></div>`;
+    (viewer.container.parentElement || viewer.container).appendChild(p);
+    sunPanel = p;
+    const $$ = <T extends HTMLElement>(id: string) => p.querySelector(`#${id}`) as T;
+    const recompute = () => {
+      const lat = +$$<HTMLInputElement>("sun-lat").value, lon = +$$<HTMLInputElement>("sun-lon").value;
+      const mins = +$$<HTMLInputElement>("sun-hour").value;
+      const d = new Date($$<HTMLInputElement>("sun-date").value || today.toISOString().slice(0, 10));
+      d.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
+      $$("sun-time").textContent = `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+      applySun(lat, lon, d);
+    };
+    p.querySelectorAll("input").forEach((el) => el.addEventListener("input", recompute));
+    $$("sun-close").addEventListener("click", () => { p.remove(); sunPanel = null; b.classList.remove("on"); });
+    recompute();
   });
 
   // levels overlay: a horizontal grid + label at each storey elevation (from the API)
