@@ -257,7 +257,10 @@ Remaining = incremental depth (not blockers), in rough priority:
    occupancy), not a local proxy.
 2. **Developer** — ✅ B6 pitch-deck (slide) variant shipped (`/investment-deck.pdf` + 📊 button);
    next: market/timeline sections, property photos.
-3. **Construction** — C1 multi-period pay-app accounting + lien waivers; C2 COBie field-enrichment;
-   C3 4D sequencing.
+3. **Construction** — ✅ **C1 complete**: multi-period pay-app accounting (G702/G703 +
+   `advance_period` roll-forward) was already in; added **lien waivers** — the four statutory
+   conditional/unconditional × progress/final forms (`cost.lien_waiver`), tied to the pay app's
+   amount, as JSON + PDF (`/cost/lien-waiver[.pdf]`) and a "⚖ Lien waiver" action in the cost panel.
+   *Next: C2 COBie field-enrichment; C3 4D sequencing.*
 4. **Platform** — main.ts account/connections split; dashboard JSON-extraction perf; Redis-backed
    rate limits (multi-worker); a11y pass; mobile (Capacitor) build hardening; RVT→IFC (APS) polish.

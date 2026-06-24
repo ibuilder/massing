@@ -4,6 +4,13 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.36 — lien waivers (Construction C1 complete)
+- **Lien waivers / releases** — the four statutory forms (conditional/unconditional × progress/final,
+  Cal. Civ. Code §8132–8138 style) generated from a pay application: `cost.lien_waiver` fills the
+  notice, body and amount (current payment due for progress, contract sum to date for final), exposed
+  as `GET /projects/{id}/cost/lien-waiver` (JSON) and `.pdf`, plus a "⚖ Lien waiver / release" action
+  in the viewer cost panel. Completes C1 (multi-period pay-app accounting was already in place).
+
 ## v0.1.35 — Test Fit depth (egress · parking · polygon footprint · proforma)
 - **Deeper egress / life-safety check (A2)** — `test_fit.egress` now screens the big four IBC fails:
   max travel distance, **occupant load** & required **egress width**, minimum **number of exits**, and

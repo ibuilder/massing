@@ -112,6 +112,83 @@ def advance_period(db: Session, pid: str, actor: str = "system") -> dict[str, An
     return {"lines_advanced": n}
 
 
+# Lien waiver / release forms (C1). The four statutory progress/final × conditional/unconditional
+# variants (Cal. Civ. Code §8132–8138 style, the de-facto national template). A *conditional* waiver
+# is effective only once payment clears; an *unconditional* waiver releases on signing — so it must
+# only be signed after funds are in hand. Bodies are the standard statutory language (public form).
+LIEN_WAIVER_KINDS = ("conditional_progress", "unconditional_progress",
+                     "conditional_final", "unconditional_final")
+_LIEN_TITLES = {
+    "conditional_progress": "Conditional Waiver and Release on Progress Payment",
+    "unconditional_progress": "Unconditional Waiver and Release on Progress Payment",
+    "conditional_final": "Conditional Waiver and Release on Final Payment",
+    "unconditional_final": "Unconditional Waiver and Release on Final Payment",
+}
+_LIEN_NOTICE = {
+    "conditional_progress": "This document waives the claimant's lien, stop payment notice, and "
+        "payment bond rights effective on receipt of payment. A person should not rely on this "
+        "document unless satisfied that the claimant has received payment.",
+    "unconditional_progress": "This document waives and releases lien, stop payment notice, and "
+        "payment bond rights unconditionally and states that you have been paid for giving up those "
+        "rights. This document is enforceable against you if you sign it, even if you have not been "
+        "paid. If you have not been paid, use a conditional waiver and release form.",
+    "conditional_final": "This document waives the claimant's lien, stop payment notice, and payment "
+        "bond rights effective on receipt of payment. A person should not rely on this document "
+        "unless satisfied that the claimant has received payment.",
+    "unconditional_final": "This document waives and releases lien, stop payment notice, and payment "
+        "bond rights unconditionally and states that you have been paid for giving up those rights. "
+        "This document is enforceable against you if you sign it, even if you have not been paid. If "
+        "you have not been paid, use a conditional waiver and release form.",
+}
+
+
+def lien_waiver(db: Session, pid: str, kind: str = "conditional_progress", app_no: int = 1,
+                claimant: str = "", customer: str = "", project_name: str = "",
+                through_date: str = "", amount: float | None = None) -> dict[str, Any]:
+    """Generate a statutory lien waiver / release to accompany a pay application (C1). `kind` is one
+    of LIEN_WAIVER_KINDS. The waived amount defaults to the pay app's current payment due (progress)
+    or the full contract sum to date (final). Returns the form fields + body for rendering/PDF."""
+    if kind not in LIEN_WAIVER_KINDS:
+        raise ValueError(f"unknown lien-waiver kind {kind!r}; have {LIEN_WAIVER_KINDS}")
+    g7 = g702(db, pid, app_no, release_retainage=kind.endswith("final"))
+    final = kind.endswith("final")
+    amt = round(amount if amount is not None else
+                (g7["line3_contract_sum_to_date"] if final else g7["line8_current_payment_due"]), 2)
+    conditional = kind.startswith("conditional")
+    if conditional:
+        body = (f"Upon receipt by the undersigned of a check from {customer or '[Customer]'} in the "
+                f"sum of ${amt:,.2f} payable to {claimant or '[Claimant]'}, and when the check has "
+                "been properly endorsed and has been paid by the bank on which it is drawn, this "
+                "document becomes effective to release and the undersigned releases " +
+                ("any" if final else "any progress payment") +
+                " mechanics lien, stop payment notice, or payment bond rights the undersigned has on "
+                f"the job of {customer or '[Owner]'} located at {project_name or '[Project]'} "
+                + ("." if final else f" to the following extent: this release covers a progress "
+                   f"payment for all labor, services, equipment, or material furnished through "
+                   f"{through_date or '[date]'}.")
+                + (" This release covers the final payment to the claimant for all labor, services, "
+                   "equipment, or material furnished on the project." if final else ""))
+    else:
+        body = (f"The undersigned has been paid in full for all labor, services, equipment, or "
+                f"material furnished to {customer or '[Customer]'} on the job of {customer or '[Owner]'} "
+                f"located at {project_name or '[Project]'} " +
+                (f"and does hereby waive and release any mechanics lien, stop payment notice, or "
+                 f"payment bond rights the undersigned has on the above referenced project."
+                 if final else
+                 f"to the following extent: this release covers a progress payment for all labor, "
+                 f"services, equipment, or material furnished through {through_date or '[date]'} in "
+                 f"the amount of ${amt:,.2f}, and does hereby waive and release any mechanics lien, "
+                 f"stop payment notice, or payment bond rights the undersigned has to this extent."))
+    return {
+        "kind": kind, "title": _LIEN_TITLES[kind], "conditional": conditional, "final": final,
+        "claimant": claimant, "customer": customer, "project_name": project_name,
+        "through_date": through_date, "amount": amt, "application_no": app_no,
+        "notice": _LIEN_NOTICE[kind], "body": body,
+        "exceptions": "Disputed claims and items not included above are excepted from this release.",
+        "signature_block": {"claimant_title": "Claimant's Title", "date": "Date of Signature"},
+    }
+
+
 _RATE_LOOKUP = {  # tm line type -> (rate module, name field)
     "labor": ("labor_rate", "trade"),
     "material": ("material_rate", "material"),

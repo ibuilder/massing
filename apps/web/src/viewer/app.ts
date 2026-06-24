@@ -1008,6 +1008,25 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           ])));
         }));
         b.appendChild(toolBtn2("↓ G702/G703 Pay App (PDF)", () => window.open(api.url(`/projects/${projectId}/cost/g702.pdf?app_no=1`), "_blank")));
+        b.appendChild(toolBtn2("⚖ Lien waiver / release", () => {
+          showResult("Lien waiver / release", (body) => {
+            body.appendChild(resultNote("Generate a statutory waiver to accompany the pay application. "
+              + "Use <b>conditional</b> before funds clear; <b>unconditional</b> only once paid."));
+            const kinds: [string, string][] = [
+              ["conditional_progress", "Conditional — progress payment"],
+              ["unconditional_progress", "Unconditional — progress payment"],
+              ["conditional_final", "Conditional — final payment"],
+              ["unconditional_final", "Unconditional — final payment"],
+            ];
+            for (const [kind, label] of kinds) {
+              const btn = document.createElement("button");
+              btn.className = "tool-btn"; btn.style.cssText = "display:block;width:100%;margin:4px 0;text-align:left";
+              btn.textContent = `↓ ${label}`;
+              btn.onclick = () => window.open(api.url(`/projects/${projectId}/cost/lien-waiver.pdf?kind=${kind}&app_no=1`), "_blank");
+              body.appendChild(btn);
+            }
+          });
+        }));
         b.appendChild(toolBtn2("⚖ Bid leveling", async () => {
           out.textContent = "tabulating…";
           const r = await api.bidLeveling(pid);

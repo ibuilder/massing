@@ -79,6 +79,23 @@ with TestClient(app) as c:
     pdf = c.get(f"/projects/{pid}/cost/g702.pdf", params={"app_no": 2}).content
     assert pdf[:5] == b"%PDF-" and len(pdf) > 1500, len(pdf)
 
+    # ---- Lien waivers (C1) — four statutory forms ---------------------------
+    for kind in ("conditional_progress", "unconditional_progress", "conditional_final", "unconditional_final"):
+        lw = c.get(f"/projects/{pid}/cost/lien-waiver",
+                   params={"kind": kind, "app_no": 2, "claimant": "ACME Concrete",
+                           "customer": "Owner LLC", "through_date": "2026-06-30"}).json()
+        assert lw["kind"] == kind and lw["claimant"] == "ACME Concrete", lw
+        assert ("Conditional" in lw["title"]) == kind.startswith("conditional"), lw["title"]
+        assert lw["final"] == kind.endswith("final") and lw["amount"] > 0, lw
+        assert "lien" in lw["body"].lower() and lw["project_name"] == "Mega Tower", lw
+    cp = c.get(f"/projects/{pid}/cost/lien-waiver", params={"kind": "conditional_progress", "app_no": 2}).json()
+    uf = c.get(f"/projects/{pid}/cost/lien-waiver", params={"kind": "unconditional_final", "app_no": 2}).json()
+    assert "should not rely" in cp["notice"] and "even if you have not been paid" in uf["notice"], (cp, uf)
+    assert uf["amount"] == g7["line3_contract_sum_to_date"], (uf["amount"], g7["line3_contract_sum_to_date"])
+    assert c.get(f"/projects/{pid}/cost/lien-waiver", params={"kind": "bogus"}).status_code == 400
+    lwpdf = c.get(f"/projects/{pid}/cost/lien-waiver.pdf", params={"kind": "conditional_progress", "app_no": 2}).content
+    assert lwpdf[:5] == b"%PDF-" and len(lwpdf) > 1200, len(lwpdf)
+
     # ---- eTicket T&M builder (priced from rate tables) ----------------------
     c.post(f"/projects/{pid}/modules/labor_rate", json={"data": {"trade": "Carpenter", "rate": 62.5}})
     c.post(f"/projects/{pid}/modules/equipment_rate", json={"data": {"equipment": "Lift", "rate": 30}})

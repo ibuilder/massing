@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from fastapi import Body
@@ -151,3 +151,60 @@ def g702_pdf(pid: str, app_no: int = 1, period: str = "", db: Session = Depends(
     c.showPage(); c.save()
     return Response(buf.getvalue(), media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="G702-{app_no}.pdf"'})
+
+
+@router.get("/projects/{pid}/cost/lien-waiver")
+def lien_waiver(pid: str, kind: str = "conditional_progress", app_no: int = 1, claimant: str = "",
+                customer: str = "", through_date: str = "", db: Session = Depends(get_db),
+                _: str = Depends(require_role("viewer"))):
+    """A statutory lien waiver / release to accompany a pay app (C1). `kind`: conditional_progress |
+    unconditional_progress | conditional_final | unconditional_final."""
+    p = db.get(Project, pid)
+    try:
+        return cost.lien_waiver(db, pid, kind, app_no, claimant=claimant, customer=customer,
+                                project_name=(p.name if p else ""), through_date=through_date)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/projects/{pid}/cost/lien-waiver.pdf")
+def lien_waiver_pdf(pid: str, kind: str = "conditional_progress", app_no: int = 1, claimant: str = "",
+                    customer: str = "", through_date: str = "", db: Session = Depends(get_db),
+                    _: str = Depends(require_role("viewer"))):
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.utils import simpleSplit
+    from reportlab.pdfgen import canvas
+
+    p = db.get(Project, pid)
+    lw = cost.lien_waiver(db, pid, kind, app_no, claimant=claimant, customer=customer,
+                          project_name=(p.name if p else ""), through_date=through_date)
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    w, h = letter
+    c.setFont("Helvetica-Bold", 14); c.drawString(40, h - 50, lw["title"].upper())
+    y = h - 78
+    c.setFont("Helvetica-Bold", 9)
+    for line in simpleSplit("NOTICE: " + lw["notice"], "Helvetica-Bold", 9, w - 80):
+        c.drawString(40, y, line); y -= 12
+    y -= 10
+    c.setFont("Helvetica", 11)
+    for label, val in [("Project", lw["project_name"] or "-"), ("Claimant", lw["claimant"] or "-"),
+                       ("Customer", lw["customer"] or "-"), ("Through date", lw["through_date"] or "-"),
+                       ("Amount", f"${lw['amount']:,.2f}"), ("Application No.", str(lw["application_no"]))]:
+        c.drawString(40, y, f"{label}:"); c.drawString(160, y, val); y -= 16
+    y -= 8
+    c.setFont("Helvetica", 10)
+    for line in simpleSplit(lw["body"], "Helvetica", 10, w - 80):
+        if y < 120: c.showPage(); y = h - 60; c.setFont("Helvetica", 10)
+        c.drawString(40, y, line); y -= 13
+    y -= 10
+    c.setFont("Helvetica-Oblique", 9)
+    for line in simpleSplit(lw["exceptions"], "Helvetica-Oblique", 9, w - 80):
+        c.drawString(40, y, line); y -= 12
+    y -= 30
+    c.setFont("Helvetica", 10)
+    c.line(40, y, 280, y); c.drawString(40, y - 12, "Signature of Claimant / Authorized Agent")
+    c.line(330, y, w - 40, y); c.drawString(330, y - 12, "Date")
+    c.showPage(); c.save()
+    return Response(buf.getvalue(), media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="lien-waiver-{kind}.pdf"'})
