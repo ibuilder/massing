@@ -253,9 +253,10 @@ several items the old list called "next" were already implemented; verified by r
 the prior list. Status now in rough priority:
 
 1. **Test Fit depth** — ✅ **DONE** (this pass). A2 egress deepened (occupant load, egress width, min
-   exits, exit separation); parking as real IFC geometry (`PARKING` IfcSpaces on a *Site Parking*
-   storey); true **polygon-offset footprint** (`offset_polygon` → `buildable_polygon`); optimize's
-   yield-on-cost + **dev spread** use the canonical proforma `returns` (with stabilized occupancy).
+   exits, exit separation) **and surfaced** in the Test Fit compare UI as a ✅/⚠️ life-safety line;
+   parking as real IFC geometry (`PARKING` IfcSpaces on a *Site Parking* storey); true
+   **polygon-offset footprint** (`offset_polygon` → `buildable_polygon`); optimize's yield-on-cost +
+   **dev spread** use the canonical proforma `returns` (with stabilized occupancy).
 2. **Developer deck** — ✅ **DONE.** [report.py](../services/api/src/aec_api/report.py)
    `investment_deck_pdf` now has 6 slides: added **Market & positioning** (the deal's yield/IRR/soft-cost
    against conceptual benchmark bands) and a **Development timeline** (phased gantt bar from the saved

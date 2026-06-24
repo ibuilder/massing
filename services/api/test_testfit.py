@@ -68,6 +68,8 @@ a = next(s for s in cmp["schemes"] if s["name"] == "A")
 b = next(s for s in cmp["schemes"] if s["name"] == "B")
 assert a["total_units"] > b["total_units"], (a["total_units"], b["total_units"])
 assert cmp["best"] == "A", cmp["best"]
+# compare surfaces the plate-level egress/life-safety check (so the UI can show it)
+assert "egress" in cmp and "compliant" in cmp["egress"] and "max_travel_m" in cmp["egress"], cmp.get("egress")
 
 # --- generative optimize: sweep + rank by yield-on-cost ----------------------
 opt = tf.optimize(40, 18, 6, targets={"min_units": 1}, econ={"rent_psf_yr": 34, "hard_psf": 220})

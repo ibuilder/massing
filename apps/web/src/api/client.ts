@@ -747,7 +747,7 @@ export class ApiClient {
   }
   /** Test-fit: compare unit-mix schemes on a floor plate (yield + parking, ranked). */
   testFitCompare(params: { plate_w: number; plate_d: number; floors: number; schemes?: unknown[] }) {
-    return this.json<{ best: string | null; schemes: { name: string; total_units: number; efficiency: number; daylight_efficiency: number; daylight_limited: boolean; total_nsf: number; total_gsf: number; avg_unit_sf: number; parking_stalls: number; mix: Record<string, number> }[] }>(
+    return this.json<{ best: string | null; schemes: { name: string; total_units: number; efficiency: number; daylight_efficiency: number; daylight_limited: boolean; total_nsf: number; total_gsf: number; avg_unit_sf: number; parking_stalls: number; mix: Record<string, number> }[]; egress?: EgressResult }>(
       "/test-fit/compare", { method: "POST", body: JSON.stringify(params) });
   }
   /** Generative design: sweep schemes, filter by targets, rank by yield-on-cost. */
@@ -871,6 +871,11 @@ export interface SpecialtyResponse {
 }
 export interface FamilyItem {
   key: string; label: string; ifc_class: string; category: string; dims: [number, number, number];
+}
+export interface EgressResult {
+  compliant: boolean; flags: string[]; max_travel_m: number; limit_m: number;
+  occupant_load_per_floor: number; min_exits_required: number;
+  exit_separation_m: number; required_separation_m: number;
 }
 export interface ComputeNodeSpec {
   key: string; label: string; category: string; doc: string;

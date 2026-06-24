@@ -233,5 +233,8 @@ def compare(plate_w: float, plate_d: float, floors: int, schemes: list[dict]) ->
             "parking_stalls": pk["stalls"], "parking_area_sf": pk["area_sf"],
         })
     out.sort(key=lambda s: s["total_units"], reverse=True)
+    # egress/life-safety is a plate-level property (depends on plate dims + stairs, not the unit mix),
+    # so report it once for the plate rather than per scheme.
     return {"schemes": out, "best": out[0]["name"] if out else None,
-            "plate": {"w": plate_w, "d": plate_d, "floors": floors}}
+            "plate": {"w": plate_w, "d": plate_d, "floors": floors},
+            "egress": egress(plate_w, plate_d, floors=floors)}

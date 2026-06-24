@@ -781,10 +781,29 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
 
   // ---- camera fit ----------------------------------------------------------
+  let fitPending = false;   // set when a fit was skipped because the viewport was hidden (0×0)
   async function fitToModels() {
     const box = new THREE.Box3();
     viewer.world.scene.three.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) box.expandByObject(m); });
     if (box.isEmpty()) return;
+    // Defer when the viewport is hidden (0×0): fitting then divides by a zero aspect ratio and leaves
+    // the camera at NaN, so the model is broken once the Model workspace is shown. onModelShown() runs
+    // the pending fit once the container has real dimensions.
+    const w = viewer.container.clientWidth, h = viewer.container.clientHeight;
+    if (!w || !h) { fitPending = true; return; }   // hidden viewport → defer (fit would divide by 0 aspect)
+    fitPending = false;
+    const cam = viewer.world.camera.three as THREE.PerspectiveCamera;
+    // OBC updates the camera aspect via an async ResizeObserver, so right after a workspace becomes
+    // visible `cam.aspect` can still be 0/0 = NaN — and fitToSphere then bakes NaN into the position.
+    // Force a valid aspect synchronously before fitting.
+    viewer.world.renderer?.resize();
+    if (cam.isPerspectiveCamera) { cam.aspect = w / h; cam.updateProjectionMatrix(); }
+    // If the camera is already NaN (e.g. born while the container was hidden), camera-controls can't
+    // recover via setLookAt alone — hard-reset the THREE camera object first, then re-seat the controls.
+    if (Number.isNaN(cam.position.x)) {
+      cam.position.set(12, 8, 12); cam.up.set(0, 1, 0); cam.quaternion.set(0, 0, 0, 1); cam.updateMatrixWorld(true);
+      await viewer.world.camera.controls.setLookAt(12, 8, 12, 0, 0, 0, false);
+    }
     if (renderOn) renderMode(viewer.world, true);   // newly loaded meshes need cast/receive flags set
     await viewer.world.camera.controls.fitToSphere(box.getBoundingSphere(new THREE.Sphere()), true);
     await loader.fragments.core.update(true);
@@ -1403,6 +1422,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     anchorPoint: () => (lastPoint ? { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z } : null),
     selectedGuidValue: () => selectedGuid,
     triggerOpen, loadSample, exportFrag, exportIfc, handleKey,
-    onModelShown: () => { setTimeout(() => { viewer.world.renderer?.resize(); void loader.fragments.core.update(true); }, 0); },
+    onModelShown: () => {
+      // Wait for the container to actually have dimensions (the workspace just toggled visible, so
+      // layout may not have flushed yet) before resizing — resizing at 0×0 sets a NaN aspect.
+      let tries = 60;
+      const ready = () => {
+        if ((!viewer.container.clientWidth || !viewer.container.clientHeight) && tries-- > 0) {
+          requestAnimationFrame(ready); return;
+        }
+        viewer.world.renderer?.resize();   // container now has real dimensions → valid camera aspect
+        const camNaN = Number.isNaN(viewer.world.camera.three.position.x);
+        if (fitPending || camNaN) void fitToModels(); else void loader.fragments.core.update(true);
+      };
+      ready();
+    },
   };
 }

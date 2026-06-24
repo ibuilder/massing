@@ -326,9 +326,19 @@ export class ProformaUI {
           + `<td style="text-align:right"${s.daylight_limited ? ' title="deep plate — dark interior earns no rent"' : ""}>${(s.daylight_efficiency * 100).toFixed(0)}%${s.daylight_limited ? " ⚠" : ""}</td>`
           + `<td style="text-align:right">${s.avg_unit_sf.toLocaleString()}</td><td style="text-align:right">${s.total_nsf.toLocaleString()}</td>`
           + `<td style="text-align:right">${s.parking_stalls}</td></tr>`).join("");
+        const eg = r.egress;
+        const egLine = eg
+          ? `<div class="meta" style="margin-top:6px;padding:6px 8px;border-radius:6px;background:var(--panel2);border:1px solid var(--line)">`
+            + `<b>${eg.compliant ? "✅" : "⚠️"} Egress / life-safety (A2)</b> — `
+            + `${eg.occupant_load_per_floor} occ/floor · max travel ${eg.max_travel_m} m (limit ${eg.limit_m}) · `
+            + `${eg.min_exits_required} exits req'd · separation ${eg.exit_separation_m}/${eg.required_separation_m} m`
+            + (eg.flags.length ? `<br><span style="color:#e2554a">${eg.flags.map((f) => "• " + f).join("<br>")}</span>` : "")
+            + `</div>`
+          : "";
         out.innerHTML = `<table class="sens-table" style="font-size:12px"><tr><th style="text-align:left">Scheme</th>`
           + `<th>Units</th><th title="rentable ÷ gross, daylight-limited">Daylight</th><th>Avg SF</th><th>Rent. SF</th><th>Stalls</th></tr>${rows}</table>`
-          + `<div class="meta" style="margin-top:4px">Best by units: <b>${r.best}</b> · daylight efficiency = rentable area within ~9 m of a window ÷ gross</div>`;
+          + `<div class="meta" style="margin-top:4px">Best by units: <b>${r.best}</b> · daylight efficiency = rentable area within ~9 m of a window ÷ gross</div>`
+          + egLine;
       } catch { out.innerHTML = `<div class="meta">test-fit unavailable (API offline)</div>`; }
     };
     host.append(run, opt, out); this.root.appendChild(host);

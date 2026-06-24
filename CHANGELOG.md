@@ -4,6 +4,22 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.40 — viewer camera fix + egress surfaced (UX verification pass)
+- **Fix: NaN camera / broken 3D view** — loading a model while the Model workspace wasn't visible
+  (e.g. a reload that restored the Finance/Drawings workspace, or opening a model from another
+  workspace) created the viewer in a 0×0 container, making `camera.aspect` = 0/0 = NaN; the subsequent
+  `fitToSphere` baked NaN into the camera position and the viewport showed nothing once you switched
+  to Model. Now the fit is **deferred while the viewport is hidden** and run once it has real
+  dimensions, the aspect is forced valid synchronously (OBC's ResizeObserver is async), and a
+  hard camera reset recovers an already-NaN camera that `setLookAt` alone can't clear.
+- **Egress / life-safety now reachable** — the deepened A2 check (occupant load, travel distance,
+  required exits, exit separation) was computed but had no UI. `test-fit/compare` now returns the
+  plate-level egress result and the Test Fit panel shows a ✅/⚠️ life-safety line with the figures and
+  any code flags.
+- Found during a full hands-on verification of everything built this session (viewer tools, Studio
+  node editor, generate+parking, families/import, deck, lien waivers, COBie, dashboard, 4D) — all
+  others confirmed working end-to-end.
+
 ## v0.1.39 — accessibility pass (tab semantics, labels, live region)
 - **a11y** — the workspace switcher and finance sub-tabs now carry `role="tablist"`/`role="tab"` with
   `aria-selected` kept in sync as you switch (screen readers announce the active view); the role/persona
