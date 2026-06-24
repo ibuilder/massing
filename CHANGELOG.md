@@ -4,6 +4,17 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.41 — main.ts modularization (round 1) + XSS hardening
+- **Security (stored-XSS fixes)** — admin modals interpolated user/remote values straight into
+  `innerHTML`. Now escaped via a shared `escapeHtml`: connection **name/type**, Procore **project ID**
+  + sync info, **browsed DB** column names & cell values, and audit-log fields (the audit modal's
+  weaker local escaper is replaced). No user- or database-controlled string renders as HTML anymore.
+- **Modularization + perf** — the ~240-line admin **Data-connections UI** (list/add, Procore
+  schedules + field-mapping, SQL browser) moved out of `main.ts` into `connections/connectionsUI.ts`,
+  **lazily imported** so its ~13 kB leaves the initial bundle and loads only when an admin opens it.
+  `main.ts` drops from ~1205 to 963 lines. Behavior unchanged; verified via the vite transform
+  pipeline + typecheck + web unit tests.
+
 ## v0.1.40 — viewer camera fix + egress surfaced (UX verification pass)
 - **Fix: NaN camera / broken 3D view** — loading a model while the Model workspace wasn't visible
   (e.g. a reload that restored the Finance/Drawings workspace, or opening a model from another

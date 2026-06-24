@@ -281,8 +281,11 @@ the prior list. Status now in rough priority:
    completed-record-heavy projects. ✅ **a11y pass** (first cut): workspace + finance tabs now expose
    `role="tab"`/`role="tablist"` with `aria-selected` tracking the active tab, the persona picker has an
    `aria-label`, and the status bar is a polite `role="status"` live region (existing landmarks/labels
-   were already in place). ⏳ Remaining: main.ts (web) account/connections split (1.2k-line file —
-   refactor, low user value). Mobile (Capacitor) is a flagged **separate-app** effort, out of scope.
+   were already in place). ✅ **main.ts modularization (round 1)** + **security pass**: the admin
+   **connections UI** (~240 lines) is extracted to a **lazily-imported** `connectionsUI.ts` chunk
+   (main.ts 1205→963 lines; the 13 kB chunk loads only when an admin opens it), and real stored-XSS
+   vectors (connection name, Procore ID, browsed DB cells, audit detail) are now escaped via a shared
+   `escapeHtml`. ⏳ Remaining: extract the account/admin UI (round 2). Mobile (Capacitor) below.
 
 **Net:** the reconciled roadmap is effectively cleared — every theme (M1–M4, Test Fit, Developer deck,
 Construction C1–C3, Platform Redis/perf/a11y) is done except the low-value main.ts refactor and the

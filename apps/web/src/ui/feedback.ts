@@ -1,5 +1,13 @@
 /** Lightweight UX feedback: transient toasts + a loading overlay. No dependencies. */
 
+/** Escape a string for safe interpolation into innerHTML — prevents stored XSS when rendering
+ *  user-entered values (connection names, IDs, DB cell data, etc.). Prefer textContent where the
+ *  surrounding markup allows; use this when building an HTML string. */
+export function escapeHtml(v: unknown): string {
+  return String(v ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+}
+
 let toastHost: HTMLElement | null = null;
 
 function host(): HTMLElement {
