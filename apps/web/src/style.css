@@ -73,20 +73,32 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .workspace { display: none; height: 100%; }
 .workspace.active { display: grid; }
 
-/* MODEL workspace: icon rail | slide-out panel | viewport | contextual props */
-#ws-model { grid-template-columns: 46px var(--rail-w) minmax(0, 1fr) auto; }
-#app.rail-collapsed #ws-model { grid-template-columns: 46px 0 minmax(0, 1fr) auto; }
+/* MODEL workspace: icon rail | slide-out panel | viewport | contextual props.
+   The icon rail expands (icon → icon+label, VS Code activity-bar style) via --rail-icon-w. */
+#app { --rail-icon-w: 46px; }
+#app.rail-labeled { --rail-icon-w: 150px; }
+#ws-model { grid-template-columns: var(--rail-icon-w) var(--rail-w) minmax(0, 1fr) auto; }
+#app.rail-collapsed #ws-model { grid-template-columns: var(--rail-icon-w) 0 minmax(0, 1fr) auto; }
 #app.rail-collapsed #rail-panel { display: none; }
 
-#rail { background: var(--panel2); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; }
+#rail { background: var(--panel2); border-right: 1px solid var(--line); display: flex; flex-direction: column;
+  align-items: stretch; gap: 4px; padding: 8px 6px; transition: width .12s ease; }
 .rail-btn {
-  width: 34px; height: 34px; border: none; background: transparent; color: var(--muted);
-  font-size: 17px; border-radius: 6px; cursor: pointer; display: flex; align-items: center;
-  justify-content: center; position: relative;
+  width: 34px; height: 36px; margin: 0 auto; border: none; background: transparent; color: var(--muted);
+  border-radius: 7px; cursor: pointer; display: flex; align-items: center; gap: 9px;
+  justify-content: center; padding: 0; position: relative;
 }
+#app.rail-labeled .rail-btn { width: 100%; margin: 0; justify-content: flex-start; padding: 0 10px; }
+.rail-ic { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: 0 0 20px; font-size: 17px; }
+.rail-ic svg { width: 18px; height: 18px; display: block; }
+.rail-lbl { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; }
+#app:not(.rail-labeled) .rail-lbl { display: none; }
 .rail-btn:hover { background: #ffffff14; color: var(--text); }
 .rail-btn.active { background: var(--accent); color: #fff; }
-.rail-badge { position: absolute; top: 0; right: 0; min-width: 14px; height: 14px; padding: 0 3px; font-size: 9px; line-height: 14px; border-radius: 7px; background: #e2554a; color: #fff; }
+.rail-expand { margin-top: auto; color: var(--muted); opacity: .85; }
+.rail-expand .rail-ic { font-size: 19px; }
+.rail-badge { position: absolute; top: 2px; right: 4px; min-width: 14px; height: 14px; padding: 0 3px; font-size: 9px; line-height: 14px; border-radius: 7px; background: #e2554a; color: #fff; }
+#app.rail-labeled .rail-badge { position: static; margin-left: auto; }
 
 #rail-panel { background: var(--panel2); border-right: 1px solid var(--line); overflow-y: auto; overflow-x: hidden; position: relative; }
 .rpanel { display: none; padding: 8px 10px; font-size: 12px; }
@@ -145,8 +157,8 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 
 /* tablet/mobile: rail panel + props become overlays */
 @media (max-width: 820px) {
-  #ws-model { grid-template-columns: 46px minmax(0, 1fr); }
-  #app.rail-collapsed #ws-model { grid-template-columns: 46px minmax(0, 1fr); }
+  #ws-model { grid-template-columns: var(--rail-icon-w) minmax(0, 1fr); }
+  #app.rail-collapsed #ws-model { grid-template-columns: var(--rail-icon-w) minmax(0, 1fr); }
   #rail-panel { position: absolute; left: 46px; top: 0; bottom: 0; width: 78vw; max-width: 320px; z-index: 25; box-shadow: 4px 0 20px #000a; }
   #rail-resize { display: none; }
   #props { position: absolute; right: 0; top: 0; bottom: 0; width: 82vw; max-width: 320px; z-index: 26; box-shadow: -4px 0 20px #000a; }

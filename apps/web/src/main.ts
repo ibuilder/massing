@@ -144,11 +144,18 @@ function openProjectBundle() {
 
 // ---- workspaces + left icon rail --------------------------------------------
 const appEl = document.getElementById("app")!;
-const RAIL_ITEMS: { key: string; icon: string; title: string }[] = [
-  { key: "tree", icon: "⌗", title: "Model tree" },
-  { key: "layers", icon: "≣", title: "Layers" },
-  { key: "issues", icon: "⚑", title: "Issues / RFIs" },
-  { key: "tools", icon: "⚙", title: "Tools & analysis" },
+// crisp inline SVG icons (currentColor) — replace the old cryptic ⌗/≣ glyphs
+const RAIL_ICONS: Record<string, string> = {
+  tree: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="1.5" width="5" height="3.4" rx=".8"/><rect x="1.5" y="11.1" width="4.4" height="3.4" rx=".8"/><rect x="10.1" y="11.1" width="4.4" height="3.4" rx=".8"/><path d="M8 4.9v3.2M3.7 11.1V8.1h8.6v3"/></svg>`,
+  layers: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M8 1.6 14.6 5 8 8.4 1.4 5 8 1.6Z"/><path d="m1.4 8 6.6 3.4L14.6 8"/><path d="m1.4 11 6.6 3.4L14.6 11" opacity=".55"/></svg>`,
+  issues: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 14.6V1.8"/><path d="M3.6 2.6h8.4l-2 3 2 3H3.6"/></svg>`,
+  tools: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.4v2.1M8 12.5v2.1M1.4 8h2.1M12.5 8h2.1M3.3 3.3l1.5 1.5M11.2 11.2l1.5 1.5M3.3 12.7l1.5-1.5M11.2 4.8l1.5-1.5"/></svg>`,
+};
+const RAIL_ITEMS: { key: string; label: string; title: string }[] = [
+  { key: "tree", label: "Tree", title: "Model tree" },
+  { key: "layers", label: "Layers", title: "Layers" },
+  { key: "issues", label: "Issues", title: "Issues / RFIs" },
+  { key: "tools", label: "Tools", title: "Tools & analysis" },
 ];
 const railEl = $("rail");
 function showRail(key: string) {
@@ -159,7 +166,8 @@ function showRail(key: string) {
 }
 for (const it of RAIL_ITEMS) {
   const b = document.createElement("button");
-  b.className = "rail-btn"; b.dataset.rail = it.key; b.textContent = it.icon;
+  b.className = "rail-btn"; b.dataset.rail = it.key;
+  b.innerHTML = `<span class="rail-ic">${RAIL_ICONS[it.key]}</span><span class="rail-lbl">${it.label}</span>`;
   b.title = it.title; b.setAttribute("aria-label", it.title);
   b.onclick = () => {
     const isActive = b.classList.contains("active") && !appEl.classList.contains("rail-collapsed");
@@ -168,6 +176,24 @@ for (const it of RAIL_ITEMS) {
   };
   railEl.appendChild(b);
 }
+// expand / collapse the rail to show labels (VS Code activity-bar style), persisted
+const railExpand = document.createElement("button");
+railExpand.className = "rail-btn rail-expand";
+const syncExpand = () => {
+  const on = appEl.classList.contains("rail-labeled");
+  railExpand.innerHTML = `<span class="rail-ic">${on ? "‹" : "›"}</span><span class="rail-lbl">Collapse</span>`;
+  railExpand.title = on ? "Collapse the rail" : "Expand the rail (show labels)";
+  railExpand.setAttribute("aria-label", railExpand.title);
+  railExpand.setAttribute("aria-expanded", String(on));
+};
+railExpand.onclick = () => {
+  appEl.classList.toggle("rail-labeled");
+  localStorage.setItem("rail-labeled", appEl.classList.contains("rail-labeled") ? "1" : "0");
+  syncExpand();
+};
+if (localStorage.getItem("rail-labeled") === "1") appEl.classList.add("rail-labeled");
+syncExpand();
+railEl.appendChild(railExpand);
 
 const WORKSPACES: { key: string; label: string }[] = [
   { key: "model", label: "Model" }, { key: "drawings", label: "Drawings" },

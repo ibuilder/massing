@@ -4,6 +4,13 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.49 — left rail revamp (crisp icons + expandable labels)
+- **Modernized the left icon rail** — the oldest piece of the UI. The cryptic `⌗`/`≣` Unicode glyphs
+  are replaced with crisp inline **SVG icons** (hierarchy / layers / flag / gear), and the rail is now
+  **expandable** (VS Code activity-bar style): a `‹`/`›` toggle widens it 46→150 px to show **Tree /
+  Layers / Issues / Tools** labels beside each icon, persisted to localStorage. Structure unchanged
+  (the four Model-workspace panels were already the right set); this is legibility + feel.
+
 ## v0.1.48 — closeout package reachable in the UI
 - **Full turnover .zip now has UI access** — the `closeout/package.zip` deliverable (as-built IFC +
   COBie/QTO/space workbooks + status report + closeout records) worked via the API but had **no
