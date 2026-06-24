@@ -4,6 +4,17 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.44 — P6 .xer → 4D dates + auto code-positioned egress (A2)
+- **Primavera P6 schedule → 4D dates** — `POST /projects/{id}/schedule/import-xer` parses a P6 `.xer`
+  (TASK table) and stores it; the **4D scrub then reports real calendar dates** (`source:"p6"`, the
+  project's start→finish window) instead of relative takt days. New "⬆ Import P6 schedule (.xer)"
+  button beside the 4D tool; a 📅 line shows the imported range. `DELETE …/import-xer` reverts to takt.
+  (Element build-order stays takt-derived — no per-activity element mapping is claimed.)
+- **A2 — auto code-positioned egress geometry** — generated models with a service core now place
+  **two means of egress**: the core stair plus a second "Egress stair 2" at the opposite corner
+  (≥⅓-diagonal remoteness, IBC 1007.1.1). Completes the generative half of Test Fit A2 (the egress
+  pass/fail check already existed).
+
 ## v0.1.43 — demo-aware empty states, mobile/PWA polish, P6 .xer import
 - **Demo-aware empty states** — the GC portal & drawings no longer show a misleading "pick a project"
   in the viewer-only Pages demo (there's no backend there). A shared `noProjectHtml` explains it's the

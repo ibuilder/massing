@@ -199,11 +199,14 @@ if _have_ifc:
             massing.generate_ifc(m, cpath, name="Cored", core=True)
             cm = open_model(cpath)
             assert len(cm.by_type("IfcTransportElement")) == m["floors"], "elevator per floor"
-            assert len(cm.by_type("IfcStair")) == m["floors"], "stair per floor"
+            # A2: two means of egress positioned for code — core stair + a remote egress stair / floor
+            assert len(cm.by_type("IfcStair")) == 2 * m["floors"], "two egress stairs per floor"
+            _snames = {s.Name for s in cm.by_type("IfcStair")}
+            assert "Egress stair 1" in _snames and "Egress stair 2" in _snames, _snames
             assert len(cm.by_type("IfcDuctSegment")) == m["floors"], "supply riser per floor"
             assert len(cm.by_type("IfcPipeSegment")) == m["floors"], "plumbing riser per floor"
             assert len(cm.by_type("IfcWall")) == 4 * m["floors"], "core walls"
-            print(f"CORE OK - elevator/stair + duct/pipe risers + core walls across {m['floors']} floors")
+            print(f"CORE OK - elevator + 2 egress stairs (code-separated) + duct/pipe risers + core walls across {m['floors']} floors")
         finally:
             os.remove(cpath)
 

@@ -2,7 +2,7 @@
 analytics (R4), and research-grade benchmarks (R5)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,8 @@ from .. import modules as me
 from .. import takt
 from ..db import get_db
 from ..rbac import require_role
+
+_P6_KEY = "{pid}/schedule_p6.json"   # imported Primavera P6 activities (drives 4D calendar dates)
 
 router = APIRouter()
 
@@ -61,11 +63,46 @@ def compute_run(graph: dict):
         raise HTTPException(422, str(e))
 
 
+@router.post("/projects/{pid}/schedule/import-xer", status_code=201)
+async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
+                     _: str = Depends(require_role("editor"))):
+    """Import a Primavera P6 **.xer** export. Parses the TASK table into dated activities and stores
+    them; the 4D scrub then reports **real calendar dates** (the project's P6 start→finish window)
+    instead of relative takt days. Element build-order stays takt-derived (no per-activity element
+    mapping is claimed). Returns the activity count + date range + a small preview."""
+    import json
+
+    from aec_data.schedule import parse_xer  # type: ignore  (data-service engine on sys.path)
+    from .. import storage
+
+    text = (await file.read()).decode("utf-8", "ignore")
+    activities = parse_xer(text)
+    if not activities:
+        raise HTTPException(422, "no TASK rows found — is this a Primavera P6 .xer export?")
+    starts = [a["start"] for a in activities if a.get("start")]
+    finishes = [a["finish"] for a in activities if a.get("finish")]
+    payload = {"activities": activities, "count": len(activities),
+               "start": min(starts) if starts else None, "finish": max(finishes) if finishes else None}
+    storage.put(_P6_KEY.format(pid=pid), json.dumps(payload).encode("utf-8"))
+    return {**{k: payload[k] for k in ("count", "start", "finish")}, "preview": activities[:20]}
+
+
+@router.delete("/projects/{pid}/schedule/import-xer")
+def clear_xer(pid: str, _: str = Depends(require_role("editor"))):
+    """Remove an imported P6 schedule — the 4D scrub reverts to relative takt days."""
+    from .. import storage
+    storage.delete(_P6_KEY.format(pid=pid))
+    return {"cleared": True}
+
+
 @router.get("/projects/{pid}/schedule/4d")
 def schedule_4d(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """4D construction sequence (C3): map the published model's elements onto a takt plan derived
-    from the storey count, returning scrubable timeline frames (cumulative % built per day)."""
+    from the storey count, returning scrubable timeline frames (cumulative % built per day). If a
+    Primavera **P6 .xer** has been imported, each frame also carries a real **calendar date**
+    interpolated across the imported start→finish window, and the response flags `source:"p6"`."""
     import json
+    from datetime import date, timedelta
 
     from .. import fourd, storage, takt
     try:
@@ -75,7 +112,24 @@ def schedule_4d(pid: str, db: Session = Depends(get_db), _: str = Depends(requir
         elements = []
     floors = max([fourd._floor_index(e.get("storey")) for e in elements] + [0]) + 1
     plan = takt.plan(floors)
-    return {"floors": floors, "duration_days": plan["duration_days"], **fourd.timeline(plan, elements)}
+    result = {"floors": floors, "duration_days": plan["duration_days"], "source": "takt",
+              **fourd.timeline(plan, elements)}
+
+    # overlay real P6 calendar dates onto the frames when a schedule has been imported
+    try:
+        p6 = json.loads(storage.get(_P6_KEY.format(pid=pid)))
+        d0, d1 = p6.get("start"), p6.get("finish")
+        if d0 and d1:
+            result.update(source="p6", start_date=d0[:10], finish_date=d1[:10],
+                          p6_activities=p6.get("count", 0))
+            total = result.get("total_days") or 0
+            if total:                                # interpolate a real calendar date per frame
+                s = date.fromisoformat(d0[:10]); span = (date.fromisoformat(d1[:10]) - s).days or total
+                for fr in result["frames"]:
+                    fr["date"] = (s + timedelta(days=round(fr["day"] / total * span))).isoformat()
+    except Exception:                                # noqa: BLE001 — no/invalid P6 import → takt dates
+        pass
+    return result
 
 
 @router.get("/projects/{pid}/lean/ppc")

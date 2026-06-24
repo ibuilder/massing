@@ -4,8 +4,8 @@
     {
       "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "apps/web"],
-      "port": 5173
+      "runtimeArgs": ["run", "dev", "--prefix", "apps/web", "--", "--port", "5199", "--strictPort"],
+      "port": 5199
     },
     {
       "name": "docs",

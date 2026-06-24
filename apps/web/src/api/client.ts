@@ -715,10 +715,23 @@ export class ApiClient {
     return this.json<{ total: number; element_count: number; lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number }[]; unpriced: { ifc_class: string; count: number }[] }>(
       `/projects/${pid}/estimate/from-model`);
   }
-  /** 4D construction sequence: scrubable frames (cumulative % built per day) over the takt plan. */
+  /** 4D construction sequence: scrubable frames (cumulative % built per day) over the takt plan.
+   *  When a P6 .xer is imported, `source:"p6"` + start_date/finish_date and each frame gains `date`. */
   schedule4d(pid: string) {
-    return this.json<{ floors: number; duration_days: number; element_count: number; by_trade: Record<string, number>; frames: { day: number; new: number; completed_cumulative: number; pct: number; new_guids: string[] }[] }>(
+    return this.json<{ floors: number; duration_days: number; element_count: number; source: "takt" | "p6";
+      start_date?: string; finish_date?: string; p6_activities?: number; by_trade: Record<string, number>;
+      frames: { day: number; new: number; completed_cumulative: number; pct: number; date?: string; new_guids: string[] }[] }>(
       `/projects/${pid}/schedule/4d`);
+  }
+  /** Import a Primavera P6 .xer so the 4D scrub reports real calendar dates. */
+  async importXer(pid: string, file: File) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/schedule/import-xer`), { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `import -> ${res.status}`); }
+    return res.json() as Promise<{ count: number; start: string | null; finish: string | null; preview: { activity_id: string; name: string; start: string; finish: string }[] }>;
+  }
+  clearXer(pid: string) {
+    return this.json<{ cleared: boolean }>(`/projects/${pid}/schedule/import-xer`, { method: "DELETE" });
   }
   /** CPM analysis of the schedule activities — float + critical path. */
   scheduleCpm(pid: string) {

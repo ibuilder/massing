@@ -376,11 +376,15 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
                            psets={"Pset_WallCommon": {"IsExternal": False, "LoadBearing": True}})
             add_box("IfcTransportElement", storey, elev, ccx - 1.4, ccy, 2.0, 2.4, f2f,
                     predefined="ELEVATOR", name="Elevator")
-            add_box("IfcStair", storey, elev, ccx + 1.6, ccy, 2.6, cd * 0.8, f2f, name="Stair")
+            add_box("IfcStair", storey, elev, ccx + 1.6, ccy, 2.6, cd * 0.8, f2f, name="Egress stair 1")
             add_box("IfcDuctSegment", storey, elev, ccx - half_w + 0.4, ccy + half_d - 0.4,
                     0.5, 0.5, f2f, name="Supply riser")
             add_box("IfcPipeSegment", storey, elev, ccx + half_w - 0.4, ccy + half_d - 0.4,
                     0.3, 0.3, f2f, name="Plumbing riser")
+            # A2 — a SECOND means of egress, placed at the opposite corner from the rear core so the
+            # two stairs are remote (≥⅓-diagonal separation, IBC 1007.1.1) — two code-positioned exits.
+            esx, esy = -fw / 2 + 1.6, -(fd / 2 - cd / 2 - 1.0)
+            add_box("IfcStair", storey, elev, esx, esy, 2.6, min(4.0, fd * 0.45), f2f, name="Egress stair 2")
     if parking:                                  # A2 — surface parking lot as real IfcSpace stalls
         STALL_W, STALL_D, AISLE = 2.5, 5.0, 7.0  # standard stall (m) + two-way drive aisle
         pstorey = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcBuildingStorey",

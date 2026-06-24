@@ -54,8 +54,11 @@ Grounded in [TestFit Site Solver](https://www.testfit.io/product/site-solver),
 > **(A2-geometry)** auto-*placing* code-positioned egress **geometry** (corridors/stairs/elevators as
 > IFC, not just the pass/fail check). Both are deeper generative-design work, not blockers.
 - *[ref] A1b — unit-type presets:* define unit types (target SF + mix %/count) + save/load presets.
-- *[ref] A2 — egress geometry:* auto corridors + egress stairs/elevators positioned for code; core
-  placement from the unit layout. (The egress *check* is done; this is the generative *placement*.)
+- ✅ **DONE — A2 egress geometry.** `generate_ifc(core=True)` now places **two means of egress
+  positioned for code** — the core stair plus a second **"Egress stair 2"** at the opposite corner
+  (≥⅓-diagonal remoteness, IBC 1007.1.1) — alongside the elevator + MEP risers, on the double-loaded
+  corridor. (The egress pass/fail *check* was already in `test_fit.egress`.) *Remaining ref:* A1b
+  unit-type presets.
 - ✅ **DONE — A3/A4 parking + yield compare** (parking lite + real IFC stalls; `compare()` ranks fits).
 - ✅ **DONE — A5 generative design (targets).** `test_fit.optimize()` sweeps unit-mix × parking
   presets, scores yield-on-cost, filters by targets (units/efficiency/parking/YoC), ranks. `POST
@@ -238,9 +241,11 @@ bundling/auto-update policy these feed into.
   is explicit that **Blender/Bonsai is the desktop editor, not the web viewer**; in-browser authoring
   would contradict it. Keep as a UX reference for the existing edit-gated place-tools; do not adopt.
 
-**Schedule import (P6 / MS Project)?** ✅ **.xer (Primavera P6) now parsed** — `schedule.parse_xer`
-reads the TASK table (planned→actual→early date fallback) into the same activity rows the CSV mapping
-path consumes, so a P6 schedule can drive the 4D scrub (matched to elements by name/class/storey).
+**Schedule import (P6 / MS Project)?** ✅ **.xer (Primavera P6) parsed + wired into 4D** —
+`schedule.parse_xer` reads the TASK table (planned→actual→early date fallback); `POST
+/projects/{id}/schedule/import-xer` stores it and the **4D scrub then reports real calendar dates**
+(`source:"p6"`, the project's P6 start→finish), surfaced by an "⬆ Import P6 (.xer)" button next to
+the 4D tool. Element build-order stays takt-derived (no per-activity element mapping claimed).
 **.mpp (MS Project) intentionally not parsed** — it's a proprietary OLE-compound binary with no
 reliable open-source reader; the standard path is *MS Project → Save As XML/CSV → import* (CSV mapping
 already supported). **What else to import:** IFC (✅ source of truth), RVT/DWG/NWC via the paid APS

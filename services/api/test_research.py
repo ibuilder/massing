@@ -78,6 +78,19 @@ with TestClient(app) as c:
     # 4D endpoint responds even with no published model (empty timeline)
     fd = c.get(f"/projects/{pid}/schedule/4d")
     assert fd.status_code == 200 and "frames" in fd.json() and "duration_days" in fd.json(), fd.text
+    assert fd.json()["source"] == "takt", fd.json().get("source")
+    # Primavera P6 .xer import → 4D reports real calendar dates (source=p6); bad file → 422; clear → takt
+    _xer = "\n".join(["\t".join(["%T", "TASK"]),
+        "\t".join(["%F", "task_code", "task_name", "target_start_date", "target_end_date"]),
+        "\t".join(["%R", "A1010", "Foundations", "2026-03-01 08:00", "2026-03-20 17:00"]),
+        "\t".join(["%R", "A1020", "Superstructure", "2026-03-21 08:00", "2026-07-15 17:00"])])
+    imp = c.post(f"/projects/{pid}/schedule/import-xer", files={"file": ("p.xer", _xer, "application/octet-stream")})
+    assert imp.status_code == 201 and imp.json()["count"] == 2 and imp.json()["start"] == "2026-03-01", imp.text
+    fd2 = c.get(f"/projects/{pid}/schedule/4d").json()
+    assert fd2["source"] == "p6" and fd2["start_date"] == "2026-03-01" and fd2["finish_date"] == "2026-07-15", fd2
+    assert c.post(f"/projects/{pid}/schedule/import-xer", files={"file": ("x.xer", "junk", "text/plain")}).status_code == 422
+    c.delete(f"/projects/{pid}/schedule/import-xer")
+    assert c.get(f"/projects/{pid}/schedule/4d").json()["source"] == "takt"
 
 print(f"RESEARCH OK - takt {p['duration_days']}d / {p['floors_per_week']} fl-wk / {len(p['delivery_plan'])} JIT deliveries; "
       f"lean PPC {m['ppc']} ({m['rating']}); benchmarks + weekly_plan + comparable modules + endpoints verified")

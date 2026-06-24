@@ -1114,20 +1114,45 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           const slider = document.createElement("input"); slider.type = "range";
           slider.min = "0"; slider.max = String(seq.duration_days); slider.value = String(seq.duration_days);
           slider.style.width = "100%";
+          const dateFor = (day: number): string => {           // real calendar date when P6 imported
+            if (seq.source !== "p6" || !seq.start_date || !seq.finish_date || !seq.duration_days) return "";
+            const s = new Date(seq.start_date).getTime(), e = new Date(seq.finish_date).getTime();
+            return ` · ${new Date(s + (e - s) * day / seq.duration_days).toLocaleDateString()}`;
+          };
           const apply = async (day: number) => {
             const guids = seq.frames.filter((f) => f.day <= day).flatMap((f) => f.new_guids);
             const done = seq.frames.filter((f) => f.day <= day).reduce((n, f) => n + f.new, 0);
-            lbl.innerHTML = `Day <b>${day}</b> / ${seq.duration_days} · built <b>${done}</b>/${seq.element_count} `
+            lbl.innerHTML = `Day <b>${day}</b> / ${seq.duration_days}${dateFor(day)} · built <b>${done}</b>/${seq.element_count} `
               + `(${Math.round(done / seq.element_count * 100)}%)`;
             if (guids.length) await visibility.isolate(await sets.fromGuids(guids));
             else await visibility.showAll();
           };
           slider.oninput = () => void apply(+slider.value);
           const reset = toolBtn2("⊞ Show all", () => void visibility.showAll());
+          if (seq.source === "p6") {
+            const tag = document.createElement("div"); tag.className = "meta";
+            tag.textContent = `📅 P6 schedule: ${seq.start_date} → ${seq.finish_date} (${seq.p6_activities} activities)`;
+            wrap.append(tag);
+          }
           wrap.append(lbl, slider, reset); out.appendChild(wrap);
           await apply(seq.duration_days);
         });
         b.appendChild(fourdBtn);
+        // import a Primavera P6 .xer so the 4D scrub shows real calendar dates
+        const xerInput = document.createElement("input");
+        xerInput.type = "file"; xerInput.accept = ".xer"; xerInput.style.display = "none";
+        const xerBtn = toolBtn2("⬆ Import P6 schedule (.xer)", () => xerInput.click());
+        xerBtn.dataset.cap = "edit";
+        xerInput.addEventListener("change", async () => {
+          const f = xerInput.files?.[0]; if (!f) return;
+          out.textContent = `importing ${f.name}…`;
+          try {
+            const r = await api.importXer(pid, f);
+            out.innerHTML = `imported <b>${r.count}</b> P6 activities (${r.start} → ${r.finish}) — open <b>⏱ 4D sequence</b> to scrub by date.`;
+          } catch (e) { out.textContent = `import failed: ${(e as Error).message}`; }
+          xerInput.value = "";
+        });
+        b.append(xerBtn, xerInput);
         b.appendChild(out);
       },
       qa: () => {
