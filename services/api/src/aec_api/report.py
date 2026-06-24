@@ -125,14 +125,36 @@ def _pct(v) -> str:
     return f"{v * 100:.1f}%" if isinstance(v, (int, float)) else "n/a"
 
 
+def _project_photos(db: Session, pid: str, limit: int = 3) -> list[bytes]:
+    """Image attachments on the project's topics (pins/RFIs), for the deck's site photos. Best-effort:
+    any read/storage failure just yields fewer photos rather than breaking the deck."""
+    out: list[bytes] = []
+    try:
+        from . import storage
+        from .models import Attachment, Topic
+        q = (db.query(Attachment).join(Topic, Attachment.topic_id == Topic.id)
+             .filter(Topic.project_id == pid)
+             .filter((Attachment.kind == "photo") | (Attachment.content_type.like("image/%")))
+             .limit(limit))
+        for a in q.all():
+            try:
+                out.append(storage.get(a.storage_key))
+            except Exception:                # noqa: BLE001 — skip a missing blob
+                continue
+    except Exception:                        # noqa: BLE001 — no attachments table / join issue
+        return []
+    return out
+
+
 def investment_deck_pdf(db: Session, pid: str, project_name: str) -> bytes:
     """A pitch-deck variant of the investment memo — landscape slides with big numbers (title · the
-    deal in numbers · Sources & Uses · returns · the ask & risks). Same live data as the memo."""
+    deal in numbers · **market & positioning** · Sources & Uses · **development timeline** · returns &
+    the ask). Same live data as the memo; site photos pulled from project attachments when present."""
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import landscape, letter
     from reportlab.pdfgen import canvas
 
-    from . import ai, dashboard, dev_budget as dvb
+    from . import ai, benchmarks as bm, dashboard, dev_budget as dvb
     from .models import Project
 
     p = db.get(Project, pid)
@@ -141,6 +163,8 @@ def investment_deck_pdf(db: Session, pid: str, project_name: str) -> bytes:
     su = (result or {}).get("sources_uses", {})
     ret = (result or {}).get("returns", {})
     risk = ai.risk_summary(dashboard.build(db, pid, "GC").get("kpis", {}), None)
+    bands = bm.all_benchmarks()["benchmarks"]
+    photos = _project_photos(db, pid)
     total_uses = su.get("total_uses") or bs["grand_total"]
     loan = su.get("loan_amount") or round(total_uses * 0.65)
     equity = su.get("equity") or round(total_uses - loan)
@@ -169,6 +193,13 @@ def investment_deck_pdf(db: Session, pid: str, project_name: str) -> bytes:
     c.setFont("Helvetica-Bold", 40); c.drawString(m, H - 175, (project_name or pid)[:42])
     c.setFont("Helvetica", 16); c.drawString(m, H - 210, "Real-estate development — equity offering")
     c.setFont("Helvetica", 11); c.drawString(m, 50, datetime.now(timezone.utc).strftime("Prepared %B %d, %Y · generated from live project data"))
+    if photos:                               # a site photo on the cover, if the project has one
+        try:
+            from reportlab.lib.utils import ImageReader
+            c.drawImage(ImageReader(io.BytesIO(photos[0])), W - 360, 90, 300, H - 280,
+                        preserveAspectRatio=True, anchor="ne", mask="auto")
+        except Exception:                    # noqa: BLE001 — a bad image must never break the deck
+            pass
     c.showPage()
 
     # 2 — the deal in numbers
@@ -184,6 +215,39 @@ def investment_deck_pdf(db: Session, pid: str, project_name: str) -> bytes:
         c.drawString(m, 50, "Save a proforma scenario to populate returns.")
     c.showPage()
 
+    # 2b — market & positioning (the deal's figures against conceptual market bands)
+    slide("Market & positioning")
+    c.setFont("Helvetica", 12); c.setFillColor(colors.HexColor("#555"))
+    c.drawString(m, H - 92, "Where this deal sits against conceptual underwriting ranges "
+                 "(validate against local comps).")
+    c.setFillColor(colors.black)
+
+    def band_row(y: float, label: str, val: float | None, lo: float, hi: float, fmt):
+        c.setFont("Helvetica-Bold", 13); c.drawString(m, y, label)
+        bx, bw = m + 230, 360
+        c.setFillColor(colors.HexColor("#e6edf6")); c.rect(bx, y - 4, bw, 14, fill=1, stroke=0)
+        c.setFillColor(colors.HexColor("#999")); c.setFont("Helvetica", 9)
+        c.drawString(bx, y - 18, fmt(lo)); c.drawRightString(bx + bw, y - 18, fmt(hi))
+        if val is not None and hi > lo:
+            t = max(0.0, min(1.0, (val - lo) / (hi - lo)))
+            mx = bx + t * bw
+            c.setFillColor(accent); c.circle(mx, y + 3, 6, fill=1, stroke=0)
+            c.setFont("Helvetica-Bold", 11); c.drawCentredString(mx, y + 16, fmt(val))
+        c.setFillColor(colors.black)
+
+    pct = lambda v: f"{v * 100:.1f}%"
+    y = H - 150
+    band_row(y, "Yield on cost vs cap", ret.get("yield_on_cost"),
+             bands["cap_rate"]["stabilized"][0], bands["cap_rate"]["value_add"][1], pct); y -= 70
+    band_row(y, "Equity IRR", ret.get("equity_irr"),
+             bands["equity_irr"]["typical"][0], bands["equity_irr"]["typical"][1], pct); y -= 70
+    band_row(y, "Soft cost (% of hard)", bs.get("soft_pct"),
+             bands["soft_cost_pct"]["range"][0], bands["soft_cost_pct"]["range"][1], pct); y -= 70
+    c.setFont("Helvetica-Oblique", 9); c.setFillColor(colors.HexColor("#999"))
+    c.drawString(m, 34, bm.all_benchmarks()["disclaimer"])
+    c.setFillColor(colors.black)
+    c.showPage()
+
     # 3 — sources & uses
     slide("Sources & Uses")
     y = H - 110; c.setFont("Helvetica-Bold", 14); c.drawString(m, y + 6, "USES"); c.drawString(W / 2 + m / 2, y + 6, "SOURCES")
@@ -197,6 +261,43 @@ def investment_deck_pdf(db: Session, pid: str, project_name: str) -> bytes:
     y = H - 110 - 22; c.setFont("Helvetica", 13)
     for label, amt in [(f"Senior debt ({_pct(loan / total_uses) if total_uses else 'n/a'})", loan), ("Equity", equity)]:
         c.drawString(W / 2 + m / 2, y, label); c.drawRightString(W - m, y, _money(amt)); y -= 22
+    c.showPage()
+
+    # 3b — development timeline (indicative phases drawn as a gantt-style bar)
+    slide("Development timeline")
+    timing = (result or {}).get("timing", {}) if isinstance(result, dict) else {}
+    constr = int(timing.get("construction_months") or 18)
+    lease = int(timing.get("leaseup_months") or 12)
+    phases = [("Predevelopment", 6, colors.HexColor("#8aa0b8")),
+              ("Construction", constr, accent),
+              ("Lease-up", lease, colors.HexColor("#46b27a")),
+              ("Stabilization", 12, colors.HexColor("#caa23a")),
+              ("Sale / exit", 3, navy)]
+    total = sum(d for _, d, _ in phases)
+    x0, x1 = m, W - m
+    span = x1 - x0
+    bx = x0; barY = H - 220
+    c.setFont("Helvetica", 11)
+    for name, dur, col in phases:
+        bw = span * dur / total
+        c.setFillColor(col); c.rect(bx, barY, bw - 3, 46, fill=1, stroke=0)
+        c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 10)
+        if bw > 60:
+            c.drawString(bx + 6, barY + 26, name); c.drawString(bx + 6, barY + 10, f"{dur} mo")
+        bx += bw
+    # month axis
+    c.setFillColor(colors.HexColor("#999")); c.setFont("Helvetica", 9)
+    cum = 0
+    for _, dur, _ in phases:
+        c.drawString(x0 + span * cum / total, barY - 16, f"M{cum}")
+        cum += dur
+    c.drawRightString(x1, barY - 16, f"M{total}")
+    c.setFillColor(colors.black); c.setFont("Helvetica-Bold", 14)
+    c.drawString(m, barY - 70, f"~{total} months from start to exit "
+                 f"({constr}-month construction, {lease}-month lease-up).")
+    c.setFont("Helvetica-Oblique", 9); c.setFillColor(colors.HexColor("#999"))
+    c.drawString(m, 34, "Indicative phasing; construction/lease-up from the saved scenario where set.")
+    c.setFillColor(colors.black)
     c.showPage()
 
     # 4 — returns + the ask

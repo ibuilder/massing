@@ -89,3 +89,4 @@ apps/web/ios/
 .watch_release.sh
 services/api/*.db
 services/api/_*.db
+services/api/*.db-journal

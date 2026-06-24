@@ -256,16 +256,20 @@ the prior list. Status now in rough priority:
    exits, exit separation); parking as real IFC geometry (`PARKING` IfcSpaces on a *Site Parking*
    storey); true **polygon-offset footprint** (`offset_polygon` → `buildable_polygon`); optimize's
    yield-on-cost + **dev spread** use the canonical proforma `returns` (with stabilized occupancy).
-2. **Developer deck** — ⏳ **REAL GAP.** [report.py](../services/api/src/aec_api/report.py)
-   `investment_deck_pdf` has Title · The deal in numbers · Sources & Uses · Returns & the ask slides,
-   but **no market section, timeline/schedule section, or property photos**. ← *next build target.*
+2. **Developer deck** — ✅ **DONE.** [report.py](../services/api/src/aec_api/report.py)
+   `investment_deck_pdf` now has 6 slides: added **Market & positioning** (the deal's yield/IRR/soft-cost
+   against conceptual benchmark bands) and a **Development timeline** (phased gantt bar from the saved
+   scenario's construction/lease-up months), plus a **site photo** on the cover pulled from project
+   attachments when present.
 3. **Construction**
    - C1 pay-apps + lien tracking + COBie record-folding — ✅ done (`f0b1367`); printable statutory
      waiver **document/PDF** added v0.1.36 (`GET /cost/lien-waiver[.pdf]`).
-   - **C2 model-derived COBie field depth** — ⏳ **REAL GAP.** [cobie.py](../services/data/src/aec_data/cobie.py)
-     Space/Type/Component sheets are sparse: no **space areas** (Qto), no **manufacturer / warranty /
-     asset-id** fields, no **Attribute** sheet. (Closeout-record folding into Warranty/System/Asset/
-     Document already exists — that's the *DB* side; this is the *model* side.) ← *next build target.*
+   - **C2 model-derived COBie field depth** — ✅ **DONE.** [cobie.py](../services/data/src/aec_data/cobie.py)
+     Space sheets now carry **net/gross area + usable height** (from Qto); Type sheets carry
+     **manufacturer / model / warranty / expected-life / replacement-cost / color / material**;
+     Component sheets carry **serial / install-date / warranty-start / tag / asset-id**; and a new
+     **Attribute** sheet flattens every remaining pset (Name/Value/SheetName/RowName) so no model data
+     is dropped in handover.
    - C3 4D sequencing — ✅ already done: [fourd.py](../services/api/src/aec_api/fourd.py) `timeline()`
      + `GET /schedule/4d` + a scrubber in the web portal; schedule viz (`gantt_svg` / `lob_svg`) too.
 4. **Platform** — ⏳ Redis-backed rate limits (currently an in-memory single-worker limiter in

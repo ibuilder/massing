@@ -145,9 +145,20 @@ if _have_ifc:
             assert len(lsets) >= 2 and len(em.by_type("IfcMaterialLayer")) >= 6, (len(lsets),)
             # every wall + slab carries a layer-set usage (4 walls/floor + 1 slab/floor)
             assert len(usages) == (4 + 1) * m["floors"], (len(usages), m["floors"])
+            # C2: model-derived COBie field depth — areas on Space, asset fields on Type/Component,
+            # and the Attribute sheet flattening remaining psets (Pset_WallCommon here).
+            from aec_data import cobie
+            sh = cobie.cobie_sheets(em)
+            assert set(sh) >= {"Facility", "Floor", "Space", "Type", "Component", "Attribute"}, set(sh)
+            assert any(s.get("GrossArea") for s in sh["Space"]), "COBie Space missing areas"
+            assert all("Manufacturer" in t and "ExpectedLife" in t for t in sh["Type"]), "COBie Type fields"
+            assert all("SerialNumber" in c and "AssetIdentifier" in c for c in sh["Component"]), "COBie Component fields"
+            wall_attr = [a for a in sh["Attribute"] if a["Category"] == "Pset_WallCommon"]
+            assert wall_attr and {"Name", "Value", "SheetName", "RowName"} <= set(wall_attr[0]), "Attribute sheet"
             print(f"ENVELOPE OK - {len(em.by_type('IfcWall'))} walls + {len(em.by_type('IfcWindow'))} windows; "
                   f"energy WWR {e['areas_m2']['window_wall_ratio']}, UA {e['ua_w_per_k']['total']} W/K; "
-                  f"M3: {len(lsets)} layer sets, {len(usages)} usages")
+                  f"M3: {len(lsets)} layer sets, {len(usages)} usages; "
+                  f"COBie: {len(sh['Attribute'])} attribute rows")
         finally:
             os.remove(epath)
 

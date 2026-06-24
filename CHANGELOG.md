@@ -4,6 +4,17 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.37 — COBie field depth (C2) + investment-deck market/timeline slides
+- **COBie model-derived field enrichment (C2)** — the handover sheets gain the fields FM teams use:
+  Space net/gross **area** + usable height (from Qto), Type **manufacturer / model / warranty /
+  expected-life / replacement-cost / color / material**, Component **serial / install-date /
+  warranty-start / tag / asset-id**, plus a new **Attribute** sheet that flattens every remaining
+  property set (Name/Value/SheetName/RowName) so nothing is lost in handover.
+- **Investment deck — Market & Timeline slides** — the pitch deck grows from 4 to 6 slides: a
+  **Market & positioning** slide plotting the deal's yield/IRR/soft-cost against conceptual benchmark
+  bands, and a **Development timeline** gantt bar (predev → construction → lease-up → stabilization →
+  exit, durations from the saved scenario), plus a **site photo** on the cover from project attachments.
+
 ## v0.1.36 — printable statutory lien-waiver documents
 - **Lien-waiver documents / PDFs** — pay-app accounting, lien-waiver *record tracking* and COBie
   enrichment already shipped earlier; this adds the piece they lacked: the actual **printable
