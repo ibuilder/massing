@@ -18,7 +18,9 @@ from aec_api.main import app  # noqa: E402
 H = {"X-User": "gc"}
 
 with TestClient(app) as c:
-    pid = c.post("/projects", json={"name": "Turnover Tower"}, headers=H).json()["id"]
+    # em-dash in the name: regression for the closeout-package 500 — a non-latin-1 char in the
+    # Content-Disposition filename used to crash the download (HTTP headers are latin-1).
+    pid = c.post("/projects", json={"name": "Turnover Tower — Ünit 5"}, headers=H).json()["id"]
     # a generated model so the package has an as-built IFC + COBie/QTO/spaces
     g = c.post(f"/projects/{pid}/generate/massing",
                json={"lot_width": 30, "lot_depth": 20, "far": 2.0, "units": True}, headers=H)

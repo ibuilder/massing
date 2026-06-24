@@ -4,6 +4,17 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.47 — end-to-end demo hardening (closeout filename + generate→finance)
+Two real bugs found by a full login→closeout demo run (only surface with a realistic project):
+- **Closeout package 500** on any project name containing a non-latin-1 char (em-dash, smart quote,
+  accent, emoji): the name went into a `Content-Disposition` header, which HTTP encodes as latin-1 →
+  crash. Fixed with a shared `safe_filename()` (also hardens the `.mmproj` bundle vs CJK/emoji).
+- **Finance showed $0 right after generating a model**: generate didn't persist a cost budget, so
+  Sources & Uses read the empty starter. Generate now seeds a `dev_budget` (land + hard from GFA×$/sf
+  + soft) → Finance immediately shows the real deal ($21.2M uses on the demo).
+Regression-locked: the closeout test now uses an em-dash project name; the generate test asserts
+non-zero Sources & Uses. Full gate green (API 30/30).
+
 ## v0.1.46 — Studio UX hardening
 - **Studio layout bug fixed** — `#panel-studio` carries both `.fullpanel` and `.studio`, and
   `.fullpanel.active{display:block}` was overriding `.studio{display:flex}`, so the node canvas grew

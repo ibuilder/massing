@@ -234,7 +234,8 @@ def export_bundle(pid: str, db: Session = Depends(get_db)):
     from .. import bundle as bundle_io
     p = _project(db, pid)
     data = bundle_io.export_bundle(db, pid)
-    safe = "".join(c if c.isalnum() or c in "-_ " else "_" for c in p.name).strip() or "project"
+    # latin-1-safe (HTTP headers can't carry CJK/emoji — see exports.safe_filename)
+    safe = "".join(c if (c.isalnum() and ord(c) < 128) or c in "-_ " else "_" for c in p.name).strip() or "project"
     return Response(data, media_type="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="{safe}.mmproj"'})
 

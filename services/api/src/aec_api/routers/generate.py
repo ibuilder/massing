@@ -110,6 +110,17 @@ def _proforma_seed(p: MassingIn, m: dict) -> dict:
             "returns": result.get("returns"), "sources_uses": result.get("sources_uses")}
 
 
+def _seed_dev_budget(body: "MassingIn", m: dict) -> dict:
+    """A starter B1 cost budget from the generated program, so Sources & Uses / Finance show the real
+    deal immediately after generate (land + hard from GFA×$/sf + soft) instead of a $0 template."""
+    hard = float(m.get("buildable_gfa_sf", 0)) * body.hard_cost_psf
+    return {"lines": [
+        {"category": "acquisition", "description": "Land acquisition", "unit_cost": float(body.land_cost), "quantity": 1, "cost_code": ""},
+        {"category": "hard", "description": "Hard costs (GFA × $/sf)", "unit_cost": round(hard), "quantity": 1, "cost_code": ""},
+        {"category": "soft", "description": "Soft costs", "unit_cost": round(hard * body.soft_cost_pct), "quantity": 1, "cost_code": ""},
+    ]}
+
+
 @router.post("/projects/{pid}/generate/massing")
 def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
                      actor: str = Depends(require_role("editor"))):
@@ -133,6 +144,8 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
                                 "A thin reinforced shell carries load in compression — no separate frame."}
         storage.put(f"{pid}/source.ifc", ifc_path.read_bytes())
         p.source_ifc = str(ifc_path)
+        if not p.dev_budget:                                   # seed Finance so it isn't $0 after generate
+            p.dev_budget = _seed_dev_budget(body, metrics)
         db.commit()
         audit.record(db, action="ifc.generate", actor=actor, method="POST",
                      path=f"/projects/{pid}/generate/massing", detail=metrics)
@@ -164,6 +177,8 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
     metrics["structure"] = rec
     storage.put(f"{pid}/source.ifc", ifc_path.read_bytes())   # durable copy
     p.source_ifc = str(ifc_path)
+    if not p.dev_budget:                                       # seed Finance so it isn't $0 after generate
+        p.dev_budget = _seed_dev_budget(body, metrics)
     db.commit()
     audit.record(db, action="ifc.generate", actor=actor, method="POST",
                  path=f"/projects/{pid}/generate/massing", detail=metrics)

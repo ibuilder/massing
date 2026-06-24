@@ -31,11 +31,19 @@ def _xlsx_bytes(sheets: dict) -> bytes:
     return data
 
 
+def safe_filename(name: str, fallback: str = "project") -> str:
+    """An ASCII/latin-1-safe filename for Content-Disposition. HTTP headers are latin-1 encoded, so a
+    project name with an em-dash, smart quote, accent or emoji would crash the download (500); collapse
+    anything outside a safe set to '_'."""
+    out = "".join(c if (c.isalnum() and ord(c) < 128) or c in "-_ ." else "_" for c in (name or "")).strip()
+    return out or fallback
+
+
 def _xlsx_response(sheets: dict, filename: str) -> Response:
     return Response(
         _xlsx_bytes(sheets),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{safe_filename(filename, "export.xlsx")}"'},
     )
 
 
@@ -161,4 +169,4 @@ def closeout_package(pid: str, db: Session = Depends(get_db)):
                                              for r in recs]
         z.writestr("closeout/manifest.json", json.dumps(manifest, indent=2, default=str))
     return Response(buf.getvalue(), media_type="application/zip",
-                    headers={"Content-Disposition": f'attachment; filename="{p.name.replace(" ", "_")}_closeout.zip"'})
+                    headers={"Content-Disposition": f'attachment; filename="{safe_filename(p.name)}_closeout.zip"'})

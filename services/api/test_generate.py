@@ -40,11 +40,14 @@ with TestClient(app) as c:  # context manager triggers startup -> create tables
     # --- generate a model on a project, then furnish it ----------------------
     pid = c.post("/projects", json={"name": "Gen Test"}).json()["id"]
     r = c.post(f"/projects/{pid}/generate/massing",
-               json={"lot_width": 40, "lot_depth": 30, "far": 2.5, "use_type": "residential"})
+               json={"lot_width": 40, "lot_depth": 30, "far": 2.5, "use_type": "residential", "land_cost": 5_000_000})
     assert r.status_code == 200, r.text
     g = r.json()
     floors = g["metrics"]["floors"]
     assert g["source_ifc"] and floors >= 1, g
+    # generate seeds a dev_budget so Sources & Uses isn't $0 right after generating (was a gap)
+    su = c.get(f"/projects/{pid}/sources-uses").json()
+    assert su["total_uses"] > 5_000_000, su   # at least the land + hard costs flowed through
 
     # the generated IFC is real: storeys + renderable slabs at metre scale
     src = c.get(f"/projects/{pid}").json()["source_ifc"]
