@@ -53,7 +53,10 @@ Grounded in [TestFit Site Solver](https://www.testfit.io/product/site-solver),
 > open: **(A1b)** named unit-*type* presets (studio/1BR/2BR target-SF + mix) you can save/load, and
 > **(A2-geometry)** auto-*placing* code-positioned egress **geometry** (corridors/stairs/elevators as
 > IFC, not just the pass/fail check). Both are deeper generative-design work, not blockers.
-- *[ref] A1b — unit-type presets:* define unit types (target SF + mix %/count) + save/load presets.
+- ✅ **DONE — A1b unit-type presets.** The Test Fit panel has a **custom unit-mix editor** (add/remove
+  types with name · target SF · mix %, saved to localStorage); "Compare schemes" sends it with
+  `with_defaults` so **your mix is ranked against the presets**. **The Test Fit A-theme is now fully
+  complete (A1–A6 + egress check + egress geometry).**
 - ✅ **DONE — A2 egress geometry.** `generate_ifc(core=True)` now places **two means of egress
   positioned for code** — the core stair plus a second **"Egress stair 2"** at the opposite corner
   (≥⅓-diagonal remoteness, IBC 1007.1.1) — alongside the elevator + MEP risers, on the double-loaded

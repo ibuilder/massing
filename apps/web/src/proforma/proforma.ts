@@ -299,6 +299,42 @@ export class ProformaUI {
     };
     const wi = inp("Plate width (m)", 40), di = inp("Plate depth (m)", 18), fi = inp("Floors", 6);
     host.appendChild(grid);
+
+    // --- A1b: custom unit-type mix editor (define + save your own studio/1BR/2BR… mix) ----------
+    const MIX_KEY = "testfit-mix";
+    type UType = { name: string; target_sf: number; mix_pct: number };
+    const loadMix = (): UType[] => {
+      try { const m = JSON.parse(localStorage.getItem(MIX_KEY) || ""); if (Array.isArray(m) && m.length) return m; } catch { /* default */ }
+      return [{ name: "Studio", target_sf: 500, mix_pct: 0.2 }, { name: "1BR", target_sf: 750, mix_pct: 0.5 }, { name: "2BR", target_sf: 1050, mix_pct: 0.3 }];
+    };
+    let mix: UType[] = loadMix();
+    const mixBox = document.createElement("div");
+    mixBox.style.cssText = "margin:6px 0;padding:6px 8px;border:1px solid var(--line);border-radius:6px";
+    const renderMix = () => {
+      const total = mix.reduce((s, u) => s + (+u.mix_pct || 0), 0);
+      mixBox.innerHTML = `<div class="meta" style="display:flex;justify-content:space-between"><span>Your unit mix</span>`
+        + `<span${Math.abs(total - 1) > 0.011 ? ' style="color:#e2554a"' : ""}>mix Σ ${(total * 100).toFixed(0)}%</span></div>`;
+      mix.forEach((u, idx) => {
+        const row = document.createElement("div"); row.style.cssText = "display:flex;gap:4px;align-items:center;margin-top:4px";
+        const nm = document.createElement("input"); nm.value = u.name; nm.className = "portal-filter"; nm.style.flex = "1"; nm.placeholder = "type";
+        const sf = document.createElement("input"); sf.type = "number"; sf.value = String(u.target_sf); sf.className = "portal-filter"; sf.style.width = "72px"; sf.title = "target SF";
+        const pc = document.createElement("input"); pc.type = "number"; pc.value = String(Math.round(u.mix_pct * 100)); pc.className = "portal-filter"; pc.style.width = "56px"; pc.title = "mix %";
+        nm.onchange = () => { u.name = nm.value; }; sf.onchange = () => { u.target_sf = +sf.value; };
+        pc.onchange = () => { u.mix_pct = (+pc.value || 0) / 100; renderMix(); };
+        const rm = document.createElement("button"); rm.className = "tool-btn"; rm.textContent = "✕"; rm.title = "remove";
+        rm.onclick = () => { mix.splice(idx, 1); renderMix(); };
+        const pct = document.createElement("span"); pct.className = "meta"; pct.textContent = "%";
+        row.append(nm, sf, pc, pct, rm); mixBox.appendChild(row);
+      });
+      const bar = document.createElement("div"); bar.style.cssText = "display:flex;gap:6px;margin-top:6px";
+      const add = document.createElement("button"); add.className = "tool-btn"; add.textContent = "+ unit type";
+      add.onclick = () => { mix.push({ name: "Unit", target_sf: 800, mix_pct: 0.1 }); renderMix(); };
+      const save = document.createElement("button"); save.className = "tool-btn"; save.textContent = "Save mix";
+      save.onclick = () => { localStorage.setItem(MIX_KEY, JSON.stringify(mix)); this.setStatus("unit mix saved"); };
+      bar.append(add, save); mixBox.appendChild(bar);
+    };
+    renderMix(); host.appendChild(mixBox);
+
     const out = document.createElement("div"); out.style.marginTop = "6px";
     const opt = document.createElement("button"); opt.className = "tool-btn"; opt.style.marginLeft = "6px";
     opt.textContent = "⚡ Optimize (find the deal that pencils)";
@@ -319,7 +355,8 @@ export class ProformaUI {
     run.onclick = async () => {
       out.innerHTML = `<span class="meta">fitting…</span>`;
       try {
-        const r = await this.api.testFitCompare({ plate_w: +wi.value, plate_d: +di.value, floors: +fi.value });
+        const schemes = mix.length ? [{ name: "My mix", unit_types: mix }] : undefined;
+        const r = await this.api.testFitCompare({ plate_w: +wi.value, plate_d: +di.value, floors: +fi.value, schemes, with_defaults: !!schemes });
         const rows = r.schemes.map((s) => `<tr${s.name === r.best ? ' style="font-weight:700"' : ""}>`
           + `<th style="text-align:left">${s.name}${s.name === r.best ? " ★" : ""}</th>`
           + `<td style="text-align:right">${s.total_units}</td>`

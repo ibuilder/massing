@@ -102,6 +102,12 @@ with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "Fit"}).json()["id"]
     r = c.post("/test-fit/compare", json={"plate_w": 40, "plate_d": 18, "floors": 5, "schemes": []})
     assert r.status_code == 200 and len(r.json()["schemes"]) == 3, r.text   # default schemes
+    # A1b: a custom unit mix ranked against the presets (with_defaults) → custom + 3 presets = 4
+    cm = c.post("/test-fit/compare", json={"plate_w": 40, "plate_d": 18, "floors": 5, "with_defaults": True,
+        "schemes": [{"name": "My mix", "unit_types": [
+            {"name": "Studio", "target_sf": 450, "mix_pct": 0.5}, {"name": "1BR", "target_sf": 700, "mix_pct": 0.5}]}]})
+    assert cm.status_code == 200 and len(cm.json()["schemes"]) == 4, cm.text
+    assert any(s["name"] == "My mix" for s in cm.json()["schemes"]), cm.json()
     o = c.post("/test-fit/optimize", json={"plate_w": 40, "plate_d": 18, "floors": 6, "targets": {"min_units": 1}})
     assert o.status_code == 200 and o.json()["best"] and o.json()["considered"] == 15, o.text
     pr = c.put(f"/projects/{pid}/property", json={"purchase_price": 15_744_700, "building_sf": 249_749,

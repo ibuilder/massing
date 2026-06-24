@@ -759,7 +759,7 @@ export class ApiClient {
       `/projects/${pid}/property`, { method: "PUT", body: JSON.stringify(body) });
   }
   /** Test-fit: compare unit-mix schemes on a floor plate (yield + parking, ranked). */
-  testFitCompare(params: { plate_w: number; plate_d: number; floors: number; schemes?: unknown[] }) {
+  testFitCompare(params: { plate_w: number; plate_d: number; floors: number; schemes?: unknown[]; with_defaults?: boolean }) {
     return this.json<{ best: string | null; schemes: { name: string; total_units: number; efficiency: number; daylight_efficiency: number; daylight_limited: boolean; total_nsf: number; total_gsf: number; avg_unit_sf: number; parking_stalls: number; mix: Record<string, number> }[]; egress?: EgressResult }>(
       "/test-fit/compare", { method: "POST", body: JSON.stringify(params) });
   }

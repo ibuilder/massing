@@ -190,12 +190,28 @@ def structure_recommend(body: StructureIn):
     return st.recommend(body.height_m, body.floors, body.span_m, body.use_type)
 
 
+# standard comparison schemes used when the caller passes none (and, with with_defaults, alongside a
+# caller's custom mix so a user-defined unit mix is ranked against the familiar presets)
+_DEFAULT_SCHEMES = [
+    {"name": "Efficient (more 1BR)", "unit_types": [
+        {"name": "Studio", "target_sf": 480, "mix_pct": 0.3},
+        {"name": "1BR", "target_sf": 720, "mix_pct": 0.55},
+        {"name": "2BR", "target_sf": 1000, "mix_pct": 0.15}], "parking_ratio": 1.0},
+    {"name": "Balanced", "unit_types": None, "parking_ratio": 1.2},
+    {"name": "Family (more 2BR)", "unit_types": [
+        {"name": "1BR", "target_sf": 780, "mix_pct": 0.35},
+        {"name": "2BR", "target_sf": 1100, "mix_pct": 0.45},
+        {"name": "3BR", "target_sf": 1400, "mix_pct": 0.2}], "parking_ratio": 1.5},
+]
+
+
 class TestFitIn(BaseModel):
     """Fit a unit mix to a floor plate and compare schemes (TestFit-style)."""
     plate_w: float = Field(gt=0)
     plate_d: float = Field(gt=0)
     floors: int = Field(default=1, ge=1)
     schemes: list[dict] = Field(default_factory=list)   # [{name, unit_types?, parking_ratio?, parking_kind?}]
+    with_defaults: bool = False                          # also rank the preset schemes (A1b custom-mix compare)
 
 
 @router.post("/test-fit/compare")
@@ -204,17 +220,9 @@ def test_fit_compare(body: TestFitIn):
     + parking — ranked so you can find the scheme that pencils. Stateless; the rects also feed the
     IFC massing generator (unit_layout='corridor')."""
     from .. import test_fit as tf
-    schemes = body.schemes or [
-        {"name": "Efficient (more 1BR)", "unit_types": [
-            {"name": "Studio", "target_sf": 480, "mix_pct": 0.3},
-            {"name": "1BR", "target_sf": 720, "mix_pct": 0.55},
-            {"name": "2BR", "target_sf": 1000, "mix_pct": 0.15}], "parking_ratio": 1.0},
-        {"name": "Balanced", "unit_types": None, "parking_ratio": 1.2},
-        {"name": "Family (more 2BR)", "unit_types": [
-            {"name": "1BR", "target_sf": 780, "mix_pct": 0.35},
-            {"name": "2BR", "target_sf": 1100, "mix_pct": 0.45},
-            {"name": "3BR", "target_sf": 1400, "mix_pct": 0.2}], "parking_ratio": 1.5},
-    ]
+    schemes = body.schemes or _DEFAULT_SCHEMES
+    if body.schemes and body.with_defaults:          # rank the custom mix against the presets
+        schemes = body.schemes + _DEFAULT_SCHEMES
     return tf.compare(body.plate_w, body.plate_d, body.floors, schemes)
 
 

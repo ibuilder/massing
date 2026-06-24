@@ -4,6 +4,12 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.45 — custom unit-mix editor (A1b — Test Fit A-theme complete)
+- **Define your own unit mix** — the Test Fit panel gains an editor to add/remove unit types
+  (name · target SF · mix %), saved to localStorage. "Compare schemes" sends it with `with_defaults`
+  so your mix is **ranked against the built-in presets**. Completes A1b — the Test Fit A-theme
+  (A1–A6 + egress check + auto egress geometry) is now fully done.
+
 ## v0.1.44 — P6 .xer → 4D dates + auto code-positioned egress (A2)
 - **Primavera P6 schedule → 4D dates** — `POST /projects/{id}/schedule/import-xer` parses a P6 `.xer`
   (TASK table) and stores it; the **4D scrub then reports real calendar dates** (`source:"p6"`, the
