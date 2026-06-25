@@ -88,6 +88,10 @@ with TestClient(app) as c:
     assert {"points_targeted", "points_achieved"} <= fnames("leed_credit")
     assert {"hauler", "destination", "diversion_pct"} <= fnames("waste_diversion")
     assert {"location", "status"} <= fnames("environmental_monitoring")
+    assert {"reason", "received_from", "issued_date", "response_due"} <= fnames("noc")
+    assert {"basis", "not_to_exceed", "issued_date", "ack_due"} <= fnames("directive")
+    assert {"received_date", "format", "verified_by"} <= fnames("as_built")
+    assert next(f for f in mods["as_built"]["fields"] if f["name"] == "status")["type"] == "select"  # was free text
     for k in ("bid_submission", "bid_package", "prequalification", "warranty", "asset_register",
               "commissioning", "om_manual", "leed_credit", "waste_diversion", "environmental_monitoring"):
         seq = [f.get("fieldset") for f in mods[k]["fields"] if f["type"] != "rollup"]

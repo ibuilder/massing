@@ -11,12 +11,14 @@
       "name": "subject",
       "label": "Subject",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Notice"
     },
     {
       "name": "description",
       "label": "Description",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notice"
     },
     {
       "name": "direction",
@@ -26,17 +28,51 @@
         "Proceed & Pricing",
         "Pricing Only",
         "Do Not Proceed"
-      ]
+      ],
+      "fieldset": "Notice"
+    },
+    {
+      "name": "reason",
+      "label": "Reason",
+      "type": "select",
+      "options": [
+        "Design Change",
+        "Owner Request",
+        "Unforeseen Condition",
+        "Field Conflict",
+        "Code / AHJ"
+      ],
+      "fieldset": "Notice"
+    },
+    {
+      "name": "received_from",
+      "label": "Received From",
+      "type": "text",
+      "fieldset": "Notice"
     },
     {
       "name": "cost_estimate",
       "label": "Est. Cost",
-      "type": "currency"
+      "type": "currency",
+      "fieldset": "Impact"
     },
     {
       "name": "schedule_days",
       "label": "Schedule Days",
-      "type": "number"
+      "type": "number",
+      "fieldset": "Impact"
+    },
+    {
+      "name": "issued_date",
+      "label": "Issued",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "response_due",
+      "label": "Response Due",
+      "type": "date",
+      "fieldset": "Dates"
     }
   ],
   "workflow": {

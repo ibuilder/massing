@@ -11,18 +11,15 @@
       "name": "number",
       "label": "Sheet",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "status",
-      "label": "Status",
-      "type": "text"
+      "required": true,
+      "fieldset": "Drawing"
     },
     {
       "name": "drawing",
       "label": "Drawing",
       "type": "reference",
-      "module": "drawing"
+      "module": "drawing",
+      "fieldset": "Drawing"
     },
     {
       "name": "discipline",
@@ -33,12 +30,51 @@
         "Structural",
         "MEP",
         "Civil"
-      ]
+      ],
+      "fieldset": "Drawing"
     },
     {
       "name": "sheet_count",
       "label": "# Sheets",
-      "type": "number"
+      "type": "number",
+      "fieldset": "Drawing"
+    },
+    {
+      "name": "status",
+      "label": "Status",
+      "type": "select",
+      "options": [
+        "Outstanding",
+        "In Progress",
+        "Received",
+        "Verified",
+        "Closed"
+      ],
+      "fieldset": "Status"
+    },
+    {
+      "name": "received_date",
+      "label": "Received Date",
+      "type": "date",
+      "fieldset": "Status"
+    },
+    {
+      "name": "format",
+      "label": "Format",
+      "type": "select",
+      "options": [
+        "PDF",
+        "CAD",
+        "Revit",
+        "Scan / Markup"
+      ],
+      "fieldset": "Status"
+    },
+    {
+      "name": "verified_by",
+      "label": "Verified By",
+      "type": "text",
+      "fieldset": "Status"
     }
   ],
   "workflow": {

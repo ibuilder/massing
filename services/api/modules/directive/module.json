@@ -2,7 +2,7 @@
   "key": "directive",
   "name": "Scope / PCO Directives",
   "section": "Change Management",
-  "icon": "\u279c",
+  "icon": "➜",
   "ref_prefix": "DIR",
   "title_field": "subject",
   "pinnable": true,
@@ -11,13 +11,21 @@
       "name": "subject",
       "label": "Subject",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Directive"
     },
     {
       "name": "scope",
       "label": "Directed Scope",
       "type": "textarea",
-      "required": true
+      "required": true,
+      "fieldset": "Directive"
+    },
+    {
+      "name": "to_company",
+      "label": "Directed To",
+      "type": "text",
+      "fieldset": "Directive"
     },
     {
       "name": "mode",
@@ -26,18 +34,45 @@
       "options": [
         "Pricing Only",
         "Proceed & Pricing"
-      ]
-    },
-    {
-      "name": "to_company",
-      "label": "Directed To",
-      "type": "text"
+      ],
+      "fieldset": "Commercial"
     },
     {
       "name": "change_event",
       "label": "Change Event",
       "type": "reference",
-      "module": "change_event"
+      "module": "change_event",
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "basis",
+      "label": "Pricing Basis",
+      "type": "select",
+      "options": [
+        "Time & Materials",
+        "Unit Price",
+        "Lump Sum",
+        "Not-to-Exceed"
+      ],
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "not_to_exceed",
+      "label": "Not-to-Exceed Amount",
+      "type": "currency",
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "issued_date",
+      "label": "Issued",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "ack_due",
+      "label": "Acknowledgement Due",
+      "type": "date",
+      "fieldset": "Dates"
     }
   ],
   "workflow": {
