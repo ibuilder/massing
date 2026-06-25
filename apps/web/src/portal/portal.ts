@@ -601,6 +601,36 @@ export class PortalUI {
       } else { bc.appendChild(Object.assign(document.createElement("div"), { className: "meta", textContent: "No bid packages yet." })); }
       this.root.appendChild(bc);
 
+      // owner billing — close the loop: budget → SOV → G702/G703 pay app → owner invoice
+      const billing = document.createElement("div"); billing.className = "dash-card"; billing.style.marginBottom = "10px";
+      billing.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: "Owner billing" }));
+      const brow = document.createElement("div"); brow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center";
+      const seedBtn = document.createElement("button"); seedBtn.className = "tool-btn"; seedBtn.dataset.cap = "edit";
+      seedBtn.textContent = "↻ Seed SOV from budget";
+      seedBtn.onclick = async () => {
+        try { const r = await this.host.api.sovFromBudget(pid, true);
+          this.host.setStatus(`SOV seeded: ${r.created} lines${r.scheduled_value ? ` = $${Math.round(r.scheduled_value).toLocaleString()}` : ""}`); }
+        catch (e) { this.host.setStatus(`SOV seed failed: ${(e as Error).message}`); }
+      };
+      const pdfBtn = document.createElement("button"); pdfBtn.className = "tool-btn"; pdfBtn.textContent = "⬇ Pay app (PDF)";
+      pdfBtn.onclick = async () => {
+        try { const blob = await this.host.api.payAppPdf(pid, 1);
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "pay-app-1.pdf"; a.click(); URL.revokeObjectURL(a.href);
+          this.host.setStatus("pay-app PDF generated"); }
+        catch (e) { this.host.setStatus(`pay app failed: ${(e as Error).message}`); }
+      };
+      const invBtn = document.createElement("button"); invBtn.className = "tool-btn"; invBtn.dataset.cap = "edit";
+      invBtn.textContent = "＋ Owner invoice from draw";
+      invBtn.onclick = async () => {
+        try { const r = await this.host.api.payAppInvoice(pid, 1);
+          this.host.setStatus(`owner invoice created: $${Math.round(r.amount).toLocaleString()}`); jumpTo("owner_invoice"); }
+        catch (e) { this.host.setStatus(`invoice failed: ${(e as Error).message}`); }
+      };
+      brow.append(seedBtn, pdfBtn, invBtn); billing.appendChild(brow);
+      billing.appendChild(Object.assign(document.createElement("div"), { className: "meta",
+        textContent: "The G702/G703 pay app and owner invoice draw from this same budget-seeded Schedule of Values." }));
+      this.root.appendChild(billing);
+
       // cash-flow / draw curve — the cost-loaded schedule (monthly bars + cumulative S-curve)
       const cfCard = document.createElement("div"); cfCard.className = "dash-card"; cfCard.style.marginBottom = "10px";
       cfCard.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: "Cash flow (cost-loaded schedule)" }));

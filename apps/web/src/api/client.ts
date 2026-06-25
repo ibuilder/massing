@@ -840,6 +840,17 @@ export class ApiClient {
     return this.json<{ created: number; lines?: number; scheduled_value?: number; skipped?: number; note?: string }>(
       `/projects/${pid}/cost/sov/from-budget?replace=${replace}`, { method: "POST" });
   }
+  /** The owner pay application (G702 certificate + G703 continuation) as a signable PDF blob. */
+  async payAppPdf(pid: string, appNo = 1) {
+    const res = await fetch(this.url(`/projects/${pid}/cost/g702.pdf?app_no=${appNo}`), { headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`pay-app PDF -> ${res.status}`);
+    return res.blob();
+  }
+  /** Create an owner-invoice record from the current pay application (amount = current payment due). */
+  payAppInvoice(pid: string, appNo = 1) {
+    return this.json<{ owner_invoice: ModuleRecord; application_no: number; amount: number }>(
+      `/projects/${pid}/cost/pay-app/invoice`, { method: "POST", body: JSON.stringify({ app_no: appNo }) });
+  }
   /** Short-interval lookahead: near-term activities grouped by week (the field's 3-/6-week plan). */
   scheduleLookahead(pid: string, weeks = 3) {
     return this.json<{ start: string; finish: string; weeks: number; count: number;

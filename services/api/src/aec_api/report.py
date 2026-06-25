@@ -16,6 +16,86 @@ def _money(v: Any) -> str:
         return "-"
 
 
+def payapp_pdf(db: Session, pid: str, project_name: str, app_no: int = 1,
+               period: str | None = None, release_retainage: bool = False) -> bytes:
+    """AIA-style Application & Certificate for Payment (G702) + Continuation Sheet (G703) as a PDF —
+    the document the owner signs each draw. Drawn from the same SOV the GMP budget seeds."""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+
+    from . import cost as cost_engine
+
+    g702 = cost_engine.g702(db, pid, app_no=app_no, period=period, release_retainage=release_retainage)
+    g703 = cost_engine.g703(db, pid)
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    w, h = letter
+    margin = 50
+
+    # --- page 1: G702 certificate ----------------------------------------------
+    y = h - 50
+    c.setFont("Helvetica-Bold", 16); c.drawString(margin, y, "Application & Certificate for Payment"); y -= 16
+    c.setFont("Helvetica", 9); c.drawString(margin, y, "AIA G702 — generated from live project data"); y -= 22
+    c.setFont("Helvetica-Bold", 11); c.drawString(margin, y, project_name or pid); y -= 14
+    c.setFont("Helvetica", 10)
+    c.drawString(margin, y, f"Application No: {app_no}")
+    c.drawString(margin + 200, y, f"Period: {period or '—'}")
+    c.drawString(margin + 360, y, f"Retainage released: {'Yes' if release_retainage else 'No'}"); y -= 22
+
+    rows = [
+        ("1. Original Contract Sum", g702["line1_original_contract_sum"]),
+        ("2. Net Change by Change Orders", g702["line2_net_change_orders"]),
+        ("3. Contract Sum to Date", g702["line3_contract_sum_to_date"]),
+        ("4. Total Completed & Stored to Date", g702["line4_total_completed_stored"]),
+        ("5. Retainage", g702["line5_retainage"]),
+        ("6. Total Earned Less Retainage", g702["line6_total_earned_less_retainage"]),
+        ("7. Less Previous Certificates for Payment", g702["line7_less_previous_certificates"]),
+        ("8. CURRENT PAYMENT DUE", g702["line8_current_payment_due"]),
+        ("9. Balance to Finish, Incl. Retainage", g702["line9_balance_to_finish_incl_retainage"]),
+    ]
+    for label, val in rows:
+        bold = label.startswith("8.")
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", 11 if bold else 10)
+        c.drawString(margin, y, label)
+        c.drawRightString(w - margin, y, _money(val))
+        y -= 18
+    c.setFont("Helvetica-Oblique", 8)
+    c.drawString(margin, 40, "Certified from the project Schedule of Values (G703) — see continuation sheet.")
+    c.showPage()
+
+    # --- page 2: G703 continuation sheet ---------------------------------------
+    y = h - 50
+    c.setFont("Helvetica-Bold", 14); c.drawString(margin, y, "Continuation Sheet (G703)"); y -= 20
+    cols = [(margin, "Item"), (margin + 45, "Description"), (margin + 250, "Scheduled"),
+            (margin + 330, "Completed"), (margin + 410, "%"), (margin + 445, "Balance"), (margin + 510, "Retain.")]
+    c.setFont("Helvetica-Bold", 8)
+    for x, lbl in cols:
+        c.drawString(x, y, lbl)
+    y -= 4; c.line(margin, y, w - margin, y); y -= 12
+    c.setFont("Helvetica", 8)
+    for ln in g703["lines"]:
+        if y < 60:
+            c.showPage(); y = h - 50; c.setFont("Helvetica", 8)
+        c.drawString(cols[0][0], y, str(ln.get("item_no") or "")[:6])
+        c.drawString(cols[1][0], y, str(ln.get("description") or "")[:34])
+        c.drawRightString(cols[2][0] + 55, y, _money(ln["scheduled_value"]))
+        c.drawRightString(cols[3][0] + 55, y, _money(ln["total_completed_stored"]))
+        c.drawRightString(cols[4][0] + 25, y, f"{ln['percent']:.0f}%")
+        c.drawRightString(cols[5][0] + 55, y, _money(ln["balance_to_finish"]))
+        c.drawRightString(cols[6][0] + 40, y, _money(ln["retainage"]))
+        y -= 13
+    t = g703["totals"]; y -= 4; c.line(margin, y, w - margin, y); y -= 13
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(cols[1][0], y, "TOTALS")
+    c.drawRightString(cols[2][0] + 55, y, _money(t["scheduled"]))
+    c.drawRightString(cols[3][0] + 55, y, _money(t["completed"]))
+    c.drawRightString(cols[5][0] + 55, y, _money(t["balance"]))
+    c.drawRightString(cols[6][0] + 40, y, _money(t["retainage"]))
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def project_status_pdf(db: Session, pid: str, project_name: str) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter

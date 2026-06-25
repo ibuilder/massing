@@ -30,6 +30,39 @@ def g702(pid: str, app_no: int = 1, period: str | None = None, release_retainage
     return cost.g702(db, pid, app_no, period, release_retainage)
 
 
+@router.get("/projects/{pid}/cost/g702.pdf")
+def g702_pdf(pid: str, app_no: int = 1, period: str | None = None, release_retainage: bool = False,
+             db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The owner pay application as a signable PDF — G702 certificate + G703 continuation sheet,
+    drawn from the budget-seeded Schedule of Values."""
+    from .. import report
+    p = db.get(Project, pid)
+    if p is None:
+        raise HTTPException(404, "project not found")
+    pdf = report.payapp_pdf(db, pid, p.name, app_no=app_no, period=period, release_retainage=release_retainage)
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="pay-app-{app_no}.pdf"'})
+
+
+@router.post("/projects/{pid}/cost/pay-app/invoice", status_code=201)
+def payapp_invoice(pid: str, app_no: int = Body(1, embed=True), period: str | None = Body(None, embed=True),
+                   release_retainage: bool = Body(False, embed=True),
+                   db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """Create an owner-invoice record from the current pay application — amount = G702 current payment
+    due — so each draw produces its owner invoice, linked to the prime contract. Closes the loop:
+    budget → SOV → G702/G703 → owner invoice."""
+    if "owner_invoice" not in me.TABLES:
+        raise HTTPException(409, "owner_invoice module not loaded")
+    g702 = cost.g702(db, pid, app_no=app_no, period=period, release_retainage=release_retainage)
+    amount = round(float(g702["line8_current_payment_due"]), 2)
+    pc = next((r for r in me.list_records(db, "prime_contract", pid, limit=1)), None)
+    data = {"number": f"App {app_no}", "amount": amount, "period": period or "", "status": "draft"}
+    if pc:
+        data["prime_contract"] = pc["id"]
+    rec = me.create_record(db, "owner_invoice", pid, {"data": data}, actor, "GC")
+    return {"owner_invoice": rec, "application_no": app_no, "amount": amount}
+
+
 @router.post("/projects/{pid}/cost/advance-period")
 def advance_period(pid: str, db: Session = Depends(get_db), user: str = Depends(require_role("editor"))):
     """Close the current pay period (C1) — roll each SOV line's completed-this into completed-previous

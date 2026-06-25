@@ -135,6 +135,18 @@ with TestClient(app) as c:
     assert any(c0["key"] == "general_requirements" and c0["delta"] == 120_000 for c0 in var["categories"]), var["categories"]
     assert var["total_delta"] >= 120_000, var["total_delta"]
 
+    # owner billing execution: the pay-app PDF (G702 + G703) and an owner invoice from the draw
+    pdf = c.get(f"/projects/{pid}/cost/g702.pdf?app_no=1")
+    assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF" and len(pdf.content) > 1500, (pdf.status_code, len(pdf.content))
+    inv = c.post(f"/projects/{pid}/cost/pay-app/invoice", json={"app_no": 1})
+    assert inv.status_code == 201, inv.text
+    g702 = c.get(f"/projects/{pid}/cost/g702").json()
+    assert inv.json()["amount"] == round(g702["line8_current_payment_due"], 2), (inv.json(), g702["line8_current_payment_due"])
+    invs = c.get(f"/projects/{pid}/modules/owner_invoice").json()
+    assert len(invs) == 1 and invs[0]["data"]["number"] == "App 1", invs
+    assert invs[0]["data"].get("prime_contract"), "owner invoice links the prime contract"
+
     print(f"PROJECT BUDGET OK - GMP computed ${b['gmp']['computed']:,.0f} (cost of work ${cow:,.0f}); "
           f"direct/GC/GR + OH/fee/contingency; bid packages + staffing + proforma reconciled; "
-          f"owner SOV seeded from budget ({seed['created']} lines = ${seed['scheduled_value']:,.0f})")
+          f"owner SOV seeded from budget ({seed['created']} lines = ${seed['scheduled_value']:,.0f}); "
+          f"pay-app PDF + owner invoice (${inv.json()['amount']:,.0f}) generated")
