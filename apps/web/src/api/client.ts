@@ -917,6 +917,12 @@ export class ApiClient {
       actual_billed: number; invoice_count: number; pct_billed: number }>(
       `/projects/${pid}/construction-draws`);
   }
+  /** Construction-loan draw status: owner invoices funded equity-first then debt vs the sized stack. */
+  loanDraws(pid: string) {
+    return this.json<{ loan_amount: number; equity: number; drawn_to_date: number; equity_drawn: number;
+      loan_drawn: number; loan_available: number; loan_balance: number; pct_capital_drawn: number; invoice_count: number }>(
+      `/projects/${pid}/loan-draws`);
+  }
   /** Set the developer hard cost to the GC's GMP (replaces hard lines with one synced line). */
   syncGmpToHard(pid: string) {
     return this.json<{ synced: boolean; hard_cost: number; budget: { lines: DevBudgetLine[]; contingency: Record<string, number> }; summary: DevBudgetSummary }>(

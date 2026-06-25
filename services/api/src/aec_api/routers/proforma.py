@@ -281,6 +281,33 @@ def sync_gmp_to_hard(pid: str, db: Session = Depends(get_db)):
     return {"synced": True, "hard_cost": gc_gmp, "budget": budget, "summary": dvb.summarize(budget)}
 
 
+@router.get("/projects/{pid}/loan-draws")
+def loan_draws(pid: str, ltc: float = 0.65, rate: float = 0.075, db: Session = Depends(get_db)):
+    """Construction-loan draw status from the GC's actual billing: owner invoices are the developer's
+    draws to pay the GC, funded equity-first then debt. Returns the sized loan/equity (from Sources &
+    Uses) vs drawn-to-date, the equity/loan split, and remaining loan availability — so the developer
+    tracks the capital stack against what the contractor has actually billed."""
+    from .. import dev_budget as dvb
+    from .. import modules as _me
+    from .. import sources_uses as su
+    from ..models import Project as _P
+    p = db.get(_P, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    sumry = dvb.summarize(p.dev_budget or dvb.starter_budget())
+    cap = su.build(sumry, {"ltc": ltc, "rate": rate})
+    debt, equity = float(cap["debt"]), float(cap["equity"])
+    invs = _me.list_records(db, "owner_invoice", pid, limit=1_000_000) if "owner_invoice" in _me.TABLES else []
+    drawn = round(sum(float((r.get("data") or {}).get("amount") or 0) for r in invs), 2)
+    equity_drawn = round(min(drawn, equity), 2)        # equity-first funding
+    loan_drawn = round(max(0.0, drawn - equity), 2)
+    return {"loan_amount": round(debt, 2), "equity": round(equity, 2), "drawn_to_date": drawn,
+            "equity_drawn": equity_drawn, "loan_drawn": loan_drawn,
+            "loan_available": round(debt - loan_drawn, 2), "loan_balance": loan_drawn,
+            "pct_capital_drawn": round(drawn / (debt + equity) * 100, 1) if (debt + equity) else 0.0,
+            "invoice_count": len(invs)}
+
+
 @router.get("/projects/{pid}/construction-draws")
 def construction_draws(pid: str, db: Session = Depends(get_db)):
     """The developer's construction draw schedule, sourced from the GC's cost-loaded schedule (the

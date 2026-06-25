@@ -176,6 +176,14 @@ with TestClient(app) as c:
     assert draws1["actual_billed"] == round(inv2["amount"], 2) and draws1["pct_billed"] > 0, draws1
     assert draws1["invoice_count"] == 2, draws1                                 # the $0 App-1 + the billed App-2
 
+    # construction-loan draws: owner invoices funded equity-first then debt vs the sized capital stack
+    ld = c.get(f"/projects/{pid}/loan-draws").json()
+    assert ld["loan_amount"] > 0 and ld["equity"] > 0, ld
+    assert ld["drawn_to_date"] == draws1["actual_billed"], (ld["drawn_to_date"], draws1["actual_billed"])
+    assert round(ld["equity_drawn"] + ld["loan_drawn"], 2) == ld["drawn_to_date"], ld   # split sums to drawn
+    assert ld["equity_drawn"] == min(ld["drawn_to_date"], ld["equity"]), ld             # equity-first
+    assert ld["loan_available"] == round(ld["loan_amount"] - ld["loan_drawn"], 2), ld
+
     # PX executive summary — on-schedule + on-budget in one health view
     pxs = c.get(f"/projects/{pid}/px-summary").json()
     assert pxs["status"] in ("on_track", "at_risk", "behind"), pxs["status"]
