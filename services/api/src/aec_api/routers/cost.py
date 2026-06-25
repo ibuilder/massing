@@ -30,6 +30,26 @@ def g702(pid: str, app_no: int = 1, period: str | None = None, release_retainage
     return cost.g702(db, pid, app_no, period, release_retainage)
 
 
+def _proforma_hard(p) -> float | None:
+    if not p or not p.dev_budget:
+        return None
+    lines = (p.dev_budget or {}).get("lines") or []
+    return sum(float(ln.get("amount") or float(ln.get("unit_cost") or 0) * float(ln.get("quantity") or 1))
+               for ln in lines if ln.get("category") == "hard")
+
+
+@router.get("/projects/{pid}/px-summary")
+def px_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The project-executive health view: on-schedule (SPI, % complete, critical path, lookahead,
+    milestones) next to on-budget (GMP, EAC, variance-at-completion, buyout, cash flow), with an
+    overall status. The single 'are we on schedule and on budget' answer."""
+    from .. import px
+    p = db.get(Project, pid)
+    if p is None:
+        raise HTTPException(404, "project not found")
+    return px.summary(db, pid, proforma_hard=_proforma_hard(p))
+
+
 @router.get("/projects/{pid}/cost/g702.pdf")
 def g702_pdf(pid: str, app_no: int = 1, period: str | None = None, release_retainage: bool = False,
              db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):

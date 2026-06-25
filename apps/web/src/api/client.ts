@@ -817,6 +817,18 @@ export class ApiClient {
       proforma: { hard_cost: number; gmp_vs_hard: number } | null;
     }>(`/projects/${pid}/budget/gmp`);
   }
+  /** PX executive health: on-schedule (SPI, % complete, critical path, lookahead, milestones) next
+   *  to on-budget (GMP, EAC, variance-at-completion, buyout, cash flow), with an overall status. */
+  pxSummary(pid: string) {
+    return this.json<{
+      status: "on_track" | "at_risk" | "behind";
+      schedule: { spi: number | null; pct_complete: number; activities: number; critical_path_days: number;
+        critical_activities: number; lookahead_3wk: number; milestones: { late: number; due_soon: number; upcoming: number } };
+      budget: { gmp: number; revised_gmp: number; eac: number; variance_at_completion: number; committed: number;
+        committed_pct: number; spent_pct: number; draw_this_month: number;
+        buyout: { packages: number; bought_out: number; savings: number } | null; baseline_movement: number | null };
+    }>(`/projects/${pid}/px-summary`);
+  }
   /** Snapshot the current GMP budget as the baseline (for budget-movement tracking). */
   setBudgetBaseline(pid: string) {
     return this.json<{ captured_at: string; gmp_computed: number; lines: number }>(

@@ -155,6 +155,45 @@ export class PortalUI {
   }
 
   // --- role-tailored dashboard (command center; the left rail handles module nav) -----
+  /** The PX executive band: on-schedule (SPI / % complete / lookahead / milestones) next to
+   *  on-budget (GMP / EAC / variance / draw), with an overall status pill. Clicks jump to the
+   *  Schedule and Budget destinations. Hides itself if there's no schedule/budget data yet. */
+  private async renderPxBand(host: HTMLElement, pid: string) {
+    let px;
+    try { px = await this.host.api.pxSummary(pid); } catch { return; }
+    if (!px.schedule.activities && !px.budget.gmp) return;     // nothing to summarize yet
+    const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
+    const sched = px.schedule, bud = px.budget;
+    const pill = { on_track: ["On track", "#33d17a"], at_risk: ["At risk", "#ffd479"], behind: ["Behind", "#e2554a"] }[px.status];
+    const card = document.createElement("div"); card.className = "dash-card"; card.style.marginBottom = "10px";
+    const head = document.createElement("div"); head.className = "section-title";
+    head.style.cssText = "display:flex;justify-content:space-between;align-items:center";
+    head.append(Object.assign(document.createElement("span"), { textContent: "Project executive — on schedule & on budget" }));
+    const tag = document.createElement("span"); tag.className = "ball-badge";
+    tag.style.cssText = `background:${pill[1]}22;color:${pill[1]};border-color:${pill[1]}`; tag.textContent = pill[0];
+    head.appendChild(tag); card.appendChild(head);
+
+    const cols = document.createElement("div"); cols.className = "dash-cols";
+    const spiColor = sched.spi == null ? "var(--muted)" : sched.spi >= 0.95 ? "#33d17a" : sched.spi >= 0.85 ? "#ffd479" : "#e2554a";
+    const sCol = document.createElement("div"); sCol.className = "dash-card kpi-click"; sCol.style.flex = "1";
+    sCol.innerHTML = `<div class="meta">📅 On schedule</div>`
+      + `<div style="font-size:16px;font-weight:700;color:${spiColor}">SPI ${sched.spi ?? "—"}</div>`
+      + `<div class="meta">${sched.pct_complete}% complete · ${sched.activities} activities · CP ${sched.critical_path_days}d</div>`
+      + `<div class="meta">${sched.lookahead_3wk} in 3-wk lookahead · milestones: `
+      + `<span style="color:#e2554a">${sched.milestones.late} late</span> · ${sched.milestones.due_soon} due soon</div>`;
+    sCol.onclick = () => { const m = this.mods.find((x) => x.key === "schedule_activity"); if (m) { this.activeKey = "__schedule__"; void this.renderScheduleViews(m); this.buildNav(); } };
+    const vColor = bud.variance_at_completion < 0 ? "#e2554a" : "#33d17a";
+    const bCol = document.createElement("div"); bCol.className = "dash-card kpi-click"; bCol.style.flex = "1";
+    bCol.innerHTML = `<div class="meta">💰 On budget</div>`
+      + `<div style="font-size:16px;font-weight:700">GMP ${usd(bud.revised_gmp || bud.gmp)}</div>`
+      + `<div class="meta">EAC ${usd(bud.eac)} · VAC <span style="color:${vColor}">${usd(bud.variance_at_completion)}</span></div>`
+      + `<div class="meta">${bud.committed_pct}% bought out · ${bud.spent_pct}% spent`
+      + (bud.draw_this_month ? ` · draw ${usd(bud.draw_this_month)}/mo` : "")
+      + (bud.buyout && bud.buyout.savings ? ` · savings ${usd(bud.buyout.savings)}` : "") + `</div>`;
+    bCol.onclick = () => { this.activeKey = "__budget__"; void this.renderBudget(); this.buildNav(); };
+    cols.append(sCol, bCol); card.appendChild(cols); host.appendChild(card);
+  }
+
   private async renderHome() {
     this.root.innerHTML = "";
     const pid = this.host.projectId()!;
@@ -183,6 +222,10 @@ export class PortalUI {
       }, 250);
     };
     root.append(search, results);
+
+    // PX executive band — "are we on schedule and on budget?" — loads independently, hides if no data
+    const pxBand = el("div"); root.appendChild(pxBand);
+    void this.renderPxBand(pxBand, pid);
 
     const jump = (key: string, state?: string) => {
       const m = this.mods.find((x) => x.key === key); if (!m) return;

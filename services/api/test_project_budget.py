@@ -146,6 +146,16 @@ with TestClient(app) as c:
     assert len(invs) == 1 and invs[0]["data"]["number"] == "App 1", invs
     assert invs[0]["data"].get("prime_contract"), "owner invoice links the prime contract"
 
+    # PX executive summary — on-schedule + on-budget in one health view
+    pxs = c.get(f"/projects/{pid}/px-summary").json()
+    assert pxs["status"] in ("on_track", "at_risk", "behind"), pxs["status"]
+    assert pxs["schedule"]["activities"] >= 2 and pxs["schedule"]["critical_path_days"] >= 0, pxs["schedule"]
+    assert "spi" in pxs["schedule"] and isinstance(pxs["schedule"]["milestones"], dict), pxs["schedule"]
+    b2 = c.get(f"/projects/{pid}/budget/gmp").json()
+    assert pxs["budget"]["gmp"] == b2["totals"]["budget"], (pxs["budget"]["gmp"], b2["totals"]["budget"])
+    assert "variance_at_completion" in pxs["budget"] and pxs["budget"]["committed_pct"] >= 0, pxs["budget"]
+    assert pxs["budget"]["buyout"]["packages"] == 1, pxs["budget"]["buyout"]
+
     print(f"PROJECT BUDGET OK - GMP computed ${b['gmp']['computed']:,.0f} (cost of work ${cow:,.0f}); "
           f"direct/GC/GR + OH/fee/contingency; bid packages + staffing + proforma reconciled; "
           f"owner SOV seeded from budget ({seed['created']} lines = ${seed['scheduled_value']:,.0f}); "
