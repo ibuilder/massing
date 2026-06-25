@@ -29,6 +29,10 @@ export class PortalUI {
   private mods: ModuleDef[] = [];
   private nav?: HTMLElement;          // persistent left module-nav rail (built once)
   private activeKey: string | null = null;
+  // field/offline: uploads attempted while offline are held here and flushed on reconnect (session-
+  // scoped — survives a flaky connection, not a reload; persistent queue would need IndexedDB).
+  private uploadQueue: { pid: string; key: string; rid: string; files: File[] }[] = [];
+  private onlineHooked = false;
 
   // C1 — one-click cross-module conversions (Procore "convert RFI to PCO" etc.). The new record is
   // pre-filled from the source and linked back (via a reference field when one exists, else an explicit link).
@@ -1056,6 +1060,10 @@ export class PortalUI {
     }
     this.root.appendChild(tools);
 
+    // photo-heavy field modules put photos up top (the super's first action on the record)
+    const photoFirst = ["daily_report", "punchlist", "inspection", "observation", "incident"].includes(m.key);
+    if (photoFirst) this.renderAttachments(m, r, rid);
+
     // fields (reference fields render as clickable links to the target record)
     const fields = document.createElement("div"); fields.className = "portal-kv";
     for (const f of m.fields) {
@@ -1100,7 +1108,7 @@ export class PortalUI {
     this.root.appendChild(asgRow);
 
     // attachments (files in object storage)
-    this.renderAttachments(m, r, rid);
+    if (!photoFirst) this.renderAttachments(m, r, rid);
 
     // related records (outgoing references + incoming records that point here)
     const relatedBox = document.createElement("div");
@@ -1270,23 +1278,62 @@ export class PortalUI {
     const file = document.createElement("input"); file.type = "file"; file.multiple = true;
     file.accept = "image/*,application/pdf,.dwg,.doc,.docx,.xls,.xlsx";
     file.style.display = "none";
+    // camera capture — on a phone this opens the camera directly (field photo in one tap)
+    const cam = document.createElement("input"); cam.type = "file"; cam.accept = "image/*";
+    cam.setAttribute("capture", "environment"); cam.style.display = "none";
     const drop = document.createElement("div"); drop.className = "att-drop";
     drop.innerHTML = `<b>＋ Add photos / files</b><span class="meta">drag &amp; drop a batch, or click to pick multiple</span>`;
     drop.onclick = () => file.click();
     const doUpload = async (files: FileList | File[]) => {
       const list = Array.from(files); if (!list.length) return;
+      if (!navigator.onLine) { this.queueUpload(pid, m.key, rid, list); return; }   // offline → queue
       drop.classList.add("busy"); drop.querySelector("b")!.textContent = `Uploading ${list.length} file${list.length > 1 ? "s" : ""}…`;
       try {
         if (list.length === 1) await this.host.api.uploadAttachment(pid, m.key, rid, list[0]);
         else await this.host.api.uploadAttachmentsBulk(pid, m.key, rid, list);
         this.host.setStatus(`attached ${list.length} file${list.length > 1 ? "s" : ""}`); this.openRecord(m, rid);
-      } catch (e) { this.host.setStatus(`upload failed: ${(e as Error).message}`); drop.classList.remove("busy"); }
+      } catch (e) {
+        if (!navigator.onLine) { this.queueUpload(pid, m.key, rid, list); return; }   // dropped mid-flight
+        this.host.setStatus(`upload failed: ${(e as Error).message}`); drop.classList.remove("busy");
+      }
     };
     file.onchange = () => { if (file.files) void doUpload(file.files); };
+    cam.onchange = () => { if (cam.files) void doUpload(cam.files); };
     drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
     drop.ondragleave = () => drop.classList.remove("over");
     drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer?.files) void doUpload(e.dataTransfer.files); };
-    this.root.append(file, drop);
+    const camBtn = document.createElement("button"); camBtn.className = "tool-btn"; camBtn.textContent = "📷 Take photo";
+    camBtn.style.marginTop = "4px"; camBtn.onclick = () => cam.click();
+    this.root.append(file, cam, drop, camBtn);
+    const queued = this.uploadQueue.filter((q) => q.rid === rid).reduce((n, q) => n + q.files.length, 0);
+    if (queued) {
+      const w = document.createElement("div"); w.className = "meta"; w.style.color = "#ffd479"; w.style.marginTop = "3px";
+      w.textContent = `⏳ ${queued} file${queued > 1 ? "s" : ""} queued (offline) — will upload when back online`;
+      this.root.appendChild(w);
+    }
+  }
+
+  /** Hold an upload that couldn't go out (offline) and flush the queue when the connection returns. */
+  private queueUpload(pid: string, key: string, rid: string, files: File[]) {
+    this.uploadQueue.push({ pid, key, rid, files });
+    this.host.setStatus(`offline — ${files.length} file${files.length > 1 ? "s" : ""} queued, will upload on reconnect`);
+    if (!this.onlineHooked) {
+      this.onlineHooked = true;
+      window.addEventListener("online", () => void this.flushUploads());
+    }
+  }
+
+  private async flushUploads() {
+    const pending = this.uploadQueue.splice(0);
+    let done = 0;
+    for (const q of pending) {
+      try {
+        if (q.files.length === 1) await this.host.api.uploadAttachment(q.pid, q.key, q.rid, q.files[0]);
+        else await this.host.api.uploadAttachmentsBulk(q.pid, q.key, q.rid, q.files);
+        done += q.files.length;
+      } catch { this.uploadQueue.push(q); }            // still failing → requeue for the next reconnect
+    }
+    if (done) this.host.setStatus(`back online — uploaded ${done} queued file${done > 1 ? "s" : ""}`);
   }
 
   // --- kanban / "scrum" board: columns by workflow state, drag to transition --
