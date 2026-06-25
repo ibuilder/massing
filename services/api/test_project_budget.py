@@ -132,6 +132,11 @@ with TestClient(app) as c:
                                      "budget": 1_200_000, "start": "2026-04-01", "finish": "2026-09-30"})
     cf = c.get(f"/projects/{pid}/budget/cashflow").json()
     assert cf["loaded_activities"] == 2 and cf["total"] == 1_800_000, cf
+
+    # developer construction-draw schedule sourced from the GC cost-loaded schedule + actual billed
+    draws = c.get(f"/projects/{pid}/construction-draws").json()
+    assert draws["projected_total"] == 1_800_000 and draws["months"] == cf["months"], draws
+    assert draws["invoice_count"] >= 0 and "pct_billed" in draws and draws["peak_month_cost"] == 400_000, draws
     assert cf["months"] >= 6 and cf["series"][-1]["pct"] == 100.0, cf["series"][-1]
     cums = [m["cumulative"] for m in cf["series"]]
     assert cums == sorted(cums) and abs(cums[-1] - 1_800_000) < 1, cums          # monotonic S-curve

@@ -549,6 +549,15 @@ export class ProformaUI {
     };
     refreshRecon();
 
+    // construction draw schedule — sourced from the GC's cost-loaded schedule (relational tie)
+    const draws = document.createElement("div"); draws.className = "meta"; draws.style.cssText = "margin:0 0 8px;font-size:11px";
+    host.insertBefore(draws, body);
+    void this.api.constructionDraws(pid).then((d) => {
+      if (!d.projected_total) { draws.style.display = "none"; return; }
+      draws.innerHTML = `📉 Construction draws (from GC schedule): <b>${money(d.projected_total)}</b> over ${d.months} mo`
+        + ` · peak ${money(d.peak_month_cost)}/mo · billed ${money(d.actual_billed)} (${d.pct_billed}%)`;
+    }).catch(() => { draws.style.display = "none"; });
+
     const CATS: [string, string][] = [["acquisition", "Acquisition"], ["hard", "Hard costs"], ["soft", "Soft costs"]];
     void this.api.devBudget(pid).then((resp) => {
       const lines = resp.budget.lines.slice();

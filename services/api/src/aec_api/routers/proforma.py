@@ -281,6 +281,24 @@ def sync_gmp_to_hard(pid: str, db: Session = Depends(get_db)):
     return {"synced": True, "hard_cost": gc_gmp, "budget": budget, "summary": dvb.summarize(budget)}
 
 
+@router.get("/projects/{pid}/construction-draws")
+def construction_draws(pid: str, db: Session = Depends(get_db)):
+    """The developer's construction draw schedule, sourced from the GC's cost-loaded schedule (the
+    same monthly S-curve behind on-schedule × on-budget) and actual owner invoices billed to date —
+    so the developer's draw projection is the contractor's real plan, not a generic curve."""
+    from .. import modules as _me
+    from .. import project_budget as pb
+    from ..models import Project as _P
+    if db.get(_P, pid) is None:
+        raise HTTPException(404, "project not found")
+    cf = pb.cashflow(db, pid)
+    invs = _me.list_records(db, "owner_invoice", pid, limit=1_000_000) if "owner_invoice" in _me.TABLES else []
+    billed = round(sum(pb._n((r.get("data") or {}).get("amount")) for r in invs), 2)
+    return {"projected_total": cf["total"], "months": cf["months"], "peak_month_cost": cf["peak_month_cost"],
+            "series": cf["series"], "actual_billed": billed, "invoice_count": len(invs),
+            "pct_billed": round(billed / cf["total"] * 100, 1) if cf["total"] else 0.0}
+
+
 @router.get("/projects/{pid}/dev-budget/cost-lines")
 def dev_budget_cost_lines(pid: str, db: Session = Depends(get_db)):
     """The budget rolled into proforma cost_lines (the seed the Finance view applies)."""

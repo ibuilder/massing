@@ -910,6 +910,13 @@ export class ApiClient {
       gmp_committed: number; gmp_eac: number; gmp_variance_at_completion: number }>(
       `/projects/${pid}/dev-budget/gmp-reconciliation`);
   }
+  /** Developer construction draw schedule sourced from the GC cost-loaded schedule + actual billed. */
+  constructionDraws(pid: string) {
+    return this.json<{ projected_total: number; months: number; peak_month_cost: number;
+      series: { month: string; cost: number; cumulative: number; pct: number }[];
+      actual_billed: number; invoice_count: number; pct_billed: number }>(
+      `/projects/${pid}/construction-draws`);
+  }
   /** Set the developer hard cost to the GC's GMP (replaces hard lines with one synced line). */
   syncGmpToHard(pid: string) {
     return this.json<{ synced: boolean; hard_cost: number; budget: { lines: DevBudgetLine[]; contingency: Record<string, number> }; summary: DevBudgetSummary }>(
