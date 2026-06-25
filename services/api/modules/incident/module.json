@@ -11,12 +11,28 @@
       "name": "subject",
       "label": "Incident",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Incident"
+    },
+    {
+      "name": "date",
+      "label": "Date / Time",
+      "type": "date",
+      "required": true,
+      "fieldset": "Incident"
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Incident"
     },
     {
       "name": "description",
-      "label": "Description",
-      "type": "textarea"
+      "label": "What Happened",
+      "type": "textarea",
+      "fieldset": "Incident"
     },
     {
       "name": "severity",
@@ -27,13 +43,8 @@
         "First Aid",
         "Recordable",
         "Lost Time"
-      ]
-    },
-    {
-      "name": "date",
-      "label": "Date",
-      "type": "date",
-      "required": true
+      ],
+      "fieldset": "Incident"
     },
     {
       "name": "classification",
@@ -46,24 +57,127 @@
         "Lost Time",
         "Fatality"
       ],
-      "required": true
+      "required": true,
+      "fieldset": "Incident"
+    },
+    {
+      "name": "injured_person",
+      "label": "Injured Person",
+      "type": "text",
+      "fieldset": "People"
+    },
+    {
+      "name": "employer",
+      "label": "Employer / Sub",
+      "type": "text",
+      "fieldset": "People"
+    },
+    {
+      "name": "body_part",
+      "label": "Body Part",
+      "type": "select",
+      "options": [
+        "Head",
+        "Eye",
+        "Face",
+        "Neck",
+        "Back",
+        "Shoulder",
+        "Arm",
+        "Hand / Finger",
+        "Leg / Knee",
+        "Foot / Ankle",
+        "Torso",
+        "Multiple",
+        "N/A"
+      ],
+      "fieldset": "People"
+    },
+    {
+      "name": "injury_type",
+      "label": "Injury Type",
+      "type": "select",
+      "options": [
+        "Laceration",
+        "Contusion",
+        "Fracture",
+        "Sprain / Strain",
+        "Burn",
+        "Puncture",
+        "Foreign Body",
+        "Respiratory",
+        "Heat / Cold",
+        "Electrical",
+        "Other"
+      ],
+      "fieldset": "People"
+    },
+    {
+      "name": "witnesses",
+      "label": "Witnesses",
+      "type": "textarea",
+      "fieldset": "People"
+    },
+    {
+      "name": "osha_recordable",
+      "label": "OSHA Recordable?",
+      "type": "select",
+      "options": [
+        "No",
+        "Yes",
+        "Pending Determination"
+      ],
+      "fieldset": "OSHA"
     },
     {
       "name": "lost_days",
-      "label": "Lost Days",
-      "type": "number"
+      "label": "Days Away",
+      "type": "number",
+      "fieldset": "OSHA"
+    },
+    {
+      "name": "restricted_days",
+      "label": "Restricted / Transfer Days",
+      "type": "number",
+      "fieldset": "OSHA"
+    },
+    {
+      "name": "reported_to",
+      "label": "Reported To (OSHA/Owner)",
+      "type": "text",
+      "fieldset": "OSHA"
+    },
+    {
+      "name": "root_cause",
+      "label": "Root Cause",
+      "type": "textarea",
+      "fieldset": "Investigation"
+    },
+    {
+      "name": "corrective_action",
+      "label": "Corrective Action",
+      "type": "textarea",
+      "fieldset": "Investigation"
     },
     {
       "name": "jha",
       "label": "Related JHA",
       "type": "reference",
-      "module": "jha"
+      "module": "jha",
+      "fieldset": "Investigation"
     },
     {
       "name": "daily_report",
       "label": "Daily report",
       "type": "reference",
-      "module": "daily_report"
+      "module": "daily_report",
+      "fieldset": "Investigation"
+    },
+    {
+      "name": "photos",
+      "label": "Photos",
+      "type": "textarea",
+      "fieldset": "Investigation"
     }
   ],
   "workflow": {
@@ -98,6 +212,7 @@
   "list_columns": [
     "classification",
     "severity",
+    "osha_recordable",
     "date"
   ]
 }

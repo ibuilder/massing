@@ -11,23 +11,65 @@
       "name": "vendor",
       "label": "Subcontractor",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Contract"
     },
     {
       "name": "trade",
       "label": "Trade",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Contract"
+    },
+    {
+      "name": "scope",
+      "label": "Scope of Work",
+      "type": "textarea",
+      "fieldset": "Contract"
     },
     {
       "name": "value",
-      "label": "Value",
-      "type": "currency"
+      "label": "Contract Value",
+      "type": "currency",
+      "fieldset": "Cost"
+    },
+    {
+      "name": "retainage_pct",
+      "label": "Retainage %",
+      "type": "number",
+      "fieldset": "Cost"
+    },
+    {
+      "name": "cost_code",
+      "label": "Cost Code",
+      "type": "reference",
+      "module": "cost_code",
+      "fieldset": "Cost"
+    },
+    {
+      "name": "executed_date",
+      "label": "Executed Date",
+      "type": "date",
+      "fieldset": "Dates & compliance"
+    },
+    {
+      "name": "insurance_exp",
+      "label": "Insurance Expiry",
+      "type": "date",
+      "fieldset": "Dates & compliance"
+    },
+    {
+      "name": "bond_required",
+      "label": "Bond Required?",
+      "type": "select",
+      "options": ["No", "Yes"],
+      "fieldset": "Dates & compliance"
     },
     {
       "name": "awarded_from",
       "label": "Awarded from bid",
       "type": "reference",
-      "module": "bid_submission"
+      "module": "bid_submission",
+      "fieldset": "Dates & compliance"
     },
     {
       "name": "change_orders",

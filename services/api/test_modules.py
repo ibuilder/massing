@@ -53,11 +53,18 @@ with TestClient(app) as c:
 
     # F1: tier-1 forms group fields into labeled fieldsets, and each fieldset is a single
     # contiguous run (the web renderer emits one header per run — non-contiguous would duplicate).
-    for k in ("rfi", "submittal", "daily_report", "cor", "change_event", "pco_request", "punchlist", "inspection"):
+    for k in ("rfi", "submittal", "daily_report", "cor", "change_event", "pco_request", "punchlist",
+              "inspection", "incident", "meeting", "subcontract"):
         seq = [f.get("fieldset") for f in mods[k]["fields"] if f["type"] != "rollup"]
         assert all(seq), f"{k}: every form field should have a fieldset, got {seq}"
         runs = [fs for i, fs in enumerate(seq) if i == 0 or fs != seq[i - 1]]
         assert len(runs) == len(set(runs)), f"{k}: fieldsets must be contiguous, got {runs}"
+
+    # Tier-2 field depth (safety OSHA log, meeting minutes, subcontract retainage/compliance)
+    assert {"injured_person", "body_part", "injury_type", "osha_recordable", "root_cause",
+            "corrective_action", "photos"} <= fnames("incident")
+    assert {"agenda", "attendees", "next_meeting", "distribution"} <= fnames("meeting")
+    assert {"scope", "retainage_pct", "executed_date", "insurance_exp", "cost_code"} <= fnames("subcontract")
 
     # C1: the web "convert to…" map relies on a back-reference field on each target module so the
     # new record links to its source. Lock those reference fields so the map can't silently break.

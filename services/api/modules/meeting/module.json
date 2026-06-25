@@ -11,22 +11,14 @@
       "name": "subject",
       "label": "Meeting",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Meeting"
     },
     {
       "name": "date",
       "label": "Date",
-      "type": "date"
-    },
-    {
-      "name": "minutes",
-      "label": "Minutes",
-      "type": "textarea"
-    },
-    {
-      "name": "location",
-      "label": "Location",
-      "type": "text"
+      "type": "date",
+      "fieldset": "Meeting"
     },
     {
       "name": "meeting_type",
@@ -37,8 +29,54 @@
         "Coordination",
         "Safety",
         "Preconstruction",
-        "Progress"
-      ]
+        "Progress",
+        "Subcontractor",
+        "Pre-Installation",
+        "Closeout"
+      ],
+      "fieldset": "Meeting"
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text",
+      "fieldset": "Meeting"
+    },
+    {
+      "name": "attendees",
+      "label": "Attendees",
+      "type": "textarea",
+      "fieldset": "Meeting"
+    },
+    {
+      "name": "agenda",
+      "label": "Agenda",
+      "type": "textarea",
+      "fieldset": "Content"
+    },
+    {
+      "name": "minutes",
+      "label": "Minutes",
+      "type": "textarea",
+      "fieldset": "Content"
+    },
+    {
+      "name": "old_business",
+      "label": "Old Business",
+      "type": "textarea",
+      "fieldset": "Content"
+    },
+    {
+      "name": "distribution",
+      "label": "Distribution",
+      "type": "textarea",
+      "fieldset": "Follow-up"
+    },
+    {
+      "name": "next_meeting",
+      "label": "Next Meeting",
+      "type": "date",
+      "fieldset": "Follow-up"
     },
     {
       "name": "action_count",
