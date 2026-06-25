@@ -20,6 +20,25 @@
       "required": true
     },
     {
+      "name": "reason",
+      "label": "Reason",
+      "type": "select",
+      "options": [
+        "Design Change",
+        "Owner Request",
+        "Unforeseen Condition",
+        "Field Conflict",
+        "Code / AHJ",
+        "Errors & Omissions",
+        "Allowance Reconciliation"
+      ]
+    },
+    {
+      "name": "received_from",
+      "label": "Received From",
+      "type": "text"
+    },
+    {
       "name": "cost_code",
       "label": "Cost Code",
       "type": "reference",

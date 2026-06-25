@@ -26,9 +26,30 @@ with TestClient(app) as c:
     # /modules exposes title_field (the web uses it for inline "add new" from reference dropdowns)
     assert mods["cost_code"]["title_field"] == "code", mods["cost_code"].get("title_field")
     # X1: cost-impacting modules carry a cost_code reference so impacts roll to the budget
-    for k in ("rfi", "cor", "change_event", "pco_request", "proposal"):
+    for k in ("rfi", "cor", "change_event", "pco_request", "proposal", "submittal"):
         refs = [f for f in mods[k]["fields"] if f.get("type") == "reference" and f.get("module") == "cost_code"]
         assert refs, f"{k} should reference cost_code"
+
+    # Tier-1 field completeness (super + PM field set, benchmarked to Procore/Fieldwire)
+    def fnames(k):
+        return {f["name"] for f in mods[k]["fields"]}
+    # daily_report — the super's #1 tool: weather impact, equipment, delays, visitors, safety, photos
+    assert {"temp_f", "weather_impact", "equipment_on_site", "delays", "visitors", "safety_note", "photos"} <= fnames("daily_report")
+    # the daily-report location/weather selects are enum-driven (not free text)
+    wf = next(f for f in mods["daily_report"]["fields"] if f["name"] == "weather")
+    assert wf["type"] == "select" and "Rain" in wf["options"], wf
+    # rfi — priority + location reference + manager/asked-by
+    assert {"priority", "location", "rfi_manager", "received_from"} <= fnames("rfi")
+    assert any(f["name"] == "location" and f.get("module") == "location" for f in mods["rfi"]["fields"])
+    # submittal — revision, lead/required-on-site/received/returned dates, responsible contractor
+    assert {"rev", "required_on_site", "date_received", "date_returned", "responsible_contractor"} <= fnames("submittal")
+    # cor / change_event / pco — reason + schedule impact + received_from
+    assert {"reason", "received_from"} <= fnames("cor")
+    assert {"reason", "scope_status", "schedule_impact_days"} <= fnames("change_event")
+    assert {"schedule_impact_days", "received_from"} <= fnames("pco_request")
+    # punchlist + inspection — verification + photos + re-inspection
+    assert {"verified_by", "photos"} <= fnames("punchlist")
+    assert {"reinspection_date", "photos"} <= fnames("inspection")
 
     # project created by GC (creator → admin + GC party)
     pid = c.post("/projects", json={"name": "Mega Tower"}, headers=H("gc")).json()["id"]

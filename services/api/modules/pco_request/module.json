@@ -36,6 +36,16 @@
       "type": "currency"
     },
     {
+      "name": "schedule_impact_days",
+      "label": "Schedule Impact (days)",
+      "type": "number"
+    },
+    {
+      "name": "received_from",
+      "label": "Received From",
+      "type": "text"
+    },
+    {
       "name": "source_rfi",
       "label": "Source RFI",
       "type": "reference",

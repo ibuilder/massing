@@ -27,12 +27,42 @@
         "Architectural",
         "Structural",
         "MEP",
-        "Civil"
+        "Civil",
+        "Geotechnical",
+        "Fire Protection",
+        "Low Voltage"
+      ]
+    },
+    {
+      "name": "priority",
+      "label": "Priority",
+      "type": "select",
+      "options": [
+        "Low",
+        "Normal",
+        "High",
+        "Critical"
       ]
     },
     {
       "name": "spec_section",
       "label": "Spec Section",
+      "type": "text"
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "reference",
+      "module": "location"
+    },
+    {
+      "name": "rfi_manager",
+      "label": "RFI Manager",
+      "type": "text"
+    },
+    {
+      "name": "received_from",
+      "label": "Asked By",
       "type": "text"
     },
     {
@@ -133,6 +163,7 @@
   },
   "list_columns": [
     "discipline",
+    "priority",
     "due_date",
     "cost_impact"
   ],

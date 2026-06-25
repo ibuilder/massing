@@ -19,6 +19,35 @@
       "type": "currency"
     },
     {
+      "name": "reason",
+      "label": "Reason",
+      "type": "select",
+      "options": [
+        "Design Change",
+        "Owner Request",
+        "Unforeseen Condition",
+        "Field Conflict",
+        "Code / AHJ",
+        "Errors & Omissions",
+        "Allowance Reconciliation"
+      ]
+    },
+    {
+      "name": "scope_status",
+      "label": "Scope",
+      "type": "select",
+      "options": [
+        "Undetermined",
+        "In Scope",
+        "Out of Scope"
+      ]
+    },
+    {
+      "name": "schedule_impact_days",
+      "label": "Schedule Impact (days)",
+      "type": "number"
+    },
+    {
       "name": "source_rfi",
       "label": "Source RFI",
       "type": "reference",

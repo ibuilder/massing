@@ -2,7 +2,7 @@
   "key": "daily_report",
   "name": "Daily Reports",
   "section": "Field",
-  "icon": "\u263c",
+  "icon": "☼",
   "ref_prefix": "DR",
   "title_field": "report_date",
   "pinnable": false,
@@ -16,7 +16,19 @@
     {
       "name": "weather",
       "label": "Weather",
-      "type": "text"
+      "type": "select",
+      "options": ["Clear", "Partly Cloudy", "Overcast", "Rain", "Snow", "Wind", "Fog", "Extreme Heat", "Freezing"]
+    },
+    {
+      "name": "temp_f",
+      "label": "Temp (°F)",
+      "type": "number"
+    },
+    {
+      "name": "weather_impact",
+      "label": "Weather Impact",
+      "type": "select",
+      "options": ["None", "Minor Delay", "Half-Day Lost", "Full-Day Lost", "Stoppage"]
     },
     {
       "name": "manpower",
@@ -30,7 +42,32 @@
     },
     {
       "name": "deliveries",
-      "label": "Deliveries",
+      "label": "Deliveries Received",
+      "type": "textarea"
+    },
+    {
+      "name": "equipment_on_site",
+      "label": "Equipment On Site",
+      "type": "textarea"
+    },
+    {
+      "name": "delays",
+      "label": "Delays / Disruptions",
+      "type": "textarea"
+    },
+    {
+      "name": "visitors",
+      "label": "Visitors / Inspections",
+      "type": "textarea"
+    },
+    {
+      "name": "safety_note",
+      "label": "Safety Observations",
+      "type": "textarea"
+    },
+    {
+      "name": "photos",
+      "label": "Photo Links",
       "type": "textarea"
     },
     {
@@ -50,6 +87,7 @@
       "op": "sum"
     }
   ],
+  "list_columns": ["report_date", "weather", "manpower", "weather_impact"],
   "workflow": {
     "initial": "draft",
     "states": [

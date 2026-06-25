@@ -27,8 +27,23 @@
         "Product Data",
         "Shop Drawing",
         "Sample",
-        "Mock-up"
+        "Mock-up",
+        "Certificate",
+        "Test Report",
+        "Calculations",
+        "O&M Manual",
+        "Warranty"
       ]
+    },
+    {
+      "name": "rev",
+      "label": "Revision",
+      "type": "number"
+    },
+    {
+      "name": "responsible_contractor",
+      "label": "Responsible Contractor",
+      "type": "text"
     },
     {
       "name": "disposition",
@@ -38,13 +53,35 @@
         "Approved",
         "Approved as Noted",
         "Revise & Resubmit",
-        "Rejected"
+        "Rejected",
+        "For Record Only"
       ]
     },
     {
       "name": "lead_time_days",
       "label": "Lead Time (days)",
       "type": "number"
+    },
+    {
+      "name": "required_on_site",
+      "label": "Required On Site",
+      "type": "date"
+    },
+    {
+      "name": "date_received",
+      "label": "Date Received",
+      "type": "date"
+    },
+    {
+      "name": "date_returned",
+      "label": "Date Returned",
+      "type": "date"
+    },
+    {
+      "name": "cost_code",
+      "label": "Cost Code",
+      "type": "reference",
+      "module": "cost_code"
     },
     {
       "name": "transmittal",
@@ -58,6 +95,12 @@
       "type": "reference",
       "module": "drawing"
     }
+  ],
+  "list_columns": [
+    "type",
+    "spec_section",
+    "rev",
+    "required_on_site"
   ],
   "workflow": {
     "initial": "draft",

@@ -62,6 +62,16 @@
       "type": "text"
     },
     {
+      "name": "reinspection_date",
+      "label": "Re-inspection Date",
+      "type": "date"
+    },
+    {
+      "name": "photos",
+      "label": "Photos",
+      "type": "textarea"
+    },
+    {
       "name": "ncr_count",
       "label": "# NCRs",
       "type": "rollup",

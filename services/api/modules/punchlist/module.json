@@ -53,6 +53,16 @@
       "name": "cost",
       "label": "Est. Cost",
       "type": "currency"
+    },
+    {
+      "name": "verified_by",
+      "label": "Verified By",
+      "type": "text"
+    },
+    {
+      "name": "photos",
+      "label": "Photos (before / after)",
+      "type": "textarea"
     }
   ],
   "workflow": {
