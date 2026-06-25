@@ -67,6 +67,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The release version is the git tag (single source of truth). Write it into the version files
+      # before building so binaries + latest.json carry the tag version — without this they were
+      # frozen at whatever tauri.conf.json last said (0.1.52), and the auto-updater never advanced.
+      - name: Sync version to tag
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          python - "$VER" <<'PY'
+          import json, sys
+          ver = sys.argv[1]
+          for p in ("apps/web/package.json", "apps/web/src-tauri/tauri.conf.json"):
+              d = json.load(open(p))
+              d["version"] = ver
+              json.dump(d, open(p, "w"), indent=2)
+          print("synced version ->", ver)
+          PY
+
       - name: Install Linux build dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
