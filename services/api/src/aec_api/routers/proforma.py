@@ -308,6 +308,25 @@ def loan_draws(pid: str, ltc: float = 0.65, rate: float = 0.075, db: Session = D
             "invoice_count": len(invs)}
 
 
+@router.get("/projects/{pid}/loan-draws/request.pdf")
+def loan_draw_request_pdf(pid: str, app_no: int = 1, ltc: float = 0.65, rate: float = 0.075,
+                          db: Session = Depends(get_db)):
+    """The lender draw-request as a PDF — this draw (the GC pay-app amount due) against the
+    construction loan, with cumulative draws, equity/loan split, balance, and availability."""
+    from fastapi import Response
+    from .. import cost as cost_engine
+    from .. import report
+    from ..models import Project as _P
+    p = db.get(_P, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    draw = loan_draws(pid, ltc=ltc, rate=rate, db=db)
+    draw["this_draw"] = round(float(cost_engine.g702(db, pid, app_no=app_no)["line8_current_payment_due"]), 2)
+    pdf = report.draw_request_pdf(db, pid, p.name, draw, app_no=app_no)
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="draw-request-{app_no}.pdf"'})
+
+
 @router.get("/projects/{pid}/construction-draws")
 def construction_draws(pid: str, db: Session = Depends(get_db)):
     """The developer's construction draw schedule, sourced from the GC's cost-loaded schedule (the

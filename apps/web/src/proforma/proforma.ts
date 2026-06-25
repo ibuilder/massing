@@ -694,7 +694,15 @@ export class ProformaUI {
       if (!l.loan_amount && !l.equity) { ld.style.display = "none"; return; }
       ld.innerHTML = `🏦 Construction loan: drawn <b>${money(l.drawn_to_date)}</b> of ${money(l.loan_amount + l.equity)} `
         + `(${l.pct_capital_drawn}%) — equity ${money(l.equity_drawn)}/${money(l.equity)} · `
-        + `loan ${money(l.loan_drawn)}/${money(l.loan_amount)} · available ${money(l.loan_available)}`;
+        + `loan ${money(l.loan_drawn)}/${money(l.loan_amount)} · available ${money(l.loan_available)} `;
+      const dr = document.createElement("button"); dr.className = "tool-btn"; dr.textContent = "⬇ Lender draw request (PDF)";
+      dr.style.fontSize = "10px"; dr.onclick = async () => {
+        try { const blob = await this.api.loanDrawRequestPdf(pid, 1);
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "draw-request-1.pdf"; a.click(); URL.revokeObjectURL(a.href);
+          this.setStatus("lender draw request generated"); }
+        catch (e) { this.setStatus(`draw request failed: ${(e as Error).message}`); }
+      };
+      ld.appendChild(dr);
     }).catch(() => { ld.style.display = "none"; });
   }
 

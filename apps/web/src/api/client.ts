@@ -923,6 +923,12 @@ export class ApiClient {
       loan_drawn: number; loan_available: number; loan_balance: number; pct_capital_drawn: number; invoice_count: number }>(
       `/projects/${pid}/loan-draws`);
   }
+  /** Lender draw-request PDF (the bank-facing submission) as an auth'd blob. */
+  async loanDrawRequestPdf(pid: string, appNo = 1) {
+    const res = await fetch(this.url(`/projects/${pid}/loan-draws/request.pdf?app_no=${appNo}`), { headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`draw request PDF -> ${res.status}`);
+    return res.blob();
+  }
   /** Set the developer hard cost to the GC's GMP (replaces hard lines with one synced line). */
   syncGmpToHard(pid: string) {
     return this.json<{ synced: boolean; hard_cost: number; budget: { lines: DevBudgetLine[]; contingency: Record<string, number> }; summary: DevBudgetSummary }>(

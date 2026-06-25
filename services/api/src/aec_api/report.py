@@ -16,6 +16,49 @@ def _money(v: Any) -> str:
         return "-"
 
 
+def draw_request_pdf(db: Session, pid: str, project_name: str, draw: dict, app_no: int = 1) -> bytes:
+    """Lender construction draw request (PDF) — the developer's recurring submission to the bank:
+    this draw (= the GC pay-app amount due), cumulative drawn, equity/loan split, loan balance, and
+    remaining availability. `draw` carries the computed loan-draw figures. The bank-facing mirror of
+    the owner G702."""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    w, h = letter
+    margin = 50
+    y = h - 50
+    c.setFont("Helvetica-Bold", 16); c.drawString(margin, y, "Construction Loan — Draw Request"); y -= 16
+    c.setFont("Helvetica", 9); c.drawString(margin, y, "Submitted to lender — generated from live project data"); y -= 22
+    c.setFont("Helvetica-Bold", 11); c.drawString(margin, y, project_name or pid); y -= 14
+    c.setFont("Helvetica", 10)
+    c.drawString(margin, y, f"Draw No: {app_no}")
+    c.drawString(margin + 200, y, f"Backed by Pay Application No. {app_no} (G702/G703)"); y -= 22
+
+    rows = [
+        ("Total Capitalization (loan + equity)", draw["loan_amount"] + draw["equity"]),
+        ("  Senior Construction Loan", draw["loan_amount"]),
+        ("  Equity", draw["equity"]),
+        ("Drawn to Date (all sources)", draw["drawn_to_date"]),
+        ("  Equity Funded (equity-first)", draw["equity_drawn"]),
+        ("  Loan Funded", draw["loan_drawn"]),
+        ("THIS DRAW REQUEST", draw.get("this_draw", 0.0)),
+        ("Outstanding Loan Balance", draw["loan_balance"]),
+        ("Remaining Loan Availability", draw["loan_available"]),
+    ]
+    for label, val in rows:
+        bold = label.startswith("THIS DRAW")
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", 11 if bold else 10)
+        c.drawString(margin, y, label)
+        c.drawRightString(w - margin, y, _money(val))
+        y -= 18
+    c.setFont("Helvetica-Oblique", 8)
+    c.drawString(margin, 40, f"Capital drawn to date: {draw.get('pct_capital_drawn', 0)}% — funded equity-first per the loan agreement.")
+    c.showPage(); c.save()
+    return buf.getvalue()
+
+
 def payapp_pdf(db: Session, pid: str, project_name: str, app_no: int = 1,
                period: str | None = None, release_retainage: bool = False) -> bytes:
     """AIA-style Application & Certificate for Payment (G702) + Continuation Sheet (G703) as a PDF —
