@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
@@ -57,6 +58,72 @@ def gmp_budget(pid: str, db: Session = Depends(get_db), _: str = Depends(require
         hard = sum(float(ln.get("amount") or float(ln.get("unit_cost") or 0) * float(ln.get("quantity") or 1))
                    for ln in lines if ln.get("category") == "hard")
     return project_budget.gmp_budget(db, pid, proforma_hard=hard)
+
+
+_BUDGET_BASELINE_KEY = "{pid}/budget_baseline.json"
+
+
+def _budget_lines_by_code(b: dict) -> dict[str, float]:
+    out: dict[str, float] = {}
+    for cat in b["categories"]:
+        groups = cat.get("groups", []) if cat["key"] == "direct" else [cat]
+        for grp in groups:
+            for ln in grp.get("lines", []):
+                key = ln.get("code") or ln.get("name")
+                out[key] = round(out.get(key, 0.0) + float(ln.get("budget") or 0), 2)
+    return out
+
+
+@router.post("/projects/{pid}/budget/baseline", status_code=201)
+def set_budget_baseline(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Snapshot the current GMP budget as the **baseline** (computed total + per-category + per-line).
+    Budget variance is then measured against this — re-baseline after an approved change. One per project."""
+    import json
+
+    from .. import project_budget, storage
+    b = project_budget.gmp_budget(db, pid)
+    payload = {"captured_at": date.today().isoformat(), "gmp_computed": b["gmp"]["computed"],
+               "categories": {c["key"]: c["budget"] for c in b["categories"]},
+               "lines": _budget_lines_by_code(b)}
+    storage.put(_BUDGET_BASELINE_KEY.format(pid=pid), json.dumps(payload).encode("utf-8"))
+    return {"captured_at": payload["captured_at"], "gmp_computed": payload["gmp_computed"],
+            "lines": len(payload["lines"])}
+
+
+@router.delete("/projects/{pid}/budget/baseline")
+def clear_budget_baseline(pid: str, _: str = Depends(require_role("editor"))):
+    """Remove the budget baseline."""
+    from .. import storage
+    storage.delete(_BUDGET_BASELINE_KEY.format(pid=pid))
+    return {"cleared": True}
+
+
+@router.get("/projects/{pid}/budget/variance")
+def budget_variance(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Movement of the GMP budget vs the baseline: total delta + per-category and per-line deltas
+    (positive = grown since baseline). 409 if no baseline is set. Shows how the budget has drifted
+    from the plan of record — the on-budget tracking a PX reports."""
+    import json
+
+    from .. import project_budget, storage
+    try:
+        base = json.loads(storage.get(_BUDGET_BASELINE_KEY.format(pid=pid)))
+    except Exception:
+        raise HTTPException(409, "no budget baseline set — POST /budget/baseline first")
+    b = project_budget.gmp_budget(db, pid)
+    cur_cats = {c["key"]: c["budget"] for c in b["categories"]}
+    cat_delta = [{"key": k, "baseline": base["categories"].get(k, 0), "current": cur_cats.get(k, 0),
+                  "delta": round(cur_cats.get(k, 0) - base["categories"].get(k, 0), 2)}
+                 for k in sorted(set(base["categories"]) | set(cur_cats))]
+    cur_lines = _budget_lines_by_code(b)
+    line_delta = [{"code": k, "baseline": base["lines"].get(k, 0), "current": cur_lines.get(k, 0),
+                   "delta": round(cur_lines.get(k, 0) - base["lines"].get(k, 0), 2)}
+                  for k in sorted(set(base["lines"]) | set(cur_lines))
+                  if abs(cur_lines.get(k, 0) - base["lines"].get(k, 0)) > 0.01]
+    return {"captured_at": base["captured_at"],
+            "baseline_gmp": base["gmp_computed"], "current_gmp": b["gmp"]["computed"],
+            "total_delta": round(b["gmp"]["computed"] - base["gmp_computed"], 2),
+            "categories": cat_delta, "lines": line_delta}
 
 
 @router.get("/projects/{pid}/budget/cashflow")

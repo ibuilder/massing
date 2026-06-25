@@ -487,9 +487,25 @@ export class PortalUI {
         if (r.created) jumpTo("sov");
       } catch (e) { this.host.setStatus(`couldn't build SOV: ${(e as Error).message}`); }
     };
+    const baseBtn = document.createElement("button"); baseBtn.className = "tool-btn"; baseBtn.dataset.cap = "edit";
+    baseBtn.textContent = "📌 Set baseline"; baseBtn.title = "Snapshot the current GMP budget to track movement against";
+    baseBtn.onclick = async () => {
+      if (!confirm("Snapshot the current GMP budget as the baseline? (re-baseline after an approved change)")) return;
+      try { const r = await this.host.api.setBudgetBaseline(pid); this.host.setStatus(`baseline set (${r.lines} lines)`); void this.renderBudget(); }
+      catch (e) { this.host.setStatus(`couldn't set baseline: ${(e as Error).message}`); }
+    };
     const note = document.createElement("span"); note.className = "meta";
     note.innerHTML = "The agreed <b>GMP</b> broken to every cost code & bid package + GC/GR, overhead, fee & contingency — budget vs committed vs actual.";
-    intro.append(jump, sovBtn, note); this.root.appendChild(intro);
+    intro.append(jump, sovBtn, baseBtn, note); this.root.appendChild(intro);
+
+    // budget movement vs baseline (shown only if a baseline exists; 409 otherwise → ignored)
+    const bvHolder = document.createElement("div"); this.root.appendChild(bvHolder);
+    void this.host.api.budgetVariance(pid).then((v) => {
+      const col = v.total_delta > 0 ? "#e2554a" : v.total_delta < 0 ? "#33d17a" : "var(--muted)";
+      bvHolder.className = "meta"; bvHolder.style.margin = "0 0 6px";
+      bvHolder.innerHTML = `Vs baseline (${v.captured_at}): GMP moved <span style="color:${col}">${v.total_delta > 0 ? "+" : ""}$${Math.round(v.total_delta).toLocaleString()}</span>`
+        + (v.lines.length ? ` across ${v.lines.length} line${v.lines.length > 1 ? "s" : ""}` : " — no drift");
+    }).catch(() => {});
 
     const status = document.createElement("div"); status.className = "meta"; status.textContent = "loading budget…";
     this.root.appendChild(status);

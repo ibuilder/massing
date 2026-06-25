@@ -122,6 +122,19 @@ with TestClient(app) as c:
     cums = [m["cumulative"] for m in cf["series"]]
     assert cums == sorted(cums) and abs(cums[-1] - 1_800_000) < 1, cums          # monotonic S-curve
 
+    # budget baseline + variance: snapshot, then grow a cost code → variance shows the movement
+    assert c.get(f"/projects/{pid}/budget/variance").status_code == 409   # none set yet
+    base = c.post(f"/projects/{pid}/budget/baseline").json()
+    assert base["gmp_computed"] == b["totals"]["budget"], base
+    var0 = c.get(f"/projects/{pid}/budget/variance").json()
+    assert var0["total_delta"] == 0 and var0["lines"] == [], var0          # no drift right after baseline
+    mk(c, pid, "budget", {"cost_code": cc_gr, "description": "Extra temp power", "revised": 120_000})
+    var = c.get(f"/projects/{pid}/budget/variance").json()
+    # the $120k line/category delta is exact; the GMP total also picks up the OH+fee markup cascade
+    assert any(l["code"] == "01-5000" and l["delta"] == 120_000 for l in var["lines"]), var["lines"]
+    assert any(c0["key"] == "general_requirements" and c0["delta"] == 120_000 for c0 in var["categories"]), var["categories"]
+    assert var["total_delta"] >= 120_000, var["total_delta"]
+
     print(f"PROJECT BUDGET OK - GMP computed ${b['gmp']['computed']:,.0f} (cost of work ${cow:,.0f}); "
           f"direct/GC/GR + OH/fee/contingency; bid packages + staffing + proforma reconciled; "
           f"owner SOV seeded from budget ({seed['created']} lines = ${seed['scheduled_value']:,.0f})")

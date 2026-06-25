@@ -817,6 +817,18 @@ export class ApiClient {
       proforma: { hard_cost: number; gmp_vs_hard: number } | null;
     }>(`/projects/${pid}/budget/gmp`);
   }
+  /** Snapshot the current GMP budget as the baseline (for budget-movement tracking). */
+  setBudgetBaseline(pid: string) {
+    return this.json<{ captured_at: string; gmp_computed: number; lines: number }>(
+      `/projects/${pid}/budget/baseline`, { method: "POST" });
+  }
+  /** Budget movement vs the baseline (per category + line). Rejects if no baseline set. */
+  budgetVariance(pid: string) {
+    return this.json<{ captured_at: string; baseline_gmp: number; current_gmp: number; total_delta: number;
+      categories: { key: string; baseline: number; current: number; delta: number }[];
+      lines: { code: string; baseline: number; current: number; delta: number }[] }>(
+      `/projects/${pid}/budget/variance`);
+  }
   /** Cost-loaded schedule → monthly cash-flow / draw curve (construction S-curve). */
   budgetCashflow(pid: string) {
     return this.json<{ total: number; months: number; loaded_activities: number; peak_month_cost: number;
