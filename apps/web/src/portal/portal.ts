@@ -1,6 +1,7 @@
 import type { ApiClient, ModuleDef, ModuleRecord, RecordBrief } from "../api/client";
 import { toast } from "../ui/feedback";
 import { noProjectHtml } from "../ui/empty";
+import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
 
 /**
  * GC portal UI — one config-driven engine renders every module's list / form / record pages
@@ -29,9 +30,8 @@ export class PortalUI {
   private mods: ModuleDef[] = [];
   private nav?: HTMLElement;          // persistent left module-nav rail (built once)
   private activeKey: string | null = null;
-  // field/offline: uploads attempted while offline are held here and flushed on reconnect (session-
-  // scoped — survives a flaky connection, not a reload; persistent queue would need IndexedDB).
-  private uploadQueue: { pid: string; key: string; rid: string; files: File[] }[] = [];
+  // field/offline: uploads attempted while offline are persisted in IndexedDB (offlineQueue) so they
+  // survive a reload, and flushed on reconnect / next launch.
   private onlineHooked = false;
 
   // C1 — one-click cross-module conversions (Procore "convert RFI to PCO" etc.). The new record is
@@ -79,6 +79,8 @@ export class PortalUI {
     this.buildNav();
     // re-order the module catalog's default-open sections when the persona changes
     window.addEventListener("aec:persona", () => { this.refreshCatalog(); this.buildNav(); });
+    // drain any uploads queued offline in a previous session, and keep watching for reconnect
+    this.hookOnline(); void this.flushUploads();
     await this.renderHome();
   }
 
@@ -1286,14 +1288,14 @@ export class PortalUI {
     drop.onclick = () => file.click();
     const doUpload = async (files: FileList | File[]) => {
       const list = Array.from(files); if (!list.length) return;
-      if (!navigator.onLine) { this.queueUpload(pid, m.key, rid, list); return; }   // offline → queue
+      if (!navigator.onLine) { await this.queueUpload(pid, m.key, rid, list); this.openRecord(m, rid); return; }
       drop.classList.add("busy"); drop.querySelector("b")!.textContent = `Uploading ${list.length} file${list.length > 1 ? "s" : ""}…`;
       try {
         if (list.length === 1) await this.host.api.uploadAttachment(pid, m.key, rid, list[0]);
         else await this.host.api.uploadAttachmentsBulk(pid, m.key, rid, list);
         this.host.setStatus(`attached ${list.length} file${list.length > 1 ? "s" : ""}`); this.openRecord(m, rid);
       } catch (e) {
-        if (!navigator.onLine) { this.queueUpload(pid, m.key, rid, list); return; }   // dropped mid-flight
+        if (!navigator.onLine) { await this.queueUpload(pid, m.key, rid, list); this.openRecord(m, rid); return; }
         this.host.setStatus(`upload failed: ${(e as Error).message}`); drop.classList.remove("busy");
       }
     };
@@ -1305,35 +1307,39 @@ export class PortalUI {
     const camBtn = document.createElement("button"); camBtn.className = "tool-btn"; camBtn.textContent = "📷 Take photo";
     camBtn.style.marginTop = "4px"; camBtn.onclick = () => cam.click();
     this.root.append(file, cam, drop, camBtn);
-    const queued = this.uploadQueue.filter((q) => q.rid === rid).reduce((n, q) => n + q.files.length, 0);
-    if (queued) {
-      const w = document.createElement("div"); w.className = "meta"; w.style.color = "#ffd479"; w.style.marginTop = "3px";
-      w.textContent = `⏳ ${queued} file${queued > 1 ? "s" : ""} queued (offline) — will upload when back online`;
-      this.root.appendChild(w);
-    }
+    const qWarn = document.createElement("div"); qWarn.className = "meta"; qWarn.style.cssText = "color:#ffd479;margin-top:3px";
+    this.root.appendChild(qWarn);
+    void queuedCountForRecord(rid).then((queued) => {
+      qWarn.textContent = queued
+        ? `⏳ ${queued} file${queued > 1 ? "s" : ""} queued (offline) — will upload when back online` : "";
+    });
   }
 
-  /** Hold an upload that couldn't go out (offline) and flush the queue when the connection returns. */
-  private queueUpload(pid: string, key: string, rid: string, files: File[]) {
-    this.uploadQueue.push({ pid, key, rid, files });
+  /** Persist an upload that couldn't go out (offline) and flush when the connection returns. */
+  private async queueUpload(pid: string, key: string, rid: string, files: File[]) {
+    await enqueueUpload({ pid, key, rid, files });
     this.host.setStatus(`offline — ${files.length} file${files.length > 1 ? "s" : ""} queued, will upload on reconnect`);
-    if (!this.onlineHooked) {
-      this.onlineHooked = true;
-      window.addEventListener("online", () => void this.flushUploads());
-    }
+    this.hookOnline();
+  }
+
+  /** Register the reconnect flush once (also called at startup to drain a prior session's queue). */
+  private hookOnline() {
+    if (this.onlineHooked) return;
+    this.onlineHooked = true;
+    window.addEventListener("online", () => void this.flushUploads());
   }
 
   private async flushUploads() {
-    const pending = this.uploadQueue.splice(0);
+    if (!navigator.onLine) return;
     let done = 0;
-    for (const q of pending) {
+    for (const q of await allQueued()) {
       try {
         if (q.files.length === 1) await this.host.api.uploadAttachment(q.pid, q.key, q.rid, q.files[0]);
         else await this.host.api.uploadAttachmentsBulk(q.pid, q.key, q.rid, q.files);
-        done += q.files.length;
-      } catch { this.uploadQueue.push(q); }            // still failing → requeue for the next reconnect
+        await dequeue(q.id); done += q.files.length;
+      } catch { /* leave it queued for the next reconnect */ }
     }
-    if (done) this.host.setStatus(`back online — uploaded ${done} queued file${done > 1 ? "s" : ""}`);
+    if (done) { this.host.setStatus(`back online — uploaded ${done} queued file${done > 1 ? "s" : ""}`); this.host.onPinsChanged(); }
   }
 
   // --- kanban / "scrum" board: columns by workflow state, drag to transition --
