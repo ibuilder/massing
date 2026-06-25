@@ -747,6 +747,19 @@ export class ApiClient {
       frames: { day: number; new: number; completed_cumulative: number; pct: number; date?: string; new_guids: string[] }[] }>(
       `/projects/${pid}/schedule/4d${source ? `?source=${source}` : ""}`);
   }
+  /** Short-interval lookahead: near-term activities grouped by week (the field's 3-/6-week plan). */
+  scheduleLookahead(pid: string, weeks = 3) {
+    return this.json<{ start: string; finish: string; weeks: number; count: number;
+      weeks_detail: { week: string; activities: { ref: string; name: string; trade?: string;
+        start?: string; finish?: string; percent: number; status: string }[] }[] }>(
+      `/projects/${pid}/schedule/lookahead?weeks=${weeks}`);
+  }
+  /** Milestone schedule: the key dates with status (met / due_soon / upcoming / late). */
+  scheduleMilestones(pid: string) {
+    return this.json<{ count: number; summary: Record<string, number>;
+      milestones: { ref: string; name: string; date?: string; days_out?: number; percent: number; status: string }[] }>(
+      `/projects/${pid}/schedule/milestones`);
+  }
   /** Schedule visual (Gantt or Line-of-Balance) as inline SVG text, over the schedule_activity records. */
   async scheduleSvg(pid: string, kind: "gantt" | "lob") {
     const res = await fetch(this.url(`/projects/${pid}/schedule/${kind}.svg`), { headers: this.authHeaders() });

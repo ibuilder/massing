@@ -65,15 +65,18 @@ def compute_run(graph: dict):
 
 @router.post("/projects/{pid}/schedule/import-xer", status_code=201)
 async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
-                     _: str = Depends(require_role("editor"))):
-    """Import a Primavera P6 **.xer** export. Parses the TASK table into dated activities and stores
-    them; the 4D scrub then reports **real calendar dates** (the project's P6 start→finish window)
-    instead of relative takt days. Element build-order stays takt-derived (no per-activity element
-    mapping is claimed). Returns the activity count + date range + a small preview."""
+                     actor: str = Depends(require_role("editor"))):
+    """Import a Primavera P6 **.xer** export. Parses the TASK table and **upserts each task as an
+    editable `schedule_activity` record** (matched to the prior import by P6 activity code), so the
+    GC can keep updating, adding, and re-sequencing tasks after import — imported and hand-entered
+    activities live in one editable schedule that drives Gantt / Line-of-Balance / CPM / the 4D
+    scrub. Re-importing updates the same records (preserving GC edits to others); zero-duration tasks
+    are tagged as Milestones. Also keeps the start→finish window for the takt 4D date overlay.
+    Returns counts (created/updated) + the date range + a small preview."""
     import json
 
     from aec_data.schedule import parse_xer  # type: ignore  (data-service engine on sys.path)
-    from .. import storage
+    from .. import modules as me, storage
 
     text = (await file.read()).decode("utf-8", "ignore")
     activities = parse_xer(text)
@@ -81,18 +84,57 @@ async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depen
         raise HTTPException(422, "no TASK rows found — is this a Primavera P6 .xer export?")
     starts = [a["start"] for a in activities if a.get("start")]
     finishes = [a["finish"] for a in activities if a.get("finish")]
-    payload = {"activities": activities, "count": len(activities),
+
+    # prior import's code→record_id index (so re-import updates rather than duplicates)
+    prior_index: dict[str, str] = {}
+    try:
+        prior_index = json.loads(storage.get(_P6_KEY.format(pid=pid))).get("record_ids", {})
+    except Exception:                                # noqa: BLE001 — first import / no prior blob
+        prior_index = {}
+
+    record_ids: dict[str, str] = {}
+    created = updated = 0
+    for a in activities:
+        code = a.get("activity_id") or ""
+        data = {"name": a.get("name") or code or "Activity", "wbs": code,
+                "start": a.get("start") or None, "finish": a.get("finish") or None,
+                "activity_type": "Milestone" if (a.get("start") and a.get("start") == a.get("finish")) else "Task"}
+        rid = prior_index.get(code)
+        if rid:
+            try:                                     # update the existing imported record (keeps GC edits elsewhere)
+                me.update_record(db, "schedule_activity", pid, rid, data, actor, "GC")
+                record_ids[code] = rid; updated += 1; continue
+            except Exception:                        # noqa: BLE001 — record was deleted → recreate below
+                pass
+        rec = me.create_record(db, "schedule_activity", pid, {"data": data}, actor, "GC")
+        record_ids[code] = rec["id"]; created += 1
+
+    payload = {"activities": activities, "count": len(activities), "record_ids": record_ids,
                "start": min(starts) if starts else None, "finish": max(finishes) if finishes else None}
     storage.put(_P6_KEY.format(pid=pid), json.dumps(payload).encode("utf-8"))
-    return {**{k: payload[k] for k in ("count", "start", "finish")}, "preview": activities[:20]}
+    return {"count": payload["count"], "created": created, "updated": updated,
+            "start": payload["start"], "finish": payload["finish"], "preview": activities[:20]}
 
 
 @router.delete("/projects/{pid}/schedule/import-xer")
-def clear_xer(pid: str, _: str = Depends(require_role("editor"))):
-    """Remove an imported P6 schedule — the 4D scrub reverts to relative takt days."""
-    from .. import storage
+def clear_xer(pid: str, db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """Remove an imported P6 schedule: deletes the activity records this import created (by its
+    code→id index) and the date-window blob. Hand-entered activities are untouched."""
+    import json
+
+    from .. import modules as me, storage
+    removed = 0
+    try:
+        index = json.loads(storage.get(_P6_KEY.format(pid=pid))).get("record_ids", {})
+        for rid in index.values():
+            try:
+                me.delete_record(db, "schedule_activity", pid, rid, actor, "GC"); removed += 1
+            except Exception:                        # noqa: BLE001 — already gone
+                pass
+    except Exception:                                # noqa: BLE001 — no prior blob
+        pass
     storage.delete(_P6_KEY.format(pid=pid))
-    return {"cleared": True}
+    return {"cleared": True, "removed_activities": removed}
 
 
 @router.get("/projects/{pid}/schedule/4d")
@@ -119,16 +161,20 @@ def schedule_4d(pid: str, source: str = "auto", db: Session = Depends(get_db),
         elements = []
     floors = max([fourd._floor_index(e.get("storey")) for e in elements] + [0]) + 1
 
-    # relational source: the GC schedule drives the model when activities exist (unless forced off)
+    # relational source: the GC schedule drives the model when activities exist (unless forced off).
+    # For `auto`, only use it when the activities can actually sequence the model (have a trade or
+    # element tags) — so a bare P6 import without trades keeps the better takt+P6 ordering until the
+    # GC assigns trades/elements; `source=gc` forces it regardless.
     if source in ("auto", "gc") and "schedule_activity" in me.TABLES:
         acts = []
         for r in me.list_records(db, "schedule_activity", pid, limit=1_000_000):
             d = dict(r.get("data") or {})
             d["element_guids"] = r.get("element_guids") or []   # generic per-record element tags
             acts.append(d)
-        if any((a.get("finish") or a.get("actual_finish")) for a in acts):
-            gc = fourd.timeline_from_activities(acts, elements)
-            return {"floors": floors, **gc}
+        have_dates = any((a.get("finish") or a.get("actual_finish")) for a in acts)
+        can_sequence = any(a.get("trade") or a.get("element_guids") for a in acts)
+        if have_dates and (source == "gc" or can_sequence):
+            return {"floors": floors, **fourd.timeline_from_activities(acts, elements)}
         if source == "gc":                            # explicitly asked for GC but none usable
             return {"floors": floors, "source": "gc", "frames": [], "total_days": 0,
                     "element_count": 0, "by_trade": {}, "linked": 0, "unlinked": 0,

@@ -443,6 +443,60 @@ export class PortalUI {
       + "<b>4D sequence</b> (Model → ⏱ 4D sequence) — one relational schedule.";
     this.root.appendChild(note);
 
+    const statusColor = (s: string) =>
+      s === "late" ? "#e2554a" : s === "complete" || s === "met" ? "#33d17a"
+        : s === "in_progress" || s === "due_soon" ? "#ffd479" : "var(--muted)";
+
+    // Lookahead (the field's short-interval plan) — 3 / 6 week toggle, grouped by week
+    const laCard = document.createElement("div"); laCard.className = "dash-card"; laCard.style.marginBottom = "10px";
+    const laHead = document.createElement("div"); laHead.className = "section-title";
+    laHead.style.cssText = "display:flex;justify-content:space-between;align-items:center";
+    laHead.append(Object.assign(document.createElement("span"), { textContent: "Lookahead" }));
+    const laSel = document.createElement("select"); laSel.className = "sb-sel";
+    for (const w of [3, 6]) { const o = document.createElement("option"); o.value = String(w); o.textContent = `${w} weeks`; laSel.appendChild(o); }
+    laHead.appendChild(laSel); laCard.appendChild(laHead);
+    const laBody = document.createElement("div"); laBody.innerHTML = `<div class="meta">loading…</div>`; laCard.appendChild(laBody);
+    const loadLookahead = (weeks: number) => {
+      laBody.innerHTML = `<div class="meta">loading…</div>`;
+      void this.host.api.scheduleLookahead(pid, weeks).then((la) => {
+        if (!la.count) { laBody.innerHTML = `<div class="meta">No activities in the next ${weeks} weeks.</div>`; return; }
+        laBody.innerHTML = "";
+        for (const wk of la.weeks_detail) {
+          const h = document.createElement("div"); h.className = "meta"; h.style.cssText = "margin-top:6px;font-weight:700"; h.textContent = wk.week;
+          laBody.appendChild(h);
+          for (const a of wk.activities) {
+            const row = document.createElement("div"); row.className = "meta"; row.style.margin = "1px 0";
+            row.innerHTML = `<span style="color:${statusColor(a.status)}">●</span> ${a.name}`
+              + `${a.trade ? ` · <span class="meta">${a.trade}</span>` : ""}`
+              + ` · ${a.percent}% · <span class="meta">${a.status.replace("_", " ")}</span>`;
+            laBody.appendChild(row);
+          }
+        }
+      }).catch(() => { laBody.innerHTML = `<div class="meta">Lookahead unavailable.</div>`; });
+    };
+    laSel.onchange = () => loadLookahead(+laSel.value);
+    this.root.appendChild(laCard); loadLookahead(3);
+
+    // Milestone schedule — key dates with status
+    const msCard = document.createElement("div"); msCard.className = "dash-card"; msCard.style.marginBottom = "10px";
+    msCard.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: "Milestones" }));
+    const msBody = document.createElement("div"); msBody.innerHTML = `<div class="meta">loading…</div>`; msCard.appendChild(msBody);
+    void this.host.api.scheduleMilestones(pid).then((ms) => {
+      if (!ms.count) { msBody.innerHTML = `<div class="meta">No milestones — set an activity’s Type to “Milestone”.</div>`; return; }
+      const s = ms.summary;
+      msBody.innerHTML = `<div class="meta" style="margin-bottom:4px">`
+        + `<b style="color:#e2554a">${s.late || 0}</b> late · <b style="color:#ffd479">${s.due_soon || 0}</b> due soon · `
+        + `${s.upcoming || 0} upcoming · <b style="color:#33d17a">${s.met || 0}</b> met</div>`;
+      for (const mi of ms.milestones) {
+        const row = document.createElement("div"); row.className = "meta"; row.style.margin = "1px 0";
+        const out = mi.days_out == null ? "" : mi.days_out < 0 ? ` (${-mi.days_out}d ago)` : ` (in ${mi.days_out}d)`;
+        row.innerHTML = `<span style="color:${statusColor(mi.status)}">◆</span> ${mi.name}`
+          + ` · <span class="meta">${mi.date ?? "no date"}${out}</span> · ${mi.status.replace("_", " ")}`;
+        msBody.appendChild(row);
+      }
+    }).catch(() => { msBody.innerHTML = `<div class="meta">Milestones unavailable.</div>`; });
+    this.root.appendChild(msCard);
+
     // CPM summary line (critical path + float)
     const cpmBox = document.createElement("div"); cpmBox.className = "meta"; cpmBox.style.margin = "0 0 8px";
     cpmBox.textContent = "Computing critical path…"; this.root.appendChild(cpmBox);

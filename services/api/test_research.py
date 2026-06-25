@@ -132,10 +132,31 @@ with TestClient(app) as c:
         "\t".join(["%R", "A1020", "Superstructure", "2026-03-21 08:00", "2026-07-15 17:00"])])
     imp = c.post(f"/projects/{pid}/schedule/import-xer", files={"file": ("p.xer", _xer, "application/octet-stream")})
     assert imp.status_code == 201 and imp.json()["count"] == 2 and imp.json()["start"] == "2026-03-01", imp.text
+    # imported tasks are now EDITABLE schedule_activity records (the GC can keep updating them)
+    assert imp.json()["created"] == 2 and imp.json()["updated"] == 0, imp.json()
+    acts = c.get(f"/projects/{pid}/modules/schedule_activity").json()
+    assert len(acts) == 2 and {a["data"]["wbs"] for a in acts} == {"A1010", "A1020"}, acts
+    # bare import (no trades yet) keeps the takt+P6 sequence for the 4D scrub (real calendar window)
     fd2 = c.get(f"/projects/{pid}/schedule/4d").json()
     assert fd2["source"] == "p6" and fd2["start_date"] == "2026-03-01" and fd2["finish_date"] == "2026-07-15", fd2
+    # the GC edits an imported activity (assign a trade) — once trades exist the 4D switches to gc
+    fnd = next(a for a in acts if a["data"]["wbs"] == "A1010")
+    c.patch(f"/projects/{pid}/modules/schedule_activity/{fnd['id']}", json={"trade": "Structure", "percent": 50})
+    assert c.get(f"/projects/{pid}/modules/schedule_activity/{fnd['id']}").json()["data"]["trade"] == "Structure"
+    assert c.get(f"/projects/{pid}/schedule/4d").json()["source"] == "gc"
+    # the GC also adds their own task; re-import updates the imported pair in place (no duplicates) and
+    # MERGES — preserving the GC's trade edit — while the GC-added task is untouched
+    c.post(f"/projects/{pid}/modules/schedule_activity", json={"data": {"name": "GC-added inspection", "trade": "MEP"}})
+    imp2 = c.post(f"/projects/{pid}/schedule/import-xer", files={"file": ("p.xer", _xer, "application/octet-stream")})
+    assert imp2.json()["updated"] == 2 and imp2.json()["created"] == 0, imp2.json()
+    assert len(c.get(f"/projects/{pid}/modules/schedule_activity").json()) == 3, "2 imported (updated) + 1 GC-added"
+    assert c.get(f"/projects/{pid}/modules/schedule_activity/{fnd['id']}").json()["data"]["trade"] == "Structure", "re-import preserved GC edit"
     assert c.post(f"/projects/{pid}/schedule/import-xer", files={"file": ("x.xer", "junk", "text/plain")}).status_code == 422
-    c.delete(f"/projects/{pid}/schedule/import-xer")
+    cl = c.delete(f"/projects/{pid}/schedule/import-xer").json()
+    assert cl["removed_activities"] == 2, cl              # clears only the imported tasks
+    left = c.get(f"/projects/{pid}/modules/schedule_activity").json()
+    assert len(left) == 1 and left[0]["data"]["name"] == "GC-added inspection", left   # GC's task survives
+    c.delete(f"/projects/{pid}/modules/schedule_activity/{left[0]['id']}")
     assert c.get(f"/projects/{pid}/schedule/4d").json()["source"] == "takt"
 
     # relational: once GC schedule_activity records exist, the 4D scrub is driven by them (source=gc),
@@ -152,6 +173,31 @@ with TestClient(app) as c:
     assert cpm.get("activities") or cpm.get("critical_path") is not None, cpm
     # ?source=takt still forces the generated takt sequence (escape hatch)
     assert c.get(f"/projects/{pid}/schedule/4d?source=takt").json()["source"] == "takt"
+
+    # lookahead + milestone schedules (the field's short-interval plan + the key dates)
+    from datetime import date as _date, timedelta as _td
+    t0 = _date.today()
+    started = (t0 - _td(days=2)).isoformat(); soon = (t0 + _td(days=10)).isoformat()
+    far = (t0 + _td(days=90)).isoformat(); past = (t0 - _td(days=5)).isoformat()
+    c.post(f"/projects/{pid}/modules/schedule_activity",
+           json={"data": {"name": "Pour slab L2", "trade": "Concrete", "start": started, "finish": soon, "percent": 25}})
+    c.post(f"/projects/{pid}/modules/schedule_activity",
+           json={"data": {"name": "TCO", "activity_type": "Milestone", "start": soon, "finish": soon}})
+    c.post(f"/projects/{pid}/modules/schedule_activity",
+           json={"data": {"name": "Topping out", "activity_type": "Milestone", "start": far, "finish": far}})
+    c.post(f"/projects/{pid}/modules/schedule_activity",
+           json={"data": {"name": "Permit (late)", "activity_type": "Milestone", "start": past, "finish": past}})
+    la = c.get(f"/projects/{pid}/schedule/lookahead?weeks=3").json()
+    assert la["weeks"] == 3 and la["count"] >= 1, la
+    assert any(a["name"] == "Pour slab L2" and a["status"] == "in_progress"
+               for wk in la["weeks_detail"] for a in wk["activities"]), la       # near-term task shows
+    assert not any(a["name"] == "Topping out" for wk in la["weeks_detail"] for a in wk["activities"]), "far milestone out of window"
+    ms = c.get(f"/projects/{pid}/schedule/milestones").json()
+    names = {m["name"]: m["status"] for m in ms["milestones"]}
+    assert names.get("TCO") == "due_soon" and names.get("Topping out") == "upcoming", names
+    assert names.get("Permit (late)") == "late", names
+    assert "Pour slab L2" not in names, "non-milestone task excluded from milestone schedule"
+    assert ms["milestones"] == sorted(ms["milestones"], key=lambda x: x["date"]), "milestones date-sorted"
 
 print(f"RESEARCH OK - takt {p['duration_days']}d / {p['floors_per_week']} fl-wk / {len(p['delivery_plan'])} JIT deliveries; "
       f"lean PPC {m['ppc']} ({m['rating']}); benchmarks + weekly_plan + comparable modules + endpoints verified")
