@@ -36,7 +36,7 @@ logs** with a cost code so impacts roll to the budget. → add `cost_code` refer
 | **F1** | **Fieldsets** — group a module's fields into labeled sections in the form (e.g. RFI → *Question / Response / Impacts*) | long flat forms are slow on a phone in the field | ✅ `fieldset` on each field; form renderer emits a labeled header per contiguous run. Applied to all 8 tier-1 modules |
 | **D1** | **Inline "add new" from reference dropdowns** — create a cost code / location / sub without leaving the form | supers shouldn't navigate away mid-entry | ✅ done (any reference field) |
 | **R1** | **Super vs PM views** — per-role default columns + favorites + which fields show first (field-first vs office-first) | a super needs manpower/weather/safety; a PM needs RFI/submittal/cost/change | planned |
-| **C1** | **Cross-module conversions** — RFI → Change Event/COR, Observation → NCR, Inspection fail → Punchlist | Procore "convert RFI to PCO" is a daily move | planned |
+| **C1** | **Cross-module conversions** — RFI → Change Event/COR, Observation → NCR, Inspection fail → Punchlist | Procore "convert RFI to PCO" is a daily move | ✅ record-view "⤳ convert" buttons: RFI→Change Event/PCO, Observation→NCR/Punch, Inspection(fail/conditional)→Deficiency/NCR, Deficiency→Punch. New record is pre-filled + linked back; verified live |
 | **E1** | **Extendable `select` options** — admin can add an enum value (discipline, trade, type) without editing JSON | every firm's trade list differs | planned |
 
 ## Per-module priorities (research-backed)
@@ -76,4 +76,4 @@ logs** with a cost code so impacts roll to the budget. → add `cost_code` refer
 2. **D1 add-from-dropdown + X1 cost-code links** — the cost-code workflow end-to-end.
 3. **A1 ball-in-court** ✅ **+ R1 super/PM views** — the "who owes what" layer both roles live in.
 4. **Tier-1 field completeness** ✅ (rfi → submittal → cor → daily → punchlist → inspection) + **F1 fieldsets** ✅.
-5. **C1 conversions + E1 extendable enums** ◀ next, then Tier 2/3 field depth.
+5. **C1 conversions** ✅ **+ E1 extendable enums** ◀ next, then Tier 2/3 field depth.

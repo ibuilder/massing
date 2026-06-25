@@ -59,6 +59,17 @@ with TestClient(app) as c:
         runs = [fs for i, fs in enumerate(seq) if i == 0 or fs != seq[i - 1]]
         assert len(runs) == len(set(runs)), f"{k}: fieldsets must be contiguous, got {runs}"
 
+    # C1: the web "convert to…" map relies on a back-reference field on each target module so the
+    # new record links to its source. Lock those reference fields so the map can't silently break.
+    def has_ref(mod, field, target):
+        return any(f["name"] == field and f.get("type") == "reference" and f.get("module") == target
+                   for f in mods[mod]["fields"])
+    assert has_ref("change_event", "source_rfi", "rfi"), "RFI→Change Event needs change_event.source_rfi"
+    assert has_ref("pco_request", "source_rfi", "rfi"), "RFI→PCO needs pco_request.source_rfi"
+    assert has_ref("punchlist", "observation", "observation"), "Observation→Punch needs punchlist.observation"
+    assert has_ref("deficiency", "inspection", "inspection"), "Inspection→Deficiency needs deficiency.inspection"
+    assert has_ref("ncr", "inspection", "inspection"), "Inspection→NCR needs ncr.inspection"
+
     # project created by GC (creator → admin + GC party)
     pid = c.post("/projects", json={"name": "Mega Tower"}, headers=H("gc")).json()["id"]
     # assign party roles

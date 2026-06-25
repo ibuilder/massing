@@ -17,10 +17,47 @@ export interface PortalHost {
   setStatus: (m: string) => void;
 }
 
+interface Conversion {
+  to: string;                                          // target module key
+  label: string;                                       // button text (target name)
+  back?: string;                                       // reference field on the target pointing back to the source
+  when?: (d: Record<string, unknown>) => boolean;      // only offer when this holds (else fall through)
+  map: (d: Record<string, unknown>) => Record<string, unknown>;  // copy source fields → new record
+}
+
 export class PortalUI {
   private mods: ModuleDef[] = [];
   private nav?: HTMLElement;          // persistent left module-nav rail (built once)
   private activeKey: string | null = null;
+
+  // C1 — one-click cross-module conversions (Procore "convert RFI to PCO" etc.). The new record is
+  // pre-filled from the source and linked back (via a reference field when one exists, else an explicit link).
+  private static CONVERSIONS: Record<string, Conversion[]> = {
+    rfi: [
+      { to: "change_event", label: "Change Event", back: "source_rfi",
+        map: (d) => ({ subject: d.subject, cost_code: d.cost_code }) },
+      { to: "pco_request", label: "PCO", back: "source_rfi",
+        map: (d) => ({ subject: d.subject, description: d.question, origin: "RFI", cost_code: d.cost_code }) },
+    ],
+    observation: [
+      { to: "ncr", label: "NCR",
+        map: (d) => ({ subject: d.description, description: d.corrective_action, severity: d.severity }) },
+      { to: "punchlist", label: "Punch item", back: "observation",
+        map: (d) => ({ description: d.description, location: d.location, trade: d.trade }) },
+    ],
+    inspection: [
+      { to: "deficiency", label: "Deficiency", back: "inspection",
+        when: (d) => d.result === "Fail" || d.result === "Conditional",
+        map: (d) => ({ description: d.subject, location: d.location, trade: d.inspection_type }) },
+      { to: "ncr", label: "NCR", back: "inspection",
+        when: (d) => d.result === "Fail" || d.result === "Conditional",
+        map: (d) => ({ subject: d.subject, description: d.spec_section }) },
+    ],
+    deficiency: [
+      { to: "punchlist", label: "Punch item",
+        map: (d) => ({ description: d.description, location: d.location, trade: d.trade }) },
+    ],
+  };
 
   constructor(private root: HTMLElement, private host: PortalHost) {}
 
@@ -535,6 +572,24 @@ export class PortalUI {
     return td;
   }
 
+  /** C1 — create a pre-filled, linked record in another module (e.g. RFI → Change Event). */
+  private async convert(m: ModuleDef, r: ModuleRecord, c: Conversion) {
+    const pid = this.host.projectId()!;
+    const tgt = this.mods.find((x) => x.key === c.to);
+    if (!tgt) return;
+    if (!confirm(`Create a ${tgt.name} from ${r.ref}? It will be pre-filled and linked back to ${r.ref}.`)) return;
+    try {
+      const data = c.map(r.data);
+      if (c.back) data[c.back] = r.id;                 // back-reference field on the new record → this record
+      for (const k of Object.keys(data)) if (data[k] === undefined || data[k] === "") delete data[k];
+      const nv = await this.host.api.createModuleRecord(pid, c.to, { data });
+      if (!c.back) await this.host.api.linkRecord(pid, m.key, r.id, c.to, nv.id);  // else use an explicit link
+      toast(`Created ${nv.ref} from ${r.ref}`, "info");
+      this.host.onPinsChanged();
+      this.openRecord(tgt, nv.id);
+    } catch (e) { toast(`convert failed: ${(e as Error).message}`, "error"); }
+  }
+
   /** Format a field value for a compact table cell. */
   private fmtCell(f: ModuleDef["fields"][number], v: unknown): string {
     if (v == null || v === "") return "";
@@ -773,6 +828,16 @@ export class PortalUI {
         catch (e) { this.host.setStatus(`revise failed: ${(e as Error).message}`); }
       };
       tools.append(reviseBtn);
+    }
+    // C1 — convert-to buttons (offered when the source state/data warrants it)
+    for (const c of PortalUI.CONVERSIONS[m.key] ?? []) {
+      if (c.when && !c.when(r.data)) continue;
+      const tgt = this.mods.find((x) => x.key === c.to); if (!tgt) continue;
+      const cb = document.createElement("button");
+      cb.className = "tool-btn"; cb.textContent = `⤳ ${c.label}`;
+      cb.title = `Create a ${tgt.name} from this ${m.name}, linked back`;
+      cb.onclick = () => this.convert(m, r, c);
+      tools.append(cb);
     }
     this.root.appendChild(tools);
 

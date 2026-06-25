@@ -579,6 +579,10 @@ export class ApiClient {
     return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}/transition`, {
       method: "POST", body: JSON.stringify({ action, note }) });
   }
+  linkRecord(pid: string, key: string, rid: string, module: string, id: string) {
+    return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}/link`, {
+      method: "POST", body: JSON.stringify({ module, id }) });
+  }
   addComment(pid: string, key: string, rid: string, text: string) {
     return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}/comments`, {
       method: "POST", body: JSON.stringify({ text }) });
