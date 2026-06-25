@@ -17,7 +17,39 @@ permissions:
   contents: write # create/update the Release and upload assets
 
 jobs:
+  # Create the draft Release ONCE (tag pushes only). Without this, tauri-action runs in all three
+  # matrix jobs and each creates its own draft when it doesn't yet see another — producing duplicate,
+  # asset-split drafts for the same tag. The matrix below uploads to this single release id instead.
+  create-release:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.mk.outputs.release_id }}
+    steps:
+      - id: mk
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # reuse an existing draft for this tag if one already exists, else create it
+          id=$(gh api "repos/$REPO/releases" --paginate \
+                 --jq ".[] | select(.tag_name==\"$TAG\" and .draft==true) | .id" | head -n1)
+          if [ -z "$id" ]; then
+            id=$(gh api -X POST "repos/$REPO/releases" \
+                   -f tag_name="$TAG" -f name="AEC BIM Platform $TAG" \
+                   -f body="Download the installer for your platform below." \
+                   -F draft=true -F prerelease=false --jq .id)
+          fi
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+          echo "release id for $TAG: $id"
+
   build:
+    needs: create-release
+    # run even when create-release is skipped (workflow_dispatch builds without a release)
+    if: ${{ always() && !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
@@ -142,12 +174,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/web
-          # release only on a tag push; a manual run leaves tagName empty → build, no release
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: "AEC BIM Platform __VERSION__"
-          releaseBody: "Download the installer for your platform below."
-          releaseDraft: true
-          prerelease: false
+          # upload to the single draft created by create-release (tag pushes). On workflow_dispatch
+          # that job is skipped → releaseId is empty → tauri-action builds without touching a release.
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
 
       # manual runs don't make a release; keep the installers as downloadable artifacts
