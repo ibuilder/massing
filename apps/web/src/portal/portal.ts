@@ -1129,26 +1129,52 @@ export class PortalUI {
     for (const i of rel.incoming) link(i.module_name, i);
   }
 
-  /** Attachments section: list existing files (download) + upload a new one. */
+  /** Attachments section: image thumbnails + file links, with multi-file (bulk) + drag-drop upload —
+   *  the field reality is a batch of site photos, not one file at a time. */
   private renderAttachments(m: ModuleDef, r: ModuleRecord, rid: string) {
     const pid = this.host.projectId()!;
-    const t = document.createElement("div"); t.className = "section-title"; t.textContent = "Attachments";
+    const atts = r.attachments ?? [];
+    const t = document.createElement("div"); t.className = "section-title";
+    t.textContent = `Attachments${atts.length ? ` (${atts.length})` : ""}`;
     this.root.appendChild(t);
-    for (const a of r.attachments ?? []) {
-      const row = document.createElement("div"); row.className = "portal-act";
-      const kb = a.size > 1024 ? `${Math.round(a.size / 1024)} KB` : `${a.size} B`;
-      const link = document.createElement("a"); link.className = "ref-link"; link.textContent = `📎 ${a.filename}`;
-      link.href = this.host.api.attachmentUrl(a.id); link.target = "_blank";
-      row.append(link, document.createTextNode(`  ${kb}`));
-      this.root.appendChild(row);
+
+    if (atts.length) {
+      const gallery = document.createElement("div"); gallery.className = "att-gallery";
+      for (const a of atts) {
+        const isImg = (a.content_type || "").startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(a.filename);
+        const url = this.host.api.attachmentUrl(a.id);
+        const kb = a.size > 1024 * 1024 ? `${(a.size / 1048576).toFixed(1)} MB` : a.size > 1024 ? `${Math.round(a.size / 1024)} KB` : `${a.size} B`;
+        const cell = document.createElement("a"); cell.className = "att-cell"; cell.href = url; cell.target = "_blank"; cell.title = `${a.filename} · ${kb}`;
+        if (isImg) {
+          const img = document.createElement("img"); img.src = url; img.loading = "lazy"; img.alt = a.filename; cell.appendChild(img);
+        } else {
+          cell.classList.add("att-file"); cell.innerHTML = `<span class="att-ic">📎</span><span class="att-name">${a.filename}</span>`;
+        }
+        gallery.appendChild(cell);
+      }
+      this.root.appendChild(gallery);
     }
-    const file = document.createElement("input"); file.type = "file"; file.style.cssText = "font-size:11px;margin:4px 0;max-width:100%";
-    file.onchange = async () => {
-      const f = file.files?.[0]; if (!f) return;
-      try { await this.host.api.uploadAttachment(pid, m.key, rid, f); this.host.setStatus(`attached ${f.name}`); this.openRecord(m, rid); }
-      catch (e) { this.host.setStatus(`upload failed: ${(e as Error).message}`); }
+
+    const file = document.createElement("input"); file.type = "file"; file.multiple = true;
+    file.accept = "image/*,application/pdf,.dwg,.doc,.docx,.xls,.xlsx";
+    file.style.display = "none";
+    const drop = document.createElement("div"); drop.className = "att-drop";
+    drop.innerHTML = `<b>＋ Add photos / files</b><span class="meta">drag &amp; drop a batch, or click to pick multiple</span>`;
+    drop.onclick = () => file.click();
+    const doUpload = async (files: FileList | File[]) => {
+      const list = Array.from(files); if (!list.length) return;
+      drop.classList.add("busy"); drop.querySelector("b")!.textContent = `Uploading ${list.length} file${list.length > 1 ? "s" : ""}…`;
+      try {
+        if (list.length === 1) await this.host.api.uploadAttachment(pid, m.key, rid, list[0]);
+        else await this.host.api.uploadAttachmentsBulk(pid, m.key, rid, list);
+        this.host.setStatus(`attached ${list.length} file${list.length > 1 ? "s" : ""}`); this.openRecord(m, rid);
+      } catch (e) { this.host.setStatus(`upload failed: ${(e as Error).message}`); drop.classList.remove("busy"); }
     };
-    this.root.appendChild(file);
+    file.onchange = () => { if (file.files) void doUpload(file.files); };
+    drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+    drop.ondragleave = () => drop.classList.remove("over");
+    drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer?.files) void doUpload(e.dataTransfer.files); };
+    this.root.append(file, drop);
   }
 
   // --- kanban / "scrum" board: columns by workflow state, drag to transition --

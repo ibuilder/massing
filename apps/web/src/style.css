@@ -579,3 +579,21 @@ body[data-cap-admin="off"] [data-cap="admin"] { display: none !important; }
   border: 1px dashed var(--border); border-radius: 6px; background: transparent;
   color: var(--muted); cursor: pointer; }
 .pf-addopt:hover { color: var(--accent); border-color: var(--accent); }
+
+/* attachments — image thumbnail gallery + bulk drag-drop dropzone (builder-friendly) */
+.att-gallery { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+.att-cell { display: block; width: 78px; height: 78px; border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden; background: var(--surface, #1a1a1a); text-decoration: none; }
+.att-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.att-cell.att-file { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 4px; text-align: center; }
+.att-file .att-ic { font-size: 22px; }
+.att-file .att-name { font-size: 9px; color: var(--muted); word-break: break-word; line-height: 1.1;
+  max-height: 28px; overflow: hidden; }
+.att-drop { display: flex; flex-direction: column; gap: 2px; align-items: center; justify-content: center;
+  padding: 12px; margin: 4px 0; border: 1.5px dashed var(--border); border-radius: 8px; cursor: pointer;
+  color: var(--text); transition: border-color .12s, background .12s; }
+.att-drop:hover { border-color: var(--accent); }
+.att-drop .meta { font-size: 10px; }
+.att-drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.att-drop.busy { opacity: .6; pointer-events: none; }

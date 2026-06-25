@@ -442,6 +442,21 @@ async def upload_attachment(pid: str, key: str, rid: str, file: UploadFile = Fil
                                      file.content_type, data, user)
 
 
+@router.post("/projects/{pid}/modules/{key}/{rid}/attachments/bulk", status_code=201)
+async def upload_attachments_bulk(pid: str, key: str, rid: str,
+                                  files: list[UploadFile] = File(...),
+                                  db: Session = Depends(get_db),
+                                  user: str = Depends(require_role("reviewer"))):
+    """Attach **many** files at once — the field reality (a super dumps a batch of site photos rather
+    than uploading them one by one). Each is stored like a single upload; returns all created + a count."""
+    out = []
+    for f in files:
+        data = await f.read()
+        out.append(mod_engine.add_attachment(db, key, pid, rid, f.filename or "file",
+                                             f.content_type, data, user))
+    return {"count": len(out), "attachments": out}
+
+
 @router.get("/attachments/{att_id}/download")
 def download_attachment(att_id: str, db: Session = Depends(get_db),
                         _: str = Depends(require_role("viewer"))):

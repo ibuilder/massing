@@ -33,4 +33,15 @@ with TestClient(app) as c:
     rf = c.post(f"/projects/{pid}/modules/rfi", json={"data": {"subject": "Q", "question": "?"}}).json()
     assert c.post(f"/projects/{pid}/modules/rfi/{rf['id']}/transition", json={"action": "submit"}).status_code == 200
 
-    print("EVIDENCE GATE OK - sign-off blocked without a photo, allowed after; ungated modules unaffected")
+    # bulk upload: a super dumps a batch of site photos at once (not one-by-one)
+    dr = c.post(f"/projects/{pid}/modules/daily_report", json={"data": {"report_date": "2026-06-24"}}).json()
+    bulk = c.post(f"/projects/{pid}/modules/daily_report/{dr['id']}/attachments/bulk",
+                  files=[("files", ("a.jpg", b"\xff\xd8\xff a", "image/jpeg")),
+                         ("files", ("b.jpg", b"\xff\xd8\xff b", "image/jpeg")),
+                         ("files", ("c.png", b"\x89PNG c", "image/png"))])
+    assert bulk.status_code == 201 and bulk.json()["count"] == 3, bulk.text
+    rec = c.get(f"/projects/{pid}/modules/daily_report/{dr['id']}").json()
+    assert len(rec.get("attachments", [])) == 3, rec.get("attachments")
+
+    print("EVIDENCE GATE OK - sign-off blocked without a photo, allowed after; ungated modules unaffected; "
+          "bulk photo upload attaches a batch at once")

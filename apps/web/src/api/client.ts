@@ -687,6 +687,15 @@ export class ApiClient {
     if (!res.ok) throw new Error(`upload -> ${res.status}`);
     return res.json() as Promise<RecordAttachmentMeta>;
   }
+  /** Attach many files at once (bulk site-photo upload). */
+  async uploadAttachmentsBulk(pid: string, key: string, rid: string, files: File[] | FileList) {
+    const fd = new FormData();
+    for (const f of Array.from(files)) fd.append("files", f);
+    const res = await fetch(this.url(`/projects/${pid}/modules/${key}/${rid}/attachments/bulk`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`bulk upload -> ${res.status}`);
+    return res.json() as Promise<{ count: number; attachments: RecordAttachmentMeta[] }>;
+  }
   attachmentUrl(attId: string) {
     return this.url(`/attachments/${attId}/download`);
   }
