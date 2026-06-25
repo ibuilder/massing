@@ -11,33 +11,69 @@
       "name": "vendor",
       "label": "Vendor",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Insured"
     },
     {
-      "name": "expires",
-      "label": "Expires",
-      "type": "date"
+      "name": "subcontract",
+      "label": "Subcontract",
+      "type": "reference",
+      "module": "subcontract",
+      "fieldset": "Insured"
+    },
+    {
+      "name": "coverage_type",
+      "label": "Coverage Type",
+      "type": "multiselect",
+      "options": [
+        "General Liability",
+        "Auto Liability",
+        "Umbrella / Excess",
+        "Workers Comp",
+        "Professional",
+        "Pollution",
+        "Builders Risk"
+      ],
+      "fieldset": "Insured"
     },
     {
       "name": "carrier",
       "label": "Carrier",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Policy"
     },
     {
       "name": "policy_number",
       "label": "Policy #",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Policy"
     },
     {
       "name": "coverage",
-      "label": "Coverage",
-      "type": "currency"
+      "label": "Coverage Limit",
+      "type": "currency",
+      "fieldset": "Policy"
     },
     {
-      "name": "expiry",
-      "label": "Expiry",
+      "name": "expires",
+      "label": "Expires",
       "type": "date",
-      "required": true
+      "required": true,
+      "fieldset": "Policy"
+    },
+    {
+      "name": "additional_insured",
+      "label": "Additional Insured?",
+      "type": "select",
+      "options": ["No", "Yes"],
+      "fieldset": "Endorsements"
+    },
+    {
+      "name": "waiver_of_subrogation",
+      "label": "Waiver of Subrogation?",
+      "type": "select",
+      "options": ["No", "Yes"],
+      "fieldset": "Endorsements"
     }
   ],
   "workflow": {
@@ -69,6 +105,6 @@
   },
   "list_columns": [
     "carrier",
-    "expiry"
+    "expires"
   ]
 }

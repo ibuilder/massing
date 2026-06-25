@@ -11,38 +11,39 @@
       "name": "name",
       "label": "Permit",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "authority",
-      "label": "Authority",
-      "type": "text"
-    },
-    {
-      "name": "expires",
-      "label": "Expires",
-      "type": "date"
+      "required": true,
+      "fieldset": "Permit"
     },
     {
       "name": "permit_type",
       "label": "Type",
-      "type": "text"
+      "type": "select",
+      "options": [
+        "Building",
+        "Foundation",
+        "Demolition",
+        "Electrical",
+        "Plumbing",
+        "Mechanical / HVAC",
+        "Fire / Life-Safety",
+        "Grading / Sitework",
+        "Right-of-Way",
+        "Elevator",
+        "Certificate of Occupancy"
+      ],
+      "fieldset": "Permit"
+    },
+    {
+      "name": "authority",
+      "label": "Authority (AHJ)",
+      "type": "text",
+      "fieldset": "Permit"
     },
     {
       "name": "number",
       "label": "Permit #",
-      "type": "text"
-    },
-    {
-      "name": "issued_date",
-      "label": "Issued",
-      "type": "date"
-    },
-    {
-      "name": "expiry",
-      "label": "Expiry",
-      "type": "date",
-      "required": true
+      "type": "text",
+      "fieldset": "Permit"
     },
     {
       "name": "status",
@@ -50,10 +51,31 @@
       "type": "select",
       "options": [
         "Applied",
+        "Under Review",
         "Issued",
         "Expired",
         "Closed"
-      ]
+      ],
+      "fieldset": "Status & dates"
+    },
+    {
+      "name": "issued_date",
+      "label": "Issued",
+      "type": "date",
+      "fieldset": "Status & dates"
+    },
+    {
+      "name": "expires",
+      "label": "Expires",
+      "type": "date",
+      "required": true,
+      "fieldset": "Status & dates"
+    },
+    {
+      "name": "fee",
+      "label": "Permit Fee",
+      "type": "currency",
+      "fieldset": "Status & dates"
     }
   ],
   "workflow": {
@@ -86,6 +108,6 @@
   "list_columns": [
     "permit_type",
     "status",
-    "expiry"
+    "expires"
   ]
 }

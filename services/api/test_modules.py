@@ -67,6 +67,13 @@ with TestClient(app) as c:
     assert {"scope", "retainage_pct", "executed_date", "insurance_exp", "cost_code"} <= fnames("subcontract")
     assert {"owner", "executed_date", "retainage_pct", "substantial_completion", "ld_per_day"} <= fnames("prime_contract")
     assert {"type", "po_date", "retainage_pct"} <= fnames("commitment")
+    # compliance modules use the canonical `expires` date (warranty/COBie convention), never a
+    # duplicate `expiry`. Lock that out everywhere so the alert logic keys off one field.
+    assert {"coverage_type", "expires", "additional_insured"} <= fnames("coi") and "expiry" not in fnames("coi")
+    assert {"permit_type", "status", "expires", "issued_date"} <= fnames("permit") and "expiry" not in fnames("permit")
+    for k, m in mods.items():
+        nm = {f["name"] for f in m["fields"]}
+        assert not ({"expires", "expiry"} <= nm), f"{k} has both expires+expiry (duplicate date field)"
 
     # C1: the web "convert to…" map relies on a back-reference field on each target module so the
     # new record links to its source. Lock those reference fields so the map can't silently break.
