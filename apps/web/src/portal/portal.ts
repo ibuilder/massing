@@ -93,16 +93,18 @@ export class PortalUI {
     };
   }
 
-  // --- role-tailored dashboard + module catalog ------------------------------
+  // --- role-tailored dashboard (command center; the left rail handles module nav) -----
   private async renderHome() {
     this.root.innerHTML = "";
     const pid = this.host.projectId()!;
+    const root = this.root;
+    const el = (tag: string, cls = "") => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
 
-    // global cross-module search
-    const search = document.createElement("input");
+    // cross-module search
+    const search = el("input") as HTMLInputElement;
     search.type = "search"; search.placeholder = "🔍 Search all records…"; search.className = "portal-filter";
     search.style.cssText = "width:100%;margin-bottom:8px";
-    const results = document.createElement("div");
+    const results = el("div");
     let timer: number | undefined;
     search.oninput = () => {
       clearTimeout(timer);
@@ -112,65 +114,57 @@ export class PortalUI {
         const hits = await this.host.api.searchAll(pid, search.value.trim());
         if (!hits.length) { results.innerHTML = `<div class="empty-state">No matches</div>`; return; }
         for (const h of hits) {
-          const row = document.createElement("button"); row.className = "portal-mod";
+          const row = el("button", "portal-mod") as HTMLButtonElement;
           row.innerHTML = `<span class="ic">${h.icon}</span> ${h.ref} ${h.title ?? ""} <span class="badge">${h.module_name}</span>`;
           row.onclick = () => { const m = this.mods.find((x) => x.key === h.module); if (m) this.openRecord(m, h.id); };
           results.appendChild(row);
         }
       }, 250);
     };
-    this.root.append(search, results);
+    root.append(search, results);
 
-    // notifications feed (recent activity relevant to me)
-    try {
-      const notes = await this.host.api.notifications(pid);
-      if (notes.length) {
-        const nt = document.createElement("div"); nt.className = "section-title";
-        nt.textContent = `🔔 Notifications (${notes.length})`;
-        this.root.appendChild(nt);
-        for (const n of notes.slice(0, 8)) {
-          const row = document.createElement("button"); row.className = "portal-mod notif";
-          const ago = n.ts ? new Date(n.ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
-          row.innerHTML = `<span class="ic">${n.icon}</span> <b>${n.ref}</b> ${n.action} ` +
-            `<span class="badge ${n.reason === "assigned" ? "rfi" : "open"}">${n.reason}</span> ` +
-            `<span class="notif-meta">${n.actor ?? ""} · ${ago}</span>`;
-          row.onclick = () => { const m = this.mods.find((x) => x.key === n.module); if (m) this.openRecord(m, n.record_id); };
-          this.root.appendChild(row);
-        }
-      }
-    } catch { /* notifications optional */ }
+    const jump = (key: string, state?: string) => {
+      const m = this.mods.find((x) => x.key === key); if (!m) return;
+      this.activeKey = key; void this.openModule(m, state ? { state } : {}); this.buildNav();
+    };
 
     try {
       const d = await this.host.api.dashboard(pid);
-      const head = document.createElement("div");
-      head.className = "section-title"; head.style.cssText = "display:flex;justify-content:space-between;align-items:center";
-      head.append(`Dashboard — ${d.party}`);
-      const rpt = document.createElement("button");
-      rpt.className = "tool-btn"; rpt.textContent = "↓ Status report (PDF)";
-      rpt.title = "Project status report — KPIs, cost, open items, ball-in-court";
-      rpt.onclick = () => window.open(this.host.api.url(`/projects/${pid}/report.pdf`), "_blank");
-      head.append(rpt);
-      this.root.appendChild(head);
 
-      // KPI cards
-      const kpis = document.createElement("div"); kpis.className = "kpi-grid";
-      const cards: [string, number][] = [
-        ["Ball in court", d.kpis.my_action_items ?? 0], ["Overdue", d.kpis.overdue ?? 0],
-        ["Open RFIs", d.kpis.open_rfis ?? 0], ["Pending COs", d.kpis.pending_change_orders ?? 0],
-        ["Quality", d.kpis.open_quality ?? 0], ["Safety", d.kpis.open_safety ?? 0],
+      // header + status report
+      const head = el("div", "section-title"); head.style.cssText = "display:flex;justify-content:space-between;align-items:center";
+      head.append(`Dashboard — ${d.party}`);
+      const rpt = el("button", "tool-btn") as HTMLButtonElement;
+      rpt.textContent = "↓ Status report (PDF)"; rpt.title = "Project status report — KPIs, cost, open items, ball-in-court";
+      rpt.onclick = () => window.open(this.host.api.url(`/projects/${pid}/report.pdf`), "_blank");
+      head.append(rpt); root.appendChild(head);
+
+      // KPI cards — clickable: jump straight to the relevant (filtered) module
+      const kpis = el("div", "kpi-grid");
+      const cards: [string, number, (() => void) | undefined][] = [
+        ["Ball in court", d.kpis.my_action_items ?? 0, undefined],
+        ["Overdue", d.kpis.overdue ?? 0, undefined],
+        ["Open RFIs", d.kpis.open_rfis ?? 0, () => jump("rfi", "open")],
+        ["Pending COs", d.kpis.pending_change_orders ?? 0, () => jump("cor")],
+        ["Quality", d.kpis.open_quality ?? 0, () => jump("ncr")],
+        ["Safety", d.kpis.open_safety ?? 0, () => jump("incident")],
       ];
-      for (const [label, val] of cards) {
-        const c = document.createElement("div"); c.className = "kpi";
+      for (const [label, val, onClick] of cards) {
+        const c = el("div", "kpi" + (onClick ? " kpi-click" : "")) as HTMLElement;
         c.innerHTML = `<div class="kpi-v">${val}</div><div class="kpi-l">${label}</div>`;
+        if (onClick) {
+          c.onclick = onClick; c.tabIndex = 0; c.setAttribute("role", "button");
+          c.onkeydown = (e) => { if ((e as KeyboardEvent).key === "Enter") onClick(); };
+        }
         kpis.appendChild(c);
       }
-      this.root.appendChild(kpis);
+      root.appendChild(kpis);
 
-      // AI/rules risk summary (owner/PM reporting)
-      const risk = document.createElement("div"); risk.id = "dash-risk"; this.root.appendChild(risk);
+      // risk summary (full width — owner/PM reporting)
+      const risk = el("div"); risk.id = "dash-risk"; root.appendChild(risk);
       void this.host.api.riskSummary(pid).then((rs) => {
         const colors: Record<string, string> = { high: "#e2554a", medium: "#ffd479", low: "#6cb6ff" };
-        risk.innerHTML = `<div class="section-title" style="margin-top:10px">Risk summary`
+        risk.innerHTML = `<div class="section-title" style="margin-top:8px">Risk summary`
           + `<span class="meta" style="font-weight:400"> · ${rs.source === "claude" ? "AI" : "rules"}</span></div>`
           + `<div class="meta" style="margin:2px 0 6px">${rs.headline}</div>`
           + rs.risks.map((r) => `<div style="display:flex;gap:8px;align-items:baseline;margin:3px 0;font-size:12px">`
@@ -178,58 +172,55 @@ export class PortalUI {
             + `<span>${r.text}</span></div>`).join("");
       }).catch(() => { risk.innerHTML = ""; });
 
-      // Ask AI — natural-language Q&A grounded on the live project snapshot
-      const ask = document.createElement("div"); ask.style.cssText = "margin:10px 0";
-      ask.innerHTML = `<div class="section-title">Ask AI</div>`;
-      const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;margin:4px 0";
-      const input = document.createElement("input"); input.className = "portal-filter"; input.style.flex = "1";
-      input.placeholder = "Ask about this project — e.g. “what’s overdue?”, “open RFIs?”, “are we over budget?”";
-      const go = document.createElement("button"); go.className = "file-btn"; go.textContent = "Ask";
-      const out = document.createElement("div"); out.className = "meta"; out.style.cssText = "white-space:pre-wrap;margin-top:4px";
-      const run = async () => {
-        const q = input.value.trim(); if (!q) return;
-        out.textContent = "thinking…";
-        try {
-          const r = await this.host.api.aiAsk(pid, q);
-          let text = r.answer;
-          // graceful no-key/error path: surface the key snapshot numbers so it isn't a dead end
-          const snap = r.snapshot as { record_counts?: Record<string, number>; kpis?: Record<string, number> } | undefined;
-          if (r.source !== "claude" && snap) {
-            const k = snap.kpis || {}, c = snap.record_counts || {};
-            const line = (label: string, v: unknown) => (v ? `\n• ${label}: ${v}` : "");
-            text += line("Open RFIs", k.open_rfis) + line("Overdue", k.overdue)
-              + line("Pending change orders", k.pending_change_orders)
-              + line("Open punchlist", k.open_punchlist)
-              + line("RFIs (total)", c.rfi) + line("Change events", c.change_event);
-            if (!r.ai_enabled) text += "\n\n(Set an Anthropic API key in Settings for full plain-English answers.)";
-          }
-          out.textContent = text;
-        } catch { out.textContent = "Couldn’t reach the assistant."; }
-      };
-      go.onclick = () => void run();
-      input.onkeydown = (e) => { if (e.key === "Enter") void run(); };
-      row.append(input, go); ask.append(row, out); this.root.appendChild(ask);
+      // two-column body: [ needs attention + notifications ] | [ health + charts ]
+      const cols = el("div", "dash-cols");
+      const main = el("div", "dash-col"); const side = el("div", "dash-col dash-side");
+      cols.append(main, side); root.appendChild(cols);
 
-      if (d.cost) {
-        const cd = document.createElement("div"); cd.className = "meta";
-        cd.style.margin = "6px 0";
-        cd.textContent = `Budget $${d.cost.budget.toLocaleString()} · Over/Under $${d.cost.projected_over_under.toLocaleString()}`;
-        this.root.appendChild(cd);
+      // MAIN — Ball in your court (the most actionable list)
+      main.appendChild(Object.assign(el("div", "section-title"), { textContent: "Ball in your court" }));
+      if (d.action_items.length) {
+        for (const a of d.action_items.slice(0, 20)) {
+          const row = el("button", "portal-mod") as HTMLButtonElement;
+          row.innerHTML = `<span class="ic">→</span> ${a.ref} ${a.title ?? ""} <span class="badge">${a.state}</span>`;
+          row.onclick = () => { const m = this.mods.find((x) => x.key === a.module); if (m) this.openRecord(m, a.id); };
+          main.appendChild(row);
+        }
+      } else {
+        main.appendChild(Object.assign(el("div", "empty-state"), { textContent: "✓ Nothing in your court — you are caught up" }));
       }
-
-      // safety analytics line (TRIR/DART + recordables) — shown once any incidents are logged
-      const safety = document.createElement("div"); safety.className = "meta"; safety.style.margin = "2px 0 6px";
-      this.root.appendChild(safety);
-      void this.host.api.safetyMetrics(pid).then((s) => {
-        if (!s.incident_count) return;
-        const trir = s.trir != null ? ` · TRIR ${s.trir}` : "";
-        const dart = s.dart != null ? ` · DART ${s.dart}` : "";
-        safety.textContent = `Safety: ${s.recordable_count} recordable / ${s.incident_count} incidents · ${s.lost_days} lost days${trir}${dart}`;
+      // MAIN — recent notifications
+      void this.host.api.notifications(pid).then((notes) => {
+        if (!notes.length) return;
+        main.appendChild(Object.assign(el("div", "section-title"), { textContent: `🔔 Notifications (${notes.length})` }));
+        for (const n of notes.slice(0, 8)) {
+          const row = el("button", "portal-mod notif") as HTMLButtonElement;
+          const ago = n.ts ? new Date(n.ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+          row.innerHTML = `<span class="ic">${n.icon}</span> <b>${n.ref}</b> ${n.action} `
+            + `<span class="badge ${n.reason === "assigned" ? "rfi" : "open"}">${n.reason}</span> `
+            + `<span class="notif-meta">${n.actor ?? ""} · ${ago}</span>`;
+          row.onclick = () => { const m = this.mods.find((x) => x.key === n.module); if (m) this.openRecord(m, n.record_id); };
+          main.appendChild(row);
+        }
       }).catch(() => {});
 
-      // lean / Last-Planner PPC (shown once weekly-plan commitments exist) — R4
-      const lean = document.createElement("div"); lean.className = "meta"; lean.style.margin = "2px 0 6px";
-      this.root.appendChild(lean);
+      // SIDE — project health (cost / safety / lean) grouped in one card
+      const health = el("div", "dash-card"); side.appendChild(health);
+      health.appendChild(Object.assign(el("div", "section-title"), { textContent: "Project health" }));
+      if (d.cost) {
+        const ou = d.cost.projected_over_under;
+        const cd = el("div", "meta"); cd.style.margin = "2px 0";
+        cd.innerHTML = `Budget <b>$${d.cost.budget.toLocaleString()}</b> · `
+          + `<span style="color:${ou > 0 ? "#e2554a" : "#33d17a"}">${ou > 0 ? "over" : "under"} $${Math.abs(ou).toLocaleString()}</span>`;
+        health.appendChild(cd);
+      }
+      const safety = el("div", "meta"); safety.style.margin = "2px 0"; health.appendChild(safety);
+      void this.host.api.safetyMetrics(pid).then((s) => {
+        if (!s.incident_count) { safety.textContent = "Safety: no recordable incidents ✓"; return; }
+        const trir = s.trir != null ? ` · TRIR ${s.trir}` : ""; const dart = s.dart != null ? ` · DART ${s.dart}` : "";
+        safety.textContent = `Safety: ${s.recordable_count} recordable / ${s.incident_count} incidents · ${s.lost_days} lost days${trir}${dart}`;
+      }).catch(() => {});
+      const lean = el("div", "meta"); lean.style.margin = "2px 0"; health.appendChild(lean);
       void this.host.api.leanPpc(pid).then((l) => {
         if (!l.commitments) return;
         const top = l.top_variance_reasons[0];
@@ -239,38 +230,48 @@ export class PortalUI {
           + (top ? ` · top reason: ${top.reason}` : "");
       }).catch(() => {});
 
-      // charts from by_module: workflow-state mix + busiest sections
-      const states = new Map<string, number>();
-      const sections = new Map<string, number>();
+      // SIDE — charts (status mix + busiest sections)
+      const states = new Map<string, number>(); const sections = new Map<string, number>();
       for (const bm of d.by_module) {
         for (const [st, n] of Object.entries(bm.by_state)) states.set(st, (states.get(st) ?? 0) + n);
         if (bm.count) sections.set(bm.section || "Other", (sections.get(bm.section || "Other") ?? 0) + bm.count);
       }
       const STATE_COLOR: Record<string, string> = { draft: "#9aa0a6", open: "#ffd479", answered: "#6cb6ff", closed: "#33d17a", void: "#e2554a", approved: "#33d17a", rejected: "#e2554a" };
-      if (states.size) this.root.appendChild(this.barChart("Records by status",
+      if (states.size) side.appendChild(this.barChart("Records by status",
         [...states.entries()].sort((a, b) => b[1] - a[1]), (k) => STATE_COLOR[k] ?? "#b083d6"));
-      if (sections.size) this.root.appendChild(this.barChart("Busiest sections",
+      if (sections.size) side.appendChild(this.barChart("Busiest sections",
         [...sections.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6), () => "#4a8cff"));
 
-      // ball-in-your-court action items
-      if (d.action_items.length) {
-        const t = document.createElement("div"); t.className = "section-title"; t.textContent = "Ball in your court";
-        this.root.appendChild(t);
-        for (const a of d.action_items.slice(0, 20)) {
-          const row = document.createElement("button");
-          row.className = "portal-mod";
-          row.innerHTML = `<span class="ic">→</span> ${a.ref} ${a.title ?? ""} <span class="badge">${a.state}</span>`;
-          row.onclick = () => { const m = this.mods.find((x) => x.key === a.module); if (m) this.openRecord(m, a.id); };
-          this.root.appendChild(row);
-        }
-      }
-      const allTitle = document.createElement("div");
-      allTitle.className = "section-title"; allTitle.textContent = "All modules";
-      this.root.appendChild(allTitle);
+      // Ask AI — full width, bottom
+      const ask = el("div"); ask.style.cssText = "margin:12px 0 4px";
+      ask.innerHTML = `<div class="section-title">Ask AI</div>`;
+      const arow = el("div"); arow.style.cssText = "display:flex;gap:6px;margin:4px 0";
+      const input = el("input", "portal-filter") as HTMLInputElement; input.style.flex = "1";
+      input.placeholder = "Ask about this project — e.g. what is overdue, open RFIs, are we over budget";
+      const go = el("button", "file-btn") as HTMLButtonElement; go.textContent = "Ask";
+      const out = el("div", "meta"); out.style.cssText = "white-space:pre-wrap;margin-top:4px";
+      const askRun = async () => {
+        const q = input.value.trim(); if (!q) return;
+        out.textContent = "thinking…";
+        try {
+          const r = await this.host.api.aiAsk(pid, q);
+          let text = r.answer;
+          const snap = r.snapshot as { record_counts?: Record<string, number>; kpis?: Record<string, number> } | undefined;
+          if (r.source !== "claude" && snap) {
+            const k = snap.kpis || {}, c = snap.record_counts || {};
+            const line = (label: string, v: unknown) => (v ? `\n• ${label}: ${v}` : "");
+            text += line("Open RFIs", k.open_rfis) + line("Overdue", k.overdue)
+              + line("Pending change orders", k.pending_change_orders) + line("Open punchlist", k.open_punchlist)
+              + line("RFIs (total)", c.rfi) + line("Change events", c.change_event);
+            if (!r.ai_enabled) text += "\n\n(Set an Anthropic API key in Settings for full plain-English answers.)";
+          }
+          out.textContent = text;
+        } catch { out.textContent = "Could not reach the assistant."; }
+      };
+      go.onclick = () => void askRun();
+      input.onkeydown = (e) => { if (e.key === "Enter") void askRun(); };
+      arow.append(input, go); ask.append(arow, out); root.appendChild(ask);
     } catch { /* dashboard optional */ }
-
-    this.catalogEl = this.renderModuleCatalog();
-    this.root.appendChild(this.catalogEl);
   }
 
   // --- module catalog: favorites + collapsible, persona-aware sections + filter --

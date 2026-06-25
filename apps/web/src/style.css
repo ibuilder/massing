@@ -553,3 +553,12 @@ body[data-cap-admin="off"] [data-cap="admin"] { display: none !important; }
   .portal-nav { position: static; flex: none; width: 100%; max-height: none; border-right: none;
     border-bottom: 1px solid var(--line); padding: 0 0 8px; }
 }
+
+/* ---- GC dashboard: command-center layout --------------------------------- */
+.dash-cols { display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: 16px; align-items: start; margin-top: 6px; }
+.dash-col { min-width: 0; }
+.dash-card { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; background: var(--panel2); }
+.kpi-click { cursor: pointer; transition: border-color .1s ease, background .1s ease; }
+.kpi-click:hover { border-color: var(--accent); background: var(--hover); }
+.kpi-click:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (max-width: 820px) { .dash-cols { grid-template-columns: 1fr; } }

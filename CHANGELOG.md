@@ -4,6 +4,14 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.52 — GC dashboard redesigned as a command center
+- **Dashboard rebuilt around the new nav rail** — the redundant "All modules" catalog is gone (the
+  persistent left rail owns navigation now), and the dashboard is a focused command center: **clickable
+  KPI cards** that jump straight to the relevant filtered module (Open RFIs → RFIs · open), a risk
+  summary, a prominent **"Ball in your court"** action list (with a caught-up empty state), a grouped
+  **Project health** card (budget over/under + safety + lean PPC), trend charts, and Ask AI at the
+  bottom — in a two-column layout that stacks on narrow screens.
+
 ## v0.1.51 — cost-code workflow: inline add + wider links (roadmap D1 + X1)
 - **Inline "add new" from reference dropdowns (D1)** — every reference field (cost code, location, sub…)
   now has a "＋ Add new …" option that creates the record without leaving the form and selects it. So
