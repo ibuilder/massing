@@ -97,6 +97,87 @@ def export_bcfzip(db: Session, project_id: str) -> bytes:
     return buf.getvalue()
 
 
+def _record_viewpoint_xml(guid: str, components: list[str], anchor: dict | None) -> bytes:
+    root = ET.Element("VisualizationInfo", {"Guid": guid})
+    if components:
+        comps = ET.SubElement(root, "Components")
+        sel = ET.SubElement(comps, "Selection")
+        for g in components:
+            ET.SubElement(sel, "Component", {"IfcGuid": g})
+    if anchor:
+        pcam = ET.SubElement(root, "PerspectiveCamera")
+        ET.SubElement(pcam, "CameraViewPoint")
+        _xyz(pcam.find("CameraViewPoint"), anchor)
+        ET.SubElement(pcam, "FieldOfView").text = "60"
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def export_records_bcfzip(records: list[dict], topic_type: str = "Issue") -> bytes:
+    """Export config-module records (e.g. coordination_issue) as a BCF 2.1 .bcfzip so they round-trip
+    with Solibri / ACC / BIMcollab. Each record → a topic (title/description/priority/status + ref as a
+    label); a pinned/element-tied record also gets a viewpoint (selected components + camera at the pin)."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("bcf.version", ET.tostring(ET.Element("Version", {"VersionId": _BCF_VERSION}),
+                                              encoding="utf-8", xml_declaration=True))
+        for r in records:
+            guid = str(r.get("id"))
+            data = r.get("data") or {}
+            root = ET.Element("Markup")
+            t = ET.SubElement(root, "Topic", {"Guid": guid, "TopicType": topic_type,
+                                              "TopicStatus": r.get("workflow_state") or "open"})
+            ET.SubElement(t, "Title").text = r.get("title") or data.get("subject") or r.get("ref") or "Issue"
+            if data.get("priority"):
+                ET.SubElement(t, "Priority").text = str(data["priority"])
+            if r.get("assignee"):
+                ET.SubElement(t, "AssignedTo").text = str(r["assignee"])
+            if data.get("description"):
+                ET.SubElement(t, "Description").text = str(data["description"])
+            ET.SubElement(t, "CreationDate").text = _iso(None)
+            if r.get("ref"):
+                ET.SubElement(t, "Labels").text = r["ref"]      # carry our ref so re-import can match
+            comps = r.get("element_guids") or []
+            anchor = r.get("anchor")
+            if comps or anchor:
+                ET.SubElement(root, "Viewpoints", {"Guid": guid}).append(ET.Element("Viewpoint"))
+                root.find("Viewpoints/Viewpoint").text = f"{guid}.bcfv"
+                z.writestr(f"{guid}/{guid}.bcfv", _record_viewpoint_xml(guid, comps, anchor))
+            z.writestr(f"{guid}/markup.bcf", ET.tostring(root, encoding="utf-8", xml_declaration=True))
+    return buf.getvalue()
+
+
+def parse_records_bcfzip(data: bytes) -> list[dict]:
+    """Parse a .bcfzip into record dicts {data:{subject,description,priority}, anchor, element_guids}
+    suitable for creating module records. Pulls selected components + camera from any viewpoint."""
+    out = []
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        names = z.namelist()
+        for name in [n for n in names if n.endswith("markup.bcf")]:
+            root = ET.fromstring(z.read(name))
+            te = root.find("Topic")
+            if te is None:
+                continue
+            rec: dict[str, Any] = {"subject": te.findtext("Title") or "Imported issue",
+                                   "description": te.findtext("Description"),
+                                   "priority": te.findtext("Priority")}
+            folder = name.rsplit("/", 1)[0] if "/" in name else ""
+            comps: list[str] = []
+            anchor = None
+            for vp in [n for n in names if n.endswith(".bcfv") and (not folder or n.startswith(folder + "/"))]:
+                vroot = ET.fromstring(z.read(vp))
+                for comp in vroot.findall(".//Selection/Component"):
+                    g = comp.get("IfcGuid")
+                    if g:
+                        comps.append(g)
+                cvp = vroot.find("PerspectiveCamera/CameraViewPoint")
+                if cvp is not None:
+                    anchor = {ax.lower(): float(cvp.findtext(ax) or 0) for ax in ("X", "Y", "Z")}
+            out.append({"data": {k: v for k, v in rec.items() if v is not None},
+                        "anchor": anchor, "element_guids": comps,
+                        "status": te.get("TopicStatus")})
+    return out
+
+
 def import_bcfzip(db: Session, project_id: str, data: bytes) -> int:
     """Import topics from a .bcfzip. Returns the count imported."""
     count = 0

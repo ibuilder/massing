@@ -125,6 +125,29 @@ with TestClient(app) as c:
     assert set(got["element_guids"]) == {"g2", "g3"}, got["element_guids"]
     assert c.post(e, headers=H("gc"), json={"guids": ["x"], "mode": "set"}).json()["element_guids"] == ["x"]
 
+    # ---- coordination issues round-trip via BCF (Solibri/ACC/BIMcollab interop) ----
+    ci1 = c.post(f"/projects/{pid}/modules/coordination_issue", headers=H("gc"), json={"data": {
+        "subject": "Duct vs beam at L4", "description": "HVAC main clashes the W21", "priority": "High"},
+        "anchor": {"x": 10.0, "y": 5.0, "z": 12.0}, "element_guids": ["2UD3D7uxP8kecbbBCRtzEl", "0abc"]}).json()
+    c.post(f"/projects/{pid}/modules/coordination_issue", headers=H("gc"),
+           json={"data": {"subject": "Sprinkler routing"}})
+    bcf = c.get(f"/projects/{pid}/modules/coordination_issue/bcf/export", headers=H("gc"))
+    assert bcf.status_code == 200 and bcf.content[:2] == b"PK", bcf.status_code   # a real zip
+    import io as _bio, zipfile as _bz
+    z = _bz.ZipFile(_bio.BytesIO(bcf.content))
+    assert "bcf.version" in z.namelist() and sum(n.endswith("markup.bcf") for n in z.namelist()) == 2, z.namelist()
+    assert any(n.endswith(".bcfv") for n in z.namelist()), "pinned issue carries a viewpoint"
+    # import the same .bcfzip into a fresh project → recreates the issues with their pin + components
+    pid2 = c.post("/projects", json={"name": "Coordination Import"}, headers=H("gc")).json()["id"]
+    imp = c.post(f"/projects/{pid2}/modules/coordination_issue/bcf/import", headers=H("gc"),
+                 files={"file": ("issues.bcfzip", bcf.content, "application/octet-stream")})
+    assert imp.status_code == 201 and imp.json()["count"] == 2, imp.text
+    got = {r["title"]: r for r in c.get(f"/projects/{pid2}/modules/coordination_issue", headers=H("gc")).json()}
+    assert "Duct vs beam at L4" in got, list(got)
+    full = c.get(f"/projects/{pid2}/modules/coordination_issue/{got['Duct vs beam at L4']['id']}", headers=H("gc")).json()
+    assert full["data"]["priority"] == "High" and "2UD3D7uxP8kecbbBCRtzEl" in (full.get("element_guids") or []), full
+    assert full.get("anchor") and abs(full["anchor"]["z"] - 12.0) < 0.01, full.get("anchor")
+
     # ---- change-order chain across modules, with linking ---------------------
     pco = c.post(f"/projects/{pid}/modules/pco_request", headers=H("gc"),
                  json={"data": {"subject": "Added fireproofing", "description": "Owner-requested upgrade"},

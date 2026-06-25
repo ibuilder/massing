@@ -629,6 +629,31 @@ export class PortalUI {
       sv.onclick = () => this.renderScheduleViews(m);
       actions.append(sv);
     }
+    // coordination issues round-trip via BCF with other BIM tools (Solibri/ACC/BIMcollab)
+    if (m.key === "coordination_issue") {
+      const exp = document.createElement("button"); exp.className = "tool-btn"; exp.textContent = "⬇ BCF";
+      exp.title = "Export these coordination issues as a BCF .bcfzip";
+      exp.onclick = async () => {
+        try {
+          const blob = await this.host.api.downloadModuleBcf(pid, m.key);
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+          a.download = "coordination_issues.bcfzip"; a.click(); URL.revokeObjectURL(a.href);
+          this.host.setStatus("exported BCF");
+        } catch (e) { this.host.setStatus(`BCF export failed: ${(e as Error).message}`); }
+      };
+      const impInput = document.createElement("input"); impInput.type = "file"; impInput.accept = ".bcfzip,.bcf,application/zip";
+      impInput.style.display = "none";
+      impInput.onchange = async () => {
+        const f = impInput.files?.[0]; if (!f) return;
+        try { const r = await this.host.api.importModuleBcf(pid, m.key, f);
+          this.host.setStatus(`imported ${r.count} BCF issue${r.count === 1 ? "" : "s"}`); this.openModule(m); }
+        catch (e) { this.host.setStatus(`BCF import failed: ${(e as Error).message}`); }
+      };
+      const imp = document.createElement("button"); imp.className = "tool-btn"; imp.dataset.cap = "review";
+      imp.textContent = "⬆ Import BCF"; imp.title = "Import a BCF .bcfzip from another BIM tool";
+      imp.onclick = () => impInput.click();
+      actions.append(exp, imp, impInput);
+    }
     this.root.appendChild(actions);
 
     if (!records.length) {

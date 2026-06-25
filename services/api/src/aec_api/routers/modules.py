@@ -466,6 +466,34 @@ async def upload_attachments_bulk(pid: str, key: str, rid: str,
     return {"count": len(out), "attachments": out}
 
 
+@router.get("/projects/{pid}/modules/{key}/bcf/export")
+def export_module_bcf(pid: str, key: str, db: Session = Depends(get_db),
+                      _: str = Depends(require_role("viewer"))):
+    """Export a module's records as a BCF 2.1 .bcfzip (coordination issues round-trip with Solibri /
+    ACC / BIMcollab). Pinned / element-tied records carry a viewpoint (components + camera)."""
+    from .. import bcf_io
+    recs = mod_engine.list_records(db, key, pid, limit=1_000_000)
+    full = [mod_engine.get_record(db, key, pid, r["id"]) for r in recs]   # get anchor + element_guids
+    data = bcf_io.export_records_bcfzip(full, topic_type="Clash" if key == "coordination_issue" else "Issue")
+    return Response(data, media_type="application/octet-stream",
+                    headers={"Content-Disposition": f'attachment; filename="{key}.bcfzip"'})
+
+
+@router.post("/projects/{pid}/modules/{key}/bcf/import", status_code=201)
+async def import_module_bcf(pid: str, key: str, file: UploadFile = File(...),
+                            db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):
+    """Import a BCF .bcfzip from another BIM tool as records in this module (each topic → a record,
+    carrying its pinned components + camera). Returns the count created."""
+    from .. import bcf_io
+    parsed = bcf_io.parse_records_bcfzip(await file.read())
+    party = _party(pid, db, user)
+    created = []
+    for p in parsed:
+        body = {"data": p["data"], "anchor": p.get("anchor"), "element_guids": p.get("element_guids") or []}
+        created.append(mod_engine.create_record(db, key, pid, body, user, party)["id"])
+    return {"count": len(created), "ids": created}
+
+
 @router.get("/attachments/{att_id}/download")
 def download_attachment(att_id: str, db: Session = Depends(get_db),
                         _: str = Depends(require_role("viewer"))):

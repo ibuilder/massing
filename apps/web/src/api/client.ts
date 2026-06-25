@@ -687,6 +687,20 @@ export class ApiClient {
     if (!res.ok) throw new Error(`upload -> ${res.status}`);
     return res.json() as Promise<RecordAttachmentMeta>;
   }
+  /** Export a module's records as a BCF .bcfzip (auth'd blob, for coordination-issue interop). */
+  async downloadModuleBcf(pid: string, key: string) {
+    const res = await fetch(this.url(`/projects/${pid}/modules/${key}/bcf/export`), { headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`BCF export -> ${res.status}`);
+    return res.blob();
+  }
+  /** Import a BCF .bcfzip as records in a module. */
+  async importModuleBcf(pid: string, key: string, file: File) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/modules/${key}/bcf/import`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`BCF import -> ${res.status}`);
+    return res.json() as Promise<{ count: number; ids: string[] }>;
+  }
   /** Tie model elements (IFC GlobalIds) to a record. mode: add | remove | set. */
   tagElements(pid: string, key: string, rid: string, guids: string[], mode: "add" | "remove" | "set" = "add") {
     return this.json<{ element_guids: string[]; count: number }>(
