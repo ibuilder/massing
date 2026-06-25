@@ -542,8 +542,15 @@ export class ProformaUI {
         const btn = recon.querySelector<HTMLButtonElement>("#pf-sync-gmp");
         if (btn) btn.onclick = async () => {
           btn.disabled = true; btn.textContent = "syncing…";
-          try { await this.api.syncGmpToHard(pid); this.setStatus("hard cost synced to GC GMP"); this.renderBudget(); }
-          catch (e) { this.setStatus(`sync failed: ${(e as Error).message}`); refreshRecon(); }
+          try {
+            await this.api.syncGmpToHard(pid);
+            // close the loop: flow the synced budget into the proforma assumptions and re-solve, so
+            // the GMP reaches Sources & Uses + returns (not just the line-item budget)
+            const r = await this.api.devBudgetCostLines(pid);
+            (this.a as { cost_lines: unknown[] }).cost_lines = r.cost_lines.map((c) => ({ ...c, start_month: 0, end_month: 0 }));
+            this.setStatus(`hard cost synced to GC GMP → applied to proforma (${money(r.summary.grand_total)} uses)`);
+            this.render(); void this.solve();
+          } catch (e) { this.setStatus(`sync failed: ${(e as Error).message}`); refreshRecon(); }
         };
       }).catch(() => { recon.style.display = "none"; });   // no GMP / endpoint absent → hide quietly
     };
