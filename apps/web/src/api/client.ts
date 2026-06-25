@@ -736,13 +736,16 @@ export class ApiClient {
     return this.json<{ total: number; element_count: number; lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number }[]; unpriced: { ifc_class: string; count: number }[] }>(
       `/projects/${pid}/estimate/from-model`);
   }
-  /** 4D construction sequence: scrubable frames (cumulative % built per day) over the takt plan.
-   *  When a P6 .xer is imported, `source:"p6"` + start_date/finish_date and each frame gains `date`. */
-  schedule4d(pid: string) {
-    return this.json<{ floors: number; duration_days: number; element_count: number; source: "takt" | "p6";
-      start_date?: string; finish_date?: string; p6_activities?: number; by_trade: Record<string, number>;
+  /** 4D construction sequence: scrubable frames (cumulative % built per day).
+   *  Relational by default — when GC `schedule_activity` records exist they drive it (`source:"gc"`),
+   *  each frame carrying a real calendar `date` + `linked`/`unlinked` element counts. Otherwise a takt
+   *  plan; a P6 .xer import yields `source:"p6"` with interpolated dates. `?source=gc|takt` forces one. */
+  schedule4d(pid: string, source?: "gc" | "takt") {
+    return this.json<{ floors: number; duration_days?: number; total_days?: number; element_count: number;
+      source: "takt" | "p6" | "gc"; start_date?: string; finish_date?: string; p6_activities?: number;
+      activity_count?: number; linked?: number; unlinked?: number; by_trade: Record<string, number>;
       frames: { day: number; new: number; completed_cumulative: number; pct: number; date?: string; new_guids: string[] }[] }>(
-      `/projects/${pid}/schedule/4d`);
+      `/projects/${pid}/schedule/4d${source ? `?source=${source}` : ""}`);
   }
   /** Import a Primavera P6 .xer so the 4D scrub reports real calendar dates. */
   async importXer(pid: string, file: File) {

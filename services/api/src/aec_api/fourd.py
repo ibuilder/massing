@@ -20,6 +20,95 @@ TRADE_FOR_CLASS = {
 _DEFAULT_TRADE = "Finishes"
 
 
+# class-trade (above) → schedule_activity `trade` option, so the GC schedule's trades drive the 4D
+_CLASS_TRADE_TO_ACTIVITY_TRADE = {
+    "Structure": "Structure", "Envelope": "Envelope", "MEP rough-in": "MEP",
+    "Interiors": "Interiors", "Finishes": "Finishes",
+}
+
+
+def _pdate(v: Any):
+    from datetime import date
+    if not v:
+        return None
+    try:
+        return date.fromisoformat(str(v)[:10])
+    except ValueError:
+        return None
+
+
+def timeline_from_activities(activities: list[dict], elements: list[dict]) -> dict[str, Any]:
+    """Drive the 4D scrub from the GC schedule (`schedule_activity` records) instead of a generated
+    takt plan — so the model sequence plays the *actual* schedule. Each element gets a finish date:
+    **(A)** directly, when an activity tags its GUID (`activity['element_guids']`); else **(B)** by
+    mapping the element's IFC class → trade → that trade's activities, distributed across floors.
+    Frames carry a real calendar `date`; the shape matches `timeline()` so the viewer scrubs it
+    unchanged. Returns `linked`/`unlinked` counts so the UI can show how much is hard-tied."""
+    acts = []
+    for a in activities:
+        fin = _pdate(a.get("finish")) or _pdate(a.get("actual_finish"))
+        if fin is None:
+            continue
+        acts.append({"trade": a.get("trade"), "_finish": fin,
+                     "_start": _pdate(a.get("start")) or _pdate(a.get("actual_start")) or fin,
+                     "_guids": set(a.get("element_guids") or [])})
+    empty = {"frames": [], "total_days": 0, "element_count": 0, "by_trade": {},
+             "source": "gc", "linked": 0, "unlinked": 0, "activity_count": len(acts)}
+    if not acts:
+        return empty
+
+    guid_finish: dict[str, Any] = {}
+    # (A) direct element tags — earliest finishing activity wins for a shared guid
+    for a in acts:
+        for g in a["_guids"]:
+            if g not in guid_finish or a["_finish"] < guid_finish[g]:
+                guid_finish[g] = a["_finish"]
+    direct = set(guid_finish)
+
+    # (B) untagged elements: class → trade → distribute across that trade's activities by floor
+    by_trade: dict[str, list] = {}
+    for a in acts:
+        if a["trade"]:
+            by_trade.setdefault(a["trade"], []).append(a)
+    for v in by_trade.values():
+        v.sort(key=lambda x: x["_start"])
+    floors = max([_floor_index(e.get("storey")) for e in elements] + [0]) + 1
+    last_finish = max(a["_finish"] for a in acts)
+    for el in elements:
+        g = el.get("guid")
+        if not g or g in guid_finish:
+            continue
+        cls_trade = TRADE_FOR_CLASS.get(el.get("ifc_class"), _DEFAULT_TRADE)
+        pool = by_trade.get(_CLASS_TRADE_TO_ACTIVITY_TRADE.get(cls_trade, cls_trade)) or []
+        if not pool:
+            guid_finish[g] = last_finish            # no matching trade activity → completes at end
+            continue
+        f = _floor_index(el.get("storey"))
+        idx = round(f / max(1, floors - 1) * (len(pool) - 1)) if len(pool) > 1 else 0
+        guid_finish[g] = pool[idx]["_finish"]
+
+    if not guid_finish:
+        return empty
+    d0 = min(guid_finish.values())
+    by_date: dict[Any, list] = {}
+    for g, d in guid_finish.items():
+        by_date.setdefault(d, []).append(g)
+    placed = len(guid_finish)
+    out, cum = [], 0
+    for d in sorted(by_date):
+        gs = by_date[d]
+        cum += len(gs)
+        out.append({"day": (d - d0).days, "date": d.isoformat(), "new": len(gs),
+                    "completed_cumulative": cum, "pct": round(cum / placed * 100, 1),
+                    "new_guids": gs[:500]})
+    linked = sum(1 for el in elements if el.get("guid") in direct)
+    return {"frames": out, "total_days": out[-1]["day"] if out else 0,
+            "element_count": placed, "by_trade": {t: len(v) for t, v in by_trade.items()},
+            "source": "gc", "start_date": d0.isoformat(),
+            "finish_date": max(by_date).isoformat(),
+            "linked": linked, "unlinked": placed - linked, "activity_count": len(acts)}
+
+
 def _floor_index(storey: str | None) -> int:
     """'Level 3' / 'Floor 2' / 'L4' → zero-based floor index; default ground (0)."""
     if not storey:

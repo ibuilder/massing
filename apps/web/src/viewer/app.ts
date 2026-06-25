@@ -1113,33 +1113,42 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           const seq = await api.schedule4d(pid);
           if (!seq.element_count) { out.textContent = "No published model elements to sequence — generate/publish a model first."; return; }
           out.textContent = "";
+          const totalDays = seq.duration_days ?? seq.total_days ?? 0;
           const wrap = document.createElement("div"); wrap.style.marginTop = "4px";
           const lbl = document.createElement("div"); lbl.className = "meta";
           const slider = document.createElement("input"); slider.type = "range";
-          slider.min = "0"; slider.max = String(seq.duration_days); slider.value = String(seq.duration_days);
+          slider.min = "0"; slider.max = String(totalDays); slider.value = String(totalDays);
           slider.style.width = "100%";
-          const dateFor = (day: number): string => {           // real calendar date when P6 imported
-            if (seq.source !== "p6" || !seq.start_date || !seq.finish_date || !seq.duration_days) return "";
+          const dateFor = (day: number): string => {           // real calendar date (GC schedule or P6)
+            if (seq.source === "gc") {                          // frames carry their own activity dates
+              let d = ""; for (const f of seq.frames) { if (f.day <= day && f.date) d = f.date; }
+              return d ? ` · ${new Date(d).toLocaleDateString()}` : "";
+            }
+            if (seq.source !== "p6" || !seq.start_date || !seq.finish_date || !totalDays) return "";
             const s = new Date(seq.start_date).getTime(), e = new Date(seq.finish_date).getTime();
-            return ` · ${new Date(s + (e - s) * day / seq.duration_days).toLocaleDateString()}`;
+            return ` · ${new Date(s + (e - s) * day / totalDays).toLocaleDateString()}`;
           };
           const apply = async (day: number) => {
             const guids = seq.frames.filter((f) => f.day <= day).flatMap((f) => f.new_guids);
             const done = seq.frames.filter((f) => f.day <= day).reduce((n, f) => n + f.new, 0);
-            lbl.innerHTML = `Day <b>${day}</b> / ${seq.duration_days}${dateFor(day)} · built <b>${done}</b>/${seq.element_count} `
+            lbl.innerHTML = `Day <b>${day}</b> / ${totalDays}${dateFor(day)} · built <b>${done}</b>/${seq.element_count} `
               + `(${Math.round(done / seq.element_count * 100)}%)`;
             if (guids.length) await visibility.isolate(await sets.fromGuids(guids));
             else await visibility.showAll();
           };
           slider.oninput = () => void apply(+slider.value);
           const reset = toolBtn2("⊞ Show all", () => void visibility.showAll());
-          if (seq.source === "p6") {
-            const tag = document.createElement("div"); tag.className = "meta";
+          const tag = document.createElement("div"); tag.className = "meta";
+          if (seq.source === "gc") {                            // driven by the GC schedule (relational)
+            const tied = seq.linked ? ` · ${seq.linked} elements hard-tied, ${seq.unlinked} by trade` : "";
+            tag.textContent = `🗓 GC schedule: ${seq.activity_count ?? 0} activities${seq.start_date ? ` (${seq.start_date} → ${seq.finish_date})` : ""}${tied}`;
+            wrap.append(tag);
+          } else if (seq.source === "p6") {
             tag.textContent = `📅 P6 schedule: ${seq.start_date} → ${seq.finish_date} (${seq.p6_activities} activities)`;
             wrap.append(tag);
           }
           wrap.append(lbl, slider, reset); out.appendChild(wrap);
-          await apply(seq.duration_days);
+          await apply(totalDays);
         });
         b.appendChild(fourdBtn);
         // import a Primavera P6 .xer so the 4D scrub shows real calendar dates

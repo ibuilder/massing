@@ -34,6 +34,31 @@ assert _struct_days[0] < _struct_days[-1], _struct_days
 assert fourd._floor_index("Level 2") == 1 and fourd._floor_index(None) == 0
 assert fourd.timeline(_plan, [])["element_count"] == 0
 
+# --- relational 4D: the GC schedule (schedule_activity) drives the model -------
+# (A) an activity that hard-tags a GUID sets that element's exact finish date;
+# (B) untagged elements fall back to their trade's activities by floor.
+_acts = [
+    {"name": "Structure L1", "trade": "Structure", "start": "2026-01-05", "finish": "2026-01-20",
+     "element_guids": ["g1"]},                                   # hard-tags g1
+    {"name": "Structure L3", "trade": "Structure", "start": "2026-02-01", "finish": "2026-02-20"},
+    {"name": "Envelope",     "trade": "Envelope",  "start": "2026-03-01", "finish": "2026-03-15"},
+    {"name": "Finishes",     "trade": "Finishes",  "start": "2026-04-01", "finish": "2026-04-30"},
+]
+_g = fourd.timeline_from_activities(_acts, _els)
+assert _g["source"] == "gc" and _g["element_count"] == 4, _g
+assert _g["linked"] == 1 and _g["unlinked"] == 3, (_g["linked"], _g["unlinked"])  # only g1 hard-tied
+# frames carry real calendar dates, ordered, ending at 100%
+assert all("date" in f for f in _g["frames"]) and _g["frames"][-1]["pct"] == 100.0, _g["frames"][-1]
+# g1 finishes on its activity's exact date; g2 (Envelope, floor 0) on the Envelope activity
+_when = {g: f["date"] for f in _g["frames"] for g in f["new_guids"]}
+assert _when["g1"] == "2026-01-20", _when
+assert _when["g2"] == "2026-03-15", _when      # Envelope trade activity finish
+assert _when["g4"] == "2026-04-30", _when      # Finishes trade activity finish
+# Structure floor-0 (g1) completes before Structure floor-2 (g3) — the schedule ascends
+assert _when["g1"] < _when["g3"], _when
+# no activities with finish dates → empty (caller falls back to takt)
+assert fourd.timeline_from_activities([{"name": "x"}], _els)["element_count"] == 0
+
 # --- R2: takt / line-of-balance ----------------------------------------------
 p = takt.plan(10)                                  # 10 floors, default 5-trade train
 assert len(p["trades"]) == 5 and p["floors"] == 10
@@ -112,6 +137,21 @@ with TestClient(app) as c:
     assert c.post(f"/projects/{pid}/schedule/import-xer", files={"file": ("x.xer", "junk", "text/plain")}).status_code == 422
     c.delete(f"/projects/{pid}/schedule/import-xer")
     assert c.get(f"/projects/{pid}/schedule/4d").json()["source"] == "takt"
+
+    # relational: once GC schedule_activity records exist, the 4D scrub is driven by them (source=gc),
+    # the SAME activities behind the Gantt / Line-of-Balance / CPM views — one relational schedule.
+    for a in [{"name": "Foundations", "trade": "Structure", "start": "2026-03-01", "finish": "2026-03-20"},
+              {"name": "Superstructure", "trade": "Structure", "start": "2026-03-21", "finish": "2026-07-15"}]:
+        c.post(f"/projects/{pid}/modules/schedule_activity", json={"data": a})
+    gcfd = c.get(f"/projects/{pid}/schedule/4d").json()
+    assert gcfd["source"] == "gc" and gcfd["activity_count"] == 2, gcfd
+    # the same activities also render the Gantt + Line-of-Balance SVGs and the CPM analysis
+    assert c.get(f"/projects/{pid}/schedule/gantt.svg").headers["content-type"].startswith("image/svg")
+    assert c.get(f"/projects/{pid}/schedule/lob.svg").headers["content-type"].startswith("image/svg")
+    cpm = c.get(f"/projects/{pid}/schedule/cpm").json()
+    assert cpm.get("activities") or cpm.get("critical_path") is not None, cpm
+    # ?source=takt still forces the generated takt sequence (escape hatch)
+    assert c.get(f"/projects/{pid}/schedule/4d?source=takt").json()["source"] == "takt"
 
 print(f"RESEARCH OK - takt {p['duration_days']}d / {p['floors_per_week']} fl-wk / {len(p['delivery_plan'])} JIT deliveries; "
       f"lean PPC {m['ppc']} ({m['rating']}); benchmarks + weekly_plan + comparable modules + endpoints verified")

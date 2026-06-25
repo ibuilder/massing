@@ -96,21 +96,44 @@ def clear_xer(pid: str, _: str = Depends(require_role("editor"))):
 
 
 @router.get("/projects/{pid}/schedule/4d")
-def schedule_4d(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """4D construction sequence (C3): map the published model's elements onto a takt plan derived
-    from the storey count, returning scrubable timeline frames (cumulative % built per day). If a
-    Primavera **P6 .xer** has been imported, each frame also carries a real **calendar date**
-    interpolated across the imported start→finish window, and the response flags `source:"p6"`."""
+def schedule_4d(pid: str, source: str = "auto", db: Session = Depends(get_db),
+                _: str = Depends(require_role("viewer"))):
+    """4D construction sequence (C3): scrubable timeline frames (cumulative % built per day) over the
+    published model's elements.
+
+    Source is **relational by default** (`source=auto`): when the GC **`schedule_activity`** records
+    exist they drive the sequence (`source:"gc"`) — each element gets its real calendar finish date
+    from the activity that tags its GUID, else from its trade's activities by floor — so the model
+    plays the *actual* schedule the team maintains in the portal (the same activities behind the
+    Gantt / Line-of-Balance / CPM views). Otherwise it falls back to a takt plan derived from the
+    storey count; if a Primavera **P6 .xer** was imported, takt frames carry interpolated calendar
+    dates (`source:"p6"`). Force a source with `?source=gc|takt`."""
     import json
     from datetime import date, timedelta
 
-    from .. import fourd, storage, takt
+    from .. import fourd, modules as me, storage, takt
     try:
         idx = json.loads(storage.get(f"{pid}/props.json"))
         elements = idx.get("elements", [])
     except Exception:                                # noqa: BLE001 — no published index yet
         elements = []
     floors = max([fourd._floor_index(e.get("storey")) for e in elements] + [0]) + 1
+
+    # relational source: the GC schedule drives the model when activities exist (unless forced off)
+    if source in ("auto", "gc") and "schedule_activity" in me.TABLES:
+        acts = []
+        for r in me.list_records(db, "schedule_activity", pid, limit=1_000_000):
+            d = dict(r.get("data") or {})
+            d["element_guids"] = r.get("element_guids") or []   # generic per-record element tags
+            acts.append(d)
+        if any((a.get("finish") or a.get("actual_finish")) for a in acts):
+            gc = fourd.timeline_from_activities(acts, elements)
+            return {"floors": floors, **gc}
+        if source == "gc":                            # explicitly asked for GC but none usable
+            return {"floors": floors, "source": "gc", "frames": [], "total_days": 0,
+                    "element_count": 0, "by_trade": {}, "linked": 0, "unlinked": 0,
+                    "note": "no schedule_activity records with finish dates"}
+
     plan = takt.plan(floors)
     result = {"floors": floors, "duration_days": plan["duration_days"], "source": "takt",
               **fourd.timeline(plan, elements)}

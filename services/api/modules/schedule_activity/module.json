@@ -5,48 +5,104 @@
   "icon": "▸",
   "ref_prefix": "ACT",
   "title_field": "name",
-  "pinnable": false,
+  "pinnable": true,
   "fields": [
     {
       "name": "name",
       "label": "Activity",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Activity"
     },
     {
       "name": "wbs",
       "label": "WBS",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Activity"
     },
     {
-      "name": "start",
-      "label": "Start",
-      "type": "date"
+      "name": "activity_type",
+      "label": "Type",
+      "type": "select",
+      "options": [
+        "Task",
+        "Milestone",
+        "Summary",
+        "Level of Effort"
+      ],
+      "fieldset": "Activity"
     },
     {
-      "name": "finish",
-      "label": "Finish",
-      "type": "date"
-    },
-    {
-      "name": "percent",
-      "label": "% Complete",
-      "type": "number"
+      "name": "trade",
+      "label": "Trade",
+      "type": "select",
+      "options": [
+        "Sitework",
+        "Structure",
+        "Concrete",
+        "Steel",
+        "Envelope",
+        "MEP",
+        "Interiors",
+        "Finishes",
+        "Commissioning"
+      ],
+      "fieldset": "Activity"
     },
     {
       "name": "location",
       "label": "Location",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Activity"
+    },
+    {
+      "name": "start",
+      "label": "Planned Start",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "finish",
+      "label": "Planned Finish",
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
       "name": "duration",
       "label": "Duration (days)",
-      "type": "number"
+      "type": "number",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "actual_start",
+      "label": "Actual Start",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "actual_finish",
+      "label": "Actual Finish",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "percent",
+      "label": "% Complete",
+      "type": "number",
+      "fieldset": "Dates"
     },
     {
       "name": "predecessors",
       "label": "Predecessors (ref/WBS, comma-sep)",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Links"
+    },
+    {
+      "name": "cost_code",
+      "label": "Cost Code",
+      "type": "reference",
+      "module": "cost_code",
+      "fieldset": "Links"
     }
   ],
   "workflow": {
@@ -67,8 +123,9 @@
     ]
   },
   "list_columns": [
-    "wbs",
-    "duration",
-    "start"
+    "trade",
+    "start",
+    "finish",
+    "percent"
   ]
 }
