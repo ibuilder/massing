@@ -19,15 +19,78 @@ export interface PortalHost {
 
 export class PortalUI {
   private mods: ModuleDef[] = [];
+  private nav?: HTMLElement;          // persistent left module-nav rail (built once)
+  private activeKey: string | null = null;
 
   constructor(private root: HTMLElement, private host: PortalHost) {}
 
   async init() {
     if (!this.host.projectId()) { this.root.innerHTML = noProjectHtml("the GC portal"); return; }
     this.mods = await this.host.api.modules();
+    // build the persistent shell once: [nav rail | content]. `this.root` is redirected to the
+    // content pane, so every existing render path writes into it while the nav rail stays put.
+    const outer = this.root;
+    outer.innerHTML = ""; outer.classList.add("portal-shell");
+    this.nav = document.createElement("nav"); this.nav.className = "portal-nav";
+    const content = document.createElement("div"); content.className = "portal-content";
+    outer.append(this.nav, content);
+    this.root = content;
+    this.buildNav();
     // re-order the module catalog's default-open sections when the persona changes
-    window.addEventListener("aec:persona", () => this.refreshCatalog());
+    window.addEventListener("aec:persona", () => { this.refreshCatalog(); this.buildNav(); });
     await this.renderHome();
+  }
+
+  /** The always-visible left nav: Dashboard + a filter + favorites + collapsible sections of modules.
+   *  Clicking a module loads it into the content pane (the rail persists, unlike the old full replace). */
+  private buildNav() {
+    const nav = this.nav; if (!nav) return;
+    nav.innerHTML = "";
+    const home = document.createElement("button");
+    home.className = "pnav-item pnav-home" + (this.activeKey === null ? " active" : "");
+    home.innerHTML = `<span class="ic">🏠</span> Dashboard`;
+    home.onclick = () => { this.activeKey = null; void this.renderHome(); this.buildNav(); };
+    nav.appendChild(home);
+
+    const filter = document.createElement("input");
+    filter.type = "search"; filter.placeholder = "Filter…"; filter.className = "portal-filter pnav-filter";
+    nav.appendChild(filter);
+
+    const favs = this.favs();
+    const persona = document.body.dataset.persona || localStorage.getItem("persona") || "all";
+    const openSecs = PortalUI.SECTIONS_BY_PERSONA[persona];
+
+    const item = (m: ModuleDef) => {
+      const b = document.createElement("button");
+      b.className = "pnav-item" + (this.activeKey === m.key ? " active" : "");
+      b.dataset.modname = m.name.toLowerCase();
+      b.innerHTML = `<span class="ic">${m.icon || "•"}</span> ${m.name}`;
+      b.onclick = () => { this.activeKey = m.key; void this.openModule(m); this.buildNav(); };
+      return b;
+    };
+    const group = (title: string, mods: ModuleDef[], open: boolean) => {
+      const det = document.createElement("details"); det.open = open; det.className = "pnav-group"; det.dataset.sec = title;
+      const sum = document.createElement("summary"); sum.textContent = title; det.appendChild(sum);
+      mods.forEach((m) => det.appendChild(item(m)));
+      nav.appendChild(det);
+    };
+    if (favs.size) group("★ Favorites", this.mods.filter((m) => favs.has(m.key)), true);
+    const sections = new Map<string, ModuleDef[]>();
+    for (const m of this.mods) { const s = m.section || "Other"; (sections.get(s) ?? sections.set(s, []).get(s)!).push(m); }
+    for (const [section, mods] of sections) group(section, mods, !openSecs || openSecs.includes(section));
+
+    filter.oninput = () => {
+      const q = filter.value.trim().toLowerCase();
+      nav.querySelectorAll<HTMLElement>(".pnav-group").forEach((det) => {
+        let any = false;
+        det.querySelectorAll<HTMLElement>(".pnav-item").forEach((b) => {
+          const hit = !q || (b.dataset.modname || "").includes(q);
+          b.style.display = hit ? "" : "none"; if (hit) any = true;
+        });
+        det.style.display = any ? "" : "none";
+        if (q) (det as HTMLDetailsElement).open = true;
+      });
+    };
   }
 
   // --- role-tailored dashboard + module catalog ------------------------------

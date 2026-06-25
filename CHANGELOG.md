@@ -4,6 +4,17 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.50 — GC portal navigation rail + module improvement roadmap
+- **Persistent left nav rail in the GC portal** — opening a module used to replace the whole panel, so
+  moving between the 73 modules meant going "back" every time. Now a sticky left rail (Dashboard +
+  filter + favorites + collapsible sections) stays visible and loads each module into a content pane —
+  jump anywhere in one click, with the active module highlighted. (Stacks above the content on phones.)
+- **GC module deep-dive roadmap** ([docs/gc-modules-roadmap.md](docs/gc-modules-roadmap.md)) — a
+  field-by-field audit of all 73 modules benchmarked against Procore/Fieldwire + how Turner/Suffolk/
+  Balfour run these workflows, with cross-cutting themes (cost-code links everywhere, ball-in-court
+  /assignee, fieldsets, inline add-from-dropdown, super-vs-PM views, cross-module conversions) and
+  tiered per-module priorities. How to **add cost codes**: Construction → Cost Codes (Resources) → + Add.
+
 ## v0.1.49 — left rail revamp (crisp icons + expandable labels)
 - **Modernized the left icon rail** — the oldest piece of the UI. The cryptic `⌗`/`≣` Unicode glyphs
   are replaced with crisp inline **SVG icons** (hierarchy / layers / flag / gear), and the rail is now

@@ -526,3 +526,30 @@ body[data-cap-admin="off"] [data-cap="admin"] { display: none !important; }
 .studio-dot:hover { transform: scale(1.3); }
 .studio-dot.active { background: #ffb000; border-color: #ffb000; }
 .studio-status { padding: 6px 12px; border-top: 1px solid var(--line); background: var(--panel); }
+
+/* ---- GC portal: persistent left module-nav rail --------------------------- */
+/* portal-shell is added to #panel-portal itself; match the id specificity of
+   #panel-portal.fullpanel{display:block} (which would otherwise win) */
+#panel-portal.portal-shell, .portal-shell { display: flex; gap: 14px; align-items: flex-start; }
+.portal-nav { flex: 0 0 188px; position: sticky; top: 0; align-self: flex-start;
+  max-height: calc(100vh - 110px); overflow-y: auto; border-right: 1px solid var(--line); padding-right: 8px; }
+.portal-content { flex: 1; min-width: 0; }
+.pnav-item { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left; border: none;
+  background: transparent; color: var(--text); padding: 5px 8px; border-radius: 6px; cursor: pointer;
+  font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pnav-item:hover { background: var(--hover); }
+.pnav-item.active { background: var(--accent); color: #fff; }
+.pnav-item .ic { width: 16px; flex: 0 0 16px; text-align: center; opacity: .85; }
+.pnav-home { font-weight: 600; margin-bottom: 2px; }
+.pnav-filter { margin: 6px 0 4px; width: 100%; }
+.pnav-group { margin-top: 2px; }
+.pnav-group > summary { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); cursor: pointer; padding: 7px 4px 3px; list-style: none; user-select: none; }
+.pnav-group > summary::-webkit-details-marker { display: none; }
+.pnav-group > summary::before { content: "▸ "; font-size: 9px; }
+.pnav-group[open] > summary::before { content: "▾ "; }
+@media (max-width: 760px) {
+  .portal-shell { flex-direction: column; }
+  .portal-nav { position: static; flex: none; width: 100%; max-height: none; border-right: none;
+    border-bottom: 1px solid var(--line); padding: 0 0 8px; }
+}
