@@ -50,6 +50,11 @@ with TestClient(app) as c:
     mk(c, pid, "bid_submission", {"bidder": "Acme Concrete", "package": bp["id"],
                                   "amount": 1_750_000, "status": "Awarded"})
 
+    # an approved change order adjusts the GMP (original + approved COs = revised)
+    cor = mk(c, pid, "cor", {"subject": "Added topping slab", "cost_code": cc_conc, "amount": 75_000})
+    c.post(f"/projects/{pid}/modules/cor/{cor['id']}/transition", json={"action": "submit"})
+    c.post(f"/projects/{pid}/modules/cor/{cor['id']}/transition", json={"action": "approve"})
+
     # developer proforma hard cost (the construction line the GMP must reconcile against)
     c.put(f"/projects/{pid}/dev-budget", json={"lines": [
         {"category": "hard", "description": "Hard costs", "unit_cost": 3_200_000, "quantity": 1}]})
@@ -83,6 +88,10 @@ with TestClient(app) as c:
     assert cats["overhead"]["budget"] == round(cow * 0.05, 2), (cats["overhead"]["budget"], cow)
     assert cats["fee"]["budget"] == round((cow + cats["overhead"]["budget"]) * 0.04, 2), cats["fee"]["budget"]
     assert cats["contingency"]["budget"] == round(2_000_000 * 0.03, 2), cats["contingency"]["budget"]
+
+    # approved change order → revised GMP (original + $75k)
+    assert b["gmp"]["approved_changes"] == 75_000, b["gmp"]
+    assert b["gmp"]["revised"] == round(b["gmp"]["computed"] + 75_000, 2), b["gmp"]
 
     # GMP reconciliation + proforma tie
     assert b["gmp"]["computed"] == b["totals"]["budget"], (b["gmp"]["computed"], b["totals"]["budget"])

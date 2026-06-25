@@ -523,6 +523,13 @@ export class PortalUI {
             ? ` · buyout ${buyout.bought_out}/${buyout.packages} · savings <span style="color:${vcol(buyout.savings)}">${usd(buyout.savings)}</span>` : "");
       this.root.appendChild(ctc);
 
+      if (g.approved_changes) {
+        const ch = document.createElement("div"); ch.className = "meta"; ch.style.margin = "0 0 6px";
+        ch.innerHTML = `Approved changes <b>${usd(g.approved_changes)}</b> → revised GMP <b>${usd(g.revised ?? g.computed)}</b>`
+          + (g.unallocated_changes ? ` <span style="color:#ffd479">(${usd(g.unallocated_changes)} unallocated — assign a cost code)</span>` : "");
+        this.root.appendChild(ch);
+      }
+
       if (g.contract_value || b.proforma) {
         const recon = document.createElement("div"); recon.className = "meta"; recon.style.margin = "0 0 8px";
         recon.innerHTML = (g.contract_value

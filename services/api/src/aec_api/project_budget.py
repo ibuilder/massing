@@ -169,6 +169,16 @@ def gmp_budget(db: Session, pid: str, proforma_hard: float | None = None) -> dic
     fee = _category("fee", f"Fee / Profit ({fee_pct}%)", [_line("Fee", fee_amt)])
     contingency = _category("contingency", f"GC Contingency ({cont_pct}%)", [_line("Contingency", contingency_amt)])
 
+    # approved/executed change orders adjust the GMP (original contract + approved COs = revised GMP)
+    changes_total = changes_alloc = 0.0
+    for r in _records(db, "cor", pid):
+        if r.get("workflow_state") in ("approved", "executed"):
+            amt = _n((r.get("data") or {}).get("amount"))
+            changes_total += amt
+            if (r.get("data") or {}).get("cost_code"):
+                changes_alloc += amt
+    changes_total, changes_alloc = round(changes_total, 2), round(changes_alloc, 2)
+
     categories = [direct, general_requirements, general_conditions, overhead, fee, contingency]
     totals = {k: round(sum(_n(c[k]) for c in categories), 2)
               for k in ("budget", "committed", "actual", "forecast", "eac", "etc")}
@@ -210,6 +220,8 @@ def gmp_budget(db: Session, pid: str, proforma_hard: float | None = None) -> dic
         "gmp": {"contract_value": round(gmp_value, 2), "computed": round(gmp_computed, 2),
                 "reconciliation": round(gmp_value - gmp_computed, 2) if gmp_value else None,
                 "cost_of_work": round(cost_of_work, 2),
+                "approved_changes": changes_total, "unallocated_changes": round(changes_total - changes_alloc, 2),
+                "revised": round(gmp_computed + changes_total, 2),
                 "markups": {"overhead_pct": oh_pct, "fee_pct": fee_pct, "contingency_pct": cont_pct}},
         "categories": categories,
         "totals": totals,

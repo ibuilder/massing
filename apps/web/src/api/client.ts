@@ -805,6 +805,7 @@ export class ApiClient {
       groups?: { name: string; budget: number }[] };
     return this.json<{
       gmp: { contract_value: number; computed: number; reconciliation: number | null; cost_of_work: number;
+        approved_changes?: number; unallocated_changes?: number; revised?: number;
         markups: { overhead_pct: number; fee_pct: number; contingency_pct: number } };
       categories: Cat[];
       totals: { budget: number; committed: number; actual: number; forecast: number; eac: number; etc: number; variance: number };
