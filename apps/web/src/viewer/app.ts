@@ -1140,31 +1140,53 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           const seq = await api.schedule4d(pid);
           if (!seq.element_count) { out.textContent = "No published model elements to sequence — generate/publish a model first."; return; }
           out.textContent = "";
+          const cf = await api.budgetCashflow(pid).catch(() => null);   // cost burn alongside the build
+          const cfTotal = cf?.total ?? 0;
+          const allGuids = [...new Set(seq.frames.flatMap((f) => f.new_guids))];
           const totalDays = seq.duration_days ?? seq.total_days ?? 0;
           const wrap = document.createElement("div"); wrap.style.marginTop = "4px";
           const lbl = document.createElement("div"); lbl.className = "meta";
           const slider = document.createElement("input"); slider.type = "range";
           slider.min = "0"; slider.max = String(totalDays); slider.value = String(totalDays);
           slider.style.width = "100%";
-          const dateFor = (day: number): string => {           // real calendar date (GC schedule or P6)
-            if (seq.source === "gc") {                          // frames carry their own activity dates
-              let d = ""; for (const f of seq.frames) { if (f.day <= day && f.date) d = f.date; }
-              return d ? ` · ${new Date(d).toLocaleDateString()}` : "";
+          const isoChk = document.createElement("label"); isoChk.className = "meta"; isoChk.style.cssText = "display:flex;gap:4px;align-items:center;cursor:pointer";
+          const iso = document.createElement("input"); iso.type = "checkbox";
+          isoChk.append(iso, document.createTextNode("isolate built (vs colour the whole model)"));
+          const dateForDay = (day: number): string | null => {
+            if (seq.source === "gc") { let d: string | null = null; for (const f of seq.frames) if (f.day <= day && f.date) d = f.date; return d; }
+            if (seq.source === "p6" && seq.start_date && seq.finish_date && totalDays) {
+              const s = new Date(seq.start_date).getTime(), e = new Date(seq.finish_date).getTime();
+              return new Date(s + (e - s) * day / totalDays).toISOString().slice(0, 10);
             }
-            if (seq.source !== "p6" || !seq.start_date || !seq.finish_date || !totalDays) return "";
-            const s = new Date(seq.start_date).getTime(), e = new Date(seq.finish_date).getTime();
-            return ` · ${new Date(s + (e - s) * day / totalDays).toLocaleDateString()}`;
+            return null;
+          };
+          const burnAt = (date: string | null): number => {   // cumulative cost up to the scrub date
+            if (!cf || !date) return 0;
+            const m = date.slice(0, 7); let burn = 0;
+            for (const b of cf.series) { if (b.month <= m) burn = b.cumulative; }
+            return burn;
           };
           const apply = async (day: number) => {
-            const guids = seq.frames.filter((f) => f.day <= day).flatMap((f) => f.new_guids);
-            const done = seq.frames.filter((f) => f.day <= day).reduce((n, f) => n + f.new, 0);
-            lbl.innerHTML = `Day <b>${day}</b> / ${totalDays}${dateFor(day)} · built <b>${done}</b>/${seq.element_count} `
-              + `(${Math.round(done / seq.element_count * 100)}%)`;
-            if (guids.length) await visibility.isolate(await sets.fromGuids(guids));
-            else await visibility.showAll();
+            const built = seq.frames.filter((f) => f.day <= day).flatMap((f) => f.new_guids);
+            const done = built.length;
+            const date = dateForDay(day);
+            const burn = burnAt(date);
+            lbl.innerHTML = `Day <b>${day}</b> / ${totalDays}${date ? ` · ${new Date(date).toLocaleDateString()}` : ""} · `
+              + `built <b>${done}</b>/${seq.element_count} (${Math.round(done / seq.element_count * 100)}%)`
+              + (cfTotal ? ` · 💰 burned <b>$${Math.round(burn).toLocaleString()}</b> (${Math.round(burn / cfTotal * 100)}% of $${Math.round(cfTotal).toLocaleString()})` : "");
+            await colorize.reset();
+            if (iso.checked) {
+              if (built.length) await visibility.isolate(await sets.fromGuids(built)); else await visibility.showAll();
+            } else {
+              await visibility.showAll();
+              const remaining = allGuids.filter((g) => !built.includes(g));
+              if (remaining.length) await colorize.ghost(await sets.fromGuids(remaining), 0.12);
+              if (built.length) await colorize.color(await sets.fromGuids(built), "#33d17a");   // built → green
+            }
           };
+          iso.onchange = () => void apply(+slider.value);
           slider.oninput = () => void apply(+slider.value);
-          const reset = toolBtn2("⊞ Show all", () => void visibility.showAll());
+          const reset = toolBtn2("⊞ Show all", async () => { await visibility.showAll(); await colorize.reset(); });
           const tag = document.createElement("div"); tag.className = "meta";
           if (seq.source === "gc") {                            // driven by the GC schedule (relational)
             const tied = seq.linked ? ` · ${seq.linked} elements hard-tied, ${seq.unlinked} by trade` : "";
@@ -1174,7 +1196,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             tag.textContent = `📅 P6 schedule: ${seq.start_date} → ${seq.finish_date} (${seq.p6_activities} activities)`;
             wrap.append(tag);
           }
-          wrap.append(lbl, slider, reset); out.appendChild(wrap);
+          wrap.append(lbl, slider, isoChk, reset); out.appendChild(wrap);
           await apply(totalDays);
         });
         b.appendChild(fourdBtn);
