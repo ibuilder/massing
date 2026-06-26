@@ -1178,6 +1178,31 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           await apply(totalDays);
         });
         b.appendChild(fourdBtn);
+        // 5D heatmap — color the whole model by schedule %-complete or cost variance
+        const PROG_COLORS: Record<string, string> = { complete: "#33d17a", in_progress: "#ffd479", not_started: "#8aa0b8", unscheduled: "#5b6470" };
+        const COST_COLORS: Record<string, string> = { over: "#e2554a", on_under: "#33d17a", unscheduled: "#5b6470" };
+        const colorBy = async (mode: "progress" | "cost") => {
+          if (!projectId) { notify("connect a project first", "error"); return; }
+          out.textContent = "coloring model…";
+          try {
+            const map = await api.elements5dMap(projectId, mode);
+            await colorize.reset();
+            const palette = mode === "cost" ? COST_COLORS : PROG_COLORS;
+            let legend = "";
+            for (const [key, guids] of Object.entries(map.buckets)) {
+              if (!guids.length) continue;
+              const col = palette[key] ?? "#888";
+              await colorize.color(await sets.fromGuids(guids), col);
+              legend += `<span style="display:inline-flex;align-items:center;gap:3px;margin-right:8px">`
+                + `<span style="width:9px;height:9px;border-radius:2px;background:${col};display:inline-block"></span>`
+                + `${key.replace(/_/g, " ")} (${guids.length})</span>`;
+            }
+            out.innerHTML = `<div class="meta">5D heatmap — ${mode === "cost" ? "cost variance" : "% complete"}<br>${legend || "no elements resolved"}</div>`;
+          } catch (e) { out.textContent = `color failed: ${(e as Error).message}`; }
+        };
+        b.appendChild(toolBtn2("🎨 Color by % complete", () => void colorBy("progress")));
+        b.appendChild(toolBtn2("🎨 Color by cost variance", () => void colorBy("cost")));
+        b.appendChild(toolBtn2("⊞ Reset colors", async () => { await colorize.reset(); out.textContent = ""; }));
         // import a Primavera P6 .xer so the 4D scrub shows real calendar dates
         const xerInput = document.createElement("input");
         xerInput.type = "file"; xerInput.accept = ".xer"; xerInput.style.display = "none";

@@ -484,6 +484,12 @@ export class ApiClient {
         budget: number; committed: number; actual: number; eac: number; variance: number } | null }>(
       `/projects/${pid}/elements/${guid}/5d`);
   }
+  /** Batch 5D heatmap: bucket every element GUID by schedule %-complete (by=progress) or cost
+   *  variance (by=cost), for coloring the whole model. */
+  elements5dMap(pid: string, by: "progress" | "cost" = "progress") {
+    return this.json<{ by: string; buckets: Record<string, string[]>; counts: Record<string, number>; element_count: number }>(
+      `/projects/${pid}/5d/heatmap?by=${by}`);
+  }
   /** Placeable types ("families") in the project's source IFC, for the place-family picker. */
   types(pid: string) {
     return this.json<{ types: { guid: string; name: string; ifc_class: string; has_geometry: boolean }[] }>(

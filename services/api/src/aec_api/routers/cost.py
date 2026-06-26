@@ -200,6 +200,69 @@ def element_5d(pid: str, guid: str, db: Session = Depends(get_db), _: str = Depe
             "name": meta.get("name") or meta.get("type_name"), "schedule": sched, "cost": cost}
 
 
+@router.get("/projects/{pid}/5d/heatmap")
+def elements_5d_map(pid: str, by: str = "progress", db: Session = Depends(get_db),
+                    _: str = Depends(require_role("viewer"))):
+    """Batch 5D for the whole model — bucket every element's GUID for a 3D heatmap. `by=progress`
+    buckets by its schedule activity's %-complete (complete / in_progress / not_started); `by=cost`
+    by its cost-code variance (over / on_under). Same hard-tied-or-by-trade resolution as the
+    per-element 5D. Drives 'color the building by progress / cost status'."""
+    import json
+
+    from .. import fourd, project_budget as pb, storage
+    try:
+        elements = json.loads(storage.get(f"{pid}/props.json")).get("elements", [])
+    except Exception:                                  # noqa: BLE001 — no published index
+        elements = []
+    acts = pb._records(db, "schedule_activity", pid)
+    tied: dict[str, dict] = {}
+    by_trade: dict[str, list] = {}
+    for r in acts:
+        d = r.get("data") or {}
+        for g in (r.get("element_guids") or []):
+            tied[g] = r
+        if d.get("trade"):
+            by_trade.setdefault(d["trade"], []).append(r)
+    for v in by_trade.values():
+        v.sort(key=lambda r: str((r.get("data") or {}).get("start") or ""))
+    floors = max([fourd._floor_index(e.get("storey")) for e in elements] + [0]) + 1
+
+    cc_var: dict[str, float] = {}
+    if by == "cost":
+        b = pb.gmp_budget(db, pid)
+        for cat in b["categories"]:
+            for grp in (cat.get("groups") or [cat]):
+                for ln in grp.get("lines", []):
+                    if ln.get("cost_code_id"):
+                        cc_var[ln["cost_code_id"]] = ln["variance"]
+
+    buckets: dict[str, list] = {}
+    for e in elements:
+        g = e.get("guid")
+        if not g:
+            continue
+        a = tied.get(g)
+        if a is None:
+            trade = fourd._CLASS_TRADE_TO_ACTIVITY_TRADE.get(
+                fourd.TRADE_FOR_CLASS.get(e.get("ifc_class"), fourd._DEFAULT_TRADE))
+            pool = by_trade.get(trade) or []
+            if pool:
+                f = fourd._floor_index(e.get("storey"))
+                a = pool[round(f / max(1, floors - 1) * (len(pool) - 1)) if len(pool) > 1 else 0]
+        if a is None:
+            buckets.setdefault("unscheduled", []).append(g)
+            continue
+        d = a.get("data") or {}
+        if by == "cost":
+            key = "over" if cc_var.get(d.get("cost_code"), 0) < 0 else "on_under"
+        else:
+            p = pb._n(d.get("percent"))
+            key = "complete" if p >= 100 else "in_progress" if p > 0 else "not_started"
+        buckets.setdefault(key, []).append(g)
+    return {"by": by, "buckets": buckets, "counts": {k: len(v) for k, v in buckets.items()},
+            "element_count": len(elements)}
+
+
 @router.get("/projects/{pid}/budget/gmp")
 def gmp_budget(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Full GC project budget (GMP): direct trade work (by CSI division + bid package) + General
