@@ -74,6 +74,13 @@
       "type": "reference",
       "module": "subcontract",
       "fieldset": "Links"
+    },
+    {
+      "name": "change_event",
+      "label": "Source change event",
+      "type": "reference",
+      "module": "change_event",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

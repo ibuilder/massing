@@ -56,6 +56,12 @@
       "label": "Prime contract",
       "type": "reference",
       "module": "prime_contract"
+    },
+    {
+      "name": "cor",
+      "label": "Source change order",
+      "type": "reference",
+      "module": "cor"
     }
   ],
   "workflow": {

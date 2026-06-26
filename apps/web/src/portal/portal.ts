@@ -38,6 +38,14 @@ export class PortalUI {
   // C1 — one-click cross-module conversions (Procore "convert RFI to PCO" etc.). The new record is
   // pre-filled from the source and linked back (via a reference field when one exists, else an explicit link).
   private static CONVERSIONS: Record<string, Conversion[]> = {
+    cor: [
+      { to: "sov", label: "SOV line", back: "cor",
+        map: (d) => ({ item_no: "CO", description: d.subject, scheduled_value: d.amount, cost_code: d.cost_code }) },
+    ],
+    bid_submission: [
+      { to: "subcontract", label: "Award → Subcontract", back: "bid_submission",
+        map: (d) => ({ vendor: d.bidder, value: d.amount }) },
+    ],
     rfi: [
       { to: "change_event", label: "Change Event", back: "source_rfi",
         map: (d) => ({ subject: d.subject, cost_code: d.cost_code }) },
