@@ -301,24 +301,32 @@ def _set_pub_status(pid: str, state: str, detail: dict | None = None) -> None:
          "at": datetime.now(timezone.utc).isoformat()}).encode())
 
 
-def _publish_bg(pid: str) -> None:
-    """Run _publish in a daemon thread (fresh DB session). A 50MB IFC convert takes
-    minutes — doing it in-request would tie up a worker; clients poll publish/status."""
+def run_publish(pid: str) -> None:
+    """Convert + reindex a project's source IFC, recording status. Pure + synchronous + idempotent —
+    callable by the daemon thread now, or directly by an external task worker (RQ / Dramatiq on the
+    already-optional Redis) later, with no code change. We deliberately don't run Celery: for the
+    self-hosted / desktop mission a thread + durable status poll is the right amount of machinery —
+    see docs/audit-2026-06.md for when a queue becomes worthwhile."""
     from ..db import SessionLocal
-
-    def run():
-        try:
-            with SessionLocal() as db:
-                p = db.get(Project, pid)
-                if not p:
-                    return
-                result = _publish(p)
-            _set_pub_status(pid, "error" if result.get("reconvert_error") else "done", result)
-        except Exception as e:
-            _set_pub_status(pid, "error", {"error": str(e)[:300]})
-
     _set_pub_status(pid, "running")
-    threading.Thread(target=run, daemon=True).start()
+    try:
+        with SessionLocal() as db:
+            p = db.get(Project, pid)
+            if not p:
+                _set_pub_status(pid, "error", {"error": "project not found"})
+                return
+            result = _publish(p)
+        _set_pub_status(pid, "error" if result.get("reconvert_error") else "done", result)
+    except Exception as e:  # noqa: BLE001 — surface the failure in the status, never crash the worker
+        _set_pub_status(pid, "error", {"error": str(e)[:300]})
+
+
+def _publish_bg(pid: str) -> None:
+    """Run run_publish off the request thread. A 50MB IFC convert takes minutes — doing it in-request
+    would tie up a worker; clients poll publish/status. (Swap this for `worker.enqueue(run_publish, pid)`
+    to move it onto a real queue without touching run_publish.)"""
+    _set_pub_status(pid, "running")
+    threading.Thread(target=run_publish, args=(pid,), daemon=True).start()
 
 
 @router.get("/projects/{pid}/publish/status")
@@ -326,5 +334,15 @@ def publish_status(pid: str, _: str = Depends(require_role("viewer"))):
     """Poll the async publish job: idle | running | done | error (+ detail)."""
     key = f"{pid}/publish_status.json"
     if storage.exists(key):
-        return json.loads(storage.get(key))
+        s = json.loads(storage.get(key))
+        # interrupted-job recovery: a "running" status older than the convert timeout means the worker
+        # died (e.g. server restart) — report it as an error so the client isn't stuck polling forever.
+        if s.get("state") == "running" and s.get("at"):
+            try:
+                age = (datetime.now(timezone.utc) - datetime.fromisoformat(s["at"])).total_seconds()
+                if age > 900:
+                    return {"state": "error", "detail": {"error": "publish interrupted (worker restarted)"}, "at": s["at"]}
+            except (ValueError, TypeError):
+                pass
+        return s
     return {"state": "idle"}
