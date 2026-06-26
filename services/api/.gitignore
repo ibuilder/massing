@@ -5,3 +5,15 @@ _demo.mmproj
 demo.db
 demo_storage/
 demo_ifc/
+# local live-verify / test scratch (not for the repo)
+walkthrough.db
+walkthrough_s/
+walkthrough_i/
+live_verify.db
+live_verify_storage/
+live_verify_ifc/
+budget_preview*
+_deckchk*
+test_*.db
+test_storage*/
+test_ifc*/
