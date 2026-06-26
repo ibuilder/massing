@@ -4,6 +4,51 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.80 — multi-user persona views + optional paid RVT→IFC bridge
+- **Membership shapes the view** — a project member's party role (GC / Owner / Consultant /
+  Subcontractor) now auto-selects their persona on open, so they land in the right workspace set;
+  capability role already gated edit controls. Members modal (add / role / party / remove) present.
+- **Revit (.rvt) → IFC bridge (optional, paid)** — feature-flagged on `APS_CLIENT_ID/SECRET`, doubly
+  gated: bridge off → 501 + the free IFC-export path; on → must `confirm_cost` (Autodesk bills per
+  conversion). Real RVT→IFC runs Revit's exporter via APS Design Automation (`APS_DA_ACTIVITY`).
+
+## v0.1.79 — 4D colour scrub + quantity takeoff by floor
+- **Time-aware 4D scrub** — scrubbing the timeline paints the model green floor-by-floor (rest
+  ghosted) with a live **cost-burn** readout from the cost-loaded cash-flow curve.
+- **QTO by floor & discipline** — quantities + cost mapped to the storey they sit on, per-floor
+  totals + a discipline (IFC class) roll-up.
+
+## v0.1.77–78 — 5D element intelligence
+- **Click an element → its 5D** — schedule activity (%-complete, dates, hard-tied vs by-trade) +
+  cost-code budget vs committed vs actual. **Model heatmap** — colour by %-complete or cost variance.
+- **One-click generate seeds the GC portal** — lot→building→deal also creates cost codes, a
+  hard-cost-allocated budget, a GMP prime contract, and a cost-loaded schedule.
+
+## v0.1.73–76 — dashboards + investor deliverables, one language
+- **Developer Overview command center** + cross-pillar **Portfolio** (GC status *and* developer
+  returns per project, blended IRR), one-click **Save scenario**, and a **Construction Status**
+  section in the investor memo + deck. **PX executive band** — on-schedule next to on-budget.
+
+## v0.1.67–72 — developer ↔ GC capital chain
+- **GMP ↔ hard-cost reconciliation + one-click sync**, construction **draws** from the schedule, an
+  **actuals loop** (owner invoices → re-forecast IRR), **construction-loan draws** (equity-first)
+  with **interest accrual** + **per-cost-code composition**, and a **lender draw-request PDF**.
+
+## v0.1.60–66 — GMP project budget (its own destination)
+- **Budget** is a first-class destination: the agreed GMP broken to every cost code & bid package +
+  General Conditions / Requirements (incl. **staffing** projections) + overhead / fee / contingency,
+  each budget vs committed vs actual vs **EAC/ETC**. **Buyout savings**, **change orders → revised
+  GMP**, owner **SOV from the budget**, a **cash-flow S-curve**, **baseline + variance** — reconciled
+  to the developer proforma's hard cost.
+
+## v0.1.53–59 — relational schedule, field/mobile, GC module depth
+- **Relational scheduling** — `schedule_activity` drives the Gantt / Line-of-Balance / CPM **and**
+  the 3D 4D model; editable P6 `.xer` import; **lookahead** + **milestone** schedules.
+- **Field/mobile** — bulk photo + camera capture, photo-first records, offline upload queue;
+  **coordination-issue BCF round-trip**.
+- **GC module depth** — ball-in-court, super/PM personas, fieldsets, researched Tier-1/2/3 field sets
+  across the 73 modules. **Release pipeline hardened** (version from git tag; single-draft publish).
+
 ## v0.1.52 — GC dashboard redesigned as a command center
 - **Dashboard rebuilt around the new nav rail** — the redundant "All modules" catalog is gone (the
   persistent left rail owns navigation now), and the dashboard is a focused command center: **clickable

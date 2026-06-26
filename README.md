@@ -167,6 +167,22 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
+- **One relational model — schedule · budget · 5D · capital (latest)** — the GC `schedule_activity`
+  records now drive the Gantt / Line-of-Balance / CPM **and** the 3D 4D scrub (per-activity dates,
+  element/trade links), with **lookahead** + **milestone** views and editable P6 `.xer` import. A
+  first-class **Budget** destination assembles the agreed **GMP** from every cost code & bid package
+  + General Conditions / Requirements (incl. **staffing** projections) + overhead / fee / contingency
+  — each budget vs committed vs actual vs **EAC**, with buyout savings, change-orders→revised-GMP,
+  owner **SOV from the budget**, a **cash-flow S-curve**, and a baseline; it reconciles to the
+  developer proforma's hard cost. The capital chain closes the loop: **GMP↔hard-cost sync**, an
+  **actuals loop** (owner invoices → re-forecast IRR), **construction-loan draws** (equity-first,
+  interest accrual, lender draw-request PDF), a cross-pillar **Portfolio** (GC status + developer
+  returns), and **on-schedule/on-budget** executive bands. **5D**: click an element → its activity +
+  cost-code budget; colour the model by %-complete or cost variance; scrub the 4D timeline with live
+  cost burn; **QTO by floor & discipline**. Plus **multi-user** (members → role-scoped persona
+  views), bulk site-photo + camera capture, and an optional **paid Revit (.rvt)→IFC bridge** (APS,
+  feature-flagged with a cost gate; IFC stays the source of truth). One click (lot→building→deal)
+  seeds all three pillars. See the [CHANGELOG](CHANGELOG.md) (v0.1.53→v0.1.80).
 - **Rendering, families & computational design (M-theme)** — a viewer **render mode** (directional
   sun + soft shadows, ACES/PBR, IBL), a NOAA **sun-&-shadow study** (date · time · lat/long), and a
   Matterport-style first-person **walkthrough**; Revit-style **`IfcMaterialLayerSet` assemblies** on
