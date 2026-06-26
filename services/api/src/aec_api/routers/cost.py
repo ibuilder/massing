@@ -423,6 +423,18 @@ def estimate_from_model(pid: str, db: Session = Depends(get_db), _: str = Depend
     return est.estimate_from_takeoff(rows, gfa_sf=gfa_sf)
 
 
+@router.get("/projects/{pid}/qto/by-floor")
+def qto_by_floor(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Quantity takeoff + cost broken down by floor (storey) and discipline (IFC class) — quantities
+    and dollars mapped to where they sit in the building, with a per-floor total + a discipline
+    roll-up. 409 if no source IFC."""
+    from ..deps import source_ifc_path
+    from aec_data.qto import takeoff_file  # type: ignore
+    from .. import estimate as est
+    rows = takeoff_file(source_ifc_path(db, pid), force_geometry=True)
+    return est.estimate_by_storey(rows)
+
+
 @router.post("/projects/{pid}/cost/tm")
 def price_tm(pid: str, eticket_id: str = Body(...), lines: list[dict] = Body(...),
              db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):

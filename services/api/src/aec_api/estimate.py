@@ -25,6 +25,56 @@ M2_TO_SF = 10.7639
 DEFAULT_PSF = 220.0          # conceptual all-in $/sf benchmark (residential concrete) for the GFA floor
 
 
+def _price(c: str, a: dict, overrides: dict[str, float]) -> dict | None:
+    spec = DEFAULT_RATES.get(c)
+    if not spec:
+        return None
+    unit, default_rate = spec
+    rate = float(overrides.get(c, default_rate))
+    qty = round(a["count"] if unit == "count" else a.get(unit, 0.0), 2)
+    return {"ifc_class": c, "count": int(a["count"]), "unit": _UNIT_LABEL.get(unit, unit),
+            "quantity": qty, "rate": rate, "amount": round(qty * rate, 2)}
+
+
+def _agg_add(bucket: dict, r: dict) -> None:
+    bucket["count"] += 1
+    for k in ("area", "length", "volume"):
+        v = r.get(k)
+        if isinstance(v, (int, float)):
+            bucket[k] += v
+
+
+def _floor_key(s: str) -> int:
+    import re
+    m = re.search(r"(\d+)", s or "")
+    return int(m.group(1)) if m else 9999
+
+
+def estimate_by_storey(rows: list[dict], overrides: dict[str, float] | None = None) -> dict[str, Any]:
+    """QTO + cost broken down by storey (floor) AND IFC class — quantities and dollars mapped to
+    where they sit in the building, plus a discipline (class) roll-up across all floors."""
+    overrides = overrides or {}
+    by_storey: dict[str, dict[str, dict]] = {}
+    by_class: dict[str, dict] = {}
+    blank = lambda: {"count": 0.0, "area": 0.0, "length": 0.0, "volume": 0.0}
+    for r in rows:
+        st = r.get("storey") or "(unassigned)"
+        c = r.get("ifc_class") or "Unknown"
+        _agg_add(by_storey.setdefault(st, {}).setdefault(c, blank()), r)
+        _agg_add(by_class.setdefault(c, blank()), r)
+    storeys = []
+    for st in sorted(by_storey, key=_floor_key):
+        lines = [p for c, a in sorted(by_storey[st].items()) if (p := _price(c, a, overrides))]
+        lines.sort(key=lambda x: -x["amount"])
+        storeys.append({"storey": st, "total": round(sum(x["amount"] for x in lines), 2),
+                        "element_count": int(sum(a["count"] for a in by_storey[st].values())), "lines": lines})
+    disc = [p for c, a in sorted(by_class.items()) if (p := _price(c, a, overrides))]
+    disc.sort(key=lambda x: -x["amount"])
+    return {"storeys": storeys, "by_discipline": disc,
+            "grand_total": round(sum(s["total"] for s in storeys), 2),
+            "element_count": int(sum(a["count"] for a in by_class.values()))}
+
+
 def estimate_from_takeoff(rows: list[dict], overrides: dict[str, float] | None = None,
                           gfa_sf: float | None = None, psf: float = DEFAULT_PSF) -> dict[str, Any]:
     """rows: aec_data.qto.takeoff output (per-element: ifc_class, area, length, volume...).

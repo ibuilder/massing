@@ -1106,6 +1106,29 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               v: money(l.amount) }))));
           });
         }));
+        b.appendChild(toolBtn2("▦ QTO by floor & discipline", async () => {
+          out.textContent = "taking off by floor…";
+          let q;
+          try { q = await api.qtoByFloor(pid); }
+          catch { out.textContent = "needs a source IFC (open one in Model)"; return; }
+          const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
+          out.textContent = `QTO ${money(q.grand_total)} · ${q.storeys.length} floors`;
+          showResult("Quantity takeoff — by floor & discipline", (body) => {
+            body.appendChild(resultNote(`<b>${money(q.grand_total)}</b> across ${q.storeys.length} floors · ${q.element_count} elements`, "ok"));
+            for (const s of q.storeys) {
+              const h = document.createElement("div"); h.className = "section-title";
+              h.style.cssText = "display:flex;justify-content:space-between;margin-top:8px";
+              h.innerHTML = `<span>${s.storey}</span><span>${money(s.total)}</span>`;
+              body.appendChild(h);
+              body.appendChild(kvTable(s.lines.map((l) => ({
+                k: `${l.ifc_class.replace("Ifc", "")} (${l.quantity} ${l.unit} @ ${money(l.rate)})`, v: money(l.amount) }))));
+            }
+            const dh = document.createElement("div"); dh.className = "section-title"; dh.style.marginTop = "10px";
+            dh.textContent = "Discipline roll-up (all floors)"; body.appendChild(dh);
+            body.appendChild(kvTable(q.by_discipline.map((l) => ({
+              k: `${l.ifc_class.replace("Ifc", "")} · ${l.quantity} ${l.unit}`, v: money(l.amount) }))));
+          });
+        }));
         b.appendChild(out);
         const link = document.createElement("a"); link.href = "#"; link.className = "ref-link"; link.style.cssText = "display:inline-block;margin-top:6px;font-size:11px";
         link.textContent = "Manage budgets & change orders in Construction →";
