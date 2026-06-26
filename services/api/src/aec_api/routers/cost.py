@@ -138,6 +138,68 @@ def subcontractor_billing(pid: str, db: Session = Depends(get_db), _: str = Depe
     return {"subs": out, "totals": tot, "subcontract_count": len(subs), "invoice_count": len(invs)}
 
 
+@router.get("/projects/{pid}/elements/{guid}/5d")
+def element_5d(pid: str, guid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """5D for a model element: click a GUID in the 3D view → its schedule activity (with %-complete,
+    dates, whether it's hard-tied or matched by trade) and its cost code's budget vs committed vs
+    actual. Ties the BIM model to the GC schedule + budget — the same relational data, by element."""
+    import json
+
+    from .. import fourd, project_budget as pb, storage
+    # element metadata from the published props index
+    meta: dict = {}
+    elements: list = []
+    try:
+        idx = json.loads(storage.get(f"{pid}/props.json"))
+        elements = idx.get("elements", [])
+        meta = next((e for e in elements if e.get("guid") == guid), {})
+    except Exception:                                  # noqa: BLE001 — no published index
+        pass
+    ifc_class, storey = meta.get("ifc_class"), meta.get("storey")
+
+    acts = pb._records(db, "schedule_activity", pid)
+    # schedule: prefer the activity that hard-tags this element; else map class → trade → floor
+    activity, tagged = None, False
+    for r in acts:
+        if guid in (r.get("element_guids") or []):
+            activity, tagged = r, True
+            break
+    if activity is None and ifc_class:
+        trade = fourd._CLASS_TRADE_TO_ACTIVITY_TRADE.get(
+            fourd.TRADE_FOR_CLASS.get(ifc_class, fourd._DEFAULT_TRADE))
+        pool = sorted((r for r in acts if (r.get("data") or {}).get("trade") == trade),
+                      key=lambda r: str((r.get("data") or {}).get("start") or ""))
+        if pool:
+            floors = max([fourd._floor_index(e.get("storey")) for e in elements] + [0]) + 1
+            f = fourd._floor_index(storey)
+            i = round(f / max(1, floors - 1) * (len(pool) - 1)) if len(pool) > 1 else 0
+            activity = pool[i]
+
+    sched, cc_id = None, None
+    if activity:
+        d = activity.get("data") or {}
+        cc_id = d.get("cost_code")
+        sched = {"ref": activity.get("ref"), "name": activity.get("title") or d.get("name"),
+                 "trade": d.get("trade"), "percent": pb._n(d.get("percent")),
+                 "start": d.get("start"), "finish": d.get("finish"),
+                 "state": activity.get("workflow_state"), "hard_tied": tagged}
+
+    # cost: pull the element's cost-code line straight from the GMP budget (budget/committed/actual)
+    cost = None
+    if cc_id:
+        b = pb.gmp_budget(db, pid)
+        line = next((ln for cat in b["categories"] for grp in (cat.get("groups") or [cat])
+                     for ln in grp.get("lines", []) if ln.get("cost_code_id") == cc_id), None)
+        if line:
+            cost = {"code": line.get("code"), "ref": line.get("ref"), "name": line.get("name"),
+                    "division": line.get("division"), "budget": line["budget"],
+                    "committed": line["committed"], "actual": line["actual"],
+                    "eac": line.get("eac"), "variance": line["variance"]}
+
+    return {"guid": guid, "ifc_class": ifc_class, "storey": storey,
+            "name": meta.get("name") or meta.get("type_name"), "schedule": sched, "cost": cost}
+
+
 @router.get("/projects/{pid}/budget/gmp")
 def gmp_budget(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Full GC project budget (GMP): direct trade work (by CSI division + bid package) + General

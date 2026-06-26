@@ -246,6 +246,22 @@ with TestClient(app) as c:
     assert "blended_equity_irr" in pf["totals"], pf["totals"]
     assert sum(pf["status_tally"].values()) == pf["project_count"], pf["status_tally"]
 
+    # 5D element click: a model element tied to a schedule activity resolves to its activity +
+    # cost-code budget (BIM ↔ schedule ↔ cost). The hard-tied path needs no published model.
+    act5 = mk(c, pid, "schedule_activity", {"name": "Slab L1 pour", "trade": "Concrete",
+                                            "cost_code": cc_conc, "percent": 40,
+                                            "start": "2026-03-01", "finish": "2026-03-20", "budget": 100_000})
+    c.post(f"/projects/{pid}/modules/schedule_activity/{act5['id']}/elements",
+           json={"guids": ["EL-GUID-5D"], "mode": "set"})
+    e5 = c.get(f"/projects/{pid}/elements/EL-GUID-5D/5d").json()
+    assert e5["schedule"] and e5["schedule"]["hard_tied"] and e5["schedule"]["percent"] == 40, e5
+    assert e5["cost"] and e5["cost"]["budget"] == 2_000_000, e5   # the concrete cost-code line budget
+    assert e5["cost"]["code"] == "03-3000" and e5["cost"]["committed"] >= 1_800_000, e5   # buyout rolled in
+    assert e5["cost"]["actual"] == 500_000, e5                    # direct cost to date on the code
+    # an untied element with no published model → no schedule match, graceful nulls
+    e5b = c.get(f"/projects/{pid}/elements/UNKNOWN-GUID/5d").json()
+    assert e5b["schedule"] is None and e5b["guid"] == "UNKNOWN-GUID", e5b
+
     # investor memo PDF carries the on-cost executive language (Construction Status vs underwriting)
     memo = c.get(f"/projects/{pid}/investment-memo.pdf")
     assert memo.status_code == 200 and memo.content[:4] == b"%PDF", memo.status_code
