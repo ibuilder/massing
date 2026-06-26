@@ -345,6 +345,21 @@ export class ApiClient {
     return this.json<{ answer: string; source: string; ai_enabled: boolean; snapshot?: unknown }>(
       `/projects/${pid}/ai/ask`, { method: "POST", body: JSON.stringify({ question }) });
   }
+  // --- contract documents (generate / scope library / sign) -----------------
+  /** URL of a generated contract document — doc = agreement | prime | co | exhibit. */
+  contractDocUrl(pid: string, key: string, rid: string, doc: string, clauses?: string, attach = false) {
+    const q = new URLSearchParams({ doc, ...(clauses ? { clauses } : {}), ...(attach ? { attach: "1" } : {}) }).toString();
+    return this.url(`/projects/${pid}/contracts/${key}/${rid}/document.pdf?${q}`);
+  }
+  /** Scope-of-work clause library for composing Exhibit A. */
+  scopeLibrary() {
+    return this.json<{ clauses: { id: string; category: string; title: string; trade?: string | null }[] }>(`/scope-library`);
+  }
+  /** Record a party's signature (typed name) on a contract / change order. */
+  signContract(pid: string, key: string, rid: string, party: string, name: string) {
+    return this.json<{ signatures: { party: string; name: string; signed_at: string; method: string }[] }>(
+      `/projects/${pid}/contracts/${key}/${rid}/sign`, { method: "POST", body: JSON.stringify({ party, name }) });
+  }
   /** Draft a Bill of Quantities from a plain-text project description (AI; stub without a key). */
   aiEstimate(pid: string, description: string) {
     return this.json<{ lines: { description: string; quantity: number; unit: string; rate: number; amount?: number; division?: string }[];

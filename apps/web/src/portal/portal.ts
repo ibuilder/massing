@@ -1,5 +1,6 @@
 import type { ApiClient, ModuleDef, ModuleRecord, RecordBrief } from "../api/client";
 import { toast } from "../ui/feedback";
+import { modalShell } from "../ui/modal";
 import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
 
@@ -1353,6 +1354,85 @@ export class PortalUI {
   }
 
   // --- record detail + workflow actions + activity ---------------------------
+  // contract modules → the document they generate, and whether an Exhibit A applies
+  private static CONTRACT_DOCS: Record<string, { doc: string; label: string; exhibit: boolean }> = {
+    prime_contract: { doc: "prime", label: "Prime Contract", exhibit: false },
+    subcontract: { doc: "agreement", label: "Subcontract", exhibit: true },
+    commitment: { doc: "agreement", label: "Agreement", exhibit: true },
+    cor: { doc: "co", label: "Change Order", exhibit: false },
+  };
+
+  /** Contract lifecycle actions on a contract/CO record: generate the document, compose Exhibit A,
+   *  open it with redline/markup tools, and capture signatures — with a signed-by status line. */
+  private contractActions(m: ModuleDef, r: ModuleRecord, rid: string, tools: HTMLElement) {
+    const spec = PortalUI.CONTRACT_DOCS[m.key];
+    if (!spec) return;
+    const pid = this.host.projectId()!;
+    const api = this.host.api;
+    const btn = (label: string, title: string, fn: () => void) => {
+      const b = document.createElement("button"); b.className = "tool-btn"; b.textContent = label; b.title = title; b.onclick = fn; tools.appendChild(b);
+    };
+    btn(`📄 Generate ${spec.label}`, "Generate the contract document (PDF)",
+        () => window.open(api.contractDocUrl(pid, m.key, rid, spec.doc), "_blank"));
+    if (spec.exhibit) btn("📐 Compose Exhibit A", "Build the scope-of-work exhibit from the clause library", () => void this.composeExhibit(m, r, rid));
+    btn("🖊 View & markup", "Open the document with redline / markup tools", async () => {
+      try {
+        const res = await fetch(api.contractDocUrl(pid, m.key, rid, spec.doc), { headers: api.authHeaders() });
+        const file = new File([await res.arrayBuffer()], `${spec.doc}-${r.ref}.pdf`, { type: "application/pdf" });
+        const mod = await import("../drawings/pdfTakeoff"); await mod.openPdfTakeoff(file);
+      } catch (e) { toast(`couldn't open document: ${(e as Error).message}`, "error"); }
+    });
+    btn("✍ Sign", "Record a party's signature", () => void this.signContract(m, r, rid));
+    const sigs = (r.data?.signatures as { party: string; name: string }[] | undefined) ?? [];
+    if (sigs.length) {
+      const s = document.createElement("span"); s.className = "meta"; s.style.marginLeft = "6px";
+      s.textContent = "✓ signed: " + sigs.map((x) => `${x.party} (${x.name})`).join(", ");
+      tools.appendChild(s);
+    }
+  }
+
+  private async composeExhibit(m: ModuleDef, r: ModuleRecord, rid: string) {
+    const pid = this.host.projectId()!;
+    let lib;
+    try { lib = (await this.host.api.scopeLibrary()).clauses; } catch { toast("couldn't load scope library", "error"); return; }
+    const { card } = modalShell("Compose Exhibit A — Scope of Work", 360);
+    card.append(Object.assign(document.createElement("div"), { className: "meta", textContent: "Select clauses to include:" }));
+    const trade = (r.data?.trade as string | undefined)?.toLowerCase();
+    const boxes: Record<string, HTMLInputElement> = {};
+    const list = document.createElement("div"); list.style.cssText = "max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:3px;margin:6px 0";
+    for (const cl of lib) {
+      const row = document.createElement("label"); row.style.cssText = "display:flex;gap:6px;align-items:center;font-size:12.5px";
+      const cb = document.createElement("input"); cb.type = "checkbox";
+      cb.checked = cl.category !== "Scope" || !trade || (cl.trade ?? "").toLowerCase() === trade;
+      boxes[cl.id] = cb;
+      row.append(cb, Object.assign(document.createElement("span"), { textContent: `${cl.title} · ${cl.category}` }));
+      list.appendChild(row);
+    }
+    card.appendChild(list);
+    const open = document.createElement("button"); open.className = "file-btn"; open.textContent = "View Exhibit A"; open.style.alignSelf = "flex-start";
+    open.onclick = () => {
+      const ids = Object.entries(boxes).filter(([, b]) => b.checked).map(([id]) => id);
+      if (!ids.length) { toast("select at least one clause", "error"); return; }
+      window.open(this.host.api.contractDocUrl(pid, m.key, rid, "exhibit", ids.join(",")), "_blank");
+    };
+    card.appendChild(open);
+  }
+
+  private async signContract(m: ModuleDef, r: ModuleRecord, rid: string) {
+    const pid = this.host.projectId()!;
+    const { card, close } = modalShell("Sign " + r.ref, 300);
+    const party = document.createElement("select"); party.className = "portal-filter";
+    for (const p of ["GC", "Owner", "OwnersRep", "Consultant", "Subcontractor"]) party.appendChild(Object.assign(document.createElement("option"), { value: p, textContent: p }));
+    const name = document.createElement("input"); name.className = "portal-filter"; name.placeholder = "Full name";
+    const go = document.createElement("button"); go.className = "file-btn"; go.textContent = "Sign";
+    go.onclick = async () => {
+      if (!name.value.trim()) { toast("enter a name", "error"); return; }
+      try { await this.host.api.signContract(pid, m.key, rid, party.value, name.value.trim()); close(); toast("signed", "success"); void this.openRecord(m, rid); }
+      catch (e) { toast(`sign failed: ${(e as Error).message}`, "error"); }
+    };
+    card.append(Object.assign(document.createElement("div"), { className: "meta", textContent: "Record a typed signature:" }), party, name, go);
+  }
+
   private async openRecord(m: ModuleDef, rid: string) {
     const pid = this.host.projectId()!;
     const r = await this.host.api.moduleRecord(pid, m.key, rid);
@@ -1420,6 +1500,7 @@ export class PortalUI {
       cb.onclick = () => this.convert(m, r, c);
       tools.append(cb);
     }
+    this.contractActions(m, r, rid, tools);
     this.root.appendChild(tools);
 
     // photo-heavy field modules put photos up top (the super's first action on the record)

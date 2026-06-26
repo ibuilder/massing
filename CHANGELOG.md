@@ -4,6 +4,19 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — contract & change-order document lifecycle
+- **Generate contract documents** — from a contract record: **Prime Contract**, **Subcontract**
+  (AIA A401-style), and **Change Order** (AIA G701-style, showing original → revised contract sum)
+  PDFs, merged with project/contract data (`contracts.py`, reportlab).
+- **Exhibit generator** — **Compose Exhibit A — Scope of Work** from an editable clause/scope library
+  (`scope_library.py`: general/supplementary conditions + per-CSI-division scopes with `{{merge}}`
+  tokens); pick clauses → exhibit PDF, attachable to the record. (Inspired by procore-exhibit-generator.)
+- **View & markup** — open any generated contract/CO in the PDF markup overlay to redline
+  (fairbuild-style review) before signing.
+- **Signatures & approval** — capture per-party typed signatures (`POST …/contracts/{key}/{rid}/sign`,
+  one per party, audited) that render into the document; route/approve via the existing party-gated
+  workflow. Endpoints: `GET /scope-library`, `GET …/contracts/{key}/{rid}/document.pdf?doc=&clauses=&attach=`.
+
 ## Unreleased — AI estimate (text → BOQ)
 - **Draft a Bill of Quantities from a description** — the conceptual-estimate tool gains
   **✨ Draft BOQ from description**: type the scope and the AI returns priced line items
