@@ -277,7 +277,8 @@ function applyPersona(p: string, goHome = false) {
   window.dispatchEvent(new CustomEvent("aec:persona", { detail: p }));   // reorder the tools panel
 }
 personaSel.value = localStorage.getItem("persona") || "all";
-personaSel.onchange = () => applyPersona(personaSel.value, true);
+// a manual choice sticks — it stops membership auto-selecting a persona on the next project open
+personaSel.onchange = () => { localStorage.setItem("persona-manual", "1"); applyPersona(personaSel.value, true); };
 
 // ---- rail collapse + drag-to-resize (persisted) -----------------------------
 function toggleRail() { appEl.classList.toggle("rail-collapsed"); }
@@ -595,11 +596,20 @@ function settingsModal() {
 // this just removes the "click → 403" rough edge. Fully open when RBAC is off / offline.
 const CAP_RANK: Record<string, number> = { viewer: 0, reviewer: 1, editor: 2, admin: 3 };
 let isProjectAdmin = false;   // gates the "Project members…" account-menu item
+// a member's workflow party → the persona (view) they land in, so their project role shapes what
+// they see when they open the project (the point of multi-user). They can still switch it manually.
+const PARTY_TO_PERSONA: Record<string, string> = {
+  GC: "gc", Owner: "developer", OwnersRep: "developer",
+  Consultant: "engineer", Subcontractor: "subcontractor",
+};
+let lastMembershipProject: string | null = null;
 async function applyCapabilities() {
   let review = true, edit = true, admin = true;
+  let party: string | null = null, rbac = false;
   if (connected && projectId) {
     try {
       const m = await api.myRole(projectId);
+      rbac = m.rbac; party = m.party_role;
       if (m.rbac) {
         const r = m.role ? CAP_RANK[m.role] : -1;
         review = r >= CAP_RANK.reviewer; edit = r >= CAP_RANK.editor; admin = r >= CAP_RANK.admin;
@@ -611,6 +621,12 @@ async function applyCapabilities() {
   b.dataset.capReview = review ? "on" : "off";
   b.dataset.capEdit = edit ? "on" : "off";
   b.dataset.capAdmin = admin ? "on" : "off";
+  // first time we see this project's membership, land the member in their party's view
+  if (rbac && party && projectId && projectId !== lastMembershipProject) {
+    const persona = PARTY_TO_PERSONA[party];
+    if (persona && !localStorage.getItem("persona-manual")) { personaSel.value = persona; applyPersona(persona, true); }
+  }
+  lastMembershipProject = projectId;
 }
 
 // live notification badge on the Construction workspace tab (SSE)
