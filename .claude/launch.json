@@ -8,6 +8,12 @@
       "port": 5173
     },
     {
+      "name": "web-demo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:demo", "--prefix", "apps/web"],
+      "port": 5173
+    },
+    {
       "name": "docs",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8899", "--directory", "docs"],

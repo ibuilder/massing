@@ -458,7 +458,8 @@ const MODEL_TAG: Record<string, string> = { frag: " (.frag)", ifc: " (.ifc)" };
 /** Onboarding quick-start actions, shared by the welcome modal and the empty state. */
 function onboardCtx() {
   return {
-    connected,
+    // the demo serves read-only sample data, so create/generate (which persist) stay disabled there
+    connected: connected && !import.meta.env.VITE_PAGES,
     newProject: () => void newProject(),
     openSample: () => { setWorkspace("model"); withViewer((v) => void v.loadSample("/basichouse.frag", "BasicHouse")); },
     generate: () => {
@@ -677,9 +678,10 @@ window.addEventListener("keydown", (e) => {
 
 // ---- startup ----------------------------------------------------------------
 async function startup() {
-  // viewer-only Pages/demo build has no backend — skip API probes (avoids /api/* 404s)
+  // viewer-only Pages/demo build has no backend — reads are served from the bundled demo snapshot
+  // (api routes them via IS_DEMO), so treat it as "connected" to load the sample project + panels.
   const demo = !!import.meta.env.VITE_PAGES;
-  connected = demo ? false : await api.health();
+  connected = demo ? true : await api.health();
   let projects: { id: string; name: string; model_kind?: string | null }[] = [];
   if (connected) {
     projects = await api.projects();
@@ -693,7 +695,7 @@ async function startup() {
     setStatus(demo ? "demo — pick a sample from Open ▾ to view"
                    : "offline — open a .frag to view (API not reachable)");
   }
-  if (projectId) connectNotifications();
+  if (projectId && !demo) connectNotifications();   // SSE needs a backend
   void applyCapabilities();
   if (!demo) void autoCheck();          // show a banner if a newer release is published
   if (!demo) {

@@ -6,6 +6,7 @@
   "scripts": {
     "predev": "node scripts/copy-wasm.mjs",
     "dev": "vite",
+    "dev:demo": "node scripts/copy-wasm.mjs && vite --mode demo",
     "prebuild": "node scripts/copy-wasm.mjs",
     "build": "tsc --noEmit && vite build",
     "prebuild:desktop": "node scripts/copy-wasm.mjs",

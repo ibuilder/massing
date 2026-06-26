@@ -4,7 +4,8 @@ import { VitePWA } from "vite-plugin-pwa";
 // GitHub Pages build (VITE_PAGES=1): served from a subpath, no server headers — so it can't
 // set COOP/COEP. Inject the coi-serviceworker instead of the Workbox PWA SW (which would
 // conflict), so web-ifc/@thatopen multithreaded WASM (SharedArrayBuffer) still works.
-const PAGES = process.env.VITE_PAGES === "1";
+// `--mode demo` flips the same flag locally so the viewer-only demo (bundled sample data) can be
+// previewed without setting an env var.
 const BASE = process.env.VITE_BASE || "/";
 // app version, baked in at build time so the in-app update check can compare against the latest
 // GitHub release (kept in sync with package.json / tauri.conf.json).
@@ -16,7 +17,9 @@ const coiInject: Plugin = {
     html.replace("</head>", `  <script src="${BASE}coi-serviceworker.js"></script>\n</head>`),
 };
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+const PAGES = process.env.VITE_PAGES === "1" || mode === "demo";
+return {
   base: BASE,
   // expose the Pages/demo flag to the client (no backend → skip API probes)
   define: {
@@ -88,4 +91,5 @@ export default defineConfig({
       },
     },
   },
+};
 });

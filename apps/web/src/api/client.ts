@@ -1,5 +1,6 @@
 /** Typed client for the backend API (guide §7). Geometry comes from .frag; all element
  *  metadata and work artifacts (pins/RFIs/viewpoints) come from here. */
+import { IS_DEMO, demoJson, demoTextOr } from "../demo/demoApi";
 
 export interface ElementProps {
   guid: string;
@@ -230,6 +231,7 @@ export class ApiClient {
   }
 
   private async json<T>(path: string, init?: RequestInit): Promise<T> {
+    if (IS_DEMO) return demoJson<T>(path, init);   // viewer-only build: serve the bundled snapshot
     const res = await fetch(this.baseUrl + path, {
       ...init,
       headers: { "Content-Type": "application/json", ...this.authHeaders(), ...(init?.headers || {}) },
@@ -900,6 +902,7 @@ export class ApiClient {
   }
   /** Schedule visual (Gantt or Line-of-Balance) as inline SVG text, over the schedule_activity records. */
   async scheduleSvg(pid: string, kind: "gantt" | "lob") {
+    if (IS_DEMO) return demoTextOr(`/projects/${pid}/schedule/${kind}.svg`, "");
     const res = await fetch(this.url(`/projects/${pid}/schedule/${kind}.svg`), { headers: this.authHeaders() });
     if (!res.ok) throw new Error(`schedule ${kind}: ${res.status}`);
     return res.text();
