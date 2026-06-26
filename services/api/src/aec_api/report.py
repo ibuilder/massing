@@ -418,6 +418,23 @@ def investment_deck_pdf(db: Session, pid: str, project_name: str) -> bytes:
     c.setFillColor(colors.black); c.setFont("Helvetica-Bold", 14)
     c.drawString(m, barY - 70, f"~{total} months from start to exit "
                  f"({constr}-month construction, {lease}-month lease-up).")
+    # construction status — is the live GC GMP tracking the underwriting?
+    try:
+        from . import dev_budget as _dvb, project_budget as _pb2
+        from .models import Project as _Pj
+        _p = db.get(_Pj, pid)
+        _gmp = _pb2.gmp_budget(db, pid)["gmp"]
+        _gc = _gmp.get("revised") or _gmp["computed"]
+        if _gc and _p and _p.dev_budget:
+            _hard = _dvb.summarize(_p.dev_budget)["categories"]["hard"]["total"]
+            _delta = _gc - _hard
+            _sync = "in sync with the underwritten hard cost" if abs(_delta) < max(1.0, _hard * 0.005) \
+                else f"{_money(abs(_delta))} {'over' if _delta > 0 else 'under'} the underwritten hard cost"
+            c.setFont("Helvetica", 12); c.setFillColor(navy)
+            c.drawString(m, barY - 96, f"Construction: GC GMP {_money(_gc)} — {_sync}.")
+            c.setFillColor(colors.black)
+    except Exception:                              # noqa: BLE001 — no GC budget → skip
+        pass
     c.setFont("Helvetica-Oblique", 9); c.setFillColor(colors.HexColor("#999"))
     c.drawString(m, 34, "Indicative phasing; construction/lease-up from the saved scenario where set.")
     c.setFillColor(colors.black)
@@ -570,6 +587,37 @@ def investment_memo_pdf(db: Session, pid: str, project_name: str) -> bytes:
         if ret.get("yield_on_cost") is not None:
             row("Yield on cost", _pct(ret.get("yield_on_cost")))
         y -= 8
+
+    # Construction status — the on-cost half: is the GC's live GMP tracking the underwriting?
+    try:
+        from . import modules as _me
+        from . import project_budget as _pb
+        gmp_res = _pb.gmp_budget(db, pid)
+        gc_gmp = gmp_res["gmp"].get("revised") or gmp_res["gmp"]["computed"]
+        if gc_gmp:
+            dev_hard = bs["categories"]["hard"]["total"]
+            delta = round(gc_gmp - dev_hard, 2)
+            in_sync = abs(delta) < max(1.0, dev_hard * 0.005)
+            invs = _me.list_records(db, "owner_invoice", pid, limit=1_000_000) if "owner_invoice" in _me.TABLES else []
+            billed = round(sum(float((r.get("data") or {}).get("amount") or 0) for r in invs), 2)
+            heading("Construction Status")
+            para(f"The general contractor is carrying a live GMP of {_money(gc_gmp)} against the "
+                 f"{_money(dev_hard)} of construction hard cost underwritten here — "
+                 + ("in line with the underwriting." if in_sync
+                    else f"{_money(abs(delta))} {'over' if delta > 0 else 'under'} the underwritten figure.")
+                 + (f" {_money(billed)} ({_pct(billed / gc_gmp)}) has been billed to date." if billed else ""))
+            y -= 6
+            row("GC GMP (live)", _money(gc_gmp), bold=True)
+            row("Underwritten hard cost", _money(dev_hard))
+            row("Variance to underwriting", ("in sync" if in_sync else _money(delta)),
+                indent=8)
+            tot = gmp_res["totals"]
+            row("Committed (buyout)", _money(tot["committed"]) + f"  ({tot['committed'] / gc_gmp * 100:.0f}%)", indent=8)
+            if billed:
+                row("Billed to owner to date", _money(billed) + f"  ({_pct(billed / gc_gmp)})", indent=8)
+            y -= 8
+    except Exception:                              # noqa: BLE001 — no GC budget → skip the section
+        pass
 
     heading("Risk Summary")
     para(risk.get("headline", ""))

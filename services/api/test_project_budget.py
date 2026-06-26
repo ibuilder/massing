@@ -246,6 +246,15 @@ with TestClient(app) as c:
     assert "blended_equity_irr" in pf["totals"], pf["totals"]
     assert sum(pf["status_tally"].values()) == pf["project_count"], pf["status_tally"]
 
+    # investor memo PDF carries the on-cost executive language (Construction Status vs underwriting)
+    memo = c.get(f"/projects/{pid}/investment-memo.pdf")
+    assert memo.status_code == 200 and memo.content[:4] == b"%PDF", memo.status_code
+    import io as _mio
+    import pypdf  # ships in the venv
+    text = "".join(pg.extract_text() or "" for pg in pypdf.PdfReader(_mio.BytesIO(memo.content)).pages)
+    assert "Construction Status" in text and "GC GMP" in text, "memo includes the construction-status section"
+    assert "Underwritten hard cost" in text, text[:200]
+
     print(f"PROJECT BUDGET OK - GMP computed ${b['gmp']['computed']:,.0f} (cost of work ${cow:,.0f}); "
           f"direct/GC/GR + OH/fee/contingency; bid packages + staffing + proforma reconciled; "
           f"owner SOV seeded from budget ({seed['created']} lines = ${seed['scheduled_value']:,.0f}); "
