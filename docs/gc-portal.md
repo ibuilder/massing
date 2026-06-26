@@ -57,9 +57,18 @@ and stamped to the activity timeline. **Approved/executed CORs flow into the con
 
 ## Financials
 
+- **Project Budget (GMP)** — `GET /projects/{id}/budget/gmp` assembles the Guaranteed Maximum
+  Price from direct trade cost codes (by CSI division), executed subcontracts (buyout), GC/GR
+  staffing, and overhead / fee / contingency markups off the prime contract. Each line carries
+  budget → committed → actual → **forecast (EAC)** → variance, and reconciles to the prime-contract
+  value and the developer proforma's hard cost. `GET /budget/cashflow` spreads it to a monthly
+  S-curve; `POST /budget/baseline` + `GET /budget/variance` track drift. The SOV can be seeded
+  straight from the budget (`POST /cost/sov/from-budget`).
 - **G703 Schedule of Values** — computed columns (completed+stored, %, balance, retainage).
 - **G702 Pay Application** — the 9-line AIA certificate (+ formatted PDF continuation sheet).
 - **Cost Summary** — budget vs committed vs actual vs forecast, projected over/under.
+- **5D (cost on the model)** — `GET /elements/{guid}/5d` for a single element; `GET /5d/heatmap?by=cost|progress`
+  colors the whole model by spend or % complete.
 - **eTicket T&M builder** — line items priced from the project `labor/material/equipment_rate`
   tables, with per-type subtotals and grand total, written back onto the eTicket.
 
@@ -100,6 +109,11 @@ GET    /projects/{id}/module-pins                 anchored records → viewer ov
 POST   /projects/{id}/members                     assign capability + party role
 GET    /projects/{id}/cost/{g703,g702,summary}    financials (+ /cost/g702.pdf)
 POST   /projects/{id}/cost/tm                      eTicket T&M pricing from rate tables
+GET    /projects/{id}/budget/{gmp,cashflow,variance}   GMP budget, S-curve, baseline variance
+POST   /projects/{id}/budget/baseline             snapshot the GMP as the baseline
+POST   /projects/{id}/cost/sov/from-budget        seed the owner SOV from budget lines
+GET    /projects/{id}/elements/{guid}/5d          per-element 5D (cost + progress)
+GET    /projects/{id}/5d/heatmap?by=cost|progress model heatmap (cost or % complete)
 GET    /projects/{id}/schedule/{gantt,lob}.svg    schedule visuals
 GET    /projects/{id}/dashboard                    role-tailored dashboard
 ```

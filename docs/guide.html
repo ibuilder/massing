@@ -140,6 +140,10 @@
     <li>Tune the drivers (rent, exit cap, hold). Watch the <b>returns bar</b> — IRR, equity multiple,
       yield-on-cost — update live. <b>Guardrail badges</b> flag anything outside market ranges.</li>
     <li>Click <b>📄 Investment memo</b> or <b>📊 Pitch deck</b> to generate a polished PDF from the live numbers.</li>
+    <li>Once the job is live, track the <b>capital</b>: the developer dashboard <b>reconciles the GC's GMP to
+      your underwritten hard cost</b> (one click to sync), models <b>construction-loan draws</b> (equity-first,
+      with interest accrual), and exports a <b>lender draw-request PDF</b>. The portfolio view rolls returns
+      up across every deal.</li>
   </ol>
   <div class="note">Modeling something unusual (e.g. on-site solar or a vertical farm)? The <b>⚡ Specialty</b>
     panel adds those economics — and their revenue is automatically <b>risk-adjusted</b> so the IRR stays honest.</div>
@@ -156,8 +160,19 @@
       change events → CORs automatically).</li>
     <li>Use <b>Schedule</b> for CPM/critical path, the <b>takt</b> chart, and the <b>⏱ 4D sequence</b> slider
       to scrub the build in the viewer.</li>
+    <li>Open <b>Schedule → Budget</b> for the project <b>GMP</b>: it assembles automatically from your cost
+      codes, committed subcontracts (buyout) and GC/GR staffing, plus overhead / fee / contingency. Each
+      line carries <b>budget → committed → actual → forecast (EAC)</b> and the variance, and reconciles to
+      the prime contract. A <b>cash-flow S-curve</b> spreads it across the schedule.</li>
+    <li>See cost <b>on the model (5D)</b>: click any element for its <b>5D</b> readout (cost code, budget,
+      progress), or open the <b>cost / progress heatmap</b> to color the whole model by spend or % complete.</li>
+    <li>Bill the owner: generate the <b>pay application (G702/G703)</b> PDF from the Schedule of Values —
+      it draws straight from the budget lines, with retainage and stored-materials handled.</li>
     <li>Ask the <b>"Ask AI"</b> box plain-English questions like "what's overdue?" or "are we over budget?"</li>
   </ol>
+  <div class="note">Working with a team? Invite members from the account menu and give each a <b>capability
+    role</b> (viewer → admin, gates what they can edit) and a <b>party role</b> (GC, Owner, Owner's Rep,
+    Consultant, Subcontractor — sets their default view and who can move a workflow forward).</div>
   <figure>
     <img class="shot" src="img/gantt.png" alt="A Gantt schedule generated from the project's activities" />
     <figcaption>Schedule views (Gantt + line-of-balance) generate from the project's activities.</figcaption>
@@ -189,6 +204,12 @@
     <tr><td>Yield on cost</td><td>Stabilized NOI ÷ total project cost — the developer's "did this pencil?" number.</td></tr>
     <tr><td>RFI</td><td>Request for Information — a formal question to the design team during construction.</td></tr>
     <tr><td>Pay app (G702/G703)</td><td>The standard monthly billing forms a contractor submits for payment.</td></tr>
+    <tr><td>GMP</td><td>Guaranteed Maximum Price — the capped contract sum: cost of the work + the GC's fee. The platform builds it up from cost codes, buyout and staffing, plus markups.</td></tr>
+    <tr><td>Cost code / SOV</td><td>Cost code = a budget bucket (often by CSI division). Schedule of Values = the billing breakdown the pay app draws from — here it's seeded straight from the budget.</td></tr>
+    <tr><td>Buyout</td><td>Awarding subcontracts against the budget. The difference between the budget and what you actually commit is buyout savings (or overrun).</td></tr>
+    <tr><td>EAC / forecast</td><td>Estimate At Completion — what a line will ultimately cost given progress and committed amounts. Drives the over/under variance.</td></tr>
+    <tr><td>5D</td><td>The 3D model + time (4D) + cost. Click an element to see its cost, or color the model by spend or % complete.</td></tr>
+    <tr><td>Loan draw</td><td>A scheduled withdrawal from the construction loan to pay for work in place — modeled equity-first, with interest accruing on the balance.</td></tr>
     <tr><td>Takt / Line of Balance</td><td>Scheduling where each trade moves floor-to-floor at a steady pace — the "assembly line" approach.</td></tr>
     <tr><td>4D</td><td>The 3D model + time — scrub a slider to see what's built on any day.</td></tr>
     <tr><td>COBie</td><td>The standard spreadsheet handed to the building's operator at turnover (assets, warranties, manuals).</td></tr>
@@ -203,6 +224,8 @@
     <p class="muted">On the desktop app, everything stays on your machine. The server stack is self-hosted — you run it.</p>
     <h3>Can I use just one part — say, only the proforma or only the GC portal?</h3>
     <p class="muted">Yes. Create a blank project (＋ New) and use the Finance or Construction workspace on its own — no model required.</p>
+    <h3>Can a team work on the same project?</h3>
+    <p class="muted">Yes (on the connected/server stack). Invite members and give each a capability role (viewer → admin) and a party role (GC, Owner, Owner's Rep, Consultant, Subcontractor). The party role tailors their view and controls who can advance a workflow; the capability role gates what they can edit.</p>
     <h3>What does it cost?</h3>
     <p class="muted">The single-project desktop app is free with no per-seat license. A paid connected/cloud tier is planned.</p>
     <h3>How do I get help?</h3>

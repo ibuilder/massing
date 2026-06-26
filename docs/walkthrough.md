@@ -52,6 +52,12 @@ guardrail badge.
 *On screen:* Construction dashboard; open an RFI; the Schedule **⏱ 4D sequence** slider moving (the
 building appears floor by floor); the **Ask AI** box answering "what's overdue?".
 
+**2:25 — Money on the model (Budget + 5D)**
+> "The GMP budget builds itself from cost codes, buyout and staffing — budget to forecast, with the
+> variance — and you can see the cost right on the model."
+*On screen:* **Schedule → Budget** (the GMP table + cash-flow S-curve); back in the Model, click an
+element for its **5D** cost readout, then the **cost heatmap** coloring the building by spend.
+
 **2:35 — Hand it over**
 > "At the finish, punchlist, commissioning, and a COBie turnover package — closing the loop on the
 > same model you started with."
@@ -68,9 +74,11 @@ building appears floor by floor); the **Ask AI** box answering "what's overdue?"
 2. **Finance → Generate from zoning** → enter lot/FAR/setbacks → **Estimate yield** → **Generate IFC model + apply**.
 3. **Model** → see the building. **Finance → Test Fit → Compare / ⚡ Optimize**.
 4. **Finance** → cost budget → **Apply** → **Sources & Uses** → tune drivers → read the returns bar.
-5. **📄 Investment memo** + **📊 Pitch deck** PDFs.
+5. **📄 Investment memo** + **📊 Pitch deck** PDFs. Then the capital chain: **sync the GMP** to hard cost, model **construction-loan draws**, export the **lender draw-request** PDF.
 6. **＋ New** project → **Construction** → create an RFI → **Schedule → 4D sequence** scrub → **Ask AI**.
-7. **Punchlist** verify → **COBie / turnover package** export.
+7. **Schedule → Budget** (GMP table + cash-flow) → back in **Model**, click an element for its **5D** cost → open the **cost heatmap**. Generate a **pay app (G702/G703)**.
+8. Invite a teammate (account menu) with a **capability** + **party** role (multi-user).
+9. **Punchlist** verify → **COBie / turnover package** export.
 
 ## Recording tips
 - 1080p, hide the cursor trail, slow the mouse. ~3 min keeps attention; a 60-sec cut (scenes at
