@@ -49,6 +49,18 @@ with TestClient(app) as c:  # context manager triggers startup -> create tables
     su = c.get(f"/projects/{pid}/sources-uses").json()
     assert su["total_uses"] > 5_000_000, su   # at least the land + hard costs flowed through
 
+    # generate also completes the GC pillar: cost codes + budget + GMP + cost-loaded schedule
+    assert g["gc_seed"]["seeded"] and g["gc_seed"]["activities"] == floors, g["gc_seed"]
+    assert len(c.get(f"/projects/{pid}/modules/cost_code").json()) == 6, "CSI cost codes seeded"
+    assert len(c.get(f"/projects/{pid}/modules/schedule_activity").json()) == floors, "one structure activity per floor"
+    gmp = c.get(f"/projects/{pid}/budget/gmp").json()
+    assert gmp["gmp"]["computed"] > 0 and gmp["gmp"]["contract_value"] > 0, gmp["gmp"]
+    # the GMP is relational to the developer's hard cost (reconciliation surfaces the delta to sync)
+    recon = c.get(f"/projects/{pid}/dev-budget/gmp-reconciliation").json()
+    assert recon["gc_gmp"] > 0 and recon["dev_hard_cost"] > 0, recon
+    cf = c.get(f"/projects/{pid}/budget/cashflow").json()
+    assert cf["loaded_activities"] == floors and cf["total"] > 0, cf   # the schedule is cost-loaded
+
     # the generated IFC is real: storeys + renderable slabs at metre scale
     src = c.get(f"/projects/{pid}").json()["source_ifc"]
     m = open_model(src)

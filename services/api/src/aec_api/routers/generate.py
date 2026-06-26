@@ -121,6 +121,46 @@ def _seed_dev_budget(body: "MassingIn", m: dict) -> dict:
     ]}
 
 
+def _seed_gc_portal(db, pid: str, body: "MassingIn", m: dict, actor: str) -> dict:
+    """Seed the GC portal so a generated project is complete across all three pillars (model · GC ·
+    deal), not just the proforma: CSI cost codes, a hard-cost-allocated budget, a GMP prime contract
+    (value = hard cost, so it reconciles in-sync with the underwriting), and a cost-loaded schedule
+    of structure activities by floor. Idempotent — skips if cost codes already exist."""
+    from datetime import date, timedelta
+
+    from .. import modules as me
+    if "cost_code" not in me.TABLES or me.list_records(db, "cost_code", pid, limit=1):
+        return {"seeded": False}
+    hard = round(float(m.get("buildable_gfa_sf", 0)) * body.hard_cost_psf)
+    if hard <= 0:
+        return {"seeded": False}
+    # CSI divisions and their share of hard cost (sums to 1.0)
+    divisions = [("01-0000", "General Requirements", "01", 0.10), ("03-3000", "Concrete", "03", 0.28),
+                 ("05-1000", "Structural Steel", "05", 0.18), ("23-0000", "HVAC", "23", 0.12),
+                 ("26-0000", "Electrical", "26", 0.13), ("09-0000", "Finishes", "09", 0.19)]
+    cc = {}
+    for code, desc, div, frac in divisions:
+        r = me.create_record(db, "cost_code", pid, {"data": {"code": code, "description": desc, "division": div}}, actor, "GC")
+        cc[code] = r["id"]
+        me.create_record(db, "budget", pid, {"data": {"cost_code": r["id"], "description": desc, "revised": round(hard * frac)}}, actor, "GC")
+    me.create_record(db, "prime_contract", pid, {"data": {
+        "name": "GMP w/ Owner", "type": "GMP", "value": hard,
+        "overhead_pct": 5, "fee_pct": 4, "contingency_pct": 3}}, actor, "GC")
+    # cost-loaded structure activities, one per floor, spread over the build
+    floors = max(1, int(m.get("floors") or 1))
+    struct_budget = hard * 0.46                         # concrete + steel
+    start, per = date.today(), 21
+    acts = 0
+    for f in range(1, floors + 1):
+        s = start + timedelta(days=(f - 1) * per)
+        me.create_record(db, "schedule_activity", pid, {"data": {
+            "name": f"Structure L{f}", "trade": "Structure", "start": s.isoformat(),
+            "finish": (s + timedelta(days=per + 7)).isoformat(),
+            "budget": round(struct_budget / floors), "cost_code": cc["03-3000"], "percent": 0}}, actor, "GC")
+        acts += 1
+    return {"seeded": True, "cost_codes": len(divisions), "activities": acts, "gmp": hard}
+
+
 @router.post("/projects/{pid}/generate/massing")
 def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
                      actor: str = Depends(require_role("editor"))):
@@ -150,8 +190,9 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
         audit.record(db, action="ifc.generate", actor=actor, method="POST",
                      path=f"/projects/{pid}/generate/massing", detail=metrics)
         db.commit()
+        gc_seed = _seed_gc_portal(db, pid, body, metrics, actor)
         _publish_bg(pid)
-        return {"metrics": metrics, "proforma": _proforma_seed(body, metrics),
+        return {"metrics": metrics, "proforma": _proforma_seed(body, metrics), "gc_seed": gc_seed,
                 "source_ifc": str(ifc_path), "publish": "running"}
 
     try:
@@ -183,9 +224,10 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
     audit.record(db, action="ifc.generate", actor=actor, method="POST",
                  path=f"/projects/{pid}/generate/massing", detail=metrics)
     db.commit()
+    gc_seed = _seed_gc_portal(db, pid, body, metrics, actor)    # complete the GC pillar too
 
     _publish_bg(pid)                                            # convert→.frag + reindex off-thread
-    return {"metrics": metrics, "proforma": _proforma_seed(body, metrics),
+    return {"metrics": metrics, "proforma": _proforma_seed(body, metrics), "gc_seed": gc_seed,
             "source_ifc": str(ifc_path), "publish": "running"}
 
 
