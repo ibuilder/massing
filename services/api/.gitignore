@@ -17,3 +17,6 @@ _deckchk*
 test_*.db
 test_storage*/
 test_ifc*/
+seedtest.db
+seedtest_s/
+seedtest_i/
