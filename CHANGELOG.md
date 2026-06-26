@@ -4,6 +4,20 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — multi-format reference models + QR share
+- **Open meshes & point clouds** — alongside IFC/Fragments, the viewer now opens **OBJ, STL, PLY,
+  glTF/GLB** meshes and **PCD, XYZ, LAS, LAZ** point clouds as **view-only reference overlays** (IFC
+  stays the source of truth). LAS/LAZ are decoded locally (offline) via a vendored `laz-perf` WASM;
+  big clouds are decimated to stay responsive. Reference models list in the federation panel with
+  visibility + remove. **Open ▾ → Open mesh / point cloud…**
+- **QR share** — a toolbar **📱 Share via QR** shows a scannable deep link to open the project on a
+  phone/tablet.
+- **Faster Open IFC** — the native file dialog now appears instantly (the heavy 3D module warms in
+  parallel); large IFCs (>~60 MB) route through the server pipeline and stream optimized fragments
+  instead of parsing the whole file in-browser.
+- **Live demo shows the full platform** — the GitHub Pages viewer-only build now bundles a read-only
+  sample project so the GC portal, Budget/GMP, Schedule and Finance panels render with real data.
+
 ## v0.1.80 — multi-user persona views + optional paid RVT→IFC bridge
 - **Membership shapes the view** — a project member's party role (GC / Owner / Consultant /
   Subcontractor) now auto-selects their persona on open, so they land in the right workspace set;

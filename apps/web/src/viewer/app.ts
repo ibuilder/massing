@@ -6,7 +6,9 @@ import CameraControls from "camera-controls";
 import { createViewer, renderMode, positionSun } from "./world";
 import { sunAltAz, sunSceneDir } from "./solar";
 import { ModelLoader } from "./loader";
+import { loadReferenceModel } from "./referenceLoader";
 import { type ModelIdMap } from "./modelIds";
+import { showQrModal } from "../ui/qr";
 import { SelectionSets } from "./selectionSets";
 import { MeasureTool, type MeasureMode } from "../tools/measure";
 import { SectionTool } from "../tools/section";
@@ -50,7 +52,7 @@ export interface ViewerApp {
   anchorPoint(): { x: number; y: number; z: number } | null;
   selectedGuidValue(): string | null;
   triggerOpen(kind: "ifc" | "frag" | "convert"): void;
-  openFile(kind: "ifc" | "frag" | "convert", file: File): Promise<void>;
+  openFile(kind: "ifc" | "frag" | "convert" | "ref", file: File): Promise<void>;
   loadSample(file: string, label: string): Promise<void>;
   exportFrag(): Promise<void>;
   exportIfc(): void;
@@ -88,6 +90,9 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   let modelCount = 0;
   // track a human label per loaded model so the federation panel can list disciplines
   const modelLabels = new Map<string, string>();
+  // view-only reference overlays (meshes / point clouds) added alongside the fragment models
+  const referenceModels = new Map<string, { object: THREE.Object3D; label: string }>();
+  let refCount = 0;
   const nextId = (label?: string) => {
     const id = `model-${++modelCount}`;
     if (label) modelLabels.set(id, label);
@@ -199,10 +204,25 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // The hidden file <input>s live in index.html and are opened + wired by main.ts, so the native
   // file dialog can appear instantly on click without waiting for this (heavy) module to finish
   // loading. main hands the chosen File straight to openFile() once the viewer is ready.
-  async function openFile(kind: "ifc" | "frag" | "convert", file: File) {
+  async function openFile(kind: "ifc" | "frag" | "convert" | "ref", file: File) {
     if (kind === "frag") await loadFile(file, (b, id) => loader.loadFragments(b, id), "loading");
     else if (kind === "convert") await convertAndLoad(file);
+    else if (kind === "ref") await openReference(file);
     else await openIfc(file);
+  }
+  // Load a mesh / point cloud as a view-only reference overlay (IFC stays the source of truth).
+  async function openReference(file: File) {
+    try {
+      const res = await withLoading(container, `loading ${file.name}`, () => loadReferenceModel(file));
+      if (!res) return;
+      const id = `ref-${++refCount}`;
+      viewer.world.scene.three.add(res.object);
+      referenceModels.set(id, { object: res.object, label: file.name });
+      refreshFederation();
+      await fitToModels();
+      void loader.fragments.core.update(true);
+      notify(`loaded ${file.name}${res.info ? ` — ${res.info}` : ""}`, "success");
+    } catch (e) { notify(`couldn't load ${file.name}: ${(e as Error).message}`, "error"); }
   }
   // Above this, parsing the IFC in the browser (web-ifc WASM) is too slow / memory-heavy. When a
   // project + backend are available we skip the in-browser parse entirely and let the server convert
@@ -411,6 +431,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (!projectId) { notify("connect a project to share views", "error"); return; }
     try { const r = await api.presence(projectId, captureViewpoint()); updatePresence(r.active); notify("view shared with peers", "success"); }
     catch { notify("could not share view", "error"); }
+  });
+  toolBtn("📱", "Share via QR — open this project on a phone or tablet", () => {
+    const base = location.origin + import.meta.env.BASE_URL;
+    void showQrModal(projectId ? `${base}?project=${projectId}` : base, "Share via QR");
   });
   if (projectId) {
     const beat = async () => { try { updatePresence((await api.presence(projectId!)).active); } catch { /* offline */ } };
@@ -842,7 +866,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   let fitPending = false;   // set when a fit was skipped because the viewport was hidden (0×0)
   async function fitToModels() {
     const box = new THREE.Box3();
-    viewer.world.scene.three.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) box.expandByObject(m); });
+    viewer.world.scene.three.traverse((o) => {
+      const m = o as THREE.Mesh & THREE.Points;
+      if (m.isMesh || m.isPoints) box.expandByObject(o);   // include reference point clouds, not just meshes
+    });
     if (box.isEmpty()) return;
     // Defer when the viewport is hidden (0×0): fitting then divides by a zero aspect ratio and leaves
     // the camera at NaN, so the model is broken once the Model workspace is shown. onModelShown() runs
@@ -925,7 +952,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (!host) return;
     host.innerHTML = "";
     const ids = [...loader.fragments.list.keys()];
-    if (!ids.length) { host.innerHTML = `<div class="empty-state">No models loaded<span class="es-hint">Use Open ▾ to load an IFC or .frag.</span></div>`; return; }
+    if (!ids.length && !referenceModels.size) {
+      host.innerHTML = `<div class="empty-state">No models loaded<span class="es-hint">Use Open ▾ to load an IFC, .frag, or a mesh / point cloud.</span></div>`;
+      return;
+    }
     for (const id of ids) {
       const model = loader.fragments.list.get(id) as { object: { visible: boolean } } | undefined;
       if (!model) continue;
@@ -941,6 +971,35 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       };
       row.append(cb, name, rm); host.appendChild(row);
     }
+    // view-only reference overlays (meshes / point clouds)
+    if (referenceModels.size) {
+      const hdr = document.createElement("div"); hdr.className = "section-title"; hdr.textContent = "Reference models";
+      host.appendChild(hdr);
+      for (const [id, ref] of referenceModels) {
+        const row = document.createElement("div"); row.className = "layer-row";
+        const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = ref.object.visible !== false;
+        cb.title = "Toggle visibility";
+        cb.onchange = () => { ref.object.visible = cb.checked; void loader.fragments.core.update(true); };
+        const name = document.createElement("span"); name.className = "name"; name.textContent = ref.label;
+        const rm = document.createElement("button"); rm.className = "tool-btn"; rm.textContent = "✕"; rm.title = "Remove model";
+        rm.onclick = () => { disposeReference(id); refreshFederation(); void loader.fragments.core.update(true); };
+        row.append(cb, name, rm); host.appendChild(row);
+      }
+    }
+  }
+
+  /** Remove a reference overlay from the scene and free its GPU buffers. */
+  function disposeReference(id: string) {
+    const ref = referenceModels.get(id);
+    if (!ref) return;
+    viewer.world.scene.three.remove(ref.object);
+    ref.object.traverse((o) => {
+      const m = o as THREE.Mesh & THREE.Points;
+      m.geometry?.dispose?.();
+      const mat = (m as { material?: THREE.Material | THREE.Material[] }).material;
+      if (Array.isArray(mat)) mat.forEach((x) => x.dispose()); else mat?.dispose?.();
+    });
+    referenceModels.delete(id);
   }
 
   // Which tool sections matter most per persona — primary ones sit on top, expanded; the rest
@@ -1559,7 +1618,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
 
   // debug hook for automated/preview testing
-  (window as unknown as Record<string, unknown>).__viewer = { viewer, loader, fitToModels, selectByGuid, THREE };
+  (window as unknown as Record<string, unknown>).__viewer = { viewer, loader, fitToModels, selectByGuid, openFile, referenceModels, THREE };
 
   // ---- self-initialise: load the project model + build panels --------------
   void (async () => {

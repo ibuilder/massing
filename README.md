@@ -17,7 +17,7 @@
 
 **What it is** — three pillars on one IFC-keyed model, switched by a Model / Construction / Finance bar:
 
-- 🧊 **BIM platform** — stream + author IFC in the browser (That Open Fragments), QA, clash, IDS, BCF, 2D drawings
+- 🧊 **BIM platform** — stream + author IFC in the browser (That Open Fragments), QA, clash, IDS, BCF, 2D drawings; also opens **meshes & point clouds** (OBJ/STL/PLY/glTF · PCD/XYZ/**LAS/LAZ**) as reference overlays, with **QR sharing**
 - 🏗 **GC portal** — config-driven modules: RFIs, submittals, change orders, pay apps (G702/G703), CPM schedule, safety/TRIR, closeout (COBie)
 - 💵 **Development proforma** — sources & uses, S-curve draws, XIRR/NPV, JV waterfall — seeded straight from the model
 

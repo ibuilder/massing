@@ -34,4 +34,17 @@ for (const f of files) {
   copyFileSync(src, join(dest, f));
   console.log(`[copy-wasm] ${f} -> public/wasm/`);
 }
+
+// laz-perf WASM (LAZ point-cloud decoding) — same offline-vendoring rule; loaded via locateFile.
+const lazSrc = [
+  join(webRoot, "node_modules", "laz-perf", "lib", "laz-perf.wasm"),
+  join(webRoot, "..", "..", "node_modules", "laz-perf", "lib", "laz-perf.wasm"),
+].find((p) => existsSync(p));
+if (lazSrc) {
+  copyFileSync(lazSrc, join(dest, "laz-perf.wasm"));
+  console.log("[copy-wasm] laz-perf.wasm -> public/wasm/");
+} else {
+  console.warn("[copy-wasm] laz-perf.wasm not found — LAZ point clouds will be unavailable");
+}
+
 console.log("[copy-wasm] done");

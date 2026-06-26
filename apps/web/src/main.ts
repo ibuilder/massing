@@ -50,12 +50,14 @@ const withViewer = (fn: (v: ViewerApp) => void) => void ensureViewer().then(fn);
 // warm the viewer in parallel and hand it the chosen File on `change`. Desktop (Tauri) uses its
 // own native dialog via the viewer (the bundle is local, so init is fast).
 const isTauriShell = () => "__TAURI_INTERNALS__" in window;
-function openModelFile(kind: "ifc" | "frag" | "convert") {
-  if (isTauriShell()) { withViewer((v) => v.triggerOpen(kind)); return; }
+function openModelFile(kind: "ifc" | "frag" | "convert" | "ref") {
+  // desktop (Tauri) uses native dialogs via the viewer for ifc/frag/convert; "ref" (mesh/point cloud)
+  // always uses the plain <input> (works in the Tauri webview too) for the instant-dialog path.
+  if (isTauriShell() && kind !== "ref") { withViewer((v) => v.triggerOpen(kind)); return; }
   void ensureViewer();                                   // warm the viewer while the user browses
   document.getElementById(`${kind}-input`)?.click();     // instant native file dialog
 }
-for (const kind of ["ifc", "frag", "convert"] as const) {
+for (const kind of ["ifc", "frag", "convert", "ref"] as const) {
   document.getElementById(`${kind}-input`)?.addEventListener("change", (e) => {
     const inp = e.target as HTMLInputElement;
     const file = inp.files?.[0]; inp.value = "";
@@ -74,6 +76,7 @@ buildMenu("open-menu", "Open ▾", [
   { label: "Open Project (.mmproj)…", onClick: () => void openProjectBundle() },
   { label: "Open IFC…", onClick: () => openModelFile("ifc") },
   { label: "Open Fragments (.frag)…", onClick: () => openModelFile("frag") },
+  { label: "Open mesh / point cloud…", onClick: () => openModelFile("ref") },
   { label: "Sample models", sep: true },
   { label: "School — Structural", onClick: () => withViewer((v) => void v.loadSample("/school_str.frag", "School (Structural)")) },
   { label: "School — Architectural", onClick: () => withViewer((v) => void v.loadSample("/school_arq.frag", "School (Architectural)")) },
