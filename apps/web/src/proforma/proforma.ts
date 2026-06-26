@@ -55,6 +55,8 @@ const pct = (n: number | null) => (n == null ? "n/a" : (n * 100).toFixed(1) + "%
 export class ProformaUI {
   private a = structuredClone(DEFAULT);
   private timer = 0;
+  private lastResult?: ProformaResult;   // latest solve, for the Overview command center
+  private overviewEl?: HTMLElement;       // the Overview tab's container (re-rendered on each solve)
 
   constructor(private root: HTMLElement, private api: ApiClient,
               private setStatus: (m: string) => void,
@@ -105,8 +107,8 @@ export class ProformaUI {
     bar.innerHTML = `<span class="meta">Edit assumptions to solve the deal…</span>`;
     this.root.appendChild(bar);
 
-    // sub-tabs group the (now many) panels: Feasibility · Budget & Capital · Underwriting · Deliverables
-    const TABS: [string, string][] = [["feas", "Feasibility"], ["cap", "Budget & Capital"],
+    // sub-tabs — Overview is the executive command center (default landing), then the detail panels
+    const TABS: [string, string][] = [["over", "Overview"], ["feas", "Feasibility"], ["cap", "Budget & Capital"],
                                       ["uw", "Underwriting"], ["deliver", "Deliverables"]];
     const tabbar = document.createElement("div"); tabbar.className = "pf-subtabs";
     const sections: Record<string, HTMLElement> = {}; const tabBtns: Record<string, HTMLButtonElement> = {};
@@ -124,6 +126,7 @@ export class ProformaUI {
     // route each panel into its section by temporarily pointing this.root at the section
     const self = this as unknown as { root: HTMLElement };
     const into = (el: HTMLElement, fn: () => void) => { const r = self.root; self.root = el; try { fn(); } finally { self.root = r; } };
+    this.overviewEl = sections.over; this.renderOverview();
     into(sections.feas, () => { this.renderMassing(); this.renderTestFit(); this.renderProperty(); });
     into(sections.cap, () => { this.renderBudget(); this.renderSourcesUses(); this.renderSpecialty(); });
     into(sections.uw, () => {
@@ -134,7 +137,7 @@ export class ProformaUI {
       this.renderDraws();
     });
     into(sections.deliver, () => { this.renderDeliverables(); this.renderModelLink(); });
-    showTab(localStorage.getItem("pf-tab") || "uw");
+    showTab(localStorage.getItem("pf-tab") || "over");
   }
 
   /** Deliverables tab: the investor outputs (investment memo + pitch deck PDFs). */
@@ -804,7 +807,9 @@ export class ProformaUI {
     let r: ProformaResult | undefined;
     try { r = await this.api.solveProforma(this.a); }
     catch (e) { this.setStatus(`proforma error: ${(e as Error).message}`); return; }
+    this.lastResult = r;
     this.renderResult(r);
+    this.renderOverview();           // refresh the executive command center with the new solve
     this.setStatus(`equity IRR ${pct(r.returns.equity_irr)} · EM ${r.returns.equity_multiple}`);
     void this.renderSensitivity();
     this.renderMonteCarloPrompt();   // on-demand: a 1000-solve run shouldn't fire on every edit
@@ -933,6 +938,99 @@ export class ProformaUI {
     host.innerHTML =
       `<div class="section-title">Sensitivity — Equity IRR (exit cap × hard cost)</div>` +
       `<table class="sens-table">${head}${rows}</table>`;
+  }
+
+  /** Developer command center (Overview tab) — the executive landing, mirroring the GC dashboard:
+   *  an "on returns & on cost" health band + KPI cards + capital-stack drawdown + Sources & Uses +
+   *  underwriting guardrails. Re-rendered on every solve. */
+  private renderOverview() {
+    const host = this.overviewEl; if (!host) return;
+    host.innerHTML = "";
+    const r = this.lastResult;
+    if (!r) { host.innerHTML = `<div class="meta">Solving the deal…</div>`; return; }
+    const ret = r.returns, su = r.sources_uses;
+    const pid = this.projectId();
+    const TARGET = 0.15;                              // hurdle for the "on returns" read
+    const card = () => { const d = document.createElement("div"); d.className = "dash-card"; return d; };
+    const irrColor = ret.equity_irr == null ? "var(--muted)" : ret.equity_irr >= TARGET ? "#33d17a" : ret.equity_irr >= TARGET * 0.8 ? "#ffd479" : "#e2554a";
+
+    // KPI cards
+    const kpis = document.createElement("div"); kpis.className = "dash-cols"; kpis.style.marginBottom = "10px";
+    const kpi = (label: string, val: string, color?: string) => {
+      const c = card(); c.style.flex = "1";
+      c.innerHTML = `<div class="meta">${label}</div><div style="font-size:18px;font-weight:700${color ? `;color:${color}` : ""}">${val}</div>`;
+      return c;
+    };
+    kpis.append(kpi("Equity IRR", pct(ret.equity_irr), irrColor), kpi("Equity multiple", `${ret.equity_multiple}×`),
+                kpi("Yield on cost", pct(ret.yield_on_cost)), kpi("NPV", money(ret.npv)));
+    host.appendChild(kpis);
+
+    // investment-health band — on returns (vs hurdle) + on cost (construction); pill set after the fetch
+    const health = card(); health.style.marginBottom = "10px";
+    const hh = document.createElement("div"); hh.className = "section-title";
+    hh.style.cssText = "display:flex;justify-content:space-between;align-items:center";
+    hh.append(Object.assign(document.createElement("span"), { textContent: "Investment health — on returns & on cost" }));
+    const pillEl = document.createElement("span"); pillEl.className = "ball-badge"; hh.appendChild(pillEl); health.appendChild(hh);
+    const cols = document.createElement("div"); cols.className = "dash-cols";
+    const rCol = card(); rCol.style.flex = "1";
+    rCol.innerHTML = `<div class="meta">📈 On returns</div>`
+      + `<div style="font-size:15px;font-weight:700;color:${irrColor}">IRR ${pct(ret.equity_irr)}</div>`
+      + `<div class="meta">vs ${pct(TARGET)} hurdle · ${ret.equity_multiple}× EM · ${Math.round(ret.dev_spread * 1e4)} bps spread</div>`;
+    const cCol = card(); cCol.style.flex = "1";
+    cCol.innerHTML = `<div class="meta">🏗 On cost (construction)</div><div class="meta">loading GC status…</div>`;
+    cols.append(rCol, cCol); health.appendChild(cols); host.appendChild(health);
+
+    const onReturns = ret.equity_irr == null || ret.equity_irr >= TARGET;
+    const setPill = (onCost: boolean | null) => {
+      const ok = onReturns && (onCost !== false);
+      const warn = onReturns !== (onCost !== false);
+      const [lbl, col] = ok ? ["On plan", "#33d17a"] : warn ? ["Watch", "#ffd479"] : ["Off plan", "#e2554a"];
+      pillEl.textContent = lbl; pillEl.style.cssText = `background:${col}22;color:${col};border-color:${col}`;
+    };
+    setPill(null);
+    if (pid) {
+      void Promise.all([this.api.gmpReconciliation(pid).catch(() => null), this.api.loanDraws(pid).catch(() => null)]).then(([g, l]) => {
+        if (g && g.gc_gmp) {
+          const sync = g.in_sync ? "in sync with underwriting" : (g.delta > 0 ? `GMP ${money(Math.abs(g.delta))} over hard cost` : `GMP ${money(Math.abs(g.delta))} under hard cost`);
+          cCol.innerHTML = `<div class="meta">🏗 On cost (construction)</div>`
+            + `<div style="font-size:15px;font-weight:700;color:${g.in_sync ? "#33d17a" : "#ffd479"}">GMP ${money(g.gc_gmp)}</div>`
+            + `<div class="meta">${sync}${l && l.drawn_to_date ? ` · drawn ${money(l.drawn_to_date)} (${l.pct_capital_drawn}%)` : ""}</div>`;
+          setPill(g.in_sync);
+        } else { cCol.innerHTML = `<div class="meta">🏗 On cost (construction)</div><div class="meta">No GC budget linked yet.</div>`; setPill(null); }
+      });
+    } else { cCol.innerHTML = `<div class="meta">🏗 On cost (construction)</div><div class="meta">Open a project to link the GC budget.</div>`; }
+
+    // capital stack drawdown (from loan-draws)
+    if (pid) {
+      const cap = card(); cap.style.marginBottom = "10px";
+      cap.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: "Capital stack" }));
+      const cb = document.createElement("div"); cb.className = "meta"; cb.textContent = "loading…"; cap.appendChild(cb); host.appendChild(cap);
+      void this.api.loanDraws(pid).then((l) => {
+        if (!l.loan_amount && !l.equity) { cap.style.display = "none"; return; }
+        cb.innerHTML = `Loan <b>${money(l.loan_amount)}</b> · equity <b>${money(l.equity)}</b> · drawn ${money(l.drawn_to_date)} (${l.pct_capital_drawn}%)`
+          + ` — equity ${money(l.equity_drawn)} · loan ${money(l.loan_drawn)} · available ${money(l.loan_available)}`
+          + (l.accrued_interest ? ` · <span style="color:#e2554a">accrued interest ${money(l.accrued_interest)}</span>` : "");
+      }).catch(() => { cap.style.display = "none"; });
+    }
+
+    // Sources & Uses + guardrails
+    const su2 = card(); su2.style.marginBottom = "10px";
+    su2.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: "Sources & Uses" }));
+    su2.insertAdjacentHTML("beforeend", `<div class="portal-kv">`
+      + `<div class="k">Total uses</div><div class="v">${money(su.total_uses)}</div>`
+      + `<div class="k">Senior loan</div><div class="v">${money(su.loan_amount)}</div>`
+      + `<div class="k">Equity (LP / GP)</div><div class="v">${money(su.equity)} (${money(su.lp_contribution)} / ${money(su.gp_contribution)})</div>`
+      + `</div>`);
+    host.appendChild(su2);
+    if (r.guardrails && r.guardrails.flags.length) {
+      const gc = card();
+      gc.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: "Underwriting guardrails" }));
+      for (const f of r.guardrails.flags.slice(0, 5)) {
+        const col = f.level === "high" ? "#e2554a" : f.level === "med" ? "#ffd479" : "#33d17a";
+        gc.insertAdjacentHTML("beforeend", `<div class="meta" style="margin:1px 0"><span style="color:${col}">${f.level === "info" ? "✓" : "△"}</span> ${f.message}</div>`);
+      }
+      host.appendChild(gc);
+    }
   }
 
   private renderResult(r: ProformaResult) {
