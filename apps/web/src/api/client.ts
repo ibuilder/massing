@@ -475,6 +475,15 @@ export class ApiClient {
   element(pid: string, guid: string) {
     return this.json<ElementProps>(`/projects/${pid}/elements/${guid}`);
   }
+  /** 5D for an element: its schedule activity (%-complete, dates, hard-tied?) + cost-code budget. */
+  element5d(pid: string, guid: string) {
+    return this.json<{ guid: string; ifc_class: string | null; storey: string | null; name: string | null;
+      schedule: { ref: string; name: string; trade: string | null; percent: number; start: string | null;
+        finish: string | null; state: string | null; hard_tied: boolean } | null;
+      cost: { code: string | null; ref: string | null; name: string | null; division: string | null;
+        budget: number; committed: number; actual: number; eac: number; variance: number } | null }>(
+      `/projects/${pid}/elements/${guid}/5d`);
+  }
   /** Placeable types ("families") in the project's source IFC, for the place-family picker. */
   types(pid: string) {
     return this.json<{ types: { guid: string; name: string; ifc_class: string; has_geometry: boolean }[] }>(

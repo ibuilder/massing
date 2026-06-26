@@ -109,7 +109,34 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     await showProps(map, opts.guid);
   }
 
+  // 5D inspector — appended under the property panel; populated on selection
+  const props5d = document.createElement("div"); props5d.id = "props-5d";
+  props5d.style.cssText = "margin-top:6px;font-size:11px;line-height:1.5";
+  propsPanel.appendChild(props5d);
+
+  async function render5D(guid: string) {
+    props5d.innerHTML = "";
+    if (!connected || !projectId) return;
+    let d; try { d = await api.element5d(projectId, guid); } catch { return; }
+    if (!d.schedule && !d.cost) return;
+    const usd = (n: number) => "$" + Math.round(n).toLocaleString();
+    let html = `<div style="font-weight:700;border-top:1px solid var(--line);padding-top:6px">5D — schedule &amp; cost</div>`;
+    if (d.schedule) {
+      const s = d.schedule;
+      html += `<div>🗓 <b>${s.name}</b>${s.trade ? ` · ${s.trade}` : ""} · ${s.percent}% complete`
+        + `${s.hard_tied ? "" : ` <span class="meta">(by trade)</span>`}</div>`;
+      if (s.start || s.finish) html += `<div class="meta">${s.start ?? "?"} → ${s.finish ?? "?"}${s.state ? ` · ${s.state}` : ""}</div>`;
+    }
+    if (d.cost) {
+      const c = d.cost; const vcol = c.variance < 0 ? "#e2554a" : "#33d17a";
+      html += `<div>💰 <b>${c.code ?? c.name}</b> · budget ${usd(c.budget)} · committed ${usd(c.committed)} · actual ${usd(c.actual)}`
+        + ` · <span style="color:${vcol}">var ${usd(c.variance)}</span></div>`;
+    }
+    props5d.innerHTML = html;
+  }
+
   async function showProps(map: ModelIdMap, guid?: string) {
+    if (guid) void render5D(guid); else props5d.innerHTML = "";
     if (connected && projectId && guid) {
       try { renderProps(await api.element(projectId, guid)); return; } catch { /* fall through */ }
     }
