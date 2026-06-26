@@ -983,9 +983,55 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         const name = document.createElement("span"); name.className = "name"; name.textContent = ref.label;
         const rm = document.createElement("button"); rm.className = "tool-btn"; rm.textContent = "✕"; rm.title = "Remove model";
         rm.onclick = () => { disposeReference(id); refreshFederation(); void loader.fragments.core.update(true); };
-        row.append(cb, name, rm); host.appendChild(row);
+        const gear = document.createElement("button"); gear.className = "tool-btn"; gear.textContent = "⛭"; gear.title = "Align / transform";
+        const panel = transformPanel(ref.object);
+        gear.onclick = () => { panel.style.display = panel.style.display === "none" ? "block" : "none"; };
+        row.append(cb, name, gear, rm); host.appendChild(row); host.appendChild(panel);
       }
     }
+  }
+
+  /** Per-model alignment controls (Navisworks-style): position offset, Z-up flip, uniform scale,
+   *  move-to-picked-point and reset — applied directly to the reference object's transform. */
+  function transformPanel(obj: THREE.Object3D): HTMLElement {
+    const panel = document.createElement("div");
+    panel.style.cssText = "display:none;padding:4px 0 8px 20px";
+    const inputs: (() => void)[] = [];
+    const refresh = () => { obj.updateMatrixWorld(true); void loader.fragments.core.update(true); };
+    const numRow = (label: string, get: () => number, set: (v: number) => void) => {
+      const r = document.createElement("div"); r.className = "layer-row";
+      const l = document.createElement("span"); l.className = "name"; l.textContent = label;
+      const i = document.createElement("input"); i.type = "number"; i.step = "0.5"; i.style.width = "88px";
+      const sync = () => { i.value = String(+get().toFixed(3)); };
+      sync(); inputs.push(sync);
+      i.oninput = () => { set(+i.value || 0); refresh(); };
+      r.append(l, i); panel.appendChild(r);
+    };
+    numRow("X", () => obj.position.x, (v) => { obj.position.x = v; });
+    numRow("Y", () => obj.position.y, (v) => { obj.position.y = v; });
+    numRow("Z", () => obj.position.z, (v) => { obj.position.z = v; });
+    numRow("Scale", () => obj.scale.x, (v) => obj.scale.setScalar(v || 1));
+    const zr = document.createElement("div"); zr.className = "layer-row";
+    const zl = document.createElement("span"); zl.className = "name"; zl.textContent = "Z-up → Y-up";
+    const zc = document.createElement("input"); zc.type = "checkbox";
+    zc.checked = Math.abs(obj.rotation.x + Math.PI / 2) < 0.01;
+    zc.onchange = () => { obj.rotation.x = zc.checked ? -Math.PI / 2 : 0; refresh(); };
+    zr.append(zl, zc); panel.appendChild(zr);
+    const btns = document.createElement("div"); btns.style.cssText = "display:flex;gap:6px;margin-top:4px";
+    const move = document.createElement("button"); move.className = "tool-btn"; move.textContent = "Move to point";
+    move.title = "Translate so the model's centre sits on the last picked point";
+    move.onclick = () => {
+      if (!lastPoint) { setStatus("click a point in the scene first"); return; }
+      const c = new THREE.Box3().setFromObject(obj).getCenter(new THREE.Vector3());
+      obj.position.add(lastPoint.clone().sub(c)); refresh(); inputs.forEach((f) => f());
+    };
+    const reset = document.createElement("button"); reset.className = "tool-btn"; reset.textContent = "Reset";
+    reset.onclick = () => {
+      obj.position.set(0, 0, 0); obj.rotation.set(0, 0, 0); obj.scale.setScalar(1);
+      zc.checked = false; refresh(); inputs.forEach((f) => f());
+    };
+    btns.append(move, reset); panel.appendChild(btns);
+    return panel;
   }
 
   /** Remove a reference overlay from the scene and free its GPU buffers. */
@@ -1108,7 +1154,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       apply.className = "tool-btn"; apply.textContent = "Apply origin"; apply.style.marginLeft = "6px";
       apply.onclick = async () => {
         origin.setOrigin({ e: +inputs.e.value, n: +inputs.n.value, z: +inputs.z.value });
-        for (const [, model] of loader.fragments.list) origin.applyTo(model);
+        for (const [, model] of loader.fragments.list) origin.applyTo(model.object as unknown as THREE.Object3D);
         await loader.fragments.core.update(true);
         if (connected && projectId) {
           fetch(api.url(`/projects/${projectId}`), { method: "PATCH", headers: { "Content-Type": "application/json", ...api.authHeaders() }, body: JSON.stringify({ origin: origin.getOrigin() }) }).catch(() => {});

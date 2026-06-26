@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import type * as FRAGS from "@thatopen/fragments";
 
 /**
  * Set an origin / georeferencing (guide §6, explicit requirement).
@@ -27,9 +26,9 @@ export class OriginTool {
     return this.origin;
   }
 
-  /** Apply the working-origin offset to a freshly loaded model so it renders near (0,0,0). */
-  applyTo(model: FRAGS.FragmentsModel) {
-    const obj = model.object as unknown as THREE.Object3D;
+  /** Apply the working-origin offset to a freshly loaded model so it renders near (0,0,0).
+   *  Accepts any Object3D — a fragment model's `.object` or a reference overlay. */
+  applyTo(obj: THREE.Object3D) {
     obj.position.set(-this.origin.e, -this.origin.z, this.origin.n); // Y-up: swap N/Z
     obj.updateMatrixWorld(true);
   }
