@@ -51,6 +51,7 @@ class Report:
         self.subtitle = subtitle
         self.kpis: list[tuple[str, str]] = []
         self.tables: list[dict[str, Any]] = []   # {name, headers:[str], rows:[[..]]}
+        self.charts: list[dict[str, Any]] = []   # {kind:'bar'|'line', name, categories, series:[{name,values}]}
 
     def kpi(self, label: str, value: Any):
         self.kpis.append((label, str(value)))
@@ -58,6 +59,11 @@ class Report:
 
     def table(self, name: str, headers: list[str], rows: list[list[Any]]):
         self.tables.append({"name": name, "headers": headers, "rows": rows})
+        return self
+
+    def chart(self, kind: str, name: str, categories: list[str], series: list[dict[str, Any]]):
+        """A bar or line chart for the PDF (the Excel keeps the underlying table for re-charting)."""
+        self.charts.append({"kind": kind, "name": name, "categories": categories, "series": series})
         return self
 
 
@@ -107,6 +113,14 @@ def _cost(db: Session, pid: str, name: str) -> Report:
     rows.append(["TOTAL", _money(t["budget"]), _money(t["committed"]), _money(t["actual"]),
                  _money(t.get("eac", t["forecast"])), _money(t["variance"])])
     r.table("Cost by category", ["Category", "Budget", "Committed", "Actual", "Forecast/EAC", "Variance"], rows)
+    cats = [c for c in b["categories"] if (c.get("budget") or 0) > 0]
+    if cats:
+        r.chart("bar", "Budget vs committed vs actual vs EAC", [c["name"] for c in cats], [
+            {"name": "Budget", "values": [round(c["budget"]) for c in cats]},
+            {"name": "Committed", "values": [round(c.get("committed", 0)) for c in cats]},
+            {"name": "Actual", "values": [round(c.get("actual", 0)) for c in cats]},
+            {"name": "EAC", "values": [round(c.get("eac", c.get("forecast", c["budget"]))) for c in cats]},
+        ])
     return r
 
 
@@ -120,6 +134,9 @@ def _evm(db: Session, pid: str, name: str) -> Report:
     r.kpi("Cash to date", _money(next((b["cumulative"] for b in reversed(cash["series"]) if b.get("cumulative")), 0)))
     rows = [[b["month"], _money(b["cost"]), _money(b["cumulative"]), f"{b['pct']}%"] for b in cash["series"]]
     r.table("Cash-flow S-curve", ["Month", "Period", "Cumulative", "% of total"], rows)
+    if len(cash["series"]) > 1:
+        r.chart("line", "Cash-flow S-curve (cumulative)", [b["month"] for b in cash["series"]],
+                [{"name": "Cumulative cost", "values": [round(b["cumulative"]) for b in cash["series"]]}])
     return r
 
 
@@ -192,6 +209,12 @@ def _financials(db: Session, pid: str, name: str) -> Report:
             [[y["year"], _money(y["noi"]), _money(y["interest"]), _money(y["depreciation"]),
               _money(y["taxable_income"]), _money(y["income_tax"]), _money(y["net_income"])]
              for y in f["income_statement"]["by_year"]])
+    by = f["income_statement"]["by_year"]
+    if len(by) > 1:
+        r.chart("line", "NOI vs net income by year", [f"Yr {y['year']}" for y in by], [
+            {"name": "NOI", "values": [round(y["noi"]) for y in by]},
+            {"name": "Net income", "values": [round(y["net_income"]) for y in by]},
+        ])
     bs = f["balance_sheet"]["by_year"][-1]
     r.table(f"Balance sheet (year {bs['year']})", ["Account", "Amount"], [
         ["Land", _money(bs["assets"]["land"])],
@@ -281,10 +304,57 @@ def to_pdf(rep: Report) -> bytes:
             ("GRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f4f6f8")])]))
         f += [t, Spacer(1, 12)]
+    for ch in rep.charts:
+        f.append(Paragraph(ch["name"], ss["Heading3"]))
+        f += [_chart_drawing(ch), Spacer(1, 12)]
     buf = io.BytesIO()
     SimpleDocTemplate(buf, pagesize=landscape(letter), topMargin=0.7 * inch, bottomMargin=0.6 * inch,
                       leftMargin=0.6 * inch, rightMargin=0.6 * inch, title=rep.title).build(f)
     return buf.getvalue()
+
+
+_CHART_COLORS = ["#4a8cff", "#33d17a", "#e6a700", "#9b7cff", "#4ac6e2", "#e2554a"]
+
+
+def _chart_drawing(ch: dict[str, Any]):
+    """A reportlab Drawing (bar or line) — built-in graphics, no extra dependency."""
+    from reportlab.graphics.charts.barcharts import VerticalBarChart
+    from reportlab.graphics.charts.lineplots import LinePlot
+    from reportlab.graphics.shapes import Drawing, String
+    from reportlab.lib import colors
+
+    W, H = 640, 220
+    d = Drawing(W, H)
+    cats = ch["categories"] or [""]
+    series = ch["series"] or [{"name": "", "values": []}]
+    if ch["kind"] == "line":
+        lp = LinePlot()
+        lp.x, lp.y, lp.width, lp.height = 44, 36, W - 80, H - 70
+        lp.data = [list(enumerate(s["values"])) for s in series]
+        for i in range(len(series)):
+            lp.lines[i].strokeColor = colors.HexColor(_CHART_COLORS[i % len(_CHART_COLORS)])
+            lp.lines[i].strokeWidth = 1.6
+        lp.xValueAxis.valueMin = 0
+        lp.xValueAxis.valueMax = max(1, len(cats) - 1)
+        d.add(lp)
+    else:
+        bc = VerticalBarChart()
+        bc.x, bc.y, bc.width, bc.height = 44, 40, W - 80, H - 76
+        bc.data = [s["values"] for s in series]
+        bc.categoryAxis.categoryNames = cats
+        bc.categoryAxis.labels.fontSize = 7
+        bc.categoryAxis.labels.angle = 20
+        bc.categoryAxis.labels.dy = -4
+        bc.valueAxis.valueMin = 0
+        bc.barWidth = 4
+        for i in range(len(series)):
+            bc.bars[i].fillColor = colors.HexColor(_CHART_COLORS[i % len(_CHART_COLORS)])
+        d.add(bc)
+    # simple legend
+    for i, s in enumerate(series):
+        d.add(String(48 + i * 110, H - 12, "■ " + str(s["name"]),
+                     fontSize=8, fillColor=colors.HexColor(_CHART_COLORS[i % len(_CHART_COLORS)])))
+    return d
 
 
 def to_sheets(rep: Report) -> dict[str, tuple[list[str], list[list[Any]]]]:

@@ -58,4 +58,10 @@ with TestClient(app) as c:
     assert "headline" in dg and isinstance(dg.get("risks"), list), dg
     assert "schedule" in dg["drivers"] and "cost" in dg["drivers"], dg
 
-print(f"REPORTS OK - {len(ids)} reports each render a valid PDF + Excel workbook; cost report totals; 404 on unknown")
+    # the cost report carries a bar chart (budget vs committed vs actual vs EAC) into the PDF
+    from aec_api import reports as _rep
+    cost_rep = _rep.build(__import__("aec_api.db", fromlist=["SessionLocal"]).SessionLocal(), pid, "cost")
+    assert cost_rep.charts and cost_rep.charts[0]["kind"] == "bar", cost_rep.charts
+    assert _rep._chart_drawing(cost_rep.charts[0]) is not None    # renders without error
+
+print(f"REPORTS OK - {len(ids)} reports each render a valid PDF + Excel workbook (incl. charts); cost bar; 404 on unknown")
