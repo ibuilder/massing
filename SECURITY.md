@@ -23,7 +23,11 @@ Set these environment variables for a team/cloud deployment:
 | `AEC_RBAC=1` | **Enforce** role-based access control (viewer < reviewer < editor < admin). |
 | `AEC_AUTH_SECRET=<random>` | Sign auth tokens with a private secret. **Required** — without it tokens use a public dev secret and are forgeable (the app logs a warning at startup). |
 | `AEC_API_KEY=<random>` | Optional admin bearer for automation/CI. |
+| `AEC_REQUIRE_SECRET=1` | **Refuse to start** if `AEC_AUTH_SECRET` is unset (fail-closed for real deployments). |
 | `AEC_HSTS=1` | Emit `Strict-Transport-Security` (only when served over HTTPS). |
+| `AEC_COOKIE_SECURE=1` | Force the `Secure` flag on the auth cookie (auto-on over HTTPS / behind a TLS proxy). |
+| `AEC_CSP=1` | Enforce a strict resource Content-Security-Policy (or set `AEC_CSP=<policy>` to supply your own). Default is framing-only. |
+| `AEC_SIGNED_URL_TTL=3600` | Lifetime (seconds) of signed download URLs for `model.frag` / attachments. |
 | `AEC_CORS_ORIGINS=https://app.example.com` | Lock CORS to your web origin (dev default is `http://localhost:5173`). |
 | `AEC_MAX_UPLOAD_MB=1024` | Cap request body size (oversized uploads → `413`). |
 | `AEC_LOGIN_MAX_FAILS` / `AEC_LOGIN_WINDOW_SEC` | Login brute-force lockout (default 8 fails / 5 min → `429`). |
@@ -35,8 +39,10 @@ Set these environment variables for a team/cloud deployment:
   trusted in production. Accounts can be deactivated (token revocation takes effect immediately).
 - **Authorization:** project-scoped RBAC on read/write routes + a global gate that blocks anonymous
   access to protected prefixes when RBAC is on. Attachment downloads verify project membership (no IDOR).
-- **Response headers:** `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
-  `Referrer-Policy`, `Content-Security-Policy: frame-ancestors 'none'` (anti-clickjacking), optional HSTS.
+- **Response headers:** `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`,
+  a `Content-Security-Policy` (framing-only by default; opt-in strict resource policy), optional HSTS.
+- **Direct downloads:** `model.frag` and attachments accept short-lived **HMAC-signed URLs** as an
+  alternative to a session (for QR share / worker fetch / deep links); the auth cookie is `Secure` over HTTPS.
 - **Input / data:** Pydantic-validated request models; SQLAlchemy parameterized queries; the data-source
   SQL browser is **read-only** (single SELECT/WITH, no DDL/DML, row-capped); storage keys are
   containment-checked (no path traversal) and upload filenames sanitized.

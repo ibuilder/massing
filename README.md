@@ -167,7 +167,13 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Charts & graphs (latest, v0.1.83)** — a dependency-free, theme-aware SVG chart kit drives
+- **Security hardening (latest, v0.1.84)** — a defense-in-depth RBAC gate (anonymous blocked from
+  project/finance/admin surfaces when `AEC_RBAC=1`) + `require_role` on every project-scoped endpoint;
+  hardening response headers + opt-in strict CSP; request body-size cap; storage path-traversal +
+  upload-filename sanitization; attachment-download IDOR fix + member-scoped project list; login
+  brute-force lockout, `Secure` auth cookie, and fail-fast on a default signing secret; **signed/expiring
+  download URLs** for `model.frag` + attachments. See [SECURITY.md](SECURITY.md).
+- **Charts & graphs (v0.1.83)** — a dependency-free, theme-aware SVG chart kit drives
   construction/RE best-practice visuals: a **capital-stack** donut, **JV-distribution** donut, equity
   cash-flow bars and a one-way **IRR tornado** on the Underwriting tab; **NOI vs net-income** and
   **cash-flow-by-year** charts on Statements; **progress bars** + a **budget vs committed vs actual vs
@@ -209,7 +215,7 @@ Deliverables** — with a sticky live-solved returns bar.
   cost burn; **QTO by floor & discipline**. Plus **multi-user** (members → role-scoped persona
   views), bulk site-photo + camera capture, and an optional **paid Revit (.rvt)→IFC bridge** (APS,
   feature-flagged with a cost gate; IFC stays the source of truth). One click (lot→building→deal)
-  seeds all three pillars. See the [CHANGELOG](CHANGELOG.md) (v0.1.53→v0.1.83).
+  seeds all three pillars. See the [CHANGELOG](CHANGELOG.md) (v0.1.53→v0.1.84).
 - **Rendering, families & computational design (M-theme)** — a viewer **render mode** (directional
   sun + soft shadows, ACES/PBR, IBL), a NOAA **sun-&-shadow study** (date · time · lat/long), and a
   Matterport-style first-person **walkthrough**; Revit-style **`IfcMaterialLayerSet` assemblies** on

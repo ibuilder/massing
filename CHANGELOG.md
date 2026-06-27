@@ -4,6 +4,20 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.84 — security hardening
+- **Access control:** RBAC defense-in-depth gate (anonymous blocked from project/finance/admin
+  prefixes when `AEC_RBAC=1`), `require_role` on every project-scoped finance/data endpoint, attachment
+  download IDOR fixed, projects list scoped to the caller's memberships.
+- **Hardening headers** on every response (nosniff, frame DENY, referrer, CSP) + **opt-in strict CSP**
+  (`AEC_CSP=1`); **request body-size cap** (`AEC_MAX_UPLOAD_MB` → 413).
+- **Path traversal** closed at the storage layer (resolved-path containment) + upload-filename sanitization.
+- **Auth:** login brute-force lockout (429), `Secure` auth cookie over HTTPS, fail-fast on a default
+  signing secret (`AEC_REQUIRE_SECRET=1`).
+- **Signed/expiring download URLs** for `model.frag` + attachments (HMAC, short-lived) — for QR share /
+  worker fetch / deep links without a session.
+- **Docs:** new `SECURITY.md` (disclosure policy, threat model, production env-flag checklist).
+- Production npm dependencies carry no known vulnerabilities (CI runs `pip-audit` + `npm audit`).
+
 ## v0.1.83 — charts & graphs (construction + real-estate best practice)
 - **Reusable SVG chart kit** (`ui/charts.ts`, dependency-free, theme-aware): multi-series line
   (S-curve), grouped/stacked bar, waterfall, tornado, histogram, donut, progress bar, sparkline.
