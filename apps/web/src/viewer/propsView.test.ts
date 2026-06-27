@@ -91,4 +91,31 @@ describe("buildRawProps (in-browser fallback)", () => {
     expect(root.textContent).toContain("IsDefinedBy");
     expect(root.textContent).toContain("Pset_X");
   });
+
+  it("survives circular references without a stack overflow", () => {
+    // getItemsData back-references would recurse forever without the cycle guard
+    const a: Record<string, unknown> = { name: "A" };
+    const b: Record<string, unknown> = { name: "B", parent: a };
+    a.child = b; a.self = a;
+    expect(() => buildRawProps({ root: a })).not.toThrow();
+  });
+
+  it("caps absurd depth instead of blowing the stack", () => {
+    let deep: Record<string, unknown> = { v: 1 };
+    for (let i = 0; i < 5000; i++) deep = { next: deep };
+    expect(() => buildRawProps(deep)).not.toThrow();
+  });
+
+  it("flattens IFC {value} / {value,type} wrappers into scalar rows, not sub-groups", () => {
+    // raw getItemsData wraps every scalar — these must become rows, not 1-row groups
+    const root = buildRawProps({
+      _category: { value: "IFCWALL", type: 1 }, Name: { value: "Exterior Wall" }, Tag: { value: 1234 },
+    });
+    // 3 wrapped scalars -> 3 rows under one Element group (no per-field sub-group)
+    const groups = root.querySelectorAll(".pv-group");
+    expect(groups.length).toBe(1);
+    expect(root.querySelectorAll(".pv-row").length).toBe(3);
+    expect(root.textContent).toContain("Exterior Wall");   // unwrapped value shown
+    expect(root.textContent).not.toContain("value");        // wrapper key hidden
+  });
 });
