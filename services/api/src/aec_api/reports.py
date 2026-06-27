@@ -20,6 +20,7 @@ from .models import Project
 # id -> (name, group)
 REPORTS: dict[str, tuple[str, str]] = {
     "executive": ("Executive Summary", "Health"),
+    "risk": ("Risk Digest", "Health"),
     "cost": ("Cost Report", "Cost"),
     "evm": ("EVM / S-Curve", "Cost"),
     "change_orders": ("Change Order Log", "Logs"),
@@ -153,11 +154,27 @@ def _contracts(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _risk(db: Session, pid: str, name: str) -> Report:
+    dg = px.risk_digest(db, pid)
+    r = Report("Risk Digest", name)
+    r.kpi("Headline", dg.get("headline") or "—")
+    r.kpi("Risks flagged", len(dg.get("risks", [])))
+    if dg.get("risks"):
+        r.table("Prioritized risks", ["Level", "Risk"],
+                [[str(x.get("level", "")).upper(), x.get("text", "")] for x in dg["risks"]])
+    if dg["drivers"].get("top_alerts"):
+        r.table("Top schedule alerts", ["Level", "Alert", "Detail"],
+                [[a["level"].upper(), a["title"], a.get("detail", "")] for a in dg["drivers"]["top_alerts"]])
+    return r
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
     if report == "executive":
         return _executive(db, pid, name)
+    if report == "risk":
+        return _risk(db, pid, name)
     if report == "cost":
         return _cost(db, pid, name)
     if report == "evm":

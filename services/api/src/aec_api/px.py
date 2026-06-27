@@ -157,3 +157,34 @@ def alerts(db: Session, pid: str) -> dict[str, Any]:
     out.sort(key=lambda a: order.get(a["level"], 3))
     counts = {lvl: sum(1 for a in out if a["level"] == lvl) for lvl in ("high", "medium", "low")}
     return {"alerts": out, "counts": counts}
+
+
+def risk_digest(db: Session, pid: str) -> dict[str, Any]:
+    """A project risk digest across cost + schedule + open items + safety. Assembles the drivers and
+    runs them through ai.risk_summary for a prioritized narrative (Claude when configured, else a
+    deterministic rule-based summary)."""
+    from . import ai
+    s = summary(db, pid)
+    al = alerts(db, pid)
+    sch, bud = s["schedule"], s["budget"]
+    open_items = {}
+    closed_states = ("closed", "executed", "approved", "rejected", "answered", "void")
+    for key, label in [("rfi", "open_rfis"), ("submittal", "open_submittals"), ("cor", "open_change_orders")]:
+        try:
+            recs = pb._records(db, key, pid)
+            open_items[label] = sum(1 for x in recs if x.get("workflow_state") not in closed_states)
+        except Exception:  # noqa: BLE001 — module optional
+            open_items[label] = 0
+    try:
+        incidents = len(pb._records(db, "incident", pid))
+    except Exception:  # noqa: BLE001
+        incidents = 0
+    kpis = {"status": s["status"], "spi": sch["spi"], "pct_complete": sch["pct_complete"],
+            "schedule_alerts_high": al["counts"]["high"], "schedule_alerts_medium": al["counts"]["medium"],
+            "incidents": incidents, **open_items}
+    cost = {"eac": bud["eac"], "variance_at_completion": bud["variance_at_completion"],
+            "committed_pct": bud["committed_pct"], "spent_pct": bud["spent_pct"]}
+    narrative = ai.risk_summary(kpis, cost)
+    return {"headline": narrative.get("headline", ""), "risks": narrative.get("risks", []),
+            "source": narrative.get("source"), "ai_enabled": ai.ai_enabled(),
+            "drivers": {"schedule": kpis, "cost": cost, "top_alerts": al["alerts"][:8]}}

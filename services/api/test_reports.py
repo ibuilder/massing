@@ -53,4 +53,9 @@ with TestClient(app) as c:
     assert any("TOTAL" in v for v in vals), "cost xlsx should have a TOTAL row"
     assert c.get(f"/projects/{pid}/reports/nope.pdf").status_code == 404
 
+    # risk digest endpoint: headline + prioritized risks + drivers (rule-based without an AI key)
+    dg = c.get(f"/projects/{pid}/risk-digest").json()
+    assert "headline" in dg and isinstance(dg.get("risks"), list), dg
+    assert "schedule" in dg["drivers"] and "cost" in dg["drivers"], dg
+
 print(f"REPORTS OK - {len(ids)} reports each render a valid PDF + Excel workbook; cost report totals; 404 on unknown")

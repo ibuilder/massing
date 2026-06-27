@@ -162,6 +162,13 @@ def risk_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(requi
     return {**ai.risk_summary(d.get("kpis", {}), d.get("cost")), "ai_enabled": ai.ai_enabled()}
 
 
+@router.get("/projects/{pid}/risk-digest")
+def risk_digest(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Project risk digest across cost + schedule + open items + safety, with a prioritized narrative."""
+    from .. import px
+    return px.risk_digest(db, pid)
+
+
 _ASK_COUNT_MODULES = ("rfi", "submittal", "change_event", "pco_request", "cor", "punchlist",
                       "ncr", "deficiency", "inspection", "incident", "daily_report", "commitment")
 
