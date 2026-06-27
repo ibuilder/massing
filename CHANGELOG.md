@@ -4,6 +4,17 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.83 — charts & graphs (construction + real-estate best practice)
+- **Reusable SVG chart kit** (`ui/charts.ts`, dependency-free, theme-aware): multi-series line
+  (S-curve), grouped/stacked bar, waterfall, tornado, histogram, donut, progress bar, sparkline.
+- **Finance (proforma)** — Underwriting: a **capital-stack donut** (debt/LP/GP), a **JV-distributions
+  donut**, equity cash-flow bars, and a one-way **IRR tornado** (derived from the 2-way matrix).
+  Statements: **NOI vs net-income** line + **cash-flow-by-year** stacked bar.
+- **Construction (GC portal)** — executive **progress bars** (% complete · bought-out · spent) and a
+  **budget vs committed vs actual vs EAC** grouped bar by category.
+- **Report Center** — charts embedded in the PDFs (cost bar, EVM cash-flow S-curve, financials
+  NOI/net-income line) via reportlab's built-in graphics; Excel keeps the data tables for re-charting.
+
 ## v0.1.82 — financial statements & tax modeling
 - **Three financial statements + tax** — the Finance proforma gains a **Statements** tab (and a
   Report-Center "Financial Statements" PDF/Excel) built on `financials.py`:
