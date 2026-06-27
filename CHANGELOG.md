@@ -14,8 +14,12 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
     financing + cash) = Liabilities (loan) + Equity (paid-in + retained); **balances every year**.
   - **Cash-flow statement** — GAAP three-section (Operating / Investing / Financing), indirect method.
   - **Tax** — 27.5-yr residential / 39-yr commercial straight-line (land non-depreciable), annual income
-    tax, and at sale **§1250 depreciation recapture** (≤25%) stacked on **capital gains** (+ NIIT) —
-    driving an **after-tax** equity IRR / multiple. Institutional defaults, overridable via a `tax` block.
+    tax with **passive-loss carryforward** (§469: loss years are suspended, offset later income, and the
+    remainder releases against the gain at sale), and at sale **§1250 depreciation recapture** (≤25%)
+    stacked on **capital gains** (+ NIIT) — driving an **after-tax** equity IRR / multiple. Institutional
+    defaults, overridable via a `tax` block.
+  - **Per-year columns** — columnar **balance sheet by year** (balances every column) and **cash flow by
+    year** alongside the stabilized-snapshot cards.
   - **Two-sided budget** — the development budget as **Uses** (left) vs **Sources** (right); both tie.
   - Endpoints: `POST /proforma/financials`, `GET /projects/{pid}/financials`,
     `GET /projects/{pid}/budget/two-sided`.
