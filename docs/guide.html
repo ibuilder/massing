@@ -96,7 +96,9 @@
     <li>Open the app and make sure you're in the <b>Model</b> workspace (top bar).</li>
     <li>Click <b>Open ▾ → BasicHouse</b> (or any sample). The building loads in the viewer.</li>
     <li><b>Orbit</b> by dragging, <b>pan</b> with right-drag, <b>zoom</b> with the wheel. Click <b>⤢ Fit</b> to recenter.</li>
-    <li>Click any element — its <b>properties</b> open on the right. Every element has a permanent IFC ID.</li>
+    <li>Click any element — its <b>properties</b> open on the right, grouped into <b>Attributes</b>,
+      <b>Quantities</b> (areas / volumes / lengths) and each <b>Property Set</b>. <b>Filter</b> to find a field,
+      click a row to copy it, or <b>Copy all</b>; the <b>⧉</b> button copies the element's permanent IFC GUID.</li>
     <li>Use the left rail: the <b>tree</b> (spatial breakdown), <b>layers</b> (show/hide by type), and <b>⊙ Isolate</b> / <b>⊞ Show all</b>.</li>
     <li>Try <b>Section</b> (cut through the model) and <b>Measure</b> (distances/areas) from the toolbar.</li>
     <li>Need other formats? <b>Open ▾ → Open mesh / point cloud / GIS…</b> loads <b>OBJ/STL/PLY/glTF</b> meshes,
@@ -170,7 +172,13 @@
     <li>Explore <b>Board</b> (kanban), filters, and the <b>Related</b> panel on a record (it links RFIs →
       change events → CORs automatically).</li>
     <li>Use <b>Schedule</b> for CPM/critical path, the <b>takt</b> chart, and the <b>⏱ 4D sequence</b> slider
-      to scrub the build in the viewer.</li>
+      to scrub the build in the viewer. <b>⏩ Accelerate (advisory)</b> reads the critical path and suggests
+      where to crash or fast-track work (advisory only — it never rewrites your schedule).</li>
+    <li><b>Permitting → 🏛 Import from city open data</b>: pick a city (<b>NYC · SF · Chicago · LA · Austin</b>,
+      more easily added), search by address or near the site, and import issued/filed permits straight into
+      your permit log — owner, architect, GC, units, valuation and status come along, deduped on re-import.</li>
+    <li>Pull a <b>report</b>: the <b>Report Center</b> renders an executive summary, cost, EVM, change-order,
+      RFI, contracts and a <b>risk digest</b> — each as a <b>PDF and an Excel</b> workbook.</li>
     <li>Open <b>Schedule → Budget</b> for the project <b>GMP</b>: it assembles automatically from your cost
       codes, committed subcontracts (buyout) and GC/GR staffing, plus overhead / fee / contingency. Each
       line carries <b>budget → committed → actual → forecast (EAC)</b> and the variance, and reconciles to

@@ -167,7 +167,21 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **One relational model — schedule · budget · 5D · capital (latest)** — the GC `schedule_activity`
+- **Inspection, intel & robustness (latest, v0.1.81)** — a rebuilt **element properties panel**:
+  structured **Attributes / Quantities / Property Sets** (IFC quantities now surfaced), value
+  formatting, a live **filter**, click-to-copy + **Copy all**, and a collapsible-tree fallback.
+  **Interchangeable municipal permit open data** — a Socrata feed across **NYC · SF · Chicago · LA ·
+  Austin** (one entry to add a city), normalized to one shape; query near a site, a **GeoJSON GIS
+  overlay**, and a one-click **import into the GC permit log** (source-tagged, deduped). A rule-based
+  **schedule-acceleration advisory** (crash / fast-track / near-critical off the CPM critical path), a
+  **project risk digest** (cost + schedule + open items + safety), a **Report Center** (every report →
+  PDF **and** Excel), **PDF digital signatures (PAdES)** + AIA-style contract / exhibit / change-order
+  documents, **GIS/topography** (GeoJSON + GeoTIFF DEM) · **PDF takeoff** · **GAEB X83** · **AI text→BOQ**,
+  Navisworks-style **model federation** (per-model transforms + **federated clash**), **mesh + point-cloud
+  (LAS/LAZ) reference overlays** with **QR share**, and reliability hardening — **Sources & Uses now
+  reconciles to the dollar**, **BCF pins round-trip with their GUID tie + anchor**, and the backend suite
+  grew to **47**. See the [CHANGELOG](CHANGELOG.md).
+- **One relational model — schedule · budget · 5D · capital** — the GC `schedule_activity`
   records now drive the Gantt / Line-of-Balance / CPM **and** the 3D 4D scrub (per-activity dates,
   element/trade links), with **lookahead** + **milestone** views and editable P6 `.xer` import. A
   first-class **Budget** destination assembles the agreed **GMP** from every cost code & bid package
@@ -182,7 +196,7 @@ Deliverables** — with a sticky live-solved returns bar.
   cost burn; **QTO by floor & discipline**. Plus **multi-user** (members → role-scoped persona
   views), bulk site-photo + camera capture, and an optional **paid Revit (.rvt)→IFC bridge** (APS,
   feature-flagged with a cost gate; IFC stays the source of truth). One click (lot→building→deal)
-  seeds all three pillars. See the [CHANGELOG](CHANGELOG.md) (v0.1.53→v0.1.80).
+  seeds all three pillars. See the [CHANGELOG](CHANGELOG.md) (v0.1.53→v0.1.81).
 - **Rendering, families & computational design (M-theme)** — a viewer **render mode** (directional
   sun + soft shadows, ACES/PBR, IBL), a NOAA **sun-&-shadow study** (date · time · lat/long), and a
   Matterport-style first-person **walkthrough**; Revit-style **`IfcMaterialLayerSet` assemblies** on
@@ -424,6 +438,11 @@ GET/POST /projects/{id}/modules/{key}[/{rid}] config-driven CRUD (+ /transition 
 GET    /projects/{id}/module-pins             anchored records → viewer overlay
 GET    /projects/{id}/cost/{g703,g702,summary} financials (+ g702.pdf, POST /cost/tm)
 GET    /projects/{id}/schedule/{gantt,lob}.svg  Gantt + Line-of-Balance
+GET    /projects/{id}/schedule/{cpm,alerts,optimize}  CPM · predictive alerts · acceleration advisory
+GET    /projects/{id}/{risk-digest}           cost+schedule+open-items+safety risk digest
+GET    /reports · /projects/{id}/reports/{report}.{pdf,xlsx}   Report Center (PDF + Excel)
+GET    /opendata/permit-cities · /projects/{id}/opendata/permits[.geojson]   municipal permit feed
+POST   /projects/{id}/opendata/permits/import   seed the GC permit log from a city's open data
 GET    /projects/{id}/dashboard               role-tailored dashboard
 
 # interoperability + portability
