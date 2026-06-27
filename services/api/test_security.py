@@ -56,5 +56,27 @@ with TestClient(app) as c:
                  files={"file": ("p.json", b"{}", "application/json")})
     assert big.status_code == 413, f"oversized upload should be 413, got {big.status_code}"
 
-print("SECURITY OK - X-User not trusted under RBAC; hardening headers present; RBAC gate blocks "
-      "anonymous finance/properties (401); oversized upload -> 413; default signing-secret detected")
+    # the rest of the project-data surface is gated too (drawings / exports were unauthenticated before)
+    assert c.get(f"/projects/{pid}/exports/qto.xlsx").status_code == 401
+    assert c.get(f"/projects/{pid}/drawings/plan.svg").status_code == 401
+
+    # the projects list is filtered to the caller's memberships (alice sees her one project)
+    mine = c.get("/projects", headers=BEARER(tok)).json()
+    assert isinstance(mine, list) and any(p["id"] == pid for p in mine), mine
+
+    # login brute-force throttle: repeated bad passwords for a username get locked out (429)
+    statuses = [c.post("/auth/login", json={"username": "mallory", "password": f"wrong{i}"}).status_code
+                for i in range(12)]
+    assert 429 in statuses, f"expected a 429 lockout after repeated failures, got {statuses}"
+
+    # path-traversal: the storage layer rejects keys that escape the root (defense for upload keys)
+    from aec_api import storage as _storage
+    try:
+        _storage.put("../../escape.txt", b"x"); assert False, "traversal key must be rejected"
+    except ValueError:
+        pass
+    assert _storage.put("ok/inside.txt", b"x") == "ok/inside.txt"   # normal keys still work
+
+print("SECURITY OK - X-User not trusted; hardening headers; RBAC gate blocks anonymous finance/"
+      "properties/exports/drawings (401); projects list scoped to members; oversized upload -> 413; "
+      "login brute-force lockout -> 429; default signing-secret detected")

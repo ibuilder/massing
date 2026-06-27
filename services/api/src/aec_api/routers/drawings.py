@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..rbac import require_role
 from ..deps import source_ifc_path as _source_ifc
 from ..models import Project
 
@@ -24,7 +25,7 @@ def _svg(svg: str) -> Response:
 
 
 @router.get("/projects/{pid}/drawings/storeys")
-def list_storeys(pid: str, db: Session = Depends(get_db)):
+def list_storeys(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
@@ -33,7 +34,7 @@ def list_storeys(pid: str, db: Session = Depends(get_db)):
 
 @router.get("/projects/{pid}/drawings/plan.svg")
 def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str = "PLAN",
-         rooms: bool = True, callouts: bool = False, db: Session = Depends(get_db)):
+         rooms: bool = True, callouts: bool = False, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
@@ -44,7 +45,7 @@ def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str =
 
 @router.get("/projects/{pid}/drawings/section.svg")
 def section(pid: str, axis: str = "x", offset: float = 0.0, title: str = "SECTION",
-            db: Session = Depends(get_db)):
+            db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
@@ -53,7 +54,7 @@ def section(pid: str, axis: str = "x", offset: float = 0.0, title: str = "SECTIO
 
 
 @router.get("/projects/{pid}/drawings/elevation.svg")
-def elevation(pid: str, direction: str = "north", db: Session = Depends(get_db)):
+def elevation(pid: str, direction: str = "north", db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
@@ -71,7 +72,7 @@ def _sheet_meta(db: Session, pid: str, sheet: str) -> dict:
 
 
 @router.get("/projects/{pid}/drawings/sheet.svg")
-def sheet_svg(pid: str, sheet: str = "A-101", page: str = "A3", db: Session = Depends(get_db)):
+def sheet_svg(pid: str, sheet: str = "A-101", page: str = "A3", db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
@@ -81,7 +82,7 @@ def sheet_svg(pid: str, sheet: str = "A-101", page: str = "A3", db: Session = De
 
 
 @router.get("/projects/{pid}/drawings/sheet.pdf")
-def sheet_pdf(pid: str, sheet: str = "A-101", page: str = "A3", db: Session = Depends(get_db)):
+def sheet_pdf(pid: str, sheet: str = "A-101", page: str = "A3", db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 

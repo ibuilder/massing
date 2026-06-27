@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..rbac import require_role
 from ..deps import source_ifc_path as _source_ifc
 
 # make the monorepo data package importable in dev (services/data/src)
@@ -53,7 +54,7 @@ def _rows_to_sheet(rows: list[dict]):
 
 
 @router.get("/projects/{pid}/exports/qto.xlsx")
-def export_qto(pid: str, db: Session = Depends(get_db)):
+def export_qto(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import qto  # type: ignore
 
     rows = qto.takeoff_file(_source_ifc(db, pid))
@@ -92,7 +93,7 @@ def _closeout_cobie_sheets(db, pid: str) -> dict:
 
 
 @router.get("/projects/{pid}/exports/cobie.xlsx")
-def export_cobie(pid: str, db: Session = Depends(get_db)):
+def export_cobie(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import cobie  # type: ignore
 
     sheets = {k: _rows_to_sheet(v) for k, v in cobie.cobie_file(_source_ifc(db, pid)).items()}
@@ -101,7 +102,7 @@ def export_cobie(pid: str, db: Session = Depends(get_db)):
 
 
 @router.get("/projects/{pid}/exports/spaces.xlsx")
-def export_spaces(pid: str, db: Session = Depends(get_db)):
+def export_spaces(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import spaces  # type: ignore
 
     rows = spaces.space_schedule_file(_source_ifc(db, pid))
@@ -109,7 +110,7 @@ def export_spaces(pid: str, db: Session = Depends(get_db)):
 
 
 @router.get("/projects/{pid}/exports/schedule.xlsx")
-def export_schedule(pid: str, db: Session = Depends(get_db)):
+def export_schedule(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import schedule  # type: ignore
 
     acts = schedule.schedule_file(_source_ifc(db, pid))
@@ -125,7 +126,7 @@ _CLOSEOUT_MODULES = ("commissioning", "om_manual", "warranty", "as_built", "asse
 
 
 @router.get("/projects/{pid}/closeout/package.zip")
-def closeout_package(pid: str, db: Session = Depends(get_db)):
+def closeout_package(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Turnover deliverable in one ZIP: the as-built IFC, COBie / QTO / space-schedule workbooks,
     the status-report PDF, and a JSON manifest of the closeout records (commissioning, O&M,
     warranties, as-builts, asset register, completion certificate, punchlist)."""

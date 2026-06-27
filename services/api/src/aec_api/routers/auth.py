@@ -86,14 +86,38 @@ def register(username: str = Body(..., embed=True), password: str = Body(..., em
     return {"username": username, "role": role}
 
 
+# brute-force throttle: lock a username out after too many failed logins in a sliding window
+# (in-process; good enough for the single-worker / desktop posture, cleared on a success).
+_LOGIN_FAILS: dict[str, list[float]] = {}
+_LOGIN_MAX = int(os.environ.get("AEC_LOGIN_MAX_FAILS", "8"))
+_LOGIN_WINDOW = int(os.environ.get("AEC_LOGIN_WINDOW_SEC", "300"))
+
+
+def _login_blocked(username: str) -> bool:
+    import time as _t
+    now = _t.time()
+    fails = [t for t in _LOGIN_FAILS.get(username, []) if now - t < _LOGIN_WINDOW]
+    _LOGIN_FAILS[username] = fails
+    return len(fails) >= _LOGIN_MAX
+
+
+def _login_record_fail(username: str) -> None:
+    import time as _t
+    _LOGIN_FAILS.setdefault(username, []).append(_t.time())
+
+
 @router.post("/auth/login")
 def login(response: Response, username: str = Body(..., embed=True),
           password: str = Body(..., embed=True), db: Session = Depends(get_db)):
+    if _login_blocked(username):
+        raise HTTPException(429, "too many failed attempts — try again later")
     u = db.get(User, username)
     if not u or not auth.verify_password(password, u.password_hash):
+        _login_record_fail(username)
         raise HTTPException(401, "invalid username or password")
     if u.active is False:
         raise HTTPException(403, "account is deactivated")
+    _LOGIN_FAILS.pop(username, None)            # successful auth clears the counter
     token = auth.create_token(username)
     # httpOnly cookie so SSE + direct-download links (which can't set a header) authenticate
     # same-origin (via the /api proxy in prod). Fetches use the token in the body for the header.

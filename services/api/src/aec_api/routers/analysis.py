@@ -115,7 +115,7 @@ def run_clash_federated(
 @router.get("/projects/{pid}/energy")
 def energy(pid: str, u_wall: float | None = None, u_window: float | None = None,
            ach: float | None = None, hdd: float | None = None, cdd: float | None = None,
-           delta_t: float | None = None, db: Session = Depends(get_db)):
+           delta_t: float | None = None, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Envelope energy analysis (UA + degree-day) computed from the model geometry.
     Construction U-values and climate degree-days are overridable via query params."""
     from aec_data import energy as en  # type: ignore
@@ -126,7 +126,7 @@ def energy(pid: str, u_wall: float | None = None, u_window: float | None = None,
 
 
 @router.get("/projects/{pid}/mep")
-def mep(pid: str, db: Session = Depends(get_db)):
+def mep(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MEP systems inventory from the model."""
     from aec_data import energy as en  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
@@ -139,6 +139,7 @@ async def run_validate(
     pid: str,
     file: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
+    _sec: str = Depends(require_role("viewer")),
 ):
     """Validate the source IFC against an uploaded .ids (or the built-in default QA specs)."""
     from aec_data import validate  # type: ignore

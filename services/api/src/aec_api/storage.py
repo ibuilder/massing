@@ -26,7 +26,12 @@ class LocalBackend:
         self.root = Path(root).resolve()
 
     def _p(self, key: str) -> Path:
-        return self.root / key
+        # containment guard: a key like "../../etc/x" must never resolve outside the storage root
+        # (attachment keys include a user-supplied filename). Reject anything that escapes.
+        dest = (self.root / key).resolve()
+        if dest != self.root and self.root not in dest.parents:
+            raise ValueError(f"unsafe storage key: {key!r}")
+        return dest
 
     def put(self, key: str, data: bytes) -> str:
         dest = self._p(key)

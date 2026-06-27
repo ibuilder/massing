@@ -2,6 +2,9 @@
 endpoints (guide §7). Modeled on BCF-API so issues round-trip with other BIM tools."""
 from __future__ import annotations
 
+import os
+import re
+
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from sqlalchemy.orm import Session
 
@@ -194,12 +197,16 @@ def _with_kind(p: Project) -> Project:
 
 
 @router.get("/projects", response_model=list[ProjectOut])
-def list_projects(db: Session = Depends(get_db)):
-    return [_with_kind(p) for p in db.query(Project).all()]
+def list_projects(db: Session = Depends(get_db), user: str = Depends(current_user)):
+    projects = db.query(Project).all()
+    # when RBAC is on, only surface projects the caller is a member of (don't leak others' names)
+    if rbac.RBAC_ON:
+        projects = [p for p in projects if rbac.role_for(db, p.id, user) is not None]
+    return [_with_kind(p) for p in projects]
 
 
 @router.get("/projects/{pid}", response_model=ProjectOut)
-def get_project(pid: str, db: Session = Depends(get_db)):
+def get_project(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     return _with_kind(_project(db, pid))
 
 
@@ -215,21 +222,21 @@ def delete_project(pid: str, db: Session = Depends(get_db),
 
 
 @router.get("/projects/{pid}/versions")
-def list_versions(pid: str, db: Session = Depends(get_db)):
+def list_versions(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Model version history — one snapshot per publish (version, element count, +N/-N note)."""
     from .. import versions
     return versions.history(db, pid)
 
 
 @router.get("/projects/{pid}/versions/diff")
-def diff_versions(pid: str, a: int, b: int, db: Session = Depends(get_db)):
+def diff_versions(pid: str, a: int, b: int, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Changed elements between two model versions — added / removed GUIDs + unchanged count."""
     from .. import versions
     return versions.diff(db, pid, a, b)
 
 
 @router.get("/projects/{pid}/bundle")
-def export_bundle(pid: str, db: Session = Depends(get_db)):
+def export_bundle(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Download the whole project as a portable .mmproj bundle (geometry + all data + blobs)."""
     from .. import bundle as bundle_io
     p = _project(db, pid)
@@ -278,7 +285,7 @@ def create_topic(pid: str, body: TopicIn, db: Session = Depends(get_db),
 
 @router.get("/projects/{pid}/topics", response_model=list[TopicOut])
 def list_topics(pid: str, type: str | None = None, status: str | None = None,
-                db: Session = Depends(get_db)):
+                db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     q = db.query(Topic).filter(Topic.project_id == pid)
     if type:
         q = q.filter(Topic.type == type)
@@ -288,7 +295,7 @@ def list_topics(pid: str, type: str | None = None, status: str | None = None,
 
 
 @router.get("/projects/{pid}/topics/{tid}", response_model=TopicOut)
-def get_topic(pid: str, tid: str, db: Session = Depends(get_db)):
+def get_topic(pid: str, tid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     return _topic(db, pid, tid)
 
 
@@ -307,7 +314,7 @@ def patch_topic(pid: str, tid: str, body: TopicPatch, db: Session = Depends(get_
 
 # --- pins (topics with a 3D anchor) -----------------------------------------
 @router.get("/projects/{pid}/pins", response_model=list[TopicOut])
-def list_pins(pid: str, db: Session = Depends(get_db)):
+def list_pins(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     return db.query(Topic).filter(Topic.project_id == pid, Topic.anchor.isnot(None)).all()
 
 
@@ -325,7 +332,7 @@ def add_comment(pid: str, tid: str, body: CommentIn, db: Session = Depends(get_d
 
 
 @router.get("/projects/{pid}/topics/{tid}/comments", response_model=list[CommentOut])
-def list_comments(pid: str, tid: str, db: Session = Depends(get_db)):
+def list_comments(pid: str, tid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     _topic(db, pid, tid)
     return db.query(Comment).filter(Comment.topic_id == tid).order_by(Comment.created_at).all()
 
@@ -344,7 +351,7 @@ def add_viewpoint(pid: str, tid: str, body: ViewpointIn, db: Session = Depends(g
 
 
 @router.get("/projects/{pid}/topics/{tid}/viewpoints", response_model=list[ViewpointOut])
-def list_viewpoints(pid: str, tid: str, db: Session = Depends(get_db)):
+def list_viewpoints(pid: str, tid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     _topic(db, pid, tid)
     return db.query(Viewpoint).filter(Viewpoint.topic_id == tid).all()
 
@@ -356,7 +363,10 @@ async def add_attachment(pid: str, tid: str, kind: str = Form("file"),
                          _: str = Depends(require_role("reviewer"))):
     _topic(db, pid, tid)
     data = await file.read()
-    key = f"{pid}/{tid}/{file.filename}"
+    # the stored key must never carry path separators / traversal from the client filename; keep the
+    # original name for display only. (storage._p also guards containment as a backstop.)
+    safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename or "file")).lstrip(".") or "file"
+    key = f"{pid}/{tid}/{safe_name}"
     storage.put(key, data)
     a = Attachment(topic_id=tid, filename=file.filename, content_type=file.content_type,
                    size=len(data), kind=kind, storage_key=key)
@@ -368,22 +378,28 @@ async def add_attachment(pid: str, tid: str, kind: str = Form("file"),
 
 
 @router.get("/projects/{pid}/topics/{tid}/attachments", response_model=list[AttachmentOut])
-def list_attachments(pid: str, tid: str, db: Session = Depends(get_db)):
+def list_attachments(pid: str, tid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     _topic(db, pid, tid)
     return db.query(Attachment).filter(Attachment.topic_id == tid).all()
 
 
 @router.get("/attachments/{aid}/download")
-def download_attachment(aid: str, request: Request, db: Session = Depends(get_db)):
+def download_attachment(aid: str, request: Request, db: Session = Depends(get_db),
+                        user: str = Depends(current_user)):
     a = db.get(Attachment, aid)
     if not a:
         raise HTTPException(404, "attachment not found")
+    # IDOR guard: attachments are reachable by opaque id, so when RBAC is on verify the caller
+    # belongs to the attachment's project (else any id could be downloaded across projects).
+    pid = getattr(a, "project_id", None)
+    if rbac.RBAC_ON and pid and rbac.role_for(db, pid, user) is None:
+        raise HTTPException(403, "not a member of this attachment's project")
     return range_response(request, a.storage_key, a.content_type or "application/octet-stream",
                           filename=a.filename, disposition="attachment")
 
 
 @router.get("/projects/{pid}/model.frag")
-def model_frag(pid: str, request: Request):
+def model_frag(pid: str, request: Request, _sec: str = Depends(require_role("viewer"))):
     """Serve the published Fragments tile with HTTP range support + ETag revalidation. The URL is
     stable across republishes, so we revalidate (not immutable): unchanged → 304 (instant re-open),
     republished → fresh bytes (fixes stale-cache after an edit/regenerate)."""
@@ -392,7 +408,7 @@ def model_frag(pid: str, request: Request):
 
 
 @router.get("/projects/{pid}/source.ifc")
-def source_ifc_download(pid: str, db: Session = Depends(get_db)):
+def source_ifc_download(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Download the project's source IFC (Save → Export IFC)."""
     from pathlib import Path
 
@@ -407,7 +423,7 @@ def source_ifc_download(pid: str, db: Session = Depends(get_db)):
 
 # --- BCF interoperability ----------------------------------------------------
 @router.get("/projects/{pid}/bcf/export")
-def bcf_export(pid: str, db: Session = Depends(get_db)):
+def bcf_export(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     _project(db, pid)
     data = bcf_io.export_bcfzip(db, pid)
     return Response(data, media_type="application/zip",
