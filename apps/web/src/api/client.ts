@@ -34,6 +34,17 @@ export interface ConnectionItem {
   status?: { ok: boolean; detail: string };
 }
 
+/** A normalized municipal building-permit filing from a city's open data feed. */
+export interface OpendataPermit {
+  source: string; city: string; authority: string;
+  permit_number: string | null; permit_type: string | null; status: string | null;
+  address: string | null; lat: number | null; lon: number | null;
+  owner: string | null; applicant: string | null; contractor: string | null;
+  units: number | null; floor_area: number | null; est_cost: number | null; fee: number | null;
+  filed_date: string | null; issued_date: string | null; expires_date: string | null;
+  description: string | null; url: string | null;
+}
+
 /** A recurring Procore→modules auto-sync schedule. */
 export interface SyncScheduleItem {
   id: string; connection_id: string; procore_project_id: string; kinds: string[];
@@ -359,6 +370,26 @@ export class ApiClient {
       fast_track: { ref?: string; name: string; predecessor: string; days_potential: number; detail: string }[];
       near_critical: { ref?: string; name: string; total_float: number; detail: string }[];
     }>(`/projects/${pid}/schedule/optimize`);
+  }
+
+  // --- municipal permit open data (multi-city) -------------------------------
+  /** Cities whose building-permit open data is readable (id, label, region, authority, geo support). */
+  permitCities() {
+    return this.json<{ cities: { id: string; label: string; region: string; authority: string; geo: boolean }[] }>(
+      "/opendata/permit-cities");
+  }
+  /** Query a city's filings near a point / by text. */
+  opendataPermits(pid: string, opts: { city: string; lat?: number; lon?: number; radius?: number; address?: string; q?: string; limit?: number }) {
+    const qs = new URLSearchParams({ city: opts.city });
+    for (const k of ["lat", "lon", "radius", "address", "q", "limit"] as const)
+      if (opts[k] !== undefined && opts[k] !== "") qs.set(k, String(opts[k]));
+    return this.json<{ city: string; count: number; permits: OpendataPermit[] }>(
+      `/projects/${pid}/opendata/permits?${qs}`);
+  }
+  /** Import a city's filings into the GC `permit` module (source-tagged, deduped). */
+  importOpendataPermits(pid: string, body: { city: string; lat?: number; lon?: number; radius?: number; address?: string; q?: string; max?: number }) {
+    return this.json<{ imported: number; skipped: number; found: number; refs: string[] }>(
+      `/projects/${pid}/opendata/permits/import`, { method: "POST", body: JSON.stringify(body) });
   }
 
   // --- report center ---------------------------------------------------------

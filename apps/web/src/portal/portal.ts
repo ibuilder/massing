@@ -1029,6 +1029,14 @@ export class PortalUI {
       imp.onclick = () => impInput.click();
       actions.append(exp, imp, impInput);
     }
+    // permits seed from municipal open data (NYC/SF/Chicago/LA/Austin… interchangeable cities)
+    if (m.key === "permit") {
+      const imp = document.createElement("button"); imp.className = "tool-btn"; imp.dataset.cap = "review";
+      imp.textContent = "🏛 Import from city open data";
+      imp.title = "Pull issued/filed permits for the site from a city's open data and add them to this log";
+      imp.onclick = () => void this.openPermitImport(m);
+      actions.append(imp);
+    }
     this.root.appendChild(actions);
 
     if (!records.length) {
@@ -1463,6 +1471,50 @@ export class PortalUI {
     kv("Discipline", t.discipline); kv("Category", t.category); kv("Urgency", t.urgency); kv("Ball-in-court", t.ball_in_court);
     const h = document.createElement("div"); h.className = "meta"; h.style.marginTop = "6px"; h.innerHTML = "<b>Draft response:</b>"; card.appendChild(h);
     const body = document.createElement("div"); body.style.cssText = "white-space:pre-wrap;font-size:12.5px"; body.textContent = t.draft_response; card.appendChild(body);
+  }
+
+  private async openPermitImport(m: ModuleDef) {
+    const pid = this.host.projectId()!;
+    const { card } = modalShell("Import permits from city open data", 420);
+    const note = (t: string) => card.append(Object.assign(document.createElement("div"), { className: "meta", textContent: t }));
+    note("Pull a city's building-permit filings for the site and add them to this log (source-tagged, deduped on re-import).");
+    const sel = document.createElement("select"); sel.className = "portal-filter"; sel.style.width = "100%";
+    sel.innerHTML = `<option value="">Loading cities…</option>`;
+    card.appendChild(sel);
+    const field = (ph: string) => { const i = document.createElement("input"); i.className = "portal-filter"; i.placeholder = ph; i.style.cssText = "width:100%;margin-top:6px"; card.appendChild(i); return i; };
+    const addr = field("Address or keyword (e.g. street name) — optional");
+    const geoRow = document.createElement("div"); geoRow.style.cssText = "display:flex;gap:6px;margin-top:6px"; card.appendChild(geoRow);
+    const lat = Object.assign(document.createElement("input"), { className: "portal-filter", placeholder: "lat (optional)" });
+    const lon = Object.assign(document.createElement("input"), { className: "portal-filter", placeholder: "lon (optional)" });
+    const rad = Object.assign(document.createElement("input"), { className: "portal-filter", placeholder: "radius m", value: "1500" });
+    for (const el of [lat, lon, rad]) { el.style.flex = "1"; geoRow.appendChild(el); }
+    const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "8px"; card.appendChild(out);
+    let cities: { id: string; label: string; geo: boolean }[] = [];
+    try { cities = (await this.host.api.permitCities()).cities; }
+    catch (e) { out.textContent = `Could not load cities: ${(e as Error).message}`; }
+    sel.innerHTML = cities.map((c) => `<option value="${c.id}">${c.label}${c.geo ? "" : " (text search only)"}</option>`).join("");
+    const opts = () => ({
+      city: sel.value, address: addr.value.trim() || undefined,
+      lat: lat.value ? Number(lat.value) : undefined, lon: lon.value ? Number(lon.value) : undefined,
+      radius: rad.value ? Number(rad.value) : undefined,
+    });
+    const row = document.createElement("div"); row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:10px";
+    const preview = document.createElement("button"); preview.className = "tool-btn"; preview.textContent = "Preview";
+    preview.onclick = async () => {
+      out.textContent = "searching…";
+      try { const r = await this.host.api.opendataPermits(pid, { ...opts(), limit: 50 });
+        out.textContent = r.count ? `${r.count} filing(s) found — first: ${r.permits[0].address ?? r.permits[0].permit_number}` : "No filings found — try an address/keyword or coordinates.";
+      } catch (e) { out.textContent = `Search failed: ${(e as Error).message}`; }
+    };
+    const imp = document.createElement("button"); imp.className = "file-btn"; imp.textContent = "Import";
+    imp.onclick = async () => {
+      out.textContent = "importing…";
+      try { const r = await this.host.api.importOpendataPermits(pid, { ...opts(), max: 50 });
+        toast(`Imported ${r.imported} permit(s)${r.skipped ? `, skipped ${r.skipped} duplicate(s)` : ""}`, "success");
+        this.openModule(m);
+      } catch (e) { out.textContent = `Import failed: ${(e as Error).message}`; }
+    };
+    row.append(preview, imp); card.appendChild(row);
   }
 
   private async openRecord(m: ModuleDef, rid: string) {

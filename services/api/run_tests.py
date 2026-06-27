@@ -23,7 +23,7 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_contracts", "test_reports", "test_esign", "test_publish_status", "test_schedule_alerts",
          "test_schedule_optimize",
          "test_bundle", "test_desktop", "test_localmode", "test_project_budget", "test_rvt_bridge",
-         "test_bcf", "test_engines", "test_edge_cases"]
+         "test_bcf", "test_engines", "test_edge_cases", "test_opendata"]
 
 
 def main() -> int:
