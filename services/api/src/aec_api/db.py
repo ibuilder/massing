@@ -9,8 +9,17 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./aec.db")
 
-_connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, connect_args=_connect_args, future=True)
+if DATABASE_URL.startswith("sqlite"):
+    _connect_args: dict = {"check_same_thread": False}
+else:
+    # Bound how long DB I/O can block — without this a black-holed DB (network partition / paused
+    # host) makes every request (and the /ready probe) hang forever instead of failing fast.
+    # connect_timeout bounds new connections; TCP keepalives bound an already-open pooled
+    # connection whose peer has gone away (libpq detects the dead socket instead of waiting forever).
+    _ct = int(os.environ.get("AEC_DB_CONNECT_TIMEOUT", "5"))
+    _connect_args = {"connect_timeout": _ct, "keepalives": 1, "keepalives_idle": 5,
+                     "keepalives_interval": 2, "keepalives_count": 2}
+engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

@@ -7,7 +7,10 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 ## v0.1.85 — production readiness
 - **Readiness probe:** new `GET /ready` (and `/readyz`) pings the DB (`SELECT 1`) and returns `503`
   when it's unreachable, so a load balancer / orchestrator stops routing to a degraded instance;
-  `GET /health` (`/healthz`) stays a cheap dependency-free liveness check.
+  `GET /health` (`/healthz`) stays a cheap dependency-free liveness check. The ping runs under a hard
+  wall-clock timeout (`AEC_READY_TIMEOUT`, default 3s) and the Postgres engine gets a connect timeout +
+  TCP keepalives, so a *black-holed* DB (paused host / partition) yields a prompt `503` instead of
+  hanging the probe — verified against a real paused Postgres.
 - **Multi-worker login lockout:** the brute-force lockout now shares its counter across workers via
   `AEC_REDIS_URL` (atomic Redis `INCR`+`EXPIRE`), fail-open to the in-process counter — matching the
   per-IP rate limiter. The API runs multi-worker in production, so the lockout now actually holds.

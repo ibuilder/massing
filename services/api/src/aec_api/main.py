@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import json
 import logging
 import os
@@ -244,17 +245,34 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+_READY_TIMEOUT = float(os.environ.get("AEC_READY_TIMEOUT", "3"))
+# Persistent single-thread pool for the readiness ping. A context-managed executor would
+# shutdown(wait=True) on exit and block on a hung ping thread — defeating the timeout — so we keep
+# one around and never wait on a stuck future (the leaked thread unblocks when the DB recovers or
+# its socket timeout fires).
+_ready_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="ready")
+
+
+def _db_ping() -> None:
+    from sqlalchemy import text as _text
+    from .db import engine as _engine
+    with _engine.connect() as conn:
+        conn.execute(_text("SELECT 1"))
+
+
 @app.get("/ready")
 def ready() -> Response:
     """Readiness — the process can serve real traffic (DB reachable). Pings the DB with a
     trivial `SELECT 1`; returns 503 if it's unreachable so a load balancer / orchestrator stops
     routing to (or restarts) this instance instead of serving 500s. Kept separate from /health
-    so a DB blip doesn't kill a still-live process."""
-    from sqlalchemy import text as _text
-    from .db import engine as _engine
+    so a DB blip doesn't kill a still-live process. The ping runs under a hard wall-clock timeout
+    so a black-holed DB (paused host / network partition) yields a prompt 503 instead of hanging
+    the probe itself."""
     try:
-        with _engine.connect() as conn:
-            conn.execute(_text("SELECT 1"))
+        _ready_pool.submit(_db_ping).result(timeout=_READY_TIMEOUT)
+    except concurrent.futures.TimeoutError:
+        return JSONResponse({"status": "unavailable", "db": "timeout",
+                             "error": f"DB did not respond within {_READY_TIMEOUT:g}s"}, status_code=503)
     except Exception as exc:        # noqa: BLE001 — any DB error means "not ready"
         return JSONResponse({"status": "unavailable", "db": "down", "error": str(exc)[:200]},
                             status_code=503)
