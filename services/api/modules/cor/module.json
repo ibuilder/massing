@@ -2,7 +2,7 @@
   "key": "cor",
   "name": "Change Order Requests",
   "section": "Change Management",
-  "icon": "✚",
+  "icon": "\u271a",
   "ref_prefix": "COR",
   "title_field": "subject",
   "pinnable": true,

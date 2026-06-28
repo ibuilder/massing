@@ -117,7 +117,8 @@ def available_actions(mod: dict, state: str, party: str | None) -> list[dict]:
     out = []
     for t in mod.get("workflow", {}).get("transitions", []):
         if t["from"] == state and rbac.party_allowed(party, t.get("party", [])):
-            out.append({"action": t["action"], "to": t["to"], "party": t.get("party", [])})
+            out.append({"action": t["action"], "to": t["to"], "party": t.get("party", []),
+                        "requires": t.get("requires") or []})
     return out
 
 
@@ -594,6 +595,16 @@ def transition(db: Session, key: str, project_id: str, rid: str, action: str,
     if not rbac.party_allowed(party, tr.get("party", [])):
         raise HTTPException(403, f"party {party or 'none'} cannot {action} "
                                  f"(requires {tr.get('party')})")
+    # field gate: a transition can declare `requires: [field, …]` that must be filled before it fires
+    # (e.g. an RFI can't be Answered without an answer; a COR can't be Approved without an amount).
+    # Generalizes the attachment gate below; surfaced to the UI via available_actions(... include_requires).
+    required = tr.get("requires") or []
+    if required:
+        data = rec.get("data") or {}
+        missing = [f for f in required if data.get(f) in (None, "", [], {})]
+        if missing:
+            labels = {fl["name"]: fl.get("label", fl["name"]) for fl in mod.get("fields", [])}
+            raise HTTPException(400, f"{action!r} requires: {', '.join(labels.get(m, m) for m in missing)}")
     # evidence gate: modules can require a photo/attachment before entering a sign-off state
     if tr["to"] in (mod.get("close_requires_attachment") or []):
         from .models import RecordAttachment

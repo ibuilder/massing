@@ -147,6 +147,9 @@
         "party": [
           "Consultant",
           "OwnersRep"
+        ],
+        "requires": [
+          "answer"
         ]
       },
       {

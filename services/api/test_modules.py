@@ -131,6 +131,10 @@ with TestClient(app) as c:
     # a subcontractor CANNOT answer an RFI (party gate) -> 403
     bad = c.post(f"/projects/{pid}/modules/rfi/{rid}/transition", headers=H("sub"), json={"action": "respond"})
     assert bad.status_code == 403, bad.text
+    # answering requires an answer first (transition field-gate) -> 400 without it
+    gated = c.post(f"/projects/{pid}/modules/rfi/{rid}/transition", headers=H("consultant"), json={"action": "respond"})
+    assert gated.status_code == 400, gated.text
+    c.patch(f"/projects/{pid}/modules/rfi/{rid}", headers=H("consultant"), json={"answer": "See SK-1."})
     # consultant answers
     assert c.post(f"/projects/{pid}/modules/rfi/{rid}/transition", headers=H("consultant"),
                   json={"action": "respond"}).json()["workflow_state"] == "answered"
