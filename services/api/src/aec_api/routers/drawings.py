@@ -24,8 +24,20 @@ router = APIRouter()
 @router.get("/projects/{pid}/drawing-set")
 def get_drawing_set(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Controlled drawing-set register from the `drawing` records: current set (latest revision per
-    sheet), superseded revisions, sheet index + discipline rollup."""
+    sheet), superseded revisions, sheet index + discipline rollup + issuance (new vs revised)."""
     return drawingset.drawing_set(db, pid)
+
+
+@router.get("/projects/{pid}/drawing-set/transmittal.pdf")
+def drawing_set_transmittal(pid: str, to: str = "", note: str = "", db: Session = Depends(get_db),
+                            _: str = Depends(require_role("viewer"))):
+    """A transmittal PDF of the controlled current set (recipients via `to`, comma-separated)."""
+    reg = drawingset.drawing_set(db, pid)
+    p = db.get(Project, pid)
+    recipients = [r.strip() for r in to.split(",") if r.strip()]
+    pdf = drawingset.transmittal_pdf(reg, p.name if p else pid, recipients, note)
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": 'inline; filename="drawing-transmittal.pdf"'})
 
 
 def _svg(svg: str) -> Response:

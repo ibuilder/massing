@@ -4,6 +4,13 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.94 — drawing transmittals + issuance diff
+- The drawing-set register now classifies each current sheet as **new** vs **revised** (issuance diff)
+  and reports `new_count` / `revised_count`.
+- **Drawing transmittal PDF** (`GET /drawing-set/transmittal.pdf?to=…&note=…`): the controlled current
+  set grouped by discipline with current revision + New/Revised status, recipients and a note — a ⬇
+  Transmittal button in the drawing-set view. Backend 61/61.
+
 ## v0.1.93 — construction depth: T&M rollup + submittal register
 - **T&M / eTicket cost rollup** (`tm.py`): aggregates eTickets into labor/material/equipment totals,
   by status, with **billed vs unbilled**; `GET /tm-summary` + a T&M / eTicket Log report.

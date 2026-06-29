@@ -549,11 +549,16 @@ export class ApiClient {
   wh347Url(pid: string, weekEnding?: string) {
     return this.url(`/projects/${pid}/payroll/wh347.pdf${weekEnding ? `?week_ending=${weekEnding}` : ""}`);
   }
-  /** Controlled drawing-set register (current set, superseded, sheet index). */
+  /** Controlled drawing-set register (current set, superseded, sheet index, issuance new/revised). */
   drawingSet(pid: string) {
     return this.json<{ sheet_count: number; current_count: number; superseded_count: number;
-      by_discipline: Record<string, number>; sheet_index: Record<string, unknown>[] }>(
-      `/projects/${pid}/drawing-set`);
+      new_count: number; revised_count: number; by_discipline: Record<string, number>;
+      sheet_index: Record<string, unknown>[] }>(`/projects/${pid}/drawing-set`);
+  }
+  /** URL of a drawing-transmittal PDF for the current set (recipients comma-separated). */
+  drawingTransmittalUrl(pid: string, to = "", note = "") {
+    const q = new URLSearchParams({ ...(to ? { to } : {}), ...(note ? { note } : {}) }).toString();
+    return this.url(`/projects/${pid}/drawing-set/transmittal.pdf${q ? "?" + q : ""}`);
   }
   /** Time & Material (eTicket) cost rollup — labor/material/equipment, billed vs unbilled. */
   tmSummary(pid: string) {

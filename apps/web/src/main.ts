@@ -161,9 +161,14 @@ async function openReportCenter() {
   }));
   tool("📐 Drawing-set register", () => showResult("Drawing-set register", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const d = await api.drawingSet(pid); body.innerHTML = `<div class="meta">${d.current_count} current · ${d.superseded_count} superseded · ${d.sheet_count} sheets</div>`;
-      table(body, ["Sheet", "Title", "Discipline", "Current rev", "Revs"], d.sheet_index.map((s: any) => [s.sheet_number, s.title ?? "", s.discipline ?? "", s.current_revision ?? "", s.revisions])); }
-    catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+    try {
+      const d = await api.drawingSet(pid);
+      body.innerHTML = `<div class="meta">${d.current_count} current · ${d.new_count} new · ${d.revised_count} revised · ${d.superseded_count} superseded · ${d.sheet_count} sheets</div>`;
+      const xmit = document.createElement("a"); xmit.className = "file-btn"; xmit.textContent = "⬇ Transmittal (PDF)";
+      xmit.href = api.drawingTransmittalUrl(pid); xmit.target = "_blank"; xmit.rel = "noopener"; xmit.style.margin = "6px 0";
+      body.appendChild(xmit);
+      table(body, ["Sheet", "Title", "Discipline", "Rev", "Status"], d.sheet_index.map((s: any) => [s.sheet_number, s.title ?? "", s.discipline ?? "", s.current_revision ?? "", s.change]));
+    } catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
   tool("📋 ITB coverage (bid invitations)", () => showResult("ITB coverage", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;

@@ -61,6 +61,12 @@ with TestClient(app) as c:
     assert a101["current_revision"] == "2" and a101["revisions"] == 3, a101
     assert ds["by_discipline"].get("Architectural") == 2 and ds["by_discipline"].get("Structural") == 1, ds["by_discipline"]
     assert all(s["superseded_by"] == "2" for s in ds["superseded"] if s["sheet_number"] == "A-101"), ds["superseded"]
+    # issuance classification: A-101 (3 revs) revised; A-102 & S-201 (1 rev each) new
+    assert ds["new_count"] == 2 and ds["revised_count"] == 1, ds
+    assert a101["change"] == "revised", a101
+    # drawing transmittal PDF renders
+    xmit = c.get(f"/projects/{pid}/drawing-set/transmittal.pdf?to=ACME,Owner&note=For%20construction")
+    assert xmit.status_code == 200 and xmit.content[:4] == b"%PDF" and len(xmit.content) > 1200, xmit.status_code
 
 print("PAYROLL+DRAWINGS OK - WH-347: 2 workers, 77h, OT past 40 (Sam 40ST+5OT=$2,375), PDF renders; "
       "drawing-set: 3 sheets, current=latest rev (A-101 r2), 2 superseded, discipline rollup")

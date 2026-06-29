@@ -45,17 +45,62 @@ def register(drawings: list[dict]) -> dict[str, Any]:
         current_set.append(cur_clean)
         disc = cur.get("discipline") or "Uncategorized"
         by_discipline[disc] = by_discipline.get(disc, 0) + 1
+        # issuance classification: a single revision is a new sheet; more than one means it was revised
+        change = "new" if len(revs) == 1 else "revised"
         index.append({"sheet_number": sheet, "title": cur.get("title"), "discipline": disc,
-                      "current_revision": cur.get("revision"), "revisions": len(revs)})
+                      "current_revision": cur.get("revision"), "revisions": len(revs), "change": change})
+    new_count = sum(1 for s in index if s["change"] == "new")
     return {
         "sheet_count": len(by_sheet),
         "current_count": len(current_set),
         "superseded_count": len(superseded),
+        "new_count": new_count,
+        "revised_count": len(index) - new_count,
         "by_discipline": dict(sorted(by_discipline.items())),
         "sheet_index": index,
         "current_set": current_set,
         "superseded": superseded,
     }
+
+
+def transmittal_pdf(reg: dict, project_name: str, recipients: list[str] | None = None,
+                    note: str = "") -> bytes:
+    """A drawing transmittal of the controlled current set — sheets grouped by discipline with their
+    current revision + issuance status (New / Revised), recipients, and a note."""
+    import io
+    from datetime import date as _date
+
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import inch
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    ss = getSampleStyleSheet()
+    flow = [Paragraph("Drawing Transmittal", ss["Title"]),
+            Paragraph(f"{project_name} · {_date.today().isoformat()} · "
+                      f"{reg['current_count']} sheets ({reg['new_count']} new · {reg['revised_count']} revised)",
+                      ss["Normal"])]
+    if recipients:
+        flow.append(Paragraph("<b>To:</b> " + ", ".join(recipients), ss["Normal"]))
+    if note:
+        flow.append(Paragraph("<b>Note:</b> " + note, ss["Normal"]))
+    flow.append(Spacer(1, 10))
+    head = ["Sheet", "Title", "Discipline", "Rev", "Status"]
+    body = [[s["sheet_number"], s.get("title") or "", s.get("discipline") or "",
+             s.get("current_revision") or "", s["change"].title()] for s in reg["sheet_index"]]
+    t = Table([head] + (body or [["(no sheets)"] + [""] * 4]), repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2b3a4a")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f4f6f8")])]))
+    flow += [t, Spacer(1, 14),
+             Paragraph("Issued for the use of the recipient(s) named above. Verify you are working "
+                       "from the current revision; superseded revisions are void.", ss["Italic"])]
+    buf = io.BytesIO()
+    SimpleDocTemplate(buf, pagesize=letter, title="Drawing Transmittal", topMargin=0.7 * inch).build(flow)
+    return buf.getvalue()
 
 
 def drawing_set(db, pid: str) -> dict[str, Any]:
