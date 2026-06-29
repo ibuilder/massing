@@ -582,6 +582,14 @@ export class ApiClient {
       avg_turnaround_days: number | null; by_section: Record<string, number>; rows: Record<string, unknown>[] }>(
       `/projects/${pid}/submittals/register`);
   }
+  /** RFI register — ball-in-court, overdue, response turnaround, cost/schedule-impact exposure. */
+  rfiRegister(pid: string) {
+    return this.json<{ rfi_count: number; open_count: number; overdue_count: number;
+      cost_impacted_count: number; schedule_impacted_count: number; avg_response_days: number | null;
+      ball_in_court: Record<string, number>; by_discipline: Record<string, number>;
+      by_priority: Record<string, number>; rows: Record<string, unknown>[] }>(
+      `/projects/${pid}/rfi/register`);
+  }
   /** Quality dashboard — inspection pass-rate KPIs, NCR loop, deficiency ball-in-court. */
   qualitySummary(pid: string) {
     return this.json<{

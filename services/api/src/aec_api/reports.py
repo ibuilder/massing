@@ -37,6 +37,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "tm_log": ("T&M / eTicket Log", "Cost"),
     "submittal_register": ("Submittal Register", "Logs"),
     "quality": ("Quality Dashboard", "Quality"),
+    "rfi_register": ("RFI Register", "Logs"),
 }
 
 
@@ -453,6 +454,27 @@ def _quality(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _rfi_register(db: Session, pid: str, name: str) -> Report:
+    from . import rfi
+    s = rfi.rfi_register(db, pid)
+    r = Report("RFI Register", name)
+    r.kpi("RFIs", s["rfi_count"])
+    r.kpi("Open", s["open_count"])
+    r.kpi("Overdue", s["overdue_count"])
+    r.kpi("Avg response", f"{s['avg_response_days']} d" if s["avg_response_days"] is not None else "—")
+    r.kpi("Cost-impacting", s["cost_impacted_count"])
+    r.kpi("Schedule-impacting", s["schedule_impacted_count"])
+    if s["ball_in_court"]:
+        r.chart("bar", "RFI ball-in-court", list(s["ball_in_court"].keys()),
+                [{"name": "Count", "values": list(s["ball_in_court"].values())}])
+    r.table("Register", ["Ref", "Subject", "Discipline", "Priority", "Ball in court", "Due", "Cost", "Sched."],
+            [[x.get("ref", ""), x.get("subject", ""), x.get("discipline", ""), x.get("priority", ""),
+              x.get("ball_in_court", ""), ("OVERDUE " if x["overdue"] else "") + str(x.get("due_date") or ""),
+              x.get("cost_impact", ""), x.get("schedule_impact", "")]
+             for x in s["rows"]] or [["(no RFIs)"] + [""] * 7])
+    return r
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
@@ -468,6 +490,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _submittal_register(db, pid, name)
     if report == "quality":
         return _quality(db, pid, name)
+    if report == "rfi_register":
+        return _rfi_register(db, pid, name)
     if report == "listing_factsheet":
         return _listing_factsheet(db, pid, name)
     if report == "executive":

@@ -4,6 +4,13 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.98 — RFI register / log analytics
+- New `rfi.py` engine + `GET /projects/{pid}/rfi/register`: **ball-in-court** (draft→GC, open→Consultant,
+  answered→GC-accept, closed/void), **overdue** (date-required passed while awaiting a response),
+  **response turnaround**, and **cost/schedule-impact exposure**, with by-discipline & by-priority breakdowns.
+- An **RFI Register** report (PDF/Excel) in the Report Center + an "RFI register" tool launcher;
+  client `rfiRegister`. Backend 62/62.
+
 ## v0.1.97 — Quality dashboard (inspections / NCR loop / deficiency ball-in-court)
 - New `quality.py` engine + `GET /projects/{pid}/quality/summary`: **inspection pass-rate KPIs**
   (pass rate = pass+conditional / decided, first-pass yield = clean pass / decided, by type & result,

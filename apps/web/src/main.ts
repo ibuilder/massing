@@ -188,6 +188,12 @@ async function openReportCenter() {
       table(body, ["Ref", "Spec", "Title", "Turn (d)", "Status"], s.rows.map((r: any) => [r.ref ?? "", r.spec_section ?? "", r.title ?? "", r.turnaround_days ?? "", (r.overdue ? "OVERDUE " : "") + r.status])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
+  tool("❓ RFI register", () => showResult("RFI register", async (body) => {
+    body.innerHTML = `<div class="meta">Loading…</div>`;
+    try { const s = await api.rfiRegister(pid); body.innerHTML = `<div class="meta">${s.rfi_count} RFIs · ${s.open_count} open · ${s.overdue_count} overdue · avg response ${s.avg_response_days ?? "—"} d · ${s.cost_impacted_count} cost-impacting · ${s.schedule_impacted_count} schedule-impacting</div>`;
+      table(body, ["Ref", "Subject", "Discipline", "Ball in court", "Due"], s.rows.map((r: any) => [r.ref ?? "", r.subject ?? "", r.discipline ?? "", r.ball_in_court ?? "", (r.overdue ? "OVERDUE " : "") + (r.due_date ?? "")])); }
+    catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+  }));
   tool("🔍 Quality dashboard", () => showResult("Quality dashboard", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
     try { const q = await api.qualitySummary(pid); const i = q.inspections, n = q.ncrs, d = q.deficiencies;

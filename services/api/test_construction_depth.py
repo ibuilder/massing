@@ -90,13 +90,35 @@ with TestClient(app) as c:
     assert q["deficiencies"]["ball_in_court"].get("Subcontractor") == 1, q["deficiencies"]
     assert q["deficiencies"]["overdue_count"] == 0, q["deficiencies"]  # one due-2030, one no due
 
+    # --- RFI register ---------------------------------------------------------
+    r1 = mk(c, pid, "rfi", {"subject": "Beam conflict", "question": "Clash at grid C", "discipline": "Structural",
+                            "priority": "High", "due_date": "2020-01-01", "cost_impact": "Yes",
+                            "schedule_impact": "Possible"})
+    trans(c, pid, "rfi", r1, "submit")  # draft -> open (awaiting consultant => overdue)
+    r2 = mk(c, pid, "rfi", {"subject": "Finish schedule", "question": "Which paint?", "discipline": "Architectural",
+                            "priority": "Normal", "due_date": "2030-01-01"})
+    trans(c, pid, "rfi", r2, "submit")
+    # respond requires 'answer'; patch merges the field map directly (no "data" wrapper)
+    pr = c.patch(f"/projects/{pid}/modules/rfi/{r2}", json={"answer": "Use spec 09 91 00"})
+    assert pr.status_code == 200, pr.text
+    rr = trans(c, pid, "rfi", r2, "respond")  # open -> answered (GC's court)
+    assert rr.status_code == 200, rr.text
+    reg = c.get(f"/projects/{pid}/rfi/register").json()
+    assert reg["rfi_count"] == 2, reg
+    assert reg["overdue_count"] == 1, reg                       # the grid-C one (open, due 2020)
+    assert reg["cost_impacted_count"] == 1, reg
+    assert reg["ball_in_court"].get("Consultant") == 1, reg     # r1 awaiting answer
+    assert reg["ball_in_court"].get("GC (accept)") == 1, reg    # r2 answered
+    assert reg["by_discipline"].get("Structural") == 1, reg
+
     # --- reports render -------------------------------------------------------
     cat = {x["id"] for x in c.get("/reports").json()["reports"]}
-    assert {"tm_log", "submittal_register", "quality"} <= cat, cat
-    for rid in ("tm_log", "submittal_register", "quality"):
+    assert {"tm_log", "submittal_register", "quality", "rfi_register"} <= cat, cat
+    for rid in ("tm_log", "submittal_register", "quality", "rfi_register"):
         pdf = c.get(f"/projects/{pid}/reports/{rid}.pdf")
         assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF" and len(pdf.content) > 1200, (rid, pdf.status_code)
 
 print("CONSTRUCTION-DEPTH OK - T&M rollup $10k (labor/material/equip split, billed+unbilled); submittal "
       "register: 2 subs, 1 overdue, avg turnaround 10d, by spec section; quality: pass rate 66.7%/FPY 33.3%, "
-      "1 NCR overdue (Repair), deficiency ball-in-court GC vs Sub; tm_log + submittal_register + quality PDFs render")
+      "1 NCR overdue (Repair), deficiency ball-in-court GC vs Sub; RFI register: 2 RFIs, 1 overdue, "
+      "ball-in-court Consultant vs GC; tm_log + submittal_register + quality + rfi_register PDFs render")
