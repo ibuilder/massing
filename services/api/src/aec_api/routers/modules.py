@@ -30,13 +30,13 @@ def _digest_body(project_name: str, user: str, items: list[dict]) -> tuple[str, 
     lines = [f"{it['icon']} [{it['module_name']}] {it['ref']} — {it['title']}"
              f"  ({it['state']}, {it['reason']})" for it in items]
     text = (f"Hi {user},\n\nYou have {len(items)} open item(s) on {project_name}:\n\n"
-            + "\n".join(lines) + "\n\n— AEC BIM Platform")
+            + "\n".join(lines) + "\n\n— Massing")
     rows = "".join(
         f"<li><b>{it['ref']}</b> — {it['title']} "
         f"<span style='color:#777'>({it['module_name']} · {it['state']} · {it['reason']})</span></li>"
         for it in items)
     html = (f"<p>Hi {user},</p><p>You have <b>{len(items)}</b> open item(s) on "
-            f"<b>{project_name}</b>:</p><ul>{rows}</ul><p style='color:#999'>— AEC BIM Platform</p>")
+            f"<b>{project_name}</b>:</p><ul>{rows}</ul><p style='color:#999'>— Massing</p>")
     return text, html
 
 

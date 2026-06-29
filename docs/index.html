@@ -3,22 +3,22 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AEC BIM Platform — acquisition → turnover on one IFC model</title>
+<title>Massing — acquisition → turnover on one IFC model</title>
 <meta name="description" content="Open, self-hosted AEC platform spanning the whole lifecycle on one IFC model: BIM viewer, generative design + Test Fit, development proforma, GC portal, 4D construction and turnover. No per-seat license." />
-<link rel="canonical" href="https://ibuilder.github.io/ModelMaker/" />
+<link rel="canonical" href="https://massing.build/" />
 <!-- Open Graph / Twitter social cards -->
 <meta property="og:type" content="website" />
-<meta property="og:site_name" content="AEC BIM Platform" />
-<meta property="og:title" content="AEC BIM Platform — the whole lifecycle, on one model" />
+<meta property="og:site_name" content="Massing" />
+<meta property="og:title" content="Massing — the whole lifecycle, on one model" />
 <meta property="og:description" content="Generate a building from zoning, underwrite it, build it, hand it over — on one IFC model. Open, self-hosted, no per-seat license." />
-<meta property="og:url" content="https://ibuilder.github.io/ModelMaker/" />
-<meta property="og:image" content="https://ibuilder.github.io/ModelMaker/img/og-image.png" />
+<meta property="og:url" content="https://massing.build/" />
+<meta property="og:image" content="https://massing.build/img/og-image.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="AEC BIM Platform — the whole lifecycle, on one model" />
+<meta name="twitter:title" content="Massing — the whole lifecycle, on one model" />
 <meta name="twitter:description" content="Generate a building from zoning, underwrite it, build it, hand it over — on one IFC model. Open, self-hosted." />
-<meta name="twitter:image" content="https://ibuilder.github.io/ModelMaker/img/og-image.png" />
+<meta name="twitter:image" content="https://massing.build/img/og-image.png" />
 <style>
   :root{
     --bg:#16171a; --panel:#1e1f22; --panel2:#25272b; --line:#2b2d31;
@@ -77,6 +77,7 @@
 
 <header class="hero">
   <div class="wrap">
+    <img src="img/massing-logo.svg" alt="Massing" style="height:46px;display:block;margin:0 0 18px" />
     <span class="badge">Open · self-hosted · IFC-native</span>
     <h1>The whole building lifecycle,<br><span class="accent">on one model.</span></h1>
     <p class="tag">Generate a building from zoning, underwrite the deal, build it, and hand it over —
@@ -87,7 +88,7 @@
       <a class="btn ghost" href="app/">Try the live demo →</a>
       <a class="btn ghost" href="guide.html">Guides &amp; tutorials</a>
       <a class="btn ghost" href="#run">Run the full stack</a>
-      <a class="btn ghost" href="https://github.com/ibuilder/ModelMaker">View on GitHub</a>
+      <a class="btn ghost" href="https://github.com/ibuilder/massing">View on GitHub</a>
     </div>
     <p style="margin:14px 0 0;font-size:13px;color:var(--muted)">
       The live demo runs the BIM viewer entirely in your browser (no backend) on bundled sample
@@ -114,21 +115,21 @@
     <h2>Download</h2>
     <p class="sub">Free single-project desktop app — the whole platform in one offline install (no Docker, no login). Pick your platform; each opens the latest release. Builds are currently unsigned, so Windows SmartScreen / macOS Gatekeeper may warn on first launch.</p>
     <div class="grid">
-      <a class="card dl" href="https://github.com/ibuilder/ModelMaker/releases/latest">
+      <a class="card dl" href="https://github.com/ibuilder/massing/releases/latest">
         <h3><span class="ic">🪟</span> Windows</h3>
         <p><code>.exe</code> installer or <code>.msi</code> — 64-bit. <span class="dl-go">Get latest →</span></p>
       </a>
-      <a class="card dl" href="https://github.com/ibuilder/ModelMaker/releases/latest">
+      <a class="card dl" href="https://github.com/ibuilder/massing/releases/latest">
         <h3><span class="ic">⌘</span> macOS</h3>
         <p><code>.dmg</code> — Apple Silicon (arm64). <span class="dl-go">Get latest →</span></p>
       </a>
-      <a class="card dl" href="https://github.com/ibuilder/ModelMaker/releases/latest">
+      <a class="card dl" href="https://github.com/ibuilder/massing/releases/latest">
         <h3><span class="ic">🐧</span> Linux</h3>
         <p><code>.AppImage</code> or <code>.deb</code> — x86-64. <span class="dl-go">Get latest →</span></p>
       </a>
     </div>
     <p style="margin:16px 0 0;font-size:13px;color:var(--muted)">
-      All releases &amp; checksums: <a href="https://github.com/ibuilder/ModelMaker/releases">github.com/ibuilder/ModelMaker/releases</a>.
+      All releases &amp; checksums: <a href="https://github.com/ibuilder/massing/releases">github.com/ibuilder/massing/releases</a>.
       Prefer the server stack? <a href="#run">Run it with Docker ↓</a></p>
   </div>
 </section>
@@ -236,14 +237,14 @@
 <section id="run">
   <div class="wrap">
     <h2>Run it</h2>
-    <p class="sub">The platform is a web app + services stack, run with Docker. It's an installable <strong>PWA</strong>, and ships as signed <strong>Tauri 2 desktop installers</strong> (Win/macOS/Linux) with <strong>auto-update</strong> — see <a href="#download">Download</a>; mobile is on the <a href="https://github.com/ibuilder/ModelMaker/blob/main/docs/roadmap.md">roadmap</a>.</p>
+    <p class="sub">The platform is a web app + services stack, run with Docker. It's an installable <strong>PWA</strong>, and ships as signed <strong>Tauri 2 desktop installers</strong> (Win/macOS/Linux) with <strong>auto-update</strong> — see <a href="#download">Download</a>; mobile is on the <a href="https://github.com/ibuilder/massing/blob/main/docs/roadmap.md">roadmap</a>.</p>
     <ol class="steps">
       <li>Install <b>Docker Desktop</b> (Windows/macOS/Linux) and <b>git</b>.</li>
       <li>Clone the repo and start the stack — first build pulls the toolchain, so give it a few minutes.</li>
       <li>Open <b>http://localhost:8080</b>. Optionally seed a demo project.</li>
     </ol>
 <pre><span class="c"># 1. get the code</span>
-git clone https://github.com/ibuilder/ModelMaker.git &amp;&amp; cd ModelMaker
+git clone https://github.com/ibuilder/massing.git &amp;&amp; cd Massing
 
 <span class="c"># 2. configure (set strong secrets + AEC_RBAC=1 for anything but local dev)</span>
 cp .env.example .env
@@ -257,7 +258,7 @@ docker compose --profile full --profile seed run --rm seed</pre>
       The web container reverse-proxies <code>/api</code> to the API (same-origin, no CORS),
       serves the viewer with the cross-origin isolation web-ifc needs, and persists
       Postgres / MinIO / IFC volumes. Every config knob is documented in
-      <a href="https://github.com/ibuilder/ModelMaker/blob/main/.env.example">.env.example</a>.
+      <a href="https://github.com/ibuilder/massing/blob/main/.env.example">.env.example</a>.
     </div>
     <h2 style="margin-top:34px;font-size:18px">Requirements</h2>
     <table class="req">
@@ -284,10 +285,10 @@ PYTHONPATH=src uvicorn aec_api.main:app --reload    <span class="c"># http://loc
 <span class="c"># run the test gate</span>
 python services/api/run_tests.py</pre>
     <p style="color:var(--muted);font-size:14px">Full docs in the repo: the
-      <a href="https://github.com/ibuilder/ModelMaker#readme">README</a>,
-      <a href="https://github.com/ibuilder/ModelMaker/blob/main/docs/gc-portal.md">GC portal</a>,
-      <a href="https://github.com/ibuilder/ModelMaker/blob/main/docs/capability-matrix.md">capability matrix</a>,
-      and <a href="https://github.com/ibuilder/ModelMaker/blob/main/docs/roadmap.md">platform roadmap</a>.</p>
+      <a href="https://github.com/ibuilder/massing#readme">README</a>,
+      <a href="https://github.com/ibuilder/massing/blob/main/docs/gc-portal.md">GC portal</a>,
+      <a href="https://github.com/ibuilder/massing/blob/main/docs/capability-matrix.md">capability matrix</a>,
+      and <a href="https://github.com/ibuilder/massing/blob/main/docs/roadmap.md">platform roadmap</a>.</p>
   </div>
 </section>
 
@@ -295,7 +296,7 @@ python services/api/run_tests.py</pre>
   <div class="wrap">
     Open stack — That Open (MIT-style) · IfcOpenShell (LGPL) · the Blender + Bonsai desktop
     editor (GPL) runs as a separate process. Optional Autodesk APS RVT→IFC is paid/flagged.
-    &nbsp;·&nbsp; <a href="https://github.com/ibuilder/ModelMaker">github.com/ibuilder/ModelMaker</a>
+    &nbsp;·&nbsp; <a href="https://github.com/ibuilder/massing">github.com/ibuilder/massing</a>
     <div style="margin-top:10px;color:var(--muted)">Created by <b>Matthew M. Emma</b> · built with Claude Code as AI assistant.</div>
   </div>
 </footer>

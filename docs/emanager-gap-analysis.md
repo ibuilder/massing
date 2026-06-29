@@ -1,16 +1,16 @@
-# emanager → ModelMaker gap analysis (what we adopted)
+# emanager → Massing gap analysis (what we adopted)
 
 [emanager](https://github.com/) is a WordPress construction-management platform (the GC-portal sibling
-of ModelMaker). Its module set mirrors ModelMaker's GC portal almost 1:1, so the value wasn't new
+of Massing). Its module set mirrors Massing's GC portal almost 1:1, so the value wasn't new
 modules — it was the **cross-cutting engine features** matured in emanager's own improvement plan, and
 validated against Procore / Autodesk Build best practice.
 
-## Already in ModelMaker (no work needed)
+## Already in Massing (no work needed)
 
-emanager "learnings" that ModelMaker had already built independently: auto-numbering (`_next_ref`),
+emanager "learnings" that Massing had already built independently: auto-numbering (`_next_ref`),
 related-records (reference fields + reverse index), real attachments (MinIO), in-app + email
 notifications, ball-in-court (`my_work`), global cross-module search, bulk actions, **saved views**
-(`SavedViewDef` + `/modules/{key}/views`), and a test suite + CI. ModelMaker is also **ahead** on
+(`SavedViewDef` + `/modules/{key}/views`), and a test suite + CI. Massing is also **ahead** on
 mobile/offline (IndexedDB upload queue) — a 2026 must-have the research flags.
 
 ## Adopted (the real gaps)
@@ -32,7 +32,7 @@ mobile/offline (IndexedDB upload queue) — a 2026 must-have the research flags.
 
 ## Why these were small to add
 
-ModelMaker's modules engine is **config-driven**, so each change is one engine/manifest edit that
+Massing's modules engine is **config-driven**, so each change is one engine/manifest edit that
 lights up across all ~75 modules at once — the same leverage that made the emanager build pay off.
 
 Tests: `test_workflow_gate.py`, `test_due_feed.py`, `test_directory.py`.

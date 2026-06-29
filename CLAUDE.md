@@ -1,4 +1,4 @@
-# Project: AEC BIM Viewer
+# Project: Massing
 
 ## What this is
 A standalone web BIM viewer + data platform for AEC firms. IFC is the source of truth.

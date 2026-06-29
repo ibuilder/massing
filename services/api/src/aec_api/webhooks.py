@@ -31,7 +31,7 @@ def build_payload(event: str, **fields: Any) -> dict:
 
 def _send(url: str, body: bytes) -> None:
     req = urllib.request.Request(url, data=body, method="POST",
-                                 headers={"Content-Type": "application/json", "User-Agent": "ModelMaker-Webhook"})
+                                 headers={"Content-Type": "application/json", "User-Agent": "Massing-Webhook"})
     timeout = float(os.environ.get("AEC_WEBHOOK_TIMEOUT", "3"))
     urllib.request.urlopen(req, timeout=timeout)  # noqa: S310 — operator-configured URL
 

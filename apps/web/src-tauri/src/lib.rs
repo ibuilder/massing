@@ -89,5 +89,5 @@ pub fn run() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running AEC BIM Platform");
+        .expect("error while running Massing");
 }

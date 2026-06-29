@@ -65,7 +65,7 @@ element for its **5D** cost readout, then the **cost heatmap** coloring the buil
 
 **2:50 — Close**
 > "One IFC model, acquisition to turnover. Open, self-hosted, free to run. Try the live demo."
-*On screen:* landing page; URL **ibuilder.github.io/ModelMaker**.
+*On screen:* landing page; URL **massing.build**.
 
 ---
 

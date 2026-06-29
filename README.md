@@ -1,14 +1,14 @@
-# AEC BIM Platform — viewer · GC portal · proforma
+# Massing — viewer · GC portal · proforma
 
-![AEC BIM Platform — one IFC model from acquisition to turnover](docs/img/og-image.png)
+![Massing — one IFC model from acquisition to turnover](docs/img/og-image.png)
 
-[![CI](https://github.com/ibuilder/ModelMaker/actions/workflows/ci.yml/badge.svg)](https://github.com/ibuilder/ModelMaker/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/ibuilder/ModelMaker?label=release&color=4a8cff)](https://github.com/ibuilder/ModelMaker/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/ibuilder/ModelMaker/total?color=33d17a)](https://github.com/ibuilder/ModelMaker/releases)
+[![CI](https://github.com/ibuilder/massing/actions/workflows/ci.yml/badge.svg)](https://github.com/ibuilder/massing/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ibuilder/massing?label=release&color=4a8cff)](https://github.com/ibuilder/massing/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/ibuilder/massing/total?color=33d17a)](https://github.com/ibuilder/massing/releases)
 ![Platforms](https://img.shields.io/badge/desktop-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-555)
 ![IFC-native](https://img.shields.io/badge/IFC-native-4a8cff)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Live demo](https://img.shields.io/badge/demo-in%20browser-33d17a)](https://ibuilder.github.io/ModelMaker/app/)
+[![Live demo](https://img.shields.io/badge/demo-in%20browser-33d17a)](https://massing.build/app/)
 
 > **Open, self-hosted, IFC-native AEC platform.** A web **BIM viewer + modeling**, a **80-module GC
 > portal** (RFIs, pay apps, CPM schedule, TRIR), and a **development proforma** — **one model, from
@@ -23,7 +23,7 @@
 
 ![Generate a building from a zoning envelope, then underwrite the deal](docs/img/generate-build.gif)
 
-**[▶ Live demo](https://ibuilder.github.io/ModelMaker/app/)** · **[⬇ Download (Win/macOS/Linux)](https://github.com/ibuilder/ModelMaker/releases/latest)** · **[📚 Guides](https://ibuilder.github.io/ModelMaker/guide.html)** · **[📄 Project page](https://ibuilder.github.io/ModelMaker/)**
+**[▶ Live demo](https://massing.build/app/)** · **[⬇ Download (Win/macOS/Linux)](https://github.com/ibuilder/massing/releases/latest)** · **[📚 Guides](https://massing.build/guide.html)** · **[📄 Project page](https://massing.build/)**
 
 ### Quickstart — self-host the full stack
 
@@ -32,7 +32,7 @@ docker compose --profile full up --build      # web → http://localhost:8080 ·
 docker compose --profile full --profile seed run --rm seed   # optional: a demo project across every module
 ```
 
-Or install the signed desktop app (single-project, auto-updating) from the [latest release](https://github.com/ibuilder/ModelMaker/releases/latest).
+Or install the signed desktop app (single-project, auto-updating) from the [latest release](https://github.com/ibuilder/massing/releases/latest).
 
 **Built on** [That Open](https://github.com/ThatOpen) (Fragments + web-ifc, MIT) · [IfcOpenShell](https://ifcopenshell.org) (LGPL) · [three.js](https://threejs.org) · [FastAPI](https://fastapi.tiangolo.com) · [Tauri](https://tauri.app). IFC is the source of truth — no proprietary format, no per-seat license.
 
@@ -396,7 +396,7 @@ GC portal schedule visuals (from the `schedule_activity` module):
 |---|---|
 | ![gantt](docs/img/gantt.png) | ![lob](docs/img/lob.png) |
 
-Platform interface (vector renders of the redesigned UI — see the [live demo](https://ibuilder.github.io/ModelMaker/app/) for the running app):
+Platform interface (vector renders of the redesigned UI — see the [live demo](https://massing.build/app/) for the running app):
 
 | Tools panel + readable results | 80-module portal catalog |
 |---|---|
@@ -441,7 +441,7 @@ docs/                status, capability matrix, gc-portal, deploy, images
 ## Run the full stack (Docker — easiest)
 
 ```bash
-git clone https://github.com/ibuilder/ModelMaker.git && cd ModelMaker
+git clone https://github.com/ibuilder/massing.git && cd Massing
 cp .env.example .env            # set secrets + AEC_RBAC=1 for anything but local dev
 docker compose --profile full up --build      # web → http://localhost:8080  (api → :8000)
 

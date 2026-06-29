@@ -39,7 +39,7 @@ jobs:
                  --jq ".[] | select(.tag_name==\"$TAG\" and .draft==true) | .id" | head -n1)
           if [ -z "$id" ]; then
             id=$(gh api -X POST "repos/$REPO/releases" \
-                   -f tag_name="$TAG" -f name="AEC BIM Platform $TAG" \
+                   -f tag_name="$TAG" -f name="Massing $TAG" \
                    -f body="Download the installer for your platform below." \
                    -F draft=true -F prerelease=false --jq .id)
           fi

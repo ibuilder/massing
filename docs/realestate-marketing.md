@@ -1,13 +1,13 @@
 # Real-estate marketing & appraisal — plan + decisions
 
-ModelMaker covers **entitle → design → construct → finance**. It stops where a developer's money is
+Massing covers **entitle → design → construct → finance**. It stops where a developer's money is
 made: **disposition** (sell/lease) and the asset's **market value** (appraisal). This document records
 the plan and the build-vs-integrate decision for closing that loop.
 
 ## Strategy: build the moats, integrate the rest
 
-Two capabilities are things **only ModelMaker can do**, because it owns the BIM model + cost + income
-data natively. Every listing tool starts from photos of a finished building; ModelMaker starts from the
+Two capabilities are things **only Massing can do**, because it owns the BIM model + cost + income
+data natively. Every listing tool starts from photos of a finished building; Massing starts from the
 authoritative model and can market **off-plan**, before the building exists.
 
 1. **BIM-native marketing kit** — generate the listing fact sheet, floor plans, unit mix, GIS map, and a
@@ -20,13 +20,13 @@ authoritative model and can market **off-plan**, before the building exists.
 
 Everything else in the disposition stack (CRM pipeline, agent portal, tours, property management, live
 MLS import/syndication) **already exists in WPRealWise**, which the same owner maintains. Rather than
-rebuild it, ModelMaker **pushes** listings + valuations into WPRealWise via the RESO Data Dictionary.
+rebuild it, Massing **pushes** listings + valuations into WPRealWise via the RESO Data Dictionary.
 
 ### Decision
 
 - **Build natively:** the two moats (Phases 1–2). They reuse existing infra and need no public surface
   or MLS compliance.
-- **Integrate (don't rebuild):** disposition CRM/portal/tours/PM/MLS stay in WPRealWise; ModelMaker
+- **Integrate (don't rebuild):** disposition CRM/portal/tours/PM/MLS stay in WPRealWise; Massing
   serializes listings to RESO and pushes them (Phase 4, later).
 
 ## Phase 1 — Disposition module + Marketing Kit (this build)
@@ -51,7 +51,7 @@ rebuild it, ModelMaker **pushes** listings + valuations into WPRealWise via the 
 
 Maintained as `RESO_MAP` in `marketing.py`. Our listing field → RESO Data Dictionary field:
 
-| ModelMaker | RESO |
+| Massing | RESO |
 |---|---|
 | status | StandardStatus |
 | list_price | ListPrice |
@@ -97,5 +97,5 @@ The RESO export endpoint remains the always-available manual path; this bridge i
 ## Out of scope (this build)
 
 CRM, agent portal, tour scheduling, property management, and *live MLS import* remain in WPRealWise —
-the bridge pushes outward (ModelMaker → WPRealWise). Inbound MLS import/syndication compliance
+the bridge pushes outward (Massing → WPRealWise). Inbound MLS import/syndication compliance
 (IDX agreements, RESO Web API certification) is still gated per the Compliance section above.

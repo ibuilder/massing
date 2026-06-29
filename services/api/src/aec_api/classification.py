@@ -125,7 +125,7 @@ def gaeb_x83(project_name: str, lines: list[dict[str, Any]], system: str = "din2
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<GAEB xmlns="http://www.gaeb.de/GAEB_DA_XML/DA86/3.2">\n'
-        f"  <GAEBInfo><Version>3.2</Version><VersDate>{date.today().isoformat()}</VersDate><ProgSystem>AEC BIM Platform</ProgSystem></GAEBInfo>\n"
+        f"  <GAEBInfo><Version>3.2</Version><VersDate>{date.today().isoformat()}</VersDate><ProgSystem>Massing</ProgSystem></GAEBInfo>\n"
         f"  <PrjInfo><NamePrj>{escape(project_name)}</NamePrj></PrjInfo>\n"
         "  <Award>\n    <DP>83</DP>\n    <BoQ>\n      <BoQInfo><Name>Estimate</Name></BoQInfo>\n      <BoQBody>\n        <Itemlist>\n"
         f"{body}\n"

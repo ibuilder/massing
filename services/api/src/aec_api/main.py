@@ -66,7 +66,7 @@ async def lifespan(_app: FastAPI):
             task.cancel()
 
 
-app = FastAPI(title="AEC BIM Platform API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Massing API", version="0.1.0", lifespan=lifespan)
 
 # In production the web app calls the API same-origin via nginx's /api proxy, so CORS
 # is moot. CORS only matters for the dev server (:5173) or direct cross-origin access;

@@ -6,7 +6,7 @@
  * we give an actionable "create or open a project" hint.
  */
 const IS_DEMO = !!import.meta.env.VITE_PAGES;
-const DOWNLOAD = "https://ibuilder.github.io/ModelMaker/#download";
+const DOWNLOAD = "https://massing.build/#download";
 
 /** HTML for a "no project open" panel, tailored to demo vs full app. `tool` names the feature
  *  (e.g. "the GC portal", "drawings") so the copy reads naturally. */

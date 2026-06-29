@@ -35,7 +35,7 @@ run the job, and hand it over — open, self-hosted, and free to run on one mach
 > Shipped: an open, IFC-native AEC platform that covers the *whole* building lifecycle on one model.
 > Type a zoning envelope → it generates a real IFC building and underwrites the deal. Then run the
 > job — RFIs, pay apps, 4D — and hand it over with COBie. Free desktop app, no per-seat license. 🏗️
-> ↳ ibuilder.github.io/ModelMaker
+> ↳ massing.build
 
 ## Show HN blurb
 > **Show HN: Open AEC platform — generate a building from zoning, underwrite it, then build it (one IFC model)**

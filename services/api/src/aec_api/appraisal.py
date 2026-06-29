@@ -1,4 +1,4 @@
-"""Tri-approach valuation — the three classic appraisal approaches, fused from data ModelMaker
+"""Tri-approach valuation — the three classic appraisal approaches, fused from data Massing
 already owns:
 
 - **Cost approach** — replacement cost new (hard + soft from the proforma / model estimate) less

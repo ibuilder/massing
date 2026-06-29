@@ -1,6 +1,6 @@
 """Disposition / marketing — turn a built (or designed) project into a sellable listing.
 
-ModelMaker owns the BIM model + proforma, so a listing can be **auto-filled from the project** (areas,
+Massing owns the BIM model + proforma, so a listing can be **auto-filled from the project** (areas,
 NOI, cap rate) instead of typed from scratch — the off-plan advantage. This module also holds the
 `RESO_MAP` seam: our listing fields → RESO Data Dictionary names, so a later bridge can push listings
 to WPRealWise / an MLS as a serialization, not a rewrite. And it orchestrates the tri-approach

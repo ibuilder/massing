@@ -1,6 +1,6 @@
 """Real-estate syndication bridge — OPTIONAL, feature-flagged (off unless REALWISE_URL + key set).
 
-ModelMaker owns the BIM + cost + income data and can market a listing off-plan; the disposition CRM /
+Massing owns the BIM + cost + income data and can market a listing off-plan; the disposition CRM /
 agent portal / tours / property management / live MLS feed live in **WPRealWise** (the same owner's
 WordPress system). Rather than rebuild that stack, this bridge **pushes** a listing — already serialized
 to the RESO Data Dictionary by `marketing.to_reso()` — into WPRealWise over its REST API

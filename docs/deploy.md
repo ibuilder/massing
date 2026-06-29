@@ -94,7 +94,7 @@ cert automatically, enforces auth (`AEC_RBAC=1`), and sets restart policies.
 sudo ufw allow OpenSSH && sudo ufw allow 80,443/tcp && sudo ufw enable
 
 # 3. clone + configure secrets (REQUIRED in prod)
-git clone https://github.com/ibuilder/ModelMaker.git && cd ModelMaker
+git clone https://github.com/ibuilder/massing.git && cd Massing
 cp .env.example .env       # set POSTGRES_PASSWORD, S3_ACCESS_KEY/SECRET, AEC_API_KEY, AEC_AUTH_SECRET
 
 # 4. bring it up behind Caddy (auto-HTTPS for $DOMAIN)

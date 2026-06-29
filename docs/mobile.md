@@ -26,7 +26,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.modelmaker.app",
-  appName: "ModelMaker",
+  appName: "Massing",
   webDir: "dist",                       // the vite build output
   server: { androidScheme: "https" },
   ios: { contentInset: "always" },
@@ -44,7 +44,7 @@ build). Auth is the existing Bearer-token flow.
 cd apps/web
 npm i -D @capacitor/cli
 npm i @capacitor/core @capacitor/ios @capacitor/android
-npx cap init ModelMaker com.modelmaker.app --web-dir dist
+npx cap init Massing com.modelmaker.app --web-dir dist
 VITE_API_URL=https://api.yourhost.com npm run build
 npx cap add ios && npx cap add android
 npx cap sync

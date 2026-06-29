@@ -11,7 +11,7 @@
 
   <!-- unifying platform bar spanning all phases -->
   <rect x="24" y="86" width="912" height="44" rx="10" fill="url(#span)"/>
-  <text x="44" y="113" fill="#ffffff" font-size="14.5" font-weight="650">AEC BIM Platform</text>
+  <text x="44" y="113" fill="#ffffff" font-size="14.5" font-weight="650">Massing</text>
   <text x="180" y="113" fill="#eaf1ff" font-size="13">one IFC-keyed model · open / self-hosted · no per-seat license</text>
   <text x="916" y="113" fill="#ffffff" font-size="13" text-anchor="end" font-weight="600">acquisition → turnover</text>
 

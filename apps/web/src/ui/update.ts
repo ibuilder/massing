@@ -4,7 +4,7 @@
  *  self-install is the Tauri updater path — see docs/deploy.md — which additionally needs a signing
  *  key configured as a CI secret.) */
 
-const REPO = "ibuilder/ModelMaker";
+const REPO = "ibuilder/massing";
 
 export function currentVersion(): string {
   return (import.meta.env.VITE_APP_VERSION as string | undefined) || "0.0.0";

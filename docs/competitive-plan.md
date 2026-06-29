@@ -1,6 +1,6 @@
 # Plan to compete (2026-06)
 
-How AEC BIM Platform wins against the field, and the release motion behind it. Pairs with the
+How Massing wins against the field, and the release motion behind it. Pairs with the
 competitor landscape + gaps in [roadmap.md](roadmap.md).
 
 ## Positioning — one platform, open, IFC-native, no per-seat
@@ -75,7 +75,7 @@ punchlist, daily diary/HSE, property-development lifecycle, AI chat, self-hosted
 ## Argyle + Flinker scan (v0.1.88)
 
 A scan of [Argyle](https://www.argyle.build/) (AR field verification for $100M+ industrial) and
-[Flinker](https://flinker.app/) (self-hosted OpenBIM inside Microsoft 365). ModelMaker already
+[Flinker](https://flinker.app/) (self-hosted OpenBIM inside Microsoft 365). Massing already
 overlaps Flinker heavily (self-hosted, IFC/IDS/BCF viewer, CDE-like store, dashboards, AI assists);
 Argyle is a category we lacked (field verification). Built to our open, $0, no-AR-hardware identity:
 
@@ -94,7 +94,7 @@ against the framework-agnostic, self-hosted posture; the `?embed=1` iframe cover
 
 A web/GitHub scan vs OpenConstructionERP (AGPL, 111 modules), Procore/Autodesk ACC, Fieldwire/
 Buildertrend, and RE asset-mgmt/syndication tools (Yardi, Agora, SyndicationPro, InvestNext).
-Finding: ModelMaker is broader than most; the genuine gaps were adjacent *phases* and depth, now built:
+Finding: Massing is broader than most; the genuine gaps were adjacent *phases* and depth, now built:
 - **Operate/hold (G1)** — `lease` module + rent roll (occupancy/WALT/expirations → appraisal income).
 - **Capital/investors (G2)** — `investor` cap table + pro-rata capital calls/distributions; data-room = document module.
 - **Certified payroll (G3)** — WH-347 from timesheets × labor rates.

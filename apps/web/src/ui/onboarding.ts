@@ -38,7 +38,7 @@ export function showWelcome(ctx: OnboardCtx): void {
   card.style.cssText = "background:var(--panel);border:1px solid var(--line);border-radius:14px;"
     + "padding:26px;max-width:680px;width:100%;display:flex;flex-direction:column;gap:6px;box-shadow:0 18px 60px #000a";
   card.innerHTML =
-    `<div style="font-size:22px;font-weight:650;letter-spacing:-.01em">Welcome to AEC BIM Platform 👋</div>`
+    `<div style="font-size:22px;font-weight:650;letter-spacing:-.01em">Welcome to Massing 👋</div>`
     + `<div class="meta" style="margin-bottom:14px">A BIM viewer, a general-contracting portal, and a development`
     + ` proforma — one model, acquisition to turnover. Pick a starting point:</div>`;
 
@@ -79,7 +79,7 @@ export function showWelcome(ctx: OnboardCtx): void {
   const foot = document.createElement("div");
   foot.style.cssText = "display:flex;gap:10px;justify-content:flex-end;align-items:center;margin-top:18px";
   const guides = document.createElement("a");
-  guides.href = "https://ibuilder.github.io/ModelMaker/guide.html"; guides.target = "_blank"; guides.rel = "noopener";
+  guides.href = "https://massing.build/guide.html"; guides.target = "_blank"; guides.rel = "noopener";
   guides.className = "tool-btn"; guides.textContent = "📚 Guides"; guides.style.cssText = "text-decoration:none;margin-right:auto";
   guides.title = "Open the step-by-step guides & glossary in a new tab";
   const skip = document.createElement("button");

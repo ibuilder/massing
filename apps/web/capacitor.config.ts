@@ -11,7 +11,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  */
 const config: CapacitorConfig = {
   appId: "com.ibuilder.aecbim",
-  appName: "AEC BIM Platform",
+  appName: "Massing",
   webDir: "dist",
   // For live-reload during dev, uncomment and point at your machine:
   // server: { url: "http://192.168.1.x:5173", cleartext: true },

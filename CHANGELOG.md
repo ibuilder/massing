@@ -1,8 +1,19 @@
 # Changelog
 
-All notable changes to the AEC BIM Platform. Releases are signed, auto-updating desktop builds
+All notable changes to Massing. Releases are signed, auto-updating desktop builds
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
+
+## v0.2.16 — Rebrand to Massing (massing.build)
+- Renamed the product from "AEC BIM Platform / ModelMaker" to **Massing** across the app, docs, and
+  packaging: window title + PWA name, README/CHANGELOG/SECURITY/guide/roadmap/capability-matrix, the
+  Pages landing page (canonical + OG → massing.build), and backend report/branding strings.
+- New brand assets — Massing isometric-massing logo + icon (`favicon.svg` / `icon.svg`, header logo,
+  landing hero, `docs/img/massing-*`).
+- GitHub repo renamed to **ibuilder/massing**; GitHub Pages now serves at **massing.build** (CNAME),
+  with `VITE_BASE` switched to root `/app/`. Desktop bundle identifier kept (`com.ibuilder.aecbim`) so
+  existing installs keep auto-updating; the updater endpoint follows the renamed repo.
+- No functional change — backend 65/65, web typecheck + build green; verified live (title/header/favicon).
 
 ## v0.2.15 — Wrap-up: reachability, docs & GitHub refresh
 - UI reachability audit of the whole v0.2.x arc — all new features confirmed reachable; closed the one
@@ -267,7 +278,7 @@ asset-mgmt / syndication tools). See [docs/competitive-plan.md](docs/competitive
 
 ## v0.1.88 — model intelligence, field verification & embeddability
 Three features adapted from a scan of **Argyle** (AR field verification) and **Flinker** (OpenBIM in
-M365) — built to ModelMaker's open, self-hosted, $0 identity (no AR hardware, no MS-365 lock-in).
+M365) — built to Massing's open, self-hosted, $0 identity (no AR hardware, no MS-365 lock-in).
 - **Ask the model** — `POST /projects/{id}/ask` answers plain-English questions ("how many fire-rated
   doors on L3?", "total curtain-wall area") grounded in a snapshot of the property index (counts by
   class/storey, Psets, facets). Uses the configured AI provider; **degrades to the data snapshot**
@@ -304,7 +315,7 @@ Adopted from a gap analysis of the WordPress **emanager** platform + Procore/Aut
 
 ## v0.1.86 — disposition & valuation (real-estate marketing)
 Close the development loop from build to **sell/lease** and **market value** — the two things only a
-BIM-native platform can do, because ModelMaker owns the model + proforma. (See
+BIM-native platform can do, because Massing owns the model + proforma. (See
 [docs/realestate-marketing.md](docs/realestate-marketing.md).)
 - **BIM-native marketing kit** — a config-driven `listing` module (RESO-aligned fields + a workflow
   mirroring RESO `StandardStatus`) that **auto-fills from the project**: areas/unit-mix from the model,

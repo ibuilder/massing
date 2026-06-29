@@ -269,7 +269,7 @@ bundling/auto-update policy these feed into.
   duplicate it. Navisworks is a coordination/review tool, not an authoring app; its IFC export is
   weak/third-party, so the correct workflow is **export IFC from each authoring source** (Revit native)
   and federate here. Our free pyRevit path (L3) already covers batch export. *Optional future nicety:*
-  a one-click pyRevit macro that exports IFC **and uploads to a ModelMaker project** — convenience
+  a one-click pyRevit macro that exports IFC **and uploads to a Massing project** — convenience
   only, not a mission requirement.
 - **IFC5 / IFCX** — confirmed **alpha** (component-based + JSON serialization,
   [IFC5-development](https://github.com/buildingSMART/IFC5-development)); not production. L2 stays

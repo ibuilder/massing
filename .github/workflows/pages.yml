@@ -1,6 +1,6 @@
 name: Deploy viewer demo to GitHub Pages
 
-# Publishes the GitHub Pages site at https://<owner>.github.io/ModelMaker/:
+# Publishes the GitHub Pages site at https://<owner>.github.io/:
 #   /            → the static landing page (docs/index.html)
 #   /app/        → the *viewer-only* web app (no API — it streams the committed sample .frag tiles)
 # VITE_PAGES=1 swaps the Workbox PWA SW for the coi-serviceworker so SharedArrayBuffer
@@ -45,7 +45,7 @@ jobs:
         run: npm run build --workspace apps/web
         env:
           VITE_PAGES: "1"
-          VITE_BASE: "/ModelMaker/app/"
+          VITE_BASE: "/app/"
 
       # assemble the Pages site: landing page at the root, viewer demo under /app/
       - name: Assemble site
@@ -54,6 +54,7 @@ jobs:
           cp -r docs/. _site/
           cp -r apps/web/dist/. _site/app/
           touch _site/.nojekyll
+          echo massing.build > _site/CNAME
 
       - uses: actions/configure-pages@v5
 
