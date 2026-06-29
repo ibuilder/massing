@@ -24,7 +24,7 @@ def cap_table(investors: list[dict]) -> dict[str, Any]:
         contributed = _num(d.get("contributed"))
         distributed = _num(d.get("distributed"))
         rows.append({
-            "ref": i.get("ref"), "investor": d.get("investor"),
+            "id": i.get("id"), "ref": i.get("ref"), "investor": d.get("investor"),
             "investor_class": d.get("investor_class") or "LP",
             "entity_type": d.get("entity_type"),
             "commitment": round(commit, 2),
@@ -47,6 +47,47 @@ def cap_table(investors: list[dict]) -> dict[str, Any]:
         "by_class": {k: round(v, 2) for k, v in by_class.items()},
         "rows": rows,
     }
+
+
+def statement_pdf(row: dict, totals: dict, project_name: str) -> bytes:
+    """A one-page investor capital-account statement (commitment, ownership, contributed/distributed,
+    unreturned). `row`: a cap_table row; `totals`: the cap_table summary."""
+    import io
+
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import inch
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    ss = getSampleStyleSheet()
+    m = lambda v: "$" + f"{float(v or 0):,.0f}"  # noqa: E731
+    rows = [
+        ["Investor", str(row.get("investor", ""))],
+        ["Class", str(row.get("investor_class", "LP"))],
+        ["Entity type", str(row.get("entity_type") or "—")],
+        ["Commitment", m(row.get("commitment"))],
+        ["Ownership", f"{row.get('ownership_pct', 0)}%"],
+        ["Contributed to date", m(row.get("contributed"))],
+        ["Distributed to date", m(row.get("distributed"))],
+        ["Unreturned capital", m(row.get("unreturned"))],
+        ["Unfunded commitment", m(max(0.0, float(row.get("commitment") or 0) - float(row.get("contributed") or 0)))],
+    ]
+    t = Table(rows, colWidths=[2.4 * inch, 3.0 * inch])
+    t.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
+                           ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f4f6f8")),
+                           ("FONTSIZE", (0, 0), (-1, -1), 10),
+                           ("ROWBACKGROUNDS", (1, 0), (1, -1), [colors.white])]))
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=letter, title="Investor statement", topMargin=0.8 * inch)
+    doc.build([
+        Paragraph("Investor Capital Account Statement", ss["Title"]),
+        Paragraph(f"{project_name} · fund commitment {m(totals.get('total_commitment'))}", ss["Normal"]),
+        Spacer(1, 14), t, Spacer(1, 16),
+        Paragraph("Distributions and capital calls are allocated pro-rata by commitment. This statement "
+                  "is informational and not a tax document; K-1s are issued separately.", ss["Italic"]),
+    ])
+    return buf.getvalue()
 
 
 def allocate(investors: list[dict], amount: float, kind: str = "call") -> dict[str, Any]:

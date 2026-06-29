@@ -528,6 +528,10 @@ export class ApiClient {
     return this.json<{ kind: string; amount: number; allocations: { investor: string; amount: number }[] }>(
       `/projects/${pid}/distribution`, { method: "POST", body: JSON.stringify({ amount }) });
   }
+  /** URL of a one-page investor capital-account statement PDF. */
+  investorStatementUrl(pid: string, iid: string) {
+    return this.url(`/projects/${pid}/investors/${iid}/statement.pdf`);
+  }
 
   // --- assistant · certified payroll · drawing set · ITB --------------------
   /** Ask about the whole project (modules/schedule/budget/risk); grounded snapshot, AI-optional. */

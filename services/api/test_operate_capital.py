@@ -72,6 +72,11 @@ with TestClient(app) as c:
     dist = c.post(f"/projects/{pid}/distribution", json={"amount": 500_000}).json()
     assert dist["kind"] == "distribution" and abs(sum(a["amount"] for a in dist["allocations"]) - 500_000) < 0.01, dist
 
+    # per-investor capital-account statement PDF
+    iid = next(r["id"] for r in ct["rows"] if r["investor"] == "LP One")
+    stmt = c.get(f"/projects/{pid}/investors/{iid}/statement.pdf")
+    assert stmt.status_code == 200 and stmt.content[:4] == b"%PDF" and len(stmt.content) > 1000, stmt.status_code
+
     # --- reports render ------------------------------------------------------
     cat = {x["id"] for x in c.get("/reports").json()["reports"]}
     assert {"rent_roll", "cap_table"} <= cat, cat

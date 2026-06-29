@@ -4,6 +4,14 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.1.91 — dedicated Operations & Investors tabs + investor statements
+- Finance gains two first-class sub-tabs: **Operations** (the hold-phase rent roll — occupancy, WALT,
+  in-place income, value-from-rent-roll) and **Investors** (cap table, capital-call/distribution
+  tools, per-investor downloads) — moved out of the Valuation tab so each has a clean home.
+- **Per-investor capital-account statement PDF** (`GET /projects/{id}/investors/{iid}/statement.pdf`):
+  commitment, ownership, contributed/distributed, unreturned + unfunded — a ⬇ per row on the cap table.
+- Verified live (both tabs render with seeded data; statement link present); backend 60/60.
+
 ## v0.1.90 — accessibility pass: every feature reachable in the UI
 A UX audit found seven computed features were API/report-only (no buttons). All are now wired in:
 - **Finance ▸ Valuation tab** gains a **Rent roll** card (occupancy/WALT/in-place income + "value

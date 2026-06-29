@@ -37,6 +37,24 @@ def distribution(pid: str, amount: float = Body(..., embed=True), db: Session = 
     return capital.allocate(_investors(db, pid), amount, kind="distribution")
 
 
+@router.get("/projects/{pid}/investors/{iid}/statement.pdf")
+def investor_statement(pid: str, iid: str, db: Session = Depends(get_db),
+                       _: str = Depends(rbac.require_role("viewer"))):
+    """A one-page investor capital-account statement PDF."""
+    from fastapi import HTTPException
+    from fastapi.responses import Response as _Resp
+    rec = me.get_record(db, "investor", pid, iid)            # 404 if missing
+    ct = capital.cap_table(_investors(db, pid))
+    row = next((r for r in ct["rows"] if r["ref"] == rec.get("ref")), None)
+    if not row:
+        raise HTTPException(404, "investor not in cap table")
+    row["entity_type"] = (rec.get("data") or {}).get("entity_type")
+    p = db.get(Project, pid)
+    pdf = capital.statement_pdf(row, ct, p.name if p else pid)
+    return _Resp(pdf, media_type="application/pdf",
+                 headers={"Content-Disposition": f'inline; filename="statement_{rec.get("ref")}.pdf"'})
+
+
 @router.get("/projects/{pid}/rent-roll")
 def get_rent_roll(pid: str, db: Session = Depends(get_db),
                   _: str = Depends(rbac.require_role("viewer"))):
