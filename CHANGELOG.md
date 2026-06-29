@@ -4,6 +4,16 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.2.9 — Lease-management depth (renewals · escalations · CAM recovery)
+- New `leasemgmt.py` + `GET /projects/{pid}/leases/management`: the **renewal/expiration pipeline**
+  (leases expiring ≤90/180/365 days, holdover, options outstanding, rent-at-risk), a forward
+  **rent-escalation schedule** (each active lease compounded by its `escalation_pct`, plus the
+  portfolio base-rent curve by year), and **CAM / expense-recovery reconciliation** (recoverable
+  income = `recovery_psf × rentable_sf` for NNN/recovery leases; pass `?recoverable_opex=` for the
+  recovery ratio + over/under-recovery gap).
+- A **Lease Management** report (PDF/Excel) + a lease-management card under Finance ▸ Operations
+  (expiry buckets, escalation step, CAM recovery); client `leaseManagement`. Backend 63/63.
+
 ## v0.2.8 — Real-estate Phase 4: WPRealWise / MLS listing syndication + marketing flyer
 - New `re_bridge.py` — a feature-flagged outbound syndication bridge (off unless `REALWISE_URL` +
   `REALWISE_API_KEY` set), mirroring the APS / e-sign bridges. `GET /re-syndication/status` reports

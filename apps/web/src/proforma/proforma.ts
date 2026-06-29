@@ -446,7 +446,33 @@ export class ProformaUI {
         catch (e) { this.setStatus("Couldn't value from rent roll: " + (e as Error).message); }
       };
       rb.append(rl, rrv); rc.appendChild(rb); host.appendChild(rc);
+      await this.renderLeaseManagement(host, pid);
     } catch (e) { host.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+  }
+
+  /** Lease-management card (under Operations): renewal pipeline, escalation steps, CAM recovery. */
+  private async renderLeaseManagement(host: HTMLElement, pid: string) {
+    try {
+      const lm = await this.api.leaseManagement(pid);
+      const card = document.createElement("div"); card.className = "fin-card"; card.style.marginTop = "10px";
+      const ex = lm.renewals.expiring;
+      const esc = lm.escalations;
+      const stepPct = esc.current_base_rent ? Math.round((esc.projected_base_rent / esc.current_base_rent - 1) * 1000) / 10 : 0;
+      card.innerHTML = `<div class="section-title">Lease management</div>`
+        + `<table class="fin-table">`
+        + `<tr><td>Expiring ≤90 / ≤180 / ≤365 d</td><td class="num">${ex["<=90d"].count} / ${ex["<=180d"].count} / ${ex["<=365d"].count}</td></tr>`
+        + `<tr><td>Holdover · options outstanding</td><td class="num">${lm.renewals.holdover_count} · ${lm.renewals.options_outstanding}</td></tr>`
+        + `<tr><td>Rent at risk (≤365 d)</td><td class="num">${money(lm.renewals.at_risk_rent)}</td></tr>`
+        + `<tr><td>Base rent now → yr ${esc.years}</td><td class="num">${money(esc.current_base_rent)} → ${money(esc.projected_base_rent)} (+${stepPct}%)</td></tr>`
+        + `<tr class="fin-total"><td>Recoverable income (CAM/NNN)</td><td class="num">${money(lm.cam.recoverable_income)}</td></tr>`
+        + `</table>`;
+      const lb = document.createElement("div"); lb.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px";
+      const ll = document.createElement("a"); ll.className = "file-btn"; ll.textContent = "⬇ Lease management (PDF)";
+      ll.href = this.api.reportUrl(pid, "lease_management", "pdf"); ll.target = "_blank"; ll.rel = "noopener";
+      const lx = document.createElement("a"); lx.className = "file-btn"; lx.textContent = "⬇ Excel";
+      lx.href = this.api.reportUrl(pid, "lease_management", "xlsx"); lx.target = "_blank"; lx.rel = "noopener";
+      lb.append(ll, lx); card.appendChild(lb); host.appendChild(card);
+    } catch { /* leases optional — omit the card if it can't load */ }
   }
 
   /** Investors tab: cap table, capital calls / distributions, per-investor statement. */

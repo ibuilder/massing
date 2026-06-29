@@ -34,6 +34,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "listing_factsheet": ("Listing Fact Sheet", "Disposition"),
     "marketing_flyer": ("Marketing Flyer", "Disposition"),
     "rent_roll": ("Rent Roll", "Operations"),
+    "lease_management": ("Lease Management (renewals / escalations / CAM)", "Operations"),
     "cap_table": ("Investor Cap Table", "Capital"),
     "tm_log": ("T&M / eTicket Log", "Cost"),
     "submittal_register": ("Submittal Register", "Logs"),
@@ -383,6 +384,32 @@ def _marketing_flyer(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _lease_management(db: Session, pid: str, name: str) -> Report:
+    from . import leasemgmt
+    s = leasemgmt.lease_management(db, pid)
+    ren, esc, cam = s["renewals"], s["escalations"], s["cam"]
+    r = Report("Lease Management", name)
+    r.kpi("Leases", s["lease_count"])
+    r.kpi("Holdover", ren["holdover_count"])
+    r.kpi("Expiring <=365d rent", _money(ren["at_risk_rent"]))
+    r.kpi("Options outstanding", ren["options_outstanding"])
+    r.kpi(f"Base rent (yr {esc['years']})", _money(esc["projected_base_rent"]))
+    r.kpi("Recoverable income", _money(cam["recoverable_income"]))
+    yrs = list(range(esc["years"] + 1))
+    if any(esc["portfolio_by_year"]):
+        r.chart("line", "Portfolio base rent (escalated)", [f"Y{y}" for y in yrs],
+                [{"name": "Base rent", "values": [round(v) for v in esc["portfolio_by_year"]]}])
+    r.table("Renewal / expiration pipeline", ["Ref", "Tenant", "Suite", "End", "Rent", "Status", "Options"],
+            [[x.get("ref", ""), x.get("tenant", ""), x.get("suite", ""), x.get("end_date", ""),
+              _money(x["base_rent_annual"]), x.get("status", ""), "yes" if x["has_option"] else "—"]
+             for x in ren["rows"]] or [["(no expiring/holdover leases)"] + [""] * 6])
+    r.table("CAM / expense recovery", ["Ref", "Tenant", "Type", "Rentable SF", "$/SF", "Recoverable"],
+            [[x.get("ref", ""), x.get("tenant", ""), x.get("lease_type", ""), x.get("rentable_sf", ""),
+              _money(x["recovery_psf"]), _money(x["recoverable_income"])]
+             for x in cam["rows"]] or [["(no recovery leases)"] + [""] * 5])
+    return r
+
+
 def _rent_roll(db: Session, pid: str, name: str) -> Report:
     from . import rentroll
     rr = rentroll.rent_roll(db, pid)
@@ -665,6 +692,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _appraisal(db, pid, name)
     if report == "rent_roll":
         return _rent_roll(db, pid, name)
+    if report == "lease_management":
+        return _lease_management(db, pid, name)
     if report == "cap_table":
         return _cap_table(db, pid, name)
     if report == "tm_log":

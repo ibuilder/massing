@@ -523,6 +523,24 @@ export class ApiClient {
       in_place_gross_income: number; walt_years: number; expirations_by_year: Record<string, unknown>;
       rows: Record<string, unknown>[] }>(`/projects/${pid}/rent-roll`);
   }
+  /** Lease-management depth — renewal pipeline, rent-escalation schedule, CAM/recovery reconciliation. */
+  leaseManagement(pid: string, years?: number, recoverableOpex?: number) {
+    const q = new URLSearchParams();
+    if (years != null) q.set("years", String(years));
+    if (recoverableOpex != null) q.set("recoverable_opex", String(recoverableOpex));
+    const qs = q.toString() ? `?${q}` : "";
+    return this.json<{
+      lease_count: number;
+      renewals: { holdover_count: number; expired_count: number; options_outstanding: number;
+        at_risk_rent: number; expiring: Record<string, { count: number; rent: number }>;
+        rows: Record<string, unknown>[] };
+      escalations: { years: number; portfolio_by_year: number[]; current_base_rent: number;
+        projected_base_rent: number; rows: Record<string, unknown>[] };
+      cam: { recoverable_income: number; recoverable_sf: number; by_lease_type: Record<string, number>;
+        recovery_ratio?: number | null; over_recovery?: number; under_recovery?: number;
+        rows: Record<string, unknown>[] };
+    }>(`/projects/${pid}/leases/management${qs}`);
+  }
   /** Investor cap table — ownership by commitment + contributed/distributed totals. */
   capTable(pid: string) {
     return this.json<{ investor_count: number; total_commitment: number; total_contributed: number;

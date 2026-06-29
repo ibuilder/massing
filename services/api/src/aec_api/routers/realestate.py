@@ -6,7 +6,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from .. import capital, marketing, modules as me, rbac, re_bridge, rentroll, signing
+from .. import capital, leasemgmt, marketing, modules as me, rbac, re_bridge, rentroll, signing
 from ..db import get_db
 from ..models import Project
 
@@ -79,6 +79,14 @@ def get_rent_roll(pid: str, db: Session = Depends(get_db),
     """Operating rent roll — occupancy, WALT, lease-expiration schedule + in-place income from the
     `lease` module (the hold phase). Feeds the appraisal income approach (`/appraisal?rentroll=1`)."""
     return rentroll.rent_roll(db, pid)
+
+
+@router.get("/projects/{pid}/leases/management")
+def lease_management(pid: str, years: int = 5, recoverable_opex: float | None = None,
+                     db: Session = Depends(get_db), _: str = Depends(rbac.require_role("viewer"))):
+    """Lease-management depth — renewal/expiration pipeline, forward rent-escalation schedule, and
+    CAM/expense-recovery reconciliation (pass ?recoverable_opex= for the recovery ratio + gap)."""
+    return leasemgmt.lease_management(db, pid, years, recoverable_opex)
 
 
 @router.get("/projects/{pid}/listings/autofill")

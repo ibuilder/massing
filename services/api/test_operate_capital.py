@@ -52,6 +52,29 @@ with TestClient(app) as c:
     assert abs(onrr["income"]["stabilized_noi"] - 950000) < 1, onrr["income"]
     assert onrr["income"]["stabilized_noi"] != base["income"]["stabilized_noi"], "rentroll should override NOI"
 
+    # --- G1b: lease-management depth (renewals / escalations / CAM) -----------
+    from datetime import date, timedelta
+    soon = (date.today() + timedelta(days=60)).isoformat()       # within the <=90d bucket
+    l3 = mk(c, pid, "lease", {"tenant": "Initech", "suite": "300", "rentable_sf": 10000,
+                              "base_rent_annual": 300000, "lease_type": "NNN", "escalation_pct": 3,
+                              "start_date": "2023-01-01", "end_date": soon, "recovery_psf": 4,
+                              "renewal_options": "1 x 5yr"})
+    trans(c, pid, "lease", l3, "execute")
+    lm = c.get(f"/projects/{pid}/leases/management?years=5&recoverable_opex=150000").json()
+    assert lm["lease_count"] == 3, lm
+    # escalations: l1/l2 flat (no esc), l3 grows 3%/yr; current = 600k+250k+300k
+    assert lm["escalations"]["current_base_rent"] == 1_150_000, lm["escalations"]
+    # projected yr5 = 850k flat + 300k*1.03^5 (=347,782.43)
+    assert abs(lm["escalations"]["projected_base_rent"] - (850_000 + 300_000 * 1.03 ** 5)) < 1.0, lm["escalations"]
+    # renewals: l3 expires in ~60d -> <=90d bucket + at-risk rent (l1/l2 end years away)
+    assert lm["renewals"]["expiring"]["<=90d"]["count"] == 1, lm["renewals"]
+    assert lm["renewals"]["at_risk_rent"] == 300_000, lm["renewals"]
+    assert lm["renewals"]["options_outstanding"] == 1, lm["renewals"]
+    # CAM: NNN leases with recovery_psf -> l1 (5*20k) + l3 (4*10k) = 140k; Gross l2 excluded
+    assert lm["cam"]["recoverable_income"] == 140_000, lm["cam"]
+    assert lm["cam"]["recovery_ratio"] == 0.933, lm["cam"]       # round(140k/150k, 3)
+    assert lm["cam"]["under_recovery"] == 10_000, lm["cam"]      # 150k pool - 140k recovered
+
     # --- G2: investors → cap table + allocations ------------------------------
     investors = [("LP One", "LP", 6_000_000), ("LP Two", "LP", 3_000_000), ("GP", "GP", 1_000_000)]
     for name, cls, commit in investors:
@@ -88,10 +111,12 @@ with TestClient(app) as c:
 
     # --- reports render ------------------------------------------------------
     cat = {x["id"] for x in c.get("/reports").json()["reports"]}
-    assert {"rent_roll", "cap_table"} <= cat, cat
-    for rid in ("rent_roll", "cap_table"):
+    assert {"rent_roll", "cap_table", "lease_management"} <= cat, cat
+    for rid in ("rent_roll", "cap_table", "lease_management"):
         pdf = c.get(f"/projects/{pid}/reports/{rid}.pdf")
         assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF" and len(pdf.content) > 1200, (rid, pdf.status_code)
 
-print("OPERATE+CAPITAL OK - rent roll 60% occ / $950k in-place income (feeds appraisal); cap table "
-      "ownership (LP One 60%); capital call + distribution allocate pro-rata; rent_roll + cap_table PDFs render")
+print("OPERATE+CAPITAL OK - rent roll 60% occ / $950k in-place income (feeds appraisal); lease mgmt: "
+      "1 expiring <=90d / $300k at-risk, 3%/yr escalation to yr5, CAM recovers $140k (93% of pool, $10k "
+      "under); cap table ownership (LP One 60%); capital call + distribution pro-rata; "
+      "rent_roll + cap_table + lease_management PDFs render")
