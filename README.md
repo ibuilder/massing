@@ -245,7 +245,7 @@ Deliverables** — with a sticky live-solved returns bar.
   cost burn; **QTO by floor & discipline**. Plus **multi-user** (members → role-scoped persona
   views), bulk site-photo + camera capture, and an optional **paid Revit (.rvt)→IFC bridge** (APS,
   feature-flagged with a cost gate; IFC stays the source of truth). One click (lot→building→deal)
-  seeds all three pillars. See the [CHANGELOG](CHANGELOG.md) (v0.1.53→v0.2.1).
+  seeds all three pillars. See the [CHANGELOG](CHANGELOG.md) (v0.1.53→v0.2.2).
 - **Rendering, families & computational design (M-theme)** — a viewer **render mode** (directional
   sun + soft shadows, ACES/PBR, IBL), a NOAA **sun-&-shadow study** (date · time · lat/long), and a
   Matterport-style first-person **walkthrough**; Revit-style **`IfcMaterialLayerSet` assemblies** on

@@ -4,6 +4,12 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.2.2 — Executive health banner on the GC dashboard
+- The GC dashboard now leads with a **project-health banner** driven by `GET /projects/{pid}/health`:
+  a 0–100 score, overall green/amber/red, open/overdue totals, a per-domain RAG chip strip (hover for
+  each domain's headline), and the top ranked attention items — the executive rollup surfaced
+  first-class instead of only in a tool modal.
+
 ## v0.2.1 — Closeout dashboard + project-health executive rollup
 - New `closeout.py` engine + `GET /projects/{pid}/closeout/summary`: **punchlist completion &
   ball-in-court** (open=Subcontractor, ready=GC-verify, verified; % complete, overdue, open-cost,
