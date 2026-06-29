@@ -55,6 +55,7 @@ export interface ViewerApp {
   selectedGuidValue(): string | null;
   triggerOpen(kind: "ifc" | "frag" | "convert"): void;
   openFile(kind: "ifc" | "frag" | "convert" | "ref", file: File): Promise<void>;
+  addReferenceObject(object: import("three").Object3D, label: string): string;
   loadSample(file: string, label: string): Promise<void>;
   exportFrag(): Promise<void>;
   exportIfc(): void;
@@ -235,6 +236,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     else if (kind === "convert") await convertAndLoad(file);
     else if (kind === "ref") await openReference(file);
     else await openIfc(file);
+  }
+  // Register a pre-built THREE object (e.g. a basemap tile group) as a reference overlay.
+  function addReferenceObject(object: THREE.Object3D, label: string) {
+    const id = `ref-${++refCount}`;
+    viewer.world.scene.three.add(object);
+    referenceModels.set(id, { object, label });
+    refreshFederation();
+    void fitToModels();
+    void loader.fragments.core.update(true);
+    return id;
   }
   // Load a mesh / point cloud as a view-only reference overlay (IFC stays the source of truth).
   async function openReference(file: File) {
@@ -1832,7 +1843,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     applySettings, selectByGuid, reloadModelPins, fitToModels, refreshIssues,
     anchorPoint: () => (lastPoint ? { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z } : null),
     selectedGuidValue: () => selectedGuid,
-    triggerOpen, openFile, loadSample, exportFrag, exportIfc, handleKey,
+    triggerOpen, openFile, addReferenceObject, loadSample, exportFrag, exportIfc, handleKey,
     onModelShown: () => {
       // Wait for the container to actually have dimensions (the workspace just toggled visible, so
       // layout may not have flushed yet) before resizing — resizing at 0×0 sets a NaN aspect.

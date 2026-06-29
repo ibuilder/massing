@@ -86,6 +86,35 @@ for (const kind of ["ifc", "frag", "convert", "ref"] as const) {
   });
 }
 
+/**
+ * Opt-in, offline-first basemap: prompts for a self-hosted XYZ tile-URL template + a focus lat/lon,
+ * fetches a small tile grid and lays it on the ground as a reference overlay. Nothing loads unless the
+ * operator supplies a tile server (honoring CLAUDE.md's "self-hosted tiles").
+ */
+async function addBasemapFlow() {
+  const template = prompt(
+    "Self-hosted tile URL template (XYZ), e.g. https://tiles.internal/{z}/{x}/{y}.png",
+    "");
+  if (!template || !/\{z\}.*\{x\}.*\{y\}/.test(template)) {
+    if (template) { const { toast } = await import("./ui/feedback"); toast("template must contain {z}/{x}/{y}", "error"); }
+    return;
+  }
+  const ll = prompt("Focus latitude, longitude (decimal degrees)", "40.7484, -73.9857");
+  if (!ll) return;
+  const [lat, lon] = ll.split(",").map((s) => parseFloat(s.trim()));
+  if (!isFinite(lat) || !isFinite(lon)) { const { toast } = await import("./ui/feedback"); toast("invalid lat/lon", "error"); return; }
+  const zoom = parseInt(prompt("Zoom level (1–22)", "17") || "17", 10);
+  try {
+    const { toast } = await import("./ui/feedback"); toast("Loading basemap tiles…", "info");
+    const gis = await import("./viewer/gis");
+    const res = await gis.loadBasemap({ template, lat, lon, zoom });
+    const v = await ensureViewer(); v.addReferenceObject(res.object, res.info);
+    toast(`basemap added — ${res.info}`, "success");
+  } catch (e) {
+    const { toast } = await import("./ui/feedback"); toast(`basemap failed: ${(e as Error).message}`, "error");
+  }
+}
+
 // ---- Open / Save dropdown menus (extracted to ./ui/menus) -------------------
 const dismissMenusIfOutside = (e: Event) => { if (!(e.target as HTMLElement).closest(".menu")) closeMenus(); };
 document.addEventListener("pointerdown", dismissMenusIfOutside, true);
@@ -98,6 +127,7 @@ buildMenu("open-menu", "Open ▾", [
   { label: "Open IFC…", onClick: () => openModelFile("ifc") },
   { label: "Open Fragments (.frag)…", onClick: () => openModelFile("frag") },
   { label: "Open mesh / point cloud / GIS…", onClick: () => openModelFile("ref") },
+  { label: "Add basemap (self-hosted tiles)…", onClick: () => void addBasemapFlow() },
   { label: "Sample models", sep: true },
   { label: "School — Structural", onClick: () => withViewer((v) => void v.loadSample("/school_str.frag", "School (Structural)")) },
   { label: "School — Architectural", onClick: () => withViewer((v) => void v.loadSample("/school_arq.frag", "School (Architectural)")) },

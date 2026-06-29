@@ -4,6 +4,14 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.2.6 — Opt-in self-hosted basemap tiles (GIS)
+- New `gis.loadBasemap` + **Open → "Add basemap (self-hosted tiles)…"**: lays a Web-Mercator XYZ raster
+  tile grid on the ground as a georeferenced reference overlay (focus lat/lon + zoom; tiles placed at
+  their projected metric positions, North → −Z). Lists in the federation panel (align ⛭ / remove) via a
+  new `viewer.addReferenceObject`.
+- **Offline-first / honors CLAUDE.md:** nothing loads unless the operator supplies a tile-URL template
+  (e.g. their own/self-hosted `https://tiles.internal/{z}/{x}/{y}.png`) — no public CDN default.
+
 ## v0.2.5 — E57 point-cloud import (server-side, optional pye57)
 - New `e57.py` + `POST /convert` (`.e57`) / `GET /convert/e57/status`: converts E57 laser-scan files
   to a decimated `.xyz` (x y z [r g b], capped at 2M points) **server-side**, since there is no viable

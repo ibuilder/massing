@@ -178,3 +178,56 @@ export async function loadGisFile(file: File): Promise<GisResult> {
   if (ext === "tif" || ext === "tiff") return loadGeoTiff(await file.arrayBuffer(), file.name);
   return loadGeoJson(await file.text(), file.name);    // geojson / json
 }
+
+// --- slippy-map basemap (opt-in, self-hosted tiles) -------------------------
+export interface BasemapOpts { template: string; lat: number; lon: number; zoom?: number; radius?: number; }
+
+/** Web-Mercator tile coords for a lon/lat at zoom z (fractional). */
+function lonLatToTile(lon: number, lat: number, z: number): [number, number] {
+  const n = 2 ** z;
+  const x = ((lon + 180) / 360) * n;
+  const latRad = (lat * Math.PI) / 180;
+  const y = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
+  return [x, y];
+}
+
+/**
+ * Build a ground-plane basemap from an XYZ raster tile server, georeferenced about (lat,lon).
+ * OFF by default and offline-first: nothing loads unless the operator supplies a tile-URL `template`
+ * (e.g. their own/self-hosted `https://tiles.internal/{z}/{x}/{y}.png`), honoring CLAUDE.md's
+ * "self-hosted tiles" rule. A (2·radius+1)² grid of 256-px tiles is laid as textured planes at the
+ * tiles' projected metric positions (Y-up, North → −Z), centred near the scene origin.
+ */
+export async function loadBasemap(opts: BasemapOpts): Promise<GisResult> {
+  const z = Math.max(0, Math.min(22, Math.floor(opts.zoom ?? 17)));
+  const radius = Math.max(0, Math.min(6, Math.floor(opts.radius ?? 3)));
+  const [cx, cy] = lonLatToTile(opts.lon, opts.lat, z);
+  const ctx = Math.floor(cx), cty = Math.floor(cy);
+  // ground metres per tile at this latitude/zoom
+  const mPerTile = (40_075_016.686 * Math.cos((opts.lat * Math.PI) / 180)) / 2 ** z;
+  const group = new THREE.Group(); group.name = `basemap z${z}`;
+  const loader = new THREE.TextureLoader(); loader.crossOrigin = "anonymous";
+  const url = (x: number, y: number) =>
+    opts.template.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y));
+  const load = (u: string) => new Promise<THREE.Texture | null>((res) =>
+    loader.load(u, (t) => res(t), undefined, () => res(null)));
+  let ok = 0;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      const tx = ctx + dx, ty = cty + dy;
+      const tex = await load(url(tx, ty));
+      if (!tex) continue;
+      ok++;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const geo = new THREE.PlaneGeometry(mPerTile, mPerTile);
+      geo.rotateX(-Math.PI / 2);                          // lay flat on the ground (XZ)
+      const mat = new THREE.MeshBasicMaterial({ map: tex, depthWrite: false });
+      const plane = new THREE.Mesh(geo, mat);
+      // tile centre offset from the focus tile, in metres; +x = east, +z = south (north → −z)
+      plane.position.set((tx - cx + 0.5) * mPerTile, -0.05, (ty - cy + 0.5) * mPerTile);
+      group.add(plane);
+    }
+  }
+  if (!ok) throw new Error("no tiles loaded — check the tile URL template / server");
+  return { object: group, info: `basemap ${ok} tiles · z${z}` };
+}
