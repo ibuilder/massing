@@ -76,7 +76,26 @@ The public listing route is the **only** intentionally-anonymous surface. It is 
 (HMAC signed URL), read-only, rate-limited, and publishes only listing-safe fields — so it does not
 weaken the RBAC posture. Documented in [SECURITY.md](../SECURITY.md).
 
+## Phase 4 — WPRealWise / MLS syndication bridge (built)
+
+`re_bridge.py` (feature-flagged like `aps.py` / `esign_bridge.py`) pushes a RESO-serialized listing
+out to WPRealWise / an MLS:
+
+- `GET /re-syndication/status` — whether the bridge is configured (off unless `REALWISE_URL` +
+  `REALWISE_API_KEY` set).
+- `POST /projects/{pid}/listings/{lid}/syndicate` — serializes the listing via `marketing.to_reso()`
+  and upserts it into WPRealWise (`POST {REALWISE_URL}/wp-json/realwise/v1/listings`, Bearer auth,
+  keyed by `ListingKey` = our listing ref so re-syndication updates rather than duplicates). Returns
+  422 with an actionable message when the bridge is unconfigured. WPRealWise is implemented; `mls`
+  raises an actionable error until its RESO Web API endpoint is wired per deployment.
+- Disposition tab: **⤴ Syndicate to WPRealWise** + a **Marketing Flyer** report (`marketing_flyer`).
+- Transport is a swappable `post_json` seam (stdlib urllib), so the flow is testable without a live
+  server (`test_marketing.py`).
+
+The RESO export endpoint remains the always-available manual path; this bridge is the automated push.
+
 ## Out of scope (this build)
 
-CRM, agent portal, tour scheduling, property management, live MLS import/syndication — deferred to the
-WPRealWise bridge (Phase 4).
+CRM, agent portal, tour scheduling, property management, and *live MLS import* remain in WPRealWise —
+the bridge pushes outward (ModelMaker → WPRealWise). Inbound MLS import/syndication compliance
+(IDX agreements, RESO Web API certification) is still gated per the Compliance section above.

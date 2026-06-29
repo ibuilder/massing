@@ -32,6 +32,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "financials": ("Financial Statements", "Finance"),
     "appraisal": ("Valuation (Tri-Approach Appraisal)", "Finance"),
     "listing_factsheet": ("Listing Fact Sheet", "Disposition"),
+    "marketing_flyer": ("Marketing Flyer", "Disposition"),
     "rent_roll": ("Rent Roll", "Operations"),
     "cap_table": ("Investor Cap Table", "Capital"),
     "tm_log": ("T&M / eTicket Log", "Cost"),
@@ -349,6 +350,39 @@ def _listing_factsheet(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _marketing_flyer(db: Session, pid: str, name: str) -> Report:
+    """Buyer-facing one-page flyer from the listing — headline price, highlights, description, tour.
+    Leads with the marketing narrative (the off-plan kit) rather than the full fact table."""
+    rec = _latest_listing(db, pid)
+    r = Report("Marketing Flyer", name)
+    if not rec:
+        r.kpi("Status", "No listing yet — create one in Finance ▸ Listings (Auto-fill from project).")
+        return r
+    d = rec.get("data") or {}
+    headline = d.get("address") or name
+    r.kpi("For sale / lease", headline)
+    r.kpi("Price", _money(d.get("list_price")))
+    if d.get("price_psf"):
+        r.kpi("$/SF", _money(d.get("price_psf")))
+    if d.get("cap_rate"):
+        r.kpi("Cap rate", f"{d.get('cap_rate')}%")
+    if d.get("public_description"):
+        r.table("About this property", ["", ""], [["", d["public_description"]]])
+    if d.get("highlights"):
+        r.table("Highlights", ["", ""], [["", d["highlights"]]])
+    quick = [
+        ["Asset type", d.get("asset_type", "")],
+        ["Location", " ".join(str(d.get(k, "")) for k in ("city", "state", "zip_code")).strip()],
+        ["Size", f"{d.get('sqft', '—')} SF" + (f" · {d.get('num_units')} units" if d.get("num_units") else "")],
+        ["Beds / Baths", f"{d.get('beds', '—')} / {d.get('baths', '—')}"],
+        ["Year built / completion", str(d.get("year_built", "—"))],
+    ]
+    r.table("At a glance", ["", ""], [[a, b] for a, b in quick if b not in ("", None, "—")])
+    if d.get("virtual_tour_url"):
+        r.table("Take the 3D tour", ["", ""], [["Link", d["virtual_tour_url"]]])
+    return r
+
+
 def _rent_roll(db: Session, pid: str, name: str) -> Report:
     from . import rentroll
     rr = rentroll.rent_roll(db, pid)
@@ -655,6 +689,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _action_tracker(db, pid, name)
     if report == "listing_factsheet":
         return _listing_factsheet(db, pid, name)
+    if report == "marketing_flyer":
+        return _marketing_flyer(db, pid, name)
     if report == "executive":
         return _executive(db, pid, name)
     if report == "risk":

@@ -4,6 +4,18 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.2.8 — Real-estate Phase 4: WPRealWise / MLS listing syndication + marketing flyer
+- New `re_bridge.py` — a feature-flagged outbound syndication bridge (off unless `REALWISE_URL` +
+  `REALWISE_API_KEY` set), mirroring the APS / e-sign bridges. `GET /re-syndication/status` reports
+  config; `POST /projects/{pid}/listings/{lid}/syndicate` serializes the listing via `marketing.to_reso()`
+  and **upserts it into WPRealWise** (`/wp-json/realwise/v1/listings`, Bearer auth, keyed by `ListingKey`
+  so re-pushes update not duplicate). Unconfigured → actionable 422; the RESO export endpoint still works.
+- Disposition tab gains **⤴ Syndicate to WPRealWise** (bridge-aware) and a **Marketing Flyer** report
+  (`marketing_flyer`, PDF/Excel) alongside the fact sheet. Client `reSyndicationStatus` + `syndicateListing`.
+- This completes Phase 4 of docs/realestate-marketing.md (the only deferred real-estate item). `.env.example`
+  documents the bridge. Backend 63/63 (test_marketing extended: gate-off 422 + stubbed push asserts
+  RESO + ListingKey + Bearer); typecheck + vitest (49) + build green.
+
 ## v0.2.7 — Field-capture depth (GPS geotag, offline-queue review, PWA shortcut)
 - Field capture now **geotags** records: a "📍 Tag GPS location" one-shot fix stores `gps_lat`/`gps_lon`/
   `gps_accuracy_m` on the captured record (online + queued offline).

@@ -481,6 +481,17 @@ export class ApiClient {
   listingReso(pid: string, lid: string) {
     return this.json<{ reso: Record<string, unknown> }>(`/projects/${pid}/listings/${lid}/reso`);
   }
+  /** Whether the WPRealWise / MLS syndication bridge is configured (off unless REALWISE_URL+key set). */
+  reSyndicationStatus() {
+    return this.json<{ enabled: boolean; target: string; implemented: boolean;
+      targets_supported: string[]; message: string }>(`/re-syndication/status`);
+  }
+  /** Push a listing (RESO-serialized) to WPRealWise / an MLS. 422 if the bridge isn't configured. */
+  syndicateListing(pid: string, lid: string) {
+    return this.json<{ target: string; remote_id: string | null; url: string | null;
+      fields_pushed: number; status: string }>(
+      `/projects/${pid}/listings/${lid}/syndicate`, { method: "POST" });
+  }
 
   // --- model intelligence + field verification ------------------------------
   /** Ask a plain-English question about the model; grounded in the property-index snapshot. */

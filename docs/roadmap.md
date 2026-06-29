@@ -7,7 +7,28 @@ The single product roadmap. Supporting detail lives in:
 [competitive-plan.md](competitive-plan.md), [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.1.87**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.2.8**.
+
+---
+
+## ★ Active plan (sequenced — work top to bottom)
+
+User-directed sequence as of v0.2.8. Carry this out in order; each item ships as its own release.
+
+1. **Real-estate / capital depth**
+   - [x] WPRealWise / MLS listing syndication bridge + marketing flyer (`re_bridge.py`) — **v0.2.8**
+   - [ ] Lease-management depth — renewals, rent escalations, CAM reconciliation (on the `lease` module)
+   - [ ] Equity waterfall / distribution scenario modeling (tied to the investor cap table)
+   - [ ] Investor-portal document sharing (signed statement/report links via the signed-URL infra)
+   - [ ] Comps-import automation (bulk CSV / RESO → `comparable` module, feeds sales-comparison appraisal)
+2. **Polish & harden existing** — UX consistency pass; empty/loading/error states; accessibility;
+   perf on large models; broader test coverage of the newer analytics/RE surfaces.
+3. **Production / ops** — deploy automation; backups/restore runbook; observability
+   (metrics/healthchecks/logging); rate-limit tuning; container/image hardening.
+
+Construction-depth analytics (the prior theme) shipped fully in v0.2.0–v0.2.7 (6-log suite,
+closeout dashboard, executive project-health rollup, e-sign bridge, E57 import, GIS basemaps,
+field-capture PWA).
 
 ---
 

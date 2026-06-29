@@ -87,10 +87,41 @@ with TestClient(app) as c:
     reso = c.get(f"/projects/{pid}/listings/{lid}/reso").json()["reso"]
     assert reso["StandardStatus"] and reso.get("ListPrice") and reso.get("VirtualTourURLUnbranded"), reso
 
-    # --- Report Center: valuation + listing fact sheet render valid PDFs -------
+    # --- Phase 4: WPRealWise / MLS syndication bridge -------------------------
+    # off by default -> status not enabled, syndicate returns an actionable 422
+    st = c.get("/re-syndication/status").json()
+    assert st["enabled"] is False and "not configured" in st["message"], st
+    blocked = c.post(f"/projects/{pid}/listings/{lid}/syndicate")
+    assert blocked.status_code == 422 and "REALWISE_URL" in blocked.text, blocked.text
+    # configure the bridge + stub the HTTP transport, then syndicate for real
+    from aec_api import re_bridge
+    os.environ["REALWISE_URL"] = "https://realwise.example"
+    os.environ["REALWISE_API_KEY"] = "k-123"
+    captured = {}
+
+    def _fake_post(url, headers, payload):
+        captured["url"] = url; captured["headers"] = headers; captured["payload"] = payload
+        return {"id": 4242, "permalink": "https://realwise.example/listing/4242"}
+    _orig = re_bridge.post_json
+    re_bridge.post_json = _fake_post
+    try:
+        assert c.get("/re-syndication/status").json()["enabled"] is True
+        res = c.post(f"/projects/{pid}/listings/{lid}/syndicate").json()
+        assert res["status"] == "syndicated" and res["remote_id"] == 4242, res
+        assert res["url"] == "https://realwise.example/listing/4242", res
+        assert res["fields_pushed"] == len(reso), (res, reso)
+        # the push hit the WPRealWise REST route with a Bearer token + ListingKey + the RESO fields
+        assert captured["url"].endswith("/wp-json/realwise/v1/listings"), captured["url"]
+        assert captured["headers"]["Authorization"] == "Bearer k-123", captured["headers"]
+        assert captured["payload"]["ListingKey"] and captured["payload"]["StandardStatus"], captured["payload"]
+    finally:
+        re_bridge.post_json = _orig
+        os.environ.pop("REALWISE_URL", None); os.environ.pop("REALWISE_API_KEY", None)
+
+    # --- Report Center: valuation + listing fact sheet + flyer render valid PDFs
     cat = {x["id"] for x in c.get("/reports").json()["reports"]}
-    assert {"appraisal", "listing_factsheet"} <= cat, cat
-    for rid in ("appraisal", "listing_factsheet"):
+    assert {"appraisal", "listing_factsheet", "marketing_flyer"} <= cat, cat
+    for rid in ("appraisal", "listing_factsheet", "marketing_flyer"):
         pdf = c.get(f"/projects/{pid}/reports/{rid}.pdf")
         assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF" and len(pdf.content) > 1200, (rid, pdf.status_code)
 
@@ -104,5 +135,6 @@ with TestClient(app) as c:
     assert c.get(f"/projects/{pid}/listings/{lid}/public?sig=forged&exp=9999999999").status_code == 403
 
 print("MARKETING OK - listing auto-fills from proforma (NOI/cap/price); tri-approach appraisal "
-      "(cost+income+sales) reconciles + override persists; RESO export shaped; valuation + fact-sheet "
-      "PDFs render; signed public link passes, forged/absent -> 403")
+      "(cost+income+sales) reconciles + override persists; RESO export shaped; WPRealWise syndication "
+      "bridge gates off -> 422, pushes RESO+ListingKey+Bearer when configured; valuation + fact-sheet + "
+      "flyer PDFs render; signed public link passes, forged/absent -> 403")

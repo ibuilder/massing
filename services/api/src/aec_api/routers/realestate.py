@@ -6,7 +6,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from .. import capital, marketing, modules as me, rbac, rentroll, signing
+from .. import capital, marketing, modules as me, rbac, re_bridge, rentroll, signing
 from ..db import get_db
 from ..models import Project
 
@@ -141,6 +141,25 @@ def listing_reso(pid: str, lid: str, db: Session = Depends(get_db),
     """The RESO Data Dictionary payload for a listing — the shape a bridge POSTs to WPRealWise / MLS."""
     rec = me.get_record(db, "listing", pid, lid)
     return {"reso": marketing.to_reso(rec)}
+
+
+@router.get("/re-syndication/status")
+def re_syndication_status(_: str = Depends(rbac.current_user)):
+    """Whether the WPRealWise / MLS syndication bridge is configured (off unless REALWISE_URL+key set)."""
+    return re_bridge.status()
+
+
+@router.post("/projects/{pid}/listings/{lid}/syndicate")
+def listing_syndicate(pid: str, lid: str, db: Session = Depends(get_db),
+                      _: str = Depends(rbac.require_role("editor"))):
+    """Push a listing (RESO-serialized) into WPRealWise / an MLS. Requires the bridge to be configured;
+    422 with an actionable message otherwise. The RESO export endpoint works regardless."""
+    rec = me.get_record(db, "listing", pid, lid)                 # 404 if missing
+    reso = marketing.to_reso(rec)
+    try:
+        return re_bridge.syndicate(reso, rec.get("ref"))
+    except (RuntimeError, NotImplementedError) as e:
+        raise HTTPException(422, str(e))
 
 
 @router.post("/projects/{pid}/listings/{lid}/share")

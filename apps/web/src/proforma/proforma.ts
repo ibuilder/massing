@@ -380,6 +380,7 @@ export class ProformaUI {
     bar.appendChild(link("⬇ Valuation report (PDF)", this.api.reportUrl(pid, "appraisal", "pdf")));
     bar.appendChild(link("⬇ Valuation (Excel)", this.api.reportUrl(pid, "appraisal", "xlsx")));
     bar.appendChild(link("⬇ Listing fact sheet (PDF)", this.api.reportUrl(pid, "listing_factsheet", "pdf")));
+    bar.appendChild(link("⬇ Marketing flyer (PDF)", this.api.reportUrl(pid, "marketing_flyer", "pdf")));
     const mk = document.createElement("button"); mk.className = "file-btn"; mk.textContent = "✚ Auto-fill & create listing";
     mk.onclick = async () => {
       mk.disabled = true;
@@ -393,6 +394,28 @@ export class ProformaUI {
       finally { mk.disabled = false; }
     };
     bar.appendChild(mk);
+    // Syndicate to WPRealWise / MLS — pushes the RESO-serialized listing out (Phase 4 bridge).
+    const synd = document.createElement("button"); synd.className = "file-btn"; synd.textContent = "⤴ Syndicate to WPRealWise";
+    synd.onclick = async () => {
+      synd.disabled = true;
+      try {
+        const st = await this.api.reSyndicationStatus();
+        const listings = await this.api.moduleRecords(pid, "listing");
+        let lid = listings.length ? listings[listings.length - 1].id : null;
+        if (!lid) {
+          const { data } = await this.api.listingAutofill(pid);
+          lid = (await this.api.createModuleRecord(pid, "listing", { data })).id;
+        }
+        if (!st.enabled) {
+          this.setStatus(st.message);   // actionable: how to configure REALWISE_URL + key
+          return;
+        }
+        const res = await this.api.syndicateListing(pid, lid);
+        this.setStatus(`Syndicated to ${res.target}${res.remote_id ? ` (id ${res.remote_id})` : ""} — ${res.fields_pushed} RESO fields pushed.`);
+      } catch (e) { this.setStatus("Syndication failed: " + (e as Error).message); }
+      finally { synd.disabled = false; }
+    };
+    bar.appendChild(synd);
     disp.appendChild(bar);
     host.appendChild(disp);
   }
