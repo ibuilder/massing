@@ -582,6 +582,22 @@ export class ApiClient {
       avg_turnaround_days: number | null; by_section: Record<string, number>; rows: Record<string, unknown>[] }>(
       `/projects/${pid}/submittals/register`);
   }
+  /** Change-order log — CO value pipeline (pending/approved/executed), reason mix, schedule exposure. */
+  coLog(pid: string) {
+    return this.json<{ co_count: number; total_value: number; pending_value: number;
+      approved_value: number; executed_value: number; total_schedule_days: number;
+      change_events_open: number; change_event_rom_exposure: number;
+      by_reason: Record<string, number>; ball_in_court: Record<string, number>;
+      rows: Record<string, unknown>[] }>(`/projects/${pid}/change-orders/log`);
+  }
+  /** Meeting & action-item tracker — open/overdue by assignee, completion, meeting log. */
+  actionTracker(pid: string) {
+    return this.json<{ action_count: number; open_count: number; done_count: number;
+      overdue_count: number; completion_pct: number | null; meeting_count: number;
+      last_meeting: string | null; by_assignee: Record<string, number>;
+      meetings_by_type: Record<string, number>; rows: Record<string, unknown>[] }>(
+      `/projects/${pid}/action-items/tracker`);
+  }
   /** Executive project-health rollup — per-domain status, overall score, ranked attention items. */
   projectHealth(pid: string) {
     return this.json<{

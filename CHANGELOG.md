@@ -4,6 +4,15 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.2.3 — Change-order log + meeting action-item tracker (analytics suite rounded out)
+- New `changeorders.py` + `GET /projects/{pid}/change-orders/log`: the **CO value pipeline**
+  (pending / approved / executed / rejected), reason mix, schedule-day exposure, ball-in-court, plus
+  the upstream **change-event ROM exposure** (potential cost not yet a CO).
+- New `actions.py` + `GET /projects/{pid}/action-items/tracker`: **action items** open / overdue /
+  by assignee & priority, completion %, and the **meeting log** (by type, last meeting).
+- Two new reports — **Change-Order Log** and **Meeting Action-Item Tracker** (PDF/Excel) — plus tool
+  launchers; clients `coLog`, `actionTracker`. Backend 62/62.
+
 ## v0.2.2 — Executive health banner on the GC dashboard
 - The GC dashboard now leads with a **project-health banner** driven by `GET /projects/{pid}/health`:
   a 0–100 score, overall green/amber/red, open/overdue totals, a per-domain RAG chip strip (hover for

@@ -4,9 +4,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from .. import (closeout as closeout_engine, dailylog as dailylog_engine, distribution as dist_engine,
-                projecthealth as health_engine, quality as quality_engine, rfi as rfi_engine,
-                safety as safety_engine, submittals as sub_engine, tm as tm_engine)
+from .. import (actions as actions_engine, changeorders as co_engine, closeout as closeout_engine,
+                dailylog as dailylog_engine, distribution as dist_engine, projecthealth as health_engine,
+                quality as quality_engine, rfi as rfi_engine, safety as safety_engine,
+                submittals as sub_engine, tm as tm_engine)
 from ..db import get_db
 from ..rbac import require_role
 
@@ -30,6 +31,18 @@ def tm_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require
 def tm_by_change_event(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """T&M (eTicket) cost rolled up by the change event each ticket is linked to."""
     return tm_engine.by_change_event(db, pid)
+
+
+@router.get("/projects/{pid}/change-orders/log")
+def co_log(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Change-order log — CO value pipeline (pending/approved/executed), reason mix, schedule exposure."""
+    return co_engine.co_log(db, pid)
+
+
+@router.get("/projects/{pid}/action-items/tracker")
+def action_tracker(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Meeting & action-item tracker — open/overdue by assignee & priority, completion, meeting log."""
+    return actions_engine.action_tracker(db, pid)
 
 
 @router.get("/projects/{pid}/health")

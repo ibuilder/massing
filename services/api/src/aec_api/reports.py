@@ -42,6 +42,8 @@ REPORTS: dict[str, tuple[str, str]] = {
     "safety_dashboard": ("Safety Dashboard (OSHA)", "Safety"),
     "closeout": ("Closeout Dashboard", "Closeout"),
     "project_health": ("Project Health (Executive)", "Executive"),
+    "co_log": ("Change-Order Log", "Cost"),
+    "action_tracker": ("Meeting Action-Item Tracker", "Logs"),
 }
 
 
@@ -581,6 +583,47 @@ def _project_health(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _co_log(db: Session, pid: str, name: str) -> Report:
+    from . import changeorders
+    s = changeorders.co_log(db, pid)
+    r = Report("Change-Order Log", name)
+    r.kpi("Change orders", s["co_count"])
+    r.kpi("Total value", _money(s["total_value"]))
+    r.kpi("Pending", _money(s["pending_value"]))
+    r.kpi("Approved", _money(s["approved_value"]))
+    r.kpi("Executed", _money(s["executed_value"]))
+    r.kpi("Schedule days", s["total_schedule_days"])
+    r.kpi("CE ROM exposure", _money(s["change_event_rom_exposure"]))
+    if s["by_reason"]:
+        r.chart("bar", "COs by reason", list(s["by_reason"].keys()),
+                [{"name": "Count", "values": list(s["by_reason"].values())}])
+    r.table("Change orders", ["Ref", "Subject", "State", "Ball in court", "Reason", "Amount", "Sched d"],
+            [[x.get("ref", ""), x.get("subject", ""), x.get("state", ""), x.get("ball_in_court", ""),
+              x.get("reason", ""), _money(x["amount"]), x.get("schedule_days", "")]
+             for x in s["rows"]] or [["(no change orders)"] + [""] * 6])
+    return r
+
+
+def _action_tracker(db: Session, pid: str, name: str) -> Report:
+    from . import actions
+    s = actions.action_tracker(db, pid)
+    r = Report("Meeting Action-Item Tracker", name)
+    r.kpi("Action items", s["action_count"])
+    r.kpi("Open", s["open_count"])
+    r.kpi("Overdue", s["overdue_count"])
+    r.kpi("Completion", f"{s['completion_pct']}%" if s["completion_pct"] is not None else "—")
+    r.kpi("Meetings", s["meeting_count"])
+    r.kpi("Last meeting", s["last_meeting"] or "—")
+    if s["by_assignee"]:
+        r.chart("bar", "Action items by assignee", list(s["by_assignee"].keys())[:8],
+                [{"name": "Count", "values": list(s["by_assignee"].values())[:8]}])
+    r.table("Action items", ["Ref", "Subject", "Assignee", "Priority", "Due", "State"],
+            [[x.get("ref", ""), x.get("subject", ""), x.get("assignee", ""), x.get("priority", ""),
+              ("OVERDUE " if x["overdue"] else "") + str(x.get("due_date") or ""), x.get("state", "")]
+             for x in s["rows"]] or [["(no action items)"] + [""] * 5])
+    return r
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
@@ -606,6 +649,10 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _closeout(db, pid, name)
     if report == "project_health":
         return _project_health(db, pid, name)
+    if report == "co_log":
+        return _co_log(db, pid, name)
+    if report == "action_tracker":
+        return _action_tracker(db, pid, name)
     if report == "listing_factsheet":
         return _listing_factsheet(db, pid, name)
     if report == "executive":

@@ -169,6 +169,34 @@ with TestClient(app) as c:
     assert co["commissioning"]["pass_rate"] == 50.0, co["commissioning"]
     assert co["warranties"]["expired"] == 1, co["warranties"]
 
+    # --- Change-order log -----------------------------------------------------
+    co1 = mk(c, pid, "cor", {"subject": "Added doors", "amount": 12000, "reason": "Owner Request",
+                             "schedule_days": 3})
+    for a in ("submit", "approve", "execute"):  # draft -> submitted -> approved -> executed
+        trans(c, pid, "cor", co1, a)
+    mk(c, pid, "cor", {"subject": "Rock removal", "amount": 8000, "reason": "Unforeseen Condition",
+                       "schedule_days": 5})  # stays draft (pending)
+    mk(c, pid, "change_event", {"subject": "Possible redesign", "rom": 25000, "scope_status": "Undetermined"})
+    col = c.get(f"/projects/{pid}/change-orders/log").json()
+    assert col["co_count"] == 2, col
+    assert col["executed_value"] == 12000 and col["pending_value"] == 8000, col
+    assert col["total_value"] == 20000, col
+    assert col["change_event_rom_exposure"] == 25000, col  # earlier "Unforeseen rock" CE has rom 0; this one has 25000
+    assert col["ball_in_court"].get("Executed") == 1, col
+
+    # --- Meeting & action-item tracker ----------------------------------------
+    mtg = mk(c, pid, "meeting", {"subject": "OAC #1", "date": "2026-06-10", "meeting_type": "OAC"})
+    mk(c, pid, "action_item", {"subject": "Send RFI log", "assignee": "PM", "priority": "High",
+                               "due_date": "2020-01-01", "meeting": mtg})  # overdue, open
+    ai2 = mk(c, pid, "action_item", {"subject": "Order steel", "assignee": "Super", "priority": "Medium",
+                                     "due_date": "2030-01-01", "meeting": mtg})
+    rc = trans(c, pid, "action_item", ai2, "complete")  # open -> done
+    assert rc.status_code == 200, rc.text
+    at = c.get(f"/projects/{pid}/action-items/tracker").json()
+    assert at["action_count"] == 2 and at["done_count"] == 1, at
+    assert at["overdue_count"] == 1 and at["completion_pct"] == 50.0, at
+    assert at["meeting_count"] == 1 and at["last_meeting"] == "2026-06-10", at
+
     # --- Project-health executive rollup --------------------------------------
     h = c.get(f"/projects/{pid}/health").json()
     assert h["overall_status"] == "red", h           # overdue RFIs/NCRs/punch + recordable incidents
@@ -180,9 +208,9 @@ with TestClient(app) as c:
     # --- reports render -------------------------------------------------------
     cat = {x["id"] for x in c.get("/reports").json()["reports"]}
     assert {"tm_log", "submittal_register", "quality", "rfi_register", "field_log", "safety_dashboard",
-            "closeout", "project_health"} <= cat, cat
+            "closeout", "project_health", "co_log", "action_tracker"} <= cat, cat
     for rid in ("tm_log", "submittal_register", "quality", "rfi_register", "field_log", "safety_dashboard",
-                "closeout", "project_health"):
+                "closeout", "project_health", "co_log", "action_tracker"):
         pdf = c.get(f"/projects/{pid}/reports/{rid}.pdf")
         assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF" and len(pdf.content) > 1200, (rid, pdf.status_code)
 
@@ -191,6 +219,6 @@ print("CONSTRUCTION-DEPTH OK - T&M rollup $10k (labor/material/equip split, bill
       "1 NCR overdue (Repair), deficiency ball-in-court GC vs Sub; RFI register: 2 RFIs, 1 overdue, "
       "ball-in-court Consultant vs GC; field-log: 3 reports, 32 manpower, peak 20, 1.5 weather lost-days; "
       "safety: 3 incidents, 2 recordable, TRIR 4.0/DART 2.0 @100k hrs (est 256h from manpower); "
-      "closeout: 2 punch (1 overdue, ball-in-court GC vs Sub), Cx pass 50%, 1 expired warranty; project-health: RED rollup over "
-      "7 domains; tm_log + submittal_register + quality + rfi_register + field_log + safety_dashboard + "
-      "closeout + project_health PDFs render")
+      "closeout: 2 punch (1 overdue, ball-in-court GC vs Sub), Cx pass 50%, 1 expired warranty; "
+      "CO log: $12k executed/$8k pending + $25k CE ROM; action tracker: 50% complete, 1 overdue; "
+      "project-health: RED rollup over 7 domains; all 10 dashboard/log PDFs render")

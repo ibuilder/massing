@@ -196,6 +196,18 @@ async function openReportCenter() {
       table(body, ["Ref", "Subject", "Total", "Status"], s.rows.map((r: any) => [r.ref ?? "", r.subject ?? "", money(r.total), r.status])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
+  tool("💲 Change-order log", () => showResult("Change-order log", async (body) => {
+    body.innerHTML = `<div class="meta">Loading…</div>`;
+    try { const s = await api.coLog(pid); body.innerHTML = `<div class="meta">${s.co_count} COs · total ${money(s.total_value)} · pending ${money(s.pending_value)} · approved ${money(s.approved_value)} · <b>executed ${money(s.executed_value)}</b> · ${s.total_schedule_days} sched days · CE ROM exposure ${money(s.change_event_rom_exposure)}</div>`;
+      table(body, ["Ref", "Subject", "State", "Ball in court", "Reason", "Amount"], s.rows.map((r: any) => [r.ref ?? "", r.subject ?? "", r.state ?? "", r.ball_in_court ?? "", r.reason ?? "", money(r.amount)])); }
+    catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+  }));
+  tool("✅ Meeting action-item tracker", () => showResult("Meeting action-item tracker", async (body) => {
+    body.innerHTML = `<div class="meta">Loading…</div>`;
+    try { const s = await api.actionTracker(pid); body.innerHTML = `<div class="meta">${s.action_count} action items · ${s.open_count} open · ${s.overdue_count} overdue · <b>${s.completion_pct ?? "—"}% complete</b> · ${s.meeting_count} meetings · last ${s.last_meeting ?? "—"}</div>`;
+      table(body, ["Ref", "Subject", "Assignee", "Priority", "Due", "State"], s.rows.map((r: any) => [r.ref ?? "", r.subject ?? "", r.assignee ?? "", r.priority ?? "", (r.overdue ? "OVERDUE " : "") + (r.due_date ?? ""), r.state ?? ""])); }
+    catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+  }));
   tool("📑 Submittal register", () => showResult("Submittal register", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
     try { const s = await api.submittalRegister(pid); body.innerHTML = `<div class="meta">${s.submittal_count} submittals · ${s.open_count} open · ${s.overdue_count} overdue · avg turnaround ${s.avg_turnaround_days ?? "—"} d</div>`;
