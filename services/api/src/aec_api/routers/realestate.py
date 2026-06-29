@@ -65,12 +65,8 @@ def waterfall_scenario(pid: str, body: dict = Body(default={}), db: Session = De
     return distwaterfall.scenario(db, pid, body)
 
 
-@router.get("/projects/{pid}/investors/{iid}/statement.pdf")
-def investor_statement(pid: str, iid: str, db: Session = Depends(get_db),
-                       _: str = Depends(rbac.require_role("viewer"))):
-    """A one-page investor capital-account statement PDF."""
-    from fastapi import HTTPException
-    from fastapi.responses import Response as _Resp
+def _statement_pdf(db: Session, pid: str, iid: str) -> tuple[bytes, str]:
+    """Build an investor's capital-account statement PDF. Returns (pdf_bytes, ref). 404 if missing."""
     rec = me.get_record(db, "investor", pid, iid)            # 404 if missing
     ct = capital.cap_table(_investors(db, pid))
     row = next((r for r in ct["rows"] if r["ref"] == rec.get("ref")), None)
@@ -78,9 +74,42 @@ def investor_statement(pid: str, iid: str, db: Session = Depends(get_db),
         raise HTTPException(404, "investor not in cap table")
     row["entity_type"] = (rec.get("data") or {}).get("entity_type")
     p = db.get(Project, pid)
-    pdf = capital.statement_pdf(row, ct, p.name if p else pid)
+    return capital.statement_pdf(row, ct, p.name if p else pid), str(rec.get("ref"))
+
+
+def _pdf_response(pdf: bytes, ref: str):
+    from fastapi.responses import Response as _Resp
     return _Resp(pdf, media_type="application/pdf",
-                 headers={"Content-Disposition": f'inline; filename="statement_{rec.get("ref")}.pdf"'})
+                 headers={"Content-Disposition": f'inline; filename="statement_{ref}.pdf"'})
+
+
+@router.get("/projects/{pid}/investors/{iid}/statement.pdf")
+def investor_statement(pid: str, iid: str, db: Session = Depends(get_db),
+                       _: str = Depends(rbac.require_role("viewer"))):
+    """A one-page investor capital-account statement PDF."""
+    pdf, ref = _statement_pdf(db, pid, iid)
+    return _pdf_response(pdf, ref)
+
+
+@router.post("/projects/{pid}/investors/{iid}/share")
+def investor_statement_share(pid: str, iid: str, ttl: int = Query(30 * 24 * 3600, ge=60),
+                             db: Session = Depends(get_db), _: str = Depends(rbac.require_role("viewer"))):
+    """Mint a signed, expiring link to an investor's statement PDF — the investor opens it with no
+    session (the LP-portal share). Default TTL 30 days. The signature authorizes exactly that path."""
+    me.get_record(db, "investor", pid, iid)                  # 404 if missing
+    path = f"/projects/{pid}/investors/{iid}/statement.public.pdf"
+    return signing.sign_path(path, ttl=ttl)
+
+
+@router.get("/projects/{pid}/investors/{iid}/statement.public.pdf")
+def investor_statement_public(pid: str, iid: str, request: Request, db: Session = Depends(get_db)):
+    """Read-only investor statement behind a valid signed link (HMAC) — no session required.
+    Publishes only this investor's own capital-account statement."""
+    qp = request.query_params
+    if not signing.verify_path(request.url.path, qp.get("sig"), qp.get("exp")):
+        raise HTTPException(403, "a valid signed link is required")
+    pdf, ref = _statement_pdf(db, pid, iid)
+    return _pdf_response(pdf, ref)
 
 
 @router.get("/projects/{pid}/rent-roll")

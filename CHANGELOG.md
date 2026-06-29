@@ -4,6 +4,14 @@ All notable changes to the AEC BIM Platform. Releases are signed, auto-updating 
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.2.11 — Investor-portal document sharing (signed statement links)
+- `POST /projects/{pid}/investors/{iid}/share` mints a signed, expiring (default 30-day) link to an
+  investor's capital-account statement, and `GET …/statement.public.pdf` serves it behind HMAC sig
+  verification — the investor opens their statement with **no login** (the private analog of the public
+  listing). Forged/absent signatures → 403; reuses `signing.py`, so the RBAC posture is unchanged.
+- Finance ▸ Investors: a **🔗** button per cap-table row mints the link and shows a QR/share modal;
+  client `shareInvestorStatement`. Backend 63/63 (signed link passes, forged/absent → 403).
+
 ## v0.2.10 — Equity-waterfall distribution scenarios (cap-table-tied)
 - New `distwaterfall.py` + `POST /projects/{pid}/waterfall`: model a distribution / exit through the
   equity waterfall (preferred return → return of capital → IRR-hurdle **promote tiers**, reusing the

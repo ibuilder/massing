@@ -122,6 +122,15 @@ with TestClient(app) as c:
     stmt = c.get(f"/projects/{pid}/investors/{iid}/statement.pdf")
     assert stmt.status_code == 200 and stmt.content[:4] == b"%PDF" and len(stmt.content) > 1000, stmt.status_code
 
+    # --- LP-portal share: signed, no-login link to the investor statement -----
+    sh = c.post(f"/projects/{pid}/investors/{iid}/share").json()
+    assert sh["url"].startswith(f"/projects/{pid}/investors/{iid}/statement.public.pdf?sig="), sh
+    pub = c.get(sh["url"])
+    assert pub.status_code == 200 and pub.content[:4] == b"%PDF", pub.status_code
+    # forged / absent signature -> 403 (the only investor-facing anonymous surface is sig-gated)
+    assert c.get(f"/projects/{pid}/investors/{iid}/statement.public.pdf").status_code == 403
+    assert c.get(f"/projects/{pid}/investors/{iid}/statement.public.pdf?sig=forged&exp=9999999999").status_code == 403
+
     # --- reports render ------------------------------------------------------
     cat = {x["id"] for x in c.get("/reports").json()["reports"]}
     assert {"rent_roll", "cap_table", "lease_management"} <= cat, cat
@@ -132,5 +141,5 @@ with TestClient(app) as c:
 print("OPERATE+CAPITAL OK - rent roll 60% occ / $950k in-place income (feeds appraisal); lease mgmt: "
       "1 expiring <=90d / $300k at-risk, 3%/yr escalation to yr5, CAM recovers $140k (93% of pool, $10k "
       "under); cap table ownership (LP One 60%); capital call + distribution pro-rata; equity waterfall "
-      "$5M exit clears pref+RoC+promote, GP earns promote, LP split 2:1 by commitment; "
-      "rent_roll + cap_table + lease_management PDFs render")
+      "$5M exit clears pref+RoC+promote, GP earns promote, LP split 2:1 by commitment; LP-portal signed "
+      "statement link passes, forged/absent -> 403; rent_roll + cap_table + lease_management PDFs render")

@@ -571,6 +571,12 @@ export class ApiClient {
   investorStatementUrl(pid: string, iid: string) {
     return this.url(`/projects/${pid}/investors/${iid}/statement.pdf`);
   }
+  /** Mint a signed, expiring link to an investor's statement PDF (the no-login LP-portal share). */
+  shareInvestorStatement(pid: string, iid: string, ttl?: number) {
+    const q = ttl ? `?ttl=${ttl}` : "";
+    return this.json<{ url: string; sig: string; exp: number; expires_in: number }>(
+      `/projects/${pid}/investors/${iid}/share${q}`, { method: "POST" });
+  }
 
   // --- assistant · certified payroll · drawing set · ITB --------------------
   /** Ask about the whole project (modules/schedule/budget/risk); grounded snapshot, AI-optional. */

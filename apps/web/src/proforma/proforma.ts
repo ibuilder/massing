@@ -488,7 +488,8 @@ export class ProformaUI {
       const rows = ct.rows.map((r: any) => `<tr><td>${escapeHtml(String(r.investor ?? ""))}</td>`
         + `<td class="num">${money(r.commitment)}</td><td class="num">${r.ownership_pct}%</td>`
         + `<td class="num">${money(r.unreturned)}</td>`
-        + `<td><a class="file-btn" style="padding:1px 6px;font-size:11px" target="_blank" rel="noopener" href="${this.api.investorStatementUrl(pid, String(r.id))}">⬇</a></td></tr>`).join("");
+        + `<td><a class="file-btn" style="padding:1px 6px;font-size:11px" target="_blank" rel="noopener" href="${this.api.investorStatementUrl(pid, String(r.id))}">⬇</a>`
+        + ` <button class="file-btn" style="padding:1px 6px;font-size:11px" data-share="${r.id}" title="Mint a no-login link to this investor's statement">🔗</button></td></tr>`).join("");
       cc.innerHTML = `<div class="section-title">Investor cap table</div>`
         + `<table class="fin-table"><tr><th style="text-align:left">Investor</th><th>Commit</th><th>Own %</th><th>Unreturned</th><th>Stmt</th></tr>`
         + rows + `<tr class="fin-total"><td>Total</td><td class="num">${money(ct.total_commitment)}</td><td></td>`
@@ -511,6 +512,18 @@ export class ProformaUI {
       const recDist = document.createElement("button"); recDist.className = "file-btn"; recDist.textContent = "Record dist."; recDist.title = "Post the distribution to each investor's distributed total"; recDist.onclick = run("distribution", true);
       const cl = document.createElement("a"); cl.className = "file-btn"; cl.textContent = "⬇ Cap table (PDF)"; cl.href = this.api.reportUrl(pid, "cap_table", "pdf"); cl.target = "_blank"; cl.rel = "noopener";
       tools.append(amt, callBtn, distBtn, recCall, recDist, cl); cc.append(tools, out); host.appendChild(cc);
+      // per-row "🔗 share statement": mint a signed, expiring no-login link to that investor's statement
+      cc.addEventListener("click", async (e) => {
+        const btn = (e.target as HTMLElement).closest("[data-share]") as HTMLElement | null;
+        if (!btn) return;
+        const iid = btn.dataset.share!;
+        btn.setAttribute("disabled", "true");
+        try {
+          const s = await this.api.shareInvestorStatement(pid, iid);
+          await showQrModal(this.api.url(s.url), "Investor statement link");
+        } catch (err) { this.setStatus("Couldn't create share link: " + (err as Error).message); }
+        finally { btn.removeAttribute("disabled"); }
+      });
       this.renderWaterfall(host, pid);
     } catch (e) { host.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }
