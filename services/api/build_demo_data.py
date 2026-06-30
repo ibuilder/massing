@@ -88,7 +88,9 @@ with TestClient(app) as c:
     # change-management + QA + bidding + field + safety chains
     rfis = []
     for subj, disc, ci in [("Beam clash at grid C4", "Structural", "Yes"), ("Door schedule mismatch L3", "Architectural", "Possible"), ("VAV duct routing conflict", "MEP", "None")]:
-        rfis.append(mk(c, pid, "rfi", {"subject": subj, "question": "Please advise.", "discipline": disc, "cost_impact": ci}, "consultant"))
+        # the first RFI gets answered; the workflow gates 'respond' on the `answer` field.
+        extra = {"answer": "Revise the connection per SK-12; added steel covered by COR 001."} if not rfis else {}
+        rfis.append(mk(c, pid, "rfi", {"subject": subj, "question": "Please advise.", "discipline": disc, "cost_impact": ci, **extra}, "consultant"))
     act(c, pid, "rfi", rfis[0], "submit"); act(c, pid, "rfi", rfis[0], "respond"); act(c, pid, "rfi", rfis[1], "submit")
     ce = mk(c, pid, "change_event", {"subject": "Added steel at C4", "rom": 85000, "source_rfi": rfis[0], "trades": ["Steel", "Concrete"]}, "pm")
     pco = mk(c, pid, "pco_request", {"subject": "PCO - added steel", "description": "Added WF beam + connections at C4", "rough_cost": 92500, "source_rfi": rfis[0], "change_event": ce}, "owner")
@@ -96,6 +98,18 @@ with TestClient(app) as c:
     insp = mk(c, pid, "inspection", {"subject": "Level 2 deck pour", "location": "Grid C-E", "result": "Fail", "date": "2026-06-14"}, "qa")
     mk(c, pid, "ncr", {"subject": "Honeycomb at column", "description": "Voids on north face", "severity": "Major", "inspection": insp}, "sub")
     mk(c, pid, "submittal", {"subject": "Rebar shop drawings", "spec_section": "03 20 00", "discipline": "Structural"}, "sub")
+
+    # --- specifications register -> spec-driven submittal log (shows coverage + a missing-submittal gap) ---
+    mk(c, pid, "spec_section", {"section_number": "03 30 00", "title": "Cast-in-Place Concrete", "division": "03 - Concrete",
+                                "responsible": "Concrete sub", "submittals_required":
+                                "Product Data: each manufactured material; Shop Drawings: reinforcement placing drawings; "
+                                "Samples: each exposed architectural finish."})
+    mk(c, pid, "spec_section", {"section_number": "07 92 00", "title": "Joint Sealants", "division": "07 - Thermal & Moisture",
+                                "responsible": "Caulking sub", "submittals_required":
+                                "Product Data: sealant; Samples: color; Warranty: 5-year."})
+    # log a couple of submittals against 03 30 00 so the log shows partial coverage (and 07 92 00 as a gap)
+    mk(c, pid, "submittal", {"subject": "Concrete mix design - product data", "type": "Product Data", "spec_section": "03 30 00", "discipline": "Structural"}, "sub")
+    mk(c, pid, "submittal", {"subject": "Architectural finish samples", "type": "Sample", "spec_section": "03 30 00", "discipline": "Architectural"}, "sub")
     bp = mk(c, pid, "bid_package", {"name": "Concrete package", "trade": "Concrete", "budget": 5_000_000})
     for bidder, amt in [("ACME Concrete", 4_780_000), ("Bedrock Co", 4_950_000), ("Pour Bros", 5_120_000)]:
         mk(c, pid, "bid_submission", {"bidder": bidder, "package": bp, "amount": amt})
@@ -121,7 +135,8 @@ with TestClient(app) as c:
                f"{P}/5d/heatmap?by=progress", f"{P}/5d/heatmap?by=cost", f"{P}/qto/by-floor", f"{P}/estimate/from-model",
                f"{P}/dev-budget", f"{P}/dev-budget/cost-lines", f"{P}/dev-budget/gmp-reconciliation", f"{P}/loan-draws",
                f"{P}/construction-draws", f"{P}/subcontractor-billing", f"{P}/proforma/model-metrics", f"{P}/property",
-               f"{P}/sources-uses", f"{P}/specialty", f"{P}/ai/risk-summary", f"{P}/lean/ppc", f"{P}/properties/meta"]
+               f"{P}/sources-uses", f"{P}/specialty", f"{P}/ai/risk-summary", f"{P}/lean/ppc", f"{P}/properties/meta",
+               f"{P}/specs/submittal-log"]
     for s in singles:
         grab(c, s)
     for kind in ("gantt", "lob"):
