@@ -119,6 +119,24 @@ pco = new("pco_request", {"subject": "PCO — added steel", "description": "Adde
 new("cor", {"subject": "COR 001 — steel", "amount": 92_500, "justification": "Owner-directed", "pco": pco})
 new("proposal", {"subject": "Proposal — steel add", "amount": 92_500, "pco": pco})
 
+# --- specifications -> submittals (spec register + spec-driven submittal log) -
+# One fully-covered section and one with a gap, so the submittal log shows coverage + a miss.
+new("spec_section", {"section_number": "03 30 00", "title": "Cast-in-Place Concrete",
+                     "division": "03 - Concrete", "responsible": "Concrete sub",
+                     "submittals_required": ("Product Data: for each mix design.\n"
+                                             "Shop Drawings: placing drawings for reinforcement.\n"
+                                             "Samples: each exposed architectural finish.")})
+new("spec_section", {"section_number": "07 92 00", "title": "Joint Sealants",
+                     "division": "07 - Thermal & Moisture", "responsible": "Caulking sub",
+                     "submittals_required": ("Product Data: sealant.\n"
+                                             "Samples: color.\n"
+                                             "Warranty: 5-year.")})
+# Log the three 03 30 00 submittals (-> that section is 100% covered); 07 92 00 stays open (a gap).
+for title, styp in [("Concrete mix designs", "Product Data"),
+                    ("Rebar placing drawings", "Shop Drawing"),
+                    ("Architectural finish samples", "Sample")]:
+    new("submittal", {"title": title, "type": styp, "spec_section": "03 30 00"}, "sub")
+
 # --- QA / inspection chain ---------------------------------------------------
 insp = new("inspection", {"subject": "Level 2 deck pour", "location": "Grid C-E", "result": "Fail", "date": "2026-06-14"}, "qa")
 new("ncr", {"subject": "Honeycomb at column", "description": "Voids on north face", "severity": "Major", "inspection": insp}, "sub")
