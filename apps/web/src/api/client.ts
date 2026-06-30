@@ -390,7 +390,16 @@ export class ApiClient {
   }
   /** Which optional integrations are wired (AI / email / SSO) — for status badges. */
   capabilities() {
-    return this.json<{ ai: boolean; email: boolean; sso: string[]; local_mode?: boolean }>("/capabilities");
+    return this.json<{ ai: boolean; email: boolean; sso: string[]; local_mode?: boolean;
+      license_tier?: string }>("/capabilities");
+  }
+  /** Massing licence state — plan tier, per-tier features, masked key. Drives the Settings licence panel. */
+  license() {
+    return this.json<{ tier: string; tier_label: string;
+      features: { exports: string[]; api_access: boolean; sso: boolean; navisworks: boolean };
+      tiers: { id: string; label: string; features: Record<string, unknown> }[];
+      key_configured: boolean; key_masked: string; key_format_valid: boolean | null;
+      message: string; manage_url: string }>("/license");
   }
   /** AI/rules risk summary over a project's dashboard. */
   riskSummary(pid: string) {

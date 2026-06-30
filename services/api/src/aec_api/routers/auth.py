@@ -368,6 +368,14 @@ def put_integrations(values: dict = Body(..., embed=True), db: Session = Depends
     unknown = [k for k in values if k not in settings_store.ALL_KEYS]
     if unknown:
         raise HTTPException(400, f"unknown setting(s): {unknown}")
+    # validate the Massing licence key format (empty clears it; non-empty must be MASS-XXXX-XXXX-XXXX-XXXX)
+    from .. import licensing
+    lk = values.get("MASSING_LICENSE_KEY")
+    if lk and not licensing.valid_key_format(lk):
+        raise HTTPException(400, "invalid licence key — expected MASS-XXXX-XXXX-XXXX-XXXX")
+    lt = values.get("MASSING_LICENSE_TIER")
+    if lt and lt.strip().lower() not in licensing.TIER_FEATURES:
+        raise HTTPException(400, f"invalid plan — choose one of: {', '.join(licensing.TIER_ORDER)}")
     for k, v in values.items():
         settings_store.set_value(db, k, None if v is None else str(v))
     audit.record(db, action="settings.update", actor=admin.username, method="PUT",

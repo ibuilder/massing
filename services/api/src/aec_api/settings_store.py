@@ -15,6 +15,11 @@ from typing import Any
 
 # admin-configurable integration settings (drives the Settings UI + validation)
 CATALOG: list[dict[str, Any]] = [
+    {"group": "Massing licence", "keys": [
+        {"key": "MASSING_LICENSE_KEY", "label": "Licence key", "secret": True},
+        {"key": "MASSING_LICENSE_TIER", "label": "Plan (free/home/commercial/enterprise)",
+         "secret": False, "default": "free"},
+    ]},
     {"group": "AI assist (Draft RFI)", "keys": [
         {"key": "ANTHROPIC_API_KEY", "label": "Anthropic API key", "secret": True},
         {"key": "AEC_AI_MODEL", "label": "Model", "secret": False, "default": "claude-opus-4-8"},

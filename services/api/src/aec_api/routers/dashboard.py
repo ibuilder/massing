@@ -149,10 +149,19 @@ def safety_metrics(pid: str, hours: float | None = None, db: Session = Depends(g
 def capabilities():
     """Which optional integrations are wired (for at-a-glance status badges). Not sensitive —
     just feature flags + the configured SSO provider ids."""
-    from .. import rbac
+    from .. import licensing, rbac
     return {"ai": ai.ai_enabled(), "email": mailer.smtp_configured(),
             "sso": [p["id"] for p in oauth.enabled_providers()],
-            "local_mode": rbac.LOCAL_MODE}
+            "local_mode": rbac.LOCAL_MODE,
+            "license_tier": licensing.current_tier()}
+
+
+@router.get("/license")
+def license_state():
+    """The Massing licence state — plan tier, per-tier feature entitlements, and whether a valid key
+    is recorded (key is masked, never returned in full). Drives the Settings licence panel."""
+    from .. import licensing
+    return licensing.state()
 
 
 @router.get("/projects/{pid}/ai/risk-summary")

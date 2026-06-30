@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1 — Massing licensing in Settings
+- New `licensing.py` engine + `GET /license`: records the workspace's **Massing licence key**
+  (`MASS-XXXX-XXXX-XXXX-XXXX`) and **plan tier** (Free · Home · Commercial · Enterprise) and exposes the
+  per-tier feature entitlements (export formats, REST API, SSO, Navisworks) per massing.cloud/docs.
+- **Settings** gains a "Massing licence" group (paste key + set plan) and a licence-status line showing
+  the active plan, masked key, what it unlocks, and a link to manage at massing.cloud. The key format is
+  validated on save (malformed keys / unknown plans are rejected); the key is **masked and never echoed
+  back**. `/capabilities` now reports `license_tier`. Backend 66/66.
+
 ## v0.3.0 — Massing milestone (analytics + RE/capital depth, hardened, rebranded)
 First minor release on the Massing brand — marks a coherent, production-ready milestone after the
 0.2.x line: the full **construction-analytics suite** (quality · RFI · submittal · T&M · field-log ·

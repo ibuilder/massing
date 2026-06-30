@@ -772,6 +772,20 @@ function settingsModal() {
     badges.append(badge("AI assist", cap.ai), badge("Email digests", cap.email),
       badge(`SSO${cap.sso.length ? " (" + cap.sso.join(", ") + ")" : ""}`, cap.sso.length > 0));
   }).catch(() => { badges.textContent = ""; });
+  // Massing licence — plan tier + what it unlocks (everyone can see; admins enter the key below)
+  const lic = document.createElement("div"); lic.className = "meta"; lic.style.cssText = "margin-top:8px;font-size:12px";
+  lic.textContent = "checking licence…"; about.appendChild(lic);
+  void api.license().then((l) => {
+    const f = l.features;
+    const unlocked = [f.exports.length ? `exports: ${f.exports.join(", ").toUpperCase()}` : "core exports",
+      f.api_access ? "REST API" : null, f.sso ? "SSO" : null, f.navisworks ? "Navisworks" : null].filter(Boolean).join(" · ");
+    const warn = l.key_configured && l.key_format_valid === false;
+    lic.innerHTML = `<b>Licence:</b> ${escapeHtml(l.tier_label)} plan`
+      + (l.key_configured ? ` · key ${escapeHtml(l.key_masked || "set")}` : " · no key (Free)")
+      + (warn ? ` · <span style="color:#e2554a">invalid key format</span>` : "")
+      + `<br><span style="opacity:.75">Unlocks: ${escapeHtml(unlocked)}</span>`
+      + ` — <a class="ref-link" href="${l.manage_url}" target="_blank" rel="noopener">manage at massing.cloud</a>`;
+  }).catch(() => { lic.textContent = ""; });
   const credit = document.createElement("div");
   credit.className = "meta"; credit.style.cssText = "margin-top:8px;font-size:11px";
   credit.innerHTML = `Massing <b>v${currentVersion()}</b> — created by <b>Matthew M. Emma</b>, built with Claude Code as AI assistant.`;
