@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.2 — Massing for Revit (free pyRevit bridge)
+- New **pyRevit extension** (`integrations/pyrevit/Massing.extension`) — a free, open **Revit → Massing**
+  bridge that needs no paid Autodesk APS bridge. A **Massing** tab with **Publish to Massing** (exports
+  the active model to IFC via Revit's built-in exporter, uploads it, runs the server-side Fragments
+  conversion, opens the web viewer), **Open in Massing**, **Sync Issues (BCF)** (RFI/clash/punch
+  round-trip over BCF, keyed by IFC GlobalId), and **Settings**.
+- `lib/massing_api.py` — a std-lib REST client (works on pyRevit's IronPython 2.7 + CPython 3 engines,
+  no `requests`): find/create project → upload `source-ifc` → poll `publish/status` → BCF in/out.
+  Covered by `test_revit_bridge.py` (67/67). Built on the LearnRevitAPI StarterKit conventions; uses
+  the REST API, so it's a Commercial-plan (and up) path while manual IFC export stays free on any plan.
+
 ## v0.3.1 — Massing licensing in Settings
 - New `licensing.py` engine + `GET /license`: records the workspace's **Massing licence key**
   (`MASS-XXXX-XXXX-XXXX-XXXX`) and **plan tier** (Free · Home · Commercial · Enterprise) and exposes the
