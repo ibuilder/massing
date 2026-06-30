@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.9 — Import Solibri / Navisworks clash reports (XLSX → coordination issues)
+- **New `clash_import.py` + `POST /projects/{pid}/coordination/import-xlsx`**: drop in a Solibri or
+  Navisworks (or any tabular) clash/coordination report `.xlsx` and each row becomes a tracked
+  **coordination issue** — which already round-trips to BCF and drops a model pin. GCs receive these
+  reports constantly from the BIM coordinator; this turns the spreadsheet into model-anchored issues
+  with no re-keying.
+- Tolerant parser: sniffs the header row (skips title/preamble rows), maps a wide set of column
+  aliases (Solibri Name/Description/Severity/Ruleset/Component-GUID/Location; Navisworks
+  Clash-Name/Status/Grid-Location/Item 1/Item 2) by best whole-word match, maps severity → priority
+  (Critical/High/Medium/Low), and extracts IFC GlobalIds from one or more component columns into
+  `element_guids` so issues anchor on the model.
+- `api.importClashXlsx()` client + an "⤓ Import clash report" tool launcher. Inspired by the
+  arsray146/ifc-bcf-viewer + addd.io reviews (Solibri/QA-report ingest).
+- Backend 71/71; web typecheck + 49 tests green.
+
 ## v0.3.8 — Site feasibility / zoning envelope (Giraffe-style) + live-demo fix
 - **Fixed the broken live demo**: `massing.build/app/` was 404'ing — GitHub Pages had been switched to
   the legacy branch source (`/docs`), which serves the landing page but not the viewer and conflicts

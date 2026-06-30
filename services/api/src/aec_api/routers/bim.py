@@ -471,6 +471,19 @@ async def bcf_import(pid: str, file: UploadFile = File(...), db: Session = Depen
     return {"imported": count}
 
 
+@router.post("/projects/{pid}/coordination/import-xlsx")
+async def coordination_import_xlsx(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
+                                   actor: str = Depends(require_role("editor"))):
+    """Import a Solibri / Navisworks (or any tabular) clash report XLSX -> one coordination_issue per
+    row (GUIDs anchor it on the model; each round-trips to BCF). Sniffs the header + maps aliases."""
+    from .. import clash_import
+    res = clash_import.import_clash_xlsx(db, pid, await file.read(), actor)
+    audit.record(db, action="coordination.import_xlsx", method="POST",
+                 path=f"/projects/{pid}/coordination/import-xlsx", detail={"imported": res.get("imported", 0)})
+    db.commit()
+    return res
+
+
 # --- helpers -----------------------------------------------------------------
 def _project(db: Session, pid: str) -> Project:
     p = db.get(Project, pid)

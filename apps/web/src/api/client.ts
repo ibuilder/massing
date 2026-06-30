@@ -1269,6 +1269,14 @@ export class ApiClient {
     if (!res.ok) throw new Error(`BCF import -> ${res.status}`);
     return res.json() as Promise<{ count: number; ids: string[] }>;
   }
+  /** Import a Solibri/Navisworks clash report (XLSX) -> coordination_issue records (GUID-anchored). */
+  async importClashXlsx(pid: string, file: File) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/coordination/import-xlsx`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`Clash import -> ${res.status}`);
+    return res.json() as Promise<{ imported: number; detected_columns: string[]; sheet: string; rows_parsed: number }>;
+  }
   /** Tie model elements (IFC GlobalIds) to a record. mode: add | remove | set. */
   tagElements(pid: string, key: string, rid: string, guids: string[], mode: "add" | "remove" | "set" = "add") {
     return this.json<{ element_guids: string[]; count: number }>(

@@ -263,6 +263,19 @@ async function openReportCenter() {
       if (f.warnings?.length) body.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:8px">${f.warnings.map((w) => "• " + escapeHtml(w)).join("<br>")}</div>`); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
+  tool("⤓ Import clash report (Solibri / Navisworks XLSX)", () => showResult("Import clash report", (body) => {
+    body.innerHTML = `<div class="meta">Upload a Solibri or Navisworks clash/coordination report (.xlsx). Each row becomes a <b>coordination issue</b> (GUIDs anchor it on the model; issues round-trip to BCF). Columns are auto-detected.</div>`;
+    const bar = document.createElement("div"); bar.style.cssText = "display:flex;gap:8px;margin-top:8px;align-items:center";
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".xlsx"; inp.setAttribute("aria-label", "Clash report XLSX");
+    const out = document.createElement("div"); out.style.marginTop = "8px";
+    inp.onchange = async () => {
+      const f = inp.files?.[0]; if (!f) return; out.innerHTML = `<div class="meta">Importing ${escapeHtml(f.name)}…</div>`;
+      try { const r = await api.importClashXlsx(pid, f);
+        out.innerHTML = `<div class="meta"><b>${r.imported}</b> coordination issue(s) imported from sheet “${escapeHtml(r.sheet)}” · columns: ${r.detected_columns.map(escapeHtml).join(", ") || "—"}</div>`; }
+      catch (e) { out.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+    };
+    bar.append(inp); body.append(bar, out);
+  }));
   tool("§ Spec submittal log (from specs)", () => showResult("Spec-driven submittal log", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
     try { const s = await api.specSubmittalLog(pid);
