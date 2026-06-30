@@ -22,6 +22,7 @@ lifecycle: generate a building from a zoning envelope, underwrite the deal, coor
 run the job, and hand it over — open, self-hosted, and free to run on one machine.
 
 ## Feature one-liners
+- **Site feasibility in seconds** — site area + FAR/height/coverage/setbacks → max buildable GFA (binding constraint: FAR vs. envelope), unit yield, parking demand, open space — then reconciled against your model's actual GFA (FAR used, headroom, over/under). The "should we build it?" answer before you draw a line.
 - **Generate from zoning** — lot + FAR + setbacks → a real IFC building (frame, units, envelope, core) + a solved proforma.
 - **Test Fit** — corridor unit-mix, parking solver, scheme compare, generative yield-on-cost optimize.
 - **Developer finance** — line-item budgets, Sources & Uses, specialty (energy + vertical farm), investment memo + pitch deck.
