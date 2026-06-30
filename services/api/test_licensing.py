@@ -57,11 +57,46 @@ with TestClient(app) as c:
     assert st2["features"]["navisworks"] is False, st2            # commercial < enterprise
     assert c.get("/capabilities").json()["license_tier"] == "commercial"
 
+    # --- enforcement is OPTIONAL — OFF by default = everything open ------------
+    assert licensing.enforcement_enabled() is False, "enforcement must default OFF (no forced registration)"
+    assert licensing.allows("api_access") and licensing.allows_export("nwd"), "open mode grants everything"
+    assert c.get("/license").json()["enforced"] is False
+    pid = c.post("/projects", json={"name": "Lic"}).json()["id"]
+    # IFC download not licence-gated in open mode (no project IFC -> 409, never 402)
+    assert c.get("/projects/%s/source.ifc" % pid).status_code == 409
+
+    # --- turn enforcement ON on the Free tier -> entitlements bite ------------
+    c.put("/settings/integrations", json={"values": {
+        "MASSING_LICENSE_ENFORCE": "1", "MASSING_LICENSE_TIER": "free", "MASSING_LICENSE_KEY": ""}})
+    assert licensing.enforcement_enabled() is True
+    assert not licensing.allows("api_access") and not licensing.allows_export("ifc")
+    from fastapi import HTTPException
+    try:
+        licensing.require("api_access")
+        raise AssertionError("expected 402 when enforced + free")
+    except HTTPException as e:
+        assert e.status_code == 402, e.status_code
+    ls = c.get("/license").json()
+    assert ls["enforced"] is True and ls["tier"] == "free", ls
+    assert c.get("/projects/%s/source.ifc" % pid).status_code == 402   # IFC export blocked before 409
+
+    # --- upgrade to Commercial -> IFC export + API allowed again --------------
+    c.put("/settings/integrations", json={"values": {
+        "MASSING_LICENSE_KEY": "MASS-AB12-CD34-EF56-GH78", "MASSING_LICENSE_TIER": "commercial"}})
+    assert licensing.allows("api_access") and licensing.allows_export("ifc")
+    assert c.get("/projects/%s/source.ifc" % pid).status_code == 409   # allowed -> just no IFC yet
+
+    # --- back to open mode (default) ------------------------------------------
+    c.put("/settings/integrations", json={"values": {"MASSING_LICENSE_ENFORCE": "0"}})
+    assert licensing.enforcement_enabled() is False
+    assert c.get("/projects/%s/source.ifc" % pid).status_code == 409   # open again, never 402
+
     # --- the full key is never exposed by the settings catalog ----------------
     cat = c.get("/settings/integrations").json()
     blob = str(cat)
     assert "GH78" not in blob and "AB12" not in blob, "licence key must not be echoed in the catalog"
 
-print("LICENSING OK - key format validated (MASS-XXXX-XXXX-XXXX-XXXX); tiers free<home<commercial<"
-      "enterprise gate exports/API/SSO/Navisworks; /license + /capabilities report tier; Settings activates "
-      "a plan, rejects malformed key/plan, masks the key and never echoes it")
+print("LICENSING OK - key format validated; tiers free<home<commercial<enterprise; enforcement is "
+      "OPTIONAL + OFF by default (open mode grants everything, licence not required); when enabled it "
+      "gates IFC export (402) + programmatic API by tier and clears on upgrade; /license reports enforced; "
+      "Settings activates/rejects/masks the key and never echoes it")

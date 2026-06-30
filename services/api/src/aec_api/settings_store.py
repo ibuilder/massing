@@ -19,6 +19,8 @@ CATALOG: list[dict[str, Any]] = [
         {"key": "MASSING_LICENSE_KEY", "label": "Licence key", "secret": True},
         {"key": "MASSING_LICENSE_TIER", "label": "Plan (free/home/commercial/enterprise)",
          "secret": False, "default": "free"},
+        {"key": "MASSING_LICENSE_ENFORCE", "label": "Enforce plan limits (1/0) — off = open, licence optional",
+         "secret": False, "default": "0"},
     ]},
     {"group": "AI assist (Draft RFI)", "keys": [
         {"key": "ANTHROPIC_API_KEY", "label": "Anthropic API key", "secret": True},

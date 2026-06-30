@@ -442,6 +442,8 @@ def source_ifc_download(pid: str, db: Session = Depends(get_db), _sec: str = Dep
 
     from fastapi.responses import FileResponse
 
+    from .. import licensing
+    licensing.require_export("ifc", "IFC")   # Commercial+ when enforcement is on; no-op in open mode
     p = _project(db, pid)
     if not p.source_ifc or not Path(p.source_ifc).exists():
         raise HTTPException(409, "project has no accessible source IFC")

@@ -395,7 +395,7 @@ export class ApiClient {
   }
   /** Massing licence state — plan tier, per-tier features, masked key. Drives the Settings licence panel. */
   license() {
-    return this.json<{ tier: string; tier_label: string;
+    return this.json<{ tier: string; tier_label: string; enforced: boolean;
       features: { exports: string[]; api_access: boolean; sso: boolean; navisworks: boolean };
       tiers: { id: string; label: string; features: Record<string, unknown> }[];
       key_configured: boolean; key_masked: string; key_format_valid: boolean | null;

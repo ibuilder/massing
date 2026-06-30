@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.4 — Optional licence enforcement (off by default)
+- Licence entitlements can now be **enforced**, but it's **opt-in and OFF by default** — the app stays
+  fully open and a licence is optional (no registration) until the operator sets `MASSING_LICENSE_ENFORCE=1`
+  (Settings ▸ Massing licence). In open mode every `allows()/require()` gate is a no-op.
+- When enabled, gates bite by tier: **IFC export** (`GET /source.ifc`) needs Commercial+ (402 otherwise),
+  and **programmatic publishing via the REST API key** (e.g. the pyRevit bridge) needs Commercial+ —
+  while interactive "Open IFC…" by a signed-in user stays free on any plan. `require()/require_export()`
+  helpers + `_MIN_TIER` upgrade messaging; `/license` + `/capabilities` report `enforced`.
+- Settings shows an **"open mode — licence optional"** status when enforcement is off (no nagging).
+  Backend 67/67 (open mode grants all; enabling gates IFC/API by tier and clears on upgrade).
+
 ## v0.3.3 — Help surfaces the Revit add-in
 - The in-app **"Import from Revit for free"** dialog now leads with the one-click **Massing for Revit**
   pyRevit add-in (Publish to Massing), then the free manual IFC-export path and batch pyRevit export,

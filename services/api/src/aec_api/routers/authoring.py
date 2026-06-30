@@ -146,6 +146,11 @@ async def upload_source_ifc(pid: str, file: UploadFile = File(...), publish: boo
     p = db.get(Project, pid)
     if not p:
         raise HTTPException(404, "project not found")
+    # Programmatic publishing (REST API key, e.g. the pyRevit bridge) is a Commercial+ entitlement when
+    # enforcement is on. Interactive "Open IFC…" by a signed-in user stays free on any plan. No-op in open mode.
+    if actor == "api-key":
+        from .. import licensing
+        licensing.require("api_access", "Programmatic publish (REST API)")
     data = await file.read()
     _IFC_DIR.joinpath(pid).mkdir(parents=True, exist_ok=True)
     ifc_path = _IFC_DIR / pid / "source.ifc"

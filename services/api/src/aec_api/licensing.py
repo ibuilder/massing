@@ -29,6 +29,14 @@ TIER_FEATURES: dict[str, dict[str, Any]] = {
 }
 
 
+def enforcement_enabled():
+    """Whether tier entitlements are *enforced*. OFF by default — the app stays fully open and a
+    licence is optional (no registration required) until the operator flips MASSING_LICENSE_ENFORCE on.
+    Set once the activation/seat infrastructure is ready."""
+    from . import settings_store
+    return (settings_store.get("MASSING_LICENSE_ENFORCE", "0") or "0").strip().lower() in ("1", "true", "yes", "on")
+
+
 def normalize_key(key: str | None) -> str:
     return (key or "").strip().upper()
 
@@ -61,20 +69,53 @@ def features(tier: str | None = None) -> dict[str, Any]:
 
 
 def allows(feature: str, tier: str | None = None) -> bool:
-    """True if the (current or given) tier grants a boolean capability (api_access / sso / navisworks)."""
+    """True if the capability is permitted. When enforcement is OFF (default) everything is allowed —
+    a licence is optional. When ON, gate on the (current or given) tier's boolean entitlement."""
+    if tier is None and not enforcement_enabled():
+        return True
     return bool(features(tier).get(feature, False))
 
 
 def allows_export(fmt: str, tier: str | None = None) -> bool:
+    if tier is None and not enforcement_enabled():
+        return True
     return fmt.lower() in features(tier).get("exports", [])
 
 
 def tier_at_least(minimum: str, tier: str | None = None) -> bool:
+    if tier is None and not enforcement_enabled():
+        return True
     cur = tier or current_tier()
     try:
         return TIER_ORDER.index(cur) >= TIER_ORDER.index(minimum)
     except ValueError:
         return False
+
+
+# minimum tier that grants each capability (for upgrade messaging)
+_MIN_TIER = {"api_access": "Commercial", "sso": "Enterprise", "navisworks": "Enterprise"}
+_EXPORT_MIN_TIER = {"ifc": "Commercial", "rvt": "Commercial", "nwd": "Enterprise"}
+
+
+def require(feature, label=None):
+    """Raise 402 (payment required) when enforcement is on and the current tier lacks `feature`.
+    No-op when enforcement is off — so callers can sprinkle these freely without affecting open mode."""
+    if allows(feature):
+        return
+    from fastapi import HTTPException
+    need = _MIN_TIER.get(feature, "a higher")
+    raise HTTPException(402, "%s requires the Massing %s plan (or higher). Add a licence in Settings, "
+                             "or see massing.cloud." % (label or feature, need))
+
+
+def require_export(fmt, label=None):
+    """Raise 402 when enforcement is on and the current tier can't export `fmt`. No-op when off."""
+    if allows_export(fmt):
+        return
+    from fastapi import HTTPException
+    need = _EXPORT_MIN_TIER.get(fmt.lower(), "a higher")
+    raise HTTPException(402, "%s export requires the Massing %s plan (or higher). Add a licence in "
+                            "Settings, or see massing.cloud." % (label or fmt.upper(), need))
 
 
 def state() -> dict[str, Any]:
@@ -83,21 +124,26 @@ def state() -> dict[str, Any]:
     key = _key()
     configured = bool(key)
     fmt_ok = valid_key_format(key) if configured else None
+    enforced = enforcement_enabled()
+    if not enforced:
+        msg = ("Open mode — all features are available and a licence is optional. (Adding a key now is "
+               "fine; entitlement enforcement is off until the operator enables it.)")
+    elif configured and fmt_ok:
+        msg = "Massing %s plan active." % TIER_LABEL.get(tier, tier)
+    elif not configured:
+        msg = ("Enforcement is on but no licence key is recorded — running on the Free tier. Paste your "
+               "key (MASS-XXXX-XXXX-XXXX-XXXX) under Settings; get one at massing.cloud.")
+    else:
+        msg = "The recorded licence key isn't a valid MASS-XXXX-XXXX-XXXX-XXXX format — re-check it in Settings."
     return {
         "tier": tier,
         "tier_label": TIER_LABEL.get(tier, tier.title()),
+        "enforced": enforced,
         "features": TIER_FEATURES[tier],
         "tiers": [{"id": t, "label": TIER_LABEL[t], "features": TIER_FEATURES[t]} for t in TIER_ORDER],
         "key_configured": configured,
         "key_masked": _mask(key) if configured else "",
         "key_format_valid": fmt_ok,
-        "message": (
-            f"Massing {TIER_LABEL.get(tier, tier)} plan active."
-            if configured and fmt_ok else
-            "No Massing licence key recorded — running on the Free tier. Paste your key "
-            "(MASS-XXXX-XXXX-XXXX-XXXX) under Settings; get one at massing.cloud."
-            if not configured else
-            "The recorded licence key isn't a valid MASS-XXXX-XXXX-XXXX-XXXX format — re-check it in Settings."
-        ),
+        "message": msg,
         "manage_url": "https://www.massing.cloud/docs/",
     }
