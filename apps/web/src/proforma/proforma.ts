@@ -461,13 +461,14 @@ export class ProformaUI {
         + `<tr class="fin-total"><td>WALT</td><td class="num">${rr.walt_years} yrs</td></tr></table>`;
       const rb = document.createElement("div"); rb.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px";
       const rl = document.createElement("a"); rl.className = "file-btn"; rl.textContent = "⬇ Rent roll (PDF)"; rl.href = this.api.reportUrl(pid, "rent_roll", "pdf"); rl.target = "_blank"; rl.rel = "noopener";
+      const rx = document.createElement("a"); rx.className = "file-btn"; rx.textContent = "⬇ Excel"; rx.href = this.api.reportUrl(pid, "rent_roll", "xlsx"); rx.target = "_blank"; rx.rel = "noopener";
       const rrv = document.createElement("button"); rrv.className = "file-btn"; rrv.textContent = "Value from rent roll";
       rrv.title = "Re-run the appraisal income approach off in-place income";
       rrv.onclick = async () => {
         try { const v = await this.api.appraisalFromRentRoll(pid); this.setStatus(`Income approach (in-place): ${money(v.income.value)}`); }
         catch (e) { this.setStatus("Couldn't value from rent roll: " + (e as Error).message); }
       };
-      rb.append(rl, rrv); rc.appendChild(rb); host.appendChild(rc);
+      rb.append(rl, rx, rrv); rc.appendChild(rb); host.appendChild(rc);
       await this.renderLeaseManagement(host, pid);
     } catch (e) { host.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }
@@ -533,7 +534,8 @@ export class ProformaUI {
       const recCall = document.createElement("button"); recCall.className = "file-btn"; recCall.textContent = "Record call"; recCall.title = "Post the call to each investor's contributed total"; recCall.onclick = run("call", true);
       const recDist = document.createElement("button"); recDist.className = "file-btn"; recDist.textContent = "Record dist."; recDist.title = "Post the distribution to each investor's distributed total"; recDist.onclick = run("distribution", true);
       const cl = document.createElement("a"); cl.className = "file-btn"; cl.textContent = "⬇ Cap table (PDF)"; cl.href = this.api.reportUrl(pid, "cap_table", "pdf"); cl.target = "_blank"; cl.rel = "noopener";
-      tools.append(amt, callBtn, distBtn, recCall, recDist, cl); cc.append(tools, out); host.appendChild(cc);
+      const cx = document.createElement("a"); cx.className = "file-btn"; cx.textContent = "⬇ Excel"; cx.href = this.api.reportUrl(pid, "cap_table", "xlsx"); cx.target = "_blank"; cx.rel = "noopener";
+      tools.append(amt, callBtn, distBtn, recCall, recDist, cl, cx); cc.append(tools, out); host.appendChild(cc);
       // per-row "🔗 share statement": mint a signed, expiring no-login link to that investor's statement
       cc.addEventListener("click", async (e) => {
         const btn = (e.target as HTMLElement).closest("[data-share]") as HTMLElement | null;

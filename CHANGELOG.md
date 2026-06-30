@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.0 — Massing milestone (analytics + RE/capital depth, hardened, rebranded)
+First minor release on the Massing brand — marks a coherent, production-ready milestone after the
+0.2.x line: the full **construction-analytics suite** (quality · RFI · submittal · T&M · field-log ·
+OSHA safety · closeout) stitched into an executive **project-health rollup**; **real-estate / capital
+depth** (lease management, equity-waterfall distributions, investor-portal signed statements, comps
+import, WPRealWise/MLS syndication); **production hardening** (non-root API container, `/metrics`,
+empty-project + malformed-input regression tests); and the **Massing rebrand** end-to-end. All verified
+live in the browser. Backend 65/65; web typecheck + vitest (49) + Pages build green; `npm audit` clean.
+- Polish: Excel-export buttons alongside the PDF ones on the rent-roll and cap-table Finance cards
+  (backend already served `.xlsx`); optimized the social `og-image.png` (674 KB → 94 KB, palette PNG).
+
 ## v0.2.16 — Rebrand to Massing (massing.build)
 - Renamed the product from "AEC BIM Platform / ModelMaker" to **Massing** across the app, docs, and
   packaging: window title + PWA name, README/CHANGELOG/SECURITY/guide/roadmap/capability-matrix, the
