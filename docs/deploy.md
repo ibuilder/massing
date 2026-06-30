@@ -70,8 +70,8 @@ with the stack up; Windows: Git Bash or WSL):
 ./scripts/backup.sh                      # → ./backups/aec-backup-<ts>.tgz
 
 # schedule it (crontab): nightly at 02:00, then prune backups older than 14 days
-0 2 * * *  cd /srv/modelmaker && ./scripts/backup.sh >> /var/log/aec-backup.log 2>&1
-0 3 * * *  find /srv/modelmaker/backups -name 'aec-backup-*.tgz' -mtime +14 -delete
+0 2 * * *  cd /srv/massing && ./scripts/backup.sh >> /var/log/aec-backup.log 2>&1
+0 3 * * *  find /srv/massing/backups -name 'aec-backup-*.tgz' -mtime +14 -delete
 
 # restore (DESTRUCTIVE — overwrites DB, objects, IFCs; stops the app while restoring)
 ./scripts/restore.sh ./backups/aec-backup-<ts>.tgz

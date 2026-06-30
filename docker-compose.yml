@@ -30,6 +30,7 @@ services:
       retries: 10
 
   api:
+    image: massing-api
     build:
       context: .
       dockerfile: services/api/Dockerfile
@@ -61,7 +62,7 @@ services:
   # one-shot demo seeder (api must be enabled, so pass both profiles):
   #   docker compose --profile full --profile seed run --rm seed
   seed:
-    image: modelmaker-api
+    image: massing-api
     depends_on:
       api: { condition: service_healthy }
     command: ["python", "/app/services/api/seed_demo.py", "--url", "http://api:8000", "--user", "gc"]
