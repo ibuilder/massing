@@ -326,21 +326,24 @@ function showFreeImportHelp() {
   const { card, msg } = modalShell("Import from Revit for free (no paid bridge)", 540);
   msg.innerHTML = `
     <p><b>IFC is the source of truth here</b> — you only need the paid Autodesk bridge if you want to
-    drop a raw <code>.rvt</code> in directly. The free path is to export IFC from Revit, then use
-    <b>Open&nbsp;IFC…</b>:</p>
+    drop a raw <code>.rvt</code> in directly. Three free ways in:</p>
     <ol style="margin:8px 0 8px 18px;line-height:1.5">
-      <li><b>One model — Revit built-in:</b> <i>File ▸ Export ▸ IFC</i>. Pick <b>IFC 4</b> (or IFC 2x3
-          for older tools) and a coordinate base of <i>Project / Shared</i>. Save the <code>.ifc</code>.</li>
-      <li><b>Many models / repeatable — pyRevit (free, open-source):</b> install
-          <code>pyRevit</code>, then use its IFC export tools to batch-export views/models to IFC.</li>
-      <li>Back here: <b>Open ▸ Open&nbsp;IFC…</b> — we pre-convert it to Fragments on the server and
-          it streams in like any other model.</li>
+      <li><b>One‑click — the Massing Revit add‑in (pyRevit):</b> install our free
+          <b>Massing for Revit</b> extension, then click <b>Massing ▸ Publish to Massing</b>. It exports
+          IFC and publishes it here automatically — no manual export/upload. (Uses the REST API, so it
+          needs a <b>Commercial</b> licence; see Settings ▸ Massing licence.)</li>
+      <li><b>One model — Revit built‑in:</b> <i>File ▸ Export ▸ IFC</i>. Pick <b>IFC 4</b> (or IFC 2x3
+          for older tools) and a coordinate base of <i>Project / Shared</i>, then <b>Open&nbsp;IFC…</b> here. Free on any plan.</li>
+      <li><b>Many models / repeatable — pyRevit:</b> install <code>pyRevit</code> and batch‑export
+          views/models to IFC, then <b>Open&nbsp;IFC…</b>.</li>
     </ol>
-    <p class="meta">DWG/NWC: export to IFC from their host app the same way, or use the paid bridge.</p>`;
+    <p class="meta">We pre‑convert IFC to Fragments on the server and stream it in. DWG/NWC: export to
+    IFC from their host app the same way, or use the paid bridge.</p>`;
   card.appendChild(msg);
   const links = document.createElement("div");
   links.style.cssText = "display:flex;gap:10px;flex-wrap:wrap;margin-top:6px";
   for (const [t, href] of [
+    ["Massing for Revit add-in", "https://github.com/ibuilder/massing/tree/main/integrations/pyrevit"],
     ["pyRevit (free)", "https://github.com/pyrevitlabs/pyRevit"],
     ["Revit IFC export docs", "https://help.autodesk.com/view/RVT/2024/ENU/?guid=GUID-6708CFD6-0AD7-4D85-8479-A2A8657C9181"],
   ] as const) {

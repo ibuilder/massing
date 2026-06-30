@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.3 — Help surfaces the Revit add-in
+- The in-app **"Import from Revit for free"** dialog now leads with the one-click **Massing for Revit**
+  pyRevit add-in (Publish to Massing), then the free manual IFC-export path and batch pyRevit export,
+  with a direct link to the add-in. The docs guide FAQ ("Do I need Revit?") lists the same three paths.
+  Keeps the help current with the v0.3.2 bridge + licensing.
+
 ## v0.3.2 — Massing for Revit (free pyRevit bridge)
 - New **pyRevit extension** (`integrations/pyrevit/Massing.extension`) — a free, open **Revit → Massing**
   bridge that needs no paid Autodesk APS bridge. A **Massing** tab with **Publish to Massing** (exports
