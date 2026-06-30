@@ -1,0 +1,28 @@
+{
+  "key": "spec_section",
+  "name": "Specifications",
+  "section": "Preconstruction",
+  "icon": "§",
+  "ref_prefix": "SPEC",
+  "title_field": "title",
+  "pinnable": true,
+  "fields": [
+    {"name": "section_number", "label": "Section # (MasterFormat)", "type": "text", "required": true},
+    {"name": "title", "label": "Section Title", "type": "text", "required": true},
+    {"name": "division", "label": "Division", "type": "text"},
+    {"name": "submittals_required", "label": "Submittals required (Part 1)", "type": "textarea"},
+    {"name": "part2_products", "label": "Products (Part 2)", "type": "textarea"},
+    {"name": "responsible", "label": "Responsible contractor", "type": "text"},
+    {"name": "notes", "label": "Notes", "type": "textarea"}
+  ],
+  "workflow": {
+    "initial": "issued",
+    "states": ["issued", "under_revision", "void"],
+    "transitions": [
+      {"from": "issued", "to": "under_revision", "action": "revise", "party": ["GC", "Architect"]},
+      {"from": "under_revision", "to": "issued", "action": "reissue", "party": ["GC", "Architect"]},
+      {"from": "issued", "to": "void", "action": "void", "party": ["GC"]}
+    ]
+  },
+  "list_columns": ["section_number", "division", "responsible"]
+}

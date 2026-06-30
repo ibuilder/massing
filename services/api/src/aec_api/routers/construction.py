@@ -1,7 +1,7 @@
 """Construction analytics — T&M (eTicket) cost rollup + the submittal register."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends
 from sqlalchemy.orm import Session
 
 from .. import (actions as actions_engine, changeorders as co_engine, closeout as closeout_engine,
@@ -43,6 +43,41 @@ def co_log(pid: str, db: Session = Depends(get_db), _: str = Depends(require_rol
 def action_tracker(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Meeting & action-item tracker — open/overdue by assignee & priority, completion, meeting log."""
     return actions_engine.action_tracker(db, pid)
+
+
+@router.get("/projects/{pid}/specs/submittal-log")
+def specs_submittal_log(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Spec-driven submittal log — required submittals derived per spec section vs the submittals
+    actually logged, with missing-submittal gaps (the CSI Part 1 'Submittals' → log reconciliation)."""
+    from .. import specs
+    return specs.submittal_log(db, pid)
+
+
+@router.post("/projects/{pid}/specs/extract-submittals")
+def specs_extract_submittals(pid: str, body: dict = Body(...), db: Session = Depends(get_db),
+                             actor: str = Depends(require_role("editor"))):
+    """Extract a typed submittal list from pasted spec text (AI when configured, rules fallback offline).
+    Body: {text, create?: bool}. With create=true, logs each item as a `submittal` record (and a
+    `spec_section` if a section number is present), building the submittal log from the spec book."""
+    from .. import ai, modules as me, specs
+    text = (body or {}).get("text") or ""
+    res = ai.extract_submittals(text)
+    if (body or {}).get("create") and res.get("items"):
+        sec_no = specs.parse_section_number(text)
+        created_subs = 0
+        if sec_no and "spec_section" in me.TABLES:
+            me.create_record(db, "spec_section", pid,
+                             {"data": {"section_number": sec_no, "title": f"Section {sec_no}",
+                                       "submittals_required": text[:4000]}}, actor, None)
+        for it in res["items"]:
+            data = {"title": it.get("title", "")[:160], "type": it.get("type") or "Product Data"}
+            sec = it.get("section_number") or sec_no
+            if sec:
+                data["spec_section"] = sec
+            me.create_record(db, "submittal", pid, {"data": data}, actor, None)
+            created_subs += 1
+        res["created_submittals"] = created_subs
+    return res
 
 
 @router.get("/projects/{pid}/precon/estimate-continuity")
@@ -92,8 +127,8 @@ def precon_snapshot(pid: str, milestone: str = "SD", db: Session = Depends(get_d
     data = {"title": f"{milestone} estimate (from model)", "milestone": milestone,
             "total": round(float(total), 2), "gsf": round(float(gsf), 1) if gsf else None,
             "basis": "ROM", "source": "Model takeoff"}
-    rec = me.create_record(db, "estimate_set", pid, {k: v for k, v in data.items() if v is not None},
-                           actor, None)
+    rec = me.create_record(db, "estimate_set", pid,
+                           {"data": {k: v for k, v in data.items() if v is not None}}, actor, None)
     return {"created": rec.get("id"), "ref": rec.get("ref"), "total": data["total"],
             "milestone": milestone}
 

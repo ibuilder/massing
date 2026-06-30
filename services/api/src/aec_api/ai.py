@@ -249,6 +249,60 @@ def estimate_boq(description: str) -> dict[str, Any]:
                 "message": "Couldn't reach the AI service just now — try again shortly."}
 
 
+# --- spec -> submittal extraction (build the submittal log from a spec book) -------
+_SUBMITTAL_TYPES = ["Product Data", "Shop Drawing", "Sample", "Mock-up", "Certificate",
+                    "Test Report", "Calculations", "O&M Manual", "Warranty"]
+_EXTRACT_SCHEMA = {
+    "type": "object", "additionalProperties": False, "required": ["items"],
+    "properties": {"items": {"type": "array", "items": {
+        "type": "object", "additionalProperties": False,
+        "required": ["title", "type"],
+        "properties": {
+            "section_number": {"type": "string"},
+            "title": {"type": "string"},
+            "type": {"type": "string", "enum": _SUBMITTAL_TYPES},
+        }}}},
+}
+_EXTRACT_SYSTEM = (
+    "You read CSI-format construction specification text and extract every required submittal. For each, "
+    "return the governing MasterFormat section number (if present, e.g. '03 30 00'), a concise title, and "
+    "the submittal type from the allowed set. Pull from the Part 1 'Submittals' article and Part 2 products. "
+    "Be exhaustive and conservative — do not invent submittals that aren't required by the text.")
+
+
+def extract_submittals(text: str) -> dict[str, Any]:
+    """Extract a typed submittal list from pasted/uploaded spec text. Uses Claude when configured; falls
+    back to a deterministic rules parser so the feature works offline (no fabricated items)."""
+    spec = (text or "").strip()
+    if not spec:
+        return {"items": [], "source": "empty", "message": "Paste spec text to extract submittals."}
+    if ai_enabled():
+        try:
+            from anthropic import Anthropic
+            client = Anthropic(api_key=settings_store.get("ANTHROPIC_API_KEY"))
+            resp = client.messages.create(
+                model=settings_store.get("AEC_AI_MODEL", "claude-opus-4-8"), max_tokens=4096,
+                system=_EXTRACT_SYSTEM, messages=[{"role": "user", "content": spec[:60000]}],
+                output_config={"format": {"type": "json_schema", "schema": _EXTRACT_SCHEMA}, "effort": "low"})
+            out = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text")
+            data = json.loads(out)
+            data["source"] = "claude"
+            return data
+        except Exception as e:                 # noqa: BLE001 — fall back to rules, never fail the request
+            _log.warning("AI submittal extraction failed (%s) — using rules", e)
+    # deterministic fallback (also the offline path): reuse the spec parser
+    from . import specs
+    section = specs.parse_section_number(spec)
+    items = specs.parse_required_submittals(spec)
+    for it in items:
+        if section:
+            it["section_number"] = section
+    return {"items": items, "source": "rules",
+            "message": ("Extracted with the built-in parser. Set an Anthropic API key in Settings for "
+                        "AI extraction across a full project manual." if items else
+                        "No submittal items found — paste the section's Part 1 'Submittals' article.")}
+
+
 # --- RFI triage (auto-categorize + ball-in-court + draft response) -----------
 _TRIAGE_SCHEMA = {
     "type": "object", "additionalProperties": False,

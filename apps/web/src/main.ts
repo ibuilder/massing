@@ -251,6 +251,32 @@ async function openReportCenter() {
       } }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
+  tool("§ Spec submittal log (from specs)", () => showResult("Spec-driven submittal log", async (body) => {
+    body.innerHTML = `<div class="meta">Loading…</div>`;
+    try { const s = await api.specSubmittalLog(pid);
+      body.innerHTML = `<div class="meta">${s.spec_count} spec sections · ${s.required_total} required submittals · ${s.logged_total} logged · <b>${s.missing_total} missing</b> · coverage ${s.coverage_pct ?? "—"}%</div>`;
+      table(body, ["Section", "Title", "Required", "Logged", "Missing", "Responsible"], s.rows.map((r: any) => [r.section_number ?? "", r.title ?? "", r.required_count, r.logged_count, r.missing_count ? "⚠ " + r.missing_count : "0", r.responsible ?? ""])); }
+    catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+  }));
+  tool("✨ Extract submittals from a spec", () => showResult("Extract submittals from spec", (body) => {
+    body.innerHTML = `<div class="meta">Paste a spec section (or its Part 1 “Submittals” article). Extraction uses AI when a key is set, else a built-in parser.</div>`;
+    const ta = document.createElement("textarea"); ta.placeholder = "SECTION 03 30 00 — CAST-IN-PLACE CONCRETE\n1.3 SUBMITTALS\n  A. Product Data: for each mix design.\n  B. Shop Drawings: reinforcement placing drawings.\n  C. Samples: …";
+    ta.setAttribute("aria-label", "Specification text"); ta.style.cssText = "width:100%;min-height:120px;margin-top:8px;font-family:monospace;font-size:12px";
+    const bar = document.createElement("div"); bar.style.cssText = "display:flex;gap:8px;margin-top:8px;align-items:center";
+    const ex = document.createElement("button"); ex.className = "file-btn"; ex.textContent = "Extract";
+    const cr = document.createElement("button"); cr.className = "file-btn"; cr.textContent = "Extract + add to log";
+    const out = document.createElement("div"); out.style.marginTop = "8px";
+    const run = (create: boolean) => async () => {
+      if (!ta.value.trim()) return; ex.disabled = cr.disabled = true; out.innerHTML = `<div class="meta">Extracting…</div>`;
+      try { const r = await api.extractSubmittals(pid, ta.value, create);
+        out.innerHTML = `<div class="meta">${r.items.length} submittal(s) · source: ${r.source}${r.created_submittals != null ? ` · ${r.created_submittals} added to the log` : ""}${r.message ? " · " + escapeHtml(r.message) : ""}</div>`;
+        table(out, ["Section", "Submittal", "Type"], r.items.map((i) => [i.section_number ?? "", i.title, i.type])); }
+      catch (e) { out.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+      finally { ex.disabled = cr.disabled = false; }
+    };
+    ex.onclick = run(false); cr.onclick = run(true);
+    bar.append(ex, cr); body.append(ta, bar, out);
+  }));
   tool("🎯 Preconstruction alignment", () => showResult("Preconstruction alignment", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
     try { const a = await api.preconAlignment(pid);

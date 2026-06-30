@@ -713,6 +713,19 @@ export class ApiClient {
       by_priority: Record<string, number>; rows: Record<string, unknown>[] }>(
       `/projects/${pid}/rfi/register`);
   }
+  /** Spec-driven submittal log — required submittals per spec section vs logged, with missing gaps. */
+  specSubmittalLog(pid: string) {
+    return this.json<{ spec_count: number; required_total: number; logged_total: number;
+      missing_total: number; coverage_pct: number | null; by_type: Record<string, number>;
+      by_division: Record<string, number>; rows: Record<string, unknown>[] }>(
+      `/projects/${pid}/specs/submittal-log`);
+  }
+  /** Extract a typed submittal list from pasted spec text (AI when configured; rules fallback). */
+  extractSubmittals(pid: string, text: string, create = false) {
+    return this.json<{ items: { section_number?: string; title: string; type: string }[];
+      source: string; message?: string; created_submittals?: number }>(
+      `/projects/${pid}/specs/extract-submittals`, { method: "POST", body: JSON.stringify({ text, create }) });
+  }
   /** Preconstruction estimate continuity — per-milestone totals + $/SF, drift, gap vs budget/GMP. */
   estimateContinuity(pid: string, budget?: number) {
     const qs = budget != null ? `?budget=${budget}` : "";

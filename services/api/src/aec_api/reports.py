@@ -50,6 +50,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "decision_log": ("Decision Log", "Preconstruction"),
     "assumptions_register": ("Assumptions & Clarifications", "Preconstruction"),
     "precon_alignment": ("Preconstruction Alignment", "Preconstruction"),
+    "spec_submittal_log": ("Spec-Driven Submittal Log", "Preconstruction"),
 }
 
 
@@ -762,6 +763,26 @@ def _precon_alignment(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _spec_submittal_log(db: Session, pid: str, name: str) -> Report:
+    from . import specs
+    s = specs.submittal_log(db, pid)
+    r = Report("Spec-Driven Submittal Log", name)
+    r.kpi("Spec sections", s["spec_count"])
+    r.kpi("Required submittals", s["required_total"])
+    r.kpi("Logged", s["logged_total"])
+    r.kpi("Missing", s["missing_total"])
+    r.kpi("Coverage", f"{s['coverage_pct']}%" if s["coverage_pct"] is not None else "—")
+    if s["by_type"]:
+        r.chart("bar", "Required submittals by type", list(s["by_type"].keys()),
+                [{"name": "Count", "values": list(s["by_type"].values())}])
+    r.table("By spec section", ["Section", "Title", "Division", "Required", "Logged", "Missing", "Responsible"],
+            [[x.get("section_number", ""), x.get("title", ""), x.get("division", ""),
+              x["required_count"], x["logged_count"],
+              ("⚠ " + str(x["missing_count"])) if x["missing_count"] else "0", x.get("responsible") or ""]
+             for x in s["rows"]] or [["(no spec sections — add them under Preconstruction ▸ Specifications)"] + [""] * 6])
+    return r
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
@@ -801,6 +822,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _assumptions_register(db, pid, name)
     if report == "precon_alignment":
         return _precon_alignment(db, pid, name)
+    if report == "spec_submittal_log":
+        return _spec_submittal_log(db, pid, name)
     if report == "listing_factsheet":
         return _listing_factsheet(db, pid, name)
     if report == "marketing_flyer":

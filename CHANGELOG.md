@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.7 — Specifications → submittals: spec register, spec-driven submittal log, AI extraction
+- New `spec_section` module — the project manual / specification register (CSI MasterFormat section
+  number + title, division, the Part 1 "Submittals" article text, Part 2 products, responsible party;
+  issued/under-revision/void workflow).
+- **Spec-driven submittal log** (`specs.py` + `GET /projects/{pid}/specs/submittal-log`): derives the
+  required submittals per spec section from the SectionFormat Part 1 Submittals article (typed via a
+  submittal-type classifier — Shop Drawing, Product Data, Sample, Mock-up, Certificate, Test Report,
+  Calculations, O&M, Warranty), reconciles them against the submittals actually logged (matched by
+  MasterFormat section number), and surfaces **missing submittals** per section with a coverage %.
+- **AI/rules submittal extraction** (`ai.extract_submittals` + `POST /specs/extract-submittals`):
+  paste spec text → a typed submittal list (Claude when configured, deterministic rules fallback
+  offline); `create=true` logs each item as a `submittal` and records the `spec_section`, building the
+  log straight from the spec book.
+- New **Spec-Driven Submittal Log** report (KPIs, by-type chart, by-section table flagging gaps);
+  two tool launchers (spec submittal log; extract submittals from a spec) + client methods.
+- Backend 69/69; web typecheck + 49 tests + Pages build green.
+
 ## v0.3.6 — Preconstruction depth: decision log, assumptions, VE cycle + alignment dashboard
 - New `decision` (cross-stakeholder decision log: rationale, alternatives, cost/schedule impact,
   Aligned/Pending/Disputed) and `assumption` (assumptions & clarifications register with allowance
