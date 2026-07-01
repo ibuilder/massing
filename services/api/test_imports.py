@@ -56,6 +56,11 @@ with TestClient(app) as c:                                    # startup register
     assert len(recs) == 2, len(recs)
     assert {(r.get("data") or {}).get("code") for r in recs} == {"03-3000", "05-1200"}, recs
 
+    # pagination: limit/offset page through the list server-side (2 records imported so far)
+    assert len(c.get(f"/projects/{pid}/modules/cost_code?limit=1&offset=0").json()) == 1
+    assert len(c.get(f"/projects/{pid}/modules/cost_code?limit=1&offset=1").json()) == 1
+    assert len(c.get(f"/projects/{pid}/modules/cost_code?limit=10&offset=5").json()) == 0   # past the end
+
     # server-side search (SQL filter, not a Python post-scan): matches a `data` field value + ref/title
     assert len(c.get(f"/projects/{pid}/modules/cost_code?q=steel").json()) == 1        # data.description
     assert len(c.get(f"/projects/{pid}/modules/cost_code?q=03-3000").json()) == 1      # data.code

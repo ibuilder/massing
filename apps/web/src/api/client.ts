@@ -1265,10 +1265,12 @@ export class ApiClient {
     return this.json<{ ok: number; failed: { id: string; error: string }[] }>(
       `/projects/${pid}/modules/${key}/bulk`, { method: "POST", body: JSON.stringify({ ids, action, value }) });
   }
-  moduleRecordsFiltered(pid: string, key: string, opts: { q?: string; state?: string } = {}) {
+  moduleRecordsFiltered(pid: string, key: string, opts: { q?: string; state?: string; limit?: number; offset?: number } = {}) {
     const p = new URLSearchParams();
     if (opts.q) p.set("q", opts.q);
     if (opts.state) p.set("state", opts.state);
+    if (opts.limit != null) p.set("limit", String(opts.limit));
+    if (opts.offset) p.set("offset", String(opts.offset));
     const qs = p.toString();
     return this.json<ModuleRecord[]>(`/projects/${pid}/modules/${key}${qs ? `?${qs}` : ""}`);
   }

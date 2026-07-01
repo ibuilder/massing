@@ -999,10 +999,13 @@ export class PortalUI {
     }
   }
 
-  private async openModule(m: ModuleDef, filter: { q?: string; state?: string } = {}) {
+  private async openModule(m: ModuleDef, filter: { q?: string; state?: string; offset?: number } = {}) {
     const pid = this.host.projectId()!;
     this.skeleton(`Loading ${m.name}…`);
-    const records = await this.host.api.moduleRecordsFiltered(pid, m.key, filter);
+    const PAGE = 100, offset = filter.offset ?? 0;          // page large modules so they never render 1000s of rows
+    const page = await this.host.api.moduleRecordsFiltered(pid, m.key, { ...filter, limit: PAGE + 1, offset });
+    const hasMore = page.length > PAGE;
+    const records = hasMore ? page.slice(0, PAGE) : page;
     this.root.innerHTML = "";
     this.root.appendChild(this.bar(m.name, () => this.renderHome()));
 
@@ -1193,6 +1196,21 @@ export class PortalUI {
     }
     table.appendChild(tb);
     this.root.appendChild(table);
+
+    // pager — only shown when the list spills past one page (keeps large modules snappy)
+    if (offset > 0 || hasMore) {
+      const pager = document.createElement("div");
+      pager.style.cssText = "display:flex;gap:8px;align-items:center;margin:8px 0";
+      const prev = document.createElement("button"); prev.className = "tool-btn"; prev.textContent = "‹ Prev";
+      prev.disabled = offset === 0;
+      prev.onclick = () => this.openModule(m, { ...filter, offset: Math.max(0, offset - PAGE) });
+      const next = document.createElement("button"); next.className = "tool-btn"; next.textContent = "Next ›";
+      next.disabled = !hasMore;
+      next.onclick = () => this.openModule(m, { ...filter, offset: offset + PAGE });
+      const lbl = document.createElement("span"); lbl.className = "meta";
+      lbl.textContent = `${offset + 1}–${offset + records.length}${hasMore ? "+" : ""}`;
+      pager.append(prev, lbl, next); this.root.appendChild(pager);
+    }
   }
 
   /** Ball-in-court: which party(ies) own the next action from the current state, read straight from

@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.15 — Paginated module lists (large registers stay snappy)
+- Module list views now **page** the records (100/page) with **‹ Prev / Next ›** controls and a
+  position indicator, instead of fetching and rendering every record at once. A register with
+  thousands of RFIs/issues/cost codes no longer stalls the browser on open; filter/search/state
+  changes reset to the first page. Uses the list endpoint's existing `limit`/`offset` (fetches one
+  extra row to detect "more"), so no API change — the pager only appears when the list spills past a
+  page. Completes the data-entry UX upgrade set (import → validation → search → pagination).
+- Backend 72/72 (limit/offset assertions added); web typecheck + 49 tests green.
+
 ## v0.3.14 — Data-entry UX upgrade Phases 2–4: form validation, searchable pickers, faster search
 - **Form validation (buy-in + clean data)**: create/edit forms now enforce **required fields
   client-side** — offending inputs get outlined, the first is focused, and submit is blocked with a
