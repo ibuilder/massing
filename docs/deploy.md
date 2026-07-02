@@ -29,6 +29,20 @@ API=http://localhost:8000 bash scripts/smoke-stack.sh samples/school_str.ifc
 | `S3_ENDPOINT` / `S3_ACCESS_KEY` / `S3_SECRET_KEY` / `S3_BUCKET` | api | MinIO/S3 object storage; unset → local `STORAGE_DIR` |
 | `AEC_RBAC` | api | `1` enforces project-scoped roles |
 | `AEC_API_KEY` | api | bearer treated as admin (service-to-service) |
+| `AEC_AUTH_SECRET` | api | **set in prod** — signs auth tokens; unset = forgeable dev secret (logs a warning) |
+| `AEC_RATE_LIMIT_RPM` | api | global per-IP request cap/min (0/unset = off); needs `AEC_REDIS_URL` to share across workers |
+| `AEC_REDIS_URL` | api | Redis for the shared rate-limit + login-lockout counters (fail-open to in-process) |
+| `AEC_THROTTLE_REVIEW_RPM` | api | per-caller cap on AI-review endpoints (default 30; 0 disables) |
+| `AEC_THROTTLE_CONVERT_RPM` | api | per-caller cap on convert endpoints (default 12; 0 disables) |
+| `AEC_PROPS_CACHE_PROJECTS` | api | in-process property-index LRU size (default 16 projects/worker) |
+| `SPECKLE_SERVER` / `SPECKLE_TOKEN` | api | optional Speckle bridge (must be `https://`; see SSRF note below) |
+| `SPECKLE_ALLOW_PRIVATE` | api | `1` allows a private/LAN Speckle host (otherwise SSRF guard blocks non-public IPs) |
+| `APS_CLIENT_ID` / `APS_CLIENT_SECRET` | api | optional Autodesk APS bridge (RVT→IFC, paid, per-translation cost) |
+
+> **SSRF note:** `SPECKLE_SERVER` is admin-settable from the Settings UI, so the bridge requires
+> `https://` and refuses hosts that resolve to private/loopback/link-local/cloud-metadata addresses
+> before making any request. Point it at a public Speckle host, or set `SPECKLE_ALLOW_PRIVATE=1` for a
+> trusted self-hosted server on your LAN.
 
 ## Auth & roles (RBAC)
 Project-scoped roles, least→most: **viewer < reviewer < editor < admin** (`rbac.py`).

@@ -466,6 +466,12 @@ viewer with the cross-origin isolation web-ifc needs, and persists Postgres/MinI
 See [`.env.example`](.env.example) for every knob and [docs/roadmap.md](docs/roadmap.md)
 for the desktop (Tauri/Electron) and mobile (Capacitor) packaging plan.
 
+**Running it in production?** Start with the [operator runbook](docs/operations.md) (health probes,
+env flags, backup/restore, common incidents), backed by [docs/deploy.md](docs/deploy.md) for the full
+stack. **Adding your own record type?** No code needed — see
+[Authoring a module](docs/authoring-modules.md). Every endpoint is live-documented at `/docs` on the
+running API.
+
 ## Quick start (dev)
 
 ```bash

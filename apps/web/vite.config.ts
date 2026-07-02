@@ -1,5 +1,29 @@
+import { brotliCompressSync, gzipSync } from "node:zlib";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+
+// Emit .br + .gz siblings for every text asset so a self-hosted static server (nginx/caddy) or the
+// desktop app can serve pre-compressed bytes — no runtime compression, no extra dependency (Node's
+// zlib). Brotli is ~15-20% smaller than gzip for JS/CSS; both are written so a server can pick either.
+const precompress: Plugin = {
+  name: "precompress-assets",
+  apply: "build",
+  async writeBundle(opts, bundle) {
+    const { writeFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const dir = opts.dir || "dist";
+    for (const [name, out] of Object.entries(bundle)) {
+      if (!/\.(js|mjs|css|html|svg|json)$/.test(name)) continue;
+      const src = (out as { code?: string; source?: string | Uint8Array }).code
+        ?? (out as { source?: string | Uint8Array }).source;
+      if (src == null) continue;
+      const buf = Buffer.from(src as string | Uint8Array);
+      if (buf.length < 1024) continue;                 // not worth compressing tiny files
+      writeFileSync(join(dir, `${name}.br`), brotliCompressSync(buf));
+      writeFileSync(join(dir, `${name}.gz`), gzipSync(buf, { level: 9 }));
+    }
+  },
+};
 
 // GitHub Pages build (VITE_PAGES=1): served from a subpath, no server headers — so it can't
 // set COOP/COEP. Inject the coi-serviceworker instead of the Workbox PWA SW (which would
@@ -19,6 +43,10 @@ const coiInject: Plugin = {
 
 export default defineConfig(({ mode }) => {
 const PAGES = process.env.VITE_PAGES === "1" || mode === "demo";
+// Pre-compress only for web-served builds. Desktop/mobile load from the native asset protocol (no
+// br/gz negotiation), so the siblings would only bloat the installer.
+const WEB_SERVED = !["desktop", "mobile"].includes(mode);
+const compressPlugins = WEB_SERVED ? [precompress] : [];
 return {
   base: BASE,
   // expose the Pages/demo flag to the client (no backend → skip API probes)
@@ -26,7 +54,8 @@ return {
     "import.meta.env.VITE_PAGES": JSON.stringify(PAGES),
     "import.meta.env.VITE_APP_VERSION": JSON.stringify(APP_VERSION),
   },
-  plugins: PAGES ? [coiInject] : [
+  plugins: PAGES ? [coiInject, ...compressPlugins] : [
+    ...compressPlugins,
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],

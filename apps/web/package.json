@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "budget": "node scripts/bundle-budget.mjs",
     "copy-wasm": "node scripts/copy-wasm.mjs",
     "tauri": "tauri",
     "prebuild:mobile": "node scripts/copy-wasm.mjs",

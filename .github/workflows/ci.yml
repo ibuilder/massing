@@ -51,3 +51,6 @@ jobs:
 
       - name: Typecheck + build
         run: npm run build --workspace apps/web
+
+      - name: Bundle-size budget (app shell)
+        run: npm run budget --workspace apps/web
