@@ -1511,6 +1511,91 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         b.appendChild(toolBtn2("🎨 Color by % complete", () => void colorBy("progress")));
         b.appendChild(toolBtn2("🎨 Color by cost variance", () => void colorBy("cost")));
         b.appendChild(toolBtn2("⊞ Reset colors", async () => { await colorize.reset(); out.textContent = ""; }));
+
+        // Thematic "Color by property" — bucket the model by any IFC attribute / pset property
+        // (built-world data-viz). Categorical buckets get distinct hues; numeric ranges a blue→red ramp.
+        const hueColor = (i: number, n: number) => `hsl(${Math.round((i / Math.max(1, n)) * 320)}, 62%, 55%)`;
+        const rampColor = (i: number, n: number) => `hsl(${Math.round((1 - (n <= 1 ? 0 : i / (n - 1))) * 210)}, 70%, 52%)`;
+        const swatch = (col: string, label: string, count: number) =>
+          `<span style="display:inline-flex;align-items:center;gap:3px;margin:0 8px 3px 0">`
+          + `<span style="width:9px;height:9px;border-radius:2px;background:${col};display:inline-block"></span>${label} (${count})</span>`;
+        b.appendChild(toolBtn2("🎨 Color by property…", async () => {
+          if (!projectId) { notify("connect a project first", "error"); return; }
+          out.textContent = "loading properties…";
+          try {
+            const fac = await api.colorFacets(projectId);
+            const sel = document.createElement("select");
+            sel.style.cssText = "width:100%;margin:2px 0;font-size:12px";
+            const addGroup = (label: string, items: { prop: string; label: string; distinct: number }[]) => {
+              if (!items.length) return;
+              const og = document.createElement("optgroup"); og.label = label;
+              for (const it of items) {
+                const o = document.createElement("option"); o.value = it.prop;
+                o.textContent = `${it.label} (${it.distinct})`; og.appendChild(o);
+              }
+              sel.appendChild(og);
+            };
+            addGroup("Attributes", fac.attributes);
+            addGroup("Property sets", fac.properties);
+            if (!sel.options.length) { out.textContent = "no colourable properties (upload a properties index first)"; return; }
+            const legendEl = document.createElement("div"); legendEl.className = "meta"; legendEl.style.marginTop = "4px";
+            const run = async () => {
+              legendEl.textContent = "coloring…";
+              const res = await api.colorBy(projectId!, sel.value);
+              await colorize.reset();
+              let legend = "";
+              for (let i = 0; i < res.buckets.length; i++) {
+                const bk = res.buckets[i]; if (!bk.guids.length) continue;
+                const col = res.kind === "numeric" ? rampColor(i, res.buckets.length)
+                  : (bk.label === "Other" ? "#5b6470" : hueColor(i, res.buckets.length));
+                await colorize.color(await sets.fromGuids(bk.guids), col);
+                legend += swatch(col, bk.label, bk.count);
+              }
+              legendEl.innerHTML = `<b>${res.kind}</b> · ${res.colored}/${res.total} coloured`
+                + (res.unset ? ` · ${res.unset} unset` : "") + `<br>${legend}`;
+            };
+            sel.onchange = () => void run();
+            const wrap = document.createElement("div"); wrap.append(sel, legendEl);
+            out.innerHTML = ""; out.appendChild(wrap);
+            await run();
+          } catch (e) { out.textContent = `color-by failed: ${(e as Error).message}`; }
+        }));
+
+        // BIM data-QA — completeness check against required/recommended attributes, with a 3D highlight
+        // of the non-compliant elements and a CSV export (Koh-inspired "asset data" QA).
+        b.appendChild(toolBtn2("✅ Data QA (completeness)", async () => {
+          if (!projectId) { notify("connect a project first", "error"); return; }
+          out.textContent = "checking data completeness…";
+          try {
+            const qa = await api.dataQa(projectId);
+            const tone = qa.compliant_pct >= 90 ? "var(--status-good,#33d17a)"
+              : qa.compliant_pct >= 70 ? "var(--status-warn,#ffd479)" : "var(--status-crit,#e2554a)";
+            let html = `<div class="meta"><b style="color:${tone};font-size:14px">${qa.compliant_pct}%</b> complete on required data`
+              + ` · ${qa.noncompliant}/${qa.total} elements missing something</div>`;
+            html += `<table style="font-size:11px;margin-top:4px;border-collapse:collapse">`;
+            for (const r of qa.rules) {
+              const okTone = r.missing ? "var(--status-warn,#ffd479)" : "var(--status-good,#33d17a)";
+              html += `<tr><td style="padding:1px 8px 1px 0">${r.label}${r.severity === "recommended" ? " <span style='opacity:.55'>(rec.)</span>" : ""}</td>`
+                + `<td style="padding:1px 6px">${r.present}/${qa.total}</td>`
+                + `<td style="padding:1px 6px;color:${okTone}">${r.missing ? `${r.missing} missing` : "✓"}</td></tr>`;
+            }
+            html += `</table>`;
+            out.innerHTML = html;
+            if (qa.noncompliant_guids.length) {
+              out.appendChild(toolBtn2(`🔺 Highlight ${qa.noncompliant} non-compliant`, async () => {
+                await selectMap(await sets.fromGuids(qa.noncompliant_guids), { fit: true });
+              }));
+            }
+            out.appendChild(toolBtn2("⬇ Export QA (CSV)", () => {
+              const rows = [["rule", "severity", "present", "missing", "total"]];
+              for (const r of qa.rules) rows.push([r.label, r.severity, String(r.present), String(r.missing), String(qa.total)]);
+              const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
+              const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+              const a = document.createElement("a"); a.href = url; a.download = "data-qa.csv"; a.click();
+              setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }));
+          } catch (e) { out.textContent = `QA failed: ${(e as Error).message}`; }
+        }));
         // import a Primavera P6 .xer so the 4D scrub shows real calendar dates
         const xerInput = document.createElement("input");
         xerInput.type = "file"; xerInput.accept = ".xer"; xerInput.style.display = "none";

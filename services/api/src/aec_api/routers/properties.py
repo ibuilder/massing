@@ -65,6 +65,152 @@ def list_elements(pid: str, ifc_class: str | None = None, storey: str | None = N
     return out
 
 
+# --- thematic colouring + data-QA (built-world analytics over the property index) ---------------
+# NOTE: these static /elements/<verb> routes must be registered BEFORE /elements/{guid} below,
+# or FastAPI matches "facets-list"/"color-by"/"qa" as a {guid} and 404s.
+_ATTR_FACETS = [("ifc_class", "IFC class"), ("storey", "Storey / level"),
+                ("type_name", "Type"), ("name", "Name")]
+
+
+def _prop_value(e: dict, prop: str):
+    """Resolve a colour-by key against an element. Top-level attribute (e.g. "ifc_class") or a
+    nested "Group::Prop" path into psets/qtos (e.g. "Pset_WallCommon::IsExternal")."""
+    if "::" in prop:
+        grp, name = prop.split("::", 1)
+        for container in ("psets", "qtos"):
+            d = e.get(container)
+            if isinstance(d, dict) and isinstance(d.get(grp), dict) and name in d[grp]:
+                return d[grp][name]
+        return None
+    return e.get(prop)
+
+
+@router.get("/projects/{pid}/elements/facets-list")
+def color_facets(pid: str, _: str = Depends(require_role("viewer"))):
+    """The properties you can colour by: top-level attributes + every pset/qto property present,
+    each with its distinct-value count (drives the viewer's 'Color by…' picker)."""
+    _ensure_loaded(pid)
+    idx = _INDEX.get(pid)
+    if not idx:
+        raise HTTPException(404, "no properties index for project")
+    attrs: dict[str, set] = {}
+    props: dict[str, set] = {}
+    for e in idx.values():
+        for key, _label in _ATTR_FACETS:
+            v = e.get(key)
+            if v not in (None, ""):
+                attrs.setdefault(key, set()).add(str(v))
+        for container in ("psets", "qtos"):
+            d = e.get(container)
+            if isinstance(d, dict):
+                for grp, kv in d.items():
+                    if isinstance(kv, dict):
+                        for name, val in kv.items():
+                            if val not in (None, ""):
+                                props.setdefault(f"{grp}::{name}", set()).add(str(val))
+    return {
+        "attributes": [{"prop": k, "label": lbl, "distinct": len(attrs.get(k, ()))}
+                       for k, lbl in _ATTR_FACETS if k in attrs],
+        "properties": sorted(({"prop": k, "label": k.replace("::", " · "), "distinct": len(v)}
+                              for k, v in props.items()), key=lambda x: x["prop"])[:300],
+    }
+
+
+@router.get("/projects/{pid}/elements/color-by")
+def color_by(pid: str, prop: str, bins: int = 6, _: str = Depends(require_role("viewer"))):
+    """Bucket every element by a chosen property → colour buckets for the 3D viewer. Numeric
+    properties are binned into ranges; categorical ones grouped by value (top 24 + Other)."""
+    _ensure_loaded(pid)
+    idx = _INDEX.get(pid)
+    if not idx:
+        raise HTTPException(404, "no properties index for project")
+    vals: dict[str, object] = {}
+    for g, e in idx.items():
+        v = _prop_value(e, prop)
+        if v not in (None, ""):
+            vals[g] = v
+
+    def _is_num(x) -> bool:
+        try:
+            float(x)
+            return not isinstance(x, bool)
+        except (TypeError, ValueError):
+            return False
+
+    numeric = bool(vals) and all(_is_num(v) for v in vals.values())
+    buckets: list[dict] = []
+    if numeric:
+        nums = {g: float(v) for g, v in vals.items()}
+        lo, hi = min(nums.values()), max(nums.values())
+        if hi <= lo:
+            buckets = [{"label": f"{lo:g}", "guids": list(nums)}]
+        else:
+            n = max(1, min(int(bins), 8))
+            step = (hi - lo) / n
+            slots: list[list[str]] = [[] for _ in range(n)]
+            for g, x in nums.items():
+                slots[min(n - 1, int((x - lo) / step))].append(g)
+            for i in range(n):
+                buckets.append({"label": f"{lo + step * i:.3g} – {lo + step * (i + 1):.3g}", "guids": slots[i]})
+    else:
+        from collections import Counter
+        top = [k for k, _ in Counter(str(v) for v in vals.values()).most_common(24)]
+        groups: dict[str, list[str]] = {k: [] for k in top}
+        other: list[str] = []
+        for g, v in vals.items():
+            (groups[str(v)] if str(v) in groups else other).append(g)
+        buckets = [{"label": k, "guids": groups[k]} for k in top]
+        if other:
+            buckets.append({"label": "Other", "guids": other})
+    colored = sum(len(b["guids"]) for b in buckets)
+    return {
+        "prop": prop, "kind": "numeric" if numeric else "categorical",
+        "total": len(idx), "colored": colored, "unset": len(idx) - colored,
+        "buckets": [{"label": b["label"], "count": len(b["guids"]), "guids": b["guids"]} for b in buckets],
+    }
+
+
+# (key, label, severity) — the headline % + 3D highlight are driven by "required" rules; "recommended"
+# rules (type, property sets) are reported so gaps are visible without failing the whole model.
+_QA_RULES = [("name", "Name", "required"), ("ifc_class", "IFC class", "required"),
+             ("storey", "Storey / level", "required"), ("type_name", "Type", "recommended"),
+             ("__pset", "Has property set", "recommended")]
+
+
+@router.get("/projects/{pid}/elements/qa")
+def data_qa(pid: str, _: str = Depends(require_role("viewer"))):
+    """BIM data-completeness check: for each attribute, how many elements have it, and which are
+    missing it. The headline compliance % + the 3D highlight use the required rules; recommended
+    rules (type, property sets) are reported separately so gaps surface without failing everything."""
+    _ensure_loaded(pid)
+    idx = _INDEX.get(pid)
+    if not idx:
+        raise HTTPException(404, "no properties index for project")
+    rules = []
+    noncompliant: set[str] = set()
+    for key, label, severity in _QA_RULES:
+        missing = []
+        for g, e in idx.items():
+            if key == "__pset":
+                d = e.get("psets")
+                ok = isinstance(d, dict) and len(d) > 0
+            else:
+                ok = e.get(key) not in (None, "")
+            if not ok:
+                missing.append(g)
+        rules.append({"key": key, "label": label, "severity": severity,
+                      "present": len(idx) - len(missing), "missing": len(missing),
+                      "missing_guids": missing[:5000]})
+        if severity == "required":
+            noncompliant.update(missing)
+    total = len(idx)
+    return {
+        "total": total, "compliant": total - len(noncompliant), "noncompliant": len(noncompliant),
+        "compliant_pct": round(100 * (total - len(noncompliant)) / total, 1) if total else 100.0,
+        "rules": rules, "noncompliant_guids": list(noncompliant)[:5000],
+    }
+
+
 @router.get("/projects/{pid}/elements/{guid}")
 def element(pid: str, guid: str, _: str = Depends(require_role("viewer"))):
     _ensure_loaded(pid)

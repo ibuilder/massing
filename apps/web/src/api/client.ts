@@ -1035,6 +1035,24 @@ export class ApiClient {
     const q = new URLSearchParams(params as Record<string, string>).toString();
     return this.json<ElementProps[]>(`/projects/${pid}/elements?${q}`);
   }
+  /** Properties you can colour the model by (attributes + pset/qto props), for the picker. */
+  colorFacets(pid: string) {
+    return this.json<{ attributes: { prop: string; label: string; distinct: number }[];
+      properties: { prop: string; label: string; distinct: number }[] }>(
+      `/projects/${pid}/elements/facets-list`);
+  }
+  /** Bucket every element by a property → colour buckets (numeric binned, categorical grouped). */
+  colorBy(pid: string, prop: string, bins = 6) {
+    return this.json<{ prop: string; kind: "numeric" | "categorical"; total: number; colored: number;
+      unset: number; buckets: { label: string; count: number; guids: string[] }[] }>(
+      `/projects/${pid}/elements/color-by?prop=${encodeURIComponent(prop)}&bins=${bins}`);
+  }
+  /** BIM data-completeness check: per-attribute present/missing + non-compliant guids to highlight. */
+  dataQa(pid: string) {
+    return this.json<{ total: number; compliant: number; noncompliant: number; compliant_pct: number;
+      rules: { key: string; label: string; severity: string; present: number; missing: number; missing_guids: string[] }[];
+      noncompliant_guids: string[] }>(`/projects/${pid}/elements/qa`);
+  }
 
   // pins / topics (Phase 4)
   pins(pid: string) {

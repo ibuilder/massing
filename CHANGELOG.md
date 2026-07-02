@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.25 — Thematic "Color by property" + BIM data-QA (built-world analytics)
+- **Color by any property.** Generalized the 5D heatmaps into a thematic override: pick any IFC
+  attribute (class, storey, type, name) or pset/qto property and the model recolours by value —
+  numeric ranges get a blue→red ramp, categorical values distinct hues, with a live legend and an
+  "N unset" count. New endpoints `GET /projects/{pid}/elements/facets-list` (the picker) and
+  `…/color-by?prop=` (server-side bucketing over the property index — scales to large models).
+- **BIM data-QA (completeness).** A validation pass over the property index: for each element,
+  which required (Name / IFC class / Storey) and recommended (Type / property sets) attributes are
+  present vs missing → a headline compliance %, a per-rule table, a one-click **3D highlight of the
+  non-compliant elements**, and a CSV export. Endpoint `GET /projects/{pid}/elements/qa`.
+- Inspired by computational-AEC data-viz/asset-data workflows; both reuse the existing viewer
+  colorize/selection plumbing. Backend 75/75 + web typecheck green.
+
 ## v0.3.24 — Construction ↔ Developer split + role-geared dashboards
 - **Workspace split.** The oversized single "Construction" portal is now two role-scoped workspaces
   driven by a new `workspace` tag on every `module.json`: **Construction** (the GC build lifecycle —
