@@ -1053,6 +1053,18 @@ export class ApiClient {
       rules: { key: string; label: string; severity: string; present: number; missing: number; missing_guids: string[] }[];
       noncompliant_guids: string[] }>(`/projects/${pid}/elements/qa`);
   }
+  /** Speckle interoperability bridge status (open-source, self-hostable; off unless configured). */
+  speckleStatus() {
+    return this.json<{ enabled: boolean; connected: boolean; server: string | null; server_name?: string;
+      message: string }>(`/interop/speckle/status`);
+  }
+  /** Convert an uploaded CityGML (.gml) to a GeoJSON FeatureCollection of building footprints. */
+  async convertCityGml(file: File) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/convert/citygml`), { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({ detail: res.status }))).detail || `CityGML -> ${res.status}`);
+    return res.json() as Promise<{ type: string; features: unknown[]; meta: { buildings: number } }>;
+  }
   /** Code-readiness check: does the model carry the data a plan review needs (property-level). */
   codeCheck(pid: string) {
     return this.json<{ code: string; rules: number; checked: number; passed: number; readiness_pct: number;

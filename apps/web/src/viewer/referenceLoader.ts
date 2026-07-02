@@ -23,7 +23,7 @@ export interface RefResult {
 }
 
 export const REF_EXTENSIONS = ["obj", "stl", "ply", "gltf", "glb", "pcd", "xyz", "las", "laz", "e57",
-                               "geojson", "json", "tif", "tiff"] as const;
+                               "geojson", "json", "tif", "tiff", "gml", "citygml"] as const;
 
 function meshFromGeometry(geo: THREE.BufferGeometry, name: string): THREE.Object3D {
   if (!geo.getAttribute("normal")) geo.computeVertexNormals();

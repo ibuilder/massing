@@ -221,6 +221,27 @@ def rvt_bridge_status(_: str = Depends(current_user)):
     return aps.status()
 
 
+@router.get("/interop/speckle/status")
+def speckle_status(_: str = Depends(current_user)):
+    """Is the optional (open-source, self-hostable) Speckle interoperability bridge configured? When
+    on, this verifies live connectivity to the Speckle server. IFC/Fragments stay the source of truth."""
+    from .. import speckle_bridge
+    return speckle_bridge.status()
+
+
+@router.post("/projects/{pid}/interop/speckle/send", status_code=202)
+def speckle_send(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Send the project's model/data to a Speckle stream (requires the bridge configured)."""
+    from .. import speckle_bridge
+    if not speckle_bridge.is_enabled():
+        raise HTTPException(501, speckle_bridge.status()["message"])
+    p = _project(db, pid)
+    try:
+        return speckle_bridge.send_model(pid, p.name, p.source_ifc)
+    except NotImplementedError as e:
+        raise HTTPException(501, str(e))
+
+
 @router.post("/projects/{pid}/import/rvt", status_code=202)
 async def import_rvt(pid: str, file: UploadFile = File(...), confirm_cost: bool = False,
                      publish: bool = True, db: Session = Depends(get_db),

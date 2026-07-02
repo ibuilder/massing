@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.28 — Interoperability: Speckle bridge + CityGML site-context import
+- **Speckle bridge** (Interoperability) — optional, open-source & self-hostable data exchange with the
+  wider AEC ecosystem (Rhino/Grasshopper, Revit, Blender, web). Off unless `SPECKLE_SERVER` +
+  `SPECKLE_TOKEN` are set; when on, `status()` verifies live connectivity (GraphQL `serverInfo`).
+  IFC/Fragments stay the source of truth. Endpoints `/interop/speckle/status` + `…/send` (the chunked
+  object upload runs in your credentialed deployment — it never fabricates a commit).
+- **CityGML → GeoJSON site context** (GIS & Site) — import CityGML (the OGC standard behind the 3D City
+  Database / Cesium city tiles) via **Open mesh / point cloud / GIS…**; the server extracts building
+  footprints (with heights) → GeoJSON that renders in the existing GIS reference layer. Namespace-
+  agnostic (CityGML 1.0–3.0), fully offline. Endpoint `/convert/citygml`; `.gml/.citygml` accepted.
+- `test_interop.py` (Speckle gating + CityGML parse/422) green; web typecheck clean.
+
 ## v0.3.27 — Code-readiness check (Safety & Compliance)
 - **🏛 Code-readiness check** in the viewer — does the model carry the *data* a plan review needs?
   A property-level rule engine (not a certified geometric code review) checks: egress door width

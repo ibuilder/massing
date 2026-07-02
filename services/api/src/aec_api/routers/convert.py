@@ -17,6 +17,21 @@ from fastapi import APIRouter, File, HTTPException, Response, UploadFile
 
 router = APIRouter()
 
+
+@router.post("/convert/citygml")
+async def convert_citygml(file: UploadFile = File(...)):
+    """CityGML (city/site context — the OGC standard behind 3D City Database / Cesium city tiles) →
+    GeoJSON building footprints, which load as a GIS reference layer in the viewer. Fully offline."""
+    from .. import citygml
+    data = await file.read()
+    try:
+        fc = citygml.to_geojson(data)
+    except Exception as e:                               # noqa: BLE001 — malformed CityGML
+        raise HTTPException(422, f"Could not parse CityGML: {e}")
+    if not fc["features"]:
+        raise HTTPException(422, "No building footprints found in the CityGML (need posList rings).")
+    return fc
+
 _CONVERTER = Path(__file__).resolve().parents[4] / "services" / "converter" / "src" / "cli.mjs"
 
 

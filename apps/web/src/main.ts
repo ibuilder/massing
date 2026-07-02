@@ -83,6 +83,22 @@ for (const kind of ["ifc", "frag", "convert", "ref"] as const) {
       })();
       return;
     }
+    // CityGML (.gml) has no in-browser parser: convert server-side to GeoJSON footprints, then load
+    // as a GIS reference layer (city/site context — 3D City Database / Cesium tiles standard).
+    if (kind === "ref" && /\.(gml|citygml)$/i.test(file.name)) {
+      void (async () => {
+        const { toast } = await import("./ui/feedback");
+        try {
+          toast("Converting CityGML…", "info");
+          const fc = await api.convertCityGml(file);
+          const gjFile = new File([JSON.stringify(fc)], file.name.replace(/\.(gml|citygml)$/i, ".geojson"),
+            { type: "application/geo+json" });
+          const v = await ensureViewer(); await v.openFile("ref", gjFile);
+          toast(`Loaded ${fc.meta.buildings} building${fc.meta.buildings === 1 ? "" : "s"} from CityGML`, "success");
+        } catch (err) { toast(`CityGML import failed: ${(err as Error).message}`, "error"); }
+      })();
+      return;
+    }
     void ensureViewer().then((v) => v.openFile(kind, file));
   });
 }
