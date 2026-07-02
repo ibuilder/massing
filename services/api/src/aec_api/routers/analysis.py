@@ -180,6 +180,14 @@ def model_alignment(pid: str, db: Session = Depends(get_db), _sec: str = Depends
                         else f"{len(issues)} alignment issue(s) found across {len(ok)} models.")}
 
 
+@router.get("/projects/{pid}/quantities/disciplines")
+def discipline_quantities(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Discipline quantity roll-up — reinforcement tonnage, MEP linear runs (duct/pipe/cable) + fitting
+    counts, and structural element volume, from the IFC (Qto psets with a geometry fallback)."""
+    from aec_data import qto  # type: ignore
+    return qto.discipline_summary_file(_source_ifc(db, pid))
+
+
 @router.get("/projects/{pid}/energy")
 def energy(pid: str, u_wall: float | None = None, u_window: float | None = None,
            ach: float | None = None, hdd: float | None = None, cdd: float | None = None,

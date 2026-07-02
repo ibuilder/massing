@@ -70,6 +70,57 @@ def _geom_quantities(element, settings) -> dict[str, float]:
         return {}
 
 
+_STEEL_DENSITY = 7850.0   # kg/m3 — rebar weight fallback when NetWeight is absent
+
+
+def discipline_summary(model: ifcopenshell.file, settings=None) -> dict[str, Any]:
+    """Discipline quantity roll-up (Koh rebar viz / WithRebar-style MEP takeoff): reinforcement
+    tonnage, MEP linear runs (duct / pipe / cable), and structural element volume — from Qto psets
+    with a geometry fallback. Honest: weights fall back to volume × steel density when not modelled."""
+    if settings is None and _GEOM_OK:
+        settings = _geom.settings()
+
+    def _q(el) -> dict[str, float]:
+        q = _quantities(el)
+        if ("volume" not in q or "length" not in q) and settings:
+            q = {**_geom_quantities(el, settings), **q}   # psets win; geometry fills gaps
+        return q
+
+    def _len(el) -> float:
+        return _q(el).get("length", 0.0) or 0.0
+
+    def _weight(el) -> float:
+        q = _q(el)
+        return q["weight"] if q.get("weight") else (q.get("volume", 0.0) or 0.0) * _STEEL_DENSITY
+
+    def _count(*classes) -> int:
+        return sum(len(model.by_type(c)) for c in classes)
+
+    rebar_els = [e for c in ("IfcReinforcingBar", "IfcReinforcingMesh", "IfcTendon") for e in model.by_type(c)]
+    rebar_kg = sum(_weight(e) for e in rebar_els)
+    duct_m = sum(_len(e) for e in model.by_type("IfcDuctSegment"))
+    pipe_m = sum(_len(e) for e in model.by_type("IfcPipeSegment"))
+    cable_m = sum(_len(e) for c in ("IfcCableSegment", "IfcCableCarrierSegment") for e in model.by_type(c))
+    struct_vol = 0.0
+    for c in ("IfcBeam", "IfcColumn", "IfcSlab", "IfcWall", "IfcWallStandardCase", "IfcFooting", "IfcPile"):
+        for e in model.by_type(c):
+            struct_vol += _q(e).get("volume", 0.0) or 0.0
+    return {
+        "rebar": {"count": len(rebar_els), "weight_kg": round(rebar_kg, 1),
+                  "tonnes": round(rebar_kg / 1000.0, 3),
+                  "estimated": not any(_quantities(e).get("weight") for e in rebar_els) and bool(rebar_els)},
+        "mep": {"duct_m": round(duct_m, 1), "pipe_m": round(pipe_m, 1), "cable_m": round(cable_m, 1),
+                "counts": {"duct": _count("IfcDuctSegment"), "pipe": _count("IfcPipeSegment"),
+                           "cable": _count("IfcCableSegment", "IfcCableCarrierSegment"),
+                           "fittings": _count("IfcDuctFitting", "IfcPipeFitting", "IfcCableCarrierFitting")}},
+        "structure": {"element_volume_m3": round(struct_vol, 2)},
+    }
+
+
+def discipline_summary_file(ifc_path: str) -> dict[str, Any]:
+    return discipline_summary(open_model(ifc_path))
+
+
 def load_cost_map(path: str | None) -> dict[str, CostCodeRow]:
     if not path:
         return {}

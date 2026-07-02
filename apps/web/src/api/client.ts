@@ -1110,6 +1110,12 @@ export class ApiClient {
         b_guid: string; volume: number; method: "mesh" | "aabb"; point: Vec3 }[] }>(
       `/projects/${pid}/clash/federated?${q}`, { method: "POST" });
   }
+  /** Discipline quantity roll-up — reinforcement tonnage, MEP linear runs, structural volume. */
+  disciplineQuantities(pid: string) {
+    return this.json<{ rebar: { count: number; weight_kg: number; tonnes: number; estimated: boolean };
+      mep: { duct_m: number; pipe_m: number; cable_m: number; counts: Record<string, number> };
+      structure: { element_volume_m3: number } }>(`/projects/${pid}/quantities/disciplines`);
+  }
   /** Federation alignment report — do the discipline models share a storey scheme + georef origin? */
   modelAlignment(pid: string) {
     return this.json<{ models: { name: string; storey_count: number; error?: string;

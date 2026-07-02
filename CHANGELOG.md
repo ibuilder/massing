@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.33 — Discipline quantities: rebar tonnage + MEP runs (C)
+- **🔩 Discipline quantities** in the viewer's Exports — a quantity roll-up straight from the IFC:
+  **reinforcement tonnage** (from `NetWeight`, or estimated from volume × steel density when bars
+  aren't weighed), **MEP linear runs** (duct / pipe / cable metres + segment & fitting counts), and
+  **structural element volume**. Backs the rebar-viz / MEP-takeoff use case (Koh · WithRebar).
+- New `aec_data.qto.discipline_summary` (reuses the QTO quantity reader + geometry fallback) +
+  endpoint `GET /projects/{pid}/quantities/disciplines`. `test_discipline.py` covers weights (modelled
+  vs volume-estimated), MEP runs, and structural volume; verified live against a real IFC. Typecheck clean.
+
 ## v0.3.32 — gbXML energy-model export (B4)
 - **↓ gbXML (energy model)** in the viewer's Exports — exports the model to **Green Building XML** for
   OpenStudio / EnergyPlus / IES / DesignBuilder. Spaces carry **area + volume + occupancy from the real
