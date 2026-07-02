@@ -35,12 +35,14 @@ def construction_portfolio(db: Session = Depends(get_db), _: str = Depends(rbac.
            "recordables": 0, "open_rfis": 0, "over_budget_count": 0}
     for p in db.query(Project).all():
         cs = cost_engine.summary(db, p.id)
-        risks = [r for r in me.list_records(db, "risk", p.id, limit=1_000_000)
-                 if r.get("workflow_state") in ("open", "mitigating")]
+        # P0.1 perf: only the (small) open/mitigating risk rows are loaded for the exposure sum; RFIs
+        # use a SQL COUNT (no rows loaded); incidents are bounded. Was list_records(limit=1_000_000) x3.
+        risks = [r for st in ("open", "mitigating")
+                 for r in me.list_records(db, "risk", p.id, state=st, limit=100_000)]
         exposure = sum(float((r.get("data") or {}).get("cost_exposure") or 0) for r in risks)
-        recordables = sum(1 for i in me.list_records(db, "incident", p.id, limit=1_000_000)
+        recordables = sum(1 for i in me.list_records(db, "incident", p.id, limit=100_000)
                           if (i.get("data") or {}).get("classification") in _RECORDABLE)
-        open_rfis = len(me.list_records(db, "rfi", p.id, state="open", limit=1_000_000))
+        open_rfis = me.count_records(db, "rfi", p.id, state="open")
         over_under = float(cs.get("projected_over_under") or 0)
         rows.append({"id": p.id, "name": p.name, "budget": cs.get("budget", 0),
                      "projected_over_under": over_under, "pct_spent": cs.get("pct_spent", 0),

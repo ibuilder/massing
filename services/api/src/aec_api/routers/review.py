@@ -7,8 +7,12 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from .. import review
 from ..rbac import require_role
+from ..throttle import rate_limited
 
 router = APIRouter()
+
+# AI review calls an LLM per request — cap tighter than normal reads (override: AEC_THROTTLE_REVIEW_RPM).
+_throttle = rate_limited("review", 30)
 
 
 async def _text_from(file: UploadFile | None, text: str | None) -> tuple[str, list[dict]]:
@@ -21,20 +25,23 @@ async def _text_from(file: UploadFile | None, text: str | None) -> tuple[str, li
 
 @router.post("/projects/{pid}/review/contract")
 async def review_contract_ep(pid: str, file: UploadFile | None = File(None),
-                             text: str | None = Form(None), _: str = Depends(require_role("viewer"))):
+                             text: str | None = Form(None), _: str = Depends(require_role("viewer")),
+                             __: None = Depends(_throttle)):
     body, _pages = await _text_from(file, text)
     return review.review_contract(body)
 
 
 @router.post("/projects/{pid}/review/scope")
 async def review_scope_ep(pid: str, file: UploadFile | None = File(None),
-                          text: str | None = Form(None), _: str = Depends(require_role("viewer"))):
+                          text: str | None = Form(None), _: str = Depends(require_role("viewer")),
+                          __: None = Depends(_throttle)):
     body, _pages = await _text_from(file, text)
     return review.scope_gaps(body)
 
 
 @router.post("/projects/{pid}/review/ask")
 async def review_ask_ep(pid: str, question: str = Form(...), file: UploadFile | None = File(None),
-                        text: str | None = Form(None), _: str = Depends(require_role("viewer"))):
+                        text: str | None = Form(None), _: str = Depends(require_role("viewer")),
+                        __: None = Depends(_throttle)):
     _body, pages = await _text_from(file, text)
     return review.ask_doc(question, pages)

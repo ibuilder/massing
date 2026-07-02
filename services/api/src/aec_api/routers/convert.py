@@ -16,12 +16,17 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 
 from ..rbac import current_user
+from ..throttle import rate_limited
 
 router = APIRouter()
 
+# Conversions are heavy (subprocess / paid APS cloud translation) — cap per caller.
+_throttle = rate_limited("convert", 12)
+
 
 @router.post("/convert/citygml")
-async def convert_citygml(file: UploadFile = File(...), _: str = Depends(current_user)):
+async def convert_citygml(file: UploadFile = File(...), _: str = Depends(current_user),
+                          __: None = Depends(_throttle)):
     """CityGML (city/site context — the OGC standard behind 3D City Database / Cesium city tiles) →
     GeoJSON building footprints, which load as a GIS reference layer in the viewer. Fully offline."""
     from .. import citygml
@@ -42,7 +47,8 @@ def _aps_configured() -> bool:
 
 
 @router.post("/convert")
-async def convert(file: UploadFile = File(...), _: str = Depends(current_user)):
+async def convert(file: UploadFile = File(...), _: str = Depends(current_user),
+                  __: None = Depends(_throttle)):
     """Convert an uploaded proprietary model to Fragments. RVT via APS (paid) when configured;
     DWG/NWC require the paid APS/ODA bridge. Returns .frag bytes on success."""
     ext = (file.filename or "").lower().rsplit(".", 1)[-1]

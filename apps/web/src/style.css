@@ -69,6 +69,11 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 #persona:hover { border-color: var(--accent); }
 #status { font-size: 12px; opacity: 0.7; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 
+/* visible command-palette (⌘K) affordance in the header */
+#cmdk-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.cmdk-kbd { font-size: 10px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; opacity: .7; background: var(--panel2); }
+@media (max-width: 560px) { #cmdk-btn .cmdk-kbd { display: none; } }
+
 /* workspace switcher (segmented control) */
 #workspaces { display: inline-flex; gap: 2px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 2px; margin-left: 6px; }
 .ws-btn { background: transparent; border: none; color: var(--muted); font-size: 12px; padding: 4px 12px; border-radius: 4px; cursor: pointer; }

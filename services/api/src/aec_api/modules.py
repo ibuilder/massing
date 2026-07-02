@@ -650,23 +650,27 @@ def due_feed(db: Session, project_id: str, soon_days: int = 7) -> dict:
     soon = today + timedelta(days=max(0, soon_days))
     overdue: list[dict] = []
     due_soon: list[dict] = []
+    # Only rows due on/before the horizon can be overdue or due-soon; rows with no due date or due
+    # later than `soon` (the whole soon day → < soon+1) are filtered in SQL, so we no longer read every
+    # module row + its JSON blob into Python (P0.1 perf). ISO dates compare correctly as text.
+    horizon = (soon + timedelta(days=1)).isoformat()
     for key, mod in REGISTRY.items():
         df = _due_field_name(mod)
         if not df or key not in TABLES:
             continue
         terminal = _terminal_states(mod)
         t = TABLES[key]
-        for r in db.execute(select(t.c.id, t.c.ref, t.c.title, t.c.workflow_state, t.c.assignee, t.c.data)
-                            .where(t.c.project_id == project_id)):
+        duecol = _json_text(db, t.c.data, df)
+        q = (select(t.c.id, t.c.ref, t.c.title, t.c.workflow_state, t.c.assignee, duecol.label("due"))
+             .where(t.c.project_id == project_id)
+             .where(duecol.isnot(None)).where(duecol != "").where(duecol < horizon))
+        if terminal:
+            q = q.where(t.c.workflow_state.notin_(list(terminal)))
+        for r in db.execute(q):
             m = r._mapping
-            if m["workflow_state"] in terminal:
-                continue
-            dd = (m["data"] or {}).get(df)
-            if not dd:
-                continue
             try:
-                d = date.fromisoformat(str(dd)[:10])
-            except ValueError:
+                d = date.fromisoformat(str(m["due"])[:10])
+            except (ValueError, TypeError):
                 continue
             item = {"module": key, "module_name": mod.get("name", key), "icon": mod.get("icon", "•"),
                     "id": m["id"], "ref": m["ref"], "title": m["title"], "state": m["workflow_state"],
@@ -819,7 +823,9 @@ def project_pins(db: Session, project_id: str) -> list[dict]:
         if not mod.get("pinnable"):
             continue
         t = TABLES[key]
-        rows = db.execute(select(t).where(t.c.project_id == project_id))
+        # prune un-anchored rows in SQL (most records have no pin) — the Python check still guards the
+        # JSON-'null' edge case. (P0.1 perf)
+        rows = db.execute(select(t).where(t.c.project_id == project_id, t.c.anchor.isnot(None)))
         for r in rows:
             m = r._mapping
             if not m["anchor"]:  # JSON-null safe (SQLite stores None as JSON null)

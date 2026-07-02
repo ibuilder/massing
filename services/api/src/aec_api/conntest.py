@@ -13,7 +13,9 @@ def _test_ai() -> dict:
         return {"ok": False, "message": "No Anthropic API key set."}
     try:
         from anthropic import Anthropic
-        client = Anthropic(api_key=settings_store.get("ANTHROPIC_API_KEY"))
+        # Bound the probe: a short timeout + no retries so a "Test connection" click can't hang the
+        # worker for minutes on a network stall (the SDK default is a 10-minute timeout with retries).
+        client = Anthropic(api_key=settings_store.get("ANTHROPIC_API_KEY"), timeout=10.0, max_retries=0)
         client.messages.create(model=settings_store.get("AEC_AI_MODEL", "claude-opus-4-8"),
                                max_tokens=1, messages=[{"role": "user", "content": "ping"}])
         return {"ok": True, "message": "Anthropic key valid — AI assist is ready."}

@@ -33,7 +33,7 @@ function fuzzy(q: string, text: string): number {
 export function initCommandPalette(opts: {
   commands: () => Command[];
   search?: (q: string) => Promise<Command[]>;
-}): void {
+}): { open: () => void } {
   let ov: HTMLDivElement | null = null;
 
   const open = () => {
@@ -109,4 +109,5 @@ export function initCommandPalette(opts: {
   window.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); toggle(); }
   });
+  return { open };   // let a visible header affordance open the palette (discoverability)
 }

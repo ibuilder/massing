@@ -1159,7 +1159,7 @@ function openModuleFromPalette(key: string) {
   const go = () => portal.openModuleByKey(key);
   if (portal.moduleList().length) go(); else setTimeout(go, 500);
 }
-if (!_embed) initCommandPalette({
+const _palette = _embed ? null : initCommandPalette({
   commands: () => {
     const cmds: Command[] = [];
     for (const w of WORKSPACES) cmds.push({ id: "ws:" + w.key, label: "Go to " + w.label, hint: "Workspace", run: () => setWorkspace(w.key) });
@@ -1188,5 +1188,17 @@ if (!_embed) initCommandPalette({
     } catch { return []; }
   },
 });
+
+// Visible ⌘K affordance — the palette (jump to any workspace/module/record/action) is the fastest
+// path through the app, but a keyboard-only shortcut is invisible to non-technical users. Put a
+// labeled Search button in the header so it's discoverable + clickable.
+if (_palette) {
+  const search = document.createElement("button");
+  search.id = "cmdk-btn"; search.className = "tool-btn"; search.type = "button";
+  search.title = "Search / jump to anything (Ctrl/⌘-K)";
+  search.innerHTML = `<span aria-hidden="true">🔍</span> Search <kbd class="cmdk-kbd">⌘K</kbd>`;
+  search.onclick = () => _palette.open();
+  document.getElementById("workspaces")?.insertAdjacentElement("beforebegin", search);
+}
 
 startup().finally(() => { initNav(); if (_embed) setWorkspace("model"); });

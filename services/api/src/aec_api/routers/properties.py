@@ -3,6 +3,7 @@ Selection in the viewer raycasts to a GUID, then fetches Psets from these endpoi
 from __future__ import annotations
 
 import json
+import os
 
 from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File
 
@@ -12,13 +13,29 @@ from ..rbac import require_role
 router = APIRouter()
 
 # project_id -> { guid -> element record }  (loaded from uploaded props.json)
+# P0.3: bounded LRU so a worker that serves many projects doesn't hold every project's full element
+# list in memory forever. Evicted projects are transparently reloaded from storage on next access.
 _INDEX: dict[str, dict[str, dict]] = {}
 _META: dict[str, dict] = {}
+_LRU: list[str] = []                    # pids in least→most-recently-used order
+_MAX_PROJECTS = int(os.environ.get("AEC_PROPS_CACHE_PROJECTS", "16"))
+
+
+def _touch(pid: str) -> None:
+    """Mark `pid` most-recently-used and evict the least-recently-used over the cap."""
+    if pid in _LRU:
+        _LRU.remove(pid)
+    _LRU.append(pid)
+    while len(_LRU) > max(1, _MAX_PROJECTS):
+        old = _LRU.pop(0)
+        _INDEX.pop(old, None)
+        _META.pop(old, None)
 
 
 def _load(pid: str, payload: dict) -> int:
     _META[pid] = {k: payload.get(k) for k in ("schema", "project", "counts", "facets")}
     _INDEX[pid] = {e["guid"]: e for e in payload.get("elements", [])}
+    _touch(pid)
     return len(_INDEX[pid])
 
 

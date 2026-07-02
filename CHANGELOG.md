@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.38 — P0 hardening: SQL aggregates, SSRF guard, per-endpoint throttle, bounded property cache
+Quick, safe, high-value fixes from the code/UX/perf/security review (Cesium globe deferred — the
+recommendation is to adopt the OGC **3D Tiles** format into the existing three.js viewer if geospatial
+demand arises, not build a bespoke globe).
+- **Performance — SQL aggregates over full-table Python scans.** `due_feed` now filters unfinished,
+  soon-due records in SQL (JSON due-date `< horizon` + state `not in` terminal) instead of loading
+  every module row + JSON blob; `project_pins` prunes un-anchored rows in SQL; the construction
+  **portfolio** dashboard loads only open/mitigating risks and counts open RFIs with a SQL `COUNT`
+  rather than three `limit=1_000_000` full scans per project. (`my_work` was already SQL-filtered.)
+- **Security — SSRF guard on the admin-settable Speckle URL.** The Speckle server URL comes from the
+  Settings UI (untrusted), so `speckle_bridge` now requires `https://` and refuses hosts that resolve
+  to private / loopback / link-local / cloud-metadata addresses before any request — closing an
+  internal-network / metadata-probe vector. A self-hosted LAN server can opt back in with
+  `SPECKLE_ALLOW_PRIVATE=1`.
+- **Security — per-endpoint rate limiting for expensive ops** (`throttle.py`). The AI **review**
+  endpoints (LLM per call) and the **convert** endpoints (subprocess / paid APS cloud translation)
+  now get an always-on per-caller cap independent of the opt-in global limiter; tune or disable per
+  bucket via `AEC_THROTTLE_<BUCKET>_RPM`. The "Test connection" AI probe is bounded to a 10s timeout
+  with no retries so it can't hang a worker.
+- **Perf/memory — bounded property cache.** The in-process element index (`properties.py`) is now an
+  LRU capped at ~16 projects/worker (`AEC_PROPS_CACHE_PROJECTS`); evicted projects reload transparently
+  from storage — a busy worker no longer holds every project's full element list forever.
+- **UX — discoverable command palette.** Added a visible **🔍 Search ⌘K** button in the header so the
+  palette isn't hidden behind a keyboard shortcut. Backend suite + web typecheck green.
+
 ## v0.3.37 — Design tokens: theme-aware modal error text
 - Modal/error message colors across the Account, Connections, and Settings dialogs now use the
   theme-aware **`--err`** token instead of a hardcoded red, so they read correctly in light mode too

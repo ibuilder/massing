@@ -58,6 +58,35 @@ except NotImplementedError:
 os.environ.pop("SPECKLE_SERVER", None)
 os.environ.pop("SPECKLE_TOKEN", None)
 
+# SSRF GUARD on the admin-settable Speckle URL: the URL comes from Settings (untrusted input), so an
+# unguarded server-side fetch could probe internal services / cloud metadata. _validate_server_url
+# requires https and refuses private/loopback/link-local hosts unless SPECKLE_ALLOW_PRIVATE is set.
+os.environ.pop("SPECKLE_ALLOW_PRIVATE", None)
+def _rejects(url):
+    try:
+        speckle_bridge._validate_server_url(url)
+        return False
+    except ValueError:
+        return True
+assert _rejects("http://speckle.example.com"), "http must be rejected"        # not https
+assert _rejects("https://127.0.0.1/graphql"), "loopback must be rejected"
+assert _rejects("https://localhost"), "localhost must be rejected"
+assert _rejects("https://169.254.169.254"), "cloud-metadata IP must be rejected"  # AWS/GCP metadata
+assert _rejects("https://10.0.0.5"), "private-range host must be rejected"
+assert _rejects("https://192.168.1.10"), "private-range host must be rejected"
+speckle_bridge._validate_server_url("https://8.8.8.8")                          # public IP -> allowed
+# explicit opt-in re-allows a private/LAN self-hosted server
+os.environ["SPECKLE_ALLOW_PRIVATE"] = "1"
+speckle_bridge._validate_server_url("https://10.0.0.5")                         # now allowed
+os.environ.pop("SPECKLE_ALLOW_PRIVATE", None)
+# a configured private-IP server surfaces as unreachable (guard fires), not a crash
+os.environ["SPECKLE_SERVER"] = "https://192.168.0.9"
+os.environ["SPECKLE_TOKEN"] = "tok"
+st3 = speckle_bridge.status()
+assert st3["connected"] is False, st3
+os.environ.pop("SPECKLE_SERVER", None)
+os.environ.pop("SPECKLE_TOKEN", None)
+
 # endpoint reflects the off state
 with TestClient(app) as c:
     r = c.get("/interop/speckle/status")
@@ -94,4 +123,5 @@ with TestClient(app) as c:
 
 print("INTEROP OK - Speckle bridge off by default (status enabled=False, guidance message); send() "
       "raises 'not configured' when off; configured-but-unreachable -> connected=False (no crash) + "
-      "send raises NotImplemented; /interop/speckle/status 200, send 501 when off")
+      "send raises NotImplemented; /interop/speckle/status 200, send 501 when off; SSRF guard rejects "
+      "http/loopback/private/metadata hosts, allows public + opt-in private")
