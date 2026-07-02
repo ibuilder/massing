@@ -1105,6 +1105,13 @@ export class ApiClient {
         b_guid: string; volume: number; method: "mesh" | "aabb"; point: Vec3 }[] }>(
       `/projects/${pid}/clash/federated?${q}`, { method: "POST" });
   }
+  /** Federation alignment report — do the discipline models share a storey scheme + georef origin? */
+  modelAlignment(pid: string) {
+    return this.json<{ models: { name: string; storey_count: number; error?: string;
+        storeys: { name: string; elevation: number }[]; georef: Record<string, unknown> | null }[];
+      issues: { type: string; severity: string; model: string; detail: string }[];
+      aligned: boolean; message: string }>(`/projects/${pid}/models/alignment`);
+  }
   /** Discipline models layered on a project (for federated clash). */
   projectModels(pid: string) {
     return this.json<{ id: string; discipline: string; created_at: string | null }[]>(`/projects/${pid}/models`);

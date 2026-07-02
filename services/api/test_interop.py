@@ -67,6 +67,16 @@ with TestClient(app) as c:
     # empty/garbage CityGML -> 422 (no footprints), never a fake layer
     assert c.post("/convert/citygml", files={"file": ("x.gml", b"<a/>", "application/xml")}).status_code == 422
 
+    # HARDENING: a billion-laughs / XXE bomb is rejected (defusedxml), not expanded -> 422, no OOM
+    bomb = (b'<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol">'
+            b'<!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">'
+            b'<!ENTITY lol3 "&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;">]>'
+            b'<core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0"><a>&lol3;</a></core:CityModel>')
+    assert c.post("/convert/citygml", files={"file": ("bomb.gml", bomb, "application/xml")}).status_code == 422
+
+    # model alignment report needs >=2 models -> 409 when a project has none
+    assert c.get(f"/projects/{pid}/models/alignment").status_code == 409
+
 print("INTEROP OK - Speckle bridge off by default (status enabled=False, guidance message); send() "
       "raises 'not configured' when off; configured-but-unreachable -> connected=False (no crash) + "
       "send raises NotImplemented; /interop/speckle/status 200, send 501 when off")

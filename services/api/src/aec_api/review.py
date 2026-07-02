@@ -18,6 +18,9 @@ from .ai import ai_enabled
 _log = logging.getLogger("aec.review")
 
 SEVERITY = ("high", "medium", "low")
+# bound the regex/scan work on very large uploads (the global body cap allows big files; a contract
+# is small — cap the analysed text so a huge PDF can't drive CPU). ~800k chars ≈ a long spec manual.
+_MAX_REVIEW_CHARS = 800_000
 
 
 # --- text extraction ---------------------------------------------------------
@@ -153,7 +156,7 @@ _REVIEW_SYSTEM = (
 
 
 def review_contract(text: str) -> dict[str, Any]:
-    body = (text or "").strip()
+    body = (text or "").strip()[:_MAX_REVIEW_CHARS]
     if not body:
         return {"findings": [], "counts": {s: 0 for s in SEVERITY}, "source": "empty",
                 "message": "No contract text — upload a contract PDF or paste its text."}
@@ -221,7 +224,7 @@ _SCOPE_SYSTEM = (
 
 
 def scope_gaps(text: str) -> dict[str, Any]:
-    body = (text or "").strip()
+    body = (text or "").strip()[:_MAX_REVIEW_CHARS]
     if not body:
         return {"gaps": [], "source": "empty", "message": "No text — upload specs/notes or paste them."}
     if ai_enabled():

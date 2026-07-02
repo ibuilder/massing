@@ -1672,6 +1672,23 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             body.appendChild(toolBtn2("Open Issues panel", () => (document.querySelector('.rail-btn[data-rail="issues"]') as HTMLElement)?.click()));
           });
         })));
+        b.appendChild(toolBtn2("📐 Alignment check (storey + origin)", () => withLoading(container, "Checking model alignment", async () => {
+          let r;
+          try { r = await api.modelAlignment(pid); }
+          catch { toast("Alignment needs ≥2 models — add one with “＋ Add discipline IFC”", "error"); return; }
+          out.textContent = r.aligned ? "Models aligned ✓" : `${r.issues.length} alignment issue(s)`;
+          toast(r.message, r.aligned ? "success" : "info");
+          const tone: Record<string, string> = { high: "var(--status-crit,#e2554a)", medium: "var(--status-warn,#ffd479)", low: "var(--muted)" };
+          showResult("Model alignment", (body) => {
+            body.appendChild(resultNote(r!.message, r!.aligned ? "ok" : "bad"));
+            body.appendChild(kvTable(r!.models.map((m) => ({ k: m.name, v: m.error ? `error: ${m.error}` : `${m.storey_count} storeys${m.georef ? " · georef" : ""}` }))));
+            for (const i of r!.issues) {
+              const d = document.createElement("div"); d.style.cssText = `font-size:12px;margin:3px 0;border-left:3px solid ${tone[i.severity] || "var(--muted)"};padding-left:6px`;
+              d.innerHTML = `<b>${i.model}</b> — ${i.detail}`;
+              body.appendChild(d);
+            }
+          });
+        })));
         b.appendChild(toolBtn2("＋ Add discipline IFC…", () => {
           const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".ifc";
           inp.onchange = async () => {

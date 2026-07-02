@@ -7,7 +7,9 @@ reference-model path (no new client renderer). Namespace-agnostic (matches by lo
 works across CityGML 1.0/2.0/3.0 exports."""
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
+# defusedxml hardens against XXE / billion-laughs / external-entity attacks on the untrusted uploaded
+# CityGML (a small malicious file can otherwise exhaust memory). It returns standard ElementTree nodes.
+from defusedxml.ElementTree import fromstring as _safe_fromstring
 
 
 def _local(tag: str) -> str:
@@ -44,7 +46,7 @@ def _height(building) -> float | None:
 
 def to_geojson(xml_bytes: bytes) -> dict:
     """Parse CityGML → a GeoJSON FeatureCollection of building-footprint polygons."""
-    root = ET.fromstring(xml_bytes)
+    root = _safe_fromstring(xml_bytes)
     features = []
     buildings = _find_all_local(root, "Building")
     # some exports nest as BuildingPart; fall back to any element carrying posLists if no Building

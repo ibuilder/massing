@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.29 — Federation alignment report + security hardening
+- **Model alignment check** (Coordination) — a lightweight companion to federated clash: do a
+  project's discipline models share the same **storey scheme** and **georeferenced origin**? Reads each
+  model's storey elevations + IfcMapConversion and flags mismatched storey counts/elevations (different
+  datums) and survey-origin offsets — the #1 coordination problem. New endpoint
+  `/projects/{pid}/models/alignment` + a "📐 Alignment check" viewer action beside Federated clash.
+- **Security hardening** of this session's new upload/parse surfaces:
+  - CityGML parsing now uses **defusedxml** → XXE / billion-laughs / external-entity bombs are
+    rejected (`EntitiesForbidden`) instead of expanding, so a tiny malicious file can't exhaust memory.
+  - The contract/spec review engine caps analysed text (~800k chars) so a huge PDF can't drive the
+    regex scan unbounded (the global 1 GB body cap still applies to the upload itself).
+  - `pypdf` + `defusedxml` pinned in `requirements.txt`.
+- `test_interop.py` extended (XXE bomb → 422, alignment → 409); backend suite + web typecheck green.
+
 ## v0.3.28 — Interoperability: Speckle bridge + CityGML site-context import
 - **Speckle bridge** (Interoperability) — optional, open-source & self-hostable data exchange with the
   wider AEC ecosystem (Rhino/Grasshopper, Revit, Blender, web). Off unless `SPECKLE_SERVER` +

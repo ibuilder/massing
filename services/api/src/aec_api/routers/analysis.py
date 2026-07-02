@@ -112,6 +112,74 @@ def run_clash_federated(
             "clashes": results[:limit], "truncated": len(results) > limit}
 
 
+@router.get("/projects/{pid}/models/alignment")
+def model_alignment(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Federation alignment report — do the project's discipline models share the same storey scheme
+    and georeferenced origin? The #1 coordination problem is models on different origins/levels; this
+    reads each model's storey elevations + IfcMapConversion and flags mismatches (a lightweight
+    companion to federated clash). Reads the models read-only."""
+    import ifcopenshell  # type: ignore
+    from aec_data import drawings  # type: ignore
+
+    files: dict[str, str] = {}
+    p = db.get(Project, pid)
+    if p and p.source_ifc and Path(p.source_ifc).exists():
+        files["Source"] = p.source_ifc
+    for m in db.query(ProjectModel).filter_by(project_id=pid):
+        if Path(m.ifc_path).exists():
+            key = m.discipline if m.discipline not in files else f"{m.discipline} ({m.id[:4]})"
+            files[key] = m.ifc_path
+    if len(files) < 2:
+        raise HTTPException(409, 'need >=2 accessible models — append one via "Open IFC as discipline"')
+
+    def _georef(model) -> dict | None:
+        for mc in model.by_type("IfcMapConversion"):
+            return {"eastings": getattr(mc, "Eastings", None), "northings": getattr(mc, "Northings", None),
+                    "height": getattr(mc, "OrthogonalHeight", None)}
+        for site in model.by_type("IfcSite"):
+            if getattr(site, "RefLatitude", None) or getattr(site, "RefLongitude", None):
+                return {"ref_latitude": site.RefLatitude, "ref_longitude": site.RefLongitude,
+                        "ref_elevation": getattr(site, "RefElevation", None)}
+        return None
+
+    models = []
+    for name, path in files.items():
+        try:
+            mdl = ifcopenshell.open(path)
+            storeys = drawings.storey_elevations(mdl)
+            models.append({"name": name, "storey_count": len(storeys),
+                           "storeys": storeys, "georef": _georef(mdl)})
+        except Exception as e:                           # noqa: BLE001 — a bad file shouldn't 500 the report
+            models.append({"name": name, "error": str(e), "storey_count": 0, "storeys": [], "georef": None})
+
+    ok = [m for m in models if "error" not in m]
+    issues = []
+    if len(ok) >= 2:
+        ref = ok[0]
+        ref_elevs = sorted(round(s["elevation"], 2) for s in ref["storeys"])
+        for m in ok[1:]:
+            if m["storey_count"] != ref["storey_count"]:
+                issues.append({"type": "storey_count", "severity": "medium", "model": m["name"],
+                               "detail": f"{m['storey_count']} storeys vs {ref['storey_count']} in '{ref['name']}'."})
+            elevs = sorted(round(s["elevation"], 2) for s in m["storeys"])
+            if elevs and ref_elevs and any(abs(a - b) > 0.05 for a, b in zip(elevs, ref_elevs)):
+                issues.append({"type": "storey_elevation", "severity": "high", "model": m["name"],
+                               "detail": f"Storey elevations differ from '{ref['name']}' — models may be on different datums."})
+            g0, g1 = ref.get("georef"), m.get("georef")
+            if g0 and g1 and "eastings" in g0 and "eastings" in g1:
+                de = abs((g0.get("eastings") or 0) - (g1.get("eastings") or 0))
+                dn = abs((g0.get("northings") or 0) - (g1.get("northings") or 0))
+                if de > 0.1 or dn > 0.1:
+                    issues.append({"type": "georef_origin", "severity": "high", "model": m["name"],
+                                   "detail": f"Survey origin differs by E {de:.2f} / N {dn:.2f} m from '{ref['name']}' — align to a shared origin."})
+            elif bool(g0) != bool(g1):
+                issues.append({"type": "georef_missing", "severity": "low", "model": m["name"],
+                               "detail": "One model is georeferenced (IfcMapConversion) and the other is not."})
+    return {"models": models, "issues": issues, "aligned": not issues,
+            "message": ("Models share a consistent storey scheme and origin." if not issues
+                        else f"{len(issues)} alignment issue(s) found across {len(ok)} models.")}
+
+
 @router.get("/projects/{pid}/energy")
 def energy(pid: str, u_wall: float | None = None, u_window: float | None = None,
            ach: float | None = None, hdd: float | None = None, cdd: float | None = None,
