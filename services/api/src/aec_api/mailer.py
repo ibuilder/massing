@@ -27,6 +27,24 @@ def _from_addr() -> str:
     return settings_store.get("AEC_SMTP_FROM") or f"no-reply@{settings_store.get('AEC_SMTP_HOST', 'localhost')}"
 
 
+def smtp_test() -> dict:
+    """Liveness check for the Settings 'Test connection' button: connect + STARTTLS + login (no send)."""
+    if not smtp_configured():
+        return {"ok": False, "message": "SMTP host not set."}
+    host = settings_store.get("AEC_SMTP_HOST")
+    port = int(settings_store.get("AEC_SMTP_PORT", "587"))
+    try:
+        with smtplib.SMTP(host, port, timeout=15) as s:
+            if settings_store.get("AEC_SMTP_TLS", "1") == "1":
+                s.starttls()
+            user, pw = settings_store.get("AEC_SMTP_USER"), settings_store.get("AEC_SMTP_PASSWORD")
+            if user and pw:
+                s.login(user, pw)
+        return {"ok": True, "message": f"Connected to {host}:{port}."}
+    except Exception as e:                               # noqa: BLE001
+        return {"ok": False, "message": f"SMTP failed: {str(e)[:140]}"}
+
+
 def build_message(to: str, subject: str, body_text: str, body_html: str | None = None) -> EmailMessage:
     """Construct a well-formed (optionally multipart) message — pure, no I/O (testable)."""
     msg = EmailMessage()

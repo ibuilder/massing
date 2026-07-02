@@ -23,6 +23,13 @@ assert any(g.startswith("Speckle") for g in _groups) and any("APS" in g for g in
 _tok = next(k for g in _cat for k in g["keys"] if k["key"] == "SPECKLE_TOKEN")
 assert _tok["secret"] and "value" not in _tok, _tok        # write-only secret
 
+# "Test connection" dispatcher — ✓/✗ per integration (off = ✗ with guidance, unknown = guarded)
+from aec_api import conntest                                # noqa: E402
+assert conntest.test_group("Speckle (interoperability)")["ok"] is False
+assert conntest.test_group("SSO — Google")["ok"] is False
+assert conntest.test_group("Nope")["ok"] is False
+assert conntest.test_group("Massing licence")["ok"] is True    # open mode — licence optional
+
 # off by default
 assert speckle_bridge.is_enabled() is False
 st = speckle_bridge.status()

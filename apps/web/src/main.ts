@@ -947,8 +947,22 @@ function settingsModal() {
     const inputs: Record<string, HTMLInputElement> = {};
     const clears: Record<string, HTMLInputElement> = {};
     for (const g of groups) {
-      const h = document.createElement("div"); h.textContent = g.group;
-      h.style.cssText = "font-weight:600;margin:10px 0 2px;color:var(--text);font-size:12px";
+      const h = document.createElement("div");
+      h.style.cssText = "display:flex;align-items:center;gap:8px;font-weight:600;margin:10px 0 2px;color:var(--text);font-size:12px";
+      const gname = document.createElement("span"); gname.textContent = g.group; h.appendChild(gname);
+      // "Test connection" — instant ✓/✗ that the saved key actually works (no guessing)
+      const testBtn = document.createElement("button"); testBtn.className = "tool-btn"; testBtn.textContent = "Test";
+      testBtn.style.cssText = "font-size:11px;padding:1px 8px";
+      const testMsg = document.createElement("span"); testMsg.className = "meta"; testMsg.style.fontSize = "11px";
+      testBtn.onclick = async () => {
+        testMsg.textContent = "testing…"; testMsg.style.color = "var(--muted)";
+        try {
+          const r = await api.testIntegration(g.group);
+          testMsg.textContent = `${r.ok ? "✓" : "✗"} ${r.message}`;
+          testMsg.style.color = r.ok ? "var(--status-good, #33d17a)" : "var(--status-crit, #e2554a)";
+        } catch (e) { testMsg.textContent = `✗ ${(e as Error).message}`; testMsg.style.color = "var(--status-crit, #e2554a)"; }
+      };
+      h.append(testBtn, testMsg);
       body.appendChild(h);
       for (const k of g.keys) {
         const row = document.createElement("div"); row.style.cssText = "display:flex;align-items:center;gap:8px;margin:3px 0";

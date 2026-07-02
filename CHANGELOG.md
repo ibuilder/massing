@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.31 — Settings: "Test connection" per integration
+- Every integration in **Settings ▸ Integrations & API keys** gets a **Test** button with instant
+  ✓/✗ + message, so a non-technical admin knows a key actually works before relying on it:
+  - **AI** — validates the Anthropic key with a 1-token call.
+  - **Email** — connects + STARTTLS + login (no send).
+  - **Speckle** — live GraphQL `serverInfo` connectivity check.
+  - **Autodesk APS** — 2-legged OAuth (validates client id/secret).
+  - **SSO** — confirms client id/secret are present (full sign-in still completes from the login page).
+  - **Licence** — key-format check.
+- New `conntest.py` dispatcher + `POST /settings/integrations/test` (admin-only). `test_interop.py`
+  covers the dispatcher; suite + web typecheck green.
+
 ## v0.3.30 — Settings: add all API keys in the UI (no code/env editing)
 - **Speckle** and **Autodesk APS** are now in the **Settings ▸ Integrations & API keys** panel, joining
   AI (Anthropic), Email (SMTP), SSO (Google / Microsoft / Procore), and licensing. A non-technical

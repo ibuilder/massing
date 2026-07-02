@@ -384,6 +384,17 @@ def put_integrations(values: dict = Body(..., embed=True), db: Session = Depends
     return {"groups": settings_store.public_catalog()}
 
 
+@router.post("/settings/integrations/test")
+def test_integration(body: dict = Body(...), _: User = Depends(require_admin_user)):
+    """Live 'Test connection' for one integration group (by its catalog name) → {ok, message}.
+    Gives a non-technical admin instant confirmation a key actually works."""
+    from .. import conntest
+    group = (body or {}).get("group") or ""
+    if group not in {g["group"] for g in settings_store.CATALOG}:
+        raise HTTPException(400, "unknown integration group")
+    return conntest.test_group(group)
+
+
 @router.get("/audit")
 def audit_log(action: str | None = Query(None), actor: str | None = Query(None),
               since: str | None = Query(None), limit: int = Query(100, ge=1, le=500),

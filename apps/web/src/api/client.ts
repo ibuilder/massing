@@ -316,6 +316,11 @@ export class ApiClient {
     return this.json<{ groups: IntegrationGroup[] }>(
       "/settings/integrations", { method: "PUT", body: JSON.stringify({ values }) });
   }
+  /** Live "Test connection" for one integration group (by its catalog name) → {ok, message}. */
+  testIntegration(group: string) {
+    return this.json<{ ok: boolean; message: string }>(
+      "/settings/integrations/test", { method: "POST", body: JSON.stringify({ group }) });
+  }
 
   // --- data-source connections (admin) -----------------------------------
   connections() {
