@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.37 — Design tokens: theme-aware modal error text
+- Modal/error message colors across the Account, Connections, and Settings dialogs now use the
+  theme-aware **`--err`** token instead of a hardcoded red, so they read correctly in light mode too
+  (completing the v0.3.23 status-token pass). The remaining literal colors are intentionally raw:
+  canvas drawing colors (takeoff/markup — canvas can't read CSS variables) and already-tokenized
+  `var(--status-*, #fallback)` uses. Web typecheck + production build clean.
+
 ## v0.3.36 — Module-config validator + forms/CRUD audit
 - **Forms/CRUD audit** across all 85 modules — found + fixed a broken list view: `asset_register`
   listed a `warranty_expiry` column that didn't exist (the field is `warranty_expires`).

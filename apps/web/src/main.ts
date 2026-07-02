@@ -884,7 +884,7 @@ function buildProjectPicker(projects: { id: string; name: string; model_kind?: s
 /** Settings panel: keyboard shortcuts (everyone) + integration API keys (admins only). */
 function settingsModal() {
   const { ov, card, msg } = modalShell("Settings", 560);
-  msg.style.color = "#e2554a";
+  msg.style.color = "var(--err)";
 
   // capability status badges (what's wired) — visible to everyone
   const about = document.createElement("div");

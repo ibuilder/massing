@@ -29,7 +29,7 @@ const TYPE_FIELDS: Record<string, { key: string; label: string; secret?: boolean
 function schedulesModal(api: ApiClient, getPid: GetPid, connectionId: string) {
   const pid = getPid(); if (!pid) return;
   const { card, msg } = modalShell("Auto-sync schedules", 500);
-  msg.style.color = "#e2554a";
+  msg.style.color = "var(--err)";
   const list = document.createElement("div"); card.appendChild(list);
   const render = async () => {
     list.textContent = "";
@@ -70,7 +70,7 @@ function schedulesModal(api: ApiClient, getPid: GetPid, connectionId: string) {
 
 function mappingModal(api: ApiClient, connectionId: string, name: string) {
   const { card, msg } = modalShell(`Field mapping — ${name}`, 560);
-  msg.style.color = "#e2554a";
+  msg.style.color = "var(--err)";
   const intro = document.createElement("div"); intro.className = "meta"; intro.style.marginBottom = "8px";
   intro.textContent = "Map each module field to a Procore source path (dotted, e.g. questions.0.body). Leave blank to use the default.";
   card.appendChild(intro);
@@ -112,7 +112,7 @@ function mappingModal(api: ApiClient, connectionId: string, name: string) {
  *  a SELECT console with a results grid. Closes the interoperability gap — data, not just config. */
 function browseConnection(api: ApiClient, id: string, name: string) {
   const { card, msg } = modalShell(`Browse — ${name}`, 720);
-  msg.style.color = "#e2554a";
+  msg.style.color = "var(--err)";
   const tablesBox = document.createElement("div"); tablesBox.className = "meta"; tablesBox.textContent = "loading tables…";
   const sql = document.createElement("textarea"); sql.className = "portal-filter";
   sql.style.cssText = "width:100%;height:60px;font-family:ui-monospace,monospace;margin:8px 0";
@@ -158,7 +158,7 @@ function browseConnection(api: ApiClient, id: string, name: string) {
 /** The Data-connections admin modal (entry point). `getPid` reads the live current project id. */
 export function openConnectionsModal(api: ApiClient, getPid: GetPid) {
   const { card, msg } = modalShell("Data connections", 560);
-  msg.style.color = "#e2554a";
+  msg.style.color = "var(--err)";
   const list = document.createElement("div"); list.style.cssText = "display:flex;flex-direction:column;gap:8px";
   card.appendChild(list);
 

@@ -48,7 +48,7 @@ export async function buildAuthControl(deps: AccountDeps): Promise<void> {
 
 function loginModal() {
   const { card, msg, close } = modalShell("Sign in");
-  msg.style.color = "#e2554a";
+  msg.style.color = "var(--err)";
   const u = document.createElement("input"); u.placeholder = "username"; u.className = "portal-filter";
   const p = document.createElement("input"); p.type = "password"; p.placeholder = "password"; p.className = "portal-filter";
   const row = document.createElement("div"); row.style.cssText = "display:flex;gap:8px;justify-content:flex-end";
@@ -95,7 +95,7 @@ function resetModal() {
   const { card, msg, close } = modalShell("Reset password with token");
   const tk = document.createElement("input"); tk.placeholder = "reset token"; tk.className = "portal-filter";
   const np = document.createElement("input"); np.type = "password"; np.placeholder = "new password (min 8)"; np.className = "portal-filter";
-  msg.style.color = "#e2554a";
+  msg.style.color = "var(--err)";
   const row = document.createElement("div"); row.style.cssText = "display:flex;gap:8px;justify-content:flex-end";
   const cancel = document.createElement("button"); cancel.className = "tool-btn"; cancel.textContent = "Cancel"; cancel.onclick = close;
   const go = document.createElement("button"); go.className = "file-btn"; go.textContent = "Set password";
@@ -147,7 +147,7 @@ function passwordModal() {
   const { card, msg, close } = modalShell("Change password");
   const cur = document.createElement("input"); cur.type = "password"; cur.placeholder = "current password"; cur.className = "portal-filter";
   const nw = document.createElement("input"); nw.type = "password"; nw.placeholder = "new password (min 8)"; nw.className = "portal-filter";
-  msg.style.color = "#e2554a";
+  msg.style.color = "var(--err)";
   const row = document.createElement("div"); row.style.cssText = "display:flex;gap:8px;justify-content:flex-end";
   const cancel = document.createElement("button"); cancel.className = "tool-btn"; cancel.textContent = "Cancel"; cancel.onclick = close;
   const go = document.createElement("button"); go.className = "file-btn"; go.textContent = "Update";
@@ -163,7 +163,7 @@ function passwordModal() {
 function adminModal() {
   const { card, msg } = modalShell("Manage users", 460);
   const list = document.createElement("div"); list.style.cssText = "display:flex;flex-direction:column;gap:6px";
-  msg.style.color = "#e2554a";
+  msg.style.color = "var(--err)";
   const api = D.api;
 
   const render = async () => {
@@ -234,7 +234,7 @@ function adminModal() {
 function membersModal(pid: string) {
   const { card, msg } = modalShell("Project members", 520);
   const list = document.createElement("div"); list.style.cssText = "display:flex;flex-direction:column;gap:6px";
-  msg.style.color = "#e2554a";
+  msg.style.color = "var(--err)";
   const api = D.api;
   const sel = (opts: readonly string[], value: string) => {
     const s = document.createElement("select"); s.className = "portal-filter";
@@ -295,7 +295,7 @@ function membersModal(pid: string) {
 /** Read-only audit-trail viewer (global admins): filter by action/actor/since, newest first. */
 function auditModal() {
   const { card, msg } = modalShell("Audit log", 620);
-  msg.style.color = "#e2554a";
+  msg.style.color = "var(--err)";
   const api = D.api;
   const filters = document.createElement("div"); filters.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center";
   const fAction = document.createElement("input"); fAction.placeholder = "action contains…"; fAction.className = "portal-filter";
