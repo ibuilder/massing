@@ -19,12 +19,14 @@ import os
 import urllib.parse
 import urllib.request
 
+from . import settings_store
+
 APS_BASE = "https://developer.api.autodesk.com"
 
 
 def is_enabled() -> bool:
     """The paid bridge is available only when APS app credentials are configured."""
-    return bool(os.environ.get("APS_CLIENT_ID") and os.environ.get("APS_CLIENT_SECRET"))
+    return bool(settings_store.get("APS_CLIENT_ID") and settings_store.get("APS_CLIENT_SECRET"))
 
 
 def status() -> dict:
@@ -32,12 +34,12 @@ def status() -> dict:
     enabled = is_enabled()
     return {
         "enabled": enabled,
-        "activity_configured": bool(os.environ.get("APS_DA_ACTIVITY")),
+        "activity_configured": bool(settings_store.get("APS_DA_ACTIVITY")),
         "cost_warning": "Converting a Revit model uses Autodesk APS cloud credits, which are billed "
                         "to your APS account. Each conversion has a real cost.",
         "free_alternative": "IFC is the source of truth — export IFC from Revit (File → Export → IFC) "
                             "and use “Open IFC…”, no paid bridge needed.",
-        "message": ("RVT→IFC bridge ready." if enabled and os.environ.get("APS_DA_ACTIVITY")
+        "message": ("RVT→IFC bridge ready." if enabled and settings_store.get("APS_DA_ACTIVITY")
                     else "RVT bridge configured but APS_DA_ACTIVITY (Design Automation activity) is not set."
                     if enabled else
                     "RVT bridge not configured — set APS_CLIENT_ID / APS_CLIENT_SECRET (and a Design "
@@ -57,8 +59,8 @@ def oauth_token() -> str:
     """2-legged (client-credentials) APS token with the scopes the RVT→IFC flow needs."""
     body = urllib.parse.urlencode({
         "grant_type": "client_credentials",
-        "client_id": os.environ["APS_CLIENT_ID"],
-        "client_secret": os.environ["APS_CLIENT_SECRET"],
+        "client_id": settings_store.get("APS_CLIENT_ID"),
+        "client_secret": settings_store.get("APS_CLIENT_SECRET"),
         "scope": "data:read data:write data:create bucket:create bucket:read code:all",
     }).encode()
     raw = _req("POST", f"{APS_BASE}/authentication/v2/token",
@@ -75,7 +77,7 @@ def translate_rvt_to_ifc(data: bytes, filename: str, poll_seconds: int = 600) ->
     """
     if not is_enabled():
         raise RuntimeError("APS bridge not configured (set APS_CLIENT_ID / APS_CLIENT_SECRET).")
-    activity = os.environ.get("APS_DA_ACTIVITY")
+    activity = settings_store.get("APS_DA_ACTIVITY")
     if not activity:
         raise RuntimeError(
             "APS_DA_ACTIVITY is not set. RVT→IFC needs a Design-Automation-for-Revit Activity that "

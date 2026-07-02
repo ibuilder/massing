@@ -12,8 +12,16 @@ for _f in ("./test_interop.db",):
         os.remove(_f)
 
 from fastapi.testclient import TestClient   # noqa: E402
-from aec_api import speckle_bridge            # noqa: E402
+from aec_api import speckle_bridge, settings_store  # noqa: E402
 from aec_api.main import app                  # noqa: E402
+
+# Settings catalog exposes Speckle + APS so a non-technical admin can add keys in the UI (no env edit),
+# and secrets are write-only (the public catalog never returns a secret value).
+_cat = settings_store.public_catalog()
+_groups = [g["group"] for g in _cat]
+assert any(g.startswith("Speckle") for g in _groups) and any("APS" in g for g in _groups), _groups
+_tok = next(k for g in _cat for k in g["keys"] if k["key"] == "SPECKLE_TOKEN")
+assert _tok["secret"] and "value" not in _tok, _tok        # write-only secret
 
 # off by default
 assert speckle_bridge.is_enabled() is False

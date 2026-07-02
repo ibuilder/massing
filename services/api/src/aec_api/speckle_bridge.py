@@ -12,17 +12,20 @@ feature-flag gate is testable without a server."""
 from __future__ import annotations
 
 import json
-import os
 import urllib.error
 import urllib.request
 
+from . import settings_store
+
 
 def _server() -> str:
-    return (os.environ.get("SPECKLE_SERVER") or "").rstrip("/")
+    # settings_store: a value saved in the Settings UI (DB) wins, else the env var — so a
+    # non-technical user can configure Speckle from the app without touching code/env.
+    return (settings_store.get("SPECKLE_SERVER") or "").rstrip("/")
 
 
 def _token() -> str:
-    return os.environ.get("SPECKLE_TOKEN") or ""
+    return settings_store.get("SPECKLE_TOKEN") or ""
 
 
 def is_enabled() -> bool:

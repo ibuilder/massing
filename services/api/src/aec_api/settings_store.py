@@ -47,6 +47,15 @@ CATALOG: list[dict[str, Any]] = [
         {"key": "AEC_OAUTH_PROCORE_CLIENT_ID", "label": "Client ID", "secret": False},
         {"key": "AEC_OAUTH_PROCORE_CLIENT_SECRET", "label": "Client secret", "secret": True},
     ]},
+    {"group": "Speckle (interoperability)", "keys": [
+        {"key": "SPECKLE_SERVER", "label": "Server URL (e.g. https://speckle.yourco.com)", "secret": False},
+        {"key": "SPECKLE_TOKEN", "label": "Personal access token", "secret": True},
+    ]},
+    {"group": "Autodesk APS (paid RVT-to-IFC bridge)", "keys": [
+        {"key": "APS_CLIENT_ID", "label": "APS client ID", "secret": False},
+        {"key": "APS_CLIENT_SECRET", "label": "APS client secret", "secret": True},
+        {"key": "APS_DA_ACTIVITY", "label": "Design-Automation activity id", "secret": False},
+    ]},
 ]
 SECRET_KEYS = {k["key"] for g in CATALOG for k in g["keys"] if k.get("secret")}
 ALL_KEYS = {k["key"] for g in CATALOG for k in g["keys"]}

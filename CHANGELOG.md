@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.30 — Settings: add all API keys in the UI (no code/env editing)
+- **Speckle** and **Autodesk APS** are now in the **Settings ▸ Integrations & API keys** panel, joining
+  AI (Anthropic), Email (SMTP), SSO (Google / Microsoft / Procore), and licensing. A non-technical
+  admin pastes keys and hits **Save** — no editing `.env` files or code. Secrets stay **write-only**
+  (the catalog reports only whether a key is configured, never the value).
+- The Speckle and APS bridges now read config via the settings store (DB-saved UI value wins, else the
+  env var), so keys entered in the app take effect immediately — same pattern as the AI key.
+- Clarified the admin hint: "add API keys here — no code or config files to edit."
+- `test_interop.py` asserts the catalog exposes Speckle/APS with write-only secrets; suite + typecheck green.
+
 ## v0.3.29 — Federation alignment report + security hardening
 - **Model alignment check** (Coordination) — a lightweight companion to federated clash: do a
   project's discipline models share the same **storey scheme** and **georeferenced origin**? Reads each

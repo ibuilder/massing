@@ -983,7 +983,8 @@ function settingsModal() {
     note.style.cssText = "margin-top:8px;font-size:11px";
     note.textContent = "Keys override the matching env var. Secrets are write-only — never shown back.";
     body.appendChild(note);
-  }).catch(() => { body.textContent = "Sign in as an admin to configure API keys (AI, email, SSO)."; });
+  }).catch(() => { body.textContent = "Sign in as an admin to add API keys here — no code or config files to edit. "
+    + "One place for AI, email, SSO, Speckle, Autodesk APS, and licensing."; });
 }
 
 
