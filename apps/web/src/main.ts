@@ -1,7 +1,5 @@
 import "./style.css";
-import { DrawingsUI } from "./drawings/drawings";
-import { PortalUI } from "./portal/portal";
-import { ProformaUI } from "./proforma/proforma";
+import { PortalUI } from "./portal/portal";   // eager: the default Construction/Developer workspace
 import { ApiClient } from "./api/client";
 import { toast, escapeHtml } from "./ui/feedback";
 import { money } from "./ui/charts";
@@ -758,12 +756,24 @@ function openDeveloperTab() { if (developerReady) return; developerReady = true;
 // Developer portal's "Underwriting" shortcut → the proforma workspace
 window.addEventListener("aec:goto-workspace", (e) => setWorkspace((e as CustomEvent).detail as string));
 
-const proforma = new ProformaUI($("panel-proforma"), api, setStatus, () => projectId);
-let proformaReady = false;
-function openProformaTab() { if (proformaReady) return; proformaReady = true; void proforma.init(); }
+// Proforma (Finance) + Drawings are secondary workspaces — code-split so their code (and deps) load
+// on first open instead of bloating the initial shell. Portal (default Construction) stays eager.
+let proforma: import("./proforma/proforma").ProformaUI | null = null;
+function openProformaTab() {
+  if (proforma) return;
+  void import("./proforma/proforma").then(({ ProformaUI }) => {
+    proforma = new ProformaUI($("panel-proforma"), api, setStatus, () => projectId);
+    void proforma.init();
+  });
+}
 
-const drawings = new DrawingsUI($("panel-drawings"), { api, projectId: () => projectId, setStatus });
-function openDrawingsTab() { void drawings.open(); }   // re-loads the register each open (cheap)
+let drawings: import("./drawings/drawings").DrawingsUI | null = null;
+function openDrawingsTab() {
+  void import("./drawings/drawings").then(({ DrawingsUI }) => {
+    if (!drawings) drawings = new DrawingsUI($("panel-drawings"), { api, projectId: () => projectId, setStatus });
+    void drawings.open();   // re-loads the register each open (cheap)
+  });
+}
 
 async function openPortfolioTab() {
   const panel = $("panel-portfolio");

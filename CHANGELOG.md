@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.35 — Frontend load speed: code-split the secondary workspaces
+- **~24% smaller initial shell** — the **Finance (proforma)** and **Drawings** panels are now
+  code-split and load on first open instead of shipping in the startup bundle. Initial `index` chunk
+  **646 kB → 535 kB (139 → 106 kB gzip)**; proforma (77 kB) + drawings (8.8 kB) are separate chunks.
+  The default **Construction/Developer** portal stays eager; the 3D viewer engine (@thatopen, ~6 MB)
+  and **Studio** were already lazy. Verified live: Finance + Drawings load on first switch with no
+  errors; web typecheck + production build clean.
+
 ## v0.3.34 — Security hardening: gate the conversion + interop endpoints
 - **Auth gap closed.** `POST /convert` (RVT/DWG/NWC bridge) and `POST /convert/citygml` were reachable
   anonymously — they now require an authenticated identity (`current_user`), and `/convert` + `/interop`
