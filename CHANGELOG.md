@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.36 — Module-config validator + forms/CRUD audit
+- **Forms/CRUD audit** across all 85 modules — found + fixed a broken list view: `asset_register`
+  listed a `warranty_expiry` column that didn't exist (the field is `warranty_expires`).
+- **`test_module_config.py`** now validates every `modules/*/module.json` on each test run and fails the
+  build on: duplicate field names, `reference` fields with a missing/non-existent target module,
+  `select`/`multiselect` with no options, unknown field types, `title_field` or `list_columns` pointing
+  at non-existent fields, and workflow `initial`/transition states or `requires` that reference
+  unknown states/fields. Prevents the whole class of config-driven-CRUD misconfig going forward.
+
 ## v0.3.35 — Frontend load speed: code-split the secondary workspaces
 - **~24% smaller initial shell** — the **Finance (proforma)** and **Drawings** panels are now
   code-split and load on first open instead of shipping in the startup bundle. Initial `index` chunk

@@ -97,7 +97,7 @@
   "list_columns": [
     "manufacturer",
     "location",
-    "warranty_expiry"
+    "warranty_expires"
   ],
   "workspace": "construction"
 }
