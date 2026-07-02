@@ -51,6 +51,17 @@
       "required": true
     },
     {
+      "name": "response_strategy",
+      "label": "Response strategy",
+      "type": "select",
+      "options": [
+        "Avoid",
+        "Transfer",
+        "Mitigate",
+        "Accept"
+      ]
+    },
+    {
       "name": "cost_exposure",
       "label": "Cost Exposure",
       "type": "currency"
@@ -61,8 +72,18 @@
       "type": "number"
     },
     {
+      "name": "trigger",
+      "label": "Trigger / warning signs",
+      "type": "textarea"
+    },
+    {
       "name": "mitigation",
-      "label": "Mitigation",
+      "label": "Mitigation (Plan A)",
+      "type": "textarea"
+    },
+    {
+      "name": "contingency",
+      "label": "Contingency (Plan B)",
       "type": "textarea"
     },
     {
@@ -126,6 +147,7 @@
     "category",
     "probability",
     "impact",
+    "response_strategy",
     "cost_exposure"
   ],
   "workspace": "construction"

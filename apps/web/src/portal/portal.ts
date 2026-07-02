@@ -133,6 +133,13 @@ export class PortalUI {
       budget.innerHTML = `<span class="ic">💰</span> Budget`;
       budget.onclick = () => { this.activeKey = "__budget__"; void this.renderBudget(); this.buildNav(); };
       nav.appendChild(budget);
+      // Risk Review — preconstruction intelligence: review an incoming contract for risky clauses,
+      // find scope gaps, and ask a document questions (with citations).
+      const rr = document.createElement("button");
+      rr.className = "pnav-item pnav-home" + (this.activeKey === "__review__" ? " active" : "");
+      rr.innerHTML = `<span class="ic">🛡</span> Risk Review`;
+      rr.onclick = () => { this.activeKey = "__review__"; this.renderRiskReview(); this.buildNav(); };
+      nav.appendChild(rr);
     } else {
       // Developer — jump to the proforma/underwriting workspace (returns, capital stack, cash flow)
       const uw = document.createElement("button");
@@ -329,6 +336,129 @@ export class PortalUI {
       qrow.appendChild(b);
     }
     quick.appendChild(qrow); root.appendChild(quick);
+  }
+
+  // --- Risk Review (preconstruction intelligence) ------------------------------------------------
+  private static SEV_TONE: Record<string, string> = {
+    high: "var(--status-crit)", medium: "var(--status-warn)", low: "var(--status-good)" };
+
+  private renderRiskReview() {
+    const root = this.root; root.innerHTML = "";
+    const pid = this.host.projectId();
+    if (!pid) { root.innerHTML = noProjectHtml("Risk Review"); return; }
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("🛡 Risk Review", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const intro = el("div", "meta");
+    intro.textContent = "Review an incoming contract for risky clauses, find scope gaps in specs/notes, "
+      + "or ask a document a question with citations. Works offline (built-in clause library); set an "
+      + "Anthropic key in Settings for full AI review.";
+    intro.style.marginBottom = "8px"; root.appendChild(intro);
+
+    const tabs = el("div"); tabs.style.cssText = "display:flex;gap:6px;margin-bottom:8px";
+    const body = el("div"); root.append(tabs, body);
+    const TABS: [string, string][] = [["contract", "🛡 Contract risk"], ["scope", "🔍 Scope gaps"], ["ask", "💬 Ask a doc"]];
+    let active = "contract";
+
+    const render = () => {
+      body.innerHTML = "";
+      [...tabs.children].forEach((b, i) => b.classList.toggle("active", TABS[i][0] === active));
+      const fileInp = el("input") as HTMLInputElement; fileInp.type = "file"; fileInp.accept = ".pdf,.txt";
+      fileInp.style.cssText = "display:block;margin:4px 0";
+      const ta = el("textarea", "portal-filter") as HTMLTextAreaElement;
+      ta.placeholder = active === "ask" ? "Paste the document text (or choose a PDF above)…"
+        : `Paste the ${active === "contract" ? "contract" : "spec / drawing notes"} text (or choose a PDF above)…`;
+      ta.style.cssText = "width:100%;min-height:120px;margin:6px 0";
+      let qInp: HTMLInputElement | undefined;
+      if (active === "ask") {
+        qInp = el("input", "portal-filter") as HTMLInputElement;
+        qInp.placeholder = "Your question — e.g. what is the retainage %?"; qInp.style.cssText = "width:100%;margin:6px 0";
+      }
+      const run = el("button", "file-btn") as HTMLButtonElement;
+      run.textContent = active === "contract" ? "Review contract" : active === "scope" ? "Find scope gaps" : "Ask";
+      const out = el("div"); out.style.marginTop = "8px";
+      const doRun = async () => {
+        const opts = { file: fileInp.files?.[0], text: ta.value.trim() || undefined };
+        if (active === "ask" && !(qInp!.value.trim())) { toast("Enter a question", "error"); return; }
+        if (!opts.file && !opts.text) { toast("Choose a PDF or paste text", "error"); return; }
+        out.textContent = "analyzing…";
+        try {
+          if (active === "contract") this.renderContractFindings(out, await this.host.api.reviewContract(pid, opts), pid);
+          else if (active === "scope") this.renderScopeGaps(out, await this.host.api.reviewScope(pid, opts));
+          else this.renderDocAnswer(out, await this.host.api.reviewAsk(pid, qInp!.value.trim(), opts));
+        } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
+      };
+      run.onclick = () => void doRun();
+      body.append(fileInp);
+      if (qInp) body.append(qInp);
+      body.append(ta, run, out);
+    };
+    for (const [k, label] of TABS) {
+      const b = el("button", "tool-btn") as HTMLButtonElement; b.textContent = label;
+      b.onclick = () => { active = k; render(); };
+      tabs.appendChild(b);
+    }
+    render();
+  }
+
+  private renderContractFindings(out: HTMLElement, r: { findings: { clause: string; severity: string; category: string;
+      rationale: string; suggested_action: string; snippet: string }[]; counts: Record<string, number>; source: string; message?: string }, pid: string) {
+    out.innerHTML = "";
+    const head = document.createElement("div"); head.className = "meta"; head.style.marginBottom = "6px";
+    head.innerHTML = `<b>${r.findings.length}</b> flagged`
+      + ` · <span style="color:${PortalUI.SEV_TONE.high}">${r.counts.high || 0} high</span>`
+      + ` · <span style="color:${PortalUI.SEV_TONE.medium}">${r.counts.medium || 0} med</span>`
+      + ` · <span style="color:${PortalUI.SEV_TONE.low}">${r.counts.low || 0} low</span>`
+      + `  <span class="badge">${r.source === "claude" ? "AI" : "rules"}</span>`;
+    out.appendChild(head);
+    if (r.message) { const m = document.createElement("div"); m.className = "meta"; m.textContent = r.message; out.appendChild(m); }
+    for (const f of r.findings) {
+      const tone = PortalUI.SEV_TONE[f.severity] || "var(--muted)";
+      const card = document.createElement("div"); card.className = "dash-card"; card.style.cssText = `border-left:3px solid ${tone};margin:6px 0`;
+      card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">`
+        + `<b>${esc(f.clause)}</b><span class="ball-badge" style="background:${tone}22;color:${tone};border-color:${tone}">${esc(f.severity)}</span></div>`
+        + `<div class="meta" style="margin:3px 0">${esc(f.rationale)}</div>`
+        + `<div style="font-size:12px"><b>Suggested:</b> ${esc(f.suggested_action)}</div>`
+        + (f.snippet ? `<div class="meta" style="font-style:italic;margin-top:3px">“${esc(f.snippet)}”</div>` : "");
+      const actions = document.createElement("div"); actions.style.cssText = "display:flex;gap:6px;margin-top:6px";
+      const add = document.createElement("button"); add.className = "tool-btn"; add.textContent = "＋ Add to Risk Register";
+      add.onclick = async () => {
+        const sev = f.severity === "high" ? "High" : f.severity === "medium" ? "Medium" : "Low";
+        try {
+          await this.host.api.createModuleRecord(pid, "risk", { data: {
+            title: `${f.category}: ${f.clause}`, category: "Other", probability: sev, impact: sev,
+            response_strategy: "Mitigate", mitigation: f.suggested_action, trigger: f.snippet } });
+          add.textContent = "✓ Added"; add.disabled = true; toast("Added to Risk Register", "success");
+        } catch (e) { toast(`Add failed: ${(e as Error).message}`, "error"); }
+      };
+      actions.appendChild(add); card.appendChild(actions); out.appendChild(card);
+    }
+  }
+
+  private renderScopeGaps(out: HTMLElement, r: { gaps: { marker: string; note: string; snippet: string }[]; source: string; message?: string }) {
+    out.innerHTML = "";
+    const head = document.createElement("div"); head.className = "meta"; head.style.marginBottom = "6px";
+    head.innerHTML = `<b>${r.gaps.length}</b> scope-gap marker${r.gaps.length === 1 ? "" : "s"} <span class="badge">${r.source === "claude" ? "AI" : "rules"}</span>`;
+    out.appendChild(head);
+    if (r.message) { const m = document.createElement("div"); m.className = "meta"; m.textContent = r.message; out.appendChild(m); }
+    for (const g of r.gaps) {
+      const card = document.createElement("div"); card.className = "dash-card"; card.style.margin = "6px 0";
+      card.innerHTML = `<b>${esc(g.marker)}</b><div class="meta" style="margin:2px 0">${esc(g.note)}</div>`
+        + (g.snippet ? `<div class="meta" style="font-style:italic">“${esc(g.snippet)}”</div>` : "");
+      out.appendChild(card);
+    }
+  }
+
+  private renderDocAnswer(out: HTMLElement, r: { answer: string; citations: { page: number; snippet: string }[]; source: string; message?: string }) {
+    out.innerHTML = "";
+    const ans = document.createElement("div"); ans.className = "dash-card"; ans.style.margin = "6px 0";
+    ans.innerHTML = `<div>${esc(r.answer || r.message || "No answer.")}</div>`
+      + `<div class="meta" style="margin-top:4px"><span class="badge">${r.source === "claude" ? "AI" : "extract"}</span></div>`;
+    out.appendChild(ans);
+    for (const c of r.citations) {
+      const cite = document.createElement("div"); cite.className = "meta"; cite.style.margin = "3px 0";
+      cite.innerHTML = `<b>p.${c.page}</b> — ${esc(c.snippet)}`;
+      out.appendChild(cite);
+    }
   }
 
   private async renderHome() {

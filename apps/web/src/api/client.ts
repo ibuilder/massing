@@ -1167,6 +1167,30 @@ export class ApiClient {
     return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}`, {
       method: "POST", body: JSON.stringify(body) });
   }
+  /** Preconstruction intelligence — POST a contract/spec (file or text) for review. */
+  private async reviewPost<T>(pid: string, kind: string, opts: { file?: File; text?: string; question?: string }) {
+    const fd = new FormData();
+    if (opts.file) fd.append("file", opts.file);
+    if (opts.text != null) fd.append("text", opts.text);
+    if (opts.question != null) fd.append("question", opts.question);
+    const res = await fetch(this.url(`/projects/${pid}/review/${kind}`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`Review ${kind} -> ${res.status}`);
+    return res.json() as Promise<T>;
+  }
+  reviewContract(pid: string, opts: { file?: File; text?: string }) {
+    return this.reviewPost<{ findings: { clause: string; severity: "high" | "medium" | "low"; category: string;
+      rationale: string; suggested_action: string; snippet: string }[];
+      counts: Record<string, number>; source: string; message?: string }>(pid, "contract", opts);
+  }
+  reviewScope(pid: string, opts: { file?: File; text?: string }) {
+    return this.reviewPost<{ gaps: { marker: string; note: string; snippet: string }[]; source: string; message?: string }>(
+      pid, "scope", opts);
+  }
+  reviewAsk(pid: string, question: string, opts: { file?: File; text?: string }) {
+    return this.reviewPost<{ answer: string; citations: { page: number; snippet: string }[]; source: string; message?: string }>(
+      pid, "ask", { ...opts, question });
+  }
   /** Download URL for a module's header-only import template (CSV). */
   importTemplateUrl(pid: string, key: string) {
     return this.url(`/projects/${pid}/modules/${key}/import-template.csv`);

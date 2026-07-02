@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.26 — Preconstruction intelligence: contract risk review + scope-gap + doc Q&A
+- **Risk Review** (new Construction-workspace destination — preconstruction intelligence, inspired by
+  the AI pre-con review category). Upload a contract/spec PDF (or paste text) and:
+  - **Contract risk review** — flags risky clauses by severity (high/med/low) with rationale + a
+    suggested redline: pay-if-paid, no-damage-for-delay, broad indemnity, termination-for-convenience,
+    sole discretion, lien waivers, LDs, backcharges, retainage, etc. One click adds a finding to the
+    **Risk Register**.
+  - **Scope-gap detection** — surfaces ambiguous/missing scope in specs & drawing notes ("by others",
+    "N.I.C.", "TBD", "as required", "or equal", "match existing"…).
+  - **Ask a document** — answers a question grounded in the uploaded doc with **page citations**.
+  - New `review.py` engine + `/projects/{pid}/review/{contract,scope,ask}` endpoints. Uses Claude when
+    an Anthropic key is set; otherwise a **deterministic clause/marker library** so it works fully
+    offline and never fabricates (only flags language actually present).
+- **Risk register depth** — the `risk` module gains **response strategy** (Avoid/Transfer/Mitigate/
+  Accept), **trigger / warning signs**, and **contingency (Plan B)** to match risk-register best practice.
+- Backend suite green (+ test_review, test_analytics); web typecheck clean.
+
 ## v0.3.25 — Thematic "Color by property" + BIM data-QA (built-world analytics)
 - **Color by any property.** Generalized the 5D heatmaps into a thematic override: pick any IFC
   attribute (class, storey, type, name) or pset/qto property and the model recolours by value —
