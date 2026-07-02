@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.34 — Security hardening: gate the conversion + interop endpoints
+- **Auth gap closed.** `POST /convert` (RVT/DWG/NWC bridge) and `POST /convert/citygml` were reachable
+  anonymously — they now require an authenticated identity (`current_user`), and `/convert` + `/interop`
+  were added to the RBAC middleware's protected-prefix list (defense-in-depth when `AEC_RBAC=1`).
+  Combined with the earlier defusedxml + body-cap hardening, the CityGML endpoint is now auth-gated,
+  XXE-safe, and size-bounded.
+- Web dependency audit clean (`npm audit --omit=dev`: 0 vulnerabilities); Python dep scan runs in CI.
+
 ## v0.3.33 — Discipline quantities: rebar tonnage + MEP runs (C)
 - **🔩 Discipline quantities** in the viewer's Exports — a quantity roll-up straight from the IFC:
   **reinforcement tonnage** (from `NetWeight`, or estimated from volume × steel density when bars
