@@ -1243,6 +1243,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         if (!b) return;
         for (const [label, file] of [["Quantity takeoff (QTO/5D)", "qto"], ["COBie", "cobie"], ["Space schedule", "spaces"], ["4D schedule", "schedule"]] as const)
           b.appendChild(toolBtn2(`↓ ${label}`, () => window.open(api.url(`/projects/${projectId}/exports/${file}.xlsx`), "_blank")));
+        // gbXML — spaces + envelope areas for OpenStudio / EnergyPlus / IES energy modelling
+        const gbx = toolBtn2("↓ gbXML (energy model)", () => window.open(api.url(`/projects/${projectId}/exports/model.gbxml`), "_blank"));
+        gbx.title = "Green Building XML — spaces + areas/volumes from the IFC geometry, to seed an energy model (OpenStudio/EnergyPlus/IES). Simplified: building-level envelope, not per-space surfaces.";
+        b.appendChild(gbx);
         // full turnover deliverable: as-built IFC + COBie/QTO/spaces + status PDF + closeout records
         const pkg = toolBtn2("📦 Closeout package (.zip)", () => window.open(api.url(`/projects/${projectId}/closeout/package.zip`), "_blank"));
         pkg.title = "Everything for handover in one ZIP: as-built model, data workbooks, status report, closeout records";

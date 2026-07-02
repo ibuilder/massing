@@ -109,6 +109,18 @@ def export_spaces(pid: str, db: Session = Depends(get_db), _sec: str = Depends(r
     return _xlsx_response({"Spaces": _rows_to_sheet(rows)}, "spaces.xlsx")
 
 
+@router.get("/projects/{pid}/exports/model.gbxml")
+def export_gbxml(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """gbXML (Green Building XML) — spaces + areas/volumes from the IFC geometry, for OpenStudio /
+    EnergyPlus / IES energy modelling. Simplified (building-level envelope, not per-space surfaces)."""
+    from aec_data import gbxml  # type: ignore
+    from ..models import Project
+    p = db.get(Project, pid)
+    xml = gbxml.to_gbxml_file(_source_ifc(db, pid), (p.name if p else None) or "Project")
+    return Response(content=xml, media_type="application/xml",
+                    headers={"Content-Disposition": f'attachment; filename="{safe_filename(p.name if p else "model", "model")}.gbxml"'})
+
+
 @router.get("/projects/{pid}/exports/schedule.xlsx")
 def export_schedule(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import schedule  # type: ignore

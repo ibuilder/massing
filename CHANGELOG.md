@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.32 — gbXML energy-model export (B4)
+- **↓ gbXML (energy model)** in the viewer's Exports — exports the model to **Green Building XML** for
+  OpenStudio / EnergyPlus / IES / DesignBuilder. Spaces carry **area + volume + occupancy from the real
+  IFC geometry**, plus building-level **exterior envelope** surfaces (wall + window opening / roof /
+  ground slab) with areas from geometry. Valid gbXML 6.01.
+  - Honest scope: a **simplified early-design (shoebox) model** — building-level envelope, not a full
+    per-space surface-boundary thermal model (that needs IfcRelSpaceBoundary geometry). It seeds an
+    energy tool with the spaces/areas/volumes rather than replacing detailed energy modelling.
+  - New `aec_data/gbxml.py` (reuses the space schedule + envelope-area extractors) + endpoint
+    `GET /projects/{pid}/exports/model.gbxml`. `test_gbxml.py` validates the structure; verified live
+    against a real IFC (72 spaces). Web typecheck clean.
+
 ## v0.3.31 — Settings: "Test connection" per integration
 - Every integration in **Settings ▸ Integrations & API keys** gets a **Test** button with instant
   ✓/✗ + message, so a non-technical admin knows a key actually works before relying on it:
