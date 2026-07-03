@@ -1,0 +1,111 @@
+{
+  "key": "poe",
+  "name": "Post-Occupancy Evaluations",
+  "section": "Operations",
+  "icon": "🧪",
+  "ref_prefix": "POE",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Evaluation",
+      "type": "text",
+      "required": true,
+      "fieldset": "Evaluation"
+    },
+    {
+      "name": "level",
+      "label": "Level",
+      "type": "select",
+      "required": true,
+      "options": [
+        "1 - Indicative (walkthrough + light survey)",
+        "2 - Investigative (survey + metered data)",
+        "3 - Diagnostic (forensic instrumented study)"
+      ],
+      "fieldset": "Evaluation"
+    },
+    {
+      "name": "survey_date",
+      "label": "Survey Date",
+      "type": "date",
+      "fieldset": "Evaluation"
+    },
+    {
+      "name": "occupants_surveyed",
+      "label": "Occupants Surveyed",
+      "type": "number",
+      "fieldset": "Survey"
+    },
+    {
+      "name": "satisfaction_score",
+      "label": "Satisfaction (1-7)",
+      "type": "number",
+      "fieldset": "Survey"
+    },
+    {
+      "name": "design_eui",
+      "label": "Design EUI (kBtu/sf/yr)",
+      "type": "number",
+      "fieldset": "Performance"
+    },
+    {
+      "name": "findings",
+      "label": "Findings",
+      "type": "textarea",
+      "fieldset": "Findings"
+    },
+    {
+      "name": "lessons",
+      "label": "Lessons Learned (feed forward)",
+      "type": "textarea",
+      "fieldset": "Findings"
+    },
+    {
+      "name": "actions",
+      "label": "Actions / Remediation",
+      "type": "textarea",
+      "fieldset": "Findings"
+    }
+  ],
+  "workflow": {
+    "initial": "planned",
+    "states": [
+      "planned",
+      "fieldwork",
+      "reported"
+    ],
+    "transitions": [
+      {
+        "from": "planned",
+        "to": "fieldwork",
+        "action": "start_fieldwork",
+        "party": [
+          "Architect",
+          "PM",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "fieldwork",
+        "to": "reported",
+        "action": "publish_report",
+        "party": [
+          "Architect",
+          "PM",
+          "OwnersRep"
+        ],
+        "requires": [
+          "findings"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "level",
+    "survey_date",
+    "satisfaction_score"
+  ],
+  "workspace": "developer"
+}

@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.59 — ESG rollup + post-occupancy evaluation (lifecycle R7 of 7)
+The final lifecycle release: the asset's sustainability scorecard and the feedback loop from measured
+performance back to design — all computed locally from the platform's own data.
+- **ESG rollup** (`esg.py`, `GET /projects/{pid}/esg`) — metered energy (EUI via energy.py),
+  **operational GHG Scope 1/2** from a transparent local factor table (on-site fuel vs purchased
+  energy; set `AEC_GRID_KGCO2E_PER_KWH` to the local grid subregion factor), GHG intensity, water +
+  intensity, and certification tracking (LEED credits targeted vs achieved). Nothing fetched,
+  nothing fabricated.
+- **`poe` module** — post-occupancy evaluations at levels 1 (indicative) / 2 (investigative) /
+  3 (diagnostic) with occupant-satisfaction score, design EUI, findings and feed-forward lessons;
+  workflow `planned → fieldwork → reported` (report requires findings). The rollup compares
+  **design EUI vs metered actual** and reports the gap.
+- **“🌱 ESG & POE” developer panel** — EUI/GHG/water/cert KPI cards, scope split with the factor
+  note, latest-POE card with the vs-design gap, one-click PDF.
+- **Report Center: “ESG / Sustainability Summary”** — PDF/Excel with GHG table, POE comparison,
+  and data-coverage caveats.
+- **Docs** — README + roadmap now describe the full span: land acquisition → due diligence &
+  entitlements → design → construction → turnover → operations (CMMS, energy, reserves/CIP, CAM,
+  ESG/POE). Lifecycle releases R1–R7 complete.
+- Verified live (panel + PDF; grid-factor override changes Scope 2) + `test_esg`; typecheck +
+  49 vitest + Pages build green.
+
 ## v0.3.58 — Capital planning + CAM reconciliation (lifecycle R6 of 7)
 Hold-phase capital stewardship: will the reserves cover the roof in 2031, and did tenants pay their
 fair share of operating expenses this year?

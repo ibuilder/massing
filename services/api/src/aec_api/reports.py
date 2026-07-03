@@ -54,6 +54,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "precon_alignment": ("Preconstruction Alignment", "Preconstruction"),
     "spec_submittal_log": ("Spec-Driven Submittal Log", "Preconstruction"),
     "site_feasibility": ("Site Feasibility / Zoning Envelope", "Preconstruction"),
+    "esg": ("ESG / Sustainability Summary", "Operations"),
 }
 
 
@@ -788,6 +789,44 @@ def _site_feasibility(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _esg(db: Session, pid: str, name: str) -> Report:
+    """ESG / sustainability summary: metered energy (EUI), GHG Scope 1/2, water, certifications,
+    and the POE actual-vs-design comparison — the asset-level sustainability scorecard."""
+    from . import energy as energy_mod
+    from . import esg as esg_mod
+    s = esg_mod.summary(db, pid, gfa_sf=energy_mod.project_gfa_sf(db, pid))
+    perf = s["performance"]
+    r = Report("ESG / Sustainability Summary", name)
+    r.kpi("Site energy (kBtu)", f"{perf['energy']['total_kbtu']:,.0f}")
+    r.kpi("EUI (kBtu/sf/yr)", perf["energy"]["eui_kbtu_sf_yr"] if perf["energy"]["eui_kbtu_sf_yr"] is not None else "—")
+    r.kpi("GHG Scope 1 (tCO2e)", perf["ghg"]["scope1_tco2e"])
+    r.kpi("GHG Scope 2 (tCO2e)", perf["ghg"]["scope2_tco2e"])
+    r.kpi("Water (gal)", f"{perf['water']['gallons']:,.0f}")
+    r.kpi("Certification points (achieved / targeted)",
+          f"{s['certifications']['points_achieved']:.0f} / {s['certifications']['points_targeted']:.0f}")
+    ghg_rows = [
+        ["Scope 1 — on-site fuel", f"{perf['ghg']['scope1_tco2e']:,} tCO2e"],
+        ["Scope 2 — purchased energy", f"{perf['ghg']['scope2_tco2e']:,} tCO2e"],
+        ["Total", f"{perf['ghg']['total_tco2e']:,} tCO2e"],
+        ["Intensity", f"{perf['ghg']['intensity_kgco2e_sf']} kgCO2e/sf" if perf["ghg"]["intensity_kgco2e_sf"] is not None else "— (needs GFA)"],
+        ["Grid factor", f"{perf['ghg']['grid_factor_kgco2e_kwh']} kgCO2e/kWh"],
+    ]
+    r.table("Operational GHG emissions", ["Metric", "Value"], ghg_rows)
+    poe = s["poe"]["latest"]
+    if poe:
+        r.table("Post-occupancy evaluation (latest)", ["Metric", "Value"], [
+            ["Evaluation", f"{poe['ref']} ({poe['level'] or '-'}) — {poe['state']}"],
+            ["Occupant satisfaction (1-7)", poe["satisfaction_score"] if poe["satisfaction_score"] is not None else "—"],
+            ["Design EUI", poe["design_eui"] if poe["design_eui"] is not None else "—"],
+            ["Actual (metered) EUI", poe["actual_eui"] if poe["actual_eui"] is not None else "—"],
+            ["Gap vs design", f"{poe['eui_gap_pct']:+}%" if poe["eui_gap_pct"] is not None else "—"],
+        ])
+    r.table("Data coverage", ["Metric", "Value"],
+            [["Meter months", s["data_coverage"]["meter_months"]],
+             ["POE evaluations (reported / total)", f"{s['poe']['reported']} / {s['poe']['count']}"]])
+    return r
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
@@ -831,6 +870,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _spec_submittal_log(db, pid, name)
     if report == "site_feasibility":
         return _site_feasibility(db, pid, name)
+    if report == "esg":
+        return _esg(db, pid, name)
     if report == "listing_factsheet":
         return _listing_factsheet(db, pid, name)
     if report == "marketing_flyer":

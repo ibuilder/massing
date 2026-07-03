@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 
 from sqlalchemy.orm import Session
 
-from .. import audit, cam, cmms, energy, energy_star_bridge, reserve
+from .. import audit, cam, cmms, energy, energy_star_bridge, esg, reserve
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_role
@@ -56,6 +56,16 @@ def benchmark_status(_: str = Depends(current_user)):
     """Whether an external benchmarking sync (EPA Portfolio Manager) is configured; local EUI/trends
     work without it."""
     return energy_star_bridge.status()
+
+
+@router.get("/projects/{pid}/esg")
+def esg_summary(pid: str, gfa_sf: float | None = None, db: Session = Depends(get_db),
+                _: str = Depends(current_user)):
+    """Asset ESG rollup: metered energy (EUI), GHG Scope 1/2 from the local factor table, water,
+    certification tracking, and the POE actual-vs-design EUI comparison."""
+    _project(db, pid)
+    gfa = gfa_sf or energy.project_gfa_sf(db, pid)
+    return esg.summary(db, pid, gfa_sf=gfa)
 
 
 @router.get("/projects/{pid}/reserves/study")

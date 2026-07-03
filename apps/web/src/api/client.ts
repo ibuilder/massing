@@ -1411,6 +1411,21 @@ export class ApiClient {
         share_pct: number; share_of_expenses: number; estimated_paid: number; balance_due: number }[];
       note: string }>(`/projects/${pid}/cam/reconciliation${qs ? `?${qs}` : ""}`);
   }
+  esgSummary(pid: string, gfaSf?: number) {
+    const qs = gfaSf ? `?gfa_sf=${gfaSf}` : "";
+    return this.json<{
+      performance: {
+        energy: { total_kbtu: number; eui_kbtu_sf_yr: number | null; months_covered: number; gfa_sf: number | null };
+        ghg: { scope1_tco2e: number; scope2_tco2e: number; total_tco2e: number;
+          intensity_kgco2e_sf: number | null; grid_factor_kgco2e_kwh: number; note: string };
+        water: { gallons: number; intensity_gal_sf: number | null };
+      };
+      certifications: { credits_tracked: number; points_targeted: number; points_achieved: number };
+      poe: { count: number; reported: number; latest: { ref: string; level: string | null; state: string;
+        survey_date: string | null; satisfaction_score: number | null; design_eui: number | null;
+        actual_eui: number | null; eui_gap_pct: number | null } | null };
+      data_coverage: { meter_months: number }; as_of: string }>(`/projects/${pid}/esg${qs}`);
+  }
   camStatementUrl(pid: string, rid: string, opts: { year?: number; buildingSf?: number } = {}) {
     const q = new URLSearchParams();
     if (opts.year) q.set("year", String(opts.year));

@@ -201,6 +201,12 @@ export class PortalUI {
       dil.innerHTML = `<span class="ic">📜</span> Diligence & Entitlements`;
       dil.onclick = () => { this.activeKey = "__diligence__"; void this.renderDiligence(); this.buildNav(); };
       nav.appendChild(dil);
+      // ESG & POE — asset sustainability scorecard (EUI, GHG scopes, water, certs) + Stage-7 feedback.
+      const esgNav = document.createElement("button");
+      esgNav.className = "pnav-item pnav-home" + (this.activeKey === "__esg__" ? " active" : "");
+      esgNav.innerHTML = `<span class="ic">🌱</span> ESG & POE`;
+      esgNav.onclick = () => { this.activeKey = "__esg__"; void this.renderEsg(); this.buildNav(); };
+      nav.appendChild(esgNav);
     }
 
     // first-class Portfolio destination — cross-project executive roll-up (all jobs at a glance)
@@ -1032,6 +1038,68 @@ export class PortalUI {
         + en.expiring_within_180d.map((x) => `<li>${esc(x.ref)} ${esc(x.application || "")} — expires ${esc(x.expires)}</li>`).join("") + `</ul>`;
       body.append(ex);
     }
+  }
+
+  // --- ESG & POE: asset sustainability scorecard + Stage-7 feedback loop ------------------------
+  private async renderEsg() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("🌱 ESG & Post-Occupancy", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const pid = this.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("ESG & POE")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "The asset's sustainability scorecard, computed locally: metered energy (EUI), "
+      + "operational greenhouse gas by scope, water, certification tracking — plus post-occupancy "
+      + "evaluations closing the loop between design intent and measured performance.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    let s;
+    try { s = await this.host.api.esgSummary(pid); }
+    catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+    body.innerHTML = "";
+    const perf = s.performance;
+    // KPI cards
+    const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
+    const card = (label: string, value: string) => {
+      const c = el("div", "dash-card"); c.style.minWidth = "125px";
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${value}</div><div class="meta">${label}</div>`;
+      return c;
+    };
+    cards.append(
+      card("EUI (kBtu/sf/yr)", perf.energy.eui_kbtu_sf_yr != null ? String(perf.energy.eui_kbtu_sf_yr) : "—"),
+      card("GHG total (tCO₂e)", String(perf.ghg.total_tco2e)),
+      card("Scope 1 / Scope 2", `${perf.ghg.scope1_tco2e} / ${perf.ghg.scope2_tco2e}`),
+      card("water (gal)", perf.water.gallons.toLocaleString()),
+      card("cert points", `${s.certifications.points_achieved}/${s.certifications.points_targeted}`));
+    body.append(cards);
+    // GHG detail
+    const g = el("div", "dash-card"); g.style.marginBottom = "8px";
+    g.innerHTML = `<b>Operational GHG</b><div class="meta">${esc(perf.ghg.note)}</div>`
+      + `<div class="meta">Intensity: ${perf.ghg.intensity_kgco2e_sf != null ? `${perf.ghg.intensity_kgco2e_sf} kgCO₂e/sf` : "— (needs GFA)"} · `
+      + `grid factor ${perf.ghg.grid_factor_kgco2e_kwh} kgCO₂e/kWh · ${s.data_coverage.meter_months} meter month(s)</div>`;
+    body.append(g);
+    // POE
+    const p = s.poe.latest;
+    const pc = el("div", "dash-card"); pc.style.marginBottom = "8px";
+    if (p) {
+      const gap = p.eui_gap_pct;
+      pc.innerHTML = `<b>Post-occupancy evaluation</b> <span class="meta">(${s.poe.reported}/${s.poe.count} reported)</span>`
+        + `<div class="meta">${esc(p.ref)} · ${esc(p.level || "")} · ${esc(p.state)}`
+        + (p.satisfaction_score != null ? ` · satisfaction ${p.satisfaction_score}/7` : "") + `</div>`
+        + `<div class="meta">Design EUI ${p.design_eui ?? "—"} → actual ${p.actual_eui ?? "—"}`
+        + (gap != null ? ` · <b style="color:var(${gap > 10 ? "--status-warn" : "--status-good"})">${gap > 0 ? "+" : ""}${gap}% vs design</b>` : "")
+        + `</div>`;
+    } else {
+      pc.innerHTML = `<b>Post-occupancy evaluation</b><div class="meta">None yet — add one under `
+        + `Operations → Post-Occupancy Evaluations (level 1 indicative → 3 diagnostic; a reported POE `
+        + `compares design EUI against the metered actual).</div>`;
+    }
+    body.append(pc);
+    // report link
+    const rb = el("div");
+    const a = document.createElement("a"); a.className = "portal-btn"; a.textContent = "⬇ ESG summary (PDF)";
+    a.href = this.host.api.reportUrl(pid, "esg", "pdf"); a.target = "_blank"; a.rel = "noopener";
+    rb.append(a); body.append(rb);
   }
 
   // --- Operations: CMMS — work orders, PM generation, maintenance KPIs --------------------------

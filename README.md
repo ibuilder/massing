@@ -10,10 +10,10 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Live demo](https://img.shields.io/badge/demo-in%20browser-33d17a)](https://massing.build/app/)
 
-> **Open, self-hosted, IFC-native AEC platform.** A web **BIM viewer + modeling**, a **80-module GC
-> portal** (RFIs, pay apps, CPM schedule, TRIR), and a **development proforma** — **one model, from
-> acquisition to turnover.** Generate a building from a zoning envelope, then coordinate, draw,
-> schedule & underwrite it. Built on **That Open + IfcOpenShell**. **$0 to run.**
+> **Open, self-hosted, IFC-native AEC platform.** A web **BIM viewer + modeling**, a **near-100-module
+> GC portal** (RFIs, pay apps, CPM schedule, TRIR), and a **development proforma** — **one model, from
+> land acquisition through operations.** Generate a building from a zoning envelope, then coordinate,
+> draw, schedule, underwrite & operate it. Built on **That Open + IfcOpenShell**. **$0 to run.**
 
 **What it is** — three pillars on one IFC-keyed model, switched by a Model / Construction / Finance bar:
 
@@ -39,17 +39,22 @@ Or install the signed desktop app (single-project, auto-updating) from the [late
 ## The whole lifecycle, on one model
 
 Most AEC software covers a single slice — feasibility, or BIM, or construction management. This
-platform spans the **whole lifecycle on one IFC-keyed model**: acquisition → feasibility → design →
-preconstruction → construction → turnover, with every artifact (proforma, model, RFI, pay app,
-COBie) tied to the same GlobalIds.
+platform spans the **whole lifecycle on one IFC-keyed model**: acquisition → due diligence &
+entitlements → feasibility → design → preconstruction → construction → turnover → **operations**
+(CMMS, metered energy, reserves/CIP, CAM, ESG/POE), with every artifact (proforma, model, RFI,
+pay app, COBie, work order, meter reading) tied to the same GlobalIds.
 
 ![Lifecycle coverage — one IFC model spans acquisition, feasibility, design, preconstruction, construction and turnover](docs/img/lifecycle.svg)
 
+- **Pre-acquisition** — due-diligence studies (Phase I ESA, geotech, title…) + entitlement
+  pipeline with a go/no-go readiness rollup.
 - **Feasibility + underwriting** — proforma, sources & uses, investment memo.
 - **Generative massing + test fit** — zoning envelope → buildable program → real IFC building.
 - **BIM authoring + coordination** — in-viewer modeling, clash detection, IDS validation.
 - **Construction management** — RFIs, submittals, change orders, pay apps, 4D/5D.
-- **Turnover** — COBie, as-built, closeout.
+- **Turnover** — COBie, as-built, closeout, certified substantial completion (G704).
+- **Operations** — CMMS work orders + preventive maintenance, utility meters → EUI, reserve
+  study + capital plan, CAM reconciliation, ESG rollup (GHG Scope 1/2) + post-occupancy evaluation.
 - **IFC-native, open, self-hostable** — no per-seat license; the desktop app is free.
 
 ## What it does

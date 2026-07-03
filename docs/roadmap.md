@@ -368,3 +368,33 @@ the prior list. Status now in rough priority:
 **Net:** the reconciled roadmap is effectively cleared — every theme (M1–M4, Test Fit, Developer deck,
 Construction C1–C3, Platform Redis/perf/a11y) is done except the low-value main.ts refactor and the
 out-of-scope mobile app.
+
+---
+
+## Lifecycle completion + production readiness (v0.3.53–v0.3.59, Jul 2026)
+
+Seven sequenced releases closed the production blockers and the two lifecycle gaps (pre-construction
+and post-turnover operations) surfaced by the full-code + market audit:
+
+1. **v0.3.53 — backend production blockers**: Postgres-without-RBAC boot guard, SQL-side project
+   membership filtering, bounded board/CSV/sync loads, storage-prefix delete cascade, advisory-locked
+   autosync, rate-limiter LRU.
+2. **v0.3.54 — ops & supply chain**: runnable preflight (`scripts/validate_prod_config.py`) +
+   PRODUCTION_CHECKLIST, Dependabot, container build + Trivy gate → ghcr, Cargo.lock workflow,
+   sidecar signing, seed guard, TrustedHost.
+3. **v0.3.55 — UX/a11y/perf**: promptModal retires every `prompt()`, table-header `scope`,
+   mobile pass, perf baseline.
+4. **v0.3.56 — pre-acquisition**: `due_diligence` (ASTM E1527-style categories) + `entitlement`
+   modules with a go/no-go readiness rollup + 📜 panel.
+5. **v0.3.57 — operations (CMMS + energy)**: `work_order`/`pm_schedule`/`meter`/`meter_reading`,
+   PM generation + KPIs (PM compliance, MTTR), metered EUI + trends, flagged ENERGY STAR bridge,
+   🔧 Operations + ⚡ Energy panels.
+6. **v0.3.58 — capital stewardship**: reserve study (component replacements + funding adequacy +
+   suggested contribution), `capital_plan` (CIP), `cam_expense` + CAM reconciliation with
+   variable-only gross-up + per-tenant statement PDFs, Finance ▸ Asset Mgmt tab.
+7. **v0.3.59 — ESG + POE**: GHG Scope 1/2 from a local factor table, water, certification tracking,
+   `poe` module (actual-vs-design EUI gap), 🌱 ESG & POE panel + Report Center entry.
+
+**Documented follow-ups (out of scope by design):** live ENERGY STAR/BAS/BMS integrations (flagged
+stubs only), full institutional reporting packs, space/move management (CAFM), 1031 tooling, JWT
+revocation blacklist + Redis-backed presence (known limits in PRODUCTION_CHECKLIST).
