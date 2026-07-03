@@ -773,10 +773,12 @@ export class PortalUI {
     void api.conceptualCatalog().then((cat) => {
       ceWrap.innerHTML = "";
       const type = el("select", "portal-filter") as HTMLSelectElement; type.style.cssText = "margin:2px 4px 2px 0";
+      type.setAttribute("aria-label", "Building type");
       type.innerHTML = cat.building_types.map((t) => `<option value="${t}">${t}</option>`).join("");
       const region = el("select", "portal-filter") as HTMLSelectElement; region.style.cssText = "margin:2px 4px";
+      region.setAttribute("aria-label", "Region");
       region.innerHTML = cat.regions.map((rg) => `<option value="${rg}"${rg === "us_average" ? " selected" : ""}>${rg}</option>`).join("");
-      const gfa = el("input", "portal-filter") as HTMLInputElement; gfa.type = "number"; gfa.placeholder = "GFA (sf)"; gfa.style.cssText = "width:110px;margin:2px 4px";
+      const gfa = el("input", "portal-filter") as HTMLInputElement; gfa.type = "number"; gfa.placeholder = "GFA (sf)"; gfa.setAttribute("aria-label", "Gross floor area (sf)"); gfa.style.cssText = "width:110px;margin:2px 4px";
       const go = el("button", "file-btn") as HTMLButtonElement; go.textContent = "Estimate";
       const out = el("div"); out.style.marginTop = "6px";
       go.onclick = async () => {
@@ -820,12 +822,13 @@ export class PortalUI {
     root.appendChild(intro);
     const ta = el("textarea", "portal-filter") as HTMLTextAreaElement;
     ta.placeholder = '[{"id":"A","acres":5,"zoning":"MU","flood_zone":"X","sewer":true,"price":2000000,"far":2.0}]';
+    ta.setAttribute("aria-label", "Parcels as JSON");
     ta.style.cssText = "width:100%;min-height:90px;margin:4px 0;font-family:monospace;font-size:11px";
     const row = el("div"); row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0";
-    const minAc = el("input", "portal-filter") as HTMLInputElement; minAc.type = "number"; minAc.placeholder = "min acres"; minAc.style.width = "90px";
-    const zoning = el("input", "portal-filter") as HTMLInputElement; zoning.placeholder = "zoning (comma)"; zoning.style.width = "130px";
-    const far = el("input", "portal-filter") as HTMLInputElement; far.type = "number"; far.placeholder = "assume FAR"; far.style.width = "90px";
-    const btype = el("input", "portal-filter") as HTMLInputElement; btype.placeholder = "building type"; btype.value = "multifamily"; btype.style.width = "120px";
+    const minAc = el("input", "portal-filter") as HTMLInputElement; minAc.type = "number"; minAc.placeholder = "min acres"; minAc.setAttribute("aria-label", "Minimum acres"); minAc.style.width = "90px";
+    const zoning = el("input", "portal-filter") as HTMLInputElement; zoning.placeholder = "zoning (comma)"; zoning.setAttribute("aria-label", "Allowed zoning (comma-separated)"); zoning.style.width = "130px";
+    const far = el("input", "portal-filter") as HTMLInputElement; far.type = "number"; far.placeholder = "assume FAR"; far.setAttribute("aria-label", "Assumed FAR"); far.style.width = "90px";
+    const btype = el("input", "portal-filter") as HTMLInputElement; btype.placeholder = "building type"; btype.setAttribute("aria-label", "Building type"); btype.value = "multifamily"; btype.style.width = "120px";
     const flood = el("label", "meta") as HTMLLabelElement; const floodCk = el("input") as HTMLInputElement; floodCk.type = "checkbox"; floodCk.checked = true;
     flood.append(floodCk, document.createTextNode(" exclude flood"));
     row.append(minAc, zoning, far, btype, flood);
@@ -874,6 +877,7 @@ export class PortalUI {
       const cat = await this.host.api.idsTemplates();
       body.innerHTML = "";
       const pick = el("select", "portal-filter") as HTMLSelectElement; pick.style.cssText = "margin:4px 0";
+      pick.setAttribute("aria-label", "IDS use case");
       pick.innerHTML = cat.use_cases.map((u) => `<option value="${u.key}">${u.label}</option>`).join("");
       const detail = el("div"); detail.style.margin = "8px 0";
       const showDetail = () => {

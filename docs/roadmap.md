@@ -2,9 +2,8 @@
 
 The single product roadmap. Supporting detail lives in:
 [production-readiness.md](production-readiness.md) (security/perf/ops checklist),
-[capability-matrix.md](capability-matrix.md) (vs Bonsai/Revit/Navisworks),
 [gc-portal.md](gc-portal.md), [gc-tools-audit.md](gc-tools-audit.md),
-[competitive-plan.md](competitive-plan.md), [ux-findings.md](ux-findings.md).
+[ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
 **developer/finance** (proforma). Shipped continuously — latest release **v0.2.8**.
@@ -52,7 +51,7 @@ field-capture PWA).
 
 ---
 
-## A. Model generation & **Test Fit** (TestFit-style)  ★ next major theme
+## A. Model generation & **Test Fit**  ★ next major theme
 We have generative *massing*; Test Fit is the optimization layer above it — making the program
 actually **fit** the site/floor-plate and **optimizing yield**, with side-by-side scenarios. Our
 edge stays IFC-native (every fit is real openBIM, flowing into drawings/QTO/estimate/proforma).
@@ -187,8 +186,7 @@ and ASU.
 - ✅ **DONE — C3 4D sequencing.** `fourd.timeline()` + `GET /projects/{id}/schedule/4d` maps elements
   onto the takt plan (trade × floor) → scrubable frames (cumulative % built/day), with a **viewer
   scrub** (the Schedule tools slider isolates built-to-date) + a takt **line-of-balance chart**.
-- ✅ **DONE — C4 workflow-engine upgrades / emanager parity** (v0.1.87; see
-  [emanager-gap-analysis.md](emanager-gap-analysis.md)):
+- ✅ **DONE — C4 workflow-engine upgrades** (v0.1.87):
   - **Transition field-gating** — transitions declare `requires:[field]`; the engine refuses and the
     UI disables the workflow button until those fields are filled (e.g. RFI can't be Answered without an answer).
   - **Company / Contact directory + reference lookups** — first-class directory config modules with

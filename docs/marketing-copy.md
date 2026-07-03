@@ -41,8 +41,8 @@ run the job, and hand it over — open, self-hosted, and free to run on one mach
 
 ## Show HN blurb
 > **Show HN: Open AEC platform — generate a building from zoning, underwrite it, then build it (one IFC model)**
-> The AEC stack is fragmented: TestFit/ARGUS for feasibility, Revit/Forma for BIM, Procore for
-> construction, separate handover tools — none share a model. I built one IFC-keyed platform that
+> The AEC stack is fragmented: separate tools for feasibility, BIM, construction, and handover —
+> none share a model. I built one IFC-keyed platform that
 > spans acquisition → turnover: generative massing + Test Fit, a development proforma with
 > underwriting guardrails, a config-driven GC portal (RFIs → pay apps → 4D), and COBie turnover.
 > Open, self-hosted, free single-project desktop app. Grounded in Carol Willis & Salvadori.

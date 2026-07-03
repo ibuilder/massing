@@ -25,7 +25,6 @@
       <text x="16" y="62" fill="#e7e7e7" font-size="13.5" font-weight="650">Acquisition</text>
       <line x1="16" y1="74" x2="126" y2="74" stroke="#2b2d31"/>
       <text x="16" y="96" fill="#cfd3d8" font-size="11"><tspan x="16" dy="0">Zoning → massing,</tspan><tspan x="16" dy="14">Test Fit, property</tspan><tspan x="16" dy="14">&amp; tax, comps</tspan></text>
-      <text x="16" y="250" fill="#7f868d" font-size="10"><tspan x="16" dy="0" fill="#9aa0a6">point tools</tspan><tspan x="16" dy="14">TestFit · Forma</tspan><tspan x="16" dy="13">site · CoStar</tspan></text>
     </g>
     <!-- Phase 2 Feasibility -->
     <g transform="translate(178,150)">
@@ -34,7 +33,6 @@
       <text x="16" y="62" fill="#e7e7e7" font-size="13.5" font-weight="650">Feasibility</text>
       <line x1="16" y1="74" x2="126" y2="74" stroke="#2b2d31"/>
       <text x="16" y="96" fill="#cfd3d8" font-size="11"><tspan x="16" dy="0">Proforma, S&amp;U,</tspan><tspan x="16" dy="14">budgets, specialty,</tspan><tspan x="16" dy="14">memo + pitch deck</tspan></text>
-      <text x="16" y="250" fill="#7f868d" font-size="10"><tspan x="16" dy="0" fill="#9aa0a6">point tools</tspan><tspan x="16" dy="14">ARGUS · Northspyre</tspan><tspan x="16" dy="13">· Built · Excel</tspan></text>
     </g>
     <!-- Phase 3 Design -->
     <g transform="translate(332,150)">
@@ -43,7 +41,6 @@
       <text x="16" y="62" fill="#e7e7e7" font-size="13.5" font-weight="650">Design</text>
       <line x1="16" y1="74" x2="126" y2="74" stroke="#2b2d31"/>
       <text x="16" y="96" fill="#cfd3d8" font-size="11"><tspan x="16" dy="0">Generative IFC,</tspan><tspan x="16" dy="14">authoring, drawings,</tspan><tspan x="16" dy="14">clash + IDS</tspan></text>
-      <text x="16" y="250" fill="#7f868d" font-size="10"><tspan x="16" dy="0" fill="#9aa0a6">point tools</tspan><tspan x="16" dy="14">Revit · Forma</tspan><tspan x="16" dy="13">· Bentley</tspan></text>
     </g>
     <!-- Phase 4 Preconstruction -->
     <g transform="translate(486,150)">
@@ -52,7 +49,6 @@
       <text x="16" y="62" fill="#e7e7e7" font-size="13.5" font-weight="650">Precon</text>
       <line x1="16" y1="74" x2="126" y2="74" stroke="#2b2d31"/>
       <text x="16" y="96" fill="#cfd3d8" font-size="11"><tspan x="16" dy="0">Estimating, takeoff,</tspan><tspan x="16" dy="14">bid leveling,</tspan><tspan x="16" dy="14">CPM + takt</tspan></text>
-      <text x="16" y="250" fill="#7f868d" font-size="10"><tspan x="16" dy="0" fill="#9aa0a6">point tools</tspan><tspan x="16" dy="14">WinEst · Bluebeam</tspan><tspan x="16" dy="13">· STACK · P6</tspan></text>
     </g>
     <!-- Phase 5 Construction -->
     <g transform="translate(640,150)">
@@ -61,7 +57,6 @@
       <text x="16" y="62" fill="#e7e7e7" font-size="13.5" font-weight="650">Construction</text>
       <line x1="16" y1="74" x2="126" y2="74" stroke="#2b2d31"/>
       <text x="16" y="96" fill="#cfd3d8" font-size="11"><tspan x="16" dy="0">RFIs, submittals,</tspan><tspan x="16" dy="14">COs, pay apps,</tspan><tspan x="16" dy="14">4D, field, safety</tspan></text>
-      <text x="16" y="250" fill="#7f868d" font-size="10"><tspan x="16" dy="0" fill="#9aa0a6">point tools</tspan><tspan x="16" dy="14">Procore · Forma</tspan><tspan x="16" dy="13">Build · Aconex</tspan></text>
     </g>
     <!-- Phase 6 Turnover -->
     <g transform="translate(794,150)">
@@ -70,9 +65,8 @@
       <text x="16" y="62" fill="#e7e7e7" font-size="13.5" font-weight="650">Turnover</text>
       <line x1="16" y1="74" x2="126" y2="74" stroke="#2b2d31"/>
       <text x="16" y="96" fill="#cfd3d8" font-size="11"><tspan x="16" dy="0">Punchlist, COBie,</tspan><tspan x="16" dy="14">as-built, O&amp;M,</tspan><tspan x="16" dy="14">closeout package</tspan></text>
-      <text x="16" y="250" fill="#7f868d" font-size="10"><tspan x="16" dy="0" fill="#9aa0a6">point tools</tspan><tspan x="16" dy="14">handover /</tspan><tspan x="16" dy="13">CAFM tools</tspan></text>
     </g>
   </g>
 
-  <text x="480" y="462" fill="#33d17a" font-size="12.5" text-anchor="middle" font-weight="600">Competitors cover a slice. This covers the lifecycle — on one open model.</text>
+  <text x="480" y="462" fill="#33d17a" font-size="12.5" text-anchor="middle" font-weight="600">One IFC-keyed model, from acquisition to turnover — open and self-hosted.</text>
 </svg>

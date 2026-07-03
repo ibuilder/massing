@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from . import settings_store
+from .net import validate_outbound_url
 
 _log = logging.getLogger("aec.webhooks")
 
@@ -30,10 +31,11 @@ def build_payload(event: str, **fields: Any) -> dict:
 
 
 def _send(url: str, body: bytes) -> None:
+    validate_outbound_url(url, label="AEC_WEBHOOK_URLS entry")  # block file://etc; LAN targets allowed
     req = urllib.request.Request(url, data=body, method="POST",
                                  headers={"Content-Type": "application/json", "User-Agent": "Massing-Webhook"})
     timeout = float(os.environ.get("AEC_WEBHOOK_TIMEOUT", "3"))
-    urllib.request.urlopen(req, timeout=timeout)  # noqa: S310 — operator-configured URL
+    urllib.request.urlopen(req, timeout=timeout)  # noqa: S310 — operator-configured URL, scheme-validated above
 
 
 def _deliver(urls: list[str], body: bytes) -> None:

@@ -17,6 +17,8 @@ import os
 import urllib.request
 from typing import Any
 
+from .net import validate_outbound_url
+
 _TARGETS = {
     "wprealwise": "WPRealWise (self-hosted WordPress)",
     "mls": "MLS / RESO Web API",
@@ -54,10 +56,11 @@ def status() -> dict[str, Any]:
 
 # --- transport seam (monkeypatched in tests) --------------------------------
 def _http_json(method: str, url: str, headers: dict[str, str], payload: dict | None) -> Any:
+    validate_outbound_url(url, label="REALWISE_URL")  # block file://etc on the operator-set endpoint
     data = json.dumps(payload).encode() if payload is not None else None
     req = urllib.request.Request(url, data=data, method=method,
                                  headers={"Content-Type": "application/json", **headers})
-    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:  # noqa: S310 — operator-configured URL
+    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:  # noqa: S310 — operator URL, scheme-validated
         body = resp.read().decode() or "{}"
     return json.loads(body)
 

@@ -38,28 +38,23 @@ Or install the signed desktop app (single-project, auto-updating) from the [late
 
 ## The whole lifecycle, on one model
 
-The market is a patchwork of point tools — feasibility in one, BIM in another, construction
-management in a third. This spans **acquisition → turnover** on a single IFC-keyed model, where
-competitors each cover only one slice:
+Most AEC software covers a single slice — feasibility, or BIM, or construction management. This
+platform spans the **whole lifecycle on one IFC-keyed model**: acquisition → feasibility → design →
+preconstruction → construction → turnover, with every artifact (proforma, model, RFI, pay app,
+COBie) tied to the same GlobalIds.
 
 ![Lifecycle coverage — one IFC model spans acquisition, feasibility, design, preconstruction, construction and turnover](docs/img/lifecycle.svg)
 
-| Capability | **This** | Procore | Autodesk Forma¹ | TestFit | ARGUS / proforma |
-|---|:--:|:--:|:--:|:--:|:--:|
-| Feasibility + underwriting (proforma, S&U, memo) | ✅ | – | partial | – | ✅ |
-| Generative massing + Test Fit | ✅ | – | ✅ | ✅ | – |
-| BIM authoring + clash/IDS | ✅ | view | ✅ | – | – |
-| Construction mgmt (RFIs, COs, pay apps, 4D) | ✅ | ✅ | ✅ | – | – |
-| Turnover (COBie, as-built, closeout) | ✅ | ✅ | ✅ | – | – |
-| IFC-native / open / self-hostable | ✅ | – | – | – | – |
-| Free desktop app · no per-seat license | ✅ | – | – | – | – |
+- **Feasibility + underwriting** — proforma, sources & uses, investment memo.
+- **Generative massing + test fit** — zoning envelope → buildable program → real IFC building.
+- **BIM authoring + coordination** — in-viewer modeling, clash detection, IDS validation.
+- **Construction management** — RFIs, submittals, change orders, pay apps, 4D/5D.
+- **Turnover** — COBie, as-built, closeout.
+- **IFC-native, open, self-hostable** — no per-seat license; the desktop app is free.
 
-<sub>¹ Autodesk Construction Cloud was rebranded **Autodesk Forma** in 2026. Comparison reflects typical product scope; competitors are strong within their slice — the difference is *whole-lifecycle on one open model*.</sub>
+## What it does
 
-## What it does (vs. Bonsai / Revit / Navisworks)
-
-Full mapping in [docs/capability-matrix.md](docs/capability-matrix.md). Highlights, all **built
-and verified** in this repo unless noted:
+Highlights, all **built and verified** in this repo unless noted:
 
 - **Web viewer** — Three.js + Fragments, streams large models, runs fully offline (local WASM).
 - **Navigation & review** — select→properties, spatial tree, layers, isolate/hide, ghost,
@@ -80,8 +75,8 @@ and verified** in this repo unless noted:
   move, rotate, copy, per-element Pset edit. **Drafting aids:** grid + corner snap, a 6-face
   section box, a storey-levels overlay. Verified live end-to-end (upload IFC → add wall →
   republish → updated `.frag` + reindex). Desktop GUI authoring is the Blender + Bonsai bridge.
-- **Generative design — zoning → a fully-developed IFC building + proforma** — the IFC-native
-  answer to TestFit/Forma: enter a municipal zoning envelope (lot, FAR, coverage, setbacks, height
+- **Generative design — zoning → a fully-developed IFC building + proforma** — enter a municipal
+  zoning envelope (lot, FAR, coverage, setbacks, height
   limit, floor-to-floor) and the platform computes the buildable program (footprint, floors, GFA,
   units, **binding constraint**) and **generates a real IFC4 model** in one call — optionally with a
   **concrete structural frame** (columns + beams on a bay grid), **per-apartment unit layout**, a
@@ -132,7 +127,7 @@ A construction-management portal on top of the viewer — full writeup in
 
 A developer/owner platform that goes **lot → building → deal → investor package**, all IFC-native.
 
-**Generative design & Test Fit** (TestFit-style, but openBIM — every fit is a real IFC model):
+**Generative design & Test Fit** (openBIM — every fit is a real IFC model):
 - **Generate from zoning** — lot + zoning envelope (FAR, setbacks, height, coverage) → a buildable
   program + a from-scratch **IFC4** model (structural frame, per-unit spaces, facade + windows,
   service core) + a solved acquisition proforma, one click. Real **lot polygons** (shoelace area).
@@ -167,7 +162,28 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Specifications → submittals · preconstruction depth (latest, v0.3.7)** — the CSI
+- **AI + fintech + BIM-standards depth, then a code-quality & hardening pass (latest, v0.3.41–v0.3.48)** —
+  three rounds of capability depth, each engine offline/deterministic with AI only where it earns its
+  place, always source-linked and never fabricating:
+  - **AI assist** — draft RFIs / scopes / submittal summaries from a note or PDF, bid leveling, and
+    auth-gated cross-project benchmarking (**AI Assist** panel).
+  - **Fintech & risk** — subcontractor prequalification scoring + COI-expiry, pay-app ↔ lien-waiver
+    reconciliation with per-vendor exposure, and GL/QuickBooks accounting export (**Risk & Cost** panel).
+    Money movement stays behind a feature-flagged licensed-processor bridge — the platform never moves
+    money itself.
+  - **Model intelligence** — embodied carbon (A1-A3), model-grounded code-compliance Q&A, takeoff
+    priced to a unit book, **conceptual $/SF estimating** at the massing stage, and **AI IfcClass
+    classification** that lifts QTO + carbon accuracy.
+  - **Materials procure-to-pay** — supplier quote leveling + **3-way match** (PO ↔ delivery ↔ invoice).
+  - **BIM standards** — **IDS authoring**: emit a standards-valid buildingSMART IDS 1.0 file + an EIR
+    contract document (**IDS Requirements** panel), closing the spec → implement → validate loop.
+  - **Land screening** — screen a parcel set by size / zoning / flood / utilities → max-buildable
+    envelope + conceptual cost (**Land Screening** panel); nationwide parcel data is an optional
+    connector.
+  - **Engineering quality** — a blocking `ruff` static-analysis gate + `bandit` security scan in CI, an
+    outbound-URL guard on operator-configured fetches (webhooks / bridges), and a fixed BCF XXE. Backend
+    gate: 97 suites.
+- **Specifications → submittals · preconstruction depth (v0.3.7)** — the CSI
   spec-to-submittal workflow, end to end. A **specification register** (project manual) module
   (MasterFormat section, division, the Part 1 *Submittals* article, products, responsible party),
   a **spec-driven submittal log** that derives the *required* submittals per section — typed
@@ -191,23 +207,23 @@ Deliverables** — with a sticky live-solved returns bar.
   CAM recovery), cap-table-tied **equity-waterfall distribution scenarios**, **investor-portal** signed
   statement sharing, and **comparables import** (CSV / RESO). Hardened for production: empty-project
   robustness (regression-locked), **non-root API container**, and a tested `/metrics` Prometheus surface.
-- **Operate · capital · payroll · drawings · assistant · ITB (v0.1.89)** — six gaps from a
-  competitive/open-source scan: an **operating rent roll** (leases → occupancy/WALT/expirations,
+- **Operate · capital · payroll · drawings · assistant · ITB (v0.1.89)** — six capability
+  additions: an **operating rent roll** (leases → occupancy/WALT/expirations,
   feeding the appraisal income approach), an **investor cap table** with pro-rata capital calls &
   distributions, **WH-347 certified payroll** from timesheets, a controlled **drawing-set register**
   (current vs superseded revisions), a whole-project **AI assistant**, and **ITB** invitation/coverage
-  tracking. (See [docs/competitive-plan.md](docs/competitive-plan.md).)
+  tracking.
 - **Model intelligence, field verification & embeddability (v0.1.88)** — **Ask the model** in
   plain English (`/ask`, grounded in the property index; degrades to a data snapshot without an AI key);
   **field verification** — mark elements installed/verified/deviation vs design (photo-anchored) with an
   **install-coverage** dashboard + deviation log for the ops handover; an **`?embed=1`** chrome-less,
   read-only viewer for `<iframe>`/Teams embeds; and **outbound webhooks** on workflow transitions
-  (Power Automate / Zapier). Adapted from Argyle + Flinker to the open, self-hosted posture.
+  (Power Automate / Zapier), all on the open, self-hosted posture.
 - **Workflow engine upgrades (v0.1.87)** — config-driven modules engine gains **transition
   field-gating** (`requires: [field]` — RFI can't be Answered without an answer), a **Company/Contact
   directory** with first-class `reference` lookups (e.g. a subcontract's vendor), a cross-module
   **due/overdue SLA feed** ("⏰ Deadlines" on the portal home), and an **in-app workflow map** on the
-  record view — adopted from an emanager gap analysis (see [docs/emanager-gap-analysis.md](docs/emanager-gap-analysis.md)).
+  record view.
 - **Disposition & valuation (v0.1.86)** — close the loop from build to **sell/lease**: a
   `listing` module that **auto-fills from the model + proforma** (areas/NOI/cap/asking price), a
   one-click **marketing fact sheet** + a signed **public link/QR** to share off-plan, and a
@@ -396,8 +412,8 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Gallery
 
-**Generative design — lot → IFC model → acquisition proforma** (the TestFit/Forma differentiator,
-but openBIM): a zoning envelope generates a real IFC massing you can then furnish from a starter
+**Generative design — lot → IFC model → acquisition proforma** (openBIM end to end): a zoning
+envelope generates a real IFC massing you can then furnish from a starter
 family library. (Vector renders of the redesigned UI; numbers are an actual solve.)
 
 | Generate from zoning → IFC + proforma | Furnish & equip (starter IFC family library) |

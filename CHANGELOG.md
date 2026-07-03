@@ -4,14 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.3.47 — Land parcel screening + data connector (track 4 of 4)
-The last competitor-review track (Acres). The nationwide parcel dataset is a licensing play, so it's a
+## v0.3.48 — Hardening, accessibility & documentation pass
+A quality pass over the recently-shipped features: debug + full test sweep, a security-hardening
+review, accessibility on the new UI, and a documentation refresh.
+- **Security — outbound-URL guard.** New `net.py` `validate_outbound_url()` gates the bridges that
+  fetch an **operator-configured** URL — **webhooks**, the real-estate syndication bridge, and the
+  e-sign bridge — rejecting non-http(s) schemes (blocks `file://` / `gopher://` local-file-read + SSRF
+  vectors) with an opt-in private-host check. The fixed-provider fetches (Autodesk, Google/Microsoft
+  OAuth, Procore) and the already-guarded Speckle bridge were reviewed and left as-is.
+- **Accessibility.** The new **Land Screening**, **IDS Requirements** and **conceptual-estimate**
+  forms had placeholder-only inputs; every field now carries an `aria-label` so screen readers
+  announce it. All new destinations confirmed reachable from the workspace nav (native `<button>`s,
+  keyboard-operable).
+- **Tests.** New `test_net`; backend gate now **97/97** suites. Web typecheck + 49 vitest + Pages
+  build + bundle budget (156 KB shell < 220 KB) all green. `ruff` + `bandit` clean.
+- **Docs.** Competitive/vendor comparison removed from the documentation set (README, the public
+  landing page, the lifecycle graphic, roadmap/audit notes) in favor of neutral capability language;
+  integration/connector references (Procore SSO + sync, ACC, QuickBooks/Sage) are retained as the
+  factual product features they describe. README "Recent work", CHANGELOG and the GitHub About refreshed
+  to current state; stale internal links removed.
+
+## v0.3.47 — Land parcel screening + data connector
+Land acquisition screening. The nationwide parcel dataset is a licensing play, so it's a
 feature-flagged connector; the pure-software win — which plays to our GIS + feasibility + proforma
 engines — is **screening**.
 - **`parcels.py`** — screen a parcel set (imported GeoJSON / entered) by **size, zoning, flood zone,
   sewer/water, price**, and **rank by max-buildable opportunity**: each parcel gets a max envelope
   (area × FAR) and a **conceptual cost** (via `conceptual_estimate`), plus **land cost per buildable SF**
-  — the screen → envelope → proforma chain that Acres, being pre-acquisition-only, can't do.
+  — a screen → envelope → proforma chain that runs before acquisition, not just after.
 - **`parcels_bridge.py`** — nationwide parcel/ownership/comps data is an optional paid connector
   (`PARCEL_PROVIDER`, Regrid/ATTOM/CoreLogic pattern) that raises rather than shipping fake data; the
   screening engine works on parcels you supply without it.
@@ -20,11 +40,11 @@ engines — is **screening**.
 - Verified: ruff clean, 96/96 backend suites (new `test_parcels`), web typecheck + 49 vitest + Pages
   build + budget green.
 
-**This completes the second competitor review (4 tracks, v0.3.44–47) on top of the code-quality gate
+**This completes the second capability round (4 tracks, v0.3.44–47) on top of the code-quality gate
 (v0.3.43).**
 
-## v0.3.46 — Conceptual estimating + AI IFC classification (track 3 of 4)
-Two model-native intelligence features (Ediphi + Qonic gaps) that leverage our IFC/massing strengths.
+## v0.3.46 — Conceptual estimating + AI IFC classification
+Two model-native intelligence features that leverage our IFC/massing strengths.
 - **`conceptual_estimate.py`** — a parametric **$/SF** cost from building type + GFA + units at the
   massing stage (on-brand for a product called Massing): a low/base/high range **escalated for region
   and year**, with derived $/SF, $/unit and $/key for the proforma before there's a detailed takeoff.
@@ -38,10 +58,9 @@ Two model-native intelligence features (Ediphi + Qonic gaps) that leverage our I
 - Verified: ruff clean, 95/95 backend suites (new `test_conceptual`), web typecheck + 49 vitest +
   Pages build + budget green.
 
-## v0.3.45 — Materials procure-to-pay: quote leveling + 3-way match (track 2 of 4)
-The materials buying loop (FieldMaterials' territory) — distinct from sub-bid leveling and the biggest
-whitespace from the competitor review. Deterministic/offline on top of the modules we already have
-(`commitment` = PO, `delivery`, `sub_invoice`).
+## v0.3.45 — Materials procure-to-pay: quote leveling + 3-way match
+The materials buying loop — distinct from sub-bid leveling. Deterministic/offline on top of the
+modules we already have (`commitment` = PO, `delivery`, `sub_invoice`).
 - **`procurement.py` — quote leveling** — normalize competing supplier quotes into an apples-to-apples
   grid with the low price per line item, the best-value supplier, per-supplier totals, and line-by-line
   savings (handles split awards where the cheapest supplier differs per item).
@@ -54,9 +73,9 @@ whitespace from the competitor review. Deterministic/offline on top of the modul
 - Verified: ruff clean, 94/94 backend suites (new `test_procurement`), web typecheck + 49 vitest +
   Pages build + budget green.
 
-## v0.3.44 — IDS authoring + EIR (from BIM-standards competitor review, track 1 of 4)
-From a second competitor pass (BIMIDS, Qonic, Ediphi, FieldMaterials, Acres). We already *validate*
-models against an IDS; BIMIDS showed the demand is upstream — **authoring** the requirements.
+## v0.3.44 — IDS authoring + EIR
+Closing the BIM-standards loop upstream. We already *validate* models against an IDS; the demand is
+upstream of that — **authoring** the requirements in the first place.
 - **`ids_authoring.py`** — a starter requirements template library (what data each element type should
   carry: walls → FireRating/LoadBearing/…, doors, windows, slabs, spaces, columns, beams — from the
   standard `Pset_*Common` sets), bundled into **use cases** (handover/COBie, fire & life safety, energy,
@@ -86,13 +105,13 @@ Applying the "enterprise-quality code with AI agents" discipline — verificatio
 - `ruff` + `bandit` added to `requirements-dev.txt`; `CONTRIBUTING.md` documents the local gates.
 - Verified: ruff clean, 92/92 backend suites, bandit XXE finding resolved.
 
-## v0.3.42 — Competitive Tiers 2 & 3: fintech depth + differentiated (carbon, code, pricing)
-The rest of the competitive roadmap. Every engine is offline/deterministic (AI only where it helps),
+## v0.3.42 — Tiers 2 & 3: fintech depth + differentiated (carbon, code, pricing)
+The rest of the capability roadmap. Every engine is offline/deterministic (AI only where it helps),
 source-linked, and never fabricates; money movement and live pricing are feature-flagged bridge stubs
 that raise actionable errors rather than faking a result.
 - **Subcontractor prequalification** — a transparent Q-score (safety/EMR, financial, experience, rating,
   currency = 100 pts, every point traceable) + a **COI-expiry** feed. A single sub default costs a GC
-  1.5-3× the subcontract, so this is the risk gate competitors sell (Procore Prequal / TradeTapp).
+  1.5-3× the subcontract, so this is a core risk gate before award.
 - **Pay-app ↔ lien-waiver reconciliation** — matches what was **paid** (`sub_invoice`) against **waivers**
   on file (`lien_waiver`, conditional vs unconditional) and surfaces per-vendor **lien exposure**. Massing
   never moves money: a `payments_bridge` stub disburses only through a licensed processor and refuses
@@ -110,9 +129,8 @@ that raise actionable errors rather than faking a result.
   takeoff variance, GL/IIF export) and a **Code check** tab in AI Assist.
 - Verified: 92/92 backend suites, web typecheck + 49 vitest + Pages build + bundle budget all green.
 
-## v0.3.41 — Competitive Tier 1: AI drafting, bid leveling, cross-project benchmarking
-Market-driven upgrades from a competitive review (Procore "Future State of Construction" survey +
-BuildZen / Jet.build / AEC Foundry / Belidor / ContractorPlus). Each AI engine mirrors the existing
+## v0.3.41 — Tier 1: AI drafting, bid leveling, cross-project benchmarking
+Market-driven upgrades. Each AI engine mirrors the existing
 `review.py`: Claude when `ANTHROPIC_API_KEY` is set, a deterministic **offline fallback** otherwise,
 every output **source-linked**, never fabricated; heavy calls run off the event loop and are throttled.
 - **AI drafting** (`drafting.py`, **AI Assist** panel) — turn a note or a PDF into an editable
@@ -478,9 +496,9 @@ demand arises, not build a bespoke globe).
 - Decision (researched): **no Elasticsearch** — a self-hosted/offline app on Postgres should use
   built-in full-text search; a portable search upgrade lands in a follow-up phase.
 
-## v0.3.12 — UI/UX + security pass over the competitor-review features
-- Consolidated review of the four features added from the giraffe/synaps/addd/ifc-bcf-viewer study
-  (site feasibility, feasibility scenario compare, clash-report import, BCF viewpoint fidelity).
+## v0.3.12 — UI/UX + security pass over recently-added features
+- Consolidated review of four features (site feasibility, feasibility scenario compare, clash-report
+  import, BCF viewpoint fidelity).
 - **Security**: hardened the clash-report XLSX import against oversized sheets — caps imported issues
   at 5,000 rows and scanned rows at 200,000 (surfacing a `truncated` flag), on top of the existing
   request body-size limit; `read_only` streaming keeps memory bounded. Audited RBAC on every new
@@ -887,8 +905,8 @@ A UX audit found seven computed features were API/report-only (no buttons). All 
   tables (`mod_lease`, `mod_investor`, `element_verifications`) confirmed to migrate on **Postgres**.
 
 ## v0.1.89 — operate, capital, payroll, drawing-set, assistant & ITB
-Six gaps closed from a competitive + open-source scan (OpenConstructionERP, Procore/ACC, RE
-asset-mgmt / syndication tools). See [docs/competitive-plan.md](docs/competitive-plan.md).
+Six capability gaps closed across operations, capital, payroll, drawing-set control, the project
+assistant, and invitation-to-bid.
 - **Operating asset mgmt (rent roll):** a `lease` module (Operations) + `rentroll.py` — occupancy,
   WALT, lease-expiration schedule, in-place income; `GET /rent-roll` + a Rent Roll report. The
   appraisal income approach can value off the actual roll: `GET /appraisal?rentroll=1`.
@@ -927,10 +945,9 @@ M365) — built to Massing's open, self-hosted, $0 identity (no AR hardware, no 
 - Tests: `test_ask.py`, `test_verification.py`, `test_webhooks.py`. Verified live (Ask snapshot,
   embed chrome-less, webhook dispatch + fail-open).
 
-## v0.1.87 — workflow engine upgrades (emanager parity)
-Cross-cutting upgrades to the config-driven modules engine — each lights up across all ~75 modules.
-Adopted from a gap analysis of the WordPress **emanager** platform + Procore/Autodesk best practice
-(see [docs/emanager-gap-analysis.md](docs/emanager-gap-analysis.md)).
+## v0.1.87 — workflow engine upgrades
+Cross-cutting upgrades to the config-driven modules engine — each lights up across all ~75 modules,
+drawn from construction-management workflow best practice.
 - **Transition field-gating** — a workflow transition can declare `requires: [field, …]` that must be
   filled before it fires (RFI can't be *Answered* without an answer). `available_actions` advertises
   it; the action button disables with a "(needs …)" hint until satisfied. Generalizes the attachment
@@ -1082,9 +1099,9 @@ BIM-native platform can do, because Massing owns the model + proforma. (See
   PDFs, merged with project/contract data (`contracts.py`, reportlab).
 - **Exhibit generator** — **Compose Exhibit A — Scope of Work** from an editable clause/scope library
   (`scope_library.py`: general/supplementary conditions + per-CSI-division scopes with `{{merge}}`
-  tokens); pick clauses → exhibit PDF, attachable to the record. (Inspired by procore-exhibit-generator.)
+  tokens); pick clauses → exhibit PDF, attachable to the record.
 - **View & markup** — open any generated contract/CO in the PDF markup overlay to redline
-  (fairbuild-style review) before signing.
+  before signing.
 - **Signatures & approval** — capture per-party typed signatures (`POST …/contracts/{key}/{rid}/sign`,
   one per party, audited) that render into the document; route/approve via the existing party-gated
   workflow. Endpoints: `GET /scope-library`, `GET …/contracts/{key}/{rid}/document.pdf?doc=&clauses=&attach=`.
@@ -1212,8 +1229,8 @@ BIM-native platform can do, because Massing owns the model + proforma. (See
   filter + favorites + collapsible sections) stays visible and loads each module into a content pane —
   jump anywhere in one click, with the active module highlighted. (Stacks above the content on phones.)
 - **GC module deep-dive roadmap** ([docs/gc-modules-roadmap.md](docs/gc-modules-roadmap.md)) — a
-  field-by-field audit of all 73 modules benchmarked against Procore/Fieldwire + how Turner/Suffolk/
-  Balfour run these workflows, with cross-cutting themes (cost-code links everywhere, ball-in-court
+  field-by-field audit of all 73 modules against how large GCs run these workflows, with cross-cutting
+  themes (cost-code links everywhere, ball-in-court
   /assignee, fieldsets, inline add-from-dropdown, super-vs-PM views, cross-module conversions) and
   tiered per-module priorities. How to **add cost codes**: Construction → Cost Codes (Resources) → + Add.
 

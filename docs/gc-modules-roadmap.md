@@ -1,8 +1,8 @@
 # GC Portal — module deep-dive & improvement roadmap
 
 A field-by-field audit of the 73 config-driven GC modules and a plan to make each one genuinely useful
-to **both superintendents (field) and project managers (office)**, benchmarked against how leading GCs
-(Turner, Suffolk, Balfour Beatty) and the dominant tools (Procore, Fieldwire) run these workflows.
+to **both superintendents (field) and project managers (office)**, informed by how leading GCs
+(Turner, Suffolk, Balfour Beatty) run these workflows.
 
 ## How the system works today
 Every module is a `module.json` (no code) describing **fields** (`text · textarea · select · multiselect ·
