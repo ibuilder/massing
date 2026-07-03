@@ -4,6 +4,33 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.53 — Production hardening: backend blockers (readiness R1 of 7)
+From a full production-readiness audit (code + docs + deployment). Fixes the findings that make the
+difference between "works in dev" and "safe under load, multi-worker, and misconfiguration":
+- **Fail-fast production guard** — booting on **Postgres** without `AEC_RBAC=1` or with the default
+  auth secret now **refuses to start** (explicit `AEC_ALLOW_OPEN=1` escape hatch). A forgotten env var
+  is a loud crash at boot, not an open platform discovered later. CRITICAL log when the rate limit is
+  on with multiple workers but no shared Redis counter.
+- **Project list scales + doesn't leak** — `GET /projects` filters membership in SQL (join) instead of
+  loading every project then running one role query each (N+1), and is paginated.
+- **Bounded loads everywhere** — kanban `board()` returns capped per-state cards plus TRUE counts from
+  a GROUP BY (was: materialize up to 100k records per request); CSV export **streams** page-by-page;
+  the list `?limit=` param is clamped; Procore sync reads only the `procore_id` column via SQL json
+  extraction (was: `limit=1_000_000` full-record load).
+- **Observability** — fragment-conversion and publish failures now `logging.exception` (they were
+  visible only in a status JSON nobody polls); auto-sync schedule failures log at WARNING.
+- **Multi-worker autosync** — a Postgres advisory lock elects one runner per tick, so N workers no
+  longer each pull the same external records.
+- **Uploads & traversal** — the properties-index upload is size-gated (413 over `AEC_PROPS_MAX_MB`,
+  default 100); attachment filenames explicitly collapse `..` sequences (belt on top of the existing
+  storage containment guard).
+- **Complete project deletion** — deleting a project now removes the **whole `{pid}/` storage prefix**
+  (source-IFC copies, props index, publish status — not just the model tile) via a new
+  `storage.delete_prefix` on both local and S3 backends.
+- **Rate limiter** — evicts oldest buckets under IP churn instead of clearing all state at once.
+- Verified: new `test_prod_hardening` + adjacent regressions (modules/rbac/security/connections/api/
+  bcf) green, ruff + bandit clean.
+
 ## v0.3.52 — Architect sign-off + G704 substantial completion + record turnover (lifecycle track 4 of 4)
 The final track closes the loop to turnover: the **Architect certifies substantial completion**, signs
 off the punch list, and the as-built **record model** is stamped for handover.

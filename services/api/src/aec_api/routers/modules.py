@@ -372,7 +372,9 @@ def bulk_action(pid: str, key: str, ids: list[str] = Body(..., embed=True),
 def list_records(pid: str, key: str, state: str | None = None, q: str | None = None,
                  limit: int = 200, offset: int = 0, db: Session = Depends(get_db),
                  _: str = Depends(require_role("viewer"))):
-    return mod_engine.list_records(db, key, pid, state, q, limit, offset)
+    # clamp the caller-supplied page size — an unbounded ?limit= materializes the whole module
+    limit = max(1, min(int(limit or 200), 1000))
+    return mod_engine.list_records(db, key, pid, state, q, limit, max(0, int(offset or 0)))
 
 
 @router.post("/projects/{pid}/modules/{key}", status_code=201)
@@ -384,9 +386,12 @@ def create_record(pid: str, key: str, body: dict = Body(...), db: Session = Depe
 @router.get("/projects/{pid}/modules/{key}/export.csv")
 def export_csv(pid: str, key: str, db: Session = Depends(get_db),
                _: str = Depends(require_role("viewer"))):
-    csv_text = mod_engine.to_csv(db, key, pid)
-    return Response(csv_text, media_type="text/csv",
-                    headers={"Content-Disposition": f'attachment; filename="{key}.csv"'})
+    from fastapi.responses import StreamingResponse
+    if key not in mod_engine.TABLES:
+        raise HTTPException(404, "unknown module")
+    # stream page-by-page — a 200k-record module never sits in memory as one string
+    return StreamingResponse(mod_engine.iter_csv(db, key, pid), media_type="text/csv",
+                             headers={"Content-Disposition": f'attachment; filename="{key}.csv"'})
 
 
 @router.get("/projects/{pid}/modules/{key}/import-template.csv")

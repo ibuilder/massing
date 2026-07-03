@@ -208,13 +208,18 @@ def delete_project(db: Session, pid: str) -> dict:
     p = db.get(Project, pid)
     if not p:
         raise HTTPException(404, "no such project")
-    # storage blobs first (best-effort) — attachments + the published model tile
-    for key in _attachment_keys(db, pid) + [f"{pid}/model.frag"]:
+    # storage blobs first (best-effort) — attachments, then the WHOLE {pid}/ prefix (model.frag,
+    # source-IFC copies, props.json, publish_status.json, …) so no orphan blobs survive the delete
+    for key in _attachment_keys(db, pid):
         try:
             if storage.exists(key):
                 storage.delete(key)
         except Exception:                        # noqa: BLE001 — a missing blob mustn't block delete
             pass
+    try:
+        storage.delete_prefix(pid)
+    except Exception:                            # noqa: BLE001 — best-effort cleanup
+        pass
     deleted: dict[str, int] = {}
     # BCF topic children (no project_id) before the topics they hang off
     from .models import Topic

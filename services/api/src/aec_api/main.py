@@ -23,14 +23,29 @@ _access_log = logging.getLogger("aec.access")
 _log = logging.getLogger("aec.autosync")
 
 
+_AUTOSYNC_LOCK_KEY = 0x6165635F73796E63          # "aec_sync" — app-wide advisory-lock id
+
+
 async def _autosync_loop() -> None:
-    """Run due Procore auto-sync schedules every minute. Per-process (single-worker / dev);
-    for multi-worker, run a single scheduler or use a DB lock. Disable with AEC_AUTOSYNC=0."""
+    """Run due Procore auto-sync schedules every minute. With multiple uvicorn workers each process
+    runs this loop, so on Postgres a session advisory lock elects one runner per tick (the others
+    skip); SQLite deployments are single-process so no lock is needed. Disable with AEC_AUTOSYNC=0."""
+    from sqlalchemy import text
+
     from . import sync
     from .db import SessionLocal
 
     def _run() -> list:
         with SessionLocal() as db:
+            if db.get_bind().dialect.name == "postgresql":
+                got = db.execute(text("SELECT pg_try_advisory_lock(:k)"),
+                                 {"k": _AUTOSYNC_LOCK_KEY}).scalar()
+                if not got:                       # another worker holds this tick — skip quietly
+                    return []
+                try:
+                    return sync.run_due(db)
+                finally:
+                    db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": _AUTOSYNC_LOCK_KEY})
             return sync.run_due(db)
 
     while True:
@@ -45,12 +60,48 @@ async def _autosync_loop() -> None:
             _log.warning("auto-sync tick failed: %s", e)
 
 
+def _production_guard() -> None:
+    """Fail-fast on the misconfigurations that silently ship an open platform.
+
+    "Production" is detected by the database: a Postgres DATABASE_URL means real deployment (dev and
+    the test gate run SQLite). On Postgres we refuse to start unless RBAC is on and the auth secret
+    is set — a forgotten env var must be a loud crash at boot, not an open API discovered later.
+    `AEC_ALLOW_OPEN=1` is the explicit escape hatch for intentionally-open internal deployments."""
+    log = logging.getLogger("aec")
+    db_url = os.environ.get("DATABASE_URL", "")
+    is_postgres = db_url.startswith(("postgres://", "postgresql://", "postgresql+"))
+    if is_postgres and os.environ.get("AEC_ALLOW_OPEN") != "1":
+        from . import auth, rbac
+        problems = []
+        if not rbac.RBAC_ON:
+            problems.append("AEC_RBAC is not '1' — every authenticated user would see every project")
+        if auth.secret_is_default():
+            problems.append("AEC_AUTH_SECRET is unset — auth tokens are signed with a public dev "
+                            "secret and are forgeable")
+        if problems:
+            raise RuntimeError(
+                "refusing to start on Postgres with an unsafe configuration:\n  - "
+                + "\n  - ".join(problems)
+                + "\nSet the required env vars, or AEC_ALLOW_OPEN=1 to accept an open deployment.")
+    # multi-worker + rate limit without Redis: each worker counts independently → limit is per-worker
+    workers = os.environ.get("UVICORN_WORKERS") or os.environ.get("WEB_CONCURRENCY") or "1"
+    if (int(os.environ.get("AEC_RATE_LIMIT_RPM", "0") or "0") > 0
+            and not os.environ.get("AEC_REDIS_URL", "").strip()):
+        try:
+            if int(workers) > 1:
+                log.critical("SECURITY: AEC_RATE_LIMIT_RPM is set with %s workers but no "
+                             "AEC_REDIS_URL — the limit is per-worker, not global.", workers)
+        except ValueError:
+            pass
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
     # Production safety: tokens signed with the public dev secret are forgeable. Warn loudly when
     # RBAC is on, and hard-fail when AEC_REQUIRE_SECRET=1 (set this in real deployments).
     from . import auth, rbac
+    _production_guard()                          # Postgres ⇒ RBAC + real secret, or refuse to boot
     if auth.secret_is_default():
         msg = ("AEC_AUTH_SECRET is not set — auth tokens are signed with a public dev secret and "
                "are forgeable. Set AEC_AUTH_SECRET to a strong random value.")
@@ -101,8 +152,11 @@ if _RATE_RPM > 0:
         b = _rl_buckets.get(ip)
         if not b or b[0] != win:
             b = [win, 0]
-            if len(_rl_buckets) > 10_000:        # bound memory: drop stale windows
-                _rl_buckets.clear()
+            # bound memory under IP churn by evicting the OLDEST buckets (LRU-ish via dict insertion
+            # order), never clear() — a bulk clear would reset every active counter at once and let a
+            # scanning botnet erase the limiter's state for legitimate throttling.
+            while len(_rl_buckets) > 10_000:
+                _rl_buckets.pop(next(iter(_rl_buckets)), None)
             _rl_buckets[ip] = b
         b[1] += 1
         return b[1]

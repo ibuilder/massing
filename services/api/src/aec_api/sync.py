@@ -3,6 +3,7 @@ source into the GC-portal module model. Procore RFIs / submittals / change event
 modules, idempotent by the Procore record id stored in each imported record's data."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -18,20 +19,33 @@ KINDS: dict[str, tuple[str, str]] = {
 }
 
 
+def _existing_procore_ids(db: Session, module_key: str, project_id: str) -> set:
+    """The procore_ids already imported — selected as ONE json-extracted column in SQL, not by
+    materializing every record dict (the previous limit=1_000_000 list_records pulled each record's
+    full JSON blob into memory just to read one key)."""
+    from sqlalchemy import func, select
+    t = me.TABLES[module_key]
+    if db.get_bind().dialect.name == "postgresql":
+        col = t.c.data.op("->>")("procore_id")
+    else:                                          # SQLite
+        col = func.json_extract(t.c.data, "$.procore_id")
+    rows = db.execute(select(col).where(t.c.project_id == project_id, col.isnot(None)))
+    return {str(r[0]) for r in rows}             # normalize: PG ->> yields text, SQLite the raw type
+
+
 def _sync_kind(db: Session, project_id: str, kind: str, token: str, procore_project_id: str,
                actor: str, party: str | None, mappings: dict | None = None) -> dict[str, Any]:
     module_key, fetch_attr = KINDS[kind]
     items = getattr(connectors, fetch_attr)(token, procore_project_id)
-    existing = me.list_records(db, module_key, project_id, limit=1_000_000)
-    have = {(r.get("data") or {}).get("procore_id") for r in existing}
+    have = _existing_procore_ids(db, module_key, project_id)
     imported = 0
     for it in items:
         m = connectors.map_procore(kind, it, mappings)        # admin field mapping applied
-        if not m["procore_id"] or m["procore_id"] in have:
+        if not m["procore_id"] or str(m["procore_id"]) in have:
             continue
         me.create_record(db, module_key, project_id,
                          {"data": {**m["data"], "procore_id": m["procore_id"]}}, actor, party)
-        have.add(m["procore_id"])
+        have.add(str(m["procore_id"]))
         imported += 1
     return {"module": module_key, "fetched": len(items), "imported": imported,
             "skipped": len(items) - imported}
@@ -113,6 +127,9 @@ def run_due(db: Session, now=None) -> list[dict[str, Any]]:
         try:
             res = run_schedule(db, s)
         except Exception as e:                   # noqa: BLE001 — one bad schedule mustn't stop the rest
+            # log it too: an expired token / broken connection must be visible in logs, not only in
+            # a last_result field nobody polls (a sync can otherwise stay silently broken for weeks).
+            logging.getLogger("aec.autosync").warning("schedule %s failed: %s", s.id, e)
             res = {"error": str(e)[:160]}
         s.last_run = now
         s.last_result = res

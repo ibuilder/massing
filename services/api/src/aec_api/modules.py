@@ -532,18 +532,23 @@ def delete_record(db: Session, key: str, project_id: str, rid: str, actor: str,
     return {"deleted": True, "ref": rec["ref"]}
 
 
-def board(db: Session, key: str, project_id: str) -> dict:
-    """Records grouped by workflow state — drives the kanban board."""
+def board(db: Session, key: str, project_id: str, per_state: int = 200) -> dict:
+    """Records grouped by workflow state — drives the kanban board.
+
+    Bounded: at most `per_state` cards per column (newest first) plus the TRUE per-state counts from
+    `state_counts` (SQL GROUP BY), instead of materializing up to 100k full records per request — a
+    memory/DoS vector on large modules. A column deeper than the cap shows count > len(cards)."""
     mod = get_module(key)
     states = mod.get("workflow", {}).get("states", [])
-    rows = list_records(db, key, project_id, limit=100000)
-    columns = {s: [] for s in states}
-    for r in rows:
-        columns.setdefault(r["workflow_state"], []).append(
-            {"id": r["id"], "ref": r["ref"], "title": r["title"],
-             "assignee": r.get("assignee"), "party_owner": r.get("party_owner")})
+    counts = state_counts(db, key, project_id)
+    columns: dict[str, list] = {s: [] for s in states}
+    for state in set(list(counts.keys()) + states):
+        rows = list_records(db, key, project_id, state=state, limit=max(1, min(per_state, 500)))
+        columns[state] = [{"id": r["id"], "ref": r["ref"], "title": r["title"],
+                           "assignee": r.get("assignee"), "party_owner": r.get("party_owner")}
+                          for r in rows]
     return {"states": states or list(columns.keys()),
-            "columns": columns,
+            "columns": columns, "counts": counts,
             "transitions": mod.get("workflow", {}).get("transitions", [])}
 
 
@@ -715,22 +720,36 @@ def add_comment(db: Session, key: str, project_id: str, rid: str, text: str,
     return get_record(db, key, project_id, rid)
 
 
-def to_csv(db: Session, key: str, project_id: str) -> str:
-    """Module record list → CSV (ref/title/status + module fields)."""
+def iter_csv(db: Session, key: str, project_id: str, page: int = 1000):
+    """Module record list → CSV, streamed in pages so a 200k-record module never materializes in one
+    request (the previous single limit=100000 load was a memory/DoS vector). Yields CSV chunks."""
     import csv
     import io
 
     mod = get_module(key)
     field_names = [f["name"] for f in mod.get("fields", [])]
     headers = ["ref", "title", "workflow_state", "party_owner", "created_by"] + field_names
-    buf = io.StringIO()
-    w = csv.writer(buf)
-    w.writerow(headers)
-    for r in list_records(db, key, project_id, limit=100000):
-        d = r.get("data") or {}
-        w.writerow([r["ref"], r["title"], r["workflow_state"], r["party_owner"], r["created_by"]]
-                   + [d.get(fn, "") for fn in field_names])
-    return buf.getvalue()
+    offset = 0
+    while True:
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        if offset == 0:
+            w.writerow(headers)
+        rows = list_records(db, key, project_id, limit=page, offset=offset)
+        for r in rows:
+            d = r.get("data") or {}
+            w.writerow([r["ref"], r["title"], r["workflow_state"], r["party_owner"], r["created_by"]]
+                       + [d.get(fn, "") for fn in field_names])
+        if offset == 0 or rows:
+            yield buf.getvalue()
+        if len(rows) < page:
+            break
+        offset += page
+
+
+def to_csv(db: Session, key: str, project_id: str) -> str:
+    """Whole-module CSV as one string (tests / small modules); prefer iter_csv for responses."""
+    return "".join(iter_csv(db, key, project_id))
 
 
 def update_record(db: Session, key: str, project_id: str, rid: str, data: dict,

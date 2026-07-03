@@ -60,6 +60,20 @@ class LocalBackend:
             fh.seek(start)
             return fh.read(end - start + 1)
 
+    def delete_prefix(self, prefix: str) -> int:
+        """Delete every object under a prefix (project teardown). Returns files removed. The prefix
+        goes through the same containment guard as keys."""
+        import shutil
+        root = self._p(prefix.rstrip("/"))
+        if not root.exists():
+            return 0
+        n = sum(1 for p in root.rglob("*") if p.is_file()) if root.is_dir() else 1
+        if root.is_dir():
+            shutil.rmtree(root, ignore_errors=True)
+        else:
+            root.unlink(missing_ok=True)
+        return n
+
 
 class S3Backend:
     """MinIO/S3 via boto3. Bucket auto-created. Enabled by S3_ENDPOINT env."""
@@ -108,6 +122,23 @@ class S3Backend:
         obj = self.client.get_object(Bucket=self.bucket, Key=key, Range=f"bytes={start}-{end}")
         return obj["Body"].read()
 
+    def delete_prefix(self, prefix: str) -> int:
+        """Delete every object under a prefix (project teardown). Paginates list_objects_v2."""
+        n = 0
+        token = None
+        while True:
+            kw = {"Bucket": self.bucket, "Prefix": prefix.rstrip("/") + "/"}
+            if token:
+                kw["ContinuationToken"] = token
+            resp = self.client.list_objects_v2(**kw)
+            keys = [{"Key": o["Key"]} for o in resp.get("Contents", [])]
+            if keys:
+                self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": keys})
+                n += len(keys)
+            if not resp.get("IsTruncated"):
+                return n
+            token = resp.get("NextContinuationToken")
+
 
 def _make_backend() -> Backend:
     if os.environ.get("S3_ENDPOINT"):
@@ -140,6 +171,11 @@ def exists(key: str) -> bool:
 
 def delete(key: str) -> None:
     backend().delete(key)
+
+
+def delete_prefix(prefix: str) -> int:
+    """Remove every object under `prefix` (e.g. a whole project's blobs on delete)."""
+    return backend().delete_prefix(prefix)      # type: ignore[attr-defined]
 
 
 def size(key: str) -> int:

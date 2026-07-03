@@ -197,11 +197,20 @@ def _with_kind(p: Project) -> Project:
 
 
 @router.get("/projects", response_model=list[ProjectOut])
-def list_projects(db: Session = Depends(get_db), user: str = Depends(current_user)):
-    projects = db.query(Project).all()
-    # when RBAC is on, only surface projects the caller is a member of (don't leak others' names)
-    if rbac.RBAC_ON:
-        projects = [p for p in projects if rbac.role_for(db, p.id, user) is not None]
+def list_projects(limit: int = 500, offset: int = 0, db: Session = Depends(get_db),
+                  user: str = Depends(current_user)):
+    """Projects the caller can see. Membership is filtered in SQL (one query, not one role lookup
+    per project) and the result is paginated — the previous shape loaded every project then ran a
+    per-project role query, an N+1 that also briefly materialized other tenants' names."""
+    limit = max(1, min(int(limit or 500), 1000))
+    q = db.query(Project)
+    # when RBAC is on, only surface projects the caller is a member of (don't leak others' names);
+    # the api-key actor is role_for's one global pass and still sees everything.
+    if rbac.RBAC_ON and user != "api-key":
+        from ..models import ProjectMember
+        q = q.join(ProjectMember, ProjectMember.project_id == Project.id) \
+             .filter(ProjectMember.user == user)
+    projects = q.order_by(Project.name).offset(max(0, int(offset or 0))).limit(limit).all()
     return [_with_kind(p) for p in projects]
 
 
@@ -366,6 +375,7 @@ async def add_attachment(pid: str, tid: str, kind: str = Form("file"),
     # the stored key must never carry path separators / traversal from the client filename; keep the
     # original name for display only. (storage._p also guards containment as a backstop.)
     safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename or "file")).lstrip(".") or "file"
+    safe_name = safe_name.replace("..", "_")     # belt: no traversal sequences even inside the name
     key = f"{pid}/{tid}/{safe_name}"
     storage.put(key, data)
     a = Attachment(topic_id=tid, filename=file.filename, content_type=file.content_type,

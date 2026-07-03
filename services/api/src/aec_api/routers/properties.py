@@ -41,8 +41,13 @@ def _load(pid: str, payload: dict) -> int:
 
 @router.post("/projects/{pid}/properties/index")
 async def upload_index(pid: str, file: UploadFile = File(...), _: str = Depends(require_role("editor"))):
-    """Upload the props.json produced by the data service (`aec_data.cli index`)."""
-    payload = json.loads(await file.read())
+    """Upload the props.json produced by the data service (`aec_data.cli index`). Size-gated —
+    json.loads of an unbounded upload would parse an arbitrarily large body entirely in RAM."""
+    max_mb = int(os.environ.get("AEC_PROPS_MAX_MB", "100") or "100")
+    raw = await file.read()
+    if len(raw) > max_mb * 1024 * 1024:
+        raise HTTPException(413, f"properties index exceeds {max_mb} MB (raise AEC_PROPS_MAX_MB)")
+    payload = json.loads(raw)
     storage.put(f"{pid}/props.json", json.dumps(payload).encode("utf-8"))
     n = _load(pid, payload)
     return {"loaded": n, "meta": _META[pid]}

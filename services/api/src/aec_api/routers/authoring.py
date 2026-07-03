@@ -5,6 +5,7 @@ Bonsai driven over Bonsai-MCP (same ifcopenshell.api operations)."""
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
@@ -346,7 +347,10 @@ def _publish(p: Project, reconvert: bool = True) -> dict:
                 storage.put(frag_key, frag_tmp.read_bytes())
             out["reconverted"] = True
             out["frag_key"] = frag_key
-        except Exception as e:  # node missing / convert failed — non-fatal
+        except Exception as e:  # node missing / convert failed — non-fatal for the API, but LOG it:
+            # a broken converter must show up in structured logs/alerting, not only in a status JSON
+            # a human may never poll (a deployment can silently drop conversions for hours otherwise).
+            logging.getLogger("aec.publish").exception("fragment conversion failed for %s", p.id)
             out["reconvert_error"] = str(e)[:300]
     # 2. rebuild + hot-load the properties index
     idx = properties_index.index_file(p.source_ifc)
@@ -394,6 +398,7 @@ def run_publish(pid: str) -> None:
             result = _publish(p)
         _set_pub_status(pid, "error" if result.get("reconvert_error") else "done", result)
     except Exception as e:  # noqa: BLE001 — surface the failure in the status, never crash the worker
+        logging.getLogger("aec.publish").exception("publish failed for %s", pid)
         _set_pub_status(pid, "error", {"error": str(e)[:300]})
 
 
