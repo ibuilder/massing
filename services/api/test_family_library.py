@@ -1,9 +1,13 @@
 """IFC family library — generated parametric catalog + shippable library.ifc + place-from-library.
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_family_library.py"""
 import os
+import tempfile
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_family_library.db"
 os.environ["STORAGE_DIR"] = "./test_storage_family_library"
+# IFC_DIR is read at import time by the authoring router (place-family writes IFC here); point it at a
+# writable temp dir so this runs in CI's container (where the default /app/ifc is not writable).
+os.environ["IFC_DIR"] = tempfile.mkdtemp(prefix="famlib_ifc_")
 os.environ.pop("AEC_RBAC", None)
 for _f in ("./test_family_library.db",):
     if os.path.exists(_f):
