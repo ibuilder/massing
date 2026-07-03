@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.45 — Materials procure-to-pay: quote leveling + 3-way match (track 2 of 4)
+The materials buying loop (FieldMaterials' territory) — distinct from sub-bid leveling and the biggest
+whitespace from the competitor review. Deterministic/offline on top of the modules we already have
+(`commitment` = PO, `delivery`, `sub_invoice`).
+- **`procurement.py` — quote leveling** — normalize competing supplier quotes into an apples-to-apples
+  grid with the low price per line item, the best-value supplier, per-supplier totals, and line-by-line
+  savings (handles split awards where the cheapest supplier differs per item).
+- **3-way match** — reconcile each PO against its deliveries and invoices, flagging **over-billing**
+  (invoiced > PO), **pay-before-receipt** (invoiced with nothing received), and **un-invoiced
+  deliveries**. Surfaced in the **🛡 Risk & Cost** panel.
+- **`procurement_bridge.py`** — RFQ dispatch to suppliers is a feature-flagged stub (`RFQ_PROVIDER`)
+  that raises rather than pretending to send; the *quote leveling* and *3-way match* work without it.
+- Endpoints: `POST /projects/{pid}/procurement/level-quotes`, `GET …/three-way-match`, `/procurement/rfq-status`.
+- Verified: ruff clean, 94/94 backend suites (new `test_procurement`), web typecheck + 49 vitest +
+  Pages build + budget green.
+
 ## v0.3.44 — IDS authoring + EIR (from BIM-standards competitor review, track 1 of 4)
 From a second competitor pass (BIMIDS, Qonic, Ediphi, FieldMaterials, Acres). We already *validate*
 models against an IDS; BIMIDS showed the demand is upstream — **authoring** the requirements.

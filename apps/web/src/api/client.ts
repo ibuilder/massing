@@ -1317,6 +1317,21 @@ export class ApiClient {
       stories?: number | null }; source: string; message?: string }>(
       `/projects/${pid}/codecheck`, { method: "POST", body: JSON.stringify({ description, context }) });
   }
+  // --- materials procure-to-pay (FieldMaterials) -----------------------------
+  procurementThreeWayMatch(pid: string) {
+    return this.json<{ pos: { po: string; vendor: string; cost_code: string; po_amount: number;
+      deliveries: number; received: number; invoiced: number; invoice_count: number; variance: number;
+      flags: string[]; status: string }[]; po_count: number; flagged: string[];
+      message?: string | null }>(`/projects/${pid}/procurement/three-way-match`);
+  }
+  procurementLevelQuotes(pid: string, quotes: unknown[]) {
+    return this.json<{ suppliers: string[]; items: { item: string; low_supplier: string | null;
+      low_price: number; prices: Record<string, number | null>; spread_pct: number }[];
+      supplier_totals: Record<string, number>; best_all_in_supplier: string | null;
+      line_by_line_savings: number; message?: string | null }>(
+      `/projects/${pid}/procurement/level-quotes`, { method: "POST", body: JSON.stringify({ quotes }) });
+  }
+
   // --- IDS authoring (BIMIDS) ------------------------------------------------
   idsTemplates() {
     return this.json<{ elements: { key: string; label: string; ifc_class: string;

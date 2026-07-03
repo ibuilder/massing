@@ -689,6 +689,8 @@ export class PortalUI {
     const carbonSlot = slot();
     section("Takeoff pricing vs estimate");
     const priceSlot = slot();
+    section("Materials 3-way match (PO ↔ delivery ↔ invoice)");
+    const matchSlot = slot();
     section("Accounting export");
     const acct = el("div");
     const glBtn = el("a", "file-btn") as HTMLAnchorElement; glBtn.textContent = "⬇ GL (CSV)";
@@ -748,6 +750,21 @@ export class PortalUI {
         + (v != null ? ` vs estimate ${cmoney(r.estimated_total)} — variance <b style="color:${v > 0 ? "var(--status-warn)" : "var(--status-good)"}">${cmoney(v)}</b>` : "")
         + `</div>`;
     }).catch((e) => { priceSlot.textContent = `failed: ${(e as Error).message}`; });
+
+    api.procurementThreeWayMatch(pid).then((r) => {
+      if (!r.po_count) { matchSlot.innerHTML = `<div class="meta">No purchase orders (commitments) yet.</div>`; return; }
+      matchSlot.innerHTML = `<div class="meta">${r.po_count} PO(s)`
+        + (r.flagged.length ? ` · <span style="color:var(--status-warn)">${r.flagged.length} need review</span>` : " · all clear") + `</div>`;
+      const flagged = r.pos.filter((p) => p.status === "review");
+      if (flagged.length) {
+        const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:11px;margin-top:4px";
+        t.innerHTML = `<thead><tr><th style="text-align:left">PO</th><th>Vendor</th><th>PO</th><th>Recd</th><th>Invoiced</th><th style="text-align:left">Issue</th></tr></thead><tbody>`
+          + flagged.map((p) => `<tr><td>${p.po}</td><td>${p.vendor || ""}</td><td style="text-align:right">${cmoney(p.po_amount)}</td>`
+            + `<td style="text-align:center">${p.received}</td><td style="text-align:right;color:${p.variance > 0 ? "var(--status-crit)" : "inherit"}">${cmoney(p.invoiced)}</td>`
+            + `<td>${(p.flags || []).join("; ")}</td></tr>`).join("") + `</tbody>`;
+        matchSlot.append(t);
+      }
+    }).catch((e) => { matchSlot.textContent = `failed: ${(e as Error).message}`; });
   }
 
   // --- IDS Requirements: author buildingSMART IDS + EIR from templates --------------------------
