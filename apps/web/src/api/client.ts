@@ -1393,6 +1393,17 @@ export class ApiClient {
       core_coverage: { required: string[]; missing: string[]; complete: boolean }; note: string }>(
       `/projects/${pid}/info-requirements/register`);
   }
+  bimKpiScorecard(pid: string) {
+    return this.json<{
+      categories: { key: string; label: string; grade: string; headline: string;
+        metrics: Record<string, number | null> }[];
+      summary: { scored: number; good: number; warn: number; poor: number; na: number; health_pct: number | null };
+      model_scored: boolean; note: string }>(`/projects/${pid}/bim-kpi/scorecard`);
+  }
+  handoverAcceptance(pid: string) {
+    return this.json<{ accepted: boolean; checks: { key: string; label: string; ok: boolean }[];
+      metrics: Record<string, number>; note: string }>(`/projects/${pid}/handover/acceptance`);
+  }
   openbimQuality(pid: string, useCase?: string) {
     const qs = useCase ? `?use_case=${encodeURIComponent(useCase)}` : "";
     return this.json<{

@@ -127,7 +127,7 @@ export class PortalUI {
       __operations__: () => this.renderOperations(), __energy__: () => this.renderEnergy(),
       __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
       __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
-      __standards__: () => this.renderStandards(),
+      __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
       __portfolio__: () => this.renderPortfolio(), __benchmarks__: () => this.renderBenchmarks(),
     };
     const stages: [string, Dest[]][] = this.wsFilter === "construction"
@@ -137,6 +137,7 @@ export class PortalUI {
           { key: "__riskcost__", icon: "⚖️", label: "Risk & Cost" },        // prequal, lien exposure, carbon, takeoff
           { key: "__ids__", icon: "📋", label: "IDS Requirements" },
           { key: "__standards__", icon: "🗂", label: "CDE / Standards" },   // ISO 19650 container discipline + reqs
+          { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },             // 10-category information-mgmt scorecard
         ]],
         ["Build", [
           ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__schedule__", icon: "📅", label: "Schedule" }] : []),
@@ -1064,6 +1065,63 @@ export class PortalUI {
     const rb = el("div");
     const a = document.createElement("a"); a.className = "portal-btn"; a.textContent = "⬇ ESG summary (PDF)";
     a.href = this.host.api.reportUrl(pid, "esg", "pdf"); a.target = "_blank"; a.rel = "noopener";
+    rb.append(a); body.append(rb);
+  }
+
+  // --- BIM KPIs: the 10-category information-management scorecard + handover acceptance ---------
+  private async renderBimKpi() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("📊 BIM KPIs (ISO 19650)", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const pid = this.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("BIM KPIs")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "The standard information-management scorecard — ten categories graded from "
+      + "the CDE, model quality and the issue / asset / closeout records. Categories with no inputs "
+      + "show n/a rather than a guess.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    let sc; let ha;
+    try { sc = await this.host.api.bimKpiScorecard(pid); ha = await this.host.api.handoverAcceptance(pid); }
+    catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+    body.innerHTML = "";
+    // summary cards
+    const s = sc.summary;
+    const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
+    const card = (label: string, value: string, color?: string) => {
+      const c = el("div", "dash-card"); c.style.cssText = `min-width:90px${color ? `;border-left:3px solid var(${color})` : ""}`;
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${value}</div><div class="meta">${label}</div>`;
+      return c;
+    };
+    cards.append(card("health", s.health_pct != null ? `${s.health_pct}%` : "—"),
+      card("good", String(s.good), "--status-good"),
+      card("warn", String(s.warn), "--status-warn"),
+      card("poor", String(s.poor), "--status-crit"),
+      card("n/a", String(s.na)));
+    body.append(cards);
+    // handover acceptance banner
+    const hb = el("div", "dash-card");
+    hb.style.cssText = `border-left:4px solid var(${ha.accepted ? "--status-good" : "--status-warn"});margin-bottom:8px`;
+    hb.innerHTML = `<b>${ha.accepted ? "✅ Handover data-drop ACCEPTED" : "⏳ Handover not ready"}</b>`
+      + `<div class="meta">${ha.checks.map((c) => `${c.ok ? "✅" : "⬜"} ${esc(c.label)}`).join(" · ")}</div>`;
+    body.append(hb);
+    // category table
+    const dot = (g: string) => g === "good" ? "🟢" : g === "warn" ? "🟡" : g === "poor" ? "🔴" : "⚪";
+    const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
+    t.innerHTML = `<thead><tr><th scope="col"></th><th scope="col" style="text-align:left">Category</th>`
+      + `<th scope="col" style="text-align:left">Status</th></tr></thead><tbody>`
+      + sc.categories.map((c) => `<tr><td style="text-align:center">${dot(c.grade)}</td>`
+        + `<td>${esc(c.label)}</td><td>${esc(c.headline)}</td></tr>`).join("") + `</tbody>`;
+    body.append(t);
+    if (!sc.model_scored) {
+      const hint = el("div", "meta"); hint.style.marginTop = "6px";
+      hint.textContent = "Load a model to score the authoring-quality and openBIM-exchange categories.";
+      body.append(hint);
+    }
+    // report link
+    const rb = el("div"); rb.style.marginTop = "8px";
+    const a = document.createElement("a"); a.className = "portal-btn"; a.textContent = "⬇ Scorecard (PDF)";
+    a.href = this.host.api.reportUrl(pid, "bim_kpi", "pdf"); a.target = "_blank"; a.rel = "noopener";
     rb.append(a); body.append(rb);
   }
 

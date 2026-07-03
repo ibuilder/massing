@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import cde, ids_authoring, openbim_quality
+from .. import bim_kpi, cde, ids_authoring, openbim_quality
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user
@@ -51,4 +51,20 @@ def openbim_quality_scan(pid: str, use_case: str | None = None, db: Session = De
     out = openbim_quality.summary(idx, specs)
     out["use_case"] = use_case
     return out
+
+
+@router.get("/projects/{pid}/bim-kpi/scorecard")
+def bim_kpi_scorecard(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """The 10-category BIM KPI scorecard, graded from the CDE, model quality and the issue / asset /
+    closeout records (categories with no inputs show 'n/a')."""
+    _project(db, pid)
+    return bim_kpi.scorecard(db, pid)
+
+
+@router.get("/projects/{pid}/handover/acceptance")
+def handover_acceptance(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Handover data-drop acceptance gate — the owner's checklist against the AIR (requirements,
+    asset tags, as-builts, O&M, accepted completion certificate)."""
+    _project(db, pid)
+    return bim_kpi.handover_acceptance(db, pid)
 

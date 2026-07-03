@@ -55,6 +55,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "spec_submittal_log": ("Spec-Driven Submittal Log", "Preconstruction"),
     "site_feasibility": ("Site Feasibility / Zoning Envelope", "Preconstruction"),
     "esg": ("ESG / Sustainability Summary", "Operations"),
+    "bim_kpi": ("BIM KPI Scorecard (ISO 19650)", "Quality"),
 }
 
 
@@ -827,6 +828,26 @@ def _esg(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _bim_kpi(db: Session, pid: str, name: str) -> Report:
+    """BIM KPI scorecard (ISO 19650): the ten information-management categories graded, plus the
+    handover data-drop acceptance checklist."""
+    from . import bim_kpi
+    sc = bim_kpi.scorecard(db, pid)
+    ha = bim_kpi.handover_acceptance(db, pid)
+    r = Report("BIM KPI Scorecard (ISO 19650)", name)
+    s = sc["summary"]
+    r.kpi("Health", f"{s['health_pct']}%" if s["health_pct"] is not None else "—")
+    r.kpi("Good / Warn / Poor", f"{s['good']} / {s['warn']} / {s['poor']}")
+    r.kpi("Not scored (n/a)", s["na"])
+    r.kpi("Model scored", "yes" if sc["model_scored"] else "no")
+    r.kpi("Handover acceptance", "ACCEPTED" if ha["accepted"] else "not ready")
+    r.table("KPI categories", ["Category", "Grade", "Headline"],
+            [[c["label"], c["grade"].upper(), c["headline"]] for c in sc["categories"]])
+    r.table("Handover data-drop acceptance", ["Check", "Status"],
+            [[c["label"], "OK" if c["ok"] else "missing"] for c in ha["checks"]])
+    return r
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
@@ -872,6 +893,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _site_feasibility(db, pid, name)
     if report == "esg":
         return _esg(db, pid, name)
+    if report == "bim_kpi":
+        return _bim_kpi(db, pid, name)
     if report == "listing_factsheet":
         return _listing_factsheet(db, pid, name)
     if report == "marketing_flyer":

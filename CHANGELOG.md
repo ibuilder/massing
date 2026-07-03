@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.63 — BIM KPI scorecard + handover acceptance (standards C3 of 8)
+The information-management scorecard the industry runs on — ten categories, graded from data the
+platform already holds, with a formal owner's-acceptance gate at handover.
+- **`bim_kpi.py`** (`GET /projects/{pid}/bim-kpi/scorecard`) — the ten categories graded
+  good/warn/poor/**n-a**: Information Requirements, Model Authoring Quality, openBIM Exchange,
+  Coordination Control, Issue Resolution, CDE Discipline, Asset Data Readiness, Construction Data
+  Readiness, Handover Assurance, Digital Twin Readiness. Each rolls up existing data — the CDE
+  (C1), model quality (C2, when a model is loaded), and the RFI / coordination / asset / closeout
+  records — and shows **n/a rather than a guess** when its inputs are absent. Overall health %.
+- **Handover data-drop acceptance gate** (`GET …/handover/acceptance`) — the owner's checklist
+  against the AIR: requirements issued, assets tagged for CMMS (≥90%), as-builts, O&M, accepted
+  completion certificate → one accept/not-ready verdict.
+- **“📊 BIM KPIs” panel** (Plan & derisk) — health + grade-count cards, the acceptance banner, and
+  the traffic-light category table. **Report Center: “BIM KPI Scorecard (ISO 19650)”** (PDF/Excel).
+- Verified live (health %, 🟢🟡🔴⚪ grades, handover checklist) + `test_bim_kpi` (empty → 10 n/a;
+  populated → info-reqs/CDE/asset/handover good; report PDF). Typecheck + 49 vitest + Pages build green.
+
 ## v0.3.62 — openBIM model-quality scoring (standards C2 of 8)
 Turns the loaded IFC model into measurable buildingSMART quality signals — the layer that makes IDS
 authoring (already shipped) actionable, and feeds the coming BIM KPI scorecard.
