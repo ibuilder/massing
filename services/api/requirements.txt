@@ -11,7 +11,7 @@ boto3>=1.34               # MinIO/S3 object storage (range reads); lazy-imported
 # analysis/QA + export bridge to the data service (imported from services/data/src)
 ifcopenshell>=0.8.0,<0.9
 openpyxl>=3.1
-numpy>=1.26
+numpy>=2.5.0
 ifctester>=0.8
 trimesh>=4.0
 manifold3d>=2.0
