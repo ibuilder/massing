@@ -18,9 +18,14 @@ _inflight = 0
 _start = time.time()
 
 
+_class_total: dict[str, int] = {}                # "2xx"/"3xx"/"4xx"/"5xx" — one-label alert feed
+
+
 def observe(method: str, route: str, status: int, dur: float) -> None:
     with _lock:
         _req_total[(method, route, str(status))] = _req_total.get((method, route, str(status)), 0) + 1
+        cls = f"{status // 100}xx"
+        _class_total[cls] = _class_total.get(cls, 0) + 1
         _lat_sum[(method, route)] = _lat_sum.get((method, route), 0.0) + dur
         _lat_count[(method, route)] = _lat_count.get((method, route), 0) + 1
 
@@ -38,7 +43,14 @@ def _esc(v: str) -> str:
 def render() -> str:
     with _lock:
         req = dict(_req_total); lat_s = dict(_lat_sum); lat_c = dict(_lat_count); inflight = _inflight
+        cls = dict(_class_total)
     out = [
+        "# HELP http_responses_by_class_total Responses by status class (alert on 4xx/5xx rate).",
+        "# TYPE http_responses_by_class_total counter",
+    ]
+    for k in sorted(cls):
+        out.append(f'http_responses_by_class_total{{class="{k}"}} {cls[k]}')
+    out += [
         "# HELP http_requests_total Total HTTP requests by method, route and status.",
         "# TYPE http_requests_total counter",
     ]

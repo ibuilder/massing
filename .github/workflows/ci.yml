@@ -57,3 +57,55 @@ jobs:
 
       - name: Bundle-size budget (app shell)
         run: npm run budget --workspace apps/web
+
+  # Container supply chain: build the deployable images, scan them, and (on main) publish to ghcr
+  # with an immutable :sha tag so production can pin digests instead of pulling a mutable :latest.
+  containers:
+    name: Container build + scan + publish
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - { name: api, context: ., dockerfile: services/api/Dockerfile }
+          - { name: web, context: ., dockerfile: apps/web/Dockerfile }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          load: true
+          tags: ghcr.io/${{ github.repository }}-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Vulnerability gate: CRITICAL findings with a fix available block the publish.
+      - name: Scan (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}-${{ matrix.name }}:${{ github.sha }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Push image
+        run: |
+          docker push ghcr.io/${{ github.repository }}-${{ matrix.name }}:${{ github.sha }}
+          docker tag ghcr.io/${{ github.repository }}-${{ matrix.name }}:${{ github.sha }} \
+                     ghcr.io/${{ github.repository }}-${{ matrix.name }}:latest
+          docker push ghcr.io/${{ github.repository }}-${{ matrix.name }}:latest

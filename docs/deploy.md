@@ -102,6 +102,10 @@ The base stack runs anywhere Docker does. For a public, TLS-secured demo, layer 
 production overlay — it adds a **Caddy** reverse proxy that fetches + renews a Let's Encrypt
 cert automatically, enforces auth (`AEC_RBAC=1`), and sets restart policies.
 
+> **Before exposing anything**, work through [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md)
+> and run the preflight: `docker compose … run --rm api python /app/scripts/validate_prod_config.py`
+> (exit 0 = go). The API also refuses to boot on Postgres without RBAC + a real auth secret.
+
 ```bash
 # 1. a small VM (1–2 vCPU, 2–4 GB) with Docker + a DNS A record for your domain → the VM IP
 # 2. firewall: allow only 80 + 443

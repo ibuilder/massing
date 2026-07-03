@@ -51,6 +51,9 @@ services:
       AEC_RATE_LIMIT_RPM: "${AEC_RATE_LIMIT_RPM:-600}"  # per-IP throttle (shared via Redis below)
       AEC_REDIS_URL: "redis://redis:6379/0"             # shared rate-limit + login-lockout across workers
       AEC_ADMIN_EMAILS: "${AEC_ADMIN_EMAILS:-}"         # platform admins (Settings/audit/user mgmt)
+      # Host-header pinning (opt-in): e.g. "app.example.com,localhost" — include localhost so the
+      # container healthcheck and the internal nginx proxy keep working. Empty = no restriction.
+      AEC_ALLOWED_HOSTS: "${AEC_ALLOWED_HOSTS:-}"
 
   postgres:
     restart: unless-stopped

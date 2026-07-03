@@ -61,6 +61,8 @@ services:
 
   # one-shot demo seeder (api must be enabled, so pass both profiles):
   #   docker compose --profile full --profile seed run --rm seed
+  # DEV/TEST ONLY — never run against production. The script refuses if projects already exist
+  # (see docs/PRODUCTION_CHECKLIST.md); --force overrides only for labs.
   seed:
     image: massing-api
     depends_on:

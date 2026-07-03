@@ -1,0 +1,27 @@
+# Automated dependency freshness — weekly minor/patch PRs per ecosystem. Majors arrive as PRs too
+# but the CI gate (full backend suite + web build) decides whether they merge.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /services/api
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: pip
+    directory: /services/data
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      thatopen:                       # keep the pinned viewer pair moving together
+        patterns: ["@thatopen/*", "three", "web-ifc"]
+  - package-ecosystem: cargo
+    directory: /apps/web/src-tauri
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3

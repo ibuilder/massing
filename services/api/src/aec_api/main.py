@@ -119,6 +119,14 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Massing API", version="0.1.0", lifespan=lifespan)
 
+# Host-header pinning (DNS-rebind / stray-vhost protection): set AEC_ALLOWED_HOSTS to the
+# comma-separated production hostnames (e.g. "app.example.com,api.example.com") and any other Host
+# is rejected with 400. Unset (dev/desktop) = no restriction.
+_hosts = [h.strip() for h in os.environ.get("AEC_ALLOWED_HOSTS", "").split(",") if h.strip()]
+if _hosts:
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=_hosts)
+
 # In production the web app calls the API same-origin via nginx's /api proxy, so CORS
 # is moot. CORS only matters for the dev server (:5173) or direct cross-origin access;
 # AEC_CORS_ORIGINS (comma-separated) overrides the dev default.

@@ -153,6 +153,22 @@ jobs:
           $json | ConvertTo-Json -Depth 32 | Set-Content $conf -Encoding utf8
           "Signing with thumbprint $($cert.Thumbprint)"
 
+      # Sign the PyInstaller sidecar too — a signed Tauri shell isn't enough: Windows SmartScreen
+      # inspects the embedded server binary separately, so an unsigned sidecar still warns on first
+      # run. Uses the certificate imported above; no cert secret → step skipped (unsigned dev build).
+      - name: Sign the backend sidecar (Windows)
+        if: matrix.platform == 'windows-latest' && env.WINDOWS_CERTIFICATE != ''
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+        shell: pwsh
+        run: |
+          $sidecar = Get-ChildItem "apps/web/src-tauri/binaries/aec-bim-server-*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $sidecar) { Write-Host "no sidecar found to sign"; exit 0 }
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          & $signtool.FullName sign /a /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $sidecar.FullName
+          "Signed $($sidecar.Name)"
+
       # macOS signing + notarization — only feed the Apple vars to the build when a cert secret is
       # actually configured. An EMPTY APPLE_CERTIFICATE is NOT a no-op: tauri-bundler still runs
       # `security import` on it and fails, so without this guard the unsigned macOS build breaks.

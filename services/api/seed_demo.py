@@ -20,6 +20,8 @@ ARGS = argparse.ArgumentParser()
 ARGS.add_argument("--url", default="http://localhost:8000")
 ARGS.add_argument("--project", default=None, help="existing project id (else creates one)")
 ARGS.add_argument("--user", default="gc", help="X-User to act as")
+ARGS.add_argument("--force", action="store_true",
+                  help="seed even if the target already has projects (guard against seeding prod)")
 opts = ARGS.parse_args()
 
 
@@ -44,6 +46,15 @@ def new(module: str, data: dict, assignee: str | None = None) -> str:
 def act(module: str, rid: str, action: str) -> None:
     call("POST", f"/projects/{pid}/modules/{module}/{rid}/transition", {"action": action})
 
+
+# --- guard: never seed demo data into a populated (possibly production) instance ------------
+if not opts.project and not opts.force:
+    existing = call("GET", "/projects")
+    if existing:
+        raise SystemExit(
+            f"refusing to seed: the target at {opts.url} already has {len(existing)} project(s). "
+            "This guard prevents demo data landing in a real deployment. Pass --project <id> to seed "
+            "into a specific project, or --force if you really mean it.")
 
 # --- pick / create the project ----------------------------------------------
 if opts.project:

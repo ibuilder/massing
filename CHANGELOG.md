@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.54 — Production hardening: ops & supply chain (readiness R2 of 7)
+The deployment/ops half of the production-readiness plan — making "did we configure it right?"
+a runnable gate and the supply chain deterministic:
+- **Runnable go-live gate** — new [docs/PRODUCTION_CHECKLIST.md](docs/PRODUCTION_CHECKLIST.md) +
+  `scripts/validate_prod_config.py` preflight (asserts RBAC, real secrets, secure cookies, CSP/HSTS,
+  Redis-when-multi-worker, non-default DB/MinIO credentials; exit 0 = go). Referenced from deploy.md.
+- **Supply chain** — Dependabot across pip/npm/cargo/actions (the viewer's pinned three/@thatopen pair
+  moves as a group); CI now **builds the api+web images, scans them with Trivy (CRITICAL+fix = fail),
+  and publishes to ghcr** with immutable `:sha` tags; a one-shot workflow generates + commits
+  **Cargo.lock** so desktop builds stop floating transitive Rust deps.
+- **Desktop trust** — the PyInstaller backend **sidecar is now Authenticode-signed** alongside the
+  Tauri shell when a certificate is configured (SmartScreen inspects it separately).
+- **Guardrails** — `seed_demo.py` refuses to run against an instance that already has projects
+  (`--force` for labs); Host-header pinning via `AEC_ALLOWED_HOSTS` (TrustedHostMiddleware, opt-in);
+  `/metrics` gains `http_responses_by_class_total` (2xx/4xx/5xx) for one-label alerting.
+- Verified: preflight self-test (bad env → exit 1 with 4 failures; good env → exit 0), metrics smoke,
+  all workflow/compose YAML parse, ruff clean.
+
 ## v0.3.53 — Production hardening: backend blockers (readiness R1 of 7)
 From a full production-readiness audit (code + docs + deployment). Fixes the findings that make the
 difference between "works in dev" and "safe under load, multi-worker, and misconfiguration":
