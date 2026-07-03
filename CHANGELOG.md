@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.60 — Navigation at scale + a current demo
+The panel list had outgrown a flat sidebar. Research pass over the published evidence on
+information architecture for feature-dense products (navigation-depth studies, journey-based
+step navigation, design-system shell-capacity guidance, and how large platforms restructured
+around starred/recent + curated workspaces) — recorded in [docs/ux-ia.md](docs/ux-ia.md) with
+the rules for future features (no new top-level items; two disclosure tiers max).
+- **Lifecycle-stage navigation** — the portal's first-class destinations are grouped under stage
+  headers instead of one flat list. Construction: *Plan & derisk → Build → Turn over & operate*;
+  Developer: *Acquire → Design & build → Operate*; both end with *Across projects* (Portfolio,
+  Benchmarks). Journey-based IA, matching how AEC teams already think in phases.
+- **🕘 Recent** — the last five opened registers surface automatically at the top of the module
+  list (below the opt-in ★ Favorites) — zero-setup wayfinding for ~100 registers.
+- **⌘K taught in context** — a persistent "Jump anywhere: Ctrl/⌘+K" hint anchors the nav; the
+  command palette is the long-tail navigator.
+- **Pages demo brought current** — the captured massing.build/app snapshot pre-dated v0.3.49;
+  every newer panel (Lifecycle, Turnover, Diligence, Operations, Energy, Asset Mgmt, ESG & POE,
+  Risk & Cost, Benchmarks) rendered empty. The demo project now runs the full lifecycle (DD +
+  entitlements, design gates, PM-generated work orders, 6 months of meter readings, reserve/CIP,
+  leases + CAM, POE) and captures all engine endpoints — 608 fixtures, verified with a full
+  two-persona walkthrough and a clean console.
+- **Guide updated** — new "Tutorial 7 · Operate it" (diligence go/no-go, PM work orders, EUI,
+  reserve study, CAM statements, ESG/POE) + ten plain-English glossary entries (EUI, CAM
+  gross-up, Scope 1/2, POE, …).
+
 ## v0.3.59 — ESG rollup + post-occupancy evaluation (lifecycle R7 of 7)
 The final lifecycle release: the asset's sustainability scorecard and the feedback loop from measured
 performance back to design — all computed locally from the platform's own data.

@@ -74,6 +74,7 @@
     <a href="#run">4 · Run a project</a>
     <a href="#turnover">5 · Hand it over</a>
     <a href="#dispose">6 · List &amp; value it</a>
+    <a href="#operate">7 · Operate it</a>
     <a href="#glossary">Glossary</a>
     <a href="#faq">FAQ</a>
   </div>
@@ -253,6 +254,35 @@
     <b>WPRealWise / MLS syndication</b> bridge configured, push it to your MLS/portal directly — no
     re-keying for your broker.</div>
 
+  <h2 id="operate">Tutorial 7 · Operate it (facilities, energy &amp; ESG)</h2>
+  <p class="sub">After turnover, ~80% of a building's lifetime cost is operations. The same project —
+    and the same model — keeps running it.</p>
+  <ol class="steps">
+    <li>Before you even buy: the developer workspace's <b>📜 Diligence &amp; Entitlements</b> panel tracks
+      the study checklist (title/ALTA, Phase I ESA, geotech, utilities, traffic…) and the entitlement
+      pipeline (rezoning → hearing → approved, with approval expirations), rolled into one
+      <b>go / no-go</b> banner before you release contingencies.</li>
+    <li>In the Construction workspace's <b>🔧 Operations</b> panel, set up <b>PM Schedules</b> for the
+      big equipment (frequency in days) and click <b>Generate PM work orders</b> — due schedules become
+      preventive work orders before things break. The KPI cards show <b>PM compliance %</b>, <b>MTTR</b>
+      and the overdue backlog, so you can see whether the building is run proactively or reactively.</li>
+    <li>Log utility bills as <b>Meter Readings</b> (or import a CSV). The <b>⚡ Energy</b> panel converts
+      everything to site kBtu and normalizes it to <b>EUI</b> (kBtu/sf/yr) — the standard benchmarking
+      number — with a monthly trend and cost by utility. Fully offline; no account needed.</li>
+    <li>In <b>Finance ▸ Asset Mgmt</b>, give your Asset Register items an <b>expected life</b> and
+      <b>replacement cost</b>, then run the <b>reserve study</b>: it projects every replacement over
+      25 years, flags the first underfunded year, and solves the flat annual contribution that keeps the
+      fund solvent. The <b>CAM reconciliation</b> below it trues up each tenant's share of operating
+      expenses (variable-only gross-up) and prints per-tenant statements.</li>
+    <li>The <b>🌱 ESG &amp; POE</b> panel is the sustainability scorecard — EUI, greenhouse-gas
+      <b>Scope 1/2</b> from your own meters, water, certification points — plus <b>post-occupancy
+      evaluations</b> that compare the design EUI against what the meters actually say. Export the
+      <b>ESG summary</b> from the Report Center.</li>
+  </ol>
+  <div class="note tip">💡 Everything in this tutorial is computed locally from records you enter —
+    no external accounts. An ENERGY STAR Portfolio Manager sync exists as an opt-in, feature-flagged
+    bridge for deployments that want the official 1–100 score.</div>
+
   <h2 id="glossary">Glossary — plain English</h2>
   <table class="gl">
     <tr><td>IFC</td><td>The open file format for building models. The platform's "source of truth" — every record points at an element's permanent IFC ID.</td></tr>
@@ -282,6 +312,15 @@
     <tr><td>Appraisal</td><td>A defensible estimate of a property's value — here done three ways (cost, income, sales-comparison) and reconciled into a final number.</td></tr>
     <tr><td>RESO</td><td>Real Estate Standards Organization — the common data dictionary MLS systems use, so a listing's fields export cleanly for an MLS push.</td></tr>
     <tr><td>Listing / days-on-market</td><td>The marketing record for a property offered for sale. Days-on-market = how long it's been listed.</td></tr>
+    <tr><td>Phase I ESA</td><td>Environmental Site Assessment — the standard pre-purchase environmental study (records + site walk); "no RECs" means no recognized contamination concerns.</td></tr>
+    <tr><td>Entitlements</td><td>The public approvals a project needs before building — rezoning, site plan, variances. Often the longest, riskiest stretch of a development.</td></tr>
+    <tr><td>CMMS / PM</td><td>Computerized Maintenance Management System. PM = preventive maintenance — scheduled work orders generated before equipment fails.</td></tr>
+    <tr><td>MTTR</td><td>Mean Time To Repair — average days from a corrective work order being raised to completed. Lower is better.</td></tr>
+    <tr><td>EUI</td><td>Energy Use Intensity — a building's annual energy per square foot (kBtu/sf/yr). The standard number for comparing building energy performance.</td></tr>
+    <tr><td>Reserve study</td><td>A long-range plan proving the reserve fund can pay for roofs, chillers and elevators when they wear out — replacement schedule + funding adequacy.</td></tr>
+    <tr><td>CAM / gross-up</td><td>Common Area Maintenance — operating expenses tenants reimburse. Gross-up adjusts occupancy-<i>variable</i> expenses to a stated occupancy so a half-empty year doesn't distort shares.</td></tr>
+    <tr><td>Scope 1 / Scope 2</td><td>Greenhouse-gas accounting: Scope 1 = fuel burned on site (gas boilers), Scope 2 = purchased energy (grid electricity, district steam).</td></tr>
+    <tr><td>POE</td><td>Post-Occupancy Evaluation — the structured "did the building work as designed?" study, from a light survey to a forensic instrumented one.</td></tr>
     <tr><td>Comp (sales comparable)</td><td>A recently sold, similar property used to estimate value by comparison in the sales-comparison approach.</td></tr>
   </table>
 

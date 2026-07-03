@@ -114,114 +114,65 @@ export class PortalUI {
     home.onclick = () => { this.activeKey = null; void this.renderHome(); this.buildNav(); };
     nav.appendChild(home);
 
-    // first-class destinations differ by workspace: the GC build hub (Schedule / Budget / Portfolio)
-    // vs. the developer hub (Underwriting proforma). Portfolio is a cross-project roll-up shown to both.
-    if (this.wsFilter === "construction") {
-      // Schedule — the planning hub (lookahead / milestones / EV / baseline / gantt / LOB / CPM) over
-      // the one relational schedule that also drives the 3D 4D model
-      const schedMod = this.mods.find((x) => x.key === "schedule_activity");
-      if (schedMod) {
-        const sched = document.createElement("button");
-        sched.className = "pnav-item pnav-home" + (this.activeKey === "__schedule__" ? " active" : "");
-        sched.innerHTML = `<span class="ic">📅</span> Schedule`;
-        sched.onclick = () => { this.activeKey = "__schedule__"; void this.renderScheduleViews(schedMod); this.buildNav(); };
-        nav.appendChild(sched);
+    // First-class destinations, grouped by lifecycle stage — journey-based IA: people think in
+    // project phases (plan → build → turn over → operate), not in a flat feature list, and stage
+    // headers keep the rail scannable as destinations keep growing. Cross-project roll-ups get
+    // their own group so single-project and portfolio views don't interleave.
+    type Dest = { key: string; icon: string; label: string; go?: () => void };
+    const dests: Record<string, () => unknown> = {
+      __schedule__: () => { const m = this.mods.find((x) => x.key === "schedule_activity"); if (m) void this.renderScheduleViews(m); },
+      __budget__: () => this.renderBudget(), __review__: () => this.renderRiskReview(),
+      __aiassist__: () => this.renderAiAssist(), __riskcost__: () => this.renderRiskCost(),
+      __ids__: () => this.renderIds(), __turnover__: () => this.renderTurnover(),
+      __operations__: () => this.renderOperations(), __energy__: () => this.renderEnergy(),
+      __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
+      __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
+      __portfolio__: () => this.renderPortfolio(), __benchmarks__: () => this.renderBenchmarks(),
+    };
+    const stages: [string, Dest[]][] = this.wsFilter === "construction"
+      ? [
+        ["Plan & derisk", [
+          { key: "__review__", icon: "🛡", label: "Risk Review" },          // contract clauses / scope gaps / doc Q&A
+          { key: "__riskcost__", icon: "⚖️", label: "Risk & Cost" },        // prequal, lien exposure, carbon, takeoff
+          { key: "__ids__", icon: "📋", label: "IDS Requirements" },
+        ]],
+        ["Build", [
+          ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__schedule__", icon: "📅", label: "Schedule" }] : []),
+          { key: "__budget__", icon: "💰", label: "Budget" },
+          { key: "__aiassist__", icon: "✍️", label: "AI Assist" },
+        ]],
+        ["Turn over & operate", [
+          { key: "__turnover__", icon: "🏁", label: "Turnover" },
+          { key: "__operations__", icon: "🔧", label: "Operations" },
+          { key: "__energy__", icon: "⚡", label: "Energy" },
+        ]],
+      ]
+      : [
+        ["Acquire", [
+          { key: "__uw__", icon: "📊", label: "Underwriting",
+            go: () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "finance" })) },
+          { key: "__land__", icon: "🗺️", label: "Land Screening" },
+          { key: "__diligence__", icon: "📜", label: "Diligence & Entitlements" },
+        ]],
+        ["Design & build", [{ key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" }]],
+        ["Operate", [{ key: "__esg__", icon: "🌱", label: "ESG & POE" }]],
+      ];
+    stages.push(["Across projects", [
+      { key: "__portfolio__", icon: "🏢", label: "Portfolio" },
+      { key: "__benchmarks__", icon: "📈", label: "Benchmarks" },
+    ]]);
+    for (const [stage, items] of stages) {
+      if (!items.length) continue;
+      const h = document.createElement("div"); h.className = "pnav-stage"; h.textContent = stage;
+      nav.appendChild(h);
+      for (const d of items) {
+        const b = document.createElement("button");
+        b.className = "pnav-item pnav-home" + (this.activeKey === d.key ? " active" : "");
+        b.innerHTML = `<span class="ic">${d.icon}</span> ${d.label.replace("&", "&amp;")}`;
+        b.onclick = d.go ?? (() => { this.activeKey = d.key; void dests[d.key]?.(); this.buildNav(); });
+        nav.appendChild(b);
       }
-      // Budget — the GMP project budget (the other half of on-schedule/on-budget)
-      const budget = document.createElement("button");
-      budget.className = "pnav-item pnav-home" + (this.activeKey === "__budget__" ? " active" : "");
-      budget.innerHTML = `<span class="ic">💰</span> Budget`;
-      budget.onclick = () => { this.activeKey = "__budget__"; void this.renderBudget(); this.buildNav(); };
-      nav.appendChild(budget);
-      // Risk Review — preconstruction intelligence: review an incoming contract for risky clauses,
-      // find scope gaps, and ask a document questions (with citations).
-      const rr = document.createElement("button");
-      rr.className = "pnav-item pnav-home" + (this.activeKey === "__review__" ? " active" : "");
-      rr.innerHTML = `<span class="ic">🛡</span> Risk Review`;
-      rr.onclick = () => { this.activeKey = "__review__"; this.renderRiskReview(); this.buildNav(); };
-      nav.appendChild(rr);
-      // AI Assist — draft RFIs / scopes / submittal summaries from a note or a PDF, and level bids.
-      const ai = document.createElement("button");
-      ai.className = "pnav-item pnav-home" + (this.activeKey === "__aiassist__" ? " active" : "");
-      ai.innerHTML = `<span class="ic">✍️</span> AI Assist`;
-      ai.onclick = () => { this.activeKey = "__aiassist__"; void this.renderAiAssist(); this.buildNav(); };
-      nav.appendChild(ai);
-      // Risk & Cost — sub prequal/COI, lien exposure, embodied carbon, priced takeoff, accounting export.
-      const rc = document.createElement("button");
-      rc.className = "pnav-item pnav-home" + (this.activeKey === "__riskcost__" ? " active" : "");
-      rc.innerHTML = `<span class="ic">🛡</span> Risk &amp; Cost`;
-      rc.onclick = () => { this.activeKey = "__riskcost__"; void this.renderRiskCost(); this.buildNav(); };
-      nav.appendChild(rc);
-      // IDS Requirements — author buildingSMART IDS + EIR from templates (spec → implement → validate).
-      const idsNav = document.createElement("button");
-      idsNav.className = "pnav-item pnav-home" + (this.activeKey === "__ids__" ? " active" : "");
-      idsNav.innerHTML = `<span class="ic">📋</span> IDS Requirements`;
-      idsNav.onclick = () => { this.activeKey = "__ids__"; void this.renderIds(); this.buildNav(); };
-      nav.appendChild(idsNav);
-      // Turnover — substantial completion (G704), architect sign-off on the punch list, record model.
-      const turn = document.createElement("button");
-      turn.className = "pnav-item pnav-home" + (this.activeKey === "__turnover__" ? " active" : "");
-      turn.innerHTML = `<span class="ic">🏁</span> Turnover`;
-      turn.onclick = () => { this.activeKey = "__turnover__"; void this.renderTurnover(); this.buildNav(); };
-      nav.appendChild(turn);
-      // Operations — post-turnover CMMS: work-order board, PM generation, maintenance KPIs.
-      const ops = document.createElement("button");
-      ops.className = "pnav-item pnav-home" + (this.activeKey === "__operations__" ? " active" : "");
-      ops.innerHTML = `<span class="ic">🔧</span> Operations`;
-      ops.onclick = () => { this.activeKey = "__operations__"; void this.renderOperations(); this.buildNav(); };
-      nav.appendChild(ops);
-      // Energy — metered utilities: EUI, monthly trend, cost by utility (offline; readings/CSV).
-      const nrg = document.createElement("button");
-      nrg.className = "pnav-item pnav-home" + (this.activeKey === "__energy__" ? " active" : "");
-      nrg.innerHTML = `<span class="ic">⚡</span> Energy`;
-      nrg.onclick = () => { this.activeKey = "__energy__"; void this.renderEnergy(); this.buildNav(); };
-      nav.appendChild(nrg);
-    } else {
-      // Developer — jump to the proforma/underwriting workspace (returns, capital stack, cash flow)
-      const uw = document.createElement("button");
-      uw.className = "pnav-item pnav-home";
-      uw.innerHTML = `<span class="ic">📊</span> Underwriting`;
-      uw.onclick = () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "finance" }));
-      nav.appendChild(uw);
-      // Land Screening — screen a parcel set by size/zoning/flood → max-buildable envelope + cost.
-      const land = document.createElement("button");
-      land.className = "pnav-item pnav-home" + (this.activeKey === "__land__" ? " active" : "");
-      land.innerHTML = `<span class="ic">🗺️</span> Land Screening`;
-      land.onclick = () => { this.activeKey = "__land__"; void this.renderLandScreen(); this.buildNav(); };
-      nav.appendChild(land);
-      // Project Lifecycle — RIBA/AIA design phases (SD/DD/CD/CA) with gate sign-off + soft-cost allocation.
-      const life = document.createElement("button");
-      life.className = "pnav-item pnav-home" + (this.activeKey === "__lifecycle__" ? " active" : "");
-      life.innerHTML = `<span class="ic">🧭</span> Project Lifecycle`;
-      life.onclick = () => { this.activeKey = "__lifecycle__"; void this.renderLifecycle(); this.buildNav(); };
-      nav.appendChild(life);
-      // Diligence & Entitlements — pre-acquisition go/no-go (DD by category + entitlement pipeline).
-      const dil = document.createElement("button");
-      dil.className = "pnav-item pnav-home" + (this.activeKey === "__diligence__" ? " active" : "");
-      dil.innerHTML = `<span class="ic">📜</span> Diligence & Entitlements`;
-      dil.onclick = () => { this.activeKey = "__diligence__"; void this.renderDiligence(); this.buildNav(); };
-      nav.appendChild(dil);
-      // ESG & POE — asset sustainability scorecard (EUI, GHG scopes, water, certs) + Stage-7 feedback.
-      const esgNav = document.createElement("button");
-      esgNav.className = "pnav-item pnav-home" + (this.activeKey === "__esg__" ? " active" : "");
-      esgNav.innerHTML = `<span class="ic">🌱</span> ESG & POE`;
-      esgNav.onclick = () => { this.activeKey = "__esg__"; void this.renderEsg(); this.buildNav(); };
-      nav.appendChild(esgNav);
     }
-
-    // first-class Portfolio destination — cross-project executive roll-up (all jobs at a glance)
-    const portfolio = document.createElement("button");
-    portfolio.className = "pnav-item pnav-home" + (this.activeKey === "__portfolio__" ? " active" : "");
-    portfolio.innerHTML = `<span class="ic">🏢</span> Portfolio`;
-    portfolio.onclick = () => { this.activeKey = "__portfolio__"; void this.renderPortfolio(); this.buildNav(); };
-    nav.appendChild(portfolio);
-
-    // Benchmarks — cross-project cost distribution + RFI/submittal response rates (your own history).
-    const bench = document.createElement("button");
-    bench.className = "pnav-item pnav-home" + (this.activeKey === "__benchmarks__" ? " active" : "");
-    bench.innerHTML = `<span class="ic">📈</span> Benchmarks`;
-    bench.onclick = () => { this.activeKey = "__benchmarks__"; void this.renderBenchmarks(); this.buildNav(); };
-    nav.appendChild(bench);
 
     const filter = document.createElement("input");
     filter.type = "search"; filter.placeholder = "Filter…"; filter.className = "portal-filter pnav-filter";
@@ -250,6 +201,12 @@ export class PortalUI {
       const favMods = visible.filter((m) => favs.has(m.key));
       if (favMods.length) group("★ Favorites", favMods, true);
     }
+    // Recent — auto-populated last-opened registers (favorites are the opt-in layer; recents work
+    // with zero effort). Skip modules already pinned to Favorites to avoid duplicate rows.
+    const recentMods = this.recents()
+      .map((k) => visible.find((m) => m.key === k))
+      .filter((m): m is ModuleDef => !!m && !favs.has(m.key));
+    if (recentMods.length) group("🕘 Recent", recentMods, true);
     const sections = new Map<string, ModuleDef[]>();
     for (const m of visible) { const s = m.section || "Other"; (sections.get(s) ?? sections.set(s, []).get(s)!).push(m); }
     // if the persona's preferred sections don't exist in this workspace (e.g. a GC browsing the
@@ -271,6 +228,12 @@ export class PortalUI {
       toggle.onclick = () => { this.showAll = !this.showAll; this.buildNav(); };
       nav.appendChild(toggle);
     }
+
+    // teach the accelerator in context: the palette is the long-tail navigator for ~100 registers
+    const hint = document.createElement("div");
+    hint.className = "pnav-khint meta";
+    hint.innerHTML = `Jump anywhere: <kbd>${navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl"}</kbd>+<kbd>K</kbd>`;
+    nav.appendChild(hint);
 
     filter.oninput = () => {
       const q = filter.value.trim().toLowerCase();
@@ -1719,6 +1682,15 @@ export class PortalUI {
     try { return new Set(JSON.parse(localStorage.getItem("portal-favs") || "[]") as string[]); }
     catch { return new Set(); }
   }
+  /** Last-opened module keys, newest first — auto-populated so the nav works with zero setup. */
+  private recents(): string[] {
+    try { return JSON.parse(localStorage.getItem("portal-recents") || "[]") as string[]; }
+    catch { return []; }
+  }
+  private pushRecent(key: string) {
+    const r = [key, ...this.recents().filter((k) => k !== key)].slice(0, 5);
+    localStorage.setItem("portal-recents", JSON.stringify(r));
+  }
   private toggleFav(key: string) {
     const f = this.favs(); f.has(key) ? f.delete(key) : f.add(key);
     localStorage.setItem("portal-favs", JSON.stringify([...f]));
@@ -2250,6 +2222,7 @@ export class PortalUI {
 
   private async openModule(m: ModuleDef, filter: { q?: string; state?: string; offset?: number } = {}) {
     const pid = this.host.projectId()!;
+    this.pushRecent(m.key);
     this.skeleton(`Loading ${m.name}…`);
     const PAGE = 100, offset = filter.offset ?? 0;          // page large modules so they never render 1000s of rows
     const page = await this.host.api.moduleRecordsFiltered(pid, m.key, { ...filter, limit: PAGE + 1, offset });
