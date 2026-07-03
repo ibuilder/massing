@@ -1,0 +1,140 @@
+{
+  "key": "bulletin",
+  "name": "Design Bulletins",
+  "section": "Change Management",
+  "icon": "📁",
+  "ref_prefix": "BUL",
+  "title_field": "subject",
+  "pinnable": true,
+  "revisable": true,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Subject",
+      "type": "text",
+      "required": true,
+      "fieldset": "Bulletin"
+    },
+    {
+      "name": "description",
+      "label": "Description of Revision",
+      "type": "textarea",
+      "required": true,
+      "fieldset": "Bulletin"
+    },
+    {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "select",
+      "options": [
+        "Architectural",
+        "Structural",
+        "Mechanical",
+        "Electrical",
+        "Plumbing",
+        "Civil",
+        "Multiple"
+      ],
+      "fieldset": "Bulletin"
+    },
+    {
+      "name": "drawings_affected",
+      "label": "Drawings Affected",
+      "type": "textarea",
+      "fieldset": "References"
+    },
+    {
+      "name": "spec_sections",
+      "label": "Spec Sections Affected",
+      "type": "text",
+      "fieldset": "References"
+    },
+    {
+      "name": "cost_time_impact",
+      "label": "Cost / Time Impact",
+      "type": "select",
+      "options": [
+        "No cost or schedule impact",
+        "Affects cost or schedule (route to change event)"
+      ],
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "change_event",
+      "label": "Change Event",
+      "type": "reference",
+      "module": "change_event",
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "issued_by",
+      "label": "Issued By (Architect)",
+      "type": "text",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "issued_date",
+      "label": "Issued",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "response_due",
+      "label": "Response Due",
+      "type": "date",
+      "fieldset": "Dates"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "issued",
+      "priced",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "issued",
+        "action": "issue",
+        "party": [
+          "Architect",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "issued",
+        "to": "priced",
+        "action": "return_pricing",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "priced",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "issued",
+        "to": "closed",
+        "action": "close_no_impact",
+        "party": [
+          "GC",
+          "Architect"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "discipline",
+    "cost_time_impact",
+    "issued_date"
+  ],
+  "workspace": "construction"
+}

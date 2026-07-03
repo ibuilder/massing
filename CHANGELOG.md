@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.51 — Design-change instruments: ASI / Bulletin / Sketch (lifecycle track 3 of 4)
+The standard AIA construction-phase change instruments, wired into the existing change chain.
+- **New modules `asi`, `bulletin`, `sketch`** (Change Management section, config-driven CRUD + workflow):
+  - **ASI** (AIA G710) — the Architect issues a supplemental instruction; **no cost/time**; the
+    Contractor acknowledges (`issued → acknowledged → closed`).
+  - **Bulletin** — a formal design revision; when it carries cost/time it links to a `change_event`
+    (→ `pco_request → cor`) for pricing (`draft → issued → priced → closed`).
+  - **Sketch (SK)** — a clarification sketch that attaches to an ASI / Bulletin / RFI / drawing.
+- **Document generation** — G710 ASI + Bulletin cover-sheet + **G714 Construction Change Directive**
+  (rendered from a `directive` record) added to `contracts.py`; all reachable through the existing
+  `GET /projects/{pid}/contracts/{key}/{rid}/document.pdf?doc=asi|bulletin|ccd`. `directive` is the
+  platform's CCD (G714) instrument.
+- Verified: ruff + bandit clean, `test_change_instruments` (ASI issue→ack no cost; Bulletin cost impact
+  links a change_event; SK attaches; ASI/Bulletin/CCD render as PDFs) + `test_contracts` regression,
+  web typecheck green.
+
 ## v0.3.50 — IFC family library (lifecycle track 2 of 4)
 The "families" folder now ships real `.ifc` content and a browsable library, fully offline.
 - **Generated parametric core library** — `build_family_library.py` writes the whole catalog to a

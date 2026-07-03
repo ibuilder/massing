@@ -1,0 +1,114 @@
+{
+  "key": "asi",
+  "name": "Architect's Supplemental Instructions",
+  "section": "Change Management",
+  "icon": "📝",
+  "ref_prefix": "ASI",
+  "title_field": "subject",
+  "pinnable": true,
+  "revisable": true,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Subject",
+      "type": "text",
+      "required": true,
+      "fieldset": "Instruction"
+    },
+    {
+      "name": "instruction",
+      "label": "Supplemental Instruction",
+      "type": "textarea",
+      "required": true,
+      "fieldset": "Instruction"
+    },
+    {
+      "name": "drawing_ref",
+      "label": "Drawing Reference",
+      "type": "text",
+      "fieldset": "References"
+    },
+    {
+      "name": "spec_ref",
+      "label": "Spec Section",
+      "type": "text",
+      "fieldset": "References"
+    },
+    {
+      "name": "rfi",
+      "label": "Source RFI",
+      "type": "reference",
+      "module": "rfi",
+      "fieldset": "References"
+    },
+    {
+      "name": "bulletin",
+      "label": "Bulletin",
+      "type": "reference",
+      "module": "bulletin",
+      "fieldset": "References"
+    },
+    {
+      "name": "cost_time_impact",
+      "label": "Cost / Time Impact",
+      "type": "select",
+      "options": [
+        "No cost or schedule impact (G710)",
+        "May affect cost or schedule"
+      ],
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "change_event",
+      "label": "Change Event (if cost/time)",
+      "type": "reference",
+      "module": "change_event",
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "issued_by",
+      "label": "Issued By (Architect)",
+      "type": "text",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "issued_date",
+      "label": "Issued",
+      "type": "date",
+      "fieldset": "Dates"
+    }
+  ],
+  "workflow": {
+    "initial": "issued",
+    "states": [
+      "issued",
+      "acknowledged",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "issued",
+        "to": "acknowledged",
+        "action": "acknowledge",
+        "party": [
+          "GC",
+          "Subcontractor"
+        ]
+      },
+      {
+        "from": "acknowledged",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "Architect",
+          "GC"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "cost_time_impact",
+    "issued_date"
+  ],
+  "workspace": "construction"
+}

@@ -179,12 +179,88 @@ def exhibit(db: Session, key: str, pid: str, rid: str, clause_ids: list[str] | N
     return _build(_exhibit_flowables(_styles(), ctx, clause_ids))
 
 
+def asi_instruction(db: Session, key: str, pid: str, rid: str, clause_ids: list[str] | None = None) -> bytes:
+    """AIA G710-style Architect's Supplemental Instruction — a clarification issued by the architect
+    with no change to the contract sum or time (unless flagged)."""
+    from reportlab.platypus import Paragraph
+    rec, d, ctx = _context(db, key, pid, rid)
+    ss = _styles()
+    impact = d.get("cost_time_impact") or "No cost or schedule impact (G710)"
+    refs = " · ".join(x for x in (d.get("drawing_ref"), d.get("spec_ref")) if x)
+    f = [Paragraph("Architect's Supplemental Instructions", ss["DocTitle"]),
+         Paragraph(f"AIA G710-style · {rec.get('ref', '')} · {date.today().isoformat()}", ss["Sub"]),
+         Paragraph(f"Project: <b>{ctx['project']}</b>", ss["Body"]),
+         Paragraph("Instruction", ss["H"]),
+         Paragraph(f"<b>{d.get('subject', '')}</b>", ss["Body"]),
+         Paragraph(d.get("instruction") or "", ss["Body"])]
+    if refs:
+        f.append(Paragraph(f"References: {refs}", ss["Body"]))
+    f.append(Paragraph(f"<b>Contract impact:</b> {impact}. The Contractor shall carry out this "
+                       "instruction; it does not authorize a change in the Contract Sum or Time unless "
+                       "so noted, in which case a Change Order or Construction Change Directive follows.",
+                       ss["Body"]))
+    f += _signature_block(ss, [("Architect", "Architect"), ("Contractor (received)", "GC")],
+                          (d.get("signatures") or []))
+    return _build(f)
+
+
+def bulletin_notice(db: Session, key: str, pid: str, rid: str, clause_ids: list[str] | None = None) -> bytes:
+    """A design Bulletin cover sheet — a formal revision to the contract documents; if it carries cost
+    or time impact it routes to a change event / change order for pricing."""
+    from reportlab.platypus import Paragraph
+    rec, d, ctx = _context(db, key, pid, rid)
+    ss = _styles()
+    impact = d.get("cost_time_impact") or "No cost or schedule impact"
+    f = [Paragraph("Design Bulletin", ss["DocTitle"]),
+         Paragraph(f"{rec.get('ref', '')} · {d.get('discipline', '')} · {date.today().isoformat()}", ss["Sub"]),
+         Paragraph(f"Project: <b>{ctx['project']}</b>", ss["Body"]),
+         Paragraph("Description of Revision", ss["H"]),
+         Paragraph(f"<b>{d.get('subject', '')}</b>", ss["Body"]),
+         Paragraph(d.get("description") or "", ss["Body"])]
+    if d.get("drawings_affected"):
+        f += [Paragraph("Drawings Affected", ss["H"]), Paragraph(d["drawings_affected"], ss["Body"])]
+    if d.get("spec_sections"):
+        f.append(Paragraph(f"Spec sections affected: {d['spec_sections']}", ss["Body"]))
+    f.append(Paragraph(f"<b>Contract impact:</b> {impact}. Where cost or time is affected, submit pricing "
+                       "for a Change Order.", ss["Body"]))
+    f += _signature_block(ss, [("Architect", "Architect"), ("General Contractor", "GC")],
+                          (d.get("signatures") or []))
+    return _build(f)
+
+
+def construction_change_directive(db: Session, key: str, pid: str, rid: str,
+                                  clause_ids: list[str] | None = None) -> bytes:
+    """AIA G714-style Construction Change Directive — directs a change before cost/time are agreed;
+    signed by Owner + Architect, the Contractor signs later to confirm. Renders a `directive` record."""
+    from reportlab.platypus import Paragraph
+    rec, d, ctx = _context(db, key, pid, rid)
+    ss = _styles()
+    nte = d.get("not_to_exceed")
+    f = [Paragraph("Construction Change Directive", ss["DocTitle"]),
+         Paragraph(f"AIA G714-style · {rec.get('ref', '')} · {date.today().isoformat()}", ss["Sub"]),
+         Paragraph(f"Project: <b>{ctx['project']}</b>", ss["Body"]),
+         Paragraph("Directed Change", ss["H"]),
+         Paragraph(f"<b>{d.get('subject', '')}</b>", ss["Body"]),
+         Paragraph(d.get("scope") or "", ss["Body"]),
+         Paragraph(f"Pricing basis: {d.get('basis') or 'to be determined'}"
+                   + (f" · Not-to-exceed {_money(nte)}" if nte else ""), ss["Body"]),
+         Paragraph("The Contractor shall proceed with the change described above. The adjustment to the "
+                   "Contract Sum and Time is not yet agreed; when agreed, this directive is superseded by "
+                   "a Change Order. The Owner and Architect authorize the Work below.", ss["Body"])]
+    f += _signature_block(ss, [("Owner", "Owner"), ("Architect", "Architect"),
+                               ("Contractor (agreement to follow)", "GC")], (d.get("signatures") or []))
+    return _build(f)
+
+
 # doc type -> generator
 GENERATORS = {
     "agreement": subcontract_agreement,
     "prime": prime_contract,
     "co": change_order,
     "exhibit": exhibit,
+    "asi": asi_instruction,
+    "bulletin": bulletin_notice,
+    "ccd": construction_change_directive,
 }
 
 

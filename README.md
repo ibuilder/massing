@@ -171,8 +171,10 @@ Deliverables** — with a sticky live-solved returns bar.
   across the phases, instead of a flat percentage. A shippable **IFC family library** now backs the
   viewer's Furnish & equip picker — a generated `library.ifc` of 46 GUID-stable openBIM families
   (furniture, sanitary, appliances, MEP, structural, **doors/windows/walls**) plus a curated-external
-  import path. (Further tracks in progress: ASI/Bulletin/Sketch change instruments, and architect
-  sign-off on substantial completion + a signed record-model turnover set.)
+  import path. The AIA construction-phase change instruments are now first-class — **ASI (G710)**,
+  **Bulletin**, and **Sketch (SK)** modules wired into the change chain, with G710/Bulletin/G714 (CCD)
+  document generation. (Final track in progress: architect sign-off on substantial completion + a
+  signed record-model turnover set.)
 - **AI + fintech + BIM-standards depth, then a code-quality & hardening pass (v0.3.41–v0.3.48)** —
   three rounds of capability depth, each engine offline/deterministic with AI only where it earns its
   place, always source-linked and never fabricating:

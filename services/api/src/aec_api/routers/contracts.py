@@ -35,9 +35,10 @@ def scope_library_list(_: str = Depends(current_user)):
 def contract_document(pid: str, key: str, rid: str, doc: str = "agreement",
                       clauses: str | None = None, attach: bool = False,
                       db: Session = Depends(get_db), user: str = Depends(require_role("viewer"))):
-    """Render a contract document for a record. doc = agreement | prime | co | exhibit. `clauses` is a
-    comma-separated list of scope_library ids for Exhibit A (defaults to the record's trade). With
-    attach=1 the PDF is also saved as an attachment on the record."""
+    """Render a contract/change document for a record. doc = agreement | prime | co | exhibit | asi
+    (G710) | bulletin | ccd (G714, from a directive record). `clauses` is a comma-separated list of
+    scope_library ids for Exhibit A (defaults to the record's trade). With attach=1 the PDF is also
+    saved as an attachment on the record."""
     clause_ids = [c for c in (clauses or "").split(",") if c] or None
     try:
         pdf = contracts.render(db, key, pid, rid, doc, clause_ids)

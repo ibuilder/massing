@@ -1,0 +1,103 @@
+{
+  "key": "sketch",
+  "name": "Sketches (SK)",
+  "section": "Change Management",
+  "icon": "✏️",
+  "ref_prefix": "SK",
+  "title_field": "subject",
+  "pinnable": true,
+  "revisable": true,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Subject",
+      "type": "text",
+      "required": true,
+      "fieldset": "Sketch"
+    },
+    {
+      "name": "sk_number",
+      "label": "Sketch No. (SK-)",
+      "type": "text",
+      "fieldset": "Sketch"
+    },
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "textarea",
+      "fieldset": "Sketch"
+    },
+    {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "select",
+      "options": [
+        "Architectural",
+        "Structural",
+        "Mechanical",
+        "Electrical",
+        "Plumbing",
+        "Civil"
+      ],
+      "fieldset": "Sketch"
+    },
+    {
+      "name": "asi",
+      "label": "Attached to ASI",
+      "type": "reference",
+      "module": "asi",
+      "fieldset": "References"
+    },
+    {
+      "name": "bulletin",
+      "label": "Attached to Bulletin",
+      "type": "reference",
+      "module": "bulletin",
+      "fieldset": "References"
+    },
+    {
+      "name": "rfi",
+      "label": "Attached to RFI",
+      "type": "reference",
+      "module": "rfi",
+      "fieldset": "References"
+    },
+    {
+      "name": "drawing",
+      "label": "Superseded Drawing",
+      "type": "reference",
+      "module": "drawing",
+      "fieldset": "References"
+    },
+    {
+      "name": "issued_date",
+      "label": "Issued",
+      "type": "date",
+      "fieldset": "Dates"
+    }
+  ],
+  "workflow": {
+    "initial": "issued",
+    "states": [
+      "issued",
+      "superseded"
+    ],
+    "transitions": [
+      {
+        "from": "issued",
+        "to": "superseded",
+        "action": "supersede",
+        "party": [
+          "Architect",
+          "GC"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "sk_number",
+    "discipline",
+    "issued_date"
+  ],
+  "workspace": "construction"
+}
