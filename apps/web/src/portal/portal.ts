@@ -447,7 +447,8 @@ export class PortalUI {
     const tabs = el("div"); tabs.style.cssText = "display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap";
     const body = el("div"); root.append(tabs, body);
     const TABS: [string, string][] = [["rfi", "📝 Draft RFI"], ["scope", "📋 Draft scope"],
-      ["submittal", "📄 Submittal summary"], ["level", "⚖️ Bid leveling"], ["code", "🏛️ Code check"]];
+      ["submittal", "📄 Submittal summary"], ["sheets", "🗂 Sheet index"], ["level", "⚖️ Bid leveling"],
+      ["code", "🏛️ Code check"]];
     let active = "rfi";
 
     const fileRow = (accept: string) => {
@@ -484,6 +485,41 @@ export class PortalUI {
           try { this.renderLeveling(out, await this.host.api.bidLevelingDetail(pid, pick.value)); }
           catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
         };
+        return;
+      }
+
+      if (active === "sheets") {
+        const hint = el("div", "meta"); hint.style.marginBottom = "4px";
+        hint.textContent = "Upload a drawing set (PDF) or paste a sheet index; the sheet numbers, titles "
+          + "and disciplines are extracted from the text — image-only scans need an Anthropic key.";
+        const file = fileRow(".pdf,.txt");
+        const ta = el("textarea", "portal-filter") as HTMLTextAreaElement;
+        ta.placeholder = "Or paste a sheet index — e.g.\nA-101  First Floor Plan\nS-201  Framing Plan";
+        ta.style.cssText = "width:100%;min-height:90px;margin:6px 0";
+        const mk = el("label", "meta"); mk.style.cssText = "display:block;margin:4px 0";
+        const cb = el("input") as HTMLInputElement; cb.type = "checkbox"; cb.style.marginRight = "6px";
+        mk.append(cb, document.createTextNode(" Also create Drawing records"));
+        const run = el("button", "file-btn") as HTMLButtonElement; run.textContent = "Extract sheets";
+        const out = el("div"); out.style.marginTop = "8px";
+        run.onclick = async () => {
+          out.textContent = "extracting…";
+          try {
+            const r = await this.host.api.extractSheets(pid, { file: file.files?.[0], text: ta.value.trim() || undefined, create: cb.checked });
+            out.innerHTML = "";
+            const h = el("div", "meta"); h.innerHTML = `<b>${r.sheets.length} sheet(s)</b> · ${esc(r.method)}`
+              + (r.created ? ` · created ${r.created.length} drawing record(s)` : "");
+            out.append(h);
+            if (r.sheets.length) {
+              const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-top:6px";
+              t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Sheet</th><th scope="col" style="text-align:left">Title</th>`
+                + `<th scope="col" style="text-align:left">Discipline</th></tr></thead><tbody>`
+                + r.sheets.map((s) => `<tr><td><b>${esc(s.number)}</b></td><td>${esc(s.title)}</td><td>${esc(s.discipline)}</td></tr>`).join("") + `</tbody>`;
+              out.append(t);
+            }
+            if (r.note) { const m = el("div", "meta"); m.textContent = r.note; m.style.marginTop = "6px"; out.append(m); }
+          } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
+        };
+        body.append(hint, file, ta, mk, run, out);
         return;
       }
 

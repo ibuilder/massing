@@ -1260,6 +1260,19 @@ export class ApiClient {
       pid, "scope", { trade, file: opts.file, text: opts.text });
   }
 
+  /** Extract a drawing-sheet index (number/title/discipline) from a PDF or pasted list; optionally create drawing records. */
+  async extractSheets(pid: string, opts: { file?: File; text?: string; create?: boolean }) {
+    const fd = new FormData();
+    if (opts.file) fd.append("file", opts.file);
+    if (opts.text) fd.append("text", opts.text);
+    fd.append("create", opts.create ? "true" : "false");
+    const res = await fetch(this.url(`/projects/${pid}/extract/sheets`),
+      { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`Extract sheets -> ${res.status}`);
+    return res.json() as Promise<{ sheets: { number: string; title: string; discipline: string }[];
+      method: string; has_text_layer?: boolean; note?: string; created?: string[] }>;
+  }
+
   /** Deep bid leveling for one package: base stats, scope matrix, gaps, scope-adjusted recommendation. */
   bidLevelingDetail(pid: string, packageId: string) {
     return this.json<{ package: string; vendors: string[];

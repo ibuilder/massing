@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.67 — Drawing-sheet extraction (standards C7 of 8)
+Reading a drawing set into structured data — offline-first and honest, never inventing a sheet.
+- **`sheet_extract.py`** (`POST /projects/{pid}/extract/sheets`) — parses an uploaded PDF's text
+  layer (pypdf) or a pasted sheet index into `{number, title, discipline}`, inferring the discipline
+  from the sheet prefix (A→Architectural, S→Structural, M/E/P→MEP, C→Civil…). Deterministic; an
+  image-only scan with no text layer returns nothing and says so (set an Anthropic key to read page
+  images). With `create=true` the extracted sheets become **Drawing records** in one step.
+- **“🗂 Sheet index” tab** in AI Assist — upload a PDF or paste a list, preview the extracted table,
+  optionally create the drawing records.
+- Verified live (paste → 3 sheets extracted with disciplines) + `test_sheet_extract` (9-sheet index
+  parsed, noise ignored, 9 drawing records created). Typecheck + 49 vitest + Pages build green.
+
 ## v0.3.66 — Procurement compliance gate (standards C6 of 8)
 Turns the platform's existing COI / prequal / subcontract / lien-waiver records into an enforceable
 compliance posture — the “can this sub bid or bill yet?” gate, plus the outbound nudge list.

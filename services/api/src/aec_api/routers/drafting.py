@@ -7,7 +7,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from starlette.concurrency import run_in_threadpool
 
-from .. import drafting
+from fastapi import Depends as _Dep
+
+from .. import drafting, sheet_extract
+from ..db import get_db
 from ..rbac import require_role
 from ..throttle import rate_limited
 
@@ -47,3 +50,27 @@ async def draft_scope_ep(pid: str, trade: str = Form("General"), file: UploadFil
                          __: None = Depends(_throttle)):
     pages = await _pages_from(file, text)
     return await run_in_threadpool(drafting.draft_scope, pages, trade)
+
+
+@router.post("/projects/{pid}/extract/sheets")
+async def extract_sheets_ep(pid: str, file: UploadFile | None = File(None),
+                            text: str | None = Form(None), create: bool = Form(False),
+                            actor: str = Depends(require_role("editor")),
+                            db=_Dep(get_db)):
+    """Extract a drawing-sheet index (number / title / discipline) from an uploaded PDF or pasted
+    sheet list — deterministic over the PDF text layer, honest when a scan has no text. With
+    create=true the extracted sheets become `drawing` records."""
+    if file is not None:
+        data = await file.read()
+        result = await run_in_threadpool(sheet_extract.extract_pdf, data)
+    else:
+        sheets = await run_in_threadpool(sheet_extract.extract_from_text, text or "")
+        result = {"sheets": sheets, "method": "deterministic", "has_text_layer": bool(text)}
+    if create and result["sheets"]:
+        from .. import modules as me
+        created = []
+        for body in sheet_extract.to_drawing_records(result["sheets"]):
+            created.append(me.create_record(db, "drawing", pid, {"data": body}, actor, "GC")["ref"])
+        db.commit()
+        result["created"] = created
+    return result
