@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from . import metrics
 from .db import init_db
 from .routers import (accounting, analysis, auth, authoring, benchmarking, bidding, bim, carbon, closeout, codecheck, conceptual, connections, contracts, convert, cost,
-                      dashboard, drafting, drawings, ids, exports, generate, modules, opendata, parcels, payapp, prequal, pricing, procurement, realestate, reports, research, review, proforma, properties, schedule,
+                      dashboard, design, drafting, drawings, ids, exports, generate, modules, opendata, parcels, payapp, prequal, pricing, procurement, realestate, reports, research, review, proforma, properties, schedule,
                       templates, verification, payroll, assistant, construction)
 
 _access_log = logging.getLogger("aec.access")
@@ -148,6 +148,7 @@ app.include_router(templates.router, tags=["templates"])
 app.include_router(dashboard.router, tags=["dashboard"])
 app.include_router(proforma.router, tags=["proforma"])
 app.include_router(generate.router, tags=["generate"])
+app.include_router(design.router, tags=["design"])
 app.include_router(research.router, tags=["research"])
 app.include_router(review.router, tags=["review"])
 app.include_router(drafting.router, tags=["drafting"])

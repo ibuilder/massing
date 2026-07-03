@@ -1,0 +1,150 @@
+{
+  "key": "project_phase",
+  "name": "Design Phases",
+  "section": "Design Phases",
+  "icon": "🧭",
+  "ref_prefix": "PH",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Phase",
+      "type": "text",
+      "required": true,
+      "fieldset": "Phase"
+    },
+    {
+      "name": "riba_stage",
+      "label": "RIBA Stage",
+      "type": "text",
+      "fieldset": "Phase"
+    },
+    {
+      "name": "aia_phase",
+      "label": "AIA Phase",
+      "type": "text",
+      "fieldset": "Phase"
+    },
+    {
+      "name": "order",
+      "label": "Order",
+      "type": "number",
+      "fieldset": "Phase"
+    },
+    {
+      "name": "deliverables",
+      "label": "Deliverables",
+      "type": "textarea",
+      "fieldset": "Phase"
+    },
+    {
+      "name": "design_fee_pct",
+      "label": "A/E Design Fee %",
+      "type": "percent",
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "iso_status",
+      "label": "ISO 19650 Status",
+      "type": "select",
+      "options": [
+        "S0 (WIP)",
+        "S1 (Shared)",
+        "S2 (Published)",
+        "A (Published for construction)",
+        "AS (As-built)",
+        "AM (Asset information model)"
+      ],
+      "fieldset": "Information"
+    },
+    {
+      "name": "planned_start",
+      "label": "Planned Start",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "planned_finish",
+      "label": "Planned Finish",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "actual_finish",
+      "label": "Actual Finish",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "signed_by",
+      "label": "Gate Signed By",
+      "type": "text",
+      "fieldset": "Gate"
+    },
+    {
+      "name": "gate_notes",
+      "label": "Gate Notes",
+      "type": "textarea",
+      "fieldset": "Gate"
+    }
+  ],
+  "workflow": {
+    "initial": "active",
+    "states": [
+      "active",
+      "in_review",
+      "approved",
+      "returned"
+    ],
+    "transitions": [
+      {
+        "from": "active",
+        "to": "in_review",
+        "action": "submit_for_review",
+        "party": [
+          "GC",
+          "PM",
+          "Architect"
+        ]
+      },
+      {
+        "from": "in_review",
+        "to": "approved",
+        "action": "approve_gate",
+        "party": [
+          "Architect",
+          "Owner"
+        ],
+        "requires": [
+          "signed_by"
+        ]
+      },
+      {
+        "from": "in_review",
+        "to": "returned",
+        "action": "return",
+        "party": [
+          "Architect",
+          "Owner"
+        ]
+      },
+      {
+        "from": "returned",
+        "to": "active",
+        "action": "revise",
+        "party": [
+          "GC",
+          "PM",
+          "Architect"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "aia_phase",
+    "design_fee_pct",
+    "iso_status"
+  ],
+  "workspace": "developer"
+}

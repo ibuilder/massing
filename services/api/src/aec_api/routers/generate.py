@@ -1,7 +1,7 @@
 """Generative design (Phase 6+): turn a municipal zoning envelope into a real IFC model + a
-basic acquisition proforma. This is the IFC-native answer to TestFit/Forma feasibility — the
-output is openBIM, so the same model flows into the viewer, drawings, QTO, the estimate, and the
-proforma underwriting (areas → hard cost / rent). One click goes lot → building → deal.
+basic acquisition proforma. IFC-native generative feasibility — the output is openBIM, so the same
+model flows into the viewer, drawings, QTO, the estimate, and the proforma underwriting (areas →
+hard cost / rent). One click goes lot → building → deal.
 
 Math lives in aec_data.massing (pure, unit-tested); this router wires it to a project: generate
 the IFC, set it as the project's source of truth, publish (convert→.frag + reindex) off-thread,
@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .. import audit, storage
+from .. import audit, design_phase, soft_costs, storage
 from ..db import get_db
 from ..models import Project
 from ..proforma.solve import solve
@@ -85,7 +85,9 @@ def _proforma_seed(p: MassingIn, m: dict) -> dict:
         "cost_lines": [
             {"category": "land", "name": "Land acquisition", "amount": p.land_cost, "curve": "upfront"},
             {"category": "hard", "name": "Hard costs", "amount": round(hard), "curve": "scurve"},
-            {"category": "soft", "name": "Soft costs", "amount": round(hard * p.soft_cost_pct), "curve": "linear"},
+            # itemized soft costs (A/E design fee, permits, legal, financing, insurance, developer fee,
+            # FF&E, marketing, soft contingency) — totals hard × soft_cost_pct, phase-aware A/E fee.
+            *soft_costs.proforma_cost_lines(hard, p.soft_cost_pct * 100),
             {"category": "contingency", "name": "Contingency", "amount": round(hard * p.contingency_pct), "curve": "scurve"},
         ],
         "debt": {"ltc": p.ltc, "rate": p.rate},
@@ -116,7 +118,8 @@ def _seed_dev_budget(body: "MassingIn", m: dict) -> dict:
     return {"lines": [
         {"category": "acquisition", "description": "Land acquisition", "unit_cost": float(body.land_cost), "quantity": 1, "cost_code": ""},
         {"category": "hard", "description": "Hard costs (GFA × $/sf)", "unit_cost": round(hard), "quantity": 1, "cost_code": ""},
-        {"category": "soft", "description": "Soft costs", "unit_cost": round(hard * body.soft_cost_pct), "quantity": 1, "cost_code": ""},
+        # itemized soft costs (A/E fee, permits, legal, financing, insurance, developer fee, FF&E, …)
+        *soft_costs.budget_lines(hard, body.soft_cost_pct * 100),
     ]}
 
 
@@ -190,6 +193,7 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
                      path=f"/projects/{pid}/generate/massing", detail=metrics)
         db.commit()
         gc_seed = _seed_gc_portal(db, pid, body, metrics, actor)
+        design_phase.seed_phases(db, pid, actor)           # lay the 8 RIBA/AIA design phases
         _publish_bg(pid)
         return {"metrics": metrics, "proforma": _proforma_seed(body, metrics), "gc_seed": gc_seed,
                 "source_ifc": str(ifc_path), "publish": "running"}
@@ -224,6 +228,7 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
                  path=f"/projects/{pid}/generate/massing", detail=metrics)
     db.commit()
     gc_seed = _seed_gc_portal(db, pid, body, metrics, actor)    # complete the GC pillar too
+    design_phase.seed_phases(db, pid, actor)                   # lay the 8 RIBA/AIA design phases
 
     _publish_bg(pid)                                            # convert→.frag + reindex off-thread
     return {"metrics": metrics, "proforma": _proforma_seed(body, metrics), "gc_seed": gc_seed,

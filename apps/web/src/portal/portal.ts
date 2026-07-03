@@ -171,6 +171,12 @@ export class PortalUI {
       land.innerHTML = `<span class="ic">🗺️</span> Land Screening`;
       land.onclick = () => { this.activeKey = "__land__"; void this.renderLandScreen(); this.buildNav(); };
       nav.appendChild(land);
+      // Project Lifecycle — RIBA/AIA design phases (SD/DD/CD/CA) with gate sign-off + soft-cost allocation.
+      const life = document.createElement("button");
+      life.className = "pnav-item pnav-home" + (this.activeKey === "__lifecycle__" ? " active" : "");
+      life.innerHTML = `<span class="ic">🧭</span> Project Lifecycle`;
+      life.onclick = () => { this.activeKey = "__lifecycle__"; void this.renderLifecycle(); this.buildNav(); };
+      nav.appendChild(life);
     }
 
     // first-class Portfolio destination — cross-project executive roll-up (all jobs at a glance)
@@ -860,6 +866,91 @@ export class PortalUI {
       } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
     };
     root.append(ta, row, go, out);
+  }
+
+  // --- Project Lifecycle: RIBA/AIA design phases + gate sign-off + soft-cost allocation ----------
+  private async renderLifecycle() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("🧭 Project Lifecycle", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const pid = this.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Project Lifecycle")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "The architect/engineer design-to-turnover lifecycle: RIBA Plan of Work 0–7 "
+      + "mapped to AIA phases (SD · DD · CD · CA). Each phase is a gate the Architect + Owner sign off "
+      + "before advancing, with its A/E design-fee share and ISO-19650 information status.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    const load = async () => {
+      let lc;
+      try { lc = await this.host.api.lifecycle(pid); }
+      catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+      body.innerHTML = "";
+      if (!lc.seeded || !lc.phases.length) {
+        const seedBtn = el("button", "file-btn") as HTMLButtonElement;
+        seedBtn.textContent = "Seed design phases";
+        seedBtn.onclick = () => void this.host.api.lifecycleSeed(pid)
+          .then(() => { toast("Design phases seeded", "success"); void load(); })
+          .catch((e) => toast((e as Error).message, "error"));
+        const note = el("div", "meta"); note.textContent = "No design phases yet for this project.";
+        note.style.marginBottom = "6px";
+        body.append(note, seedBtn);
+        return;
+      }
+      if (lc.current_stage) {
+        const cur = el("div", "meta"); cur.style.margin = "2px 0 8px";
+        cur.innerHTML = `Current stage: <b>${lc.current_stage.riba_stage}</b> — ${lc.current_stage.aia_phase}`;
+        body.append(cur);
+      }
+      const STATE_TONE: Record<string, string> = { approved: "var(--status-good)", in_review: "var(--status-warn)",
+        returned: "var(--status-crit)", active: "var(--muted)" };
+      for (const ph of lc.phases) {
+        const card = el("div", "dash-card"); card.style.cssText = `border-left:3px solid ${STATE_TONE[ph.state] || "var(--muted)"};margin:6px 0`;
+        const fee = ph.design_fee_amount ? ` · A/E fee ${cmoney(ph.design_fee_amount)}` : "";
+        card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">`
+          + `<div><b>${ph.riba_stage}</b> <span class="meta">→ ${ph.aia_phase}</span></div>`
+          + `<span class="badge">${ph.state}</span></div>`
+          + `<div class="meta" style="margin-top:2px">Fee ${ph.design_fee_pct || 0}%${fee} · ${ph.iso_status || ""}</div>`
+          + (ph.deliverables.length ? `<ul style="margin:4px 0 0 16px;font-size:12px">${ph.deliverables.map((d) => `<li>${d}</li>`).join("")}</ul>` : "");
+        // gate actions
+        const actions = el("div"); actions.style.cssText = "margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center";
+        const act = (label: string, action: string, pre?: () => Promise<boolean>) => {
+          const b = el("button", "file-btn") as HTMLButtonElement; b.textContent = label;
+          b.onclick = async () => {
+            if (pre && !(await pre())) return;
+            try { await this.host.api.transitionRecord(pid, "project_phase", ph.id, action);
+              toast(`${label} ✓`, "success"); void load(); }
+            catch (e) { toast((e as Error).message, "error"); }
+          };
+          actions.append(b);
+        };
+        if (ph.state === "active") act("Submit for gate review", "submit_for_review");
+        if (ph.state === "in_review") {
+          act("Approve gate (Architect/Owner)", "approve_gate", async () => {
+            const name = prompt("Gate sign-off — enter the certifying name (Architect/Owner):");
+            if (!name) return false;
+            await this.host.api.updateModuleRecord(pid, "project_phase", ph.id, { signed_by: name });
+            return true;
+          });
+          act("Return", "return");
+        }
+        if (ph.state === "returned") act("Revise", "revise");
+        if (ph.signed_by) { const s = el("span", "meta"); s.textContent = `signed: ${ph.signed_by}`; actions.append(s); }
+        card.append(actions);
+        body.append(card);
+      }
+      // soft-cost allocation
+      if (lc.soft_costs) {
+        const sc = el("div"); sc.style.marginTop = "12px";
+        sc.innerHTML = `<div class="meta"><b>Itemized soft costs</b> — total ${cmoney(lc.soft_costs.total)} (of ${cmoney(lc.hard_cost)} hard)</div>`;
+        const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
+        t.innerHTML = `<thead><tr><th style="text-align:left">Soft cost</th><th>% of hard</th><th>Amount</th></tr></thead><tbody>`
+          + lc.soft_costs.lines.map((x) => `<tr><td>${x.label}</td><td style="text-align:center">${x.pct_of_hard}%</td>`
+            + `<td style="text-align:right">${cmoney(x.amount)}</td></tr>`).join("") + `</tbody>`;
+        sc.append(t); body.append(sc);
+      }
+    };
+    await load();
   }
 
   // --- IDS Requirements: author buildingSMART IDS + EIR from templates --------------------------

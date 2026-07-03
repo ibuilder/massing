@@ -162,7 +162,16 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **AI + fintech + BIM-standards depth, then a code-quality & hardening pass (latest, v0.3.41–v0.3.48)** —
+- **Architect/engineer design-to-turnover lifecycle (latest, v0.3.49+)** — the classic design lifecycle
+  made first-class, grounded in the RIBA Plan of Work 2020 (stages 0–7), AIA phases (SD/DD/CD/CA) and
+  ISO 19650. A **"🧭 Project Lifecycle"** panel lays out the eight phases as formal **gates** — each with
+  its deliverables, A/E design-fee share and ISO-19650 information status — that the **Architect + Owner**
+  sign off before the project advances. Soft costs are now **itemized** (A/E fee, permits, legal,
+  financing, insurance/bonds, developer fee, FF&E, marketing, contingency) with the design fee drawn down
+  across the phases, instead of a flat percentage. (Further tracks in progress: an IFC family library,
+  ASI/Bulletin/Sketch change instruments, and architect sign-off on substantial completion + a signed
+  record-model turnover set.)
+- **AI + fintech + BIM-standards depth, then a code-quality & hardening pass (v0.3.41–v0.3.48)** —
   three rounds of capability depth, each engine offline/deterministic with AI only where it earns its
   place, always source-linked and never fabricating:
   - **AI assist** — draft RFIs / scopes / submittal summaries from a note or PDF, bid leveling, and

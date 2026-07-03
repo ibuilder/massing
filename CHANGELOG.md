@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.49 — Design-phase spine + itemized soft costs (lifecycle track 1 of 4)
+Makes the architect/engineer design lifecycle explicit. Grounded in the RIBA Plan of Work 2020 (stages
+0–7) mapped to the AIA design phases (Schematic Design → Design Development → Construction Documents →
+Construction Administration), ISO 19650 information stages, and standard development soft-cost / design-
+fee breakdowns.
+- **`design_phase.py` + `project_phase` module** — the eight RIBA/AIA phases as **formal gates**. Each
+  phase carries its deliverables, A/E design-fee %, and ISO-19650 status (S0→AM); the gate advances only
+  when the **Architect + Owner** sign it off (`approve_gate` transition, requires a signer). Generating a
+  project now seeds the eight phases automatically.
+- **`soft_costs.py` — itemized, phase-aware soft costs** — the flat "soft = 25% of hard" is replaced by
+  a transparent taxonomy (architecture & engineering fee, permits/entitlements, legal, financing &
+  interest, insurance & bonds, developer fee, FF&E, marketing/lease-up, soft contingency). Totals are
+  unchanged by default, but the **A/E design fee is drawn down across SD/DD/CD/Bid/CA** per standard
+  splits. The generate seed (`_seed_dev_budget`, `_proforma_seed`) now emits itemized soft-cost lines.
+- **Endpoints** `GET /projects/{pid}/lifecycle` (phases + gate state + soft-cost allocation + current
+  stage), `POST …/lifecycle/seed`, `GET /lifecycle/reference`. New **"🧭 Project Lifecycle"** developer-
+  workspace panel: the phase rail with deliverables, fee %, ISO status, gate sign-off, and the itemized
+  soft-cost table.
+- Verified: ruff + bandit clean, backend gate (new `test_design_phase`), web typecheck + 49 vitest +
+  Pages build + budget green.
+
 ## v0.3.48 — Hardening, accessibility & documentation pass
 A quality pass over the recently-shipped features: debug + full test sweep, a security-hardening
 review, accessibility on the new UI, and a documentation refresh.

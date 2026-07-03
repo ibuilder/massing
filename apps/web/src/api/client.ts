@@ -1330,6 +1330,22 @@ export class ApiClient {
     return this.json<{ enabled: boolean; provider: string | null; message: string }>(`/parcels/data-status`);
   }
 
+  // --- design lifecycle (RIBA/AIA phases + itemized soft costs) ---------------
+  lifecycle(pid: string) {
+    return this.json<{ count: number; seeded: boolean;
+      current_stage: { id: string; riba_stage: string; aia_phase: string } | null;
+      phases: { id: string; ref: string; order: number; state: string; riba_stage: string;
+        aia_phase: string; design_fee_pct: number | string; iso_status: string;
+        deliverables: string[]; design_fee_amount: number; signed_by?: string }[];
+      hard_cost: number;
+      soft_costs: { total: number; lines: { key: string; label: string; pct_of_hard: number; amount: number }[] } | null;
+      }>(`/projects/${pid}/lifecycle`);
+  }
+  lifecycleSeed(pid: string) {
+    return this.json<{ seeded: boolean; phases?: number; reason?: string }>(
+      `/projects/${pid}/lifecycle/seed`, { method: "POST" });
+  }
+
   // --- conceptual estimating + IFC classification (Ediphi / Qonic) -----------
   conceptualCatalog() {
     return this.json<{ building_types: string[]; regions: string[]; base_year: number;
