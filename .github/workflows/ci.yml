@@ -96,7 +96,7 @@ jobs:
 
       # Vulnerability gate: CRITICAL findings with a fix available block the publish.
       - name: Scan (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           image-ref: ghcr.io/${{ github.repository }}-${{ matrix.name }}:${{ github.sha }}
           severity: CRITICAL
