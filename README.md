@@ -49,8 +49,15 @@ pay app, COBie, work order, meter reading) tied to the same GlobalIds.
 - **Pre-acquisition** — due-diligence studies (Phase I ESA, geotech, title…) + entitlement
   pipeline with a go/no-go readiness rollup.
 - **Feasibility + underwriting** — proforma, sources & uses, investment memo.
+- **Concept programming** — spaces as an adjacency graph (area × quantity → gross area + use mix
+  that feeds the massing generator).
 - **Generative massing + test fit** — zoning envelope → buildable program → real IFC building.
+- **openBIM standards (ISO 19650)** — a Common Data Environment (WIP → Shared → Published →
+  Archived), information-requirements register (EIR/BEP/AIR), model-quality scoring (IDS compliance,
+  LOIN, export health, bSDD), a 10-category BIM-KPI scorecard, and standards-compliance checks.
 - **BIM authoring + coordination** — in-viewer modeling, clash detection, IDS validation.
+- **AI over the model** — an MCP server so external agents (Claude Desktop) can drive the project,
+  drawing-sheet extraction, and grounded standards experts. Offline-first; nothing fabricated.
 - **Construction management** — RFIs, submittals, change orders, pay apps, 4D/5D.
 - **Turnover** — COBie, as-built, closeout, certified substantial completion (G704).
 - **Operations** — CMMS work orders + preventive maintenance, utility meters → EUI, reserve

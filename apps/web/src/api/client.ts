@@ -1409,6 +1409,18 @@ export class ApiClient {
       twin_readiness_pct: number | null; note: string }>(`/projects/${pid}/twin/readiness`);
   }
 
+  // --- concept space programming: adjacency graph + massing hints ---------------
+  programSummary(pid: string) {
+    return this.json<{ spaces: number; total_area_sf: number; net_area_sf: number;
+      efficiency_pct: number | null;
+      by_type: Record<string, { count: number; area: number; pct: number }>;
+      graph: { nodes: { id: string; name: string; type: string; area: number; quantity: number; adjacent_to: string[] }[];
+        edges: { from: string; from_type: string; to_type: string; satisfiable: boolean }[] };
+      adjacency: { total: number; satisfiable: number; unmet: { from_type: string; to_type: string }[] };
+      massing_hints: { gross_area_sf: number; net_area_sf: number; mix_pct: Record<string, number> };
+      note: string }>(`/projects/${pid}/program/summary`);
+  }
+
   // --- ISO 19650 standards: CDE container discipline + requirements register ----
   cdeStatus(pid: string) {
     return this.json<{ total: number; by_state: Record<string, number>;

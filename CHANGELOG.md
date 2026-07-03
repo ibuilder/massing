@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.68 — Concept space programming: the adjacency graph (standards C8 of 8)
+The front of the lifecycle — programming a building before it's massed — closing the eight-release
+standards + AI track. The platform now spans land acquisition → programming → design (ISO 19650) →
+construction → turnover → operations.
+- **`space_program` module** (Programming, developer workspace) — program spaces as nodes: name,
+  use type, target area, quantity, level preference, and **“should be adjacent to”** (the edges).
+- **`adjacency.py`** (`GET /projects/{pid}/program/summary`) — the program as a graph: total/net/
+  gross area, use mix, the node/edge adjacency graph with **unmet preferences** flagged, an
+  efficiency %, and the **massing hints** (gross area + use mix) that feed the zoning→massing
+  generator and the proforma.
+- **“🧩 Space Program” panel** (Design & build) — area KPI cards, the use-mix table, adjacency chips
+  (unmet flagged), and the massing hand-off line.
+- **Docs** — README + roadmap now describe the full span (acquisition → programming → ISO-19650
+  design → construction → turnover → twin/ESG operations) and the C1–C8 track.
+- Verified live (4 nodes, 38,700 sf gross / 35,500 net, 91.7% efficiency, Lobby→Retail unmet) +
+  `test_program`. Typecheck + 49 vitest + Pages build green.
+
 ## v0.3.67 — Drawing-sheet extraction (standards C7 of 8)
 Reading a drawing set into structured data — offline-first and honest, never inventing a sheet.
 - **`sheet_extract.py`** (`POST /projects/{pid}/extract/sheets`) — parses an uploaded PDF's text

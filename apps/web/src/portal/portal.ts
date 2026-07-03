@@ -128,6 +128,7 @@ export class PortalUI {
       __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
       __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
+      __program__: () => this.renderProgram(),
       __portfolio__: () => this.renderPortfolio(), __benchmarks__: () => this.renderBenchmarks(),
     };
     const stages: [string, Dest[]][] = this.wsFilter === "construction"
@@ -157,7 +158,10 @@ export class PortalUI {
           { key: "__land__", icon: "🗺️", label: "Land Screening" },
           { key: "__diligence__", icon: "📜", label: "Diligence & Entitlements" },
         ]],
-        ["Design & build", [{ key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" }]],
+        ["Design & build", [
+          { key: "__program__", icon: "🧩", label: "Space Program" },       // adjacency graph → massing
+          { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" },
+        ]],
         ["Operate", [{ key: "__esg__", icon: "🌱", label: "ESG & POE" }]],
       ];
     stages.push(["Across projects", [
@@ -1119,6 +1123,70 @@ export class PortalUI {
     const a = document.createElement("a"); a.className = "portal-btn"; a.textContent = "⬇ ESG summary (PDF)";
     a.href = this.host.api.reportUrl(pid, "esg", "pdf"); a.target = "_blank"; a.rel = "noopener";
     rb.append(a); body.append(rb);
+  }
+
+  // --- Space Program: the concept adjacency graph that feeds the massing generator --------------
+  private async renderProgram() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("🧩 Space Program", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const pid = this.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Space Program")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Program the building before you mass it: spaces as nodes (area × quantity) "
+      + "with adjacency preferences as edges. The gross area and use mix feed the zoning → massing "
+      + "generator and the proforma. Add spaces under Programming → Space Program.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    let s;
+    try { s = await this.host.api.programSummary(pid); }
+    catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+    body.innerHTML = "";
+    if (!s.spaces) {
+      body.innerHTML = `<div class="meta">No program yet — add spaces under Programming → Space Program.</div>`;
+      return;
+    }
+    // area KPI cards
+    const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
+    const card = (label: string, value: string) => {
+      const c = el("div", "dash-card"); c.style.minWidth = "110px";
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${value}</div><div class="meta">${label}</div>`;
+      return c;
+    };
+    cards.append(card("spaces", String(s.spaces)),
+      card("gross area (sf)", s.total_area_sf.toLocaleString()),
+      card("net / leasable (sf)", s.net_area_sf.toLocaleString()),
+      card("efficiency", s.efficiency_pct != null ? `${s.efficiency_pct}%` : "—"));
+    body.append(cards);
+    // mix by use
+    const mix = Object.entries(s.by_type);
+    const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-bottom:8px";
+    t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Use</th><th scope="col">Count</th>`
+      + `<th scope="col">Area (sf)</th><th scope="col">Mix</th></tr></thead><tbody>`
+      + mix.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:center">${v.count}</td>`
+        + `<td style="text-align:right">${v.area.toLocaleString()}</td><td style="text-align:center">${v.pct}%</td></tr>`).join("")
+      + `</tbody>`;
+    body.append(t);
+    // adjacency graph — edges as chips, unmet flagged
+    const ac = el("div", "dash-card");
+    ac.innerHTML = `<b>Adjacency</b> <span class="meta">${s.adjacency.satisfiable}/${s.adjacency.total} preferences satisfiable</span>`;
+    if (s.graph.edges.length) {
+      const wrap = el("div"); wrap.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:6px";
+      s.graph.edges.forEach((e) => {
+        const chip = el("span"); chip.style.cssText = `font-size:11px;padding:2px 8px;border-radius:10px;`
+          + `border:1px solid var(${e.satisfiable ? "--border" : "--status-warn"});`
+          + `color:var(${e.satisfiable ? "--fg" : "--status-warn"})`;
+        chip.textContent = `${e.from_type} → ${e.to_type}${e.satisfiable ? "" : " (unmet)"}`;
+        wrap.append(chip);
+      });
+      ac.append(wrap);
+    }
+    body.append(ac);
+    // massing hand-off
+    const mh = el("div", "meta"); mh.style.marginTop = "8px";
+    mh.textContent = `Massing hand-off: ${s.massing_hints.gross_area_sf.toLocaleString()} sf gross, `
+      + Object.entries(s.massing_hints.mix_pct).map(([k, v]) => `${k} ${v}%`).join(" · ");
+    body.append(mh);
   }
 
   // --- BIM KPIs: the 10-category information-management scorecard + handover acceptance ---------

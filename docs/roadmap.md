@@ -398,3 +398,34 @@ and post-turnover operations) surfaced by the full-code + market audit:
 **Documented follow-ups (out of scope by design):** live ENERGY STAR/BAS/BMS integrations (flagged
 stubs only), full institutional reporting packs, space/move management (CAFM), 1031 tooling, JWT
 revocation blacklist + Redis-backed presence (known limits in PRODUCTION_CHECKLIST).
+
+---
+
+## Standards, KPIs & AI-over-model (v0.3.61–v0.3.68, Jul 2026)
+
+Eight sequenced releases (a competitive scan of eight AEC products + the ISO 19650 / buildingSMART /
+BIM-KPI frameworks) made the platform demonstrably standards-aligned across the lifecycle and added
+the AI-over-model layer competitors lead with — all offline-first, money behind flagged bridges,
+docs neutral:
+
+1. **v0.3.61 — ISO 19650 CDE**: `information_container` (WIP→Shared→Published→Archived + suitability/
+   revision codes + approval gates) + `info_requirement` register (OIR/AIR/PIR/EIR/BEP/MIDP/TIDP);
+   CDE-discipline metrics; 🗂 CDE / Standards panel.
+2. **v0.3.62 — openBIM quality** (`openbim_quality.py`): LOIN per element, IDS rule-compliance %,
+   IFC export health, bSDD alignment — scored over the model property index.
+3. **v0.3.63 — BIM KPI scorecard** (`bim_kpi.py`): the 10-category information-management scorecard
+   (n/a when inputs absent) + a handover data-drop acceptance gate + Report Center entry; 📊 panel.
+4. **v0.3.64 — AI over the model**: an **MCP server** (`mcp_server.py` + `mcp_tools.py`, SDK optional)
+   exposing the project to external agents, plus grounded **standards-compliance experts**
+   (`standards_expert.py`) referencing the clause behind each finding. [docs/mcp.md](mcp.md).
+5. **v0.3.65 — digital twin + DPP** (`twin.py`, `building_system`): asset↔system linkage + sensor
+   mapping (ISO 23247) + Digital Product Passport scaffolding (GS1/EPD/manufacturer).
+6. **v0.3.66 — procurement compliance gate** (`procurement_gate.py`): per-vendor can-bid / can-bill
+   from the COI / prequal / subcontract / waiver records + the outbound nudge feed.
+7. **v0.3.67 — drawing-sheet extraction** (`sheet_extract.py`): parse a PDF text layer / pasted index
+   into `{number, title, discipline}` → optionally create Drawing records (AI page-image path flagged).
+8. **v0.3.68 — concept space programming** (`adjacency.py`, `space_program`): the program as a
+   node/adjacency graph → gross area + use mix that feed the massing generator; 🧩 Space Program panel.
+
+The platform now spans **land acquisition → programming → design (ISO 19650) → construction → turnover
+→ operations (twin/ESG)** with standards alignment and an AI surface at each stage.

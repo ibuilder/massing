@@ -1,0 +1,114 @@
+{
+  "key": "space_program",
+  "name": "Space Program",
+  "section": "Programming",
+  "icon": "🧩",
+  "ref_prefix": "SP",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Space",
+      "type": "text",
+      "required": true,
+      "fieldset": "Space"
+    },
+    {
+      "name": "space_type",
+      "label": "Type",
+      "type": "select",
+      "required": true,
+      "options": [
+        "Residential Unit",
+        "Office",
+        "Retail",
+        "Lobby",
+        "Circulation / Core",
+        "Parking",
+        "Amenity",
+        "Back-of-House",
+        "Mechanical",
+        "Outdoor / Open Space"
+      ],
+      "fieldset": "Space"
+    },
+    {
+      "name": "target_area_sf",
+      "label": "Target Area (sf each)",
+      "type": "number",
+      "required": true,
+      "fieldset": "Space"
+    },
+    {
+      "name": "quantity",
+      "label": "Quantity",
+      "type": "number",
+      "fieldset": "Space"
+    },
+    {
+      "name": "level",
+      "label": "Level Preference",
+      "type": "text",
+      "fieldset": "Placement"
+    },
+    {
+      "name": "adjacent_to",
+      "label": "Should Be Adjacent To",
+      "type": "multiselect",
+      "options": [
+        "Residential Unit",
+        "Office",
+        "Retail",
+        "Lobby",
+        "Circulation / Core",
+        "Parking",
+        "Amenity",
+        "Back-of-House",
+        "Mechanical",
+        "Outdoor / Open Space"
+      ],
+      "fieldset": "Placement"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "Placement"
+    }
+  ],
+  "workflow": {
+    "initial": "concept",
+    "states": [
+      "concept",
+      "programmed"
+    ],
+    "transitions": [
+      {
+        "from": "concept",
+        "to": "programmed",
+        "action": "confirm",
+        "party": [
+          "Architect",
+          "OwnersRep",
+          "PM"
+        ]
+      },
+      {
+        "from": "programmed",
+        "to": "concept",
+        "action": "revise",
+        "party": [
+          "Architect",
+          "OwnersRep"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "space_type",
+    "target_area_sf",
+    "quantity"
+  ],
+  "workspace": "developer"
+}

@@ -4,12 +4,21 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import design_phase, soft_costs
+from .. import adjacency, design_phase, soft_costs
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_role
 
 router = APIRouter()
+
+
+@router.get("/projects/{pid}/program/summary")
+def program_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Concept space-program rollup + adjacency graph: total/net/gross area, mix by use, the node/edge
+    graph, unmet adjacency preferences, and the massing hints (gross area + use mix) it feeds."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return adjacency.summary(db, pid)
 
 
 def _hard_cost(p: Project) -> float:
