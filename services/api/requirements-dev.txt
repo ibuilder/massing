@@ -1,7 +1,7 @@
 # Test-only dependencies (not shipped in the runtime image).
 #   pip install -r requirements.txt -r requirements-dev.txt
 #   PYTHONPATH=src python run_tests.py
-httpx>=0.27          # required by starlette.testclient
+httpx>=0.28.1          # required by starlette.testclient
 pytest>=8.0          # optional: collects the run_tests gate
 pypdf>=4.0           # read generated PDFs in tests (contract documents)
 ruff>=0.6            # static-analysis gate (config in ruff.toml): dead code + real defects
