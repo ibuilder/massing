@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.56 — Pre-acquisition: due diligence + entitlements (lifecycle R4 of 7)
+Fills the pre-construction gap the lifecycle research surfaced — the 6–36 months of study and
+approvals between site control and capital commitment (grounded in institutional due-diligence
+practice: ALTA/ASTM E1527 categories and the standard entitlement pipeline).
+- **`due_diligence` module** (Acquisition, developer workspace) — study items by category
+  (Title/ALTA survey, Phase I ESA (ASTM E1527), Phase II, Geotechnical, Utility capacity, Traffic,
+  Wetlands/species, Zoning verification, Tax/legal) with consultant, findings, risk level, study cost
+  and ordered/due/received dates. Workflow `open → in_review → cleared | flagged` — a report can't be
+  submitted without findings, and flagging requires a risk level.
+- **`entitlement` module** — applications (Rezoning, Site plan, CUP, Variance, Plat, Comp-plan
+  amendment, Environmental review, Annexation) with agency, submitted/hearing/decision dates, a
+  public-meeting/opposition log, conditions imposed, and **approval expiration**. Workflow
+  `draft → submitted → hearing → approved | denied → appealed → hearing`; revisable for resubmittals.
+- **Go/no-go rollup** — `GET /projects/{pid}/diligence/readiness`: DD by category
+  (cleared/flagged/open), high-risk findings, the entitlement pipeline by state, and approvals
+  expiring within 180 days → one `go` flag. New **“📜 Diligence & Entitlements”** developer panel
+  (readiness banner, high-risk card, category table).
+- Verified live (panel renders the NOT-READY banner, high-risk card, category rollup) +
+  `test_diligence` (workflow gates + rollup), typecheck + 49 vitest green.
+
 ## v0.3.55 — UX, accessibility & front-end performance (readiness R3 of 7)
 - **`prompt()` fully retired from the portal** — a new accessible `promptModal` (on the shared
   modalShell: role=dialog, focus trap, Esc/backdrop close, Enter submits, required-field validation)

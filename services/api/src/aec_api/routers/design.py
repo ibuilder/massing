@@ -51,3 +51,58 @@ def reference(_: str = Depends(current_user)):
     return {"phases": design_phase.PHASES,
             "soft_cost_components": soft_costs.COMPONENTS,
             "ae_phase_split": soft_costs.AE_PHASE_SPLIT}
+
+
+@router.get("/projects/{pid}/diligence/readiness")
+def diligence_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Pre-acquisition go/no-go rollup: due-diligence items by category/state (cleared vs flagged vs
+    open, high-risk flags) + entitlement applications by status (approved vs pending vs denied,
+    approvals nearing expiration). The screen a developer reads before releasing contingencies."""
+    from datetime import date, timedelta
+
+    from .. import modules as me
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+
+    dd = me.list_records(db, "due_diligence", pid, limit=1000) if "due_diligence" in me.TABLES else []
+    by_cat: dict[str, dict] = {}
+    high_risk = []
+    for r in dd:
+        d = r.get("data") or {}
+        cat = d.get("category") or "Other"
+        c = by_cat.setdefault(cat, {"total": 0, "cleared": 0, "flagged": 0, "open": 0})
+        c["total"] += 1
+        st = r.get("workflow_state")
+        c["cleared" if st == "cleared" else "flagged" if st == "flagged" else "open"] += 1
+        if (d.get("risk") or "") in ("High", "Deal-breaker"):
+            high_risk.append({"ref": r.get("ref"), "item": r.get("title"), "risk": d["risk"],
+                              "category": cat, "state": st})
+
+    ents = me.list_records(db, "entitlement", pid, limit=1000) if "entitlement" in me.TABLES else []
+    ent_counts: dict[str, int] = {}
+    expiring = []
+    horizon = date.today() + timedelta(days=180)
+    for r in ents:
+        st = r.get("workflow_state") or "draft"
+        ent_counts[st] = ent_counts.get(st, 0) + 1
+        exp = (r.get("data") or {}).get("approval_expires")
+        if st == "approved" and exp:
+            try:
+                if date.fromisoformat(str(exp)[:10]) <= horizon:
+                    expiring.append({"ref": r.get("ref"), "application": r.get("title"), "expires": exp})
+            except ValueError:
+                pass
+
+    dd_total = len(dd)
+    dd_cleared = sum(c["cleared"] for c in by_cat.values())
+    ents_pending = sum(v for k, v in ent_counts.items() if k in ("draft", "submitted", "hearing", "appealed"))
+    return {
+        "due_diligence": {"total": dd_total, "cleared": dd_cleared,
+                          "flagged": sum(c["flagged"] for c in by_cat.values()),
+                          "by_category": by_cat, "high_risk": high_risk},
+        "entitlements": {"total": len(ents), "by_state": ent_counts,
+                         "approved": ent_counts.get("approved", 0), "pending": ents_pending,
+                         "denied": ent_counts.get("denied", 0), "expiring_within_180d": expiring},
+        "go": bool(dd_total and dd_cleared == dd_total and not high_risk
+                   and not ents_pending and not ent_counts.get("denied")),
+    }

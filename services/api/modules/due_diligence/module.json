@@ -1,0 +1,147 @@
+{
+  "key": "due_diligence",
+  "name": "Due Diligence",
+  "section": "Acquisition",
+  "icon": "🔎",
+  "ref_prefix": "DD",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Item",
+      "type": "text",
+      "required": true,
+      "fieldset": "Item"
+    },
+    {
+      "name": "category",
+      "label": "Category",
+      "type": "select",
+      "required": true,
+      "options": [
+        "Title / ALTA Survey",
+        "Phase I ESA (ASTM E1527)",
+        "Phase II ESA",
+        "Geotechnical",
+        "Utility Capacity",
+        "Traffic Study",
+        "Wetlands / Endangered Species",
+        "Zoning Verification",
+        "Tax / Legal",
+        "Other"
+      ],
+      "fieldset": "Item"
+    },
+    {
+      "name": "consultant",
+      "label": "Consultant / Firm",
+      "type": "text",
+      "fieldset": "Item"
+    },
+    {
+      "name": "findings",
+      "label": "Findings",
+      "type": "textarea",
+      "fieldset": "Findings"
+    },
+    {
+      "name": "risk",
+      "label": "Risk Level",
+      "type": "select",
+      "options": [
+        "None",
+        "Low",
+        "Medium",
+        "High",
+        "Deal-breaker"
+      ],
+      "fieldset": "Findings"
+    },
+    {
+      "name": "cost",
+      "label": "Study Cost",
+      "type": "currency",
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "ordered_date",
+      "label": "Ordered",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "due_date",
+      "label": "Report Due",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "received_date",
+      "label": "Report Received",
+      "type": "date",
+      "fieldset": "Dates"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "in_review",
+      "cleared",
+      "flagged"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "in_review",
+        "action": "submit_report",
+        "party": [
+          "GC",
+          "PM",
+          "OwnersRep"
+        ],
+        "requires": [
+          "findings"
+        ]
+      },
+      {
+        "from": "in_review",
+        "to": "cleared",
+        "action": "clear",
+        "party": [
+          "Owner",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "in_review",
+        "to": "flagged",
+        "action": "flag",
+        "party": [
+          "Owner",
+          "OwnersRep"
+        ],
+        "requires": [
+          "risk"
+        ]
+      },
+      {
+        "from": "flagged",
+        "to": "in_review",
+        "action": "reopen",
+        "party": [
+          "GC",
+          "PM",
+          "OwnersRep"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "category",
+    "risk",
+    "due_date"
+  ],
+  "workspace": "developer"
+}

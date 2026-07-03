@@ -183,6 +183,12 @@ export class PortalUI {
       life.innerHTML = `<span class="ic">🧭</span> Project Lifecycle`;
       life.onclick = () => { this.activeKey = "__lifecycle__"; void this.renderLifecycle(); this.buildNav(); };
       nav.appendChild(life);
+      // Diligence & Entitlements — pre-acquisition go/no-go (DD by category + entitlement pipeline).
+      const dil = document.createElement("button");
+      dil.className = "pnav-item pnav-home" + (this.activeKey === "__diligence__" ? " active" : "");
+      dil.innerHTML = `<span class="ic">📜</span> Diligence & Entitlements`;
+      dil.onclick = () => { this.activeKey = "__diligence__"; void this.renderDiligence(); this.buildNav(); };
+      nav.appendChild(dil);
     }
 
     // first-class Portfolio destination — cross-project executive roll-up (all jobs at a glance)
@@ -958,6 +964,62 @@ export class PortalUI {
       }
     };
     await load();
+  }
+
+  // --- Diligence & Entitlements: pre-acquisition go/no-go rollup --------------------------------
+  private async renderDiligence() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("📜 Diligence & Entitlements", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const pid = this.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Diligence & Entitlements")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Pre-acquisition readiness: due-diligence studies (title/ALTA, Phase I ESA, "
+      + "geotech, utilities, traffic, …) and entitlement applications (rezoning, site plan, variances) "
+      + "rolled into a go/no-go before releasing contingencies. Add records in the Acquisition section.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    let rd;
+    try { rd = await this.host.api.diligenceReadiness(pid); }
+    catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+    body.innerHTML = "";
+    // go / no-go banner
+    const dd = rd.due_diligence; const en = rd.entitlements;
+    const banner = el("div", "dash-card");
+    banner.style.cssText = `border-left:4px solid ${rd.go ? "var(--status-good)" : "var(--status-warn)"};margin-bottom:8px`;
+    banner.innerHTML = `<b>${rd.go ? "✅ GO — diligence cleared, entitlements approved"
+      : "⏳ NOT READY — open items below"}</b>`
+      + `<div class="meta">Due diligence: ${dd.cleared}/${dd.total} cleared · ${dd.flagged} flagged · `
+      + `Entitlements: ${en.approved} approved · ${en.pending} pending · ${en.denied} denied</div>`;
+    body.append(banner);
+    // high-risk flags
+    if (dd.high_risk.length) {
+      const hr = el("div", "dash-card"); hr.style.cssText = "border-left:3px solid var(--status-crit);margin:6px 0";
+      hr.innerHTML = `<b>High-risk findings</b><ul style="margin:4px 0 0 16px;font-size:12px">`
+        + dd.high_risk.map((x) => `<li>${esc(x.ref)} ${esc(x.item || "")} — <b>${esc(x.risk)}</b> (${esc(x.category)})</li>`).join("") + `</ul>`;
+      body.append(hr);
+    }
+    // DD by category
+    const cats = Object.entries(dd.by_category);
+    if (cats.length) {
+      const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin:6px 0";
+      t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Category</th><th scope="col">Cleared</th>`
+        + `<th scope="col">Flagged</th><th scope="col">Open</th></tr></thead><tbody>`
+        + cats.map(([c, v]) => `<tr><td>${esc(c)}</td><td style="text-align:center">${v.cleared}/${v.total}</td>`
+          + `<td style="text-align:center">${v.flagged || ""}</td><td style="text-align:center">${v.open || ""}</td></tr>`).join("")
+        + `</tbody>`;
+      body.append(t);
+    } else {
+      const none = el("div", "meta"); none.textContent = "No due-diligence items yet — add them under Acquisition → Due Diligence.";
+      body.append(none);
+    }
+    // expiring approvals
+    if (en.expiring_within_180d.length) {
+      const ex = el("div", "dash-card"); ex.style.cssText = "border-left:3px solid var(--status-warn);margin:6px 0";
+      ex.innerHTML = `<b>Approvals expiring ≤180 days</b><ul style="margin:4px 0 0 16px;font-size:12px">`
+        + en.expiring_within_180d.map((x) => `<li>${esc(x.ref)} ${esc(x.application || "")} — expires ${esc(x.expires)}</li>`).join("") + `</ul>`;
+      body.append(ex);
+    }
   }
 
   // --- Turnover: substantial completion (G704) + architect punch-list sign-off ------------------

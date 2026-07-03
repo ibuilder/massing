@@ -1,0 +1,168 @@
+{
+  "key": "entitlement",
+  "name": "Entitlements",
+  "section": "Acquisition",
+  "icon": "🏛️",
+  "ref_prefix": "ENT",
+  "title_field": "subject",
+  "pinnable": false,
+  "revisable": true,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Application",
+      "type": "text",
+      "required": true,
+      "fieldset": "Application"
+    },
+    {
+      "name": "application_type",
+      "label": "Type",
+      "type": "select",
+      "required": true,
+      "options": [
+        "Rezoning",
+        "Site Plan Approval",
+        "Conditional Use Permit",
+        "Variance",
+        "Plat / Subdivision",
+        "Comprehensive Plan Amendment",
+        "Environmental Review",
+        "Annexation",
+        "Other"
+      ],
+      "fieldset": "Application"
+    },
+    {
+      "name": "agency",
+      "label": "Agency / Jurisdiction",
+      "type": "text",
+      "fieldset": "Application"
+    },
+    {
+      "name": "description",
+      "label": "Requested Approval",
+      "type": "textarea",
+      "fieldset": "Application"
+    },
+    {
+      "name": "submitted_date",
+      "label": "Submitted",
+      "type": "date",
+      "fieldset": "Process"
+    },
+    {
+      "name": "hearing_date",
+      "label": "Hearing",
+      "type": "date",
+      "fieldset": "Process"
+    },
+    {
+      "name": "decision_date",
+      "label": "Decision",
+      "type": "date",
+      "fieldset": "Process"
+    },
+    {
+      "name": "public_process",
+      "label": "Public Meetings / Opposition Log",
+      "type": "textarea",
+      "fieldset": "Process"
+    },
+    {
+      "name": "conditions",
+      "label": "Conditions Imposed",
+      "type": "textarea",
+      "fieldset": "Outcome"
+    },
+    {
+      "name": "approval_expires",
+      "label": "Approval Expires",
+      "type": "date",
+      "fieldset": "Outcome"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "submitted",
+      "hearing",
+      "approved",
+      "denied",
+      "appealed"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "submitted",
+        "action": "submit",
+        "party": [
+          "GC",
+          "PM",
+          "OwnersRep"
+        ],
+        "requires": [
+          "agency"
+        ]
+      },
+      {
+        "from": "submitted",
+        "to": "hearing",
+        "action": "schedule_hearing",
+        "party": [
+          "GC",
+          "PM",
+          "OwnersRep"
+        ],
+        "requires": [
+          "hearing_date"
+        ]
+      },
+      {
+        "from": "hearing",
+        "to": "approved",
+        "action": "approve",
+        "party": [
+          "Owner",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "hearing",
+        "to": "denied",
+        "action": "deny",
+        "party": [
+          "Owner",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "denied",
+        "to": "appealed",
+        "action": "appeal",
+        "party": [
+          "GC",
+          "PM",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "appealed",
+        "to": "hearing",
+        "action": "rehear",
+        "party": [
+          "GC",
+          "PM",
+          "OwnersRep"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "application_type",
+    "agency",
+    "hearing_date"
+  ],
+  "workspace": "developer"
+}

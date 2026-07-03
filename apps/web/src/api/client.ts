@@ -1345,6 +1345,16 @@ export class ApiClient {
     return this.json<{ seeded: boolean; phases?: number; reason?: string }>(
       `/projects/${pid}/lifecycle/seed`, { method: "POST" });
   }
+  diligenceReadiness(pid: string) {
+    return this.json<{
+      due_diligence: { total: number; cleared: number; flagged: number;
+        by_category: Record<string, { total: number; cleared: number; flagged: number; open: number }>;
+        high_risk: { ref: string; item: string; risk: string; category: string; state: string }[] };
+      entitlements: { total: number; by_state: Record<string, number>; approved: number;
+        pending: number; denied: number;
+        expiring_within_180d: { ref: string; application: string; expires: string }[] };
+      go: boolean }>(`/projects/${pid}/diligence/readiness`);
+  }
 
   // --- turnover: substantial completion (G704) + record model ------------------
   turnoverReadiness(pid: string) {
