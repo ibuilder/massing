@@ -59,6 +59,12 @@ def templates() -> dict:
     }
 
 
+def specs_for_use_case(use_case: str) -> list[dict]:
+    """IDS specs (name / ifc_class / requirements) for a named use case — for model scoring."""
+    uc = USE_CASES.get(use_case)
+    return _specs_for(uc["groups"]) if uc else []
+
+
 def _specs_for(groups: list[str]) -> list[dict]:
     out = []
     for g in groups:

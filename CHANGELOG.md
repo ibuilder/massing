@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.62 — openBIM model-quality scoring (standards C2 of 8)
+Turns the loaded IFC model into measurable buildingSMART quality signals — the layer that makes IDS
+authoring (already shipped) actionable, and feeds the coming BIM KPI scorecard.
+- **`openbim_quality.py`** (`GET /projects/{pid}/openbim/quality`) — pure scoring over the model's
+  property index:
+  - **LOIN per element** (Level of Information Need, the ISO 19650 successor to "LOD") — each element
+    scored across geometry / type / classification / properties / quantities; reports average score,
+    the “coordinated” share (≥4 of 5 facets), and per-facet coverage.
+  - **IDS rule-compliance %** — pass `?use_case=` (fire & life safety, handover COBie, energy,
+    quantities) and every applicable element is scored against its IDS spec (must carry every
+    required property) → per-spec and overall compliance %.
+  - **IFC export health** — proxy/untyped share, type coverage, property coverage graded pass/warn/
+    fail (the authoring-export defects that quietly break QTO, carbon and IDS).
+  - **bSDD / classification alignment %.**
+- Surfaced as an **openBIM model-quality card** in the CDE / Standards panel (degrades to a
+  “load a model” hint when none is open).
+- Verified + `test_openbim_quality` (LOIN distribution, IDS walls 2/3 → 66.7%, export-health proxy
+  flag, bSDD %) over a synthetic index — no live model needed. Typecheck + 49 vitest + Pages build green.
+
 ## v0.3.61 — ISO 19650 information management: CDE + requirements register (standards C1 of 8)
 Opens a standards-alignment track (grounded in ISO 19650, buildingSMART, and the industry BIM-KPI
 frameworks). First: formal information management, replacing scattered document status with a proper

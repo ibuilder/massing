@@ -1125,6 +1125,26 @@ export class PortalUI {
       none.textContent = "No containers or requirements yet — add them under Information Management.";
       body.append(none);
     }
+
+    // openBIM model quality — only meaningful with a model loaded; degrades to a hint on 404.
+    const q = el("div", "dash-card"); q.style.marginTop = "8px";
+    q.innerHTML = `<b>openBIM model quality</b> <span class="meta">scoring the loaded model…</span>`;
+    body.append(q);
+    try {
+      const oq = await this.host.api.openbimQuality(pid, "fire_life_safety");
+      const eh = oq.export_health, lo = oq.loin, bs = oq.bsdd;
+      const grade = (g: string) => g === "pass" ? "✅" : g === "warn" ? "⚠️" : g === "fail" ? "❌" : "—";
+      q.innerHTML = `<b>openBIM model quality</b>`
+        + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
+        + `<tr><td>LOIN — avg ${lo.avg_score}/${lo.max_score}, coordinated</td><td class="num">${lo.coordinated_pct ?? "—"}%</td></tr>`
+        + (oq.ids ? `<tr><td>IDS compliance (fire &amp; life safety)</td><td class="num">${oq.ids.compliance_pct ?? "—"}%</td></tr>` : "")
+        + `<tr><td>bSDD / classification coverage</td><td class="num">${bs.alignment_pct ?? "—"}%</td></tr>`
+        + eh.checks.map((c) => `<tr><td>${grade(c.grade)} ${esc(c.label)}</td><td class="num">${c.pct ?? "—"}%</td></tr>`).join("")
+        + `</table>`;
+    } catch {
+      q.innerHTML = `<b>openBIM model quality</b><div class="meta">Load a model (Model workspace) to `
+        + `score LOIN, IDS compliance, export health and bSDD alignment.</div>`;
+    }
   }
 
   // --- Operations: CMMS — work orders, PM generation, maintenance KPIs --------------------------

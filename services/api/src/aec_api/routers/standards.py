@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import cde
+from .. import cde, ids_authoring, openbim_quality
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user
@@ -34,3 +34,21 @@ def requirements_register(pid: str, db: Session = Depends(get_db), _: str = Depe
     counts and core-document coverage (EIR, BEP, AIR)."""
     _project(db, pid)
     return cde.requirements(db, pid)
+
+
+@router.get("/projects/{pid}/openbim/quality")
+def openbim_quality_scan(pid: str, use_case: str | None = None, db: Session = Depends(get_db),
+                         _: str = Depends(current_user)):
+    """openBIM quality of the loaded model: LOIN per element, IFC export health, bSDD alignment, and
+    (when ?use_case= names an IDS use case) IDS rule-compliance scoring. Needs a loaded model."""
+    _project(db, pid)
+    from .properties import _INDEX, _ensure_loaded
+    _ensure_loaded(pid)
+    idx = _INDEX.get(pid)
+    if not idx:
+        raise HTTPException(404, "no properties index for project — load a model first")
+    specs = ids_authoring.specs_for_use_case(use_case) if use_case else None
+    out = openbim_quality.summary(idx, specs)
+    out["use_case"] = use_case
+    return out
+

@@ -1393,6 +1393,18 @@ export class ApiClient {
       core_coverage: { required: string[]; missing: string[]; complete: boolean }; note: string }>(
       `/projects/${pid}/info-requirements/register`);
   }
+  openbimQuality(pid: string, useCase?: string) {
+    const qs = useCase ? `?use_case=${encodeURIComponent(useCase)}` : "";
+    return this.json<{
+      loin: { total: number; max_score: number; avg_score: number; coordinated_pct: number | null;
+        distribution: Record<string, number>; facet_coverage_pct: Record<string, number | null> };
+      export_health: { total: number; proxy_count: number; overall: string;
+        checks: { key: string; label: string; pct: number | null; grade: string }[] };
+      bsdd: { total: number; classified: number; alignment_pct: number | null };
+      ids?: { compliance_pct: number | null; applicable_total: number; passing_total: number;
+        specs: { name: string; ifc_class: string; applicable: number; passing: number; pct: number | null }[] };
+      use_case: string | null }>(`/projects/${pid}/openbim/quality${qs}`);
+  }
 
   // --- hold-phase asset management: reserve study + CAM reconciliation ----------
   reserveStudy(pid: string, opts: { horizonYears?: number; openingBalance?: number;
