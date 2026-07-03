@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from ..rbac import current_user
 from ..throttle import rate_limited
@@ -32,7 +33,7 @@ async def convert_citygml(file: UploadFile = File(...), _: str = Depends(current
     from .. import citygml
     data = await file.read()
     try:
-        fc = citygml.to_geojson(data)
+        fc = await run_in_threadpool(citygml.to_geojson, data)   # XML parse off the event loop
     except Exception as e:                               # noqa: BLE001 — malformed CityGML
         raise HTTPException(422, f"Could not parse CityGML: {e}")
     if not fc["features"]:
@@ -63,8 +64,10 @@ async def convert(file: UploadFile = File(...), _: str = Depends(current_user),
             frag = Path(td) / "out.frag"
             rvt.write_bytes(await file.read())
             try:
-                subprocess.run(["node", str(_CONVERTER), "--rvt", str(rvt), str(frag)],
-                               check=True, capture_output=True, timeout=1800)
+                # The APS translation can run for many minutes; never block the event loop on it.
+                await run_in_threadpool(
+                    lambda: subprocess.run(["node", str(_CONVERTER), "--rvt", str(rvt), str(frag)],
+                                           check=True, capture_output=True, timeout=1800))
             except subprocess.CalledProcessError as e:
                 raise HTTPException(502, f"APS RVT→IFC translation failed: {(e.stderr or b'').decode()[:300]}")
             except FileNotFoundError:
@@ -75,8 +78,9 @@ async def convert(file: UploadFile = File(...), _: str = Depends(current_user),
                             headers={"Content-Disposition": 'attachment; filename="model.frag"'})
     if ext == "e57":
         from .. import e57
+        data = await file.read()
         try:
-            xyz = e57.convert_to_xyz(await file.read())
+            xyz = await run_in_threadpool(e57.convert_to_xyz, data)   # point-cloud decode off-loop
         except RuntimeError as exc:  # pye57 not installed
             raise HTTPException(503, str(exc))
         except Exception as exc:  # noqa: BLE001 — bad/corrupt E57

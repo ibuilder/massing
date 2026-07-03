@@ -227,7 +227,10 @@ async def run_validate(
         tmp.write_bytes(await file.read())
         ids_path = str(tmp)
     try:
-        return validate.validate_file(ifc, ids_path)
+        # validate_file opens the IFC + runs IDS specs (CPU-bound, seconds+). This endpoint is
+        # async, so run it off the event loop or it blocks every other request on this worker.
+        from starlette.concurrency import run_in_threadpool
+        return await run_in_threadpool(validate.validate_file, ifc, ids_path)
     finally:
         if ids_path:
             Path(ids_path).unlink(missing_ok=True)

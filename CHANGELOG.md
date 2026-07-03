@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.39 — P1: don't block the event loop on heavy IFC/convert/AI work
+- **Async offload of blocking work** (P1 from the review). Several `async` endpoints ran CPU/network-
+  bound work directly on the event loop, stalling *every* other request on that worker for its whole
+  duration. Each now runs in a threadpool (`run_in_threadpool`):
+  - `POST …/validate` — `ifcopenshell.open` + IDS validation (seconds+).
+  - `POST /convert` — the APS RVT→IFC `subprocess.run` (up to a 30-minute block!) and the E57
+    point-cloud decode.
+  - `POST /convert/citygml` — CityGML XML parse.
+  - `POST …/review/{contract,scope,ask}` — server-side PDF text extraction and the LLM calls.
+- **Model load progress** was already real (streamed % + MB with a graceful fallback when the server
+  sends no `Content-Length`) — verified, no change needed.
+
 ## v0.3.38 — P0 hardening: SQL aggregates, SSRF guard, per-endpoint throttle, bounded property cache
 Quick, safe, high-value fixes from the code/UX/perf/security review (Cesium globe deferred — the
 recommendation is to adopt the OGC **3D Tiles** format into the existing three.js viewer if geospatial
