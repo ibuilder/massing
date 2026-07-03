@@ -1,0 +1,4 @@
+# The root .gitignore ignores *.ifc (they're usually large build artifacts / project models),
+# but this folder is the SHIPPED family library — track the generated core + curated externals.
+!library.ifc
+!external/*.ifc

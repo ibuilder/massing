@@ -1803,7 +1803,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         const sel = document.createElement("select"); sel.className = "tool-btn";
         sel.style.cssText = "display:block;width:100%;margin:4px 0"; sel.dataset.cap = "edit";
         sel.innerHTML = `<option value="">＋ Furnish & equip…</option>`;
-        void api.familyCatalog().then((c) => {
+        void api.familyLibrary().then((c) => {
           for (const [cat, items] of Object.entries(c.categories)) {
             const og = document.createElement("optgroup"); og.label = cat;
             for (const it of items) {
@@ -1811,6 +1811,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             }
             sel.appendChild(og);
           }
+          const ext = c.external.length ? ` · ${c.external.length} external` : "";
+          hint.textContent = `${c.count} families in the library${ext}. Click a point to set placement, then pick a family — or import an IFC for more.`;
         }).catch(() => { hint.textContent = "Family library unavailable (API offline)."; });
         const place = toolBtn2("⊕ Place selected family", async () => {
           const key = sel.value;

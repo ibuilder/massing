@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.50 — IFC family library (lifecycle track 2 of 4)
+The "families" folder now ships real `.ifc` content and a browsable library, fully offline.
+- **Generated parametric core library** — `build_family_library.py` writes the whole catalog to a
+  shippable **`services/data/families/library.ifc`** (46 families, each a GUID-stable `IfcTypeProduct`
+  with mapped geometry, IFC4). The catalog gained **openings** (single/double door, fixed/sliding
+  window), **enclosure** (interior partition, exterior wall, curtain-wall panel), and **concrete
+  columns/beams** on top of the existing furniture / sanitary / appliance / lighting / MEP /
+  structural / transport / plant families.
+- **Family-library server** — `GET /families/library` (generated catalog grouped by category +
+  the generated library + any curated external files) and `POST /projects/{pid}/families/place`
+  (place a library family, GUID-stable, via the `add_family` recipe). The viewer's **Furnish & equip**
+  picker now reflects the full library and its family count.
+- **Curated external** — `services/data/families/external/` with a `SOURCES.md` of vetted free openBIM
+  sources (buildingSMART samples, opensourceBIM/IFC-files, NBS National BIM Library, bSDD); drop an
+  `.ifc` there or use `POST /families/import` to bring in manufacturer content. No third-party binaries
+  are bundled without explicit review.
+- Verified: ruff + bandit clean, backend gate (new `test_family_library` — library builds + reopens +
+  place-from-library), web typecheck + 49 vitest + Pages build + budget green.
+
 ## v0.3.49 — Design-phase spine + itemized soft costs (lifecycle track 1 of 4)
 Makes the architect/engineer design lifecycle explicit. Grounded in the RIBA Plan of Work 2020 (stages
 0–7) mapped to the AIA design phases (Schematic Design → Design Development → Construction Documents →

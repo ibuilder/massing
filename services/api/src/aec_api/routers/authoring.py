@@ -98,6 +98,56 @@ async def import_families(pid: str, file: UploadFile = File(...), publish: bool 
     return result
 
 
+@router.get("/families/library")
+def family_library(_: str = Depends(current_user)):
+    """The shippable IFC family library: the generated parametric catalog (grouped by category) plus
+    any curated external `.ifc` files dropped in services/data/families/external. The generated
+    `library.ifc` is real openBIM content that also imports into any project via /families/import."""
+    from aec_data import families  # type: ignore
+    from aec_data.build_family_library import LIBRARY_DIR, LIBRARY_PATH  # type: ignore
+
+    items = families.catalog()
+    cats: dict[str, list] = {}
+    for it in items:
+        cats.setdefault(it["category"], []).append(it)
+    ext_dir = LIBRARY_DIR / "external"
+    external = [{"name": p.name, "size_bytes": p.stat().st_size}
+                for p in sorted(ext_dir.glob("*.ifc"))] if ext_dir.exists() else []
+    lib = {"exists": LIBRARY_PATH.exists(),
+           "size_bytes": LIBRARY_PATH.stat().st_size if LIBRARY_PATH.exists() else 0}
+    return {"count": len(items), "categories": cats, "generated_library": lib, "external": external}
+
+
+@router.post("/projects/{pid}/families/place")
+def place_family(pid: str, family: str = Body(..., embed=True),
+                 position: list[float] | None = Body(default=None, embed=True),
+                 storey: str | None = Body(default=None, embed=True),
+                 publish: bool = Body(default=False, embed=True),
+                 db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """Place a library family into the project's source IFC (new GUID-stable occurrence, new version).
+    Thin wrapper over the `add_family` authoring recipe."""
+    from aec_data import edit as ed  # type: ignore
+
+    p = _project(db, pid)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+    out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+    params: dict = {"family": family}
+    if position:
+        params["position"] = position
+    if storey:
+        params["storey"] = storey
+    result = ed.apply_recipe(p.source_ifc, "add_family", params, out)
+    p.source_ifc = out
+    audit.record(db, action="ifc.place_family", actor=actor, method="POST",
+                 path=f"/projects/{pid}/families/place", detail=result)
+    db.commit()
+    if publish:
+        _publish_bg(pid)
+        result["publish"] = "running"
+    return result
+
+
 @router.post("/projects/{pid}/edit")
 def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
          publish: bool = Body(default=False), db: Session = Depends(get_db),

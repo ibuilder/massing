@@ -1913,6 +1913,19 @@ export class ApiClient {
   familyCatalog() {
     return this.json<{ count: number; categories: Record<string, FamilyItem[]> }>("/families/catalog");
   }
+  /** The shippable IFC family library: the generated parametric catalog (grouped) plus the
+   *  generated `library.ifc` and any curated external `.ifc` files. */
+  familyLibrary() {
+    return this.json<{ count: number; categories: Record<string, FamilyItem[]>;
+      generated_library: { exists: boolean; size_bytes: number };
+      external: { name: string; size_bytes: number }[] }>("/families/library");
+  }
+  /** Place a library family (thin wrapper over the add_family recipe). */
+  placeFamily(pid: string, family: string, position?: [number, number] | null) {
+    return this.json<{ recipe: string; changed: number | string; publish?: string }>(
+      `/projects/${pid}/families/place`, { method: "POST",
+      body: JSON.stringify({ family, position: position || undefined, publish: true }) });
+  }
   /** Place a starter-library family on a storey (optionally at an [E,N] point in metres), then
    *  publish the round-trip. Reuses the `add_family` edit recipe. */
   addFamily(pid: string, family: string, position?: [number, number] | null, storey?: string | null) {
