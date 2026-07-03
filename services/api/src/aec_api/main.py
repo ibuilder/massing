@@ -15,8 +15,8 @@ from fastapi.responses import JSONResponse
 
 from . import metrics
 from .db import init_db
-from .routers import (analysis, auth, authoring, bidding, bim, closeout, connections, contracts, convert, cost,
-                      dashboard, drawings, exports, generate, modules, opendata, realestate, reports, research, review, proforma, properties, schedule,
+from .routers import (analysis, auth, authoring, benchmarking, bidding, bim, closeout, connections, contracts, convert, cost,
+                      dashboard, drafting, drawings, exports, generate, modules, opendata, realestate, reports, research, review, proforma, properties, schedule,
                       templates, verification, payroll, assistant, construction)
 
 _access_log = logging.getLogger("aec.access")
@@ -150,6 +150,8 @@ app.include_router(proforma.router, tags=["proforma"])
 app.include_router(generate.router, tags=["generate"])
 app.include_router(research.router, tags=["research"])
 app.include_router(review.router, tags=["review"])
+app.include_router(drafting.router, tags=["drafting"])
+app.include_router(benchmarking.router, tags=["benchmarking"])
 app.include_router(closeout.router, tags=["closeout"])
 app.include_router(convert.router, tags=["convert"])
 app.include_router(auth.router, tags=["auth"])

@@ -5,9 +5,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends
 from sqlalchemy.orm import Session
 
-from .. import itb as itb_engine, modules as me
+from .. import bid_leveling, itb as itb_engine, modules as me
 from ..db import get_db
 from ..rbac import require_role
+from ..throttle import rate_limited
 
 router = APIRouter()
 
@@ -62,3 +63,22 @@ def leveling(pid: str, db: Session = Depends(get_db), _: str = Depends(require_r
                     "spread": round(max(amts) - low, 2) if len(amts) > 1 else 0.0,
                     "bids": sorted(bids, key=lambda b: (b["amount"] is None, b["amount"] or 0))})
     return {"packages": out, "package_count": len(packages), "bid_count": len(subs)}
+
+
+_level_throttle = rate_limited("draft", 30)   # AI scope-normalization is an LLM call when enabled
+
+
+@router.get("/projects/{pid}/bids/leveling/{package_rid}")
+async def leveling_detail(pid: str, package_rid: str, db: Session = Depends(get_db),
+                          _: str = Depends(require_role("viewer")), __: None = Depends(_level_throttle)):
+    """Deep bid leveling for ONE package: base-bid stats + outliers, an apples-to-apples scope matrix
+    (who includes/excludes each item), scope-gap detection, and a scope-adjusted low-bid recommendation.
+    AI canonicalizes free-text scope phrases when an API key is set; deterministic otherwise."""
+    from starlette.concurrency import run_in_threadpool
+    subs = [s for s in me.list_records(db, "bid_submission", pid, limit=1_000_000)
+            if (s.get("data") or {}).get("package") == package_rid]
+    result = await run_in_threadpool(bid_leveling.level, subs)
+    pkg = next((p for p in me.list_records(db, "bid_package", pid, limit=1_000_000)
+                if p["id"] == package_rid), None)
+    result["package"] = (pkg or {}).get("title") or (pkg or {}).get("ref") or package_rid
+    return result
