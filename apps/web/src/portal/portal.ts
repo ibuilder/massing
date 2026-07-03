@@ -140,6 +140,12 @@ export class PortalUI {
       rr.innerHTML = `<span class="ic">🛡</span> Risk Review`;
       rr.onclick = () => { this.activeKey = "__review__"; this.renderRiskReview(); this.buildNav(); };
       nav.appendChild(rr);
+      // AI Assist — draft RFIs / scopes / submittal summaries from a note or a PDF, and level bids.
+      const ai = document.createElement("button");
+      ai.className = "pnav-item pnav-home" + (this.activeKey === "__aiassist__" ? " active" : "");
+      ai.innerHTML = `<span class="ic">✍️</span> AI Assist`;
+      ai.onclick = () => { this.activeKey = "__aiassist__"; void this.renderAiAssist(); this.buildNav(); };
+      nav.appendChild(ai);
     } else {
       // Developer — jump to the proforma/underwriting workspace (returns, capital stack, cash flow)
       const uw = document.createElement("button");
@@ -155,6 +161,13 @@ export class PortalUI {
     portfolio.innerHTML = `<span class="ic">🏢</span> Portfolio`;
     portfolio.onclick = () => { this.activeKey = "__portfolio__"; void this.renderPortfolio(); this.buildNav(); };
     nav.appendChild(portfolio);
+
+    // Benchmarks — cross-project cost distribution + RFI/submittal response rates (your own history).
+    const bench = document.createElement("button");
+    bench.className = "pnav-item pnav-home" + (this.activeKey === "__benchmarks__" ? " active" : "");
+    bench.innerHTML = `<span class="ic">📈</span> Benchmarks`;
+    bench.onclick = () => { this.activeKey = "__benchmarks__"; void this.renderBenchmarks(); this.buildNav(); };
+    nav.appendChild(bench);
 
     const filter = document.createElement("input");
     filter.type = "search"; filter.placeholder = "Filter…"; filter.className = "portal-filter pnav-filter";
@@ -398,6 +411,215 @@ export class PortalUI {
       tabs.appendChild(b);
     }
     render();
+  }
+
+  // --- AI Assist: draft RFI / scope / submittal summary + bid leveling --------------------------
+  private async renderAiAssist() {
+    const root = this.root; root.innerHTML = "";
+    const pid = this.host.projectId();
+    if (!pid) { root.innerHTML = noProjectHtml("AI Assist"); return; }
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("✍️ AI Assist", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const intro = el("div", "meta");
+    intro.textContent = "Turn a note or a PDF into an editable draft, and level bids apples-to-apples. "
+      + "Works offline; set an Anthropic key in Settings for full AI output. Nothing is created until you click Create.";
+    intro.style.marginBottom = "8px"; root.appendChild(intro);
+    const tabs = el("div"); tabs.style.cssText = "display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap";
+    const body = el("div"); root.append(tabs, body);
+    const TABS: [string, string][] = [["rfi", "📝 Draft RFI"], ["scope", "📋 Draft scope"],
+      ["submittal", "📄 Submittal summary"], ["level", "⚖️ Bid leveling"]];
+    let active = "rfi";
+
+    const fileRow = (accept: string) => {
+      const f = el("input") as HTMLInputElement; f.type = "file"; f.accept = accept;
+      f.style.cssText = "display:block;margin:4px 0"; return f;
+    };
+    const list = (title: string, items: string[]) => {
+      const w = el("div"); w.style.marginTop = "6px";
+      const h = el("div", "meta"); h.innerHTML = `<b>${title}</b> (${items.length})`; w.appendChild(h);
+      const ul = el("ul"); ul.style.cssText = "margin:2px 0 0 16px;font-size:12px";
+      items.forEach((s) => { const li = el("li"); li.textContent = s; ul.appendChild(li); });
+      if (!items.length) { const li = el("div", "meta"); li.textContent = "—"; li.style.marginLeft = "4px"; w.appendChild(li); }
+      else w.appendChild(ul);
+      return w;
+    };
+
+    const render = async () => {
+      body.innerHTML = "";
+      [...tabs.children].forEach((b, i) => b.classList.toggle("active", TABS[i][0] === active));
+
+      if (active === "level") {
+        const pick = el("select", "portal-filter") as HTMLSelectElement; pick.style.cssText = "margin:4px 0";
+        pick.innerHTML = `<option value="">Loading packages…</option>`;
+        const out = el("div"); out.style.marginTop = "8px";
+        body.append(pick, out);
+        try {
+          const pkgs = await this.host.api.moduleRecords(pid, "bid_package");
+          pick.innerHTML = `<option value="">Choose a bid package…</option>`
+            + pkgs.map((p) => `<option value="${p.id}">${(p.title || p.ref || p.id) as string}</option>`).join("");
+        } catch { pick.innerHTML = `<option value="">No bid packages</option>`; }
+        pick.onchange = async () => {
+          if (!pick.value) return;
+          out.textContent = "leveling…";
+          try { this.renderLeveling(out, await this.host.api.bidLevelingDetail(pid, pick.value)); }
+          catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
+        };
+        return;
+      }
+
+      const wantsTrade = active === "scope";
+      let tradeInp: HTMLInputElement | undefined;
+      if (wantsTrade) {
+        tradeInp = el("input", "portal-filter") as HTMLInputElement;
+        tradeInp.placeholder = "Trade — e.g. Concrete, Electrical, HVAC"; tradeInp.style.cssText = "width:100%;margin:4px 0";
+      }
+      const noteInp = active === "rfi" ? el("input", "portal-filter") as HTMLInputElement : undefined;
+      if (noteInp) { noteInp.placeholder = "Describe the question — e.g. beam at B4 clashes with duct per 5/S-201";
+        noteInp.style.cssText = "width:100%;margin:4px 0"; }
+      const file = fileRow(".pdf,.txt");
+      const ta = el("textarea", "portal-filter") as HTMLTextAreaElement;
+      ta.placeholder = "Or paste the spec/plan/submittal text…"; ta.style.cssText = "width:100%;min-height:100px;margin:6px 0";
+      const run = el("button", "file-btn") as HTMLButtonElement;
+      run.textContent = active === "rfi" ? "Draft RFI" : active === "scope" ? "Draft scope" : "Summarize submittal";
+      const out = el("div"); out.style.marginTop = "8px";
+
+      const doRun = async () => {
+        const opts = { file: file.files?.[0], text: ta.value.trim() || undefined };
+        out.textContent = "drafting…";
+        try {
+          if (active === "rfi") {
+            const d = await this.host.api.aiDraftRfi(pid, { note: noteInp!.value.trim(), ...opts });
+            this.renderRfiDraft(out, pid, d);
+          } else if (active === "scope") {
+            const d = await this.host.api.draftScope(pid, tradeInp!.value.trim() || "General", opts);
+            out.innerHTML = "";
+            const h = el("div", "meta"); h.innerHTML = `<b>Scope — ${d.trade}</b> · <span class="meta">${d.source}</span>`;
+            out.append(h, list("Inclusions", d.inclusions || []), list("Exclusions", d.exclusions || []),
+              list("Clarifications", d.clarifications || []), list("Spec sections", d.spec_sections || []));
+            if (d.message) { const m = el("div", "meta"); m.textContent = d.message; m.style.marginTop = "6px"; out.append(m); }
+          } else {
+            const d = await this.host.api.draftSubmittalSummary(pid, opts);
+            out.innerHTML = "";
+            const h = el("div"); h.innerHTML = `<b>${d.title || "Submittal"}</b> — ${d.spec_section || ""} ${d.type || ""}`;
+            const s = el("div"); s.style.cssText = "font-size:12px;margin:4px 0"; s.textContent = d.summary || "";
+            out.append(h, s, list("Key items", d.key_items || []), list("Missing / review", d.missing_or_review || []));
+            if (d.message) { const m = el("div", "meta"); m.textContent = d.message; m.style.marginTop = "6px"; out.append(m); }
+          }
+        } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
+      };
+      run.onclick = () => void doRun();
+      if (tradeInp) body.append(tradeInp);
+      if (noteInp) body.append(noteInp);
+      body.append(file, ta, run, out);
+    };
+    for (const [k, label] of TABS) {
+      const b = el("button", "tool-btn") as HTMLButtonElement; b.textContent = label;
+      b.onclick = () => { active = k; void render(); };
+      tabs.appendChild(b);
+    }
+    await render();
+  }
+
+  private renderRfiDraft(out: HTMLElement, pid: string,
+      d: { subject: string; question: string; discipline: string; spec_section?: string; priority: string;
+           citations?: { page: number; snippet?: string }[]; source: string; message?: string }) {
+    out.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    const subj = el("input", "portal-filter") as HTMLInputElement; subj.value = d.subject; subj.style.cssText = "width:100%;margin:2px 0";
+    const q = el("textarea", "portal-filter") as HTMLTextAreaElement; q.value = d.question; q.style.cssText = "width:100%;min-height:80px;margin:2px 0";
+    const meta = el("div", "meta"); meta.style.margin = "4px 0";
+    meta.textContent = `Discipline: ${d.discipline}${d.spec_section ? " · Spec " + d.spec_section : ""} · Priority ${d.priority} · ${d.source}`;
+    const cite = el("div", "meta");
+    if (d.citations?.length) cite.textContent = "Source: " + d.citations.map((c) => `p.${c.page}`).join(", ");
+    const create = el("button", "file-btn") as HTMLButtonElement; create.textContent = "Create RFI";
+    create.onclick = async () => {
+      create.disabled = true; create.textContent = "creating…";
+      try {
+        await this.host.api.createModuleRecord(pid, "rfi", { data: {
+          subject: subj.value, question: q.value, discipline: d.discipline,
+          spec_section: d.spec_section || "", priority: d.priority } });
+        toast("RFI created", "success"); create.textContent = "✓ Created";
+      } catch (e) { toast(`Create failed: ${(e as Error).message}`, "error"); create.disabled = false; create.textContent = "Create RFI"; }
+    };
+    out.append(el("div", "meta").appendChild(document.createTextNode("Subject")).parentElement!, subj, q, meta, cite, create);
+    if (d.message) { const m = el("div", "meta"); m.textContent = d.message; m.style.marginTop = "6px"; out.append(m); }
+  }
+
+  private renderLeveling(out: HTMLElement, r: Awaited<ReturnType<ApiClient["bidLevelingDetail"]>>) {
+    out.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    if (!r.vendors.length) { out.innerHTML = `<div class="meta">${r.message || "No bids to level."}</div>`; return; }
+    const bs = r.base_stats;
+    const head = el("div", "meta"); head.style.marginBottom = "6px";
+    head.innerHTML = `<b>${r.package}</b> · ${r.vendors.length} bidders · low ${cmoney(bs.low ?? 0)} · median ${cmoney(bs.median ?? 0)}`
+      + ` · high ${cmoney(bs.high ?? 0)} · spread ${bs.spread_pct ?? 0}%`
+      + (r.outliers.length ? ` · <span style="color:var(--status-warn)">outliers: ${r.outliers.join(", ")}</span>` : "");
+    out.append(head);
+    if (r.recommendation) {
+      const rec = el("div"); rec.style.cssText = "margin:4px 0;font-size:12px";
+      rec.innerHTML = `<b>Recommend:</b> ${r.recommendation.apparent_low} @ ${cmoney(r.recommendation.base)} — `
+        + `<span style="color:${r.recommendation.missing_scope.length ? "var(--status-warn)" : "var(--status-good)"}">${r.recommendation.note}</span>`;
+      out.append(rec);
+    }
+    // scope matrix
+    const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:11px;margin-top:6px";
+    const thead = `<tr><th style="text-align:left">Scope item</th>${r.vendors.map((v) => `<th>${v}</th>`).join("")}</tr>`;
+    const rows = r.scope_rows.map((row) => {
+      const cells = r.vendors.map((v) => {
+        const inc = row.included_by.includes(v); const exc = row.excluded_by.includes(v);
+        const mark = inc ? "✓" : exc ? "✗" : "–";
+        const col = inc ? "var(--status-good)" : exc ? "var(--status-crit)" : "var(--muted)";
+        return `<td style="text-align:center;color:${col}">${mark}</td>`;
+      }).join("");
+      const bg = row.gap ? ' style="background:var(--status-warn-bg,#3a2a0022)"' : "";
+      return `<tr${bg}><td>${row.item}${row.gap ? ' <span title="scope gap">⚠️</span>' : ""}</td>${cells}</tr>`;
+    }).join("");
+    tbl.innerHTML = `<thead>${thead}</thead><tbody>${rows}</tbody>`;
+    out.append(tbl);
+    if (r.gaps.length) { const g = el("div", "meta"); g.style.marginTop = "6px";
+      g.textContent = `⚠️ ${r.gaps.length} scope gap(s) — items some bidders carry that others don't. Level these before award.`;
+      out.append(g); }
+  }
+
+  // --- Benchmarks: cross-project cost distribution + response rates ------------------------------
+  private async renderBenchmarks() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("📈 Benchmarks", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Your own history across every project: what things actually cost (per cost code) and "
+      + "how fast RFIs/submittals turn around. Sanity-check a new estimate or hold the team accountable.";
+    root.appendChild(intro);
+    const rr = el("div"); const costs = el("div"); costs.style.marginTop = "10px";
+    root.append(rr, costs);
+    rr.textContent = "loading…"; costs.textContent = "";
+    try {
+      const resp = await this.host.api.benchmarkResponseRates();
+      rr.innerHTML = "";
+      const card = (title: string, m: { total: number; open: number; avg_turnaround_days: number | null; overdue: number; overdue_pct: number }) => {
+        const c = el("div", "kpi-card"); c.style.cssText = "display:inline-block;margin:4px 8px 4px 0;padding:8px 12px;border:1px solid var(--line);border-radius:8px";
+        c.innerHTML = `<div class="meta"><b>${title}</b></div>`
+          + `<div style="font-size:12px">${m.total} total · ${m.open} open · ${m.overdue} overdue (${m.overdue_pct}%)`
+          + ` · avg turnaround ${m.avg_turnaround_days ?? "—"} d</div>`;
+        return c;
+      };
+      rr.append(card("RFIs", resp.rfi), card("Submittals", resp.submittal));
+    } catch (e) { rr.textContent = `response rates failed: ${(e as Error).message}`; }
+    try {
+      const cb = await this.host.api.benchmarkCosts();
+      if (!cb.cost_codes.length) { costs.innerHTML = `<div class="meta">${cb.message || "No cost history yet."}</div>`; }
+      else {
+        const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:12px";
+        tbl.innerHTML = `<thead><tr><th style="text-align:left">Cost code</th><th>n</th><th>low</th><th>p25</th>`
+          + `<th>median</th><th>p75</th><th>high</th></tr></thead><tbody>`
+          + cb.cost_codes.map((c) => `<tr><td>${c.cost_code}</td><td style="text-align:center">${c.samples}</td>`
+            + `<td style="text-align:right">${cmoney(c.low)}</td><td style="text-align:right">${cmoney(c.p25)}</td>`
+            + `<td style="text-align:right"><b>${cmoney(c.median)}</b></td><td style="text-align:right">${cmoney(c.p75)}</td>`
+            + `<td style="text-align:right">${cmoney(c.high)}</td></tr>`).join("") + `</tbody>`;
+        const h = el("div", "meta"); h.style.margin = "10px 0 4px"; h.innerHTML = `<b>Actual cost by code</b> (${cb.code_count} codes, ≥${cb.min_samples} samples each)`;
+        costs.append(h, tbl);
+      }
+    } catch (e) { costs.textContent = `cost benchmarks failed: ${(e as Error).message}`; }
   }
 
   private renderContractFindings(out: HTMLElement, r: { findings: { clause: string; severity: string; category: string;

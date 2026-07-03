@@ -1228,6 +1228,63 @@ export class ApiClient {
     return this.reviewPost<{ answer: string; citations: { page: number; snippet: string }[]; source: string; message?: string }>(
       pid, "ask", { ...opts, question });
   }
+
+  // --- AI drafting (RFI / submittal summary / scope of work) -----------------
+  private async draftPost<T>(pid: string, kind: string, fields: Record<string, string | File | undefined>) {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) if (v != null) fd.append(k, v);
+    const res = await fetch(this.url(`/projects/${pid}/draft/${kind}`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`Draft ${kind} -> ${res.status}`);
+    return res.json() as Promise<T>;
+  }
+  /** Draft an RFI from a short note (+ optional source PDF/text) — editable before you create it. */
+  aiDraftRfi(pid: string, opts: { note?: string; file?: File; text?: string }) {
+    return this.draftPost<{ subject: string; question: string; discipline: string; spec_section?: string;
+      priority: string; suggested_assignee?: string; background?: string;
+      citations?: { page: number; snippet?: string }[]; source: string; message?: string }>(
+      pid, "rfi", { note: opts.note, file: opts.file, text: opts.text });
+  }
+  /** Summarize an uploaded submittal package (title / spec / type / key + missing items). */
+  draftSubmittalSummary(pid: string, opts: { file?: File; text?: string }) {
+    return this.draftPost<{ title: string; spec_section?: string; type?: string; summary: string;
+      key_items?: string[]; missing_or_review?: string[];
+      citations?: { page: number }[]; source: string; message?: string }>(
+      pid, "submittal-summary", { file: opts.file, text: opts.text });
+  }
+  /** Draft a trade scope of work (inclusions / exclusions / clarifications) from a plan/spec set. */
+  draftScope(pid: string, trade: string, opts: { file?: File; text?: string }) {
+    return this.draftPost<{ trade: string; inclusions: string[]; exclusions: string[];
+      clarifications: string[]; spec_sections?: string[];
+      citations?: { page: number }[]; source: string; message?: string }>(
+      pid, "scope", { trade, file: opts.file, text: opts.text });
+  }
+
+  /** Deep bid leveling for one package: base stats, scope matrix, gaps, scope-adjusted recommendation. */
+  bidLevelingDetail(pid: string, packageId: string) {
+    return this.json<{ package: string; vendors: string[];
+      base_stats: { count: number; low?: number; high?: number; median?: number; average?: number; spread_pct?: number };
+      outliers: string[];
+      scope_rows: { item: string; example: string; included_by: string[]; excluded_by: string[]; gap: boolean }[];
+      gaps: { item: string; included_by: string[]; excluded_or_silent: string[] }[];
+      recommendation: { apparent_low: string; base: number; is_outlier: boolean; missing_scope: string[]; note: string } | null;
+      bids: { bidder: string; ref?: string; base?: number; alternates: string[]; bond: boolean; qualifications: string[] }[];
+      source: string; message?: string }>(`/projects/${pid}/bids/leveling/${packageId}`);
+  }
+
+  // --- portfolio benchmarking (cross-project) --------------------------------
+  benchmarkCosts(minSamples = 3) {
+    return this.json<{ cost_codes: { cost_code: string; samples: number; low: number; p25: number;
+      median: number; p75: number; high: number; total: number }[];
+      code_count: number; min_samples: number; codes_below_threshold: number; message?: string | null }>(
+      `/benchmarks/costs?min_samples=${minSamples}`);
+  }
+  benchmarkResponseRates() {
+    return this.json<{ rfi: { total: number; open: number; answered_or_closed: number;
+      avg_turnaround_days: number | null; overdue: number; overdue_pct: number };
+      submittal: { total: number; open: number; returned: number; avg_turnaround_days: number | null;
+      overdue: number; overdue_pct: number } }>(`/benchmarks/response-rates`);
+  }
   /** Download URL for a module's header-only import template (CSV). */
   importTemplateUrl(pid: string, key: string) {
     return this.url(`/projects/${pid}/modules/${key}/import-template.csv`);

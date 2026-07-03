@@ -301,6 +301,12 @@ Deliverables** — with a sticky live-solved returns bar.
   "Real-Estate Development & Feasibility" section. Each backed by tests in the CI gate.
 - **AI assistant** — natural-language **"Ask AI"** over a live project snapshot (Claude when keyed,
   graceful rules fallback) alongside AI risk summaries + AI-drafted RFIs.
+- **AI Assist + Benchmarks** — draft **RFIs**, **submittal summaries**, and trade **scopes of work**
+  from a note or a PDF (editable, source-cited, human-in-the-loop before Create); **bid leveling** that
+  normalizes a package's bids into an apples-to-apples grid with outlier + **scope-gap** detection and a
+  scope-adjusted low recommendation; and cross-project **Benchmarks** — actual cost distribution per
+  cost code (p25/median/p75) and RFI/submittal turnaround + overdue %. All offline-capable (Claude when
+  keyed). Every AI engine ships with a deterministic fallback so nothing is fabricated.
 - **Accounts & onboarding** — **SSO** (Google / Microsoft / Procore), a no-admin free-tier model,
   first-run **welcome + skippable tour**, and **field capture** (offline photo → punchlist/observation,
   syncs on reconnect) for the mobile/jobsite path.

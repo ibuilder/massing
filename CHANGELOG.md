@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.41 — Competitive Tier 1: AI drafting, bid leveling, cross-project benchmarking
+Market-driven upgrades from a competitive review (Procore "Future State of Construction" survey +
+BuildZen / Jet.build / AEC Foundry / Belidor / ContractorPlus). Each AI engine mirrors the existing
+`review.py`: Claude when `ANTHROPIC_API_KEY` is set, a deterministic **offline fallback** otherwise,
+every output **source-linked**, never fabricated; heavy calls run off the event loop and are throttled.
+- **AI drafting** (`drafting.py`, **AI Assist** panel) — turn a note or a PDF into an editable
+  first-draft **RFI**, **submittal summary**, or trade **scope of work** with page citations, so teams
+  stop retyping from documents (the report's "18% of project time is spent searching for data").
+  Human-in-the-loop: nothing is created until you click **Create**.
+- **Bid leveling** (`bid_leveling.py`) — level a package's `bid_submission` records into an
+  apples-to-apples grid: base-bid stats + >25% **outlier** flags, a **scope matrix** (who includes/
+  excludes each item), **scope-gap** detection, and a **scope-adjusted low** recommendation (a low bid
+  missing scope others carry is flagged). Optional AI canonicalizes free-text scope phrases.
+  `GET /projects/{pid}/bids/leveling/{package_rid}`; shown as a grid in the AI Assist panel.
+- **Cross-project benchmarking** (`benchmarking.py`, **Benchmarks** panel) — your own history across
+  every project: actual **cost distribution** (low/p25/median/p75/high) per cost code, and RFI/submittal
+  **turnaround + overdue %** (ball-in-court accountability). Answers the survey's "76% aren't realizing
+  their data's potential." `GET /benchmarks/costs`, `/benchmarks/response-rates`.
+- **Test-gate fix:** `run_tests.py` used a hardcoded list that silently skipped 12 on-disk suites
+  (this session's throttle/route-order/module-schema/interop + pre-existing review/gbxml/analytics/
+  discipline/module-config). All are now wired in — the gate runs **86 suites** (was counting 74).
+- Verified: 86/86 backend suites, web typecheck + 49 vitest + Pages build + bundle budget all green.
+
 ## v0.3.40 — P2: Pydantic module-schema layer (single source of truth for module.json)
 - **`module_schema.py`** — a Pydantic `ModuleSchema`/`FieldDef`/`Workflow`/`Transition` layer that
   formalizes what a valid `module.json` is. The config test and the runtime loader now validate against
