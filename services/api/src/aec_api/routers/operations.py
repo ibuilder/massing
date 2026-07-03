@@ -1,10 +1,12 @@
-"""Operations-phase endpoints — CMMS (PM generation + KPIs) and energy (EUI/trends + bridge status)."""
+"""Operations-phase endpoints — CMMS (PM generation + KPIs), energy (EUI/trends + bridge status),
+reserve study / capital plan, and CAM reconciliation."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
+
 from sqlalchemy.orm import Session
 
-from .. import audit, cmms, energy, energy_star_bridge
+from .. import audit, cam, cmms, energy, energy_star_bridge, reserve
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_role
@@ -54,3 +56,45 @@ def benchmark_status(_: str = Depends(current_user)):
     """Whether an external benchmarking sync (EPA Portfolio Manager) is configured; local EUI/trends
     work without it."""
     return energy_star_bridge.status()
+
+
+@router.get("/projects/{pid}/reserves/study")
+def reserve_study(pid: str, horizon_years: int = 25, opening_balance: float = 0.0,
+                  annual_contribution: float = 0.0, inflation_pct: float = 0.0,
+                  db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Reserve study: recurring replacement events (asset register install + expected life +
+    replacement cost, plus open capital-plan items), year-by-year balance trajectory, first
+    underfunded year, and the suggested level annual contribution."""
+    _project(db, pid)
+    return reserve.study(db, pid, horizon_years=horizon_years, opening_balance=opening_balance,
+                         annual_contribution=annual_contribution, inflation_pct=inflation_pct)
+
+
+@router.get("/projects/{pid}/cam/reconciliation")
+def cam_reconciliation(pid: str, year: int | None = None, gross_up_to_pct: float = 95.0,
+                       building_sf: float | None = None, db: Session = Depends(get_db),
+                       _: str = Depends(current_user)):
+    """CAM true-up for an operating year: recoverable pool (variable lines grossed up to the stated
+    occupancy), per-tenant pro-rata share vs estimated payments, balance due/credit."""
+    _project(db, pid)
+    return cam.reconciliation(db, pid, year=year, gross_up_to_pct=gross_up_to_pct,
+                              building_sf=building_sf)
+
+
+@router.get("/projects/{pid}/cam/statement/{rid}.pdf")
+def cam_statement(pid: str, rid: str, year: int | None = None, gross_up_to_pct: float = 95.0,
+                  building_sf: float | None = None, db: Session = Depends(get_db),
+                  actor: str = Depends(require_role("reviewer"))):
+    """Per-tenant CAM reconciliation statement (PDF) for the lease record `rid`."""
+    p = _project(db, pid)
+    recon = cam.reconciliation(db, pid, year=year, gross_up_to_pct=gross_up_to_pct,
+                               building_sf=building_sf)
+    row = next((t for t in recon["tenants"] if t["id"] == rid or t["ref"] == rid), None)
+    if not row:
+        raise HTTPException(404, "lease not found in the reconciliation (needs rentable_sf)")
+    pdf = cam.statement_pdf(recon, row, p.name or pid)
+    audit.record(db, action="cam.statement", actor=actor, method="GET",
+                 path=f"/projects/{pid}/cam/statement/{rid}.pdf", detail={"year": recon["year"]})
+    db.commit()
+    return Response(content=pdf, media_type="application/pdf", headers={
+        "Content-Disposition": f'attachment; filename="cam-statement-{row["ref"]}-{recon["year"]}.pdf"'})

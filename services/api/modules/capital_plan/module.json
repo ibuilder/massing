@@ -1,0 +1,141 @@
+{
+  "key": "capital_plan",
+  "name": "Capital Plan (CIP)",
+  "section": "Operations",
+  "icon": "🏗️",
+  "ref_prefix": "CIP",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Capital Item",
+      "type": "text",
+      "required": true,
+      "fieldset": "Item"
+    },
+    {
+      "name": "category",
+      "label": "Category",
+      "type": "select",
+      "options": [
+        "Roof",
+        "HVAC",
+        "Elevator",
+        "Facade / Envelope",
+        "Parking / Paving",
+        "Interior Common Area",
+        "Life Safety",
+        "Technology / Controls",
+        "Tenant Improvement",
+        "Other"
+      ],
+      "fieldset": "Item"
+    },
+    {
+      "name": "asset",
+      "label": "Asset",
+      "type": "reference",
+      "module": "asset_register",
+      "fieldset": "Item"
+    },
+    {
+      "name": "planned_year",
+      "label": "Planned Year",
+      "type": "number",
+      "required": true,
+      "fieldset": "Plan"
+    },
+    {
+      "name": "cost",
+      "label": "Estimated Cost",
+      "type": "currency",
+      "required": true,
+      "fieldset": "Plan"
+    },
+    {
+      "name": "priority",
+      "label": "Priority",
+      "type": "select",
+      "options": [
+        "Critical (life safety / code)",
+        "Recommended (end of life)",
+        "Discretionary (value add)"
+      ],
+      "fieldset": "Plan"
+    },
+    {
+      "name": "funding_source",
+      "label": "Funding Source",
+      "type": "select",
+      "options": [
+        "Reserves",
+        "Operating Cash",
+        "Loan",
+        "Capital Call",
+        "Grant / Incentive"
+      ],
+      "fieldset": "Plan"
+    },
+    {
+      "name": "roi_note",
+      "label": "ROI / Justification",
+      "type": "textarea",
+      "fieldset": "Plan"
+    }
+  ],
+  "workflow": {
+    "initial": "proposed",
+    "states": [
+      "proposed",
+      "approved",
+      "funded",
+      "complete"
+    ],
+    "transitions": [
+      {
+        "from": "proposed",
+        "to": "approved",
+        "action": "approve",
+        "party": [
+          "Owner",
+          "OwnersRep",
+          "PM"
+        ]
+      },
+      {
+        "from": "approved",
+        "to": "funded",
+        "action": "fund",
+        "party": [
+          "Owner",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "funded",
+        "to": "complete",
+        "action": "complete",
+        "party": [
+          "GC",
+          "PM"
+        ]
+      },
+      {
+        "from": "approved",
+        "to": "proposed",
+        "action": "defer",
+        "party": [
+          "Owner",
+          "OwnersRep"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "category",
+    "planned_year",
+    "cost"
+  ],
+  "workspace": "developer"
+}

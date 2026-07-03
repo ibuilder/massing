@@ -1379,6 +1379,46 @@ export class ApiClient {
       `/energy/benchmark-status`);
   }
 
+  // --- hold-phase asset management: reserve study + CAM reconciliation ----------
+  reserveStudy(pid: string, opts: { horizonYears?: number; openingBalance?: number;
+      annualContribution?: number; inflationPct?: number } = {}) {
+    const q = new URLSearchParams();
+    if (opts.horizonYears) q.set("horizon_years", String(opts.horizonYears));
+    if (opts.openingBalance) q.set("opening_balance", String(opts.openingBalance));
+    if (opts.annualContribution) q.set("annual_contribution", String(opts.annualContribution));
+    if (opts.inflationPct) q.set("inflation_pct", String(opts.inflationPct));
+    const qs = q.toString();
+    return this.json<{ horizon: { from: number; to: number }; components: number;
+      components_missing_data: number;
+      events: { year: number; item: string; cost: number; cost_escalated: number; source: string; ref: string }[];
+      schedule: { year: number; outflows: number; contribution: number; balance: number }[];
+      total_outflows: number; first_underfunded_year: number | null; adequately_funded: boolean;
+      suggested_level_contribution: number; note: string }>(
+      `/projects/${pid}/reserves/study${qs ? `?${qs}` : ""}`);
+  }
+  camReconciliation(pid: string, opts: { year?: number; grossUpToPct?: number; buildingSf?: number } = {}) {
+    const q = new URLSearchParams();
+    if (opts.year) q.set("year", String(opts.year));
+    if (opts.grossUpToPct) q.set("gross_up_to_pct", String(opts.grossUpToPct));
+    if (opts.buildingSf) q.set("building_sf", String(opts.buildingSf));
+    const qs = q.toString();
+    return this.json<{ year: number; occupied_sf: number; building_sf: number; occupancy_pct: number;
+      gross_up_to_pct: number;
+      expense_lines: { ref: string; category: string; budget: number; actual: number;
+        variable: boolean; recoverable: boolean; grossed_up: number }[];
+      budget_total: number; actual_total: number; recoverable_pool: number;
+      tenants: { id: string; ref: string; tenant: string; suite: string; rentable_sf: number;
+        share_pct: number; share_of_expenses: number; estimated_paid: number; balance_due: number }[];
+      note: string }>(`/projects/${pid}/cam/reconciliation${qs ? `?${qs}` : ""}`);
+  }
+  camStatementUrl(pid: string, rid: string, opts: { year?: number; buildingSf?: number } = {}) {
+    const q = new URLSearchParams();
+    if (opts.year) q.set("year", String(opts.year));
+    if (opts.buildingSf) q.set("building_sf", String(opts.buildingSf));
+    const qs = q.toString();
+    return this.url(`/projects/${pid}/cam/statement/${rid}.pdf${qs ? `?${qs}` : ""}`);
+  }
+
   // --- turnover: substantial completion (G704) + record model ------------------
   turnoverReadiness(pid: string) {
     return this.json<{ punch: { count: number; verified: number; open: number;

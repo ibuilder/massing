@@ -63,6 +63,18 @@
       "fieldset": "Service"
     },
     {
+      "name": "expected_life_years",
+      "label": "Expected Life (yrs)",
+      "type": "number",
+      "fieldset": "Reserve Study"
+    },
+    {
+      "name": "replacement_cost",
+      "label": "Replacement Cost",
+      "type": "currency",
+      "fieldset": "Reserve Study"
+    },
+    {
       "name": "service_contact",
       "label": "Service Contact",
       "type": "text",

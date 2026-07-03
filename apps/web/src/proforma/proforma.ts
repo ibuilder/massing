@@ -113,7 +113,7 @@ export class ProformaUI {
     // sub-tabs — Overview is the executive command center (default landing), then the detail panels
     const TABS: [string, string][] = [["over", "Overview"], ["feas", "Feasibility"], ["cap", "Budget & Capital"],
                                       ["uw", "Underwriting"], ["fin", "Statements"], ["appr", "Valuation"],
-                                      ["ops", "Operations"], ["inv", "Investors"], ["deliver", "Deliverables"]];
+                                      ["ops", "Operations"], ["asset", "Asset Mgmt"], ["inv", "Investors"], ["deliver", "Deliverables"]];
     const tabbar = document.createElement("div"); tabbar.className = "pf-subtabs";
     const sections: Record<string, HTMLElement> = {}; const tabBtns: Record<string, HTMLButtonElement> = {};
     for (const [key, label] of TABS) {
@@ -129,6 +129,7 @@ export class ProformaUI {
       if (k === "fin") void this.renderStatements(sections.fin);   // (re)compute statements from the live deal
       if (k === "appr") void this.renderAppraisal(sections.appr);  // tri-approach valuation + disposition
       if (k === "ops") void this.renderOperations(sections.ops);   // hold-phase rent roll
+      if (k === "asset") void this.renderAssetMgmt(sections.asset); // reserve study + CIP + CAM true-up
       if (k === "inv") void this.renderInvestors(sections.inv);    // cap table + capital + statements
     };
     // route each panel into its section by temporarily pointing this.root at the section
@@ -496,6 +497,121 @@ export class ProformaUI {
       lx.href = this.api.reportUrl(pid, "lease_management", "xlsx"); lx.target = "_blank"; lx.rel = "noopener";
       lb.append(ll, lx); card.appendChild(lb); host.appendChild(card);
     } catch { /* leases optional — omit the card if it can't load */ }
+  }
+
+  /** Asset Mgmt tab: reserve study (replacement schedule + funding adequacy), CIP, CAM true-up. */
+  private async renderAssetMgmt(host: HTMLElement) {
+    const pid = this.projectId();
+    if (!pid) { host.innerHTML = `<div class="meta">Open or save a project to manage the asset.</div>`; return; }
+    host.innerHTML = "";
+    const intro = document.createElement("div"); intro.className = "meta"; intro.style.marginBottom = "8px";
+    intro.textContent = "Hold-phase capital stewardship: the reserve study projects component replacements "
+      + "(asset register: install date + expected life + replacement cost) and open capital-plan items over "
+      + "the horizon and tests funding adequacy; the CAM reconciliation trues up tenant recoveries against "
+      + "actual operating expenses with a variable-only gross-up.";
+    host.appendChild(intro);
+
+    // --- reserve study card ---------------------------------------------------------------------
+    const rcard = document.createElement("div"); rcard.className = "fin-card";
+    rcard.innerHTML = `<div class="section-title">Reserve study</div>`;
+    const form = document.createElement("div"); form.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:8px";
+    const num = (label: string, value: string, width = 110) => {
+      const wrap = document.createElement("label"); wrap.className = "meta"; wrap.style.cssText = "display:flex;flex-direction:column;gap:2px";
+      const inp = document.createElement("input"); inp.type = "number"; inp.value = value; inp.style.width = `${width}px`;
+      wrap.textContent = label; wrap.appendChild(inp);
+      return { wrap, inp };
+    };
+    const bal = num("Reserve balance ($)", "0");
+    const contrib = num("Annual contribution ($)", "0");
+    const horizon = num("Horizon (yrs)", "25", 70);
+    const infl = num("Inflation (%)", "3", 70);
+    const solveBtn = document.createElement("button"); solveBtn.className = "file-btn"; solveBtn.textContent = "Run study";
+    form.append(bal.wrap, contrib.wrap, horizon.wrap, infl.wrap, solveBtn);
+    rcard.appendChild(form);
+    const rout = document.createElement("div"); rcard.appendChild(rout);
+    host.appendChild(rcard);
+    const runStudy = async () => {
+      rout.innerHTML = `<div class="meta">Projecting replacements…</div>`;
+      try {
+        const rs = await this.api.reserveStudy(pid, {
+          horizonYears: Number(horizon.inp.value) || 25, openingBalance: Number(bal.inp.value) || 0,
+          annualContribution: Number(contrib.inp.value) || 0, inflationPct: Number(infl.inp.value) || 0,
+        });
+        rout.innerHTML = "";
+        const banner = document.createElement("div"); banner.className = "meta";
+        banner.style.cssText = `padding:6px 8px;border-left:3px solid var(${rs.adequately_funded ? "--status-good" : "--status-warn"});margin-bottom:6px`;
+        banner.innerHTML = rs.adequately_funded
+          ? `<b>Adequately funded</b> through ${rs.horizon.to} at this contribution.`
+          : `<b>Underfunded</b> — reserve balance goes negative in <b>${rs.first_underfunded_year}</b>. `
+            + `Suggested level contribution: <b>${money(rs.suggested_level_contribution)}/yr</b>.`;
+        rout.appendChild(banner);
+        const meta = document.createElement("div"); meta.className = "meta"; meta.style.marginBottom = "6px";
+        meta.textContent = `${rs.components} component(s) in the study · ${rs.components_missing_data} missing `
+          + `life/cost data · total projected outflows ${money(rs.total_outflows)} through ${rs.horizon.to}.`;
+        rout.appendChild(meta);
+        if (rs.events.length) {
+          const t = document.createElement("table"); t.className = "fin-table";
+          t.innerHTML = `<tr><th style="text-align:left">Year</th><th style="text-align:left">Replacement</th><th class="num">Cost (escalated)</th></tr>`
+            + rs.events.slice(0, 20).map((e) => `<tr><td>${e.year}</td><td>${escapeHtml(e.item)}${e.source === "cip" ? " <span class=\"meta\">(CIP)</span>" : ""}</td>`
+              + `<td class="num">${money(e.cost_escalated)}</td></tr>`).join("")
+            + (rs.events.length > 20 ? `<tr><td colspan="3" class="meta">… ${rs.events.length - 20} more event(s)</td></tr>` : "");
+          rout.appendChild(t);
+        } else {
+          rout.insertAdjacentHTML("beforeend", `<div class="meta">No components with expected life + replacement cost yet — `
+            + `fill the Reserve Study fields on Asset Register records (Construction ▸ Closeout ▸ Asset Register).</div>`);
+        }
+      } catch (e) { rout.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+    };
+    solveBtn.onclick = () => void runStudy();
+    void runStudy();
+
+    // --- capital plan (CIP) ---------------------------------------------------------------------
+    try {
+      const cips = await this.api.moduleRecords(pid, "capital_plan");
+      if (cips.length) {
+        const card = document.createElement("div"); card.className = "fin-card"; card.style.marginTop = "10px";
+        card.innerHTML = `<div class="section-title">Capital plan (CIP)</div>`
+          + `<table class="fin-table"><tr><th style="text-align:left">Ref</th><th style="text-align:left">Item</th>`
+          + `<th class="num">Year</th><th class="num">Cost</th><th>Priority</th><th>State</th></tr>`
+          + cips.map((r) => {
+            const d = (r.data || {}) as Record<string, string>;
+            return `<tr><td>${escapeHtml(r.ref || "")}</td><td>${escapeHtml(d.subject || "")}</td>`
+              + `<td class="num">${escapeHtml(String(d.planned_year || ""))}</td><td class="num">${money(Number(d.cost) || 0)}</td>`
+              + `<td>${escapeHtml((d.priority || "").split(" (")[0])}</td><td>${escapeHtml(r.workflow_state || "")}</td></tr>`;
+          }).join("") + `</table>`;
+        host.appendChild(card);
+      }
+    } catch { /* CIP module optional */ }
+
+    // --- CAM reconciliation ---------------------------------------------------------------------
+    const ccard = document.createElement("div"); ccard.className = "fin-card"; ccard.style.marginTop = "10px";
+    ccard.innerHTML = `<div class="section-title">CAM reconciliation</div>`;
+    const cout = document.createElement("div"); ccard.appendChild(cout); host.appendChild(ccard);
+    try {
+      const rec = await this.api.camReconciliation(pid);
+      if (!rec.expense_lines.length && !rec.tenants.length) {
+        cout.innerHTML = `<div class="meta">No CAM expenses or leases yet — add expense lines under `
+          + `Construction ▸ Operations ▸ CAM Expenses and leases with rentable SF.</div>`;
+      } else {
+        cout.innerHTML = `<table class="fin-table">`
+          + `<tr><td>Operating year · occupancy</td><td class="num">${rec.year} · ${rec.occupancy_pct}%</td></tr>`
+          + `<tr><td>Operating expenses (budget → actual)</td><td class="num">${money(rec.budget_total)} → ${money(rec.actual_total)}</td></tr>`
+          + `<tr class="fin-total"><td>Recoverable pool (grossed to ${rec.gross_up_to_pct}%)</td><td class="num">${money(rec.recoverable_pool)}</td></tr></table>`;
+        if (rec.tenants.length) {
+          const t = document.createElement("table"); t.className = "fin-table"; t.style.marginTop = "6px";
+          t.innerHTML = `<tr><th style="text-align:left">Tenant</th><th class="num">SF</th><th class="num">Share</th>`
+            + `<th class="num">Owed</th><th class="num">Paid (est.)</th><th class="num">True-up</th><th></th></tr>`
+            + rec.tenants.map((tn) => `<tr><td>${escapeHtml(tn.tenant || tn.ref)}</td>`
+              + `<td class="num">${tn.rentable_sf.toLocaleString()}</td><td class="num">${tn.share_pct}%</td>`
+              + `<td class="num">${money(tn.share_of_expenses)}</td><td class="num">${money(tn.estimated_paid)}</td>`
+              + `<td class="num">${tn.balance_due >= 0 ? money(tn.balance_due) + " due" : money(-tn.balance_due) + " cr"}</td>`
+              + `<td><a class="file-btn" href="${this.api.camStatementUrl(pid, tn.id)}" target="_blank" rel="noopener">⬇ Statement</a></td></tr>`).join("");
+          cout.appendChild(t);
+        }
+        const note = document.createElement("div"); note.className = "meta"; note.style.marginTop = "6px";
+        note.textContent = rec.note; cout.appendChild(note);
+      }
+    } catch (e) { cout.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }
 
   /** Investors tab: cap table, capital calls / distributions, per-investor statement. */

@@ -1,0 +1,95 @@
+{
+  "key": "cam_expense",
+  "name": "CAM Expenses",
+  "section": "Operations",
+  "icon": "🧮",
+  "ref_prefix": "CAM",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Expense Line",
+      "type": "text",
+      "required": true,
+      "fieldset": "Expense"
+    },
+    {
+      "name": "category",
+      "label": "Category",
+      "type": "select",
+      "required": true,
+      "options": [
+        "Cleaning / Janitorial",
+        "Repairs & Maintenance",
+        "Utilities (common)",
+        "Roads / Grounds / Landscaping",
+        "Security",
+        "Administrative",
+        "Management Fee",
+        "Insurance",
+        "Real Estate Taxes",
+        "Other"
+      ],
+      "fieldset": "Expense"
+    },
+    {
+      "name": "year",
+      "label": "Expense Year",
+      "type": "number",
+      "required": true,
+      "fieldset": "Expense"
+    },
+    {
+      "name": "budget_annual",
+      "label": "Budget (annual)",
+      "type": "currency",
+      "fieldset": "Amounts"
+    },
+    {
+      "name": "actual_annual",
+      "label": "Actual (annual)",
+      "type": "currency",
+      "fieldset": "Amounts"
+    },
+    {
+      "name": "variable",
+      "label": "Varies with Occupancy",
+      "type": "select",
+      "options": [
+        "Yes",
+        "No"
+      ],
+      "fieldset": "Recovery"
+    },
+    {
+      "name": "recoverable",
+      "label": "Recoverable (CAM)",
+      "type": "select",
+      "options": [
+        "Yes",
+        "No"
+      ],
+      "fieldset": "Recovery"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "Recovery"
+    }
+  ],
+  "workflow": {
+    "initial": "recorded",
+    "states": [
+      "recorded"
+    ],
+    "transitions": []
+  },
+  "list_columns": [
+    "category",
+    "year",
+    "actual_annual"
+  ],
+  "workspace": "developer"
+}

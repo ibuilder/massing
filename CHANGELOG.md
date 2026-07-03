@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.58 — Capital planning + CAM reconciliation (lifecycle R6 of 7)
+Hold-phase capital stewardship: will the reserves cover the roof in 2031, and did tenants pay their
+fair share of operating expenses this year?
+- **Reserve study** (`reserve.py`) — the asset register grows Reserve Study fields (expected life,
+  replacement cost); `GET /projects/{pid}/reserves/study` projects recurring component replacements
+  plus open capital-plan items over a 20–40 yr horizon (inflation-escalated), runs the year-by-year
+  reserve balance, flags the **first underfunded year**, and solves the **suggested level annual
+  contribution** that keeps the fund solvent.
+- **`capital_plan` module (CIP)** — capital items with planned year, cost, priority
+  (critical/recommended/discretionary), funding source and ROI note; workflow
+  `proposed → approved → funded → complete`. Open items ride the reserve projection.
+- **`cam_expense` module + CAM true-up** (`cam.py`) — operating-expense lines by standard category
+  (janitorial, R&M, utilities, security, admin, management, insurance, taxes) with budget/actual and
+  variable/recoverable flags. `GET …/cam/reconciliation`: recoverable pool with **variable-only
+  gross-up** to a stated occupancy (fixed expenses pass at actual), each tenant's pro-rata share vs
+  estimated payments (lease `recovery_psf` × sf), balance due or credit.
+- **Per-tenant statement PDF** — `GET …/cam/statement/{lease}.pdf`: expense pool by category, the
+  tenant's share, estimated payments, true-up balance.
+- **Finance ▸ “Asset Mgmt” tab** — reserve-study runner (balance / contribution / horizon /
+  inflation inputs, funding banner, replacement schedule), CIP table, CAM reconciliation with
+  per-tenant statement downloads.
+- Verified live (underfunded banner + suggested $/yr, escalated recurring events, CAM table w/ PDF
+  served) + `test_reserves_cam`; typecheck green.
+
 ## v0.3.57 — Operations: CMMS + metered energy (lifecycle R5 of 7)
 The biggest post-turnover gap: ~80% of a building's lifetime cost is operations. Adds the CMMS loop
 (preventive maintenance before failures) and utility metering (EUI benchmarking) — fully offline.
