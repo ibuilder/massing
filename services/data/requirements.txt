@@ -7,7 +7,7 @@ trimesh>=4.0          # clash narrow phase (mesh booleans) + 2D section cuts
 manifold3d>=2.0       # boolean intersection engine for trimesh
 scipy>=1.11           # trimesh path assembly (section drawings)
 networkx>=3.0         # trimesh path traversal (section drawings)
-shapely>=2.0          # trimesh planar paths
+shapely>=2.1.2          # trimesh planar paths
 reportlab>=4.0        # PDF sheet composition
 # svglib (SVG→PNG for docs gallery) is a dev-only tool — it pulls pycairo/cairo and is not
 # needed at runtime (the API serves SVG directly). Install ad hoc when regenerating docs/img.
