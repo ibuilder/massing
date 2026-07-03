@@ -95,9 +95,11 @@ with TestClient(app) as c:
     ce = mk(c, pid, "change_event", {"subject": "Added steel at C4", "rom": 85000, "source_rfi": rfis[0], "trades": ["Steel", "Concrete"]}, "pm")
     pco = mk(c, pid, "pco_request", {"subject": "PCO - added steel", "description": "Added WF beam + connections at C4", "rough_cost": 92500, "source_rfi": rfis[0], "change_event": ce}, "owner")
     mk(c, pid, "cor", {"subject": "COR 001 - steel", "amount": 92500, "justification": "Owner-directed", "pco": pco})
-    insp = mk(c, pid, "inspection", {"subject": "Level 2 deck pour", "location": "Grid C-E", "result": "Fail", "date": "2026-06-14"}, "qa")
-    mk(c, pid, "ncr", {"subject": "Honeycomb at column", "description": "Voids on north face", "severity": "Major", "inspection": insp}, "sub")
-    mk(c, pid, "submittal", {"subject": "Rebar shop drawings", "spec_section": "03 20 00", "discipline": "Structural"}, "sub")
+    insp = mk(c, pid, "inspection", {"subject": "Level 2 deck pour", "inspection_type": "Structural",
+                                     "location": "Grid C-E", "result": "Fail", "date": "2026-06-14"}, "qa")
+    mk(c, pid, "ncr", {"subject": "Honeycomb at column", "description": "Voids on north face", "severity": "Major",
+                       "disposition": "Rework", "inspection": insp}, "sub")
+    mk(c, pid, "submittal", {"title": "Rebar shop drawings", "type": "Shop Drawing", "spec_section": "03 20 00", "discipline": "Structural"}, "sub")
 
     # --- specifications register -> spec-driven submittal log (shows coverage + a missing-submittal gap) ---
     mk(c, pid, "spec_section", {"section_number": "03 30 00", "title": "Cast-in-Place Concrete", "division": "03 - Concrete",
@@ -108,8 +110,8 @@ with TestClient(app) as c:
                                 "responsible": "Caulking sub", "submittals_required":
                                 "Product Data: sealant; Samples: color; Warranty: 5-year."})
     # log a couple of submittals against 03 30 00 so the log shows partial coverage (and 07 92 00 as a gap)
-    mk(c, pid, "submittal", {"subject": "Concrete mix design - product data", "type": "Product Data", "spec_section": "03 30 00", "discipline": "Structural"}, "sub")
-    mk(c, pid, "submittal", {"subject": "Architectural finish samples", "type": "Sample", "spec_section": "03 30 00", "discipline": "Architectural"}, "sub")
+    mk(c, pid, "submittal", {"title": "Concrete mix design - product data", "type": "Product Data", "spec_section": "03 30 00", "discipline": "Structural"}, "sub")
+    mk(c, pid, "submittal", {"title": "Architectural finish samples", "type": "Sample", "spec_section": "03 30 00", "discipline": "Architectural"}, "sub")
 
     # --- zoning & site -> the feasibility / zoning-envelope study ---
     mk(c, pid, "zoning", {"site": "Demo Tower parcel", "jurisdiction": "DT-3 Downtown", "use_type": "Mixed-Use",
@@ -126,6 +128,64 @@ with TestClient(app) as c:
     mk(c, pid, "incident", {"subject": "Near miss - dropped tool", "description": "No injury", "date": "2026-06-13", "classification": "Near Miss", "severity": "Near Miss"}, "safety")
     mk(c, pid, "punchlist", {"description": "Touch-up paint L2 corridor", "location": "L2", "trade": "Finishes"})
 
+    # --- pre-acquisition: due diligence + entitlements (go/no-go rollup) ---
+    esa = mk(c, pid, "due_diligence", {"subject": "Phase I ESA", "category": "Phase I ESA (ASTM E1527)",
+                                       "consultant": "EnviroCo", "findings": "No RECs identified."})
+    act(c, pid, "due_diligence", esa, "submit_report"); act(c, pid, "due_diligence", esa, "clear")
+    geo = mk(c, pid, "due_diligence", {"subject": "Geotech borings", "category": "Geotechnical",
+                                       "findings": "High water table; deep foundations likely.", "risk": "High"})
+    act(c, pid, "due_diligence", geo, "submit_report"); act(c, pid, "due_diligence", geo, "flag")
+    mk(c, pid, "due_diligence", {"subject": "Traffic impact study", "category": "Traffic Study", "consultant": "TransPlan"})
+    rez = mk(c, pid, "entitlement", {"subject": "Rezone to MU-2", "application_type": "Rezoning",
+                                     "agency": "City Planning", "hearing_date": "2026-05-12",
+                                     "approval_expires": "2026-11-01"})
+    act(c, pid, "entitlement", rez, "submit"); act(c, pid, "entitlement", rez, "schedule_hearing"); act(c, pid, "entitlement", rez, "approve")
+
+    # --- design-phase lifecycle spine (RIBA/AIA gates) ---
+    c.post(f"/projects/{pid}/lifecycle/seed")
+
+    # --- operations: CMMS (PM -> preventive WOs) + meters/energy ---
+    mk(c, pid, "pm_schedule", {"subject": "AHU-1 quarterly filter change", "frequency_days": 90,
+                               "next_due": "2026-06-30", "tasks": "Replace filters; check belts.", "est_hours": 3})
+    mk(c, pid, "pm_schedule", {"subject": "Fire pump churn test", "frequency_days": 30,
+                               "next_due": "2026-06-28", "tasks": "Weekly churn; log pressures.", "est_hours": 1})
+    mk(c, pid, "work_order", {"subject": "Leaking valve, mechanical rm 210", "wo_type": "Corrective",
+                              "priority": "High", "due_date": "2026-06-30", "location": "Level 2 / Rm 210"})
+    c.post(f"/projects/{pid}/cmms/generate-pm")
+    elec = mk(c, pid, "meter", {"subject": "Main electric", "utility": "Electric", "unit": "kWh", "meter_number": "E-4471"})
+    gasm = mk(c, pid, "meter", {"subject": "Gas service", "utility": "Natural Gas", "unit": "therms"})
+    wat = mk(c, pid, "meter", {"subject": "Domestic water", "utility": "Water", "unit": "gallons"})
+    for mo, kwh, thm, gal in [("2026-01", 12400, 610, 41000), ("2026-02", 11100, 540, 39000),
+                              ("2026-03", 10800, 410, 42000), ("2026-04", 9900, 280, 44000),
+                              ("2026-05", 10600, 150, 47000), ("2026-06", 12100, 90, 52000)]:
+        mk(c, pid, "meter_reading", {"subject": f"elec {mo}", "meter": elec, "reading_date": f"{mo}-28",
+                                     "consumption": kwh, "cost": round(kwh * 0.12, 2)})
+        mk(c, pid, "meter_reading", {"subject": f"gas {mo}", "meter": gasm, "reading_date": f"{mo}-28",
+                                     "consumption": thm, "cost": round(thm * 1.1, 2)})
+        mk(c, pid, "meter_reading", {"subject": f"water {mo}", "meter": wat, "reading_date": f"{mo}-28", "consumption": gal})
+
+    # --- hold phase: assets w/ reserve data, CIP, leases, CAM, certification, POE ---
+    mk(c, pid, "asset_register", {"name": "RTU-1 rooftop unit", "location": "Roof", "install_date": "2010-06-01",
+                                  "expected_life_years": 20, "replacement_cost": 85000})
+    mk(c, pid, "asset_register", {"name": "Passenger elevator", "install_date": "2012-01-01",
+                                  "expected_life_years": 25, "replacement_cost": 220000})
+    mk(c, pid, "capital_plan", {"subject": "Roof membrane replacement", "category": "Roof", "planned_year": 2028,
+                                "cost": 250000, "priority": "Recommended (end of life)", "funding_source": "Reserves"})
+    mk(c, pid, "lease", {"tenant": "Acme Corp", "suite": "100", "rentable_sf": 10000, "base_rent_annual": 300000,
+                         "lease_type": "NNN", "recovery_psf": 5, "start_date": "2025-01-01", "end_date": "2030-12-31"})
+    mk(c, pid, "lease", {"tenant": "Beta LLC", "suite": "200", "rentable_sf": 5000, "base_rent_annual": 140000,
+                         "lease_type": "NNN", "recovery_psf": 4, "start_date": "2025-06-01", "end_date": "2028-05-31"})
+    mk(c, pid, "cam_expense", {"subject": "Janitorial contract", "category": "Cleaning / Janitorial", "year": 2026,
+                               "budget_annual": 90000, "actual_annual": 100000, "variable": "Yes", "recoverable": "Yes"})
+    mk(c, pid, "cam_expense", {"subject": "Property insurance", "category": "Insurance", "year": 2026,
+                               "budget_annual": 45000, "actual_annual": 50000, "variable": "No", "recoverable": "Yes"})
+    mk(c, pid, "leed_credit", {"credit": "Optimize Energy Performance", "category": "Energy",
+                               "points_targeted": 10, "points_achieved": 6})
+    poe = mk(c, pid, "poe", {"subject": "Year-1 POE", "level": "2 - Investigative (survey + metered data)",
+                             "survey_date": "2026-06-01", "occupants_surveyed": 40, "satisfaction_score": 5.2,
+                             "design_eui": 40, "findings": "Comfort acceptable; plug loads above design."})
+    act(c, pid, "poe", poe, "start_fieldwork"); act(c, pid, "poe", poe, "publish_report")
+
     # baselines so the variance endpoints return 200 (not 409)
     c.post(f"/projects/{pid}/budget/baseline")
     c.post(f"/projects/{pid}/schedule/baseline")
@@ -133,6 +193,9 @@ with TestClient(app) as c:
     # --- crawl the GET endpoints the web app calls ---
     snap["GET /projects"] = [{"id": pid, "name": "Demo Tower", "model_kind": None}]
     grab(c, "/modules"); grab(c, "/portfolio/executive"); grab(c, "/portfolio/construction"); grab(c, "/proforma/portfolio")
+    grab(c, "/benchmarks/costs?min_samples=3"); grab(c, "/benchmarks/response-rates")
+    grab(c, "/ids/templates"); grab(c, "/energy/benchmark-status"); grab(c, "/reports")
+    grab(c, "/estimate/conceptual/catalog")
     P = f"/projects/{pid}"
     singles = [f"{P}/dashboard", f"{P}/members", f"{P}/budget/gmp", f"{P}/budget/cashflow", f"{P}/budget/variance",
                f"{P}/cost/summary", f"{P}/px-summary", f"{P}/schedule/cpm", f"{P}/schedule/earned-value", f"{P}/schedule/lookahead?weeks=3",
@@ -142,7 +205,18 @@ with TestClient(app) as c:
                f"{P}/dev-budget", f"{P}/dev-budget/cost-lines", f"{P}/dev-budget/gmp-reconciliation", f"{P}/loan-draws",
                f"{P}/construction-draws", f"{P}/subcontractor-billing", f"{P}/proforma/model-metrics", f"{P}/property",
                f"{P}/sources-uses", f"{P}/specialty", f"{P}/ai/risk-summary", f"{P}/lean/ppc", f"{P}/properties/meta",
-               f"{P}/specs/submittal-log", f"{P}/feasibility"]
+               f"{P}/specs/submittal-log", f"{P}/feasibility",
+               # lifecycle panels (v0.3.49+): design gates, turnover, diligence, operations, asset mgmt, ESG
+               f"{P}/lifecycle", f"{P}/turnover/readiness", f"{P}/turnover/status",
+               f"{P}/diligence/readiness", f"{P}/cmms/kpis", f"{P}/energy/actual",
+               f"{P}/reserves/study?horizon_years=25&inflation_pct=3",   # the Asset Mgmt tab's default query
+               f"{P}/cam/reconciliation", f"{P}/esg",
+               # risk & cost / compliance panels
+               f"{P}/prequal/scores", f"{P}/prequal/coi-expiry?soon_days=30", f"{P}/payapp/lien-exposure",
+               f"{P}/carbon", f"{P}/procurement/three-way-match", f"{P}/due-feed?days=7",
+               # dashboard extras + hold-phase finance tabs (found via [demo] console misses)
+               f"{P}/views/alerts", f"{P}/health", f"{P}/pricing/reconcile",
+               f"{P}/appraisal", f"{P}/rent-roll", f"{P}/leases/management", f"{P}/cap-table"]
     for s in singles:
         grab(c, s)
     for kind in ("gantt", "lob"):
