@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.69 — Pull planning: the Last Planner phase board
+Collaborative pull planning next to the schedule views — the Last Planner System level that sits
+between the master schedule and the weekly work plan. The team pulls a phase backward from a
+milestone; every trade posts its own tasks and the hand-offs between them; the lookahead makes work
+ready by removing constraints; commitments are scored by PPC.
+- **`pull_plan_task` module** (Schedule, construction workspace) — a sticky note per task: milestone,
+  trade, responsible party, duration, planned week, **predecessor** (the hand-off), and the
+  **constraints** that keep it from being ready (design/RFI, submittals, materials, labour,
+  equipment, prerequisite work, permits/inspections, space/access, information). Workflow:
+  pulled → made ready → committed → done, with a **missed** state gated on a variance reason, and
+  paths to reconstrain or recommit.
+- **Phase board** — a trade-swimlane × week matrix built over those records, with the hand-off
+  sequence, a make-ready log of open constraints, and readiness / commitment / **PPC** (Percent Plan
+  Complete = completed ÷ committed). Rendered at the top of the **📅 Schedule** panel with a
+  milestone filter, an inline editor (every trade edits its own notes), and a printable **PDF** of
+  the board — the hand-out a pull-planning session runs from. Feeds the existing weekly-plan PPC
+  analytics rather than replacing them.
+
 ## v0.3.68 — Concept space programming: the adjacency graph (standards C8 of 8)
 The front of the lifecycle — programming a building before it's massed — closing the eight-release
 standards + AI track. The platform now spans land acquisition → programming → design (ISO 19650) →

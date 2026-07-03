@@ -1,0 +1,176 @@
+{
+  "key": "pull_plan_task",
+  "name": "Pull Plan Tasks",
+  "section": "Schedule",
+  "icon": "🧲",
+  "ref_prefix": "PP",
+  "title_field": "task",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "task",
+      "label": "Task (sticky note)",
+      "type": "text",
+      "required": true,
+      "fieldset": "Task"
+    },
+    {
+      "name": "milestone",
+      "label": "Phase / Milestone",
+      "type": "text",
+      "fieldset": "Task"
+    },
+    {
+      "name": "trade",
+      "label": "Trade / Crew",
+      "type": "select",
+      "options": [
+        "Sitework",
+        "Structure",
+        "Concrete",
+        "Steel",
+        "Envelope",
+        "MEP",
+        "Interiors",
+        "Finishes",
+        "Commissioning"
+      ],
+      "fieldset": "Task"
+    },
+    {
+      "name": "responsible",
+      "label": "Responsible (last planner)",
+      "type": "text",
+      "fieldset": "Task"
+    },
+    {
+      "name": "duration_days",
+      "label": "Duration (days)",
+      "type": "number",
+      "fieldset": "Sequence"
+    },
+    {
+      "name": "planned_week",
+      "label": "Planned Week",
+      "type": "text",
+      "fieldset": "Sequence"
+    },
+    {
+      "name": "predecessor",
+      "label": "Depends On (hand-off from)",
+      "type": "reference",
+      "module": "pull_plan_task",
+      "fieldset": "Sequence"
+    },
+    {
+      "name": "constraints",
+      "label": "Constraints (make-ready)",
+      "type": "multiselect",
+      "options": [
+        "Design / RFI",
+        "Submittals / Approvals",
+        "Materials",
+        "Labor",
+        "Equipment",
+        "Prerequisite work",
+        "Permits / Inspections",
+        "Space / Access",
+        "Information"
+      ],
+      "fieldset": "Make-ready"
+    },
+    {
+      "name": "variance_reason",
+      "label": "Variance Reason (if missed)",
+      "type": "select",
+      "options": [
+        "Prerequisite work",
+        "Materials",
+        "Labor",
+        "Design / RFI",
+        "Weather",
+        "Equipment",
+        "Coordination",
+        "Other"
+      ],
+      "fieldset": "Make-ready"
+    }
+  ],
+  "workflow": {
+    "initial": "pulled",
+    "states": [
+      "pulled",
+      "made_ready",
+      "committed",
+      "done",
+      "not_done"
+    ],
+    "transitions": [
+      {
+        "from": "pulled",
+        "to": "made_ready",
+        "action": "make_ready",
+        "party": [
+          "GC",
+          "Subcontractor",
+          "PM"
+        ]
+      },
+      {
+        "from": "made_ready",
+        "to": "pulled",
+        "action": "reconstrain",
+        "party": [
+          "GC",
+          "PM"
+        ]
+      },
+      {
+        "from": "made_ready",
+        "to": "committed",
+        "action": "commit",
+        "party": [
+          "GC",
+          "Subcontractor"
+        ]
+      },
+      {
+        "from": "committed",
+        "to": "done",
+        "action": "complete",
+        "party": [
+          "GC",
+          "Subcontractor"
+        ]
+      },
+      {
+        "from": "committed",
+        "to": "not_done",
+        "action": "miss",
+        "party": [
+          "GC",
+          "Subcontractor",
+          "PM"
+        ],
+        "requires": [
+          "variance_reason"
+        ]
+      },
+      {
+        "from": "not_done",
+        "to": "committed",
+        "action": "recommit",
+        "party": [
+          "GC",
+          "Subcontractor"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "trade",
+    "planned_week",
+    "milestone"
+  ],
+  "workspace": "construction"
+}

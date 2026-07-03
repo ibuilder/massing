@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 from .. import benchmarks as bm
 from .. import lean
 from .. import modules as me
+from .. import pull_plan
 from .. import takt
 from ..db import get_db
+from ..models import Project
 from ..rbac import require_role
 
 _P6_KEY = "{pid}/schedule_p6.json"   # imported Primavera P6 activities (drives 4D calendar dates)
@@ -206,3 +208,25 @@ def lean_ppc(pid: str, db: Session = Depends(get_db), _: str = Depends(require_r
     """Last-Planner Plan Percent Complete + reasons for non-completion from the weekly-plan module (R4)."""
     records = me.list_records(db, "weekly_plan", pid, limit=1_000_000) if "weekly_plan" in me.TABLES else []
     return lean.ppc(records)
+
+
+@router.get("/projects/{pid}/pull-plan/board")
+def pull_plan_board(pid: str, milestone: str | None = None, db: Session = Depends(get_db),
+                    _: str = Depends(require_role("viewer"))):
+    """The Last Planner phase pull-plan board: trade swimlanes × weeks, the hand-off sequence, the
+    make-ready constraint log, and readiness / commitment / PPC. Every stakeholder edits the
+    `pull_plan_task` records; pass ?milestone= to focus one phase."""
+    return pull_plan.board(db, pid, milestone=milestone)
+
+
+@router.get("/projects/{pid}/pull-plan/board.pdf")
+def pull_plan_pdf(pid: str, milestone: str | None = None, db: Session = Depends(get_db),
+                  _: str = Depends(require_role("viewer"))):
+    """The pull-plan board as a printable PDF (trade × week matrix + constraint log + PPC)."""
+    from fastapi import Response
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    data = pull_plan.pdf(db, pid, p.name or pid, milestone=milestone)
+    return Response(content=data, media_type="application/pdf", headers={
+        "Content-Disposition": 'attachment; filename="pull-plan.pdf"'})

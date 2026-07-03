@@ -298,7 +298,11 @@ Deliverables** — with a sticky live-solved returns bar.
   grew to **47**. See the [CHANGELOG](CHANGELOG.md).
 - **One relational model — schedule · budget · 5D · capital** — the GC `schedule_activity`
   records now drive the Gantt / Line-of-Balance / CPM **and** the 3D 4D scrub (per-activity dates,
-  element/trade links), with **lookahead** + **milestone** views and editable P6 `.xer` import. A
+  element/trade links), with **lookahead** + **milestone** views and editable P6 `.xer` import. On top
+  sits a collaborative **pull-planning** board (Last Planner System): each trade posts its own
+  `pull_plan_task` sticky notes across a trade-swimlane × week matrix, defines the hand-offs, and
+  clears **constraints** to make work ready — scored by readiness and **PPC** (Percent Plan Complete),
+  exportable as a **PDF** for the planning session. A
   first-class **Budget** destination assembles the agreed **GMP** from every cost code & bid package
   + General Conditions / Requirements (incl. **staffing** projections) + overhead / fee / contingency
   — each budget vs committed vs actual vs **EAC**, with buyout savings, change-orders→revised-GMP,

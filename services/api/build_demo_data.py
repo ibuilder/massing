@@ -85,6 +85,26 @@ with TestClient(app) as c:
         mk(c, pid, "schedule_activity", {"name": name, "trade": trade, "start": s, "finish": f, "budget": bud, "percent": pct, "wbs": f"01.{i+1:02d}"})
     c.post(f"/projects/{pid}/cost/sov/from-budget?replace=true")
 
+    # pull-plan phase board (Last Planner) — sticky notes across trade swimlanes × weeks, with the
+    # concrete->steel hand-off, a made-ready/committed/done chain, a missed task (variance), and a
+    # still-constrained task, so the demo board shows readiness + PPC + a make-ready log.
+    MS = "L3 slab topping-out"
+    conc = mk(c, pid, "pull_plan_task", {"task": "Form & pour L3 deck", "milestone": MS, "trade": "Concrete",
+        "responsible": "J. Rivera (Concrete)", "duration_days": 5, "planned_week": "2026-W28"})
+    act(c, pid, "pull_plan_task", conc, "make_ready"); act(c, pid, "pull_plan_task", conc, "commit")
+    act(c, pid, "pull_plan_task", conc, "complete")
+    mep = mk(c, pid, "pull_plan_task", {"task": "Rough-in L3 conduit", "milestone": MS, "trade": "MEP",
+        "responsible": "P. Shah (Elec)", "duration_days": 4, "planned_week": "2026-W28"})
+    act(c, pid, "pull_plan_task", mep, "make_ready"); act(c, pid, "pull_plan_task", mep, "commit")
+    c.patch(f"/projects/{pid}/modules/pull_plan_task/{mep}", json={"variance_reason": "Materials"})
+    act(c, pid, "pull_plan_task", mep, "miss")
+    mk(c, pid, "pull_plan_task", {"task": "Set L4 columns", "milestone": MS, "trade": "Steel",
+        "responsible": "K. Ito (Steel)", "duration_days": 3, "planned_week": "2026-W29",
+        "predecessor": conc, "constraints": ["Materials", "Prerequisite work"]})
+    mk(c, pid, "pull_plan_task", {"task": "Hang L3 drywall", "milestone": MS, "trade": "Interiors",
+        "responsible": "D. Cole (Interiors)", "duration_days": 6, "planned_week": "2026-W30",
+        "constraints": ["Prerequisite work"]})
+
     # change-management + QA + bidding + field + safety chains
     rfis = []
     for subj, disc, ci in [("Beam clash at grid C4", "Structural", "Yes"), ("Door schedule mismatch L3", "Architectural", "Possible"), ("VAV duct routing conflict", "MEP", "None")]:
@@ -267,7 +287,8 @@ with TestClient(app) as c:
                f"{P}/handover/acceptance", f"{P}/standards/check?standard=iso19650",
                f"{P}/standards/check?standard=cobie", f"{P}/standards/check?standard=ids",
                f"{P}/standards/check?standard=uniclass", f"{P}/twin/readiness",
-               f"{P}/procurement/compliance-feed", f"{P}/program/summary"]
+               f"{P}/procurement/compliance-feed", f"{P}/program/summary",
+               f"{P}/pull-plan/board"]
     for s in singles:
         grab(c, s)
     for kind in ("gantt", "lob"):

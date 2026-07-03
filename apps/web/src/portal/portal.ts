@@ -2402,6 +2402,68 @@ export class PortalUI {
     intro.append(listBtn, note);
     this.root.appendChild(intro);
 
+    // --- Pull planning (Last Planner phase board) — trade swimlanes × weeks, make-ready, PPC -------
+    const ppCard = document.createElement("div"); ppCard.className = "dash-card"; ppCard.style.marginBottom = "10px";
+    const ppHead = document.createElement("div"); ppHead.className = "section-title";
+    ppHead.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap";
+    ppHead.append(Object.assign(document.createElement("span"), { textContent: "🧲 Pull Planning (Last Planner)" }));
+    const ppRight = document.createElement("div"); ppRight.style.cssText = "display:flex;gap:6px;align-items:center";
+    const msSel = document.createElement("select"); msSel.className = "sb-sel";
+    const editBtn = document.createElement("button"); editBtn.className = "tool-btn"; editBtn.textContent = "✎ Sticky notes";
+    editBtn.title = "Add / edit pull-plan tasks (every trade edits its own)";
+    editBtn.onclick = () => { const pm = this.mods.find((x) => x.key === "pull_plan_task"); if (pm) { this.activeKey = "pull_plan_task"; void this.openModule(pm); this.buildNav(); } };
+    const pdfBtn = document.createElement("a"); pdfBtn.className = "tool-btn"; pdfBtn.textContent = "⬇ PDF"; pdfBtn.target = "_blank"; pdfBtn.rel = "noopener";
+    ppRight.append(msSel, editBtn, pdfBtn); ppHead.append(ppRight); ppCard.appendChild(ppHead);
+    const ppBody = document.createElement("div"); ppBody.innerHTML = `<div class="meta">loading…</div>`; ppCard.appendChild(ppBody);
+    this.root.appendChild(ppCard);
+    const ppState = (s: string) => s === "done" ? "var(--status-good)" : s === "not_done" ? "var(--status-crit)"
+      : s === "committed" ? "var(--accent)" : s === "made_ready" ? "var(--status-warn)" : "var(--muted)";
+    const loadPull = (milestone: string) => {
+      ppBody.innerHTML = `<div class="meta">loading…</div>`;
+      pdfBtn.href = this.host.api.pullPlanPdfUrl(pid, milestone || undefined);
+      void this.host.api.pullPlanBoard(pid, milestone || undefined).then((b) => {
+        // milestone options (only rebuild once)
+        if (!msSel.options.length) {
+          msSel.innerHTML = `<option value="">All phases</option>`
+            + b.milestones.map((m) => `<option value="${m.replace(/"/g, "&quot;")}">${m}</option>`).join("");
+        }
+        if (!b.total) { ppBody.innerHTML = `<div class="meta">No pull-plan tasks yet — click <b>✎ Sticky notes</b> to add them. Work backward from a milestone; each trade posts its tasks and hand-offs, and constraints are cleared to make work ready.</div>`; return; }
+        ppBody.innerHTML = "";
+        // summary chips
+        const chips = document.createElement("div"); chips.className = "meta"; chips.style.marginBottom = "6px";
+        chips.innerHTML = `Ready <b>${b.readiness.ready_pct ?? "—"}%</b> · PPC <b style="color:${b.commitment.ppc_pct != null && b.commitment.ppc_pct < 70 ? "var(--status-warn)" : "var(--status-good)"}">${b.commitment.ppc_pct ?? "—"}%</b> · `
+          + `<b>${b.make_ready.constrained_tasks}</b> constrained task(s), ${b.make_ready.open_constraints} open constraint(s)`;
+        ppBody.appendChild(chips);
+        // matrix: trade rows × week columns
+        const wrap = document.createElement("div"); wrap.style.cssText = "overflow-x:auto";
+        const t = document.createElement("table"); t.className = "portal-table"; t.style.cssText = "font-size:11px;border-collapse:collapse";
+        t.innerHTML = `<thead><tr><th style="text-align:left;position:sticky;left:0;background:var(--panel)">Trade</th>`
+          + b.weeks.map((w) => `<th style="min-width:120px">${w}</th>`).join("") + `</tr></thead>`;
+        const tb = document.createElement("tbody");
+        for (const lane of b.swimlanes) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td style="text-align:left;font-weight:600;position:sticky;left:0;background:var(--panel)">${lane.trade}</td>`
+            + b.weeks.map((w) => {
+              const cell = lane.tasks.filter((x) => x.week === w);
+              return `<td style="vertical-align:top">` + cell.map((x) =>
+                `<div title="${(x.state + (x.constraints.length ? " · constraints: " + x.constraints.join(", ") : ""))}" `
+                + `style="margin:2px 0;padding:2px 5px;border-radius:4px;border-left:3px solid ${ppState(x.state)};background:var(--hover)">`
+                + `${x.constraints.length ? "🔒 " : ""}${esc(x.task)}</div>`).join("") + `</td>`;
+            }).join("");
+          tb.appendChild(tr);
+        }
+        t.appendChild(tb); wrap.appendChild(t); ppBody.appendChild(wrap);
+        // make-ready log
+        if (b.make_ready.by_constraint.length) {
+          const mr = document.createElement("div"); mr.className = "meta"; mr.style.marginTop = "6px";
+          mr.innerHTML = `<b>Make-ready</b> — ` + b.make_ready.by_constraint.map((x) => `${x.constraint}: ${x.count}`).join(" · ");
+          ppBody.appendChild(mr);
+        }
+      }).catch((e) => { ppBody.innerHTML = `<div class="meta">Pull plan unavailable: ${esc((e as Error).message)}</div>`; });
+    };
+    msSel.onchange = () => loadPull(msSel.value);
+    loadPull("");
+
     const statusColor = (s: string) =>
       s === "late" ? "var(--status-crit)" : s === "complete" || s === "met" ? "var(--status-good)"
         : s === "in_progress" || s === "due_soon" ? "var(--status-warn)" : "var(--muted)";

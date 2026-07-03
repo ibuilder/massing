@@ -413,6 +413,24 @@ export class ApiClient {
       `/projects/${pid}/ai/risk-summary`);
   }
   /** Last-Planner Plan Percent Complete + reasons for non-completion (lean, R4). */
+  pullPlanBoard(pid: string, milestone?: string) {
+    const qs = milestone ? `?milestone=${encodeURIComponent(milestone)}` : "";
+    return this.json<{ total: number; milestones: string[]; milestone_filter: string | null;
+      weeks: string[];
+      swimlanes: { trade: string; tasks: { ref: string; task: string; trade: string; week: string;
+        state: string; responsible: string; duration_days: number | null; constraints: string[];
+        milestone: string }[] }[];
+      handoffs: { from: string; to: string }[];
+      make_ready: { constrained_tasks: number; open_constraints: number;
+        by_constraint: { constraint: string; count: number }[] };
+      readiness: { ready: number; constrained: number; ready_pct: number | null };
+      commitment: { committed: number; done: number; not_done: number; ppc_pct: number | null };
+      note: string }>(`/projects/${pid}/pull-plan/board${qs}`);
+  }
+  pullPlanPdfUrl(pid: string, milestone?: string) {
+    const qs = milestone ? `?milestone=${encodeURIComponent(milestone)}` : "";
+    return this.url(`/projects/${pid}/pull-plan/board.pdf${qs}`);
+  }
   leanPpc(pid: string) {
     return this.json<{ commitments: number; completed: number; ppc: number; missed: number; rating: string; top_variance_reasons: { reason: string; count: number }[] }>(
       `/projects/${pid}/lean/ppc`);
