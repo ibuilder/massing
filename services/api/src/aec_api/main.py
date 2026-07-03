@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 
 from . import metrics
 from .db import init_db
-from .routers import (accounting, analysis, auth, authoring, benchmarking, bidding, bim, carbon, closeout, codecheck, connections, contracts, convert, cost,
+from .routers import (accounting, analysis, auth, authoring, benchmarking, bidding, bim, carbon, closeout, codecheck, conceptual, connections, contracts, convert, cost,
                       dashboard, drafting, drawings, ids, exports, generate, modules, opendata, payapp, prequal, pricing, procurement, realestate, reports, research, review, proforma, properties, schedule,
                       templates, verification, payroll, assistant, construction)
 
@@ -159,6 +159,7 @@ app.include_router(carbon.router, tags=["carbon"])
 app.include_router(codecheck.router, tags=["codecheck"])
 app.include_router(ids.router, tags=["ids"])
 app.include_router(procurement.router, tags=["procurement"])
+app.include_router(conceptual.router, tags=["conceptual"])
 app.include_router(pricing.router, tags=["pricing"])
 app.include_router(closeout.router, tags=["closeout"])
 app.include_router(convert.router, tags=["convert"])

@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.46 — Conceptual estimating + AI IFC classification (track 3 of 4)
+Two model-native intelligence features (Ediphi + Qonic gaps) that leverage our IFC/massing strengths.
+- **`conceptual_estimate.py`** — a parametric **$/SF** cost from building type + GFA + units at the
+  massing stage (on-brand for a product called Massing): a low/base/high range **escalated for region
+  and year**, with derived $/SF, $/unit and $/key for the proforma before there's a detailed takeoff.
+  Built-in cost-per-SF table (16 building types) + regional index + ~4.5%/yr escalation, all overridable.
+- **`ifc_classify.py`** — a transparent rules classifier that suggests the right **IfcClass** for
+  `IfcBuildingElementProxy`/generic or mis-named elements (a proxy gets no quantity or carbon factor, so
+  this directly improves **QTO + embodied carbon** accuracy). Every suggestion carries its reason;
+  human-approved — reads the loaded property index or a posted element list.
+- Endpoints: `GET /estimate/conceptual/catalog`, `POST …/estimate/conceptual`, `POST …/ifc/classify`.
+  Surfaced in the **🛡 Risk & Cost** panel (a $/SF estimate mini-form + a model-classification summary).
+- Verified: ruff clean, 95/95 backend suites (new `test_conceptual`), web typecheck + 49 vitest +
+  Pages build + budget green.
+
 ## v0.3.45 — Materials procure-to-pay: quote leveling + 3-way match (track 2 of 4)
 The materials buying loop (FieldMaterials' territory) — distinct from sub-bid leveling and the biggest
 whitespace from the competitor review. Deterministic/offline on top of the modules we already have

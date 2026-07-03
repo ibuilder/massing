@@ -689,6 +689,11 @@ export class PortalUI {
     const carbonSlot = slot();
     section("Takeoff pricing vs estimate");
     const priceSlot = slot();
+    section("Model classification (improve QTO + carbon)");
+    const classifySlot = slot();
+    section("Conceptual estimate (parametric $/SF)");
+    const ceWrap = el("div");
+    root.appendChild(ceWrap);
     section("Materials 3-way match (PO ↔ delivery ↔ invoice)");
     const matchSlot = slot();
     section("Accounting export");
@@ -750,6 +755,36 @@ export class PortalUI {
         + (v != null ? ` vs estimate ${cmoney(r.estimated_total)} — variance <b style="color:${v > 0 ? "var(--status-warn)" : "var(--status-good)"}">${cmoney(v)}</b>` : "")
         + `</div>`;
     }).catch((e) => { priceSlot.textContent = `failed: ${(e as Error).message}`; });
+
+    api.ifcClassify(pid).then((r) => {
+      if (!r.count) { classifySlot.innerHTML = `<div class="meta">${r.message || "No reclassification suggestions (load a model in the Model workspace)."}</div>`; return; }
+      const tops = Object.entries(r.by_target_class).slice(0, 5).map(([c, n]) => `${c}: ${n}`).join(" · ");
+      classifySlot.innerHTML = `<div><b>${r.count}</b> element(s) suggested for reclassification`
+        + (r.generic_elements ? ` (${r.generic_elements} generic/proxy)` : "") + `</div><div class="meta">${tops}</div>`;
+    }).catch((e) => { classifySlot.textContent = `failed: ${(e as Error).message}`; });
+
+    // conceptual estimate mini-form (developer-side $/SF from building params)
+    void api.conceptualCatalog().then((cat) => {
+      ceWrap.innerHTML = "";
+      const type = el("select", "portal-filter") as HTMLSelectElement; type.style.cssText = "margin:2px 4px 2px 0";
+      type.innerHTML = cat.building_types.map((t) => `<option value="${t}">${t}</option>`).join("");
+      const region = el("select", "portal-filter") as HTMLSelectElement; region.style.cssText = "margin:2px 4px";
+      region.innerHTML = cat.regions.map((rg) => `<option value="${rg}"${rg === "us_average" ? " selected" : ""}>${rg}</option>`).join("");
+      const gfa = el("input", "portal-filter") as HTMLInputElement; gfa.type = "number"; gfa.placeholder = "GFA (sf)"; gfa.style.cssText = "width:110px;margin:2px 4px";
+      const go = el("button", "file-btn") as HTMLButtonElement; go.textContent = "Estimate";
+      const out = el("div"); out.style.marginTop = "6px";
+      go.onclick = async () => {
+        if (!Number(gfa.value)) { toast("Enter GFA", "error"); return; }
+        out.textContent = "estimating…";
+        try {
+          const r = await api.conceptualEstimate(pid, { building_type: type.value, region: region.value, gfa_sf: Number(gfa.value) });
+          if (r.error) { out.textContent = r.error; return; }
+          out.innerHTML = `<div><b>${cmoney(r.total_cost)}</b> total (${cmoney(r.range.low)}–${cmoney(r.range.high)}) `
+            + `· ${cmoney(r.metrics.total_per_sf)}/sf · hard ${cmoney(r.hard_cost)} + soft ${cmoney(r.soft_cost)}</div>`;
+        } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
+      };
+      ceWrap.append(type, region, gfa, go, out);
+    }).catch(() => { ceWrap.innerHTML = `<div class="meta">conceptual estimator unavailable</div>`; });
 
     api.procurementThreeWayMatch(pid).then((r) => {
       if (!r.po_count) { matchSlot.innerHTML = `<div class="meta">No purchase orders (commitments) yet.</div>`; return; }

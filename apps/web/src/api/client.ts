@@ -1317,6 +1317,24 @@ export class ApiClient {
       stories?: number | null }; source: string; message?: string }>(
       `/projects/${pid}/codecheck`, { method: "POST", body: JSON.stringify({ description, context }) });
   }
+  // --- conceptual estimating + IFC classification (Ediphi / Qonic) -----------
+  conceptualCatalog() {
+    return this.json<{ building_types: string[]; regions: string[]; base_year: number;
+      annual_escalation: number; current_year: number }>(`/estimate/conceptual/catalog`);
+  }
+  conceptualEstimate(pid: string, params: Record<string, unknown>) {
+    return this.json<{ building_type: string; gfa_sf: number; hard_cost: number; soft_cost: number;
+      total_cost: number; range: { low: number; base: number; high: number };
+      metrics: Record<string, number>; region_index: number; escalation_factor: number; error?: string }>(
+      `/projects/${pid}/estimate/conceptual`, { method: "POST", body: JSON.stringify(params) });
+  }
+  ifcClassify(pid: string) {
+    return this.json<{ suggestions: { guid?: string; name: string; current_class: string;
+      suggested_class: string; confidence: string; reason: string }[]; count: number;
+      generic_elements: number; by_target_class: Record<string, number>; message?: string | null }>(
+      `/projects/${pid}/ifc/classify`, { method: "POST", body: JSON.stringify({}) });
+  }
+
   // --- materials procure-to-pay (FieldMaterials) -----------------------------
   procurementThreeWayMatch(pid: string) {
     return this.json<{ pos: { po: string; vendor: string; cost_code: string; po_amount: number;
