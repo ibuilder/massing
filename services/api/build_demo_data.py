@@ -186,6 +186,51 @@ with TestClient(app) as c:
                              "design_eui": 40, "findings": "Comfort acceptable; plug loads above design."})
     act(c, pid, "poe", poe, "start_fieldwork"); act(c, pid, "poe", poe, "publish_report")
 
+    # --- standards (ISO 19650): CDE containers + information requirements ---
+    eir = mk(c, pid, "info_requirement", {"title": "Project EIR", "req_type": "EIR - Exchange Information Requirements",
+                                          "appointing_party": "Owner LLC", "lead_appointed_party": "GC Inc"})
+    act(c, pid, "info_requirement", eir, "issue")
+    bep = mk(c, pid, "info_requirement", {"title": "BIM Execution Plan", "req_type": "BEP - BIM Execution Plan",
+                                          "lead_appointed_party": "GC Inc"})
+    act(c, pid, "info_requirement", bep, "issue")
+    mk(c, pid, "info_requirement", {"title": "Asset Information Requirements",
+                                    "req_type": "AIR - Asset Information Requirements", "appointing_party": "Owner LLC"})
+    ic = mk(c, pid, "information_container", {"title": "Arch GA plans", "info_type": "Drawing",
+                                             "discipline": "Architectural", "originator": "AR"})
+    c.patch(f"/projects/{pid}/modules/information_container/{ic}", json={"suitability_code": "S2 - Shared for information"})
+    act(c, pid, "information_container", ic, "share")
+    c.patch(f"/projects/{pid}/modules/information_container/{ic}",
+            json={"revision": "P01", "suitability_code": "A - Published for construction"})
+    act(c, pid, "information_container", ic, "publish")
+    mk(c, pid, "information_container", {"title": "Struct model (WIP)", "info_type": "Model", "discipline": "Structural"})
+
+    # --- digital twin: building systems + linked/sensored/DPP assets ---
+    hv = mk(c, pid, "building_system", {"name": "HVAC-1", "system_type": "HVAC", "bms_integration": "BACnet"})
+    mk(c, pid, "building_system", {"name": "FP-1", "system_type": "Fire Protection", "bms_integration": "None"})
+    mk(c, pid, "asset_register", {"name": "AHU-3 (twin)", "tag": "MECH-100", "manufacturer": "Trane", "model": "T3",
+                                  "expected_life_years": 20, "replacement_cost": 80000, "system": hv,
+                                  "sensor_id": "BMS:AHU3:SAT", "sensor_type": "Temperature",
+                                  "gs1_id": "https://id.gs1.org/01/09506000134352", "epd_reference": "EPD-9",
+                                  "manufacturer_url": "https://trane.com/ahu3"})
+
+    # --- procurement compliance: a compliant + a non-compliant vendor ---
+    pa = mk(c, pid, "prequalification", {"company": "ACME Concrete", "trade": "Concrete", "status": "Approved", "expires": "2027-06-01"})
+    act(c, pid, "prequalification", pa, "approve")
+    ca = mk(c, pid, "coi", {"vendor": "ACME Concrete", "coverage_type": "General Liability", "carrier": "Travelers", "expires": "2027-06-01"})
+    act(c, pid, "coi", ca, "approve")
+    cb = mk(c, pid, "coi", {"vendor": "Bedrock Co", "coverage_type": "General Liability", "carrier": "Hartford", "expires": "2026-06-20"})
+    act(c, pid, "coi", cb, "approve")
+    mk(c, pid, "prequalification", {"company": "Bedrock Co", "trade": "Earthwork", "status": "Submitted"})
+
+    # --- concept space program (adjacency graph -> massing) ---
+    mk(c, pid, "space_program", {"name": "Typical unit", "space_type": "Residential Unit", "target_area_sf": 850,
+                                 "quantity": 40, "adjacent_to": ["Circulation / Core", "Amenity"]})
+    mk(c, pid, "space_program", {"name": "Lobby", "space_type": "Lobby", "target_area_sf": 1200, "quantity": 1,
+                                 "adjacent_to": ["Retail", "Circulation / Core"]})
+    mk(c, pid, "space_program", {"name": "Core", "space_type": "Circulation / Core", "target_area_sf": 400, "quantity": 5})
+    mk(c, pid, "space_program", {"name": "Fitness", "space_type": "Amenity", "target_area_sf": 1500, "quantity": 1,
+                                 "adjacent_to": ["Residential Unit"]})
+
     # baselines so the variance endpoints return 200 (not 409)
     c.post(f"/projects/{pid}/budget/baseline")
     c.post(f"/projects/{pid}/schedule/baseline")
@@ -195,7 +240,7 @@ with TestClient(app) as c:
     grab(c, "/modules"); grab(c, "/portfolio/executive"); grab(c, "/portfolio/construction"); grab(c, "/proforma/portfolio")
     grab(c, "/benchmarks/costs?min_samples=3"); grab(c, "/benchmarks/response-rates")
     grab(c, "/ids/templates"); grab(c, "/energy/benchmark-status"); grab(c, "/reports")
-    grab(c, "/estimate/conceptual/catalog")
+    grab(c, "/estimate/conceptual/catalog"); grab(c, "/mcp/tools")
     P = f"/projects/{pid}"
     singles = [f"{P}/dashboard", f"{P}/members", f"{P}/budget/gmp", f"{P}/budget/cashflow", f"{P}/budget/variance",
                f"{P}/cost/summary", f"{P}/px-summary", f"{P}/schedule/cpm", f"{P}/schedule/earned-value", f"{P}/schedule/lookahead?weeks=3",
@@ -216,7 +261,13 @@ with TestClient(app) as c:
                f"{P}/carbon", f"{P}/procurement/three-way-match", f"{P}/due-feed?days=7",
                # dashboard extras + hold-phase finance tabs (found via [demo] console misses)
                f"{P}/views/alerts", f"{P}/health", f"{P}/pricing/reconcile",
-               f"{P}/appraisal", f"{P}/rent-roll", f"{P}/leases/management", f"{P}/cap-table"]
+               f"{P}/appraisal", f"{P}/rent-roll", f"{P}/leases/management", f"{P}/cap-table",
+               # standards + AI + twin + program panels (v0.3.61+)
+               f"{P}/cde/status", f"{P}/info-requirements/register", f"{P}/bim-kpi/scorecard",
+               f"{P}/handover/acceptance", f"{P}/standards/check?standard=iso19650",
+               f"{P}/standards/check?standard=cobie", f"{P}/standards/check?standard=ids",
+               f"{P}/standards/check?standard=uniclass", f"{P}/twin/readiness",
+               f"{P}/procurement/compliance-feed", f"{P}/program/summary"]
     for s in singles:
         grab(c, s)
     for kind in ("gantt", "lob"):
