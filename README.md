@@ -307,6 +307,12 @@ Deliverables** — with a sticky live-solved returns bar.
   scope-adjusted low recommendation; and cross-project **Benchmarks** — actual cost distribution per
   cost code (p25/median/p75) and RFI/submittal turnaround + overdue %. All offline-capable (Claude when
   keyed). Every AI engine ships with a deterministic fallback so nothing is fabricated.
+- **Risk & Cost** — subcontractor **prequalification Q-score** + **COI-expiry** tracking, **pay-app ↔
+  lien-waiver** reconciliation surfacing per-vendor **lien exposure** (payments run only through a
+  licensed processor, gated on waiver coverage — Massing never moves money), **accounting export** (GL
+  CSV + QuickBooks IIF), **embodied carbon** (A1-A3, from material quantities × EPD factors), a
+  **code-compliance** assistant (IBC/ADA/IECC sections with citations), and **priced takeoff** with
+  variance vs the estimate.
 - **Accounts & onboarding** — **SSO** (Google / Microsoft / Procore), a no-admin free-tier model,
   first-run **welcome + skippable tour**, and **field capture** (offline photo → punchlist/observation,
   syncs on reconnect) for the mobile/jobsite path.

@@ -1285,6 +1285,45 @@ export class ApiClient {
       submittal: { total: number; open: number; returned: number; avg_turnaround_days: number | null;
       overdue: number; overdue_pct: number } }>(`/benchmarks/response-rates`);
   }
+
+  // --- Tier 2/3: prequal, lien exposure, accounting, carbon, code check, pricing ---------------
+  prequalScores(pid: string, projectSize?: number) {
+    const qs = projectSize ? `?project_size=${projectSize}` : "";
+    return this.json<{ subs: { company?: string; trade?: string; score: number; risk_band: string;
+      factors: { factor: string; points: number; of: number; note: string }[]; flags: string[] }[];
+      count: number; high_risk: number }>(`/projects/${pid}/prequal/scores${qs}`);
+  }
+  coiExpiry(pid: string, soonDays = 30) {
+    return this.json<{ expired: { vendor?: string; coverage_type?: string; expires: string; days: number }[];
+      expiring_soon: { vendor?: string; coverage_type?: string; expires: string; days: number }[];
+      expired_count: number; expiring_count: number }>(`/projects/${pid}/prequal/coi-expiry?soon_days=${soonDays}`);
+  }
+  lienExposure(pid: string) {
+    return this.json<{ vendors: { vendor: string; billed: number; paid: number; retainage: number;
+      waived_unconditional: number; waived_conditional: number; exposure: number; status: string }[];
+      total_lien_exposure: number; vendors_at_risk: string[]; message?: string | null }>(
+      `/projects/${pid}/payapp/lien-exposure`);
+  }
+  accountingGlCsvUrl(pid: string) { return this.url(`/projects/${pid}/accounting/gl.csv`); }
+  accountingIifUrl(pid: string) { return this.url(`/projects/${pid}/accounting/bills.iif`); }
+  projectCarbon(pid: string) {
+    return this.json<{ total_kgco2e: number; total_tco2e: number; line_count: number; unmatched: number;
+      by_material: Record<string, number>; by_cost_code: Record<string, number>; message?: string | null }>(
+      `/projects/${pid}/carbon`);
+  }
+  codeComplianceCheck(pid: string, description: string, context?: string) {
+    return this.json<{ topics: { code: string; section: string; title: string; requirement: string }[];
+      detected?: { occupancy?: { group: string; label: string } | null; area_sf?: number | null;
+      stories?: number | null }; source: string; message?: string }>(
+      `/projects/${pid}/codecheck`, { method: "POST", body: JSON.stringify({ description, context }) });
+  }
+  pricingReconcile(pid: string) {
+    return this.json<{ lines: { material: string; quantity: number; unit: string; matched?: string | null;
+      unit_price?: number; priced_amount?: number | null; estimated_unit_price?: number; variance?: number;
+      variance_pct?: number | null; note?: string }[]; matched: number; priced_total: number;
+      estimated_total: number; variance_total: number | null; pricing_source: string }>(
+      `/projects/${pid}/pricing/reconcile`);
+  }
   /** Download URL for a module's header-only import template (CSV). */
   importTemplateUrl(pid: string, key: string) {
     return this.url(`/projects/${pid}/modules/${key}/import-template.csv`);

@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.42 — Competitive Tiers 2 & 3: fintech depth + differentiated (carbon, code, pricing)
+The rest of the competitive roadmap. Every engine is offline/deterministic (AI only where it helps),
+source-linked, and never fabricates; money movement and live pricing are feature-flagged bridge stubs
+that raise actionable errors rather than faking a result.
+- **Subcontractor prequalification** — a transparent Q-score (safety/EMR, financial, experience, rating,
+  currency = 100 pts, every point traceable) + a **COI-expiry** feed. A single sub default costs a GC
+  1.5-3× the subcontract, so this is the risk gate competitors sell (Procore Prequal / TradeTapp).
+- **Pay-app ↔ lien-waiver reconciliation** — matches what was **paid** (`sub_invoice`) against **waivers**
+  on file (`lien_waiver`, conditional vs unconditional) and surfaces per-vendor **lien exposure**. Massing
+  never moves money: a `payments_bridge` stub disburses only through a licensed processor and refuses
+  release while exposure remains.
+- **Accounting export** — double-entry **GL CSV** + **QuickBooks IIF** bills from the cost records, so
+  finance stops re-keying. (Live two-way sync remains the connection framework's job.)
+- **Embodied carbon (A1-A3)** — computed from `production_quantity` × a built-in EPD factor table with
+  unit conversion, rolled up by material + cost code. Zero of this existed before, and it plays to our
+  IFC/quantity strength as embodied-carbon reporting goes mandatory on public work.
+- **Code-compliance assistant** — describe a project → applicable **IBC/ADA/IECC** sections with citations
+  (Claude when keyed; a deterministic IBC checklist triggered by occupancy/area/stories otherwise).
+- **Takeoff pricing** — reconcile the takeoff to a built-in unit price book (+ a `pricing_bridge` stub for
+  a live supplier/RSMeans feed) with **variance vs the estimate**.
+- **UI:** a **🛡 Risk & Cost** portal panel (prequal scores, COI expiry, lien exposure, carbon, priced-
+  takeoff variance, GL/IIF export) and a **Code check** tab in AI Assist.
+- Verified: 92/92 backend suites, web typecheck + 49 vitest + Pages build + bundle budget all green.
+
 ## v0.3.41 — Competitive Tier 1: AI drafting, bid leveling, cross-project benchmarking
 Market-driven upgrades from a competitive review (Procore "Future State of Construction" survey +
 BuildZen / Jet.build / AEC Foundry / Belidor / ContractorPlus). Each AI engine mirrors the existing

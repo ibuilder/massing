@@ -146,6 +146,12 @@ export class PortalUI {
       ai.innerHTML = `<span class="ic">✍️</span> AI Assist`;
       ai.onclick = () => { this.activeKey = "__aiassist__"; void this.renderAiAssist(); this.buildNav(); };
       nav.appendChild(ai);
+      // Risk & Cost — sub prequal/COI, lien exposure, embodied carbon, priced takeoff, accounting export.
+      const rc = document.createElement("button");
+      rc.className = "pnav-item pnav-home" + (this.activeKey === "__riskcost__" ? " active" : "");
+      rc.innerHTML = `<span class="ic">🛡</span> Risk &amp; Cost`;
+      rc.onclick = () => { this.activeKey = "__riskcost__"; void this.renderRiskCost(); this.buildNav(); };
+      nav.appendChild(rc);
     } else {
       // Developer — jump to the proforma/underwriting workspace (returns, capital stack, cash flow)
       const uw = document.createElement("button");
@@ -427,7 +433,7 @@ export class PortalUI {
     const tabs = el("div"); tabs.style.cssText = "display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap";
     const body = el("div"); root.append(tabs, body);
     const TABS: [string, string][] = [["rfi", "📝 Draft RFI"], ["scope", "📋 Draft scope"],
-      ["submittal", "📄 Submittal summary"], ["level", "⚖️ Bid leveling"]];
+      ["submittal", "📄 Submittal summary"], ["level", "⚖️ Bid leveling"], ["code", "🏛️ Code check"]];
     let active = "rfi";
 
     const fileRow = (accept: string) => {
@@ -464,6 +470,39 @@ export class PortalUI {
           try { this.renderLeveling(out, await this.host.api.bidLevelingDetail(pid, pick.value)); }
           catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
         };
+        return;
+      }
+
+      if (active === "code") {
+        const ta = el("textarea", "portal-filter") as HTMLTextAreaElement;
+        ta.placeholder = "Describe the project — occupancy/use, area (sf), stories, occupants…";
+        ta.style.cssText = "width:100%;min-height:80px;margin:6px 0";
+        const run = el("button", "file-btn") as HTMLButtonElement; run.textContent = "Check applicable codes";
+        const out = el("div"); out.style.marginTop = "8px";
+        run.onclick = async () => {
+          if (!ta.value.trim()) { toast("Describe the project", "error"); return; }
+          out.textContent = "checking…";
+          try {
+            const r = await this.host.api.codeComplianceCheck(pid, ta.value.trim());
+            out.innerHTML = "";
+            const d = r.detected;
+            const head = el("div", "meta");
+            head.textContent = "Detected: " + [d?.occupancy ? `${d.occupancy.label} (${d.occupancy.group})` : null,
+              d?.area_sf ? `${d.area_sf.toLocaleString()} sf` : null, d?.stories ? `${d.stories} stories` : null]
+              .filter(Boolean).join(" · ") + `  ·  ${r.source}`;
+            out.append(head);
+            const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:12px;margin-top:6px";
+            tbl.innerHTML = `<thead><tr><th style="text-align:left">Code</th><th style="text-align:left">Section</th>`
+              + `<th style="text-align:left">Requirement</th></tr></thead><tbody>`
+              + r.topics.map((t) => `<tr><td>${t.code}</td><td><b>${t.section}</b> — ${t.title}</td>`
+                + `<td>${t.requirement}</td></tr>`).join("") + `</tbody>`;
+            out.append(tbl);
+            const note = el("div", "meta"); note.style.marginTop = "6px";
+            note.textContent = r.message || "Confirm all provisions with the Authority Having Jurisdiction (AHJ).";
+            out.append(note);
+          } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
+        };
+        body.append(ta, run, out);
         return;
       }
 
@@ -620,6 +659,89 @@ export class PortalUI {
         costs.append(h, tbl);
       }
     } catch (e) { costs.textContent = `cost benchmarks failed: ${(e as Error).message}`; }
+  }
+
+  // --- Risk & Cost: prequal, COI, lien exposure, carbon, pricing, accounting export -------------
+  private async renderRiskCost() {
+    const root = this.root; root.innerHTML = "";
+    const pid = this.host.projectId();
+    if (!pid) { root.innerHTML = noProjectHtml("Risk & Cost"); return; }
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    const api = this.host.api;
+    root.appendChild(this.bar("🛡 Risk & Cost", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const tone = (band: string) => band === "high" ? "var(--status-crit)" : band === "medium" ? "var(--status-warn)" : "var(--status-good)";
+    const section = (title: string) => { const h = el("div", "meta"); h.style.cssText = "margin:12px 0 4px;font-weight:600"; h.textContent = title; root.appendChild(h); return h; };
+    const slot = () => { const d = el("div"); d.textContent = "loading…"; root.appendChild(d); return d; };
+
+    section("Subcontractor prequalification (Q-score, worst first)");
+    const pqSlot = slot();
+    section("Insurance (COI) expiry");
+    const coiSlot = slot();
+    section("Lien exposure (paid without an unconditional waiver)");
+    const lienSlot = slot();
+    section("Embodied carbon");
+    const carbonSlot = slot();
+    section("Takeoff pricing vs estimate");
+    const priceSlot = slot();
+    section("Accounting export");
+    const acct = el("div");
+    const glBtn = el("a", "file-btn") as HTMLAnchorElement; glBtn.textContent = "⬇ GL (CSV)";
+    glBtn.href = api.accountingGlCsvUrl(pid); glBtn.style.marginRight = "8px";
+    const iifBtn = el("a", "file-btn") as HTMLAnchorElement; iifBtn.textContent = "⬇ QuickBooks bills (IIF)";
+    iifBtn.href = api.accountingIifUrl(pid);
+    acct.append(glBtn, iifBtn); root.appendChild(acct);
+
+    api.prequalScores(pid).then((r) => {
+      pqSlot.innerHTML = "";
+      if (!r.count) { pqSlot.innerHTML = `<div class="meta">No prequalification records yet.</div>`; return; }
+      const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
+      t.innerHTML = `<thead><tr><th style="text-align:left">Company</th><th>Trade</th><th>Score</th><th style="text-align:left">Flags</th></tr></thead><tbody>`
+        + r.subs.map((s) => `<tr><td>${s.company || ""}</td><td style="text-align:center">${s.trade || ""}</td>`
+          + `<td style="text-align:center;color:${tone(s.risk_band)}"><b>${s.score}</b> ${s.risk_band}</td>`
+          + `<td>${(s.flags || []).join("; ")}</td></tr>`).join("") + `</tbody>`;
+      pqSlot.append(t);
+    }).catch((e) => { pqSlot.textContent = `failed: ${(e as Error).message}`; });
+
+    api.coiExpiry(pid).then((r) => {
+      coiSlot.innerHTML = `<div class="meta">${r.expired_count} expired · ${r.expiring_count} expiring ≤30d</div>`;
+      const rows = [...r.expired.map((x) => ({ ...x, k: "EXPIRED" })), ...r.expiring_soon.map((x) => ({ ...x, k: "soon" }))];
+      if (rows.length) {
+        const ul = el("ul"); ul.style.cssText = "margin:4px 0 0 16px;font-size:12px";
+        rows.forEach((x) => { const li = el("li");
+          li.innerHTML = `<span style="color:${x.k === "EXPIRED" ? "var(--status-crit)" : "var(--status-warn)"}">${x.k}</span> `
+            + `${x.vendor || ""} — ${x.coverage_type || ""} exp ${x.expires} (${x.days}d)`; ul.append(li); });
+        coiSlot.append(ul);
+      }
+    }).catch((e) => { coiSlot.textContent = `failed: ${(e as Error).message}`; });
+
+    api.lienExposure(pid).then((r) => {
+      lienSlot.innerHTML = `<div class="meta">Total exposure <b style="color:${r.total_lien_exposure > 0 ? "var(--status-crit)" : "var(--status-good)"}">${cmoney(r.total_lien_exposure)}</b>`
+        + (r.vendors_at_risk.length ? ` · at risk: ${r.vendors_at_risk.join(", ")}` : "") + `</div>`;
+      const risky = r.vendors.filter((v) => v.exposure > 0);
+      if (risky.length) {
+        const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
+        t.innerHTML = `<thead><tr><th style="text-align:left">Vendor</th><th>Paid</th><th>Unconditional waived</th><th>Exposure</th></tr></thead><tbody>`
+          + risky.map((v) => `<tr><td>${v.vendor}</td><td style="text-align:right">${cmoney(v.paid)}</td>`
+            + `<td style="text-align:right">${cmoney(v.waived_unconditional)}</td>`
+            + `<td style="text-align:right;color:var(--status-crit)">${cmoney(v.exposure)}</td></tr>`).join("") + `</tbody>`;
+        lienSlot.append(t);
+      }
+    }).catch((e) => { lienSlot.textContent = `failed: ${(e as Error).message}`; });
+
+    api.projectCarbon(pid).then((r) => {
+      if (!r.line_count) { carbonSlot.innerHTML = `<div class="meta">${r.message || "No material quantities."}</div>`; return; }
+      const mats = Object.entries(r.by_material).slice(0, 6).map(([m, v]) => `${m}: ${(v / 1000).toFixed(1)} t`).join(" · ");
+      carbonSlot.innerHTML = `<div><b>${r.total_tco2e.toLocaleString()} tCO₂e</b> embodied (A1-A3)`
+        + (r.unmatched ? ` · ${r.unmatched} line(s) unmatched` : "") + `</div><div class="meta">${mats}</div>`;
+    }).catch((e) => { carbonSlot.textContent = `failed: ${(e as Error).message}`; });
+
+    api.pricingReconcile(pid).then((r) => {
+      if (!r.matched) { priceSlot.innerHTML = `<div class="meta">No priced quantities (${r.pricing_source}).</div>`; return; }
+      const v = r.variance_total;
+      priceSlot.innerHTML = `<div>Priced <b>${cmoney(r.priced_total)}</b> (${r.pricing_source})`
+        + (v != null ? ` vs estimate ${cmoney(r.estimated_total)} — variance <b style="color:${v > 0 ? "var(--status-warn)" : "var(--status-good)"}">${cmoney(v)}</b>` : "")
+        + `</div>`;
+    }).catch((e) => { priceSlot.textContent = `failed: ${(e as Error).message}`; });
   }
 
   private renderContractFindings(out: HTMLElement, r: { findings: { clause: string; severity: string; category: string;
