@@ -1,0 +1,174 @@
+{
+  "key": "information_container",
+  "name": "Information Containers (CDE)",
+  "section": "Information Management",
+  "icon": "🗂",
+  "ref_prefix": "IC",
+  "title_field": "title",
+  "pinnable": false,
+  "revisable": true,
+  "fields": [
+    {
+      "name": "title",
+      "label": "Title",
+      "type": "text",
+      "required": true,
+      "fieldset": "Container"
+    },
+    {
+      "name": "container_id",
+      "label": "Container ID (ISO 19650 naming)",
+      "type": "text",
+      "fieldset": "Container"
+    },
+    {
+      "name": "info_type",
+      "label": "Type",
+      "type": "select",
+      "options": [
+        "Model",
+        "Drawing",
+        "Document",
+        "Report",
+        "Schedule",
+        "Specification"
+      ],
+      "fieldset": "Container"
+    },
+    {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "select",
+      "options": [
+        "General",
+        "Architectural",
+        "Structural",
+        "MEP",
+        "Civil",
+        "Landscape"
+      ],
+      "fieldset": "Container"
+    },
+    {
+      "name": "originator",
+      "label": "Originator / Author",
+      "type": "text",
+      "fieldset": "Container"
+    },
+    {
+      "name": "suitability_code",
+      "label": "Suitability / Status Code",
+      "type": "select",
+      "options": [
+        "S0 - Work in progress",
+        "S1 - Shared for coordination",
+        "S2 - Shared for information",
+        "S3 - Shared for review & comment",
+        "S4 - Shared for stage approval",
+        "A - Published for construction",
+        "B - Published with comments",
+        "CR - As-constructed record",
+        "AB - As-built"
+      ],
+      "fieldset": "Status"
+    },
+    {
+      "name": "revision",
+      "label": "Revision",
+      "type": "text",
+      "fieldset": "Status"
+    },
+    {
+      "name": "reviewer",
+      "label": "Reviewer",
+      "type": "text",
+      "fieldset": "Status"
+    },
+    {
+      "name": "linked_document",
+      "label": "Linked Document",
+      "type": "reference",
+      "module": "document",
+      "fieldset": "Links"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "Links"
+    }
+  ],
+  "workflow": {
+    "initial": "wip",
+    "states": [
+      "wip",
+      "shared",
+      "published",
+      "archived"
+    ],
+    "transitions": [
+      {
+        "from": "wip",
+        "to": "shared",
+        "action": "share",
+        "party": [
+          "Architect",
+          "Engineer",
+          "GC",
+          "Consultant"
+        ],
+        "requires": [
+          "suitability_code"
+        ]
+      },
+      {
+        "from": "shared",
+        "to": "wip",
+        "action": "return",
+        "party": [
+          "PM",
+          "OwnersRep",
+          "Architect"
+        ]
+      },
+      {
+        "from": "shared",
+        "to": "published",
+        "action": "publish",
+        "party": [
+          "PM",
+          "OwnersRep",
+          "Architect"
+        ],
+        "requires": [
+          "revision"
+        ]
+      },
+      {
+        "from": "published",
+        "to": "archived",
+        "action": "archive",
+        "party": [
+          "GC",
+          "PM"
+        ]
+      },
+      {
+        "from": "published",
+        "to": "shared",
+        "action": "supersede",
+        "party": [
+          "Architect",
+          "Engineer",
+          "GC"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "info_type",
+    "suitability_code",
+    "revision"
+  ],
+  "workspace": "construction"
+}

@@ -127,6 +127,7 @@ export class PortalUI {
       __operations__: () => this.renderOperations(), __energy__: () => this.renderEnergy(),
       __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
       __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
+      __standards__: () => this.renderStandards(),
       __portfolio__: () => this.renderPortfolio(), __benchmarks__: () => this.renderBenchmarks(),
     };
     const stages: [string, Dest[]][] = this.wsFilter === "construction"
@@ -135,6 +136,7 @@ export class PortalUI {
           { key: "__review__", icon: "🛡", label: "Risk Review" },          // contract clauses / scope gaps / doc Q&A
           { key: "__riskcost__", icon: "⚖️", label: "Risk & Cost" },        // prequal, lien exposure, carbon, takeoff
           { key: "__ids__", icon: "📋", label: "IDS Requirements" },
+          { key: "__standards__", icon: "🗂", label: "CDE / Standards" },   // ISO 19650 container discipline + reqs
         ]],
         ["Build", [
           ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__schedule__", icon: "📅", label: "Schedule" }] : []),
@@ -1063,6 +1065,66 @@ export class PortalUI {
     const a = document.createElement("a"); a.className = "portal-btn"; a.textContent = "⬇ ESG summary (PDF)";
     a.href = this.host.api.reportUrl(pid, "esg", "pdf"); a.target = "_blank"; a.rel = "noopener";
     rb.append(a); body.append(rb);
+  }
+
+  // --- CDE / Standards: ISO 19650 container discipline + requirements register ------------------
+  private async renderStandards() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("🗂 CDE / Standards (ISO 19650)", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const pid = this.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("CDE / Standards")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Information management to ISO 19650: deliverables move through the Common "
+      + "Data Environment (Work-in-progress → Shared → Published → Archived) with suitability codes "
+      + "and revisions, and the appointment carries its information requirements (EIR, BEP, AIR). "
+      + "Manage records under Information Management → Information Containers / Requirements.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    let st; let reg;
+    try { st = await this.host.api.cdeStatus(pid); reg = await this.host.api.infoRequirementsRegister(pid); }
+    catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+    body.innerHTML = "";
+    // container state distribution
+    const stages: [string, string][] = [["wip", "WIP"], ["shared", "Shared"], ["published", "Published"], ["archived", "Archived"]];
+    const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
+    for (const [k, label] of stages) {
+      const c = el("div", "dash-card"); c.style.minWidth = "90px";
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${st.by_state[k] ?? 0}</div><div class="meta">${label}</div>`;
+      cards.append(c);
+    }
+    body.append(cards);
+    // CDE discipline metrics
+    const d = st.discipline;
+    const disc = el("div", "dash-card"); disc.style.marginBottom = "8px";
+    const pct = (v: number | null) => v != null ? `${v}%` : "—";
+    disc.innerHTML = `<b>CDE discipline</b>`
+      + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
+      + `<tr><td>Revision control</td><td class="num">${pct(d.revision_control_pct)}</td></tr>`
+      + `<tr><td>Approval status (past WIP)</td><td class="num">${pct(d.approval_status_pct)}</td></tr>`
+      + `<tr><td>Metadata completeness</td><td class="num">${pct(d.metadata_completeness_pct)}</td></tr>`
+      + `</table>`;
+    body.append(disc);
+    // requirements register + core coverage
+    const rc = el("div", "dash-card");
+    const cov = reg.core_coverage;
+    rc.style.cssText = `border-left:3px solid var(${cov.complete ? "--status-good" : "--status-warn"});margin-bottom:8px`;
+    rc.innerHTML = `<b>Information requirements</b> <span class="meta">(${reg.total})</span>`
+      + `<div class="meta">${cov.complete ? "✅ core documents on file (EIR, BEP, AIR)"
+        : `⏳ missing core: ${cov.missing.map(esc).join(", ")}`}</div>`;
+    const types = Object.entries(reg.by_type);
+    if (types.length) {
+      rc.innerHTML += `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
+        + `<tr><th style="text-align:left">Type</th><th class="num">Issued</th><th class="num">Draft</th></tr>`
+        + types.map(([t, v]) => `<tr><td>${esc(t)}</td><td class="num">${v.issued}</td><td class="num">${v.draft}</td></tr>`).join("")
+        + `</table>`;
+    }
+    body.append(rc);
+    if (!st.total && !reg.total) {
+      const none = el("div", "meta");
+      none.textContent = "No containers or requirements yet — add them under Information Management.";
+      body.append(none);
+    }
   }
 
   // --- Operations: CMMS — work orders, PM generation, maintenance KPIs --------------------------

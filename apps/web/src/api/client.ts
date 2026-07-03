@@ -1379,6 +1379,21 @@ export class ApiClient {
       `/energy/benchmark-status`);
   }
 
+  // --- ISO 19650 standards: CDE container discipline + requirements register ----
+  cdeStatus(pid: string) {
+    return this.json<{ total: number; by_state: Record<string, number>;
+      by_suitability: Record<string, number>;
+      discipline: { revision_control_pct: number | null; approval_status_pct: number | null;
+        metadata_completeness_pct: number | null; published: number; archived: number };
+      note: string }>(`/projects/${pid}/cde/status`);
+  }
+  infoRequirementsRegister(pid: string) {
+    return this.json<{ total: number;
+      by_type: Record<string, { total: number; issued: number; draft: number; superseded: number }>;
+      core_coverage: { required: string[]; missing: string[]; complete: boolean }; note: string }>(
+      `/projects/${pid}/info-requirements/register`);
+  }
+
   // --- hold-phase asset management: reserve study + CAM reconciliation ----------
   reserveStudy(pid: string, opts: { horizonYears?: number; openingBalance?: number;
       annualContribution?: number; inflationPct?: number } = {}) {

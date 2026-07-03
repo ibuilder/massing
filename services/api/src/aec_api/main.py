@@ -17,7 +17,7 @@ from . import metrics
 from .db import init_db
 from .routers import (accounting, analysis, auth, authoring, benchmarking, bidding, bim, carbon, closeout, codecheck, conceptual, connections, contracts, convert, cost,
                       dashboard, design, drafting, drawings, ids, exports, generate, modules, opendata, operations, parcels, payapp, prequal, pricing, procurement, realestate, reports, research, review, proforma, properties, schedule,
-                      templates, turnover, verification, payroll, assistant, construction)
+                      templates, turnover, verification, payroll, assistant, construction, standards)
 
 _access_log = logging.getLogger("aec.access")
 _log = logging.getLogger("aec.autosync")
@@ -237,6 +237,7 @@ app.include_router(payroll.router, tags=["payroll"])
 app.include_router(assistant.router, tags=["assistant"])
 app.include_router(construction.router, tags=["construction"])
 app.include_router(operations.router, tags=["operations"])
+app.include_router(standards.router, tags=["standards"])
 
 
 @app.middleware("http")

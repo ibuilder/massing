@@ -1,0 +1,113 @@
+{
+  "key": "info_requirement",
+  "name": "Information Requirements",
+  "section": "Information Management",
+  "icon": "📋",
+  "ref_prefix": "IR",
+  "title_field": "title",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "title",
+      "label": "Title",
+      "type": "text",
+      "required": true,
+      "fieldset": "Requirement"
+    },
+    {
+      "name": "req_type",
+      "label": "Type",
+      "type": "select",
+      "required": true,
+      "options": [
+        "OIR - Organizational Information Requirements",
+        "AIR - Asset Information Requirements",
+        "PIR - Project Information Requirements",
+        "EIR - Exchange Information Requirements",
+        "BEP - BIM Execution Plan",
+        "MIDP - Master Information Delivery Plan",
+        "TIDP - Task Information Delivery Plan"
+      ],
+      "fieldset": "Requirement"
+    },
+    {
+      "name": "purpose",
+      "label": "Purpose / Scope",
+      "type": "textarea",
+      "fieldset": "Requirement"
+    },
+    {
+      "name": "appointing_party",
+      "label": "Appointing Party (Client)",
+      "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "lead_appointed_party",
+      "label": "Lead Appointed Party",
+      "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "appointed_party",
+      "label": "Appointed Party",
+      "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "due_date",
+      "label": "Due / Milestone",
+      "type": "date",
+      "fieldset": "Delivery"
+    },
+    {
+      "name": "attachment",
+      "label": "Document",
+      "type": "file",
+      "fieldset": "Delivery"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "issued",
+      "superseded"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "issued",
+        "action": "issue",
+        "party": [
+          "OwnersRep",
+          "PM",
+          "Architect"
+        ]
+      },
+      {
+        "from": "issued",
+        "to": "superseded",
+        "action": "supersede",
+        "party": [
+          "OwnersRep",
+          "PM"
+        ]
+      },
+      {
+        "from": "superseded",
+        "to": "issued",
+        "action": "reinstate",
+        "party": [
+          "OwnersRep",
+          "PM"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "req_type",
+    "due_date"
+  ],
+  "workspace": "construction"
+}

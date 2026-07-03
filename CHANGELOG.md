@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.61 — ISO 19650 information management: CDE + requirements register (standards C1 of 8)
+Opens a standards-alignment track (grounded in ISO 19650, buildingSMART, and the industry BIM-KPI
+frameworks). First: formal information management, replacing scattered document status with a proper
+Common Data Environment.
+- **`information_container` module** — deliverables (models, drawings, docs) move through the ISO
+  19650 CDE states **Work-in-progress → Shared → Published → Archived**, carrying a
+  **suitability/status code** (S0–S4 shared, A published-for-construction, CR/AB record) and a
+  **revision**. Sharing requires a suitability code; publishing requires a revision (the review gates).
+- **`info_requirement` module** — the requirements register: OIR/AIR/PIR/**EIR**/**BEP**/MIDP/TIDP
+  with appointing / lead-appointed / appointed parties, `draft → issued → superseded`.
+- **`GET /projects/{pid}/cde/status`** (`cde.py`) — container state distribution, suitability
+  spread, and the three **CDE-discipline** metrics (revision control %, approval-status coverage,
+  metadata completeness) that feed the forthcoming BIM KPI scorecard.
+- **`GET /projects/{pid}/info-requirements/register`** — requirements by type + **core-document
+  coverage** (flags a missing EIR/BEP/AIR).
+- **“🗂 CDE / Standards” panel** (Plan & derisk) — container-state cards, CDE-discipline table,
+  requirements register with the core-coverage banner.
+- Verified live (panel shows 2 WIP / 1 Published, discipline metrics, missing-AIR flag) +
+  `test_cde` (WIP→Shared→Published gated on suitability then revision; core-coverage). Typecheck green.
+
 ## v0.3.60 — Navigation at scale + a current demo
 The panel list had outgrown a flat sidebar. Research pass over the published evidence on
 information architecture for feature-dense products (navigation-depth studies, journey-based
