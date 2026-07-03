@@ -576,7 +576,7 @@ def _safety(db: Session, pid: str, name: str) -> Report:
 def _closeout(db: Session, pid: str, name: str) -> Report:
     from . import closeout
     s = closeout.closeout_summary(db, pid)
-    pu, cx, ct, wr, om = s["punchlist"], s["commissioning"], s["certificates"], s["warranties"], s["om_manuals"]
+    pu, cx, wr, om = s["punchlist"], s["commissioning"], s["warranties"], s["om_manuals"]
     r = Report("Closeout Dashboard", name)
     r.kpi("Punch items", pu["punch_count"])
     r.kpi("Punch complete", f"{pu['complete_pct']}%" if pu["complete_pct"] is not None else "—")

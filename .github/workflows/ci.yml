@@ -27,6 +27,9 @@ jobs:
           pip install -r services/api/requirements.txt -r services/api/requirements-dev.txt
           pip install -r services/data/requirements.txt
 
+      - name: Lint (ruff — dead code + real defects)
+        run: cd services/api && python -m ruff check src/ ../data/src/
+
       - name: Run test gate
         run: python services/api/run_tests.py
 

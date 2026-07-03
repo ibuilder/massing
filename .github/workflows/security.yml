@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
-      - run: pip install pip-audit
+      - run: pip install pip-audit bandit
       - name: pip-audit (api + data)
         continue-on-error: true        # report-only
         run: |
@@ -34,6 +34,11 @@ jobs:
             echo "## $req" >> "$GITHUB_STEP_SUMMARY"
             pip-audit -r "$req" --desc --format markdown >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
           done
+      - name: bandit (code security scan, medium+ severity)
+        continue-on-error: true        # report-only — surfaces XXE / SSRF / injection patterns
+        run: |
+          echo "## bandit (services/api + services/data)" >> "$GITHUB_STEP_SUMMARY"
+          bandit -q -r services/api/src services/data/src -ll -ii >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
 
   node:
     runs-on: ubuntu-latest

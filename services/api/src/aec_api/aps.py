@@ -15,7 +15,6 @@ without credentials (the gates short-circuit before any APS call).
 from __future__ import annotations
 
 import json
-import os
 import urllib.parse
 import urllib.request
 

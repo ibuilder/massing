@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.43 — Code-quality gate (ruff + bandit in the loop) + BCF XXE fix
+Applying the "enterprise-quality code with AI agents" discipline — verification *in the loop*, not after.
+- **Static-analysis gate (ruff)** — a tuned config (`services/api/ruff.toml`) enforces the high-signal
+  rules that catch real defects and dead code (pyflakes `F`, syntax `E9`, bugbear `B`) while respecting
+  the codebase's deliberate idioms (compact `;` one-liners; the logged fail-open `except Exception`
+  pattern is *not* linted). Wired into CI as a **blocking** step. Fixed everything it found: **14 unused
+  imports + 2 unused variables** (dead code removed) and a **loop-variable closure bug** in the BCF
+  camera parser.
+- **Security scan (bandit)** — added to the report-only security workflow and run before shipping. It
+  surfaced a real one: **`bcf_io.py` parsed untrusted uploaded BCF XML with the vulnerable stdlib
+  parser (XXE / billion-laughs vector)** — now uses **`defusedxml`**, the same hardening already applied
+  to CityGML import. Fixes an actual vulnerability on the BCF import path.
+- `ruff` + `bandit` added to `requirements-dev.txt`; `CONTRIBUTING.md` documents the local gates.
+- Verified: ruff clean, 92/92 backend suites, bandit XXE finding resolved.
+
 ## v0.3.42 — Competitive Tiers 2 & 3: fintech depth + differentiated (carbon, code, pricing)
 The rest of the competitive roadmap. Every engine is offline/deterministic (AI only where it helps),
 source-linked, and never fabricates; money movement and live pricing are feature-flagged bridge stubs

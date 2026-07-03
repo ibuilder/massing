@@ -7,8 +7,13 @@ fields; extend the XML builders/parsers as needed."""
 from __future__ import annotations
 
 import io
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET   # for Element node types only — parsing goes through defusedxml
 import zipfile
+
+# BCF files are user-uploaded, untrusted XML inside a zip. Parse with defusedxml to harden against
+# XXE / billion-laughs / external-entity attacks (same protection as citygml.py). Returns standard
+# ElementTree nodes, so the rest of the ET-based traversal is unchanged.
+from defusedxml.ElementTree import fromstring as _safe_fromstring
 from datetime import datetime, timezone
 from typing import Any
 
@@ -132,7 +137,7 @@ def _parse_camera(vroot: ET.Element) -> dict | None:
         cel = vroot.find(tag)
         if cel is None:
             continue
-        def pt(name: str) -> dict | None:
+        def pt(name: str, cel: ET.Element = cel) -> dict | None:   # bind loop var (B023)
             e = cel.find(name)
             return {ax.lower(): float(e.findtext(ax) or 0) for ax in ("X", "Y", "Z")} if e is not None else None
         cam: dict[str, Any] = {"type": kind, "position": pt("CameraViewPoint") or {"x": 0, "y": 0, "z": 0}}
@@ -228,7 +233,7 @@ def parse_records_bcfzip(data: bytes) -> list[dict]:
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         names = z.namelist()
         for name in [n for n in names if n.endswith("markup.bcf")]:
-            root = ET.fromstring(z.read(name))
+            root = _safe_fromstring(z.read(name))
             te = root.find("Topic")
             if te is None:
                 continue
@@ -239,7 +244,7 @@ def parse_records_bcfzip(data: bytes) -> list[dict]:
             comps: list[str] = []
             anchor = None
             for vp in [n for n in names if n.endswith(".bcfv") and (not folder or n.startswith(folder + "/"))]:
-                vroot = ET.fromstring(z.read(vp))
+                vroot = _safe_fromstring(z.read(vp))
                 for comp in vroot.findall(".//Selection/Component"):
                     g = comp.get("IfcGuid")
                     if g:
@@ -260,7 +265,7 @@ def import_bcfzip(db: Session, project_id: str, data: bytes) -> int:
         names = z.namelist()
         markups = [n for n in names if n.endswith("markup.bcf")]
         for name in markups:
-            root = ET.fromstring(z.read(name))
+            root = _safe_fromstring(z.read(name))
             te = root.find("Topic")
             if te is None:
                 continue
@@ -271,7 +276,7 @@ def import_bcfzip(db: Session, project_id: str, data: bytes) -> int:
             cam = None
             coloring: list = []
             for vp in [n for n in names if n.endswith(".bcfv") and (not folder or n.startswith(folder + "/"))]:
-                vroot = ET.fromstring(z.read(vp))
+                vroot = _safe_fromstring(z.read(vp))
                 for comp in vroot.findall(".//Selection/Component"):
                     g = comp.get("IfcGuid")
                     if g:

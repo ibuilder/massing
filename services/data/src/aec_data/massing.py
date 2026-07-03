@@ -173,7 +173,6 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
 
     floors = int(metrics["floors"])
     fw, fd, f2f = float(metrics["plate_w"]), float(metrics["plate_d"]), float(metrics["floor_to_floor"])
-    plate_area = round(fw * fd, 2)
     units_per_floor = max(1, round(int(metrics.get("units", 0)) / floors)) if units else 0
     # member sizes — defaults, overridable by the structural advisor (R3) via `members` (metres)
     mem = members or {}

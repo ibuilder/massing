@@ -16,7 +16,7 @@ import base64
 import json
 import os
 import urllib.request
-from typing import Any, Callable
+from typing import Any
 
 _PROVIDERS = {
     "docuseal": "DocuSeal (self-hosted)",

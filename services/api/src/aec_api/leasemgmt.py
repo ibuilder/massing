@@ -3,7 +3,7 @@
 the `lease` module; complements rentroll.py (which gives the point-in-time roll). No writes."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any
 
 ACTIVE_STATES = ("active", "holdover", "renewed")

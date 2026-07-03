@@ -1,0 +1,19 @@
+# Static analysis for the agent-in-the-loop workflow (see docs/operations.md).
+# We enforce the rules that catch real defects and dead code — pyflakes (F), bugbear (B),
+# blind-except (BLE, already used via `# noqa: BLE001`), and syntax errors (E9) — and deliberately
+# DO NOT enforce the stylistic line-length / one-statement-per-line rules, because this codebase
+# intentionally uses compact semicolon one-liners. Match the code's conventions; enforce correctness.
+line-length = 120
+target-version = "py310"
+extend-exclude = ["dist_desktop", ".venv", "build"]
+
+[lint]
+# F = pyflakes (unused imports/vars, undefined names, f-string bugs — near-zero false positives),
+# E9 = syntax errors, B = bugbear (real anti-patterns). We do NOT select BLE (this codebase uses a
+# deliberate, logged fail-open `except Exception` idiom, already annotated with `# noqa: BLE001`).
+select = ["F", "E9", "B"]
+# Idiomatic/stylistic in this codebase, not defects:
+#   B008 — FastAPI `Depends(...)`/`File(...)`/`Body(...)` calls in argument defaults (the whole point).
+#   B904 — `raise ... from` inside except: the fail-open handlers deliberately swallow context.
+#   B905 — `zip()` without strict=: intentional truncation in a few parsers.
+ignore = ["B008", "B904", "B905"]

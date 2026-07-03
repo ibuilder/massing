@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .. import storage
 from ..db import get_db
 from ..models import ElementVerification
-from ..rbac import current_user, require_role
+from ..rbac import require_role
 from .properties import _INDEX, _ensure_loaded
 
 router = APIRouter()

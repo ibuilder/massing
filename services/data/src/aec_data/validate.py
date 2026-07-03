@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 import ifcopenshell
-from ifctester import ids, reporter
+from ifctester import ids
 
 from .ifc_loader import open_model
 

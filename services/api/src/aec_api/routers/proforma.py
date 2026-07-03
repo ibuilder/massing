@@ -27,7 +27,7 @@ router = APIRouter()
 # The proforma input contract (Timing/CostLine/Debt/…/Assumptions) lives in proforma_schemas so the
 # router stays focused on endpoints. Re-exported here so `routers.proforma.Assumptions` still resolves.
 from .proforma_schemas import (  # noqa: E402
-    Assumptions, CostLine, Debt, Equity, Exit, Ops, Tax, Tier, Timing, Waterfall,
+    Assumptions,
 )
 
 __all__ = ["router", "Assumptions"]
