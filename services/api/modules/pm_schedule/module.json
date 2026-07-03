@@ -1,0 +1,88 @@
+{
+  "key": "pm_schedule",
+  "name": "PM Schedules",
+  "section": "Operations",
+  "icon": "🔁",
+  "ref_prefix": "PM",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "PM Task",
+      "type": "text",
+      "required": true,
+      "fieldset": "Schedule"
+    },
+    {
+      "name": "asset",
+      "label": "Asset",
+      "type": "reference",
+      "module": "asset_register",
+      "fieldset": "Schedule"
+    },
+    {
+      "name": "tasks",
+      "label": "Task List",
+      "type": "textarea",
+      "fieldset": "Schedule"
+    },
+    {
+      "name": "frequency_days",
+      "label": "Frequency (days)",
+      "type": "number",
+      "required": true,
+      "fieldset": "Schedule"
+    },
+    {
+      "name": "last_done",
+      "label": "Last Done",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "next_due",
+      "label": "Next Due",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "est_hours",
+      "label": "Est. Hours",
+      "type": "number",
+      "fieldset": "Schedule"
+    }
+  ],
+  "workflow": {
+    "initial": "active",
+    "states": [
+      "active",
+      "paused"
+    ],
+    "transitions": [
+      {
+        "from": "active",
+        "to": "paused",
+        "action": "pause",
+        "party": [
+          "GC",
+          "PM"
+        ]
+      },
+      {
+        "from": "paused",
+        "to": "active",
+        "action": "resume",
+        "party": [
+          "GC",
+          "PM"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "frequency_days",
+    "next_due"
+  ],
+  "workspace": "construction"
+}

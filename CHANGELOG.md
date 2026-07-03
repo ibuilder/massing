@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.57 — Operations: CMMS + metered energy (lifecycle R5 of 7)
+The biggest post-turnover gap: ~80% of a building's lifetime cost is operations. Adds the CMMS loop
+(preventive maintenance before failures) and utility metering (EUI benchmarking) — fully offline.
+- **`work_order` / `pm_schedule` modules** (Operations section) — corrective/preventive/emergency
+  work orders with asset refs, priority, labor hours and cost; workflow
+  `open → assigned → in_progress → completed → verified` (completion requires a completed date).
+  PM schedules carry a task list, frequency and next-due date.
+- **PM generation + KPIs** (`cmms.py`) — `POST /projects/{pid}/cmms/generate-pm` turns every due,
+  active PM schedule into a preventive work order (idempotent per cycle; advances next-due).
+  `GET …/cmms/kpis`: open by priority/type, overdue backlog, **PM compliance %**, **MTTR** (days).
+- **`meter` / `meter_reading` modules** — electric/gas/water/steam/chilled-water meters with dated
+  consumption + cost readings, entered manually or CSV-imported via the generic module import.
+- **Metered energy rollup** (`energy.py`) — `GET …/energy/actual`: site kBtu by utility (standard
+  conversion factors), monthly trend, water (tracked in gallons, not energy), utility cost, and
+  **EUI (kBtu/sf/yr)** annualized over covered months using the model's GFA (or `?gfa_sf=`).
+  Distinct from the design-model simulation at `GET …/energy`.
+- **Benchmarking bridge** (`energy_star_bridge.py`, feature-flagged) — reports honestly that no
+  provider is configured until a deployment sets `ENERGY_STAR_*` credentials; never fabricates a
+  score. Local EUI/trends need no account.
+- **“🔧 Operations” + “⚡ Energy” construction panels** — maintenance KPI cards, one-click PM
+  generation, open-WO table; EUI/energy/cost/water cards, monthly trend chart, by-utility table.
+- Verified live (both panels with seeded meters/readings/schedules; PM generation created WOs and
+  was idempotent on re-run) + `test_operations`; typecheck + 49 vitest green.
+
 ## v0.3.56 — Pre-acquisition: due diligence + entitlements (lifecycle R4 of 7)
 Fills the pre-construction gap the lifecycle research surfaced — the 6–36 months of study and
 approvals between site control and capital commitment (grounded in institutional due-diligence

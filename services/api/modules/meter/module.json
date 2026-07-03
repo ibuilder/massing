@@ -1,0 +1,80 @@
+{
+  "key": "meter",
+  "name": "Utility Meters",
+  "section": "Operations",
+  "icon": "⏲️",
+  "ref_prefix": "MTR",
+  "title_field": "subject",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Meter",
+      "type": "text",
+      "required": true,
+      "fieldset": "Meter"
+    },
+    {
+      "name": "utility",
+      "label": "Utility",
+      "type": "select",
+      "required": true,
+      "options": [
+        "Electric",
+        "Natural Gas",
+        "Water",
+        "Steam",
+        "Chilled Water"
+      ],
+      "fieldset": "Meter"
+    },
+    {
+      "name": "unit",
+      "label": "Unit",
+      "type": "select",
+      "options": [
+        "kWh",
+        "therms",
+        "gallons",
+        "kBtu",
+        "ton-hours"
+      ],
+      "fieldset": "Meter"
+    },
+    {
+      "name": "serves",
+      "label": "Serves (area / system)",
+      "type": "text",
+      "fieldset": "Meter"
+    },
+    {
+      "name": "meter_number",
+      "label": "Utility Meter #",
+      "type": "text",
+      "fieldset": "Meter"
+    }
+  ],
+  "workflow": {
+    "initial": "active",
+    "states": [
+      "active",
+      "retired"
+    ],
+    "transitions": [
+      {
+        "from": "active",
+        "to": "retired",
+        "action": "retire",
+        "party": [
+          "GC",
+          "PM"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "utility",
+    "unit"
+  ],
+  "workspace": "construction"
+}

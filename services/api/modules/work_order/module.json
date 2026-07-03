@@ -1,0 +1,160 @@
+{
+  "key": "work_order",
+  "name": "Work Orders",
+  "section": "Operations",
+  "icon": "🔧",
+  "ref_prefix": "WO",
+  "title_field": "subject",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Work Order",
+      "type": "text",
+      "required": true,
+      "fieldset": "Work"
+    },
+    {
+      "name": "wo_type",
+      "label": "Type",
+      "type": "select",
+      "required": true,
+      "options": [
+        "Corrective",
+        "Preventive",
+        "Emergency",
+        "Inspection"
+      ],
+      "fieldset": "Work"
+    },
+    {
+      "name": "asset",
+      "label": "Asset",
+      "type": "reference",
+      "module": "asset_register",
+      "fieldset": "Work"
+    },
+    {
+      "name": "description",
+      "label": "Description / Tasks",
+      "type": "textarea",
+      "fieldset": "Work"
+    },
+    {
+      "name": "priority",
+      "label": "Priority",
+      "type": "select",
+      "options": [
+        "Low",
+        "Medium",
+        "High",
+        "Critical"
+      ],
+      "fieldset": "Work"
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text",
+      "fieldset": "Work"
+    },
+    {
+      "name": "due_date",
+      "label": "Due",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "completed_date",
+      "label": "Completed",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "labor_hours",
+      "label": "Labor Hours",
+      "type": "number",
+      "fieldset": "Cost"
+    },
+    {
+      "name": "cost",
+      "label": "Cost (parts + labor)",
+      "type": "currency",
+      "fieldset": "Cost"
+    },
+    {
+      "name": "pm_schedule",
+      "label": "PM Schedule (if preventive)",
+      "type": "reference",
+      "module": "pm_schedule",
+      "fieldset": "Work"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "assigned",
+      "in_progress",
+      "completed",
+      "verified"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "assigned",
+        "action": "assign",
+        "party": [
+          "GC",
+          "PM"
+        ]
+      },
+      {
+        "from": "assigned",
+        "to": "in_progress",
+        "action": "start",
+        "party": [
+          "GC",
+          "Subcontractor"
+        ]
+      },
+      {
+        "from": "in_progress",
+        "to": "completed",
+        "action": "complete",
+        "party": [
+          "GC",
+          "Subcontractor"
+        ],
+        "requires": [
+          "completed_date"
+        ]
+      },
+      {
+        "from": "completed",
+        "to": "verified",
+        "action": "verify",
+        "party": [
+          "GC",
+          "PM",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "completed",
+        "to": "in_progress",
+        "action": "reopen",
+        "party": [
+          "GC",
+          "PM"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "wo_type",
+    "priority",
+    "due_date"
+  ],
+  "workspace": "construction"
+}

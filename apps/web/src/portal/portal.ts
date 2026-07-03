@@ -1,6 +1,6 @@
 import type { ApiClient, ModuleDef, ModuleRecord, RecordBrief } from "../api/client";
 import { escapeHtml as esc, toast } from "../ui/feedback";
-import { progressBar, groupedBar, money as cmoney } from "../ui/charts";
+import { progressBar, groupedBar, lineChart, money as cmoney } from "../ui/charts";
 import { modalShell, promptModal } from "../ui/modal";
 import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
@@ -164,6 +164,18 @@ export class PortalUI {
       turn.innerHTML = `<span class="ic">🏁</span> Turnover`;
       turn.onclick = () => { this.activeKey = "__turnover__"; void this.renderTurnover(); this.buildNav(); };
       nav.appendChild(turn);
+      // Operations — post-turnover CMMS: work-order board, PM generation, maintenance KPIs.
+      const ops = document.createElement("button");
+      ops.className = "pnav-item pnav-home" + (this.activeKey === "__operations__" ? " active" : "");
+      ops.innerHTML = `<span class="ic">🔧</span> Operations`;
+      ops.onclick = () => { this.activeKey = "__operations__"; void this.renderOperations(); this.buildNav(); };
+      nav.appendChild(ops);
+      // Energy — metered utilities: EUI, monthly trend, cost by utility (offline; readings/CSV).
+      const nrg = document.createElement("button");
+      nrg.className = "pnav-item pnav-home" + (this.activeKey === "__energy__" ? " active" : "");
+      nrg.innerHTML = `<span class="ic">⚡</span> Energy`;
+      nrg.onclick = () => { this.activeKey = "__energy__"; void this.renderEnergy(); this.buildNav(); };
+      nav.appendChild(nrg);
     } else {
       // Developer — jump to the proforma/underwriting workspace (returns, capital stack, cash flow)
       const uw = document.createElement("button");
@@ -1020,6 +1032,148 @@ export class PortalUI {
         + en.expiring_within_180d.map((x) => `<li>${esc(x.ref)} ${esc(x.application || "")} — expires ${esc(x.expires)}</li>`).join("") + `</ul>`;
       body.append(ex);
     }
+  }
+
+  // --- Operations: CMMS — work orders, PM generation, maintenance KPIs --------------------------
+  private async renderOperations() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("🔧 Operations — Maintenance", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const pid = this.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Operations")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Post-turnover maintenance: PM schedules generate preventive work orders "
+      + "before failures happen; KPIs show whether the building is run proactively (PM compliance) "
+      + "or reactively (MTTR, overdue backlog). Manage records under Operations → Work Orders / PM Schedules.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    const load = async () => {
+      body.innerHTML = "";
+      let k; let wos;
+      try {
+        k = await this.host.api.cmmsKpis(pid);
+        wos = await this.host.api.moduleRecords(pid, "work_order");
+      } catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+      // KPI cards
+      const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
+      const card = (label: string, value: string, warn = false) => {
+        const c = el("div", "dash-card"); c.style.cssText = `min-width:110px${warn ? ";border-left:3px solid var(--status-warn)" : ""}`;
+        c.innerHTML = `<div style="font-size:20px;font-weight:600">${value}</div><div class="meta">${label}</div>`;
+        return c;
+      };
+      cards.append(card("open work orders", String(k.open)),
+        card("overdue", String(k.overdue), k.overdue > 0),
+        card("PM compliance", k.pm_compliance_pct != null ? `${k.pm_compliance_pct}%` : "—"),
+        card("MTTR (days)", k.mttr_days != null ? String(k.mttr_days) : "—"),
+        card("completed", String(k.completed)));
+      body.append(cards);
+      // generate-PM action
+      const act = el("div"); act.style.marginBottom = "8px";
+      const gen = el("button", "portal-btn") as HTMLButtonElement;
+      gen.textContent = "Generate PM work orders";
+      gen.title = "Create preventive work orders for every active PM schedule that is due";
+      gen.onclick = async () => {
+        gen.disabled = true;
+        try {
+          const r = await this.host.api.cmmsGeneratePm(pid);
+          toast(r.generated ? `${r.generated} PM work order(s) created` : "No PM schedules due", "success");
+          void load();
+        } catch (e) { toast(`failed: ${(e as Error).message}`, "error"); gen.disabled = false; }
+      };
+      act.append(gen); body.append(act);
+      // open-by-priority chart
+      const pri = Object.entries(k.open_by_priority);
+      if (pri.length) {
+        const wrap = el("div", "dash-card"); wrap.style.marginBottom = "8px";
+        wrap.innerHTML = groupedBar(pri.map(([p, n]) => ({ label: p, bars: [{ name: "open", value: n }] })),
+          { title: "Open work orders by priority", fmt: (n) => String(Math.round(n)) });
+        body.append(wrap);
+      }
+      // open WO table
+      const open = wos.filter((w) => w.workflow_state !== "completed" && w.workflow_state !== "verified");
+      if (open.length) {
+        const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Ref</th><th scope="col" style="text-align:left">Work order</th>`
+          + `<th scope="col">Type</th><th scope="col">Priority</th><th scope="col">Due</th><th scope="col">State</th></tr></thead><tbody>`
+          + open.slice(0, 50).map((w) => {
+            const d = (w.data || {}) as Record<string, string>;
+            return `<tr><td>${esc(w.ref || "")}</td><td>${esc(d.subject || "")}</td>`
+              + `<td style="text-align:center">${esc(d.wo_type || "")}</td><td style="text-align:center">${esc(d.priority || "")}</td>`
+              + `<td style="text-align:center">${esc(d.due_date || "")}</td><td style="text-align:center">${esc(w.workflow_state || "")}</td></tr>`;
+          }).join("") + `</tbody>`;
+        body.append(t);
+      } else {
+        const none = el("div", "meta");
+        none.textContent = "No open work orders — add corrective ones under Operations → Work Orders, or set up PM Schedules and generate.";
+        body.append(none);
+      }
+    };
+    await load();
+  }
+
+  // --- Energy: metered utilities — EUI, monthly trend, cost by utility --------------------------
+  private async renderEnergy() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("⚡ Energy — Metered Utilities", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const pid = this.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Energy")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Operational energy from meter readings (entered manually or CSV-imported "
+      + "under Operations → Meter Readings), converted to site kBtu and normalized to EUI "
+      + "(kBtu/sf/yr) — the benchmarking currency for building performance. Fully offline.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    let e0; let bs;
+    try {
+      e0 = await this.host.api.energyActual(pid);
+      bs = await this.host.api.energyBenchmarkStatus();
+    } catch (err) { body.textContent = `failed: ${(err as Error).message}`; return; }
+    body.innerHTML = "";
+    // KPI cards
+    const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
+    const card = (label: string, value: string) => {
+      const c = el("div", "dash-card"); c.style.minWidth = "120px";
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${value}</div><div class="meta">${label}</div>`;
+      return c;
+    };
+    cards.append(card("EUI (kBtu/sf/yr)", e0.eui_kbtu_sf_yr != null ? String(e0.eui_kbtu_sf_yr) : "—"),
+      card("site energy (kBtu)", e0.total_kbtu.toLocaleString()),
+      card("utility cost", cmoney(e0.total_cost)),
+      card("water (gal)", e0.water_gallons.toLocaleString()),
+      card("months covered", String(e0.months_covered)));
+    body.append(cards);
+    if (e0.eui_kbtu_sf_yr == null && e0.total_kbtu > 0) {
+      const hint = el("div", "meta"); hint.style.marginBottom = "8px";
+      hint.textContent = "EUI needs a gross floor area — load the model (space quantities) or record GFA on the project.";
+      body.append(hint);
+    }
+    // monthly trend
+    if (e0.monthly.length > 1) {
+      const wrap = el("div", "dash-card"); wrap.style.marginBottom = "8px";
+      wrap.innerHTML = lineChart([{ name: "site kBtu", values: e0.monthly.map((m) => m.kbtu) }],
+        { title: "Monthly site energy (kBtu)", xlabels: e0.monthly.map((m) => m.month),
+          fmt: (n) => n.toLocaleString() });
+      body.append(wrap);
+    }
+    // by-utility table
+    const utils = Object.entries(e0.by_utility);
+    if (utils.length) {
+      const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin:6px 0";
+      t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Utility</th><th scope="col">Consumption</th>`
+        + `<th scope="col">kBtu</th><th scope="col">Cost</th></tr></thead><tbody>`
+        + utils.map(([u, v]) => `<tr><td>${esc(u)}</td><td style="text-align:right">${v.consumption.toLocaleString()} ${esc(v.unit)}</td>`
+          + `<td style="text-align:right">${v.kbtu.toLocaleString()}</td><td style="text-align:right">${cmoney(v.cost)}</td></tr>`).join("")
+        + `</tbody>`;
+      body.append(t);
+    } else {
+      const none = el("div", "meta");
+      none.textContent = "No meter readings yet — add meters and readings under Operations, or import a CSV.";
+      body.append(none);
+    }
+    // benchmarking bridge status (honest, flagged)
+    const b = el("div", "meta"); b.style.marginTop = "8px"; b.textContent = bs.message;
+    body.append(b);
   }
 
   // --- Turnover: substantial completion (G704) + architect punch-list sign-off ------------------

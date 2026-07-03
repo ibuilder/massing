@@ -1,0 +1,58 @@
+{
+  "key": "meter_reading",
+  "name": "Meter Readings",
+  "section": "Operations",
+  "icon": "🔢",
+  "ref_prefix": "RDG",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Reading",
+      "type": "text",
+      "required": true,
+      "fieldset": "Reading"
+    },
+    {
+      "name": "meter",
+      "label": "Meter",
+      "type": "reference",
+      "module": "meter",
+      "required": true,
+      "fieldset": "Reading"
+    },
+    {
+      "name": "reading_date",
+      "label": "Date",
+      "type": "date",
+      "required": true,
+      "fieldset": "Reading"
+    },
+    {
+      "name": "consumption",
+      "label": "Consumption (meter unit)",
+      "type": "number",
+      "required": true,
+      "fieldset": "Reading"
+    },
+    {
+      "name": "cost",
+      "label": "Utility Cost",
+      "type": "currency",
+      "fieldset": "Reading"
+    }
+  ],
+  "workflow": {
+    "initial": "recorded",
+    "states": [
+      "recorded"
+    ],
+    "transitions": []
+  },
+  "list_columns": [
+    "reading_date",
+    "consumption"
+  ],
+  "workspace": "construction"
+}

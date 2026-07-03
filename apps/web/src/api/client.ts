@@ -1356,6 +1356,29 @@ export class ApiClient {
       go: boolean }>(`/projects/${pid}/diligence/readiness`);
   }
 
+  // --- operations: CMMS + metered energy ----------------------------------------
+  cmmsGeneratePm(pid: string) {
+    return this.json<{ generated: number; work_orders: { work_order: string; schedule: string }[];
+      as_of: string }>(`/projects/${pid}/cmms/generate-pm`, { method: "POST" });
+  }
+  cmmsKpis(pid: string) {
+    return this.json<{ total: number; open: number; completed: number; overdue: number;
+      open_by_priority: Record<string, number>; by_type: Record<string, number>;
+      pm_compliance_pct: number | null; mttr_days: number | null }>(`/projects/${pid}/cmms/kpis`);
+  }
+  energyActual(pid: string, gfaSf?: number) {
+    const qs = gfaSf ? `?gfa_sf=${gfaSf}` : "";
+    return this.json<{ total_kbtu: number; total_cost: number; water_gallons: number;
+      by_utility: Record<string, { consumption: number; unit: string; kbtu: number; cost: number }>;
+      monthly: { month: string; kbtu: number }[]; months_covered: number;
+      gfa_sf: number | null; eui_kbtu_sf_yr: number | null; note: string }>(
+      `/projects/${pid}/energy/actual${qs}`);
+  }
+  energyBenchmarkStatus() {
+    return this.json<{ enabled: boolean; provider: string | null; message: string }>(
+      `/energy/benchmark-status`);
+  }
+
   // --- turnover: substantial completion (G704) + record model ------------------
   turnoverReadiness(pid: string) {
     return this.json<{ punch: { count: number; verified: number; open: number;
