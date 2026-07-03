@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 
 from sqlalchemy.orm import Session
 
-from .. import audit, cam, cmms, energy, energy_star_bridge, esg, reserve
+from .. import audit, cam, cmms, energy, energy_star_bridge, esg, reserve, twin
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_role
@@ -49,6 +49,14 @@ def energy_summary(pid: str, gfa_sf: float | None = None, db: Session = Depends(
     _project(db, pid)
     gfa = gfa_sf or energy.project_gfa_sf(db, pid)
     return energy.summary(db, pid, gfa_sf=gfa)
+
+
+@router.get("/projects/{pid}/twin/readiness")
+def twin_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Digital-twin + Digital Product Passport readiness: asset↔system linkage, sensor mapping,
+    product-passport completeness, and the building-system graph."""
+    _project(db, pid)
+    return twin.readiness(db, pid)
 
 
 @router.get("/energy/benchmark-status")

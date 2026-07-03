@@ -1,0 +1,78 @@
+{
+  "key": "building_system",
+  "name": "Building Systems",
+  "section": "Operations",
+  "icon": "🛰",
+  "ref_prefix": "SYS",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "System",
+      "type": "text",
+      "required": true,
+      "fieldset": "System"
+    },
+    {
+      "name": "system_type",
+      "label": "Type",
+      "type": "select",
+      "required": true,
+      "options": [
+        "HVAC",
+        "Electrical",
+        "Plumbing",
+        "Fire Protection",
+        "Vertical Transport",
+        "Building Controls / BMS",
+        "Security",
+        "Life Safety"
+      ],
+      "fieldset": "System"
+    },
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "textarea",
+      "fieldset": "System"
+    },
+    {
+      "name": "bms_integration",
+      "label": "BMS Integration",
+      "type": "select",
+      "options": [
+        "None",
+        "BACnet",
+        "Modbus",
+        "KNX",
+        "Proprietary",
+        "API / MQTT"
+      ],
+      "fieldset": "Telemetry"
+    }
+  ],
+  "workflow": {
+    "initial": "active",
+    "states": [
+      "active",
+      "decommissioned"
+    ],
+    "transitions": [
+      {
+        "from": "active",
+        "to": "decommissioned",
+        "action": "decommission",
+        "party": [
+          "GC",
+          "PM"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "system_type",
+    "bms_integration"
+  ],
+  "workspace": "construction"
+}

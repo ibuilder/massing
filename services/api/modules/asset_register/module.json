@@ -81,6 +81,52 @@
       "fieldset": "Reserve Study"
     },
     {
+      "name": "system",
+      "label": "Building System",
+      "type": "reference",
+      "module": "building_system",
+      "fieldset": "Digital Twin"
+    },
+    {
+      "name": "sensor_id",
+      "label": "Sensor / Telemetry Point ID",
+      "type": "text",
+      "fieldset": "Digital Twin"
+    },
+    {
+      "name": "sensor_type",
+      "label": "Sensor Type",
+      "type": "select",
+      "options": [
+        "Temperature",
+        "Vibration",
+        "Energy / Power",
+        "Occupancy",
+        "Pressure",
+        "Flow",
+        "Status / Runtime"
+      ],
+      "fieldset": "Digital Twin"
+    },
+    {
+      "name": "gs1_id",
+      "label": "GS1 Digital Link / Product ID",
+      "type": "text",
+      "fieldset": "Product Passport"
+    },
+    {
+      "name": "epd_reference",
+      "label": "EPD / Environmental Reference",
+      "type": "text",
+      "fieldset": "Product Passport"
+    },
+    {
+      "name": "manufacturer_url",
+      "label": "Manufacturer Data URL",
+      "type": "text",
+      "fieldset": "Product Passport"
+    },
+    {
       "name": "warranty_count",
       "label": "# warranties",
       "type": "rollup",

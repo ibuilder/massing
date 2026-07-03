@@ -1378,6 +1378,12 @@ export class ApiClient {
     return this.json<{ enabled: boolean; provider: string | null; message: string }>(
       `/energy/benchmark-status`);
   }
+  twinReadiness(pid: string) {
+    return this.json<{ assets: number; systems: number; systems_by_type: Record<string, number>;
+      system_linked_pct: number | null; sensor_mapped_pct: number | null; bms_integrated_systems: number;
+      dpp: { complete_pct: number | null; partial: number; complete: number; fields: string[]; note: string };
+      twin_readiness_pct: number | null; note: string }>(`/projects/${pid}/twin/readiness`);
+  }
 
   // --- ISO 19650 standards: CDE container discipline + requirements register ----
   cdeStatus(pid: string) {

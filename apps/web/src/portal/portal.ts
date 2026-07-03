@@ -1304,6 +1304,22 @@ export class PortalUI {
         none.textContent = "No open work orders — add corrective ones under Operations → Work Orders, or set up PM Schedules and generate.";
         body.append(none);
       }
+      // digital-twin readiness — asset↔system linkage, sensor mapping, DPP (ISO 23247 / EU DPP)
+      try {
+        const tw = await this.host.api.twinReadiness(pid);
+        const tc = el("div", "dash-card"); tc.style.marginTop = "8px";
+        const pct = (v: number | null) => v != null ? `${v}%` : "—";
+        tc.innerHTML = `<b>Digital-twin readiness</b> <span class="meta">${tw.systems} building system(s), `
+          + `${tw.bms_integrated_systems} BMS-integrated</span>`
+          + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
+          + `<tr><td>Assets linked to a system</td><td class="num">${pct(tw.system_linked_pct)}</td></tr>`
+          + `<tr><td>Assets mapped to a sensor</td><td class="num">${pct(tw.sensor_mapped_pct)}</td></tr>`
+          + `<tr class="fin-total"><td>Twin readiness</td><td class="num">${pct(tw.twin_readiness_pct)}</td></tr>`
+          + `<tr><td>Product Passport complete (GS1/EPD/mfr)</td><td class="num">${pct(tw.dpp.complete_pct)}</td></tr>`
+          + `</table>`
+          + `<div class="meta" style="margin-top:4px">${esc(tw.dpp.note)}</div>`;
+        body.append(tc);
+      } catch { /* twin data optional */ }
     };
     await load();
   }

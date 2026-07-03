@@ -148,12 +148,15 @@ def scorecard(db, pid: str) -> dict[str, Any]:
                  "headline": (f"{tag_pct}% tagged" if tag_pct is not None else "no asset register"),
                  "metrics": {"assets": len(assets), "tagged_pct": tag_pct}})
 
-    # 8. Construction Data Readiness — product/manufacturer data on assets
+    # 8. Construction Data Readiness — product/manufacturer data + Digital Product Passport
     prod_pct = _complete_pct(assets, ("manufacturer", "model"))
+    dpp_pct = _complete_pct(assets, ("gs1_id", "epd_reference", "manufacturer_url"))
     cats.append({"key": "construction_data_readiness", "label": "Construction Data Readiness",
                  "grade": _grade(prod_pct, 80, 40) if assets else "na",
-                 "headline": (f"{prod_pct}% carry product data" if prod_pct is not None else "no asset register"),
-                 "metrics": {"assets": len(assets), "product_data_pct": prod_pct}})
+                 "headline": (f"{prod_pct}% carry product data"
+                              + (f", {dpp_pct}% DPP-complete" if dpp_pct else "")
+                              if prod_pct is not None else "no asset register"),
+                 "metrics": {"assets": len(assets), "product_data_pct": prod_pct, "dpp_pct": dpp_pct}})
 
     # 9. Handover Assurance — as-builts, O&M, completion certificate present + accepted
     def _has(key: str, states: tuple) -> tuple[int, int]:
@@ -169,15 +172,20 @@ def scorecard(db, pid: str) -> dict[str, Any]:
                               else "assemble as-builts, O&M, completion cert"),
                  "metrics": {"as_builts": ab_n, "om_manuals": om_n, "completion_certs": cc_n}})
 
-    # 10. Digital Twin Readiness — metering / asset-system linkage (deepens in C5)
+    # 10. Digital Twin Readiness — asset↔system linkage + sensor/telemetry mapping (twin.py)
     meters = me.list_records(db, "meter", pid, limit=10000)
     linked = sum(1 for a in assets if (_d(a).get("system") or "").strip())
-    twin_pct = _pct(linked, len(assets)) if assets else None
+    sensored = sum(1 for a in assets if (_d(a).get("sensor_id") or "").strip())
+    link_pct = _pct(linked, len(assets)) if assets else None
+    sensor_pct = _pct(sensored, len(assets)) if assets else None
+    tw_parts = [p for p in (link_pct, sensor_pct) if p is not None]
+    twin_pct = round(sum(tw_parts) / len(tw_parts), 1) if tw_parts else None
     cats.append({"key": "digital_twin_readiness", "label": "Digital Twin Readiness",
-                 "grade": _grade(twin_pct, 60, 20) if (assets and (linked or meters)) else "na",
-                 "headline": (f"{len(meters)} meters, {twin_pct}% assets system-linked" if twin_pct is not None
-                              else "no telemetry/asset links yet"),
-                 "metrics": {"meters": len(meters), "asset_system_linked_pct": twin_pct}})
+                 "grade": _grade(twin_pct, 60, 20) if (assets and (linked or sensored or meters)) else "na",
+                 "headline": (f"{twin_pct}% twin-ready ({linked} system-linked, {sensored} sensor-mapped)"
+                              if twin_pct is not None else "no telemetry/asset links yet"),
+                 "metrics": {"meters": len(meters), "system_linked_pct": link_pct,
+                             "sensor_mapped_pct": sensor_pct, "twin_readiness_pct": twin_pct}})
 
     scored = [c for c in cats if c["grade"] != "na"]
     good = sum(1 for c in scored if c["grade"] == "good")

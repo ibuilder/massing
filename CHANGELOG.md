@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.65 — Digital-twin readiness + Digital Product Passport (standards C5 of 8)
+Deepens the two KPI categories that were placeholders — the data a building needs to run as a digital
+twin, and the emerging EU product-passport requirement.
+- **`building_system` module** — the HVAC / electrical / plumbing / fire / vertical-transport / BMS
+  systems an asset belongs to, with the BMS integration protocol (BACnet, Modbus, KNX, MQTT…).
+- **Asset register gains a “Digital Twin” fieldset** (link to a building system + sensor/telemetry
+  point ID + sensor type) and a **“Product Passport” fieldset** (GS1 Digital Link ID, EPD/
+  environmental reference, manufacturer-data URL).
+- **`twin.py`** (`GET /projects/{pid}/twin/readiness`) — asset↔system linkage %, sensor-mapping %,
+  a combined twin-readiness score (ISO 23247), the building-system graph with BMS-integration count,
+  and **DPP completeness** (honest about the passport being an emerging 2028-30 EU requirement).
+- The BIM KPI scorecard’s **Digital Twin Readiness** and **Construction Data Readiness** categories
+  now read these richer signals (system-linked + sensor-mapped; product data + DPP).
+- **Digital-twin readiness card** in the 🔧 Operations panel.
+- Verified live (25% twin-ready on the seeded assets, DPP note) + `test_twin` (66.7% linked / 33.3%
+  sensored → 50% twin-ready; DPP 33.3%; KPI reflects both). Typecheck + 49 vitest + Pages build green.
+
 ## v0.3.64 — AI over the model: MCP server + standards experts (standards C4 of 8)
 Two ways an AI works *with* a project — both offline-first and grounded in real data, never a model
 guessing from memory.
