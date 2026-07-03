@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.64 — AI over the model: MCP server + standards experts (standards C4 of 8)
+Two ways an AI works *with* a project — both offline-first and grounded in real data, never a model
+guessing from memory.
+- **Standards-compliance experts** (`standards_expert.py`, `GET /projects/{pid}/standards/check?
+  standard=iso19650|cobie|ids|uniclass`) — run the named standard against the project's own CDE,
+  requirements register, asset data and model-quality index; return findings each with the **clause
+  it references** and a recommendation, plus a 0–100 readiness score. Fully deterministic, no key.
+  Surfaced as a **Compliance check** card (four standard buttons) in the CDE / Standards panel.
+- **MCP server** (`mcp_server.py` + `mcp_tools.py`, `GET /mcp/tools`) — exposes the project to
+  external AI agents (Claude Desktop, Cursor) as callable tools: project snapshot, list records, CDE
+  status, BIM KPI scorecard, openBIM quality, standards check, and **create RFI** (a write tool).
+  Tool logic reuses the same engines the HTTP API does, so an agent's reads/writes pass the exact
+  same validation and workflow gates as the UI. The MCP SDK is an **optional** dependency (offline-
+  first); the stdio server prints install guidance if it's absent. [docs/mcp.md](docs/mcp.md).
+- Verified + `test_mcp_standards` (catalog exposes 8 tools; dispatch runs snapshot/records/CDE and
+  creates a real RFI; unknown tool raises; experts return clause-referenced findings). Live:
+  compliance card renders ISO 19650 findings with clauses. Typecheck + 49 vitest + Pages build green.
+
 ## v0.3.63 — BIM KPI scorecard + handover acceptance (standards C3 of 8)
 The information-management scorecard the industry runs on — ten categories, graded from data the
 platform already holds, with a formal owner's-acceptance gate at handover.

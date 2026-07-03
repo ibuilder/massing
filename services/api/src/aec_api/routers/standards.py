@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import bim_kpi, cde, ids_authoring, openbim_quality
+from .. import bim_kpi, cde, ids_authoring, mcp_tools, openbim_quality, standards_expert
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user
@@ -67,4 +67,22 @@ def handover_acceptance(pid: str, db: Session = Depends(get_db), _: str = Depend
     asset tags, as-builts, O&M, accepted completion certificate)."""
     _project(db, pid)
     return bim_kpi.handover_acceptance(db, pid)
+
+
+@router.get("/projects/{pid}/standards/check")
+def standards_check(pid: str, standard: str = "iso19650", db: Session = Depends(get_db),
+                    _: str = Depends(current_user)):
+    """Standards-compliance check (iso19650 | cobie | ids | uniclass) against the project's own data:
+    findings with the clause each references, recommendations, and a 0–100 readiness score."""
+    _project(db, pid)
+    return standards_expert.check(db, pid, standard)
+
+
+@router.get("/mcp/tools")
+def mcp_tool_catalog(_: str = Depends(current_user)):
+    """The tool catalog the MCP server exposes to external AI agents (name, description, input
+    schema). The stdio server (services/api/mcp_server.py) drives these against a project."""
+    return {"tools": mcp_tools.catalog(), "server": "services/api/mcp_server.py",
+            "note": "Run the stdio MCP server and point Claude Desktop / Cursor at it to drive the "
+                    "project by natural language. The MCP SDK (pip install 'mcp[cli]') is optional."}
 

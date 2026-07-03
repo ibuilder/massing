@@ -1184,6 +1184,32 @@ export class PortalUI {
       body.append(none);
     }
 
+    // standards-compliance experts — grounded findings against the project's own data
+    const sx = el("div", "dash-card"); sx.style.marginTop = "8px";
+    const stds: [string, string][] = [["iso19650", "ISO 19650"], ["cobie", "COBie"], ["ids", "IDS"], ["uniclass", "Uniclass"]];
+    const picker = el("div"); picker.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center";
+    picker.innerHTML = `<b>Compliance check</b>`;
+    const out = el("div"); out.style.marginTop = "6px";
+    const run = async (std: "iso19650" | "cobie" | "ids" | "uniclass") => {
+      out.innerHTML = `<div class="meta">checking…</div>`;
+      try {
+        const r = await this.host.api.standardsCheck(pid, std);
+        if (r.error) { out.innerHTML = `<div class="meta">${esc(r.error)}</div>`; return; }
+        const icon = (l: string) => l === "ok" ? "✅" : l === "warn" ? "⚠️" : "❌";
+        out.innerHTML = `<div class="meta" style="margin-bottom:4px"><b>${esc(r.label || std)}</b> — readiness ${r.score}%</div>`
+          + `<ul style="margin:0 0 0 16px;font-size:12px">`
+          + (r.findings || []).map((f) => `<li>${icon(f.level)} ${esc(f.text)} <span class="meta">(${esc(f.reference)})</span></li>`).join("")
+          + `</ul>`;
+      } catch (e) { out.innerHTML = `<div class="meta">failed: ${esc((e as Error).message)}</div>`; }
+    };
+    for (const [key, label] of stds) {
+      const btn = el("button", "file-btn") as HTMLButtonElement; btn.textContent = label;
+      btn.onclick = () => void run(key as "iso19650");
+      picker.append(btn);
+    }
+    sx.append(picker, out); body.append(sx);
+    void run("iso19650");
+
     // openBIM model quality — only meaningful with a model loaded; degrades to a hint on 404.
     const q = el("div", "dash-card"); q.style.marginTop = "8px";
     q.innerHTML = `<b>openBIM model quality</b> <span class="meta">scoring the loaded model…</span>`;

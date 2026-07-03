@@ -1393,6 +1393,16 @@ export class ApiClient {
       core_coverage: { required: string[]; missing: string[]; complete: boolean }; note: string }>(
       `/projects/${pid}/info-requirements/register`);
   }
+  standardsCheck(pid: string, standard: "iso19650" | "cobie" | "ids" | "uniclass") {
+    return this.json<{ standard: string; label?: string; score?: number;
+      findings?: { level: string; text: string; reference: string }[];
+      recommendations?: string[]; error?: string; note?: string }>(
+      `/projects/${pid}/standards/check?standard=${standard}`);
+  }
+  mcpTools() {
+    return this.json<{ tools: { name: string; description: string }[]; server: string; note: string }>(
+      `/mcp/tools`);
+  }
   bimKpiScorecard(pid: string) {
     return this.json<{
       categories: { key: string; label: string; grade: string; headline: string;
