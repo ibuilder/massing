@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.52 — Architect sign-off + G704 substantial completion + record turnover (lifecycle track 4 of 4)
+The final track closes the loop to turnover: the **Architect certifies substantial completion**, signs
+off the punch list, and the as-built **record model** is stamped for handover.
+- **`turnover.py` + `/turnover/*` endpoints** — `readiness` (punch rollup + latest model version; a
+  G704 certifies *with* an open punch list, so the gate is that a punch list is prepared), `certify`
+  (Architect certifies on a `completion_certificate` record: records the **Architect (certifying) +
+  Owner + Contractor** signatures, stamps the current model version as the record model, issues the
+  certificate), and `status` (signed cert + record-model summary).
+- **G704 Certificate of Substantial Completion** generator in `contracts.py` — attaches the punch-list
+  summary, the record-model version, and the occupancy date; reachable via
+  `…/contracts/completion_certificate/{rid}/document.pdf?doc=g704`. The **Architect** is now a signatory
+  on the G701 change order too.
+- **Turnover package** — `closeout/package.zip` gains `turnover/status.json` (readiness + signed
+  substantial-completion cert + record model version) alongside the as-built model, COBie and closeout
+  manifest. `completion_certificate` gains occupancy-date / record-model-version / punch-% fields.
+- **UI** — a **"🏁 Turnover"** construction-workspace panel: punch readiness, architect certification
+  (with signatories), and one-click **G704** download.
+- Verified: ruff + bandit clean, backend gate (new `test_turnover` — gate refuses with no punch list;
+  architect certifies + Owner/Contractor sign; G704 renders; status reflects the signed cert) +
+  `test_contracts`/`test_closeout` regressions, web typecheck + 49 vitest + Pages build + budget green.
+
+**This completes the architect/engineer design-to-turnover lifecycle upgrade (4 tracks, v0.3.49–52).**
+
 ## v0.3.51 — Design-change instruments: ASI / Bulletin / Sketch (lifecycle track 3 of 4)
 The standard AIA construction-phase change instruments, wired into the existing change chain.
 - **New modules `asi`, `bulletin`, `sketch`** (Change Management section, config-driven CRUD + workflow):

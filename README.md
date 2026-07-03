@@ -173,8 +173,9 @@ Deliverables** — with a sticky live-solved returns bar.
   (furniture, sanitary, appliances, MEP, structural, **doors/windows/walls**) plus a curated-external
   import path. The AIA construction-phase change instruments are now first-class — **ASI (G710)**,
   **Bulletin**, and **Sketch (SK)** modules wired into the change chain, with G710/Bulletin/G714 (CCD)
-  document generation. (Final track in progress: architect sign-off on substantial completion + a
-  signed record-model turnover set.)
+  document generation. And turnover is closed out: the **Architect certifies substantial completion**
+  (**AIA G704**), signs off the punch list, and the as-built **record model** version is stamped and
+  bundled into the signed turnover package — a **"🏁 Turnover"** panel drives it end to end.
 - **AI + fintech + BIM-standards depth, then a code-quality & hardening pass (v0.3.41–v0.3.48)** —
   three rounds of capability depth, each engine offline/deterministic with AI only where it earns its
   place, always source-linked and never fabricating:

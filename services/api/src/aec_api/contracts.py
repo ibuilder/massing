@@ -170,7 +170,9 @@ def change_order(db: Session, key: str, pid: str, rid: str, clause_ids: list[str
          Paragraph(d.get("justification") or d.get("reason") or "See attached documentation.", ss["Body"]),
          Paragraph("Adjustment to the Contract", ss["H"]), t,
          Paragraph(f"The Contract Time will be {'adjusted by ' + str(d.get('schedule_days')) + ' days' if d.get('schedule_days') else 'unchanged'} by this Change Order.", ss["Body"])]
-    f += _signature_block(ss, [("Owner", "Owner"), ("General Contractor", "GC"), ("Subcontractor", "Subcontractor")], (d.get("signatures") or []))
+    f += _signature_block(ss, [("Owner", "Owner"), ("Architect", "Architect"),
+                               ("General Contractor", "GC"), ("Subcontractor", "Subcontractor")],
+                          (d.get("signatures") or []))
     return _build(f)
 
 
@@ -252,6 +254,44 @@ def construction_change_directive(db: Session, key: str, pid: str, rid: str,
     return _build(f)
 
 
+def certificate_substantial_completion(db: Session, key: str, pid: str, rid: str,
+                                       clause_ids: list[str] | None = None) -> bytes:
+    """AIA G704-style Certificate of Substantial Completion — certified by the Architect, with the
+    outstanding punch list attached, and signed by Owner + Contractor. Rendered from a
+    completion_certificate record (type=Substantial)."""
+    from reportlab.platypus import Paragraph
+    from . import turnover
+    rec, d, ctx = _context(db, key, pid, rid)
+    ss = _styles()
+    r = turnover.readiness(db, pid)
+    p = r["punch"]
+    rmv = d.get("record_model_version")
+    f = [Paragraph("Certificate of Substantial Completion", ss["DocTitle"]),
+         Paragraph(f"AIA G704-style · {rec.get('ref', '')} · {date.today().isoformat()}", ss["Sub"]),
+         Paragraph(f"Project: <b>{ctx['project']}</b>", ss["Body"]),
+         Paragraph(d.get("scope") or "The Work performed under this Contract has been reviewed and is "
+                   "found, to the Architect's knowledge, to be substantially complete.", ss["Body"]),
+         Paragraph("Date of Substantial Completion", ss["H"]),
+         Paragraph(f"{d.get('date') or date.today().isoformat()}"
+                   + (f" · Owner to occupy on {d['occupancy_date']}" if d.get("occupancy_date") else ""),
+                   ss["Body"]),
+         Paragraph("Punch List (items to complete or correct)", ss["H"]),
+         Paragraph(f"{p['count']} item(s) · {p['open']} open · {p['verified']} verified"
+                   + (f" · {p['complete_pct']}% complete" if p['complete_pct'] is not None else "")
+                   + (f" · est. cost to complete {_money(p['open_cost'])}" if p['open_cost'] else ""),
+                   ss["Body"]),
+         Paragraph("A list of items to be completed or corrected is attached. The failure to include an "
+                   "item does not alter the responsibility of the Contractor to complete the Work.", ss["Body"]),
+         Paragraph("Record (As-Built) Model", ss["H"]),
+         Paragraph(f"Record model version: <b>{rmv if rmv is not None else '—'}</b>. "
+                   "The as-built model at this version is the record model for turnover.", ss["Body"]),
+         Paragraph("The Architect certifies that the Work is substantially complete as of the date above.",
+                   ss["Body"])]
+    f += _signature_block(ss, [("Architect (certifies)", "Architect"), ("Owner", "Owner"),
+                               ("Contractor", "GC")], (d.get("signatures") or []))
+    return _build(f)
+
+
 # doc type -> generator
 GENERATORS = {
     "agreement": subcontract_agreement,
@@ -261,6 +301,7 @@ GENERATORS = {
     "asi": asi_instruction,
     "bulletin": bulletin_notice,
     "ccd": construction_change_directive,
+    "g704": certificate_substantial_completion,
 }
 
 

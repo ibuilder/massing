@@ -37,6 +37,21 @@
         "Final",
         "Partial"
       ]
+    },
+    {
+      "name": "occupancy_date",
+      "label": "Owner Occupancy Date",
+      "type": "date"
+    },
+    {
+      "name": "record_model_version",
+      "label": "Record Model Version",
+      "type": "number"
+    },
+    {
+      "name": "punch_complete_pct",
+      "label": "Punch List % Complete",
+      "type": "percent"
     }
   ],
   "workflow": {

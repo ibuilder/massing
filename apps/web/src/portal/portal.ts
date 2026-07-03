@@ -158,6 +158,12 @@ export class PortalUI {
       idsNav.innerHTML = `<span class="ic">📋</span> IDS Requirements`;
       idsNav.onclick = () => { this.activeKey = "__ids__"; void this.renderIds(); this.buildNav(); };
       nav.appendChild(idsNav);
+      // Turnover — substantial completion (G704), architect sign-off on the punch list, record model.
+      const turn = document.createElement("button");
+      turn.className = "pnav-item pnav-home" + (this.activeKey === "__turnover__" ? " active" : "");
+      turn.innerHTML = `<span class="ic">🏁</span> Turnover`;
+      turn.onclick = () => { this.activeKey = "__turnover__"; void this.renderTurnover(); this.buildNav(); };
+      nav.appendChild(turn);
     } else {
       // Developer — jump to the proforma/underwriting workspace (returns, capital stack, cash flow)
       const uw = document.createElement("button");
@@ -948,6 +954,75 @@ export class PortalUI {
           + lc.soft_costs.lines.map((x) => `<tr><td>${x.label}</td><td style="text-align:center">${x.pct_of_hard}%</td>`
             + `<td style="text-align:right">${cmoney(x.amount)}</td></tr>`).join("") + `</tbody>`;
         sc.append(t); body.append(sc);
+      }
+    };
+    await load();
+  }
+
+  // --- Turnover: substantial completion (G704) + architect punch-list sign-off ------------------
+  private async renderTurnover() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("🏁 Turnover — Substantial Completion", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const pid = this.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Turnover")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Certify substantial completion (AIA G704): the Architect signs off the punch "
+      + "list, the current model version is stamped as the record (as-built) model, and the signed "
+      + "certificate joins the turnover package.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    const load = async () => {
+      body.innerHTML = "";
+      let rd; let certs;
+      try {
+        rd = await this.host.api.turnoverReadiness(pid);
+        certs = (await this.host.api.moduleRecords(pid, "completion_certificate"))
+          .filter((r) => (r.data as { type?: string } | undefined)?.type === "Substantial");
+      } catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+      // readiness
+      const p = rd.punch;
+      const rdiv = el("div", "dash-card"); rdiv.style.marginBottom = "8px";
+      rdiv.innerHTML = `<div class="meta"><b>Punch list</b>: ${p.count} item(s) · ${p.open} open · ${p.verified} verified`
+        + (p.complete_pct != null ? ` · ${p.complete_pct}% complete` : "") + `</div>`
+        + `<div class="meta">Latest model version: <b>${rd.latest_model_version ?? "—"}</b> · `
+        + `${rd.ready_for_substantial_completion ? "<span style=\"color:var(--status-good)\">ready to certify</span>" : "<span style=\"color:var(--status-warn)\">prepare a punch list first</span>"}</div>`;
+      body.append(rdiv);
+      // substantial-completion certificate(s)
+      if (!certs.length) {
+        const note = el("div", "meta"); note.textContent = "No substantial-completion certificate yet.";
+        const mk = el("button", "file-btn") as HTMLButtonElement; mk.textContent = "Create certificate";
+        mk.onclick = () => void this.host.api.createModuleRecord(pid, "completion_certificate",
+          { data: { subject: "Substantial Completion", type: "Substantial" } })
+          .then(() => { toast("Certificate created", "success"); void load(); })
+          .catch((e) => toast((e as Error).message, "error"));
+        note.style.marginBottom = "6px"; body.append(note, mk);
+        return;
+      }
+      for (const cert of certs) {
+        const d = (cert.data || {}) as { signatures?: { party: string; certifies?: boolean }[]; record_model_version?: number };
+        const certified = (d.signatures || []).some((s) => s.party === "Architect" && s.certifies);
+        const card = el("div", "dash-card"); card.style.cssText = "margin:6px 0";
+        card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">`
+          + `<b>${cert.ref || "Certificate"}</b><span class="badge">${cert.workflow_state}</span></div>`
+          + `<div class="meta">${certified ? `✅ Architect certified · record model v${d.record_model_version ?? "—"}` : "Awaiting architect certification"}</div>`;
+        const actions = el("div"); actions.style.cssText = "margin-top:6px;display:flex;gap:6px;flex-wrap:wrap";
+        if (!certified) {
+          const cbtn = el("button", "file-btn") as HTMLButtonElement; cbtn.textContent = "Architect: certify substantial completion";
+          cbtn.onclick = async () => {
+            if (!rd!.ready_for_substantial_completion) { toast("Prepare a punch list first", "error"); return; }
+            const arch = prompt("Certifying Architect (name / license):"); if (!arch) return;
+            const owner = prompt("Owner signatory (optional):") || undefined;
+            try { await this.host.api.turnoverCertify(pid, cert.id, arch, owner);
+              toast("Substantial completion certified", "success"); void load(); }
+            catch (e) { toast((e as Error).message, "error"); }
+          };
+          actions.append(cbtn);
+        }
+        const dl = el("a", "file-btn") as HTMLAnchorElement; dl.textContent = "⬇ G704 certificate";
+        dl.href = this.host.api.g704Url(pid, cert.id); dl.target = "_blank";
+        actions.append(dl);
+        card.append(actions); body.append(card);
       }
     };
     await load();

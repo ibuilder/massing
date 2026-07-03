@@ -1346,6 +1346,27 @@ export class ApiClient {
       `/projects/${pid}/lifecycle/seed`, { method: "POST" });
   }
 
+  // --- turnover: substantial completion (G704) + record model ------------------
+  turnoverReadiness(pid: string) {
+    return this.json<{ punch: { count: number; verified: number; open: number;
+      complete_pct: number | null; overdue: number; open_cost: number };
+      punch_list_prepared: boolean; latest_model_version: number | null;
+      ready_for_substantial_completion: boolean }>(`/projects/${pid}/turnover/readiness`);
+  }
+  turnoverStatus(pid: string) {
+    return this.json<{ readiness: { ready_for_substantial_completion: boolean };
+      substantial_completion: { ref: string; record_model_version: number | null; signed_by: string[] } | null;
+      record_model_locked: boolean }>(`/projects/${pid}/turnover/status`);
+  }
+  turnoverCertify(pid: string, certRid: string, architect: string, owner?: string, contractor?: string, occupancyDate?: string) {
+    return this.json<{ certificate: ModuleRecord; readiness: unknown }>(
+      `/projects/${pid}/turnover/certify`, { method: "POST",
+      body: JSON.stringify({ cert_rid: certRid, architect, owner, contractor, occupancy_date: occupancyDate }) });
+  }
+  g704Url(pid: string, certRid: string) {
+    return this.url(`/projects/${pid}/contracts/completion_certificate/${certRid}/document.pdf?doc=g704`);
+  }
+
   // --- conceptual estimating + IFC classification (Ediphi / Qonic) -----------
   conceptualCatalog() {
     return this.json<{ building_types: string[]; regions: string[]; base_year: number;

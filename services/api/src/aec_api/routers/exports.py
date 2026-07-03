@@ -181,5 +181,11 @@ def closeout_package(pid: str, db: Session = Depends(get_db), _sec: str = Depend
                                               "status": r.get("workflow_state"), "data": r.get("data")}
                                              for r in recs]
         z.writestr("closeout/manifest.json", json.dumps(manifest, indent=2, default=str))
+        # turnover: substantial-completion status + record model version
+        try:
+            from .. import turnover
+            z.writestr("turnover/status.json", json.dumps(turnover.package_status(db, pid), indent=2, default=str))
+        except Exception as e:                    # noqa: BLE001 — best-effort
+            z.writestr("turnover/STATUS_ERROR.txt", str(e)[:300])
     return Response(buf.getvalue(), media_type="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="{safe_filename(p.name)}_closeout.zip"'})
