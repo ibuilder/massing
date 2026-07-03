@@ -85,9 +85,18 @@ def load_registry() -> None:
     """Load every modules/<key>/module.json and register its table. Idempotent."""
     if not MODULES_DIR.exists():
         return
+    from . import module_schema
+    folders = {p.parent.name for p in MODULES_DIR.glob("*/module.json")}
     for mj in sorted(MODULES_DIR.glob("*/module.json")):
         mod = json.loads(mj.read_text(encoding="utf-8"))
         key = mod["key"]
+        # Advisory schema check at load: a malformed module logs a warning rather than crashing the
+        # API (test_module_config fails the build on any issue). Same rules the config test enforces.
+        problems = module_schema.validate_module(mod, known_modules=folders, folder=mj.parent.name)
+        if problems:
+            import logging
+            logging.getLogger("aec_api.modules").warning(
+                "module %r has %d config issue(s): %s", key, len(problems), "; ".join(problems))
         REGISTRY[key] = mod
         if key not in TABLES:
             TABLES[key] = _table(key)
@@ -137,6 +146,15 @@ def _validate_fields(mod: dict, data: dict) -> None:
         raise HTTPException(422, f"missing required field(s): {', '.join(missing)}")
 
 
+def _validate_values(mod: dict, data: dict) -> None:
+    """Reject clearly-invalid field values (select outside options, non-numeric numbers) before a
+    write — so bad data can't slip into the JSON `data` blob. Partial (present-only) so PATCH works."""
+    from . import module_schema
+    problems = module_schema.validate_record(mod, data)
+    if problems:
+        raise HTTPException(422, "; ".join(problems))
+
+
 def _next_ref(db: Session, key: str, project_id: str, mod: dict) -> str:
     n = db.execute(select(func.count()).select_from(TABLES[key])
                    .where(TABLES[key].c.project_id == project_id)).scalar() or 0
@@ -155,6 +173,7 @@ def create_record(db: Session, key: str, project_id: str, body: dict, actor: str
     if title_field and title_field != "subject" and not data.get(title_field) and data.get("subject"):
         data[title_field] = data["subject"]
     _validate_fields(mod, data)
+    _validate_values(mod, data)
     rid = str(uuid.uuid4())
     row = {
         "id": rid, "project_id": project_id,
@@ -718,6 +737,7 @@ def update_record(db: Session, key: str, project_id: str, rid: str, data: dict,
                   actor: str, party: str | None) -> dict:
     t = TABLES[key]
     rec = get_record(db, key, project_id, rid)
+    _validate_values(get_module(key), data)         # partial: only the fields being changed
     merged = {**(rec.get("data") or {}), **data}
     db.execute(update(t).where(t.c.id == rid).values(data=merged, modified_at=_now()))
     _log(db, project_id, key, rid, actor, party, "update", {"fields": list(data.keys())})

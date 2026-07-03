@@ -72,21 +72,25 @@ becomes a button; `initial` is the state new records start in.
 ```json
 "workflow": {
   "initial": "draft",
-  "states": ["draft", "submitted", "answered", "closed"],
+  "states": ["draft", "open", "answered", "closed"],
   "transitions": [
-    { "from": "draft",     "to": "submitted", "label": "Submit" },
-    { "from": "submitted", "to": "answered",  "label": "Answer", "requires": ["response"] },
-    { "from": "answered",  "to": "closed",    "label": "Close" }
+    { "from": "draft",  "to": "open",     "action": "submit",  "party": ["GC"] },
+    { "from": "open",   "to": "answered", "action": "respond", "party": ["Consultant"], "requires": ["response"] },
+    { "from": "answered", "to": "closed", "action": "close" }
   ]
 }
 ```
+
+Each transition is `{ "from", "to", "action" }` — `action` is the verb (it becomes the button); add an
+optional `"party"` array to restrict who may click it (the record's party gating), and `"requires"` to
+gate it on fields.
 
 - **Terminal ("done") states are derived, not declared:** any state with no outgoing transition
   (here, `closed`) is treated as done and drops out of the overdue / due-soon feeds and open counts.
   So make sure your closed/void/rejected states have no transition leaving them — don't add a
   `terminal` key (there isn't one).
-- `requires` on a transition gates the button until those fields are filled (e.g. you can't **Answer**
-  an RFI until `response` has a value). Names must be real fields.
+- `requires` on a transition gates the button until those fields are filled (e.g. you can't
+  **respond** to an RFI until `response` has a value). Names must be real fields.
 
 ## 4. Lists, search, due dates, pins
 

@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.40 — P2: Pydantic module-schema layer (single source of truth for module.json)
+- **`module_schema.py`** — a Pydantic `ModuleSchema`/`FieldDef`/`Workflow`/`Transition` layer that
+  formalizes what a valid `module.json` is. The config test and the runtime loader now validate against
+  the *same* definition: `test_module_config` asserts every shipped module passes it (authoritative,
+  fails the build); `load_registry` runs it at startup and logs a warning for a malformed module rather
+  than crashing (advisory). New `test_module_schema` proves the layer catches each misconfig class
+  (dup fields, unknown types, select-without-options, bad reference target, bad title_field /
+  list_column / workflow state / transition / requires) and stays quiet on valid input.
+- **Record value validation** (`validate_record`) at create/update: rejects a non-numeric value in a
+  numeric field (`number`/`currency`/`percent`) with a 422 before it can land in the JSON `data` blob.
+  Select `options` are treated as *suggestions*, not a closed enum (the system routinely stores
+  free-form values a picklist didn't anticipate), so membership is deliberately not enforced.
+- Fixed the `party` transition key to accept a bare string as well as a list (matches
+  `rbac.party_allowed`), and corrected the module-authoring guide's workflow example (`action`, not
+  `label`; `party`; convention-based due dates; derived terminal states).
+
 ## v0.3.39 — P1: don't block the event loop on heavy IFC/convert/AI work
 - **Async offload of blocking work** (P1 from the review). Several `async` endpoints ran CPU/network-
   bound work directly on the event loop, stalling *every* other request on that worker for its whole
