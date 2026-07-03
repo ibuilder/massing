@@ -1,7 +1,7 @@
 import type { ApiClient, ModuleDef, ModuleRecord, RecordBrief } from "../api/client";
 import { escapeHtml as esc, toast } from "../ui/feedback";
 import { progressBar, groupedBar, money as cmoney } from "../ui/charts";
-import { modalShell } from "../ui/modal";
+import { modalShell, promptModal } from "../ui/modal";
 import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
 
@@ -516,8 +516,8 @@ export class PortalUI {
               .filter(Boolean).join(" · ") + `  ·  ${r.source}`;
             out.append(head);
             const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:12px;margin-top:6px";
-            tbl.innerHTML = `<thead><tr><th style="text-align:left">Code</th><th style="text-align:left">Section</th>`
-              + `<th style="text-align:left">Requirement</th></tr></thead><tbody>`
+            tbl.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Code</th><th scope="col" style="text-align:left">Section</th>`
+              + `<th scope="col" style="text-align:left">Requirement</th></tr></thead><tbody>`
               + r.topics.map((t) => `<tr><td>${t.code}</td><td><b>${t.section}</b> — ${t.title}</td>`
                 + `<td>${t.requirement}</td></tr>`).join("") + `</tbody>`;
             out.append(tbl);
@@ -626,7 +626,7 @@ export class PortalUI {
     }
     // scope matrix
     const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:11px;margin-top:6px";
-    const thead = `<tr><th style="text-align:left">Scope item</th>${r.vendors.map((v) => `<th>${v}</th>`).join("")}</tr>`;
+    const thead = `<tr><th scope="col" style="text-align:left">Scope item</th>${r.vendors.map((v) => `<th scope="col">${v}</th>`).join("")}</tr>`;
     const rows = r.scope_rows.map((row) => {
       const cells = r.vendors.map((v) => {
         const inc = row.included_by.includes(v); const exc = row.excluded_by.includes(v);
@@ -673,8 +673,8 @@ export class PortalUI {
       if (!cb.cost_codes.length) { costs.innerHTML = `<div class="meta">${cb.message || "No cost history yet."}</div>`; }
       else {
         const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:12px";
-        tbl.innerHTML = `<thead><tr><th style="text-align:left">Cost code</th><th>n</th><th>low</th><th>p25</th>`
-          + `<th>median</th><th>p75</th><th>high</th></tr></thead><tbody>`
+        tbl.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Cost code</th><th scope="col">n</th><th scope="col">low</th><th scope="col">p25</th>`
+          + `<th scope="col">median</th><th scope="col">p75</th><th scope="col">high</th></tr></thead><tbody>`
           + cb.cost_codes.map((c) => `<tr><td>${c.cost_code}</td><td style="text-align:center">${c.samples}</td>`
             + `<td style="text-align:right">${cmoney(c.low)}</td><td style="text-align:right">${cmoney(c.p25)}</td>`
             + `<td style="text-align:right"><b>${cmoney(c.median)}</b></td><td style="text-align:right">${cmoney(c.p75)}</td>`
@@ -726,7 +726,7 @@ export class PortalUI {
       pqSlot.innerHTML = "";
       if (!r.count) { pqSlot.innerHTML = `<div class="meta">No prequalification records yet.</div>`; return; }
       const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
-      t.innerHTML = `<thead><tr><th style="text-align:left">Company</th><th>Trade</th><th>Score</th><th style="text-align:left">Flags</th></tr></thead><tbody>`
+      t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Company</th><th scope="col">Trade</th><th scope="col">Score</th><th scope="col" style="text-align:left">Flags</th></tr></thead><tbody>`
         + r.subs.map((s) => `<tr><td>${s.company || ""}</td><td style="text-align:center">${s.trade || ""}</td>`
           + `<td style="text-align:center;color:${tone(s.risk_band)}"><b>${s.score}</b> ${s.risk_band}</td>`
           + `<td>${(s.flags || []).join("; ")}</td></tr>`).join("") + `</tbody>`;
@@ -751,7 +751,7 @@ export class PortalUI {
       const risky = r.vendors.filter((v) => v.exposure > 0);
       if (risky.length) {
         const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
-        t.innerHTML = `<thead><tr><th style="text-align:left">Vendor</th><th>Paid</th><th>Unconditional waived</th><th>Exposure</th></tr></thead><tbody>`
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Vendor</th><th scope="col">Paid</th><th scope="col">Unconditional waived</th><th scope="col">Exposure</th></tr></thead><tbody>`
           + risky.map((v) => `<tr><td>${v.vendor}</td><td style="text-align:right">${cmoney(v.paid)}</td>`
             + `<td style="text-align:right">${cmoney(v.waived_unconditional)}</td>`
             + `<td style="text-align:right;color:var(--status-crit)">${cmoney(v.exposure)}</td></tr>`).join("") + `</tbody>`;
@@ -813,7 +813,7 @@ export class PortalUI {
       const flagged = r.pos.filter((p) => p.status === "review");
       if (flagged.length) {
         const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:11px;margin-top:4px";
-        t.innerHTML = `<thead><tr><th style="text-align:left">PO</th><th>Vendor</th><th>PO</th><th>Recd</th><th>Invoiced</th><th style="text-align:left">Issue</th></tr></thead><tbody>`
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">PO</th><th scope="col">Vendor</th><th scope="col">PO</th><th scope="col">Recd</th><th scope="col">Invoiced</th><th scope="col" style="text-align:left">Issue</th></tr></thead><tbody>`
           + flagged.map((p) => `<tr><td>${p.po}</td><td>${p.vendor || ""}</td><td style="text-align:right">${cmoney(p.po_amount)}</td>`
             + `<td style="text-align:center">${p.received}</td><td style="text-align:right;color:${p.variance > 0 ? "var(--status-crit)" : "inherit"}">${cmoney(p.invoiced)}</td>`
             + `<td>${(p.flags || []).join("; ")}</td></tr>`).join("") + `</tbody>`;
@@ -860,7 +860,7 @@ export class PortalUI {
         out.innerHTML = `<div class="meta"><b>${r.match_count}</b> of ${r.screened} parcels pass</div>`;
         if (r.matches.length) {
           const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:12px;margin-top:4px";
-          tbl.innerHTML = `<thead><tr><th style="text-align:left">Parcel</th><th>Acres</th><th>Zoning</th><th>Max GFA</th><th>Concept. cost</th><th>Land $/bldbl sf</th></tr></thead><tbody>`
+          tbl.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Parcel</th><th scope="col">Acres</th><th scope="col">Zoning</th><th scope="col">Max GFA</th><th scope="col">Concept. cost</th><th scope="col">Land $/bldbl sf</th></tr></thead><tbody>`
             + r.matches.map((m) => `<tr><td>${m.id}</td><td style="text-align:center">${m.acres}</td><td style="text-align:center">${m.zoning || ""}</td>`
               + `<td style="text-align:right">${m.buildable.max_gfa_sf ? m.buildable.max_gfa_sf.toLocaleString() : "—"}</td>`
               + `<td style="text-align:right">${m.buildable.conceptual_cost ? cmoney(m.buildable.conceptual_cost) : "—"}</td>`
@@ -933,9 +933,10 @@ export class PortalUI {
         if (ph.state === "active") act("Submit for gate review", "submit_for_review");
         if (ph.state === "in_review") {
           act("Approve gate (Architect/Owner)", "approve_gate", async () => {
-            const name = prompt("Gate sign-off — enter the certifying name (Architect/Owner):");
-            if (!name) return false;
-            await this.host.api.updateModuleRecord(pid, "project_phase", ph.id, { signed_by: name });
+            const v = await promptModal("Gate sign-off",
+              [{ name: "name", label: "Certifying name (Architect / Owner)", required: true }], "Approve");
+            if (!v) return false;
+            await this.host.api.updateModuleRecord(pid, "project_phase", ph.id, { signed_by: v.name });
             return true;
           });
           act("Return", "return");
@@ -950,7 +951,7 @@ export class PortalUI {
         const sc = el("div"); sc.style.marginTop = "12px";
         sc.innerHTML = `<div class="meta"><b>Itemized soft costs</b> — total ${cmoney(lc.soft_costs.total)} (of ${cmoney(lc.hard_cost)} hard)</div>`;
         const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
-        t.innerHTML = `<thead><tr><th style="text-align:left">Soft cost</th><th>% of hard</th><th>Amount</th></tr></thead><tbody>`
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Soft cost</th><th scope="col">% of hard</th><th scope="col">Amount</th></tr></thead><tbody>`
           + lc.soft_costs.lines.map((x) => `<tr><td>${x.label}</td><td style="text-align:center">${x.pct_of_hard}%</td>`
             + `<td style="text-align:right">${cmoney(x.amount)}</td></tr>`).join("") + `</tbody>`;
         sc.append(t); body.append(sc);
@@ -1011,9 +1012,12 @@ export class PortalUI {
           const cbtn = el("button", "file-btn") as HTMLButtonElement; cbtn.textContent = "Architect: certify substantial completion";
           cbtn.onclick = async () => {
             if (!rd!.ready_for_substantial_completion) { toast("Prepare a punch list first", "error"); return; }
-            const arch = prompt("Certifying Architect (name / license):"); if (!arch) return;
-            const owner = prompt("Owner signatory (optional):") || undefined;
-            try { await this.host.api.turnoverCertify(pid, cert.id, arch, owner);
+            const v = await promptModal("Certify substantial completion (G704)", [
+              { name: "arch", label: "Certifying Architect (name / license)", required: true },
+              { name: "owner", label: "Owner signatory (optional)" },
+            ], "Certify");
+            if (!v) return;
+            try { await this.host.api.turnoverCertify(pid, cert.id, v.arch, v.owner || undefined);
               toast("Substantial completion certified", "success"); void load(); }
             catch (e) { toast((e as Error).message, "error"); }
           };
@@ -1052,7 +1056,7 @@ export class PortalUI {
         const els = cat.elements.filter((e) => groups.includes(e.key));
         detail.innerHTML = `<div class="meta">Requires data on: ${els.map((e) => e.label).join(", ")}</div>`;
         const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:11px;margin-top:4px";
-        tbl.innerHTML = `<thead><tr><th style="text-align:left">Element</th><th style="text-align:left">Property set</th><th style="text-align:left">Property</th></tr></thead><tbody>`
+        tbl.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Element</th><th scope="col" style="text-align:left">Property set</th><th scope="col" style="text-align:left">Property</th></tr></thead><tbody>`
           + els.flatMap((e) => e.requirements.map((r) => `<tr><td>${e.ifc_class}</td><td>${r.pset}</td><td>${r.property}</td></tr>`)).join("") + `</tbody>`;
         detail.append(tbl);
       };
@@ -1560,9 +1564,9 @@ export class PortalUI {
 
       const card = document.createElement("div"); card.className = "dash-card";
       const tbl = document.createElement("table"); tbl.className = "portal-table"; tbl.style.fontSize = "11px";
-      tbl.innerHTML = `<thead><tr><th>Project</th><th>Status</th><th style="text-align:right">SPI</th>`
-        + `<th style="text-align:right">% cmpl</th><th style="text-align:right">GMP</th>`
-        + `<th style="text-align:right">VAC</th><th style="text-align:right">Equity IRR</th><th style="text-align:right">EM</th><th style="text-align:right">Late MS</th></tr></thead>`;
+      tbl.innerHTML = `<thead><tr><th scope="col">Project</th><th scope="col">Status</th><th scope="col" style="text-align:right">SPI</th>`
+        + `<th scope="col" style="text-align:right">% cmpl</th><th scope="col" style="text-align:right">GMP</th>`
+        + `<th scope="col" style="text-align:right">VAC</th><th scope="col" style="text-align:right">Equity IRR</th><th scope="col" style="text-align:right">EM</th><th scope="col" style="text-align:right">Late MS</th></tr></thead>`;
       const tb = document.createElement("tbody");
       for (const p of pf.projects) {
         const tr = document.createElement("tr"); tr.className = "kpi-click";
@@ -1684,9 +1688,9 @@ export class PortalUI {
       const card = document.createElement("div"); card.className = "dash-card"; card.style.marginBottom = "10px";
       card.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: "Budget by category" }));
       const tbl = document.createElement("table"); tbl.className = "portal-table"; tbl.style.fontSize = "11px";
-      tbl.innerHTML = `<thead><tr><th>Category</th><th style="text-align:right">Budget</th>`
-        + `<th style="text-align:right">Committed</th><th style="text-align:right">Actual</th>`
-        + `<th style="text-align:right">Forecast (EAC)</th><th style="text-align:right">Variance</th></tr></thead>`;
+      tbl.innerHTML = `<thead><tr><th scope="col">Category</th><th scope="col" style="text-align:right">Budget</th>`
+        + `<th scope="col" style="text-align:right">Committed</th><th scope="col" style="text-align:right">Actual</th>`
+        + `<th scope="col" style="text-align:right">Forecast (EAC)</th><th scope="col" style="text-align:right">Variance</th></tr></thead>`;
       const tb = document.createElement("tbody");
       const row = (name: string, c: { budget: number; committed: number; actual: number; eac?: number; variance: number }, opts: { bold?: boolean; indent?: boolean } = {}) => {
         const tr = document.createElement("tr"); if (opts.bold) tr.style.fontWeight = "700";
@@ -1995,8 +1999,9 @@ export class PortalUI {
     const saveView = document.createElement("button"); saveView.className = "tool-btn"; saveView.textContent = "＋view";
     saveView.title = "Save current filter/sort as a view (synced to your account)";
     saveView.onclick = async () => {
-      const name = prompt("Save view as:"); if (!name) return;
-      await this.host.api.saveView(pid, m.key, name, { q: filter.q, state: filter.state, sort: this.sort[m.key] });
+      const v = await promptModal("Save view", [{ name: "name", label: "View name", required: true }], "Save");
+      if (!v) return;
+      await this.host.api.saveView(pid, m.key, v.name, { q: filter.q, state: filter.state, sort: this.sort[m.key] });
       this.openModule(m, filter);
     };
     // reusable templates: apply a saved set of records, or save the current ones as a template
@@ -2004,10 +2009,16 @@ export class PortalUI {
     tplBtn.title = "Apply or save a reusable template for this module";
     tplBtn.onclick = async () => {
       const tpls = await this.host.api.templates(m.key).catch(() => []);
-      const pick = tpls.length
-        ? prompt(`Apply a ${m.name} template — enter a number, or blank to save current as new:\n`
-            + tpls.map((t, i) => `${i + 1}. ${t.name} (${t.item_count})`).join("\n"))
-        : (alert(`No ${m.name} templates yet — saving the current records as one.`), "");
+      let pick = "";
+      if (tpls.length) {
+        const v = await promptModal(`${m.name} templates`,
+          [{ name: "pick", label: "Template # to apply (blank = save current as new)" }], "Apply",
+          tpls.map((t, i) => `${i + 1}. ${t.name} (${t.item_count})`).join("\n"));
+        if (!v) return;
+        pick = v.pick;
+      } else {
+        toast(`No ${m.name} templates yet — saving the current records as one.`, "info");
+      }
       if (pick && pick.trim()) {
         const t = tpls[parseInt(pick) - 1];
         if (!t) return;
@@ -2015,8 +2026,10 @@ export class PortalUI {
         this.host.setStatus(`applied "${r.applied}" — ${r.created} record(s)`);
         this.openModule(m, filter);
       } else {
-        const name = prompt("Save current records as template named:"); if (!name) return;
-        try { const s = await this.host.api.saveTemplate(pid, m.key, name); this.host.setStatus(`saved template (${s.item_count} items)`); }
+        const nv = await promptModal("Save template",
+          [{ name: "name", label: "Template name", required: true }], "Save");
+        if (!nv) return;
+        try { const s = await this.host.api.saveTemplate(pid, m.key, nv.name); this.host.setStatus(`saved template (${s.item_count} items)`); }
         catch (e) { this.host.setStatus(`couldn't save: ${(e as Error).message}`); }
       }
     };
@@ -2372,7 +2385,10 @@ export class PortalUI {
       const b = document.createElement("button"); b.type = "button"; b.className = "pf-addopt";
       b.textContent = "＋ option"; b.title = `Add a new ${f.label} option`;
       b.onclick = async () => {
-        const val = prompt(`New ${f.label} option:`); if (!val || !val.trim()) return;
+        const v = await promptModal(`Add ${f.label} option`,
+          [{ name: "val", label: `New ${f.label} option`, required: true }], "Add");
+        if (!v) return;
+        const val = v.val;
         try {
           const res = await this.host.api.addEnumOption(pid, m.key, f.name, val.trim());
           let opt = [...selEl.options].find((o) => o.value === res.value);
@@ -2446,7 +2462,9 @@ export class PortalUI {
           // (or first) field — so e.g. a Cost Code gets `code`, not a non-existent `title`.
           const tgtFields = (tgt?.fields ?? []).filter((x) => x.type !== "rollup");
           const tf = tgt?.title_field || tgtFields.find((x) => x.required)?.name || tgtFields[0]?.name || "title";
-          const val = prompt(`New ${tgt?.name ?? f.module} — ${tf}:`);
+          const nv = await promptModal(`New ${tgt?.name ?? f.module}`,
+            [{ name: "val", label: tf, required: true }], "Create");
+          const val = nv?.val;
           sel.value = String(cur(f.name) ?? "");
           if (!val || !val.trim()) return;
           try {
@@ -2597,9 +2615,10 @@ export class PortalUI {
       try {
         const st = await api.esignStatus();
         if (!st.bridge.enabled) { toast(st.bridge.message, "info"); return; }
-        const emails = prompt("Signer email(s), comma-separated:");
-        if (!emails) return;
-        const signers = emails.split(",").map((e) => ({ email: e.trim() })).filter((s) => s.email);
+        const v = await promptModal("Send for signature",
+          [{ name: "emails", label: "Signer email(s), comma-separated", required: true }], "Send");
+        if (!v) return;
+        const signers = v.emails.split(",").map((e) => ({ email: e.trim() })).filter((s) => s.email);
         if (!signers.length) return;
         const res = await api.sendForSignature(pid, m.key, rid, signers);
         toast(`sent via ${res.provider} · submission ${res.submission_id ?? "?"}`, "success");
@@ -2833,9 +2852,10 @@ export class PortalUI {
     const reassign = document.createElement("button"); reassign.className = "tool-btn"; reassign.textContent = "Reassign";
     reassign.style.marginLeft = "6px";
     reassign.onclick = async () => {
-      const who = prompt("Assign to (user id, blank to clear):", r.assignee ?? "");
-      if (who === null) return;
-      try { await this.host.api.assignRecord(pid, m.key, rid, who.trim() || null); this.openRecord(m, rid); }
+      const v = await promptModal("Reassign record",
+        [{ name: "who", label: "Assign to (user id, blank to clear)", value: r.assignee ?? "" }]);
+      if (!v) return;
+      try { await this.host.api.assignRecord(pid, m.key, rid, v.who.trim() || null); this.openRecord(m, rid); }
       catch (e) { this.host.setStatus(`error: ${(e as Error).message}`); }
     };
     asgRow.appendChild(reassign);

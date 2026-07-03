@@ -51,3 +51,62 @@ export function modalShell(titleText: string, minWidth = 280): ModalHandle {
   setTimeout(() => ((card.querySelector("input,select,textarea,button") as HTMLElement) || card).focus(), 0);
   return { ov, card, msg, close };
 }
+
+export interface PromptField {
+  name: string;
+  label: string;
+  value?: string;
+  placeholder?: string;
+  required?: boolean;
+}
+
+/** Accessible replacement for window.prompt(): a modalShell dialog with labeled inputs and
+ *  OK/Cancel. Resolves the entered values, or null on cancel/Esc. One field renders like a classic
+ *  prompt; several make a small form. */
+export function promptModal(title: string, fields: PromptField[], okLabel = "OK",
+                            body?: string): Promise<Record<string, string> | null> {
+  return new Promise((resolve) => {
+    const m = modalShell(title, 340);
+    if (body) {
+      const b = document.createElement("div");
+      b.className = "meta"; b.style.whiteSpace = "pre-line"; b.textContent = body;
+      m.card.appendChild(b);
+    }
+    const inputs = new Map<string, HTMLInputElement>();
+    for (const f of fields) {
+      const lab = document.createElement("label");
+      lab.style.cssText = "display:flex;flex-direction:column;gap:4px;font-size:12px";
+      lab.textContent = f.label + (f.required ? " *" : "");
+      const inp = document.createElement("input");
+      inp.type = "text"; inp.value = f.value ?? ""; inp.placeholder = f.placeholder ?? "";
+      inp.style.cssText = "padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:inherit";
+      lab.appendChild(inp); m.card.appendChild(lab); inputs.set(f.name, inp);
+    }
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:4px";
+    const cancel = document.createElement("button"); cancel.textContent = "Cancel"; cancel.className = "file-btn";
+    const ok = document.createElement("button"); ok.textContent = okLabel; ok.className = "file-btn";
+    ok.style.fontWeight = "600";
+    row.append(cancel, ok); m.card.append(m.msg, row);
+    const done = (v: Record<string, string> | null) => { m.close(); resolve(v); };
+    cancel.onclick = () => done(null);
+    ok.onclick = () => {
+      const out: Record<string, string> = {};
+      for (const f of fields) {
+        const v = (inputs.get(f.name)?.value ?? "").trim();
+        if (f.required && !v) { m.msg.textContent = `${f.label} is required.`; inputs.get(f.name)?.focus(); return; }
+        out[f.name] = v;
+      }
+      done(out);
+    };
+    // Enter submits from any field; Esc is handled by modalShell (resolves null via close → but we
+    // must also resolve): watch removal of the overlay to resolve null on Esc/backdrop close.
+    for (const inp of inputs.values()) {
+      inp.addEventListener("keydown", (e) => { if (e.key === "Enter") ok.click(); });
+    }
+    const mo = new MutationObserver(() => {
+      if (!document.body.contains(m.ov)) { mo.disconnect(); resolve(null); }
+    });
+    mo.observe(document.body, { childList: true });
+  });
+}

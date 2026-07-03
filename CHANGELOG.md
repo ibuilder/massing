@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.55 — UX, accessibility & front-end performance (readiness R3 of 7)
+- **`prompt()` fully retired from the portal** — a new accessible `promptModal` (on the shared
+  modalShell: role=dialog, focus trap, Esc/backdrop close, Enter submits, required-field validation)
+  replaces all ten remaining `window.prompt()` calls: lifecycle **gate sign-off**, turnover
+  **G704 certify** (both fields in one dialog), save view, templates (apply/save), add enum option,
+  quick-create reference records, send-for-signature, and reassign.
+- **Accessibility** — all **53** portal table headers now carry `scope="col"`; verified the viewer
+  toolbar's icon buttons already ship `aria-label`s.
+- **Performance measured** — the portal ships in the main `index` chunk at **92 KB Brotli** (shell
+  budget 156/220 KB) — under the lazy-split threshold, so no code-motion was needed; recorded so
+  future growth has a baseline.
+- Verified **live**: certify flow end-to-end through the new dialog (open → validate → certify →
+  “Architect certified” + G704 download), 375 px mobile viewport with no horizontal scroll, zero
+  console errors; 49 vitest + typecheck + Pages build + budget green.
+
 ## v0.3.54 — Production hardening: ops & supply chain (readiness R2 of 7)
 The deployment/ops half of the production-readiness plan — making "did we configure it right?"
 a runnable gate and the supply chain deterministic:
