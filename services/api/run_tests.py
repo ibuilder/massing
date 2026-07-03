@@ -30,7 +30,9 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_analytics", "test_discipline", "test_gbxml", "test_review", "test_interop",
          "test_module_config", "test_module_schema", "test_throttle", "test_route_order",
          # Tier-1 competitive upgrades:
-         "test_drafting", "test_bid_leveling", "test_benchmarking"]
+         "test_drafting", "test_bid_leveling", "test_benchmarking",
+         # Tier-2/3 competitive upgrades:
+         "test_prequal", "test_payapp", "test_accounting", "test_carbon", "test_codecheck", "test_pricing"]
 
 
 def main() -> int:
