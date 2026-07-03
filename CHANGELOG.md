@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.47 — Land parcel screening + data connector (track 4 of 4)
+The last competitor-review track (Acres). The nationwide parcel dataset is a licensing play, so it's a
+feature-flagged connector; the pure-software win — which plays to our GIS + feasibility + proforma
+engines — is **screening**.
+- **`parcels.py`** — screen a parcel set (imported GeoJSON / entered) by **size, zoning, flood zone,
+  sewer/water, price**, and **rank by max-buildable opportunity**: each parcel gets a max envelope
+  (area × FAR) and a **conceptual cost** (via `conceptual_estimate`), plus **land cost per buildable SF**
+  — the screen → envelope → proforma chain that Acres, being pre-acquisition-only, can't do.
+- **`parcels_bridge.py`** — nationwide parcel/ownership/comps data is an optional paid connector
+  (`PARCEL_PROVIDER`, Regrid/ATTOM/CoreLogic pattern) that raises rather than shipping fake data; the
+  screening engine works on parcels you supply without it.
+- Endpoints: `POST /parcels/screen`, `GET /parcels/data-status`. A **🗺️ Land Screening** developer-
+  workspace panel (paste parcels → set criteria → ranked buildable-opportunity table).
+- Verified: ruff clean, 96/96 backend suites (new `test_parcels`), web typecheck + 49 vitest + Pages
+  build + budget green.
+
+**This completes the second competitor review (4 tracks, v0.3.44–47) on top of the code-quality gate
+(v0.3.43).**
+
 ## v0.3.46 — Conceptual estimating + AI IFC classification (track 3 of 4)
 Two model-native intelligence features (Ediphi + Qonic gaps) that leverage our IFC/massing strengths.
 - **`conceptual_estimate.py`** — a parametric **$/SF** cost from building type + GFA + units at the

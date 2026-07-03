@@ -165,6 +165,12 @@ export class PortalUI {
       uw.innerHTML = `<span class="ic">📊</span> Underwriting`;
       uw.onclick = () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "finance" }));
       nav.appendChild(uw);
+      // Land Screening — screen a parcel set by size/zoning/flood → max-buildable envelope + cost.
+      const land = document.createElement("button");
+      land.className = "pnav-item pnav-home" + (this.activeKey === "__land__" ? " active" : "");
+      land.innerHTML = `<span class="ic">🗺️</span> Land Screening`;
+      land.onclick = () => { this.activeKey = "__land__"; void this.renderLandScreen(); this.buildNav(); };
+      nav.appendChild(land);
     }
 
     // first-class Portfolio destination — cross-project executive roll-up (all jobs at a glance)
@@ -800,6 +806,57 @@ export class PortalUI {
         matchSlot.append(t);
       }
     }).catch((e) => { matchSlot.textContent = `failed: ${(e as Error).message}`; });
+  }
+
+  // --- Land Screening: filter a parcel set → max-buildable envelope + cost ----------------------
+  private async renderLandScreen() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("🗺️ Land Screening", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Screen a parcel set by size / zoning / flood / utilities and rank by max-buildable "
+      + "opportunity — each parcel gets an envelope (area × FAR) and a conceptual cost. Paste parcels as "
+      + "JSON (from a GIS export). Nationwide parcel data is an optional paid connector (Settings).";
+    root.appendChild(intro);
+    const ta = el("textarea", "portal-filter") as HTMLTextAreaElement;
+    ta.placeholder = '[{"id":"A","acres":5,"zoning":"MU","flood_zone":"X","sewer":true,"price":2000000,"far":2.0}]';
+    ta.style.cssText = "width:100%;min-height:90px;margin:4px 0;font-family:monospace;font-size:11px";
+    const row = el("div"); row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0";
+    const minAc = el("input", "portal-filter") as HTMLInputElement; minAc.type = "number"; minAc.placeholder = "min acres"; minAc.style.width = "90px";
+    const zoning = el("input", "portal-filter") as HTMLInputElement; zoning.placeholder = "zoning (comma)"; zoning.style.width = "130px";
+    const far = el("input", "portal-filter") as HTMLInputElement; far.type = "number"; far.placeholder = "assume FAR"; far.style.width = "90px";
+    const btype = el("input", "portal-filter") as HTMLInputElement; btype.placeholder = "building type"; btype.value = "multifamily"; btype.style.width = "120px";
+    const flood = el("label", "meta") as HTMLLabelElement; const floodCk = el("input") as HTMLInputElement; floodCk.type = "checkbox"; floodCk.checked = true;
+    flood.append(floodCk, document.createTextNode(" exclude flood"));
+    row.append(minAc, zoning, far, btype, flood);
+    const go = el("button", "file-btn") as HTMLButtonElement; go.textContent = "Screen";
+    const out = el("div"); out.style.marginTop = "8px";
+    go.onclick = async () => {
+      let parcelList: unknown[];
+      try { parcelList = JSON.parse(ta.value || "[]"); if (!Array.isArray(parcelList)) throw new Error("expected an array"); }
+      catch (e) { toast(`Invalid JSON: ${(e as Error).message}`, "error"); return; }
+      const criteria: Record<string, unknown> = { building_type: btype.value || undefined, exclude_flood: floodCk.checked };
+      if (minAc.value) criteria.min_acres = Number(minAc.value);
+      if (far.value) criteria.assume_far = Number(far.value);
+      if (zoning.value.trim()) criteria.zoning_in = zoning.value.split(",").map((z) => z.trim()).filter(Boolean);
+      out.textContent = "screening…";
+      try {
+        const r = await this.host.api.parcelsScreen(parcelList, criteria);
+        out.innerHTML = `<div class="meta"><b>${r.match_count}</b> of ${r.screened} parcels pass</div>`;
+        if (r.matches.length) {
+          const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:12px;margin-top:4px";
+          tbl.innerHTML = `<thead><tr><th style="text-align:left">Parcel</th><th>Acres</th><th>Zoning</th><th>Max GFA</th><th>Concept. cost</th><th>Land $/bldbl sf</th></tr></thead><tbody>`
+            + r.matches.map((m) => `<tr><td>${m.id}</td><td style="text-align:center">${m.acres}</td><td style="text-align:center">${m.zoning || ""}</td>`
+              + `<td style="text-align:right">${m.buildable.max_gfa_sf ? m.buildable.max_gfa_sf.toLocaleString() : "—"}</td>`
+              + `<td style="text-align:right">${m.buildable.conceptual_cost ? cmoney(m.buildable.conceptual_cost) : "—"}</td>`
+              + `<td style="text-align:right">${m.buildable.land_cost_per_buildable_sf ? cmoney(m.buildable.land_cost_per_buildable_sf) : "—"}</td></tr>`).join("") + `</tbody>`;
+          out.append(tbl);
+        }
+        if (r.rejected.length) { const rj = el("div", "meta"); rj.style.marginTop = "6px";
+          rj.textContent = "Rejected: " + r.rejected.map((x) => `${x.id} (${x.failed[0]})`).join(", "); out.append(rj); }
+      } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
+    };
+    root.append(ta, row, go, out);
   }
 
   // --- IDS Requirements: author buildingSMART IDS + EIR from templates --------------------------

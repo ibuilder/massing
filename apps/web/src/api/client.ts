@@ -1317,6 +1317,19 @@ export class ApiClient {
       stories?: number | null }; source: string; message?: string }>(
       `/projects/${pid}/codecheck`, { method: "POST", body: JSON.stringify({ description, context }) });
   }
+  // --- land / parcel screening (Acres) ---------------------------------------
+  parcelsScreen(parcelList: unknown[], criteria: Record<string, unknown>) {
+    return this.json<{ matches: { id: string; acres: number; zoning?: string; flood_zone?: string;
+      price?: number | null; buildable: { acres: number; max_gfa_sf?: number | null;
+      conceptual_cost?: number; land_cost_per_buildable_sf?: number } }[];
+      rejected: { id: string; failed: string[] }[]; match_count: number; screened: number;
+      message?: string | null }>(`/parcels/screen`, { method: "POST",
+      body: JSON.stringify({ parcels: parcelList, criteria }) });
+  }
+  parcelsDataStatus() {
+    return this.json<{ enabled: boolean; provider: string | null; message: string }>(`/parcels/data-status`);
+  }
+
   // --- conceptual estimating + IFC classification (Ediphi / Qonic) -----------
   conceptualCatalog() {
     return this.json<{ building_types: string[]; regions: string[]; base_year: number;
