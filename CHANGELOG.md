@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.44 — IDS authoring + EIR (from BIM-standards competitor review, track 1 of 4)
+From a second competitor pass (BIMIDS, Qonic, Ediphi, FieldMaterials, Acres). We already *validate*
+models against an IDS; BIMIDS showed the demand is upstream — **authoring** the requirements.
+- **`ids_authoring.py`** — a starter requirements template library (what data each element type should
+  carry: walls → FireRating/LoadBearing/…, doors, windows, slabs, spaces, columns, beams — from the
+  standard `Pset_*Common` sets), bundled into **use cases** (handover/COBie, fire & life safety, energy,
+  quantities). `build_ids()` emits a **standards-valid buildingSMART IDS 1.0** file via `ifctester` that
+  **round-trips through our own validator**, and `eir_markdown()` generates an **EIR** (Exchange
+  Information Requirements) document for the BIM contract.
+- Endpoints: `GET /ids/templates`, `POST /ids/build` (→ downloadable `.ids`), `POST /ids/eir` (→ EIR.md).
+  Model compliance-checking stays the existing `/validate` endpoint — closing the spec → implement →
+  validate loop.
+- **UI:** a **📋 IDS Requirements** portal panel — pick a use case, preview the required properties,
+  download the IDS + EIR.
+- Verified: ruff clean, 93/93 backend suites (new `test_ids_authoring` round-trips the IDS through
+  ifctester), web typecheck + 49 vitest + Pages build + budget green.
+
 ## v0.3.43 — Code-quality gate (ruff + bandit in the loop) + BCF XXE fix
 Applying the "enterprise-quality code with AI agents" discipline — verification *in the loop*, not after.
 - **Static-analysis gate (ruff)** — a tuned config (`services/api/ruff.toml`) enforces the high-signal

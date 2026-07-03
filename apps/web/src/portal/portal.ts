@@ -152,6 +152,12 @@ export class PortalUI {
       rc.innerHTML = `<span class="ic">🛡</span> Risk &amp; Cost`;
       rc.onclick = () => { this.activeKey = "__riskcost__"; void this.renderRiskCost(); this.buildNav(); };
       nav.appendChild(rc);
+      // IDS Requirements — author buildingSMART IDS + EIR from templates (spec → implement → validate).
+      const idsNav = document.createElement("button");
+      idsNav.className = "pnav-item pnav-home" + (this.activeKey === "__ids__" ? " active" : "");
+      idsNav.innerHTML = `<span class="ic">📋</span> IDS Requirements`;
+      idsNav.onclick = () => { this.activeKey = "__ids__"; void this.renderIds(); this.buildNav(); };
+      nav.appendChild(idsNav);
     } else {
       // Developer — jump to the proforma/underwriting workspace (returns, capital stack, cash flow)
       const uw = document.createElement("button");
@@ -742,6 +748,46 @@ export class PortalUI {
         + (v != null ? ` vs estimate ${cmoney(r.estimated_total)} — variance <b style="color:${v > 0 ? "var(--status-warn)" : "var(--status-good)"}">${cmoney(v)}</b>` : "")
         + `</div>`;
     }).catch((e) => { priceSlot.textContent = `failed: ${(e as Error).message}`; });
+  }
+
+  // --- IDS Requirements: author buildingSMART IDS + EIR from templates --------------------------
+  private async renderIds() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("📋 IDS Requirements", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Author information requirements: pick a use case, download a standards-valid "
+      + "buildingSMART IDS file to check delivered models against, plus an EIR document for the BIM "
+      + "contract. Validate a model against an IDS from the Model workspace.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading templates…"; root.appendChild(body);
+    try {
+      const cat = await this.host.api.idsTemplates();
+      body.innerHTML = "";
+      const pick = el("select", "portal-filter") as HTMLSelectElement; pick.style.cssText = "margin:4px 0";
+      pick.innerHTML = cat.use_cases.map((u) => `<option value="${u.key}">${u.label}</option>`).join("");
+      const detail = el("div"); detail.style.margin = "8px 0";
+      const showDetail = () => {
+        const uc = cat.use_cases.find((u) => u.key === pick.value);
+        const groups = uc ? uc.groups : [];
+        const els = cat.elements.filter((e) => groups.includes(e.key));
+        detail.innerHTML = `<div class="meta">Requires data on: ${els.map((e) => e.label).join(", ")}</div>`;
+        const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:11px;margin-top:4px";
+        tbl.innerHTML = `<thead><tr><th style="text-align:left">Element</th><th style="text-align:left">Property set</th><th style="text-align:left">Property</th></tr></thead><tbody>`
+          + els.flatMap((e) => e.requirements.map((r) => `<tr><td>${e.ifc_class}</td><td>${r.pset}</td><td>${r.property}</td></tr>`)).join("") + `</tbody>`;
+        detail.append(tbl);
+      };
+      pick.onchange = showDetail;
+      const dlIds = el("button", "file-btn") as HTMLButtonElement; dlIds.textContent = "⬇ Download IDS";
+      dlIds.style.marginRight = "8px";
+      dlIds.onclick = () => void this.host.api.idsDownload("build", { use_case: pick.value }, `${pick.value}.ids`)
+        .then(() => toast("IDS downloaded", "success")).catch((e) => toast((e as Error).message, "error"));
+      const dlEir = el("button", "file-btn") as HTMLButtonElement; dlEir.textContent = "⬇ Download EIR (contract)";
+      dlEir.onclick = () => void this.host.api.idsDownload("eir", { use_case: pick.value }, `EIR-${pick.value}.md`)
+        .then(() => toast("EIR downloaded", "success")).catch((e) => toast((e as Error).message, "error"));
+      body.append(pick, detail, dlIds, dlEir);
+      showDetail();
+    } catch (e) { body.textContent = `failed: ${(e as Error).message}`; }
   }
 
   private renderContractFindings(out: HTMLElement, r: { findings: { clause: string; severity: string; category: string;

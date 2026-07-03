@@ -1317,6 +1317,24 @@ export class ApiClient {
       stories?: number | null }; source: string; message?: string }>(
       `/projects/${pid}/codecheck`, { method: "POST", body: JSON.stringify({ description, context }) });
   }
+  // --- IDS authoring (BIMIDS) ------------------------------------------------
+  idsTemplates() {
+    return this.json<{ elements: { key: string; label: string; ifc_class: string;
+      requirements: { pset: string; property: string; data_type: string }[] }[];
+      use_cases: { key: string; label: string; groups: string[] }[] }>(`/ids/templates`);
+  }
+  /** POST a use_case (or specs) and download the resulting .ids / EIR.md file. */
+  async idsDownload(kind: "build" | "eir", body: Record<string, unknown>, filename: string) {
+    const res = await fetch(this.url(`/ids/${kind}`), {
+      method: "POST", body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json", ...this.authHeaders() } });
+    if (!res.ok) throw new Error(`ids ${kind} -> ${res.status}`);
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
   pricingReconcile(pid: string) {
     return this.json<{ lines: { material: string; quantity: number; unit: string; matched?: string | null;
       unit_price?: number; priced_amount?: number | null; estimated_unit_price?: number; variance?: number;
