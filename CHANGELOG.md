@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.66 — Procurement compliance gate (standards C6 of 8)
+Turns the platform's existing COI / prequal / subcontract / lien-waiver records into an enforceable
+compliance posture — the “can this sub bid or bill yet?” gate, plus the outbound nudge list.
+- **`procurement_gate.py`** — per-vendor readiness from the compliance records:
+  - `GET /projects/{pid}/procurement/gate?vendor=` → **can bid** (approved prequalification + active
+    insurance) and **can bill** (executed subcontract + active insurance) with the specific blockers;
+    reports the COI status/expiry, prequal status, subcontract execution, and whether a waiver is on file.
+  - `GET /projects/{pid}/procurement/compliance-feed` → the outbound nudge list: every vendor with an
+    expiring / expired / missing COI or an unapproved prequal, so the GC chases the paperwork before it
+    blocks a bid invitation or a pay application.
+- **Procurement-compliance-gate card** in the ⚖️ Risk & Cost panel (flagged vendors, issues, bid/bill
+  status). Money movement stays behind the flagged licensed-rail bridge — this gates on paperwork only.
+- Verified live (Bedrock flagged: expired COI + unapproved prequal → can't bid/bill; Acme clears) +
+  `test_procurement_gate`. Typecheck + 49 vitest + Pages build green.
+
 ## v0.3.65 — Digital-twin readiness + Digital Product Passport (standards C5 of 8)
 Deepens the two KPI categories that were placeholders — the data a building needs to run as a digital
 twin, and the emerging EU product-passport requirement.

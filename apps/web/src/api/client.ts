@@ -1293,6 +1293,17 @@ export class ApiClient {
       factors: { factor: string; points: number; of: number; note: string }[]; flags: string[] }[];
       count: number; high_risk: number }>(`/projects/${pid}/prequal/scores${qs}`);
   }
+  procurementComplianceFeed(pid: string) {
+    return this.json<{ within_days: number; vendors_flagged: number;
+      vendors: { vendor: string; issues: string[]; can_bid: boolean; can_bill: boolean }[];
+      note: string }>(`/projects/${pid}/procurement/compliance-feed`);
+  }
+  procurementGate(pid: string, vendor: string) {
+    return this.json<{ vendor: string; coi: { status: string; expires: string | null };
+      prequal: { status: string }; subcontract: { executed: boolean }; waiver_on_file: boolean;
+      can_bid: boolean; bid_blockers: string[]; can_bill: boolean; bill_blockers: string[] }>(
+      `/projects/${pid}/procurement/gate?vendor=${encodeURIComponent(vendor)}`);
+  }
   coiExpiry(pid: string, soonDays = 30) {
     return this.json<{ expired: { vendor?: string; coverage_type?: string; expires: string; days: number }[];
       expiring_soon: { vendor?: string; coverage_type?: string; expires: string; days: number }[];

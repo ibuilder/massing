@@ -691,6 +691,8 @@ export class PortalUI {
     const pqSlot = slot();
     section("Insurance (COI) expiry");
     const coiSlot = slot();
+    section("Procurement compliance gate (can bid / can bill)");
+    const gateSlot = slot();
     section("Lien exposure (paid without an unconditional waiver)");
     const lienSlot = slot();
     section("Embodied carbon");
@@ -734,6 +736,21 @@ export class PortalUI {
         coiSlot.append(ul);
       }
     }).catch((e) => { coiSlot.textContent = `failed: ${(e as Error).message}`; });
+
+    api.procurementComplianceFeed(pid).then((r) => {
+      gateSlot.innerHTML = `<div class="meta">${r.vendors_flagged} vendor(s) need a compliance nudge before they can bid or bill.</div>`;
+      if (r.vendors.length) {
+        const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Vendor</th><th scope="col" style="text-align:left">Issues</th>`
+          + `<th scope="col">Bid</th><th scope="col">Bill</th></tr></thead><tbody>`
+          + r.vendors.map((v) => `<tr><td>${v.vendor}</td><td>${v.issues.map((i) => `<span style="color:var(--status-warn)">${i}</span>`).join("; ")}</td>`
+            + `<td style="text-align:center">${v.can_bid ? "✅" : "⛔"}</td>`
+            + `<td style="text-align:center">${v.can_bill ? "✅" : "⛔"}</td></tr>`).join("") + `</tbody>`;
+        gateSlot.append(t);
+      } else {
+        gateSlot.insertAdjacentHTML("beforeend", `<div class="meta">✅ All vendors clear on insurance + prequalification.</div>`);
+      }
+    }).catch((e) => { gateSlot.textContent = `failed: ${(e as Error).message}`; });
 
     api.lienExposure(pid).then((r) => {
       lienSlot.innerHTML = `<div class="meta">Total exposure <b style="color:${r.total_lien_exposure > 0 ? "var(--status-crit)" : "var(--status-good)"}">${cmoney(r.total_lien_exposure)}</b>`
