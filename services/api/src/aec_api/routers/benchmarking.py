@@ -24,3 +24,11 @@ def cost_benchmarks(min_samples: int = 3, db: Session = Depends(get_db),
 def response_rates(db: Session = Depends(get_db), _: str = Depends(current_user)):
     """RFI + submittal turnaround and overdue % across all projects (ball-in-court accountability)."""
     return benchmarking.response_rates(db)
+
+
+@router.get("/benchmarks/pull-planning")
+def pull_planning(min_committed: int = 3, db: Session = Depends(get_db),
+                  _: str = Depends(current_user)):
+    """Pull-planning reliability across every project: PPC + Tasks-Made-Ready % distribution vs the
+    ≥80% target — so a plan can be judged against the team's own portfolio."""
+    return benchmarking.pull_planning(db, min_committed=max(1, min(min_committed, 50)))

@@ -79,6 +79,45 @@ def cost_benchmarks(db: Session, min_samples: int = 3) -> dict:
                         "code across your projects to benchmark.")}
 
 
+def pull_planning(db: Session, min_committed: int = 3) -> dict:
+    """Pull-planning reliability across every project: the distribution of PPC and Tasks-Made-Ready %
+    per project, so a team can see where a plan sits against its own portfolio and the ≥80% target."""
+    t = me.TABLES.get("pull_plan_task")
+    if t is None:
+        return {"projects": 0, "message": "No pull-plan data yet."}
+    ready_states = {"made_ready", "committed", "done", "not_done"}
+    per_proj: dict[str, dict] = {}
+    for pid_, state in db.execute(select(t.c.project_id, t.c.workflow_state)).all():
+        p = per_proj.setdefault(pid_, {"total": 0, "ready": 0, "done": 0, "not_done": 0})
+        p["total"] += 1
+        if state in ready_states:
+            p["ready"] += 1
+        if state == "done":
+            p["done"] += 1
+        elif state == "not_done":
+            p["not_done"] += 1
+    rows, ppcs, tmrs = [], [], []
+    for pid_, p in per_proj.items():
+        committed = p["done"] + p["not_done"]
+        if committed < min_committed:
+            continue
+        ppc = round(p["done"] / committed * 100, 1)
+        tmr = round(p["ready"] / p["total"] * 100, 1) if p["total"] else 0.0
+        ppcs.append(ppc); tmrs.append(tmr)
+        rows.append({"project_id": pid_, "ppc_pct": ppc, "tmr_pct": tmr, "committed": committed})
+
+    def dist(vals: list[float]) -> dict:
+        s = sorted(vals)
+        return {"low": round(s[0], 1), "median": round(_pctile(s, 0.5), 1),
+                "high": round(s[-1], 1), "avg": round(sum(s) / len(s), 1)} if s else {}
+    rows.sort(key=lambda r: -r["ppc_pct"])
+    return {"projects": len(rows), "target_ppc": 80.0,
+            "ppc": dist(ppcs), "tmr": dist(tmrs), "per_project": rows,
+            "message": (None if rows else
+                        f"Not enough history yet — need ≥{min_committed} committed pull-plan tasks per "
+                        "project to benchmark reliability.")}
+
+
 def _age_days(a, b) -> float | None:
     """Whole days between two datetimes/date-strings (b - a), or None."""
     da, dbb = _to_date(a), _to_date(b)

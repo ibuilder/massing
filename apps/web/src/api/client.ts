@@ -433,6 +433,22 @@ export class ApiClient {
     const qs = milestone ? `?milestone=${encodeURIComponent(milestone)}` : "";
     return this.url(`/projects/${pid}/pull-plan/board.pdf${qs}`);
   }
+  pullPlanMetrics(pid: string, milestone?: string) {
+    const qs = milestone ? `?milestone=${encodeURIComponent(milestone)}` : "";
+    return this.json<{ total: number; tasks_made_ready: number; tmr_pct: number | null;
+      make_ready_runway_weeks: number; perfect_handoff_pct: number | null; clean_handoffs: number;
+      handoffs: number; ppc_pct: number | null; committed: number; done: number;
+      ppc_trend: { week: string; committed: number; done: number; ppc_pct: number | null }[];
+      variance_pareto: { reason: string; count: number }[]; note: string }>(
+      `/projects/${pid}/pull-plan/metrics${qs}`);
+  }
+  benchmarksPullPlanning() {
+    return this.json<{ projects: number; target_ppc?: number; message?: string | null;
+      ppc?: { low: number; median: number; high: number; avg: number };
+      tmr?: { low: number; median: number; high: number; avg: number };
+      per_project?: { project_id: string; ppc_pct: number; tmr_pct: number; committed: number }[] }>(
+      `/benchmarks/pull-planning`);
+  }
   leanPpc(pid: string) {
     return this.json<{ commitments: number; completed: number; ppc: number; missed: number; rating: string; top_variance_reasons: { reason: string; count: number }[] }>(
       `/projects/${pid}/lean/ppc`);

@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.73 — Pull-planning reliability analytics (M2)
+Deeper Last Planner metrics on the pull-plan board — the learning-loop signals a team improves week
+over week, beyond a single PPC number.
+- **`pull_plan.metrics()`** — **Tasks-Made-Ready %** (are constraints cleared ahead of the work?),
+  **make-ready runway** (weeks of ready work staged), **perfect-handoff %** (predecessor done and
+  successor ready ÷ hand-offs), **PPC trend by week**, and the **variance-reason Pareto** (why
+  commitments miss). Endpoint `GET /projects/{id}/pull-plan/metrics`.
+- **Cross-project benchmark** — `benchmarking.pull_planning()` + `GET /benchmarks/pull-planning`:
+  the PPC and TMR distribution across every project vs the ≥80% target, so a plan is judged against
+  the team's own portfolio.
+- **Board Analytics view** — a 📊 Analytics toggle on the Pull Planning card renders the reliability
+  chips (PPC / TMR / perfect hand-offs / runway), the PPC-trend and variance-Pareto charts, and the
+  portfolio benchmark. Test coverage extended; demo seeded.
+
 ## v0.3.72 — Facility Condition Assessment + FCI (operations phase, M1)
 A facility-condition capability for the operate phase: assess building elements, price their
 deficiencies, and score the asset's condition — the metric owners and facility managers use to

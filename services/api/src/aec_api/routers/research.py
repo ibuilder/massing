@@ -219,6 +219,15 @@ def pull_plan_board(pid: str, milestone: str | None = None, db: Session = Depend
     return pull_plan.board(db, pid, milestone=milestone)
 
 
+@router.get("/projects/{pid}/pull-plan/metrics")
+def pull_plan_metrics(pid: str, milestone: str | None = None, db: Session = Depends(get_db),
+                      _: str = Depends(require_role("viewer"))):
+    """Last Planner reliability metrics beyond PPC: Tasks-Made-Ready %, make-ready runway,
+    perfect-handoff %, PPC trend by week, and the variance-reason Pareto — the learning-loop signals
+    a pull-planning team improves week over week."""
+    return pull_plan.metrics(db, pid, milestone=milestone)
+
+
 @router.get("/projects/{pid}/pull-plan/board.pdf")
 def pull_plan_pdf(pid: str, milestone: str | None = None, db: Session = Depends(get_db),
                   _: str = Depends(require_role("viewer"))):

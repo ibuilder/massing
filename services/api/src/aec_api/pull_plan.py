@@ -97,6 +97,73 @@ def board(db, pid: str, milestone: str | None = None) -> dict[str, Any]:
     }
 
 
+def metrics(db, pid: str, milestone: str | None = None) -> dict[str, Any]:
+    """The Last Planner learning-loop metrics beyond PPC: **Tasks-Made-Ready %** (did we clear
+    constraints ahead of the work?), the **make-ready runway** (how many weeks of ready work are
+    staged), **perfect-handoff %** (did trades finish cleanly for the next trade?), the **PPC trend by
+    week**, and the **variance-reason Pareto** (why commitments miss). These are the reliability
+    signals a pull-planning team improves week over week."""
+    tasks = me.list_records(db, "pull_plan_task", pid, limit=100000)
+    if milestone:
+        tasks = [t for t in tasks if (_d(t).get("milestone") or "") == milestone]
+    total = len(tasks)
+    ref_state = {t.get("ref"): (t.get("workflow_state") or "pulled") for t in tasks}
+    id_to_ref = {t.get("id"): t.get("ref") for t in tasks}
+
+    made_ready = sum(1 for t in tasks if (t.get("workflow_state") or "pulled") in READY_STATES)
+    tmr_pct = _pct(made_ready, total)
+
+    # make-ready runway: distinct future weeks that already carry ready (made_ready+) work
+    runway_weeks = sorted({(_d(t).get("planned_week") or "") for t in tasks
+                           if (t.get("workflow_state") or "pulled") in READY_STATES and _d(t).get("planned_week")})
+
+    # perfect handoffs: predecessor done AND successor at least made-ready = a clean flow hand-off
+    clean = handoff_total = 0
+    for t in tasks:
+        pred_id = _d(t).get("predecessor")
+        if not pred_id:
+            continue
+        handoff_total += 1
+        pred_ref = id_to_ref.get(pred_id)
+        if ref_state.get(pred_ref) == "done" and (t.get("workflow_state") or "pulled") in READY_STATES:
+            clean += 1
+    handoff_pct = _pct(clean, handoff_total)
+
+    # PPC by planned week (over the committed tasks) — the trend line
+    wk: dict[str, dict] = {}
+    variance: dict[str, int] = {}
+    for t in tasks:
+        d = _d(t)
+        st = t.get("workflow_state") or "pulled"
+        w = d.get("planned_week") or "(unscheduled)"
+        if st in COMMIT_STATES:
+            row = wk.setdefault(w, {"committed": 0, "done": 0})
+            row["committed"] += 1
+            if st == "done":
+                row["done"] += 1
+        if st == "not_done" and d.get("variance_reason"):
+            variance[d["variance_reason"]] = variance.get(d["variance_reason"], 0) + 1
+    ppc_trend = [{"week": w, "committed": r["committed"], "done": r["done"],
+                  "ppc_pct": _pct(r["done"], r["committed"])}
+                 for w, r in sorted(wk.items()) if w != "(unscheduled)"]
+    done = sum(1 for t in tasks if (t.get("workflow_state") or "") == "done")
+    not_done = sum(1 for t in tasks if (t.get("workflow_state") or "") == "not_done")
+
+    return {
+        "total": total, "milestone_filter": milestone,
+        "tasks_made_ready": made_ready, "tmr_pct": tmr_pct,
+        "make_ready_runway_weeks": len(runway_weeks), "runway": runway_weeks,
+        "perfect_handoff_pct": handoff_pct, "clean_handoffs": clean, "handoffs": handoff_total,
+        "ppc_pct": _pct(done, done + not_done), "committed": done + not_done, "done": done,
+        "ppc_trend": ppc_trend,
+        "variance_pareto": [{"reason": k, "count": v} for k, v in sorted(variance.items(), key=lambda kv: -kv[1])],
+        "note": "Last Planner reliability metrics: TMR = tasks made ready ÷ planned (are we clearing "
+                "constraints ahead?); perfect-handoff = predecessor done and successor ready ÷ hand-offs; "
+                "PPC trend = completion reliability week over week; variance Pareto = the top reasons work "
+                "misses. Target PPC ≥ 80%.",
+    }
+
+
 def pdf(db, pid: str, project_name: str, milestone: str | None = None) -> bytes:
     """Pull-plan board (PDF): the trade × week matrix, the constraint/make-ready log, and the PPC line —
     the printout a pull-planning session hands out."""

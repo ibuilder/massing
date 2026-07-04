@@ -72,6 +72,25 @@ with TestClient(app) as c:
     pdf = c.get(f"/projects/{pid}/pull-plan/board.pdf")
     assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF", (pdf.status_code, pdf.content[:8])
 
-print("PULL PLAN OK - 3 sticky notes across Concrete/Steel/MEP swimlanes & 2 weeks; concrete->steel "
-      "hand-off; steel constrained (Materials + Prereq); miss gated on variance reason; PPC 50% "
-      "(1/2 committed done); board PDF served")
+    # --- M2: reliability metrics (TMR, perfect handoff, PPC trend, variance Pareto) ---
+    m = c.get(f"/projects/{pid}/pull-plan/metrics").json()
+    assert m["total"] == 3, m["total"]
+    # concrete reached done + mep reached not_done → 2 made ready; steel still pulled
+    assert m["tasks_made_ready"] == 2 and m["tmr_pct"] == 66.7, (m["tasks_made_ready"], m["tmr_pct"])
+    # the concrete->steel hand-off is NOT clean (steel still constrained/pulled)
+    assert m["handoffs"] == 1 and m["clean_handoffs"] == 0 and m["perfect_handoff_pct"] == 0.0, m
+    assert m["ppc_pct"] == 50.0, m["ppc_pct"]          # 1 done of 2 committed
+    # PPC trend: W28 carries both committed tasks, 50%
+    w28 = next((r for r in m["ppc_trend"] if r["week"] == "2026-W28"), None)
+    assert w28 and w28["committed"] == 2 and w28["ppc_pct"] == 50.0, m["ppc_trend"]
+    # variance Pareto: the missed MEP task cites Materials
+    assert m["variance_pareto"] and m["variance_pareto"][0]["reason"] == "Materials", m["variance_pareto"]
+
+    # cross-project pull-planning benchmark (this project has 2 committed → need min_committed<=2)
+    bm = c.get("/benchmarks/pull-planning", params={"min_committed": 1}).json()
+    assert bm["projects"] >= 1 and bm["target_ppc"] == 80.0, bm
+    assert any(abs(r["ppc_pct"] - 50.0) < 0.1 for r in bm["per_project"]), bm["per_project"]
+
+print("PULL PLAN OK - board (concrete->steel hand-off, steel constrained, miss gated on variance, PPC "
+      "50%, PDF); metrics TMR 66.7% + imperfect hand-off + W28 PPC-trend 50% + Materials variance "
+      "Pareto; cross-project benchmark vs 80% target")

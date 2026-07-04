@@ -303,7 +303,7 @@ with TestClient(app) as c:
                f"{P}/standards/check?standard=cobie", f"{P}/standards/check?standard=ids",
                f"{P}/standards/check?standard=uniclass", f"{P}/twin/readiness",
                f"{P}/procurement/compliance-feed", f"{P}/program/summary",
-               f"{P}/pull-plan/board"]
+               f"{P}/pull-plan/board", f"{P}/pull-plan/metrics", "/benchmarks/pull-planning?min_committed=1"]
     for s in singles:
         grab(c, s)
     for kind in ("gantt", "lob"):

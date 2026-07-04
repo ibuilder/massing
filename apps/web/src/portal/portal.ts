@@ -2607,8 +2607,11 @@ export class PortalUI {
     editBtn.title = "Add / edit pull-plan tasks (every trade edits its own)";
     editBtn.onclick = () => { const pm = this.mods.find((x) => x.key === "pull_plan_task"); if (pm) { this.activeKey = "pull_plan_task"; void this.openModule(pm); this.buildNav(); } };
     const pdfBtn = document.createElement("a"); pdfBtn.className = "tool-btn"; pdfBtn.textContent = "⬇ PDF"; pdfBtn.target = "_blank"; pdfBtn.rel = "noopener";
-    ppRight.append(msSel, editBtn, pdfBtn); ppHead.append(ppRight); ppCard.appendChild(ppHead);
+    const anBtn = document.createElement("button"); anBtn.className = "tool-btn"; anBtn.textContent = "📊 Analytics";
+    anBtn.title = "Reliability metrics: Tasks-Made-Ready, perfect hand-offs, PPC trend, variance reasons";
+    ppRight.append(msSel, editBtn, anBtn, pdfBtn); ppHead.append(ppRight); ppCard.appendChild(ppHead);
     const ppBody = document.createElement("div"); ppBody.innerHTML = `<div class="meta">loading…</div>`; ppCard.appendChild(ppBody);
+    const ppAnalytics = document.createElement("div"); ppAnalytics.style.display = "none"; ppCard.appendChild(ppAnalytics);
     this.root.appendChild(ppCard);
     const ppState = (s: string) => s === "done" ? "var(--status-good)" : s === "not_done" ? "var(--status-crit)"
       : s === "committed" ? "var(--accent)" : s === "made_ready" ? "var(--status-warn)" : "var(--muted)";
@@ -2655,7 +2658,55 @@ export class PortalUI {
         }
       }).catch((e) => { ppBody.innerHTML = `<div class="meta">Pull plan unavailable: ${esc((e as Error).message)}</div>`; });
     };
-    msSel.onchange = () => loadPull(msSel.value);
+    // --- reliability analytics (M2): TMR, perfect-handoff %, PPC trend, variance Pareto, benchmark ---
+    let anShown = false;
+    const loadAnalytics = (milestone: string) => {
+      ppAnalytics.innerHTML = `<div class="meta">loading analytics…</div>`;
+      void this.host.api.pullPlanMetrics(pid, milestone || undefined).then(async (m) => {
+        if (!m.total) { ppAnalytics.innerHTML = `<div class="meta">No pull-plan tasks yet.</div>`; return; }
+        ppAnalytics.innerHTML = "";
+        const chipColor = (v: number | null, good = 80) => v == null ? "var(--muted)" : v >= good ? "var(--status-good)" : v >= good - 20 ? "var(--status-warn)" : "var(--status-crit)";
+        const chips = document.createElement("div"); chips.className = "meta"; chips.style.cssText = "margin:6px 0;display:flex;gap:14px;flex-wrap:wrap";
+        chips.innerHTML = `<span>PPC <b style="color:${chipColor(m.ppc_pct)}">${m.ppc_pct ?? "—"}%</b> <span class="meta">(target ≥80%)</span></span>`
+          + `<span>Tasks made ready <b style="color:${chipColor(m.tmr_pct)}">${m.tmr_pct ?? "—"}%</b></span>`
+          + `<span>Perfect hand-offs <b style="color:${chipColor(m.perfect_handoff_pct)}">${m.perfect_handoff_pct ?? "—"}%</b> <span class="meta">(${m.clean_handoffs}/${m.handoffs})</span></span>`
+          + `<span>Make-ready runway <b>${m.make_ready_runway_weeks}</b> wk</span>`;
+        ppAnalytics.appendChild(chips);
+        // PPC trend by week
+        if (m.ppc_trend.length) {
+          const wrap = document.createElement("div"); wrap.className = "dash-card"; wrap.style.margin = "6px 0";
+          wrap.innerHTML = groupedBar(m.ppc_trend.map((r) => ({ label: r.week, bars: [{ name: "PPC", value: r.ppc_pct ?? 0 }] })),
+            { title: "PPC trend by week (%)", fmt: (n) => `${Math.round(n)}%` });
+          ppAnalytics.appendChild(wrap);
+        }
+        // variance Pareto
+        if (m.variance_pareto.length) {
+          const wrap = document.createElement("div"); wrap.className = "dash-card"; wrap.style.margin = "6px 0";
+          wrap.innerHTML = groupedBar(m.variance_pareto.map((v) => ({ label: v.reason, bars: [{ name: "misses", value: v.count }] })),
+            { title: "Why work misses (variance Pareto)", fmt: (n) => String(Math.round(n)) });
+          ppAnalytics.appendChild(wrap);
+        }
+        // cross-project benchmark
+        try {
+          const bm = await this.host.api.benchmarksPullPlanning();
+          if (bm.projects && bm.ppc) {
+            const b = document.createElement("div"); b.className = "meta"; b.style.marginTop = "4px";
+            b.innerHTML = `<b>Portfolio benchmark</b> (${bm.projects} project${bm.projects === 1 ? "" : "s"}) — `
+              + `PPC median <b>${bm.ppc.median}%</b> (low ${bm.ppc.low} · high ${bm.ppc.high}) vs the ≥${bm.target_ppc ?? 80}% target`;
+            ppAnalytics.appendChild(b);
+          }
+        } catch { /* benchmark optional */ }
+      }).catch((e) => { ppAnalytics.innerHTML = `<div class="meta">Analytics unavailable: ${esc((e as Error).message)}</div>`; });
+    };
+    anBtn.onclick = () => {
+      anShown = !anShown;
+      ppAnalytics.style.display = anShown ? "" : "none";
+      ppBody.style.display = anShown ? "none" : "";
+      anBtn.classList.toggle("on", anShown);
+      anBtn.textContent = anShown ? "🧲 Board" : "📊 Analytics";
+      if (anShown) loadAnalytics(msSel.value);
+    };
+    msSel.onchange = () => { loadPull(msSel.value); if (anShown) loadAnalytics(msSel.value); };
     loadPull("");
 
     const statusColor = (s: string) =>
