@@ -133,12 +133,14 @@ def index(db, pid: str, crv: float | None = None, gfa_sf: float | None = None) -
 def portfolio(db) -> dict[str, Any]:
     """Per-project FCI across the portfolio, worst-first — the capital-prioritization view (allocate
     to the highest-FCI buildings, which carry the largest backlog relative to value)."""
+    import logging
     out = []
     for p in db.query(Project).all():
         try:
             idx = index(db, p.id)
-        except Exception:                              # noqa: BLE001 — a bad project shouldn't sink the roll-up
-            continue
+        except Exception:                              # noqa: BLE001,S112 — a bad project shouldn't sink the roll-up
+            logging.getLogger(__name__).exception("fca.portfolio: skipped project %s", p.id)
+            continue  # nosec B112 — logged above; one malformed project must not break the portfolio view
         if not idx["elements"]:
             continue
         out.append({"project_id": p.id, "project": p.name or p.id, "fci_pct": idx["fci_pct"],

@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.74 — Docs + hardening pass (M1/M2 consolidation)
+- **Docs**: README (operations + schedule) and the in-app guide now cover the Facility Condition
+  Index and the pull-planning reliability analytics.
+- **Security**: reviewed the new operations/schedule endpoints — authorization matches the existing
+  patterns (`current_user` for the cross-project roll-ups, `require_role("viewer")` for project-scoped
+  reads); no money movement (facility-condition is cost *estimation* only); no new dependencies or
+  outbound calls. Bandit + ruff clean (tightened the portfolio roll-up's defensive catch to log
+  rather than swallow). Full backend suite (117) + web typecheck green; live console clean across the
+  new panels.
+
 ## v0.3.73 — Pull-planning reliability analytics (M2)
 Deeper Last Planner metrics on the pull-plan board — the learning-loop signals a team improves week
 over week, beyond a single PPC number.

@@ -61,7 +61,9 @@ pay app, COBie, work order, meter reading) tied to the same GlobalIds.
 - **Construction management** — RFIs, submittals, change orders, pay apps, 4D/5D.
 - **Turnover** — COBie, as-built, closeout, certified substantial completion (G704).
 - **Operations** — CMMS work orders + preventive maintenance, utility meters → EUI, reserve
-  study + capital plan, CAM reconciliation, ESG rollup (GHG Scope 1/2) + post-occupancy evaluation.
+  study + capital plan, **facility condition assessment** (UNIFORMAT II elements → **Facility
+  Condition Index** + portfolio prioritization, feeding the reserve forecast), CAM reconciliation,
+  ESG rollup (GHG Scope 1/2) + post-occupancy evaluation.
 - **IFC-native, open, self-hostable** — no per-seat license; the desktop app is free.
 
 ## What it does
@@ -302,7 +304,9 @@ Deliverables** — with a sticky live-solved returns bar.
   sits a collaborative **pull-planning** board (Last Planner System): each trade posts its own
   `pull_plan_task` sticky notes across a trade-swimlane × week matrix, defines the hand-offs, and
   clears **constraints** to make work ready — scored by readiness and **PPC** (Percent Plan Complete),
-  exportable as a **PDF** for the planning session. A
+  exportable as a **PDF** for the planning session, with a **reliability-analytics** view
+  (Tasks-Made-Ready %, perfect-handoff %, PPC trend by week, variance-reason Pareto, and a
+  cross-project benchmark vs the ≥80% target). A
   first-class **Budget** destination assembles the agreed **GMP** from every cost code & bid package
   + General Conditions / Requirements (incl. **staffing** projections) + overhead / fee / contingency
   — each budget vs committed vs actual vs **EAC**, with buyout savings, change-orders→revised-GMP,
