@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 
 from sqlalchemy.orm import Session
 
-from .. import audit, cam, cmms, energy, energy_star_bridge, esg, reserve, twin
+from .. import audit, cam, cmms, energy, energy_star_bridge, esg, fca, reserve, twin
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_role
@@ -86,6 +86,24 @@ def reserve_study(pid: str, horizon_years: int = 25, opening_balance: float = 0.
     _project(db, pid)
     return reserve.study(db, pid, horizon_years=horizon_years, opening_balance=opening_balance,
                          annual_contribution=annual_contribution, inflation_pct=inflation_pct)
+
+
+@router.get("/projects/{pid}/fca/index")
+def fca_index(pid: str, crv: float | None = None, gfa_sf: float | None = None,
+              db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Facility Condition Index: FCI = (deferred maintenance + capital renewal) / current replacement
+    value, with the band, the deferred/renewal split, and breakdowns by UNIFORMAT group, condition
+    rating, worst elements, and recommended-year forecast — over the `fca_element` records."""
+    _project(db, pid)
+    gfa = gfa_sf or energy.project_gfa_sf(db, pid)
+    return fca.index(db, pid, crv=crv, gfa_sf=gfa)
+
+
+@router.get("/fca/portfolio")
+def fca_portfolio(db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Facility Condition Index per project across the portfolio, worst-first — the capital-
+    prioritization view (fund the highest-FCI buildings first)."""
+    return fca.portfolio(db)
 
 
 @router.get("/projects/{pid}/cam/reconciliation")

@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.72 — Facility Condition Assessment + FCI (operations phase, M1)
+A facility-condition capability for the operate phase: assess building elements, price their
+deficiencies, and score the asset's condition — the metric owners and facility managers use to
+prioritize capital.
+- **`fca_element` module** (Operations; construction + developer) — one record per building element:
+  UNIFORMAT II group, linked building system, condition rating (1 Excellent…5 Critical), install /
+  expected-life / replacement cost, deficiency + repair cost, recommended year, photo. Workflow
+  identified → planned → funded → resolved (resolved leaves the backlog).
+- **`fca.py` engine** — **Facility Condition Index** = (deferred maintenance + capital renewal) ÷
+  current replacement value, with the band (Good <5% · Fair 5–10% · Poor 10–30% · Critical >30%), the
+  deferred/renewal split, and breakdowns by UNIFORMAT group, condition, worst elements, and
+  recommended-year forecast. A **portfolio** roll-up ranks buildings worst-first for capital
+  prioritization. FCA deficiency costs now also feed the **reserve study** (condition-based, not just
+  age-based).
+- Endpoints `GET /projects/{id}/fca/index` + `/fca/portfolio`; a **Report Center** entry (FCA / FCI,
+  PDF + Excel); a **🏥 Facility Condition** panel in the Operations stage (FCI + band, deferred vs
+  CRV, by-UNIFORMAT table, recommended-spend chart, worst-elements, portfolio card). `test_fca`;
+  demo seeded.
+
 ## v0.3.71 — Nav polish: fix garbled icons + a naming collision surfaced by the Design workspace
 Cleanup found while reviewing the new Design nav.
 - **Fixed 5 corrupted module icons** — `daily_report`, `incident`, `inspection`, `ncr`, and `permit`

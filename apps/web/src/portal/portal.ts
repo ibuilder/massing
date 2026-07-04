@@ -128,6 +128,7 @@ export class PortalUI {
       __aiassist__: () => this.renderAiAssist(), __riskcost__: () => this.renderRiskCost(),
       __ids__: () => this.renderIds(), __turnover__: () => this.renderTurnover(),
       __operations__: () => this.renderOperations(), __energy__: () => this.renderEnergy(),
+      __fca__: () => this.renderFca(),
       __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
       __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
@@ -150,6 +151,7 @@ export class PortalUI {
         ["Turn over & operate", [
           { key: "__turnover__", icon: "🏁", label: "Turnover" },
           { key: "__operations__", icon: "🔧", label: "Operations" },
+          { key: "__fca__", icon: "🏥", label: "Facility Condition" },
           { key: "__energy__", icon: "⚡", label: "Energy" },
         ]],
       ],
@@ -178,7 +180,10 @@ export class PortalUI {
         ["Design & build", [
           { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" }, // owner phase-gate tracking
         ]],
-        ["Operate", [{ key: "__esg__", icon: "🌱", label: "ESG & POE" }]],
+        ["Operate", [
+          { key: "__fca__", icon: "🏥", label: "Facility Condition" },
+          { key: "__esg__", icon: "🌱", label: "ESG & POE" },
+        ]],
       ],
     };
     const stages: [string, Dest[]][] = stagesByWs[this.wsFilter] ?? stagesByWs.construction;
@@ -1546,6 +1551,88 @@ export class PortalUI {
       } catch { /* twin data optional */ }
     };
     await load();
+  }
+
+  // --- Facility Condition (FCI) — the deferred-maintenance backlog scored against replacement value
+  private async renderFca() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("🏥 Facility Condition (FCI)", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const pid = this.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Facility Condition")); return; }
+    const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
+    const bandColor = (b: string) => b === "Good" ? "var(--status-good)" : b === "Fair" ? "var(--status-warn)"
+      : b === "Poor" ? "var(--status-crit)" : "var(--status-crit)";
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.innerHTML = "Assess every building element (UNIFORMAT II), price its deficiencies, and score the "
+      + "<b>Facility Condition Index</b> = (deferred maintenance + capital renewal) ÷ replacement value. "
+      + "Lower is better. Add elements under Operations → <b>Facility Condition</b>; resolved items leave the backlog.";
+    root.appendChild(intro);
+    const editBtn = el("button", "tool-btn"); editBtn.textContent = "✎ Assess elements";
+    editBtn.title = "Add / edit facility-condition elements"; editBtn.style.marginBottom = "8px";
+    editBtn.onclick = () => { const m = this.mods.find((x) => x.key === "fca_element"); if (m) { this.activeKey = "fca_element"; void this.openModule(m); this.buildNav(); } };
+    const pdf = el("a", "tool-btn") as HTMLAnchorElement; pdf.textContent = "⬇ PDF"; pdf.target = "_blank"; pdf.rel = "noopener";
+    pdf.href = this.host.api.url(`/projects/${pid}/reports/fca.pdf`); pdf.style.marginLeft = "6px";
+    const actions = el("div"); actions.append(editBtn, pdf); root.appendChild(actions);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+
+    let s;
+    try { s = await this.host.api.fcaIndex(pid); }
+    catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+    body.innerHTML = "";
+    if (!s.elements) {
+      body.innerHTML = `<div class="meta">No elements assessed yet — click <b>✎ Assess elements</b> to log building elements with their condition and any deficiency cost.</div>`;
+      return;
+    }
+    // headline FCI + band
+    const head = el("div", "dash-card"); head.style.cssText = "margin-bottom:8px;display:flex;gap:16px;align-items:baseline;flex-wrap:wrap";
+    head.innerHTML = `<div><span style="font-size:32px;font-weight:700;color:${bandColor(s.band)}">${s.fci_pct}%</span>`
+      + ` <span style="font-weight:600;color:${bandColor(s.band)}">${s.band}</span> <span class="meta">FCI</span></div>`
+      + `<div class="meta">Deferred <b>${usd(s.deferred_maintenance)}</b> + renewal <b>${usd(s.capital_renewal)}</b> ÷ CRV <b>${usd(s.crv)}</b></div>`
+      + `<div class="meta">${s.open_deficiencies} open deficiency(s) across ${s.elements} element(s) · bands: Good &lt;5% · Fair 5–10% · Poor 10–30% · Critical &gt;30%</div>`;
+    body.append(head);
+    // by-UNIFORMAT table
+    if (s.by_uniformat.length) {
+      const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-bottom:8px";
+      t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">UNIFORMAT group</th><th scope="col">Elements</th>`
+        + `<th scope="col">Deferred</th><th scope="col">Renewal</th><th scope="col">CRV</th><th scope="col">FCI</th></tr></thead><tbody>`
+        + s.by_uniformat.map((u) => `<tr><td>${esc(u.group)}</td><td style="text-align:center">${u.count}</td>`
+          + `<td style="text-align:right">${usd(u.deferred)}</td><td style="text-align:right">${usd(u.renewal)}</td>`
+          + `<td style="text-align:right">${usd(u.crv)}</td><td style="text-align:center">${u.fci_pct != null ? u.fci_pct + "%" : "—"}</td></tr>`).join("")
+        + `</tbody>`;
+      body.append(t);
+    }
+    // recommended spend by year
+    if (s.recommended_by_year.length) {
+      const wrap = el("div", "dash-card"); wrap.style.marginBottom = "8px";
+      wrap.innerHTML = groupedBar(s.recommended_by_year.map((x) => ({ label: String(x.year), bars: [{ name: "cost", value: x.cost }] })),
+        { title: "Recommended spend by year", fmt: usd });
+      body.append(wrap);
+    }
+    // worst elements
+    if (s.worst_elements.length) {
+      const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-bottom:8px";
+      t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Ref</th><th scope="col" style="text-align:left">Element</th>`
+        + `<th scope="col">Condition</th><th scope="col">Cost</th></tr></thead><tbody>`
+        + s.worst_elements.map((w) => `<tr><td>${esc(w.ref)}</td><td>${esc(w.element)}</td>`
+          + `<td style="text-align:center">${esc(w.condition)}</td><td style="text-align:right">${usd(w.cost)}</td></tr>`).join("")
+        + `</tbody>`;
+      const h = el("div", "meta"); h.style.cssText = "font-weight:700;margin-bottom:2px"; h.textContent = "Worst elements (by cost)";
+      body.append(h, t);
+    }
+    // portfolio FCI — capital prioritization across projects
+    void this.host.api.fcaPortfolio().then((pf) => {
+      if (pf.count < 2) return;                        // only interesting across ≥2 assessed buildings
+      const pc = el("div", "dash-card"); pc.style.marginTop = "8px";
+      pc.innerHTML = `<b>Portfolio — fund worst-first</b> <span class="meta">${pf.count} assessed building(s)</span>`
+        + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
+        + `<tr><th style="text-align:left">Project</th><th class="num">FCI</th><th style="text-align:center">Band</th><th class="num">Backlog</th></tr>`
+        + pf.projects.slice(0, 12).map((p) => `<tr><td>${esc(p.project)}</td>`
+          + `<td class="num" style="color:${bandColor(p.band)}">${p.fci_pct}%</td>`
+          + `<td style="text-align:center">${esc(p.band)}</td><td class="num">${usd(p.backlog)}</td></tr>`).join("")
+        + `</table>`;
+      body.append(pc);
+    }).catch(() => {});
   }
 
   // --- Energy: metered utilities — EUI, monthly trend, cost by utility --------------------------

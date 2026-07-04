@@ -191,6 +191,21 @@ with TestClient(app) as c:
                                   "expected_life_years": 25, "replacement_cost": 220000})
     mk(c, pid, "capital_plan", {"subject": "Roof membrane replacement", "category": "Roof", "planned_year": 2028,
                                 "cost": 250000, "priority": "Recommended (end of life)", "funding_source": "Reserves"})
+    # facility condition assessment — elements w/ condition + deficiency cost feed the FCI + reserve study
+    mk(c, pid, "fca_element", {"element": "Roof membrane (EPDM)", "uniformat": "B - Shell / Envelope",
+                               "condition_rating": "4 - Poor", "install_date": "2009-06-01", "expected_life_years": 20,
+                               "replacement_cost": 250000, "deficiency": "Blistering + ponding at NE corner",
+                               "deficiency_cost": 60000, "recommended_year": 2026})
+    mk(c, pid, "fca_element", {"element": "Curtain wall sealant", "uniformat": "B - Shell / Envelope",
+                               "condition_rating": "3 - Fair", "replacement_cost": 180000,
+                               "deficiency": "Failed sealant joints, water intrusion", "deficiency_cost": 22000, "recommended_year": 2027})
+    mk(c, pid, "fca_element", {"element": "Chiller CH-1", "uniformat": "D - Services (MEP)", "condition_rating": "4 - Poor",
+                               "install_date": "2006-01-01", "expected_life_years": 20, "replacement_cost": 320000,
+                               "deficiency": "Past useful life, refrigerant leaks", "deficiency_cost": 40000, "recommended_year": 2026})
+    mk(c, pid, "fca_element", {"element": "Lobby flooring", "uniformat": "C - Interiors", "condition_rating": "2 - Good",
+                               "replacement_cost": 90000})
+    mk(c, pid, "fca_element", {"element": "Parking lot paving", "uniformat": "G - Building Sitework", "condition_rating": "3 - Fair",
+                               "replacement_cost": 140000, "deficiency": "Cracking + faded striping", "deficiency_cost": 18000, "recommended_year": 2028})
     mk(c, pid, "lease", {"tenant": "Acme Corp", "suite": "100", "rentable_sf": 10000, "base_rent_annual": 300000,
                          "lease_type": "NNN", "recovery_psf": 5, "start_date": "2025-01-01", "end_date": "2030-12-31"})
     mk(c, pid, "lease", {"tenant": "Beta LLC", "suite": "200", "rentable_sf": 5000, "base_rent_annual": 140000,
@@ -273,7 +288,7 @@ with TestClient(app) as c:
                f"{P}/specs/submittal-log", f"{P}/feasibility",
                # lifecycle panels (v0.3.49+): design gates, turnover, diligence, operations, asset mgmt, ESG
                f"{P}/lifecycle", f"{P}/turnover/readiness", f"{P}/turnover/status",
-               f"{P}/diligence/readiness", f"{P}/cmms/kpis", f"{P}/energy/actual",
+               f"{P}/diligence/readiness", f"{P}/cmms/kpis", f"{P}/energy/actual", f"{P}/fca/index", "/fca/portfolio",
                f"{P}/reserves/study?horizon_years=25&inflation_pct=3",   # the Asset Mgmt tab's default query
                f"{P}/cam/reconciliation", f"{P}/esg",
                # risk & cost / compliance panels

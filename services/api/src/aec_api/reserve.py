@@ -64,6 +64,11 @@ def study(db, pid: str, horizon_years: int = 25, opening_balance: float = 0.0,
         if yr and cost > 0 and this_year <= yr <= end_year:
             events.append({"year": yr, "item": d.get("subject") or c.get("ref"), "cost": cost,
                            "source": "cip", "ref": c.get("ref")})
+    # condition-based costs from the facility condition assessment (open deficiencies) — so the
+    # funding forecast reflects real condition, not just component age. No-op if FCA isn't in use.
+    if "fca_element" in me.TABLES:
+        from . import fca
+        events.extend(fca.reserve_events(db, pid, this_year, end_year))
 
     infl = max(0.0, float(inflation_pct or 0)) / 100.0
     by_year: dict[int, float] = {}

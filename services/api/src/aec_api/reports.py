@@ -55,6 +55,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "spec_submittal_log": ("Spec-Driven Submittal Log", "Preconstruction"),
     "site_feasibility": ("Site Feasibility / Zoning Envelope", "Preconstruction"),
     "esg": ("ESG / Sustainability Summary", "Operations"),
+    "fca": ("Facility Condition Assessment (FCI)", "Operations"),
     "bim_kpi": ("BIM KPI Scorecard (ISO 19650)", "Quality"),
 }
 
@@ -828,6 +829,33 @@ def _esg(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _fca(db: Session, pid: str, name: str) -> Report:
+    """Facility Condition Assessment: the FCI + band, the deferred/renewal split, and the condition
+    backlog broken out by UNIFORMAT group and by worst element."""
+    from . import energy as energy_mod
+    from . import fca as fca_mod
+    s = fca_mod.index(db, pid, gfa_sf=energy_mod.project_gfa_sf(db, pid))
+    r = Report("Facility Condition Assessment (FCI)", name)
+    r.kpi("Facility Condition Index", f"{s['fci_pct']}% ({s['band']})")
+    r.kpi("Current replacement value", _money(s["crv"]))
+    r.kpi("Deferred maintenance", _money(s["deferred_maintenance"]))
+    r.kpi("Capital renewal due", _money(s["capital_renewal"]))
+    r.kpi("Elements assessed", s["elements"])
+    r.kpi("Open deficiencies", s["open_deficiencies"])
+    if s["by_uniformat"]:
+        r.table("Condition by UNIFORMAT group", ["Group", "Elements", "Deferred", "Renewal", "CRV", "FCI %"],
+                [[u["group"], u["count"], _money(u["deferred"]), _money(u["renewal"]), _money(u["crv"]),
+                  f"{u['fci_pct']}%" if u["fci_pct"] is not None else "—"] for u in s["by_uniformat"]])
+    if s["worst_elements"]:
+        r.table("Worst elements (by cost)", ["Ref", "Element", "Group", "Condition", "Cost"],
+                [[w["ref"], w["element"], w["uniformat"], w["condition"], _money(w["cost"])]
+                 for w in s["worst_elements"]])
+    if s["recommended_by_year"]:
+        r.chart("bar", "Recommended spend by year", [str(x["year"]) for x in s["recommended_by_year"]],
+                [{"name": "Cost", "values": [x["cost"] for x in s["recommended_by_year"]]}])
+    return r
+
+
 def _bim_kpi(db: Session, pid: str, name: str) -> Report:
     """BIM KPI scorecard (ISO 19650): the ten information-management categories graded, plus the
     handover data-drop acceptance checklist."""
@@ -893,6 +921,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _site_feasibility(db, pid, name)
     if report == "esg":
         return _esg(db, pid, name)
+    if report == "fca":
+        return _fca(db, pid, name)
     if report == "bim_kpi":
         return _bim_kpi(db, pid, name)
     if report == "listing_factsheet":

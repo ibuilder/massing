@@ -1,0 +1,158 @@
+{
+  "key": "fca_element",
+  "name": "Facility Condition",
+  "section": "Operations",
+  "icon": "🏥",
+  "ref_prefix": "FCA",
+  "title_field": "element",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "element",
+      "label": "Building Element",
+      "type": "text",
+      "required": true,
+      "fieldset": "Element"
+    },
+    {
+      "name": "uniformat",
+      "label": "UNIFORMAT II Group",
+      "type": "select",
+      "options": [
+        "A - Substructure",
+        "B - Shell / Envelope",
+        "C - Interiors",
+        "D - Services (MEP)",
+        "E - Equipment & Furnishings",
+        "F - Special Construction",
+        "G - Building Sitework"
+      ],
+      "fieldset": "Element"
+    },
+    {
+      "name": "system",
+      "label": "Building System",
+      "type": "reference",
+      "module": "building_system",
+      "fieldset": "Element"
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text",
+      "fieldset": "Element"
+    },
+    {
+      "name": "condition_rating",
+      "label": "Condition",
+      "type": "select",
+      "options": [
+        "1 - Excellent",
+        "2 - Good",
+        "3 - Fair",
+        "4 - Poor",
+        "5 - Critical"
+      ],
+      "fieldset": "Condition"
+    },
+    {
+      "name": "install_date",
+      "label": "Install / Last Renewed",
+      "type": "date",
+      "fieldset": "Condition"
+    },
+    {
+      "name": "expected_life_years",
+      "label": "Expected Life (yrs)",
+      "type": "number",
+      "fieldset": "Condition"
+    },
+    {
+      "name": "replacement_cost",
+      "label": "Replacement Cost (CRV)",
+      "type": "currency",
+      "fieldset": "Condition"
+    },
+    {
+      "name": "deficiency",
+      "label": "Deficiency / Observation",
+      "type": "textarea",
+      "fieldset": "Deficiency"
+    },
+    {
+      "name": "deficiency_cost",
+      "label": "Repair / Deferred Cost",
+      "type": "currency",
+      "fieldset": "Deficiency"
+    },
+    {
+      "name": "recommended_year",
+      "label": "Recommended Year",
+      "type": "number",
+      "fieldset": "Deficiency"
+    },
+    {
+      "name": "photo",
+      "label": "Photo / Evidence",
+      "type": "file",
+      "fieldset": "Deficiency"
+    }
+  ],
+  "workflow": {
+    "initial": "identified",
+    "states": [
+      "identified",
+      "planned",
+      "funded",
+      "resolved"
+    ],
+    "transitions": [
+      {
+        "from": "identified",
+        "to": "planned",
+        "action": "plan",
+        "party": [
+          "Owner",
+          "OwnersRep",
+          "Engineer",
+          "Consultant"
+        ]
+      },
+      {
+        "from": "planned",
+        "to": "funded",
+        "action": "fund",
+        "party": [
+          "Owner",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "funded",
+        "to": "resolved",
+        "action": "resolve",
+        "party": [
+          "GC",
+          "Owner",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "resolved",
+        "to": "identified",
+        "action": "reopen",
+        "party": [
+          "Owner",
+          "OwnersRep",
+          "Engineer"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "uniformat",
+    "condition_rating",
+    "deficiency_cost"
+  ],
+  "workspace": "construction|developer"
+}

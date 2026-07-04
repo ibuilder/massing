@@ -462,3 +462,16 @@ Candidate upgrades identified during the Design-workspace pass, not yet schedule
 5. **Cross-workspace deep-links** — RFI → drawing → model element; saved views per role; ⌘K scoped by
    the active workspace.
 6. **A11y** — keep verifying new tabs/dashboards (roles, focus order, contrast) as workspaces grow.
+
+---
+
+## Operations depth — facility condition + pull-planning (v0.3.72+)
+
+Rounding out the operate phase and the Last Planner board:
+- **v0.3.72 — Facility Condition Assessment + FCI (M1, shipped)**: `fca_element` module + `fca.py`
+  engine (FCI = deferred + renewal ÷ CRV, UNIFORMAT II, condition bands, portfolio roll-up), reserve-
+  study integration, 🏥 Facility Condition panel + report.
+- **M2 (planned) — deeper Last Planner analytics**: Tasks-Made-Ready %, make-ready lead time, perfect-
+  handoff %, PPC trend by week, variance-reason Pareto, and cross-project pull-planning benchmarks.
+- **M3 (planned) — real-time collaborative pull board**: live SSE refresh + presence + optimistic-lock
+  edit protection, reusing the existing presence/notification-stream primitives.

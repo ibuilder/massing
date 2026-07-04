@@ -1429,6 +1429,22 @@ export class ApiClient {
       twin_readiness_pct: number | null; note: string }>(`/projects/${pid}/twin/readiness`);
   }
 
+  // --- facility condition assessment (FCI) --------------------------------------
+  fcaIndex(pid: string) {
+    return this.json<{ elements: number; open_deficiencies: number; crv: number; crv_source: string;
+      deferred_maintenance: number; capital_renewal: number; fci_pct: number; band: string;
+      by_uniformat: { group: string; count: number; deferred: number; renewal: number; crv: number; fci_pct: number | null }[];
+      by_condition: Record<string, number>;
+      worst_elements: { ref: string; element: string; uniformat: string; condition: string; cost: number }[];
+      recommended_by_year: { year: number; cost: number }[];
+      bands: Record<string, string>; note: string }>(`/projects/${pid}/fca/index`);
+  }
+  fcaPortfolio() {
+    return this.json<{ count: number; note: string;
+      projects: { project_id: string; project: string; fci_pct: number; band: string; crv: number;
+        backlog: number; open_deficiencies: number }[] }>(`/fca/portfolio`);
+  }
+
   // --- concept space programming: adjacency graph + massing hints ---------------
   programSummary(pid: string) {
     return this.json<{ spaces: number; total_area_sf: number; net_area_sf: number;
