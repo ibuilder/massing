@@ -2,7 +2,7 @@
   "key": "inspection",
   "name": "Inspections",
   "section": "Quality",
-  "icon": "âœ“",
+  "icon": "✓",
   "ref_prefix": "INS",
   "title_field": "subject",
   "pinnable": true,

@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.71 — Nav polish: fix garbled icons + a naming collision surfaced by the Design workspace
+Cleanup found while reviewing the new Design nav.
+- **Fixed 5 corrupted module icons** — `daily_report`, `incident`, `inspection`, `ncr`, and `permit`
+  carried double-encoded (mojibake) icon glyphs from a past edit; they rendered as garbage (e.g.
+  "â–£ Permitting"). Restored to their intended symbols (☼ ⚑ ✓ ⚠ ▣).
+- **Renamed the drawing register "Drawings & Specs" → "Drawings"** — its fields are all
+  sheet-index data (number, revision, discipline, sheet number); the "& Specs" was a misnomer that
+  collided with the real **Specifications** register (`spec_section`, the CSI spec book that drives
+  the submittal log). The two are now clearly distinct in the nav.
+- **`engines: node >=20`** added to the web package so `npm` warns when an older Node is on PATH (the
+  production build's post-step needs the global `crypto`, stable since Node 19).
+
 ## v0.3.70 — A Design workspace for the architect & engineer, and role-based tool placement
 The platform now has a home for the **design phase**. A new **Design** workspace sits between
 Drawings and Construction — the architect/engineer's seat (AIA SD/DD/CD · RIBA stages 2–4) — and the

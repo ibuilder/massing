@@ -2,7 +2,7 @@
   "key": "daily_report",
   "name": "Daily Reports",
   "section": "Field",
-  "icon": "â˜¼",
+  "icon": "☼",
   "ref_prefix": "DR",
   "title_field": "report_date",
   "pinnable": false,

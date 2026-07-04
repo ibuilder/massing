@@ -2,7 +2,7 @@
   "key": "permit",
   "name": "Permitting",
   "section": "Engineering",
-  "icon": "â–£",
+  "icon": "▣",
   "ref_prefix": "PMT",
   "title_field": "name",
   "pinnable": false,

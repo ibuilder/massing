@@ -2,7 +2,7 @@
   "key": "incident",
   "name": "Incidents",
   "section": "Safety",
-  "icon": "âš‘",
+  "icon": "⚑",
   "ref_prefix": "INC",
   "title_field": "subject",
   "pinnable": true,

@@ -2,7 +2,7 @@
   "key": "ncr",
   "name": "Non-Conformance Reports",
   "section": "Quality",
-  "icon": "âš ",
+  "icon": "⚠",
   "ref_prefix": "NCR",
   "title_field": "subject",
   "pinnable": true,
