@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.75 — Climate & water resilience: flood + stormwater (W1–W2)
+Treat rainfall and flooding as **quantifiable design parameters** — a new **🌊 Climate Resilience**
+panel in the Design (and Developer) workspace.
+- **Flood risk (ASCE 24 / FEMA)** — a `flood_risk` assessment (FEMA zone, Base Flood Elevation, Flood
+  Design Class, freeboard) computes the **Design Flood Elevation** (DFE = BFE + freeboard, ASCE 24
+  minimum by class) and runs the **flood-proof-MEP check**: any Asset Register item whose new
+  *Installed Elevation* is below the DFE is flagged to be elevated or flood-proofed. Flags whether the
+  site is in a Special Flood Hazard Area.
+- **Stormwater (Rational Method)** — a `drainage_area` (catchment) module → peak runoff **Q = C·i·A**
+  (runoff coefficient × rainfall intensity × area), composite C, and a first-order detention volume,
+  so drainage is sized against a real design storm rather than guessed.
+- Endpoints `GET /projects/{id}/resilience/flood` + `/resilience/stormwater`; a Report Center entry
+  (flood + stormwater, PDF/Excel); `test_resilience`; demo seeded. Deterministic — no new deps, no
+  external calls.
+
 ## v0.3.74 — Docs + hardening pass (M1/M2 consolidation)
 - **Docs**: README (operations + schedule) and the in-app guide now cover the Facility Condition
   Index and the pull-planning reliability analytics.

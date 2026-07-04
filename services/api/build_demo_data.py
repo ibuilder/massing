@@ -206,6 +206,17 @@ with TestClient(app) as c:
                                "replacement_cost": 90000})
     mk(c, pid, "fca_element", {"element": "Parking lot paving", "uniformat": "G - Building Sitework", "condition_rating": "3 - Fair",
                                "replacement_cost": 140000, "deficiency": "Cracking + faded striping", "deficiency_cost": 18000, "recommended_year": 2028})
+    # climate & water resilience — flood risk (in the SFHA) + stormwater catchments
+    mk(c, pid, "flood_risk", {"name": "Site flood assessment", "flood_zone": "AE - 1% (with BFE)", "bfe_ft": 14,
+                              "flood_design_class": "2 - standard occupancy", "ground_elevation_ft": 12})
+    mk(c, pid, "asset_register", {"name": "Basement switchgear", "location": "Basement", "elevation_ft": 11,
+                                  "expected_life_years": 30, "replacement_cost": 180000})
+    mk(c, pid, "drainage_area", {"name": "Roof + podium", "surface_type": "Roof", "area_sf": 40000,
+                                 "rainfall_intensity_in_hr": 4.5, "rainfall_depth_in": 3, "return_period_years": "25"})
+    mk(c, pid, "drainage_area", {"name": "Surface parking", "surface_type": "Pavement - asphalt / concrete", "area_sf": 30000,
+                                 "rainfall_intensity_in_hr": 4.5, "rainfall_depth_in": 3, "return_period_years": "25"})
+    mk(c, pid, "drainage_area", {"name": "Landscaped courtyard", "surface_type": "Lawn / landscaped", "area_sf": 15000,
+                                 "rainfall_intensity_in_hr": 4.5, "rainfall_depth_in": 3, "return_period_years": "25"})
     mk(c, pid, "lease", {"tenant": "Acme Corp", "suite": "100", "rentable_sf": 10000, "base_rent_annual": 300000,
                          "lease_type": "NNN", "recovery_psf": 5, "start_date": "2025-01-01", "end_date": "2030-12-31"})
     mk(c, pid, "lease", {"tenant": "Beta LLC", "suite": "200", "rentable_sf": 5000, "base_rent_annual": 140000,
@@ -289,6 +300,7 @@ with TestClient(app) as c:
                # lifecycle panels (v0.3.49+): design gates, turnover, diligence, operations, asset mgmt, ESG
                f"{P}/lifecycle", f"{P}/turnover/readiness", f"{P}/turnover/status",
                f"{P}/diligence/readiness", f"{P}/cmms/kpis", f"{P}/energy/actual", f"{P}/fca/index", "/fca/portfolio",
+               f"{P}/resilience/flood", f"{P}/resilience/stormwater",
                f"{P}/reserves/study?horizon_years=25&inflation_pct=3",   # the Asset Mgmt tab's default query
                f"{P}/cam/reconciliation", f"{P}/esg",
                # risk & cost / compliance panels

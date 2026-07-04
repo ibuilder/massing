@@ -56,6 +56,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "site_feasibility": ("Site Feasibility / Zoning Envelope", "Preconstruction"),
     "esg": ("ESG / Sustainability Summary", "Operations"),
     "fca": ("Facility Condition Assessment (FCI)", "Operations"),
+    "resilience": ("Climate & Water Resilience (flood + stormwater)", "Operations"),
     "bim_kpi": ("BIM KPI Scorecard (ISO 19650)", "Quality"),
 }
 
@@ -856,6 +857,28 @@ def _fca(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _resilience(db: Session, pid: str, name: str) -> Report:
+    """Climate & water resilience: the flood Design Flood Elevation + at-risk assets, and the
+    Rational-Method stormwater peak flow + detention."""
+    from . import resilience as rz
+    fl = rz.flood_assessment(db, pid)
+    sw = rz.stormwater(db, pid)
+    r = Report("Climate & Water Resilience", name)
+    r.kpi("Design Flood Elevation (ft)", fl["design_flood_elevation_ft"] if fl["design_flood_elevation_ft"] is not None else "—")
+    r.kpi("In special flood hazard area", "Yes" if fl["in_special_flood_hazard_area"] else "No")
+    r.kpi("Assets below DFE (flood-proof)", fl["at_risk_count"])
+    r.kpi("Stormwater peak runoff (cfs)", sw["peak_runoff_cfs"])
+    r.kpi("Composite runoff coefficient", sw["composite_runoff_coefficient"] if sw["composite_runoff_coefficient"] is not None else "—")
+    r.kpi("Detention volume (cf)", f"{sw['detention_volume_cf']:,.0f}")
+    if fl["assets_at_risk"]:
+        r.table("Assets below the Design Flood Elevation", ["Ref", "Asset", "Elev (ft)", "Below DFE by (ft)"],
+                [[a["ref"], a["asset"], a["elevation_ft"], a["below_dfe_by_ft"]] for a in fl["assets_at_risk"]])
+    if sw["by_surface"]:
+        r.table("Stormwater by surface", ["Surface", "Area (sf)", "Peak (cfs)"],
+                [[s["surface"], f"{s['area_sf']:,.0f}", s["peak_cfs"]] for s in sw["by_surface"]])
+    return r
+
+
 def _bim_kpi(db: Session, pid: str, name: str) -> Report:
     """BIM KPI scorecard (ISO 19650): the ten information-management categories graded, plus the
     handover data-drop acceptance checklist."""
@@ -923,6 +946,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _esg(db, pid, name)
     if report == "fca":
         return _fca(db, pid, name)
+    if report == "resilience":
+        return _resilience(db, pid, name)
     if report == "bim_kpi":
         return _bim_kpi(db, pid, name)
     if report == "listing_factsheet":

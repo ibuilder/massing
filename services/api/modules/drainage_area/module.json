@@ -1,0 +1,103 @@
+{
+  "key": "drainage_area",
+  "name": "Drainage Area",
+  "section": "Resilience",
+  "icon": "💧",
+  "ref_prefix": "DRN",
+  "title_field": "name",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Catchment",
+      "type": "text",
+      "required": true,
+      "fieldset": "Catchment"
+    },
+    {
+      "name": "surface_type",
+      "label": "Surface",
+      "type": "select",
+      "options": [
+        "Roof",
+        "Pavement - asphalt / concrete",
+        "Gravel / compacted",
+        "Lawn / landscaped",
+        "Undeveloped / meadow"
+      ],
+      "fieldset": "Catchment"
+    },
+    {
+      "name": "area_sf",
+      "label": "Area (sf)",
+      "type": "number",
+      "fieldset": "Catchment"
+    },
+    {
+      "name": "runoff_coefficient",
+      "label": "Runoff Coefficient C (blank = by surface)",
+      "type": "number",
+      "fieldset": "Catchment"
+    },
+    {
+      "name": "return_period_years",
+      "label": "Design Storm (return period)",
+      "type": "select",
+      "options": [
+        "2",
+        "5",
+        "10",
+        "25",
+        "50",
+        "100"
+      ],
+      "fieldset": "Storm"
+    },
+    {
+      "name": "rainfall_intensity_in_hr",
+      "label": "Rainfall Intensity i (in/hr, from IDF)",
+      "type": "number",
+      "fieldset": "Storm"
+    },
+    {
+      "name": "rainfall_depth_in",
+      "label": "Storm Depth (in)",
+      "type": "number",
+      "fieldset": "Storm"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "sized"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "sized",
+        "action": "size",
+        "party": [
+          "Engineer",
+          "Architect",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "sized",
+        "to": "draft",
+        "action": "reopen",
+        "party": [
+          "Engineer",
+          "Architect"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "surface_type",
+    "area_sf",
+    "return_period_years"
+  ],
+  "workspace": "design|developer"
+}

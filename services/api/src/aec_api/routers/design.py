@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import adjacency, design_phase, soft_costs
+from .. import adjacency, design_phase, resilience, soft_costs
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_role
@@ -60,6 +60,24 @@ def reference(_: str = Depends(current_user)):
     return {"phases": design_phase.PHASES,
             "soft_cost_components": soft_costs.COMPONENTS,
             "ae_phase_split": soft_costs.AE_PHASE_SPLIT}
+
+
+@router.get("/projects/{pid}/resilience/flood")
+def resilience_flood(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Flood risk (ASCE 24 / FEMA): the Design Flood Elevation (BFE + freeboard) and the flood-proof-MEP
+    check — asset-register items installed below the DFE, flagged to be elevated or flood-proofed."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return resilience.flood_assessment(db, pid)
+
+
+@router.get("/projects/{pid}/resilience/stormwater")
+def resilience_stormwater(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Stormwater (Rational Method): peak runoff Q = C·i·A per catchment plus a first-order detention
+    volume, so drainage is sized against a real design storm."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return resilience.stormwater(db, pid)
 
 
 @router.get("/projects/{pid}/diligence/readiness")

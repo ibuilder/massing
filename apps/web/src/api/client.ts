@@ -1461,6 +1461,25 @@ export class ApiClient {
         backlog: number; open_deficiencies: number }[] }>(`/fca/portfolio`);
   }
 
+  // --- climate & water resilience (flood + stormwater) --------------------------
+  resilienceFlood(pid: string) {
+    return this.json<{ count: number; in_special_flood_hazard_area: boolean;
+      design_flood_elevation_ft: number | null; assets_checked: number; at_risk_count: number;
+      compliant: boolean; note: string;
+      assessments: { ref: string; name: string; flood_zone: string; in_sfha: boolean; bfe_ft: number | null;
+        flood_design_class: string; freeboard_ft: number; dfe_ft: number | null }[];
+      assets_at_risk: { ref: string; asset: string; elevation_ft: number; below_dfe_by_ft: number }[] }>(
+      `/projects/${pid}/resilience/flood`);
+  }
+  resilienceStormwater(pid: string) {
+    return this.json<{ count: number; total_area_acres: number; composite_runoff_coefficient: number | null;
+      peak_runoff_cfs: number; detention_volume_cf: number; detention_volume_gal: number; note: string;
+      catchments: { ref: string; name: string; surface: string; area_sf: number; c: number; i_in_hr: number;
+        return_period_years: string; peak_cfs: number }[];
+      by_surface: { surface: string; area_sf: number; peak_cfs: number }[] }>(
+      `/projects/${pid}/resilience/stormwater`);
+  }
+
   // --- concept space programming: adjacency graph + massing hints ---------------
   programSummary(pid: string) {
     return this.json<{ spaces: number; total_area_sf: number; net_area_sf: number;

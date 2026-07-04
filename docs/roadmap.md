@@ -475,3 +475,16 @@ Rounding out the operate phase and the Last Planner board:
   handoff %, PPC trend by week, variance-reason Pareto, and cross-project pull-planning benchmarks.
 - **M3 (planned) — real-time collaborative pull board**: live SSE refresh + presence + optimistic-lock
   edit protection, reusing the existing presence/notification-stream primitives.
+
+---
+
+## Climate & water resilience (v0.3.75+)
+
+Rainfall and flooding as quantifiable design parameters, across the lifecycle:
+- **v0.3.75 — W1+W2 (shipped)**: flood risk (ASCE 24 Design Flood Elevation + flood-proof-MEP check)
+  and stormwater (Rational Method Q=C·i·A + detention) — `flood_risk`/`drainage_area` modules +
+  `resilience.py` + 🌊 Climate Resilience panel + report.
+- **W3 (planned)**: weather-sequenced scheduling — a weather-sensitivity flag on activities + a
+  wet-season site-risk overlay (dewatering, trench-collapse zones), tied to daily-report weather.
+- **W4 (planned)**: physical climate-risk rollup (flood/heat/wind) per asset, folded into the ESG
+  report + portfolio.

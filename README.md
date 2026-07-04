@@ -64,6 +64,10 @@ pay app, COBie, work order, meter reading) tied to the same GlobalIds.
   study + capital plan, **facility condition assessment** (UNIFORMAT II elements → **Facility
   Condition Index** + portfolio prioritization, feeding the reserve forecast), CAM reconciliation,
   ESG rollup (GHG Scope 1/2) + post-occupancy evaluation.
+- **Climate & water resilience** — flood risk (ASCE 24 / FEMA **Design Flood Elevation** + a
+  flood-proof-MEP check flagging equipment installed below it) and stormwater sizing (**Rational
+  Method** Q = C·i·A peak runoff + detention volume) — rainfall and flooding as quantifiable design
+  parameters.
 - **IFC-native, open, self-hostable** — no per-seat license; the desktop app is free.
 
 ## What it does

@@ -127,6 +127,12 @@
       "fieldset": "Product Passport"
     },
     {
+      "name": "elevation_ft",
+      "label": "Installed Elevation (ft)",
+      "type": "number",
+      "fieldset": "Resilience"
+    },
+    {
       "name": "warranty_count",
       "label": "# warranties",
       "type": "rollup",

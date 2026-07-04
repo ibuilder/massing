@@ -128,7 +128,7 @@ export class PortalUI {
       __aiassist__: () => this.renderAiAssist(), __riskcost__: () => this.renderRiskCost(),
       __ids__: () => this.renderIds(), __turnover__: () => this.renderTurnover(),
       __operations__: () => this.renderOperations(), __energy__: () => this.renderEnergy(),
-      __fca__: () => this.renderFca(),
+      __fca__: () => this.renderFca(), __resilience__: () => this.renderResilience(),
       __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
       __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
@@ -167,6 +167,7 @@ export class PortalUI {
           { key: "__standards__", icon: "🗂", label: "CDE / Standards" },   // ISO 19650 container discipline + reqs
           { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },             // 10-category information-mgmt scorecard
           { key: "__modelqa__", icon: "✅", label: "Model Health" },        // deep-links to the Model Tools checks
+          { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // flood DFE + stormwater sizing
         ]],
       ],
       // Owner / developer — acquire → design & build (phase gates) → operate.
@@ -182,6 +183,7 @@ export class PortalUI {
         ]],
         ["Operate", [
           { key: "__fca__", icon: "🏥", label: "Facility Condition" },
+          { key: "__resilience__", icon: "🌊", label: "Climate Resilience" },
           { key: "__esg__", icon: "🌱", label: "ESG & POE" },
         ]],
       ],
@@ -1633,6 +1635,77 @@ export class PortalUI {
         + `</table>`;
       body.append(pc);
     }).catch(() => {});
+  }
+
+  // --- Climate & water resilience — flood Design Flood Elevation + Rational-Method stormwater -------
+  private async renderResilience() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("🌊 Climate & Water Resilience", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const pid = this.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Climate Resilience")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.innerHTML = "Treat rainfall and flooding as quantifiable design parameters. <b>Flood</b> "
+      + "(ASCE 24): the Design Flood Elevation and which equipment sits below it. <b>Stormwater</b> "
+      + "(Rational Method): peak runoff Q = C·i·A and the detention volume. Add records under "
+      + "Resilience → <b>Flood Risk</b> / <b>Drainage Area</b>.";
+    root.appendChild(intro);
+    const jump = (k: string) => { const m = this.mods.find((x) => x.key === k); if (m) { this.activeKey = k; void this.openModule(m); this.buildNav(); } };
+    const acts = el("div"); acts.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px";
+    const b1 = el("button", "tool-btn"); b1.textContent = "✎ Flood Risk"; b1.onclick = () => jump("flood_risk");
+    const b2 = el("button", "tool-btn"); b2.textContent = "✎ Drainage Area"; b2.onclick = () => jump("drainage_area");
+    const pdf = el("a", "tool-btn") as HTMLAnchorElement; pdf.textContent = "⬇ PDF"; pdf.target = "_blank"; pdf.rel = "noopener";
+    pdf.href = this.host.api.url(`/projects/${pid}/reports/resilience.pdf`);
+    acts.append(b1, b2, pdf); root.appendChild(acts);
+    const usd = (n: number) => Math.round(n).toLocaleString();
+
+    // Flood card
+    const fCard = el("div", "dash-card"); fCard.style.marginBottom = "10px";
+    fCard.innerHTML = `<div class="section-title">🌊 Flood risk — Design Flood Elevation</div><div class="meta">loading…</div>`;
+    root.appendChild(fCard);
+    void this.host.api.resilienceFlood(pid).then((f) => {
+      fCard.innerHTML = `<div class="section-title">🌊 Flood risk — Design Flood Elevation</div>`;
+      if (!f.count) { fCard.insertAdjacentHTML("beforeend", `<div class="meta">No flood assessment yet — click <b>✎ Flood Risk</b> to enter the FEMA zone + Base Flood Elevation.</div>`); return; }
+      const sfhaColor = f.in_special_flood_hazard_area ? "var(--status-crit)" : "var(--status-good)";
+      const chips = el("div", "meta"); chips.style.margin = "4px 0 6px";
+      chips.innerHTML = `DFE <b>${f.design_flood_elevation_ft ?? "—"} ft</b> · `
+        + `<b style="color:${sfhaColor}">${f.in_special_flood_hazard_area ? "In special flood hazard area" : "Outside SFHA"}</b> · `
+        + `<b style="color:${f.at_risk_count ? "var(--status-crit)" : "var(--status-good)"}">${f.at_risk_count}</b> asset(s) below the DFE (of ${f.assets_checked} with an elevation)`;
+      fCard.appendChild(chips);
+      if (f.assets_at_risk.length) {
+        const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Asset</th><th scope="col">Elev (ft)</th><th scope="col">Below DFE by</th></tr></thead><tbody>`
+          + f.assets_at_risk.map((a) => `<tr><td>${esc(a.asset)}</td><td style="text-align:center">${a.elevation_ft}</td><td style="text-align:center;color:var(--status-crit)">${a.below_dfe_by_ft} ft</td></tr>`).join("") + `</tbody>`;
+        fCard.appendChild(t);
+        const hint = el("div", "meta"); hint.style.marginTop = "4px"; hint.textContent = "Elevate or flood-proof these — or raise their Installed Elevation on the Asset Register.";
+        fCard.appendChild(hint);
+      }
+    }).catch((e) => { fCard.innerHTML = `<div class="meta">Flood data unavailable: ${esc((e as Error).message)}</div>`; });
+
+    // Stormwater card
+    const sCard = el("div", "dash-card"); sCard.style.marginBottom = "10px";
+    sCard.innerHTML = `<div class="section-title">💧 Stormwater — Rational Method (Q = C·i·A)</div><div class="meta">loading…</div>`;
+    root.appendChild(sCard);
+    void this.host.api.resilienceStormwater(pid).then((s) => {
+      sCard.innerHTML = `<div class="section-title">💧 Stormwater — Rational Method (Q = C·i·A)</div>`;
+      if (!s.count) { sCard.insertAdjacentHTML("beforeend", `<div class="meta">No catchments yet — click <b>✎ Drainage Area</b> to add surfaces with their area + rainfall intensity.</div>`); return; }
+      const chips = el("div", "meta"); chips.style.margin = "4px 0 6px";
+      chips.innerHTML = `Peak runoff <b>${s.peak_runoff_cfs} cfs</b> · composite C <b>${s.composite_runoff_coefficient ?? "—"}</b> · `
+        + `${s.total_area_acres} ac · detention <b>${usd(s.detention_volume_cf)} cf</b> (${usd(s.detention_volume_gal)} gal)`;
+      sCard.appendChild(chips);
+      if (s.by_surface.length) {
+        const wrap = el("div", "dash-card"); wrap.style.margin = "6px 0";
+        wrap.innerHTML = groupedBar(s.by_surface.map((x) => ({ label: x.surface, bars: [{ name: "cfs", value: x.peak_cfs }] })),
+          { title: "Peak runoff by surface (cfs)", fmt: (n) => n.toFixed(1) });
+        sCard.appendChild(wrap);
+      }
+      if (s.catchments.length) {
+        const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Catchment</th><th scope="col">Area (sf)</th><th scope="col">C</th><th scope="col">i (in/hr)</th><th scope="col">Peak (cfs)</th></tr></thead><tbody>`
+          + s.catchments.map((x) => `<tr><td>${esc(x.name)}</td><td style="text-align:right">${usd(x.area_sf)}</td><td style="text-align:center">${x.c}</td><td style="text-align:center">${x.i_in_hr}</td><td style="text-align:right">${x.peak_cfs}</td></tr>`).join("") + `</tbody>`;
+        sCard.appendChild(t);
+      }
+    }).catch((e) => { sCard.innerHTML = `<div class="meta">Stormwater data unavailable: ${esc((e as Error).message)}</div>`; });
   }
 
   // --- Energy: metered utilities — EUI, monthly trend, cost by utility --------------------------

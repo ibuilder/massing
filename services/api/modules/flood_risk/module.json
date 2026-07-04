@@ -1,0 +1,117 @@
+{
+  "key": "flood_risk",
+  "name": "Flood Risk",
+  "section": "Resilience",
+  "icon": "🌊",
+  "ref_prefix": "FLD",
+  "title_field": "name",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Assessment",
+      "type": "text",
+      "required": true,
+      "fieldset": "Site"
+    },
+    {
+      "name": "flood_zone",
+      "label": "FEMA Flood Zone",
+      "type": "select",
+      "options": [
+        "X - minimal risk",
+        "Shaded X - 0.2% (500-yr)",
+        "A - 1% (no BFE)",
+        "AE - 1% (with BFE)",
+        "AH - shallow ponding",
+        "AO - sheet flow",
+        "VE - coastal high hazard",
+        "V - coastal (no BFE)"
+      ],
+      "fieldset": "Site"
+    },
+    {
+      "name": "ground_elevation_ft",
+      "label": "Ground / Lowest Floor Elev (ft)",
+      "type": "number",
+      "fieldset": "Site"
+    },
+    {
+      "name": "bfe_ft",
+      "label": "Base Flood Elevation (ft)",
+      "type": "number",
+      "fieldset": "Design Flood"
+    },
+    {
+      "name": "flood_design_class",
+      "label": "Flood Design Class (ASCE 24)",
+      "type": "select",
+      "options": [
+        "1 - low hazard to life",
+        "2 - standard occupancy",
+        "3 - substantial hazard",
+        "4 - essential facility"
+      ],
+      "fieldset": "Design Flood"
+    },
+    {
+      "name": "freeboard_ft",
+      "label": "Freeboard (ft, blank = ASCE 24 default)",
+      "type": "number",
+      "fieldset": "Design Flood"
+    },
+    {
+      "name": "notes",
+      "label": "Findings / Mitigation",
+      "type": "textarea",
+      "fieldset": "Assessment"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "assessed",
+      "mitigated"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "assessed",
+        "action": "assess",
+        "party": [
+          "Owner",
+          "OwnersRep",
+          "Engineer",
+          "Architect"
+        ]
+      },
+      {
+        "from": "assessed",
+        "to": "mitigated",
+        "action": "mitigate",
+        "party": [
+          "Owner",
+          "OwnersRep",
+          "Engineer"
+        ]
+      },
+      {
+        "from": "assessed",
+        "to": "draft",
+        "action": "reopen",
+        "party": [
+          "Owner",
+          "OwnersRep",
+          "Engineer"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "flood_zone",
+    "bfe_ft",
+    "flood_design_class"
+  ],
+  "workspace": "design|developer"
+}
