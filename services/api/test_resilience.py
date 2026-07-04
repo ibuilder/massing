@@ -54,6 +54,38 @@ with TestClient(app) as c:
     assert abs(s["detention_volume_cf"] - 8349) < 5, s["detention_volume_cf"]
     assert s["catchments"][0]["peak_cfs"] == 3.6, s["catchments"][0]           # roof is the largest
 
+    # --- W3: weather-sequenced construction ---
+    # two weather-sensitive activities, one insensitive
+    _mk(c, pid, "schedule_activity", {"name": "Pour foundations", "trade": "Concrete",
+        "weather_sensitivity": "Rain / wet", "start": "2026-01-05", "finish": "2026-01-20"})
+    _mk(c, pid, "schedule_activity", {"name": "Erect steel", "trade": "Steel",
+        "weather_sensitivity": "Wind", "start": "2026-02-01", "finish": "2026-02-15"})
+    _mk(c, pid, "schedule_activity", {"name": "Interior paint", "trade": "Finishes",
+        "weather_sensitivity": "None"})
+    # a high-severity open site hazard + a closed one
+    _mk(c, pid, "climate_site_risk", {"name": "Excavation flooding", "hazard_type": "Dewatering / high water table",
+        "season": "Wet / monsoon", "severity": "High", "location": "North cellar"})
+    _mk(c, pid, "climate_site_risk", {"name": "Slippery ramp", "hazard_type": "Slips & access",
+        "season": "Wet / monsoon", "severity": "Low"})
+    # two daily reports with weather impact (Full-Day 1.0 + Half-Day 0.5 = 1.5 delay days)
+    _mk(c, pid, "daily_report", {"report_date": "2026-01-08", "weather": "Rain", "weather_impact": "Full-Day Lost"})
+    _mk(c, pid, "daily_report", {"report_date": "2026-01-09", "weather": "Rain", "weather_impact": "Half-Day Lost"})
+    _mk(c, pid, "daily_report", {"report_date": "2026-01-10", "weather": "Clear", "weather_impact": "None"})
+
+    w = c.get(f"/projects/{pid}/resilience/weather").json()
+    assert w["sensitive_count"] == 2, w["sensitive_count"]                      # "None" excluded
+    assert w["open_risk_count"] == 2 and w["high_severity_open"] == 1, (w["open_risk_count"], w["high_severity_open"])
+    assert abs(w["weather_delay_days"] - 1.5) < 0.01, w["weather_delay_days"]   # 1.0 + 0.5, "None" ignored
+
+    # --- W4: physical climate-risk rollup (feeds ESG) ---
+    cr = c.get(f"/projects/{pid}/resilience/climate-risk").json()
+    # in SFHA (+2) + assets below DFE (+2) + high-severity open hazard (+2) => score 6 => "Severe"
+    assert cr["score"] == 6 and cr["rating"] == "Severe", (cr["score"], cr["rating"])
+    assert cr["in_special_flood_hazard_area"] is True and cr["assets_at_risk"] == 1, cr
+    esg = c.get(f"/projects/{pid}/esg").json()
+    assert esg["physical_risk"]["rating"] == "Severe", esg["physical_risk"]
+
 print("RESILIENCE OK - flood DFE 13ft (BFE 12 + ASCE 24 freeboard 1) in the SFHA; basement chiller "
       "2ft below DFE flagged for flood-proofing; stormwater Q=C·i·A peak 4.6 cfs over 2 ac, composite "
-      "C 0.575, detention 8,349 cf")
+      "C 0.575, detention 8,349 cf; 2 weather-sensitive activities, 1.5 weather-delay days, physical "
+      "climate-risk 'Severe' (score 6) rolled into ESG")

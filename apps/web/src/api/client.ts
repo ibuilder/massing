@@ -1479,6 +1479,24 @@ export class ApiClient {
       by_surface: { surface: string; area_sf: number; peak_cfs: number }[] }>(
       `/projects/${pid}/resilience/stormwater`);
   }
+  resilienceWeather(pid: string) {
+    return this.json<{ sensitive_count: number; by_sensitivity: Record<string, number>;
+      site_risk_count: number; open_risk_count: number; high_severity_open: number; risk_score: number;
+      weather_delay_days: number; delay_report_count: number;
+      by_season: Record<string, number>; by_hazard: Record<string, number>; note: string;
+      weather_sensitive_activities: { ref: string; name: string; trade: string; sensitivity: string;
+        start: string; finish: string; percent: number }[];
+      site_risks: { ref: string; name: string; hazard_type: string; season: string; severity: string;
+        location: string; activity_ref: string; open: boolean; state: string }[];
+      delay_reports: { ref: string; date: string; weather: string; impact: string; days: number }[] }>(
+      `/projects/${pid}/resilience/weather`);
+  }
+  resilienceClimateRisk(pid: string) {
+    return this.json<{ rating: string; score: number; in_special_flood_hazard_area: boolean;
+      design_flood_elevation_ft: number | null; assets_at_risk: number; peak_runoff_cfs: number;
+      open_site_risks: number; high_severity_open: number; weather_delay_days: number;
+      factors: string[]; note: string }>(`/projects/${pid}/resilience/climate-risk`);
+  }
 
   // --- concept space programming: adjacency graph + massing hints ---------------
   programSummary(pid: string) {

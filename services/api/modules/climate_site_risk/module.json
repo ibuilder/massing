@@ -1,0 +1,123 @@
+{
+  "key": "climate_site_risk",
+  "name": "Site Weather Risk",
+  "section": "Resilience",
+  "icon": "⛈",
+  "ref_prefix": "SWR",
+  "title_field": "name",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Hazard",
+      "type": "text",
+      "required": true,
+      "fieldset": "Hazard"
+    },
+    {
+      "name": "hazard_type",
+      "label": "Hazard Type",
+      "type": "select",
+      "options": [
+        "Flooding / runoff",
+        "Dewatering / high water table",
+        "Trench / slope collapse",
+        "Slips & access",
+        "Electrical / lightning",
+        "Wind / hoisting",
+        "Freeze / concrete cure",
+        "Heat stress",
+        "Material degradation"
+      ],
+      "fieldset": "Hazard"
+    },
+    {
+      "name": "season",
+      "label": "Exposure Season",
+      "type": "select",
+      "options": [
+        "Wet / monsoon",
+        "Winter / freeze",
+        "Summer / heat",
+        "Windstorm",
+        "Year-round"
+      ],
+      "fieldset": "Hazard"
+    },
+    {
+      "name": "location",
+      "label": "Site Location / Zone",
+      "type": "text",
+      "fieldset": "Hazard"
+    },
+    {
+      "name": "severity",
+      "label": "Severity",
+      "type": "select",
+      "options": [
+        "Low",
+        "Moderate",
+        "High"
+      ],
+      "fieldset": "Assessment"
+    },
+    {
+      "name": "activity_ref",
+      "label": "Related Activity (ref/WBS)",
+      "type": "text",
+      "fieldset": "Assessment"
+    },
+    {
+      "name": "mitigation",
+      "label": "Mitigation / Controls",
+      "type": "textarea",
+      "fieldset": "Assessment"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "controlled",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "controlled",
+        "action": "add controls",
+        "party": [
+          "GC",
+          "Owner",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "controlled",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC",
+          "Owner",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "controlled",
+        "to": "open",
+        "action": "reopen",
+        "party": [
+          "GC",
+          "Owner",
+          "OwnersRep"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "hazard_type",
+    "season",
+    "severity"
+  ],
+  "workspace": "construction|design|developer"
+}

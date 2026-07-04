@@ -29,6 +29,11 @@ _C_BY_SURFACE = {
 }
 _ACRE_SF = 43560.0
 
+# daily_report weather_impact codes that cost schedule time, and the fraction of a day each burns.
+_DELAY_DAYS = {"Minor Delay": 0.25, "Half-Day Lost": 0.5, "Full-Day Lost": 1.0, "Stoppage": 1.0}
+# how each site-weather-risk severity scores toward the physical-risk rollup.
+_SEVERITY_SCORE = {"Low": 1, "Moderate": 2, "High": 3}
+
 
 def _d(rec: dict) -> dict:
     return rec.get("data") or {}
@@ -142,4 +147,120 @@ def stormwater(db, pid: str) -> dict[str, Any]:
         "note": "Rational Method: Q = C·i·A (runoff coefficient × rainfall intensity in/hr × area in "
                 "acres). Detention volume ≈ C × storm depth × area. Enter rainfall intensity/depth from "
                 "the local IDF curve for the chosen return period.",
+    }
+
+
+def weather(db, pid: str) -> dict[str, Any]:
+    """Weather-sequenced construction: which schedule activities are weather-sensitive, the standing
+    site-weather-risk register, and the weather-delay days already logged in daily reports — so the
+    plan can sequence exposed work out of the wet/freeze season and controls are tracked."""
+    # weather-sensitive schedule activities
+    sensitive = []
+    by_sensitivity: dict[str, int] = {}
+    for r in me.list_records(db, "schedule_activity", pid, limit=100000):
+        d = _d(r)
+        s = (d.get("weather_sensitivity") or "").strip()
+        if not s or s == "None":
+            continue
+        by_sensitivity[s] = by_sensitivity.get(s, 0) + 1
+        sensitive.append({"ref": r.get("ref"), "name": d.get("name") or r.get("ref"),
+                          "trade": d.get("trade"), "sensitivity": s,
+                          "start": d.get("start"), "finish": d.get("finish"),
+                          "percent": _num(d.get("percent")) or 0})
+
+    # standing site-weather-risk register
+    site_risks = []
+    by_season: dict[str, int] = {}
+    by_hazard: dict[str, int] = {}
+    high_open = 0
+    risk_score = 0
+    for r in me.list_records(db, "climate_site_risk", pid, limit=100000):
+        d = _d(r)
+        state = r.get("workflow_state")
+        sev = d.get("severity") or "Moderate"
+        season = d.get("season") or "(unspecified)"
+        hazard = d.get("hazard_type") or "(unspecified)"
+        by_season[season] = by_season.get(season, 0) + 1
+        by_hazard[hazard] = by_hazard.get(hazard, 0) + 1
+        open_ = state != "closed"
+        if open_:
+            risk_score += _SEVERITY_SCORE.get(sev, 2)
+            if sev == "High":
+                high_open += 1
+        site_risks.append({"ref": r.get("ref"), "name": d.get("name") or r.get("ref"),
+                           "hazard_type": hazard, "season": season, "severity": sev,
+                           "location": d.get("location"), "activity_ref": d.get("activity_ref"),
+                           "open": open_, "state": state})
+    site_risks.sort(key=lambda x: (-_SEVERITY_SCORE.get(x["severity"], 0), not x["open"]))
+
+    # weather-delay days already logged in daily reports
+    delay_days = 0.0
+    delay_reports = []
+    for r in me.list_records(db, "daily_report", pid, limit=100000):
+        d = _d(r)
+        impact = d.get("weather_impact")
+        frac = _DELAY_DAYS.get(impact)
+        if not frac:
+            continue
+        delay_days += frac
+        delay_reports.append({"ref": r.get("ref"), "date": d.get("report_date"),
+                              "weather": d.get("weather"), "impact": impact, "days": frac})
+    delay_reports.sort(key=lambda x: (x.get("date") or ""), reverse=True)
+
+    return {
+        "weather_sensitive_activities": sensitive, "sensitive_count": len(sensitive),
+        "by_sensitivity": by_sensitivity,
+        "site_risks": site_risks, "site_risk_count": len(site_risks),
+        "open_risk_count": sum(1 for x in site_risks if x["open"]), "high_severity_open": high_open,
+        "by_season": by_season, "by_hazard": by_hazard, "risk_score": risk_score,
+        "weather_delay_days": round(delay_days, 2), "delay_report_count": len(delay_reports),
+        "delay_reports": delay_reports[:50],
+        "note": "Flag weather-sensitive activities so exposed work is sequenced out of the wet/freeze "
+                "season; log site-weather hazards with controls; weather-delay days roll up from the "
+                "daily reports' weather-impact field.",
+    }
+
+
+def _rating(score: int) -> str:
+    return "Severe" if score >= 6 else "High" if score >= 4 else "Moderate" if score >= 2 else "Low"
+
+
+def climate_risk(db, pid: str) -> dict[str, Any]:
+    """Physical climate-risk rollup for ESG — folds flood exposure, stormwater load, the site-weather
+    register and logged weather delays into a single scored rating with the driving factors."""
+    flood = flood_assessment(db, pid)
+    storm = stormwater(db, pid)
+    wx = weather(db, pid)
+
+    factors = []
+    score = 0
+    if flood.get("in_special_flood_hazard_area"):
+        score += 2
+        factors.append("Site in a FEMA Special Flood Hazard Area (1%-annual-chance floodplain).")
+    if flood.get("at_risk_count"):
+        score += 2
+        factors.append(f"{flood['at_risk_count']} asset(s) installed below the Design Flood Elevation.")
+    if wx.get("high_severity_open"):
+        score += 2
+        factors.append(f"{wx['high_severity_open']} high-severity site-weather hazard(s) open.")
+    elif wx.get("open_risk_count"):
+        score += 1
+        factors.append(f"{wx['open_risk_count']} open site-weather hazard(s).")
+    if (wx.get("weather_delay_days") or 0) >= 5:
+        score += 1
+        factors.append(f"{wx['weather_delay_days']} weather-delay day(s) logged to date.")
+    if not factors:
+        factors.append("No flood-plain exposure, at-risk assets or open weather hazards recorded.")
+
+    return {
+        "rating": _rating(score), "score": score,
+        "in_special_flood_hazard_area": flood.get("in_special_flood_hazard_area"),
+        "design_flood_elevation_ft": flood.get("design_flood_elevation_ft"),
+        "assets_at_risk": flood.get("at_risk_count"),
+        "peak_runoff_cfs": storm.get("peak_runoff_cfs"),
+        "open_site_risks": wx.get("open_risk_count"), "high_severity_open": wx.get("high_severity_open"),
+        "weather_delay_days": wx.get("weather_delay_days"),
+        "factors": factors,
+        "note": "Physical climate-risk rating rolls up flood-plain exposure, at-risk assets, open "
+                "site-weather hazards and logged weather-delay days. Feeds the ESG summary.",
     }

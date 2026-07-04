@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.76 — Climate resilience: weather-sequenced construction + physical-risk rollup (W3–W4)
+Extends the **🌊 Climate Resilience** panel from the design phase into construction and up into ESG.
+- **Weather-sequenced construction (W3)** — a `weather_sensitivity` flag on schedule activities (rain /
+  wind / freeze / heat) so exposed work can be sequenced out of the wet/freeze season, plus a new
+  `climate_site_risk` register (hazard type, exposure season, severity, controls) for standing
+  site-weather hazards. **Weather-delay days** roll up automatically from the daily reports'
+  weather-impact field. Reachable in the construction **Build** stage as well as design/developer.
+- **Physical climate-risk rollup (W4)** — a scored **Low / Moderate / High / Severe** rating that
+  folds flood-plain exposure, assets below the Design Flood Elevation, open site-weather hazards and
+  logged weather delays into one number with its driving factors — and feeds the **ESG scorecard**
+  (`physical_risk`).
+- Endpoints `GET /projects/{id}/resilience/weather` + `/resilience/climate-risk`; the Resilience
+  report gains the rating, the site-weather register and the risk factors; `test_resilience` extended;
+  demo seeded. Deterministic — no new deps, no external calls.
+
 ## v0.3.75 — Climate & water resilience: flood + stormwater (W1–W2)
 Treat rainfall and flooding as **quantifiable design parameters** — a new **🌊 Climate Resilience**
 panel in the Design (and Developer) workspace.

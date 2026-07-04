@@ -56,6 +56,19 @@
       "fieldset": "Activity"
     },
     {
+      "name": "weather_sensitivity",
+      "label": "Weather Sensitivity",
+      "type": "select",
+      "options": [
+        "None",
+        "Rain / wet",
+        "Wind",
+        "Freeze / cold",
+        "Heat"
+      ],
+      "fieldset": "Activity"
+    },
+    {
       "name": "start",
       "label": "Planned Start",
       "type": "date",

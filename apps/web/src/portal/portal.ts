@@ -146,6 +146,7 @@ export class PortalUI {
         ["Build", [
           ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__schedule__", icon: "📅", label: "Schedule" }] : []),
           { key: "__budget__", icon: "💰", label: "Budget" },
+          { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // weather-sequenced work + site hazards
           { key: "__aiassist__", icon: "✍️", label: "AI Assist" },
         ]],
         ["Turn over & operate", [
@@ -1645,19 +1646,38 @@ export class PortalUI {
     const pid = this.host.projectId();
     if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Climate Resilience")); return; }
     const intro = el("div", "meta"); intro.style.marginBottom = "8px";
-    intro.innerHTML = "Treat rainfall and flooding as quantifiable design parameters. <b>Flood</b> "
-      + "(ASCE 24): the Design Flood Elevation and which equipment sits below it. <b>Stormwater</b> "
-      + "(Rational Method): peak runoff Q = C·i·A and the detention volume. Add records under "
-      + "Resilience → <b>Flood Risk</b> / <b>Drainage Area</b>.";
+    intro.innerHTML = "Treat rainfall and flooding as quantifiable parameters across the lifecycle. "
+      + "<b>Flood</b> (ASCE 24): the Design Flood Elevation and which equipment sits below it. "
+      + "<b>Stormwater</b> (Rational Method): peak runoff Q = C·i·A and detention. <b>Weather</b>: "
+      + "weather-sensitive activities and the site-weather-risk register. Records live under "
+      + "Resilience → <b>Flood Risk</b> / <b>Drainage Area</b> / <b>Site Weather Risk</b>.";
     root.appendChild(intro);
     const jump = (k: string) => { const m = this.mods.find((x) => x.key === k); if (m) { this.activeKey = k; void this.openModule(m); this.buildNav(); } };
     const acts = el("div"); acts.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px";
     const b1 = el("button", "tool-btn"); b1.textContent = "✎ Flood Risk"; b1.onclick = () => jump("flood_risk");
     const b2 = el("button", "tool-btn"); b2.textContent = "✎ Drainage Area"; b2.onclick = () => jump("drainage_area");
+    const b3 = el("button", "tool-btn"); b3.textContent = "✎ Site Weather Risk"; b3.onclick = () => jump("climate_site_risk");
     const pdf = el("a", "tool-btn") as HTMLAnchorElement; pdf.textContent = "⬇ PDF"; pdf.target = "_blank"; pdf.rel = "noopener";
     pdf.href = this.host.api.url(`/projects/${pid}/reports/resilience.pdf`);
-    acts.append(b1, b2, pdf); root.appendChild(acts);
+    acts.append(b1, b2, b3, pdf); root.appendChild(acts);
     const usd = (n: number) => Math.round(n).toLocaleString();
+
+    // Physical climate-risk rating (rollup — also feeds ESG)
+    const rCard = el("div", "dash-card"); rCard.style.marginBottom = "10px";
+    rCard.innerHTML = `<div class="section-title">🌐 Physical climate-risk rating</div><div class="meta">loading…</div>`;
+    root.appendChild(rCard);
+    void this.host.api.resilienceClimateRisk(pid).then((c) => {
+      const color = c.rating === "Severe" ? "var(--status-crit)" : c.rating === "High" ? "var(--status-crit)"
+        : c.rating === "Moderate" ? "var(--status-warn)" : "var(--status-good)";
+      rCard.innerHTML = `<div class="section-title">🌐 Physical climate-risk rating</div>`;
+      const head = el("div"); head.style.cssText = "display:flex;align-items:baseline;gap:8px;margin:2px 0 6px";
+      head.innerHTML = `<span style="font-size:22px;font-weight:700;color:${color}">${esc(c.rating)}</span>`
+        + `<span class="meta">score ${c.score} · rolls up into the ESG scorecard</span>`;
+      rCard.appendChild(head);
+      const ul = el("ul"); ul.style.cssText = "margin:0;padding-left:18px;font-size:12px";
+      ul.innerHTML = c.factors.map((f) => `<li>${esc(f)}</li>`).join("");
+      rCard.appendChild(ul);
+    }).catch((e) => { rCard.innerHTML = `<div class="meta">Climate-risk data unavailable: ${esc((e as Error).message)}</div>`; });
 
     // Flood card
     const fCard = el("div", "dash-card"); fCard.style.marginBottom = "10px";
@@ -1706,6 +1726,37 @@ export class PortalUI {
         sCard.appendChild(t);
       }
     }).catch((e) => { sCard.innerHTML = `<div class="meta">Stormwater data unavailable: ${esc((e as Error).message)}</div>`; });
+
+    // Weather-sequenced construction card
+    const wCard = el("div", "dash-card"); wCard.style.marginBottom = "10px";
+    wCard.innerHTML = `<div class="section-title">⛈ Weather-sequenced construction</div><div class="meta">loading…</div>`;
+    root.appendChild(wCard);
+    void this.host.api.resilienceWeather(pid).then((w) => {
+      wCard.innerHTML = `<div class="section-title">⛈ Weather-sequenced construction</div>`;
+      if (!w.sensitive_count && !w.site_risk_count && !w.delay_report_count) {
+        wCard.insertAdjacentHTML("beforeend", `<div class="meta">Flag weather-sensitive schedule activities and log site-weather hazards under <b>✎ Site Weather Risk</b> to sequence exposed work out of the wet/freeze season.</div>`);
+        return;
+      }
+      const chips = el("div", "meta"); chips.style.margin = "4px 0 6px";
+      chips.innerHTML = `<b>${w.sensitive_count}</b> weather-sensitive activit${w.sensitive_count === 1 ? "y" : "ies"} · `
+        + `<b style="color:${w.high_severity_open ? "var(--status-crit)" : w.open_risk_count ? "var(--status-warn)" : "var(--status-good)"}">${w.open_risk_count}</b> open site hazard(s)`
+        + `${w.high_severity_open ? ` (${w.high_severity_open} high)` : ""} · `
+        + `<b>${w.weather_delay_days}</b> weather-delay day(s) logged`;
+      wCard.appendChild(chips);
+      if (w.site_risks.length) {
+        const sevColor = (s: string) => s === "High" ? "var(--status-crit)" : s === "Moderate" ? "var(--status-warn)" : "var(--status-good)";
+        const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Hazard</th><th scope="col">Season</th><th scope="col">Severity</th><th scope="col">Status</th></tr></thead><tbody>`
+          + w.site_risks.map((x) => `<tr><td>${esc(x.hazard_type)}${x.location ? ` <span class="meta">(${esc(x.location)})</span>` : ""}</td><td style="text-align:center">${esc(x.season)}</td><td style="text-align:center;color:${sevColor(x.severity)}">${esc(x.severity)}</td><td style="text-align:center">${x.open ? esc(x.state) : "closed"}</td></tr>`).join("") + `</tbody>`;
+        wCard.appendChild(t);
+      }
+      if (w.weather_sensitive_activities.length) {
+        const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-top:6px";
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Weather-sensitive activity</th><th scope="col">Trade</th><th scope="col">Sensitivity</th><th scope="col">Window</th></tr></thead><tbody>`
+          + w.weather_sensitive_activities.slice(0, 25).map((a) => `<tr><td>${esc(a.name)}</td><td style="text-align:center">${esc(a.trade || "—")}</td><td style="text-align:center">${esc(a.sensitivity)}</td><td style="text-align:center">${esc(a.start || "?")} → ${esc(a.finish || "?")}</td></tr>`).join("") + `</tbody>`;
+        wCard.appendChild(t);
+      }
+    }).catch((e) => { wCard.innerHTML = `<div class="meta">Weather data unavailable: ${esc((e as Error).message)}</div>`; });
   }
 
   // --- Energy: metered utilities — EUI, monthly trend, cost by utility --------------------------

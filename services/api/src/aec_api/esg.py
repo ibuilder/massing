@@ -13,6 +13,7 @@ from typing import Any
 
 from . import energy
 from . import modules as me
+from . import resilience
 
 # kgCO2e per unit of site energy, by (utility). Scope 1 = fuel burned on site; Scope 2 = purchased
 # energy. Defaults: EPA emission factors for natural gas (5.3 kgCO2e/therm) and a US-average grid
@@ -94,6 +95,7 @@ def summary(db, pid: str, gfa_sf: float | None = None) -> dict[str, Any]:
         },
         "certifications": {"credits_tracked": len(creds), "points_targeted": round(targeted, 0),
                            "points_achieved": round(achieved, 0)},
+        "physical_risk": resilience.climate_risk(db, pid),
         "poe": {"count": len(poes), "reported": sum(1 for r in poes
                                                     if r.get("workflow_state") == "reported"),
                 "latest": latest},

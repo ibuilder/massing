@@ -80,6 +80,24 @@ def resilience_stormwater(pid: str, db: Session = Depends(get_db), _: str = Depe
     return resilience.stormwater(db, pid)
 
 
+@router.get("/projects/{pid}/resilience/weather")
+def resilience_weather(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Weather-sequenced construction: weather-sensitive schedule activities, the site-weather-risk
+    register, and weather-delay days rolled up from the daily reports."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return resilience.weather(db, pid)
+
+
+@router.get("/projects/{pid}/resilience/climate-risk")
+def resilience_climate_risk(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Physical climate-risk rollup for ESG — flood exposure + stormwater load + site-weather hazards +
+    logged weather delays folded into a single scored rating with the driving factors."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return resilience.climate_risk(db, pid)
+
+
 @router.get("/projects/{pid}/diligence/readiness")
 def diligence_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
     """Pre-acquisition go/no-go rollup: due-diligence items by category/state (cleared vs flagged vs

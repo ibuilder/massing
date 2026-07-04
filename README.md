@@ -65,9 +65,11 @@ pay app, COBie, work order, meter reading) tied to the same GlobalIds.
   Condition Index** + portfolio prioritization, feeding the reserve forecast), CAM reconciliation,
   ESG rollup (GHG Scope 1/2) + post-occupancy evaluation.
 - **Climate & water resilience** — flood risk (ASCE 24 / FEMA **Design Flood Elevation** + a
-  flood-proof-MEP check flagging equipment installed below it) and stormwater sizing (**Rational
-  Method** Q = C·i·A peak runoff + detention volume) — rainfall and flooding as quantifiable design
-  parameters.
+  flood-proof-MEP check flagging equipment installed below it), stormwater sizing (**Rational
+  Method** Q = C·i·A peak runoff + detention volume), **weather-sequenced construction**
+  (weather-sensitive activities + a site-weather-hazard register + weather-delay days from the daily
+  reports), and a **physical climate-risk rating** that rolls up into the ESG scorecard — rainfall and
+  flooding as quantifiable parameters across the lifecycle.
 - **IFC-native, open, self-hostable** — no per-seat license; the desktop app is free.
 
 ## What it does

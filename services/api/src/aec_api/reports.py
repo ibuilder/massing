@@ -863,19 +863,27 @@ def _resilience(db: Session, pid: str, name: str) -> Report:
     from . import resilience as rz
     fl = rz.flood_assessment(db, pid)
     sw = rz.stormwater(db, pid)
+    wx = rz.weather(db, pid)
+    cr = rz.climate_risk(db, pid)
     r = Report("Climate & Water Resilience", name)
+    r.kpi("Physical climate-risk rating", cr["rating"])
     r.kpi("Design Flood Elevation (ft)", fl["design_flood_elevation_ft"] if fl["design_flood_elevation_ft"] is not None else "—")
     r.kpi("In special flood hazard area", "Yes" if fl["in_special_flood_hazard_area"] else "No")
     r.kpi("Assets below DFE (flood-proof)", fl["at_risk_count"])
     r.kpi("Stormwater peak runoff (cfs)", sw["peak_runoff_cfs"])
-    r.kpi("Composite runoff coefficient", sw["composite_runoff_coefficient"] if sw["composite_runoff_coefficient"] is not None else "—")
     r.kpi("Detention volume (cf)", f"{sw['detention_volume_cf']:,.0f}")
+    r.kpi("Weather-sensitive activities", wx["sensitive_count"])
+    r.kpi("Weather-delay days logged", wx["weather_delay_days"])
     if fl["assets_at_risk"]:
         r.table("Assets below the Design Flood Elevation", ["Ref", "Asset", "Elev (ft)", "Below DFE by (ft)"],
                 [[a["ref"], a["asset"], a["elevation_ft"], a["below_dfe_by_ft"]] for a in fl["assets_at_risk"]])
     if sw["by_surface"]:
         r.table("Stormwater by surface", ["Surface", "Area (sf)", "Peak (cfs)"],
                 [[s["surface"], f"{s['area_sf']:,.0f}", s["peak_cfs"]] for s in sw["by_surface"]])
+    if wx["site_risks"]:
+        r.table("Site weather-risk register", ["Ref", "Hazard", "Season", "Severity", "Status"],
+                [[x["ref"], x["hazard_type"], x["season"], x["severity"], x["state"]] for x in wx["site_risks"]])
+    r.table("Physical climate-risk factors", ["Driver"], [[f] for f in cr["factors"]])
     return r
 
 

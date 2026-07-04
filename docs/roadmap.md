@@ -484,7 +484,8 @@ Rainfall and flooding as quantifiable design parameters, across the lifecycle:
 - **v0.3.75 — W1+W2 (shipped)**: flood risk (ASCE 24 Design Flood Elevation + flood-proof-MEP check)
   and stormwater (Rational Method Q=C·i·A + detention) — `flood_risk`/`drainage_area` modules +
   `resilience.py` + 🌊 Climate Resilience panel + report.
-- **W3 (planned)**: weather-sequenced scheduling — a weather-sensitivity flag on activities + a
-  wet-season site-risk overlay (dewatering, trench-collapse zones), tied to daily-report weather.
-- **W4 (planned)**: physical climate-risk rollup (flood/heat/wind) per asset, folded into the ESG
-  report + portfolio.
+- **v0.3.76 — W3+W4 (shipped)**: weather-sequenced construction — a `weather_sensitivity` flag on
+  schedule activities + a `climate_site_risk` register (hazard/season/severity/controls) + weather-delay
+  days rolled up from the daily reports (`resilience.weather`); and a physical climate-risk rating
+  (Low/Moderate/High/Severe over flood exposure + at-risk assets + open site hazards + weather delays,
+  `resilience.climate_risk`) folded into the ESG scorecard (`physical_risk`).

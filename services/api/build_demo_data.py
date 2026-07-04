@@ -81,8 +81,10 @@ with TestClient(app) as c:
             ("Superstructure", "Steel", "2026-04-01", "2026-08-15", 6_200_000, 40),
             ("MEP rough-in", "MEP", "2026-06-01", "2026-10-30", 5_800_000, 10),
             ("Interiors & finishes", "Finishes", "2026-09-01", "2027-01-31", 4_200_000, 0)]
+    wx_sens = {"Sitework": "Rain / wet", "Concrete": "Rain / wet", "Steel": "Wind"}
     for i, (name, trade, s, f, bud, pct) in enumerate(acts):
-        mk(c, pid, "schedule_activity", {"name": name, "trade": trade, "start": s, "finish": f, "budget": bud, "percent": pct, "wbs": f"01.{i+1:02d}"})
+        mk(c, pid, "schedule_activity", {"name": name, "trade": trade, "start": s, "finish": f, "budget": bud,
+                                         "percent": pct, "wbs": f"01.{i+1:02d}", "weather_sensitivity": wx_sens.get(trade, "None")})
     c.post(f"/projects/{pid}/cost/sov/from-budget?replace=true")
 
     # pull-plan phase board (Last Planner) — sticky notes across trade swimlanes × weeks, with the
@@ -141,8 +143,9 @@ with TestClient(app) as c:
     bp = mk(c, pid, "bid_package", {"name": "Concrete package", "trade": "Concrete", "budget": 5_000_000})
     for bidder, amt in [("ACME Concrete", 4_780_000), ("Bedrock Co", 4_950_000), ("Pour Bros", 5_120_000)]:
         mk(c, pid, "bid_submission", {"bidder": bidder, "package": bp, "amount": amt})
-    for d, w, crews in [("2026-06-13", "Clear", [12, 8]), ("2026-06-14", "Rain", [6, 4])]:
-        dr = mk(c, pid, "daily_report", {"report_date": d, "weather": w})
+    for d, w, wi, crews in [("2026-06-13", "Clear", "None", [12, 8]), ("2026-06-14", "Rain", "Half-Day Lost", [6, 4]),
+                            ("2026-06-15", "Rain", "Full-Day Lost", [2])]:
+        dr = mk(c, pid, "daily_report", {"report_date": d, "weather": w, "weather_impact": wi})
         for cnt in crews:
             mk(c, pid, "manpower_log", {"company": "Self-perform", "date": d, "count": cnt, "daily_report": dr})
     mk(c, pid, "incident", {"subject": "Near miss - dropped tool", "description": "No injury", "date": "2026-06-13", "classification": "Near Miss", "severity": "Near Miss"}, "safety")
@@ -217,6 +220,13 @@ with TestClient(app) as c:
                                  "rainfall_intensity_in_hr": 4.5, "rainfall_depth_in": 3, "return_period_years": "25"})
     mk(c, pid, "drainage_area", {"name": "Landscaped courtyard", "surface_type": "Lawn / landscaped", "area_sf": 15000,
                                  "rainfall_intensity_in_hr": 4.5, "rainfall_depth_in": 3, "return_period_years": "25"})
+    # site weather-risk register (W3) — a high-severity wet-season hazard drives the physical-risk rollup
+    mk(c, pid, "climate_site_risk", {"name": "Excavation dewatering", "hazard_type": "Dewatering / high water table",
+                                     "season": "Wet / monsoon", "severity": "High", "location": "North cellar",
+                                     "mitigation": "Wellpoint system + sump pumps; monitor after storms"})
+    mk(c, pid, "climate_site_risk", {"name": "Crane wind limits", "hazard_type": "Wind / hoisting",
+                                     "season": "Windstorm", "severity": "Moderate", "location": "Tower crane",
+                                     "mitigation": "Stand down hoisting above 30 mph gusts"})
     mk(c, pid, "lease", {"tenant": "Acme Corp", "suite": "100", "rentable_sf": 10000, "base_rent_annual": 300000,
                          "lease_type": "NNN", "recovery_psf": 5, "start_date": "2025-01-01", "end_date": "2030-12-31"})
     mk(c, pid, "lease", {"tenant": "Beta LLC", "suite": "200", "rentable_sf": 5000, "base_rent_annual": 140000,
@@ -300,7 +310,7 @@ with TestClient(app) as c:
                # lifecycle panels (v0.3.49+): design gates, turnover, diligence, operations, asset mgmt, ESG
                f"{P}/lifecycle", f"{P}/turnover/readiness", f"{P}/turnover/status",
                f"{P}/diligence/readiness", f"{P}/cmms/kpis", f"{P}/energy/actual", f"{P}/fca/index", "/fca/portfolio",
-               f"{P}/resilience/flood", f"{P}/resilience/stormwater",
+               f"{P}/resilience/flood", f"{P}/resilience/stormwater", f"{P}/resilience/weather", f"{P}/resilience/climate-risk",
                f"{P}/reserves/study?horizon_years=25&inflation_pct=3",   # the Asset Mgmt tab's default query
                f"{P}/cam/reconciliation", f"{P}/esg",
                # risk & cost / compliance panels
