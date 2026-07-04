@@ -146,5 +146,5 @@
     "design_fee_pct",
     "iso_status"
   ],
-  "workspace": "developer"
+  "workspace": "developer|design"
 }

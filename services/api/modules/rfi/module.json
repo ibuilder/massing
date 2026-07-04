@@ -191,5 +191,5 @@
     "cost_impact"
   ],
   "revisable": true,
-  "workspace": "construction"
+  "workspace": "construction|design"
 }

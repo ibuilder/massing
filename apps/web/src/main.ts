@@ -558,6 +558,7 @@ railEl.appendChild(railExpand);
 const WORKSPACES: { key: string; label: string }[] = [
   { key: "model", label: "Model" }, { key: "drawings", label: "Drawings" },
   { key: "studio", label: "Studio" },
+  { key: "design", label: "Design" },              // architect / engineer — the design-phase seat
   { key: "construction", label: "Construction" },
   { key: "developer", label: "Developer" }, { key: "finance", label: "Finance" },
 ];
@@ -580,6 +581,7 @@ function setWorkspace(key: string) {
   document.querySelectorAll(".workspace").forEach((w) => w.classList.toggle("active", w.id === `ws-${key}`));
   if (key === "drawings") openDrawingsTab();
   if (key === "studio") void openStudioTab();
+  if (key === "design") openDesignTab();
   if (key === "construction") openPortalTab();
   if (key === "developer") openDeveloperTab();
   if (key === "finance") openProformaTab();
@@ -615,14 +617,16 @@ document.querySelectorAll<HTMLButtonElement>(".fintab").forEach((t) => {
 interface PersonaCfg { ws: string[] | null; rail: string[] | null; home: string; }
 const PERSONAS: Record<string, PersonaCfg> = {
   all:           { ws: null, rail: null, home: "model" },
-  developer:     { ws: ["developer", "finance", "model", "studio", "drawings", "construction"], rail: ["issues", "tools", "tree"], home: "developer" },
-  gc:            { ws: ["construction", "model", "drawings", "finance"], rail: ["tree", "layers", "issues", "tools"], home: "construction" },
+  developer:     { ws: ["developer", "finance", "model", "studio", "drawings", "design", "construction"], rail: ["issues", "tools", "tree"], home: "developer" },
+  gc:            { ws: ["construction", "model", "drawings", "design", "finance"], rail: ["tree", "layers", "issues", "tools"], home: "construction" },
   // R1 — two GC flavors: the super lives in the field (model + construction), the PM in the office
   // (construction + finance). Same construction home; the portal nav opens each role's sections first.
   superintendent:  { ws: ["construction", "model", "drawings"], rail: ["issues", "tree", "layers", "tools"], home: "construction" },
-  project_manager: { ws: ["construction", "finance", "drawings", "model"], rail: ["tree", "issues", "layers", "tools"], home: "construction" },
-  architect:     { ws: ["model", "studio", "drawings", "construction"], rail: ["tree", "layers", "issues", "tools"], home: "model" },
-  engineer:      { ws: ["model", "studio", "drawings"], rail: ["tree", "layers", "tools", "issues"], home: "model" },
+  project_manager: { ws: ["construction", "design", "finance", "drawings", "model"], rail: ["tree", "issues", "layers", "tools"], home: "construction" },
+  // architect/engineer home into the Design workspace (their design-phase seat); model + studio stay
+  // one click away for authoring and the coordination/model-health tools.
+  architect:     { ws: ["design", "model", "studio", "drawings", "construction"], rail: ["tree", "layers", "issues", "tools"], home: "design" },
+  engineer:      { ws: ["design", "model", "studio", "drawings"], rail: ["tree", "layers", "tools", "issues"], home: "design" },
   subcontractor: { ws: ["construction", "model", "drawings"], rail: ["issues", "tools"], home: "construction" },
 };
 const personaSel = document.getElementById("persona") as HTMLSelectElement;
@@ -752,6 +756,12 @@ const developerPortal = new PortalUI($("panel-portal-dev"), portalHost);
 developerPortal.setWorkspace("developer");
 let developerReady = false;
 function openDeveloperTab() { if (developerReady) return; developerReady = true; void developerPortal.init(); }
+
+// Design workspace (architect / engineer) — same config-driven engine, "design" workspace filter.
+const designPortal = new PortalUI($("panel-portal-design"), portalHost);
+designPortal.setWorkspace("design");
+let designReady = false;
+function openDesignTab() { if (designReady) return; designReady = true; void designPortal.init(); }
 
 // Developer portal's "Underwriting" shortcut → the proforma workspace
 window.addEventListener("aec:goto-workspace", (e) => setWorkspace((e as CustomEvent).detail as string));

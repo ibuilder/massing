@@ -113,7 +113,9 @@ export interface ModuleField {
 }
 export interface ModuleDef {
   key: string; name: string; section: string; icon: string; pinnable: boolean;
-  workspace?: "construction" | "developer";
+  // a module can belong to one or more workspaces; multi-membership is a "|"-separated list
+  // (e.g. "construction|design") so shared A/E↔GC registers (RFIs, submittals) show in both.
+  workspace?: string;
   title_field?: string; ref_prefix?: string;
   fields: ModuleField[];
   workflow: { initial: string; states: string[]; transitions: WorkflowTransition[] };

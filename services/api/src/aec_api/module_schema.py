@@ -8,7 +8,11 @@ warning rather than crashing the API) and *authoritative in the test* (the build
 
 Kept intentionally permissive (`extra="allow"`) — modules carry many optional presentation keys
 (icon, fieldset, workspace, rollup wiring, …) and new ones are added often; this validates the load-
-bearing structure without freezing the format."""
+bearing structure without freezing the format.
+
+`workspace` is a presentation hint the web nav reads (construction | developer | design). It may be a
+"|"-separated list for a register that belongs to more than one workspace — e.g. an RFI is
+"construction|design" so it shows for both the GC and the architect/engineer."""
 from __future__ import annotations
 
 from pathlib import Path

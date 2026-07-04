@@ -369,9 +369,15 @@ Deliverables** — with a sticky live-solved returns bar.
   authoring recipe. Both render in the viewer (fixed two web-ifc gotchas surfaced en route: generated
   models now use **metre** units, and every `IfcProfileDef` carries a `Position` — without it web-ifc
   silently skips the geometry). Gated by `test_generate` in the CI suite.
-- **4-zone UI** (top chrome + Model/Construction/Finance workspaces + left icon rail + bottom
-  settings bar) with a **lazy-loaded 3D viewer** — the ~6 MB three/@thatopen bundle loads only
-  when the Model workspace opens, so portal/finance users get a ~16 KB-gzip first load.
+- **Role-based workspaces** — the top tabs follow the project lifecycle, each the home of the role
+  that owns that phase: **Model** (BIM coordinator) · **Drawings** · **Studio** · **Design**
+  (architect/engineer — programming, model & ISO 19650 standards, coordination) · **Construction**
+  (GC/PM/field) · **Developer** (owner) · **Finance** (underwriting). A register can belong to more
+  than one workspace, so shared A/E↔GC workflows (RFIs, submittals, drawings) show for both roles;
+  the "Viewing as" persona sets each role's landing view. See
+  [docs/roles-views.md](docs/roles-views.md).
+- **Lazy-loaded 3D viewer** — the ~6 MB three/@thatopen bundle loads only when the Model workspace
+  opens, so portal/finance users get a ~16 KB-gzip first load.
 - **Module relations** — `reference` fields + reverse lookups + numeric **rollups** wire the
   domain chains across the portal (RFI/Submittal→Drawing, RFI→ChangeEvent→PCO→COR→Subcontract,
   budget/SOV/timesheet→CostCode cost-coding, Meeting→ActionItems, Inspection→NCR/Deficiency,

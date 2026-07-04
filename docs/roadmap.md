@@ -429,3 +429,36 @@ docs neutral:
 
 The platform now spans **land acquisition → programming → design (ISO 19650) → construction → turnover
 → operations (twin/ESG)** with standards alignment and an AI surface at each stage.
+
+---
+
+## Design workspace + role-based placement (v0.3.70)
+
+Added a **Design** top-level workspace (between Drawings and Construction) as the architect/engineer's
+design-phase seat, and did a methodical pass so every tool shows in the view(s) whose role owns it.
+See [roles-views.md](roles-views.md) for the full role→view map.
+
+- **Engine**: a module can now belong to more than one workspace (`workspace` is a `|`-separated list);
+  shared A/E↔GC registers (RFI, submittal, drawing, transmittal, meeting, permit, spec) show in both
+  Design and Construction without duplicating records.
+- **Design nav**: Brief & program (Space Program · Project Lifecycle) + Model & standards (IDS · CDE /
+  Standards · BIM KPIs · Model Health) — the design/standards destinations moved here out of the GC
+  portal. A **Model Health** launcher deep-links to the model-QA checks in the Model Tools rail
+  (they need the loaded geometry). Personas: architect/engineer home into Design.
+
+## Part C — UX / performance / productivity backlog (approve item-by-item)
+
+Candidate upgrades identified during the Design-workspace pass, not yet scheduled:
+
+1. **Nav density** — the Construction portal + the multi-card panels (Schedule now stacks 6 cards) are
+   getting dense; add per-stage collapse memory and a denser dashboard summary.
+2. **Role landing dashboards** — every persona should open to a tailored command-center (the Design
+   home sets the pattern; extend to Finance and Developer).
+3. **Viewer-tool discoverability** — the model-health checks (Data QA, code-readiness, clash, IDS) are
+   buried in the Model Tools rail; the Design **Model Health** launcher is step 1 — consider a
+   first-class "Model health" surface with live scores.
+4. **Front-end perf** — `portal.ts` is ~4,000 lines and eager; split per-workspace render bundles
+   (dynamic import) so Design/Developer code loads on first open. Keep the Brotli shell budget gate.
+5. **Cross-workspace deep-links** — RFI → drawing → model element; saved views per role; ⌘K scoped by
+   the active workspace.
+6. **A11y** — keep verifying new tabs/dashboards (roles, focus order, contrast) as workspaces grow.

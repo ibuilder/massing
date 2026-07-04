@@ -32,15 +32,18 @@ export class PortalUI {
   private mods: ModuleDef[] = [];
   private nav?: HTMLElement;          // persistent left module-nav rail (built once)
   private activeKey: string | null = null;
-  // R2 — workspace split: this portal serves either the "construction" (GC build) or "developer"
-  // (real-estate) module set. `showAll` is the escape hatch so every role can still reach every
-  // register (the user's "everyone has access to all data, just a few more clicks").
-  private wsFilter: "construction" | "developer" = "construction";
+  // R2 — workspace split: this portal serves the "construction" (GC build), "developer"
+  // (real-estate), or "design" (architect/engineer) module set. `showAll` is the escape hatch so
+  // every role can still reach every register (the user's "everyone has access to all data, just a
+  // few more clicks").
+  private wsFilter: "construction" | "developer" | "design" = "construction";
   private showAll = false;
   /** Which workspace this portal renders. Call before init(). */
-  setWorkspace(ws: "construction" | "developer") { this.wsFilter = ws; }
+  setWorkspace(ws: "construction" | "developer" | "design") { this.wsFilter = ws; }
+  /** A module's workspace membership as a list — supports "|"-separated multi-membership. */
+  private wsOf(m: ModuleDef): string[] { return (m.workspace || "construction").split("|"); }
   /** True when a module belongs in the active workspace (or Show-all is on). */
-  private inWs(m: ModuleDef) { return this.showAll || (m.workspace || "construction") === this.wsFilter; }
+  private inWs(m: ModuleDef) { return this.showAll || this.wsOf(m).includes(this.wsFilter); }
   // field/offline: uploads attempted while offline are persisted in IndexedDB (offlineQueue) so they
   // survive a reload, and flushed on reconnect / next launch.
   private onlineHooked = false;
@@ -85,7 +88,7 @@ export class PortalUI {
   constructor(private root: HTMLElement, private host: PortalHost) {}
 
   async init() {
-    if (!this.host.projectId()) { this.root.innerHTML = noProjectHtml(this.wsFilter === "developer" ? "the developer workspace" : "the GC portal"); return; }
+    if (!this.host.projectId()) { this.root.innerHTML = noProjectHtml(this.wsFilter === "developer" ? "the developer workspace" : this.wsFilter === "design" ? "the design workspace" : "the GC portal"); return; }
     this.mods = await this.host.api.modules();
     // build the persistent shell once: [nav rail | content]. `this.root` is redirected to the
     // content pane, so every existing render path writes into it while the nav rail stays put.
@@ -128,17 +131,16 @@ export class PortalUI {
       __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
       __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
-      __program__: () => this.renderProgram(),
+      __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __portfolio__: () => this.renderPortfolio(), __benchmarks__: () => this.renderBenchmarks(),
     };
-    const stages: [string, Dest[]][] = this.wsFilter === "construction"
-      ? [
+    const stagesByWs: Record<string, [string, Dest[]][]> = {
+      // GC / builder — plan → build → turn over. The design/standards destinations moved to the
+      // Design workspace (still reachable here via "Show all modules").
+      construction: [
         ["Plan & derisk", [
           { key: "__review__", icon: "🛡", label: "Risk Review" },          // contract clauses / scope gaps / doc Q&A
           { key: "__riskcost__", icon: "⚖️", label: "Risk & Cost" },        // prequal, lien exposure, carbon, takeoff
-          { key: "__ids__", icon: "📋", label: "IDS Requirements" },
-          { key: "__standards__", icon: "🗂", label: "CDE / Standards" },   // ISO 19650 container discipline + reqs
-          { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },             // 10-category information-mgmt scorecard
         ]],
         ["Build", [
           ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__schedule__", icon: "📅", label: "Schedule" }] : []),
@@ -150,8 +152,23 @@ export class PortalUI {
           { key: "__operations__", icon: "🔧", label: "Operations" },
           { key: "__energy__", icon: "⚡", label: "Energy" },
         ]],
-      ]
-      : [
+      ],
+      // Architect / engineer — the design-phase seat (AIA SD/DD/CD · RIBA stages 2–4): brief &
+      // program, then model authoring against the ISO 19650 information requirements + standards.
+      design: [
+        ["Brief & program", [
+          { key: "__program__", icon: "🧩", label: "Space Program" },       // adjacency graph → massing
+          { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" },
+        ]],
+        ["Model & standards", [
+          { key: "__ids__", icon: "📋", label: "IDS Requirements" },
+          { key: "__standards__", icon: "🗂", label: "CDE / Standards" },   // ISO 19650 container discipline + reqs
+          { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },             // 10-category information-mgmt scorecard
+          { key: "__modelqa__", icon: "✅", label: "Model Health" },        // deep-links to the Model Tools checks
+        ]],
+      ],
+      // Owner / developer — acquire → design & build (phase gates) → operate.
+      developer: [
         ["Acquire", [
           { key: "__uw__", icon: "📊", label: "Underwriting",
             go: () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "finance" })) },
@@ -159,11 +176,12 @@ export class PortalUI {
           { key: "__diligence__", icon: "📜", label: "Diligence & Entitlements" },
         ]],
         ["Design & build", [
-          { key: "__program__", icon: "🧩", label: "Space Program" },       // adjacency graph → massing
-          { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" },
+          { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" }, // owner phase-gate tracking
         ]],
         ["Operate", [{ key: "__esg__", icon: "🌱", label: "ESG & POE" }]],
-      ];
+      ],
+    };
+    const stages: [string, Dest[]][] = stagesByWs[this.wsFilter] ?? stagesByWs.construction;
     stages.push(["Across projects", [
       { key: "__portfolio__", icon: "🏢", label: "Portfolio" },
       { key: "__benchmarks__", icon: "📈", label: "Benchmarks" },
@@ -221,17 +239,16 @@ export class PortalUI {
     const anyMatch = !openSecs || [...sections.keys()].some((s) => openSecs.includes(s));
     for (const [section, mods] of sections) group(section, mods, !openSecs || !anyMatch || openSecs.includes(section));
 
-    // "Show all modules" — reveal the other workspace's registers so every role can reach all data
+    // "Show all modules" — reveal the other workspaces' registers so every role can reach all data
     // (a few more clicks, per the product principle). Persisted to the toggle for the session.
-    const other = this.wsFilter === "construction" ? "developer" : "construction";
-    const otherCount = this.mods.filter((m) => (m.workspace || "construction") === other).length;
+    const otherCount = this.mods.filter((m) => !this.wsOf(m).includes(this.wsFilter)).length;
     if (otherCount) {
       const toggle = document.createElement("button");
       toggle.className = "pnav-item pnav-showall" + (this.showAll ? " active" : "");
       toggle.innerHTML = this.showAll
         ? `<span class="ic">▾</span> Showing all modules`
         : `<span class="ic">▸</span> Show all modules (+${otherCount})`;
-      toggle.title = this.showAll ? "Hide the other workspace's registers" : `Also show ${other} registers`;
+      toggle.title = this.showAll ? "Hide the other workspaces' registers" : `Also show every other register`;
       toggle.onclick = () => { this.showAll = !this.showAll; this.buildNav(); };
       nav.appendChild(toggle);
     }
@@ -1125,6 +1142,92 @@ export class PortalUI {
     rb.append(a); body.append(rb);
   }
 
+  // --- Model Health launcher: the model-QA checks live in the Model viewer's Tools rail (they need
+  //     the loaded 3D geometry), so from Design we explain them and deep-link straight there. --------
+  private renderModelQa() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("✅ Model Health", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const intro = el("div", "meta"); intro.style.marginBottom = "10px";
+    intro.innerHTML = "The model-health checks run against the loaded 3D model, so they live in "
+      + "<b>Model → Tools</b>. Open the model, then run these to verify the design is coordinated and "
+      + "carries the data the downstream trades, estimators, and plan reviewers need.";
+    root.appendChild(intro);
+    const goTools = () => { window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "model" }));
+      setTimeout(() => (document.querySelector('.rail-btn[data-rail="tools"]') as HTMLElement | null)?.click(), 60); };
+    const open = el("button", "tool-btn"); open.textContent = "Open Model → Tools →"; open.onclick = goTools;
+    open.style.marginBottom = "12px"; root.appendChild(open);
+    const checks: [string, string][] = [
+      ["✅ Data QA (completeness)", "Every element carries its required/recommended attributes — highlights the gaps in 3D."],
+      ["🏛 Code-readiness check", "Does the model hold the data a plan review needs (egress, ratings, occupancy)?"],
+      ["⚡ Run clash / 🔗 Federated clash", "Hard/soft clashes within a model or across discipline models → BCF issues."],
+      ["📐 Alignment check", "Storeys + working origin line up across the federated discipline models."],
+      ["✓ Validate (IDS)", "The model conforms to the project's IDS rule set (buildingSMART Information Delivery Specification)."],
+      ["🎨 Color by property", "Shade the model by any attribute to spot missing / inconsistent data visually."],
+    ];
+    const list = el("div"); list.style.cssText = "display:flex;flex-direction:column;gap:8px";
+    for (const [name, desc] of checks) {
+      const c = el("div", "dash-card"); c.style.cssText = "cursor:pointer"; c.onclick = goTools;
+      c.innerHTML = `<div style="font-weight:600">${esc(name)}</div><div class="meta">${esc(desc)}</div>`;
+      list.appendChild(c);
+    }
+    root.appendChild(list);
+  }
+
+  // --- Design (architect/engineer) home: model-health + phase-progress command center, with quick
+  //     jumps to the program, standards, and coordination destinations. -----------------------------
+  private async renderDesignHome(root: HTMLElement, pid: string,
+      el: (tag: string, cls?: string) => HTMLElement, jump: (key: string, state?: string) => void) {
+    const head = el("div", "section-title"); head.style.cssText = "display:flex;justify-content:space-between;align-items:center";
+    head.append("Design — architect & engineer");
+    const modelBtn = el("button", "tool-btn") as HTMLButtonElement;
+    modelBtn.textContent = "Open Model →"; modelBtn.title = "Open the 3D model & its coordination tools";
+    modelBtn.onclick = () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "model" }));
+    head.append(modelBtn); root.appendChild(head);
+    const intro = el("div", "meta"); intro.style.margin = "2px 0 10px";
+    intro.textContent = "Program the brief, author the model against the information requirements, and "
+      + "coordinate the drawings — AIA SD/DD/CD · RIBA stages 2–4.";
+    root.appendChild(intro);
+
+    // quick-launch tiles for the design destinations (call the special renderers directly)
+    const goDest = (key: string, fn: () => unknown) => { this.activeKey = key; void fn(); this.buildNav(); };
+    const tiles: [string, string, () => void][] = [
+      ["🧩", "Space Program", () => goDest("__program__", () => this.renderProgram())],
+      ["🧭", "Project Lifecycle", () => goDest("__lifecycle__", () => this.renderLifecycle())],
+      ["📋", "IDS Requirements", () => goDest("__ids__", () => this.renderIds())],
+      ["🗂", "CDE / Standards", () => goDest("__standards__", () => this.renderStandards())],
+      ["📊", "BIM KPIs", () => goDest("__bimkpi__", () => this.renderBimKpi())],
+      ["✅", "Model Health", () => goDest("__modelqa__", () => this.renderModelQa())],
+    ];
+    const grid = el("div"); grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px";
+    for (const [ic, label, on] of tiles) {
+      const c = el("div", "dash-card"); c.style.cssText = "cursor:pointer;text-align:center";
+      c.innerHTML = `<div style="font-size:22px">${ic}</div><div style="font-weight:600">${label}</div>`;
+      c.onclick = on; grid.appendChild(c);
+    }
+    root.appendChild(grid);
+
+    // register-count KPIs for the design-owned registers (from the dashboard's per-module counts)
+    try {
+      const d = await this.host.api.dashboard(pid);
+      const cnt = (k: string) => d.by_module.find((m) => m.key === k)?.count ?? 0;
+      const regs: [string, string][] = [
+        ["drawing", "Drawings"], ["submittal", "Submittals"], ["rfi", "RFIs"],
+        ["coordination_issue", "Coordination"], ["design_review", "Design reviews"],
+        ["information_container", "Info containers"],
+      ];
+      const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap";
+      let any = false;
+      for (const [key, label] of regs) {
+        const n = cnt(key); if (!n) continue; any = true;
+        const tile = el("div", "dash-card kpi-click"); tile.style.minWidth = "120px"; tile.style.cursor = "pointer";
+        tile.innerHTML = `<div style="font-size:20px;font-weight:600">${n}</div><div class="meta">${label}</div>`;
+        tile.onclick = () => jump(key); cards.appendChild(tile);
+      }
+      if (any) { const h = el("div", "section-title"); h.textContent = "Design registers"; h.style.marginBottom = "6px"; root.append(h, cards); }
+    } catch { /* no dashboard yet — tiles above are enough */ }
+  }
+
   // --- Space Program: the concept adjacency graph that feeds the massing generator --------------
   private async renderProgram() {
     const root = this.root; root.innerHTML = "";
@@ -1745,6 +1848,8 @@ export class PortalUI {
     // R2 — the developer workspace gets a real-estate command center (deal returns, listings,
     // comps, capital, leases) instead of the GC's on-schedule/on-budget PX bands.
     if (this.wsFilter === "developer") { await this.renderDeveloperHome(root, pid, el, jump); return; }
+    // The design workspace (architect/engineer) gets a model-health + phase-progress command center.
+    if (this.wsFilter === "design") { await this.renderDesignHome(root, pid, el, jump); return; }
 
     // PX executive band — "are we on schedule and on budget?" — loads independently, hides if no data
     const pxBand = el("div"); root.appendChild(pxBand);
@@ -1976,8 +2081,10 @@ export class PortalUI {
     project_manager: ["Engineering", "Cost", "Change Management", "Contracts", "Preconstruction"],
     // the real-estate developer lives in the Developer workspace — feasibility, market/sales, capital, ops.
     developer: ["Feasibility", "Market & Sales", "Capital", "Operations"],
-    architect: ["Engineering", "Preconstruction", "BIM", "Closeout"],
-    engineer: ["Engineering", "Quality", "BIM"],
+    // architect/engineer live in the Design workspace — programming, phases, model authoring, and
+    // the ISO 19650 information-management registers open first.
+    architect: ["Programming", "Design Phases", "Engineering", "BIM", "Information Management"],
+    engineer: ["Engineering", "BIM", "Information Management", "Design Phases"],
     subcontractor: ["Field", "Safety", "Quality"],
   };
 

@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.70 — A Design workspace for the architect & engineer, and role-based tool placement
+The platform now has a home for the **design phase**. A new **Design** workspace sits between
+Drawings and Construction — the architect/engineer's seat (AIA SD/DD/CD · RIBA stages 2–4) — and the
+design tools that were scattered across the GC and developer portals now live there. This is a
+methodical placement pass so every tool shows in the view(s) whose role owns it; see
+[docs/roles-views.md](docs/roles-views.md) for the full role→view map.
+- **Design workspace** — nav grouped by design stage: **Brief & program** (Space Program · Project
+  Lifecycle) and **Model & standards** (IDS Requirements · CDE / Standards · BIM KPIs · **Model
+  Health**). The Model-Health launcher deep-links to the model-QA checks in the Model **Tools** rail
+  (Data QA, code-readiness, clash, IDS validate — they run on the loaded geometry). A design
+  command-center dashboard (phase, standards, and register tiles) is the landing page.
+- **Registers move to their owner** — Space Program, Project Lifecycle, design reviews, selections,
+  information requirements/containers, coordination issues, and the design document register are now
+  Design-workspace registers.
+- **Shared tools show in both workspaces** — a register can now belong to more than one workspace, so
+  the A/E↔GC workflows (RFIs, submittals, drawings, transmittals, meetings, permits, specs) appear by
+  default in **both** Design and Construction without duplicating records. The GC's Construction view
+  is unchanged; the architect/engineer get a focused Design view.
+- **Role routing** — the architect and engineer personas now home into Design; every role can still
+  reach every register via **Show all modules** or **⌘K**.
+
 ## v0.3.69 — Pull planning: the Last Planner phase board
 Collaborative pull planning next to the schedule views — the Last Planner System level that sits
 between the master schedule and the weekly work plan. The team pulls a phase backward from a
