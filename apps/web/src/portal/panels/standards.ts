@@ -1,0 +1,276 @@
+import { noProjectHtml } from "../../ui/empty";
+import { escapeHtml as esc, toast } from "../../ui/feedback";
+import type { PanelContext } from "../panelContext";
+
+/**
+ * Standards & information-management panels (space program, BIM KPI, standards checks, IDS/EIR).
+ * Extracted from portal.ts as free render*(ctx) functions (portal.ts decomposition).
+ */
+
+  // --- Space Program: the concept adjacency graph that feeds the massing generator --------------
+export async function renderProgram(ctx: PanelContext) {
+    const root = ctx.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(ctx.bar("🧩 Space Program", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+    const pid = ctx.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Space Program")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Program the building before you mass it: spaces as nodes (area × quantity) "
+      + "with adjacency preferences as edges. The gross area and use mix feed the zoning → massing "
+      + "generator and the proforma. Add spaces under Programming → Space Program.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    let s;
+    try { s = await ctx.host.api.programSummary(pid); }
+    catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+    body.innerHTML = "";
+    if (!s.spaces) {
+      body.innerHTML = `<div class="meta">No program yet — add spaces under Programming → Space Program.</div>`;
+      return;
+    }
+    // area KPI cards
+    const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
+    const card = (label: string, value: string) => {
+      const c = el("div", "dash-card"); c.style.minWidth = "110px";
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${value}</div><div class="meta">${label}</div>`;
+      return c;
+    };
+    cards.append(card("spaces", String(s.spaces)),
+      card("gross area (sf)", s.total_area_sf.toLocaleString()),
+      card("net / leasable (sf)", s.net_area_sf.toLocaleString()),
+      card("efficiency", s.efficiency_pct != null ? `${s.efficiency_pct}%` : "—"));
+    body.append(cards);
+    // mix by use
+    const mix = Object.entries(s.by_type);
+    const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-bottom:8px";
+    t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Use</th><th scope="col">Count</th>`
+      + `<th scope="col">Area (sf)</th><th scope="col">Mix</th></tr></thead><tbody>`
+      + mix.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:center">${v.count}</td>`
+        + `<td style="text-align:right">${v.area.toLocaleString()}</td><td style="text-align:center">${v.pct}%</td></tr>`).join("")
+      + `</tbody>`;
+    body.append(t);
+    // adjacency graph — edges as chips, unmet flagged
+    const ac = el("div", "dash-card");
+    ac.innerHTML = `<b>Adjacency</b> <span class="meta">${s.adjacency.satisfiable}/${s.adjacency.total} preferences satisfiable</span>`;
+    if (s.graph.edges.length) {
+      const wrap = el("div"); wrap.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:6px";
+      s.graph.edges.forEach((e) => {
+        const chip = el("span"); chip.style.cssText = `font-size:11px;padding:2px 8px;border-radius:10px;`
+          + `border:1px solid var(${e.satisfiable ? "--border" : "--status-warn"});`
+          + `color:var(${e.satisfiable ? "--fg" : "--status-warn"})`;
+        chip.textContent = `${e.from_type} → ${e.to_type}${e.satisfiable ? "" : " (unmet)"}`;
+        wrap.append(chip);
+      });
+      ac.append(wrap);
+    }
+    body.append(ac);
+    // massing hand-off
+    const mh = el("div", "meta"); mh.style.marginTop = "8px";
+    mh.textContent = `Massing hand-off: ${s.massing_hints.gross_area_sf.toLocaleString()} sf gross, `
+      + Object.entries(s.massing_hints.mix_pct).map(([k, v]) => `${k} ${v}%`).join(" · ");
+    body.append(mh);
+  }
+
+  // --- BIM KPIs: the 10-category information-management scorecard + handover acceptance ---------
+export async function renderBimKpi(ctx: PanelContext) {
+    const root = ctx.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(ctx.bar("📊 BIM KPIs (ISO 19650)", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+    const pid = ctx.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("BIM KPIs")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "The standard information-management scorecard — ten categories graded from "
+      + "the CDE, model quality and the issue / asset / closeout records. Categories with no inputs "
+      + "show n/a rather than a guess.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    let sc; let ha;
+    try { sc = await ctx.host.api.bimKpiScorecard(pid); ha = await ctx.host.api.handoverAcceptance(pid); }
+    catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+    body.innerHTML = "";
+    // summary cards
+    const s = sc.summary;
+    const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
+    const card = (label: string, value: string, color?: string) => {
+      const c = el("div", "dash-card"); c.style.cssText = `min-width:90px${color ? `;border-left:3px solid var(${color})` : ""}`;
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${value}</div><div class="meta">${label}</div>`;
+      return c;
+    };
+    cards.append(card("health", s.health_pct != null ? `${s.health_pct}%` : "—"),
+      card("good", String(s.good), "--status-good"),
+      card("warn", String(s.warn), "--status-warn"),
+      card("poor", String(s.poor), "--status-crit"),
+      card("n/a", String(s.na)));
+    body.append(cards);
+    // handover acceptance banner
+    const hb = el("div", "dash-card");
+    hb.style.cssText = `border-left:4px solid var(${ha.accepted ? "--status-good" : "--status-warn"});margin-bottom:8px`;
+    hb.innerHTML = `<b>${ha.accepted ? "✅ Handover data-drop ACCEPTED" : "⏳ Handover not ready"}</b>`
+      + `<div class="meta">${ha.checks.map((c) => `${c.ok ? "✅" : "⬜"} ${esc(c.label)}`).join(" · ")}</div>`;
+    body.append(hb);
+    // category table
+    const dot = (g: string) => g === "good" ? "🟢" : g === "warn" ? "🟡" : g === "poor" ? "🔴" : "⚪";
+    const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
+    t.innerHTML = `<thead><tr><th scope="col"></th><th scope="col" style="text-align:left">Category</th>`
+      + `<th scope="col" style="text-align:left">Status</th></tr></thead><tbody>`
+      + sc.categories.map((c) => `<tr><td style="text-align:center">${dot(c.grade)}</td>`
+        + `<td>${esc(c.label)}</td><td>${esc(c.headline)}</td></tr>`).join("") + `</tbody>`;
+    body.append(t);
+    if (!sc.model_scored) {
+      const hint = el("div", "meta"); hint.style.marginTop = "6px";
+      hint.textContent = "Load a model to score the authoring-quality and openBIM-exchange categories.";
+      body.append(hint);
+    }
+    // report link
+    const rb = el("div"); rb.style.marginTop = "8px";
+    const a = document.createElement("a"); a.className = "portal-btn"; a.textContent = "⬇ Scorecard (PDF)";
+    a.href = ctx.host.api.reportUrl(pid, "bim_kpi", "pdf"); a.target = "_blank"; a.rel = "noopener";
+    rb.append(a); body.append(rb);
+  }
+
+  // --- CDE / Standards: ISO 19650 container discipline + requirements register ------------------
+export async function renderStandards(ctx: PanelContext) {
+    const root = ctx.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(ctx.bar("🗂 CDE / Standards (ISO 19650)", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+    const pid = ctx.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("CDE / Standards")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Information management to ISO 19650: deliverables move through the Common "
+      + "Data Environment (Work-in-progress → Shared → Published → Archived) with suitability codes "
+      + "and revisions, and the appointment carries its information requirements (EIR, BEP, AIR). "
+      + "Manage records under Information Management → Information Containers / Requirements.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    let st; let reg;
+    try { st = await ctx.host.api.cdeStatus(pid); reg = await ctx.host.api.infoRequirementsRegister(pid); }
+    catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+    body.innerHTML = "";
+    // container state distribution
+    const stages: [string, string][] = [["wip", "WIP"], ["shared", "Shared"], ["published", "Published"], ["archived", "Archived"]];
+    const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
+    for (const [k, label] of stages) {
+      const c = el("div", "dash-card"); c.style.minWidth = "90px";
+      c.innerHTML = `<div style="font-size:20px;font-weight:600">${st.by_state[k] ?? 0}</div><div class="meta">${label}</div>`;
+      cards.append(c);
+    }
+    body.append(cards);
+    // CDE discipline metrics
+    const d = st.discipline;
+    const disc = el("div", "dash-card"); disc.style.marginBottom = "8px";
+    const pct = (v: number | null) => v != null ? `${v}%` : "—";
+    disc.innerHTML = `<b>CDE discipline</b>`
+      + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
+      + `<tr><td>Revision control</td><td class="num">${pct(d.revision_control_pct)}</td></tr>`
+      + `<tr><td>Approval status (past WIP)</td><td class="num">${pct(d.approval_status_pct)}</td></tr>`
+      + `<tr><td>Metadata completeness</td><td class="num">${pct(d.metadata_completeness_pct)}</td></tr>`
+      + `</table>`;
+    body.append(disc);
+    // requirements register + core coverage
+    const rc = el("div", "dash-card");
+    const cov = reg.core_coverage;
+    rc.style.cssText = `border-left:3px solid var(${cov.complete ? "--status-good" : "--status-warn"});margin-bottom:8px`;
+    rc.innerHTML = `<b>Information requirements</b> <span class="meta">(${reg.total})</span>`
+      + `<div class="meta">${cov.complete ? "✅ core documents on file (EIR, BEP, AIR)"
+        : `⏳ missing core: ${cov.missing.map(esc).join(", ")}`}</div>`;
+    const types = Object.entries(reg.by_type);
+    if (types.length) {
+      rc.innerHTML += `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
+        + `<tr><th style="text-align:left">Type</th><th class="num">Issued</th><th class="num">Draft</th></tr>`
+        + types.map(([t, v]) => `<tr><td>${esc(t)}</td><td class="num">${v.issued}</td><td class="num">${v.draft}</td></tr>`).join("")
+        + `</table>`;
+    }
+    body.append(rc);
+    if (!st.total && !reg.total) {
+      const none = el("div", "meta");
+      none.textContent = "No containers or requirements yet — add them under Information Management.";
+      body.append(none);
+    }
+
+    // standards-compliance experts — grounded findings against the project's own data
+    const sx = el("div", "dash-card"); sx.style.marginTop = "8px";
+    const stds: [string, string][] = [["iso19650", "ISO 19650"], ["cobie", "COBie"], ["ids", "IDS"], ["uniclass", "Uniclass"]];
+    const picker = el("div"); picker.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center";
+    picker.innerHTML = `<b>Compliance check</b>`;
+    const out = el("div"); out.style.marginTop = "6px";
+    const run = async (std: "iso19650" | "cobie" | "ids" | "uniclass") => {
+      out.innerHTML = `<div class="meta">checking…</div>`;
+      try {
+        const r = await ctx.host.api.standardsCheck(pid, std);
+        if (r.error) { out.innerHTML = `<div class="meta">${esc(r.error)}</div>`; return; }
+        const icon = (l: string) => l === "ok" ? "✅" : l === "warn" ? "⚠️" : "❌";
+        out.innerHTML = `<div class="meta" style="margin-bottom:4px"><b>${esc(r.label || std)}</b> — readiness ${r.score}%</div>`
+          + `<ul style="margin:0 0 0 16px;font-size:12px">`
+          + (r.findings || []).map((f) => `<li>${icon(f.level)} ${esc(f.text)} <span class="meta">(${esc(f.reference)})</span></li>`).join("")
+          + `</ul>`;
+      } catch (e) { out.innerHTML = `<div class="meta">failed: ${esc((e as Error).message)}</div>`; }
+    };
+    for (const [key, label] of stds) {
+      const btn = el("button", "file-btn") as HTMLButtonElement; btn.textContent = label;
+      btn.onclick = () => void run(key as "iso19650");
+      picker.append(btn);
+    }
+    sx.append(picker, out); body.append(sx);
+    void run("iso19650");
+
+    // openBIM model quality — only meaningful with a model loaded; degrades to a hint on 404.
+    const q = el("div", "dash-card"); q.style.marginTop = "8px";
+    q.innerHTML = `<b>openBIM model quality</b> <span class="meta">scoring the loaded model…</span>`;
+    body.append(q);
+    try {
+      const oq = await ctx.host.api.openbimQuality(pid, "fire_life_safety");
+      const eh = oq.export_health, lo = oq.loin, bs = oq.bsdd;
+      const grade = (g: string) => g === "pass" ? "✅" : g === "warn" ? "⚠️" : g === "fail" ? "❌" : "—";
+      q.innerHTML = `<b>openBIM model quality</b>`
+        + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
+        + `<tr><td>LOIN — avg ${lo.avg_score}/${lo.max_score}, coordinated</td><td class="num">${lo.coordinated_pct ?? "—"}%</td></tr>`
+        + (oq.ids ? `<tr><td>IDS compliance (fire &amp; life safety)</td><td class="num">${oq.ids.compliance_pct ?? "—"}%</td></tr>` : "")
+        + `<tr><td>bSDD / classification coverage</td><td class="num">${bs.alignment_pct ?? "—"}%</td></tr>`
+        + eh.checks.map((c) => `<tr><td>${grade(c.grade)} ${esc(c.label)}</td><td class="num">${c.pct ?? "—"}%</td></tr>`).join("")
+        + `</table>`;
+    } catch {
+      q.innerHTML = `<b>openBIM model quality</b><div class="meta">Load a model (Model workspace) to `
+        + `score LOIN, IDS compliance, export health and bSDD alignment.</div>`;
+    }
+  }
+
+  // --- IDS Requirements: author buildingSMART IDS + EIR from templates --------------------------
+export async function renderIds(ctx: PanelContext) {
+    const root = ctx.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(ctx.bar("📋 IDS Requirements", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Author information requirements: pick a use case, download a standards-valid "
+      + "buildingSMART IDS file to check delivered models against, plus an EIR document for the BIM "
+      + "contract. Validate a model against an IDS from the Model workspace.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading templates…"; root.appendChild(body);
+    try {
+      const cat = await ctx.host.api.idsTemplates();
+      body.innerHTML = "";
+      const pick = el("select", "portal-filter") as HTMLSelectElement; pick.style.cssText = "margin:4px 0";
+      pick.setAttribute("aria-label", "IDS use case");
+      pick.innerHTML = cat.use_cases.map((u) => `<option value="${u.key}">${u.label}</option>`).join("");
+      const detail = el("div"); detail.style.margin = "8px 0";
+      const showDetail = () => {
+        const uc = cat.use_cases.find((u) => u.key === pick.value);
+        const groups = uc ? uc.groups : [];
+        const els = cat.elements.filter((e) => groups.includes(e.key));
+        detail.innerHTML = `<div class="meta">Requires data on: ${els.map((e) => e.label).join(", ")}</div>`;
+        const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:11px;margin-top:4px";
+        tbl.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Element</th><th scope="col" style="text-align:left">Property set</th><th scope="col" style="text-align:left">Property</th></tr></thead><tbody>`
+          + els.flatMap((e) => e.requirements.map((r) => `<tr><td>${e.ifc_class}</td><td>${r.pset}</td><td>${r.property}</td></tr>`)).join("") + `</tbody>`;
+        detail.append(tbl);
+      };
+      pick.onchange = showDetail;
+      const dlIds = el("button", "file-btn") as HTMLButtonElement; dlIds.textContent = "⬇ Download IDS";
+      dlIds.style.marginRight = "8px";
+      dlIds.onclick = () => void ctx.host.api.idsDownload("build", { use_case: pick.value }, `${pick.value}.ids`)
+        .then(() => toast("IDS downloaded", "success")).catch((e) => toast((e as Error).message, "error"));
+      const dlEir = el("button", "file-btn") as HTMLButtonElement; dlEir.textContent = "⬇ Download EIR (contract)";
+      dlEir.onclick = () => void ctx.host.api.idsDownload("eir", { use_case: pick.value }, `EIR-${pick.value}.md`)
+        .then(() => toast("EIR downloaded", "success")).catch((e) => toast((e as Error).message, "error"));
+      body.append(pick, detail, dlIds, dlEir);
+      showDetail();
+    } catch (e) { body.textContent = `failed: ${(e as Error).message}`; }
+  }
