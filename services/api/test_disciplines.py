@@ -119,6 +119,24 @@ with TestClient(app) as cl:
     disc = {d["discipline"]: d for d in tr["disciplines"]}
     assert disc["Structural"]["packages"] == 1 and disc["Architectural"]["specs"] == 1, tr["disciplines"]
 
+    # --- D5: generating a project seeds a fully-connected spine skeleton (model → budget traceable) ---
+    from aec_api.db import SessionLocal                      # noqa: E402
+    from aec_api.routers.generate import _seed_gc_portal     # noqa: E402
+    gp = cl.post("/projects", json={"name": "Generated"}).json()["id"]
+    with SessionLocal() as _db:
+        seeded = _seed_gc_portal(_db, gp, type("B", (), {"hard_cost_psf": 300})(),
+                                 {"buildable_gfa_sf": 100000, "floors": 10}, "sys")
+        _db.commit()
+    assert seeded["seeded"], seeded
+    gtr = cl.get(f"/projects/{gp}/spine/traceability").json()
+    gc = gtr["coverage"]
+    # every seeded spec reaches a bid package, a cost code and the budget — 100% traceable out of the box
+    assert gc["specs"] >= 4 and gc["specs_packaged_pct"] == 100.0, gc
+    assert gc["packages_costed_pct"] == 100.0 and gc["spec_to_budget_pct"] == 100.0, gc
+    assert all(c["linked"] for c in gtr["chain"]), [c for c in gtr["chain"] if not c["linked"]]
+    gdisc = {d["discipline"]: d for d in gtr["disciplines"]}
+    assert gdisc["Structural"]["budget"] > 0 and gdisc["Mechanical"]["packages"] == 1, gtr["disciplines"]
+
 print("DISCIPLINES OK - NCS discipline vocabulary (11) + MasterFormat divisions (25) + Uniformat "
       "crosswalk (13); IFC-class->discipline (Column->S, Duct->M, Pipe->P, Door->A); legacy enum "
       "aliases (MEP->M, Geotechnical->C, Low Voltage->T) normalized; /reference/disciplines serves it")

@@ -123,6 +123,41 @@ def _seed_dev_budget(body: "MassingIn", m: dict) -> dict:
     ]}
 
 
+def _seed_spine_skeleton(db, pid: str, cc: dict, cc_budget: dict, actor: str) -> dict:
+    """Discipline Spine skeleton (D5): a bid package per discipline linked to its cost code, and a spec
+    section per division linked to that package — so a generated project is traceable end to end
+    (discipline → specs → bid package → cost code → budget) the moment it's created. Reuses the D1
+    classification vocabulary for the division titles."""
+    from .. import classification as cls
+    from .. import modules as me
+    if "bid_package" not in me.TABLES or "spec_section" not in me.TABLES:
+        return {"seeded": False}
+    # discipline -> (primary cost-code key, the divisions it procures, its spec sections)
+    plan = [
+        ("Structural", "03-3000", ["03-3000", "05-1000"],
+         [("03 30 00", "Cast-in-Place Concrete", "03"), ("05 12 00", "Structural Steel Framing", "05")]),
+        ("Architectural", "09-0000", ["09-0000"], [("09 29 00", "Gypsum Board Assemblies", "09")]),
+        ("Mechanical", "23-0000", ["23-0000"], [("23 00 00", "Heating, Ventilating & Air Conditioning", "23")]),
+        ("Electrical", "26-0000", ["26-0000"], [("26 00 00", "Electrical", "26")]),
+    ]
+    packages = specs = 0
+    for disc, primary, codes, sections in plan:
+        if primary not in cc:
+            continue
+        budget = sum(cc_budget.get(c, 0) for c in codes)
+        bp = me.create_record(db, "bid_package", pid, {"data": {
+            "name": f"{disc} package", "trade": disc, "discipline": disc,
+            "cost_code": cc[primary], "budget": budget}}, actor, "GC")
+        packages += 1
+        for num, title, div in sections:
+            me.create_record(db, "spec_section", pid, {"data": {
+                "section_number": num, "title": title,
+                "division": f"{div} — {cls.MF_DIVISIONS.get(div, '')}".strip(" —"),
+                "discipline": disc, "bid_package": bp["id"]}}, actor, "GC")
+            specs += 1
+    return {"seeded": True, "bid_packages": packages, "spec_sections": specs}
+
+
 def _seed_gc_portal(db, pid: str, body: "MassingIn", m: dict, actor: str) -> dict:
     """Seed the GC portal so a generated project is complete across all three pillars (model · GC ·
     deal), not just the proforma: CSI cost codes, a hard-cost-allocated budget, a GMP prime contract
@@ -141,10 +176,13 @@ def _seed_gc_portal(db, pid: str, body: "MassingIn", m: dict, actor: str) -> dic
                  ("05-1000", "Structural Steel", "05", 0.18), ("23-0000", "HVAC", "23", 0.12),
                  ("26-0000", "Electrical", "26", 0.13), ("09-0000", "Finishes", "09", 0.19)]
     cc = {}
+    cc_budget = {}
     for code, desc, div, frac in divisions:
         r = me.create_record(db, "cost_code", pid, {"data": {"code": code, "description": desc, "division": div}}, actor, "GC")
         cc[code] = r["id"]
-        me.create_record(db, "budget", pid, {"data": {"cost_code": r["id"], "description": desc, "revised": round(hard * frac)}}, actor, "GC")
+        cc_budget[code] = round(hard * frac)
+        me.create_record(db, "budget", pid, {"data": {"cost_code": r["id"], "description": desc, "revised": cc_budget[code]}}, actor, "GC")
+    _seed_spine_skeleton(db, pid, cc, cc_budget, actor)
     me.create_record(db, "prime_contract", pid, {"data": {
         "name": "GMP w/ Owner", "type": "GMP", "value": hard,
         "overhead_pct": 5, "fee_pct": 4, "contingency_pct": 3}}, actor, "GC")

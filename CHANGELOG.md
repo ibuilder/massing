@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.83 — Discipline Spine D5a: generation seeds a connected spine
+Generating a project now produces a **fully-connected discipline spine** out of the box, not just a
+model + budget. The GC-portal seeder that already creates cost codes now also seeds a **bid package per
+discipline** (Structural / Architectural / Mechanical / Electrical), each linked to its cost code, and a
+**spec section per division** linked to that package — so a freshly generated project is **100%
+traceable model → specs → bid packages → cost codes → budget** the moment it exists.
+- Discipline budgets are computed from the same hard-cost division fractions (Structural, Architectural,
+  Mechanical, Electrical), so the seeded packages reconcile with the GMP.
+- `test_disciplines` extended: a generated project shows 100% specs-packaged / packages-costed /
+  spec-to-budget and every spec fully linked. Reuses the D1 classification vocabulary + the D4 links.
+- First half of D5 (discipline-aware generation); D5b adds a real `IfcGrid` + parametric MEP depth.
+
 ## v0.3.82 — Discipline Spine D4: connect the procurement chain (traceability)
 The payoff phase — the model, the documents and the money are now one connected thread, with the broken
 links surfaced so scope can't fall between them.
