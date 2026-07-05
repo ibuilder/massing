@@ -312,7 +312,9 @@ Deliverables** — with a sticky live-solved returns bar.
   clears **constraints** to make work ready — scored by readiness and **PPC** (Percent Plan Complete),
   exportable as a **PDF** for the planning session, with a **reliability-analytics** view
   (Tasks-Made-Ready %, perfect-handoff %, PPC trend by week, variance-reason Pareto, and a
-  cross-project benchmark vs the ≥80% target). A
+  cross-project benchmark vs the ≥80% target). The board is **real-time**: it live-refreshes over
+  Server-Sent Events as any trade edits, shows **presence** (who else is on it), and an
+  **optimistic lock** stops one trade silently overwriting another's edit. A
   first-class **Budget** destination assembles the agreed **GMP** from every cost code & bid package
   + General Conditions / Requirements (incl. **staffing** projections) + overhead / fee / contingency
   — each budget vs committed vs actual vs **EAC**, with buyout savings, change-orders→revised-GMP,

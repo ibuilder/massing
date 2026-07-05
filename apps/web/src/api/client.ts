@@ -130,6 +130,7 @@ export interface RecordBrief {
 export interface ModuleRecord {
   id: string; ref: string; title: string | null; workflow_state: string;
   party_owner: string | null; assignee?: string | null; created_by: string | null; created_at: string;
+  modified_at?: string | null;   // for the optimistic lock (send back as expected_modified_at)
   anchor: Vec3 | null; element_guids: string[] | null;
   links: { module: string; id: string; ref: string }[];
   data: Record<string, unknown>;
@@ -1742,8 +1743,12 @@ export class ApiClient {
     return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}/comments`, {
       method: "POST", body: JSON.stringify({ text }) });
   }
-  updateModuleRecord(pid: string, key: string, rid: string, data: Record<string, unknown>) {
-    return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}`, {
+  updateModuleRecord(pid: string, key: string, rid: string, data: Record<string, unknown>,
+                     expectedModifiedAt?: string | null) {
+    // pass the modified_at the editor loaded to opt into the optimistic lock — a concurrent edit
+    // returns 409 instead of a silent overwrite (the caller reloads to reconcile).
+    const qs = expectedModifiedAt ? `?expected_modified_at=${encodeURIComponent(expectedModifiedAt)}` : "";
+    return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}${qs}`, {
       method: "PATCH", body: JSON.stringify(data) });
   }
   deleteModuleRecord(pid: string, key: string, rid: string) {
@@ -1809,6 +1814,13 @@ export class ApiClient {
   /** SSE stream of the notification feed; returns the EventSource so callers can close it. */
   notificationStream(pid: string, onMessage: (d: { count: number; items: NotifItem[] }) => void): EventSource {
     const es = new EventSource(this.url(`/projects/${pid}/notifications/stream`));
+    es.onmessage = (e) => { try { onMessage(JSON.parse(e.data)); } catch { /* ignore */ } };
+    return es;
+  }
+  /** SSE stream of the pull-board change-signature; fires whenever any trade edits a sticky note so
+   *  the board can live-refresh. Returns the EventSource so callers can close it on teardown. */
+  pullPlanStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void): EventSource {
+    const es = new EventSource(this.url(`/projects/${pid}/pull-plan/stream`));
     es.onmessage = (e) => { try { onMessage(JSON.parse(e.data)); } catch { /* ignore */ } };
     return es;
   }

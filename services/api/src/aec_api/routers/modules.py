@@ -473,8 +473,13 @@ def get_record(pid: str, key: str, rid: str, db: Session = Depends(get_db),
 
 @router.patch("/projects/{pid}/modules/{key}/{rid}")
 def update_record(pid: str, key: str, rid: str, data: dict = Body(...),
+                  expected_modified_at: str | None = None,
                   db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):
-    return mod_engine.update_record(db, key, pid, rid, data, user, _party(pid, db, user))
+    """Partial-update a record. Pass ?expected_modified_at=<the modified_at you loaded> to opt into the
+    optimistic lock: a concurrent edit returns 409 (with the current modified_at) instead of a silent
+    overwrite."""
+    return mod_engine.update_record(db, key, pid, rid, data, user, _party(pid, db, user),
+                                    expected_modified_at=expected_modified_at)
 
 
 @router.delete("/projects/{pid}/modules/{key}/{rid}")

@@ -38,7 +38,7 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_prod_hardening", "test_diligence", "test_operations", "test_reserves_cam", "test_esg",
          "test_cde", "test_openbim_quality", "test_bim_kpi", "test_mcp_standards", "test_twin",
          "test_procurement_gate", "test_sheet_extract", "test_program", "test_pull_plan",
-         "test_workspaces", "test_fca", "test_resilience"]
+         "test_workspaces", "test_fca", "test_resilience", "test_pull_realtime"]
 
 
 def main() -> int:

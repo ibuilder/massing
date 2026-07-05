@@ -473,8 +473,11 @@ Rounding out the operate phase and the Last Planner board:
   study integration, 🏥 Facility Condition panel + report.
 - **M2 (planned) — deeper Last Planner analytics**: Tasks-Made-Ready %, make-ready lead time, perfect-
   handoff %, PPC trend by week, variance-reason Pareto, and cross-project pull-planning benchmarks.
-- **M3 (planned) — real-time collaborative pull board**: live SSE refresh + presence + optimistic-lock
-  edit protection, reusing the existing presence/notification-stream primitives.
+- **v0.3.77 — real-time collaborative pull board (M3, shipped)**: an SSE stream
+  (`/pull-plan/stream`) over a cheap board change-signature live-refreshes the board as any trade
+  edits; presence chips show who else is on it; and an opt-in optimistic lock (`expected_modified_at`
+  → 409) stops silent overwrites — reusing the existing presence/notification-stream primitives, no
+  new deps. The lock is generic (every module benefits, via the record editor).
 
 ---
 

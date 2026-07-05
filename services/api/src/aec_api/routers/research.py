@@ -2,7 +2,7 @@
 analytics (R4), and research-grade benchmarks (R5)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -13,7 +13,7 @@ from .. import pull_plan
 from .. import takt
 from ..db import get_db
 from ..models import Project
-from ..rbac import require_role
+from ..rbac import current_user, require_role
 
 _P6_KEY = "{pid}/schedule_p6.json"   # imported Primavera P6 activities (drives 4D calendar dates)
 
@@ -226,6 +226,34 @@ def pull_plan_metrics(pid: str, milestone: str | None = None, db: Session = Depe
     perfect-handoff %, PPC trend by week, and the variance-reason Pareto — the learning-loop signals
     a pull-planning team improves week over week."""
     return pull_plan.metrics(db, pid, milestone=milestone)
+
+
+@router.get("/projects/{pid}/pull-plan/stream")
+async def pull_plan_stream(pid: str, request: Request, _: str = Depends(current_user)):
+    """Server-sent events for the collaborative pull board: polls a cheap board signature (row count +
+    latest modified_at) server-side every few seconds and pushes it when it changes, so every trade's
+    board live-refreshes the moment anyone edits a sticky note. Uses a fresh DB session per poll since
+    the generator outlives the request scope (mirrors the notifications stream)."""
+    import asyncio
+    import json as _json
+
+    from fastapi.responses import StreamingResponse
+
+    from ..db import SessionLocal
+
+    async def gen():
+        last = None
+        while not await request.is_disconnected():
+            with SessionLocal() as db:
+                sig = pull_plan.signature(db, pid)
+            key = (sig["count"], sig["latest"])
+            if key != last:
+                last = key
+                yield f"data: {_json.dumps(sig)}\n\n"
+            await asyncio.sleep(4)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.get("/projects/{pid}/pull-plan/board.pdf")

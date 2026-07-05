@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.77 — Real-time collaborative pull board (M3)
+The Last Planner pull board becomes a live, multi-trade workspace — every stakeholder edits the same
+board and sees each other's changes as they happen, without a page refresh.
+- **Live board** — a lightweight Server-Sent-Events stream (`GET /projects/{id}/pull-plan/stream`)
+  polls a cheap board change-signature (row count + latest `modified_at`) server-side and pushes it
+  when it moves, so the board auto-refreshes the moment any trade adds or moves a sticky note. A
+  **🟢 live** indicator sits in the board header.
+- **Presence** — reuses the existing presence infra: a heartbeat marks who else is on the board and
+  renders **👤 peer chips** in the header (self-cleans when you leave the view).
+- **Edit locks / no silent overwrite** — records now expose `modified_at`, and the record editor sends
+  it back as an optimistic lock: if someone changed the record while you had it open, the save returns
+  **409** (rather than clobbering their edit) and the editor reloads the latest with a *"re-apply your
+  edit"* nudge. Opt-in and backward-compatible — an un-locked write still succeeds.
+- Reuses the SSE + presence primitives already in the codebase — **no new dependencies**, no CRDT.
+  `test_pull_realtime`; the lock is generic (available to every module, not just the pull board).
+
 ## v0.3.76 — Climate resilience: weather-sequenced construction + physical-risk rollup (W3–W4)
 Extends the **🌊 Climate Resilience** panel from the design phase into construction and up into ESG.
 - **Weather-sequenced construction (W3)** — a `weather_sensitivity` flag on schedule activities (rain /

@@ -2833,6 +2833,39 @@ export class PortalUI {
     msSel.onchange = () => { loadPull(msSel.value); if (anShown) loadAnalytics(msSel.value); };
     loadPull("");
 
+    // --- M3: real-time collaboration — the board live-refreshes as any trade edits, and presence shows
+    //     who else is on it. Reuses the SSE + presence infra; self-cleans when the view is replaced. ---
+    const liveEl = document.createElement("span"); liveEl.className = "meta";
+    liveEl.title = "Live — the board refreshes automatically as any trade edits its sticky notes";
+    liveEl.style.cssText = "display:inline-flex;align-items:center;gap:4px;font-size:11px";
+    liveEl.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:var(--status-good);display:inline-block"></span>live`;
+    ppRight.insertBefore(liveEl, msSel);
+    let lastSig = "";
+    const es = this.host.api.pullPlanStream(pid, (d) => {
+      const sig = `${d.count}|${d.latest ?? ""}`;
+      const first = lastSig === "";
+      if (sig === lastSig) return;
+      lastSig = sig;
+      if (!first) { loadPull(msSel.value); if (anShown) loadAnalytics(msSel.value); }   // someone edited → refresh
+    });
+    const renderPeers = (active: { user: string; viewpoint: unknown }[]) => {
+      const peers = active.filter((a) => a.viewpoint && (a.viewpoint as { board?: string }).board === "pull-plan");
+      [...ppRight.querySelectorAll(".pp-peer")].forEach((n) => n.remove());
+      for (const p of peers.slice(0, 6)) {
+        const chip = document.createElement("span"); chip.className = "meta pp-peer";
+        chip.style.cssText = "font-size:11px;padding:1px 6px;border-radius:10px;background:var(--hover)";
+        chip.title = `${p.user} is viewing this board`; chip.textContent = `👤 ${p.user}`;
+        ppRight.insertBefore(chip, liveEl);
+      }
+    };
+    let hbTimer = 0;
+    const heartbeat = () => {
+      if (!document.body.contains(ppCard)) { es.close(); window.clearInterval(hbTimer); return; }   // view left → teardown
+      void this.host.api.presence(pid, { board: "pull-plan" }).then((r) => renderPeers(r.active)).catch(() => { /* offline */ });
+    };
+    hbTimer = window.setInterval(heartbeat, 20000);
+    heartbeat();
+
     const statusColor = (s: string) =>
       s === "late" ? "var(--status-crit)" : s === "complete" || s === "met" ? "var(--status-good)"
         : s === "in_progress" || s === "due_soon" ? "var(--status-warn)" : "var(--muted)";
@@ -3520,7 +3553,9 @@ export class PortalUI {
       }
       try {
         if (editing) {
-          await this.host.api.updateModuleRecord(pid, m.key, existing!.id, data);
+          // optimistic lock: send the modified_at we loaded; a concurrent edit 409s rather than
+          // silently overwriting the other person's change (real-time collaboration safety).
+          await this.host.api.updateModuleRecord(pid, m.key, existing!.id, data, existing!.modified_at);
           this.host.setStatus(`saved ${existing!.ref}`);
           this.openRecord(m, existing!.id);
         } else {
@@ -3537,6 +3572,11 @@ export class PortalUI {
         }
       } catch (e) {
         const msg = (e as Error).message;
+        if (/-> 409$/.test(msg) && editing) {          // optimistic-lock conflict — someone edited first
+          this.host.setStatus("Someone else changed this record while you had it open — reloading the latest; re-apply your edit.");
+          this.openRecord(m, existing!.id);
+          return;
+        }
         const mm = /missing required field\(s\):\s*([^"}]+)/i.exec(msg);   // server-side required rules
         if (mm) { const names = mm[1].split(",").map((s) => s.trim()).filter(Boolean); markInvalid(names); }
         this.host.setStatus(`error: ${msg}`);

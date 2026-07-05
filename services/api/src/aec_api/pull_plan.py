@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import func, select
+
 from . import modules as me
 
 READY_STATES = ("made_ready", "committed", "done", "not_done")   # cleared the make-ready gate
@@ -21,6 +23,21 @@ COMMIT_STATES = ("committed", "done", "not_done")
 
 def _d(rec: dict) -> dict:
     return rec.get("data") or {}
+
+
+def signature(db, pid: str) -> dict[str, Any]:
+    """A cheap change-signature for the board — row count + the latest `modified_at` across the
+    project's `pull_plan_task` records. The SSE stream polls this and re-pushes only when it moves, so
+    every trade's board live-refreshes the moment anyone edits a sticky note. One aggregate query, no
+    record loading."""
+    t = me.TABLES.get("pull_plan_task")
+    if t is None:
+        return {"count": 0, "latest": None}
+    cnt, latest = db.execute(
+        select(func.count(), func.max(t.c.modified_at)).where(t.c.project_id == pid)
+    ).first()
+    return {"count": int(cnt or 0),
+            "latest": latest.isoformat() if hasattr(latest, "isoformat") else (latest or None)}
 
 
 def _pct(n: int, d: int) -> float | None:

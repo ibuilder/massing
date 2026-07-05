@@ -753,9 +753,19 @@ def to_csv(db: Session, key: str, project_id: str) -> str:
 
 
 def update_record(db: Session, key: str, project_id: str, rid: str, data: dict,
-                  actor: str, party: str | None) -> dict:
+                  actor: str, party: str | None, expected_modified_at: str | None = None) -> dict:
     t = TABLES[key]
     rec = get_record(db, key, project_id, rid)
+    # optimistic lock (opt-in): if the caller passes the modified_at it loaded and the record has since
+    # changed, reject with 409 rather than silently overwriting a concurrent edit. The response carries
+    # the current modified_at so the client can nudge "changed by someone else — reload".
+    if expected_modified_at is not None:
+        cur = rec.get("modified_at")
+        cur_iso = cur.isoformat() if hasattr(cur, "isoformat") else (str(cur) if cur else None)
+        if cur_iso != expected_modified_at:
+            raise HTTPException(409, {"error": "stale_write",
+                                      "message": "This record changed since you opened it — reload to see the latest.",
+                                      "modified_at": cur_iso})
     _validate_values(get_module(key), data)         # partial: only the fields being changed
     merged = {**(rec.get("data") or {}), **data}
     db.execute(update(t).where(t.c.id == rid).values(data=merged, modified_at=_now()))
