@@ -46,6 +46,41 @@ with TestClient(app) as cl:
     assert any(d["code"] == "S" and d["name"] == "Structural" for d in r["disciplines"])
     assert len(r["uniformat_crosswalk"]) == 13
 
+    # --- D2: element → discipline derived from IFC class, over the property index ---
+    import json as _json
+    pid = cl.post("/projects", json={"name": "Discipline Model"}).json()["id"]
+    elements = [
+        {"guid": "c1", "ifc_class": "IfcColumn", "name": "Col 1", "storey": "L1"},   # → Structural
+        {"guid": "s1", "ifc_class": "IfcSlab", "name": "Slab 1", "storey": "L1"},     # → Structural
+        {"guid": "d1", "ifc_class": "IfcDoor", "name": "Door 1", "storey": "L1"},     # → Architectural
+        {"guid": "m1", "ifc_class": "IfcDuctSegment", "name": "Duct 1", "storey": "L1"},   # → Mechanical
+        {"guid": "p1", "ifc_class": "IfcPipeSegment", "name": "Pipe 1", "storey": "L1"},   # → Plumbing
+    ]
+    props = _json.dumps({"elements": elements}).encode()
+    up = cl.post(f"/projects/{pid}/properties/index",
+                 files={"file": ("props.json", props, "application/json")})
+    assert up.status_code == 200 and up.json()["loaded"] == 5, up.text[:160]
+
+    # filter by discipline (accepts a name or an NCS code); each element carries its derived discipline
+    st = cl.get(f"/projects/{pid}/elements?discipline=Structural").json()
+    assert len(st) == 2 and all(e["discipline"] == "Structural" for e in st), st
+    assert len(cl.get(f"/projects/{pid}/elements?discipline=S").json()) == 2      # code works too
+    assert len(cl.get(f"/projects/{pid}/elements?discipline=Mechanical").json()) == 1
+
+    # model composition by discipline, in NCS sheet order (Structural before Architectural before MEP)
+    comp = cl.get(f"/projects/{pid}/elements/by-discipline").json()
+    assert comp["total"] == 5, comp
+    names = [d["discipline"] for d in comp["disciplines"]]
+    assert names.index("Structural") < names.index("Architectural") < names.index("Mechanical"), names
+    struct = next(d for d in comp["disciplines"] if d["discipline"] == "Structural")
+    assert struct["count"] == 2 and struct["code"] == "S", struct
+
+    # discipline is a colour-by facet + bucketing
+    facets = cl.get(f"/projects/{pid}/elements/facets-list").json()
+    assert any(a["prop"] == "discipline" for a in facets["attributes"]), facets["attributes"]
+    cb = cl.get(f"/projects/{pid}/elements/color-by?prop=discipline").json()
+    assert cb["colored"] == 5 and {b["label"] for b in cb["buckets"]} >= {"Structural", "Mechanical"}, cb
+
 print("DISCIPLINES OK - NCS discipline vocabulary (11) + MasterFormat divisions (25) + Uniformat "
       "crosswalk (13); IFC-class->discipline (Column->S, Duct->M, Pipe->P, Door->A); legacy enum "
       "aliases (MEP->M, Geotechnical->C, Low Voltage->T) normalized; /reference/disciplines serves it")

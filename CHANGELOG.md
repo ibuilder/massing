@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.80 — Discipline Spine D2: discipline-tagged model elements
+Every model element now carries its **NCS discipline**, derived from its IFC class through the D1
+MasterFormat map — so the model reads as layered structural / architectural / MEP even from a single
+federated file, with no republish and no extra scan (pure function of the already-indexed IFC class).
+- `GET /projects/{id}/elements?discipline=S` (accepts an NCS code **or** name) filters the property
+  index; every element is returned with its derived `discipline`.
+- `GET /projects/{id}/elements/by-discipline` — model composition: element count + IFC-class breakdown
+  per discipline, in NCS sheet order (Structural → Architectural → MEP).
+- **Discipline** is now a first-class **colour-by facet** — it appears automatically in the viewer's
+  "Colour by…" picker and buckets the model by discipline in 3D (no client change needed).
+- `test_disciplines` extended. Second of five phases (D1→D5) of the model→sheets→specs→bid→budget spine.
+
 ## v0.3.79 — Discipline Spine D1: shared classification vocabularies
 The foundation for representing a project as layered **structural / MEP / architectural** models whose
 sheets, specs, bid packages and budget all thread through two shared, validated vocabularies (rather

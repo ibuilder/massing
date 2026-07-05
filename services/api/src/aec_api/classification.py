@@ -141,6 +141,7 @@ UNIFORMAT: dict[str, tuple[str, list[str]]] = {
     "G": ("Building Sitework", ["31", "32", "33"]), "Z": ("General", ["00", "01"]),
 }
 
+_CODE_TO_NAME = {d["code"]: d["name"] for d in DISCIPLINES}
 _DIV_TO_DISCIPLINE = {div: d["code"] for d in DISCIPLINES for div in d["divisions"]}
 _NAME_TO_DISCIPLINE = {d["name"].lower(): d for d in DISCIPLINES}
 _CODE_SET = {d["code"] for d in DISCIPLINES}
@@ -164,6 +165,11 @@ def discipline_of_ifc_class(ifc_class: str) -> str | None:
     """The NCS discipline for an IFC class, derived through its MasterFormat section."""
     code, _ = classify(ifc_class, "masterformat")
     return discipline_of_division(division_of(code))
+
+
+def discipline_name(code: str | None) -> str | None:
+    """The canonical discipline name for an NCS code (e.g. 'S' -> 'Structural')."""
+    return _CODE_TO_NAME.get((code or "").strip().upper()) if code else None
 
 
 def discipline_code(name_or_code: str | None) -> str | None:

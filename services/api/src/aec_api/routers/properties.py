@@ -7,10 +7,17 @@ import os
 
 from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File
 
-from .. import ai, storage
+from .. import ai, classification, storage
 from ..rbac import require_role
 
 router = APIRouter()
+
+
+def _discipline_name(e: dict) -> str:
+    """The NCS discipline for an element, derived from its IFC class via the MasterFormat map
+    (Discipline Spine D2). Elements whose class isn't mapped fall into 'General'. Pure function of the
+    already-indexed ifc_class — no republish, no extra scan."""
+    return classification.discipline_name(classification.discipline_of_ifc_class(e.get("ifc_class") or "")) or "General"
 
 # project_id -> { guid -> element record }  (loaded from uploaded props.json)
 # P0.3: bounded LRU so a worker that serves many projects doesn't hold every project's full element
@@ -70,18 +77,25 @@ def meta(pid: str, _: str = Depends(require_role("viewer"))):
 
 
 @router.get("/projects/{pid}/elements")
-def list_elements(pid: str, ifc_class: str | None = None, storey: str | None = None, limit: int = 500,
+def list_elements(pid: str, ifc_class: str | None = None, storey: str | None = None,
+                  discipline: str | None = None, limit: int = 500,
                   _: str = Depends(require_role("viewer"))):
+    """Query the property index. `?discipline=` accepts an NCS code or name (e.g. 'S' or 'Structural');
+    each element is returned with its derived `discipline` (Discipline Spine D2)."""
     _ensure_loaded(pid)
     if pid not in _INDEX:
         raise HTTPException(404, "no properties index for project")
+    want_disc = classification.discipline_code(discipline) if discipline else None
     out = []
     for e in _INDEX[pid].values():
         if ifc_class and e["ifc_class"] != ifc_class:
             continue
         if storey and e["storey"] != storey:
             continue
-        out.append(e)
+        disc = _discipline_name(e)
+        if want_disc and classification.discipline_code(disc) != want_disc:
+            continue
+        out.append({**e, "discipline": disc})
         if len(out) >= limit:
             break
     return out
@@ -90,13 +104,16 @@ def list_elements(pid: str, ifc_class: str | None = None, storey: str | None = N
 # --- thematic colouring + data-QA (built-world analytics over the property index) ---------------
 # NOTE: these static /elements/<verb> routes must be registered BEFORE /elements/{guid} below,
 # or FastAPI matches "facets-list"/"color-by"/"qa" as a {guid} and 404s.
-_ATTR_FACETS = [("ifc_class", "IFC class"), ("storey", "Storey / level"),
-                ("type_name", "Type"), ("name", "Name")]
+_ATTR_FACETS = [("discipline", "Discipline"), ("ifc_class", "IFC class"),
+                ("storey", "Storey / level"), ("type_name", "Type"), ("name", "Name")]
 
 
 def _prop_value(e: dict, prop: str):
-    """Resolve a colour-by key against an element. Top-level attribute (e.g. "ifc_class") or a
-    nested "Group::Prop" path into psets/qtos (e.g. "Pset_WallCommon::IsExternal")."""
+    """Resolve a colour-by key against an element. The synthetic "discipline" key derives from the IFC
+    class (D2); otherwise a top-level attribute (e.g. "ifc_class") or a nested "Group::Prop" path into
+    psets/qtos (e.g. "Pset_WallCommon::IsExternal")."""
+    if prop == "discipline":
+        return _discipline_name(e)
     if "::" in prop:
         grp, name = prop.split("::", 1)
         for container in ("psets", "qtos"):
@@ -119,7 +136,7 @@ def color_facets(pid: str, _: str = Depends(require_role("viewer"))):
     props: dict[str, set] = {}
     for e in idx.values():
         for key, _label in _ATTR_FACETS:
-            v = e.get(key)
+            v = _prop_value(e, key)          # resolves the synthetic "discipline" facet (D2) too
             if v not in (None, ""):
                 attrs.setdefault(key, set()).add(str(v))
         for container in ("psets", "qtos"):
@@ -190,6 +207,30 @@ def color_by(pid: str, prop: str, bins: int = 6, _: str = Depends(require_role("
         "total": len(idx), "colored": colored, "unset": len(idx) - colored,
         "buckets": [{"label": b["label"], "count": len(b["guids"]), "guids": b["guids"]} for b in buckets],
     }
+
+
+@router.get("/projects/{pid}/elements/by-discipline")
+def elements_by_discipline(pid: str, _: str = Depends(require_role("viewer"))):
+    """Model composition by NCS discipline (Discipline Spine D2): element count + a class breakdown per
+    discipline, in NCS sheet order. Derived from the property index — one pass, no republish."""
+    _ensure_loaded(pid)
+    idx = _INDEX.get(pid)
+    if not idx:
+        raise HTTPException(404, "no properties index for project")
+    order = {d["name"]: i for i, d in enumerate(classification.disciplines())}
+    by: dict[str, dict] = {}
+    for e in idx.values():
+        name = _discipline_name(e)
+        d = by.setdefault(name, {"discipline": name, "code": classification.discipline_code(name),
+                                 "count": 0, "classes": {}})
+        d["count"] += 1
+        cls = e.get("ifc_class") or "?"
+        d["classes"][cls] = d["classes"].get(cls, 0) + 1
+    out = sorted(by.values(), key=lambda x: order.get(x["discipline"], 99))
+    for d in out:
+        d["classes"] = sorted(({"ifc_class": k, "count": v} for k, v in d["classes"].items()),
+                              key=lambda x: -x["count"])
+    return {"total": len(idx), "disciplines": out}
 
 
 # (key, label, severity) — the headline % + 3D highlight are driven by "required" rules; "recommended"
