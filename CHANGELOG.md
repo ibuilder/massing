@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.84 — Discipline Spine D5b: parametric MEP generation (spine complete)
+The generator now produces real **parametric MEP distribution**, so a generated building reads as a
+layered structural / architectural / **MEP** model — completing the five-phase Discipline Spine.
+- Beyond the two core risers, each floor gets a **supply-air duct main** and a **domestic-water main**
+  at ceiling height plus **ceiling diffusers on a ~bay grid** (`IfcFlowTerminal`, air-terminal). Fully
+  parametric — the mains span the plate and the diffuser count scales with the floor size and bay.
+- The new elements classify to the right disciplines automatically (D2): ducts + diffusers →
+  **Mechanical**, pipes → **Plumbing** — so colour-by-discipline and the `?discipline=` filter show the
+  MEP layer, and the takeoff/spine pick it up. Verified: a 7-floor model generates 14 duct segments,
+  14 pipe segments and 112 diffusers, correctly disciplined.
+
+**Discipline Spine complete (D1→D5):** shared NCS/MasterFormat vocabularies → discipline-tagged elements
+→ discipline sheets + sets → connected spec/bid/cost-code traceability → discipline-aware generation
+with parametric MEP. The model, the documents and the money are one traceable thread. (A true multi-file
+federation split of the generated model — separate STR/ARCH/MEP IFCs sharing one grid — and a first-class
+`IfcGrid` remain as optional model-realism follow-ups; the layered reading already works via the
+discipline tagging.)
+
 ## v0.3.83 — Discipline Spine D5a: generation seeds a connected spine
 Generating a project now produces a **fully-connected discipline spine** out of the box, not just a
 model + budget. The GC-portal seeder that already creates cost codes now also seeds a **bid package per

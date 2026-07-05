@@ -380,6 +380,18 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
                     0.5, 0.5, f2f, name="Supply riser")
             add_box("IfcPipeSegment", storey, elev, ccx + half_w - 0.4, ccy + half_d - 0.4,
                     0.3, 0.3, f2f, name="Plumbing riser")
+            # per-floor MEP distribution off the risers — a supply-air duct main + a domestic-water main
+            # near the ceiling, plus ceiling diffusers on a ~bay grid. Parametric: scales with plate/bay.
+            ceil = elev + f2f - 0.5
+            add_box("IfcDuctSegment", storey, ceil, 0.0, ccy, fw * 0.85, 0.5, 0.35,
+                    name=f"Supply-air main L{i + 1}")
+            add_box("IfcPipeSegment", storey, ceil - 0.2, 0.0, ccy - 1.0, fw * 0.6, 0.25, 0.25,
+                    name=f"Domestic-water main L{i + 1}")
+            diff_sp = max(bay * 1.5, 6.0)          # diffuser spacing — coarse so counts stay sane
+            for tx in gridlines(fw, diff_sp):
+                for ty in gridlines(fd, diff_sp):
+                    add_box("IfcFlowTerminal", storey, elev + f2f - 0.3, tx, ty, 0.4, 0.4, 0.15,
+                            predefined="AIRTERMINAL", name="Diffuser")
             # A2 — a SECOND means of egress, placed at the opposite corner from the rear core so the
             # two stairs are remote (≥⅓-diagonal separation, IBC 1007.1.1) — two code-positioned exits.
             esx, esy = -fw / 2 + 1.6, -(fd / 2 - cd / 2 - 1.0)

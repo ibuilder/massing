@@ -513,6 +513,6 @@ shared vocabularies (discipline + MasterFormat division) do the joining. Five ph
 - **v0.3.82 — D4 (shipped): connect the procurement chain.** `bid_package.spec_sections` TEXT → reference array;
   `cost_code` link + shared discipline on bid_package/spec_section/cost_code; a `spine.py` traceability
   engine (discipline → models → sheets → specs → bid packages → cost codes → budget + coverage gaps).
-- **D5 (planned): discipline-aware generation.** Extend `generate/massing` to emit separate STR / ARCH /
+- **v0.3.83–84 — D5 (shipped): discipline-aware generation.** Extend `generate/massing` to emit separate STR / ARCH /
   parametric-MEP models sharing one origin + storeys + a real `IfcGrid`, auto-registered with discipline
   tags, and seed the spec/bid/budget skeleton per discipline from the mapping table.
