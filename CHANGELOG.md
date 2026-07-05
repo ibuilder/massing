@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.86 — Code standards S3: lint lock-in (consistency enforced in CI)
+The final phase of the standards initiative — the PEP 8-aligned rules the S1 pass satisfied are now
+**enforced in CI**, so they stay satisfied. Ruff's rule set expands from correctness-only
+(`F`, `E9`, `B`) to add:
+- **`I`** — import ordering (isort), with `aec_api`/`aec_data` pinned as first-party.
+- **`UP`** — pyupgrade: modern syntax for the Python 3.10+ target.
+- **`C4`** — flake8-comprehensions: no needless comprehensions or collection calls.
+
+Nine residual violations (unnecessary comprehensions, `%`-format strings, a redundant `dict()` call)
+were cleaned up by hand — all behaviour-preserving. Deliberately **not** enforced, with the rationale
+recorded inline in `ruff.toml`: line-length (`E501`) and one-statement-per-line (`E702`), because the
+codebase intentionally uses compact one-liners and dense table/PDF/SVG builders; and `RUF100`, because
+it would strip the intentional `# noqa: BLE001` annotations that document the logged fail-open idiom.
+**120/120 backend suites pass**; no runtime change.
+
 ## v0.3.85 — Code standards S1: safe PEP 8-aligned auto-fixes
 A mechanical, behaviour-preserving compliance pass across the Python backend (`services/api` +
 `services/data`) — the first of a phased standards initiative. Ruff's **safe** auto-fixes only:

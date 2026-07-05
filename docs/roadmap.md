@@ -6,13 +6,14 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.2.8**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.86**.
 
 ---
 
 ## ★ Active plan (sequenced — work top to bottom)
 
-User-directed sequence as of v0.2.8. Carry this out in order; each item ships as its own release.
+User-directed sequence (historical, as of v0.2.8; superseded by later themes below — latest **v0.3.86**).
+Carry this out in order; each item ships as its own release.
 
 1. **Real-estate / capital depth**
    - [x] WPRealWise / MLS listing syndication bridge + marketing flyer (`re_bridge.py`) — **v0.2.8**
@@ -471,7 +472,7 @@ Rounding out the operate phase and the Last Planner board:
 - **v0.3.72 — Facility Condition Assessment + FCI (M1, shipped)**: `fca_element` module + `fca.py`
   engine (FCI = deferred + renewal ÷ CRV, UNIFORMAT II, condition bands, portfolio roll-up), reserve-
   study integration, 🏥 Facility Condition panel + report.
-- **M2 (planned) — deeper Last Planner analytics**: Tasks-Made-Ready %, make-ready lead time, perfect-
+- **v0.3.73 — M2 (shipped) — deeper Last Planner analytics**: Tasks-Made-Ready %, make-ready lead time, perfect-
   handoff %, PPC trend by week, variance-reason Pareto, and cross-project pull-planning benchmarks.
 - **v0.3.77 — real-time collaborative pull board (M3, shipped)**: an SSE stream
   (`/pull-plan/stream`) over a cheap board change-signature live-refreshes the board as any trade
@@ -505,10 +506,10 @@ shared vocabularies (discipline + MasterFormat division) do the joining. Five ph
   groups), the MasterFormat division master (25) and the Uniformat↔MasterFormat crosswalk;
   `discipline_of_ifc_class`, `discipline_code` (legacy-alias normalization). `GET /reference/disciplines`.
   Free-text `discipline`/`division` fields → validated selects. `test_disciplines`.
-- **D2 (planned): discipline-tagged model.** Record which discipline model each GUID came from in the
+- **v0.3.80 — D2 (shipped): discipline-tagged model.** Record which discipline model each GUID came from in the
   properties index (source-file = authoritative discipline tag); `GET /elements?discipline=`; persist
   per-model transforms; discipline layer toggles + colour-by-discipline in the viewer.
-- **D3 (planned): discipline sheets.** `drawing_set` module; parse the NCS Sheet ID (discipline +
+- **v0.3.81 — D3 (shipped): discipline sheets.** `drawing_set` module; parse the NCS Sheet ID (discipline +
   sheet-type digit + sequence) into structured fields; `revision_register` module; `drawing↔spec_section`.
 - **v0.3.82 — D4 (shipped): connect the procurement chain.** `bid_package.spec_sections` TEXT → reference array;
   `cost_code` link + shared discipline on bid_package/spec_section/cost_code; a `spine.py` traceability

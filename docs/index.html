@@ -167,6 +167,51 @@
 
 <section>
   <div class="wrap">
+    <h2>Coordinate by discipline, operate the asset, stay standards-clean</h2>
+    <p class="sub">The deeper spine that ties design, procurement and operations to the same model.</p>
+    <div class="grid">
+      <div class="card">
+        <h3><span class="ic">🧭</span> The Discipline Spine</h3>
+        <p>A building is authored and read as layered <b>structural / architectural / MEP</b> models, threaded
+          by two shared standards: <b>NCS discipline designators</b> (A/S/M/E/P/F/C/L/T/G/Q) and <b>CSI
+          MasterFormat</b> divisions. Elements are discipline-tagged (keyed to GlobalId), drawings carry parsed
+          <b>NCS Sheet IDs</b> (e.g. <b>A-101</b>), and a <b>traceability engine</b> walks each discipline →
+          sheets → <b>spec sections</b> → <b>bid packages</b> → <b>cost codes</b> → <b>budget</b>, flagging gaps
+          (specs with no package, packages with no cost code, sheets with no spec). The generator emits
+          <b>parametric MEP</b> distribution; a <b>Uniformat ↔ MasterFormat</b> crosswalk carries concept
+          estimates into the procurement budget.</p>
+      </div>
+      <div class="card">
+        <h3><span class="ic">📐</span> openBIM standards (ISO 19650)</h3>
+        <p>A <b>Common Data Environment</b> (WIP → Shared → Published → Archived), an information-requirements
+          register (<b>EIR / BEP / AIR</b>), <b>model-quality scoring</b> (IDS compliance, LOIN, export health,
+          bSDD), a 10-category <b>BIM-KPI scorecard</b> with handover acceptance, an <b>MCP server</b> so
+          external agents can drive the project, grounded standards experts, a <b>digital-twin</b> / handover-
+          readiness view with a Digital Product Passport, and AI <b>drawing-sheet extraction</b>. And a Python
+          <b>code-standards</b> lint lock-in (ruff) keeps the backend PEP 8-clean in CI.</p>
+      </div>
+      <div class="card">
+        <h3><span class="ic">🏥</span> Facility condition &amp; operations</h3>
+        <p>Past turnover, the model runs the building: <b>CMMS</b> work orders + PM schedules, metered energy
+          (EUI), reserves/CIP + CAM reconciliation, and an ESG / post-occupancy rollup. A <b>Facility Condition
+          Assessment</b> rates every element on <b>UNIFORMAT II</b> and computes a live <b>Facility Condition
+          Index</b> (deferred + renewal ÷ replacement value) with Good/Fair/Poor/Critical bands, a portfolio
+          roll-up worst-first, and condition-based events fed straight into the reserve study.</p>
+      </div>
+      <div class="card">
+        <h3><span class="ic">🌊</span> Resilience &amp; lean delivery</h3>
+        <p><b>Climate &amp; water resilience</b> — flood design (<b>ASCE 24</b> design flood elevation) and
+          stormwater (<b>Rational Method</b>) engines, a weather-sequenced schedule, and physical climate-risk in
+          the ESG rollup. And a <b>Last Planner</b> pull-planning board (PPC, Tasks-Made-Ready %, perfect-handoff
+          %) that's <b>live-collaborative</b> — an SSE stream refreshes it as trades edit, presence shows who's on
+          which sticky, and an optimistic-lock check rejects stale writes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <h2>From a lot to a developed building — generate it all</h2>
     <p class="sub">IFC-native generative feasibility. Enter a municipal zoning
       envelope (lot, FAR, coverage, setbacks, height limit) and the platform computes the buildable

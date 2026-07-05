@@ -318,7 +318,7 @@ def state_counts(db: Session, key: str, project_id: str) -> dict[str, int]:
     t = TABLES[key]
     stmt = (select(t.c.workflow_state, func.count()).where(t.c.project_id == project_id)
             .group_by(t.c.workflow_state))
-    return {state: n for state, n in db.execute(stmt)}
+    return dict(db.execute(stmt).all())
 
 
 def active_records(db: Session, key: str, project_id: str, exclude_states: set[str]) -> list[dict]:

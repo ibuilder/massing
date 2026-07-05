@@ -229,7 +229,8 @@ def gaeb_x83(project_name: str, lines: list[dict[str, Any]], system: str = "din2
             f'        <Item RNoPart="{i*10:04d}">\n'
             f"          <Qty>{qty:.3f}</Qty>\n"
             f"          <QU>{escape(_gaeb_unit(ln.get('unit', 'St')))}</QU>\n"
-            f"          <Description><CompleteText><OutlineText><OutlTxt><TextOutlTxt><span>{text}</span></TextOutlTxt></OutlTxt></OutlineText></CompleteText></Description>\n"
+            f"          <Description><CompleteText><OutlineText><OutlTxt><TextOutlTxt>"
+            f"<span>{text}</span></TextOutlTxt></OutlTxt></OutlineText></CompleteText></Description>\n"
             f"          <UP>{up:.2f}</UP>\n"
             f"        </Item>"
         )

@@ -1,19 +1,28 @@
 # Static analysis for the agent-in-the-loop workflow (see docs/operations.md).
-# We enforce the rules that catch real defects and dead code — pyflakes (F), bugbear (B),
-# blind-except (BLE, already used via `# noqa: BLE001`), and syntax errors (E9) — and deliberately
-# DO NOT enforce the stylistic line-length / one-statement-per-line rules, because this codebase
-# intentionally uses compact semicolon one-liners. Match the code's conventions; enforce correctness.
+# We enforce the rules that catch real defects + dead code AND the standards-aligned rules that are
+# safe for this codebase (import ordering, modern syntax, comprehension hygiene, dead-`noqa` removal).
+# We deliberately DO NOT enforce the stylistic line-length (E501) / one-statement-per-line (E702)
+# rules, because this codebase intentionally uses compact semicolon one-liners and dense table/PDF/SVG
+# builders run past 120. Match the code's conventions; enforce correctness + consistency.
 line-length = 120
 target-version = "py310"
 extend-exclude = ["dist_desktop", ".venv", "build"]
 
 [lint]
-# F = pyflakes (unused imports/vars, undefined names, f-string bugs — near-zero false positives),
-# E9 = syntax errors, B = bugbear (real anti-patterns). We do NOT select BLE (this codebase uses a
-# deliberate, logged fail-open `except Exception` idiom, already annotated with `# noqa: BLE001`).
-select = ["F", "E9", "B"]
+# Correctness/defects: F = pyflakes (unused imports/vars, undefined names, f-string bugs),
+# E9 = syntax errors, B = bugbear (real anti-patterns).
+# Standards/consistency (PEP 8-aligned, already satisfied — locked in so they stay satisfied):
+#   I = import ordering (isort), UP = pyupgrade (modern syntax for py310+),
+#   C4 = flake8-comprehensions (no needless comprehensions/calls).
+# We do NOT select BLE (deliberate logged fail-open `except Exception`, annotated `# noqa: BLE001`),
+# nor RUF100 (it would strip those intentional BLE001 documentation annotations, since BLE is unselected),
+# nor E (line-length / whitespace stylistics — see the compact-idiom note above).
+select = ["F", "E9", "B", "I", "UP", "C4"]
 # Idiomatic/stylistic in this codebase, not defects:
 #   B008 — FastAPI `Depends(...)`/`File(...)`/`Body(...)` calls in argument defaults (the whole point).
 #   B904 — `raise ... from` inside except: the fail-open handlers deliberately swallow context.
 #   B905 — `zip()` without strict=: intentional truncation in a few parsers.
 ignore = ["B008", "B904", "B905"]
+
+[lint.isort]
+known-first-party = ["aec_api", "aec_data"]

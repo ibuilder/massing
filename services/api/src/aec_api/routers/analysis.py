@@ -119,6 +119,7 @@ def model_alignment(pid: str, db: Session = Depends(get_db), _sec: str = Depends
     reads each model's storey elevations + IfcMapConversion and flags mismatches (a lightweight
     companion to federated clash). Reads the models read-only."""
     import ifcopenshell  # type: ignore
+
     from aec_data import drawings  # type: ignore
 
     files: dict[str, str] = {}
@@ -196,8 +197,8 @@ def energy(pid: str, u_wall: float | None = None, u_window: float | None = None,
     Construction U-values and climate degree-days are overridable via query params."""
     from aec_data import energy as en  # type: ignore
 
-    overrides = {k: v for k, v in dict(u_wall=u_wall, u_window=u_window, ach=ach,
-                                       hdd=hdd, cdd=cdd, delta_t=delta_t).items() if v is not None}
+    overrides = {k: v for k, v in {"u_wall": u_wall, "u_window": u_window, "ach": ach,
+                                   "hdd": hdd, "cdd": cdd, "delta_t": delta_t}.items() if v is not None}
     return en.analyze_file(_source_ifc(db, pid), overrides)
 
 

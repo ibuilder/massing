@@ -182,7 +182,43 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Architect/engineer design-to-turnover lifecycle (latest, v0.3.49+)** — the classic design lifecycle
+- **The Discipline Spine — model → sheets → specs → bid → budget, one vocabulary (latest, v0.3.79–v0.3.86)** —
+  a building is now authored and read as **layered structural / architectural / MEP** models threaded by two
+  shared standards: **NCS discipline designators** (A/S/M/E/P/F/C/L/T/G/Q) and **CSI MasterFormat** divisions.
+  Model elements are **discipline-tagged** (via `IfcClassificationReference`, keyed to GlobalId), drawings carry
+  parsed **NCS Sheet IDs** (e.g. `A-101` → Architectural / Plans / sheet 01) through a **drawing-set** register,
+  and a **traceability engine** walks each discipline → sheets → **spec sections** → **bid packages** →
+  **cost codes** → **budget** with coverage % and gap detection (specs without a package, packages without a
+  cost code, sheets without a spec). The generator emits **parametric MEP distribution** (supply-air mains,
+  domestic-water mains, a diffuser grid) so a generated project reads as a real multi-discipline model. A
+  **Uniformat ↔ MasterFormat** crosswalk carries concept estimates into the procurement budget. Closed out with
+  a **Python code-standards pass** — ruff now enforces PEP 8-aligned import-ordering, modern-syntax and
+  comprehension rules in CI (correctness rules `F`/`E9`/`B` plus `I`/`UP`/`C4`).
+- **Facility operations, condition & resilience (v0.3.53–v0.3.78)** — the model now carries all the way
+  through operations:
+  - **Facility Condition Assessment** — element-level condition rating on **UNIFORMAT II**, a live
+    **Facility Condition Index** (FCI = deferred + renewal ÷ current replacement value) with Good/Fair/Poor/
+    Critical bands, **portfolio roll-up** worst-first, and condition-based events fed into the **reserve/CIP**
+    study (a **🏥 Facility Condition** panel).
+  - **Climate & water resilience** — flood design (**ASCE 24** design flood elevation) and stormwater
+    (**Rational Method**) engines, a **weather-sequenced** schedule, and physical climate-risk in the ESG
+    rollup (a **🌊 Resilience** panel).
+  - **Operations backbone** — CMMS work orders + PM schedules, metered energy (EUI), reserves/CIP + CAM
+    reconciliation, and an **ESG / post-occupancy** rollup — every artifact still keyed to the same GlobalIds.
+- **Lean pull-planning + real-time collaboration (v0.3.69–v0.3.77)** — a **Last Planner** pull-planning board
+  next to the CPM schedule, with **PPC**, **Tasks-Made-Ready %**, perfect-handoff % and a variance-reason
+  Pareto, plus cross-project benchmarks. The board is **live-collaborative** — an SSE stream refreshes it as
+  trades edit, a presence heartbeat shows who's on which sticky, and an optimistic-lock check rejects stale
+  writes (409 → "changed by X, reload"), all on the existing real-time primitives (no new dependencies).
+- **openBIM standards & AI-over-model depth (v0.3.61–v0.3.68)** — an ISO 19650 **Common Data Environment**
+  (WIP → Shared → Published → Archived) + information-requirements register (EIR/BEP/AIR), **openBIM
+  quality scoring** (IDS/LOIN/export health/bSDD), a **10-category BIM-KPI scorecard** with handover
+  acceptance, an **MCP server** so external agents can drive the project plus grounded standards experts, a
+  **digital-twin / handover-readiness** view with a Digital Product Passport, a **procurement/billing
+  compliance gate**, AI **drawing-sheet extraction**, and a concept **adjacency-graph programmer**.
+- **Workspaces & personas (v0.3.70)** — top-level **Model / Design / Construction / Finance** workspaces with
+  a **Design** home, multi-workspace module membership, and persona routing (architect/engineer land on Design).
+- **Architect/engineer design-to-turnover lifecycle (v0.3.49)** — the classic design lifecycle
   made first-class, grounded in the RIBA Plan of Work 2020 (stages 0–7), AIA phases (SD/DD/CD/CA) and
   ISO 19650. A **"🧭 Project Lifecycle"** panel lays out the eight phases as formal **gates** — each with
   its deliverables, A/E design-fee share and ISO-19650 information status — that the **Architect + Owner**

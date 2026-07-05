@@ -4,6 +4,14 @@ Snapshot of what's been built and how far each piece is verified on this machine
 (node 20.3.1, python 3.10.6, Windows). "Verified" = ran successfully against the real
 sample model (`samples/school_str.ifc`, the That Open structural school, 8.6 MB, IFC4).
 
+**Current release: v0.3.86.** The M0–M6 milestones below are the foundational viewer/portal/deploy
+spine and remain accurate. Everything shipped on top of them since — the full lifecycle from
+acquisition through operations (due diligence, ISO 19650 openBIM standards, the **Discipline Spine**
+threading model → discipline sheets → specs → bid → budget, lean **pull-planning** with a real-time
+board, **Facility Condition** / FCI, **climate & water resilience**, CMMS/reserves/ESG, and a Python
+code-standards lint lock-in) — is catalogued release-by-release in [`../CHANGELOG.md`](../CHANGELOG.md)
+and sequenced in [`roadmap.md`](roadmap.md). Backend suite: **120/120 green**.
+
 ## Milestones
 | ID | Goal | Status |
 |---|---|---|

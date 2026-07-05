@@ -224,7 +224,7 @@ def _context_block(pages: list[dict], per_page: int = 4000) -> str:
 
 
 def _first_citation(pages: list[dict], note: str) -> list[dict]:
-    terms = [t for t in re.findall(r"[a-z0-9]{3,}", (note or "").lower())]
+    terms = re.findall(r"[a-z0-9]{3,}", (note or "").lower())
     for p in pages:
         low = (p.get("text") or "").lower()
         idx = next((low.find(t) for t in terms if t in low), -1)

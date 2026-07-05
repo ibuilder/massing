@@ -104,8 +104,8 @@ def require(feature, label=None):
         return
     from fastapi import HTTPException
     need = _MIN_TIER.get(feature, "a higher")
-    raise HTTPException(402, "%s requires the Massing %s plan (or higher). Add a licence in Settings, "
-                             "or see massing.cloud." % (label or feature, need))
+    raise HTTPException(402, f"{label or feature} requires the Massing {need} plan (or higher). Add a licence "
+                             "in Settings, or see massing.cloud.")
 
 
 def require_export(fmt, label=None):
@@ -114,8 +114,8 @@ def require_export(fmt, label=None):
         return
     from fastapi import HTTPException
     need = _EXPORT_MIN_TIER.get(fmt.lower(), "a higher")
-    raise HTTPException(402, "%s export requires the Massing %s plan (or higher). Add a licence in "
-                            "Settings, or see massing.cloud." % (label or fmt.upper(), need))
+    raise HTTPException(402, f"{label or fmt.upper()} export requires the Massing {need} plan (or higher). Add a "
+                            "licence in Settings, or see massing.cloud.")
 
 
 def state() -> dict[str, Any]:
@@ -129,7 +129,7 @@ def state() -> dict[str, Any]:
         msg = ("Open mode — all features are available and a licence is optional. (Adding a key now is "
                "fine; entitlement enforcement is off until the operator enables it.)")
     elif configured and fmt_ok:
-        msg = "Massing %s plan active." % TIER_LABEL.get(tier, tier)
+        msg = f"Massing {TIER_LABEL.get(tier, tier)} plan active."
     elif not configured:
         msg = ("Enforcement is on but no licence key is recorded — running on the Free tier. Paste your "
                "key (MASS-XXXX-XXXX-XXXX-XXXX) under Settings; get one at massing.cloud.")

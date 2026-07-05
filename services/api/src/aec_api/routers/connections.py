@@ -209,7 +209,7 @@ def put_mappings(cid: str, mappings: dict = Body(..., embed=True), db: Session =
     if not c or c.type != "procore":
         raise HTTPException(400, "field mapping applies to Procore connections")
     cfg = dict(c.config or {})
-    cfg["mappings"] = {k: {f: p for f, p in (v or {}).items()} for k, v in (mappings or {}).items()}
+    cfg["mappings"] = {k: dict(v or {}) for k, v in (mappings or {}).items()}
     c.config = cfg
     audit.record(db, action="connection.mappings", actor=admin.username, method="PUT",
                  path=f"/connections/{cid}/mappings", detail={"kinds": sorted(mappings or {})})

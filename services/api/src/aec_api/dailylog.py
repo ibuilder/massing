@@ -67,7 +67,7 @@ def summary(reports: list[dict]) -> dict[str, Any]:
         })
     n = len(rows)
     span_days = (max(dates) - min(dates)).days + 1 if dates else 0
-    logged_days = len({dt for dt in dates})
+    logged_days = len(set(dates))
     coverage = round(100 * logged_days / span_days, 1) if span_days else None
     return {
         "report_count": n, "submitted_count": submitted, "draft_count": n - submitted,

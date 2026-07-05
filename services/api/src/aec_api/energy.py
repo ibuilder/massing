@@ -67,7 +67,7 @@ def summary(db, pid: str, gfa_sf: float | None = None) -> dict[str, Any]:
     trend = [{"month": mo, "kbtu": round(by_month[mo], 0)} for mo in months]
     # EUI: annualize over the months actually covered (avoids penalizing partial years)
     eui = None
-    n_months = len({mo for mo in by_month})
+    n_months = len(set(by_month))
     if gfa_sf and gfa_sf > 0 and n_months:
         eui = round((total_kbtu / n_months) * 12 / gfa_sf, 1)
     return {
