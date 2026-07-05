@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.78 — Performance: trim the physical-climate-risk fan-out
+Tightens the scans behind the physical-climate-risk rollup that feeds the ESG scorecard.
+- The rollup previously ran the full weather engine — including a scan of `schedule_activity` (one of
+  the larger tables) — even though it only needs the site-weather register and the logged delay days.
+  Split out a `_weather_exposure` helper so `climate_risk` (and therefore every **ESG summary** load)
+  no longer scans `schedule_activity` at all.
+- Made `climate_risk` composable: the resilience **report** now passes in the flood / stormwater /
+  exposure it already computed instead of recomputing those scans a second time.
+- No behaviour change (rollup output is byte-identical); verified. Backs the config-module engine that
+  already ships every tool's CRUD, CSV export, kanban board and workflow-flowchart for free.
+
 ## v0.3.77 — Real-time collaborative pull board (M3)
 The Last Planner pull board becomes a live, multi-trade workspace — every stakeholder edits the same
 board and sees each other's changes as they happen, without a page refresh.

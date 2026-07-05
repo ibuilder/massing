@@ -150,25 +150,11 @@ def stormwater(db, pid: str) -> dict[str, Any]:
     }
 
 
-def weather(db, pid: str) -> dict[str, Any]:
-    """Weather-sequenced construction: which schedule activities are weather-sensitive, the standing
-    site-weather-risk register, and the weather-delay days already logged in daily reports — so the
-    plan can sequence exposed work out of the wet/freeze season and controls are tracked."""
-    # weather-sensitive schedule activities
-    sensitive = []
-    by_sensitivity: dict[str, int] = {}
-    for r in me.list_records(db, "schedule_activity", pid, limit=100000):
-        d = _d(r)
-        s = (d.get("weather_sensitivity") or "").strip()
-        if not s or s == "None":
-            continue
-        by_sensitivity[s] = by_sensitivity.get(s, 0) + 1
-        sensitive.append({"ref": r.get("ref"), "name": d.get("name") or r.get("ref"),
-                          "trade": d.get("trade"), "sensitivity": s,
-                          "start": d.get("start"), "finish": d.get("finish"),
-                          "percent": _num(d.get("percent")) or 0})
-
-    # standing site-weather-risk register
+def _weather_exposure(db, pid: str) -> dict[str, Any]:
+    """The two inputs both the weather panel and the physical-risk rollup need: the site-weather-risk
+    register (open/high counts) and the weather-delay days logged in daily reports. Kept separate from
+    the schedule scan so `climate_risk` (called from the ESG summary) doesn't pay for
+    `schedule_activity` — which it never reads."""
     site_risks = []
     by_season: dict[str, int] = {}
     by_hazard: dict[str, int] = {}
@@ -193,7 +179,6 @@ def weather(db, pid: str) -> dict[str, Any]:
                            "open": open_, "state": state})
     site_risks.sort(key=lambda x: (-_SEVERITY_SCORE.get(x["severity"], 0), not x["open"]))
 
-    # weather-delay days already logged in daily reports
     delay_days = 0.0
     delay_reports = []
     for r in me.list_records(db, "daily_report", pid, limit=100000):
@@ -206,15 +191,36 @@ def weather(db, pid: str) -> dict[str, Any]:
         delay_reports.append({"ref": r.get("ref"), "date": d.get("report_date"),
                               "weather": d.get("weather"), "impact": impact, "days": frac})
     delay_reports.sort(key=lambda x: (x.get("date") or ""), reverse=True)
-
     return {
-        "weather_sensitive_activities": sensitive, "sensitive_count": len(sensitive),
-        "by_sensitivity": by_sensitivity,
         "site_risks": site_risks, "site_risk_count": len(site_risks),
         "open_risk_count": sum(1 for x in site_risks if x["open"]), "high_severity_open": high_open,
         "by_season": by_season, "by_hazard": by_hazard, "risk_score": risk_score,
         "weather_delay_days": round(delay_days, 2), "delay_report_count": len(delay_reports),
         "delay_reports": delay_reports[:50],
+    }
+
+
+def weather(db, pid: str) -> dict[str, Any]:
+    """Weather-sequenced construction: which schedule activities are weather-sensitive, the standing
+    site-weather-risk register, and the weather-delay days already logged in daily reports — so the
+    plan can sequence exposed work out of the wet/freeze season and controls are tracked."""
+    # weather-sensitive schedule activities
+    sensitive = []
+    by_sensitivity: dict[str, int] = {}
+    for r in me.list_records(db, "schedule_activity", pid, limit=100000):
+        d = _d(r)
+        s = (d.get("weather_sensitivity") or "").strip()
+        if not s or s == "None":
+            continue
+        by_sensitivity[s] = by_sensitivity.get(s, 0) + 1
+        sensitive.append({"ref": r.get("ref"), "name": d.get("name") or r.get("ref"),
+                          "trade": d.get("trade"), "sensitivity": s,
+                          "start": d.get("start"), "finish": d.get("finish"),
+                          "percent": _num(d.get("percent")) or 0})
+    exposure = _weather_exposure(db, pid)
+    return {
+        "weather_sensitive_activities": sensitive, "sensitive_count": len(sensitive),
+        "by_sensitivity": by_sensitivity, **exposure,
         "note": "Flag weather-sensitive activities so exposed work is sequenced out of the wet/freeze "
                 "season; log site-weather hazards with controls; weather-delay days roll up from the "
                 "daily reports' weather-impact field.",
@@ -225,12 +231,15 @@ def _rating(score: int) -> str:
     return "Severe" if score >= 6 else "High" if score >= 4 else "Moderate" if score >= 2 else "Low"
 
 
-def climate_risk(db, pid: str) -> dict[str, Any]:
+def climate_risk(db, pid: str, *, flood: dict | None = None, storm: dict | None = None,
+                 exposure: dict | None = None) -> dict[str, Any]:
     """Physical climate-risk rollup for ESG — folds flood exposure, stormwater load, the site-weather
-    register and logged weather delays into a single scored rating with the driving factors."""
-    flood = flood_assessment(db, pid)
-    storm = stormwater(db, pid)
-    wx = weather(db, pid)
+    register and logged weather delays into a single scored rating with the driving factors. Callers
+    that already computed the flood/stormwater/exposure pieces (e.g. the resilience report) can pass
+    them in to avoid recomputing the scans."""
+    flood = flood or flood_assessment(db, pid)
+    storm = storm or stormwater(db, pid)
+    wx = exposure or _weather_exposure(db, pid)   # site-risk + delay only — skips the schedule_activity scan
 
     factors = []
     score = 0

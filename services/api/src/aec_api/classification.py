@@ -95,6 +95,112 @@ def systems() -> list[dict[str, Any]]:
     return [{"id": k, "name": v["name"]} for k, v in CLASSIFICATIONS.items()]
 
 
+# --- The Discipline Spine: NCS disciplines + MasterFormat divisions + Uniformat crosswalk ----------
+# Two shared vocabularies thread the whole delivery chain together — model → sheets → specs → bid
+# packages → budget: the National CAD Standard **discipline designator** and the CSI **MasterFormat
+# division**. `classify()` above already derives a MasterFormat section per IFC class; these tables add
+# the division master, the discipline vocabulary (with each discipline's default divisions), and the
+# Uniformat II ↔ MasterFormat crosswalk that migrates a concept budget into the procurement budget.
+
+MF_DIVISIONS: dict[str, str] = {
+    "00": "Procurement & Contracting Requirements", "01": "General Requirements",
+    "02": "Existing Conditions", "03": "Concrete", "04": "Masonry", "05": "Metals",
+    "06": "Wood, Plastics & Composites", "07": "Thermal & Moisture Protection", "08": "Openings",
+    "09": "Finishes", "10": "Specialties", "11": "Equipment", "12": "Furnishings",
+    "13": "Special Construction", "14": "Conveying Equipment", "21": "Fire Suppression",
+    "22": "Plumbing", "23": "Heating, Ventilating & Air Conditioning (HVAC)",
+    "25": "Integrated Automation", "26": "Electrical", "27": "Communications",
+    "28": "Electronic Safety & Security", "31": "Earthwork", "32": "Exterior Improvements",
+    "33": "Utilities",
+}
+
+# NCS discipline designator -> canonical name + its default MasterFormat divisions + Uniformat groups.
+# Ordered per the National CAD Standard sheet sequence (general/site/structure → arch → systems).
+DISCIPLINES: list[dict[str, Any]] = [
+    {"code": "G", "name": "General", "divisions": ["00", "01"], "uniformat": ["Z"]},
+    {"code": "C", "name": "Civil", "divisions": ["02", "31", "32", "33"], "uniformat": ["G"]},
+    {"code": "L", "name": "Landscape", "divisions": ["32"], "uniformat": ["G"]},
+    {"code": "S", "name": "Structural", "divisions": ["03", "04", "05"], "uniformat": ["A", "B10"]},
+    {"code": "A", "name": "Architectural", "divisions": ["06", "07", "08", "09", "10", "12"],
+     "uniformat": ["B20", "B30", "C"]},
+    {"code": "F", "name": "Fire Protection", "divisions": ["21"], "uniformat": ["D40"]},
+    {"code": "P", "name": "Plumbing", "divisions": ["22"], "uniformat": ["D20"]},
+    {"code": "M", "name": "Mechanical", "divisions": ["23", "25"], "uniformat": ["D30"]},
+    {"code": "E", "name": "Electrical", "divisions": ["26", "28"], "uniformat": ["D50"]},
+    {"code": "T", "name": "Telecommunications", "divisions": ["27"], "uniformat": ["D50"]},
+    {"code": "Q", "name": "Equipment", "divisions": ["11", "14"], "uniformat": ["D10", "E"]},
+]
+
+# Uniformat II element -> (title, typical MasterFormat divisions) — the concept↔procurement crosswalk.
+UNIFORMAT: dict[str, tuple[str, list[str]]] = {
+    "A": ("Substructure", ["03", "31"]), "B10": ("Superstructure", ["03", "05"]),
+    "B20": ("Exterior Enclosure", ["04", "07", "08"]), "B30": ("Roofing", ["07"]),
+    "C": ("Interiors", ["06", "09", "10"]), "D10": ("Conveying", ["14"]),
+    "D20": ("Plumbing", ["22"]), "D30": ("HVAC", ["23"]), "D40": ("Fire Protection", ["21"]),
+    "D50": ("Electrical", ["26", "27", "28"]), "E": ("Equipment & Furnishings", ["11", "12"]),
+    "G": ("Building Sitework", ["31", "32", "33"]), "Z": ("General", ["00", "01"]),
+}
+
+_DIV_TO_DISCIPLINE = {div: d["code"] for d in DISCIPLINES for div in d["divisions"]}
+_NAME_TO_DISCIPLINE = {d["name"].lower(): d for d in DISCIPLINES}
+_CODE_SET = {d["code"] for d in DISCIPLINES}
+# normalize the legacy free-text enums (e.g. rfi's "MEP"/"Geotechnical"/"Low Voltage") to NCS codes.
+_ALIASES = {"mep": "M", "geotechnical": "C", "geotech": "C", "low voltage": "T", "lv": "T",
+            "arch": "A", "struct": "S", "structure": "S", "elec": "E", "mech": "M", "plumb": "P",
+            "hvac": "M", "fire": "F", "civil/site": "C", "site": "C"}
+
+
+def division_of(section: str) -> str | None:
+    """First two digits of a MasterFormat section number/code -> division code (e.g. '03 30 00' -> '03')."""
+    digits = "".join(ch for ch in str(section or "") if ch.isdigit())
+    return digits[:2] if len(digits) >= 2 else None
+
+
+def discipline_of_division(div: str | None) -> str | None:
+    return _DIV_TO_DISCIPLINE.get((div or "").strip().zfill(2)[:2]) if div else None
+
+
+def discipline_of_ifc_class(ifc_class: str) -> str | None:
+    """The NCS discipline for an IFC class, derived through its MasterFormat section."""
+    code, _ = classify(ifc_class, "masterformat")
+    return discipline_of_division(division_of(code))
+
+
+def discipline_code(name_or_code: str | None) -> str | None:
+    """Normalize a free-text discipline name/code (incl. legacy aliases) to a canonical NCS code."""
+    v = (name_or_code or "").strip()
+    if not v:
+        return None
+    if v.upper() in _CODE_SET:
+        return v.upper()
+    low = v.lower()
+    if low in _NAME_TO_DISCIPLINE:
+        return _NAME_TO_DISCIPLINE[low]["code"]
+    return _ALIASES.get(low)
+
+
+def disciplines() -> list[dict[str, Any]]:
+    """Catalog for the UI + module selects: code, name, divisions (with titles), uniformat groups."""
+    return [{**d, "division_titles": {v: MF_DIVISIONS.get(v, v) for v in d["divisions"]}}
+            for d in DISCIPLINES]
+
+
+def discipline_names() -> list[str]:
+    """The canonical discipline names, in NCS sheet order — the option list for module selects."""
+    return [d["name"] for d in DISCIPLINES]
+
+
+def masterformat_divisions() -> list[dict[str, Any]]:
+    """Division master: code, title, and the discipline each division rolls up to."""
+    return [{"code": k, "title": v, "discipline": _DIV_TO_DISCIPLINE.get(k)}
+            for k, v in MF_DIVISIONS.items()]
+
+
+def uniformat_crosswalk() -> list[dict[str, Any]]:
+    """Uniformat II elements with the MasterFormat divisions they map to (concept→procurement)."""
+    return [{"code": k, "title": t, "masterformat_divisions": divs} for k, (t, divs) in UNIFORMAT.items()]
+
+
 # --- GAEB DA XML 3.2, category 83 (Leistungsverzeichnis / BoQ) ----------------
 _GAEB_UNIT = {"m²": "m2", "m³": "m3", "m": "m", "ea": "St", "count": "St", "EA": "St"}
 

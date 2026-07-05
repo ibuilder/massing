@@ -864,7 +864,7 @@ def _resilience(db: Session, pid: str, name: str) -> Report:
     fl = rz.flood_assessment(db, pid)
     sw = rz.stormwater(db, pid)
     wx = rz.weather(db, pid)
-    cr = rz.climate_risk(db, pid)
+    cr = rz.climate_risk(db, pid, flood=fl, storm=sw, exposure=wx)   # reuse — don't recompute the scans
     r = Report("Climate & Water Resilience", name)
     r.kpi("Physical climate-risk rating", cr["rating"])
     r.kpi("Design Flood Elevation (ft)", fl["design_flood_elevation_ft"] if fl["design_flood_elevation_ft"] is not None else "—")

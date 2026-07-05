@@ -430,6 +430,17 @@ def list_classifications(_: str = Depends(current_user)):
     return {"systems": cls.systems()}
 
 
+@router.get("/reference/disciplines")
+def reference_disciplines(_: str = Depends(current_user)):
+    """The Discipline Spine vocabularies: NCS disciplines (with their default MasterFormat divisions +
+    Uniformat groups), the MasterFormat division master, and the Uniformat↔MasterFormat crosswalk.
+    Drives the discipline/division selects and the model→sheets→specs→bid→budget joins."""
+    from .. import classification as cls
+    return {"disciplines": cls.disciplines(),
+            "masterformat_divisions": cls.masterformat_divisions(),
+            "uniformat_crosswalk": cls.uniformat_crosswalk()}
+
+
 @router.get("/projects/{pid}/estimate/gaeb.x83")
 def estimate_gaeb(pid: str, system: str = "din276", db: Session = Depends(get_db),
                   _: str = Depends(require_role("viewer"))):
