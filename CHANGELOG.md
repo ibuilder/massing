@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.79 — Discipline Spine D1: shared classification vocabularies
+The foundation for representing a project as layered **structural / MEP / architectural** models whose
+sheets, specs, bid packages and budget all thread through two shared, validated vocabularies (rather
+than free text). Based on the US National CAD Standard discipline designators + CSI MasterFormat.
+- **Discipline vocabulary** (`classification.py`) — the NCS discipline designators (**A** architectural ·
+  **S** structural · **M** mechanical · **E** electrical · **P** plumbing · **F** fire · **C** civil ·
+  **T** telecom · **G/L/Q**), each with its default MasterFormat divisions + Uniformat groups.
+  Derives an element's discipline from its IFC class (via the existing MasterFormat map), and normalizes
+  legacy free-text values (e.g. "MEP" → M, "Geotechnical" → C).
+- **MasterFormat division master** (25 divisions) + the **Uniformat II ↔ MasterFormat crosswalk** that
+  migrates a concept-phase budget into the procurement budget.
+- `GET /reference/disciplines` serves all three catalogs (drives the selects + the spine joins).
+- Converted the free-text `discipline` (drawings) and CSI `division` (cost codes, spec sections) fields
+  to validated **selects**. `test_disciplines`. Deterministic, no new deps. First of five phases
+  (D1→D5) building the model→sheets→specs→bid→budget spine.
+
 ## v0.3.78 — Performance: trim the physical-climate-risk fan-out
 Tightens the scans behind the physical-climate-risk rollup that feeds the ESG scorecard.
 - The rollup previously ran the full weather engine — including a scan of `schedule_activity` (one of

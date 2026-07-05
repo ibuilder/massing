@@ -492,3 +492,27 @@ Rainfall and flooding as quantifiable design parameters, across the lifecycle:
   days rolled up from the daily reports (`resilience.weather`); and a physical climate-risk rating
   (Low/Moderate/High/Severe over flood exposure + at-risk assets + open site hazards + weather delays,
   `resilience.climate_risk`) folded into the ESG scorecard (`physical_risk`).
+
+## The Discipline Spine — layered model → sheets → specs → bid packages → budget (v0.3.79+)
+
+Represent a project as federated **structural / MEP / architectural** models whose discipline-tagged
+sheets thread through specifications, bid packages and the budget — grounded in the US National CAD
+Standard discipline designators + CSI MasterFormat, with the Uniformat↔MasterFormat crosswalk. Two
+shared vocabularies (discipline + MasterFormat division) do the joining. Five phases:
+
+- **v0.3.79 — D1 (shipped): shared vocabularies.** `classification.py` gains the NCS discipline
+  vocabulary (A/S/M/E/P/F/C/T/G/L/Q with each discipline's default MasterFormat divisions + Uniformat
+  groups), the MasterFormat division master (25) and the Uniformat↔MasterFormat crosswalk;
+  `discipline_of_ifc_class`, `discipline_code` (legacy-alias normalization). `GET /reference/disciplines`.
+  Free-text `discipline`/`division` fields → validated selects. `test_disciplines`.
+- **D2 (planned): discipline-tagged model.** Record which discipline model each GUID came from in the
+  properties index (source-file = authoritative discipline tag); `GET /elements?discipline=`; persist
+  per-model transforms; discipline layer toggles + colour-by-discipline in the viewer.
+- **D3 (planned): discipline sheets.** `drawing_set` module; parse the NCS Sheet ID (discipline +
+  sheet-type digit + sequence) into structured fields; `revision_register` module; `drawing↔spec_section`.
+- **D4 (planned): connect the procurement chain.** `bid_package.spec_sections` TEXT → reference array;
+  `cost_code` link + shared discipline on bid_package/spec_section/cost_code; a `spine.py` traceability
+  engine (discipline → models → sheets → specs → bid packages → cost codes → budget + coverage gaps).
+- **D5 (planned): discipline-aware generation.** Extend `generate/massing` to emit separate STR / ARCH /
+  parametric-MEP models sharing one origin + storeys + a real `IfcGrid`, auto-registered with discipline
+  tags, and seed the spec/bid/budget skeleton per discipline from the mapping table.

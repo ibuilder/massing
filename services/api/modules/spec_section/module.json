@@ -22,7 +22,34 @@
     {
       "name": "division",
       "label": "Division",
-      "type": "text"
+      "type": "select",
+      "options": [
+        "00 — Procurement & Contracting Requirements",
+        "01 — General Requirements",
+        "02 — Existing Conditions",
+        "03 — Concrete",
+        "04 — Masonry",
+        "05 — Metals",
+        "06 — Wood, Plastics & Composites",
+        "07 — Thermal & Moisture Protection",
+        "08 — Openings",
+        "09 — Finishes",
+        "10 — Specialties",
+        "11 — Equipment",
+        "12 — Furnishings",
+        "13 — Special Construction",
+        "14 — Conveying Equipment",
+        "21 — Fire Suppression",
+        "22 — Plumbing",
+        "23 — Heating, Ventilating & Air Conditioning (HVAC)",
+        "25 — Integrated Automation",
+        "26 — Electrical",
+        "27 — Communications",
+        "28 — Electronic Safety & Security",
+        "31 — Earthwork",
+        "32 — Exterior Improvements",
+        "33 — Utilities"
+      ]
     },
     {
       "name": "submittals_required",

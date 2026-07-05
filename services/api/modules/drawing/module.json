@@ -26,7 +26,20 @@
     {
       "name": "discipline",
       "label": "Discipline",
-      "type": "text"
+      "type": "select",
+      "options": [
+        "General",
+        "Civil",
+        "Landscape",
+        "Structural",
+        "Architectural",
+        "Fire Protection",
+        "Plumbing",
+        "Mechanical",
+        "Electrical",
+        "Telecommunications",
+        "Equipment"
+      ]
     },
     {
       "name": "sheet_number",
