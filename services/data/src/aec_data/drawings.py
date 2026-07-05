@@ -39,7 +39,7 @@ def storey_elevations(model: ifcopenshell.file) -> list[dict[str, Any]]:
     return sorted(out, key=lambda x: x["elevation"])
 
 
-def bake(model: ifcopenshell.file) -> list[tuple[str, "trimesh.Trimesh"]]:
+def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
     """Bake every element's world-space mesh ONCE so many views can section the same set."""
     settings = geom.settings()
     it = geom.iterator(settings, model, max(1, multiprocessing.cpu_count() - 1))
@@ -62,7 +62,7 @@ def bake(model: ifcopenshell.file) -> list[tuple[str, "trimesh.Trimesh"]]:
     return meshes
 
 
-def cut_baked(meshes: list[tuple[str, "trimesh.Trimesh"]], view: str, offset: float,
+def cut_baked(meshes: list[tuple[str, trimesh.Trimesh]], view: str, offset: float,
               classes: list[str] | None = None) -> list[np.ndarray]:
     """Section pre-baked meshes; returns (n,2) polylines in the view's drawing plane."""
     normal, axes = _VIEWS[view]

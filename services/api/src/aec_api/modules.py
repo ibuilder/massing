@@ -18,8 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException
-from sqlalchemy import (JSON, Column, DateTime, Index, String, Table, cast, func, insert, or_, select,
-                        update)
+from sqlalchemy import JSON, Column, DateTime, Index, String, Table, cast, func, insert, or_, select, update
 from sqlalchemy.orm import Session
 
 from . import rbac
@@ -809,7 +808,8 @@ def transition(db: Session, key: str, project_id: str, rid: str, action: str,
     db.commit()
     # fire an outbound webhook (opt-in, fail-open) so external automation can react — include the
     # record's resolved distribution (CC) emails so a listener can notify them.
-    from . import distribution as _dist, webhooks
+    from . import distribution as _dist
+    from . import webhooks
     try:
         recipients = _dist.record_emails(db, project_id, key, rec.get("data"))
     except Exception:                              # noqa: BLE001 — never block a transition

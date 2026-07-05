@@ -45,7 +45,7 @@ def coverage(pid: str, db: Session = Depends(get_db), _: str = Depends(require_r
     deviation count. `total` comes from the uploaded property index (0 if none yet)."""
     _ensure_loaded(pid)
     total = len(_INDEX.get(pid, {}))
-    by_status = {s: 0 for s in STATUSES}
+    by_status = dict.fromkeys(STATUSES, 0)
     rows = list(db.execute(select(ElementVerification.status, ElementVerification.guid)
                            .where(ElementVerification.project_id == pid)).all())
     tracked_guids = set()

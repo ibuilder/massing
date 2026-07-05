@@ -15,9 +15,52 @@ from fastapi.responses import JSONResponse
 
 from . import metrics
 from .db import init_db
-from .routers import (accounting, analysis, auth, authoring, benchmarking, bidding, bim, carbon, closeout, codecheck, conceptual, connections, contracts, convert, cost,
-                      dashboard, design, drafting, drawings, ids, exports, generate, modules, opendata, operations, parcels, payapp, prequal, pricing, procurement, realestate, reports, research, review, proforma, properties, schedule,
-                      templates, turnover, verification, payroll, assistant, construction, standards)
+from .routers import (
+    accounting,
+    analysis,
+    assistant,
+    auth,
+    authoring,
+    benchmarking,
+    bidding,
+    bim,
+    carbon,
+    closeout,
+    codecheck,
+    conceptual,
+    connections,
+    construction,
+    contracts,
+    convert,
+    cost,
+    dashboard,
+    design,
+    drafting,
+    drawings,
+    exports,
+    generate,
+    ids,
+    modules,
+    opendata,
+    operations,
+    parcels,
+    payapp,
+    payroll,
+    prequal,
+    pricing,
+    procurement,
+    proforma,
+    properties,
+    realestate,
+    reports,
+    research,
+    review,
+    schedule,
+    standards,
+    templates,
+    turnover,
+    verification,
+)
 
 _access_log = logging.getLogger("aec.access")
 _log = logging.getLogger("aec.autosync")
@@ -340,6 +383,7 @@ _ready_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_p
 
 def _db_ping() -> None:
     from sqlalchemy import text as _text
+
     from .db import engine as _engine
     with _engine.connect() as conn:
         conn.execute(_text("SELECT 1"))

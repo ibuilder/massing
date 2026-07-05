@@ -158,7 +158,7 @@ _REVIEW_SYSTEM = (
 def review_contract(text: str) -> dict[str, Any]:
     body = (text or "").strip()[:_MAX_REVIEW_CHARS]
     if not body:
-        return {"findings": [], "counts": {s: 0 for s in SEVERITY}, "source": "empty",
+        return {"findings": [], "counts": dict.fromkeys(SEVERITY, 0), "source": "empty",
                 "message": "No contract text — upload a contract PDF or paste its text."}
     if ai_enabled():
         try:

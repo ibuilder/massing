@@ -47,7 +47,7 @@ def _context(db: Session, key: str, pid: str, rid: str) -> tuple[dict, dict, dic
 
 # --- reportlab building blocks ----------------------------------------------
 def _styles():
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     ss = getSampleStyleSheet()
     ss.add(ParagraphStyle("DocTitle", parent=ss["Title"], fontSize=18, spaceAfter=4))
     ss.add(ParagraphStyle("Sub", parent=ss["Normal"], textColor=(0.35, 0.35, 0.35), spaceAfter=10))
@@ -260,6 +260,7 @@ def certificate_substantial_completion(db: Session, key: str, pid: str, rid: str
     outstanding punch list attached, and signed by Owner + Contractor. Rendered from a
     completion_certificate record (type=Substantial)."""
     from reportlab.platypus import Paragraph
+
     from . import turnover
     rec, d, ctx = _context(db, key, pid, rid)
     ss = _styles()

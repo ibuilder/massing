@@ -4,10 +4,18 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends
 from sqlalchemy.orm import Session
 
-from .. import (actions as actions_engine, changeorders as co_engine, closeout as closeout_engine,
-                dailylog as dailylog_engine, distribution as dist_engine, precon as precon_engine,
-                projecthealth as health_engine, quality as quality_engine, rfi as rfi_engine,
-                safety as safety_engine, submittals as sub_engine, tm as tm_engine)
+from .. import actions as actions_engine
+from .. import changeorders as co_engine
+from .. import closeout as closeout_engine
+from .. import dailylog as dailylog_engine
+from .. import distribution as dist_engine
+from .. import precon as precon_engine
+from .. import projecthealth as health_engine
+from .. import quality as quality_engine
+from .. import rfi as rfi_engine
+from .. import safety as safety_engine
+from .. import submittals as sub_engine
+from .. import tm as tm_engine
 from ..db import get_db
 from ..rbac import require_role
 
@@ -59,7 +67,8 @@ def specs_extract_submittals(pid: str, body: dict = Body(...), db: Session = Dep
     """Extract a typed submittal list from pasted spec text (AI when configured, rules fallback offline).
     Body: {text, create?: bool}. With create=true, logs each item as a `submittal` record (and a
     `spec_section` if a section number is present), building the submittal log from the spec book."""
-    from .. import ai, modules as me, specs
+    from .. import ai, specs
+    from .. import modules as me
     text = (body or {}).get("text") or ""
     res = ai.extract_submittals(text)
     if (body or {}).get("create") and res.get("items"):
@@ -90,9 +99,10 @@ def site_feasibility(pid: str, gfa: float | None = None, zoning_id: str | None =
     actual = gfa
     if actual is None:
         try:                                            # best-effort model GFA (no IFC -> skip)
-            from ..deps import source_ifc_path
-            from aec_data import spaces as sp           # type: ignore
+            from aec_data import spaces as sp  # type: ignore
             from aec_data.ifc_loader import open_model  # type: ignore
+
+            from ..deps import source_ifc_path
             model = open_model(source_ifc_path(db, pid))
             actual = round(sum(r["net_area"] for r in sp.space_schedule(model) if r.get("net_area")) * 10.7639, 1) or None
         except Exception:

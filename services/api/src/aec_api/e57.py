@@ -38,8 +38,9 @@ def convert_to_xyz(data: bytes, max_points: int = MAX_POINTS) -> bytes:
     with an actionable message when `pye57` isn't installed."""
     if not is_available():
         raise RuntimeError("E57 import needs `pye57` (pip install pye57); not installed in this deployment.")
-    import tempfile
     import os
+    import tempfile
+
     import numpy as np
     import pye57
 

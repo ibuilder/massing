@@ -12,18 +12,17 @@ import subprocess
 import sys
 import tempfile
 import threading
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-
-import uuid
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import audit, storage
-from ..rbac import current_user, require_role
 from ..db import get_db
 from ..models import Project, ProjectModel
+from ..rbac import current_user, require_role
 from . import properties as props_router
 
 _IFC_DIR = Path(os.environ.get("IFC_DIR", "/app/ifc"))   # local IFC copies the converter can read

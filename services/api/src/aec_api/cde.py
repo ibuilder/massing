@@ -32,7 +32,7 @@ def status(db, pid: str) -> dict[str, Any]:
     metrics (revision control, approval-status coverage, metadata completeness)."""
     containers = me.list_records(db, "information_container", pid, limit=100000)
     total = len(containers)
-    by_state: dict[str, int] = {s: 0 for s in STATES}
+    by_state: dict[str, int] = dict.fromkeys(STATES, 0)
     by_suitability: dict[str, int] = {}
     has_revision = past_wip = complete = 0
     for c in containers:

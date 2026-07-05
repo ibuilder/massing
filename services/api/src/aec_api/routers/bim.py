@@ -6,19 +6,27 @@ import os
 import re
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request, Response, UploadFile
-from sqlalchemy.orm import Session
-
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from .. import audit, bcf_io, rbac, signing, storage
 from ..db import get_db
 from ..models import Attachment, Comment, DrawingMarkup, Project, ProjectMember, Topic, Viewpoint
 from ..rbac import current_user, require_role
-from ..serving import range_response
 from ..schemas import (
-    AttachmentOut, CommentIn, CommentOut, ProjectIn, ProjectOut, ProjectPatch,
-    TopicIn, TopicOut, TopicPatch, ViewpointIn, ViewpointOut,
+    AttachmentOut,
+    CommentIn,
+    CommentOut,
+    ProjectIn,
+    ProjectOut,
+    ProjectPatch,
+    TopicIn,
+    TopicOut,
+    TopicPatch,
+    ViewpointIn,
+    ViewpointOut,
 )
+from ..serving import range_response
 
 router = APIRouter()
 

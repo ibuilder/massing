@@ -6,8 +6,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from .. import (capital, comps, distwaterfall, leasemgmt, marketing, modules as me, rbac, re_bridge,
-                rentroll, signing)
+from .. import capital, comps, distwaterfall, leasemgmt, marketing, rbac, re_bridge, rentroll, signing
+from .. import modules as me
 from ..db import get_db
 from ..models import Project
 

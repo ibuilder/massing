@@ -9,9 +9,8 @@ from sqlalchemy.orm import Session
 
 from .. import audit, connectors
 from ..db import get_db
-from ..models import Connection
+from ..models import Connection, User
 from .auth import require_admin_user
-from ..models import User
 
 router = APIRouter()
 

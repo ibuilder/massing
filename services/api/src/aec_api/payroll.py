@@ -89,9 +89,9 @@ def wh347_pdf(data: dict, project_name: str, contractor: str = "") -> bytes:
 
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import landscape, letter
+    from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import inch
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-    from reportlab.lib.styles import getSampleStyleSheet
 
     ss = getSampleStyleSheet()
     days = data["days"]

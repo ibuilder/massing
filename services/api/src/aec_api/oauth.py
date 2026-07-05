@@ -13,7 +13,8 @@ from __future__ import annotations
 import json
 import urllib.parse
 import urllib.request
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from . import settings_store
 

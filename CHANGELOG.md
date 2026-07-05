@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.85 — Code standards S1: safe PEP 8-aligned auto-fixes
+A mechanical, behaviour-preserving compliance pass across the Python backend (`services/api` +
+`services/data`) — the first of a phased standards initiative. Ruff's **safe** auto-fixes only:
+- **Import ordering** (isort / PEP 8) — imports sorted into stdlib / third-party / first-party groups.
+- **pyupgrade** — deprecated import paths, quoted annotations, and old-style `%` formatting modernized.
+- **Comprehension simplifications** — unnecessary `dict()`/`list()` comprehensions and calls collapsed.
+- **`contextlib.suppress`** in place of `try/except/pass`.
+~200 fixes across 52 files. No behaviour change (**120/120 backend suites pass**, imports clean). The
+codebase's deliberate compact idiom (compact one-liners, unused FastAPI-DI args, typographic unicode) is
+intentionally preserved. Line-length wrapping (S2) and CI lock-in (S3) follow.
+
 ## v0.3.84 — Discipline Spine D5b: parametric MEP generation (spine complete)
 The generator now produces real **parametric MEP distribution**, so a generated building reads as a
 layered structural / architectural / **MEP** model — completing the five-phase Discipline Spine.

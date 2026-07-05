@@ -177,7 +177,7 @@ def optimize(plate_w: float, plate_d: float, floors: int, targets: dict | None =
     (lease-up vacancy) and **exit_cap** (for the dev spread). Yield-on-cost and the spread use the
     canonical proforma functions, so this generative screen is consistent with the full underwriting.
     "Find the deal that pencils.\""""
-    from .proforma import returns                  # canonical YoC + dev-spread (untie from a proxy)
+    from .proforma import returns  # canonical YoC + dev-spread (untie from a proxy)
 
     t = targets or {}
     e = {"rent_psf_yr": 34.0, "hard_psf": 220.0, "stall_cost": 12_000.0, "opex_ratio": 0.35,

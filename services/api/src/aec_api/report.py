@@ -277,7 +277,9 @@ def investment_deck_pdf(db: Session, pid: str, project_name: str) -> bytes:
     from reportlab.lib.pagesizes import landscape, letter
     from reportlab.pdfgen import canvas
 
-    from . import ai, benchmarks as bm, dashboard, dev_budget as dvb
+    from . import ai, dashboard
+    from . import benchmarks as bm
+    from . import dev_budget as dvb
     from .models import Project
 
     p = db.get(Project, pid)
@@ -420,7 +422,8 @@ def investment_deck_pdf(db: Session, pid: str, project_name: str) -> bytes:
                  f"({constr}-month construction, {lease}-month lease-up).")
     # construction status — is the live GC GMP tracking the underwriting?
     try:
-        from . import dev_budget as _dvb, project_budget as _pb2
+        from . import dev_budget as _dvb
+        from . import project_budget as _pb2
         from .models import Project as _Pj
         _p = db.get(_Pj, pid)
         _gmp = _pb2.gmp_budget(db, pid)["gmp"]
@@ -467,7 +470,8 @@ def investment_memo_pdf(db: Session, pid: str, project_name: str) -> bytes:
     from reportlab.lib.pagesizes import letter
     from reportlab.pdfgen import canvas
 
-    from . import ai, dashboard, dev_budget as dvb
+    from . import ai, dashboard
+    from . import dev_budget as dvb
     from .models import Project
 
     p = db.get(Project, pid)

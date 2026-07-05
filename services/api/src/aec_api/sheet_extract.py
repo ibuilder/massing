@@ -55,6 +55,7 @@ def extract_pdf(pdf_bytes: bytes, *, max_pages: int = 30) -> dict[str, Any]:
     text = ""
     try:
         import io
+
         from pypdf import PdfReader
         reader = PdfReader(io.BytesIO(pdf_bytes))
         for page in reader.pages[:max_pages]:

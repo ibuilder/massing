@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 
-from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 
 from .. import ai, classification, storage
 from ..rbac import require_role

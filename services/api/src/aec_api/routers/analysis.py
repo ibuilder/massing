@@ -9,10 +9,10 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import audit
-from ..rbac import require_role
 from ..db import get_db
 from ..deps import source_ifc_path as _source_ifc
 from ..models import Project, ProjectModel, Topic
+from ..rbac import require_role
 
 _DATA_SRC = Path(__file__).resolve().parents[4] / "data" / "src"
 if str(_DATA_SRC) not in sys.path:

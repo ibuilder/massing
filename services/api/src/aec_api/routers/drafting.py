@@ -5,9 +5,8 @@ PDF (text extracted per page for citations) or pasted text."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
-from starlette.concurrency import run_in_threadpool
-
 from fastapi import Depends as _Dep
+from starlette.concurrency import run_in_threadpool
 
 from .. import drafting, sheet_extract
 from ..db import get_db

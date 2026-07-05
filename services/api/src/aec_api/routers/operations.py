@@ -3,7 +3,6 @@ reserve study / capital plan, and CAM reconciliation."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-
 from sqlalchemy.orm import Session
 
 from .. import audit, cam, cmms, energy, energy_star_bridge, esg, fca, reserve, twin

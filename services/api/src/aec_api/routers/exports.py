@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..rbac import require_role
 from ..deps import source_ifc_path as _source_ifc
+from ..rbac import require_role
 
 # make the monorepo data package importable in dev (services/data/src)
 _DATA_SRC = Path(__file__).resolve().parents[4] / "data" / "src"
@@ -22,8 +22,9 @@ router = APIRouter()
 
 
 def _xlsx_bytes(sheets: dict) -> bytes:
-    from aec_data.xlsx import write_sheets  # type: ignore
     import tempfile
+
+    from aec_data.xlsx import write_sheets  # type: ignore
 
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
         write_sheets(tmp.name, sheets)
@@ -114,6 +115,7 @@ def export_gbxml(pid: str, db: Session = Depends(get_db), _sec: str = Depends(re
     """gbXML (Green Building XML) — spaces + areas/volumes from the IFC geometry, for OpenStudio /
     EnergyPlus / IES energy modelling. Simplified (building-level envelope, not per-space surfaces)."""
     from aec_data import gbxml  # type: ignore
+
     from ..models import Project
     p = db.get(Project, pid)
     xml = gbxml.to_gbxml_file(_source_ifc(db, pid), (p.name if p else None) or "Project")

@@ -7,16 +7,15 @@ fields; extend the XML builders/parsers as needed."""
 from __future__ import annotations
 
 import io
-import xml.etree.ElementTree as ET   # for Element node types only — parsing goes through defusedxml
+import xml.etree.ElementTree as ET  # for Element node types only — parsing goes through defusedxml
 import zipfile
+from datetime import datetime, timezone
+from typing import Any
 
 # BCF files are user-uploaded, untrusted XML inside a zip. Parse with defusedxml to harden against
 # XXE / billion-laughs / external-entity attacks (same protection as citygml.py). Returns standard
 # ElementTree nodes, so the rest of the ET-based traversal is unchanged.
 from defusedxml.ElementTree import fromstring as _safe_fromstring
-from datetime import datetime, timezone
-from typing import Any
-
 from sqlalchemy.orm import Session
 
 from .models import Comment, Topic, Viewpoint

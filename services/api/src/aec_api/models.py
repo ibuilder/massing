@@ -35,7 +35,7 @@ class Project(Base):
     dev_property: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    topics: Mapped[list["Topic"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    topics: Mapped[list[Topic]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
 class ProjectModel(Base):
@@ -187,10 +187,10 @@ class Topic(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     modified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
-    project: Mapped["Project"] = relationship(back_populates="topics")
-    comments: Mapped[list["Comment"]] = relationship(back_populates="topic", cascade="all, delete-orphan")
-    viewpoints: Mapped[list["Viewpoint"]] = relationship(back_populates="topic", cascade="all, delete-orphan")
-    attachments: Mapped[list["Attachment"]] = relationship(back_populates="topic", cascade="all, delete-orphan")
+    project: Mapped[Project] = relationship(back_populates="topics")
+    comments: Mapped[list[Comment]] = relationship(back_populates="topic", cascade="all, delete-orphan")
+    viewpoints: Mapped[list[Viewpoint]] = relationship(back_populates="topic", cascade="all, delete-orphan")
+    attachments: Mapped[list[Attachment]] = relationship(back_populates="topic", cascade="all, delete-orphan")
 
 
 class Comment(Base):
@@ -202,7 +202,7 @@ class Comment(Base):
     viewpoint_id: Mapped[str | None] = mapped_column(ForeignKey("viewpoints.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    topic: Mapped["Topic"] = relationship(back_populates="comments")
+    topic: Mapped[Topic] = relationship(back_populates="comments")
 
 
 class Viewpoint(Base):
@@ -219,7 +219,7 @@ class Viewpoint(Base):
     snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)       # data-uri png (optional)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    topic: Mapped["Topic"] = relationship(back_populates="viewpoints")
+    topic: Mapped[Topic] = relationship(back_populates="viewpoints")
 
 
 class Attachment(Base):
@@ -233,7 +233,7 @@ class Attachment(Base):
     storage_key: Mapped[str] = mapped_column(String, nullable=False)  # object-storage key/path
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    topic: Mapped["Topic"] = relationship(back_populates="attachments")
+    topic: Mapped[Topic] = relationship(back_populates="attachments")
 
 
 class AuditLog(Base):

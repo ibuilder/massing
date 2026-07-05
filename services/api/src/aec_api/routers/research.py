@@ -7,10 +7,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from .. import benchmarks as bm
-from .. import lean
+from .. import lean, pull_plan, takt
 from .. import modules as me
-from .. import pull_plan
-from .. import takt
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_role
@@ -78,7 +76,9 @@ async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depen
     import json
 
     from aec_data.schedule import parse_xer  # type: ignore  (data-service engine on sys.path)
-    from .. import modules as me, storage
+
+    from .. import modules as me
+    from .. import storage
 
     text = (await file.read()).decode("utf-8", "ignore")
     activities = parse_xer(text)
@@ -124,7 +124,8 @@ def clear_xer(pid: str, db: Session = Depends(get_db), actor: str = Depends(requ
     code→id index) and the date-window blob. Hand-entered activities are untouched."""
     import json
 
-    from .. import modules as me, storage
+    from .. import modules as me
+    from .. import storage
     removed = 0
     try:
         index = json.loads(storage.get(_P6_KEY.format(pid=pid))).get("record_ids", {})
@@ -155,7 +156,8 @@ def schedule_4d(pid: str, source: str = "auto", db: Session = Depends(get_db),
     import json
     from datetime import date, timedelta
 
-    from .. import fourd, modules as me, storage, takt
+    from .. import fourd, storage, takt
+    from .. import modules as me
     try:
         idx = json.loads(storage.get(f"{pid}/props.json"))
         elements = idx.get("elements", [])

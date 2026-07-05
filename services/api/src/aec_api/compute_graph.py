@@ -11,7 +11,8 @@ the ports are clean (the "By"-factory convention from the zero-touch primer)."""
 from __future__ import annotations
 
 import inspect
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 _NODES: dict[str, dict[str, Any]] = {}
 

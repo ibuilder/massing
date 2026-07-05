@@ -8,14 +8,11 @@ from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import ai
-from .. import mailer
+from .. import ai, mailer, rbac
 from .. import modules as mod_engine
-from .. import rbac
 from .. import sync as sync_engine
 from ..db import get_db
-from ..models import Connection
-from ..models import Project, ProjectMember, SyncSchedule, User
+from ..models import Connection, Project, ProjectMember, SyncSchedule, User
 from ..rbac import current_user, require_role
 
 router = APIRouter()
@@ -321,6 +318,7 @@ def mark_view_seen(pid: str, key: str, vid: str, db: Session = Depends(get_db),
                    user: str = Depends(current_user)):
     """Mark a saved view as seen now — clears its 'new' alert count."""
     from datetime import datetime, timezone
+
     from ..models import SavedView
     v = db.get(SavedView, vid)
     if not v or v.user != user or v.project_id != pid:
@@ -421,6 +419,7 @@ async def import_records(pid: str, key: str, file: UploadFile = File(...), mappi
     """Step 2: import the sheet using a column->field mapping (JSON {source_header: field_name}).
     Validates required fields + coerces types per row; one bad row never aborts the batch."""
     import json
+
     from .. import imports
     if key not in mod_engine.TABLES:
         raise HTTPException(404, "unknown module")

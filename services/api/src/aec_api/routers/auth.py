@@ -11,10 +11,9 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import audit, auth, oauth, settings_store
+from .. import audit, auth, oauth, rbac, settings_store
 from ..db import get_db
 from ..models import AuditLog, User
-from .. import rbac
 from ..rbac import current_user
 
 router = APIRouter()

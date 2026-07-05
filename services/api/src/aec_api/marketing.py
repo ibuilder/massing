@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 from . import appraisal
 from .models import Project, Scenario
 
-
 # our listing field -> RESO Data Dictionary field (the bridge seam to WPRealWise / MLS)
 RESO_MAP: dict[str, str] = {
     "status": "StandardStatus",

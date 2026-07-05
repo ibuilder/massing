@@ -9,7 +9,8 @@ viewer can scrub a timeline and color/hide by date."""
 from __future__ import annotations
 
 import csv
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 import ifcopenshell
 import ifcopenshell.util.element as ue

@@ -13,7 +13,8 @@ _KEY_MODULES = ("rfi", "submittal", "cor", "change_event", "punchlist", "inspect
 
 
 def project_snapshot(db: Session, pid: str) -> dict[str, Any]:
-    from . import modules as me, px
+    from . import modules as me
+    from . import px
     from .models import Project
     p = db.get(Project, pid)
     snap: dict[str, Any] = {"project": p.name if p else pid}

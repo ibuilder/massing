@@ -27,6 +27,7 @@ def _keys_dir() -> Path:
 def _generate_self_signed_p12() -> bytes:
     """Create a self-signed RSA signer cert + key, serialized as PKCS#12 (cached on disk)."""
     import datetime
+
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.asymmetric import rsa

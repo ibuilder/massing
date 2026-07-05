@@ -6,7 +6,8 @@ from datetime import date, datetime
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
-from .. import modules as me, payroll, rbac
+from .. import modules as me
+from .. import payroll, rbac
 from ..db import get_db
 from ..models import Project
 

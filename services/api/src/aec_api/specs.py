@@ -79,7 +79,7 @@ def submittal_log(db, pid: str) -> dict[str, Any]:
     # index logged submittals by normalized spec section number
     logged_by_section: dict[str, int] = {}
     for s in subs:
-        sec = parse_section_number((_d(s).get("spec_section") or "")) or (_d(s).get("spec_section") or "").strip()
+        sec = parse_section_number(_d(s).get("spec_section") or "") or (_d(s).get("spec_section") or "").strip()
         if sec:
             logged_by_section[sec] = logged_by_section.get(sec, 0) + 1
 

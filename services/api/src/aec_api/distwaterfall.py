@@ -60,7 +60,8 @@ def scenario(db, pid: str, body: dict | None = None) -> dict[str, Any]:
     body: { distributable: [..], dates: [contribution_date, d1, d2, ...] }  (dates len = distributable+1)
           or { exit_amount, contribution_date, exit_date }  (single distribution).
     Optional waterfall overrides: pref_rate, tiers, style, clawback."""
-    from . import capital, modules as me
+    from . import capital
+    from . import modules as me
     body = body or {}
     investors = me.list_records(db, "investor", pid, limit=100000) if "investor" in me.TABLES else []
     ct = capital.cap_table(investors)

@@ -38,7 +38,7 @@ def level_quotes(quotes: list[dict]) -> dict:
     # item (canonical) -> {supplier -> {qty, unit, unit_price, ext}}
     items: dict[str, dict] = {}
     labels: dict[str, str] = {}
-    supplier_totals = {s: 0.0 for s in suppliers}
+    supplier_totals = dict.fromkeys(suppliers, 0.0)
     for q, s in zip(quotes, suppliers):
         for ln in q.get("lines", []):
             key = _canon(ln.get("item", ""))

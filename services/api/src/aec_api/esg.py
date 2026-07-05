@@ -11,9 +11,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from . import energy
+from . import energy, resilience
 from . import modules as me
-from . import resilience
 
 # kgCO2e per unit of site energy, by (utility). Scope 1 = fuel burned on site; Scope 2 = purchased
 # energy. Defaults: EPA emission factors for natural gas (5.3 kgCO2e/therm) and a US-average grid

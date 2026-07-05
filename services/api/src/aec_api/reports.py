@@ -12,9 +12,11 @@ from . import modules as me
 from . import project_budget as pb
 from . import px
 from .models import Project
+
 # Report model + formatting live in reports_core; PDF/Excel rendering in reports_render. Re-exported
 # here so existing callers keep using `reports.Report` / `reports.to_pdf` / `reports.to_sheets`.
-from .reports_core import Report, money as _money
+from .reports_core import Report
+from .reports_core import money as _money
 from .reports_render import to_pdf, to_sheets  # noqa: F401  (re-exported for the router)
 
 __all__ = ["catalog", "build", "to_pdf", "to_sheets", "Report"]

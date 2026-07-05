@@ -7,20 +7,19 @@ from typing import Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
-
 from sqlalchemy import delete
+from sqlalchemy.orm import Session
 
 from .. import cost as cost_engine
 from .. import modules as me
 from .. import rbac
 from ..db import get_db
 from ..models import Scenario
-from ..rbac import current_user
 from ..proforma.draws import reforecast
 from ..proforma.monte_carlo import monte_carlo
 from ..proforma.sensitivity import sensitivity
 from ..proforma.solve import solve
+from ..rbac import current_user
 
 router = APIRouter()
 
@@ -75,7 +74,9 @@ def two_sided_budget(pid: str, ltc: float = 0.65, rate: float = 0.075,
                      db: Session = Depends(get_db), _sec: str = Depends(rbac.require_role("viewer"))):
     """The development budget as Uses (left) vs Sources (right) — from the latest scenario if one is
     saved, else built from the project's cost budget + the supplied debt/equity params."""
-    from .. import dev_budget as dvb, financials, sources_uses as su
+    from .. import dev_budget as dvb
+    from .. import financials
+    from .. import sources_uses as su
     from ..models import Project as _P
     p = db.get(_P, pid)
     if not p:
@@ -180,7 +181,8 @@ def get_sources_uses(pid: str, ltc: float = 0.65, rate: float = 0.075,
                      db: Session = Depends(get_db), _sec: str = Depends(rbac.require_role("viewer"))):
     """Sources & Uses built from the project's cost budget — grouped Uses (acquisition/hard/soft/
     contingency + construction-loan interest) vs sized Sources (senior debt by LTC + LP/GP equity)."""
-    from .. import dev_budget as dvb, sources_uses as su
+    from .. import dev_budget as dvb
+    from .. import sources_uses as su
     from ..models import Project as _P
     p = db.get(_P, pid)
     if not p:
@@ -196,6 +198,7 @@ def investment_memo(pid: str, db: Session = Depends(get_db), _sec: str = Depends
     Sources & Uses, the development cost budget, returns (from the latest solved scenario), and a
     risk read. The 'generate a presentation with financials' deliverable."""
     from fastapi import Response
+
     from .. import report
     from ..models import Project as _P
     p = db.get(_P, pid)
@@ -210,6 +213,7 @@ def investment_memo(pid: str, db: Session = Depends(get_db), _sec: str = Depends
 def investment_deck(pid: str, db: Session = Depends(get_db), _sec: str = Depends(rbac.require_role("viewer"))):
     """Pitch-deck (slide) variant of the investment memo — landscape, big numbers, the ask."""
     from fastapi import Response
+
     from .. import report
     from ..models import Project as _P
     p = db.get(_P, pid)
@@ -345,6 +349,7 @@ def loan_draw_request_pdf(pid: str, app_no: int = 1, ltc: float = 0.65, rate: fl
     """The lender draw-request as a PDF — this draw (the GC pay-app amount due) against the
     construction loan, with cumulative draws, equity/loan split, balance, and availability."""
     from fastapi import Response
+
     from .. import cost as cost_engine
     from .. import report
     from ..models import Project as _P
@@ -412,10 +417,11 @@ def dev_budget_cost_lines(pid: str, db: Session = Depends(get_db), _sec: str = D
 def proforma_model_metrics(pid: str, db: Session = Depends(get_db), _sec: str = Depends(rbac.require_role("viewer"))):
     """Metrics from the project's source IFC, so the proforma can underwrite against the real
     model (areas → hard cost / rent, etc.) instead of hand-keyed numbers. 409 if no source IFC."""
-    from ..deps import source_ifc_path
-    from aec_data.ifc_loader import open_model  # type: ignore
     from aec_data import drawings as dr
     from aec_data import spaces as sp
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from ..deps import source_ifc_path
 
     model = open_model(source_ifc_path(db, pid))
     rows = sp.space_schedule(model)

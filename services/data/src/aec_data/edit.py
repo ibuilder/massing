@@ -229,9 +229,8 @@ def add_slab(model: ifcopenshell.file, points, thickness: float = 0.2,
              storey: str | None = None) -> str:
     """Author an IfcSlab from a polygon of XY points (meters) extruded by `thickness`.
     Returns the new slab's GUID."""
-    import numpy as np
-
     import ifcopenshell.util.unit as uunit
+    import numpy as np
     scale = uunit.calculate_unit_scale(model)
     body = _body_context(model)
     st = _first_storey(model, storey)
@@ -312,9 +311,8 @@ def add_roof(model: ifcopenshell.file, points, thickness: float = 0.3,
              storey: str | None = None) -> str:
     """Author a flat IfcRoof from a polygon of XY points (meters) extruded by `thickness`
     at the storey elevation. (Pitched roofs are a future enhancement.)"""
-    import numpy as np
-
     import ifcopenshell.util.unit as uunit
+    import numpy as np
     scale = uunit.calculate_unit_scale(model)
     body = _body_context(model)
     st = _first_storey(model, storey)
@@ -455,9 +453,8 @@ def rotate_element(model: ifcopenshell.file, guid: str, angle_deg: float = 0.0) 
     import math
 
     import ifcopenshell.util.placement as uplace
-    import numpy as np
-
     import ifcopenshell.util.unit as uunit
+    import numpy as np
     el = _element(model, guid)
     scale = uunit.calculate_unit_scale(model)
     a = math.radians(float(angle_deg))

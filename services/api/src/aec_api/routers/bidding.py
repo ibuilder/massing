@@ -5,7 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends
 from sqlalchemy.orm import Session
 
-from .. import bid_leveling, itb as itb_engine, modules as me
+from .. import bid_leveling
+from .. import itb as itb_engine
+from .. import modules as me
 from ..db import get_db
 from ..rbac import require_role
 from ..throttle import rate_limited

@@ -5,10 +5,8 @@ from __future__ import annotations
 import io
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
-
-from fastapi import Body
 
 from .. import cost
 from .. import modules as me
@@ -145,7 +143,8 @@ def element_5d(pid: str, guid: str, db: Session = Depends(get_db), _: str = Depe
     actual. Ties the BIM model to the GC schedule + budget — the same relational data, by element."""
     import json
 
-    from .. import fourd, project_budget as pb, storage
+    from .. import fourd, storage
+    from .. import project_budget as pb
     # element metadata from the published props index
     meta: dict = {}
     elements: list = []
@@ -209,7 +208,8 @@ def elements_5d_map(pid: str, by: str = "progress", db: Session = Depends(get_db
     per-element 5D. Drives 'color the building by progress / cost status'."""
     import json
 
-    from .. import fourd, project_budget as pb, storage
+    from .. import fourd, storage
+    from .. import project_budget as pb
     try:
         elements = json.loads(storage.get(f"{pid}/props.json")).get("elements", [])
     except Exception:                                  # noqa: BLE001 — no published index
@@ -406,11 +406,12 @@ def sov_from_budget(pid: str, replace: bool = False, db: Session = Depends(get_d
 def estimate_from_model(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Conceptual estimate from the IFC quantity takeoff × unit rates — priced line items by element
     class + a grand total (feeds the budget / proforma hard cost). 409 if no source IFC."""
-    from ..deps import source_ifc_path
-    from aec_data.qto import takeoff_file  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
     from aec_data import spaces as sp  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+    from aec_data.qto import takeoff_file  # type: ignore
+
     from .. import estimate as est
+    from ..deps import source_ifc_path
     path = source_ifc_path(db, pid)
     rows = takeoff_file(path, force_geometry=True)    # real geometry quantities (no cost map needed)
     # GFA (sf) from the model's spaces → a benchmark floor so a sparse model doesn't return a
@@ -446,9 +447,11 @@ def estimate_gaeb(pid: str, system: str = "din276", db: Session = Depends(get_db
                   _: str = Depends(require_role("viewer"))):
     """Export the model estimate as a GAEB DA XML 3.2 Bill of Quantities (X83), coded to a regional
     classification (din276 / nrm1 / masterformat). 409 if the project has no source IFC."""
-    from ..deps import source_ifc_path
     from aec_data.qto import takeoff_file  # type: ignore
-    from .. import estimate as est, classification as cls
+
+    from .. import classification as cls
+    from .. import estimate as est
+    from ..deps import source_ifc_path
     path = source_ifc_path(db, pid)
     rows = takeoff_file(path, force_geometry=True)
     est_out = est.estimate_from_takeoff(rows)
@@ -463,9 +466,10 @@ def qto_by_floor(pid: str, db: Session = Depends(get_db), _: str = Depends(requi
     """Quantity takeoff + cost broken down by floor (storey) and discipline (IFC class) — quantities
     and dollars mapped to where they sit in the building, with a per-floor total + a discipline
     roll-up. 409 if no source IFC."""
-    from ..deps import source_ifc_path
     from aec_data.qto import takeoff_file  # type: ignore
+
     from .. import estimate as est
+    from ..deps import source_ifc_path
     rows = takeoff_file(source_ifc_path(db, pid), force_geometry=True)
     return est.estimate_by_storey(rows)
 

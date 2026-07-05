@@ -68,8 +68,10 @@ def _ensure_indexes() -> None:
 
 
 def init_db() -> None:
-    from . import models  # noqa: F401  (register mappers)
-    from . import modules  # GC portal: register one mod_<key> table per module.json
+    from . import (
+        models,  # noqa: F401  (register mappers)
+        modules,  # GC portal: register one mod_<key> table per module.json
+    )
     modules.load_registry()
     Base.metadata.create_all(bind=engine)
     _ensure_columns()

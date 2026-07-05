@@ -1,7 +1,8 @@
 """Tiny XLSX writer wrapper so every export shares formatting (guide §8 → XLSX/CSV)."""
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from openpyxl import Workbook
 from openpyxl.styles import Font

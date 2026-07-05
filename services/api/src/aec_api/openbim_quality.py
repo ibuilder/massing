@@ -38,8 +38,8 @@ def loin(idx: dict[str, dict]) -> dict[str, Any]:
     """Level-of-Information-Need scoring: each element earns a 0–5 facet score; report the average,
     the % reaching a 'coordinated' bar (>=4 facets), and the distribution by score."""
     total = len(idx)
-    dist = {i: 0 for i in range(len(LOIN_FACETS) + 1)}
-    facet_present = {f: 0 for f in LOIN_FACETS}
+    dist = dict.fromkeys(range(len(LOIN_FACETS) + 1), 0)
+    facet_present = dict.fromkeys(LOIN_FACETS, 0)
     coordinated = 0
     score_sum = 0
     for e in idx.values():

@@ -111,7 +111,7 @@ def _proforma_seed(p: MassingIn, m: dict) -> dict:
             "returns": result.get("returns"), "sources_uses": result.get("sources_uses")}
 
 
-def _seed_dev_budget(body: "MassingIn", m: dict) -> dict:
+def _seed_dev_budget(body: MassingIn, m: dict) -> dict:
     """A starter B1 cost budget from the generated program, so Sources & Uses / Finance show the real
     deal immediately after generate (land + hard from GFA×$/sf + soft) instead of a $0 template."""
     hard = float(m.get("buildable_gfa_sf", 0)) * body.hard_cost_psf
@@ -158,7 +158,7 @@ def _seed_spine_skeleton(db, pid: str, cc: dict, cc_budget: dict, actor: str) ->
     return {"seeded": True, "bid_packages": packages, "spec_sections": specs}
 
 
-def _seed_gc_portal(db, pid: str, body: "MassingIn", m: dict, actor: str) -> dict:
+def _seed_gc_portal(db, pid: str, body: MassingIn, m: dict, actor: str) -> dict:
     """Seed the GC portal so a generated project is complete across all three pillars (model · GC ·
     deal), not just the proforma: CSI cost codes, a hard-cost-allocated budget, a GMP prime contract
     (value = hard cost, so it reconciles in-sync with the underwriting), and a cost-loaded schedule

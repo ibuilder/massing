@@ -108,7 +108,7 @@ def reconcile(approaches: dict[str, dict], weights: dict[str, float] | None = No
     wsum = sum(w.get(k, 0.0) for k in usable) or 0.0
     if wsum <= 0:                                          # no weights → equal-weight the usable ones
         wsum = float(len(usable)) or 1.0
-        w = {k: 1.0 for k in usable}
+        w = dict.fromkeys(usable, 1.0)
     value = sum((usable[k]["value"]) * (w.get(k, 0.0)) for k in usable) / wsum if usable else 0.0
     contributions = [
         {"approach": k, "value": _r(usable[k]["value"]),

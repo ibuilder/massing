@@ -44,8 +44,8 @@ def _age_days(created) -> int | None:
 def _openbim(pid: str) -> dict | None:
     """Model quality signals when a model is indexed; None otherwise (keeps the scorecard model-optional)."""
     try:
+        from . import ids_authoring, openbim_quality
         from .routers.properties import _INDEX, _ensure_loaded
-        from . import openbim_quality, ids_authoring
         _ensure_loaded(pid)
         idx = _INDEX.get(pid)
         if not idx:
