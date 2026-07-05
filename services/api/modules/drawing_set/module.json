@@ -1,0 +1,104 @@
+{
+  "key": "drawing_set",
+  "name": "Drawing Set",
+  "section": "Engineering",
+  "icon": "📚",
+  "ref_prefix": "SET",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Set Name",
+      "type": "text",
+      "required": true,
+      "fieldset": "Set"
+    },
+    {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "select",
+      "options": [
+        "All disciplines",
+        "General",
+        "Civil",
+        "Landscape",
+        "Structural",
+        "Architectural",
+        "Fire Protection",
+        "Plumbing",
+        "Mechanical",
+        "Electrical",
+        "Telecommunications",
+        "Equipment"
+      ],
+      "fieldset": "Set"
+    },
+    {
+      "name": "set_type",
+      "label": "Issuance",
+      "type": "select",
+      "options": [
+        "Schematic Design",
+        "Design Development",
+        "50% Construction Documents",
+        "Issued for Permit",
+        "Issued for Bid",
+        "Issued for Construction",
+        "Coordination",
+        "Record / As-Built"
+      ],
+      "fieldset": "Set"
+    },
+    {
+      "name": "issue_date",
+      "label": "Issue Date",
+      "type": "date",
+      "fieldset": "Issue"
+    },
+    {
+      "name": "purpose",
+      "label": "Purpose / Notes",
+      "type": "textarea",
+      "fieldset": "Issue"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "issued",
+      "superseded"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "issued",
+        "action": "issue",
+        "party": [
+          "Architect",
+          "Engineer",
+          "GC",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "issued",
+        "to": "superseded",
+        "action": "supersede",
+        "party": [
+          "Architect",
+          "Engineer",
+          "GC",
+          "OwnersRep"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "discipline",
+    "set_type",
+    "issue_date"
+  ],
+  "workspace": "construction|design"
+}

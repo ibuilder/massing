@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.81 — Discipline Spine D3: discipline-tagged drawing sheets + sets
+Drawing sheets now read as a proper **discipline-ordered set**, and each sheet links to the specification
+and drawing set it belongs to — the documentation layer of the spine.
+- **NCS Sheet ID parsing** (`drawingset.parse_sheet_id`) — `A-101` → discipline **A** (Architectural),
+  sheet type **1** (Plans), sequence **01**. The drawing-set register now carries the parsed sheet ID on
+  every sheet, derives the discipline from the sheet number when the field is blank, and **orders the
+  sheet index the way a set is bound** — by NCS discipline (General → Civil → Structural → Architectural
+  → MEP), then sheet number.
+- **`drawing_set` module** — named issued sets (Schematic Design / Permit / Bid / Issued for Construction
+  / Record) with discipline, issue date and purpose.
+- `drawing` gains **`drawing_set`** and **governing `spec_section`** references (the sheet→spec link that
+  feeds D4) plus issued-date / revision-purpose fields.
+- `test_disciplines` extended. Third of five phases (D1→D5).
+
 ## v0.3.80 — Discipline Spine D2: discipline-tagged model elements
 Every model element now carries its **NCS discipline**, derived from its IFC class through the D1
 MasterFormat map — so the model reads as layered structural / architectural / MEP even from a single

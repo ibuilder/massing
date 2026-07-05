@@ -6,6 +6,27 @@ from __future__ import annotations
 import re
 from typing import Any
 
+# NCS (US National CAD Standard) sheet-type designator — the digit after the discipline letter.
+_SHEET_TYPE = {"0": "General", "1": "Plans", "2": "Elevations", "3": "Sections",
+               "4": "Large-scale views", "5": "Details", "6": "Schedules & Diagrams",
+               "7": "User-defined", "8": "User-defined", "9": "3D / isometric"}
+_SHEET_ID_RE = re.compile(r"^([A-Z]{1,2})[\s\-.]?(\d)(\d{1,3})?", re.I)
+
+
+def parse_sheet_id(sheet_number: Any) -> dict[str, Any] | None:
+    """Parse an NCS Sheet Identification (discipline designator + sheet-type digit + sequence), e.g.
+    'A-101' -> {discipline 'A' (Architectural), sheet type '1' (Plans), sequence '01'}. The first letter
+    is the NCS level-1 discipline (level-2 designators like 'AD' fold to 'A'). Returns None if the sheet
+    number doesn't follow the pattern."""
+    m = _SHEET_ID_RE.match(str(sheet_number or "").strip())
+    if not m:
+        return None
+    from . import classification as cls
+    letters, typ, seq = m.group(1).upper(), m.group(2), m.group(3) or ""
+    code = letters[:1]
+    return {"discipline_code": code, "discipline": cls.discipline_name(code),
+            "sheet_type": typ, "sheet_type_name": _SHEET_TYPE.get(typ), "sequence": seq}
+
 
 def _rev_key(rev: Any) -> tuple:
     """Sortable revision key. Numeric revs sort numerically; alpha revs (A<B<C) after; blank lowest.
@@ -43,12 +64,18 @@ def register(drawings: list[dict]) -> dict[str, Any]:
             superseded.append(r2)
         cur_clean = {k: v for k, v in cur.items() if k != "_k"}
         current_set.append(cur_clean)
-        disc = cur.get("discipline") or "Uncategorized"
+        sid = parse_sheet_id(sheet)          # NCS Sheet ID → discipline + sheet-type + sequence
+        disc = cur.get("discipline") or (sid and sid["discipline"]) or "Uncategorized"
         by_discipline[disc] = by_discipline.get(disc, 0) + 1
         # issuance classification: a single revision is a new sheet; more than one means it was revised
         change = "new" if len(revs) == 1 else "revised"
         index.append({"sheet_number": sheet, "title": cur.get("title"), "discipline": disc,
-                      "current_revision": cur.get("revision"), "revisions": len(revs), "change": change})
+                      "sheet_id": sid, "current_revision": cur.get("revision"),
+                      "revisions": len(revs), "change": change})
+    # order the sheet index the way a drawing set is bound: by NCS discipline, then sheet number
+    from . import classification as cls
+    _order = {d["name"]: i for i, d in enumerate(cls.disciplines())}
+    index.sort(key=lambda s: (_order.get(s["discipline"], 99), s["sheet_number"]))
     new_count = sum(1 for s in index if s["change"] == "new")
     return {
         "sheet_count": len(by_sheet),

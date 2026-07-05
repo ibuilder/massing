@@ -81,6 +81,21 @@ with TestClient(app) as cl:
     cb = cl.get(f"/projects/{pid}/elements/color-by?prop=discipline").json()
     assert cb["colored"] == 5 and {b["label"] for b in cb["buckets"]} >= {"Structural", "Mechanical"}, cb
 
+    # --- D3: NCS sheet IDs + discipline-ordered drawing set ---
+    for sheet, title in [("M-301", "HVAC Sections"), ("A-101", "Floor Plan"), ("S-201", "Framing")]:
+        r = cl.post(f"/projects/{pid}/modules/drawing",
+                    json={"data": {"number": sheet, "sheet_number": sheet, "title": title}})
+        assert r.status_code == 201, r.text[:160]
+    reg = cl.get(f"/projects/{pid}/drawing-set").json()
+    # the bound set is ordered by NCS discipline (Structural → Architectural → Mechanical), even though
+    # no discipline field was entered — it's parsed from the sheet number.
+    order = [(s["sheet_number"], s["discipline"]) for s in reg["sheet_index"]]
+    assert order == [("S-201", "Structural"), ("A-101", "Architectural"), ("M-301", "Mechanical")], order
+    a101 = next(s for s in reg["sheet_index"] if s["sheet_number"] == "A-101")
+    assert a101["sheet_id"]["discipline"] == "Architectural", a101["sheet_id"]
+    assert a101["sheet_id"]["sheet_type_name"] == "Plans" and a101["sheet_id"]["sequence"] == "01", a101
+    assert reg["by_discipline"].get("Structural") == 1, reg["by_discipline"]
+
 print("DISCIPLINES OK - NCS discipline vocabulary (11) + MasterFormat divisions (25) + Uniformat "
       "crosswalk (13); IFC-class->discipline (Column->S, Duct->M, Pipe->P, Door->A); legacy enum "
       "aliases (MEP->M, Geotechnical->C, Low Voltage->T) normalized; /reference/disciplines serves it")

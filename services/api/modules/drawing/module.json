@@ -55,6 +55,28 @@
         "Superseded",
         "For Review"
       ]
+    },
+    {
+      "name": "drawing_set",
+      "label": "Drawing Set",
+      "type": "reference",
+      "module": "drawing_set"
+    },
+    {
+      "name": "spec_section",
+      "label": "Governing Spec Section",
+      "type": "reference",
+      "module": "spec_section"
+    },
+    {
+      "name": "issued_date",
+      "label": "Issued Date",
+      "type": "date"
+    },
+    {
+      "name": "purpose",
+      "label": "Revision Purpose",
+      "type": "text"
     }
   ],
   "workflow": {
