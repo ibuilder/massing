@@ -52,6 +52,30 @@
       ]
     },
     {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "select",
+      "options": [
+        "General",
+        "Civil",
+        "Landscape",
+        "Structural",
+        "Architectural",
+        "Fire Protection",
+        "Plumbing",
+        "Mechanical",
+        "Electrical",
+        "Telecommunications",
+        "Equipment"
+      ]
+    },
+    {
+      "name": "bid_package",
+      "label": "Bid Package",
+      "type": "reference",
+      "module": "bid_package"
+    },
+    {
       "name": "submittals_required",
       "label": "Submittals required (Part 1)",
       "type": "textarea"

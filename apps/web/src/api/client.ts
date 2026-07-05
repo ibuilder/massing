@@ -1498,6 +1498,22 @@ export class ApiClient {
       open_site_risks: number; high_severity_open: number; weather_delay_days: number;
       factors: string[]; note: string }>(`/projects/${pid}/resilience/climate-risk`);
   }
+  /** Discipline Spine traceability: discipline → sheets → specs → bid packages → cost codes → budget. */
+  spineTraceability(pid: string) {
+    return this.json<{
+      disciplines: { discipline: string; code: string | null; sheets: number; specs: number;
+        packages: number; cost_codes: number; budget: number }[];
+      coverage: { specs: number; bid_packages: number; cost_codes: number; sheets: number;
+        specs_packaged_pct: number | null; packages_costed_pct: number | null;
+        sheets_specced_pct: number | null; spec_to_budget_pct: number | null };
+      gaps: { specs_without_bid_package: { ref: string; section: string; title: string }[];
+        bid_packages_without_cost_code: { ref: string; name: string }[];
+        sheets_without_spec: { ref: string; sheet: string }[] };
+      chain: { spec: string; section: string; title: string; discipline: string | null;
+        bid_package: string | null; bid_package_name: string | null; cost_code: string | null;
+        cost_code_value: string | null; linked: boolean }[];
+      note: string }>(`/projects/${pid}/spine/traceability`);
+  }
 
   // --- concept space programming: adjacency graph + massing hints ---------------
   programSummary(pid: string) {

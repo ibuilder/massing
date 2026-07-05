@@ -510,7 +510,7 @@ shared vocabularies (discipline + MasterFormat division) do the joining. Five ph
   per-model transforms; discipline layer toggles + colour-by-discipline in the viewer.
 - **D3 (planned): discipline sheets.** `drawing_set` module; parse the NCS Sheet ID (discipline +
   sheet-type digit + sequence) into structured fields; `revision_register` module; `drawing↔spec_section`.
-- **D4 (planned): connect the procurement chain.** `bid_package.spec_sections` TEXT → reference array;
+- **v0.3.82 — D4 (shipped): connect the procurement chain.** `bid_package.spec_sections` TEXT → reference array;
   `cost_code` link + shared discipline on bid_package/spec_section/cost_code; a `spine.py` traceability
   engine (discipline → models → sheets → specs → bid packages → cost codes → budget + coverage gaps).
 - **D5 (planned): discipline-aware generation.** Extend `generate/massing` to emit separate STR / ARCH /

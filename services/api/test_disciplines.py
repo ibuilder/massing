@@ -96,6 +96,29 @@ with TestClient(app) as cl:
     assert a101["sheet_id"]["sheet_type_name"] == "Plans" and a101["sheet_id"]["sequence"] == "01", a101
     assert reg["by_discipline"].get("Structural") == 1, reg["by_discipline"]
 
+    # --- D4: connect the procurement chain — spec → bid package → cost code → budget traceability ---
+    cc = cl.post(f"/projects/{pid}/modules/cost_code",
+                 json={"data": {"code": "03 30 00", "division": "03 — Concrete"}}).json()["id"]
+    bp = cl.post(f"/projects/{pid}/modules/bid_package",
+                 json={"data": {"name": "Concrete", "discipline": "Structural", "cost_code": cc,
+                                "budget": 500000}}).json()["id"]
+    cl.post(f"/projects/{pid}/modules/spec_section",
+            json={"data": {"section_number": "03 30 00", "title": "CIP Concrete",
+                           "division": "03 — Concrete", "bid_package": bp}})
+    cl.post(f"/projects/{pid}/modules/spec_section",   # div 09 → Architectural, no package (a gap)
+            json={"data": {"section_number": "09 20 00", "title": "Gypsum Board", "division": "09 — Finishes"}})
+    tr = cl.get(f"/projects/{pid}/spine/traceability").json()
+    cov = tr["coverage"]
+    assert cov["specs"] == 2 and cov["specs_packaged_pct"] == 50.0, cov          # one spec unpackaged
+    assert cov["packages_costed_pct"] == 100.0 and cov["spec_to_budget_pct"] == 50.0, cov
+    assert len(tr["gaps"]["specs_without_bid_package"]) == 1, tr["gaps"]
+    # the concrete spec traces all the way to the cost code
+    concrete = next(c for c in tr["chain"] if c["section"] == "03 30 00")
+    assert concrete["linked"] and concrete["bid_package_name"] == "Concrete" and concrete["cost_code_value"] == "03 30 00", concrete
+    # discipline derived from division even when the field is blank (09 → Architectural)
+    disc = {d["discipline"]: d for d in tr["disciplines"]}
+    assert disc["Structural"]["packages"] == 1 and disc["Architectural"]["specs"] == 1, tr["disciplines"]
+
 print("DISCIPLINES OK - NCS discipline vocabulary (11) + MasterFormat divisions (25) + Uniformat "
       "crosswalk (13); IFC-class->discipline (Column->S, Duct->M, Pipe->P, Door->A); legacy enum "
       "aliases (MEP->M, Geotechnical->C, Low Voltage->T) normalized; /reference/disciplines serves it")

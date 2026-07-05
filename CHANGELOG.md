@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.82 — Discipline Spine D4: connect the procurement chain (traceability)
+The payoff phase — the model, the documents and the money are now one connected thread, with the broken
+links surfaced so scope can't fall between them.
+- **Links wired**: `spec_section` gains **`bid_package`** (which package procures this spec) + a
+  discipline field; `bid_package` gains a **`cost_code`** reference + discipline. Spec→bid is N:1, the
+  correct direction — a package's specs are all the specs pointing to it.
+- **`spine.py` traceability engine** + `GET /projects/{id}/spine/traceability` — traces
+  **discipline → sheets → specs → bid packages → cost codes → budget**, with per-discipline rollups
+  (sheets/specs/packages/cost-codes/budget) and **coverage bars** for each join (sheets→spec,
+  specs→package, packages→cost-code, spec→budget). Discipline is resolved consistently — from the field,
+  else derived from the MasterFormat division or the NCS sheet number.
+- **Coverage gaps** list the broken links: unpackaged specs, unbudgeted packages, un-specced sheets.
+- New **🔗 Discipline Spine** panel (Design workspace): coverage bars, budget-by-discipline chart,
+  the gap lists, and the spec→package→cost-code trace. `test_disciplines` extended. Fourth of five phases.
+
 ## v0.3.81 — Discipline Spine D3: discipline-tagged drawing sheets + sets
 Drawing sheets now read as a proper **discipline-ordered set**, and each sheet links to the specification
 and drawing set it belongs to — the documentation layer of the spine.

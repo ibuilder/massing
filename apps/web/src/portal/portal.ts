@@ -129,6 +129,7 @@ export class PortalUI {
       __ids__: () => this.renderIds(), __turnover__: () => this.renderTurnover(),
       __operations__: () => this.renderOperations(), __energy__: () => this.renderEnergy(),
       __fca__: () => this.renderFca(), __resilience__: () => this.renderResilience(),
+      __spine__: () => this.renderSpine(),
       __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
       __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
@@ -169,6 +170,7 @@ export class PortalUI {
           { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },             // 10-category information-mgmt scorecard
           { key: "__modelqa__", icon: "✅", label: "Model Health" },        // deep-links to the Model Tools checks
           { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // flood DFE + stormwater sizing
+          { key: "__spine__", icon: "🔗", label: "Discipline Spine" },       // sheets→specs→bid→budget trace
         ]],
       ],
       // Owner / developer — acquire → design & build (phase gates) → operate.
@@ -1636,6 +1638,77 @@ export class PortalUI {
         + `</table>`;
       body.append(pc);
     }).catch(() => {});
+  }
+
+  // --- Discipline Spine — trace discipline → sheets → specs → bid packages → cost codes → budget ----
+  private async renderSpine() {
+    const root = this.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(this.bar("🔗 Discipline Spine", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    const pid = this.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Discipline Spine")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.innerHTML = "One thread from the model to the money: <b>discipline → sheets → specifications → "
+      + "bid packages → cost codes → budget</b>. The coverage bars show how much of the chain is "
+      + "connected; the gaps are where scope could fall between the model, the documents and the money.";
+    root.appendChild(intro);
+    const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
+    void this.host.api.spineTraceability(pid).then((t) => {
+      body.innerHTML = "";
+      const cov = t.coverage;
+      // coverage bars — the four chain joins
+      const bars = el("div", "dash-card"); bars.style.marginBottom = "10px";
+      bars.innerHTML = `<div class="section-title">Chain coverage</div>`
+        + progressBar(cov.sheets_specced_pct ?? 0, 100, { label: `Sheets → spec (${cov.sheets} sheets)` })
+        + progressBar(cov.specs_packaged_pct ?? 0, 100, { label: `Specs → bid package (${cov.specs} specs)` })
+        + progressBar(cov.packages_costed_pct ?? 0, 100, { label: `Bid packages → cost code (${cov.bid_packages} pkgs)` })
+        + progressBar(cov.spec_to_budget_pct ?? 0, 100, { label: "Spec → budget (fully traceable)" });
+      body.appendChild(bars);
+
+      // per-discipline rollup + budget-by-discipline chart
+      if (t.disciplines.length) {
+        const dc = el("div", "dash-card"); dc.style.marginBottom = "10px";
+        dc.innerHTML = `<div class="section-title">By discipline</div>`;
+        if (t.disciplines.some((d) => d.budget > 0)) {
+          const wrap = el("div"); wrap.style.margin = "4px 0 8px";
+          wrap.innerHTML = groupedBar(t.disciplines.filter((d) => d.budget > 0).map((d) => ({ label: d.discipline, bars: [{ name: "budget", value: d.budget }] })),
+            { title: "Bid-package budget by discipline", fmt: usd });
+          dc.appendChild(wrap);
+        }
+        const tb = el("table", "portal-table") as HTMLTableElement; tb.style.cssText = "width:100%;font-size:12px";
+        tb.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Discipline</th><th scope="col">Sheets</th><th scope="col">Specs</th><th scope="col">Packages</th><th scope="col">Cost codes</th><th scope="col">Budget</th></tr></thead><tbody>`
+          + t.disciplines.map((d) => `<tr><td>${esc(d.discipline)} <span class="meta">${d.code ?? ""}</span></td><td style="text-align:center">${d.sheets}</td><td style="text-align:center">${d.specs}</td><td style="text-align:center">${d.packages}</td><td style="text-align:center">${d.cost_codes}</td><td style="text-align:right">${d.budget ? usd(d.budget) : "—"}</td></tr>`).join("") + `</tbody>`;
+        dc.appendChild(tb); body.appendChild(dc);
+      }
+
+      // coverage gaps
+      const g = t.gaps;
+      const gapCount = g.specs_without_bid_package.length + g.bid_packages_without_cost_code.length + g.sheets_without_spec.length;
+      const gc = el("div", "dash-card"); gc.style.marginBottom = "10px";
+      gc.innerHTML = `<div class="section-title">${gapCount ? "⚠ " : "✓ "}Broken links (${gapCount})</div>`;
+      const gapList = (title: string, items: string[]) => {
+        if (!items.length) return;
+        const d = el("div", "meta"); d.style.margin = "3px 0";
+        d.innerHTML = `<b>${title} (${items.length}):</b> ${items.slice(0, 12).map(esc).join(", ")}${items.length > 12 ? " …" : ""}`;
+        gc.appendChild(d);
+      };
+      gapList("Specs with no bid package", g.specs_without_bid_package.map((x) => x.section || x.ref));
+      gapList("Bid packages with no cost code", g.bid_packages_without_cost_code.map((x) => x.name || x.ref));
+      gapList("Sheets with no governing spec", g.sheets_without_spec.map((x) => x.sheet || x.ref));
+      if (!gapCount) gc.insertAdjacentHTML("beforeend", `<div class="meta">Every sheet, spec and package is linked through to the budget.</div>`);
+      body.appendChild(gc);
+
+      // the chain trace
+      if (t.chain.length) {
+        const cc = el("div", "dash-card");
+        cc.innerHTML = `<div class="section-title">Spec → bid package → cost code</div>`;
+        const tb = el("table", "portal-table") as HTMLTableElement; tb.style.cssText = "width:100%;font-size:11px";
+        tb.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Spec</th><th scope="col">Discipline</th><th scope="col">Bid package</th><th scope="col">Cost code</th><th scope="col"></th></tr></thead><tbody>`
+          + t.chain.map((c) => `<tr><td>${esc(c.section || c.spec)} <span class="meta">${esc(c.title || "")}</span></td><td style="text-align:center">${esc(c.discipline || "—")}</td><td style="text-align:center">${esc(c.bid_package_name || "—")}</td><td style="text-align:center">${esc(c.cost_code_value || "—")}</td><td style="text-align:center;color:${c.linked ? "var(--status-good)" : "var(--status-warn)"}">${c.linked ? "✓" : "○"}</td></tr>`).join("") + `</tbody>`;
+        cc.appendChild(tb); body.appendChild(cc);
+      }
+    }).catch((e) => { body.innerHTML = `<div class="meta">Spine unavailable: ${esc((e as Error).message)}</div>`; });
   }
 
   // --- Climate & water resilience — flood Design Flood Elevation + Rational-Method stormwater -------

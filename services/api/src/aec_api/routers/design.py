@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import adjacency, design_phase, resilience, soft_costs
+from .. import adjacency, design_phase, resilience, soft_costs, spine
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_role
@@ -96,6 +96,16 @@ def resilience_climate_risk(pid: str, db: Session = Depends(get_db), _: str = De
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
     return resilience.climate_risk(db, pid)
+
+
+@router.get("/projects/{pid}/spine/traceability")
+def spine_traceability(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Discipline Spine traceability — trace discipline → sheets → specs → bid packages → cost codes →
+    budget, with per-discipline rollups and the coverage gaps (unpackaged specs, unbudgeted packages,
+    un-specced sheets) so scope can't fall between the model, the documents and the money."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return spine.traceability(db, pid)
 
 
 @router.get("/projects/{pid}/diligence/readiness")
