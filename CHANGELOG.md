@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.87 — BEP generator: the ISO 19650 BIM Execution Plan as a produced document (A1)
+The first of an authoring-depth initiative (informed by an industry-practice scan). We already held the
+information-requirements register (EIR/BEP/AIR), the CDE, the discipline vocabulary and the delivery
+register — now they **assemble into a produced BIM Execution Plan**. A new Report Center entry (**Quality**
+group, PDF + Excel) composes the ISO 19650 BEP: an information-requirements register, a **roles,
+responsibilities & authorities** matrix (appointing party / lead appointed party / information manager +
+an authoring lead per discipline), the **Level of Information Need** targets by delivery stage (LOD
+200→500), the **information-delivery schedule** (from the drawing/delivery sets), **information standards
+& naming** (NCS sheet IDs + `Type_Discipline_Description_Revision_Date` + MasterFormat/Uniformat
+classification), the **CDE workflow** (WIP→Shared→Published→Archived with revision/approval coverage), and
+the **model-coordination & QA** process — with core EIR/BEP/AIR coverage flagged. No new data entry: it
+reads the registers you already keep. Next in the phase: a per-element **LOD matrix** (A2) and a
+**naming-convention validator** (A3).
+
 ## v0.3.86 — Code standards S3: lint lock-in (consistency enforced in CI)
 The final phase of the standards initiative — the PEP 8-aligned rules the S1 pass satisfied are now
 **enforced in CI**, so they stay satisfied. Ruff's rule set expands from correctness-only

@@ -60,6 +60,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "fca": ("Facility Condition Assessment (FCI)", "Operations"),
     "resilience": ("Climate & Water Resilience (flood + stormwater)", "Operations"),
     "bim_kpi": ("BIM KPI Scorecard (ISO 19650)", "Quality"),
+    "bep": ("BIM Execution Plan (BEP, ISO 19650)", "Quality"),
 }
 
 
@@ -909,9 +910,94 @@ def _bim_kpi(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _bep(db: Session, pid: str, name: str) -> Report:
+    """ISO 19650 BIM Execution Plan — a produced governance document, assembled from the CDE, the
+    information-requirements register, the discipline vocabulary and the delivery (drawing-set)
+    register. Answers WHO does WHAT, to WHAT level, WHEN, and HOW information is managed."""
+    from . import cde, classification
+    cde_st = cde.status(db, pid)
+    reqs = cde.requirements(db, pid)
+    disc = classification.disciplines()
+    sets = _records(db, "drawing_set", pid)
+    core = reqs["core_coverage"]
+
+    r = Report("BIM Execution Plan (BEP)", name)
+    r.kpi("Disciplines", len(disc))
+    r.kpi("Information requirements", reqs["total"])
+    r.kpi("Core coverage (EIR/BEP/AIR)",
+          "complete" if core["complete"] else "missing " + ", ".join(core["missing"]))
+    r.kpi("CDE containers", cde_st["total"])
+    r.kpi("Published", cde_st["discipline"]["published"])
+    r.kpi("Delivery sets", len(sets))
+    r.kpi("Metadata completeness", f"{cde_st['discipline']['metadata_completeness_pct']}%")
+
+    # 1. Information-requirements register (OIR / PIR / AIR / EIR / BEP / MIDP / TIDP)
+    r.table("Information requirements register", ["Type", "Total", "Issued", "Draft", "Superseded"],
+            [[code, b["total"], b["issued"], b["draft"], b["superseded"]]
+             for code, b in reqs["by_type"].items()] or [["(none logged)", "", "", "", ""]])
+
+    # 2. Roles, responsibilities & authorities (ISO 19650 appointment roles + discipline leads)
+    roles = [["Appointing Party (Owner)", "Sets the EIR; approves deliverables; owns the asset information."],
+             ["Lead Appointed Party (BIM Manager)", "Owns this BEP and the CDE; coordinates the federated model; QA."],
+             ["Information Manager", "Runs the CDE workflow (WIP -> Shared -> Published -> Archived) and naming/standards."]]
+    roles += [[f"{d['code']} — {d['name']} lead (Appointed Party)",
+               f"Authors and coordinates the {d['name']} model; delivers MasterFormat "
+               + ", ".join(d["divisions"]) + " content."] for d in disc]
+    r.table("Roles, responsibilities & authorities", ["Role", "Responsibility"], roles)
+
+    # 3. Level of Information Need (target LOD per delivery stage; A2 refines to per-element)
+    r.table("Level of Information Need (target by stage)", ["Stage", "Target LOD", "Information focus"],
+            [["Concept / SD (RIBA 2)", "LOD 200", "Generalized geometry, approximate quantities, orientation"],
+             ["Design Development (RIBA 3)", "LOD 300", "Exact dimensions, materials, discipline coordination"],
+             ["Construction Docs (RIBA 4)", "LOD 350", "System interfaces, clash coordination, connections"],
+             ["Construction (RIBA 5)", "LOD 400", "Fabrication and installation detail, shop drawings"],
+             ["Handover / As-built (RIBA 6)", "LOD 500", "Verified as-built condition and asset / O&M data"]])
+
+    # 4. Information delivery / exchange schedule (MIDP / TIDP -> delivery sets)
+    def _d2(x):
+        return x.get("data") or x
+    r.table("Information delivery schedule", ["Delivery set", "Discipline", "Issued", "Purpose", "State"],
+            [[str(_d2(s).get("name") or _d2(s).get("title") or s.get("id", ""))[:60],
+              _d2(s).get("discipline", ""),
+              str(_d2(s).get("issued_date") or _d2(s).get("issue_date") or ""),
+              _d2(s).get("purpose", ""), s.get("workflow_state", "")]
+             for s in sets] or [["(no delivery sets registered)", "", "", "", ""]])
+
+    # 5. Information standards & naming conventions
+    r.table("Information standards & naming", ["Item", "Convention"],
+            [["Sheet identification", "US NCS: discipline designator + sheet-type digit + sequence "
+              "(e.g. A-101 = Architectural / Plans / 01)."],
+             ["Container / file naming", "Type_Discipline_Description_Revision_Date; revision-controlled, "
+              "approved files never overwritten."],
+             ["Classification", "CSI MasterFormat divisions + Uniformat II elements, tagged via "
+              "IfcClassificationReference and keyed to GlobalId."],
+             ["Discipline designators", ", ".join(f"{d['code']}={d['name']}" for d in disc)]])
+
+    # 6. CDE & information management (ISO 19650 states)
+    st = cde_st["by_state"]
+    r.table("CDE workflow (ISO 19650)", ["State", "Metric"],
+            [["WIP", st.get("wip", 0)], ["Shared", st.get("shared", 0)],
+             ["Published", st.get("published", 0)], ["Archived", st.get("archived", 0)],
+             ["Revision control", f"{cde_st['discipline']['revision_control_pct']}%"],
+             ["Approval-status coverage", f"{cde_st['discipline']['approval_status_pct']}%"]])
+
+    # 7. Model coordination & quality assurance
+    missing = core["missing"]
+    r.table("Model coordination & QA", ["Process", "Definition"],
+            [["Federation", "Discipline models federated on shared GlobalIds; each authored in its own container."],
+             ["Clash detection", "Cross-discipline clash run each coordination cycle; issues round-tripped via BCF."],
+             ["Model quality", "IDS validation + LOIN + metadata completeness scored in the openBIM quality "
+              "scorecard and the BIM-KPI report."],
+             ["Requirement coverage",
+              "Compliant." if not missing else "Missing core requirement(s): " + ", ".join(missing)]])
+    return r
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
+    if report == "bep":
+        return _bep(db, pid, name)
     if report == "appraisal":
         return _appraisal(db, pid, name)
     if report == "rent_roll":

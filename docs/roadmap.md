@@ -10,6 +10,51 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 
 ---
 
+## ★ Current initiative — Authoring depth + the design engine (2026-07)
+
+Sourced from a competitive/practice scan (18 industry reference sheets on BEP / LOD / BIM roles /
+Revit MEP plant rooms / naming conventions / P6 scheduling / envelope assemblies / construction-tech
+M&A) plus two products: **Higharc Studio** (AI-native generative home design — live model → 2D/BIM
+auto-propagate, options/variants in one model, rules-based standards) and **ifc-lite** (LTplus-AG,
+Rust+WASM browser IFC toolkit — columnar/DuckDB analytics, IFC5/IFCX, broad export). The scan confirmed
+we already cover ~80% of professional BIM/PM practice; the real gaps are authoring depth, MEP/schedule
+engineering depth, and Higharc-style live-design/options. Do **Phase A then Phase B**, sequentially.
+
+**Phase A — openBIM authoring depth** (pure reuse of existing registers; low risk):
+- **A1 — BEP document generator.** Compose a full ISO 19650 **BIM Execution Plan** PDF from the existing
+  CDE / EIR / AIR / roles / LOIN / naming registers (objectives, roles-&-responsibilities matrix,
+  LOD/LOIN table, information-exchange schedule, naming standards, model-coordination process, QA,
+  deliverables). New `reports` builder — inputs already stored.
+- **A2 — LOD matrix + element-level LOD.** A `lod_target` register (phase × discipline × element-category
+  → LOD 100–500) + validate model elements against target; surface in the openBIM quality scorecard.
+- **A3 — Naming-convention validator + document register.** Configurable metadata pattern
+  (`DocType_Discipline_Description_Rev_Date`), validate drawing/upload names, master-folder structure in
+  the CDE.
+
+**Phase B — the design engine** (Higharc-inspired; the flagship lift):
+- **B1 — Design options / variants.** A project carries N schemes; compare area / cost / energy / returns
+  across them; promote one to "current." Extends test-fit scheme-compare to the whole project.
+- **B2 — Live 2D propagation.** Make the 2D plan/section/elevation generator option-aware and re-run on
+  model change (2D generation exists — make it *live-linked*).
+- **B3 — Standards ruleset.** Allowed assemblies / materials / product selections the generator + in-viewer
+  authoring honor.
+
+**Later phases (backlog, not yet scheduled):**
+- **C — engineering depth:** MEP equipment schedules + pipe/duct auto-sizing + load-calc→sizing + hangers
+  + system summaries (extends D5 parametric MEP); resource-loaded scheduling + histograms + leveling.
+- **D — interoperability & analytics (ifc-lite-inspired):** model analytics query layer (server-side
+  DuckDB-style saved views); export breadth (glTF / Parquet / JSON-LD); envelope code-compliance checker
+  (assembly R/U vs climate-zone IECC/ASHRAE 90.1); IFC5/IFCX read-path readiness (watch-item).
+- **E — field AI (trend-aligned, mostly bridges):** computer-vision % complete from site photos; field
+  labor-productivity analytics. Optional connectors, low priority.
+
+**Strategic read:** the construction-tech trend is platform consolidation + AI agents + connected
+ecosystems + interoperability (Procore/Autodesk/Trimble M&A). Our open, IFC-native, self-hosted, one-model
+posture with an MCP server for AI agents + connectors is well-aligned — lean into interoperability
+(import/export breadth) and AI-over-the-model.
+
+---
+
 ## ★ Active plan (sequenced — work top to bottom)
 
 User-directed sequence (historical, as of v0.2.8; superseded by later themes below — latest **v0.3.86**).

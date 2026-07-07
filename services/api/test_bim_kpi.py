@@ -9,8 +9,9 @@ for _f in ("./test_bim_kpi.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient             # noqa: E402
-from aec_api.main import app                          # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 
 def _create(c, pid, key, data):
@@ -82,5 +83,25 @@ with TestClient(app) as c:
     rep = c.get(f"/projects/{pid}/reports/bim_kpi.pdf")
     assert rep.status_code == 200 and rep.content[:4] == b"%PDF", rep.status_code
 
+    # --- BEP (A1): ISO 19650 BIM Execution Plan assembled from the same registers -------------------
+    from aec_api import reports as _reports  # noqa: E402
+    from aec_api.db import SessionLocal as _SL  # noqa: E402
+    assert "bep" in {x["id"] for x in _reports.catalog()}, "bep missing from report catalog"
+    bepr = _reports.build(_SL(), pid, "bep")
+    tnames = {t["name"] for t in bepr.tables}
+    assert {"Information requirements register", "Roles, responsibilities & authorities",
+            "Level of Information Need (target by stage)", "Information standards & naming",
+            "CDE workflow (ISO 19650)", "Model coordination & QA"} <= tnames, tnames
+    assert len(bepr.tables) >= 7 and len(bepr.kpis) >= 6, (len(bepr.tables), len(bepr.kpis))
+    # every discipline appears as an authoring lead in the roles matrix
+    roles = next(t for t in bepr.tables if t["name"] == "Roles, responsibilities & authorities")
+    assert any("Architectural lead" in row[0] for row in roles["rows"]), roles["rows"][:3]
+    # core coverage KPI reads "complete" (EIR + BEP + AIR all issued above)
+    assert any(lbl.startswith("Core coverage") and "complete" in val for lbl, val in bepr.kpis), bepr.kpis
+    bpdf = c.get(f"/projects/{pid}/reports/bep.pdf")
+    assert bpdf.status_code == 200 and bpdf.content[:4] == b"%PDF", bpdf.status_code
+
 print("BIM KPI OK - empty=10 n/a; populated: info-reqs/CDE/asset/handover all good, model-quality "
-      "n/a (no model); handover acceptance passes with reqs+tags+as-built+O&M+cert; report PDF served")
+      "n/a (no model); handover acceptance passes with reqs+tags+as-built+O&M+cert; report PDF served. "
+      "BEP OK - ISO 19650 execution plan assembles 7+ sections (reqs register, roles matrix w/ every "
+      "discipline, LOIN-by-stage, naming, CDE workflow, coordination/QA); core EIR/BEP/AIR complete; PDF served")
