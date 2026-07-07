@@ -65,6 +65,8 @@ REPORTS: dict[str, tuple[str, str]] = {
     "naming": ("Naming Convention Compliance", "Quality"),
     "design_options": ("Design Options Comparison", "Design"),
     "design_standards": ("Design Standards Compliance", "Design"),
+    "mep": ("MEP Equipment Schedule", "Engineering"),
+    "resource_loading": ("Resource-Loaded Schedule", "Schedule"),
 }
 
 
@@ -1096,6 +1098,47 @@ def _design_standards(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _mep(db: Session, pid: str, name: str) -> Report:
+    """MEP equipment schedule + per-system rollup + first-pass duct/pipe sizing reference tables."""
+    from . import mep
+    s = mep.schedule(db, pid)
+    r = Report("MEP Equipment Schedule", name)
+    r.kpi("Equipment items", s["count"])
+    r.kpi("Systems", len(s["by_system"]))
+    r.table("Equipment schedule", ["Tag", "Type", "System", "Capacity", "Unit", "Flow", "Size", "State"],
+            [[i["tag"], i["type"], i["system"], i["capacity"], i["capacity_unit"], i["flow"],
+              i["size"], i["state"]] for i in s["items"]] or [["(none)"] + [""] * 7])
+    r.table("System rollup", ["System", "Items", "Total capacity"],
+            [[b["system"], b["count"],
+              ", ".join(f"{v} {u}" for u, v in b["capacity_by_unit"].items()) or "—"]
+             for b in s["by_system"]] or [["(none)", "", ""]])
+    r.table("Duct sizing reference (equal-velocity @ 1000 fpm)", ["CFM", "Round diameter (in)"],
+            [[q, mep.size_duct(q)["round_diameter_in"]] for q in (500, 1000, 2000, 4000, 8000)])
+    r.table("Pipe sizing reference (velocity @ 6 fps)", ["GPM", "Nominal size (in)"],
+            [[q, mep.size_pipe(q)["nominal_pipe_size_in"]] for q in (20, 50, 100, 200, 400)])
+    return r
+
+
+def _resource_loading(db: Session, pid: str, name: str) -> Report:
+    """Resource histogram + S-curve + peak manpower from the crew-loaded schedule."""
+    from . import resource_loading
+    a = resource_loading.loading(db, pid)
+    r = Report("Resource-Loaded Schedule", name)
+    r.kpi("Loaded activities", a["activities_loaded"])
+    r.kpi("Weeks", a["weeks_span"])
+    r.kpi("Trades", len(a["trades"]))
+    r.kpi("Peak crew", f"{a['peak']['crew']} ({a['peak']['week']})" if a["peak"]["week"] else "—")
+    r.table("Weekly resource histogram", ["Week", "Total crew"] + a["trades"],
+            [[w["week"], w["total"]] + [w["by_trade"].get(t, 0) for t in a["trades"]]
+             for w in a["histogram"]] or [["(no crew-loaded activities)"] + [""] * (len(a["trades"]) + 1)])
+    if a["histogram"]:
+        r.chart("bar", "Crew histogram (peak manpower/week)", [w["week"] for w in a["histogram"]],
+                [{"name": "Crew", "values": [w["total"] for w in a["histogram"]]}])
+        r.chart("line", "Cumulative man-weeks (S-curve)", [p["week"] for p in a["scurve"]],
+                [{"name": "Cumulative", "values": [p["cumulative"] for p in a["scurve"]]}])
+    return r
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
@@ -1105,6 +1148,10 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _design_options(db, pid, name)
     if report == "design_standards":
         return _design_standards(db, pid, name)
+    if report == "mep":
+        return _mep(db, pid, name)
+    if report == "resource_loading":
+        return _resource_loading(db, pid, name)
     if report == "lod":
         return _lod(db, pid, name)
     if report == "naming":

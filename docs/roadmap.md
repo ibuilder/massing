@@ -40,8 +40,9 @@ engineering depth, and Higharc-style live-design/options. Do **Phase A then Phas
   authoring honor.
 
 **Later phases (backlog, not yet scheduled):**
-- **C — engineering depth:** MEP equipment schedules + pipe/duct auto-sizing + load-calc→sizing + hangers
-  + system summaries (extends D5 parametric MEP); resource-loaded scheduling + histograms + leveling.
+- **C — engineering depth (SHIPPED v0.3.90):** MEP equipment schedules + pipe/duct sizing + load-calc→
+  tonnage + hanger spacing + per-system summaries (extends D5 parametric MEP); resource-loaded scheduling
+  + histograms + S-curve + over-allocation.
 - **D — interoperability & analytics (ifc-lite-inspired):** model analytics query layer (server-side
   DuckDB-style saved views); export breadth (glTF / Parquet / JSON-LD); envelope code-compliance checker
   (assembly R/U vs climate-zone IECC/ASHRAE 90.1); IFC5/IFCX read-path readiness (watch-item).

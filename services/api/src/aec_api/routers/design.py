@@ -143,6 +143,33 @@ def design_standards_check(pid: str, db: Session = Depends(get_db), _: str = Dep
     return design_standards.check(db, pid, _INDEX.get(pid))
 
 
+@router.get("/projects/{pid}/mep/schedule")
+def mep_schedule(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """The MEP equipment schedule from the register + a per-system capacity rollup."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import mep
+    return mep.schedule(db, pid)
+
+
+@router.get("/projects/{pid}/mep/size")
+def mep_size(pid: str, kind: str = "duct", flow: float = 0.0, velocity: float = 0.0,
+             load: float = 0.0, size: float = 0.0, hanger_kind: str = "pipe_steel",
+             db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """First-pass MEP sizing. kind = duct (flow=CFM, velocity=fpm) | pipe (flow=GPM, velocity=fps) |
+    cooling (load=BTU/h) | hanger (hanger_kind=duct|pipe_steel|pipe_copper, size=in)."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import mep
+    if kind == "pipe":
+        return mep.size_pipe(flow, velocity or 6.0)
+    if kind == "cooling":
+        return mep.size_cooling(load)
+    if kind == "hanger":
+        return mep.hanger_spacing(hanger_kind, size)
+    return mep.size_duct(flow, velocity or 1000.0)
+
+
 @router.get("/projects/{pid}/diligence/readiness")
 def diligence_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
     """Pre-acquisition go/no-go rollup: due-diligence items by category/state (cleared vs flagged vs

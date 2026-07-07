@@ -49,6 +49,16 @@ def cpm(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("
     return schedule_cpm.compute(acts)
 
 
+@router.get("/projects/{pid}/schedule/resource-loading")
+def resource_loading_endpoint(pid: str, cap: float | None = None, db: Session = Depends(get_db),
+                              _: str = Depends(require_role("viewer"))):
+    """Resource-loaded schedule — weekly crew histogram (by trade), cumulative man-week S-curve, peak
+    manpower and (against an optional ?cap= availability) over-allocation flags. Reads each activity's
+    crew_size + start/finish."""
+    from .. import resource_loading
+    return resource_loading.loading(db, pid, cap)
+
+
 @router.get("/projects/{pid}/schedule/alerts")
 def schedule_alerts(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Predictive schedule alerts — overdue work, late/at-risk starts (incomplete predecessor),

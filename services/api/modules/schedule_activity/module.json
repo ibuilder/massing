@@ -69,6 +69,12 @@
       "fieldset": "Activity"
     },
     {
+      "name": "crew_size",
+      "label": "Crew size (workers/day)",
+      "type": "number",
+      "fieldset": "Activity"
+    },
+    {
       "name": "start",
       "label": "Planned Start",
       "type": "date",

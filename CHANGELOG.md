@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.90 — Engineering depth: MEP sizing/schedules + resource-loaded scheduling (Phase C)
+- **MEP engineering (C1)** — a new `mep_equipment` register (equipment schedule) + `mep.py` with
+  deterministic first-pass calculators: **duct sizing** (equal-velocity), **pipe sizing** (velocity
+  method → nominal pipe size), **cooling load → tonnage** + a block-load rule-of-thumb, and
+  **hanger/support spacing** (SMACNA for duct, MSS SP-58 for pipe). `GET /mep/schedule` rolls the
+  equipment up per system; `GET /mep/size` is a stateless sizing calc. An **MEP Equipment Schedule**
+  report with sizing reference tables. Extends the D5 parametric MEP (which lays the geometry) with the
+  numbers behind it.
+- **Resource-loaded scheduling (C2)** — schedule activities gain a **crew_size**; `resource_loading.py`
+  buckets every week an activity spans and sums concurrent crew into a **resource histogram** (by trade
+  + total), a cumulative **man-week S-curve**, **peak manpower**, and **over-allocation** flags against
+  an optional `?cap=` availability. `GET /schedule/resource-loading` + a **Resource-Loaded Schedule**
+  report (histogram + S-curve charts). Rides on the existing CPM schedule.
+Backend 125/125, ruff clean.
+
 ## v0.3.89 — The design engine: options / variants + standards ruleset (Phase B)
 Design-side depth so a project can carry, compare and standardize schemes.
 - **Design options / variants (B1)** — a new `design_option` register (program + economics per scheme)

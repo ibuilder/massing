@@ -1,0 +1,125 @@
+{
+  "key": "mep_equipment",
+  "name": "MEP Equipment",
+  "section": "Engineering",
+  "icon": "🔧",
+  "ref_prefix": "EQ",
+  "title_field": "tag",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "tag",
+      "label": "Tag",
+      "type": "text",
+      "required": true,
+      "fieldset": "Equipment"
+    },
+    {
+      "name": "equipment_type",
+      "label": "Type",
+      "type": "select",
+      "options": [
+        "Chiller",
+        "Boiler",
+        "Cooling Tower",
+        "Pump",
+        "Air Handling Unit",
+        "Fan",
+        "VAV Box",
+        "Air Terminal",
+        "Duct",
+        "Pipe",
+        "VFD"
+      ],
+      "fieldset": "Equipment"
+    },
+    {
+      "name": "system",
+      "label": "System",
+      "type": "select",
+      "options": [
+        "Chilled Water",
+        "Hot Water",
+        "Condenser Water",
+        "Supply Air",
+        "Return Air",
+        "Exhaust Air",
+        "Domestic Water"
+      ],
+      "fieldset": "Equipment"
+    },
+    {
+      "name": "capacity",
+      "label": "Capacity",
+      "type": "number",
+      "fieldset": "Rating"
+    },
+    {
+      "name": "capacity_unit",
+      "label": "Capacity unit",
+      "type": "select",
+      "options": [
+        "tons",
+        "GPM",
+        "CFM",
+        "BTU/h",
+        "MBH",
+        "HP",
+        "kW"
+      ],
+      "fieldset": "Rating"
+    },
+    {
+      "name": "flow",
+      "label": "Design flow (CFM or GPM)",
+      "type": "number",
+      "fieldset": "Rating"
+    },
+    {
+      "name": "size",
+      "label": "Nominal size (in)",
+      "type": "text",
+      "fieldset": "Rating"
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text",
+      "fieldset": "Rating"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "Rating"
+    }
+  ],
+  "workflow": {
+    "initial": "proposed",
+    "states": [
+      "proposed",
+      "selected",
+      "installed"
+    ],
+    "transitions": [
+      {
+        "from": "proposed",
+        "to": "selected",
+        "action": "select",
+        "party": ["Engineer", "PM"]
+      },
+      {
+        "from": "selected",
+        "to": "installed",
+        "action": "install",
+        "party": ["GC", "PM"]
+      }
+    ]
+  },
+  "list_columns": [
+    "equipment_type",
+    "system",
+    "capacity"
+  ],
+  "workspace": "design|construction"
+}
