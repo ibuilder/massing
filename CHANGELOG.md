@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.92 — Field AI: labor productivity + CV progress bridge (Phase E)
+The final phase of the upgrade initiative.
+- **Field labor productivity (E1)** — a new `productivity_log` register (quantity installed · workers ·
+  hours) + `productivity.py`: **units per man-hour** per entry, rolled up by trade, with an overall rate.
+  `GET /productivity/summary` + a **Field Labor Productivity** report. The field-productivity signal
+  Rhumbix-style tools surface, on the same project record.
+- **Computer-vision site-progress bridge (E2)** — real CV % complete needs an external vision model, so
+  this is a **feature-flagged bridge** (like the RVT and money-processor bridges): with `AEC_CV_BRIDGE`
+  off (default) the endpoints report the bridge as unavailable and **fabricate nothing**; an operator
+  enables the flag and connects a CV service that POSTs estimates to `/cv-progress/ingest` (clamped
+  0–100). `GET /cv-progress/status` documents the contract.
+Backend 128/128, ruff clean. **The A–E upgrade initiative (authoring depth · design engine · engineering
+depth · interoperability/analytics · field AI) is complete** — 16 items across v0.3.87–v0.3.92.
+
 ## v0.3.91 — Interoperability & analytics: model query + data export + envelope compliance (Phase D)
 The ifc-lite-inspired items, on our server-Fragments architecture.
 - **Model analytics query (D1)** — `model_query.py` + `GET /model/query`: group elements by any

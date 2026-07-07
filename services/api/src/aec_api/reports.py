@@ -68,6 +68,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "mep": ("MEP Equipment Schedule", "Engineering"),
     "resource_loading": ("Resource-Loaded Schedule", "Schedule"),
     "envelope": ("Envelope Code Compliance (IECC)", "Engineering"),
+    "productivity": ("Field Labor Productivity", "Field"),
 }
 
 
@@ -1120,6 +1121,26 @@ def _mep(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _productivity(db: Session, pid: str, name: str) -> Report:
+    """Field labor productivity — per-entry units/man-hour + a by-trade rollup."""
+    from . import productivity
+    s = productivity.summary(db, pid)
+    r = Report("Field Labor Productivity", name)
+    r.kpi("Entries", s["count"])
+    r.kpi("Total man-hours", s["total_man_hours"])
+    r.kpi("Overall units/man-hr", s["overall_units_per_manhour"] if s["overall_units_per_manhour"] is not None else "—")
+    r.table("By trade", ["Trade", "Quantity", "Man-hours", "Units/man-hr"],
+            [[t["trade"], t["quantity"], t["man_hours"], t["units_per_manhour"]]
+             for t in s["by_trade"]] or [["(none)", "", "", ""]])
+    r.table("Entries", ["Date", "Trade", "Activity", "Qty", "Unit", "Man-hrs", "Units/man-hr"],
+            [[e["date"], e["trade"], e["activity"], e["quantity"], e["unit"], e["man_hours"],
+              e["units_per_manhour"]] for e in s["entries"]] or [["(no entries)"] + [""] * 6])
+    if s["by_trade"]:
+        r.chart("bar", "Productivity by trade (units/man-hr)", [t["trade"] for t in s["by_trade"]],
+                [{"name": "Units/man-hr", "values": [t["units_per_manhour"] or 0 for t in s["by_trade"]]}])
+    return r
+
+
 def _envelope(db: Session, pid: str, name: str) -> Report:
     """Envelope assemblies checked against IECC 2021 climate-zone minimums."""
     from . import envelope
@@ -1176,6 +1197,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _resource_loading(db, pid, name)
     if report == "envelope":
         return _envelope(db, pid, name)
+    if report == "productivity":
+        return _productivity(db, pid, name)
     if report == "lod":
         return _lod(db, pid, name)
     if report == "naming":

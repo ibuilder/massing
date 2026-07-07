@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy.orm import Session
 
 from .. import modules as me
@@ -57,6 +57,29 @@ def resource_loading_endpoint(pid: str, cap: float | None = None, db: Session = 
     crew_size + start/finish."""
     from .. import resource_loading
     return resource_loading.loading(db, pid, cap)
+
+
+@router.get("/projects/{pid}/productivity/summary")
+def productivity_summary(pid: str, db: Session = Depends(get_db),
+                         _: str = Depends(require_role("viewer"))):
+    """Field labor productivity — units installed per man-hour per entry, rolled up by trade."""
+    from .. import productivity
+    return productivity.summary(db, pid)
+
+
+@router.get("/projects/{pid}/cv-progress/status")
+def cv_progress_status(pid: str, _: str = Depends(require_role("viewer"))):
+    """Status of the (external, feature-flagged) computer-vision site-progress bridge."""
+    from .. import cv_bridge
+    return cv_bridge.status()
+
+
+@router.post("/projects/{pid}/cv-progress/ingest")
+def cv_progress_ingest(pid: str, payload: dict = Body(default={}),
+                       _: str = Depends(require_role("editor"))):
+    """Accept an external CV progress estimate (no-op unless AEC_CV_BRIDGE is enabled)."""
+    from .. import cv_bridge
+    return cv_bridge.ingest(payload)
 
 
 @router.get("/projects/{pid}/schedule/alerts")

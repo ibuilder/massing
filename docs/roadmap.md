@@ -47,8 +47,13 @@ engineering depth, and Higharc-style live-design/options. Do **Phase A then Phas
   (group-by + count/sum over the property index, saved views); data export (CSV + JSON-LD; Parquet/glTF
   future); envelope code-compliance checker (assembly R/U vs IECC 2021 climate-zone minimums); IFC5/IFCX
   read-path readiness (watch-item — lands when web-ifc/Fragments support arrives).
-- **E — field AI (trend-aligned, mostly bridges):** computer-vision % complete from site photos; field
-  labor-productivity analytics. Optional connectors, low priority.
+- **E — field AI (SHIPPED v0.3.92):** field labor-productivity analytics (units/man-hour by trade);
+  computer-vision % complete as a feature-flagged external bridge (AEC_CV_BRIDGE — fabricates nothing
+  when off).
+
+**Initiative complete (v0.3.87–v0.3.92):** Phases A–D shipped as full features; Phase E shipped
+(productivity real + CV as a documented bridge). Remaining future items noted inline: full auto-propagate
+2D on edit (B2), MEP model-driven extraction, Parquet/glTF export (D2), IFC5/IFCX read path (D4).
 
 **Strategic read:** the construction-tech trend is platform consolidation + AI agents + connected
 ecosystems + interoperability (Procore/Autodesk/Trimble M&A). Our open, IFC-native, self-hosted, one-model

@@ -1,0 +1,72 @@
+{
+  "key": "productivity_log",
+  "name": "Productivity Log",
+  "section": "Field",
+  "icon": "📈",
+  "ref_prefix": "PR",
+  "title_field": "activity",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date",
+      "fieldset": "Entry"
+    },
+    {
+      "name": "activity",
+      "label": "Activity / task",
+      "type": "text",
+      "required": true,
+      "fieldset": "Entry"
+    },
+    {
+      "name": "trade",
+      "label": "Trade",
+      "type": "text",
+      "fieldset": "Entry"
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text",
+      "fieldset": "Entry"
+    },
+    {
+      "name": "quantity",
+      "label": "Quantity installed",
+      "type": "number",
+      "fieldset": "Production"
+    },
+    {
+      "name": "unit",
+      "label": "Unit (sf, cy, ea, lf…)",
+      "type": "text",
+      "fieldset": "Production"
+    },
+    {
+      "name": "workers",
+      "label": "Workers",
+      "type": "number",
+      "fieldset": "Production"
+    },
+    {
+      "name": "hours",
+      "label": "Hours (per worker)",
+      "type": "number",
+      "fieldset": "Production"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "Production"
+    }
+  ],
+  "list_columns": [
+    "date",
+    "trade",
+    "quantity"
+  ],
+  "workspace": "construction"
+}

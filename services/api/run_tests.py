@@ -40,7 +40,7 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_procurement_gate", "test_sheet_extract", "test_program", "test_pull_plan",
          "test_workspaces", "test_fca", "test_resilience", "test_pull_realtime", "test_disciplines",
          "test_lod", "test_naming", "test_design_engine", "test_mep", "test_resource_loading",
-         "test_envelope", "test_model_query"]
+         "test_envelope", "test_model_query", "test_field_ai"]
 
 
 def main() -> int:
