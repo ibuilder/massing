@@ -63,6 +63,8 @@ REPORTS: dict[str, tuple[str, str]] = {
     "bep": ("BIM Execution Plan (BEP, ISO 19650)", "Quality"),
     "lod": ("LOD Matrix & Coverage", "Quality"),
     "naming": ("Naming Convention Compliance", "Quality"),
+    "design_options": ("Design Options Comparison", "Design"),
+    "design_standards": ("Design Standards Compliance", "Design"),
 }
 
 
@@ -1047,11 +1049,62 @@ def _naming(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _design_options(db: Session, pid: str, name: str) -> Report:
+    """Design options / variants compared on program + economics, best-in-class per metric."""
+    from . import design_options
+    a = design_options.compare(db, pid)
+    r = Report("Design Options Comparison", name)
+    r.kpi("Options", a["count"])
+    r.kpi("Selected", a["selected"] or "—")
+    for ldr in a["leaders"].values():
+        if ldr["option"]:
+            r.kpi(ldr["label"], ldr["option"])
+    r.table("Options", ["Option", "State", "Area (sf)", "Units", "Eff %", "Hard cost", "$/sf", "EUI", "IRR %"],
+            [[o["name"], o["state"], o["gross_area_sf"], o["unit_count"], o["efficiency_pct"],
+              _money(o["hard_cost"]) if o["hard_cost"] is not None else "", o["cost_per_sf"],
+              o["energy_eui"], o["irr_pct"]] for o in a["options"]] or [["(no options)"] + [""] * 8])
+    if any(o["irr_pct"] is not None for o in a["options"]):
+        r.chart("bar", "Levered IRR by option", [o["name"] for o in a["options"]],
+                [{"name": "IRR %", "values": [o["irr_pct"] or 0 for o in a["options"]]}])
+    return r
+
+
+def _design_standards(db: Session, pid: str, name: str) -> Report:
+    """Design-standards ruleset + model compliance (prohibited / non-approved type + material use)."""
+    from . import design_standards
+    from .routers.properties import _INDEX, _ensure_loaded
+    try:
+        _ensure_loaded(pid)
+    except Exception:                     # noqa: BLE001 — ruleset-only when no model is loaded
+        pass
+    a = design_standards.check(db, pid, _INDEX.get(pid))
+    rs = a["ruleset"]
+    r = Report("Design Standards Compliance", name)
+    r.kpi("Standards", rs["count"])
+    r.kpi("Approved / preferred", len(rs["by_status"]["approved"]) + len(rs["by_status"]["preferred"]))
+    r.kpi("Prohibited", len(rs["by_status"]["prohibited"]))
+    r.kpi("Model scored", "yes" if a["model_scored"] else "no")
+    if a["model_scored"]:
+        r.kpi("Prohibited hits", a["prohibited_hits"])
+        r.kpi("Unapproved", a["unapproved"])
+    r.table("Ruleset", ["Item", "Category", "Status", "Discipline", "Match keyword"],
+            [[i["name"], i["category"], i["status"], i["discipline"], i["match_keyword"]]
+             for i in rs["items"]] or [["(none defined)"] + [""] * 4])
+    if a["model_scored"]:
+        r.table("Model violations", ["Element", "Type", "Issue"],
+                [[v["guid"][:22], v["type"], v["issue"]] for v in a["violations"]] or [["(none)", "", ""]])
+    return r
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
     if report == "bep":
         return _bep(db, pid, name)
+    if report == "design_options":
+        return _design_options(db, pid, name)
+    if report == "design_standards":
+        return _design_standards(db, pid, name)
     if report == "lod":
         return _lod(db, pid, name)
     if report == "naming":

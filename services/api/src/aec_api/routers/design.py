@@ -108,6 +108,41 @@ def spine_traceability(pid: str, db: Session = Depends(get_db), _: str = Depends
     return spine.traceability(db, pid)
 
 
+@router.get("/projects/{pid}/design/options/compare")
+def design_options_compare(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Compare the project's design options / variants apples-to-apples — program + economics per
+    option, best-in-class per metric, deltas vs the selected option. The selected option's drawing set
+    is the project's current documentation (2D regenerates live from the model)."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import design_options
+    return design_options.compare(db, pid)
+
+
+@router.get("/projects/{pid}/design/standards")
+def design_standards_ruleset(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """The design-standards ruleset — approved / preferred / prohibited assemblies, materials, products."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import design_standards
+    return design_standards.ruleset(db, pid)
+
+
+@router.get("/projects/{pid}/design/standards/check")
+def design_standards_check(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Audit the loaded model against the design-standards ruleset (prohibited / non-approved
+    type + material use). Returns the ruleset only when no model is loaded."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import design_standards
+    from .properties import _INDEX, _ensure_loaded
+    try:
+        _ensure_loaded(pid)
+    except Exception:                     # noqa: BLE001 — ruleset-only when no model is loaded
+        pass
+    return design_standards.check(db, pid, _INDEX.get(pid))
+
+
 @router.get("/projects/{pid}/diligence/readiness")
 def diligence_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
     """Pre-acquisition go/no-go rollup: due-diligence items by category/state (cleared vs flagged vs

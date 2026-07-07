@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.89 — The design engine: options / variants + standards ruleset (Phase B)
+Design-side depth so a project can carry, compare and standardize schemes.
+- **Design options / variants (B1)** — a new `design_option` register (program + economics per scheme)
+  and `GET /design/options/compare`: options compared apples-to-apples with **best-in-class per metric**
+  (lowest cost/sf, lowest EUI, highest IRR, largest area, highest efficiency), deltas vs the **selected**
+  option, and a state rollup (proposed → shortlisted → selected → rejected). A **Design Options
+  Comparison** report (PDF + Excel).
+- **Selected-option → drawing linkage (B2)** — each option references a `drawing_set`; the selected
+  option's set is the project's current documentation. The 2D drawings (plan / section / elevation /
+  sheet) already **generate on demand from the live model**, so they reflect the current state whenever
+  requested. (Full auto-propagate-on-every-edit — Higharc-style instant regeneration — remains a future
+  item; it needs event wiring on top of the parametric model.)
+- **Design standards ruleset (B3)** — a new `design_standard` register (approved / preferred /
+  prohibited assemblies, materials, products) with `GET /design/standards` + `GET /design/standards/check`:
+  the loaded model is audited against the ruleset — elements are flagged when their type/material matches
+  a **prohibited** standard, or (when an approved set is declared) match nothing approved. Keyword-based on
+  the openBIM property data the model already carries. A **Design Standards Compliance** report.
+Both registers get CRUD via the module engine; both reports surface under a new **Design** group. Backend
+123/123, ruff clean.
+
 ## v0.3.88 — Authoring depth: LOD matrix + naming-convention validator (A2 + A3)
 Completes the authoring-depth phase.
 - **LOD matrix & coverage (A2)** — a new `lod_target` register (stage × discipline × element-category →

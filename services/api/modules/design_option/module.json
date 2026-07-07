@@ -1,0 +1,114 @@
+{
+  "key": "design_option",
+  "name": "Design Options",
+  "section": "Design",
+  "icon": "🎨",
+  "ref_prefix": "OPT",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Option name",
+      "type": "text",
+      "required": true,
+      "fieldset": "Option"
+    },
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "textarea",
+      "fieldset": "Option"
+    },
+    {
+      "name": "scheme_source",
+      "label": "Scheme / model source",
+      "type": "text",
+      "fieldset": "Option"
+    },
+    {
+      "name": "drawing_set",
+      "label": "Drawing set",
+      "type": "reference",
+      "module": "drawing_set",
+      "fieldset": "Option"
+    },
+    {
+      "name": "gross_area_sf",
+      "label": "Gross area (sf)",
+      "type": "number",
+      "fieldset": "Program"
+    },
+    {
+      "name": "unit_count",
+      "label": "Units / key rooms",
+      "type": "number",
+      "fieldset": "Program"
+    },
+    {
+      "name": "efficiency_pct",
+      "label": "Efficiency (%)",
+      "type": "number",
+      "fieldset": "Program"
+    },
+    {
+      "name": "hard_cost",
+      "label": "Hard cost ($)",
+      "type": "number",
+      "fieldset": "Economics"
+    },
+    {
+      "name": "energy_eui",
+      "label": "Energy EUI (kBtu/sf/yr)",
+      "type": "number",
+      "fieldset": "Economics"
+    },
+    {
+      "name": "irr_pct",
+      "label": "Levered IRR (%)",
+      "type": "number",
+      "fieldset": "Economics"
+    }
+  ],
+  "workflow": {
+    "initial": "proposed",
+    "states": [
+      "proposed",
+      "shortlisted",
+      "selected",
+      "rejected"
+    ],
+    "transitions": [
+      {
+        "from": "proposed",
+        "to": "shortlisted",
+        "action": "shortlist",
+        "party": ["OwnersRep", "PM", "Architect"]
+      },
+      {
+        "from": "shortlisted",
+        "to": "selected",
+        "action": "select",
+        "party": ["OwnersRep", "PM"]
+      },
+      {
+        "from": "proposed",
+        "to": "rejected",
+        "action": "reject",
+        "party": ["OwnersRep", "PM", "Architect"]
+      },
+      {
+        "from": "shortlisted",
+        "to": "rejected",
+        "action": "reject",
+        "party": ["OwnersRep", "PM"]
+      }
+    ]
+  },
+  "list_columns": [
+    "gross_area_sf",
+    "hard_cost",
+    "irr_pct"
+  ],
+  "workspace": "design"
+}

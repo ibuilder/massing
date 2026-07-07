@@ -20,7 +20,7 @@ Rust+WASM browser IFC toolkit — columnar/DuckDB analytics, IFC5/IFCX, broad ex
 we already cover ~80% of professional BIM/PM practice; the real gaps are authoring depth, MEP/schedule
 engineering depth, and Higharc-style live-design/options. Do **Phase A then Phase B**, sequentially.
 
-**Phase A — openBIM authoring depth** (pure reuse of existing registers; low risk):
+**Phase A — openBIM authoring depth** (SHIPPED v0.3.87–88):
 - **A1 — BEP document generator.** Compose a full ISO 19650 **BIM Execution Plan** PDF from the existing
   CDE / EIR / AIR / roles / LOIN / naming registers (objectives, roles-&-responsibilities matrix,
   LOD/LOIN table, information-exchange schedule, naming standards, model-coordination process, QA,
@@ -31,7 +31,7 @@ engineering depth, and Higharc-style live-design/options. Do **Phase A then Phas
   (`DocType_Discipline_Description_Rev_Date`), validate drawing/upload names, master-folder structure in
   the CDE.
 
-**Phase B — the design engine** (Higharc-inspired; the flagship lift):
+**Phase B — the design engine** (SHIPPED v0.3.89; Higharc-inspired):
 - **B1 — Design options / variants.** A project carries N schemes; compare area / cost / energy / returns
   across them; promote one to "current." Extends test-fit scheme-compare to the whole project.
 - **B2 — Live 2D propagation.** Make the 2D plan/section/elevation generator option-aware and re-run on

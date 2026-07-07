@@ -1,0 +1,100 @@
+{
+  "key": "design_standard",
+  "name": "Design Standards",
+  "section": "Design",
+  "icon": "📐",
+  "ref_prefix": "STD",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Item",
+      "type": "text",
+      "required": true,
+      "fieldset": "Standard"
+    },
+    {
+      "name": "category",
+      "label": "Category",
+      "type": "select",
+      "options": [
+        "Assembly",
+        "Material",
+        "Product",
+        "Component",
+        "System"
+      ],
+      "fieldset": "Standard"
+    },
+    {
+      "name": "status",
+      "label": "Status",
+      "type": "select",
+      "options": [
+        "approved",
+        "preferred",
+        "prohibited"
+      ],
+      "fieldset": "Standard"
+    },
+    {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "select",
+      "options": [
+        "General",
+        "Civil",
+        "Landscape",
+        "Structural",
+        "Architectural",
+        "Fire Protection",
+        "Plumbing",
+        "Mechanical",
+        "Electrical",
+        "Telecommunications",
+        "Equipment"
+      ],
+      "fieldset": "Standard"
+    },
+    {
+      "name": "match_keyword",
+      "label": "Match keyword (in model type / material)",
+      "type": "text",
+      "fieldset": "Standard"
+    },
+    {
+      "name": "spec_reference",
+      "label": "Spec reference (MasterFormat)",
+      "type": "text",
+      "fieldset": "Standard"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "Standard"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "adopted"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "adopted",
+        "action": "adopt",
+        "party": ["OwnersRep", "PM", "Architect"]
+      }
+    ]
+  },
+  "list_columns": [
+    "category",
+    "status",
+    "discipline"
+  ],
+  "workspace": "design"
+}
