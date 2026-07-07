@@ -53,6 +53,54 @@ def openbim_quality_scan(pid: str, use_case: str | None = None, db: Session = De
     return out
 
 
+@router.get("/projects/{pid}/lod/matrix")
+def lod_matrix(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """The target LOD matrix (stage x discipline x element category -> LOD 100..500), or the RIBA/AIA
+    stage defaults when the register carries none."""
+    _project(db, pid)
+    from .. import lod
+    return lod.matrix(db, pid)
+
+
+@router.get("/projects/{pid}/lod/assessment")
+def lod_assessment(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Achieved-LOD assessment of the loaded model (inferred from LOIN facet completeness) against the
+    target matrix. Returns targets only when no model is loaded."""
+    _project(db, pid)
+    from .. import lod
+    from .properties import _INDEX, _ensure_loaded
+    try:
+        _ensure_loaded(pid)
+    except Exception:                     # noqa: BLE001 — no model loaded is a valid (targets-only) state
+        pass
+    return lod.assess(db, pid, _INDEX.get(pid))
+
+
+@router.get("/projects/{pid}/naming/conventions")
+def naming_conventions(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """The document/container filename + drawing sheet-ID naming conventions the validator enforces."""
+    _project(db, pid)
+    from .. import naming
+    return naming.conventions()
+
+
+@router.get("/projects/{pid}/naming/validate")
+def naming_validate(pid: str, name: str, kind: str = "container",
+                    db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Validate a single name against the convention. kind = container | sheet."""
+    _project(db, pid)
+    from .. import naming
+    return naming.validate(name, kind)
+
+
+@router.get("/projects/{pid}/naming/audit")
+def naming_audit(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Audit the CDE containers + drawing register for naming-convention compliance."""
+    _project(db, pid)
+    from .. import naming
+    return naming.audit(db, pid)
+
+
 @router.get("/projects/{pid}/bim-kpi/scorecard")
 def bim_kpi_scorecard(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
     """The 10-category BIM KPI scorecard, graded from the CDE, model quality and the issue / asset /

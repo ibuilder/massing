@@ -61,6 +61,8 @@ REPORTS: dict[str, tuple[str, str]] = {
     "resilience": ("Climate & Water Resilience (flood + stormwater)", "Operations"),
     "bim_kpi": ("BIM KPI Scorecard (ISO 19650)", "Quality"),
     "bep": ("BIM Execution Plan (BEP, ISO 19650)", "Quality"),
+    "lod": ("LOD Matrix & Coverage", "Quality"),
+    "naming": ("Naming Convention Compliance", "Quality"),
 }
 
 
@@ -993,11 +995,67 @@ def _bep(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _lod(db: Session, pid: str, name: str) -> Report:
+    """LOD matrix + achieved-LOD coverage of the loaded model (inferred from LOIN facets)."""
+    from . import lod
+    from .routers.properties import _INDEX, _ensure_loaded
+    try:
+        _ensure_loaded(pid)
+    except Exception:                     # noqa: BLE001 — targets-only when no model is loaded
+        pass
+    a = lod.assess(db, pid, _INDEX.get(pid))
+    r = Report("LOD Matrix & Coverage", name)
+    r.kpi("Model scored", "yes" if a["model_scored"] else "no")
+    r.kpi("Elements", a["elements"])
+    r.kpi("Targets", len(a["targets"]) if a["targets"] else f"{len(a['default'])} (stage defaults)")
+    if a["model_scored"] and a["elements"]:
+        r.kpi("Most common LOD", max(a["distribution"].items(), key=lambda kv: kv[1])[0])
+    tgt = a["targets"] or [{"phase": t["phase"], "discipline": "(all)", "element_category": "(all)",
+                            "target_lod": t["target_lod"]} for t in a["default"]]
+    r.table("Target LOD matrix", ["Stage", "Discipline", "Element / category", "Target LOD"],
+            [[t.get("phase", ""), t.get("discipline", ""), t.get("element_category", ""),
+              t.get("target_lod", "")] for t in tgt])
+    if a["model_scored"]:
+        r.table("Achieved LOD — distribution", ["LOD band", "Elements"],
+                [[k, v] for k, v in a["distribution"].items()])
+        r.table("Achieved LOD — by discipline", ["Discipline", "Elements", "Avg achieved LOD"],
+                [[d["discipline"], d["elements"], d["avg_lod"]] for d in a["by_discipline"]]
+                or [["(none)", "", ""]])
+        r.chart("bar", "Achieved LOD distribution", list(a["distribution"].keys()),
+                [{"name": "Elements", "values": list(a["distribution"].values())}])
+    return r
+
+
+def _naming(db: Session, pid: str, name: str) -> Report:
+    """Naming-convention compliance across the CDE containers + drawing register."""
+    from . import naming
+    a = naming.audit(db, pid)
+    conv = a["conventions"]
+    cc, ss = a["containers"], a["sheets"]
+    r = Report("Naming Convention Compliance", name)
+    r.kpi("Container documents", cc["total"])
+    r.kpi("Container compliance", f"{cc['compliance_pct']}%" if cc["compliance_pct"] is not None else "—")
+    r.kpi("Drawing sheets", ss["total"])
+    r.kpi("Sheet-ID compliance", f"{ss['compliance_pct']}%" if ss["compliance_pct"] is not None else "—")
+    r.table("Conventions", ["Kind", "Pattern", "Example / note"],
+            [["Container / document", conv["container"]["pattern"], conv["container"]["note"]],
+             ["Drawing sheet", conv["sheet"]["pattern"], conv["sheet"]["note"]]])
+    r.table("Container naming violations", ["Name", "Issues"],
+            [[v["name"], "; ".join(v["issues"])] for v in cc["violations"]] or [["(all compliant)", ""]])
+    r.table("Sheet-ID violations", ["Sheet", "Issues"],
+            [[v["name"], "; ".join(v["issues"])] for v in ss["violations"]] or [["(all compliant)", ""]])
+    return r
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
     if report == "bep":
         return _bep(db, pid, name)
+    if report == "lod":
+        return _lod(db, pid, name)
+    if report == "naming":
+        return _naming(db, pid, name)
     if report == "appraisal":
         return _appraisal(db, pid, name)
     if report == "rent_roll":

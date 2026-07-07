@@ -1,0 +1,95 @@
+{
+  "key": "lod_target",
+  "name": "LOD Targets",
+  "section": "Information Management",
+  "icon": "🎚",
+  "ref_prefix": "LOD",
+  "title_field": "element_category",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "element_category",
+      "label": "Element / category",
+      "type": "text",
+      "required": true,
+      "fieldset": "LOD Target"
+    },
+    {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "select",
+      "options": [
+        "General",
+        "Civil",
+        "Landscape",
+        "Structural",
+        "Architectural",
+        "Fire Protection",
+        "Plumbing",
+        "Mechanical",
+        "Electrical",
+        "Telecommunications",
+        "Equipment"
+      ],
+      "fieldset": "LOD Target"
+    },
+    {
+      "name": "phase",
+      "label": "Stage",
+      "type": "select",
+      "options": [
+        "Concept / SD",
+        "Design Development",
+        "Construction Docs",
+        "Construction",
+        "As-built"
+      ],
+      "fieldset": "LOD Target"
+    },
+    {
+      "name": "target_lod",
+      "label": "Target LOD",
+      "type": "select",
+      "options": [
+        "LOD 100",
+        "LOD 200",
+        "LOD 300",
+        "LOD 350",
+        "LOD 400",
+        "LOD 500"
+      ],
+      "fieldset": "LOD Target"
+    },
+    {
+      "name": "loin_note",
+      "label": "Information need (LOIN)",
+      "type": "textarea",
+      "fieldset": "LOD Target"
+    }
+  ],
+  "workflow": {
+    "initial": "proposed",
+    "states": [
+      "proposed",
+      "agreed"
+    ],
+    "transitions": [
+      {
+        "from": "proposed",
+        "to": "agreed",
+        "action": "agree",
+        "party": [
+          "OwnersRep",
+          "PM",
+          "Architect"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "discipline",
+    "phase",
+    "target_lod"
+  ],
+  "workspace": "design"
+}

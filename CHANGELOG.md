@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.88 — Authoring depth: LOD matrix + naming-convention validator (A2 + A3)
+Completes the authoring-depth phase.
+- **LOD matrix & coverage (A2)** — a new `lod_target` register (stage × discipline × element-category →
+  LOD 100–500; RIBA/AIA stage defaults when empty) plus an **achieved-LOD assessment** of the loaded
+  model. Achieved LOD is *inferred* from the same LOIN facet completeness the quality scorecard scores
+  (geometry/type/classification/properties/quantities) and capped at LOD 400 — LOD 500 is a verified
+  as-built assertion, not a model read. Endpoints `GET /lod/matrix` + `GET /lod/assessment`, and a
+  **LOD Matrix & Coverage** report (target matrix + achieved distribution + per-discipline average).
+- **Naming-convention validator (A3)** — validates document/container filenames against
+  `Type_Discipline_Description_Revision_Date` (revision-controlled) and drawing sheet numbers against
+  the **NCS Sheet ID** grammar (reusing the D3 parser). `GET /naming/{conventions,validate,audit}` and
+  a **Naming Convention Compliance** report that audits the CDE containers + drawing register with
+  compliance % and a violation list.
+Both surface automatically in the Report Center (Quality group, PDF + Excel); the LOD targets get CRUD
+via the module engine. Backend 122/122, ruff clean.
+
 ## v0.3.87 — BEP generator: the ISO 19650 BIM Execution Plan as a produced document (A1)
 The first of an authoring-depth initiative (informed by an industry-practice scan). We already held the
 information-requirements register (EIR/BEP/AIR), the CDE, the discipline vocabulary and the delivery
