@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.91 — Interoperability & analytics: model query + data export + envelope compliance (Phase D)
+The ifc-lite-inspired items, on our server-Fragments architecture.
+- **Model analytics query (D1)** — `model_query.py` + `GET /model/query`: group elements by any
+  attribute (ifc_class / discipline / storey / type / `Pset::Property`) and **count** them or **sum a
+  quantity** from the IFC quantity sets, with filters and four saved views. The "ask the model a
+  question" analytics without shipping the model to the browser.
+- **Model data export (D2)** — `GET /model/export.csv` (columnar, one row per element) and
+  `GET /model/export.jsonld` (a JSON-LD graph, bSDD-style vocab, GlobalId as `@id`). No external
+  dependency. (Parquet + glTF geometry export remain future items.)
+- **Envelope code-compliance (D3)** — new `envelope_assembly` register + `envelope.py`: opaque
+  assemblies checked against IECC 2021 minimum R-values and fenestration against maximum U-factors by
+  climate zone. `GET /envelope/{audit,check}` + an **Envelope Code Compliance** report. A first-pass
+  screen, not a stamped energy model.
+- **IFC5 / IFCX (D4)** — tracked as a watch-item; the read path lands when web-ifc / Fragments ship
+  IFC5 support.
+Backend 127/127, ruff clean. Phases A–D of the authoring/design/engineering/interop initiative complete.
+
 ## v0.3.90 — Engineering depth: MEP sizing/schedules + resource-loaded scheduling (Phase C)
 - **MEP engineering (C1)** — a new `mep_equipment` register (equipment schedule) + `mep.py` with
   deterministic first-pass calculators: **duct sizing** (equal-velocity), **pipe sizing** (velocity

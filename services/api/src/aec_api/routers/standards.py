@@ -1,7 +1,7 @@
 """ISO 19650 / openBIM standards endpoints — CDE container discipline + requirements register."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from .. import bim_kpi, cde, ids_authoring, mcp_tools, openbim_quality, standards_expert
@@ -99,6 +99,51 @@ def naming_audit(pid: str, db: Session = Depends(get_db), _: str = Depends(curre
     _project(db, pid)
     from .. import naming
     return naming.audit(db, pid)
+
+
+def _idx_for(pid: str):
+    from .properties import _INDEX, _ensure_loaded
+    try:
+        _ensure_loaded(pid)
+    except Exception:                     # noqa: BLE001 — no model is a valid (empty-result) state
+        pass
+    return _INDEX.get(pid)
+
+
+@router.get("/projects/{pid}/model/query/views")
+def model_query_views(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """The saved model-analytics views (count by discipline / class / storey / type)."""
+    _project(db, pid)
+    from .. import model_query
+    return {"views": model_query.saved_views()}
+
+
+@router.get("/projects/{pid}/model/query")
+def model_query_run(pid: str, view: str | None = None, group_by: str = "ifc_class", agg: str = "count",
+                    quantity: str | None = None, db: Session = Depends(get_db),
+                    _: str = Depends(current_user)):
+    """Analytics query over the loaded model — a saved ?view=, or ad-hoc group_by / agg=sum&quantity=."""
+    _project(db, pid)
+    from .. import model_query
+    idx = _idx_for(pid)
+    return model_query.run_saved(idx, view) if view else model_query.query(idx, group_by, agg, quantity)
+
+
+@router.get("/projects/{pid}/model/export.csv")
+def model_export_csv(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Export the model element table as CSV (columnar, one row per element)."""
+    _project(db, pid)
+    from .. import model_query
+    return Response(model_query.to_csv(_idx_for(pid)), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="model-{pid}.csv"'})
+
+
+@router.get("/projects/{pid}/model/export.jsonld")
+def model_export_jsonld(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Export the model elements as a JSON-LD graph (bSDD-style vocab, GlobalId as @id)."""
+    _project(db, pid)
+    from .. import model_query
+    return model_query.to_jsonld(_idx_for(pid))
 
 
 @router.get("/projects/{pid}/bim-kpi/scorecard")

@@ -170,6 +170,27 @@ def mep_size(pid: str, kind: str = "duct", flow: float = 0.0, velocity: float = 
     return mep.size_duct(flow, velocity or 1000.0)
 
 
+@router.get("/projects/{pid}/envelope/audit")
+def envelope_audit(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Envelope code-compliance — every envelope assembly checked against IECC 2021 climate-zone
+    minimums (opaque R-value / fenestration U-factor), with a compliance rollup."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import envelope
+    return envelope.audit(db, pid)
+
+
+@router.get("/projects/{pid}/envelope/check")
+def envelope_check(pid: str, element_type: str = "Wall", climate_zone: str = "4",
+                   r_value: float | None = None, u_factor: float | None = None,
+                   db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Check a single assembly against IECC 2021 (element_type + climate_zone + r_value or u_factor)."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import envelope
+    return envelope.check_assembly(element_type, climate_zone, r_value, u_factor)
+
+
 @router.get("/projects/{pid}/diligence/readiness")
 def diligence_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
     """Pre-acquisition go/no-go rollup: due-diligence items by category/state (cleared vs flagged vs

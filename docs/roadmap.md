@@ -43,9 +43,10 @@ engineering depth, and Higharc-style live-design/options. Do **Phase A then Phas
 - **C — engineering depth (SHIPPED v0.3.90):** MEP equipment schedules + pipe/duct sizing + load-calc→
   tonnage + hanger spacing + per-system summaries (extends D5 parametric MEP); resource-loaded scheduling
   + histograms + S-curve + over-allocation.
-- **D — interoperability & analytics (ifc-lite-inspired):** model analytics query layer (server-side
-  DuckDB-style saved views); export breadth (glTF / Parquet / JSON-LD); envelope code-compliance checker
-  (assembly R/U vs climate-zone IECC/ASHRAE 90.1); IFC5/IFCX read-path readiness (watch-item).
+- **D — interoperability & analytics (SHIPPED v0.3.91; ifc-lite-inspired):** model analytics query layer
+  (group-by + count/sum over the property index, saved views); data export (CSV + JSON-LD; Parquet/glTF
+  future); envelope code-compliance checker (assembly R/U vs IECC 2021 climate-zone minimums); IFC5/IFCX
+  read-path readiness (watch-item — lands when web-ifc/Fragments support arrives).
 - **E — field AI (trend-aligned, mostly bridges):** computer-vision % complete from site photos; field
   labor-productivity analytics. Optional connectors, low priority.
 

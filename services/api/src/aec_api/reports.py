@@ -67,6 +67,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "design_standards": ("Design Standards Compliance", "Design"),
     "mep": ("MEP Equipment Schedule", "Engineering"),
     "resource_loading": ("Resource-Loaded Schedule", "Schedule"),
+    "envelope": ("Envelope Code Compliance (IECC)", "Engineering"),
 }
 
 
@@ -1119,6 +1120,27 @@ def _mep(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _envelope(db: Session, pid: str, name: str) -> Report:
+    """Envelope assemblies checked against IECC 2021 climate-zone minimums."""
+    from . import envelope
+    a = envelope.audit(db, pid)
+    r = Report("Envelope Code Compliance (IECC 2021)", name)
+    r.kpi("Assemblies", a["total"])
+    r.kpi("Checked", a["checked"])
+    r.kpi("Compliant", a["compliant"])
+    r.kpi("Compliance", f"{a['compliance_pct']}%" if a["compliance_pct"] is not None else "—")
+    r.table("Envelope compliance", ["Assembly", "Type", "Zone", "Provided", "Required", "Result"],
+            [[x.get("name", ""), x.get("element_type", ""), x.get("climate_zone", ""),
+              (f"R{x['provided_r']}" if x.get("provided_r") is not None else
+               (f"U{x['provided_u']}" if x.get("provided_u") is not None else "—")),
+              (f"R≥{x['required_min_r']}" if "required_min_r" in x else
+               (f"U≤{x['required_max_u']}" if "required_max_u" in x else "—")),
+              ("PASS" if x["compliant"] else "FAIL") if x.get("compliant") is not None
+              else x.get("issue", "—")]
+             for x in a["results"]] or [["(no assemblies)"] + [""] * 5])
+    return r
+
+
 def _resource_loading(db: Session, pid: str, name: str) -> Report:
     """Resource histogram + S-curve + peak manpower from the crew-loaded schedule."""
     from . import resource_loading
@@ -1152,6 +1174,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _mep(db, pid, name)
     if report == "resource_loading":
         return _resource_loading(db, pid, name)
+    if report == "envelope":
+        return _envelope(db, pid, name)
     if report == "lod":
         return _lod(db, pid, name)
     if report == "naming":
