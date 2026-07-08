@@ -95,6 +95,29 @@ async def convert(file: UploadFile = File(...), _: str = Depends(current_user),
     raise HTTPException(415, f"unsupported format .{ext or '?'}")
 
 
+@router.post("/convert/vim/inspect")
+async def inspect_vim(file: UploadFile = File(...), _: str = Depends(current_user),
+                      __: None = Depends(_throttle)):
+    """Inspect an uploaded VIM / G3D (Ara3D/VIM binary family) — schema/version, buffer inventory and
+    geometry stats (vertex/index counts + bounding box) via a pure-Python BFAST reader. Fully offline;
+    data-layer inspection (full VIM entity decode + viewer streaming are a follow-up)."""
+    import sys
+    from pathlib import Path
+    _data_src = Path(__file__).resolve().parents[4] / "data" / "src"
+    if str(_data_src) not in sys.path:
+        sys.path.insert(0, str(_data_src))
+    from aec_data import bfast  # type: ignore
+    data = await file.read()
+    name = (file.filename or "model.vim").lower()
+    try:
+        if name.endswith(".g3d"):
+            g = bfast.g3d_geometry(await run_in_threadpool(bfast.read_bfast, data))
+            return {"format": "G3D", **g}
+        return await run_in_threadpool(bfast.vim_info, data)
+    except ValueError as e:
+        raise HTTPException(422, f"could not read {name}: {e}")
+
+
 @router.get("/convert/e57/status")
 def e57_status():
     """Whether server-side E57 → .xyz point-cloud conversion is available (needs optional `pye57`)."""

@@ -3,6 +3,7 @@ supersede, role-based views, health + phase gaps.
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_docmanager.py"""
 import io
 import os
+import shutil
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_docmanager.db"
 os.environ["STORAGE_DIR"] = "./test_storage_docmanager"
@@ -10,6 +11,9 @@ os.environ.pop("AEC_RBAC", None)
 for _f in ("./test_docmanager.db",):
     if os.path.exists(_f):
         os.remove(_f)
+# docmanager persists a sidecar index in STORAGE_DIR; clear it so the fixed-pid engine assertions
+# below are isolated across runs (the runner also clears _storage_*, this covers standalone runs).
+shutil.rmtree(os.environ["STORAGE_DIR"], ignore_errors=True)
 
 from fastapi.testclient import TestClient  # noqa: E402
 

@@ -161,6 +161,43 @@ def model_export_parquet(pid: str, db: Session = Depends(get_db), _: str = Depen
                     headers={"Content-Disposition": f'attachment; filename="model-{pid}.parquet"'})
 
 
+@router.get("/projects/{pid}/model/columnar/stats")
+def model_columnar_stats(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Interning/columnar efficiency stats for the loaded model — dedup ratio + estimated RAM saved by
+    the BimOpenSchema-style string-interned columnar form vs the per-element JSON index."""
+    _project(db, pid)
+    from .. import bim_columns
+    return bim_columns.interning_stats(_idx_for(pid))
+
+
+@router.get("/projects/{pid}/model/columnar/aggregate")
+def model_columnar_aggregate(pid: str, group_by: str = "ifc_class",
+                             db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Columnar count group-by over the element table via pyarrow compute (vectorised, no row loop)."""
+    _project(db, pid)
+    from .. import bim_columns
+    try:
+        return bim_columns.aggregate(_idx_for(pid), group_by)
+    except RuntimeError as exc:      # pyarrow absent
+        raise HTTPException(503, str(exc))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.get("/projects/{pid}/model/export/params.parquet")
+def model_export_params_parquet(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Export the model's property/quantity set as an EAV Parquet table (the analytics-friendly store —
+    query in DuckDB/pandas). Needs pyarrow; 503 if absent."""
+    _project(db, pid)
+    from .. import bim_columns
+    try:
+        data = bim_columns.params_parquet(_idx_for(pid))
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc))
+    return Response(data, media_type="application/vnd.apache.parquet",
+                    headers={"Content-Disposition": f'attachment; filename="model-{pid}-params.parquet"'})
+
+
 @router.get("/projects/{pid}/bim-kpi/scorecard")
 def bim_kpi_scorecard(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
     """The 10-category BIM KPI scorecard, graded from the CDE, model quality and the issue / asset /

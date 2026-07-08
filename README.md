@@ -182,6 +182,13 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
+- **Performance & interop — columnar BIM data, VIM reader, fast STEP scan (latest, v0.3.97)** — a
+  string/number-**interned columnar** view of the property index (+ an EAV parameter table) exported as
+  **Parquet** for DuckDB/pandas analytics, cutting RAM on large models where psets repeat; a pure-Python
+  **BFAST / G3D / VIM** reader that opens `.vim` / `.g3d` files offline; and a streaming **STEP metadata
+  scanner** that returns an entity-type histogram without a full IFC parse. (Format inspiration from the
+  MIT-licensed [Ara3D SDK](https://github.com/ara3d/ara3d-sdk); see [ATTRIBUTIONS](docs/ATTRIBUTIONS.md).)
+
 - **Document Control — a role-based standard file manager (latest, v0.3.96)** — a first-class **📁
   Documents** workspace: an elFinder-style two-pane file manager (folder tree + file list) over a
   **standard project folder taxonomy** (`01_Contract Documents … 11_Final Account`). Every folder is

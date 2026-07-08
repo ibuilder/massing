@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.97 — Ara3D-inspired efficiency track: columnar BIM data, BFAST/VIM reader, fast STEP scan
+Three efficiency/interop wins drawn from a review of the [Ara3D SDK](https://github.com/ara3d/ara3d-sdk)
+(MIT; see [ATTRIBUTIONS](docs/ATTRIBUTIONS.md)) — ported/adapted where it added value, skipped where our
+numpy/trimesh/ifcopenshell stack already wins.
+
+- **Columnar / interned BIM data layer** (`bim_columns.py`, inspired by Ara3D `BimOpenSchema`) — a
+  **string/number-interned columnar** view of the property index + an **EAV parameter table** exported as
+  **Parquet** for DuckDB/pandas/Polars analytics. Psets repeat the same keys/values across thousands of
+  elements, so interning cuts RAM sharply (a small 4-wall fixture already shows ~3.4× string dedup). New
+  endpoints: `/model/columnar/stats` (dedup ratio + estimated bytes saved), `/model/columnar/aggregate`
+  (group-by via pyarrow compute — no Python row loop), `/model/export/params.parquet`.
+- **BFAST / G3D / VIM reader** (`aec_data/bfast.py`) — a pure-Python reader/writer for the BFAST container
+  + summarisers for G3D geometry (vertex/index counts + bbox) and VIM files (schema/version, buffer
+  inventory, geometry stats). Opens `.vim` / `.g3d` offline via `POST /convert/vim/inspect`. Independent
+  re-implementation of the public format; no Ara3D code copied.
+- **Fast STEP metadata scanner** (`aec_data/step_scan.py`) — a streaming line-scan of an IFC-SPF file for
+  its header + **entity-type histogram** without a full `ifcopenshell` parse (milliseconds, bounded
+  memory). `GET /model/step-summary` for an instant "what's in this IFC" on large files.
+
+Also reviewed the OpenAEC-BIM-validator repo — no integration needed: we already validate IFC against IDS
+via `ifctester` (per-spec pass/fail + failing GUIDs + BCF) in `aec_data/validate.py`. Verified: new
+`test_bim_columns` / `test_bfast` / `test_step_scan` + full backend suite green, web build green, ruff clean.
+
 ## v0.3.96 — Document Control: a role-based standard file manager over the project
 A first-class **📁 Documents** workspace — an elFinder-style two-pane file manager (folder tree + file
 list) built on a **standard, role-based project folder taxonomy** so every project is organised the same

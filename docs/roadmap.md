@@ -64,6 +64,14 @@ and **IFC5/IFCX/ifcJSON data reads** (tolerant
 JSON→element-index parser; geometry rendering still lands upstream). Genuinely upstream-only remainder: IFC5
 geometry *rendering* (web-ifc/Fragments) and a bundled/trained CV model.
 
+**Ara3D-inspired efficiency (G1–G3, v0.3.97):** columnar/string-interned property index + EAV Parquet
+export for DuckDB analytics (`bim_columns.py`, from Ara3D BimOpenSchema); pure-Python BFAST/G3D/VIM reader
+(`aec_data/bfast.py`) opening `.vim`/`.g3d` offline; a fast streaming STEP metadata/entity-histogram scan
+(`aec_data/step_scan.py`) with no full parse. MIT-attributed ([ATTRIBUTIONS](ATTRIBUTIONS.md)); the rest
+of the Ara3D SDK (geometry/SIMD/collections) was intentionally not ported — numpy/scipy/trimesh already
+cover it. Reviewed OpenAEC-BIM-validator: no integration needed (we already do ifctester IDS validation +
+BCF).
+
 **Document Control (F1–F6, v0.3.96):** a role-based standard file manager — a fixed project folder
 taxonomy (`01_Contract Documents … 11_Final Account`) with each folder owned by a role (PM = business,
 Superintendent = field, Architect/Engineer = drawings), ISO 19650 CDE state, and required flags; a

@@ -11,6 +11,7 @@ if any fail — suitable for CI.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -41,7 +42,8 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_workspaces", "test_fca", "test_resilience", "test_pull_realtime", "test_disciplines",
          "test_lod", "test_naming", "test_design_engine", "test_mep", "test_resource_loading",
          "test_envelope", "test_model_query", "test_field_ai", "test_deferred",
-         "test_gltf_export", "test_ifc5_read", "test_model_events", "test_docmanager"]
+         "test_gltf_export", "test_ifc5_read", "test_model_events", "test_docmanager",
+         "test_bim_columns", "test_bfast", "test_step_scan"]
 
 
 def main() -> int:
@@ -58,6 +60,9 @@ def main() -> int:
                "AEC_RBAC": "1" if t in ("test_rbac", "test_modules") else os.environ.get("AEC_RBAC", "0")}
         for stale in (HERE / f"_{t}.db",):
             stale.unlink(missing_ok=True)
+        # also clear the per-test object-storage dir so sidecar state (e.g. docmanager's
+        # {pid}/docs/_index.json) can't leak across runs and break count assertions
+        shutil.rmtree(HERE / f"_storage_{t}", ignore_errors=True)
         t0 = time.time()
         proc = subprocess.run([sys.executable, f"{t}.py"], cwd=HERE, env=env,
                               capture_output=True, text=True)

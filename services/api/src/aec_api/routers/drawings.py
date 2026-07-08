@@ -104,6 +104,14 @@ async def export_gltf(pid: str, db: Session = Depends(get_db), _sec: str = Depen
                     headers={"Content-Disposition": f'attachment; filename="model-{pid}.gltf"'})
 
 
+@router.get("/projects/{pid}/model/step-summary")
+def model_step_summary(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Fast model summary — header + entity-type histogram from a streaming STEP scan, without a full
+    ifcopenshell parse. Instant 'what's in this IFC' for large files."""
+    from aec_data import step_scan  # type: ignore
+    return step_scan.scan_file(_source_ifc(db, pid))
+
+
 def _sheet_meta(db: Session, pid: str, sheet: str) -> dict:
     from datetime import date
 
