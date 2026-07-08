@@ -25,6 +25,75 @@ assert model_events.observe("px", "sigB")["version"] == 2
 assert model_events.observe("px", "sigC")["version"] == 3
 
 
+# Redis fail-open: a broken client must never break publishing/reads — falls back to in-process.
+class _BrokenRedis:
+    def pipeline(self, *a, **k):
+        raise RuntimeError("redis down")
+
+    def hgetall(self, *a, **k):
+        raise RuntimeError("redis down")
+
+
+_saved_redis = model_events._redis
+model_events._redis = _BrokenRedis()
+assert model_events.bump("fo", "s1")["version"] == 1, "bump must fall back to in-process on Redis error"
+assert model_events.current("fo")["version"] == 1, "current must fall back to in-process on Redis error"
+
+
+# Redis SHARED path: a fake implementing the redis hash/pipeline contract proves the version is shared
+# (any worker's bump is visible to any worker's current) and stays monotonic — the multi-worker semantics.
+class _FakeRedis:
+    def __init__(self):
+        self.store: dict[str, dict[str, str]] = {}
+
+    def pipeline(self, transaction=True):
+        outer = self
+
+        class _P:
+            def __init__(self):
+                self.results = []
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def hincrby(self, key, field, n):
+                h = outer.store.setdefault(key, {})
+                h[field] = str(int(h.get(field, 0)) + n)
+                self.results.append(int(h[field]))
+
+            def hset(self, key, mapping=None):
+                h = outer.store.setdefault(key, {})
+                for k, v in (mapping or {}).items():
+                    h[k] = str(v)
+                self.results.append(1)
+
+            def execute(self):
+                return self.results
+
+        return _P()
+
+    def hgetall(self, key):
+        return dict(self.store.get(key, {}))
+
+
+fake = _FakeRedis()
+model_events._redis = fake
+b1 = model_events.bump("shared", "sA")
+assert b1["version"] == 1 and b1["signature"] == "sA", b1
+# a "different worker" reads the same shared store and sees the bump
+assert model_events.current("shared") == {"version": 1, "signature": "sA", "at": b1["at"]}, \
+    model_events.current("shared")
+assert model_events.bump("shared", "sB")["version"] == 2, "shared version must increment across bumps"
+assert model_events.current("shared")["version"] == 2 and model_events.current("shared")["signature"] == "sB"
+# observe reconciles against the shared signature (no bump when unchanged; bump when changed)
+assert model_events.observe("shared", "sB")["version"] == 2
+assert model_events.observe("shared", "sC")["version"] == 3
+model_events._redis = _saved_redis
+
+
 def _props(guids):
     return {"schema": "IFC4", "elements": [{"guid": g, "ifc_class": "IfcWall"} for g in guids]}
 

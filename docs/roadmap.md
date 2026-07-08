@@ -58,8 +58,9 @@ engineering depth, and Higharc-style live-design/options. Do **Phase A then Phas
 service / upstream support are now shipped as far as each honestly can be — **Parquet** export (`pyarrow`;
 `/model/export.parquet`); **glTF 2.0** geometry export (`ifcopenshell.geom` triangulation, per-class
 meshes, `/model/export.gltf`); the **CV bridge end-to-end** (id-or-name resolution + batch ingest +
-[reference adapter](cv-bridge.md), still externally-modelled by design); **live 2D propagation** (in-process
-model-version bump + `/drawings/stream` SSE — no event bus); and **IFC5/IFCX/ifcJSON data reads** (tolerant
+[reference adapter](cv-bridge.md), still externally-modelled by design); **live 2D propagation** (model-version
+bump + `/drawings/stream` SSE, Redis-shared across workers via `AEC_REDIS_URL`, fail-open to in-process);
+and **IFC5/IFCX/ifcJSON data reads** (tolerant
 JSON→element-index parser; geometry rendering still lands upstream). Genuinely upstream-only remainder: IFC5
 geometry *rendering* (web-ifc/Fragments) and a bundled/trained CV model.
 

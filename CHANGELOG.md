@@ -21,10 +21,11 @@ as far as each honestly can be:
   straight to `schedule_activity.percent`. A runnable **reference adapter** ([docs/cv-bridge.md](docs/cv-bridge.md))
   documents the HTTP contract so any vision service wires in. Still no bundled model — that stays external
   by design — but the entire integration surface is complete and tested.
-- **Live 2D propagation** — an in-process, per-project **model version** bumps whenever a new model is
-  published; `GET /drawings/sync-status` surfaces it and `GET /drawings/stream` (SSE) **pushes** the
-  change, so open on-demand 2D views regenerate themselves — live propagation without an external event
-  bus.
+- **Live 2D propagation** — a per-project **model version** bumps whenever a new model is published;
+  `GET /drawings/sync-status` surfaces it and `GET /drawings/stream` (SSE) **pushes** the change, so open
+  on-demand 2D views regenerate themselves. Single-worker uses an in-process registry; **multi-worker
+  shares it via Redis** (atomic `HINCRBY`, keyed off `AEC_REDIS_URL`) so a publish on any worker reaches
+  a stream on any other — fail-open to in-process if Redis blips, matching the rate-limiter/lockout.
 - **IFC5 / IFCX / ifcJSON data reads** — a tolerant JSON reader parses these into the same element-index
   shape a STEP model produces, so analytics, LOD/naming/envelope audits and CSV/JSON-LD/Parquet export all
   work on an IFC5 file **now**. Capabilities report it as `ifc5: data` (geometry rendering still lands
