@@ -152,6 +152,46 @@ def mep_schedule(pid: str, db: Session = Depends(get_db), _: str = Depends(curre
     return mep.schedule(db, pid)
 
 
+@router.get("/projects/{pid}/mep/model-extract")
+def mep_model_extract(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """MEP elements read off the loaded model (by IFC class) — complements the register schedule."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import mep
+    from .properties import _INDEX, _ensure_loaded
+    try:
+        _ensure_loaded(pid)
+    except Exception:                     # noqa: BLE001 — no model is a valid (empty) state
+        pass
+    return mep.extract_from_model(_INDEX.get(pid))
+
+
+@router.get("/projects/{pid}/model/capabilities")
+def model_capabilities(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """IFC read-schema capabilities + the detected schema of this project's loaded model (IFC5/IFCX
+    is detected and reported, not yet parsed)."""
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    from .. import model_capabilities as mc
+    return mc.capabilities(p.source_ifc)
+
+
+@router.get("/projects/{pid}/drawings/sync-status")
+def drawings_sync_status(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Model fingerprint for 2D staleness detection — the client compares it across renders to know
+    when the on-demand drawings need regenerating."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import model_capabilities as mc
+    from .properties import _INDEX, _ensure_loaded
+    try:
+        _ensure_loaded(pid)
+    except Exception:                     # noqa: BLE001 — no model is a valid state
+        pass
+    return mc.model_signature(_INDEX.get(pid))
+
+
 @router.get("/projects/{pid}/mep/size")
 def mep_size(pid: str, kind: str = "duct", flow: float = 0.0, velocity: float = 0.0,
              load: float = 0.0, size: float = 0.0, hanger_kind: str = "pipe_steel",

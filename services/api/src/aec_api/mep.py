@@ -86,6 +86,45 @@ def _num(v: Any) -> float | None:
         return None
 
 
+# MEP IFC classes → a friendly label (for reading MEP off the model, complementing the register).
+_MEP_CLASSES = {
+    "IfcDuctSegment": "Duct", "IfcDuctFitting": "Duct fitting", "IfcAirTerminal": "Air terminal",
+    "IfcAirTerminalBox": "Air terminal box", "IfcDamper": "Damper", "IfcFan": "Fan",
+    "IfcPipeSegment": "Pipe", "IfcPipeFitting": "Pipe fitting", "IfcValve": "Valve",
+    "IfcPump": "Pump", "IfcTank": "Tank", "IfcSanitaryTerminal": "Plumbing fixture",
+    "IfcSpaceHeater": "Space heater", "IfcBoiler": "Boiler", "IfcChiller": "Chiller",
+    "IfcCoolingTower": "Cooling tower", "IfcUnitaryEquipment": "AHU / RTU", "IfcCoil": "Coil",
+    "IfcFlowTerminal": "Flow terminal", "IfcCableCarrierSegment": "Cable tray",
+    "IfcCableSegment": "Cable", "IfcLightFixture": "Light fixture", "IfcOutlet": "Outlet",
+    "IfcElectricAppliance": "Electrical appliance", "IfcElectricDistributionBoard": "Panel / board",
+}
+
+
+def extract_from_model(idx: dict[str, dict] | None) -> dict[str, Any]:
+    """Read MEP elements off the loaded model (property index) by IFC class — the model-derived
+    counterpart to the register-driven schedule. Complements, doesn't replace, the equipment register."""
+    from . import classification
+    if not idx:
+        return {"model_scored": False, "mep_elements": 0, "by_class": [], "by_discipline": [],
+                "note": "No model loaded — MEP extraction needs a published model."}
+    by_class: dict[str, int] = {}
+    by_disc: dict[str, int] = {}
+    for e in idx.values():
+        cl = e.get("ifc_class", "")
+        if cl in _MEP_CLASSES:
+            by_class[cl] = by_class.get(cl, 0) + 1
+            disc = classification.discipline_name(classification.discipline_of_ifc_class(cl)) or "Mechanical"
+            by_disc[disc] = by_disc.get(disc, 0) + 1
+    return {
+        "model_scored": True, "mep_elements": sum(by_class.values()),
+        "by_class": [{"ifc_class": k, "label": _MEP_CLASSES[k], "count": v}
+                     for k, v in sorted(by_class.items(), key=lambda kv: -kv[1])],
+        "by_discipline": [{"discipline": k, "count": v} for k, v in sorted(by_disc.items())],
+        "note": "MEP elements counted off the model by IFC class (ducts, pipes, terminals, equipment, "
+                "electrical). Pair with the equipment register for the engineered schedule.",
+    }
+
+
 def schedule(db: Session, pid: str) -> dict[str, Any]:
     """The equipment schedule from the register + a per-system rollup (count + total capacity by unit)."""
     rows = me.list_records(db, "mep_equipment", pid, limit=100000) if "mep_equipment" in me.TABLES else []

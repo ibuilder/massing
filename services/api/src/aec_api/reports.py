@@ -1114,6 +1114,17 @@ def _mep(db: Session, pid: str, name: str) -> Report:
             [[b["system"], b["count"],
               ", ".join(f"{v} {u}" for u, v in b["capacity_by_unit"].items()) or "—"]
              for b in s["by_system"]] or [["(none)", "", ""]])
+    # model-derived MEP counts (complements the register when a model is loaded)
+    try:
+        from .routers.properties import _INDEX, _ensure_loaded
+        _ensure_loaded(pid)
+        mx = mep.extract_from_model(_INDEX.get(pid))
+    except Exception:                     # noqa: BLE001 — targets-only when no model is loaded
+        mx = {"model_scored": False, "mep_elements": 0, "by_class": []}
+    if mx.get("model_scored"):
+        r.kpi("MEP elements (model)", mx["mep_elements"])
+        r.table("MEP elements off the model", ["IFC class", "Type", "Count"],
+                [[x["ifc_class"], x["label"], x["count"]] for x in mx["by_class"]] or [["(none)", "", ""]])
     r.table("Duct sizing reference (equal-velocity @ 1000 fpm)", ["CFM", "Round diameter (in)"],
             [[q, mep.size_duct(q)["round_diameter_in"]] for q in (500, 1000, 2000, 4000, 8000)])
     r.table("Pipe sizing reference (velocity @ 6 fps)", ["GPM", "Nominal size (in)"],

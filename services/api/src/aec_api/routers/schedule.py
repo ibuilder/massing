@@ -76,10 +76,21 @@ def cv_progress_status(pid: str, _: str = Depends(require_role("viewer"))):
 
 @router.post("/projects/{pid}/cv-progress/ingest")
 def cv_progress_ingest(pid: str, payload: dict = Body(default={}),
-                       _: str = Depends(require_role("editor"))):
-    """Accept an external CV progress estimate (no-op unless AEC_CV_BRIDGE is enabled)."""
+                       db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """Accept an external CV progress estimate (no-op unless AEC_CV_BRIDGE is enabled). When enabled and
+    `activity` is a schedule_activity id, the estimate is written to that activity's percent."""
     from .. import cv_bridge
-    return cv_bridge.ingest(payload)
+    from .. import modules as me
+    res = cv_bridge.ingest(payload)
+    if res.get("accepted") and payload.get("activity"):
+        try:
+            me.update_record(db, "schedule_activity", pid, payload["activity"],
+                             {"percent": res["percent"]}, actor, None)
+            res["applied"] = True
+        except Exception as e:            # noqa: BLE001 — a bad/unknown activity id shouldn't 500 the bridge
+            res["applied"] = False
+            res["apply_error"] = str(e)[:120]
+    return res
 
 
 @router.get("/projects/{pid}/schedule/alerts")

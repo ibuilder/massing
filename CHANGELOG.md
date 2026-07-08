@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.93 — Deferred-item slices: model-driven MEP, staleness, schema detect, CV write-path
+The tractable slice of each remaining backlog item (the fuller versions need infrastructure noted below).
+- **Model-driven MEP extraction (C1x)** — `mep.extract_from_model` reads MEP elements off the loaded
+  model by IFC class (ducts / pipes / terminals / equipment / electrical), counted by class + discipline.
+  `GET /mep/model-extract`, and the MEP Equipment Schedule report now shows model counts beside the register.
+- **Model-staleness signature (B2x)** — `GET /drawings/sync-status` returns a cheap fingerprint of the
+  loaded model (element count + GlobalId hash); the client compares it across renders to know when the
+  on-demand 2D is stale. The tractable slice of live-2D propagation, without an event bus.
+- **IFC schema detection + capabilities (D4x)** — `GET /model/capabilities` sniffs the source model's
+  header, reports the detected schema (IFC2X3 / IFC4 / IFC4X3), and **detects IFC5/IFCX (JSON) and says
+  plainly it's not yet parsed** rather than failing cryptically. The read path still lands upstream.
+- **CV bridge write-path (E2x)** — with `AEC_CV_BRIDGE` on, `POST /cv-progress/ingest` now **writes the
+  estimate to the named schedule activity's percent** (a bad id is handled, not a 500). A real CV service
+  now has a working endpoint to drive progress; the vision model remains external.
+
+Still genuinely deferred (need infra, not effort): **Parquet export** (needs the `pyarrow` dependency —
+a decision, not built by default), **glTF geometry export** (needs the geometry pipeline), a **real CV
+model** (external service), and **full auto-propagate-on-edit** (needs an event bus). Backend 129/129,
+ruff clean.
+
 ## v0.3.92 — Field AI: labor productivity + CV progress bridge (Phase E)
 The final phase of the upgrade initiative.
 - **Field labor productivity (E1)** — a new `productivity_log` register (quantity installed · workers ·
