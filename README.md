@@ -182,7 +182,26 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **The Discipline Spine — model → sheets → specs → bid → budget, one vocabulary (latest, v0.3.79–v0.3.86)** —
+- **Authoring · design · engineering · interop · field depth (latest, v0.3.87–v0.3.92)** — a five-phase
+  upgrade from an industry-practice + competitive scan (BIM Execution Plans, LOD, Revit-MEP, naming
+  standards, generative design, browser-IFC toolkits):
+  - **openBIM authoring** — a produced **ISO 19650 BIM Execution Plan** (roles matrix, LOIN-by-stage,
+    delivery schedule, naming, CDE workflow, QA), a **LOD matrix** with achieved-LOD inferred from LOIN
+    facet completeness, and a **naming-convention validator** (`Type_Discipline_Description_Revision_Date`
+    + NCS Sheet IDs) auditing the CDE + drawing register.
+  - **The design engine** — **design options / variants** compared apples-to-apples (program + economics,
+    best-in-class per metric, promote one to selected), and a **design-standards ruleset** (approved /
+    prohibited assemblies, materials, products) the model is audited against.
+  - **Engineering depth** — first-pass **MEP** duct/pipe sizing, cooling-load → tonnage, hanger spacing +
+    equipment schedules, and **resource-loaded scheduling** (crew histogram, man-week S-curve, over-
+    allocation flags) on the CPM schedule.
+  - **Interoperability & analytics** — a **model query** layer (group-by + count/sum over the property
+    index, saved views), **CSV / JSON-LD export**, and an **envelope code-compliance** checker
+    (assembly R / U vs IECC 2021 climate-zone minimums).
+  - **Field** — **labor productivity** (units per man-hour by trade) and a feature-flagged
+    **computer-vision progress** bridge (fabricates nothing when off).
+  Every engine surfaces in the Report Center (PDF + Excel) and the config-driven module CRUD.
+- **The Discipline Spine — model → sheets → specs → bid → budget, one vocabulary (v0.3.79–v0.3.86)** —
   a building is now authored and read as **layered structural / architectural / MEP** models threaded by two
   shared standards: **NCS discipline designators** (A/S/M/E/P/F/C/L/T/G/Q) and **CSI MasterFormat** divisions.
   Model elements are **discipline-tagged** (via `IfcClassificationReference`, keyed to GlobalId), drawings carry
