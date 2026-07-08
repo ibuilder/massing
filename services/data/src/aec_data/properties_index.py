@@ -57,7 +57,20 @@ def build_index(model: ifcopenshell.file) -> dict[str, Any]:
     }
 
 
+def _is_json_model(path: str) -> bool:
+    """IFC5 / IFCX / ifcJSON are JSON documents (first non-space byte is { or [); STEP starts ISO-10303."""
+    try:
+        with open(path, "rb") as fh:
+            return fh.read(4096).lstrip()[:1] in (b"{", b"[")
+    except OSError:
+        return False
+
+
 def index_file(ifc_path: str, out_path: str | None = None) -> dict[str, Any]:
+    if _is_json_model(ifc_path):
+        # IFC5/IFCX/ifcJSON: geometry can't render yet, but the data layer reads now (real read path).
+        from .ifc5_reader import index_json_file
+        return index_json_file(ifc_path, out_path)
     model = open_model(ifc_path)
     index = build_index(model)
     if out_path:

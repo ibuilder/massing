@@ -30,9 +30,10 @@ def detect_schema(path: str | None) -> dict[str, Any]:
     except OSError:
         return {"detected": None, "supported": None, "note": "could not read the source model"}
     if head.lstrip()[:1] in (b"{", b"["):
-        return {"detected": "IFC5 / IFCX (JSON)", "supported": False,
-                "note": "IFC5/IFCX is a JSON-based schema; the read path lands when web-ifc / Fragments "
-                        "add support upstream."}
+        return {"detected": "IFC5 / IFCX (JSON)", "supported": False, "data_readable": True,
+                "note": "IFC5/IFCX is a JSON-based schema. The DATA read path is supported — elements + "
+                        "properties parse into the model index (analytics, audits, exports all work). "
+                        "Geometry RENDERING lands when web-ifc / Fragments add IFC5 support upstream."}
     m = _SCHEMA_RE.search(head)
     schema = m.group(1).decode("ascii", "ignore").upper() if m else None
     supported = bool(schema and any(schema.startswith(s) for s in SUPPORTED_SCHEMAS))
@@ -46,10 +47,11 @@ def capabilities(source_ifc: str | None) -> dict[str, Any]:
     return {
         "supported_read_schemas": SUPPORTED_SCHEMAS,
         "loaded_model": detect_schema(source_ifc),
-        "ifc5": {"status": "planned",
-                 "note": "IFC5 / IFCX read path is a tracked watch-item — it lands when web-ifc / "
-                         "Fragments ship IFC5 support upstream. Such files are detected + reported, "
-                         "not yet parsed."},
+        "ifc5": {"status": "data",
+                 "data_read": True, "geometry_read": False,
+                 "note": "IFC5 / IFCX / ifcJSON DATA is parsed into the model index (elements + "
+                         "properties) — analytics, audits and exports work on it now. Geometry "
+                         "RENDERING lands when web-ifc / Fragments ship IFC5 support upstream."},
     }
 
 

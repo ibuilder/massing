@@ -146,6 +146,21 @@ def model_export_jsonld(pid: str, db: Session = Depends(get_db), _: str = Depend
     return model_query.to_jsonld(_idx_for(pid))
 
 
+@router.get("/projects/{pid}/model/export.parquet")
+def model_export_parquet(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Export the model element table as Apache Parquet (columnar analytics — DuckDB / pandas / Polars).
+
+    Needs the optional `pyarrow` dependency; returns 503 with a clear message when it isn't installed."""
+    _project(db, pid)
+    from .. import model_query
+    try:
+        data = model_query.to_parquet(_idx_for(pid))
+    except RuntimeError as exc:  # pyarrow not installed
+        raise HTTPException(503, str(exc))
+    return Response(data, media_type="application/vnd.apache.parquet",
+                    headers={"Content-Disposition": f'attachment; filename="model-{pid}.parquet"'})
+
+
 @router.get("/projects/{pid}/bim-kpi/scorecard")
 def bim_kpi_scorecard(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
     """The 10-category BIM KPI scorecard, graded from the CDE, model quality and the issue / asset /

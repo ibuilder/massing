@@ -4,6 +4,36 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.95 — Close the five deferred slices: Parquet + glTF export, CV bridge end-to-end, live 2D propagation, IFC5 data reads
+The items previously scoped as "needs a dependency / external service / upstream support" are now shipped
+as far as each honestly can be:
+
+- **Parquet export** — added `pyarrow`; `GET /model/export.parquet` writes a Snappy-compressed columnar
+  file (DuckDB / pandas / Polars), alongside the existing CSV + JSON-LD. Returns a clean 503 (never a
+  500) if the optional dep is absent.
+- **glTF geometry export** — `GET /model/export.gltf` triangulates the model with the same
+  `ifcopenshell.geom` iterator the section/clash tools use and writes a **self-contained glTF 2.0**
+  (binary buffer embedded as a data-URI), meshes merged per IFC class with per-class colours, Z-up→Y-up.
+  The viewer still streams Fragments — this is the portable geometry-*out* path (Blender / Three.js /
+  any DCC). Honest scope: triangulated meshes + flat colours, no PBR/textures.
+- **CV site-progress bridge, end-to-end** — the feature-flagged bridge now resolves an activity by **id
+  or name**, accepts a **batch** (`/cv-progress/ingest-batch` — the per-photo-sweep shape), and writes
+  straight to `schedule_activity.percent`. A runnable **reference adapter** ([docs/cv-bridge.md](docs/cv-bridge.md))
+  documents the HTTP contract so any vision service wires in. Still no bundled model — that stays external
+  by design — but the entire integration surface is complete and tested.
+- **Live 2D propagation** — an in-process, per-project **model version** bumps whenever a new model is
+  published; `GET /drawings/sync-status` surfaces it and `GET /drawings/stream` (SSE) **pushes** the
+  change, so open on-demand 2D views regenerate themselves — live propagation without an external event
+  bus.
+- **IFC5 / IFCX / ifcJSON data reads** — a tolerant JSON reader parses these into the same element-index
+  shape a STEP model produces, so analytics, LOD/naming/envelope audits and CSV/JSON-LD/Parquet export all
+  work on an IFC5 file **now**. Capabilities report it as `ifc5: data` (geometry rendering still lands
+  upstream when web-ifc / Fragments add it).
+
+Web: the 🔬 Model Analysis panel gains an **Export** row (CSV / JSON-LD / Parquet / glTF) and reflects the
+IFC5 data-read distinction. Verified: 6 new/extended backend suites green, web typecheck + vitest 49/49,
+ruff clean.
+
 ## v0.3.94 — Model Analysis panel: the new model-reading tools, first-class in the UI
 A consolidated **🔬 Model Analysis** destination in the Design workspace surfaces the model-reading
 endpoints that previously had no bespoke UI (the register-backed features already had module CRUD +

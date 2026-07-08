@@ -83,6 +83,22 @@ def elevation(pid: str, direction: str = "north", db: Session = Depends(get_db),
     return _svg(svg)
 
 
+@router.get("/projects/{pid}/model/export.gltf")
+async def export_gltf(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Export the model geometry as a self-contained glTF 2.0 file (interchange — Blender / Three.js /
+    any DCC). Triangulated meshes merged per IFC class with per-class colours; Z-up→Y-up. The viewer
+    itself streams Fragments — this is the portable geometry-out path. Geometry tessellation runs off
+    the event loop."""
+    from starlette.concurrency import run_in_threadpool
+
+    from aec_data import gltf_export  # type: ignore
+    path = _source_ifc(db, pid)
+    p = db.get(Project, pid)
+    data = await run_in_threadpool(gltf_export.export_gltf_bytes, path, (p.name if p else pid))
+    return Response(data, media_type="model/gltf+json",
+                    headers={"Content-Disposition": f'attachment; filename="model-{pid}.gltf"'})
+
+
 def _sheet_meta(db: Session, pid: str, sheet: str) -> dict:
     from datetime import date
 

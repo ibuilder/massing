@@ -106,6 +106,27 @@ def to_csv(idx: dict[str, dict] | None) -> str:
     return buf.getvalue()
 
 
+def to_parquet(idx: dict[str, dict] | None) -> bytes:
+    """The element set as an Apache Parquet buffer (columnar analytics — DuckDB / pandas / Polars).
+
+    Parquet needs the optional ``pyarrow`` dependency; when it isn't installed we raise a clear
+    RuntimeError (the endpoint maps it to 503) rather than failing cryptically, matching the E57 path.
+    """
+    try:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+    except ImportError as exc:  # optional dep — see requirements.txt
+        raise RuntimeError(
+            "Parquet export needs the 'pyarrow' package (pip install pyarrow). CSV / JSON-LD export "
+            "work without it.") from exc
+    import io
+    rows = export_rows(idx)
+    table = pa.table({col: [r.get(col) for r in rows] for col in _EXPORT_COLS})
+    buf = io.BytesIO()
+    pq.write_table(table, buf, compression="snappy")
+    return buf.getvalue()
+
+
 def to_jsonld(idx: dict[str, dict] | None) -> dict[str, Any]:
     """A JSON-LD graph of the model elements (bSDD-style vocab, GlobalId as @id)."""
     ctx = {"@vocab": "https://identifier.buildingsmart.org/uri/buildingsmart/ifc/",

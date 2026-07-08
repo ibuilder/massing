@@ -74,22 +74,68 @@ def cv_progress_status(pid: str, _: str = Depends(require_role("viewer"))):
     return cv_bridge.status()
 
 
+def _resolve_activity(db: Session, pid: str, key: str) -> str | None:
+    """Resolve a schedule_activity reference — an id, or a name matched case-insensitively — to its id.
+    Lets a CV service that only knows human task labels ('Frame L2') address activities by name."""
+    if not key:
+        return None
+    try:
+        me.get_record(db, "schedule_activity", pid, key)
+        return key                                          # already a valid id
+    except Exception:                                       # noqa: BLE001 — not an id; try name
+        want = str(key).strip().lower()
+        for r in me.list_records(db, "schedule_activity", pid, limit=1000):
+            data = r.get("data") or {}                      # module fields live in the data blob
+            name = data.get("name") or r.get("title") or ""
+            if str(name).strip().lower() == want:
+                return r["id"]
+    return None
+
+
+def _apply_estimate(db: Session, pid: str, activity_key: str, percent: float, actor: str) -> dict:
+    """Write a validated CV estimate to the resolved activity's percent. Never raises."""
+    rid = _resolve_activity(db, pid, activity_key)
+    if not rid:
+        return {"applied": False, "apply_error": f"no schedule_activity matched {activity_key!r}"}
+    try:
+        me.update_record(db, "schedule_activity", pid, rid, {"percent": percent}, actor, None)
+        return {"applied": True, "activity_id": rid}
+    except Exception as e:                                  # noqa: BLE001 — write error shouldn't 500 the bridge
+        return {"applied": False, "apply_error": str(e)[:120]}
+
+
 @router.post("/projects/{pid}/cv-progress/ingest")
 def cv_progress_ingest(pid: str, payload: dict = Body(default={}),
                        db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
-    """Accept an external CV progress estimate (no-op unless AEC_CV_BRIDGE is enabled). When enabled and
-    `activity` is a schedule_activity id, the estimate is written to that activity's percent."""
+    """Accept one external CV progress estimate (no-op unless AEC_CV_BRIDGE is enabled). When enabled,
+    `activity` (a schedule_activity id or name) is resolved and the estimate written to its percent."""
     from .. import cv_bridge
-    from .. import modules as me
     res = cv_bridge.ingest(payload)
     if res.get("accepted") and payload.get("activity"):
-        try:
-            me.update_record(db, "schedule_activity", pid, payload["activity"],
-                             {"percent": res["percent"]}, actor, None)
-            res["applied"] = True
-        except Exception as e:            # noqa: BLE001 — a bad/unknown activity id shouldn't 500 the bridge
-            res["applied"] = False
-            res["apply_error"] = str(e)[:120]
+        res.update(_apply_estimate(db, pid, payload["activity"], res["percent"], actor))
+    return res
+
+
+@router.post("/projects/{pid}/cv-progress/ingest-batch")
+def cv_progress_ingest_batch(pid: str, payload: dict = Body(default={}),
+                             db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """Accept a batch of CV progress estimates — `{"estimates": [{activity, percent}, …]}` — the shape a
+    vision service produces per photo sweep. Each valid item is written to its activity; returns per-item
+    outcomes + a summary. No-op unless AEC_CV_BRIDGE is enabled."""
+    from .. import cv_bridge
+    res = cv_bridge.ingest_batch(payload.get("estimates", []))
+    if not res.get("accepted"):
+        return res
+    applied = 0
+    for item in res["items"]:
+        if item["ok"] and item["activity"]:
+            outcome = _apply_estimate(db, pid, item["activity"], item["percent"], actor)
+            item.update(outcome)
+            applied += 1 if outcome.get("applied") else 0
+        elif item["ok"]:
+            item["applied"] = False
+            item["apply_error"] = "no activity given"
+    res["applied"] = applied
     return res
 
 

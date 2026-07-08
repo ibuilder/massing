@@ -307,12 +307,36 @@ export async function renderModelAnalysis(ctx: PanelContext) {
     void ctx.host.api.modelCapabilities(pid).then((c) => {
         cap.textContent = "";
         const m = el("div", "meta");
+        const ifc5 = c.ifc5.status === "data"
+            ? "IFC5/IFCX: <b>data reads now</b> (geometry rendering pending upstream)"
+            : `IFC5/IFCX: ${esc(c.ifc5.status)}`;
         m.innerHTML = `Reads: <b>${esc(c.supported_read_schemas.join(" · "))}</b>. Loaded model: `
             + `<b>${esc(c.loaded_model.detected || "none")}</b>`
-            + (c.loaded_model.supported === false ? ` (not a supported read schema)` : "")
-            + `. IFC5/IFCX: ${esc(c.ifc5.status)}.`;
+            + (c.loaded_model.detected && c.loaded_model.supported === false
+                ? (c.loaded_model.data_readable ? ` (data-only — geometry pending)` : ` (not a supported read schema)`)
+                : "")
+            + `. ${ifc5}.`;
         cap.appendChild(m);
     }).catch(fail(cap));
+
+    const ex = section("📤 Export");
+    {
+        ex.textContent = "";
+        const note = el("div", "meta");
+        note.textContent = "Download the model element table (columnar/graph) or the geometry as glTF 2.0:";
+        const row = el("div"); row.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:6px";
+        const link = (label: string, href: string) => {
+            const a = el("a", "btn") as HTMLAnchorElement;
+            a.href = href; a.textContent = label; a.setAttribute("download", ""); a.target = "_blank"; return a;
+        };
+        row.append(
+            link("CSV", ctx.host.api.modelExportUrl(pid, "csv")),
+            link("JSON-LD", ctx.host.api.modelExportUrl(pid, "jsonld")),
+            link("Parquet", ctx.host.api.modelExportUrl(pid, "parquet")),
+            link("glTF (geometry)", ctx.host.api.modelGltfUrl(pid)),
+        );
+        ex.append(note, row);
+    }
 
     const q = section("🔎 Model query");
     void ctx.host.api.modelQueryViews(pid).then((v) => {

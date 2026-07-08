@@ -41,6 +41,18 @@ csv_txt = model_query.to_csv(IDX)
 assert csv_txt.splitlines()[0].startswith("guid,ifc_class") and len(csv_txt.splitlines()) == 4, csv_txt[:80]
 jl = model_query.to_jsonld(IDX)
 assert jl["count"] == 3 and jl["@graph"][0]["@id"] in IDX, jl["@graph"][0]
+# Parquet (columnar) — round-trips back to the same 3 rows when pyarrow is installed
+try:
+    import io
+
+    import pyarrow.parquet as pq
+    pbytes = model_query.to_parquet(IDX)
+    tbl = pq.read_table(io.BytesIO(pbytes))
+    assert tbl.num_rows == 3 and set(tbl.column_names) >= {"guid", "ifc_class"}, tbl.schema
+    assert set(tbl.column("ifc_class").to_pylist()) == {"IfcWall", "IfcSlab"}, tbl.column("ifc_class")
+    _parquet = "round-trip 3 rows"
+except ImportError:
+    _parquet = "pyarrow absent — skipped (endpoint returns 503)"
 
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "P"}).json()["id"]
@@ -50,7 +62,12 @@ with TestClient(app) as c:
     assert c.get(f"/projects/{pid}/model/export.jsonld").json()["count"] == 0
     csv_resp = c.get(f"/projects/{pid}/model/export.csv")
     assert csv_resp.status_code == 200 and csv_resp.text.startswith("guid,ifc_class"), csv_resp.text[:60]
+    # Parquet endpoint: 200 (pyarrow present) or a clean 503 (absent) — never a 500
+    pq_resp = c.get(f"/projects/{pid}/model/export.parquet")
+    assert pq_resp.status_code in (200, 503), pq_resp.status_code
+    if pq_resp.status_code == 200:
+        assert pq_resp.content[:4] == b"PAR1", pq_resp.content[:8]  # Parquet magic
 
 print("MODEL QUERY OK - D1: group-by count (IfcWall=2) + sum NetVolume (walls 8, slab 10) + filter "
-      "(walls on L1) + saved views + no-model guard; D2: CSV (header + 3 rows) and JSON-LD graph "
-      "(3 nodes, GlobalId @id); endpoints return valid empty results with no model loaded")
+      "(walls on L1) + saved views + no-model guard; D2: CSV (header + 3 rows), JSON-LD graph "
+      f"(3 nodes, GlobalId @id), Parquet ({_parquet}); endpoints valid with no model loaded")

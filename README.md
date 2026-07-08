@@ -196,10 +196,16 @@ Deliverables** — with a sticky live-solved returns bar.
     equipment schedules, and **resource-loaded scheduling** (crew histogram, man-week S-curve, over-
     allocation flags) on the CPM schedule.
   - **Interoperability & analytics** — a **model query** layer (group-by + count/sum over the property
-    index, saved views), **CSV / JSON-LD export**, and an **envelope code-compliance** checker
-    (assembly R / U vs IECC 2021 climate-zone minimums).
+    index, saved views), model export as **CSV / JSON-LD / Parquet** (columnar) and the geometry as a
+    self-contained **glTF 2.0** file, an **envelope code-compliance** checker (assembly R / U vs IECC 2021
+    climate-zone minimums), and **IFC5 / IFCX / ifcJSON data reads** (elements + properties parse now;
+    geometry rendering lands upstream).
   - **Field** — **labor productivity** (units per man-hour by trade) and a feature-flagged
-    **computer-vision progress** bridge (fabricates nothing when off).
+    **computer-vision progress** bridge — resolves activities by id or name, batch-ingests a photo
+    sweep, and writes straight to schedule % (fabricates nothing when off; [contract + reference
+    adapter](docs/cv-bridge.md)).
+  - **Live 2D propagation** — 2D plans/sections regenerate on demand from the live model, and a model
+    **version bumps on publish** with an SSE stream so open drawing views refresh themselves.
   Every engine surfaces in the Report Center (PDF + Excel) and the config-driven module CRUD.
 - **The Discipline Spine — model → sheets → specs → bid → budget, one vocabulary (v0.3.79–v0.3.86)** —
   a building is now authored and read as **layered structural / architectural / MEP** models threaded by two

@@ -1578,8 +1578,22 @@ export class ApiClient {
   // --- model analysis (capabilities / query / LOD / envelope / MEP-extract / naming) --------------
   modelCapabilities(pid: string) {
     return this.json<{ supported_read_schemas: string[];
-      loaded_model: { detected: string | null; supported: boolean | null; note: string };
-      ifc5: { status: string; note: string } }>(`/projects/${pid}/model/capabilities`);
+      loaded_model: { detected: string | null; supported: boolean | null; data_readable?: boolean; note: string };
+      ifc5: { status: string; data_read?: boolean; geometry_read?: boolean; note: string } }>(
+      `/projects/${pid}/model/capabilities`);
+  }
+  /** Download URL for the model element table in a columnar/graph format. */
+  modelExportUrl(pid: string, fmt: "csv" | "jsonld" | "parquet") {
+    return this.url(`/projects/${pid}/model/export.${fmt}`);
+  }
+  /** Download URL for the model geometry as a self-contained glTF 2.0 file (interchange). */
+  modelGltfUrl(pid: string) {
+    return this.url(`/projects/${pid}/model/export.gltf`);
+  }
+  /** Model version/signature for 2D staleness (bumps on publish; /drawings/stream pushes it). */
+  drawingsSyncStatus(pid: string) {
+    return this.json<{ model_loaded: boolean; version: number; signature: string | null;
+      changed_at: number | null }>(`/projects/${pid}/drawings/sync-status`);
   }
   modelQueryViews(pid: string) {
     return this.json<{ views: { id: string; label: string }[] }>(`/projects/${pid}/model/query/views`);

@@ -52,8 +52,16 @@ engineering depth, and Higharc-style live-design/options. Do **Phase A then Phas
   when off).
 
 **Initiative complete (v0.3.87–v0.3.92):** Phases A–D shipped as full features; Phase E shipped
-(productivity real + CV as a documented bridge). Remaining future items noted inline: full auto-propagate
-2D on edit (B2), MEP model-driven extraction, Parquet/glTF export (D2), IFC5/IFCX read path (D4).
+(productivity real + CV as a documented bridge).
+
+**Deferred slices closed (v0.3.95):** the five items previously scoped as needing a dependency / external
+service / upstream support are now shipped as far as each honestly can be — **Parquet** export (`pyarrow`;
+`/model/export.parquet`); **glTF 2.0** geometry export (`ifcopenshell.geom` triangulation, per-class
+meshes, `/model/export.gltf`); the **CV bridge end-to-end** (id-or-name resolution + batch ingest +
+[reference adapter](cv-bridge.md), still externally-modelled by design); **live 2D propagation** (in-process
+model-version bump + `/drawings/stream` SSE — no event bus); and **IFC5/IFCX/ifcJSON data reads** (tolerant
+JSON→element-index parser; geometry rendering still lands upstream). Genuinely upstream-only remainder: IFC5
+geometry *rendering* (web-ifc/Fragments) and a bundled/trained CV model.
 
 **Strategic read:** the construction-tech trend is platform consolidation + AI agents + connected
 ecosystems + interoperability (Procore/Autodesk/Trimble M&A). Our open, IFC-native, self-hosted, one-model

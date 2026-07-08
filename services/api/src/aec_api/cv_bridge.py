@@ -22,10 +22,27 @@ def status() -> dict[str, Any]:
         "feature": "cv_progress_bridge", "enabled": enabled(),
         "note": "Computer-vision % complete from site photos is an external, feature-flagged bridge. "
                 "Enable AEC_CV_BRIDGE and connect a vision service that POSTs estimates to "
-                "/cv-progress/ingest. The platform does not run the model or fabricate progress.",
-        "contract": {"activity": "schedule_activity id or name", "percent": "0–100",
-                     "source": "the external estimator", "image_ref": "optional photo reference"},
+                "/cv-progress/ingest (one) or /cv-progress/ingest-batch (many). The platform does not "
+                "run the model or fabricate progress.",
+        "contract": {"activity": "schedule_activity id OR name (name is resolved case-insensitively)",
+                     "percent": "0–100", "source": "the external estimator",
+                     "image_ref": "optional photo reference", "observed_at": "optional ISO timestamp"},
+        "batch_contract": {"estimates": "[ {activity, percent, source?, image_ref?}, … ]"},
+        "reference_adapter": "docs/cv-bridge.md — HTTP contract + a runnable Python reference client "
+                             "you point at any vision service.",
     }
+
+
+def validate(payload: dict[str, Any]) -> dict[str, Any]:
+    """Clamp/normalise one estimate. Returns {ok, percent|reason, activity, source, image_ref}."""
+    try:
+        pct = float(payload.get("percent"))
+    except (TypeError, ValueError):
+        return {"ok": False, "reason": "percent must be a number 0–100",
+                "activity": payload.get("activity", "")}
+    return {"ok": True, "percent": max(0.0, min(100.0, pct)), "activity": payload.get("activity", ""),
+            "source": payload.get("source", "cv"), "image_ref": payload.get("image_ref"),
+            "observed_at": payload.get("observed_at")}
 
 
 def ingest(payload: dict[str, Any]) -> dict[str, Any]:
@@ -33,11 +50,21 @@ def ingest(payload: dict[str, Any]) -> dict[str, Any]:
     if not enabled():
         return {"accepted": False, "reason": "bridge disabled (set AEC_CV_BRIDGE to enable)",
                 **status()}
-    try:
-        pct = float(payload.get("percent"))
-    except (TypeError, ValueError):
-        return {"accepted": False, "reason": "percent must be a number 0–100"}
-    pct = max(0.0, min(100.0, pct))
-    return {"accepted": True, "activity": payload.get("activity", ""), "percent": pct,
-            "source": payload.get("source", "cv"), "image_ref": payload.get("image_ref"),
+    v = validate(payload)
+    if not v["ok"]:
+        return {"accepted": False, "reason": v["reason"]}
+    return {"accepted": True, "activity": v["activity"], "percent": v["percent"],
+            "source": v["source"], "image_ref": v["image_ref"], "observed_at": v.get("observed_at"),
             "note": "Estimate accepted. Wire this to schedule_activity.percent in your CV integration."}
+
+
+def ingest_batch(estimates: list[dict[str, Any]]) -> dict[str, Any]:
+    """Validate a batch of estimates (no DB). Returns per-item validation + counts; the router writes
+    the accepted ones to their activities. No-op when the bridge is disabled."""
+    if not enabled():
+        return {"accepted": False, "reason": "bridge disabled (set AEC_CV_BRIDGE to enable)", **status()}
+    if not isinstance(estimates, list):
+        return {"accepted": False, "reason": "estimates must be a list of {activity, percent}"}
+    items = [validate(e if isinstance(e, dict) else {}) for e in estimates]
+    return {"accepted": True, "count": len(items), "valid": sum(1 for i in items if i["ok"]),
+            "items": items}

@@ -1,7 +1,7 @@
 """Design-lifecycle endpoints — the RIBA/AIA phase spine + itemized soft costs for a project."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from .. import adjacency, design_phase, resilience, soft_costs, spine
@@ -179,17 +179,47 @@ def model_capabilities(pid: str, db: Session = Depends(get_db), _: str = Depends
 
 @router.get("/projects/{pid}/drawings/sync-status")
 def drawings_sync_status(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
-    """Model fingerprint for 2D staleness detection — the client compares it across renders to know
-    when the on-demand drawings need regenerating."""
+    """Model fingerprint + version for 2D staleness detection — the client compares `version` /
+    `signature` across renders to know when the on-demand drawings need regenerating. `version` bumps
+    every time a new model is published (see /drawings/stream for the push equivalent)."""
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
     from .. import model_capabilities as mc
+    from .. import model_events
     from .properties import _INDEX, _ensure_loaded
     try:
         _ensure_loaded(pid)
     except Exception:                     # noqa: BLE001 — no model is a valid state
         pass
-    return mc.model_signature(_INDEX.get(pid))
+    sig = mc.model_signature(_INDEX.get(pid))
+    # reconcile the version with the current signature (covers a fresh reload on another worker)
+    ev = model_events.observe(pid, sig.get("signature"))
+    return {**sig, "version": ev["version"], "changed_at": ev.get("at")}
+
+
+@router.get("/projects/{pid}/drawings/stream")
+async def drawings_stream(pid: str, request: Request, _: str = Depends(current_user)):
+    """Server-sent events: pushes the model `version` and re-pushes the instant it changes (a new model
+    is published), so open 2D drawing views regenerate themselves — live propagation from the model
+    without polling or an external event bus."""
+    import asyncio
+    import json as _json
+
+    from fastapi.responses import StreamingResponse
+
+    from .. import model_events
+
+    async def gen():
+        last = None
+        while not await request.is_disconnected():
+            ev = model_events.current(pid)
+            if ev["version"] != last:
+                last = ev["version"]
+                yield f"data: {_json.dumps({'version': ev['version'], 'signature': ev.get('signature')})}\n\n"
+            await asyncio.sleep(4)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.get("/projects/{pid}/mep/size")

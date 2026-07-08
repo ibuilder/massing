@@ -51,14 +51,15 @@ with tempfile.TemporaryDirectory() as d:
     assert det["supported"] is False and "IFC5" in det["detected"], det
 assert mc.detect_schema(None)["detected"] is None
 caps = mc.capabilities(None)
-assert caps["supported_read_schemas"] == ["IFC2X3", "IFC4", "IFC4X3"] and caps["ifc5"]["status"] == "planned"
+assert caps["supported_read_schemas"] == ["IFC2X3", "IFC4", "IFC4X3"]
+assert caps["ifc5"]["status"] == "data" and caps["ifc5"]["data_read"] and not caps["ifc5"]["geometry_read"]
 
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "P"}).json()["id"]
     # endpoints valid with no model
     assert c.get(f"/projects/{pid}/mep/model-extract").json()["model_scored"] is False
     assert c.get(f"/projects/{pid}/drawings/sync-status").json()["model_loaded"] is False
-    assert c.get(f"/projects/{pid}/model/capabilities").json()["ifc5"]["status"] == "planned"
+    assert c.get(f"/projects/{pid}/model/capabilities").json()["ifc5"]["status"] == "data"
 
     # --- E2x: CV bridge write-path ---------------------------------------------------------------
     act = c.post(f"/projects/{pid}/modules/schedule_activity",
@@ -79,7 +80,23 @@ with TestClient(app) as c:
     bad = c.post(f"/projects/{pid}/cv-progress/ingest",
                  json={"activity": "nope", "percent": 20}).json()
     assert bad["accepted"] is True and bad.get("applied") is False, bad
+    # resolve by NAME (a CV service that only knows human labels), not just id
+    byname = c.post(f"/projects/{pid}/cv-progress/ingest",
+                    json={"activity": "Frame L2", "percent": 70}).json()
+    assert byname.get("applied") is True and byname.get("activity_id") == act["id"], byname
+    # batch ingest: one by-name (ok) + one bad → applied count = 1, per-item outcomes present
+    act2 = c.post(f"/projects/{pid}/modules/schedule_activity",
+                  json={"data": {"name": "Slab L3", "percent": 0}}).json()
+    batch = c.post(f"/projects/{pid}/cv-progress/ingest-batch",
+                   json={"estimates": [{"activity": "Slab L3", "percent": 30},
+                                       {"activity": "ghost", "percent": 10}]}).json()
+    assert batch["accepted"] and batch["count"] == 2 and batch["applied"] == 1, batch
+    rec2 = c.get(f"/projects/{pid}/modules/schedule_activity/{act2['id']}").json()
+    assert float((rec2.get("data") or rec2).get("percent")) == 30.0, rec2
     os.environ.pop("AEC_CV_BRIDGE", None)
+    # batch is a no-op when the flag is off
+    assert c.post(f"/projects/{pid}/cv-progress/ingest-batch",
+                  json={"estimates": [{"activity": "Slab L3", "percent": 99}]}).json()["accepted"] is False
 
 print("DEFERRED OK - C1x: MEP read off model by IFC class (4 elements, ducts top); B2x: model signature "
       "changes when the model changes + no-model guard; D4x: schema sniff (IFC4 STEP supported, IFC5/IFCX "

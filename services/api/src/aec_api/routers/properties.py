@@ -57,6 +57,11 @@ async def upload_index(pid: str, file: UploadFile = File(...), _: str = Depends(
     payload = json.loads(raw)
     storage.put(f"{pid}/props.json", json.dumps(payload).encode("utf-8"))
     n = _load(pid, payload)
+    # A new index IS "the model changed": bump the model version so open 2D views regenerate (the
+    # on-demand drawings render live from the model — this is the auto-propagate signal, no event bus).
+    from .. import model_capabilities as _mc
+    from .. import model_events
+    model_events.bump(pid, _mc.model_signature(_INDEX.get(pid)).get("signature"))
     return {"loaded": n, "meta": _META[pid]}
 
 
