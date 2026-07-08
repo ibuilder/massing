@@ -63,6 +63,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "bep": ("BIM Execution Plan (BEP, ISO 19650)", "Quality"),
     "lod": ("LOD Matrix & Coverage", "Quality"),
     "naming": ("Naming Convention Compliance", "Quality"),
+    "document_control": ("Document Control Health", "Quality"),
     "design_options": ("Design Options Comparison", "Design"),
     "design_standards": ("Design Standards Compliance", "Design"),
     "mep": ("MEP Equipment Schedule", "Engineering"),
@@ -1053,6 +1054,31 @@ def _naming(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _document_control(db: Session, pid: str, name: str) -> Report:
+    """Document-control health over the standard folder taxonomy: naming, required-folder coverage,
+    revision control, CDE-state spread and required-doc gaps."""
+    from . import docmanager
+    h = docmanager.health(pid)
+    t = docmanager.tree(pid)
+
+    def _p(v):
+        return f"{v}%" if v is not None else "—"
+    r = Report("Document Control Health", name)
+    r.kpi("Documents on file", h["total_files"])
+    r.kpi("Naming compliance", _p(h["naming_compliance_pct"]))
+    r.kpi("Required-folder coverage", _p(h["required_coverage_pct"]))
+    r.kpi("Revision control", _p(h["revision_control_pct"]))
+    if h["by_cde_state"]:
+        r.chart("bar", "Documents by CDE state", list(h["by_cde_state"].keys()),
+                [{"name": "Files", "data": list(h["by_cde_state"].values())}])
+    r.table("Required documents still missing", ["Folder"],
+            [[p] for p in h["required_missing"]] or [["(all required folders populated)"]])
+    r.table("Folders (file counts + owner)", ["Folder", "Owner", "Files"],
+            [[n["path"], n.get("owner_role") or "", n["count"]]
+             for n in t["nodes"] if n["depth"] == 0])
+    return r
+
+
 def _design_options(db: Session, pid: str, name: str) -> Report:
     """Design options / variants compared on program + economics, best-in-class per metric."""
     from . import design_options
@@ -1212,6 +1238,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _productivity(db, pid, name)
     if report == "lod":
         return _lod(db, pid, name)
+    if report == "document_control":
+        return _document_control(db, pid, name)
     if report == "naming":
         return _naming(db, pid, name)
     if report == "appraisal":

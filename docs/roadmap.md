@@ -64,6 +64,13 @@ and **IFC5/IFCX/ifcJSON data reads** (tolerant
 JSON→element-index parser; geometry rendering still lands upstream). Genuinely upstream-only remainder: IFC5
 geometry *rendering* (web-ifc/Fragments) and a bundled/trained CV model.
 
+**Document Control (F1–F6, v0.3.96):** a role-based standard file manager — a fixed project folder
+taxonomy (`01_Contract Documents … 11_Final Account`) with each folder owned by a role (PM = business,
+Superintendent = field, Architect/Engineer = drawings), ISO 19650 CDE state, and required flags; a
+document manager over object storage that auto-names uploads to the information standard and supersedes
+(never overwrites) revisions; an elFinder-style two-pane Documents panel; a Document-Control health report
++ AIA phase-gap checks. Reuses the discipline spine, CDE states, naming validator and storage backend.
+
 **Strategic read:** the construction-tech trend is platform consolidation + AI agents + connected
 ecosystems + interoperability (Procore/Autodesk/Trimble M&A). Our open, IFC-native, self-hosted, one-model
 posture with an MCP server for AI agents + connectors is well-aligned — lean into interoperability

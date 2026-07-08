@@ -4,6 +4,33 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.96 — Document Control: a role-based standard file manager over the project
+A first-class **📁 Documents** workspace — an elFinder-style two-pane file manager (folder tree + file
+list) built on a **standard, role-based project folder taxonomy** so every project is organised the same
+way and required documents are never missing.
+
+- **Standard taxonomy** (`folder_template.py`) — the industry `01_Contract Documents … 11_Final Account`
+  tree with sub-folders, each node tagged with an **owner role** (PM owns the business — contracts,
+  payments, variations, procurement; the **Superintendent** owns field execution — site instructions,
+  inspections, NCRs, daily reports, photos; the **Architect/Engineer** own the drawing set), a discipline
+  (NCS), a default **CDE state** (ISO 19650 WIP/Shared/Published) and a **required** flag.
+- **Document manager** (`docmanager.py`) — bytes in object storage (`{pid}/docs/<folder>/<name>`) with a
+  per-project sidecar index. Uploads **auto-name to the information standard**
+  (`Type_Discipline_Description_Revision_Date`) and **never overwrite**: a new upload of the same document
+  supersedes the prior revision (P01→P02…), the old one archived for audit. Move, soft/hard delete,
+  download, per-folder counts that roll up to parents, and required-doc **gap** flags.
+- **Role-based views** — a `by-role` endpoint and owner-role chips per folder, so a PM / Superintendent /
+  architect sees the folders they own.
+- **Document-Control health** — a Report Center report (naming compliance, required-folder coverage,
+  revision control, CDE-state spread, orphans) + AIA **phase-gap** checks (SD/DD/CD/CA/CLOSEOUT flag the
+  documents a phase is missing, e.g. a CD set lacking structural drawings).
+- **Web**: the 📁 Documents destination in the Construction and Design workspaces — clickable folder
+  tree, upload (auto-named, supersede-aware), download, move, delete, and a health strip.
+
+Reuses the discipline spine (NCS), the ISO 19650 CDE states, the naming validator, and the storage
+backend already in place. Verified: new `test_docmanager` + full backend suite green, web typecheck +
+vitest 49/49, ruff clean.
+
 ## v0.3.95 — Close the five deferred slices: Parquet + glTF export, CV bridge end-to-end, live 2D propagation, IFC5 data reads
 The items previously scoped as "needs a dependency / external service / upstream support" are now shipped
 as far as each honestly can be:

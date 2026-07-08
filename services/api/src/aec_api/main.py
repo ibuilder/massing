@@ -35,6 +35,7 @@ from .routers import (
     cost,
     dashboard,
     design,
+    documents,
     drafting,
     drawings,
     exports,
@@ -254,6 +255,7 @@ app.include_router(dashboard.router, tags=["dashboard"])
 app.include_router(proforma.router, tags=["proforma"])
 app.include_router(generate.router, tags=["generate"])
 app.include_router(design.router, tags=["design"])
+app.include_router(documents.router, tags=["documents"])
 app.include_router(turnover.router, tags=["turnover"])
 app.include_router(research.router, tags=["research"])
 app.include_router(review.router, tags=["review"])

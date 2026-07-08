@@ -60,6 +60,20 @@ export interface ProjectMember {
   company: string | null;
 }
 
+/** A folder node in the standard document taxonomy (with per-project counts + gaps). */
+export interface DocFolderNode {
+  path: string; label: string; depth: number; owner_role: string | null;
+  discipline: string | null; cde_default: string; required: boolean;
+  count: number; direct_count: number; gap: boolean;
+}
+/** One filed document (a revision of a document in a folder). */
+export interface DocFile {
+  id: string; folder: string; name: string; orig_name: string; title: string;
+  discipline: string; doc_type: string; revision: string; cde_state: string; status: string;
+  owner_role: string | null; size: number; uploaded_by: string; uploaded_at: string;
+  superseded?: boolean; superseded_by?: string | null;
+}
+
 /** One row of the server audit trail (admin-readable). */
 export interface AuditEntry {
   id: string;
@@ -1594,6 +1608,57 @@ export class ApiClient {
   drawingsSyncStatus(pid: string) {
     return this.json<{ model_loaded: boolean; version: number; signature: string | null;
       changed_at: number | null }>(`/projects/${pid}/drawings/sync-status`);
+  }
+
+  // --- Document control / file manager (F1-F6) ---------------------------------
+  documentsTree(pid: string) {
+    return this.json<{ project: string; total_files: number; required_gaps: string[];
+      nodes: DocFolderNode[] }>(`/projects/${pid}/documents/tree`);
+  }
+  documentsFolder(pid: string, path: string, superseded = false) {
+    const q = `?path=${encodeURIComponent(path)}${superseded ? "&superseded=true" : ""}`;
+    return this.json<{ folder: string; owner_role: string | null; valid_folder: boolean;
+      count: number; files: DocFile[] }>(`/projects/${pid}/documents/folder${q}`);
+  }
+  documentsByRole(pid: string, role: string) {
+    return this.json<{ role: string; count: number; folders: DocFolderNode[] }>(
+      `/projects/${pid}/documents/by-role?role=${encodeURIComponent(role)}`);
+  }
+  documentsHealth(pid: string) {
+    return this.json<{ total_files: number; naming_compliance_pct: number | null;
+      required_coverage_pct: number | null; revision_control_pct: number | null;
+      required_missing: string[]; by_cde_state: Record<string, number>; superseded_kept: number }>(
+      `/projects/${pid}/documents/health`);
+  }
+  documentsPhaseGaps(pid: string, phase: string) {
+    return this.json<{ phase: string; missing: number; complete: boolean;
+      items: { folder: string; description: string; present: boolean }[] }>(
+      `/projects/${pid}/documents/phase-gaps?phase=${encodeURIComponent(phase)}`);
+  }
+  async uploadDocument(pid: string, path: string, file: File,
+      meta: { title?: string; discipline?: string; doc_type?: string; cde_state?: string } = {}) {
+    const fd = new FormData();
+    fd.append("path", path); fd.append("file", file);
+    for (const [k, v] of Object.entries(meta)) if (v) fd.append(k, v);
+    const res = await fetch(this.url(`/projects/${pid}/documents/upload`),
+      { method: "POST", headers: this.authHeaders(), body: fd });
+    if (!res.ok) throw new Error((await res.text()) || `upload failed (${res.status})`);
+    return res.json() as Promise<{ entry: DocFile; naming: { valid: boolean; issues: string[] };
+      superseded: string | null }>;
+  }
+  async moveDocument(pid: string, fid: string, path: string) {
+    const fd = new FormData(); fd.append("path", path);
+    const res = await fetch(this.url(`/projects/${pid}/documents/${fid}/move`),
+      { method: "POST", headers: this.authHeaders(), body: fd });
+    if (!res.ok) throw new Error((await res.text()) || `move failed (${res.status})`);
+    return res.json() as Promise<DocFile>;
+  }
+  deleteDocument(pid: string, fid: string, hard = false) {
+    return this.json<{ deleted: string }>(`/projects/${pid}/documents/${fid}${hard ? "?hard=true" : ""}`,
+      { method: "DELETE" });
+  }
+  documentDownloadUrl(pid: string, fid: string) {
+    return this.url(`/projects/${pid}/documents/${fid}/download`);
   }
   modelQueryViews(pid: string) {
     return this.json<{ views: { id: string; label: string }[] }>(`/projects/${pid}/model/query/views`);

@@ -182,6 +182,19 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
+- **Document Control — a role-based standard file manager (latest, v0.3.96)** — a first-class **📁
+  Documents** workspace: an elFinder-style two-pane file manager (folder tree + file list) over a
+  **standard project folder taxonomy** (`01_Contract Documents … 11_Final Account`). Every folder is
+  tagged with an **owner role** — the PM owns the business of the project (contracts, payments,
+  variations, procurement), the **Superintendent** owns field execution (site instructions, inspections,
+  NCRs, daily reports, photos), the **Architect/Engineer** own the drawing set — plus a discipline and an
+  ISO 19650 CDE state. Uploads **auto-name to the information standard**
+  (`Type_Discipline_Description_Revision_Date`) and **never overwrite** — a new upload supersedes the
+  prior revision (kept for audit). Required-document **gaps** are flagged per folder and per AIA phase
+  (SD/DD/CD/CA/CLOSEOUT), and a Document-Control health report scores naming, coverage and revision
+  control. Built on the discipline spine, the ISO 19650 CDE states, the naming validator and the object-
+  storage backend already in place.
+
 - **Authoring · design · engineering · interop · field depth (latest, v0.3.87–v0.3.92)** — a five-phase
   upgrade from an industry-practice + competitive scan (BIM Execution Plans, LOD, Revit-MEP, naming
   standards, generative design, browser-IFC toolkits):

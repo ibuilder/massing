@@ -10,6 +10,7 @@ import { renderAiAssist, renderRiskReview } from "./panels/aiassist";
 import { renderBenchmarks, renderRiskCost } from "./panels/analytics";
 import { renderLandScreen, renderLifecycle, renderDiligence, renderEsg } from "./panels/design";
 import { renderProgram, renderBimKpi, renderStandards, renderIds, renderModelAnalysis } from "./panels/standards";
+import { renderDocuments } from "./panels/documents";
 
 /**
  * GC portal UI — one config-driven engine renders every module's list / form / record pages
@@ -157,6 +158,7 @@ export class PortalUI {
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __modelanalysis__: () => this.renderModelAnalysis(),
+      __documents__: () => this.renderDocuments(),
       __portfolio__: () => this.renderPortfolio(), __benchmarks__: () => this.renderBenchmarks(),
     };
     const stagesByWs: Record<string, [string, Dest[]][]> = {
@@ -172,6 +174,9 @@ export class PortalUI {
           { key: "__budget__", icon: "💰", label: "Budget" },
           { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // weather-sequenced work + site hazards
           { key: "__aiassist__", icon: "✍️", label: "AI Assist" },
+        ]],
+        ["Documents", [
+          { key: "__documents__", icon: "📁", label: "Documents" },        // role-based standard folder tree
         ]],
         ["Turn over & operate", [
           { key: "__turnover__", icon: "🏁", label: "Turnover" },
@@ -190,6 +195,7 @@ export class PortalUI {
         ["Model & standards", [
           { key: "__ids__", icon: "📋", label: "IDS Requirements" },
           { key: "__standards__", icon: "🗂", label: "CDE / Standards" },   // ISO 19650 container discipline + reqs
+          { key: "__documents__", icon: "📁", label: "Documents" },          // role-based standard folder tree
           { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },             // 10-category information-mgmt scorecard
           { key: "__modelqa__", icon: "✅", label: "Model Health" },        // deep-links to the Model Tools checks
           { key: "__modelanalysis__", icon: "🔬", label: "Model Analysis" }, // query/LOD/envelope/MEP/naming/capabilities
@@ -526,6 +532,7 @@ export class PortalUI {
   private renderProgram() { return renderProgram(this.panelCtx()); }
   private renderBimKpi() { return renderBimKpi(this.panelCtx()); }
   private renderModelAnalysis() { return renderModelAnalysis(this.panelCtx()); }
+  private renderDocuments() { return renderDocuments(this.panelCtx()); }
   private renderStandards() { return renderStandards(this.panelCtx()); }
 
   private renderOperations() { return renderOperations(this.panelCtx()); }
