@@ -13,12 +13,16 @@ from ..db import get_db
 from ..deps import source_ifc_path as _source_ifc
 from ..models import Project
 from ..rbac import require_role
+from ..throttle import rate_limited
 
 _DATA_SRC = Path(__file__).resolve().parents[4] / "data" / "src"
 if str(_DATA_SRC) not in sys.path:
     sys.path.insert(0, str(_DATA_SRC))
 
 router = APIRouter()
+
+# Whole-model triangulation (glTF export) is the heaviest geometry op here — cap per caller.
+_export_throttle = rate_limited("model_export", 10)
 
 
 @router.get("/projects/{pid}/drawing-set")
@@ -84,7 +88,8 @@ def elevation(pid: str, direction: str = "north", db: Session = Depends(get_db),
 
 
 @router.get("/projects/{pid}/model/export.gltf")
-async def export_gltf(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+async def export_gltf(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer")),
+                      __: None = Depends(_export_throttle)):
     """Export the model geometry as a self-contained glTF 2.0 file (interchange — Blender / Three.js /
     any DCC). Triangulated meshes merged per IFC class with per-class colours; Z-up→Y-up. The viewer
     itself streams Fragments — this is the portable geometry-out path. Geometry tessellation runs off
