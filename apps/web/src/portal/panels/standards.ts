@@ -274,3 +274,90 @@ export async function renderIds(ctx: PanelContext) {
       showDetail();
     } catch (e) { body.textContent = `failed: ${(e as Error).message}`; }
   }
+
+
+// --- Model Analysis: read + audit the model (capabilities / query / LOD / envelope / MEP / naming) -
+export async function renderModelAnalysis(ctx: PanelContext) {
+    const root = ctx.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(ctx.bar("🔬 Model Analysis", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+    const pid = ctx.host.projectId();
+    if (!pid) { root.innerHTML = noProjectHtml("Model Analysis"); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.textContent = "Read + audit the model: IFC capabilities, element query, achieved LOD, envelope "
+        + "code compliance, MEP counts and naming. Model-reading sections need a published model.";
+    root.appendChild(intro);
+
+    const section = (title: string) => {
+        const s = el("div", "dash-card"); s.style.marginBottom = "8px";
+        const h = el("div"); h.style.cssText = "font-weight:600;margin-bottom:4px"; h.textContent = title;
+        const b = el("div"); b.textContent = "loading…";
+        s.append(h, b); root.appendChild(s); return b;
+    };
+    const table = (headers: string[], rows: (string | number)[][]) => {
+        const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
+        t.innerHTML = `<thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>`
+            + (rows.map((r) => `<tr>${r.map((c) => `<td>${esc(String(c))}</td>`).join("")}</tr>`).join("")
+                || `<tr><td colspan="${headers.length}">—</td></tr>`) + "</tbody>";
+        return t;
+    };
+    const fail = (b: HTMLElement) => (e: unknown) => { b.textContent = `failed: ${(e as Error).message}`; };
+
+    const cap = section("🧩 IFC capabilities");
+    void ctx.host.api.modelCapabilities(pid).then((c) => {
+        cap.textContent = "";
+        const m = el("div", "meta");
+        m.innerHTML = `Reads: <b>${esc(c.supported_read_schemas.join(" · "))}</b>. Loaded model: `
+            + `<b>${esc(c.loaded_model.detected || "none")}</b>`
+            + (c.loaded_model.supported === false ? ` (not a supported read schema)` : "")
+            + `. IFC5/IFCX: ${esc(c.ifc5.status)}.`;
+        cap.appendChild(m);
+    }).catch(fail(cap));
+
+    const q = section("🔎 Model query");
+    void ctx.host.api.modelQueryViews(pid).then((v) => {
+        q.textContent = "";
+        const pick = el("select", "portal-filter") as HTMLSelectElement; pick.style.marginBottom = "6px";
+        pick.innerHTML = v.views.map((x) => `<option value="${esc(x.id)}">${esc(x.label)}</option>`).join("");
+        const out = el("div");
+        const run = () => { out.textContent = "…"; void ctx.host.api.modelQuery(pid, pick.value).then((r) => {
+            out.innerHTML = ""; if (!r.model_scored) { out.textContent = "load a model to query it"; return; }
+            out.appendChild(table(["Group", "Count"], r.rows.slice(0, 20).map((x) => [x.group, x.value]))); }).catch(fail(out)); };
+        pick.onchange = run; q.append(pick, out); run();
+    }).catch(fail(q));
+
+    const lod = section("🎚 LOD coverage");
+    void ctx.host.api.lodAssessment(pid).then((a) => {
+        lod.textContent = "";
+        if (!a.model_scored) { lod.textContent = "targets only — load a model to assess achieved LOD"; return; }
+        lod.appendChild(table(["LOD band", "Elements"], Object.entries(a.distribution).map(([k, val]) => [k, val])));
+    }).catch(fail(lod));
+
+    const env = section("🧱 Envelope compliance (IECC)");
+    void ctx.host.api.envelopeAudit(pid).then((a) => {
+        env.textContent = "";
+        const m = el("div", "meta");
+        m.textContent = a.checked ? `${a.compliant}/${a.checked} assemblies compliant (${a.compliance_pct}%)`
+            : "no envelope assemblies registered";
+        env.appendChild(m);
+        if (a.results.length) env.appendChild(table(["Assembly", "Type", "Result"],
+            a.results.slice(0, 20).map((x) => [x.name, x.element_type,
+                x.compliant == null ? "—" : (x.compliant ? "PASS" : "FAIL")])));
+    }).catch(fail(env));
+
+    const mep = section("🌀 MEP off the model");
+    void ctx.host.api.mepModelExtract(pid).then((a) => {
+        mep.textContent = "";
+        if (!a.model_scored) { mep.textContent = "load a model to count MEP elements"; return; }
+        const m = el("div", "meta"); m.textContent = `${a.mep_elements} MEP elements`;
+        mep.append(m, table(["IFC class", "Type", "Count"], a.by_class.slice(0, 15).map((x) => [x.ifc_class, x.label, x.count])));
+    }).catch(fail(mep));
+
+    const nm = section("🔤 Naming compliance");
+    void ctx.host.api.namingAudit(pid).then((a) => {
+        nm.textContent = "";
+        nm.appendChild(table(["Register", "Total", "Compliant", "%"], [
+            ["Containers", a.containers.total, a.containers.compliant, a.containers.compliance_pct ?? "—"],
+            ["Sheets", a.sheets.total, a.sheets.compliant, a.sheets.compliance_pct ?? "—"]]));
+    }).catch(fail(nm));
+}

@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.94 — Model Analysis panel: the new model-reading tools, first-class in the UI
+A consolidated **🔬 Model Analysis** destination in the Design workspace surfaces the model-reading
+endpoints that previously had no bespoke UI (the register-backed features already had module CRUD +
+Report Center reports): **IFC capabilities** (supported schemas + the loaded model's detected schema,
+IFC5/IFCX reported), a **model query** (saved views — count by discipline / class / storey / type),
+**LOD coverage**, **envelope code compliance**, **MEP counts off the model**, and **naming compliance**.
+Each section loads independently and degrades gracefully when no model is published. New client methods
+wrap the endpoints; the panel follows the extracted-panel (`PanelContext`) pattern. Verified: web
+typecheck clean, vitest 49/49, build green. (In-browser click-through deferred — needs the full dev
+stack; the panel is code-identical to the five shipping panels.)
+
 ## v0.3.93 — Deferred-item slices: model-driven MEP, staleness, schema detect, CV write-path
 The tractable slice of each remaining backlog item (the fuller versions need infrastructure noted below).
 - **Model-driven MEP extraction (C1x)** — `mep.extract_from_model` reads MEP elements off the loaded

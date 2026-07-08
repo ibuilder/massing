@@ -1575,6 +1575,42 @@ export class ApiClient {
       use_case: string | null }>(`/projects/${pid}/openbim/quality${qs}`);
   }
 
+  // --- model analysis (capabilities / query / LOD / envelope / MEP-extract / naming) --------------
+  modelCapabilities(pid: string) {
+    return this.json<{ supported_read_schemas: string[];
+      loaded_model: { detected: string | null; supported: boolean | null; note: string };
+      ifc5: { status: string; note: string } }>(`/projects/${pid}/model/capabilities`);
+  }
+  modelQueryViews(pid: string) {
+    return this.json<{ views: { id: string; label: string }[] }>(`/projects/${pid}/model/query/views`);
+  }
+  modelQuery(pid: string, view?: string, groupBy = "ifc_class") {
+    const qs = view ? `?view=${encodeURIComponent(view)}` : `?group_by=${encodeURIComponent(groupBy)}`;
+    return this.json<{ model_scored: boolean; matched: number;
+      rows: { group: string; value: number; count: number }[] }>(`/projects/${pid}/model/query${qs}`);
+  }
+  lodAssessment(pid: string) {
+    return this.json<{ model_scored: boolean; elements: number; using_default: boolean;
+      distribution: Record<string, number>;
+      by_discipline: { discipline: string; elements: number; avg_lod: string }[] }>(
+      `/projects/${pid}/lod/assessment`);
+  }
+  envelopeAudit(pid: string) {
+    return this.json<{ total: number; checked: number; compliant: number; compliance_pct: number | null;
+      results: { name: string; element_type: string; compliant: boolean | null }[] }>(
+      `/projects/${pid}/envelope/audit`);
+  }
+  mepModelExtract(pid: string) {
+    return this.json<{ model_scored: boolean; mep_elements: number;
+      by_class: { ifc_class: string; label: string; count: number }[] }>(
+      `/projects/${pid}/mep/model-extract`);
+  }
+  namingAudit(pid: string) {
+    return this.json<{ containers: { total: number; compliant: number; compliance_pct: number | null };
+      sheets: { total: number; compliant: number; compliance_pct: number | null } }>(
+      `/projects/${pid}/naming/audit`);
+  }
+
   // --- hold-phase asset management: reserve study + CAM reconciliation ----------
   reserveStudy(pid: string, opts: { horizonYears?: number; openingBalance?: number;
       annualContribution?: number; inflationPct?: number } = {}) {

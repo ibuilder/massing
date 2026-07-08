@@ -9,7 +9,7 @@ import { renderOperations, renderFca, renderSpine, renderResilience, renderEnerg
 import { renderAiAssist, renderRiskReview } from "./panels/aiassist";
 import { renderBenchmarks, renderRiskCost } from "./panels/analytics";
 import { renderLandScreen, renderLifecycle, renderDiligence, renderEsg } from "./panels/design";
-import { renderProgram, renderBimKpi, renderStandards, renderIds } from "./panels/standards";
+import { renderProgram, renderBimKpi, renderStandards, renderIds, renderModelAnalysis } from "./panels/standards";
 
 /**
  * GC portal UI — one config-driven engine renders every module's list / form / record pages
@@ -156,6 +156,7 @@ export class PortalUI {
       __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
+      __modelanalysis__: () => this.renderModelAnalysis(),
       __portfolio__: () => this.renderPortfolio(), __benchmarks__: () => this.renderBenchmarks(),
     };
     const stagesByWs: Record<string, [string, Dest[]][]> = {
@@ -191,6 +192,7 @@ export class PortalUI {
           { key: "__standards__", icon: "🗂", label: "CDE / Standards" },   // ISO 19650 container discipline + reqs
           { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },             // 10-category information-mgmt scorecard
           { key: "__modelqa__", icon: "✅", label: "Model Health" },        // deep-links to the Model Tools checks
+          { key: "__modelanalysis__", icon: "🔬", label: "Model Analysis" }, // query/LOD/envelope/MEP/naming/capabilities
           { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // flood DFE + stormwater sizing
           { key: "__spine__", icon: "🔗", label: "Discipline Spine" },       // sheets→specs→bid→budget trace
         ]],
@@ -523,6 +525,7 @@ export class PortalUI {
 
   private renderProgram() { return renderProgram(this.panelCtx()); }
   private renderBimKpi() { return renderBimKpi(this.panelCtx()); }
+  private renderModelAnalysis() { return renderModelAnalysis(this.panelCtx()); }
   private renderStandards() { return renderStandards(this.panelCtx()); }
 
   private renderOperations() { return renderOperations(this.panelCtx()); }
