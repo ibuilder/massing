@@ -298,6 +298,36 @@
     no external accounts. An ENERGY STAR Portfolio Manager sync exists as an opt-in, feature-flagged
     bridge for deployments that want the official 1–100 score.</div>
 
+  <h2 id="standards-depth">Tutorial 8 · Standards, design &amp; engineering depth</h2>
+  <p class="sub">The authoring / design / engineering / interop upgrades — every one produces a report
+    in the <b>Report Center</b> (PDF + Excel) and, where it's a register, gets a CRUD form.</p>
+  <ol class="steps">
+    <li><b>BIM Execution Plan</b> — keep your information requirements (EIR / BEP / AIR), CDE containers
+      and drawing sets, then open <b>Report Center → BIM Execution Plan</b>. It assembles a full ISO 19650
+      BEP: a roles-&amp;-responsibilities matrix (one authoring lead per discipline), Level-of-Information-
+      Need targets by stage (LOD 200→500), the delivery schedule, naming standards, the CDE workflow and
+      QA — from the registers you already keep, no re-entry.</li>
+    <li><b>LOD &amp; naming</b> — set target LOD in the <b>LOD Targets</b> register; the <b>LOD Matrix &amp;
+      Coverage</b> report infers each element's achieved LOD from its data completeness. The <b>Naming
+      Convention Compliance</b> report audits your files (<code>Type_Discipline_Description_Revision_Date</code>)
+      and drawing sheet numbers (NCS <code>A-101</code>) and lists what's off-standard.</li>
+    <li><b>Design options</b> — add schemes to the <b>Design Options</b> register (area, cost, EUI, IRR);
+      the <b>Design Options Comparison</b> report ranks them apples-to-apples, names the best per metric,
+      and shows the deltas vs the one you mark <i>selected</i>. Standardize with the <b>Design Standards</b>
+      register (approved / prohibited materials) — the model is audited against it.</li>
+    <li><b>Engineering</b> — the <b>MEP Equipment Schedule</b> report gives first-pass duct/pipe sizing,
+      cooling tonnage and hanger spacing, plus MEP element counts read off the model. Put a crew size on
+      schedule activities and the <b>Resource-Loaded Schedule</b> report draws the manpower histogram +
+      man-week S-curve and flags over-allocation.</li>
+    <li><b>Analyze &amp; export</b> — <b>Model query</b> groups elements by discipline / class / storey and
+      counts them or sums a quantity; export the element table as <b>CSV</b> or <b>JSON-LD</b>. The
+      <b>Envelope Code Compliance</b> report checks wall / roof / window assemblies against IECC 2021
+      climate-zone minimums.</li>
+    <li><b>Field</b> — log installed quantity + crew hours in the <b>Productivity Log</b>; the <b>Field
+      Labor Productivity</b> report shows units-per-man-hour by trade. A computer-vision progress bridge
+      is available as an opt-in, feature-flagged integration (it invents nothing when off).</li>
+  </ol>
+
   <h2 id="glossary">Glossary — plain English</h2>
   <table class="gl">
     <tr><td>IFC</td><td>The open file format for building models. The platform's "source of truth" — every record points at an element's permanent IFC ID.</td></tr>
