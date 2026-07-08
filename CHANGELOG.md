@@ -12,8 +12,9 @@ IFC5/IFCX reported), a **model query** (saved views — count by discipline / cl
 **LOD coverage**, **envelope code compliance**, **MEP counts off the model**, and **naming compliance**.
 Each section loads independently and degrades gracefully when no model is published. New client methods
 wrap the endpoints; the panel follows the extracted-panel (`PanelContext`) pattern. Verified: web
-typecheck clean, vitest 49/49, build green. (In-browser click-through deferred — needs the full dev
-stack; the panel is code-identical to the five shipping panels.)
+typecheck clean, vitest 49/49, build green, **and live** — booted the full dev stack (API on :8093 +
+Vite), navigated to Design → Model Analysis; all six sections render with zero console errors, and IFC
+capabilities correctly detected the loaded model as IFC4.
 
 ## v0.3.93 — Deferred-item slices: model-driven MEP, staleness, schema detect, CV write-path
 The tractable slice of each remaining backlog item (the fuller versions need infrastructure noted below).
