@@ -460,6 +460,7 @@ with TestClient(app) as c:
     P = f"/projects/{pid}"
     singles = [f"{P}/dashboard", f"{P}/members", f"{P}/budget/gmp", f"{P}/budget/cashflow", f"{P}/budget/variance",
                f"{P}/cost/summary", f"{P}/wip", "/wip/portfolio", f"{P}/contractor-statements", "/contractor-statements/portfolio",
+               f"{P}/accounting/chart-of-accounts", f"{P}/accounting/journal-entries", f"{P}/accounting/trial-balance",
                f"{P}/px-summary", f"{P}/schedule/cpm", f"{P}/schedule/earned-value", f"{P}/schedule/lookahead?weeks=3",
                f"{P}/schedule/milestones", f"{P}/schedule/variance", f"{P}/schedule/4d", f"{P}/safety/metrics", f"{P}/bids/leveling",
                f"{P}/schedule/resource-loading?cap=25", f"{P}/schedule/resource-leveling?cap=25",  # cost-loaded manpower + leveling

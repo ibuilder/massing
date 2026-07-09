@@ -19,6 +19,24 @@ def journal(pid: str, db: Session = Depends(get_db), _: str = Depends(require_ro
             "total": round(sum(e["amount"] for e in entries), 2)}
 
 
+@router.get("/projects/{pid}/accounting/chart-of-accounts")
+def chart_of_accounts(pid: str, _: str = Depends(require_role("viewer"))):
+    """The standard construction chart of accounts (code, name, type, normal balance)."""
+    return {"accounts": accounting.chart_of_accounts()}
+
+
+@router.get("/projects/{pid}/accounting/journal-entries")
+def journal_entries(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Balanced double-entry journal from job cost + billing + the WIP percentage-of-completion adjustment."""
+    return accounting.journal_entries(db, pid)
+
+
+@router.get("/projects/{pid}/accounting/trial-balance")
+def trial_balance(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Trial balance — debits and credits per account (must tie), from the double-entry journal."""
+    return accounting.trial_balance(db, pid)
+
+
 @router.get("/projects/{pid}/accounting/gl.csv")
 def gl_csv(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Double-entry general-ledger CSV (universal import for QuickBooks / Sage / Xero)."""

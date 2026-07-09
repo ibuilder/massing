@@ -2182,6 +2182,20 @@ export class ApiClient {
       activities: { ref: string; name: string; status: string; start_var: number | null; finish_var: number | null }[] }>(
       `/projects/${pid}/schedule/variance`);
   }
+  /** Balanced double-entry journal from job cost + billing + the WIP POC adjustment. */
+  journalEntries(pid: string) {
+    return this.json<{ entries: { date: string; ref: string; memo: string; debit_total: number;
+      credit_total: number; lines: { account: string; code: string; debit: number; credit: number }[] }[];
+      debit_total: number; credit_total: number; balanced: boolean; note: string }>(
+      `/projects/${pid}/accounting/journal-entries`);
+  }
+  /** Trial balance — debits and credits per account (must tie). */
+  trialBalance(pid: string) {
+    return this.json<{ accounts: { code: string; account: string; type: string; debit: number;
+      credit: number; balance: number; balance_side: "debit" | "credit" }[];
+      debit_total: number; credit_total: number; balanced: boolean; note: string }>(
+      `/projects/${pid}/accounting/trial-balance`);
+  }
   /** Contractor statements: POC income statement + contract-position (asset/liability, retainage, AP). */
   contractorStatements(pid: string) {
     return this.json<{ contract_value: number; percent_complete: number; backlog: number; note: string;

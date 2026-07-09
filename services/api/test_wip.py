@@ -67,6 +67,19 @@ with TestClient(app) as c:
     cp = c.get("/contractor-statements/portfolio").json()
     assert cp["job_count"] == 1 and cp["income_statement"]["revenue_earned"] == 500000, cp
 
+    # --- GL foundation: balanced double-entry journal + trial balance -----------------------------
+    coa = c.get(f"/projects/{pid}/accounting/chart-of-accounts").json()
+    assert {a["code"] for a in coa["accounts"]} >= {"1200", "2000", "4000", "5000", "2300"}, coa
+    je = c.get(f"/projects/{pid}/accounting/journal-entries").json()
+    assert je["balanced"] and je["debit_total"] == je["credit_total"], je
+    tb = c.get(f"/projects/{pid}/accounting/trial-balance").json()
+    assert tb["balanced"] and tb["debit_total"] == tb["credit_total"], tb
+    acc = {a["code"]: a for a in tb["accounts"]}
+    assert acc["5000"]["debit"] == 400000 and acc["2000"]["credit"] == 400000, tb   # cost → AP
+    assert acc["1200"]["debit"] == 700000, acc["1200"]                              # billed → AR
+    assert acc["4000"]["balance"] == 500000 and acc["4000"]["balance_side"] == "credit", acc["4000"]  # revenue nets to earned
+    assert acc["2300"]["credit"] == 200000, acc["2300"]                            # over-billing → contract liability
+
     # --- report PDFs ------------------------------------------------------------------------------
     for _rep in ("wip", "contractor_financials"):
         rep = c.get(f"/projects/{pid}/reports/{_rep}.pdf")

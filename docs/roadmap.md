@@ -659,9 +659,11 @@ reusing the config engine's reference/rollup relational spine.
   (cost-to-cost) → earned revenue vs billed → over-billing (contract liability) / under-billing (contract
   asset), retainage, gross profit, backlog, plus a portfolio WIP sorted by cash risk — the accounting twin
   to the earned-value module. `GET /projects/{id}/wip` + `/wip/portfolio`, a `📄 WIP Schedule` panel + report.
-- **A2 (planned) — Statements + GL.** Contractor-flavoured statements (contract-asset/liability + POC
-  revenue lines on the existing 3-statement scaffold) and a chart-of-accounts / balanced-journal-entry
-  foundation feeding the ERP export.
+- **A2 (shipped v0.3.119–120) — Statements + GL.** `contractor.py` — POC income statement + contract-
+  position balance-sheet section (asset/liability, retainage, AP, net contract working capital), per-job
+  + company-wide. `accounting.py` — a standard construction chart of accounts + a balanced double-entry
+  journal (job cost / billing / WIP POC adjustment → revenue nets to earned) + trial balance; 📒 General
+  Ledger panel + the existing GL-CSV / QuickBooks-IIF export.
 - **I (planned) — Interop + moat.** Balanced cost-coded journal-entry export to the accounting system of
   record through an approval gate; then derive WIP % complete and resource curves from **model quantities by
   GlobalId**, for end-to-end model → resource → cost → GL traceability.

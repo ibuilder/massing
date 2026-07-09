@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.120 — General ledger: balanced double-entry journal + trial balance + chart of accounts
+Closes A2 of the resourcing/accounting plan — the posting bridge to the accounting system of record.
+
+- **`accounting.py`** gains a standard construction **chart of accounts** (AR, contract asset/liability,
+  AP, contract revenue, construction costs) and a **balanced double-entry journal** posted from job cost
+  (Dr Construction Costs / Cr AP), owner billing (Dr AR / Cr Revenue) and the **WIP percentage-of-completion
+  adjustment** (under-billing → Dr Contract Asset / Cr Revenue; over-billing → Dr Revenue / Cr Contract
+  Liability) — so Contract Revenue nets to **earned**. Plus a **trial balance** (debits = credits, per account).
+- Endpoints `GET /accounting/chart-of-accounts`, `/accounting/journal-entries`, `/accounting/trial-balance`
+  (the GL-CSV + QuickBooks-IIF exports already existed). A **📒 General Ledger** panel (trial balance +
+  journal + CSV/IIF export). `journalEntries` / `trialBalance` client methods.
+
+Verified: `test_wip` extended (journal balanced, trial balance ties, revenue nets to earned, over-billing
+posts to contract liability) + `test_accounting`; ruff clean; web typecheck + vitest + build.
+
 ## v0.3.119 — Contractor financial statements (POC income statement + contract position)
 The construction-only statement lines a generic P&L / balance sheet miss — the balance-sheet twin to the
 WIP schedule (A2 of the resourcing/accounting plan).
