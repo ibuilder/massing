@@ -52,11 +52,21 @@ def cpm(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("
 @router.get("/projects/{pid}/schedule/resource-loading")
 def resource_loading_endpoint(pid: str, cap: float | None = None, db: Session = Depends(get_db),
                               _: str = Depends(require_role("viewer"))):
-    """Resource-loaded schedule — weekly crew histogram (by trade), cumulative man-week S-curve, peak
-    manpower and (against an optional ?cap= availability) over-allocation flags. Reads each activity's
-    crew_size + start/finish."""
+    """Resource-loaded schedule — weekly resource histogram (by trade/type), cumulative units + **cost**
+    S-curves, peak, and (against an optional ?cap= availability) over-allocation flags. Prefers
+    `resource_assignment` records (activity + cost code + units + rate); falls back to activity crew_size."""
     from .. import resource_loading
     return resource_loading.loading(db, pid, cap)
+
+
+@router.get("/projects/{pid}/schedule/resource-leveling")
+def resource_leveling_endpoint(pid: str, cap: float, db: Session = Depends(get_db),
+                               _: str = Depends(require_role("viewer"))):
+    """Resource-leveling advisory against a `cap` availability: over-allocated work that still has CPM
+    total float can be **smoothed** (shifted within float) to shave the peak without moving the finish.
+    Advisory only — never mutates the schedule."""
+    from .. import resource_loading
+    return resource_loading.level(db, pid, cap)
 
 
 @router.get("/projects/{pid}/productivity/summary")

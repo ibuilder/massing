@@ -81,6 +81,14 @@
       "source_module": "timesheet",
       "source_field": "hours",
       "op": "sum"
+    },
+    {
+      "name": "resource_budget",
+      "label": "Resource budget ($)",
+      "type": "rollup",
+      "source_module": "resource_assignment",
+      "source_field": "budgeted_cost",
+      "op": "sum"
     }
   ],
   "workflow": {

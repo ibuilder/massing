@@ -1284,18 +1284,20 @@ def _resource_loading(db: Session, pid: str, name: str) -> Report:
     from . import resource_loading
     a = resource_loading.loading(db, pid)
     r = Report("Resource-Loaded Schedule", name)
-    r.kpi("Loaded activities", a["activities_loaded"])
+    r.kpi("Loaded resources", a["loads"])
     r.kpi("Weeks", a["weeks_span"])
     r.kpi("Trades", len(a["trades"]))
-    r.kpi("Peak crew", f"{a['peak']['crew']} ({a['peak']['week']})" if a["peak"]["week"] else "—")
-    r.table("Weekly resource histogram", ["Week", "Total crew"] + a["trades"],
-            [[w["week"], w["total"]] + [w["by_trade"].get(t, 0) for t in a["trades"]]
-             for w in a["histogram"]] or [["(no crew-loaded activities)"] + [""] * (len(a["trades"]) + 1)])
+    r.kpi("Peak units", f"{a['peak']['units']} ({a['peak']['week']})" if a["peak"]["week"] else "—")
+    r.kpi("Total cost", _money(a["total_cost"]))
+    r.table("Weekly resource histogram", ["Week", "Total units", "Cost"] + a["trades"],
+            [[w["week"], w["total"], _money(w["cost"])] + [w["by_trade"].get(t, 0) for t in a["trades"]]
+             for w in a["histogram"]] or [["(no resource-loaded activities)"] + [""] * (len(a["trades"]) + 2)])
     if a["histogram"]:
-        r.chart("bar", "Crew histogram (peak manpower/week)", [w["week"] for w in a["histogram"]],
-                [{"name": "Crew", "values": [w["total"] for w in a["histogram"]]}])
-        r.chart("line", "Cumulative man-weeks (S-curve)", [p["week"] for p in a["scurve"]],
-                [{"name": "Cumulative", "values": [p["cumulative"] for p in a["scurve"]]}])
+        r.chart("bar", "Resource histogram (peak units/week)", [w["week"] for w in a["histogram"]],
+                [{"name": "Units", "values": [w["total"] for w in a["histogram"]]}])
+        r.chart("line", "Cumulative units + cost (S-curves)", [p["week"] for p in a["scurve"]],
+                [{"name": "Units", "values": [p["cumulative"] for p in a["scurve"]]},
+                 {"name": "Cost", "values": [p["cumulative"] for p in a["cost_curve"]]}])
     return r
 
 

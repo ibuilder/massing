@@ -91,13 +91,23 @@ with TestClient(app) as c:
     # units-complete method (tons erected); the rest use % complete — so the EVM panel joins EV↔AC per code.
     ev_by_trade = {"Sitework": "percent", "Concrete": "percent", "Steel": "units", "MEP": "percent", "Finishes": "percent"}
     cc_by_trade = {"Sitework": "01-5000", "Concrete": "03-3000", "Steel": "05-1200", "MEP": "23-0000", "Finishes": "09-2900"}
+    act_ids = {}
     for i, (name, trade, s, f, bud, pct) in enumerate(acts):
         act_data = {"name": name, "trade": trade, "start": s, "finish": f, "budget": bud, "cost_code": ccs[cc_by_trade[trade]],
                     "percent": pct, "wbs": f"01.{i+1:02d}", "weather_sensitivity": wx_sens.get(trade, "None"),
                     "ev_method": ev_by_trade[trade]}
         if trade == "Steel":                            # units-complete example (620 tons erected, 40% = 248)
             act_data.update({"units_total": 620, "units_complete": round(620 * pct / 100)})
-        mk(c, pid, "schedule_activity", act_data)
+        act_ids[trade] = mk(c, pid, "schedule_activity", act_data)
+    # resource assignments — cost-load the schedule (crews + rate, tied to activity + cost code). Sitework
+    # and Foundations overlap early → a manpower peak the leveling advisory can smooth.
+    _res = [("Site crew", "Labor", "Sitework", 10, 500, 1_500_000), ("Concrete crew", "Labor", "Concrete", 14, 520, 4_800_000),
+            ("Ironworkers", "Labor", "Steel", 12, 620, 6_200_000), ("Tower crane", "Equipment", "Steel", 1, 3800, 420_000),
+            ("MEP crew", "Labor", "MEP", 16, 480, 5_800_000), ("Finish crew", "Labor", "Finishes", 18, 440, 4_200_000)]
+    for _rn, _rt, _tr, _u, _rate, _bc in _res:
+        mk(c, pid, "resource_assignment", {"resource_name": _rn, "resource_type": _rt, "trade": _tr,
+                                           "activity": act_ids[_tr], "cost_code": ccs[cc_by_trade[_tr]],
+                                           "units": _u, "unit": "day", "rate": _rate, "budgeted_cost": _bc})
     # cost-to-date (ACWP) by trade so CPI is realistic — a slightly-over-budget, behind-schedule job
     for _trade, _amt in [("Sitework", 1_500_000), ("Concrete", 3_700_000), ("Steel", 2_450_000),
                          ("MEP", 580_000), ("Finishes", 40_000)]:
@@ -451,6 +461,7 @@ with TestClient(app) as c:
     singles = [f"{P}/dashboard", f"{P}/members", f"{P}/budget/gmp", f"{P}/budget/cashflow", f"{P}/budget/variance",
                f"{P}/cost/summary", f"{P}/px-summary", f"{P}/schedule/cpm", f"{P}/schedule/earned-value", f"{P}/schedule/lookahead?weeks=3",
                f"{P}/schedule/milestones", f"{P}/schedule/variance", f"{P}/schedule/4d", f"{P}/safety/metrics", f"{P}/bids/leveling",
+               f"{P}/schedule/resource-loading?cap=25", f"{P}/schedule/resource-leveling?cap=25",  # cost-loaded manpower + leveling
                # earned value management (E1–E7): unified metrics, S-curve, earned schedule, model-based EV, trend
                f"{P}/evm", f"{P}/evm/scurve", f"{P}/evm/earned-schedule", f"{P}/evm/model-ev", f"{P}/evm/trend",
                f"{P}/compliance/expiring?within_days=30", f"{P}/enum-options", f"{P}/notifications", f"{P}/my-work", f"{P}/module-pins",

@@ -2182,6 +2182,23 @@ export class ApiClient {
       activities: { ref: string; name: string; status: string; start_var: number | null; finish_var: number | null }[] }>(
       `/projects/${pid}/schedule/variance`);
   }
+  /** Cost-loaded resource histogram + unit/cost S-curves + over-allocation (from resource assignments). */
+  resourceLoading(pid: string, cap?: number) {
+    return this.json<{ source: string; loads: number; weeks_span: number; cap: number | null;
+      trades: string[]; types: string[]; peak: { week: string | null; units: number }; total_cost: number;
+      histogram: { week: string; total: number; cost: number; by_trade: Record<string, number>;
+        by_type: Record<string, number> }[];
+      scurve: { week: string; cumulative: number }[]; cost_curve: { week: string; cumulative: number }[];
+      over_allocation: { week: string; units: number; cap: number | null }[]; note: string }>(
+      `/projects/${pid}/schedule/resource-loading${cap != null ? `?cap=${cap}` : ""}`);
+  }
+  /** Resource-leveling advisory: over-allocated work with CPM float that can be smoothed within float. */
+  resourceLeveling(pid: string, cap: number) {
+    return this.json<{ cap: number; peak: { week: string | null; units: number }; over_weeks: number;
+      critical_locked: number; suggestions: { assignment: string | null; resource: string | null;
+        activity: string; trade: string | null; total_float_days: number; units: number | null;
+        action: string }[]; note: string }>(`/projects/${pid}/schedule/resource-leveling?cap=${cap}`);
+  }
   /** Schedule earned value: BAC / EV / PV / SPI + per-activity schedule variance. */
   scheduleEarnedValue(pid: string) {
     return this.json<{ bac: number; ev: number; pv: number; sv: number; spi: number | null;

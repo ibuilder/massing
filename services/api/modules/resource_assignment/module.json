@@ -1,0 +1,130 @@
+{
+  "key": "resource_assignment",
+  "name": "Resource Assignments",
+  "section": "Resources",
+  "icon": "👷",
+  "ref_prefix": "RA",
+  "title_field": "resource_name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "resource_name",
+      "label": "Resource / crew",
+      "type": "text",
+      "required": true,
+      "fieldset": "Resource"
+    },
+    {
+      "name": "resource_type",
+      "label": "Type",
+      "type": "select",
+      "options": [
+        "Labor",
+        "Equipment",
+        "Material"
+      ],
+      "fieldset": "Resource"
+    },
+    {
+      "name": "trade",
+      "label": "Trade / discipline",
+      "type": "text",
+      "fieldset": "Resource"
+    },
+    {
+      "name": "activity",
+      "label": "Schedule activity",
+      "type": "reference",
+      "module": "schedule_activity",
+      "required": true,
+      "fieldset": "Links"
+    },
+    {
+      "name": "cost_code",
+      "label": "Cost code",
+      "type": "reference",
+      "module": "cost_code",
+      "fieldset": "Links"
+    },
+    {
+      "name": "units",
+      "label": "Units / period",
+      "type": "number",
+      "fieldset": "Loading"
+    },
+    {
+      "name": "unit",
+      "label": "Unit",
+      "type": "select",
+      "options": [
+        "hour",
+        "day",
+        "week",
+        "each"
+      ],
+      "fieldset": "Loading"
+    },
+    {
+      "name": "rate",
+      "label": "Rate ($/unit)",
+      "type": "currency",
+      "fieldset": "Loading"
+    },
+    {
+      "name": "budgeted_cost",
+      "label": "Budgeted cost ($)",
+      "type": "currency",
+      "fieldset": "Loading"
+    },
+    {
+      "name": "actual_units",
+      "label": "Actual units",
+      "type": "number",
+      "fieldset": "Progress"
+    },
+    {
+      "name": "start",
+      "label": "Start",
+      "type": "date",
+      "fieldset": "Progress"
+    },
+    {
+      "name": "finish",
+      "label": "Finish",
+      "type": "date",
+      "fieldset": "Progress"
+    }
+  ],
+  "workflow": {
+    "initial": "planned",
+    "states": [
+      "planned",
+      "active",
+      "complete"
+    ],
+    "transitions": [
+      {
+        "from": "planned",
+        "to": "active",
+        "action": "mobilize",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "active",
+        "to": "complete",
+        "action": "demobilize",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "resource_type",
+    "trade",
+    "units"
+  ],
+  "workspace": "construction"
+}

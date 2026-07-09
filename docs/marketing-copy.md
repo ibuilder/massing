@@ -32,6 +32,7 @@ run the job, and hand it over — open, self-hosted, and free to run on one mach
 - **Off-plan listing kit** — a BIM-native Listing Fact Sheet + a signed public link/QR, auto-filled from the model & proforma.
 - **Tri-approach appraisal** — cost + income + sales-comparison reconciled into a Valuation report, RESO-aligned for MLS.
 - **Earned Value Management** — one ANSI/EIA-748 metric set (CPI/SPI, the EAC/ETC/VAC/TCPI forecast family, Earned Schedule) with a twist: earn value off the *physically installed model*, not just a billing SOV — so front-loaded progress gets caught. S-curve, CPI–SPI quadrant, and a captured-snapshot performance trend.
+- **Resource-loaded scheduling** — tie crews / equipment / material (with rates) to schedule activities and cost codes; get a cost-loaded manpower histogram, unit + cost S-curves, over-allocation against an availability cap, and a leveling advisory that smooths peaks within CPM float.
 - **Author the model, tag the standards** — draft structural/MEP/architectural families server-side (GUID-stable IFC), then set typed properties and attach Uniclass / OmniClass / Uniformat classifications right from the element panel.
 - **Grounded in the literature** — Willis (form follows finance), Salvadori (structure), the Empire State takt assembly line.
 

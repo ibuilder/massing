@@ -73,6 +73,7 @@
     <a href="#generate">2 · Generate from zoning</a>
     <a href="#underwrite">3 · Underwrite a deal</a>
     <a href="#run">4 · Run a project</a>
+    <a href="#resource">👷 Resource loading</a>
     <a href="#evm">📊 Earned Value</a>
     <a href="#turnover">5 · Hand it over</a>
     <a href="#dispose">6 · List &amp; value it</a>
@@ -255,6 +256,21 @@
     <img class="shot" src="img/gantt.png" alt="A Gantt schedule generated from the project's activities" />
     <figcaption>Schedule views (Gantt + line-of-balance) generate from the project's activities.</figcaption>
   </figure>
+
+  <h2 id="resource">Tutorial 👷 · Load resources on the schedule</h2>
+  <p class="sub">Cost-load the schedule with crews, equipment and material — get the manpower histogram,
+    a cost S-curve, and a leveling advisory. Needs schedule activities with dates.</p>
+  <ol class="steps">
+    <li>Create <b>Resource assignments</b> (Resources section): give each a name and type
+      (<b>Labor / Equipment / Material</b>), a <b>units/period</b> and <b>rate</b>, and link it to a
+      <b>schedule activity</b> and a <b>cost code</b>. The cost auto-rolls up onto the cost code.</li>
+    <li>Open <b>👷 Resource loading</b> in the construction workspace. The <b>histogram</b> shows concurrent
+      units per trade per week; the <b>cost S-curve</b> shows cumulative spend; the KPIs show peak units,
+      total cost and over-allocated weeks.</li>
+    <li>Set an <b>availability cap</b> (units/week). Weeks above it are flagged as <b>over-allocated</b>, and
+      the <b>leveling advisory</b> lists work that has CPM float and can be <b>smoothed</b> (shifted within
+      its float) to shave the peak — while critical-path work is locked. Export it all to a PDF report.</li>
+  </ol>
 
   <h2 id="evm">Tutorial 📊 · Track cost + schedule performance (Earned Value)</h2>
   <p class="sub">One ANSI/EIA-748 metric set — is the job over budget, behind schedule, and where will it

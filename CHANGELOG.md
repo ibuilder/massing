@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.117 — Resource loading, made real: cost-loaded, relational, with leveling
+Promotes resource loading from a flat crew-count (and no UI) to a relational, cost-loaded engine with a
+panel — tying the schedule to resources and cost codes.
+
+- **`resource_assignment` model** — ties a resource (Labor / Equipment / Material, with a rate) to a
+  **schedule activity** and a **cost code**. That's the schedule ↔ resource ↔ cost join; the cost also
+  rolls up onto the cost code (`resource_budget`).
+- **Cost-loaded engine** — `resource_loading.py` now spreads assignment units + cost across each week
+  into a **manpower histogram** (by trade / type) and cumulative **unit + cost S-curves**, with
+  over-allocation flags against an availability cap. Falls back to activity `crew_size` when no
+  assignments exist, so the classic curve still renders.
+- **Leveling advisory** — `GET /schedule/resource-leveling?cap=` lists over-allocated work that still
+  has **CPM total float** and can be smoothed (shifted within float) to shave the peak without moving the
+  finish; critical-path work is reported as locked. Advisory only.
+- **UI** — a `👷 Resource loading` panel (Schedule stage): editable availability cap, stacked-by-trade
+  histogram, cost S-curve, KPIs (peak / total cost / over-allocated weeks) and the leveling table, plus a
+  PDF report. Demo seeds six crews so the sample shows a real peak + leveling candidates.
+
+Verified: `test_resource_loading` (cost-loaded histogram + S-curves, over-allocation, `resource_budget`
+rollup, leveling picks the float-bearing work, crew_size fallback, PDF) + the module-contiguity gate;
+ruff clean; web typecheck + vitest + build.
+
 ## v0.3.116 — Portfolio CPI (cost efficiency) in the executive roll-up
 The cross-project executive dashboard already showed SPI + EAC + variance-at-completion per project;
 it now also shows **CPI** — cost efficiency (EV ÷ AC) — so the "which jobs are bleeding money?"
