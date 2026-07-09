@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.106 — Model authoring, P3: architectural finishes (ceilings · tile · wood · cladding · railings)
+Interior/finish elements complete the discipline set the Draft palette can author.
+
+- **Coverings** (`IfcCovering`) drawn as a polygon: **ceiling** (hung near the top of the storey),
+  **floor tile** (FLOORING + a ceramic-tile material), **wood flooring** (FLOORING + a Wood material),
+  and **wall cladding** (CLADDING) — each by PredefinedType with an optional finish **material** and
+  `Pset_CoveringCommon`.
+- **Railings** (`IfcRailing`) drawn between two points at a set height.
+- New `edit.py` recipes `add_covering` / `add_railing`; Architectural Draft entries for the four
+  coverings + railing. Placement uses the P1 grid snap + active level.
+
+With this the Draft palette spans all three disciplines (Architectural · Structural · MEP) — from grid
+and levels to steel, rebar, MEP runs and equipment, and now finishes.
+
+Verified: `test_architectural` (ceiling at 2.7 m, wood flooring material, cladding, railing) + typecheck
++ vitest (56) + build; ruff clean.
+
 ## v0.3.105 — Model authoring, P5: MEP families (HVAC · plumbing · electrical · fire · telecom)
 The biggest discipline slice — draw distribution runs and drop equipment, authored as real IFC MEP.
 

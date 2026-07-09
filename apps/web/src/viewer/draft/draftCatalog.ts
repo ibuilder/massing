@@ -69,6 +69,17 @@ export const DRAFT_ELEMENTS: DraftElement[] = [
     hint: "Click the roof outline corners; double-click to close.",
     build: (pts, v) => ({ points: pts, thickness: v.thickness }),
   },
+  covering("ceiling", "Ceiling", "CEILING", null),
+  covering("floor_tile", "Floor tile", "FLOORING", "Ceramic tile"),
+  covering("wood_floor", "Wood flooring", "FLOORING", "Wood"),
+  covering("cladding", "Wall cladding", "CLADDING", null),
+  {
+    key: "railing", label: "Railing", discipline: "Architectural", ifcClass: "IfcRailing",
+    recipe: "add_railing", points: 2,
+    params: [{ key: "height", label: "Height", type: "length", default: 1.1, unit: "m", min: 0.3, step: 0.05 }],
+    hint: "Click the railing start and end.",
+    build: (pts, v) => ({ start: pts[0], end: pts[1], height: v.height }),
+  },
   // --- Structural ---
   {
     key: "column", label: "Column", discipline: "Structural", ifcClass: "IfcColumn",
@@ -166,6 +177,17 @@ export const DRAFT_ELEMENTS: DraftElement[] = [
   ...mepTerminal("smoke_detector", "Smoke detector", "IfcSensor", "SMOKESENSOR", [0.15, 0.15, 0.05]),
   ...mepTerminal("data_outlet", "Data / telecom outlet", "IfcCommunicationsAppliance", null, [0.1, 0.05, 0.1]),
 ];
+
+/** A polygon IfcCovering (ceiling / flooring / cladding) with predefined type + optional material. */
+function covering(key: string, label: string, predefined: string, material: string | null): DraftElement {
+  return {
+    key: `cov:${key}`, label, discipline: "Architectural", ifcClass: "IfcCovering",
+    recipe: "add_covering", points: "poly",
+    params: [{ key: "thickness", label: "Thickness", type: "length", default: 0.02, unit: "m", min: 0.005, step: 0.005 }],
+    hint: `Click the ${label.toLowerCase()} outline corners; double-click to close.`,
+    build: (pts, v) => ({ points: pts, predefined, thickness: v.thickness, ...(material ? { material } : {}) }),
+  };
+}
 
 /** A 1-point MEP terminal draft element with the IFC class + optional predefined type baked in. */
 function mepTerminal(key: string, label: string, ifcClass: string, predefined: string | null,

@@ -517,6 +517,75 @@ def add_mep_terminal(model: ifcopenshell.file, ifc_class: str, point, width: flo
     return el.GlobalId
 
 
+# --- architectural finishes: coverings (ceiling/tile/cladding) + railings (P3) ----------------
+def add_covering(model: ifcopenshell.file, points, predefined: str = "CEILING",
+                 thickness: float = 0.02, material: str | None = None,
+                 storey: str | None = None) -> str:
+    """A thin IfcCovering over a polygon of XY points: a CEILING (hung near the top of the storey),
+    FLOORING (tile/wood at floor level), or CLADDING. Optional finish material."""
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    scale = uunit.calculate_unit_scale(model)
+    body = _body_context(model)
+    st = _first_storey(model, storey)
+    base = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale
+    elev = base + (2.7 if predefined == "CEILING" else 0.0)   # ceilings hang near the storey top
+    cov = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcCovering", name="Covering")
+    try:
+        cov.PredefinedType = predefined
+    except Exception:                                 # noqa: BLE001 — enum not in this schema
+        pass
+    matrix = np.eye(4); matrix[2, 3] = elev
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=cov, matrix=matrix)
+    pts = [model.create_entity("IfcCartesianPoint", Coordinates=(float(p[0]), float(p[1]))) for p in points]
+    pts.append(pts[0])
+    poly = model.create_entity("IfcPolyline", Points=pts)
+    profile = model.create_entity("IfcArbitraryClosedProfileDef", ProfileType="AREA", OuterCurve=poly)
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                               profile=profile, depth=float(thickness))
+    ifcopenshell.api.run("geometry.assign_representation", model, product=cov, representation=rep)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[cov], relating_structure=st)
+    if material:
+        try:
+            mat = ifcopenshell.api.run("material.add_material", model, name=material)
+            ifcopenshell.api.run("material.assign_material", model, products=[cov], material=mat)
+        except Exception:                             # noqa: BLE001 — material assignment best-effort
+            pass
+    ifcopenshell.api.run("pset.add_pset", model, product=cov, name="Pset_CoveringCommon")
+    return cov.GlobalId
+
+
+def add_railing(model: ifcopenshell.file, start, end, height: float = 1.1,
+                storey: str | None = None) -> str:
+    """A straight IfcRailing between two XY points — a thin panel of `height` along the axis."""
+    import math
+
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    scale = uunit.calculate_unit_scale(model)
+    body = _body_context(model)
+    sx, sy, ex, ey = float(start[0]), float(start[1]), float(end[0]), float(end[1])
+    length = math.hypot(ex - sx, ey - sy) or 1.0
+    ang = math.atan2(ey - sy, ex - sx)
+    st = _first_storey(model, storey)
+    elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale
+    rail = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcRailing", name="Railing")
+    mx, my = (sx + ex) / 2, (sy + ey) / 2
+    c, s = math.cos(ang), math.sin(ang)
+    matrix = np.array([[c, -s, 0, mx], [s, c, 0, my], [0, 0, 1, elev], [0, 0, 0, 1]], dtype=float)
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=rail, matrix=matrix)
+    profile = _rect_profile(model, length, 0.05)
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                               profile=profile, depth=float(height))
+    ifcopenshell.api.run("geometry.assign_representation", model, product=rail, representation=rep)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[rail], relating_structure=st)
+    return rail.GlobalId
+
+
 def add_roof(model: ifcopenshell.file, points, thickness: float = 0.3,
              storey: str | None = None) -> str:
     """Author a flat IfcRoof from a polygon of XY points (meters) extruded by `thickness`
@@ -738,6 +807,10 @@ RECIPES = {
                                                       float(p.get("width", 0.4)), float(p.get("depth", 0.4)),
                                                       float(p.get("height", 0.4)), p.get("predefined"),
                                                       p.get("storey")),
+    "add_covering": lambda m, p: add_covering(m, p["points"], p.get("predefined", "CEILING"),
+                                              float(p.get("thickness", 0.02)), p.get("material"), p.get("storey")),
+    "add_railing": lambda m, p: add_railing(m, p["start"], p["end"], float(p.get("height", 1.1)),
+                                            p.get("storey")),
 }
 
 

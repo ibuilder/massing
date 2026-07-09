@@ -182,7 +182,11 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Model authoring — MEP families (latest, v0.3.105)** — draw **duct / pipe / cable-tray / cable
+- **Model authoring — architectural finishes (latest, v0.3.106)** — draw **ceilings, floor tile, wood
+  flooring and wall cladding** (`IfcCovering` by predefined type + finish material) and **railings**
+  (`IfcRailing`). The Draft palette now spans all three disciplines — Architectural · Structural · MEP.
+
+- **Model authoring — MEP families (v0.3.105)** — draw **duct / pipe / cable-tray / cable
   runs** (swept `Ifc*Segment` with ports + named `IfcDistributionSystem`) and place **electrical panels,
   outlets, lights, diffusers, floor drains, plumbing fixtures, fire alarms, smoke detectors and data
   outlets** — each the correct IFC class + PredefinedType, snapped to grid on the active level.

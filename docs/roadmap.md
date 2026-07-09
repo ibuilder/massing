@@ -76,8 +76,9 @@ params, v0.3.102) → **P1** grid + levels drafting refs (`grid.py` IfcGrid/deri
 editable-storey recipes + Grid & Levels panel, v0.3.103) → **P4** structural (steel.py AISC W-shapes as
 native IfcIShapeProfileDef + rebar IfcReinforcingBar + IfcFooting, v0.3.104) → **P5** MEP (duct/pipe/
 cable-carrier/cable runs w/ ports + IfcDistributionSystem + point equipment: panel/outlet/light/
-diffuser/drain/fixture/alarm/sensor/comms, v0.3.105) → **P3** architectural (coverings/ceilings/tile/
-wood) → **P6** draft perf. Earlier placeholder: **P4-cont/**
+diffuser/drain/fixture/alarm/sensor/comms, v0.3.105) → **P3** architectural (IfcCovering
+ceiling/tile/wood/cladding + IfcRailing, v0.3.106) → **P6** draft perf (optimistic + incremental
+fragments). Earlier placeholder: **P4-cont/**
 structural (steel parametric profiles + rebar) → **P5** MEP (duct/pipe runs, electrical, fire/telecom) →
 **P3** architectural (coverings/ceilings/tile/wood) → **P6** draft perf (optimistic + incremental
 fragments); standards (PredefinedType + classification + Psets at the type level) woven throughout.
