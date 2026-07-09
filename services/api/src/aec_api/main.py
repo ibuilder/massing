@@ -41,6 +41,7 @@ from .routers import (
     exports,
     generate,
     ids,
+    market,
     modules,
     opendata,
     operations,
@@ -256,6 +257,7 @@ app.include_router(proforma.router, tags=["proforma"])
 app.include_router(generate.router, tags=["generate"])
 app.include_router(design.router, tags=["design"])
 app.include_router(documents.router, tags=["documents"])
+app.include_router(market.router, tags=["market"])
 app.include_router(turnover.router, tags=["turnover"])
 app.include_router(research.router, tags=["research"])
 app.include_router(review.router, tags=["review"])

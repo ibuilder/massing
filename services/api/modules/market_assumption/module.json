@@ -1,0 +1,35 @@
+{
+  "key": "market_assumption",
+  "name": "Market Assumptions",
+  "section": "Finance",
+  "icon": "📈",
+  "ref_prefix": "MKT",
+  "title_field": "name",
+  "pinnable": false,
+  "revisable": true,
+  "fields": [
+    { "name": "name", "label": "Scenario", "type": "text", "required": true },
+    { "name": "region", "label": "Region", "type": "select",
+      "options": ["global_average", "north_america", "europe", "australia_nz", "asia",
+                  "middle_east", "latin_america", "africa"] },
+    { "name": "sector", "label": "Sector", "type": "select",
+      "options": ["data_center", "advanced_manufacturing", "life_sciences", "lab", "infrastructure",
+                  "healthcare", "hotel", "mixed_use", "industrial", "warehouse", "residential",
+                  "multifamily", "office", "commercial", "retail"] },
+    { "name": "construction_start_year", "label": "Construction start (year)", "type": "number" },
+    { "name": "duration_months", "label": "Construction duration (months)", "type": "number" },
+    { "name": "escalation_override_pct", "label": "Escalation override (%/yr)", "type": "number" },
+    { "name": "location_override", "label": "Location index override (1.0 = US avg)", "type": "number" },
+    { "name": "notes", "label": "Notes", "type": "textarea" }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": ["draft", "adopted", "superseded"],
+    "transitions": [
+      { "from": "draft", "to": "adopted", "action": "adopt", "party": ["Owner", "OwnersRep", "GC"] },
+      { "from": "adopted", "to": "superseded", "action": "supersede", "party": ["Owner", "OwnersRep", "GC"] }
+    ]
+  },
+  "list_columns": ["region", "sector", "construction_start_year"],
+  "workspace": "developer"
+}

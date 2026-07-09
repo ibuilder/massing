@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from . import market_intelligence as _mi
+
 # building type -> base hard cost $/SF (national average, new construction, mid-range).
 COST_PER_SF: dict[str, float] = {
     "office": 310.0, "office_highrise": 420.0, "multifamily": 265.0, "multifamily_highrise": 360.0,
@@ -71,12 +73,28 @@ def estimate(params: dict) -> dict:
     if keys:
         metrics["cost_per_key"] = round(total / keys, 0)
 
+    # Track M — market intelligence context (regional labour + sector temperature; and, when a
+    # construction timeline is given, the escalation to the *midpoint of construction* by region).
+    mi_region = "north_america" if region in REGION_INDEX else region
+    start_year = params.get("start_year")
+    dur = params.get("duration_months")
+    ctx = _mi.project_context(mi_region, btype,
+                              start_year=int(start_year) if start_year else None,
+                              duration_months=int(dur) if dur else None)
+    base_total = round(base_psf * region_idx * height_factor * gfa * (1 + soft_pct / 100.0), 0)
+    market = {"region": ctx["region"]["label"], "labour_usd_hr": ctx["region"]["labour_usd_hr"],
+              "sector_temperature": ctx["sector"]["temperature"], "sector_note": ctx["sector"]["note"]}
+    if start_year:
+        market["escalation_basis"] = ctx["escalation_basis"]
+        market["midpoint_escalation_factor"] = ctx["escalation_factor"]
+        market["total_at_construction_midpoint"] = round(base_total * ctx["escalation_factor"], 0)
+
     return {
         "building_type": matched, "gfa_sf": gfa, "region": region, "region_index": region_idx,
         "year": year, "escalation_factor": round(esc, 3), "height_factor": round(height_factor, 3),
         "hard_cost": hard, "soft_cost": soft, "soft_cost_pct": soft_pct, "total_cost": total,
         "range": {"low": round(total * 0.85, 0), "base": total, "high": round(total * 1.20, 0)},
-        "metrics": metrics,
+        "metrics": metrics, "market": market,
         "note": "Conceptual (Class 5) estimate from parametric $/SF benchmarks — a directional signal "
                 "for the proforma, not a detailed takeoff. Refine as the design develops.",
     }

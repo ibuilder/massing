@@ -1541,6 +1541,59 @@ export class ApiClient {
       note: string }>(`/projects/${pid}/program/summary`);
   }
 
+  // --- market intelligence & cost escalation (Track M) --------------------------
+  marketSnapshot() {
+    return this.json<{ base_year: number;
+      regions: { key: string; escalation_pct: number; labour_usd_hr: number; location_index: number; label: string }[];
+      sectors: { sector: string; temperature: string }[];
+      market_signal: { hot: string[]; warm_or_hot: string[]; cold: string[]; headline: string };
+      source: string }>(`/market/snapshot`);
+  }
+  marketContext(pid: string, q: { region?: string; sector?: string; start_year?: number; duration_months?: number } = {}) {
+    const p = new URLSearchParams();
+    if (q.region) p.set('region', q.region);
+    if (q.sector) p.set('sector', q.sector);
+    if (q.start_year != null) p.set('start_year', String(q.start_year));
+    if (q.duration_months != null) p.set('duration_months', String(q.duration_months));
+    const qs = p.toString();
+    return this.json<{ region: { region: string; escalation_pct: number; labour_usd_hr: number;
+        location_index: number; label: string };
+      sector: { sector: string; temperature: string; note: string };
+      escalation_factor: number; escalation_basis: string; midpoint_year: number;
+      from_assumption: boolean; source: string }>(`/projects/${pid}/market/context${qs ? '?' + qs : ''}`);
+  }
+  marketEscalate(pid: string, amount: number, q: { region?: string; start_year?: number;
+      duration_months?: number; to_year?: number; rate_pct?: number } = {}) {
+    const p = new URLSearchParams({ amount: String(amount) });
+    if (q.region) p.set('region', q.region);
+    if (q.start_year != null) p.set('start_year', String(q.start_year));
+    if (q.duration_months != null) p.set('duration_months', String(q.duration_months));
+    if (q.to_year != null) p.set('to_year', String(q.to_year));
+    if (q.rate_pct != null) p.set('rate_pct', String(q.rate_pct));
+    return this.json<{ base_year: number; region: string; annual_rate_pct: number; escalation_basis: string;
+      midpoint_year: number; years: number; escalation_factor: number; base_amount: number;
+      escalated_amount: number; note: string }>(`/projects/${pid}/market/escalate?${p.toString()}`);
+  }
+
+  // --- AI concept-render bridge (Track V; feature-flagged) -----------------------
+  conceptRenderStatus(pid: string) {
+    return this.json<{ feature: string; enabled: boolean; note: string;
+      request_contract: Record<string, string>; ingest_contract: Record<string, string>;
+      reference_adapter: string }>(`/projects/${pid}/concept-render/status`);
+  }
+  conceptRenderRequest(pid: string, payload: { prompt?: string; style?: string; variations?: number;
+      program?: unknown; massing?: unknown } = {}) {
+    return this.json<{ accepted: boolean; reason?: string; prompt?: string; style?: string;
+      variations?: number; note?: string }>(`/projects/${pid}/concept-render/request`,
+      { method: 'POST', body: JSON.stringify(payload) });
+  }
+  conceptRenderIngest(pid: string, payload: { title?: string; prompt?: string; style?: string;
+      image_url: string; source?: string }) {
+    return this.json<{ accepted: boolean; reason?: string; stored?: boolean; record_id?: string;
+      image_url?: string }>(`/projects/${pid}/concept-render/ingest`,
+      { method: 'POST', body: JSON.stringify(payload) });
+  }
+
   // --- ISO 19650 standards: CDE container discipline + requirements register ----
   cdeStatus(pid: string) {
     return this.json<{ total: number; by_state: Record<string, number>;

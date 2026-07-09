@@ -17,6 +17,17 @@ The columnar BIM data layer and the BFAST/G3D/VIM reader draw on the **[Ara3D SD
 
 The MIT license permits this use with attribution, which this file provides.
 
+## Market-escalation seed defaults — public headline figures
+
+The default regional escalation rates, average labour US$/hr, location indices and the warm/cold sector
+signal in `services/api/src/aec_api/market_intelligence.py` are seeded from the **public headline
+figures** in **Turner & Townsend's *Global Construction Market Intelligence 2026*** (e.g. ~4.5% global
+cost inflation for 2026; regional average labour rates; the data-centre / advanced-manufacturing-led
+warm market vs the cold residential/commercial market). These are **illustrative, editable defaults**
+attributed to their public summary — **not** the proprietary dataset, which is not embedded or
+redistributed. A deployment overrides them with its own current rates (or a per-project
+`market_assumption` record).
+
 ## Standards & formats
 
 IFC / STEP (buildingSMART), ISO 19650, glTF 2.0 (Khronos), Apache Parquet, BCF (buildingSMART),

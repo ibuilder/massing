@@ -1,15 +1,64 @@
 """Design-lifecycle endpoints — the RIBA/AIA phase spine + itemized soft costs for a project."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from .. import adjacency, design_phase, resilience, soft_costs, spine
+from .. import modules as me
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_role
 
 router = APIRouter()
+
+
+# --- Track V: AI concept-render bridge (feature-flagged; AIRI-style generative concept visuals) -----
+@router.get("/projects/{pid}/concept-render/status")
+def concept_render_status(pid: str, _: str = Depends(require_role("viewer"))):
+    """Status of the (external, feature-flagged) AI concept-render bridge."""
+    from .. import render_bridge
+    return render_bridge.status()
+
+
+@router.post("/projects/{pid}/concept-render/request")
+def concept_render_request(pid: str, payload: dict = Body(default={}),
+                           db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Build a grounded concept-render prompt from the project's program + massing (passed in `payload`
+    as `program` / `massing`, or the concept program is fetched). No-op unless AEC_RENDER_BRIDGE is set."""
+    from .. import render_bridge
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    program = payload.get("program")
+    if program is None:
+        try:
+            program = adjacency.summary(db, pid)
+        except Exception:                         # noqa: BLE001 — no concept program is fine
+            program = None
+    return render_bridge.request(payload, program=program, massing=payload.get("massing"))
+
+
+@router.post("/projects/{pid}/concept-render/ingest", status_code=201)
+def concept_render_ingest(pid: str, payload: dict = Body(default={}),
+                          db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """Ingest a generated image reference from the external service → stored as a `concept_render` record.
+    No-op unless AEC_RENDER_BRIDGE is enabled."""
+    from .. import render_bridge
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    res = render_bridge.validate_ingest(payload)
+    if not res.get("accepted"):
+        return res
+    data = {"title": (payload.get("title") or "Concept render")[:120], "prompt": res["prompt"],
+            "style": res.get("style") or "photoreal", "image_url": res["image_url"], "source": res["source"]}
+    try:
+        rec = me.create_record(db, "concept_render", pid, {"data": data}, actor, None)
+        res["record_id"] = rec["id"]
+        res["stored"] = True
+    except Exception as e:                         # noqa: BLE001 — storage failure shouldn't 500 the bridge
+        res["stored"] = False
+        res["store_error"] = str(e)[:120]
+    return res
 
 
 @router.get("/projects/{pid}/program/summary")

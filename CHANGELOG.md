@@ -4,6 +4,33 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.101 — Market intelligence & cost escalation + AI concept-render bridge
+Two additions from an industry-research pass:
+
+- **Market Intelligence & cost escalation** (`market_intelligence.py` + `market_assumption` module +
+  `/market/*` endpoints + 💹 **Market Intelligence** panel in the developer workspace). A regional table
+  (annual escalation %, average labour US$/hr, location index) plus a **two-speed warm/cold** demand
+  signal by sector (tech-led sectors — data centres, advanced manufacturing — running hot; residential /
+  commercial cold). The engine **escalates a base cost to the midpoint of construction** in the project's
+  region — not just "next year" — reading a project's adopted `market_assumption` (region · sector ·
+  construction start · duration) or query-param overrides. The **conceptual estimate now carries a market
+  block** (regional labour + sector temperature + escalation-to-midpoint), and there's a **Market
+  Intelligence & Escalation report**. Seed defaults are the **public headline figures** from Turner &
+  Townsend's *Global Construction Market Intelligence 2026* — illustrative, **editable** defaults
+  (attributed, not their dataset); a deployment overrides them with its own current rates.
+- **AI concept-render bridge** (`render_bridge.py` + `concept_render` module + `/concept-render/*`
+  endpoints + 🖼 **Concept Renders** panel in the design workspace). Like the CV-progress and RVT / payment
+  bridges, it's **feature-flagged and off by default** (`AEC_RENDER_BRIDGE`): the platform builds a
+  **grounded prompt** from the project's space program + massing and hands it to a connected image service,
+  then ingests returned image references as reviewable `concept_render` records. When the flag is off, the
+  endpoints report the bridge unavailable and **fabricate nothing** — no placeholder images. Reference
+  adapter in `docs/render-bridge.md`.
+
+Verified: new `test_market` (escalation-to-midpoint math, warm/cold signal, `market_assumption`-driven
+context + escalate, conceptual-estimate market block, report PDF; bridge off fabricates nothing / on
+builds a clamped grounded prompt + requires `image_url`) + full suite green, ruff clean; web typecheck +
+build green.
+
 ## v0.3.100 — Close the two deferred perf items: compressed color-by + cross-worker scan cache
 The two follow-ups the audit deferred are now done:
 

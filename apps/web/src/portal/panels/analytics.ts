@@ -49,6 +49,79 @@ export async function renderBenchmarks(ctx: PanelContext) {
     } catch (e) { costs.textContent = `cost benchmarks failed: ${(e as Error).message}`; }
   }
 
+  // --- Market Intelligence: regional escalation / labour / location + warm-cold sectors ----------
+export async function renderMarket(ctx: PanelContext) {
+    const root = ctx.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(ctx.bar("📈 Market Intelligence", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+    const pid = ctx.host.projectId();
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.innerHTML = "Regional cost escalation, labour rates and a location index, plus the two-speed "
+      + "<b>warm/cold</b> demand signal by sector — so an estimate is escalated to the <b>midpoint of "
+      + "construction</b> in the region where it will actually be built. Set a project's assumptions under "
+      + "Finance → <b>Market Assumptions</b> (region · sector · construction start · duration).";
+    root.appendChild(intro);
+    const tempTone = (t: string) => t === "hot" ? "var(--status-crit)" : t === "warm" ? "var(--status-warn)"
+      : t === "cold" ? "var(--muted)" : "var(--status-good)";
+    const editBtn = el("button", "tool-btn"); editBtn.textContent = "✎ Market assumptions";
+    editBtn.title = "Set this project's region / sector / construction timeline"; editBtn.style.marginBottom = "8px";
+    editBtn.onclick = () => { const m = ctx.mods.find((x) => x.key === "market_assumption"); if (m) { ctx.activeKey = "market_assumption"; void ctx.openModule(m); ctx.buildNav(); } };
+    root.appendChild(editBtn);
+
+    // per-project market context (region economics + sector temp + escalation factor to midpoint)
+    if (pid) {
+      const ctxSlot = el("div", "dash-card"); ctxSlot.style.marginBottom = "8px"; ctxSlot.textContent = "loading project context…";
+      root.appendChild(ctxSlot);
+      ctx.host.api.marketContext(pid).then((c) => {
+        const r = c.region; const s = c.sector;
+        ctxSlot.innerHTML = `<b>This project</b> ${c.from_assumption ? "" : `<span class="meta">(defaults — no Market Assumption yet)</span>`}`
+          + `<div class="meta" style="margin-top:2px"><b>${r.label}</b> · escalation ${r.escalation_pct}%/yr · `
+          + `labour $${r.labour_usd_hr}/hr · location index ${r.location_index}</div>`
+          + `<div class="meta">Sector <b>${s.sector}</b> — <span style="color:${tempTone(s.temperature)}">${s.temperature}</span>: ${s.note}</div>`
+          + `<div class="meta">Escalation factor <b>${c.escalation_factor}×</b> to ${c.midpoint_year} (${c.escalation_basis})</div>`;
+      }).catch((e) => { ctxSlot.textContent = `context failed: ${(e as Error).message}`; });
+
+      // escalation calculator
+      const calc = el("div", "dash-card"); calc.style.marginBottom = "8px";
+      calc.innerHTML = `<b>Escalate a base cost</b> <span class="meta">to the construction midpoint</span>`;
+      const row = el("div"); row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px";
+      const amt = el("input", "portal-filter") as HTMLInputElement; amt.type = "number"; amt.placeholder = "base amount ($)";
+      amt.setAttribute("aria-label", "Base amount USD"); amt.style.width = "150px";
+      const go = el("button", "file-btn") as HTMLButtonElement; go.textContent = "Escalate";
+      const out = el("span", "meta"); out.style.marginLeft = "8px";
+      go.onclick = async () => {
+        const a = Number(amt.value); if (!a) { out.textContent = "enter an amount"; return; }
+        out.textContent = "…";
+        try {
+          const r = await ctx.host.api.marketEscalate(pid, a);
+          out.innerHTML = `<b>${cmoney(r.escalated_amount)}</b> at ${r.midpoint_year} `
+            + `(×${r.escalation_factor} · ${r.annual_rate_pct}%/yr · ${r.escalation_basis})`;
+        } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
+      };
+      row.append(amt, go, out); calc.append(row); root.appendChild(calc);
+    }
+
+    // the market table (regions + sector board), shared across projects
+    const snap = el("div"); snap.textContent = "loading market table…"; root.appendChild(snap);
+    ctx.host.api.marketSnapshot().then((m) => {
+      snap.innerHTML = "";
+      const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-bottom:8px";
+      t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Region</th><th scope="col">Escalation %/yr</th>`
+        + `<th scope="col">Labour $/hr</th><th scope="col">Location index</th></tr></thead><tbody>`
+        + m.regions.map((r) => `<tr><td>${r.label}</td><td style="text-align:center">${r.escalation_pct}</td>`
+          + `<td style="text-align:right">$${r.labour_usd_hr}</td><td style="text-align:center">${r.location_index}</td></tr>`).join("")
+        + `</tbody>`;
+      snap.append(t);
+      const sig = el("div", "dash-card"); sig.style.marginBottom = "8px";
+      const chips = (list: string[], t2: string) => list.map((s) => `<span class="badge" style="background:${tempTone(t2)};color:#fff;margin:2px">${s}</span>`).join("");
+      sig.innerHTML = `<b>Two-speed market</b> <span class="meta">${m.market_signal.headline}</span>`
+        + `<div style="margin-top:4px">Warm/hot: ${chips(m.market_signal.warm_or_hot, "warm")}</div>`
+        + `<div style="margin-top:4px">Cold: ${chips(m.market_signal.cold, "cold")}</div>`;
+      snap.append(sig);
+      const src = el("div", "meta"); src.style.fontSize = "11px"; src.textContent = m.source; snap.append(src);
+    }).catch((e) => { snap.textContent = `market table failed: ${(e as Error).message}`; });
+  }
+
   // --- Risk & Cost: prequal, COI, lien exposure, carbon, pricing, accounting export -------------
 export async function renderRiskCost(ctx: PanelContext) {
     const root = ctx.root; root.innerHTML = "";

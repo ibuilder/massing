@@ -64,6 +64,15 @@ and **IFC5/IFCX/ifcJSON data reads** (tolerant
 JSON→element-index parser; geometry rendering still lands upstream). Genuinely upstream-only remainder: IFC5
 geometry *rendering* (web-ifc/Fragments) and a bundled/trained CV model.
 
+**Market intelligence + concept-render bridge (v0.3.101):** from an industry-research pass. A regional
+market table (escalation % · labour US$/hr · location index) + a two-speed warm/cold sector signal
+(`market_intelligence.py` + `market_assumption` module + `/market/*` + 💹 panel), escalating a base cost
+to the **construction midpoint** by region — feeding the conceptual estimate's new market block + a
+report. Seed defaults are public T&T GCMI 2026 headline figures (editable, [attributed](ATTRIBUTIONS.md)).
+Plus a feature-flagged **AI concept-render bridge** (`render_bridge.py` + `concept_render` module +
+🖼 panel, `AEC_RENDER_BRIDGE` off by default): grounds a prompt from the program/massing, ingests returned
+images as reviewable records, fabricates nothing when off ([docs/render-bridge.md](render-bridge.md)).
+
 **Code-audit follow-through (v0.3.98–v0.3.100):** a four-dimension audit (backend wiring, UI/UX, sample
 data, performance) found the platform structurally clean (46/46 routers, 47/47 reports, 32/32 module
 refs). Shipped in three batches + the two deferred items: perf quick-wins (`count_records`, off-loop index

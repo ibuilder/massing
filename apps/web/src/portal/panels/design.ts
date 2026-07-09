@@ -203,6 +203,95 @@ export async function renderDiligence(ctx: PanelContext) {
     }
   }
 
+  // --- Concept Renders: AI concept visuals from the space program + massing (feature-flagged) ----
+export async function renderConceptRender(ctx: PanelContext) {
+    const root = ctx.root; root.innerHTML = "";
+    const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+    root.appendChild(ctx.bar("🖼 Concept Renders", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+    const pid = ctx.host.projectId();
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Concept Renders")); return; }
+    const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+    intro.innerHTML = "Turn the concept — space program + massing + a prompt — into <b>AI concept renders</b>. "
+      + "The platform builds a grounded prompt from the project's program and hands it to a connected image "
+      + "service (its own GPUs, cost and governance); generated images are stored as reviewable "
+      + "<b>Concept Render</b> records. Nothing is fabricated when the bridge is off.";
+    root.appendChild(intro);
+    const statusSlot = el("div", "dash-card"); statusSlot.style.marginBottom = "8px"; statusSlot.textContent = "checking bridge…";
+    root.appendChild(statusSlot);
+    const promptWrap = el("div", "dash-card"); promptWrap.style.marginBottom = "8px";
+    const listWrap = el("div"); listWrap.style.marginTop = "8px";
+    root.append(promptWrap, listWrap);
+
+    const loadList = async () => {
+      listWrap.innerHTML = `<div class="meta">loading renders…</div>`;
+      try {
+        const recs = await ctx.host.api.moduleRecords(pid, "concept_render");
+        listWrap.innerHTML = "";
+        if (!recs.length) { listWrap.innerHTML = `<div class="meta">No concept renders yet.</div>`; return; }
+        const grid = el("div"); grid.style.cssText = "display:flex;gap:8px;flex-wrap:wrap";
+        recs.slice(0, 24).forEach((r) => {
+          const d = (r.data || {}) as Record<string, string>;
+          const c = el("div", "dash-card"); c.style.cssText = "width:180px";
+          const img = d.image_url
+            ? `<img src="${esc(d.image_url)}" alt="${esc(d.title || "concept render")}" style="width:100%;border-radius:6px;max-height:120px;object-fit:cover" loading="lazy">`
+            : `<div class="meta" style="height:120px;display:flex;align-items:center;justify-content:center;border:1px dashed var(--line);border-radius:6px">no image</div>`;
+          c.innerHTML = img + `<div style="font-weight:600;font-size:12px;margin-top:4px">${esc(d.title || r.ref || "")}</div>`
+            + `<div class="meta">${esc(d.style || "")} ${d.source ? "· " + esc(d.source) : ""} <span class="badge">${esc(r.workflow_state || "")}</span></div>`;
+          grid.append(c);
+        });
+        listWrap.append(grid);
+      } catch (e) { listWrap.innerHTML = `<div class="meta">failed: ${esc((e as Error).message)}</div>`; }
+    };
+
+    let st;
+    try { st = await ctx.host.api.conceptRenderStatus(pid); }
+    catch (e) { statusSlot.textContent = `status failed: ${(e as Error).message}`; return; }
+    statusSlot.innerHTML = `<b>Bridge:</b> <span style="color:${st.enabled ? "var(--status-good)" : "var(--muted)"}">${st.enabled ? "connected" : "disabled"}</span>`
+      + `<div class="meta" style="margin-top:2px">${esc(st.note)}</div>`
+      + (!st.enabled ? `<div class="meta" style="margin-top:2px">Reference adapter: <code>${esc(st.reference_adapter)}</code></div>` : "");
+
+    // prompt builder — grounds a prompt from the project's program/massing
+    promptWrap.innerHTML = `<b>Build a grounded prompt</b>`;
+    const prow = el("div"); prow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px";
+    const style = el("select", "portal-filter") as HTMLSelectElement; style.setAttribute("aria-label", "Render style");
+    ["photoreal", "massing", "sketch", "watercolor", "diagram"].forEach((s) => { const o = document.createElement("option"); o.value = s; o.textContent = s; style.append(o); });
+    const extra = el("input", "portal-filter") as HTMLInputElement; extra.placeholder = "extra prompt (optional)"; extra.setAttribute("aria-label", "Extra prompt"); extra.style.flex = "1"; extra.style.minWidth = "160px";
+    const build = el("button", "file-btn") as HTMLButtonElement; build.textContent = "Build prompt";
+    prow.append(style, extra, build); promptWrap.append(prow);
+    const pout = el("div", "meta"); pout.style.marginTop = "6px"; promptWrap.append(pout);
+    build.onclick = async () => {
+      pout.textContent = "building…";
+      try {
+        const r = await ctx.host.api.conceptRenderRequest(pid, { style: style.value, prompt: extra.value || undefined });
+        if (r.prompt) {
+          pout.innerHTML = `<div style="font-family:monospace;font-size:11px;white-space:pre-wrap">${esc(r.prompt)}</div>`
+            + `<div style="margin-top:2px">Send this to your image service, then ingest each result below.${r.accepted ? "" : " <b>(bridge disabled — enable AEC_RENDER_BRIDGE to generate)</b>"}</div>`;
+        } else { pout.innerHTML = `<b>${esc(r.reason || "bridge disabled")}</b> — ${esc((r as { note?: string }).note || "the prompt is built and sent once a service is connected.")}`; }
+      } catch (e) { pout.textContent = `failed: ${(e as Error).message}`; }
+    };
+
+    // ingest a generated image (or a hand-picked reference URL)
+    const ingest = el("div", "dash-card"); ingest.style.margin = "8px 0";
+    ingest.innerHTML = `<b>Ingest a render</b> <span class="meta">store a generated image as a Concept Render</span>`;
+    const irow = el("div"); irow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px";
+    const title = el("input", "portal-filter") as HTMLInputElement; title.placeholder = "title"; title.setAttribute("aria-label", "Render title"); title.style.width = "140px";
+    const url = el("input", "portal-filter") as HTMLInputElement; url.placeholder = "image URL"; url.setAttribute("aria-label", "Image URL"); url.style.flex = "1"; url.style.minWidth = "180px";
+    const add = el("button", "file-btn") as HTMLButtonElement; add.textContent = "Ingest";
+    add.onclick = async () => {
+      if (!url.value.trim()) { toast("Image URL required", "error"); return; }
+      add.disabled = true;
+      try {
+        const r = await ctx.host.api.conceptRenderIngest(pid, { title: title.value || undefined, image_url: url.value.trim(), style: style.value, prompt: pout.textContent || undefined });
+        if (r.stored) { toast("Concept render stored", "success"); title.value = ""; url.value = ""; void loadList(); }
+        else { toast(r.reason || "bridge disabled — enable AEC_RENDER_BRIDGE to ingest", "error"); }
+      } catch (e) { toast(`failed: ${(e as Error).message}`, "error"); }
+      add.disabled = false;
+    };
+    irow.append(title, url, add); ingest.append(irow); root.insertBefore(ingest, listWrap);
+
+    await loadList();
+  }
+
   // --- ESG & POE: asset sustainability scorecard + Stage-7 feedback loop ------------------------
 export async function renderEsg(ctx: PanelContext) {
     const root = ctx.root; root.innerHTML = "";

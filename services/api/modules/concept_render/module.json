@@ -1,0 +1,29 @@
+{
+  "key": "concept_render",
+  "name": "Concept Renders",
+  "section": "Design",
+  "icon": "🖼",
+  "ref_prefix": "REN",
+  "title_field": "title",
+  "pinnable": false,
+  "fields": [
+    { "name": "title", "label": "Title", "type": "text", "required": true },
+    { "name": "prompt", "label": "Prompt", "type": "textarea" },
+    { "name": "style", "label": "Style", "type": "select",
+      "options": ["photoreal", "massing", "sketch", "watercolor", "diagram"] },
+    { "name": "image_url", "label": "Image URL", "type": "text" },
+    { "name": "source", "label": "Generator", "type": "text" },
+    { "name": "notes", "label": "Notes", "type": "textarea" }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": ["draft", "shortlisted", "archived"],
+    "transitions": [
+      { "from": "draft", "to": "shortlisted", "action": "shortlist", "party": ["Architect", "Owner", "OwnersRep"] },
+      { "from": "draft", "to": "archived", "action": "archive", "party": ["Architect", "Owner", "OwnersRep"] },
+      { "from": "shortlisted", "to": "archived", "action": "archive", "party": ["Architect", "Owner", "OwnersRep"] }
+    ]
+  },
+  "list_columns": ["style", "source"],
+  "workspace": "design"
+}

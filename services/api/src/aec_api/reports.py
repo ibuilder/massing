@@ -35,6 +35,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "contracts": ("Contracts & Signatures", "Contracts"),
     "financials": ("Financial Statements", "Finance"),
     "appraisal": ("Valuation (Tri-Approach Appraisal)", "Finance"),
+    "market_intelligence": ("Market Intelligence & Escalation", "Finance"),
     "listing_factsheet": ("Listing Fact Sheet", "Disposition"),
     "marketing_flyer": ("Marketing Flyer", "Disposition"),
     "rent_roll": ("Rent Roll", "Operations"),
@@ -1054,6 +1055,43 @@ def _naming(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _market_intelligence(db: Session, pid: str, name: str) -> Report:
+    """Regional escalation / labour / location table + the warm-cold sector board, and this project's
+    escalation to its construction midpoint (from its market_assumption record if one exists)."""
+    from . import market_intelligence as mi
+    snap = mi.snapshot()
+    a = {}
+    try:
+        recs = me.list_records(db, "market_assumption", pid, limit=1000)
+        if recs:
+            a = (([r for r in recs if r.get("workflow_state") == "adopted"] or recs)[-1].get("data") or {})
+    except Exception:                             # noqa: BLE001
+        a = {}
+
+    def _int(v):
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return None
+    ctx = mi.project_context(a.get("region"), a.get("sector"),
+                             start_year=_int(a.get("construction_start_year")),
+                             duration_months=_int(a.get("duration_months")))
+    r = Report("Market Intelligence & Escalation", name)
+    r.kpi("Region", ctx["region"]["label"])
+    r.kpi("Annual escalation", f"{ctx['region']['escalation_pct']}%")
+    r.kpi("Labour (US$/hr)", ctx["region"]["labour_usd_hr"])
+    r.kpi("Escalation to midpoint", f"{ctx['escalation_factor']}×")
+    r.kpi("Sector", f"{ctx['sector']['sector']} ({ctx['sector']['temperature']})")
+    r.table("Regions", ["Region", "Escalation %/yr", "Labour US$/hr", "Location index"],
+            [[x["label"], x["escalation_pct"], x["labour_usd_hr"], x["location_index"]]
+             for x in snap["regions"]])
+    sig = snap["market_signal"]
+    r.table("Warm / cold market", ["Temperature", "Sectors"],
+            [["Hot", ", ".join(sig["hot"])],
+             ["Cold", ", ".join(sig["cold"])]])
+    return r
+
+
 def _document_control(db: Session, pid: str, name: str) -> Report:
     """Document-control health over the standard folder taxonomy: naming, required-folder coverage,
     revision control, CDE-state spread and required-doc gaps."""
@@ -1240,6 +1278,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _lod(db, pid, name)
     if report == "document_control":
         return _document_control(db, pid, name)
+    if report == "market_intelligence":
+        return _market_intelligence(db, pid, name)
     if report == "naming":
         return _naming(db, pid, name)
     if report == "appraisal":

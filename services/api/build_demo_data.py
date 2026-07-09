@@ -329,6 +329,20 @@ with TestClient(app) as c:
     mk_try("design_option", {"name": "Option A — baseline", "gross_area_sf": 62000, "unit_count": 40, "cost": 41_000_000, "selected": True})
     mk_try("design_option", {"name": "Option B — efficient core", "gross_area_sf": 61000, "unit_count": 42, "cost": 40_200_000})
     mk_try("design_standard", {"name": "No PVC piping", "category": "Material", "rule": "prohibited", "keyword": "PVC"})
+    # market intelligence — an adopted assumption drives escalation-to-midpoint + sector temperature
+    _mkt = c.post(f"/projects/{pid}/modules/market_assumption",
+                  json={"data": {"name": "Base case", "region": "north_america", "sector": "multifamily",
+                                 "construction_start_year": 2027, "duration_months": 20,
+                                 "notes": "Escalate hard cost to the construction midpoint; residential is a cold sector."}})
+    if _mkt.status_code == 201:
+        c.post(f"/projects/{pid}/modules/market_assumption/{_mkt.json()['id']}/transition", json={"action": "adopt"})
+    # concept renders — the AI render bridge is off by default; seed reviewable records so the panel populates
+    mk_try("concept_render", {"title": "Street view — dusk", "style": "photoreal",
+                              "prompt": "photoreal architectural rendering, a residential 12-storey building, dusk",
+                              "source": "reference", "notes": "Massing study — seed record (bridge off by default)."})
+    mk_try("concept_render", {"title": "Massing diagram", "style": "massing",
+                              "prompt": "massing study, a residential 12-storey building, program: residential, amenity",
+                              "source": "reference"})
 
     # field / safety spine
     mk_try("subcontract", {"title": "Concrete subcontract", "vendor": "ABC Concrete", "value": 4_800_000, "csi_division": "03"})
@@ -375,7 +389,7 @@ with TestClient(app) as c:
     grab(c, "/modules"); grab(c, "/portfolio/executive"); grab(c, "/portfolio/construction"); grab(c, "/proforma/portfolio")
     grab(c, "/benchmarks/costs?min_samples=3"); grab(c, "/benchmarks/response-rates")
     grab(c, "/ids/templates"); grab(c, "/energy/benchmark-status"); grab(c, "/reports")
-    grab(c, "/estimate/conceptual/catalog"); grab(c, "/mcp/tools")
+    grab(c, "/estimate/conceptual/catalog"); grab(c, "/mcp/tools"); grab(c, "/market/snapshot")
     P = f"/projects/{pid}"
     singles = [f"{P}/dashboard", f"{P}/members", f"{P}/budget/gmp", f"{P}/budget/cashflow", f"{P}/budget/variance",
                f"{P}/cost/summary", f"{P}/px-summary", f"{P}/schedule/cpm", f"{P}/schedule/earned-value", f"{P}/schedule/lookahead?weeks=3",
@@ -404,6 +418,7 @@ with TestClient(app) as c:
                f"{P}/standards/check?standard=cobie", f"{P}/standards/check?standard=ids",
                f"{P}/standards/check?standard=uniclass", f"{P}/twin/readiness",
                f"{P}/procurement/compliance-feed", f"{P}/program/summary",
+               f"{P}/market/context", f"{P}/concept-render/status",  # Track M + V panels
                f"{P}/pull-plan/board", f"{P}/pull-plan/metrics", "/benchmarks/pull-planning?min_committed=1"]
     for s in singles:
         grab(c, s)

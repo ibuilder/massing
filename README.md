@@ -182,7 +182,19 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Code-audit follow-through — perf, a11y, populated demo (latest, v0.3.98–v0.3.100)** — a four-dimension
+- **Market intelligence & cost escalation + AI concept-render bridge (latest, v0.3.101)** — a **regional
+  market table** (annual escalation %, average labour US$/hr, location index) and a **two-speed warm/cold**
+  demand signal by sector, so a base cost is **escalated to the midpoint of construction** in the project's
+  region — reading a per-project **Market Assumption** (region · sector · start · duration). The conceptual
+  estimate now carries a **market block** (regional labour + sector temperature + escalation-to-midpoint),
+  with a Market Intelligence report and a 💹 **Market Intelligence** panel. Seed defaults are the public
+  headline figures from Turner & Townsend's *Global Construction Market Intelligence 2026* — editable,
+  attributed defaults. Plus a **feature-flagged AI concept-render bridge** (`AEC_RENDER_BRIDGE`, off by
+  default): the platform builds a **grounded prompt** from a project's space program + massing, hands it to
+  a connected image service, and ingests the results as reviewable **Concept Render** records (🖼 panel) —
+  fabricating nothing when the flag is off. Reference adapter in `docs/render-bridge.md`.
+
+- **Code-audit follow-through — perf, a11y, populated demo (v0.3.98–v0.3.100)** — a four-dimension
   audit (wiring, UI/UX, sample data, performance) confirmed the platform is cleanly wired, then shipped the
   fixes: SQL-`COUNT` dashboards, off-loop index upload, a **per-model-version scan cache** (shared across
   workers via Redis, fail-open) for the hot colour-by/facets scans, **gzipped colour-by** payloads (+ a

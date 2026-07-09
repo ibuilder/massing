@@ -7,8 +7,8 @@ import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offli
 import type { PanelContext } from "./panelContext";
 import { renderOperations, renderFca, renderSpine, renderResilience, renderEnergy, renderTurnover } from "./panels/operations";
 import { renderAiAssist, renderRiskReview } from "./panels/aiassist";
-import { renderBenchmarks, renderRiskCost } from "./panels/analytics";
-import { renderLandScreen, renderLifecycle, renderDiligence, renderEsg } from "./panels/design";
+import { renderBenchmarks, renderRiskCost, renderMarket } from "./panels/analytics";
+import { renderLandScreen, renderLifecycle, renderDiligence, renderEsg, renderConceptRender } from "./panels/design";
 import { renderProgram, renderBimKpi, renderStandards, renderIds, renderModelAnalysis } from "./panels/standards";
 import { renderDocuments } from "./panels/documents";
 
@@ -155,6 +155,7 @@ export class PortalUI {
       __spine__: () => this.renderSpine(),
       __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
       __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
+      __market__: () => this.renderMarket(), __conceptrender__: () => this.renderConceptRender(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __modelanalysis__: () => this.renderModelAnalysis(),
@@ -190,6 +191,7 @@ export class PortalUI {
       design: [
         ["Brief & program", [
           { key: "__program__", icon: "🧩", label: "Space Program" },       // adjacency graph → massing
+          { key: "__conceptrender__", icon: "🖼", label: "Concept Renders" }, // AI concept visuals (feature-flagged)
           { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" },
         ]],
         ["Model & standards", [
@@ -210,6 +212,7 @@ export class PortalUI {
             go: () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "finance" })) },
           { key: "__land__", icon: "🗺️", label: "Land Screening" },
           { key: "__diligence__", icon: "📜", label: "Diligence & Entitlements" },
+          { key: "__market__", icon: "💹", label: "Market Intelligence" },   // regional escalation + warm/cold sectors
         ]],
         ["Design & build", [
           { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" }, // owner phase-gate tracking
@@ -441,11 +444,13 @@ export class PortalUI {
 
   private renderBenchmarks() { return renderBenchmarks(this.panelCtx()); }
   private renderRiskCost() { return renderRiskCost(this.panelCtx()); }
+  private renderMarket() { return renderMarket(this.panelCtx()); }
 
   private renderLandScreen() { return renderLandScreen(this.panelCtx()); }
   private renderLifecycle() { return renderLifecycle(this.panelCtx()); }
   private renderDiligence() { return renderDiligence(this.panelCtx()); }
   private renderEsg() { return renderEsg(this.panelCtx()); }
+  private renderConceptRender() { return renderConceptRender(this.panelCtx()); }
 
   // --- Model Health launcher: the model-QA checks live in the Model viewer's Tools rail (they need
   //     the loaded 3D geometry), so from Design we explain them and deep-link straight there. --------
