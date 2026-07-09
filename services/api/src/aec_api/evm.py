@@ -16,12 +16,15 @@ cost-code grouping (the closest thing the data model has to an EIA-748 control a
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+import math
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from . import modules as me
+
+_PERIOD_DAYS = {"week": 7.0, "month": 30.44}
 
 
 def _n(v: Any) -> float:
@@ -92,6 +95,88 @@ def forecasts(bac: float, ev: float, ac: float, cpi: float | None, spi: float | 
     # a TCPI far above CPI (~>1.10) is a structural warning: the team must suddenly outperform its history
     out["tcpi_warning"] = bool(tcpi_bac and cpi and tcpi_bac - cpi > 0.10)
     return out
+
+
+def _budgeted_activities(db: Session, pid: str) -> list[dict[str, Any]]:
+    """Activities carrying a budget, with parsed dates + % — the shared input for EV and PV curves."""
+    out = []
+    for r in me.list_records(db, "schedule_activity", pid, limit=1_000_000):
+        d = r.get("data") or {}
+        budget = _n(d.get("budget"))
+        if budget <= 0:
+            continue
+        out.append({"budget": budget, "pct": max(0.0, min(100.0, _n(d.get("percent")))) / 100.0,
+                    "start": _d(d.get("start")) or _d(d.get("actual_start")),
+                    "finish": _d(d.get("finish")) or _d(d.get("actual_finish"))})
+    return out
+
+
+def _pv_at(acts: list[dict[str, Any]], when: date) -> float:
+    """Cumulative Planned Value (BCWS) earned by `when` — Σ (linear planned fraction × budget)."""
+    total = 0.0
+    for a in acts:
+        s, f = a["start"], a["finish"]
+        if s and f and f > s:
+            frac = max(0.0, min(1.0, (when - s).days / (f - s).days))
+        elif f:
+            frac = 1.0 if when >= f else 0.0
+        else:
+            frac = 0.0
+        total += frac * a["budget"]
+    return total
+
+
+def earned_schedule(db: Session, pid: str, today: date, period: str = "week") -> dict[str, Any] | None:
+    """**Earned Schedule** — the time-based extension that fixes classic SV/SPI decaying to $0/1.0 at
+    project end. Projects current EV onto the time axis of the PV baseline curve:
+
+        ES = C + (EV − PV_C) / (PV_{C+1} − PV_C)   (C = last period whose cumulative PV ≤ EV)
+        SV(t) = ES − AT   ·   SPI(t) = ES / AT   ·   IEAC(t) = PD / SPI(t)  → forecast finish
+
+    All in `period` units (week/month). Returns the PV curve too (reused by the S-curve)."""
+    acts = _budgeted_activities(db, pid)
+    dated = [a for a in acts if a["start"] and a["finish"]]
+    if not dated:
+        return None
+    pstart = min(a["start"] for a in dated)
+    pfinish = max(a["finish"] for a in dated)
+    pdays = _PERIOD_DAYS.get(period, 7.0)
+    ev = sum(a["pct"] * a["budget"] for a in acts)
+    bac = sum(a["budget"] for a in acts)
+    pd = max(1.0, (pfinish - pstart).days / pdays)                     # planned duration (periods)
+    at = max(0.0, (today - pstart).days / pdays)                       # actual time elapsed (periods)
+
+    # cumulative PV curve at each period boundary (0 … past the planned finish)
+    curve = []
+    for i in range(int(math.ceil(pd)) + 2):
+        dt = pstart + timedelta(days=i * pdays)
+        curve.append({"period": i, "date": dt.isoformat(), "pv": round(_pv_at(acts, dt), 2)})
+
+    # ES: walk the curve to the point where EV would have been planned
+    es = 0.0
+    for i in range(len(curve) - 1):
+        pv_c, pv_next = curve[i]["pv"], curve[i + 1]["pv"]
+        if ev >= pv_next:
+            es = i + 1
+            continue
+        if ev >= pv_c and pv_next > pv_c:
+            es = i + (ev - pv_c) / (pv_next - pv_c)
+        break
+    es = min(es, pd)                                                    # cap at planned duration
+
+    spi_t = round(es / at, 3) if at > 0 else None
+    ieac_t = round(pd / spi_t, 2) if spi_t else None                   # forecast total duration (periods)
+    forecast_finish = (pstart + timedelta(days=ieac_t * pdays)).isoformat() if ieac_t else None
+    return {
+        "period": period, "planned_start": pstart.isoformat(), "planned_finish": pfinish.isoformat(),
+        "planned_duration_periods": round(pd, 2), "actual_time_periods": round(at, 2),
+        "earned_schedule_periods": round(es, 2), "sv_t_periods": round(es - at, 2), "spi_t": spi_t,
+        "spi_t_band": index_band(spi_t), "ieac_t_periods": ieac_t, "forecast_finish": forecast_finish,
+        "days_late": round((ieac_t - pd) * pdays, 1) if ieac_t else None,
+        "bac": round(bac, 2), "ev": round(ev, 2), "curve": curve,
+        "note": "Earned Schedule stays meaningful at completion (unlike dollar SPI, which → 1.0 whether "
+                "or not the job finished on time). SPI(t) < 1 = behind; forecast_finish from IEAC(t).",
+    }
 
 
 def snapshot(db: Session, pid: str, data_date: str | None = None) -> dict[str, Any]:
@@ -168,4 +253,5 @@ def snapshot(db: Session, pid: str, data_date: str | None = None) -> dict[str, A
                 "Forecasts are shown as a family; the best EAC is stage-dependent.",
     }
     return {"totals": totals, "control_accounts": control_accounts,
-            "activities": sorted(activities, key=lambda x: x["sv"])}
+            "activities": sorted(activities, key=lambda x: x["sv"]),
+            "earned_schedule": earned_schedule(db, pid, today)}

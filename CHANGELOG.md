@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.110 — Earned Value Management, E3: Earned Schedule
+Adds the modern **time-based** EVM extension that fixes the well-known defect where dollar SV/SPI decay
+to $0 / 1.0 at project end regardless of lateness.
+
+- **`evm.earned_schedule()` + `GET /projects/{id}/evm/earned-schedule?period=week|month`** — builds the
+  time-phased **PV baseline curve** from the schedule, then projects current EV onto its time axis:
+  **ES = C + (EV−PV_C)/(PV_{C+1}−PV_C)**, and from it **SV(t) = ES−AT**, **SPI(t) = ES/AT**, and
+  **IEAC(t) = PD/SPI(t) → forecast finish date** (+ days-late). Included in the `/evm` snapshot too.
+- SPI(t) stays meaningful right through completion, so a superintendent gets "**4 weeks behind, forecast
+  finish 2026-XX-XX**" instead of a dollar SV that quietly returns to zero. The PV curve it returns is
+  the same one the S-curve dashboard (E4/E5) will draw.
+
+Verified: `test_evm` extended — a 40-week job at 40% complete in week 20 yields **ES ≈ 16 wk, SPI(t) ≈
+0.80, forecast finish beyond plan** — plus the E1/E2 checks; typecheck + vitest (56) + build; ruff clean.
+
 ## v0.3.109 — Earned Value Management, E1+E2: unified engine + forecast family
 Research-backed (PMI/ANSI-EIA-748 + a construction-forecasting study) EVM. The app had two disconnected
 halves — schedule earned value (no Actual Cost) and cost actuals by cost code (heuristic forecast). This

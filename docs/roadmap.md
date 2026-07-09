@@ -69,7 +69,7 @@ two disconnected halves (schedule EV without Actual Cost; cost actuals by cost c
 forecast). `evm.py` joins them **by cost code (control account)** into one ANSI/EIA-748-aligned set:
 PV/EV/AC/BAC, CV/SV/CPI/SPI + bands, per-control-account table, and the EAC/ETC/VAC/TCPI **forecast
 family** (best EAC is stage-dependent per the construction-forecasting research, so all are shown).
-Sequence: **E1+E2** engine+forecast (v0.3.109) → **E3** Earned Schedule (ES/SV(t)/SPI(t)/IEAC(t) →
+Sequence: **E1+E2** engine+forecast (v0.3.109) → **E3** Earned Schedule shipped (ES/SV(t)/SPI(t)/IEAC(t) →
 forecast finish; fixes the SPI→1.0 tail defect) → **E4+E5** time-phased 3-line S-curve + EVM
 dashboard/report → **E6** EV measurement methods (0/100, 50/50, units-complete, milestone, LOE) + split
 installed vs billed/stored/retained EV → **E7** model-based EV (qty×rate×installed% from IFC — the

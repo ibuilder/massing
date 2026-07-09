@@ -320,6 +320,16 @@ def evm_snapshot(pid: str, data_date: str | None = None, db: Session = Depends(g
     return evm.snapshot(db, pid, data_date)
 
 
+@router.get("/projects/{pid}/evm/earned-schedule")
+def evm_earned_schedule(pid: str, period: str = "week", db: Session = Depends(get_db),
+                        _: str = Depends(require_role("viewer"))):
+    """**Earned Schedule** (time-based EVM): ES, SV(t), SPI(t), IEAC(t) → forecast finish, in `week` or
+    `month` periods, plus the PV baseline curve. Stays meaningful at completion, unlike dollar SPI."""
+    from .. import evm
+    es = evm.earned_schedule(db, pid, date.today(), period if period in ("week", "month") else "week")
+    return es or {"note": "No dated, budgeted activities to compute Earned Schedule."}
+
+
 @router.get("/projects/{pid}/schedule/milestones")
 def milestones(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """**Milestone schedule**: the key dates — activities typed `Milestone` (or zero-duration),

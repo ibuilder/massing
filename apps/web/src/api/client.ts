@@ -2204,7 +2204,13 @@ export class ApiClient {
         sv: number; cpi: number | null; spi: number | null; percent_complete: number }[];
       activities: { ref: string; name: string; cost_code: string; budget: number; percent: number;
         ev: number; pv: number; sv: number }[];
+      earned_schedule: EvmEarnedSchedule | null;
     }>(`/projects/${pid}/evm${dataDate ? `?data_date=${dataDate}` : ""}`);
+  }
+  /** Earned Schedule (time-based EVM): ES, SV(t), SPI(t), IEAC(t) → forecast finish + PV curve. */
+  earnedSchedule(pid: string, period: "week" | "month" = "week") {
+    return this.json<EvmEarnedSchedule & { note?: string }>(
+      `/projects/${pid}/evm/earned-schedule?period=${period}`);
   }
   /** Full GC project budget (GMP): direct + GC/GR + overhead/fee/contingency, each budget vs
    *  committed vs actual vs variance; reconciled to the prime contract + developer proforma. */
@@ -2554,6 +2560,13 @@ export interface SpecialtyResponse {
 }
 export interface FamilyItem {
   key: string; label: string; ifc_class: string; category: string; dims: [number, number, number];
+}
+export interface EvmEarnedSchedule {
+  period: string; planned_start: string; planned_finish: string;
+  planned_duration_periods: number; actual_time_periods: number; earned_schedule_periods: number;
+  sv_t_periods: number; spi_t: number | null; spi_t_band: string;
+  ieac_t_periods: number | null; forecast_finish: string | null; days_late: number | null;
+  bac: number; ev: number; curve: { period: number; date: string; pv: number }[]; note: string;
 }
 export interface EgressResult {
   compliant: boolean; flags: string[]; max_travel_m: number; limit_m: number;

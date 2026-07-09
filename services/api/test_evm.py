@@ -67,6 +67,23 @@ with TestClient(app) as c:
     assert cas["04-20"]["cpi"] == 1.25 and cas["04-20"]["spi"] == 0.25, cas["04-20"]
     assert cas["03-30"]["cv"] == -10000 and cas["04-20"]["sv"] == -75000, cas
 
+    # --- E3: Earned Schedule --------------------------------------------------------------------
+    # Controlled scenario: one activity, 40-week window (today .. today+280d), 40% complete.
+    # ES should land ~week 16, so SV(t)≈−4 wk and SPI(t)≈0.8 at AT=20 wk. Use a fresh project.
+    pid2 = c.post("/projects", json={"name": "ES Tower"}).json()["id"]
+    start = today - timedelta(days=140)               # 20 weeks ago
+    finish = start + timedelta(days=280)              # 40-week planned duration
+    _mk(c, pid2, "schedule_activity", {"name": "Linear job", "budget": 10_000_000, "percent": 40,
+        "start": str(start), "finish": str(finish)})
+    es = c.get(f"/projects/{pid2}/evm/earned-schedule").json()
+    assert es["period"] == "week", es
+    assert abs(es["actual_time_periods"] - 20) < 0.2, es["actual_time_periods"]      # AT ≈ 20 wk
+    assert abs(es["earned_schedule_periods"] - 16) < 0.6, es["earned_schedule_periods"]  # ES ≈ 16 wk
+    assert abs(es["spi_t"] - 0.8) < 0.05, es["spi_t"]                                # SPI(t) ≈ 0.80
+    assert es["sv_t_periods"] < 0, es                                               # behind (time)
+    assert es["forecast_finish"] and es["ieac_t_periods"] > 40, es                  # forecast later than plan
+    assert es["curve"] and es["curve"][0]["pv"] == 0.0, es["curve"][:1]             # PV starts at 0
+
 print("EVM OK - unified metrics BAC 200k / EV 75k / PV 150k / AC 80k -> CV -5k, SV -75k, CPI 0.938 "
       "(concerning), SPI 0.5 (critical); forecast family EAC(cpi/at-plan/cpi*spi) + ETC + VAC + TCPI "
       "with >1.10 warning; control accounts join schedule EV with cost AC by cost code (concrete over "
