@@ -19,6 +19,8 @@ import { ColorizeTool } from "../tools/colorize";
 import { LayerManager } from "../tools/layers";
 import { OriginTool } from "../tools/origin";
 import { buildTree } from "../tree/tree";
+import { installDraftPanel, type ArmedDraft, type DraftPanelHandle } from "./draft/draftPanel";
+import { type FamilyDef } from "./draft/draftCatalog";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type ElementProps, type Topic } from "../api/client";
 import { fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
@@ -206,7 +208,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
 
   $("props-close").addEventListener("click", () => void selectMap(null));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !propsPanel.hidden) void selectMap(null); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (armed) { disarmDraft(); notify("draft cancelled", "info"); return; }
+    if (!propsPanel.hidden) void selectMap(null);
+  });
 
   // ---- 3D click ------------------------------------------------------------
   const mouse = new THREE.Vector2();
@@ -216,6 +222,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const hit = await loader.fragments.raycast({
       camera: viewer.world.camera.three, mouse, dom: viewer.world.renderer!.three.domElement,
     });
+    if (armed) { await captureDraftPoint(e, hit ?? null); return; }
     if (placeMode) { await capturePlacePoint(e, hit ?? null); return; }
     if (!hit) { await selectMap(null); return; }
     lastPoint = hit.point.clone();
@@ -225,7 +232,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     await selectMap({ [hit.fragments.modelId]: new Set([hit.localId]) }, { guid: guid ?? undefined });
     setStatus(`selected ${guid ?? hit.localId}`);
   });
-  container.addEventListener("dblclick", () => { if (section.enabled) section.createPlane(); });
+  container.addEventListener("dblclick", () => {
+    if (armed && armed.points === "poly") {
+      if (armPts.length >= 3) void finishDraft(); else notify("need at least 3 points to close", "error");
+      return;
+    }
+    if (section.enabled) section.createPlane();
+  });
 
   // ---- file loading --------------------------------------------------------
   // The hidden file <input>s live in index.html and are opened + wired by main.ts, so the native
@@ -692,6 +705,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const placeBtns = {} as Record<PlaceKind, HTMLButtonElement>;
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const groundRay = new THREE.Raycaster();
+  // --- P0 Draft panel: parameter-driven placement (supersedes the prompt()-based buttons above) ----
+  let armed: ArmedDraft | null = null;          // active Draft-panel element, or null
+  const armPts: THREE.Vector3[] = [];
+  let draftHandle: DraftPanelHandle | null = null;
+  function disarmDraft() { armed = null; armPts.length = 0; draftHandle?.onArmCleared(); }
   function setPlaceMode(kind: PlaceKind | null) {
     placeMode = kind; placePts.length = 0;
     (Object.keys(placeBtns) as PlaceKind[]).forEach((k) => placeBtns[k].classList.toggle("on", k === kind));
@@ -851,6 +869,32 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       params = { start: pl(a), end: pl(b), depth: Number(prompt("Beam depth (m):", "0.5")) || 0.5 };
     }
     await authorAndReload(recipe, params, kind === "family" ? `family ${familyType?.name ?? ""}` : kind);
+  }
+
+  // --- P0 Draft placement: parameter-driven (params baked into `armed.build`), no prompt() --------
+  async function captureDraftPoint(e: MouseEvent, hit: Hit | null) {
+    const spec = armed;
+    if (!spec) return;
+    const raw = hit?.point ?? screenToGround(e);
+    let p = raw ? (await snapToGeometry(raw, hit)) ?? snapPoint(raw) : null;
+    if (p && e.shiftKey && armPts.length >= 1) {          // ortho lock from the previous point
+      const a = armPts[armPts.length - 1];
+      if (Math.abs(p.x - a.x) >= Math.abs(p.z - a.z)) p = new THREE.Vector3(p.x, p.y, a.z);
+      else p = new THREE.Vector3(a.x, p.y, p.z);
+    }
+    if (!p) { notify("couldn't pick a point — click the floor or grid", "error"); return; }
+    showCoords(p); armPts.push(p.clone());
+    if (spec.points === "poly") { notify(`${spec.label}: ${armPts.length} point(s) — double-click to close`, "info"); return; }
+    if (armPts.length < spec.points) { notify(`${spec.label}: click the next point (Shift = ortho)`, "info"); return; }
+    await finishDraft();
+  }
+  async function finishDraft() {
+    if (!armed || !projectId) { disarmDraft(); return; }
+    const a = armed;
+    const planPts = armPts.map((v): [number, number] => [v.x, -v.z]);   // plan coords: E=x, N=-z
+    const params = a.build(planPts);
+    disarmDraft();
+    await authorAndReload(a.recipe, params, a.label);
   }
 
   async function authorAndReload(recipe: string, params: Record<string, unknown>, label: string) {
@@ -1234,6 +1278,21 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         setStatus(`origin set to E${inputs.e.value} N${inputs.n.value} Z${inputs.z.value}`);
       };
       ob.append(fromPt, apply);
+    }
+
+    // --- Draft: parameter-driven family/element authoring (editors) ----------
+    const draftBody = section("draft", "Draft — author elements", { requires: "sourceIfc" });
+    if (draftBody) {
+      draftHandle = installDraftPanel({
+        body: draftBody,
+        fetchFamilies: async () => {
+          const cat = await api.familyCatalog();
+          return Object.values(cat.categories).flat() as FamilyDef[];
+        },
+        arm: (a) => { setPlaceMode(null); armed = a; armPts.length = 0; },
+        notify,
+        canAuthor: () => !!projectId && hasIfc,
+      });
     }
 
     // --- persona-ordered tool sections ---------------------------------------

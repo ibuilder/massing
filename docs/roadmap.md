@@ -64,6 +64,19 @@ and **IFC5/IFCX/ifcJSON data reads** (tolerant
 JSON→element-index parser; geometry rendering still lands upstream). Genuinely upstream-only remainder: IFC5
 geometry *rendering* (web-ifc/Fragments) and a bundled/trained CV model.
 
+**Model authoring — true model-creation program (in progress, P0 = v0.3.102):** upgrading the Model
+workspace from shallow prompt-driven placement into a real drafting tool with a full BIM family library.
+Architecture (research-confirmed): the **browser captures intent** (family + parameters + placement),
+the **server authors real IFC** via `ifcopenshell.api` (source of truth), and re-streams fragments — no
+browser CAD kernel (ThatOpen Fragments editing can't create elements/write IFC). No permissive pre-built
+IFC family catalog exists, so families are **generated procedurally**, seeded from permissive sources
+(buildingSMART Community-Sample-Test-Files CC-BY-4.0, re-keyed AISC/Eurocode profile tables, bSDD for
+Uniclass/OmniClass + Psets). Sequence: **P0 Draft panel** (`viewer/draft/`, parametric palette + named
+params, ships v0.3.102) → **P1** real IfcGrid + editable levels/origin as drafting refs → **P4**
+structural (steel parametric profiles + rebar) → **P5** MEP (duct/pipe runs, electrical, fire/telecom) →
+**P3** architectural (coverings/ceilings/tile/wood) → **P6** draft perf (optimistic + incremental
+fragments); standards (PredefinedType + classification + Psets at the type level) woven throughout.
+
 **Market intelligence + concept-render bridge (v0.3.101):** from an industry-research pass. A regional
 market table (escalation % · labour US$/hr · location index) + a two-speed warm/cold sector signal
 (`market_intelligence.py` + `market_assumption` module + `/market/*` + 💹 panel), escalating a base cost

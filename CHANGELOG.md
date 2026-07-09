@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.102 — Model authoring, P0: the Draft panel (parametric family/element placement)
+First slice of the "true model-creation program" upgrade — foundations for a full BIM family library
+authored in the browser (intent) and written as real IFC on the server (source of truth), then
+re-streamed as fragments.
+
+- **Draft panel** in the Model workspace tools rail (`viewer/draft/`) — a discipline-grouped palette
+  (Architectural · Structural · MEP · Site) of parametric elements and the server family catalog, each
+  with a **named parameter form** (height, thickness, width, …). Pick an element, set parameters, arm
+  **Place**, then click in the model: the server authors the IFC (walls, slabs, columns, beams, roofs,
+  and any catalogued family) and streams it back. **Replaces the old `prompt()`-per-dimension flow** —
+  no more native prompts for wall height/thickness. Supports point, two-point, and **polygon** (double-
+  click to close) placement, with grid/vertex snap, ortho lock (Shift), and Esc to cancel.
+- This is additive: the existing authoring recipes (`edit.py`) and the `/families/catalog` + `/edit`
+  round-trip are unchanged; the Draft panel is a cleaner front-end over them. Structural depth (steel
+  profiles + rebar), then MEP, then architectural coverings/finishes follow in subsequent releases,
+  alongside real grid/level drafting refs.
+
+Verified: `draftCatalog.test.ts` (recipe-param mapping for every element + family) + web typecheck +
+vitest (56) + build green.
+
 ## v0.3.101 — Market intelligence & cost escalation + AI concept-render bridge
 Two additions from an industry-research pass:
 

@@ -182,7 +182,15 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Market intelligence & cost escalation + AI concept-render bridge (latest, v0.3.101)** — a **regional
+- **Model authoring — the Draft panel (latest, v0.3.102)** — first slice of turning the Model
+  workspace into a true model-creation tool: a discipline-grouped **Draft palette** (Architectural ·
+  Structural · MEP · Site) with **named parameter forms** replaces the old prompt-per-dimension
+  placement. Pick an element or family, set parameters, and click to place — the server authors real
+  IFC (walls/slabs/columns/beams/roofs + the family catalog) and re-streams fragments. Point, two-point,
+  and polygon placement with grid/vertex snap + ortho lock. Structural (steel profiles + rebar), MEP, and
+  architectural family depth, plus real grid/level drafting refs, follow.
+
+- **Market intelligence & cost escalation + AI concept-render bridge (v0.3.101)** — a **regional
   market table** (annual escalation %, average labour US$/hr, location index) and a **two-speed warm/cold**
   demand signal by sector, so a base cost is **escalated to the midpoint of construction** in the project's
   region — reading a per-project **Market Assumption** (region · sector · start · duration). The conceptual
