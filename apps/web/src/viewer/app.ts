@@ -21,6 +21,7 @@ import { OriginTool } from "../tools/origin";
 import { buildTree } from "../tree/tree";
 import { installDraftPanel, type ArmedDraft, type DraftPanelHandle } from "./draft/draftPanel";
 import { type FamilyDef } from "./draft/draftCatalog";
+import { GridOverlay } from "./draft/gridOverlay";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type ElementProps, type Topic } from "../api/client";
 import { fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
@@ -710,6 +711,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const armPts: THREE.Vector3[] = [];
   let draftHandle: DraftPanelHandle | null = null;
   function disarmDraft() { armed = null; armPts.length = 0; draftHandle?.onArmCleared(); }
+  // P1 grid/level drafting refs: the grid overlay + snap, and the active storey/work-plane.
+  const gridOverlay = new GridOverlay(viewer.world.scene.three);
+  let activeStorey: string | null = null;       // name passed to Draft recipes; sets the work-plane Z
+  let activeStoreyZ = 0;
   function setPlaceMode(kind: PlaceKind | null) {
     placeMode = kind; placePts.length = 0;
     (Object.keys(placeBtns) as PlaceKind[]).forEach((k) => placeBtns[k].classList.toggle("on", k === kind));
@@ -883,6 +888,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       else p = new THREE.Vector3(a.x, p.y, p.z);
     }
     if (!p) { notify("couldn't pick a point — click the floor or grid", "error"); return; }
+    // snap to the nearest grid intersection when the grid overlay is loaded (plan E=x, N=-z)
+    if (gridOverlay.hasData) {
+      const gs = gridOverlay.nearestSnap(p.x, -p.z, 0.6);
+      if (gs) p = new THREE.Vector3(gs[0], p.y, -gs[1]);
+    }
     showCoords(p); armPts.push(p.clone());
     if (spec.points === "poly") { notify(`${spec.label}: ${armPts.length} point(s) — double-click to close`, "info"); return; }
     if (armPts.length < spec.points) { notify(`${spec.label}: click the next point (Shift = ortho)`, "info"); return; }
@@ -893,6 +903,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const a = armed;
     const planPts = armPts.map((v): [number, number] => [v.x, -v.z]);   // plan coords: E=x, N=-z
     const params = a.build(planPts);
+    if (activeStorey && params.storey === undefined) params.storey = activeStorey;   // author onto the active level
     disarmDraft();
     await authorAndReload(a.recipe, params, a.label);
   }
@@ -1293,6 +1304,48 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         notify,
         canAuthor: () => !!projectId && hasIfc,
       });
+    }
+
+    // --- Grid & Levels: drafting reference frame (grid snap + active work-plane) ----------
+    const glBody = section("gridlevels", "Grid & Levels", { requires: "sourceIfc" });
+    if (glBody) {
+      const status = document.createElement("div"); status.className = "meta";
+      status.textContent = "Load the grid + levels to snap placement and set the active work-plane.";
+      const levelSel = document.createElement("select"); levelSel.className = "portal-filter";
+      levelSel.style.cssText = "width:100%;margin:4px 0"; levelSel.setAttribute("aria-label", "Active level");
+      const applyLevel = () => {
+        const opt = levelSel.selectedOptions[0]; if (!opt) return;
+        activeStorey = opt.dataset.name || null; activeStoreyZ = Number(opt.dataset.z || 0);
+        groundPlane.constant = -activeStoreyZ;                       // draft on the active level's plane
+        if (gridOverlay.data) gridOverlay.set(gridOverlay.data, activeStoreyZ);
+        setStatus(`active level: ${activeStorey ?? "—"} (Z ${activeStoreyZ.toFixed(2)} m)`);
+      };
+      levelSel.onchange = applyLevel;
+      const load = toolBtn2("⊞ Load grid + levels", async () => {
+        try {
+          const g = await api.modelGrid(pid);
+          gridOverlay.set(g.grid, activeStoreyZ); gridOverlay.visible = true;
+          levelSel.innerHTML = "";
+          for (const lv of g.levels) {
+            const o = document.createElement("option");
+            o.textContent = `${lv.name ?? "Level"} (${lv.elevation.toFixed(2)} m)`;
+            o.dataset.name = lv.name ?? ""; o.dataset.z = String(lv.elevation); levelSel.appendChild(o);
+          }
+          if (g.levels.length) applyLevel();
+          status.textContent = `grid: ${g.grid.source} · ${g.grid.axes.length} axes · `
+            + `${g.grid.intersections.length} snap points · ${g.levels.length} level(s)`;
+        } catch (e) { status.textContent = `failed: ${(e as Error).message}`; }
+      });
+      const toggle = toolBtn2("◻ Toggle grid overlay", () => {
+        gridOverlay.visible = !gridOverlay.visible; setStatus(`grid ${gridOverlay.visible ? "shown" : "hidden"}`);
+      });
+      const addLvl = toolBtn2("➕ Add level", async () => {
+        const name = await askText("Add level", { label: "Level name", value: "Level 2" }); if (!name) return;
+        const elevS = await askText("Add level", { label: "Elevation (metres)", value: "3.0" });
+        const elev = Number(elevS); await authorAndReload("add_storey",
+          { name, elevation: Number.isFinite(elev) ? elev : 0 }, `level ${name}`);
+      });
+      glBody.append(status, levelSel, load, toggle, addLvl);
     }
 
     // --- persona-ordered tool sections ---------------------------------------

@@ -72,7 +72,8 @@ browser CAD kernel (ThatOpen Fragments editing can't create elements/write IFC).
 IFC family catalog exists, so families are **generated procedurally**, seeded from permissive sources
 (buildingSMART Community-Sample-Test-Files CC-BY-4.0, re-keyed AISC/Eurocode profile tables, bSDD for
 Uniclass/OmniClass + Psets). Sequence: **P0 Draft panel** (`viewer/draft/`, parametric palette + named
-params, ships v0.3.102) → **P1** real IfcGrid + editable levels/origin as drafting refs → **P4**
+params, v0.3.102) → **P1** grid + levels drafting refs (`grid.py` IfcGrid/derived reader + snap +
+editable-storey recipes + Grid & Levels panel, v0.3.103) → **P4**
 structural (steel parametric profiles + rebar) → **P5** MEP (duct/pipe runs, electrical, fire/telecom) →
 **P3** architectural (coverings/ceilings/tile/wood) → **P6** draft perf (optimistic + incremental
 fragments); standards (PredefinedType + classification + Psets at the type level) woven throughout.

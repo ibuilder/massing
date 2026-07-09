@@ -188,6 +188,35 @@ def _first_storey(model, name=None):
     return sts[0] if sts else None
 
 
+def add_storey(model: ifcopenshell.file, name: str, elevation: float = 0.0) -> str:
+    """Author a new IfcBuildingStorey (level) at `elevation` metres, aggregated under the building."""
+    import ifcopenshell.util.unit as uunit
+    scale = uunit.calculate_unit_scale(model)         # file units -> metres
+    building = (model.by_type("IfcBuilding") or [None])[0]
+    st = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcBuildingStorey",
+                              name=name or "Level")
+    st.Elevation = float(elevation) / scale           # metres -> file units
+    if building is not None:
+        ifcopenshell.api.run("aggregate.assign_object", model, products=[st], relating_object=building)
+    return st.GlobalId
+
+
+def rename_storey(model: ifcopenshell.file, guid: str, name: str) -> str:
+    """Rename an existing storey/level (by GUID)."""
+    st = model.by_guid(guid)
+    st.Name = name
+    return guid
+
+
+def set_storey_elevation(model: ifcopenshell.file, guid: str, elevation: float = 0.0) -> str:
+    """Move a storey/level to a new elevation (metres)."""
+    import ifcopenshell.util.unit as uunit
+    scale = uunit.calculate_unit_scale(model)
+    st = model.by_guid(guid)
+    st.Elevation = float(elevation) / scale
+    return guid
+
+
 def add_wall(model: ifcopenshell.file, start, end, height: float = 3.0,
              thickness: float = 0.2, storey: str | None = None) -> str:
     """Author an IfcWall from two XY points (meters): a rectangular profile (length ×
@@ -505,6 +534,9 @@ RECIPES = {
     "add_family": lambda m, p: _recipe_add_family(m, p),
     "add_spaces": lambda m, p: add_spaces(m, int(p.get("rooms_per_storey", 4)),
                                           float(p.get("ceiling_height", 3.0))),
+    "add_storey": lambda m, p: add_storey(m, p["name"], float(p.get("elevation", 0.0))),
+    "rename_storey": lambda m, p: rename_storey(m, p["guid"], p["name"]),
+    "set_storey_elevation": lambda m, p: set_storey_elevation(m, p["guid"], float(p.get("elevation", 0.0))),
 }
 
 

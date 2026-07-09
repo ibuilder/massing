@@ -2418,6 +2418,16 @@ export class ApiClient {
   }
   /** Starter IFC family library (furniture / sanitary / appliances / plants) — generated
    *  parametrically, so it's placeable into any model incl. a from-scratch massing model. */
+  /** Drafting grid (real IfcGrid or derived from columns) + snap intersections + storey levels. */
+  modelGrid(pid: string) {
+    return this.json<{
+      grid: { source: string;
+        axes: { tag: string; dir: "u" | "v"; start: [number, number]; end: [number, number] }[];
+        intersections: { x: number; y: number; label: string }[];
+        bounds: { min: [number, number]; max: [number, number] } | null; note?: string };
+      levels: { name: string | null; elevation: number }[];
+    }>(`/projects/${pid}/model/grid`);
+  }
   familyCatalog() {
     return this.json<{ count: number; categories: Record<string, FamilyItem[]> }>("/families/catalog");
   }

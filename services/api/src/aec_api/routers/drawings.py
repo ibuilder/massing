@@ -56,6 +56,16 @@ def list_storeys(pid: str, db: Session = Depends(get_db), _sec: str = Depends(re
     return drawings.storey_elevations(open_model(_source_ifc(db, pid)))
 
 
+@router.get("/projects/{pid}/model/grid")
+def model_grid(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Drafting reference frame: the grid (real IfcGrid axes, else derived from IfcColumn centres) +
+    its snap intersections + the storey levels — for the web Draft panel to render and snap against."""
+    from aec_data import grid as _grid  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    return _grid.grid_and_levels(open_model(_source_ifc(db, pid)))
+
+
 @router.get("/projects/{pid}/drawings/plan.svg")
 def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str = "PLAN",
          rooms: bool = True, callouts: bool = False, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):

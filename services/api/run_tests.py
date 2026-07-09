@@ -43,7 +43,8 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_lod", "test_naming", "test_design_engine", "test_mep", "test_resource_loading",
          "test_envelope", "test_model_query", "test_field_ai", "test_deferred",
          "test_gltf_export", "test_ifc5_read", "test_model_events", "test_docmanager",
-         "test_bim_columns", "test_bfast", "test_step_scan", "test_scan_cache", "test_market"]
+         "test_bim_columns", "test_bfast", "test_step_scan", "test_scan_cache", "test_market",
+         "test_grid"]
 
 
 def main() -> int:

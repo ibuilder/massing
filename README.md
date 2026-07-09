@@ -182,7 +182,13 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Model authoring — the Draft panel (latest, v0.3.102)** — first slice of turning the Model
+- **Model authoring — grid + levels drafting refs (latest, v0.3.103)** — the drafting reference frame:
+  a **Grid & Levels** panel reads the project grid (real `IfcGrid` axes, else derived from column
+  centres) and renders axes + bubbles; Draft placement **snaps to grid intersections**. An active-level
+  selector sets the work-plane and target storey, and new recipes **add/rename/move levels** (real
+  `IfcBuildingStorey`).
+
+- **Model authoring — the Draft panel (v0.3.102)** — first slice of turning the Model
   workspace into a true model-creation tool: a discipline-grouped **Draft palette** (Architectural ·
   Structural · MEP · Site) with **named parameter forms** replaces the old prompt-per-dimension
   placement. Pick an element or family, set parameters, and click to place — the server authors real

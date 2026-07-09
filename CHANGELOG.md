@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.103 — Model authoring, P1: grid + levels as drafting references
+The drafting reference frame — so placement lands on a grid and the right level, not free space.
+
+- **Grid & Levels panel** in the Model tools rail. **Load grid + levels** reads the project's grid
+  (`services/data/.../grid.py`): real **`IfcGrid`** axes (U/V + bubble tags) when present, else a grid
+  **derived from `IfcColumn` centres** (numbered 1,2,3… / lettered A,B,C…). Axes render in 3D with
+  bubbles; Draft placement now **snaps to grid intersections**.
+- **Editable levels.** An active-level selector sets the **work-plane** (Draft points project onto the
+  level's elevation) and passes the storey to every authoring recipe, so elements land on the chosen
+  level. New `edit.py` recipes **add / rename / move** a storey (`add_storey`, `rename_storey`,
+  `set_storey_elevation`) — authoring real `IfcBuildingStorey` levels.
+- New endpoint `GET /projects/{id}/model/grid` (grid axes + snap intersections + storey levels).
+
+Verified: `test_grid` (derived grid from 4 columns → axes 1/2/A/B + 4 intersections snapping to column
+centres; add/rename/move-storey recipes) + web typecheck + vitest (56) + build; ruff clean.
+
 ## v0.3.102 — Model authoring, P0: the Draft panel (parametric family/element placement)
 First slice of the "true model-creation program" upgrade — foundations for a full BIM family library
 authored in the browser (intent) and written as real IFC on the server (source of truth), then
