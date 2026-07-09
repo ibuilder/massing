@@ -86,6 +86,7 @@ def summary(db: Session, pid: str, proforma_hard: float | None = None) -> dict:
         "budget": {
             "gmp": gmp["computed"],
             "revised_gmp": gmp.get("revised", gmp["computed"]),
+            "cpi": round(ev / tot["actual"], 2) if tot.get("actual") else None,   # EV(schedule) / AC(cost)
             "eac": tot.get("eac", tot["forecast"]),
             "variance_at_completion": tot["variance"],
             "committed": tot["committed"],

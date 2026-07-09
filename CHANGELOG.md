@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.116 — Portfolio CPI (cost efficiency) in the executive roll-up
+The cross-project executive dashboard already showed SPI + EAC + variance-at-completion per project;
+it now also shows **CPI** — cost efficiency (EV ÷ AC) — so the "which jobs are bleeding money?"
+question is answerable at the portfolio level alongside schedule.
+
+- `px.summary()` gains a `cpi` in its budget block (EV/AC, the same numbers the project dashboard
+  uses); surfaced per-project in `/portfolio/executive` and as a new **CPI** column (green ≥ 0.95,
+  red below) next to SPI in the executive table.
+
+Verified: `test_dashboard`; ruff clean; web typecheck + vitest + build. (Additive field — no
+behaviour change to existing rows.)
+
 ## v0.3.115 — EVM charts: CPI–SPI quadrant + captured-snapshot performance trend
 Two earned-value visualizations that make cost/schedule performance readable at a glance, plus the
 persisted snapshots that back a real historical trend.

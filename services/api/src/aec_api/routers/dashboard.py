@@ -92,7 +92,7 @@ def executive_portfolio(db: Session = Depends(get_db), _: str = Depends(rbac.cur
         irr, em = ret.get("equity_irr"), ret.get("equity_multiple")
         rows.append({
             "id": p.id, "name": p.name, "status": s.get("status"),
-            "spi": sched.get("spi"), "pct_complete": sched.get("pct_complete", 0),
+            "spi": sched.get("spi"), "cpi": bud.get("cpi"), "pct_complete": sched.get("pct_complete", 0),
             "lookahead_3wk": sched.get("lookahead_3wk", 0),
             "milestones_late": (sched.get("milestones") or {}).get("late", 0),
             "gmp": bud.get("gmp", 0), "eac": bud.get("eac", 0),
