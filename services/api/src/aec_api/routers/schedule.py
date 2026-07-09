@@ -309,6 +309,17 @@ def earned_value(pid: str, db: Session = Depends(get_db), _: str = Depends(requi
             "status": status, "activity_count": len(lines), "activities": lines}
 
 
+@router.get("/projects/{pid}/evm")
+def evm_snapshot(pid: str, data_date: str | None = None, db: Session = Depends(get_db),
+                 _: str = Depends(require_role("viewer"))):
+    """Full Earned Value Management snapshot (ANSI/EIA-748-aligned): joins schedule earned value with
+    cost actuals **by cost code (control account)**. Returns PV/EV/AC/BAC, CV/SV/CPI/SPI with health
+    bands, the EAC/ETC/VAC/TCPI **forecast family**, a per-control-account table, and per-activity EV.
+    `data_date` (YYYY-MM-DD) sets the reporting cut-off; defaults to today."""
+    from .. import evm
+    return evm.snapshot(db, pid, data_date)
+
+
 @router.get("/projects/{pid}/schedule/milestones")
 def milestones(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """**Milestone schedule**: the key dates — activities typed `Milestone` (or zero-duration),

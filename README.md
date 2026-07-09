@@ -182,7 +182,13 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Model authoring — incremental preview + MEP fittings (latest, v0.3.108)** — placing an element now
+- **Earned Value Management — unified engine + forecast family (latest, v0.3.109)** — a standards-aligned
+  (ANSI/EIA-748) EVM engine that **joins schedule earned value with cost actuals by cost code**: PV/EV/AC/
+  BAC, CV/SV/**CPI/SPI** with health bands, a per-control-account table, and the full **EAC/ETC/VAC/TCPI**
+  forecast family (with the >1.10 to-complete warning). `GET /projects/{id}/evm`. Earned Schedule,
+  the S-curve dashboard, EV measurement methods, and **model-based EV from IFC quantities** follow.
+
+- **Model authoring — incremental preview + MEP fittings (v0.3.108)** — placing an element now
   shows **real one-element geometry immediately**: the server authors just that element into a minimal
   IFC and converts only it to a fragment (`/edit-preview`), while the full model republishes in the
   background (fail-open to an amber proxy). Duct/pipe **elbows and tees** join the MEP palette.

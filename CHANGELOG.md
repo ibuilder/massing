@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.109 — Earned Value Management, E1+E2: unified engine + forecast family
+Research-backed (PMI/ANSI-EIA-748 + a construction-forecasting study) EVM. The app had two disconnected
+halves — schedule earned value (no Actual Cost) and cost actuals by cost code (heuristic forecast). This
+**joins them by cost code (the control account)** into one standards-aligned metric set.
+
+- **`evm.py` + `GET /projects/{id}/evm`** — PV, EV, AC, BAC; **CV = EV−AC, SV = EV−PV, CPI = EV/AC,
+  SPI = EV/PV**, % complete, % spent, with **health bands** (good ≥1.0 · acceptable ≥0.95 · concerning
+  ≥0.90 · critical). A **per-control-account (cost code) table** joins schedule EV/PV with cost AC, so you
+  see which cost codes are over budget vs behind schedule.
+- **Forecast family** — the four canonical **EACs** (BAC/CPI · AC+(BAC−EV) · AC+(BAC−EV)/(CPI×SPI)),
+  a working EAC, **ETC**, **VAC**, and **TCPI** to BAC and to the working EAC — with the **>1.10
+  structural-warning** flag. Shown together, because the best EAC is stage-dependent, not one formula.
+- A `data_date` cut-off parameter for period reporting.
+
+This is phase 1 of a full EVM module; Earned Schedule (SPI(t)), the time-phased S-curve + dashboard, EV
+measurement methods, and **model-based EV from IFC quantities** follow.
+
+Verified: `test_evm` (BAC 200k / EV 75k / PV 150k / AC 80k → CV −5k, SV −75k, CPI 0.938, SPI 0.5; the full
+forecast family + TCPI warning; control-account join) + typecheck + vitest (56) + build; ruff clean.
+
 ## v0.3.108 — Model authoring: incremental preview fragments + MEP fittings
 Completes the draft-performance work and rounds out MEP.
 

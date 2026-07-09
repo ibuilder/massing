@@ -2189,6 +2189,23 @@ export class ApiClient {
       activities: { ref: string; name: string; budget: number; percent: number; ev: number; pv: number; sv: number }[] }>(
       `/projects/${pid}/schedule/earned-value`);
   }
+  /** Full EVM snapshot: PV/EV/AC/BAC, CV/SV/CPI/SPI + bands, the EAC/ETC/VAC/TCPI forecast family,
+   *  and a per-control-account (cost code) breakdown — schedule EV joined with cost actuals. */
+  evm(pid: string, dataDate?: string) {
+    return this.json<{
+      totals: { data_date: string; bac: number; pv: number; ev: number; ac: number; cv: number; sv: number;
+        cpi: number | null; spi: number | null; cpi_band: string; spi_band: string;
+        percent_complete: number; percent_spent: number;
+        forecast: { eac: { cpi: number | null; at_plan: number; cpi_spi: number | null };
+          eac_working: number | null; etc: number | null; vac: number | null;
+          tcpi_bac: number | null; tcpi_eac: number | null; tcpi_warning: boolean };
+        activity_count: number; note: string };
+      control_accounts: { cost_code: string; bac: number; pv: number; ev: number; ac: number; cv: number;
+        sv: number; cpi: number | null; spi: number | null; percent_complete: number }[];
+      activities: { ref: string; name: string; cost_code: string; budget: number; percent: number;
+        ev: number; pv: number; sv: number }[];
+    }>(`/projects/${pid}/evm${dataDate ? `?data_date=${dataDate}` : ""}`);
+  }
   /** Full GC project budget (GMP): direct + GC/GR + overhead/fee/contingency, each budget vs
    *  committed vs actual vs variance; reconciled to the prime contract + developer proforma. */
   gmpBudget(pid: string) {
