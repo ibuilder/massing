@@ -56,6 +56,22 @@ def index_band(idx: float | None) -> str:
     return "critical"
 
 
+def _measured_fraction(d: dict) -> tuple[float, str]:
+    """The EARNED fraction of an activity's budget under its EV measurement method (rule of credit):
+    percent (%), 0-100 (all-or-nothing), 50-50 (half at start), units (units_complete/units_total),
+    milestone (≈percent), loe (level of effort — corrected to EV=PV by the caller)."""
+    method = (d.get("ev_method") or "percent").lower()
+    pct = max(0.0, min(100.0, _n(d.get("percent")))) / 100.0
+    if method == "0-100":
+        return (1.0 if pct >= 1.0 else 0.0), method
+    if method == "50-50":
+        return (1.0 if pct >= 1.0 else (0.5 if pct > 0 else 0.0)), method
+    if method == "units":
+        ut = _n(d.get("units_total"))
+        return (max(0.0, min(1.0, _n(d.get("units_complete")) / ut)) if ut > 0 else pct), method
+    return pct, method                                # percent / milestone / loe → the % fraction
+
+
 def _planned_fraction(data: dict, today: date) -> float:
     """Linear planned fraction of an activity's budget earned by `today` (BCWS spread).
     (A true non-linear time-phased PV curve arrives with Earned Schedule, phase E3.)"""
@@ -94,6 +110,19 @@ def forecasts(bac: float, ev: float, ac: float, cpi: float | None, spi: float | 
     out["tcpi_eac"] = tcpi_eac        # to finish within the working forecast
     # a TCPI far above CPI (~>1.10) is a structural warning: the team must suddenly outperform its history
     out["tcpi_warning"] = bool(tcpi_bac and cpi and tcpi_bac - cpi > 0.10)
+    # stage-adaptive forecast guidance — a construction-forecasting study found the most accurate method
+    # is schedule-based (Earned Schedule) early and cost-efficiency-based (CPI) late; methods barely
+    # diverge before ~70% complete, so early cost EACs are volatile.
+    pct = (ev / bac * 100) if bac else 0.0
+    if pct < 25:
+        out["recommended"] = {"stage": "early", "recommended_eac": "cpi_spi",
+                              "guidance": "Early (<25%): trust Earned Schedule / SPI(t) — cost EAC is volatile."}
+    elif pct < 55:
+        out["recommended"] = {"stage": "mid", "recommended_eac": "cpi_spi",
+                              "guidance": "Mid (25–55%): Earned Schedule with SPI is most accurate; watch CPI trend."}
+    else:
+        out["recommended"] = {"stage": "late", "recommended_eac": "cpi",
+                              "guidance": "Late (≥55%): cost-efficiency forecasts firm up — EAC = BAC/CPI is dependable."}
     return out
 
 
@@ -105,7 +134,8 @@ def _budgeted_activities(db: Session, pid: str) -> list[dict[str, Any]]:
         budget = _n(d.get("budget"))
         if budget <= 0:
             continue
-        out.append({"budget": budget, "pct": max(0.0, min(100.0, _n(d.get("percent")))) / 100.0,
+        frac, method = _measured_fraction(d)
+        out.append({"budget": budget, "earned": frac, "method": method,
                     "start": _d(d.get("start")) or _d(d.get("actual_start")),
                     "finish": _d(d.get("finish")) or _d(d.get("actual_finish"))})
     return out
@@ -141,7 +171,7 @@ def earned_schedule(db: Session, pid: str, today: date, period: str = "week") ->
     pstart = min(a["start"] for a in dated)
     pfinish = max(a["finish"] for a in dated)
     pdays = _PERIOD_DAYS.get(period, 7.0)
-    ev = sum(a["pct"] * a["budget"] for a in acts)
+    ev = sum(a["earned"] * a["budget"] for a in acts)
     bac = sum(a["budget"] for a in acts)
     pd = max(1.0, (pfinish - pstart).days / pdays)                     # planned duration (periods)
     at = max(0.0, (today - pstart).days / pdays)                       # actual time elapsed (periods)
@@ -185,8 +215,8 @@ def _ev_fraction(a: dict[str, Any], when: date, today: date) -> float:
     s = a["start"]
     if not s or when < s:
         return 0.0
-    target = a["pct"]
-    end = a["finish"] if a["pct"] >= 1.0 and a["finish"] else today
+    target = a["earned"]
+    end = a["finish"] if a["earned"] >= 1.0 and a["finish"] else today
     if not end or end <= s:
         return target if when >= s else 0.0
     return target * max(0.0, min(1.0, (when - s).days / (end - s).days))
@@ -262,16 +292,17 @@ def snapshot(db: Session, pid: str, data_date: str | None = None) -> dict[str, A
         budget = _n(d.get("budget"))
         if budget <= 0:
             continue
-        pct = max(0.0, min(100.0, _n(d.get("percent")))) / 100.0
+        frac, method = _measured_fraction(d)
         planned = _planned_fraction(d, today)
-        a_ev, a_pv = pct * budget, planned * budget
+        a_pv = planned * budget
+        a_ev = a_pv if method == "loe" else frac * budget       # LOE earns exactly its planned value
         bac += budget; ev += a_ev; pv += a_pv
         cc = d.get("cost_code")
         bucket = ca.setdefault(cc, {"bac": 0.0, "ev": 0.0, "pv": 0.0}) if cc else unassigned
         bucket["bac"] += budget; bucket["ev"] += a_ev; bucket["pv"] += a_pv
         activities.append({"ref": r.get("ref"), "name": r.get("title") or d.get("name"),
-                           "cost_code": cc_label.get(cc, "") if cc else "",
-                           "budget": round(budget, 2), "percent": round(pct * 100, 1),
+                           "cost_code": cc_label.get(cc, "") if cc else "", "ev_method": method,
+                           "budget": round(budget, 2), "percent": round(frac * 100, 1),
                            "ev": round(a_ev, 2), "pv": round(a_pv, 2), "sv": round(a_ev - a_pv, 2)})
 
     # control-account table: join schedule EV/PV/BAC with cost AC by cost code

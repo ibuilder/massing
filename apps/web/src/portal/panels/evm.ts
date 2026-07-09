@@ -82,7 +82,8 @@ export async function renderEvm(ctx: PanelContext) {
     + `<tr class="fin-total"><td>Working EAC · ETC ${usd(f.etc)}</td><td class="num">${usd(f.eac_working)}</td></tr>`
     + `<tr><td>VAC (BAC − EAC)</td><td class="num" style="color:${(f.vac ?? 0) < 0 ? "var(--status-crit)" : "var(--status-good)"}">${usd(f.vac)}</td></tr>`
     + `<tr><td>TCPI to budget${f.tcpi_warning ? ' <span style="color:var(--status-crit)">⚠ &gt;1.10</span>' : ""}</td><td class="num">${idx(f.tcpi_bac)}</td></tr>`
-    + `</table>`;
+    + `</table>`
+    + (f.recommended ? `<div class="meta" style="margin-top:4px">📈 <b>${esc(f.recommended.stage)} stage</b> — ${esc(f.recommended.guidance)}</div>` : "");
   body.append(fc);
 
   // --- earned schedule forecast ---

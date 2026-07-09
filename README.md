@@ -182,7 +182,7 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Earned Value Management (latest, v0.3.109–v0.3.111)** — a standards-aligned (ANSI/EIA-748) EVM engine
+- **Earned Value Management (latest, v0.3.109–v0.3.112)** — a standards-aligned (ANSI/EIA-748) EVM engine
   that **joins schedule earned value with cost actuals by cost code**: PV/EV/AC/BAC, CV/SV/**CPI/SPI** with
   health bands, a per-control-account table, and the full **EAC/ETC/VAC/TCPI** forecast family (>1.10
   to-complete warning). Plus **Earned Schedule** — ES, SV(t), **SPI(t)**, IEAC(t) → **forecast finish

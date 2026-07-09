@@ -2,7 +2,7 @@
   "key": "schedule_activity",
   "name": "Schedule",
   "section": "Field",
-  "icon": "▸",
+  "icon": "\u00e2\u2013\u00b8",
   "ref_prefix": "ACT",
   "title_field": "name",
   "pinnable": true,
@@ -128,6 +128,32 @@
       "label": "Budgeted Cost",
       "type": "currency",
       "fieldset": "Links"
+    },
+    {
+      "name": "ev_method",
+      "label": "EV method",
+      "type": "select",
+      "options": [
+        "percent",
+        "0-100",
+        "50-50",
+        "units",
+        "milestone",
+        "loe"
+      ],
+      "fieldset": "Earned Value"
+    },
+    {
+      "name": "units_complete",
+      "label": "Units complete",
+      "type": "number",
+      "fieldset": "Earned Value"
+    },
+    {
+      "name": "units_total",
+      "label": "Units total",
+      "type": "number",
+      "fieldset": "Earned Value"
     }
   ],
   "workflow": {

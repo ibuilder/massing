@@ -95,6 +95,19 @@ with TestClient(app) as c:
     rep = c.get(f"/projects/{pid}/reports/evm.pdf")
     assert rep.status_code == 200 and rep.content[:4] == b"%PDF", (rep.status_code, rep.content[:8])
 
+    # --- E6: EV measurement methods (rules of credit) -------------------------------------------
+    pid3 = c.post("/projects", json={"name": "Methods"}).json()["id"]
+    win = {"start": str(today - timedelta(days=5)), "finish": str(today + timedelta(days=5))}
+    _mk(c, pid3, "schedule_activity", {"name": "0/100 half-done", "budget": 100000, "percent": 50,
+        "ev_method": "0-100", **win})       # 0/100: nothing earned until complete → EV 0
+    _mk(c, pid3, "schedule_activity", {"name": "50/50 started", "budget": 100000, "percent": 10,
+        "ev_method": "50-50", **win})       # 50/50: half earned once started → EV 50k
+    _mk(c, pid3, "schedule_activity", {"name": "units 3 of 4", "budget": 100000,
+        "ev_method": "units", "units_complete": 3, "units_total": 4, **win})  # units → EV 75k
+    mm = c.get(f"/projects/{pid3}/evm").json()["totals"]
+    assert mm["ev"] == 125000, mm["ev"]                # 0 + 50k + 75k
+    assert mm["forecast"]["recommended"]["stage"] in ("early", "mid", "late"), mm["forecast"]["recommended"]
+
 print("EVM OK - unified metrics BAC 200k / EV 75k / PV 150k / AC 80k -> CV -5k, SV -75k, CPI 0.938 "
       "(concerning), SPI 0.5 (critical); forecast family EAC(cpi/at-plan/cpi*spi) + ETC + VAC + TCPI "
       "with >1.10 warning; control accounts join schedule EV with cost AC by cost code (concrete over "

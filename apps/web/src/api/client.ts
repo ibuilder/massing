@@ -2198,7 +2198,8 @@ export class ApiClient {
         percent_complete: number; percent_spent: number;
         forecast: { eac: { cpi: number | null; at_plan: number; cpi_spi: number | null };
           eac_working: number | null; etc: number | null; vac: number | null;
-          tcpi_bac: number | null; tcpi_eac: number | null; tcpi_warning: boolean };
+          tcpi_bac: number | null; tcpi_eac: number | null; tcpi_warning: boolean;
+          recommended: { stage: string; recommended_eac: string; guidance: string } };
         activity_count: number; note: string };
       control_accounts: { cost_code: string; bac: number; pv: number; ev: number; ac: number; cv: number;
         sv: number; cpi: number | null; spi: number | null; percent_complete: number }[];

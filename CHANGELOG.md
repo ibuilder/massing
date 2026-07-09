@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.112 — Earned Value Management, E6 + adaptive forecast
+EV measurement rules of credit + the stage-adaptive forecast guidance from the construction-forecasting
+research.
+
+- **EV measurement methods** — `schedule_activity` gains an **EV method** (percent · **0-100** ·
+  **50-50** · **units** · milestone · **LOE**) + units-complete/units-total. The engine honours the rule
+  of credit: 0/100 earns nothing until complete; 50/50 earns half once started; units earns
+  units_complete/units_total; **LOE earns exactly its planned value (EV=PV)** so it can't distort the
+  schedule variance. Applied consistently in the metrics, S-curve, and Earned Schedule.
+- **Stage-adaptive forecast guidance** — the forecast now flags the project **stage** and which forecast
+  to trust: **early/mid → Earned Schedule (SPI(t))** is most accurate (cost EAC is volatile), **late
+  (≥55%) → cost-efficiency (BAC/CPI)** firms up. Straight from the study finding that no single EAC
+  formula is best at every stage. Shown on the EVM dashboard forecast card.
+
+Verified: `test_evm` extended (0/100 → EV 0, 50/50 → 50k, units 3/4 → 75k; stage recommendation) +
+`test_modules` (new fieldset passes the contiguity gate) + typecheck + vitest (56) + build; ruff clean.
+
 ## v0.3.111 — Earned Value Management, E4+E5: S-curve + EVM dashboard
 Makes the EVM engine **visible** — an **📊 Earned Value** destination in the construction workspace.
 
