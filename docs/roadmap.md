@@ -72,7 +72,7 @@ family** (best EAC is stage-dependent per the construction-forecasting research,
 Sequence: **E1+E2** engine+forecast (v0.3.109) → **E3** Earned Schedule shipped (ES/SV(t)/SPI(t)/IEAC(t) →
 forecast finish; fixes the SPI→1.0 tail defect) → **E4+E5** shipped: 3-line S-curve + 📊 Earned Value dashboard + upgraded report
 dashboard/report → **E6** EV measurement methods (0/100, 50/50, units-complete, milestone, LOE) + split
-installed vs billed/stored/retained EV → **E7** model-based EV (qty×rate×installed% from IFC — the
+installed vs billed/stored/retained EV → **E7** shipped: model-based EV (installed-elements % × BAC from field verification — the
 differentiator over P6/Procore-style EVM) + stage-adaptive forecast + earned duration.
 
 **Model authoring — true model-creation program (in progress, P0 = v0.3.102):** upgrading the Model

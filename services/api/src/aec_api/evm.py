@@ -260,6 +260,43 @@ def scurve(db: Session, pid: str, today: date, period: str = "week") -> dict[str
             "note": "PV is the full planned baseline; EV and AC run to the data date."}
 
 
+def model_ev(db: Session, pid: str, data_date: str | None = None) -> dict[str, Any]:
+    """**Model-based earned value** — EV grounded in *physically installed* model elements (field-
+    verified GUIDs from the install-coverage engine), the units-complete method sourced from the model.
+    It's independent of the billing/schedule %, so comparing it to the schedule EV catches over-reported
+    or front-loaded-SOV progress. Needs a loaded property index + field verification.
+    """
+    from sqlalchemy import select
+
+    from .models import ElementVerification
+    from .routers.properties import _INDEX, _ensure_loaded
+
+    _ensure_loaded(pid)
+    total = len(_INDEX.get(pid, {}))
+    rows = list(db.execute(select(ElementVerification.status, ElementVerification.guid)
+                           .where(ElementVerification.project_id == pid)).all())
+    installed = len({g for st, g in rows if st in ("installed", "verified")})
+    tracked = len({g for _, g in rows})
+    denom = total or tracked or 1
+    model_pct = round(100 * installed / denom, 1)
+
+    snap = snapshot(db, pid, data_date)
+    bac = snap["totals"]["bac"]
+    ev_sched = snap["totals"]["ev"]
+    ev_model = round(bac * model_pct / 100, 2)
+    divergence = round(ev_sched - ev_model, 2)                 # + = schedule ahead of physical install
+    flag = bool(bac and divergence > 0.05 * bac)
+    return {
+        "total_elements": total, "installed_elements": installed, "model_percent_complete": model_pct,
+        "bac": bac, "ev_model": ev_model, "ev_schedule": ev_sched, "divergence": divergence,
+        "front_loaded_flag": flag,
+        "note": "Model EV = installed % (field-verified elements) × BAC — the units-complete method from "
+                "the model. If schedule EV exceeds model EV materially, reported progress is running "
+                "ahead of physical installation (often a front-loaded SOV)."
+                + ("" if total else " No property index loaded yet."),
+    }
+
+
 def snapshot(db: Session, pid: str, data_date: str | None = None) -> dict[str, Any]:
     """The full EVM snapshot at the data date: project totals (metrics + forecast family) + a
     per-control-account (cost code) breakdown + per-activity earned value."""

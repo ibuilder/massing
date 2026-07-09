@@ -182,13 +182,16 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Earned Value Management (latest, v0.3.109–v0.3.112)** — a standards-aligned (ANSI/EIA-748) EVM engine
+- **Earned Value Management — complete (latest, v0.3.109–v0.3.113)** — a standards-aligned (ANSI/EIA-748) EVM engine
   that **joins schedule earned value with cost actuals by cost code**: PV/EV/AC/BAC, CV/SV/**CPI/SPI** with
   health bands, a per-control-account table, and the full **EAC/ETC/VAC/TCPI** forecast family (>1.10
   to-complete warning). Plus **Earned Schedule** — ES, SV(t), **SPI(t)**, IEAC(t) → **forecast finish
   date** — the time-based fix for the classic SPI-→-1.0 tail defect. Surfaced in a **📊 Earned Value
-  dashboard** (indices + forecast + **PV/EV/AC S-curve** + control-account table) and the EVM report. EV
-  measurement methods and **model-based EV from IFC quantities** follow.
+  dashboard** (indices + forecast + **PV/EV/AC S-curve** + control-account table) and the EVM report,
+  **EV measurement methods** (0/100 · 50/50 · units · LOE), stage-adaptive forecast guidance, and
+  **model-based EV** — value earned off *physically installed* model elements (field-verified), which
+  cross-checks the schedule EV and flags a front-loaded SOV. The BIM foundation makes this richer than
+  schedule-only EVM tools.
 
 - **Model authoring — incremental preview + MEP fittings (v0.3.108)** — placing an element now
   shows **real one-element geometry immediately**: the server authors just that element into a minimal

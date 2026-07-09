@@ -2213,6 +2213,12 @@ export class ApiClient {
     return this.json<EvmEarnedSchedule & { note?: string }>(
       `/projects/${pid}/evm/earned-schedule?period=${period}`);
   }
+  /** Model-based EV: EV from physically-installed model elements × BAC, vs schedule EV. */
+  evmModelEv(pid: string) {
+    return this.json<{ total_elements: number; installed_elements: number; model_percent_complete: number;
+      bac: number; ev_model: number; ev_schedule: number; divergence: number; front_loaded_flag: boolean;
+      note: string }>(`/projects/${pid}/evm/model-ev`);
+  }
   /** EVM S-curve: cumulative PV (full baseline) + EV + AC to the data date, for the 3-line chart. */
   evmScurve(pid: string, period: "week" | "month" = "week") {
     return this.json<{ period: string; labels: string[]; pv: number[]; ev: number[]; ac: number[];

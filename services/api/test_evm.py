@@ -108,6 +108,11 @@ with TestClient(app) as c:
     assert mm["ev"] == 125000, mm["ev"]                # 0 + 50k + 75k
     assert mm["forecast"]["recommended"]["stage"] in ("early", "mid", "late"), mm["forecast"]["recommended"]
 
+    # --- E7: model-based EV — graceful with no property index (0%), structure present -----------
+    me_ = c.get(f"/projects/{pid3}/evm/model-ev").json()
+    assert me_["total_elements"] == 0 and me_["ev_model"] == 0.0, me_
+    assert "model_percent_complete" in me_ and "front_loaded_flag" in me_ and "ev_schedule" in me_, me_
+
 print("EVM OK - unified metrics BAC 200k / EV 75k / PV 150k / AC 80k -> CV -5k, SV -75k, CPI 0.938 "
       "(concerning), SPI 0.5 (critical); forecast family EAC(cpi/at-plan/cpi*spi) + ETC + VAC + TCPI "
       "with >1.10 warning; control accounts join schedule EV with cost AC by cost code (concrete over "

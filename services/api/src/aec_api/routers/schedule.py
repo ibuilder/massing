@@ -340,6 +340,15 @@ def evm_scurve(pid: str, period: str = "week", db: Session = Depends(get_db),
     return sc or {"note": "No dated, budgeted activities to draw an S-curve."}
 
 
+@router.get("/projects/{pid}/evm/model-ev")
+def evm_model_ev(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """**Model-based EV**: earned value from physically-installed model elements (field-verified GUIDs)
+    × BAC — the units-complete method sourced from the model. Cross-checks the schedule EV to catch
+    over-reported / front-loaded progress."""
+    from .. import evm
+    return evm.model_ev(db, pid)
+
+
 @router.get("/projects/{pid}/schedule/milestones")
 def milestones(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """**Milestone schedule**: the key dates — activities typed `Milestone` (or zero-duration),

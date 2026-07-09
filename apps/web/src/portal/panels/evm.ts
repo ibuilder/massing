@@ -30,9 +30,12 @@ export async function renderEvm(ctx: PanelContext) {
   root.appendChild(pdf);
   const body = el("div"); body.style.marginTop = "8px"; body.textContent = "loading…"; root.appendChild(body);
 
-  let d; let sc;
-  try { d = await ctx.host.api.evm(pid); sc = await ctx.host.api.evmScurve(pid).catch(() => null); }
-  catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+  let d; let sc; let mev;
+  try {
+    d = await ctx.host.api.evm(pid);
+    sc = await ctx.host.api.evmScurve(pid).catch(() => null);
+    mev = await ctx.host.api.evmModelEv(pid).catch(() => null);
+  } catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
   body.innerHTML = "";
   const t = d.totals;
   if (!t.bac) {
@@ -94,6 +97,18 @@ export async function renderEvm(ctx: PanelContext) {
       + `SPI(t) <b style="color:${BAND[es.spi_t_band]}">${idx(es.spi_t)}</b> · `
       + `forecast finish <b>${es.forecast_finish}</b>${es.days_late && es.days_late > 0 ? ` (<span style="color:var(--status-crit)">${es.days_late}d late</span>)` : ""}</div>`;
     body.append(esc2);
+  }
+
+  // --- model-based EV (physically installed elements) ---
+  if (mev && mev.total_elements > 0) {
+    const mc = el("div", "dash-card"); mc.style.cssText = `margin-bottom:8px${mev.front_loaded_flag ? ";border-left:3px solid var(--status-warn)" : ""}`;
+    mc.innerHTML = `<b>Model-based EV</b> <span class="meta">(units-complete from installed model elements)</span>`
+      + `<div class="meta" style="margin-top:2px">${mev.installed_elements} of ${mev.total_elements} elements installed = `
+      + `<b>${mev.model_percent_complete}%</b> · EV(model) <b>${usd(mev.ev_model)}</b> vs EV(schedule) ${usd(mev.ev_schedule)}</div>`
+      + (mev.front_loaded_flag
+        ? `<div class="meta" style="color:var(--status-warn)">⚠ Reported progress is running ahead of physical installation (divergence ${usd(mev.divergence)}) — possible front-loaded SOV.</div>`
+        : `<div class="meta">Schedule EV tracks physical installation (divergence ${usd(mev.divergence)}).</div>`);
+    body.append(mc);
   }
 
   // --- control-account table ---

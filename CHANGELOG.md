@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.113 — Earned Value Management, E7: model-based EV (module complete)
+The differentiator — earn value off the **physically installed model**, not a billing SOV — completes
+the EVM module (E1–E7).
+
+- **Model-based EV** (`evm.model_ev()` + `GET /projects/{id}/evm/model-ev`) — EV grounded in
+  field-verified installed model elements (the install-coverage engine): **model % complete = installed
+  elements ÷ total × BAC**, the units-complete method sourced from the model. It's independent of the
+  schedule/billing %, so it **cross-checks the schedule EV**: when reported EV runs materially ahead of
+  physical installation, it flags a likely **front-loaded SOV** — the exact distortion the research warns
+  about. Surfaced on the EVM dashboard (with a ⚠ when divergent).
+- With this the EVM module is complete: unified metrics + control accounts (E1), forecast family (E2),
+  Earned Schedule (E3), S-curve + dashboard + report (E4/E5), EV measurement methods + stage-adaptive
+  forecast (E6), and model-based EV (E7).
+
+Verified: `test_evm` (model-EV graceful with no index + structure) + the full E1–E6 checks; typecheck +
+vitest (56) + build; ruff clean.
+
 ## v0.3.112 — Earned Value Management, E6 + adaptive forecast
 EV measurement rules of credit + the stage-adaptive forecast guidance from the construction-forecasting
 research.
