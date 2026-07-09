@@ -179,6 +179,57 @@ def earned_schedule(db: Session, pid: str, today: date, period: str = "week") ->
     }
 
 
+def _ev_fraction(a: dict[str, Any], when: date, today: date) -> float:
+    """Reconstructed earned fraction of an activity at `when` — it earns linearly across its actual
+    window (start→finish for completed work, start→today for work in progress to its current %)."""
+    s = a["start"]
+    if not s or when < s:
+        return 0.0
+    target = a["pct"]
+    end = a["finish"] if a["pct"] >= 1.0 and a["finish"] else today
+    if not end or end <= s:
+        return target if when >= s else 0.0
+    return target * max(0.0, min(1.0, (when - s).days / (end - s).days))
+
+
+def scurve(db: Session, pid: str, today: date, period: str = "week") -> dict[str, Any] | None:
+    """The classic EVM **S-curve**: cumulative **PV** (full planned baseline), **EV** and **AC** to the
+    data date, over `period` buckets. EV/AC arrays stop at the data date (so their lines end there while
+    PV runs to the planned finish) + BAC + the working EAC."""
+    acts = _budgeted_activities(db, pid)
+    dated = [a for a in acts if a["start"] and a["finish"]]
+    if not dated:
+        return None
+    pstart = min(a["start"] for a in dated)
+    pfinish = max(a["finish"] for a in dated)
+    pdays = _PERIOD_DAYS.get(period, 7.0)
+    bac = sum(a["budget"] for a in acts)
+
+    # actual costs with a date, for the AC curve
+    costs = []
+    for r in me.list_records(db, "direct_cost", pid, limit=1_000_000):
+        d = r.get("data") or {}
+        costs.append((_d(d.get("date")) or today, _n(d.get("amount"))))
+
+    n_plan = int(math.ceil((pfinish - pstart).days / pdays)) + 1
+    at_periods = max(0, int(math.ceil((today - pstart).days / pdays)))
+    labels, pv, ev, ac = [], [], [], []
+    for i in range(n_plan + 1):
+        dt = pstart + timedelta(days=i * pdays)
+        labels.append(dt.isoformat())
+        pv.append(round(_pv_at(acts, dt), 2))
+        if i <= at_periods:                           # EV + AC only to the data date
+            ev.append(round(sum(_ev_fraction(a, dt, today) * a["budget"] for a in acts), 2))
+            ac.append(round(sum(amt for cd, amt in costs if cd <= dt), 2))
+    cpi = round(ev[-1] / ac[-1], 3) if ac and ac[-1] else None
+    spi = round(ev[-1] / pv[at_periods], 3) if ev and at_periods < len(pv) and pv[at_periods] else None
+    return {"period": period, "labels": labels, "pv": pv, "ev": ev, "ac": ac,
+            "bac": round(bac, 2), "eac": forecasts(bac, ev[-1] if ev else 0.0, ac[-1] if ac else 0.0,
+                                                   cpi, spi)["eac_working"],
+            "data_date_period": at_periods,
+            "note": "PV is the full planned baseline; EV and AC run to the data date."}
+
+
 def snapshot(db: Session, pid: str, data_date: str | None = None) -> dict[str, Any]:
     """The full EVM snapshot at the data date: project totals (metrics + forecast family) + a
     per-control-account (cost code) breakdown + per-activity earned value."""

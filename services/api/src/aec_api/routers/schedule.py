@@ -330,6 +330,16 @@ def evm_earned_schedule(pid: str, period: str = "week", db: Session = Depends(ge
     return es or {"note": "No dated, budgeted activities to compute Earned Schedule."}
 
 
+@router.get("/projects/{pid}/evm/scurve")
+def evm_scurve(pid: str, period: str = "week", db: Session = Depends(get_db),
+               _: str = Depends(require_role("viewer"))):
+    """The EVM **S-curve**: cumulative PV (full baseline) + EV + AC to the data date, over week/month
+    buckets, for the three-line performance chart."""
+    from .. import evm
+    sc = evm.scurve(db, pid, date.today(), period if period in ("week", "month") else "week")
+    return sc or {"note": "No dated, budgeted activities to draw an S-curve."}
+
+
 @router.get("/projects/{pid}/schedule/milestones")
 def milestones(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """**Milestone schedule**: the key dates — activities typed `Milestone` (or zero-duration),

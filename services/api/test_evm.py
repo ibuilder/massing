@@ -84,6 +84,17 @@ with TestClient(app) as c:
     assert es["forecast_finish"] and es["ieac_t_periods"] > 40, es                  # forecast later than plan
     assert es["curve"] and es["curve"][0]["pv"] == 0.0, es["curve"][:1]             # PV starts at 0
 
+    # --- E4: S-curve — PV runs full, EV/AC stop at the data date --------------------------------
+    sc = c.get(f"/projects/{pid2}/evm/scurve").json()
+    assert len(sc["pv"]) > len(sc["ev"]) and len(sc["ev"]) == len(sc["ac"]), (len(sc["pv"]), len(sc["ev"]))
+    assert sc["pv"][0] == 0.0 and sc["ev"][0] == 0.0, sc["pv"][:1]
+    assert sc["pv"][-1] == 10_000_000, sc["pv"][-1]                                 # full PV = BAC at finish
+    assert sc["ev"][-1] > 0 and sc["ev"][-1] <= 4_000_000 + 1, sc["ev"][-1]         # EV ≈ 40% earned to date
+
+    # --- E5: the upgraded EVM report renders (CPI + forecast + control accounts + S-curve) ------
+    rep = c.get(f"/projects/{pid}/reports/evm.pdf")
+    assert rep.status_code == 200 and rep.content[:4] == b"%PDF", (rep.status_code, rep.content[:8])
+
 print("EVM OK - unified metrics BAC 200k / EV 75k / PV 150k / AC 80k -> CV -5k, SV -75k, CPI 0.938 "
       "(concerning), SPI 0.5 (critical); forecast family EAC(cpi/at-plan/cpi*spi) + ETC + VAC + TCPI "
       "with >1.10 warning; control accounts join schedule EV with cost AC by cost code (concrete over "

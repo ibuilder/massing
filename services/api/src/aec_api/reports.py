@@ -26,7 +26,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "executive": ("Executive Summary", "Health"),
     "risk": ("Risk Digest", "Health"),
     "cost": ("Cost Report", "Cost"),
-    "evm": ("EVM / S-Curve", "Cost"),
+    "evm": ("Earned Value Management", "Cost"),
     "change_orders": ("Change Order Log", "Logs"),
     "rfi": ("RFI Log", "Logs"),
     "submittals": ("Submittal Log", "Logs"),
@@ -136,18 +136,54 @@ def _cost(db: Session, pid: str, name: str) -> Report:
 
 
 def _evm(db: Session, pid: str, name: str) -> Report:
-    s = px.summary(db, pid)
-    cash = pb.cashflow(db, pid)
-    r = Report("EVM / S-Curve", name)
-    r.kpi("SPI", s["schedule"]["spi"] if s["schedule"]["spi"] is not None else "—")
-    r.kpi("% complete", f"{s['schedule']['pct_complete']}%")
-    r.kpi("EAC", _money(s["budget"]["eac"]))
-    r.kpi("Cash to date", _money(next((b["cumulative"] for b in reversed(cash["series"]) if b.get("cumulative")), 0)))
-    rows = [[b["month"], _money(b["cost"]), _money(b["cumulative"]), f"{b['pct']}%"] for b in cash["series"]]
-    r.table("Cash-flow S-curve", ["Month", "Period", "Cumulative", "% of total"], rows)
-    if len(cash["series"]) > 1:
-        r.chart("line", "Cash-flow S-curve (cumulative)", [b["month"] for b in cash["series"]],
-                [{"name": "Cumulative cost", "values": [round(b["cumulative"]) for b in cash["series"]]}])
+    from . import evm
+    snap = evm.snapshot(db, pid)
+    t = snap["totals"]
+    f = t["forecast"]
+    es = snap.get("earned_schedule")
+    r = Report("Earned Value Management", name)
+    r.kpi("CPI", t["cpi"] if t["cpi"] is not None else "—")
+    r.kpi("SPI", t["spi"] if t["spi"] is not None else "—")
+    if es and es.get("spi_t") is not None:
+        r.kpi("SPI(t)", es["spi_t"])
+    r.kpi("% complete", f"{t['percent_complete']}%")
+    r.kpi("EAC (working)", _money(f["eac_working"]))
+    r.kpi("VAC", _money(f["vac"]))
+    # performance summary
+    r.table("Performance (data date " + t["data_date"] + ")",
+            ["Metric", "Value"],
+            [["BAC", _money(t["bac"])], ["Planned Value (PV)", _money(t["pv"])],
+             ["Earned Value (EV)", _money(t["ev"])], ["Actual Cost (AC)", _money(t["ac"])],
+             ["Cost Variance (CV=EV−AC)", _money(t["cv"])], ["Schedule Variance (SV=EV−PV)", _money(t["sv"])]])
+    # forecast family
+    r.table("Forecast at completion",
+            ["Method", "Value"],
+            [["EAC — BAC/CPI", _money(f["eac"]["cpi"])], ["EAC — AC+(BAC−EV)", _money(f["eac"]["at_plan"])],
+             ["EAC — ÷(CPI·SPI)", _money(f["eac"]["cpi_spi"])], ["ETC (EAC−AC)", _money(f["etc"])],
+             ["VAC (BAC−EAC)", _money(f["vac"])],
+             ["TCPI to budget" + (" ⚠" if f["tcpi_warning"] else ""),
+              f["tcpi_bac"] if f["tcpi_bac"] is not None else "—"]])
+    if es and es.get("forecast_finish"):
+        r.table("Earned Schedule",
+                ["Metric", "Value"],
+                [["Earned Schedule (periods)", es["earned_schedule_periods"]],
+                 ["SPI(t)", es["spi_t"]], ["SV(t) periods", es["sv_t_periods"]],
+                 ["Forecast finish", es["forecast_finish"]],
+                 ["Days late", es["days_late"] if es["days_late"] is not None else "—"]])
+    # control accounts
+    if snap["control_accounts"]:
+        r.table("Control accounts (cost code)",
+                ["Cost code", "BAC", "EV", "AC", "CV", "SV", "CPI", "SPI"],
+                [[c["cost_code"], _money(c["bac"]), _money(c["ev"]), _money(c["ac"]), _money(c["cv"]),
+                  _money(c["sv"]), c["cpi"] if c["cpi"] is not None else "—",
+                  c["spi"] if c["spi"] is not None else "—"] for c in snap["control_accounts"]])
+    # PV/EV/AC S-curve
+    sc = evm.scurve(db, pid, __import__("datetime").date.today())
+    if sc and len(sc["pv"]) > 1:
+        r.chart("line", "EVM S-curve (PV / EV / AC)", sc["labels"],
+                [{"name": "PV", "values": [round(x) for x in sc["pv"]]},
+                 {"name": "EV", "values": [round(x) for x in sc["ev"]]},
+                 {"name": "AC", "values": [round(x) for x in sc["ac"]]}])
     return r
 
 

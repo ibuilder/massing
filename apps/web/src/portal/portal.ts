@@ -8,6 +8,7 @@ import type { PanelContext } from "./panelContext";
 import { renderOperations, renderFca, renderSpine, renderResilience, renderEnergy, renderTurnover } from "./panels/operations";
 import { renderAiAssist, renderRiskReview } from "./panels/aiassist";
 import { renderBenchmarks, renderRiskCost, renderMarket } from "./panels/analytics";
+import { renderEvm } from "./panels/evm";
 import { renderLandScreen, renderLifecycle, renderDiligence, renderEsg, renderConceptRender } from "./panels/design";
 import { renderProgram, renderBimKpi, renderStandards, renderIds, renderModelAnalysis } from "./panels/standards";
 import { renderDocuments } from "./panels/documents";
@@ -156,6 +157,7 @@ export class PortalUI {
       __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
       __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
       __market__: () => this.renderMarket(), __conceptrender__: () => this.renderConceptRender(),
+      __evm__: () => this.renderEvm(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __modelanalysis__: () => this.renderModelAnalysis(),
@@ -173,6 +175,7 @@ export class PortalUI {
         ["Build", [
           ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__schedule__", icon: "📅", label: "Schedule" }] : []),
           { key: "__budget__", icon: "💰", label: "Budget" },
+          { key: "__evm__", icon: "📊", label: "Earned Value" },            // EVM: CPI/SPI/forecast + S-curve
           { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // weather-sequenced work + site hazards
           { key: "__aiassist__", icon: "✍️", label: "AI Assist" },
         ]],
@@ -445,6 +448,7 @@ export class PortalUI {
   private renderBenchmarks() { return renderBenchmarks(this.panelCtx()); }
   private renderRiskCost() { return renderRiskCost(this.panelCtx()); }
   private renderMarket() { return renderMarket(this.panelCtx()); }
+  private renderEvm() { return renderEvm(this.panelCtx()); }
 
   private renderLandScreen() { return renderLandScreen(this.panelCtx()); }
   private renderLifecycle() { return renderLifecycle(this.panelCtx()); }

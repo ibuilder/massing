@@ -2212,6 +2212,12 @@ export class ApiClient {
     return this.json<EvmEarnedSchedule & { note?: string }>(
       `/projects/${pid}/evm/earned-schedule?period=${period}`);
   }
+  /** EVM S-curve: cumulative PV (full baseline) + EV + AC to the data date, for the 3-line chart. */
+  evmScurve(pid: string, period: "week" | "month" = "week") {
+    return this.json<{ period: string; labels: string[]; pv: number[]; ev: number[]; ac: number[];
+      bac: number; eac: number | null; data_date_period: number; note: string }>(
+      `/projects/${pid}/evm/scurve?period=${period}`);
+  }
   /** Full GC project budget (GMP): direct + GC/GR + overhead/fee/contingency, each budget vs
    *  committed vs actual vs variance; reconciled to the prime contract + developer proforma. */
   gmpBudget(pid: string) {

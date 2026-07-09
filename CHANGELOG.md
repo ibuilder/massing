@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.111 — Earned Value Management, E4+E5: S-curve + EVM dashboard
+Makes the EVM engine **visible** — an **📊 Earned Value** destination in the construction workspace.
+
+- **S-curve** (`evm.scurve()` + `GET /projects/{id}/evm/scurve`) — cumulative **PV** (full planned
+  baseline) plus **EV** and **AC** to the data date, over week/month buckets, drawn as the classic
+  three-line performance chart (EV/AC lines end at the data date while PV runs to the planned finish). EV
+  is reconstructed from each activity's actual window; AC from dated direct costs.
+- **EVM dashboard** (`portal/panels/evm.ts`) — an indices dashboard (**CPI · SPI · SPI(t)** with health
+  bands, CV/SV/SV(t)), the **forecast panel** (EAC family, ETC, VAC, TCPI + warning), the **S-curve**,
+  the **Earned Schedule** summary (forecast finish + days-late), and the **control-account (cost code)
+  table** — worst variance first.
+- **EVM report upgraded** — the `evm` report now emits CPI/SPI/SPI(t), the full performance + forecast
+  tables, Earned Schedule, control accounts, and the PV/EV/AC S-curve (was SPI + a cash curve).
+
+Verified: `test_evm` extended (S-curve PV-full / EV-AC-to-date shape; upgraded report PDF renders) +
+typecheck + vitest (56) + build; ruff clean.
+
 ## v0.3.110 — Earned Value Management, E3: Earned Schedule
 Adds the modern **time-based** EVM extension that fixes the well-known defect where dollar SV/SPI decay
 to $0 / 1.0 at project end regardless of lateness.
