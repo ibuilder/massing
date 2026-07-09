@@ -2,10 +2,11 @@
 Selection in the viewer raycasts to a GUID, then fetches Psets from these endpoints."""
 from __future__ import annotations
 
+import gzip
 import json
 import os
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
 
 from .. import ai, classification, storage
 from ..rbac import require_role
@@ -79,23 +80,62 @@ def _ensure_loaded(pid: str) -> None:
 # Per-model-signature result cache for the expensive read-only scans (facets/color-by). These are
 # recomputed O(n·psets) on every request today; the result only changes when the model does, so we key
 # the cache on the model version (bumped by model_events on publish) and evict LRU-style.
+# Single worker → in-process only. Multi-worker → also shared via Redis (gzip+json values, TTL) when
+# AEC_REDIS_URL is set, so one worker's scan is reused by every other; fail-open to in-process on any
+# Redis error, mirroring model_events / the rate-limiter.
 _SCAN_CACHE: dict[tuple, object] = {}
 _SCAN_CACHE_ORDER: list[tuple] = []
 _SCAN_CACHE_MAX = 400
+_SCAN_TTL = int(os.environ.get("AEC_SCAN_CACHE_TTL", "3600") or "3600")
+
+_scan_redis = None
+if os.environ.get("AEC_REDIS_URL", "").strip():
+    try:                                    # lazy: redis is only a dep when REDIS_URL is set
+        import redis as _redis_lib
+        _scan_redis = _redis_lib.from_url(os.environ["AEC_REDIS_URL"].strip(),
+                                          socket_timeout=0.25, socket_connect_timeout=0.25)
+    except Exception:                        # noqa: BLE001 — redis missing / bad URL → in-process only
+        _scan_redis = None
 
 
 def _scan_cached(pid: str, key: str, compute):
     from .. import model_events
-    ck = (pid, model_events.current(pid)["version"], key)
-    hit = _SCAN_CACHE.get(ck)
+    ver = model_events.current(pid)["version"]
+    rk = None
+    if _scan_redis is not None:
+        rk = f"scan:{pid}:{ver}:{key}"
+        try:                                 # shared read across workers
+            raw = _scan_redis.get(rk)
+            if raw is not None:
+                return json.loads(gzip.decompress(raw))
+        except Exception:                    # noqa: BLE001 — Redis hiccup → fall through to in-process
+            rk = None
+    lck = (pid, ver, key)
+    hit = _SCAN_CACHE.get(lck)
     if hit is not None:
         return hit
     res = compute()
-    _SCAN_CACHE[ck] = res
-    _SCAN_CACHE_ORDER.append(ck)
+    _SCAN_CACHE[lck] = res
+    _SCAN_CACHE_ORDER.append(lck)
     while len(_SCAN_CACHE_ORDER) > _SCAN_CACHE_MAX:
         _SCAN_CACHE.pop(_SCAN_CACHE_ORDER.pop(0), None)
+    if rk is not None:
+        try:
+            _scan_redis.setex(rk, _SCAN_TTL, gzip.compress(json.dumps(res).encode("utf-8")))
+        except Exception:                    # noqa: BLE001 — caching is best-effort
+            pass
     return res
+
+
+def _gzip_json(data, threshold: int = 48_000):
+    """Serialise `data` to JSON, gzipping it on the wire (Content-Encoding, browser-transparent) when it
+    exceeds `threshold` bytes. The colour-by GUID→bucket mapping the 3D viewer needs is inherently
+    O(elements), so we compress the payload rather than cap it (which would break colouring)."""
+    body = json.dumps(data).encode("utf-8")
+    if len(body) < threshold:
+        return Response(body, media_type="application/json")
+    return Response(gzip.compress(body), media_type="application/json",
+                    headers={"Content-Encoding": "gzip", "Vary": "Accept-Encoding"})
 
 
 @router.get("/projects/{pid}/properties/meta")
@@ -189,9 +229,14 @@ def color_facets(pid: str, _: str = Depends(require_role("viewer"))):
 
 
 @router.get("/projects/{pid}/elements/color-by")
-def color_by(pid: str, prop: str, bins: int = 6, _: str = Depends(require_role("viewer"))):
+def color_by(pid: str, prop: str, bins: int = 6, ids: bool = True,
+             _: str = Depends(require_role("viewer"))):
     """Bucket every element by a chosen property → colour buckets for the 3D viewer. Numeric
-    properties are binned into ranges; categorical ones grouped by value (top 24 + Other)."""
+    properties are binned into ranges; categorical ones grouped by value (top 24 + Other).
+
+    `ids=true` (default) returns each bucket's element GUIDs (the viewer needs them to colour), gzipped
+    on the wire when large. `ids=false` returns only labels + counts — a compact distribution for a
+    legend / picker with no per-element payload."""
     _ensure_loaded(pid)
     idx = _INDEX.get(pid)
     if not idx:
@@ -242,7 +287,11 @@ def color_by(pid: str, prop: str, bins: int = 6, _: str = Depends(require_role("
             "total": len(idx), "colored": colored, "unset": len(idx) - colored,
             "buckets": [{"label": b["label"], "count": len(b["guids"]), "guids": b["guids"]} for b in buckets],
         }
-    return _scan_cached(pid, f"colorby:{prop}:{bins}", _compute)
+    full = _scan_cached(pid, f"colorby:{prop}:{bins}", _compute)
+    if not ids:                              # compact distribution — labels + counts only, no GUIDs
+        return {**{k: full[k] for k in ("prop", "kind", "total", "colored", "unset")},
+                "buckets": [{"label": b["label"], "count": b["count"]} for b in full["buckets"]]}
+    return _gzip_json(full)                   # gzip the (inherently O(n)) GUID mapping on the wire
 
 
 @router.get("/projects/{pid}/elements/by-discipline")

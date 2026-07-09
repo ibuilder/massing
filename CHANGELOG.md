@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.100 — Close the two deferred perf items: compressed color-by + cross-worker scan cache
+The two follow-ups the audit deferred are now done:
+
+- **Compressed `color-by` + compact `ids=false` mode** — the viewer's colour-by needs the full
+  GUID→bucket mapping (inherently O(elements)), so instead of capping it (which would break colouring) the
+  large payload is now **gzipped on the wire** (`Content-Encoding: gzip`, transparently decompressed by
+  the browser). A new **`?ids=false`** returns just labels + counts — a compact distribution for a legend
+  or picker with no per-element payload.
+- **Cross-worker scan cache** — the per-model-version cache for the hot `facets-list` / `color-by` scans
+  is now **shared via Redis** (gzip+JSON values, TTL `AEC_SCAN_CACHE_TTL`, default 1 h) when
+  `AEC_REDIS_URL` is set, so one worker's scan is reused by every other; **fail-open** to the in-process
+  cache on any Redis error, matching `model_events` / the rate-limiter. Single-worker / no-Redis is
+  unchanged.
+
+Verified: new `test_scan_cache` (gzip round-trip, Redis fail-open, `ids=false`) + full suite green, ruff
+clean. This closes every item from the four-dimension code audit.
+
 ## v0.3.99 — Audit follow-through (Batch 3): cache the hot model scans + windowed portfolio query
 The deep-performance items from the audit — attacking the "recomputed on every request" cost of the
 property-index scans:

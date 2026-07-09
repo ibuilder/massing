@@ -182,6 +182,15 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
+- **Code-audit follow-through — perf, a11y, populated demo (latest, v0.3.98–v0.3.100)** — a four-dimension
+  audit (wiring, UI/UX, sample data, performance) confirmed the platform is cleanly wired, then shipped the
+  fixes: SQL-`COUNT` dashboards, off-loop index upload, a **per-model-version scan cache** (shared across
+  workers via Redis, fail-open) for the hot colour-by/facets scans, **gzipped colour-by** payloads (+ a
+  compact `ids=false` mode), and a windowed portfolio query; a **keyboard-accessible, responsive Documents
+  file manager** with role and phase-gap views; surfaced the columnar/VIM/STEP analytics in the Model
+  Analysis panel; and a **fully-populated Pages demo** (a seeded model lights up Model Analysis + Document
+  Control, ~826 fixtures).
+
 - **Performance & interop — columnar BIM data, VIM reader, fast STEP scan (latest, v0.3.97)** — a
   string/number-**interned columnar** view of the property index (+ an EAV parameter table) exported as
   **Parquet** for DuckDB/pandas analytics, cutting RAM on large models where psets repeat; a pure-Python

@@ -64,6 +64,15 @@ and **IFC5/IFCX/ifcJSON data reads** (tolerant
 JSON→element-index parser; geometry rendering still lands upstream). Genuinely upstream-only remainder: IFC5
 geometry *rendering* (web-ifc/Fragments) and a bundled/trained CV model.
 
+**Code-audit follow-through (v0.3.98–v0.3.100):** a four-dimension audit (backend wiring, UI/UX, sample
+data, performance) found the platform structurally clean (46/46 routers, 47/47 reports, 32/32 module
+refs). Shipped in three batches + the two deferred items: perf quick-wins (`count_records`, off-loop index
+upload, docmanager `tree()` hoist), Documents a11y/responsive + role/phase-gap views, surfaced the
+columnar/VIM/STEP analytics, a populated Pages demo (seeded model → Model Analysis + Document Control,
+~826 fixtures), a **per-model-version scan cache** (Redis-shared across workers, fail-open) for the hot
+colour-by/facets scans, **gzipped colour-by** (+ compact `ids=false`), and a windowed portfolio scenario
+query. Audit fully closed.
+
 **Ara3D-inspired efficiency (G1–G3, v0.3.97):** columnar/string-interned property index + EAV Parquet
 export for DuckDB analytics (`bim_columns.py`, from Ara3D BimOpenSchema); pure-Python BFAST/G3D/VIM reader
 (`aec_data/bfast.py`) opening `.vim`/`.g3d` offline; a fast streaming STEP metadata/entity-histogram scan
