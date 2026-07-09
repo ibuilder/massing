@@ -11,16 +11,21 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 
 os.environ["DATABASE_URL"] = "sqlite:///./_demo_capture.db"
 os.environ["STORAGE_DIR"] = "./_demo_capture_storage"
 os.environ.pop("AEC_RBAC", None)
+os.environ.setdefault("IFC_DIR", "./_demo_capture_ifc")
+# the data service (aec_data.properties_index) builds the model index the Model Analysis panel reads
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "data", "src"))
 for _f in ("./_demo_capture.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient   # noqa: E402
-from aec_api.main import app                # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "apps", "web", "src", "demo", "demoData.json")
 snap: dict[str, object] = {}
@@ -287,6 +292,80 @@ with TestClient(app) as c:
     mk(c, pid, "space_program", {"name": "Fitness", "space_type": "Amenity", "target_area_sf": 1500, "quantity": 1,
                                  "adjacent_to": ["Residential Unit"]})
 
+    # === Model + Document Control + design + field/safety spine (so those panels aren't empty) ===
+    def mk_try(key, data):
+        try:
+            r = c.post(f"/projects/{pid}/modules/{key}", json={"data": data})
+            if r.status_code not in (200, 201):
+                print(f"  seed-skip {key}: {r.status_code}")
+        except Exception as e:            # noqa: BLE001 — a schema mismatch shouldn't abort the capture
+            print(f"  seed-skip {key}: {e}")
+
+    # a real model so Model Analysis (capabilities / step-summary / LOD / MEP / query / columnar) populates
+    c.post(f"/projects/{pid}/generate/massing",
+           json={"lot_width": 48, "lot_depth": 34, "far": 3.0, "use_type": "residential"})
+    _src = c.get(f"/projects/{pid}").json().get("source_ifc")
+    if _src and os.path.exists(_src):
+        try:
+            from aec_data.properties_index import index_file  # data src on sys.path (see top)
+            _idx = index_file(_src)
+            c.post(f"/projects/{pid}/properties/index",
+                   files={"file": ("props.json", json.dumps(_idx).encode(), "application/json")})
+        except Exception as e:            # noqa: BLE001
+            print(f"  props-index skip: {e}")
+
+    # analysis inputs (envelope / MEP / LOD / drawings / design)
+    mk_try("envelope_assembly", {"name": "Exterior wall type A", "element_type": "Wall", "climate_zone": "4",
+                                 "r_value": 20.5, "u_factor": 0.048})
+    mk_try("envelope_assembly", {"name": "Roof assembly", "element_type": "Roof", "climate_zone": "4",
+                                 "r_value": 30.0, "u_factor": 0.032})
+    mk_try("mep_equipment", {"tag": "RTU-1", "name": "Rooftop Unit 1", "system": "HVAC",
+                             "equipment_type": "Rooftop Unit", "capacity": 40, "capacity_unit": "ton"})
+    mk_try("lod_target", {"element_category": "Structural Framing", "discipline": "Structural",
+                          "phase": "DD", "target_lod": "LOD 300"})
+    mk_try("drawing", {"number": "A-101", "title": "Overall Floor Plan", "discipline": "Architectural", "revision": "P01"})
+    mk_try("drawing", {"number": "S-201", "title": "Framing Plan", "discipline": "Structural", "revision": "P01"})
+    mk_try("drawing_set", {"name": "Permit set", "issue_purpose": "Permit", "revision": "P01"})
+    mk_try("design_option", {"name": "Option A — baseline", "gross_area_sf": 62000, "unit_count": 40, "cost": 41_000_000, "selected": True})
+    mk_try("design_option", {"name": "Option B — efficient core", "gross_area_sf": 61000, "unit_count": 42, "cost": 40_200_000})
+    mk_try("design_standard", {"name": "No PVC piping", "category": "Material", "rule": "prohibited", "keyword": "PVC"})
+
+    # field / safety spine
+    mk_try("subcontract", {"title": "Concrete subcontract", "vendor": "ABC Concrete", "value": 4_800_000, "csi_division": "03"})
+    mk_try("sub_invoice", {"vendor": "ABC Concrete", "amount": 620_000, "title": "Concrete invoice #1", "period": "2026-06"})
+    mk_try("lien_waiver", {"vendor": "ABC Concrete", "amount": 620_000, "title": "Concrete conditional waiver",
+                           "waiver_type": "Conditional Progress", "through_date": "2026-06-30"})
+    mk_try("photo", {"caption": "Level 3 slab pour", "phase": "During", "location": "Level 3"})
+    mk_try("observation", {"description": "Good housekeeping on Level 2", "category": "Positive"})
+    mk_try("checklist", {"name": "Pre-pour checklist L3", "checklist_type": "Quality"})
+    mk_try("timesheet", {"worker": "Concrete crew", "hours": 320, "trade": "Concrete"})
+    mk_try("jha", {"task": "Elevated slab placement", "activity": "Slab placement"})
+    mk_try("toolbox_talk", {"topic": "Fall protection refresher", "date": "2026-06-24"})
+    mk_try("productivity_log", {"activity": "Formwork L3", "trade": "Concrete", "quantity": 4200, "unit": "SF", "hours": 260})
+    mk_try("safety_violation", {"description": "Missing guardrail at Level 3 edge", "severity": "Medium", "status": "Open"})
+
+    # directory + risk + estimate
+    mk_try("company", {"name": "ABC Concrete", "company_type": "Subcontractor", "trade": "Concrete"})
+    mk_try("company", {"name": "Skyline Steel", "company_type": "Subcontractor", "trade": "Structural Steel"})
+    mk_try("contact", {"name": "Jordan Lee", "company": "ABC Concrete", "role": "Project Manager", "email": "jlee@example.com"})
+    mk_try("risk", {"title": "Steel delivery delay", "category": "Schedule", "probability": "Medium", "impact": "High"})
+    mk_try("estimate", {"name": "Conceptual estimate — SD", "total": 40_500_000})
+
+    # Document Control: file a few docs into the standard folder tree
+    def put_doc(folder, name, doc_type, title):
+        try:
+            c.post(f"/projects/{pid}/documents/upload",
+                   data={"path": folder, "title": title, "doc_type": doc_type},
+                   files={"file": (name, b"%PDF-1.7 demo document", "application/pdf")})
+        except Exception as e:            # noqa: BLE001
+            print(f"  doc-skip {folder}: {e}")
+    put_doc("01_Contract Documents/Contract Agreement", "agreement.pdf", "Contract", "Prime Contract Agreement")
+    put_doc("01_Contract Documents/Specifications", "specs.pdf", "Specification", "Project Manual")
+    put_doc("02_Drawings/Architectural", "A-101.pdf", "Drawing", "Overall Floor Plan")
+    put_doc("02_Drawings/Structural", "S-201.pdf", "Drawing", "Framing Plan")
+    put_doc("08_Site Documents/Daily Reports", "daily.pdf", "Report", "Daily Report 2026-06-30")
+    put_doc("04_Payment Applications/Applications", "payapp.pdf", "Application", "Payment Application 01")
+
     # baselines so the variance endpoints return 200 (not 409)
     c.post(f"/projects/{pid}/budget/baseline")
     c.post(f"/projects/{pid}/schedule/baseline")
@@ -328,6 +407,20 @@ with TestClient(app) as c:
                f"{P}/pull-plan/board", f"{P}/pull-plan/metrics", "/benchmarks/pull-planning?min_committed=1"]
     for s in singles:
         grab(c, s)
+    # Model Analysis 🔬 (needs the seeded model) + Documents 📁 + design/drawings — previously all empty
+    import urllib.parse as _up
+    for path in ("/model/capabilities", "/model/step-summary", "/model/query", "/model/query/views",
+                 "/lod/assessment", "/lod/matrix", "/envelope/audit", "/mep/model-extract",
+                 "/naming/audit", "/naming/conventions", "/model/columnar/stats",
+                 "/model/columnar/aggregate", "/drawings/sync-status",
+                 "/documents/tree", "/documents/health", "/documents/template",
+                 "/documents/by-role?role=Superintendent", "/documents/phase-gaps?phase=CD",
+                 "/design/options/compare", "/design/standards", "/design/standards/check",
+                 "/drawing-set"):
+        grab(c, f"{P}{path}")
+    for folder in ("01_Contract Documents/Specifications", "02_Drawings/Architectural",
+                   "08_Site Documents/Daily Reports"):
+        grab(c, f"{P}/documents/folder?path={_up.quote(folder)}")
     for kind in ("gantt", "lob"):
         grab(c, f"{P}/schedule/{kind}.svg", as_text=True)
     # override /me -> read-only viewer, landing in the GC persona (hides write controls)
