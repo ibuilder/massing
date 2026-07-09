@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.108 — Model authoring: incremental preview fragments + MEP fittings
+Completes the draft-performance work and rounds out MEP.
+
+- **Incremental preview fragment** — `POST /projects/{id}/edit-preview` authors *just the placed element*
+  into a minimal one-element IFC at the target level's elevation (`aec_data/preview.py`) and converts
+  only that to a fragment, which the viewer loads immediately as real geometry — so the whole-model
+  reconvert no longer gates what you see. Fully **fail-open**: if the source or converter is unavailable
+  the viewer just keeps the optimistic amber proxy and waits for the normal publish. The preview is
+  auto-disposed when the full model re-streams.
+- **MEP fittings** — duct/pipe **elbows** and **tees / junctions** (`IfcDuctFitting` / `IfcPipeFitting`
+  with BEND / JUNCTION predefined types) join the MEP palette, to detail the runs.
+- **Testing & debug pass** — the new `test_preview` plus a regression sweep across the authoring and
+  generate paths (`test_generate` / `test_estimate` / `test_engines` and the four model-authoring
+  suites) all green, confirming the `edit.py` refactor (optional `profile` arg + the new recipes) didn't
+  regress existing authoring.
+
+Verified: `test_preview` (one-element metre model at the target level carrying the steel profile) + the
+model-authoring + regression subset + web typecheck / vitest (56) / build; ruff clean.
+
 ## v0.3.107 — Model authoring, P6: optimistic draft placement
 Drafting now gives **instant feedback** instead of a blank wait while the server authors and re-streams.
 

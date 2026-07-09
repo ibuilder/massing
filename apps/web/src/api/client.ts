@@ -2416,6 +2416,19 @@ export class ApiClient {
     return this.json<{ recipe: string; changed: number | string; published: unknown }>(
       `/projects/${pid}/edit`, { method: "POST", body: JSON.stringify({ recipe, params, publish }) });
   }
+  /** Incremental one-element preview fragment (real geometry, fast) while the full model republishes.
+   *  Returns the fragment bytes + new element GUID, or null (fail-open → the viewer keeps its proxy). */
+  async editPreview(pid: string, recipe: string, params: Record<string, unknown>):
+      Promise<{ frag: ArrayBuffer; guid: string } | null> {
+    try {
+      const res = await fetch(this.url(`/projects/${pid}/edit-preview`), {
+        method: "POST", headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify({ recipe, params }),
+      });
+      if (!res.ok) return null;
+      return { frag: await res.arrayBuffer(), guid: res.headers.get("X-Element-Guid") || "" };
+    } catch { return null; }
+  }
   /** Starter IFC family library (furniture / sanitary / appliances / plants) — generated
    *  parametrically, so it's placeable into any model incl. a from-scratch massing model. */
   /** Drafting grid (real IfcGrid or derived from columns) + snap intersections + storey levels. */

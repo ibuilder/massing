@@ -69,6 +69,7 @@
   <div class="toc">
     <a href="#start">Getting started</a>
     <a href="#explore">1 · Explore a model</a>
+    <a href="#draft">✏️ Draft &amp; author</a>
     <a href="#generate">2 · Generate from zoning</a>
     <a href="#underwrite">3 · Underwrite a deal</a>
     <a href="#run">4 · Run a project</a>
@@ -117,6 +118,32 @@
     <img class="shot" src="img/plan_grid.png" alt="A dimensioned floor plan generated from the model" />
     <figcaption>The same model also generates 2D drawings — dimensioned plans, sections, elevations, PDF sheets.</figcaption>
   </figure>
+
+  <h2 id="draft">Tutorial ✏️ · Draft &amp; author the model</h2>
+  <p class="sub">Build and edit the model itself — a real family library across all three disciplines,
+    authored as standards-compliant IFC.</p>
+  <ol class="steps">
+    <li>In the <b>Model</b> workspace (with a project + source IFC loaded), open the <b>Grid &amp; Levels</b>
+      tool and click <b>⊞ Load grid + levels</b>. The grid axes (A/B/C × 1/2/3) draw with bubbles; pick the
+      <b>active level</b> from the dropdown — that sets the work-plane your elements land on.</li>
+    <li>Open the <b>Draft — author elements</b> tool. Choose a discipline tab — <b>Architectural ·
+      Structural · MEP · Site</b> — then an element or family and set its <b>named parameters</b>.</li>
+    <li>Click <b>▶ Place</b> and click in the model. Points snap to grid intersections; hold <b>Shift</b>
+      for ortho; for slabs/ceilings click the corners and <b>double-click</b> to close; press <b>Esc</b> to
+      cancel. An <b>amber proxy</b> shows instantly, then real geometry appears as the server authors it.</li>
+    <li>The library spans <b>walls, slabs, roofs, coverings</b> (ceilings, floor tile, wood flooring,
+      cladding) and <b>railings</b>; <b>steel W-shapes, rebar, columns, beams and footings</b>; and full
+      <b>MEP</b> — duct/pipe/cable-tray/cable runs (with connection ports + distribution systems), fittings
+      (elbows/tees), electrical panels, outlets, lights, diffusers, floor drains, plumbing fixtures, fire
+      alarms, smoke detectors and telecom outlets.</li>
+    <li>Everything is authored as <b>native IFC</b> (correct entity + predefined type + standard property
+      sets, e.g. a steel section as a real <b>IfcIShapeProfileDef</b>), written back server-side with
+      <b>stable GUIDs</b> — so it round-trips with any other openBIM tool. To edit a placed element, select
+      it and use the toolbar (move / rotate / copy / property edit / add door or window).</li>
+  </ol>
+  <div class="note">IFC stays the source of truth: the browser captures your intent, the server authors
+    the geometry and re-streams it. Heavy parametric authoring can also be driven on the desktop via
+    Blender + Bonsai over the same operations.</div>
 
   <h2 id="generate">Tutorial 2 · Generate a building from zoning ⭐</h2>
   <p class="sub">The headline feature: turn a lot + zoning rules into a real building and a first-cut deal.</p>

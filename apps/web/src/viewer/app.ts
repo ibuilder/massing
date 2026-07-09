@@ -908,6 +908,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (activeStorey && params.storey === undefined) params.storey = activeStorey;   // author onto the active level
     disarmDraft();
     draftProxies.fromParams(params, activeStoreyZ);                                   // instant optimistic proxy
+    // incremental preview: real one-element geometry immediately (fail-open — keep the proxy on error)
+    try {
+      const pv = await api.editPreview(projectId, a.recipe, params);
+      if (pv?.frag) { await loader.loadFragments(pv.frag, `preview-${pv.guid || Date.now()}`); draftProxies.clear(); }
+    } catch { /* preview unavailable — the optimistic proxy stands until the full reload */ }
     await authorAndReload(a.recipe, params, a.label);
   }
 

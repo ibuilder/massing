@@ -176,6 +176,11 @@ export const DRAFT_ELEMENTS: DraftElement[] = [
   ...mepTerminal("fire_alarm", "Fire alarm", "IfcAlarm", "BELL", [0.15, 0.1, 0.15]),
   ...mepTerminal("smoke_detector", "Smoke detector", "IfcSensor", "SMOKESENSOR", [0.15, 0.15, 0.05]),
   ...mepTerminal("data_outlet", "Data / telecom outlet", "IfcCommunicationsAppliance", null, [0.1, 0.05, 0.1]),
+  // MEP fittings — elbows / tees at a connection point
+  ...mepTerminal("duct_elbow", "Duct elbow", "IfcDuctFitting", "BEND", [0.35, 0.35, 0.35]),
+  ...mepTerminal("duct_tee", "Duct tee / junction", "IfcDuctFitting", "JUNCTION", [0.4, 0.4, 0.35]),
+  ...mepTerminal("pipe_elbow", "Pipe elbow", "IfcPipeFitting", "BEND", [0.1, 0.1, 0.1]),
+  ...mepTerminal("pipe_tee", "Pipe tee / junction", "IfcPipeFitting", "JUNCTION", [0.12, 0.12, 0.1]),
 ];
 
 /** A polygon IfcCovering (ceiling / flooring / cladding) with predefined type + optional material. */

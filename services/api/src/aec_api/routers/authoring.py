@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import audit, storage
@@ -172,6 +172,36 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
         _publish_bg(pid)
         result["publish"] = "running"
     return result
+
+
+@router.post("/projects/{pid}/edit-preview")
+def edit_preview(pid: str, recipe: str = Body(..., embed=True),
+                 params: dict = Body(default={}, embed=True),
+                 db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Author just this element into a one-element IFC + convert it to a small preview fragment (fast),
+    so the viewer can show real geometry immediately while the full model republishes in the
+    background. Fail-open: 503 when the source/converter is unavailable, so the client just keeps its
+    optimistic proxy and waits for the normal publish."""
+    from aec_data import preview as pv  # type: ignore
+
+    p = _project(db, pid)
+    if not p.source_ifc or not Path(p.source_ifc).exists() or not _CONVERTER.exists():
+        raise HTTPException(503, "preview unavailable")
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = str(Path(td) / "pv.ifc")
+            out = str(Path(td) / "pv_out.ifc")
+            frag = Path(td) / "pv.frag"
+            guid = pv.build_preview_ifc(p.source_ifc, recipe, params, out, tmp)
+            subprocess.run(["node", str(_CONVERTER), out, str(frag)],
+                           check=True, capture_output=True, timeout=120)
+            data = frag.read_bytes()
+    except HTTPException:
+        raise
+    except Exception as e:            # noqa: BLE001 — any preview failure → client keeps the proxy
+        raise HTTPException(503, f"preview failed: {str(e)[:120]}") from e
+    return Response(content=data, media_type="application/octet-stream",
+                    headers={"X-Element-Guid": guid or ""})
 
 
 @router.post("/projects/{pid}/publish", status_code=202)

@@ -182,10 +182,14 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Model authoring — optimistic draft placement (latest, v0.3.107)** — placing an element now shows an
+- **Model authoring — incremental preview + MEP fittings (latest, v0.3.108)** — placing an element now
+  shows **real one-element geometry immediately**: the server authors just that element into a minimal
+  IFC and converts only it to a fragment (`/edit-preview`), while the full model republishes in the
+  background (fail-open to an amber proxy). Duct/pipe **elbows and tees** join the MEP palette.
+
+- **Model authoring — optimistic draft placement (v0.3.107)** — placing an element shows an
   instant amber proxy where it will land, replaced by the real geometry once the server authors the IFC
-  and re-streams the fragment — so drafting feels live. (Server-side incremental single-element fragment
-  append is the remaining perf follow-up.)
+  and re-streams the fragment.
 
 - **Model authoring — architectural finishes (v0.3.106)** — draw **ceilings, floor tile, wood
   flooring and wall cladding** (`IfcCovering` by predefined type + finish material) and **railings**
