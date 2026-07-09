@@ -143,8 +143,8 @@ def safety_metrics(pid: str, hours: float | None = None, db: Session = Depends(g
     return {"incident_count": len(incs), "by_class": by_class, "recordable_count": recordable,
             "lost_time_count": lost_time, "lost_days": lost_days, "hours_worked": round(hours, 1),
             "trir": trir, "dart": dart,
-            "observation_count": len(me.list_records(db, "observation", pid, limit=1_000_000)),
-            "toolbox_talk_count": len(me.list_records(db, "toolbox_talk", pid, limit=1_000_000))}
+            "observation_count": me.count_records(db, "observation", pid),
+            "toolbox_talk_count": me.count_records(db, "toolbox_talk", pid)}
 
 
 @router.get("/capabilities")
@@ -193,7 +193,7 @@ def _ask_context(db: Session, pid: str) -> dict:
     for m in _ASK_COUNT_MODULES:
         if m in me.TABLES:
             try:
-                counts[m] = len(me.list_records(db, m, pid, limit=1_000_000))
+                counts[m] = me.count_records(db, m, pid)   # SQL COUNT, no JSON row load
             except Exception:        # noqa: BLE001 — a missing/odd module never breaks the snapshot
                 pass
     ctx["record_counts"] = counts

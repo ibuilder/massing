@@ -79,19 +79,22 @@ def tree(pid: str) -> dict[str, Any]:
     """The standard taxonomy annotated with per-folder active-file counts, required-doc gaps and owner
     role. Counts roll up to parent folders so the tree shows totals at every level."""
     idx = _load(pid)
+    active = _active(idx)                       # compute once, not per folder node
     counts: dict[str, int] = {}
-    for f in _active(idx):
+    direct: dict[str, int] = {}
+    for f in active:
         p = f["folder"]
+        direct[p] = direct.get(p, 0) + 1
         # count against the folder and every ancestor
         parts = p.split("/")
         for i in range(len(parts)):
-            counts[("/".join(parts[: i + 1]))] = counts.get("/".join(parts[: i + 1]), 0) + 1
+            anc = "/".join(parts[: i + 1])
+            counts[anc] = counts.get(anc, 0) + 1
     nodes = []
     for n in folder_template.tree():
-        direct = sum(1 for f in _active(idx) if f["folder"] == n["path"])
-        nodes.append({**n, "count": counts.get(n["path"], 0), "direct_count": direct,
+        nodes.append({**n, "count": counts.get(n["path"], 0), "direct_count": direct.get(n["path"], 0),
                       "gap": bool(n["required"] and counts.get(n["path"], 0) == 0)})
-    return {"project": pid, "nodes": nodes, "total_files": len(_active(idx)),
+    return {"project": pid, "nodes": nodes, "total_files": len(active),
             "required_gaps": [n["path"] for n in nodes if n["gap"]]}
 
 

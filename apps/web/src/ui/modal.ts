@@ -52,6 +52,32 @@ export function modalShell(titleText: string, minWidth = 280): ModalHandle {
   return { ov, card, msg, close };
 }
 
+/** Accessible replacement for window.confirm(): a modalShell dialog with a message + Confirm/Cancel.
+ *  Resolves true on confirm, false on cancel/Esc/backdrop. `danger` styles the confirm button red. */
+export function confirmModal(title: string, body: string, okLabel = "Confirm",
+                             danger = false): Promise<boolean> {
+  return new Promise((resolve) => {
+    const m = modalShell(title, 340);
+    const b = document.createElement("div");
+    b.className = "meta"; b.style.whiteSpace = "pre-line"; b.textContent = body;
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:4px";
+    const cancel = document.createElement("button"); cancel.textContent = "Cancel"; cancel.className = "file-btn";
+    const ok = document.createElement("button"); ok.textContent = okLabel; ok.className = "file-btn";
+    ok.style.fontWeight = "600";
+    if (danger) ok.style.color = "#dc2626";
+    row.append(cancel, ok); m.card.append(b, row);
+    let settled = false;
+    const done = (v: boolean) => { if (settled) return; settled = true; m.close(); resolve(v); };
+    cancel.onclick = () => done(false);
+    ok.onclick = () => done(true);
+    const mo = new MutationObserver(() => {
+      if (!document.body.contains(m.ov)) { mo.disconnect(); done(false); }   // Esc / backdrop
+    });
+    mo.observe(document.body, { childList: true });
+  });
+}
+
 export interface PromptField {
   name: string;
   label: string;

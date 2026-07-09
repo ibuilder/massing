@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.98 — Audit follow-through (Batch 1): perf quick-wins, Documents a11y, surfaced analytics
+A four-dimension code audit (wiring, UI/UX, sample data, performance) found the platform structurally
+sound — **zero broken wiring** (46/46 routers, 47/47 reports, 32/32 module refs), all panels reachable.
+This ships the low-risk quick wins from it:
+
+- **Performance:** dashboard/AI-ask/closeout counts now use a SQL `COUNT` (`count_records`) instead of
+  materialising whole JSON tables just to call `len()`; `properties/index` upload parses off the event
+  loop (`run_in_threadpool`) and stores the received bytes verbatim (no redundant re-serialize); the
+  document-manager `tree()` computes its active-file set once instead of per folder node.
+- **Documents file manager (a11y + UX):** the folder tree is now keyboard-operable (`role`/`tabindex`/
+  Enter-Space) instead of mouse-only; delete uses the app's accessible modal instead of the native
+  `confirm()`; the two-pane layout wraps to stacked on narrow viewports; a **role filter** (PM /
+  Superintendent / Architect / Engineer / QS) and a **phase-gap check** (AIA SD/DD/CD/CA/CLOSEOUT) are
+  now surfaced (they reuse the by-role and phase-gaps endpoints that were built but unwired).
+- **Surfaced built-but-invisible analytics:** the 🔬 Model Analysis panel now shows the **fast STEP model
+  summary** (entity-type histogram, no full parse — G3), the **columnar interning efficiency** stat + an
+  **EAV `params.parquet`** download (G1), and a **VIM / G3D inspect** control (G2); export links are gated
+  on a loaded model (no raw 409s), and Documents + Model Analysis are now reachable from the **developer**
+  workspace too.
+- **A11y polish:** `th scope="col"` + `aria-label`s on the Model Analysis tables/selects.
+
+Verified: full backend suite green, web typecheck + vitest 49/49, ruff clean.
+
 ## v0.3.97 — Ara3D-inspired efficiency track: columnar BIM data, BFAST/VIM reader, fast STEP scan
 Three efficiency/interop wins drawn from a review of the [Ara3D SDK](https://github.com/ara3d/ara3d-sdk)
 (MIT; see [ATTRIBUTIONS](docs/ATTRIBUTIONS.md)) — ported/adapted where it added value, skipped where our

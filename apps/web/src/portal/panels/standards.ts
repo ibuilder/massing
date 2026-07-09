@@ -296,7 +296,7 @@ export async function renderModelAnalysis(ctx: PanelContext) {
     };
     const table = (headers: string[], rows: (string | number)[][]) => {
         const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
-        t.innerHTML = `<thead><tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>`
+        t.innerHTML = `<thead><tr>${headers.map((h) => `<th scope="col">${esc(h)}</th>`).join("")}</tr></thead><tbody>`
             + (rows.map((r) => `<tr>${r.map((c) => `<td>${esc(String(c))}</td>`).join("")}</tr>`).join("")
                 || `<tr><td colspan="${headers.length}">—</td></tr>`) + "</tbody>";
         return t;
@@ -319,11 +319,31 @@ export async function renderModelAnalysis(ctx: PanelContext) {
         cap.appendChild(m);
     }).catch(fail(cap));
 
-    const ex = section("📤 Export");
-    {
+    // Fast model summary (G3 — streaming STEP scan, no full parse)
+    const sum = section("🧾 Model summary (fast scan)");
+    void ctx.host.api.modelStepSummary(pid).then((s) => {
+        sum.textContent = "";
+        if (!s.ok) { sum.textContent = "no source model on this project"; return; }
+        const m = el("div", "meta");
+        m.innerHTML = `Schema <b>${esc(s.schema || "?")}</b> · <b>${s.total_entities ?? 0}</b> entities · `
+            + `<b>${s.distinct_types ?? 0}</b> types`;
+        sum.appendChild(m);
+        if (s.histogram?.length) sum.appendChild(table(["IFC class", "Count"],
+            s.histogram.slice(0, 12).map((h) => [h.ifc_class, h.count])));
+    }).catch(fail(sum));
+
+    // Export + columnar/interning efficiency (G1). Gated on a loaded model to avoid raw 409s.
+    const ex = section("📤 Export & analytics");
+    void ctx.host.api.modelColumnarStats(pid).then((st) => {
         ex.textContent = "";
-        const note = el("div", "meta");
-        note.textContent = "Download the model element table (columnar/graph) or the geometry as glTF 2.0:";
+        if (!st.model_loaded) { ex.textContent = "Publish a model to export or analyse it."; return; }
+        const eff = el("div", "meta");
+        eff.innerHTML = `Columnar interning: <b>${st.unique_strings ?? 0}</b> unique strings, `
+            + `dedup <b>${st.dedup_ratio ?? "—"}×</b>`
+            + (st.est_reduction_pct != null ? ` (~${st.est_reduction_pct}% smaller in RAM)` : "");
+        const note = el("div", "meta"); note.style.marginTop = "6px";
+        note.textContent = "Element table (CSV / JSON-LD / Parquet), the EAV parameter table (Parquet, "
+            + "for DuckDB/pandas), or the geometry as glTF 2.0:";
         const row = el("div"); row.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:6px";
         const link = (label: string, href: string) => {
             const a = el("a", "btn") as HTMLAnchorElement;
@@ -332,16 +352,18 @@ export async function renderModelAnalysis(ctx: PanelContext) {
         row.append(
             link("CSV", ctx.host.api.modelExportUrl(pid, "csv")),
             link("JSON-LD", ctx.host.api.modelExportUrl(pid, "jsonld")),
-            link("Parquet", ctx.host.api.modelExportUrl(pid, "parquet")),
+            link("Parquet (elements)", ctx.host.api.modelExportUrl(pid, "parquet")),
+            link("Parquet (params)", ctx.host.api.modelParamsParquetUrl(pid)),
             link("glTF (geometry)", ctx.host.api.modelGltfUrl(pid)),
         );
-        ex.append(note, row);
-    }
+        ex.append(eff, note, row);
+    }).catch(fail(ex));
 
     const q = section("🔎 Model query");
     void ctx.host.api.modelQueryViews(pid).then((v) => {
         q.textContent = "";
         const pick = el("select", "portal-filter") as HTMLSelectElement; pick.style.marginBottom = "6px";
+        pick.setAttribute("aria-label", "Saved model query");
         pick.innerHTML = v.views.map((x) => `<option value="${esc(x.id)}">${esc(x.label)}</option>`).join("");
         const out = el("div");
         const run = () => { out.textContent = "…"; void ctx.host.api.modelQuery(pid, pick.value).then((r) => {
@@ -384,4 +406,29 @@ export async function renderModelAnalysis(ctx: PanelContext) {
             ["Containers", a.containers.total, a.containers.compliant, a.containers.compliance_pct ?? "—"],
             ["Sheets", a.sheets.total, a.sheets.compliant, a.sheets.compliance_pct ?? "—"]]));
     }).catch(fail(nm));
+
+    // Interop: inspect a VIM / G3D file (G2) — schema, buffers, geometry stats. Offline.
+    const vim = section("🔗 Inspect VIM / G3D");
+    vim.textContent = "";
+    const vnote = el("div", "meta");
+    vnote.textContent = "Open an Ara3D/VIM .vim or .g3d file to read its schema, buffers and geometry stats:";
+    const vlab = el("label", "btn") as HTMLLabelElement; vlab.textContent = "📂 Choose .vim / .g3d";
+    vlab.style.cssText = "cursor:pointer;margin-top:6px;display:inline-block";
+    const vfile = el("input") as HTMLInputElement; vfile.type = "file"; vfile.accept = ".vim,.g3d";
+    vfile.style.display = "none"; vlab.appendChild(vfile);
+    const vout = el("div", "meta"); vout.style.marginTop = "6px";
+    vfile.onchange = async () => {
+        const f = vfile.files?.[0]; if (!f) return;
+        vout.textContent = "inspecting…";
+        try {
+            const r = await ctx.host.api.inspectVim(f) as Record<string, unknown>;
+            const geo = (r.geometry as Record<string, unknown>) || {};
+            vout.innerHTML = `<b>${esc(String(r.format || "?"))}</b>`
+                + (r.vim_version ? ` v${esc(String(r.vim_version))}` : "")
+                + (r.schema ? ` · schema ${esc(String(r.schema))}` : "")
+                + (Array.isArray(r.buffers) ? ` · ${(r.buffers as unknown[]).length} buffers` : "")
+                + (geo.triangles != null ? ` · ${geo.vertices} verts / ${geo.triangles} tris` : "");
+        } catch (e) { vout.textContent = `failed: ${(e as Error).message}`; }
+    };
+    vim.append(vnote, vlab, vout);
 }

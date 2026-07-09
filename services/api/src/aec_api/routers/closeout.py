@@ -48,7 +48,7 @@ def warranties_expiring(pid: str, within_days: int = 90, db: Session = Depends(g
             expiring.append(item)
     expiring.sort(key=lambda x: x["days_left"])
     return {"within_days": within_days, "expired": expired, "expiring": expiring,
-            "total_warranties": len(me.list_records(db, "warranty", pid, limit=1_000_000))}
+            "total_warranties": me.count_records(db, "warranty", pid)}
 
 
 @router.get("/projects/{pid}/compliance/expiring")

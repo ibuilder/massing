@@ -1604,6 +1604,30 @@ export class ApiClient {
   modelGltfUrl(pid: string) {
     return this.url(`/projects/${pid}/model/export.gltf`);
   }
+  /** Interning/columnar efficiency stats (dedup ratio + estimated RAM saved) — G1. */
+  modelColumnarStats(pid: string) {
+    return this.json<{ model_loaded: boolean; elements?: number; param_rows?: number;
+      unique_strings?: number; dedup_ratio?: number | null; est_bytes_saved?: number;
+      est_reduction_pct?: number | null }>(`/projects/${pid}/model/columnar/stats`);
+  }
+  /** Download URL for the EAV parameter table as Parquet (analytics) — G1. */
+  modelParamsParquetUrl(pid: string) {
+    return this.url(`/projects/${pid}/model/export/params.parquet`);
+  }
+  /** Fast model summary — entity-type histogram from a streaming STEP scan (no full parse) — G3. */
+  modelStepSummary(pid: string) {
+    return this.json<{ ok: boolean; schema?: string | null; total_entities?: number;
+      distinct_types?: number; file_size_bytes?: number;
+      histogram?: { ifc_class: string; count: number }[] }>(`/projects/${pid}/model/step-summary`);
+  }
+  /** Inspect an uploaded VIM / G3D file (schema, buffers, geometry stats) — G2. */
+  async inspectVim(file: File) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/convert/vim/inspect`),
+      { method: "POST", headers: this.authHeaders(), body: fd });
+    if (!res.ok) throw new Error((await res.text()) || `inspect failed (${res.status})`);
+    return res.json() as Promise<Record<string, unknown>>;
+  }
   /** Model version/signature for 2D staleness (bumps on publish; /drawings/stream pushes it). */
   drawingsSyncStatus(pid: string) {
     return this.json<{ model_loaded: boolean; version: number; signature: string | null;

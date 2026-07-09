@@ -50,12 +50,15 @@ def _load(pid: str, payload: dict) -> int:
 async def upload_index(pid: str, file: UploadFile = File(...), _: str = Depends(require_role("editor"))):
     """Upload the props.json produced by the data service (`aec_data.cli index`). Size-gated —
     json.loads of an unbounded upload would parse an arbitrarily large body entirely in RAM."""
+    from starlette.concurrency import run_in_threadpool
     max_mb = int(os.environ.get("AEC_PROPS_MAX_MB", "100") or "100")
     raw = await file.read()
     if len(raw) > max_mb * 1024 * 1024:
         raise HTTPException(413, f"properties index exceeds {max_mb} MB (raise AEC_PROPS_MAX_MB)")
-    payload = json.loads(raw)
-    storage.put(f"{pid}/props.json", json.dumps(payload).encode("utf-8"))
+    # Parse off the event loop (up to AEC_PROPS_MAX_MB of JSON would otherwise block every request on
+    # this worker), and store the received bytes verbatim — no redundant json.dumps re-serialize.
+    payload = await run_in_threadpool(json.loads, raw)
+    storage.put(f"{pid}/props.json", raw)
     n = _load(pid, payload)
     # A new index IS "the model changed": bump the model version so open 2D views regenerate (the
     # on-demand drawings render live from the model — this is the auto-propagate signal, no event bus).

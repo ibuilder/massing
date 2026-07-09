@@ -219,6 +219,10 @@ export class PortalUI {
           { key: "__resilience__", icon: "🌊", label: "Climate Resilience" },
           { key: "__esg__", icon: "🌱", label: "ESG & POE" },
         ]],
+        ["Documents & model", [
+          { key: "__documents__", icon: "📁", label: "Documents" },
+          { key: "__modelanalysis__", icon: "🔬", label: "Model Analysis" },
+        ]],
       ],
     };
     const stages: [string, Dest[]][] = stagesByWs[this.wsFilter] ?? stagesByWs.construction;

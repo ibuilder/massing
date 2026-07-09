@@ -1,5 +1,6 @@
 import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
+import { confirmModal } from "../../ui/modal";
 import type { DocFile, DocFolderNode } from "../../api/client";
 import type { PanelContext } from "../panelContext";
 
@@ -28,11 +29,24 @@ export async function renderDocuments(ctx: PanelContext) {
       + (h.superseded_kept ? ` · <span class="meta">${h.superseded_kept} superseded kept</span>` : "");
   }).catch(() => { health.textContent = ""; });
 
-  const wrap = el("div"); wrap.style.cssText = "display:flex;gap:12px;align-items:flex-start";
+  // controls: filter the tree by owner role, or check required-doc gaps for a design phase
+  const controls = el("div"); controls.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px";
+  const roleSel = el("select", "portal-filter") as HTMLSelectElement;
+  roleSel.setAttribute("aria-label", "Filter folders by owner role");
+  roleSel.innerHTML = ["All roles", "PM", "Superintendent", "Architect", "Engineer", "QS"]
+    .map((r) => `<option>${r}</option>`).join("");
+  const phaseSel = el("select", "portal-filter") as HTMLSelectElement;
+  phaseSel.setAttribute("aria-label", "Check required documents for a design phase");
+  phaseSel.innerHTML = `<option value="">Phase gaps…</option>`
+    + ["SD", "DD", "CD", "CA", "CLOSEOUT"].map((p) => `<option>${p}</option>`).join("");
+  controls.append(roleSel, phaseSel); root.appendChild(controls);
+
+  // two-pane, but wraps to stacked on narrow viewports (min-width:0 lets the table scroll, not overflow)
+  const wrap = el("div"); wrap.style.cssText = "display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap";
   const left = el("div", "dash-card");
-  left.style.cssText = "flex:0 0 320px;max-height:70vh;overflow:auto;padding:6px";
+  left.style.cssText = "flex:1 1 280px;min-width:0;max-height:70vh;overflow:auto;padding:6px";
   const right = el("div", "dash-card");
-  right.style.cssText = "flex:1;min-width:0;max-height:70vh;overflow:auto";
+  right.style.cssText = "flex:2 1 360px;min-width:0;max-height:70vh;overflow:auto";
   wrap.append(left, right); root.appendChild(wrap);
 
   let nodes: DocFolderNode[] = [];
@@ -78,7 +92,9 @@ export async function renderDocuments(ctx: PanelContext) {
 
     if (!data.files.length) { right.appendChild(el("div", "meta")).textContent = "No files in this folder yet."; return; }
     const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
-    t.innerHTML = "<thead><tr><th>Document</th><th>Disc.</th><th>Rev</th><th>State</th><th>Uploaded</th><th></th></tr></thead>";
+    t.innerHTML = "<thead><tr><th scope=\"col\">Document</th><th scope=\"col\">Disc.</th>"
+      + "<th scope=\"col\">Rev</th><th scope=\"col\">State</th><th scope=\"col\">Uploaded</th>"
+      + "<th scope=\"col\"></th></tr></thead>";
     const tb = el("tbody");
     for (const f of data.files) tb.appendChild(fileRow(f, path));
     t.appendChild(tb); right.appendChild(t);
@@ -108,7 +124,9 @@ export async function renderDocuments(ctx: PanelContext) {
     const del = el2("button") as HTMLButtonElement; del.textContent = "🗑"; del.title = "Delete";
     del.style.cssText = "background:none;border:none;cursor:pointer";
     del.onclick = async () => {
-      if (!confirm(`Delete ${f.name}?`)) return;
+      const ok = await confirmModal("Delete document", `Delete ${f.name}?\nThe file is removed from ${path}.`,
+        "Delete", true);
+      if (!ok) return;
       try { await api.deleteDocument(pid!, f.id); toast("Deleted"); await refreshTreeCounts(); await loadFolder(path); }
       catch (e) { toast(`Delete failed: ${(e as Error).message}`); }
     };
@@ -117,20 +135,26 @@ export async function renderDocuments(ctx: PanelContext) {
     return tr;
   }
 
-  function renderTree() {
+  function renderTree(list: DocFolderNode[] = nodes) {
     left.innerHTML = "";
     const title = el("div"); title.style.cssText = "font-weight:600;padding:4px 6px"; title.textContent = "Standard folders";
     left.appendChild(title);
-    for (const n of nodes) {
+    if (!list.length) { const e = el("div", "meta"); e.style.padding = "6px"; e.textContent = "No folders for this filter."; left.appendChild(e); return; }
+    for (const n of list) {
       const row = el("div"); row.dataset.fp = n.path;
+      // real button semantics: keyboard-focusable + Enter/Space activate (the primary nav surface)
+      row.setAttribute("role", "button"); row.tabIndex = 0;
+      row.setAttribute("aria-label", `${n.label}${n.count ? `, ${n.count} files` : ", empty"}${n.gap ? ", required" : ""}`);
       row.style.cssText = `padding:3px 6px;cursor:pointer;border-radius:4px;display:flex;align-items:center;gap:6px;`
-        + `padding-left:${6 + n.depth * 14}px;font-weight:${n.depth === 0 ? 600 : 400}`;
+        + `padding-left:${6 + n.depth * 14}px;font-weight:${n.depth === 0 ? 600 : 400};outline-offset:-2px`;
       const label = el("span"); label.textContent = `📁 ${n.label}`;
       row.appendChild(label);
       if (n.count) { const b = el("span", "meta"); b.textContent = String(n.count); b.style.cssText = "font-size:10px;background:var(--hover,#e5edff);border-radius:8px;padding:0 6px"; row.appendChild(b); }
       if (n.gap) { const g = el("span"); g.textContent = "⚠"; g.title = "required — no documents yet"; row.appendChild(g); }
-      if (n.depth === 0 && n.owner_role) { const o = el("span", "meta"); o.textContent = n.owner_role; o.style.fontSize = "10px"; o.style.marginLeft = "auto"; row.appendChild(o); }
-      row.onclick = () => void loadFolder(n.path);
+      if (n.owner_role) { const o = el("span", "meta"); o.textContent = n.owner_role; o.style.fontSize = "10px"; o.style.marginLeft = "auto"; row.appendChild(o); }
+      const go = () => void loadFolder(n.path);
+      row.onclick = go;
+      row.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
       left.appendChild(row);
     }
   }
@@ -141,6 +165,35 @@ export async function renderDocuments(ctx: PanelContext) {
         if ((x as HTMLElement).dataset.fp === selected) (x as HTMLElement).style.background = "var(--hover,#e5edff)"; });
     } catch { /* ignore */ }
   }
+
+  // role filter → the role-based view of the tree (uses the by-role endpoint)
+  roleSel.onchange = async () => {
+    if (roleSel.selectedIndex === 0) { renderTree(nodes); return; }
+    try { const r = await api.documentsByRole(pid, roleSel.value); renderTree(r.folders); }
+    catch { renderTree(nodes); }
+  };
+  // phase-gaps → required-document checklist for a design phase, shown in the right pane
+  phaseSel.onchange = async () => {
+    if (!phaseSel.value) return;
+    right.innerHTML = ""; (right.appendChild(el("div", "meta")) as HTMLElement).textContent = "checking…";
+    try {
+      const g = await api.documentsPhaseGaps(pid, phaseSel.value);
+      right.innerHTML = "";
+      const h = el("div"); h.style.cssText = "font-weight:600;margin-bottom:6px";
+      h.textContent = `${g.phase} required documents — ${g.complete ? "all present ✅" : `${g.missing} missing`}`;
+      const tb = el("table", "portal-table") as HTMLTableElement; tb.style.cssText = "width:100%;font-size:12px";
+      tb.innerHTML = "<thead><tr><th scope=\"col\">Folder</th><th scope=\"col\">Needs</th>"
+        + "<th scope=\"col\">Status</th></tr></thead>";
+      const body = el("tbody");
+      for (const it of g.items) {
+        const tr = el("tr");
+        tr.innerHTML = `<td>${esc(it.folder)}</td><td>${esc(it.description)}</td>`
+          + `<td>${it.present ? "✅" : "⚠ missing"}</td>`;
+        body.appendChild(tr);
+      }
+      tb.appendChild(body); right.append(h, tb);
+    } catch (e) { right.textContent = `failed: ${(e as Error).message}`; }
+  };
 
   try {
     const t = await api.documentsTree(pid);
