@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.99 — Audit follow-through (Batch 3): cache the hot model scans + windowed portfolio query
+The deep-performance items from the audit — attacking the "recomputed on every request" cost of the
+property-index scans:
+
+- **Per-model-version scan cache** — the two hottest read scans (`elements/facets-list`, the O(n·psets)
+  distinct-value scan, and `elements/color-by`) are now memoised keyed on the **model version**
+  (`model_events`, bumped on publish). Repeated analytics requests for an unchanged model are served from
+  cache instead of re-scanning every element × every property; the cache invalidates automatically when a
+  new model is published, and evicts LRU-style (bounded).
+- **Windowed portfolio scenario query** — `executive_portfolio` fetched **every** scenario's full result
+  JSON across all projects just to keep the latest per project; it now uses a windowed
+  `GROUP BY project → MAX(created_at)` join to load only the latest scenario per project.
+
+(`color-by` still returns the full GUID→bucket mapping — the 3D viewer needs it to colour — so its payload
+size is inherent; a compact run-length encoding is a tracked follow-up rather than a break-the-viewer cap.)
+
+Verified: affected suites (analytics / portfolio / dashboard / api) green, ruff clean. Frontend bundle was
+already healthy (code-split + Brotli budget) — no change. This completes the four-dimension audit
+follow-through (Batch 1 perf/UX/analytics · Batch 2 demo data · Batch 3 deep perf).
+
 ## v0.3.98 — Audit follow-through (Batch 1): perf quick-wins, Documents a11y, surfaced analytics
 A four-dimension code audit (wiring, UI/UX, sample data, performance) found the platform structurally
 sound — **zero broken wiring** (46/46 routers, 47/47 reports, 32/32 module refs), all panels reachable.

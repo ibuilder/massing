@@ -63,12 +63,18 @@ def executive_portfolio(db: Session = Depends(get_db), _: str = Depends(rbac.cur
     late milestones) next to on-budget (GMP, EAC, variance-at-completion) with its overall status,
     plus portfolio totals and a status tally. The 'how's the whole book doing?' view, built on the
     same px-summary each project's dashboard shows."""
+    from sqlalchemy import func
+
     from .. import px
     from ..models import Scenario
 
     # latest solved scenario per project → developer returns (IRR / EM) alongside the GC status
     returns_by_proj: dict[str, dict] = {}
-    for s in db.query(Scenario).order_by(Scenario.created_at).all():
+    # only the latest scenario per project (windowed) — not every scenario's full result blob
+    _latest = (db.query(Scenario.project_id, func.max(Scenario.created_at).label("mx"))
+               .filter(Scenario.project_id.isnot(None)).group_by(Scenario.project_id).subquery())
+    for s in db.query(Scenario).join(
+            _latest, (Scenario.project_id == _latest.c.project_id) & (Scenario.created_at == _latest.c.mx)):
         if s.project_id and s.result:
             returns_by_proj[s.project_id] = s.result.get("returns", {}) or {}
 

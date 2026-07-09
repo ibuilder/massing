@@ -76,6 +76,28 @@ def _ensure_loaded(pid: str) -> None:
         _load(pid, json.loads(storage.get(key)))
 
 
+# Per-model-signature result cache for the expensive read-only scans (facets/color-by). These are
+# recomputed O(n·psets) on every request today; the result only changes when the model does, so we key
+# the cache on the model version (bumped by model_events on publish) and evict LRU-style.
+_SCAN_CACHE: dict[tuple, object] = {}
+_SCAN_CACHE_ORDER: list[tuple] = []
+_SCAN_CACHE_MAX = 400
+
+
+def _scan_cached(pid: str, key: str, compute):
+    from .. import model_events
+    ck = (pid, model_events.current(pid)["version"], key)
+    hit = _SCAN_CACHE.get(ck)
+    if hit is not None:
+        return hit
+    res = compute()
+    _SCAN_CACHE[ck] = res
+    _SCAN_CACHE_ORDER.append(ck)
+    while len(_SCAN_CACHE_ORDER) > _SCAN_CACHE_MAX:
+        _SCAN_CACHE.pop(_SCAN_CACHE_ORDER.pop(0), None)
+    return res
+
+
 @router.get("/projects/{pid}/properties/meta")
 def meta(pid: str, _: str = Depends(require_role("viewer"))):
     _ensure_loaded(pid)
@@ -140,27 +162,30 @@ def color_facets(pid: str, _: str = Depends(require_role("viewer"))):
     idx = _INDEX.get(pid)
     if not idx:
         raise HTTPException(404, "no properties index for project")
-    attrs: dict[str, set] = {}
-    props: dict[str, set] = {}
-    for e in idx.values():
-        for key, _label in _ATTR_FACETS:
-            v = _prop_value(e, key)          # resolves the synthetic "discipline" facet (D2) too
-            if v not in (None, ""):
-                attrs.setdefault(key, set()).add(str(v))
-        for container in ("psets", "qtos"):
-            d = e.get(container)
-            if isinstance(d, dict):
-                for grp, kv in d.items():
-                    if isinstance(kv, dict):
-                        for name, val in kv.items():
-                            if val not in (None, ""):
-                                props.setdefault(f"{grp}::{name}", set()).add(str(val))
-    return {
-        "attributes": [{"prop": k, "label": lbl, "distinct": len(attrs.get(k, ()))}
-                       for k, lbl in _ATTR_FACETS if k in attrs],
-        "properties": sorted(({"prop": k, "label": k.replace("::", " · "), "distinct": len(v)}
-                              for k, v in props.items()), key=lambda x: x["prop"])[:300],
-    }
+
+    def _compute():
+        attrs: dict[str, set] = {}
+        props: dict[str, set] = {}
+        for e in idx.values():
+            for key, _label in _ATTR_FACETS:
+                v = _prop_value(e, key)      # resolves the synthetic "discipline" facet (D2) too
+                if v not in (None, ""):
+                    attrs.setdefault(key, set()).add(str(v))
+            for container in ("psets", "qtos"):
+                d = e.get(container)
+                if isinstance(d, dict):
+                    for grp, kv in d.items():
+                        if isinstance(kv, dict):
+                            for name, val in kv.items():
+                                if val not in (None, ""):
+                                    props.setdefault(f"{grp}::{name}", set()).add(str(val))
+        return {
+            "attributes": [{"prop": k, "label": lbl, "distinct": len(attrs.get(k, ()))}
+                           for k, lbl in _ATTR_FACETS if k in attrs],
+            "properties": sorted(({"prop": k, "label": k.replace("::", " · "), "distinct": len(v)}
+                                  for k, v in props.items()), key=lambda x: x["prop"])[:300],
+        }
+    return _scan_cached(pid, "facets", _compute)
 
 
 @router.get("/projects/{pid}/elements/color-by")
@@ -171,50 +196,53 @@ def color_by(pid: str, prop: str, bins: int = 6, _: str = Depends(require_role("
     idx = _INDEX.get(pid)
     if not idx:
         raise HTTPException(404, "no properties index for project")
-    vals: dict[str, object] = {}
-    for g, e in idx.items():
-        v = _prop_value(e, prop)
-        if v not in (None, ""):
-            vals[g] = v
 
-    def _is_num(x) -> bool:
-        try:
-            float(x)
-            return not isinstance(x, bool)
-        except (TypeError, ValueError):
-            return False
+    def _compute():
+        vals: dict[str, object] = {}
+        for g, e in idx.items():
+            v = _prop_value(e, prop)
+            if v not in (None, ""):
+                vals[g] = v
 
-    numeric = bool(vals) and all(_is_num(v) for v in vals.values())
-    buckets: list[dict] = []
-    if numeric:
-        nums = {g: float(v) for g, v in vals.items()}
-        lo, hi = min(nums.values()), max(nums.values())
-        if hi <= lo:
-            buckets = [{"label": f"{lo:g}", "guids": list(nums)}]
+        def _is_num(x) -> bool:
+            try:
+                float(x)
+                return not isinstance(x, bool)
+            except (TypeError, ValueError):
+                return False
+
+        numeric = bool(vals) and all(_is_num(v) for v in vals.values())
+        buckets: list[dict] = []
+        if numeric:
+            nums = {g: float(v) for g, v in vals.items()}
+            lo, hi = min(nums.values()), max(nums.values())
+            if hi <= lo:
+                buckets = [{"label": f"{lo:g}", "guids": list(nums)}]
+            else:
+                n = max(1, min(int(bins), 8))
+                step = (hi - lo) / n
+                slots: list[list[str]] = [[] for _ in range(n)]
+                for g, x in nums.items():
+                    slots[min(n - 1, int((x - lo) / step))].append(g)
+                for i in range(n):
+                    buckets.append({"label": f"{lo + step * i:.3g} – {lo + step * (i + 1):.3g}", "guids": slots[i]})
         else:
-            n = max(1, min(int(bins), 8))
-            step = (hi - lo) / n
-            slots: list[list[str]] = [[] for _ in range(n)]
-            for g, x in nums.items():
-                slots[min(n - 1, int((x - lo) / step))].append(g)
-            for i in range(n):
-                buckets.append({"label": f"{lo + step * i:.3g} – {lo + step * (i + 1):.3g}", "guids": slots[i]})
-    else:
-        from collections import Counter
-        top = [k for k, _ in Counter(str(v) for v in vals.values()).most_common(24)]
-        groups: dict[str, list[str]] = {k: [] for k in top}
-        other: list[str] = []
-        for g, v in vals.items():
-            (groups[str(v)] if str(v) in groups else other).append(g)
-        buckets = [{"label": k, "guids": groups[k]} for k in top]
-        if other:
-            buckets.append({"label": "Other", "guids": other})
-    colored = sum(len(b["guids"]) for b in buckets)
-    return {
-        "prop": prop, "kind": "numeric" if numeric else "categorical",
-        "total": len(idx), "colored": colored, "unset": len(idx) - colored,
-        "buckets": [{"label": b["label"], "count": len(b["guids"]), "guids": b["guids"]} for b in buckets],
-    }
+            from collections import Counter
+            top = [k for k, _ in Counter(str(v) for v in vals.values()).most_common(24)]
+            groups: dict[str, list[str]] = {k: [] for k in top}
+            other: list[str] = []
+            for g, v in vals.items():
+                (groups[str(v)] if str(v) in groups else other).append(g)
+            buckets = [{"label": k, "guids": groups[k]} for k in top]
+            if other:
+                buckets.append({"label": "Other", "guids": other})
+        colored = sum(len(b["guids"]) for b in buckets)
+        return {
+            "prop": prop, "kind": "numeric" if numeric else "categorical",
+            "total": len(idx), "colored": colored, "unset": len(idx) - colored,
+            "buckets": [{"label": b["label"], "count": len(b["guids"]), "guids": b["guids"]} for b in buckets],
+        }
+    return _scan_cached(pid, f"colorby:{prop}:{bins}", _compute)
 
 
 @router.get("/projects/{pid}/elements/by-discipline")
