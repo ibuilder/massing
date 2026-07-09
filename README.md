@@ -182,7 +182,12 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Model authoring — structural steel + rebar (latest, v0.3.104)** — real structural members in the
+- **Model authoring — MEP families (latest, v0.3.105)** — draw **duct / pipe / cable-tray / cable
+  runs** (swept `Ifc*Segment` with ports + named `IfcDistributionSystem`) and place **electrical panels,
+  outlets, lights, diffusers, floor drains, plumbing fixtures, fire alarms, smoke detectors and data
+  outlets** — each the correct IFC class + PredefinedType, snapped to grid on the active level.
+
+- **Model authoring — structural steel + rebar (v0.3.104)** — real structural members in the
   Draft palette: **steel W-shapes** (AISC W8×31…W24×76) authored as native parametric
   `IfcIShapeProfileDef` columns/beams with a Section picker, straight **rebar** (`IfcReinforcingBar`,
   #3–#11), and **pad footings** (`IfcFooting`) — all placed with grid snap on the active level.

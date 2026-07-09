@@ -126,7 +126,58 @@ export const DRAFT_ELEMENTS: DraftElement[] = [
     hint: "Click the footing location.",
     build: (pts, v) => ({ point: pts[0], width: v.width, length: v.length, thickness: v.thickness }),
   },
+  // --- MEP: distribution runs (draw a segment) --------------------------------------------------
+  {
+    key: "duct", label: "HVAC duct", discipline: "MEP", ifcClass: "IfcDuctSegment",
+    recipe: "add_duct", points: 2,
+    params: [{ key: "size", label: "Diameter", type: "length", default: 0.3, unit: "m", min: 0.05, step: 0.05 }],
+    hint: "Click the duct run start and end (adds ports + HVAC Supply system).",
+    build: (pts, v) => ({ start: pts[0], end: pts[1], size: v.size }),
+  },
+  {
+    key: "pipe", label: "Pipe", discipline: "MEP", ifcClass: "IfcPipeSegment",
+    recipe: "add_pipe", points: 2,
+    params: [{ key: "size", label: "Diameter", type: "length", default: 0.05, unit: "m", min: 0.01, step: 0.01 }],
+    hint: "Click the pipe run start and end (adds ports + Domestic Water system).",
+    build: (pts, v) => ({ start: pts[0], end: pts[1], size: v.size }),
+  },
+  {
+    key: "cable_tray", label: "Cable tray / conduit", discipline: "MEP", ifcClass: "IfcCableCarrierSegment",
+    recipe: "add_cable_tray", points: 2,
+    params: [{ key: "size", label: "Width", type: "length", default: 0.3, unit: "m", min: 0.05, step: 0.05 }],
+    hint: "Click the tray run start and end (Power system).",
+    build: (pts, v) => ({ start: pts[0], end: pts[1], size: v.size }),
+  },
+  {
+    key: "wire", label: "Cable / wire", discipline: "MEP", ifcClass: "IfcCableSegment",
+    recipe: "add_wire", points: 2,
+    params: [{ key: "size", label: "Diameter", type: "length", default: 0.02, unit: "m", min: 0.005, step: 0.005 }],
+    hint: "Click the cable run start and end (Power system).",
+    build: (pts, v) => ({ start: pts[0], end: pts[1], size: v.size }),
+  },
+  // --- MEP: point equipment (click to place) ---------------------------------------------------
+  ...mepTerminal("panel", "Electrical panel", "IfcElectricDistributionBoard", null, [0.6, 0.2, 1.0]),
+  ...mepTerminal("outlet", "Power outlet", "IfcOutlet", "POWEROUTLET", [0.1, 0.05, 0.1]),
+  ...mepTerminal("light", "Light fixture", "IfcLightFixture", null, [0.6, 0.6, 0.1]),
+  ...mepTerminal("diffuser", "Air diffuser", "IfcAirTerminal", "DIFFUSER", [0.6, 0.6, 0.2]),
+  ...mepTerminal("floor_drain", "Floor drain", "IfcWasteTerminal", "FLOORTRAP", [0.15, 0.15, 0.1]),
+  ...mepTerminal("fixture", "Plumbing fixture", "IfcSanitaryTerminal", null, [0.5, 0.5, 0.8]),
+  ...mepTerminal("fire_alarm", "Fire alarm", "IfcAlarm", "BELL", [0.15, 0.1, 0.15]),
+  ...mepTerminal("smoke_detector", "Smoke detector", "IfcSensor", "SMOKESENSOR", [0.15, 0.15, 0.05]),
+  ...mepTerminal("data_outlet", "Data / telecom outlet", "IfcCommunicationsAppliance", null, [0.1, 0.05, 0.1]),
 ];
+
+/** A 1-point MEP terminal draft element with the IFC class + optional predefined type baked in. */
+function mepTerminal(key: string, label: string, ifcClass: string, predefined: string | null,
+                     dims: [number, number, number]): [DraftElement] {
+  const [w, d, h] = dims;
+  return [{
+    key: `mep:${key}`, label, discipline: "MEP", ifcClass, recipe: "add_mep_terminal", points: 1,
+    params: [], hint: `Click where to place the ${label.toLowerCase()}.`,
+    build: (pts) => ({ ifc_class: ifcClass, point: pts[0], width: w, depth: d, height: h,
+                       ...(predefined ? { predefined } : {}) }),
+  }];
+}
 
 /** A family from the server catalog (`/families/catalog`), rendered as a 1-point draft element. */
 export interface FamilyDef {

@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.105 — Model authoring, P5: MEP families (HVAC · plumbing · electrical · fire · telecom)
+The biggest discipline slice — draw distribution runs and drop equipment, authored as real IFC MEP.
+
+- **Distribution runs** you draw as a segment: **duct** (`IfcDuctSegment`), **pipe** (`IfcPipeSegment`),
+  **cable tray / conduit** (`IfcCableCarrierSegment`), and **cable / wire** (`IfcCableSegment`). Each is
+  a swept section (round, or rectangular for tray) with two **connection ports** and assignment to a
+  named **`IfcDistributionSystem`** (HVAC Supply / Domestic Water / Power).
+- **Point equipment** you click to place: **electrical panel** (`IfcElectricDistributionBoard`),
+  **outlet** (`IfcOutlet`), **light** (`IfcLightFixture`), **air diffuser** (`IfcAirTerminal`), **floor
+  drain** (`IfcWasteTerminal`), **plumbing fixture** (`IfcSanitaryTerminal`), **fire alarm**
+  (`IfcAlarm`), **smoke detector** (`IfcSensor`), and **data/telecom outlet**
+  (`IfcCommunicationsAppliance`) — each with the correct IFC class + PredefinedType.
+- New `edit.py` recipes `add_duct` / `add_pipe` / `add_cable_tray` / `add_wire` / `add_mep_terminal`;
+  MEP entries fill out the Draft palette's MEP discipline. Placement uses the P1 grid snap + level.
+
+Verified: `test_mep_families` (four run types + named systems + round/rect sections; seven point-
+equipment classes with PredefinedType preserved) + typecheck + vitest (56) + build; ruff clean.
+
 ## v0.3.104 — Model authoring, P4: structural steel + rebar + footings
 Real structural members in the Draft palette — authored as native, standards-compliant IFC.
 

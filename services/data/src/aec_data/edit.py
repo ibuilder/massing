@@ -435,6 +435,88 @@ def add_footing(model: ifcopenshell.file, point, width: float = 1.5, length: flo
     return ft.GlobalId
 
 
+# --- MEP: distribution runs (duct/pipe/cable) + point equipment (P5) --------------------------
+def add_mep_run(model: ifcopenshell.file, ifc_class: str, start, end, shape: str = "round",
+                size: float = 0.3, storey: str | None = None, system: str = "MEP") -> str:
+    """A straight MEP segment (IfcDuctSegment / IfcPipeSegment / IfcCableCarrierSegment /
+    IfcCableSegment) swept along start→end: a round (size=diameter) or rectangular (tray) section.
+    Adds two connection ports and assigns it to a named IfcDistributionSystem."""
+    import math
+
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    scale = uunit.calculate_unit_scale(model)
+    body = _body_context(model)
+    sx, sy, ex, ey = float(start[0]), float(start[1]), float(end[0]), float(end[1])
+    length = math.hypot(ex - sx, ey - sy) or 1.0
+    dx, dy = (ex - sx) / length, (ey - sy) / length
+    st = _first_storey(model, storey)
+    elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale
+    seg = ifcopenshell.api.run("root.create_entity", model, ifc_class=ifc_class,
+                               name=ifc_class.replace("Ifc", "").replace("Segment", ""))
+    matrix = np.array([[-dy, 0, dx, sx], [dx, 0, dy, sy], [0, 1, 0, elev], [0, 0, 0, 1]], dtype=float)
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=seg, matrix=matrix)
+    pos = model.create_entity("IfcAxis2Placement2D",
+                              Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0)),
+                              RefDirection=model.create_entity("IfcDirection", (1.0, 0.0)))
+    if shape == "rect":
+        profile = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA", Position=pos,
+                                      XDim=float(size), YDim=float(size) * 0.4)
+    else:
+        profile = model.create_entity("IfcCircleProfileDef", ProfileType="AREA", Position=pos,
+                                      Radius=float(size) / 2.0)
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                               profile=profile, depth=length)
+    ifcopenshell.api.run("geometry.assign_representation", model, product=seg, representation=rep)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[seg], relating_structure=st)
+    try:                                              # ports — a bare segment is flagged invalid
+        ifcopenshell.api.run("system.add_port", model, element=seg)
+        ifcopenshell.api.run("system.add_port", model, element=seg)
+    except Exception:                                 # noqa: BLE001 — older ifcopenshell w/o system.add_port
+        pass
+    try:
+        name = system or "MEP"
+        sysobj = next((s for s in model.by_type("IfcDistributionSystem") if s.Name == name), None) \
+            or ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcDistributionSystem", name=name)
+        ifcopenshell.api.run("system.assign_system", model, products=[seg], system=sysobj)
+    except Exception:                                 # noqa: BLE001 — system assignment best-effort
+        pass
+    return seg.GlobalId
+
+
+def add_mep_terminal(model: ifcopenshell.file, ifc_class: str, point, width: float = 0.4,
+                     depth: float = 0.4, height: float = 0.4, predefined: str | None = None,
+                     storey: str | None = None) -> str:
+    """Point MEP equipment (electrical panel, outlet, light, air terminal, sanitary/waste terminal,
+    fire alarm, sensor, comms appliance) as a sized box of `ifc_class` at an XY point."""
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    scale = uunit.calculate_unit_scale(model)
+    body = _body_context(model)
+    st = _first_storey(model, storey)
+    elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale
+    el = ifcopenshell.api.run("root.create_entity", model, ifc_class=ifc_class,
+                              name=ifc_class.replace("Ifc", ""))
+    if predefined:
+        try:
+            el.PredefinedType = predefined
+        except Exception:                             # noqa: BLE001 — enum not in this schema
+            pass
+    matrix = np.eye(4)
+    matrix[0, 3] = float(point[0]); matrix[1, 3] = float(point[1]); matrix[2, 3] = elev
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=el, matrix=matrix)
+    profile = _rect_profile(model, float(width), float(depth))
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                               profile=profile, depth=float(height))
+    ifcopenshell.api.run("geometry.assign_representation", model, product=el, representation=rep)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[el], relating_structure=st)
+    return el.GlobalId
+
+
 def add_roof(model: ifcopenshell.file, points, thickness: float = 0.3,
              storey: str | None = None) -> str:
     """Author a flat IfcRoof from a polygon of XY points (meters) extruded by `thickness`
@@ -644,6 +726,18 @@ RECIPES = {
     "add_footing": lambda m, p: add_footing(m, p["point"], float(p.get("width", 1.5)),
                                             float(p.get("length", 1.5)), float(p.get("thickness", 0.4)),
                                             p.get("storey")),
+    "add_duct": lambda m, p: add_mep_run(m, "IfcDuctSegment", p["start"], p["end"], "round",
+                                         float(p.get("size", 0.3)), p.get("storey"), p.get("system", "HVAC Supply")),
+    "add_pipe": lambda m, p: add_mep_run(m, "IfcPipeSegment", p["start"], p["end"], "round",
+                                         float(p.get("size", 0.05)), p.get("storey"), p.get("system", "Domestic Water")),
+    "add_cable_tray": lambda m, p: add_mep_run(m, "IfcCableCarrierSegment", p["start"], p["end"], "rect",
+                                               float(p.get("size", 0.3)), p.get("storey"), p.get("system", "Power")),
+    "add_wire": lambda m, p: add_mep_run(m, "IfcCableSegment", p["start"], p["end"], "round",
+                                         float(p.get("size", 0.02)), p.get("storey"), p.get("system", "Power")),
+    "add_mep_terminal": lambda m, p: add_mep_terminal(m, p["ifc_class"], p["point"],
+                                                      float(p.get("width", 0.4)), float(p.get("depth", 0.4)),
+                                                      float(p.get("height", 0.4)), p.get("predefined"),
+                                                      p.get("storey")),
 }
 
 
