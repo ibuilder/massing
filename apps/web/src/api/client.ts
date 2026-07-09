@@ -2182,6 +2182,15 @@ export class ApiClient {
       activities: { ref: string; name: string; status: string; start_var: number | null; finish_var: number | null }[] }>(
       `/projects/${pid}/schedule/variance`);
   }
+  /** Contractor statements: POC income statement + contract-position (asset/liability, retainage, AP). */
+  contractorStatements(pid: string) {
+    return this.json<{ contract_value: number; percent_complete: number; backlog: number; note: string;
+      income_statement: { revenue_earned: number; cost_of_revenue: number; gross_profit: number;
+        gross_margin_pct: number; basis: string };
+      contract_position: { contract_asset_underbillings: number; contract_liability_overbillings: number;
+        retainage_receivable: number; accounts_payable: number; net_contract_working_capital: number } }>(
+      `/projects/${pid}/contractor-statements`);
+  }
   /** WIP schedule: POC → earned vs billed → over/under-billing, retainage, gross profit, backlog. */
   wip(pid: string) {
     return this.json<{ contract_value: number; estimated_cost: number; cost_to_date: number;

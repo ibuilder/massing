@@ -56,9 +56,21 @@ with TestClient(app) as c:
     assert pf["project_count"] == 1 and pf["projects"][0]["over_billing"] == 200000, pf
     assert pf["totals"]["contract_value"] == 1000000, pf["totals"]
 
-    # --- WIP report PDF ---------------------------------------------------------------------------
-    rep = c.get(f"/projects/{pid}/reports/wip.pdf")
-    assert rep.status_code == 200 and rep.content[:4] == b"%PDF", (rep.status_code, rep.content[:8])
+    # --- contractor statements: POC income statement + contract position -------------------------
+    st = c.get(f"/projects/{pid}/contractor-statements").json()
+    inc, pos = st["income_statement"], st["contract_position"]
+    assert inc["revenue_earned"] == 500000 and inc["cost_of_revenue"] == 400000, inc
+    assert inc["gross_profit"] == 100000 and inc["gross_margin_pct"] == 20.0, inc
+    assert pos["contract_liability_overbillings"] == 200000 and pos["contract_asset_underbillings"] == 0, pos
+    # net contract WC = under-billings(0) + retainage − over-billings(200k) − AP(0)  → negative here
+    assert pos["net_contract_working_capital"] == round(pos["retainage_receivable"] - 200000, 2), pos
+    cp = c.get("/contractor-statements/portfolio").json()
+    assert cp["job_count"] == 1 and cp["income_statement"]["revenue_earned"] == 500000, cp
+
+    # --- report PDFs ------------------------------------------------------------------------------
+    for _rep in ("wip", "contractor_financials"):
+        rep = c.get(f"/projects/{pid}/reports/{_rep}.pdf")
+        assert rep.status_code == 200 and rep.content[:4] == b"%PDF", (_rep, rep.status_code)
 
 print("WIP OK - percentage-of-completion 50% (cost 400k / est 800k) -> earned 500k (50% of 1M contract); "
       "under-billed 200k (contract asset) at 300k billed, flips to over-billed 200k (liability) at 700k; "

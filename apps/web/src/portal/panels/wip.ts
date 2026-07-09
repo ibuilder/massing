@@ -24,11 +24,17 @@ export async function renderWip(ctx: PanelContext) {
   const pdf = el("a", "portal-btn") as HTMLAnchorElement; pdf.textContent = "⬇ WIP report (PDF)";
   pdf.href = ctx.host.api.reportUrl(pid, "wip", "pdf"); pdf.target = "_blank"; pdf.rel = "noopener";
   root.appendChild(pdf);
+  const spdf = el("a", "portal-btn") as HTMLAnchorElement; spdf.textContent = "⬇ Contractor statements (PDF)";
+  spdf.style.marginLeft = "6px"; spdf.href = ctx.host.api.reportUrl(pid, "contractor_financials", "pdf");
+  spdf.target = "_blank"; spdf.rel = "noopener"; root.appendChild(spdf);
   const body = el("div"); body.style.marginTop = "8px"; body.textContent = "loading…"; root.appendChild(body);
 
-  let w; let pf;
-  try { w = await ctx.host.api.wip(pid); pf = await ctx.host.api.wipPortfolio().catch(() => null); }
-  catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+  let w; let pf; let cs;
+  try {
+    w = await ctx.host.api.wip(pid);
+    pf = await ctx.host.api.wipPortfolio().catch(() => null);
+    cs = await ctx.host.api.contractorStatements(pid).catch(() => null);
+  } catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
   body.innerHTML = "";
   const usd = (n: number) => cmoney(n);
   if (!w.contract_value && !w.cost_to_date) {
@@ -75,6 +81,27 @@ export async function renderWip(ctx: PanelContext) {
   const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:12px";
   tbl.innerHTML = `<tbody>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:right">${v}</td></tr>`).join("")}</tbody>`;
   body.append(tbl);
+
+  // --- contractor statements (POC income statement + contract-position balance-sheet section) ---
+  if (cs) {
+    const inc = cs.income_statement, pos = cs.contract_position;
+    const card2 = el("div", "dash-card"); card2.style.marginTop = "8px";
+    const money = (n: number) => usd(n);
+    card2.innerHTML = `<b>Contractor statements</b> <span class="meta">(percentage-of-completion)</span>`
+      + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
+      + `<tr><td colspan="2" style="font-weight:700">Income statement</td></tr>`
+      + `<tr><td>Revenue earned (POC)</td><td class="num">${money(inc.revenue_earned)}</td></tr>`
+      + `<tr><td>Cost of revenue</td><td class="num">${money(inc.cost_of_revenue)}</td></tr>`
+      + `<tr class="fin-total"><td>Gross profit (${inc.gross_margin_pct}%)</td><td class="num">${money(inc.gross_profit)}</td></tr>`
+      + `<tr><td colspan="2" style="font-weight:700;padding-top:4px">Contract position (balance sheet)</td></tr>`
+      + `<tr><td>Contract asset — under-billings</td><td class="num">${money(pos.contract_asset_underbillings)}</td></tr>`
+      + `<tr><td>Contract liability — over-billings</td><td class="num">${money(pos.contract_liability_overbillings)}</td></tr>`
+      + `<tr><td>Retainage receivable</td><td class="num">${money(pos.retainage_receivable)}</td></tr>`
+      + `<tr><td>Accounts payable (subs)</td><td class="num">${money(pos.accounts_payable)}</td></tr>`
+      + `<tr class="fin-total"><td>Net contract working capital</td><td class="num" style="color:${pos.net_contract_working_capital < 0 ? "var(--status-crit)" : "var(--status-good)"}">${money(pos.net_contract_working_capital)}</td></tr>`
+      + `</table>`;
+    body.append(card2);
+  }
 
   // --- portfolio WIP ---
   if (pf && pf.project_count > 1) {

@@ -28,6 +28,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "cost": ("Cost Report", "Cost"),
     "evm": ("Earned Value Management", "Cost"),
     "wip": ("Work-in-Progress Schedule", "Cost"),
+    "contractor_financials": ("Contractor Financial Statements", "Finance"),
     "change_orders": ("Change Order Log", "Logs"),
     "rfi": ("RFI Log", "Logs"),
     "submittals": ("Submittal Log", "Logs"),
@@ -1334,6 +1335,33 @@ def _wip(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _contractor(db: Session, pid: str, name: str) -> Report:
+    """Contractor statements: percentage-of-completion income statement + contract-position section."""
+    from . import contractor
+    s = contractor.statements(db, pid)
+    inc, pos = s["income_statement"], s["contract_position"]
+    r = Report("Contractor Financial Statements", name)
+    r.kpi("Revenue earned", _money(inc["revenue_earned"]))
+    r.kpi("Gross profit", f"{_money(inc['gross_profit'])} ({inc['gross_margin_pct']}%)")
+    r.kpi("Contract asset", _money(pos["contract_asset_underbillings"]))
+    r.kpi("Contract liability", _money(pos["contract_liability_overbillings"]))
+    r.kpi("Backlog", _money(s["backlog"]))
+    r.table("Income statement — percentage-of-completion",
+            ["Line", "Amount"],
+            [["Revenue earned (POC)", _money(inc["revenue_earned"])],
+             ["Cost of revenue", _money(inc["cost_of_revenue"])],
+             ["Gross profit", _money(inc["gross_profit"])],
+             ["Gross margin", f"{inc['gross_margin_pct']}%"]])
+    r.table("Contract position (balance sheet)",
+            ["Account", "Amount"],
+            [["Contract asset — costs in excess of billings", _money(pos["contract_asset_underbillings"])],
+             ["Contract liability — billings in excess of costs", _money(pos["contract_liability_overbillings"])],
+             ["Retainage receivable", _money(pos["retainage_receivable"])],
+             ["Accounts payable (subs)", _money(pos["accounts_payable"])],
+             ["Net contract working capital", _money(pos["net_contract_working_capital"])]])
+    return r
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
@@ -1421,6 +1449,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _evm(db, pid, name)
     if report == "wip":
         return _wip(db, pid, name)
+    if report == "contractor_financials":
+        return _contractor(db, pid, name)
     if report == "contracts":
         return _contracts(db, pid, name)
     if report == "financials":

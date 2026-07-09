@@ -109,6 +109,21 @@ def wip_portfolio(db: Session = Depends(get_db), _: str = Depends(current_user))
     return wip.portfolio(db)
 
 
+@router.get("/projects/{pid}/contractor-statements")
+def contractor_statements(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Contractor financial statements: percentage-of-completion income statement (revenue earned, not
+    billed) + the contract-position balance-sheet section (contract asset/liability, retainage, AP)."""
+    from .. import contractor
+    return contractor.statements(db, pid)
+
+
+@router.get("/contractor-statements/portfolio")
+def contractor_statements_portfolio(db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Company-wide contractor statements — the POC P&L and contract position summed across jobs."""
+    from .. import contractor
+    return contractor.portfolio_statements(db)
+
+
 @router.get("/projects/{pid}/subcontractor-billing")
 def subcontractor_billing(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Subcontractor billing — the GC-pays-subs mirror of owner billing. Each subcontract's pay

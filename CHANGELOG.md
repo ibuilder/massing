@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.119 — Contractor financial statements (POC income statement + contract position)
+The construction-only statement lines a generic P&L / balance sheet miss — the balance-sheet twin to the
+WIP schedule (A2 of the resourcing/accounting plan).
+
+- **`contractor.py`** — from the WIP: a **percentage-of-completion income statement** (revenue = earned,
+  not billed; cost of revenue = cost-to-date; gross profit + margin) and a **contract-position** section
+  (**contract asset** = under-billings, **contract liability** = over-billings, **retainage receivable**,
+  **accounts payable** from unpaid sub invoices, and **net contract working capital** = under-billings +
+  retainage − over-billings − AP). Company-wide roll-up too.
+- Endpoints `GET /projects/{id}/contractor-statements` + `/contractor-statements/portfolio`; a
+  **Contractor Financial Statements** report; the statements render on the WIP panel + a second PDF link.
+- `contractorStatements` client method.
+
+Verified: `test_wip` extended (POC income statement, contract asset/liability, net working capital,
+portfolio, both report PDFs); ruff clean; web typecheck + vitest + build.
+
 ## v0.3.118 — WIP schedule: percentage-of-completion + over/under-billing
 The defining construction-accounting artifact, and the accounting twin to the earned-value module —
 built on the job cost that already exists, no new cost model.
