@@ -337,6 +337,23 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .pv-v.pv-empty { color: var(--muted); opacity: .6; }
 .pv-note { color: var(--muted); font-size: 11px; font-style: italic; padding: 4px 2px; }
 
+/* element property + classification editor (authoring) */
+.pv-edit { border: 1px solid var(--line); border-radius: 6px; margin: 6px 0; background: var(--panel-2, transparent); }
+.pv-edit > .pv-sum { cursor: pointer; padding: 6px 8px; font-weight: 600; }
+.pv-edit-body { padding: 4px 8px 8px; display: flex; flex-direction: column; gap: 8px; }
+.pv-edit-fs { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 5px; }
+.pv-edit-lg { font-size: 11px; font-weight: 700; color: var(--muted); padding: 0 4px; }
+.pv-edit-f { display: flex; align-items: center; gap: 6px; }
+.pv-edit-l { flex: 0 0 64px; font-size: 11px; color: var(--muted); }
+.pv-edit-i { flex: 1; min-width: 0; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px;
+  background: var(--bg, #fff); color: inherit; font-size: 12px; }
+.pv-edit-btn { align-self: flex-start; margin-top: 2px; padding: 4px 10px; border: 1px solid var(--accent);
+  background: var(--accent); color: #fff; border-radius: 4px; font-size: 12px; cursor: pointer; }
+.pv-edit-btn:hover { filter: brightness(1.06); }
+.pv-edit-btn:disabled { opacity: 0.6; cursor: default; }
+.pv-edit-status { font-size: 11px; color: var(--status-good, #2e9e5b); }
+.pv-edit-status.pv-edit-err { color: var(--status-crit, #d64545); }
+
 /* pin markers */
 .pin {
   width: 22px; height: 22px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);

@@ -106,6 +106,45 @@ describe("buildRawProps (in-browser fallback)", () => {
     expect(() => buildRawProps(deep)).not.toThrow();
   });
 
+  it("adds the edit/classify form only when hooks are given, and wires the recipes", async () => {
+    const calls: string[] = [];
+    const hooks = {
+      setProp: async (pset: string, prop: string, value: string, dtype: string) => {
+        calls.push(`prop:${pset}/${prop}=${value}:${dtype}`);
+      },
+      classify: async (system: string, code: string, name: string) => {
+        calls.push(`class:${system}/${code}/${name}`);
+      },
+    };
+    // no hooks -> no editor
+    expect(buildElementProps(sample).querySelector(".pv-edit")).toBeNull();
+    // hooks -> editor present with both fieldsets
+    const root = buildElementProps(sample, hooks);
+    expect(root.querySelector(".pv-edit")).not.toBeNull();
+    const btns = root.querySelectorAll<HTMLButtonElement>(".pv-edit-btn");
+    expect(btns.length).toBe(2);
+    const inputs = root.querySelectorAll<HTMLInputElement>(".pv-edit-i");
+    // fieldset order: [0]Pset [1]Property [2]Value [3]Type(select) · [4]System [5]Code [6]Title
+    inputs[0].value = "Pset_Custom"; inputs[1].value = "Manufacturer"; inputs[2].value = "Acme";
+    btns[0].click();
+    inputs[4].value = "Uniclass 2015"; inputs[5].value = "Pr_20_93_52"; inputs[6].value = "Steel column";
+    btns[1].click();
+    await Promise.resolve(); await Promise.resolve();
+    expect(calls).toContain("prop:Pset_Custom/Manufacturer=Acme:str");
+    expect(calls).toContain("class:Uniclass 2015/Pr_20_93_52/Steel column");
+  });
+
+  it("requires a property name and a classification code before calling a hook", async () => {
+    let called = 0;
+    const hooks = { setProp: async () => { called++; }, classify: async () => { called++; } };
+    const root = buildElementProps(sample, hooks);
+    const btns = root.querySelectorAll<HTMLButtonElement>(".pv-edit-btn");
+    btns[0].click(); btns[1].click();       // both empty -> validation blocks
+    await Promise.resolve();
+    expect(called).toBe(0);
+    expect(root.querySelector(".pv-edit-status")?.classList.contains("pv-edit-err")).toBe(true);
+  });
+
   it("flattens IFC {value} / {value,type} wrappers into scalar rows, not sub-groups", () => {
     // raw getItemsData wraps every scalar — these must become rows, not 1-row groups
     const root = buildRawProps({

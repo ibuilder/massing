@@ -87,9 +87,21 @@ with TestClient(app) as c:
             ("MEP rough-in", "MEP", "2026-06-01", "2026-10-30", 5_800_000, 10),
             ("Interiors & finishes", "Finishes", "2026-09-01", "2027-01-31", 4_200_000, 0)]
     wx_sens = {"Sitework": "Rain / wet", "Concrete": "Rain / wet", "Steel": "Wind"}
+    # EV measurement method (rule of credit) + control-account cost code, keyed by trade. Steel uses the
+    # units-complete method (tons erected); the rest use % complete — so the EVM panel joins EV↔AC per code.
+    ev_by_trade = {"Sitework": "percent", "Concrete": "percent", "Steel": "units", "MEP": "percent", "Finishes": "percent"}
+    cc_by_trade = {"Sitework": "01-5000", "Concrete": "03-3000", "Steel": "05-1200", "MEP": "23-0000", "Finishes": "09-2900"}
     for i, (name, trade, s, f, bud, pct) in enumerate(acts):
-        mk(c, pid, "schedule_activity", {"name": name, "trade": trade, "start": s, "finish": f, "budget": bud,
-                                         "percent": pct, "wbs": f"01.{i+1:02d}", "weather_sensitivity": wx_sens.get(trade, "None")})
+        act_data = {"name": name, "trade": trade, "start": s, "finish": f, "budget": bud, "cost_code": ccs[cc_by_trade[trade]],
+                    "percent": pct, "wbs": f"01.{i+1:02d}", "weather_sensitivity": wx_sens.get(trade, "None"),
+                    "ev_method": ev_by_trade[trade]}
+        if trade == "Steel":                            # units-complete example (620 tons erected, 40% = 248)
+            act_data.update({"units_total": 620, "units_complete": round(620 * pct / 100)})
+        mk(c, pid, "schedule_activity", act_data)
+    # cost-to-date (ACWP) by trade so CPI is realistic — a slightly-over-budget, behind-schedule job
+    for _trade, _amt in [("Sitework", 1_500_000), ("Concrete", 3_700_000), ("Steel", 2_450_000),
+                         ("MEP", 580_000), ("Finishes", 40_000)]:
+        mk(c, pid, "direct_cost", {"description": f"{_trade} cost to date", "cost_code": ccs[cc_by_trade[_trade]], "amount": _amt})
     c.post(f"/projects/{pid}/cost/sov/from-budget?replace=true")
 
     # pull-plan phase board (Last Planner) — sticky notes across trade swimlanes × weeks, with the
@@ -305,6 +317,43 @@ with TestClient(app) as c:
     c.post(f"/projects/{pid}/generate/massing",
            json={"lot_width": 48, "lot_depth": 34, "far": 3.0, "use_type": "residential"})
     _src = c.get(f"/projects/{pid}").json().get("source_ifc")
+    # the massing POST kicks off an off-thread publish (IFC->.frag + reindex) that reads source.ifc;
+    # wait for it to finish before we rewrite that same file in place, or the converter reads a
+    # half-written IFC (and its reindex could clobber our family-authored index).
+    import time as _time
+    for _ in range(120):
+        _st = c.get(f"/projects/{pid}/publish/status").json().get("state")
+        if _st in ("done", "error", "idle"):
+            break
+        _time.sleep(0.5)
+    # author a representative sample of the new Draft-panel families into the model (all disciplines),
+    # so the sample model shows steel / rebar / MEP runs / coverings / equipment, not just massing.
+    if _src and os.path.exists(_src):
+        from aec_data import edit as _edit  # data src on sys.path (see top)
+        _fams = [
+            ("add_steel_column", {"point": [6, 6], "height": 3.6, "section": "W14x30"}),
+            ("add_steel_column", {"point": [18, 6], "height": 3.6, "section": "W14x30"}),
+            ("add_steel_beam", {"start": [6, 6], "end": [18, 6], "section": "W16x40"}),
+            ("add_rebar", {"start": [6, 5.6], "end": [18, 5.6], "size": "#5"}),
+            ("add_footing", {"point": [6, 6], "width": 1.8, "length": 1.8, "thickness": 0.5}),
+            ("add_footing", {"point": [18, 6], "width": 1.8, "length": 1.8, "thickness": 0.5}),
+            ("add_duct", {"start": [6, 10], "end": [20, 10], "size": 0.4}),
+            ("add_pipe", {"start": [6, 12], "end": [20, 12], "size": 0.05}),
+            ("add_cable_tray", {"start": [6, 8], "end": [20, 8], "size": 0.3}),
+            ("add_covering", {"points": [[6, 5], [20, 5], [20, 14], [6, 14]], "predefined": "CEILING", "thickness": 0.02}),
+            ("add_covering", {"points": [[6, 5], [20, 5], [20, 14], [6, 14]], "predefined": "FLOORING",
+                              "material": "Ceramic tile", "thickness": 0.02}),
+            ("add_railing", {"start": [6, 5], "end": [20, 5], "height": 1.1}),
+            ("add_mep_terminal", {"ifc_class": "IfcElectricDistributionBoard", "point": [7, 7],
+                                  "width": 0.6, "depth": 0.2, "height": 1.0}),
+            ("add_mep_terminal", {"ifc_class": "IfcSanitaryTerminal", "point": [8, 12],
+                                  "width": 0.5, "depth": 0.5, "height": 0.8}),
+        ]
+        for _recipe, _params in _fams:
+            try:
+                _edit.apply_recipe(_src, _recipe, _params, _src)   # chain-author into the same file
+            except Exception as e:            # noqa: BLE001 — a family that won't author shouldn't abort the seed
+                print(f"  family-seed skip {_recipe}: {e}")
     if _src and os.path.exists(_src):
         try:
             from aec_data.properties_index import index_file  # data src on sys.path (see top)
@@ -394,6 +443,8 @@ with TestClient(app) as c:
     singles = [f"{P}/dashboard", f"{P}/members", f"{P}/budget/gmp", f"{P}/budget/cashflow", f"{P}/budget/variance",
                f"{P}/cost/summary", f"{P}/px-summary", f"{P}/schedule/cpm", f"{P}/schedule/earned-value", f"{P}/schedule/lookahead?weeks=3",
                f"{P}/schedule/milestones", f"{P}/schedule/variance", f"{P}/schedule/4d", f"{P}/safety/metrics", f"{P}/bids/leveling",
+               # earned value management (E1–E7): unified metrics, S-curve, earned schedule, model-based EV
+               f"{P}/evm", f"{P}/evm/scurve", f"{P}/evm/earned-schedule", f"{P}/evm/model-ev",
                f"{P}/compliance/expiring?within_days=30", f"{P}/enum-options", f"{P}/notifications", f"{P}/my-work", f"{P}/module-pins",
                f"{P}/5d/heatmap?by=progress", f"{P}/5d/heatmap?by=cost", f"{P}/qto/by-floor", f"{P}/estimate/from-model",
                f"{P}/dev-budget", f"{P}/dev-budget/cost-lines", f"{P}/dev-budget/gmp-reconciliation", f"{P}/loan-draws",
@@ -426,7 +477,7 @@ with TestClient(app) as c:
     import urllib.parse as _up
     for path in ("/model/capabilities", "/model/step-summary", "/model/query", "/model/query/views",
                  "/lod/assessment", "/lod/matrix", "/envelope/audit", "/mep/model-extract",
-                 "/naming/audit", "/naming/conventions", "/model/columnar/stats",
+                 "/naming/audit", "/naming/conventions", "/model/columnar/stats", "/model/grid",
                  "/model/columnar/aggregate", "/drawings/sync-status",
                  "/documents/tree", "/documents/health", "/documents/template",
                  "/documents/by-role?role=Superintendent", "/documents/phase-gaps?phase=CD",

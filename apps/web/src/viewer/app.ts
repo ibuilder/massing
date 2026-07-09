@@ -201,7 +201,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
   function renderProps(el: ElementProps) {
     propsPanel.hidden = false;
-    propsBody.replaceChildren(buildElementProps(el));
+    // structured property + classification editor — only when we can write (connected + project);
+    // each edit applies a server recipe and re-publishes, then we re-fetch the element's props.
+    const hooks = (connected && projectId) ? {
+      setProp: async (pset: string, prop: string, value: string, dtype: string) => {
+        await api.editIfc(projectId!, "set_element_pset", { guid: el.guid, pset, prop, value, dtype }, true);
+        try { renderProps(await api.element(projectId!, el.guid)); } catch { /* index still rebuilding */ }
+      },
+      classify: async (system: string, code: string, name: string) => {
+        await api.editIfc(projectId!, "set_classification", { guid: el.guid, system, code, name }, true);
+        try { renderProps(await api.element(projectId!, el.guid)); } catch { /* index still rebuilding */ }
+      },
+    } : undefined;
+    propsBody.replaceChildren(buildElementProps(el, hooks));
   }
 
   async function selectByGuid(guid: string, fit = false) {

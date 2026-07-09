@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.114 — Element property + classification editor; sample model refreshed
+Closes the model-authoring loop and brings the demo sample in line with everything shipped this cycle.
+
+- **Structured property + classification editor** — selecting an element in the viewer now offers an
+  **✎ Edit / Classify** form: set a Pset property (typed str/float/int/bool) and attach a
+  **classification reference** (Uniclass 2015 · OmniClass · Uniformat II · MasterFormat), replacing the
+  old free-text prompt. Backed by the `set_element_pset` and new **`set_classification`** edit recipes
+  (GUID-stable; reuses one `IfcClassification` source per system so tags don't duplicate). Each edit
+  re-publishes and the panel re-reads the element.
+- **Model-based EV, no false alarms** — `evm.model_ev()` now only flags a *front-loaded SOV* once field
+  verification actually exists (`has_field_data`); an un-surveyed job no longer reads as a distortion.
+- **Sample model refreshed** — the Pages demo model now carries the full Draft-family set (steel
+  columns/beams, rebar, footings, duct/pipe/cable-tray runs, ceiling + floor coverings, railing,
+  electrical panel + sanitary terminal), realistic **EVM data** (cost-coded activities with EV methods +
+  actuals → CPI/SPI, S-curve, Earned Schedule, model-EV) and a derived grid — surfaced across Model
+  Analysis, Earned Value and the drafting refs.
+
+Verified: `test_authoring_props` (Pset + classification round-trip) + `test_evm`; the model-authoring
++ structural/MEP/architectural/grid suites; typecheck + vitest (58) + build; ruff clean.
+
 ## v0.3.113 — Earned Value Management, E7: model-based EV (module complete)
 The differentiator — earn value off the **physically installed model**, not a billing SOV — completes
 the EVM module (E1–E7).

@@ -285,15 +285,21 @@ def model_ev(db: Session, pid: str, data_date: str | None = None) -> dict[str, A
     ev_sched = snap["totals"]["ev"]
     ev_model = round(bac * model_pct / 100, 2)
     divergence = round(ev_sched - ev_model, 2)                 # + = schedule ahead of physical install
-    flag = bool(bac and divergence > 0.05 * bac)
+    # Only compare against the model once field verification exists — with zero verified elements the
+    # model EV is 0 by definition, and flagging "front-loaded" then would falsely accuse an un-surveyed job.
+    has_field_data = tracked > 0
+    flag = bool(has_field_data and bac and divergence > 0.05 * bac)
     return {
-        "total_elements": total, "installed_elements": installed, "model_percent_complete": model_pct,
+        "total_elements": total, "installed_elements": installed, "tracked_elements": tracked,
+        "model_percent_complete": model_pct, "has_field_data": has_field_data,
         "bac": bac, "ev_model": ev_model, "ev_schedule": ev_sched, "divergence": divergence,
         "front_loaded_flag": flag,
         "note": "Model EV = installed % (field-verified elements) × BAC — the units-complete method from "
                 "the model. If schedule EV exceeds model EV materially, reported progress is running "
                 "ahead of physical installation (often a front-loaded SOV)."
-                + ("" if total else " No property index loaded yet."),
+                + ("" if total else " No property index loaded yet.")
+                + ("" if has_field_data else " No field verification recorded yet — model EV is not "
+                   "yet a check on reported progress."),
     }
 
 

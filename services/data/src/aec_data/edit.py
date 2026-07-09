@@ -8,6 +8,7 @@ Round-trip: edit IFC -> save -> reconvert to .frag (converter) -> reindex props 
 """
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 import ifcopenshell
@@ -711,6 +712,28 @@ def set_element_pset(model: ifcopenshell.file, guid: str, pset: str, prop: str,
     return guid
 
 
+def set_classification(model: ifcopenshell.file, guid: str, system: str, code: str,
+                       name: str | None = None, edition: str | None = None) -> str:
+    """Tag one element (by GUID) with a classification reference — Uniclass 2015, OmniClass,
+    Uniformat II, MasterFormat, etc. Reuses an existing IfcClassification for `system` if present,
+    so repeated tags don't duplicate the source. GUID-stable; the standard BIM way to carry
+    Uniclass/OmniClass codes into downstream takeoff, cost and asset systems.
+    """
+    import ifcopenshell.api.classification as cls
+
+    el = _element(model, guid)
+    src = next((s for s in model.by_type("IfcClassification")
+                if (s.Name or "").strip().lower() == system.strip().lower()), None)
+    if src is None:
+        src = cls.add_classification(model, classification=system)
+        if edition:
+            with contextlib.suppress(Exception):
+                cls.edit_classification(model, classification=src, attributes={"Edition": edition})
+    cls.add_reference(model, products=[el], classification=src,
+                      identification=code, name=name or code)
+    return guid
+
+
 def move_element(model: ifcopenshell.file, guid: str, dx: float = 0.0, dy: float = 0.0,
                  dz: float = 0.0) -> str:
     """Translate an element by (dx,dy,dz) metres in IFC E/N/Z. GUID-stable."""
@@ -811,6 +834,8 @@ RECIPES = {
                                               float(p.get("thickness", 0.02)), p.get("material"), p.get("storey")),
     "add_railing": lambda m, p: add_railing(m, p["start"], p["end"], float(p.get("height", 1.1)),
                                             p.get("storey")),
+    "set_classification": lambda m, p: set_classification(m, p["guid"], p["system"], p["code"],
+                                                          p.get("name"), p.get("edition")),
 }
 
 

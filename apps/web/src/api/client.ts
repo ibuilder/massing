@@ -2215,7 +2215,8 @@ export class ApiClient {
   }
   /** Model-based EV: EV from physically-installed model elements × BAC, vs schedule EV. */
   evmModelEv(pid: string) {
-    return this.json<{ total_elements: number; installed_elements: number; model_percent_complete: number;
+    return this.json<{ total_elements: number; installed_elements: number; tracked_elements: number;
+      model_percent_complete: number; has_field_data: boolean;
       bac: number; ev_model: number; ev_schedule: number; divergence: number; front_loaded_flag: boolean;
       note: string }>(`/projects/${pid}/evm/model-ev`);
   }

@@ -105,9 +105,11 @@ export async function renderEvm(ctx: PanelContext) {
     mc.innerHTML = `<b>Model-based EV</b> <span class="meta">(units-complete from installed model elements)</span>`
       + `<div class="meta" style="margin-top:2px">${mev.installed_elements} of ${mev.total_elements} elements installed = `
       + `<b>${mev.model_percent_complete}%</b> · EV(model) <b>${usd(mev.ev_model)}</b> vs EV(schedule) ${usd(mev.ev_schedule)}</div>`
-      + (mev.front_loaded_flag
-        ? `<div class="meta" style="color:var(--status-warn)">⚠ Reported progress is running ahead of physical installation (divergence ${usd(mev.divergence)}) — possible front-loaded SOV.</div>`
-        : `<div class="meta">Schedule EV tracks physical installation (divergence ${usd(mev.divergence)}).</div>`);
+      + (mev.has_field_data === false
+        ? `<div class="meta">No field verification recorded yet — verify installed elements (Field ▸ Verification) to turn model EV into an independent check on reported progress.</div>`
+        : mev.front_loaded_flag
+          ? `<div class="meta" style="color:var(--status-warn)">⚠ Reported progress is running ahead of physical installation (divergence ${usd(mev.divergence)}) — possible front-loaded SOV.</div>`
+          : `<div class="meta">Schedule EV tracks physical installation (divergence ${usd(mev.divergence)}).</div>`);
     body.append(mc);
   }
 

@@ -112,6 +112,8 @@ with TestClient(app) as c:
     me_ = c.get(f"/projects/{pid3}/evm/model-ev").json()
     assert me_["total_elements"] == 0 and me_["ev_model"] == 0.0, me_
     assert "model_percent_complete" in me_ and "front_loaded_flag" in me_ and "ev_schedule" in me_, me_
+    # with no field verification, model EV must NOT flag a front-loaded SOV (nothing to compare against)
+    assert me_["has_field_data"] is False and me_["front_loaded_flag"] is False, me_
 
 print("EVM OK - unified metrics BAC 200k / EV 75k / PV 150k / AC 80k -> CV -5k, SV -75k, CPI 0.938 "
       "(concerning), SPI 0.5 (critical); forecast family EAC(cpi/at-plan/cpi*spi) + ETC + VAC + TCPI "
