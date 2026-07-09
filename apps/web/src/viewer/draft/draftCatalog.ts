@@ -10,17 +10,20 @@
  */
 
 export type Discipline = "Architectural" | "Structural" | "MEP" | "Site";
-export type ParamType = "length" | "number" | "text";
+export type ParamType = "length" | "number" | "text" | "select";
 
 export interface ParamDef {
   key: string;
   label: string;
   type: ParamType;
   default: number | string;
-  unit?: string;      // shown after the field ("m", "mm", …)
+  unit?: string;         // shown after the field ("m", "mm", …)
   min?: number;
   step?: number;
+  options?: string[];    // for type "select"
 }
+
+export type ParamValues = Record<string, number | string>;
 
 export interface DraftElement {
   key: string;
@@ -32,8 +35,12 @@ export interface DraftElement {
   params: ParamDef[];
   hint: string;
   /** Build the recipe param object from clicked plan points + the form values. */
-  build: (pts: [number, number][], v: Record<string, number>) => Record<string, unknown>;
+  build: (pts: [number, number][], v: ParamValues) => Record<string, unknown>;
 }
+
+// AISC W-shapes + US rebar sizes — kept in sync with services/data/.../steel.py.
+const W_SHAPES = ["W8x31", "W10x33", "W12x26", "W14x30", "W16x40", "W18x50", "W21x62", "W24x76"];
+const REBAR_SIZES = ["#3", "#4", "#5", "#6", "#7", "#8", "#9", "#10", "#11"];
 
 /** The built-in parametric elements (primitives). Families come from the server catalog. */
 export const DRAFT_ELEMENTS: DraftElement[] = [
@@ -75,7 +82,7 @@ export const DRAFT_ELEMENTS: DraftElement[] = [
     build: (pts, v) => ({ point: pts[0], height: v.height, width: v.width, depth: v.depth }),
   },
   {
-    key: "beam", label: "Beam", discipline: "Structural", ifcClass: "IfcBeam",
+    key: "beam", label: "Beam (concrete)", discipline: "Structural", ifcClass: "IfcBeam",
     recipe: "add_beam", points: 2,
     params: [
       { key: "width", label: "Width", type: "length", default: 0.3, unit: "m", min: 0.05, step: 0.05 },
@@ -83,6 +90,41 @@ export const DRAFT_ELEMENTS: DraftElement[] = [
     ],
     hint: "Click the start and end of the beam.",
     build: (pts, v) => ({ start: pts[0], end: pts[1], width: v.width, depth: v.depth }),
+  },
+  {
+    key: "steel_column", label: "Steel column (W-shape)", discipline: "Structural", ifcClass: "IfcColumn",
+    recipe: "add_steel_column", points: 1,
+    params: [
+      { key: "section", label: "Section", type: "select", default: "W12x26", options: W_SHAPES },
+      { key: "height", label: "Height", type: "length", default: 3.6, unit: "m", min: 0.1, step: 0.1 },
+    ],
+    hint: "Click the column location — a native AISC W-shape.",
+    build: (pts, v) => ({ point: pts[0], section: v.section, height: v.height }),
+  },
+  {
+    key: "steel_beam", label: "Steel beam (W-shape)", discipline: "Structural", ifcClass: "IfcBeam",
+    recipe: "add_steel_beam", points: 2,
+    params: [{ key: "section", label: "Section", type: "select", default: "W16x40", options: W_SHAPES }],
+    hint: "Click the start and end — a native AISC W-shape.",
+    build: (pts, v) => ({ start: pts[0], end: pts[1], section: v.section }),
+  },
+  {
+    key: "rebar", label: "Rebar (straight)", discipline: "Structural", ifcClass: "IfcReinforcingBar",
+    recipe: "add_rebar", points: 2,
+    params: [{ key: "size", label: "Bar size", type: "select", default: "#5", options: REBAR_SIZES }],
+    hint: "Click the start and end of the bar.",
+    build: (pts, v) => ({ start: pts[0], end: pts[1], size: v.size }),
+  },
+  {
+    key: "footing", label: "Pad footing", discipline: "Structural", ifcClass: "IfcFooting",
+    recipe: "add_footing", points: 1,
+    params: [
+      { key: "width", label: "Width", type: "length", default: 1.5, unit: "m", min: 0.2, step: 0.1 },
+      { key: "length", label: "Length", type: "length", default: 1.5, unit: "m", min: 0.2, step: 0.1 },
+      { key: "thickness", label: "Thickness", type: "length", default: 0.4, unit: "m", min: 0.1, step: 0.05 },
+    ],
+    hint: "Click the footing location.",
+    build: (pts, v) => ({ point: pts[0], width: v.width, length: v.length, thickness: v.thickness }),
   },
 ];
 

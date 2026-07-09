@@ -8,7 +8,7 @@
  */
 import {
   DISCIPLINES, DRAFT_ELEMENTS, familyToDraftElement,
-  type Discipline, type DraftElement, type FamilyDef, type ParamDef,
+  type Discipline, type DraftElement, type FamilyDef, type ParamDef, type ParamValues,
 } from "./draftCatalog";
 
 export interface ArmedDraft {
@@ -97,9 +97,16 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     }
   }
 
-  function fieldRow(p: ParamDef): { row: HTMLElement; get: () => number } {
+  function fieldRow(p: ParamDef): { row: HTMLElement; get: () => number | string } {
     const row = el("label", "layer-row"); row.style.cssText = "display:flex;align-items:center;gap:6px;margin:2px 0";
     const name = el("span", "name"); name.textContent = p.label; name.style.flex = "1";
+    if (p.type === "select") {
+      const sel = el("select", "portal-filter") as HTMLSelectElement; sel.style.width = "110px";
+      for (const o of p.options ?? []) { const opt = document.createElement("option"); opt.value = o; opt.textContent = o; sel.appendChild(opt); }
+      sel.value = String(p.default); sel.setAttribute("aria-label", p.label);
+      row.append(name, sel);
+      return { row, get: () => sel.value };
+    }
     const inp = el("input", "portal-filter") as HTMLInputElement;
     inp.type = "number"; inp.value = String(p.default); inp.style.width = "80px";
     if (p.min != null) inp.min = String(p.min);
@@ -120,7 +127,7 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     const badge = el("div", "meta"); badge.style.marginBottom = "4px";
     badge.textContent = `${s.ifcClass} · ${s.hint}`;
     form.appendChild(badge);
-    const getters: (() => number)[] = [];
+    const getters: (() => number | string)[] = [];
     const keys = s.params.map((p) => p.key);
     for (const p of s.params) { const f = fieldRow(p); form.appendChild(f.row); getters.push(f.get); }
 
@@ -131,7 +138,7 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
     place.onclick = () => {
       if (armedKey === s.key) { arm(null); return; }
       if (!deps.canAuthor()) { deps.notify("connect a project with a source IFC to draft", "error"); return; }
-      const vals: Record<string, number> = {};
+      const vals: ParamValues = {};
       keys.forEach((k, i) => { vals[k] = getters[i](); });
       const armed: ArmedDraft = {
         key: s.key, label: s.label, recipe: s.recipe, points: s.points, ifcClass: s.ifcClass, hint: s.hint,

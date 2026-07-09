@@ -28,6 +28,14 @@ attributed to their public summary — **not** the proprietary dataset, which is
 redistributed. A deployment overrides them with its own current rates (or a per-project
 `market_assumption` record).
 
+## Structural steel section dimensions — AISC (facts, re-keyed)
+
+The W-shape dimensions in `services/data/src/aec_data/steel.py` (overall depth, flange width, flange &
+web thickness) are **facts** re-keyed from the publicly published **AISC Shapes Database** (imperial).
+Dimensions of standard sections are facts, not copyrightable; we do **not** redistribute AISC's database
+file. They feed IFC's native parametric `IfcIShapeProfileDef`, so no geometry is imported. US reinforcing
+bar diameters (#3–#11) are likewise standard nominal facts.
+
 ## Standards & formats
 
 IFC / STEP (buildingSMART), ISO 19650, glTF 2.0 (Khronos), Apache Parquet, BCF (buildingSMART),

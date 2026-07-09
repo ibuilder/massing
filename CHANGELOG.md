@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.104 — Model authoring, P4: structural steel + rebar + footings
+Real structural members in the Draft palette — authored as native, standards-compliant IFC.
+
+- **Steel W-shapes** — `steel.py` holds the AISC W-shape table (W8×31 … W24×76, dimensions re-keyed as
+  facts, [attributed](docs/ATTRIBUTIONS.md)); `add_steel_column` / `add_steel_beam` author an `IfcColumn`
+  / `IfcBeam` with a **native parametric `IfcIShapeProfileDef`** (no imported geometry), with the section
+  name stamped on `Pset_*Common.Reference`. A **Section** picker in the Draft form.
+- **Rebar** — `add_rebar` authors a straight **`IfcReinforcingBar`** (circular section swept along the
+  bar) sized by US bar designation (#3–#11) with `NominalDiameter` + `BarLength`.
+- **Pad footings** — `add_footing` authors an `IfcFooting` pad below the level.
+- Draft catalog gains a **`select`** parameter type (for the section / bar-size pickers); placement uses
+  the P1 grid snap + active level.
+
+Verified: `test_structural` (W-shape table inches→m; steel column → native IfcIShapeProfileDef W14×30 +
+section on Pset; steel beam; #5 rebar nominal diameter + circular section; footing) + typecheck +
+vitest (56) + build; ruff clean.
+
 ## v0.3.103 — Model authoring, P1: grid + levels as drafting references
 The drafting reference frame — so placement lands on a grid and the right level, not free space.
 

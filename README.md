@@ -182,7 +182,12 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Model authoring — grid + levels drafting refs (latest, v0.3.103)** — the drafting reference frame:
+- **Model authoring — structural steel + rebar (latest, v0.3.104)** — real structural members in the
+  Draft palette: **steel W-shapes** (AISC W8×31…W24×76) authored as native parametric
+  `IfcIShapeProfileDef` columns/beams with a Section picker, straight **rebar** (`IfcReinforcingBar`,
+  #3–#11), and **pad footings** (`IfcFooting`) — all placed with grid snap on the active level.
+
+- **Model authoring — grid + levels drafting refs (v0.3.103)** — the drafting reference frame:
   a **Grid & Levels** panel reads the project grid (real `IfcGrid` axes, else derived from column
   centres) and renders axes + bubbles; Draft placement **snaps to grid intersections**. An active-level
   selector sets the work-plane and target storey, and new recipes **add/rename/move levels** (real
