@@ -655,10 +655,13 @@ reusing the config engine's reference/rollup relational spine.
   vs an availability cap, and a **leveling advisory** that smooths over-allocated work within its CPM float
   (critical-path work stays locked). Wired to a `👷 Resource loading` panel; `cost_code.resource_budget`
   rollup; falls back to activity `crew_size`.
-- **A (planned) — Accounting middle.** A **WIP schedule** (percentage-of-completion, earned revenue,
-  over/under-billing, retainage) on top of the existing job cost (`cost.py` G702/G703 + budget/committed/
-  actual/forecast) — the accounting twin to the earned-value module; then contractor-flavoured statements
-  (contract-asset/liability + POC revenue lines) and a chart-of-accounts / balanced-journal-entry foundation.
+- **A1 (shipped v0.3.118) — WIP schedule.** `wip.py` on top of `cost.py`: percentage-of-completion
+  (cost-to-cost) → earned revenue vs billed → over-billing (contract liability) / under-billing (contract
+  asset), retainage, gross profit, backlog, plus a portfolio WIP sorted by cash risk — the accounting twin
+  to the earned-value module. `GET /projects/{id}/wip` + `/wip/portfolio`, a `📄 WIP Schedule` panel + report.
+- **A2 (planned) — Statements + GL.** Contractor-flavoured statements (contract-asset/liability + POC
+  revenue lines on the existing 3-statement scaffold) and a chart-of-accounts / balanced-journal-entry
+  foundation feeding the ERP export.
 - **I (planned) — Interop + moat.** Balanced cost-coded journal-entry export to the accounting system of
   record through an approval gate; then derive WIP % complete and resource curves from **model quantities by
   GlobalId**, for end-to-end model → resource → cost → GL traceability.

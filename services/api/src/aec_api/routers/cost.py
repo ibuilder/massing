@@ -93,6 +93,22 @@ def summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_ro
     return cost.summary(db, pid)
 
 
+@router.get("/projects/{pid}/wip")
+def wip_schedule(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Work-in-Progress schedule: percentage-of-completion (cost-to-cost) → earned revenue vs billed →
+    over-/under-billing (contract liability / asset), retainage, gross profit and backlog. The
+    accounting twin to the earned-value module."""
+    from .. import wip
+    return wip.schedule(db, pid)
+
+
+@router.get("/wip/portfolio")
+def wip_portfolio(db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """WIP across all projects — one row each, worst cash position (largest under-billing) first."""
+    from .. import wip
+    return wip.portfolio(db)
+
+
 @router.get("/projects/{pid}/subcontractor-billing")
 def subcontractor_billing(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Subcontractor billing — the GC-pays-subs mirror of owner billing. Each subcontract's pay

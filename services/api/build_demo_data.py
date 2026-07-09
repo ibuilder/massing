@@ -459,7 +459,7 @@ with TestClient(app) as c:
     grab(c, "/estimate/conceptual/catalog"); grab(c, "/mcp/tools"); grab(c, "/market/snapshot")
     P = f"/projects/{pid}"
     singles = [f"{P}/dashboard", f"{P}/members", f"{P}/budget/gmp", f"{P}/budget/cashflow", f"{P}/budget/variance",
-               f"{P}/cost/summary", f"{P}/px-summary", f"{P}/schedule/cpm", f"{P}/schedule/earned-value", f"{P}/schedule/lookahead?weeks=3",
+               f"{P}/cost/summary", f"{P}/wip", "/wip/portfolio", f"{P}/px-summary", f"{P}/schedule/cpm", f"{P}/schedule/earned-value", f"{P}/schedule/lookahead?weeks=3",
                f"{P}/schedule/milestones", f"{P}/schedule/variance", f"{P}/schedule/4d", f"{P}/safety/metrics", f"{P}/bids/leveling",
                f"{P}/schedule/resource-loading?cap=25", f"{P}/schedule/resource-leveling?cap=25",  # cost-loaded manpower + leveling
                # earned value management (E1–E7): unified metrics, S-curve, earned schedule, model-based EV, trend

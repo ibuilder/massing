@@ -2182,6 +2182,21 @@ export class ApiClient {
       activities: { ref: string; name: string; status: string; start_var: number | null; finish_var: number | null }[] }>(
       `/projects/${pid}/schedule/variance`);
   }
+  /** WIP schedule: POC → earned vs billed → over/under-billing, retainage, gross profit, backlog. */
+  wip(pid: string) {
+    return this.json<{ contract_value: number; estimated_cost: number; cost_to_date: number;
+      cost_to_complete: number; percent_complete: number; earned_revenue: number; billed_to_date: number;
+      over_billing: number; under_billing: number; billing_status: "over-billed" | "under-billed" | "even";
+      retainage: number; gross_profit: number; gross_margin_pct: number; profit_to_date: number;
+      backlog: number; note: string }>(`/projects/${pid}/wip`);
+  }
+  /** Portfolio WIP: one row per project, worst cash position (largest under-billing) first. */
+  wipPortfolio() {
+    return this.json<{ projects: { id: string; name: string; contract_value: number; earned_revenue: number;
+      billed_to_date: number; over_billing: number; under_billing: number; billing_status: string;
+      percent_complete: number; gross_profit: number }[];
+      totals: Record<string, number>; project_count: number; note: string }>(`/wip/portfolio`);
+  }
   /** Cost-loaded resource histogram + unit/cost S-curves + over-allocation (from resource assignments). */
   resourceLoading(pid: string, cap?: number) {
     return this.json<{ source: string; loads: number; weeks_span: number; cap: number | null;

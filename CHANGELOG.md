@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.118 — WIP schedule: percentage-of-completion + over/under-billing
+The defining construction-accounting artifact, and the accounting twin to the earned-value module —
+built on the job cost that already exists, no new cost model.
+
+- **`wip.py`** — percentage-of-completion (**cost-to-cost**: cost-to-date ÷ total estimated cost) →
+  **earned revenue** = % complete × contract value → compared to billed for the contract position:
+  **over-billing** (billings in excess of costs & earnings — a **liability**) or **under-billing** (costs
+  & earnings in excess of billings — an **asset**, and the classic cash drag on profitable jobs). Plus
+  retainage, cost-to-complete, gross profit/margin, profit-to-date and backlog.
+- Endpoints `GET /projects/{id}/wip` and `GET /wip/portfolio` (one row per job, worst cash position
+  first). A **📄 WIP Schedule** panel (KPIs + a colour-coded over/under-billing callout + contract-position
+  table + portfolio roll-up) and a signed PDF report. Client `wip` / `wipPortfolio`.
+- Contract value comes from the prime contract + approved COs (falling back to the SOV); billings from
+  owner invoices; retainage from the G703 — all reused from `cost.py`.
+
+Verified: `test_wip` (POC 50%, under-billed 200k asset flips to over-billed 200k liability, gross profit
++ margin, backlog, retainage, portfolio + PDF); ruff clean; web typecheck + vitest + build. Demo shows a
+39%-complete job under-billed ~$7.8M — the profitable-but-cash-short story.
+
 ## v0.3.117 — Resource loading, made real: cost-loaded, relational, with leveling
 Promotes resource loading from a flat crew-count (and no UI) to a relational, cost-loaded engine with a
 panel — tying the schedule to resources and cost codes.

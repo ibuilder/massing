@@ -27,6 +27,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "risk": ("Risk Digest", "Health"),
     "cost": ("Cost Report", "Cost"),
     "evm": ("Earned Value Management", "Cost"),
+    "wip": ("Work-in-Progress Schedule", "Cost"),
     "change_orders": ("Change Order Log", "Logs"),
     "rfi": ("RFI Log", "Logs"),
     "submittals": ("Submittal Log", "Logs"),
@@ -1301,6 +1302,38 @@ def _resource_loading(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _wip(db: Session, pid: str, name: str) -> Report:
+    """Work-in-Progress schedule: POC → earned vs billed → over/under-billing, retainage, gross profit."""
+    from . import wip
+    w = wip.schedule(db, pid)
+    r = Report("Work-in-Progress Schedule", name)
+    r.kpi("% complete", f"{w['percent_complete']}%")
+    r.kpi("Earned revenue", _money(w["earned_revenue"]))
+    r.kpi("Billed to date", _money(w["billed_to_date"]))
+    lbl = {"over-billed": "Over-billing (liability)", "under-billed": "Under-billing (asset)"}.get(
+        w["billing_status"], "Billing")
+    r.kpi(lbl, _money(w["over_billing"] or w["under_billing"]))
+    r.kpi("Gross profit", f"{_money(w['gross_profit'])} ({w['gross_margin_pct']}%)")
+    r.table("Contract position",
+            ["Metric", "Value"],
+            [["Contract value", _money(w["contract_value"])],
+             ["Total estimated cost", _money(w["estimated_cost"])],
+             ["Cost to date", _money(w["cost_to_date"])],
+             ["Cost to complete", _money(w["cost_to_complete"])],
+             ["% complete (cost-to-cost)", f"{w['percent_complete']}%"],
+             ["Earned revenue (POC)", _money(w["earned_revenue"])],
+             ["Billed to date", _money(w["billed_to_date"])],
+             ["Over-billing — billings in excess (liability)", _money(w["over_billing"])],
+             ["Under-billing — costs in excess (asset)", _money(w["under_billing"])],
+             ["Retainage held", _money(w["retainage"])],
+             ["Gross profit", _money(w["gross_profit"])],
+             ["Profit earned to date", _money(w["profit_to_date"])],
+             ["Backlog (unbilled contract)", _money(w["backlog"])]])
+    r.chart("bar", "Earned vs billed", ["Earned revenue", "Billed to date"],
+            [{"name": "$", "values": [round(w["earned_revenue"]), round(w["billed_to_date"])]}])
+    return r
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
@@ -1386,6 +1419,8 @@ def build(db: Session, pid: str, report: str) -> Report:
         return _cost(db, pid, name)
     if report == "evm":
         return _evm(db, pid, name)
+    if report == "wip":
+        return _wip(db, pid, name)
     if report == "contracts":
         return _contracts(db, pid, name)
     if report == "financials":
