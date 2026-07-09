@@ -31,7 +31,28 @@ run the job, and hand it over — open, self-hosted, and free to run on one mach
 - **Spec book → submittal register** — paste your specifications, get a typed submittal log (shop drawings, product data, samples…) with missing-submittal coverage. AI when you have a key, a built-in parser when you don't.
 - **Off-plan listing kit** — a BIM-native Listing Fact Sheet + a signed public link/QR, auto-filled from the model & proforma.
 - **Tri-approach appraisal** — cost + income + sales-comparison reconciled into a Valuation report, RESO-aligned for MLS.
+- **Earned Value Management** — one ANSI/EIA-748 metric set (CPI/SPI, the EAC/ETC/VAC/TCPI forecast family, Earned Schedule) with a twist: earn value off the *physically installed model*, not just a billing SOV — so front-loaded progress gets caught. S-curve, CPI–SPI quadrant, and a captured-snapshot performance trend.
+- **Author the model, tag the standards** — draft structural/MEP/architectural families server-side (GUID-stable IFC), then set typed properties and attach Uniclass / OmniClass / Uniformat classifications right from the element panel.
 - **Grounded in the literature** — Willis (form follows finance), Salvadori (structure), the Empire State takt assembly line.
+
+## One-pager — Earned Value Management
+**The problem.** A pay-app SOV can be front-loaded: reported progress runs ahead of what's actually
+built. Dollar SPI also breaks down near the finish (it drifts back to 1.0 even on a late job).
+
+**What this does.** One ANSI/EIA-748-aligned metric set, computed by joining schedule earned value with
+cost actuals **by cost code (the control account)**:
+- **Indices + variances** — CPI, SPI, CV, SV, % complete / % spent, each with a health band.
+- **Forecast family** — the four canonical EACs, ETC, VAC, and TCPI-to-budget/EAC, shown together with
+  a stage-adaptive recommendation (the "best" EAC depends on how far along you are).
+- **Earned Schedule** — time-based ES / SV(t) / SPI(t) / IEAC(t) → a forecast finish that stays honest
+  at completion.
+- **EV measurement methods** — percent, 0/100, 50/50, units-complete, milestone, LOE (rules of credit).
+- **Model-based EV** — earn value off *field-verified installed model elements*; when schedule EV runs
+  materially ahead of physical installation, it flags a likely front-loaded SOV.
+- **Visuals** — the PV/EV/AC S-curve, a **CPI–SPI quadrant** (project + every control account), and a
+  **captured-snapshot CPI/SPI trend** so you can see whether efficiency is improving or slipping.
+
+Every number exports to a signed PDF report. Runs fully offline; no per-seat license.
 
 ## Sample social post (X / LinkedIn)
 > Shipped: an open, IFC-native AEC platform that covers the *whole* building lifecycle on one model.

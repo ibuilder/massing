@@ -1,4 +1,4 @@
-import { lineChart, money as cmoney } from "../../ui/charts";
+import { lineChart, money as cmoney, scatterQuadrant } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
@@ -28,13 +28,24 @@ export async function renderEvm(ctx: PanelContext) {
   const pdf = el("a", "portal-btn") as HTMLAnchorElement; pdf.textContent = "⬇ EVM report (PDF)";
   pdf.href = ctx.host.api.reportUrl(pid, "evm", "pdf"); pdf.target = "_blank"; pdf.rel = "noopener";
   root.appendChild(pdf);
+  // capture the current EVM state as a dated snapshot (feeds the CPI/SPI trend); needs write access
+  const cap = el("button", "portal-btn") as HTMLButtonElement; cap.textContent = "📸 Capture snapshot";
+  cap.style.marginLeft = "6px";
+  cap.addEventListener("click", async () => {
+    cap.disabled = true; const o = cap.textContent; cap.textContent = "Capturing…";
+    try { await ctx.host.api.evmCaptureSnapshot(pid, {}); void renderEvm(ctx); }
+    catch (e) { cap.textContent = `Failed: ${(e as Error).message}`; cap.disabled = false;
+      setTimeout(() => { cap.textContent = o; }, 2500); }
+  });
+  root.appendChild(cap);
   const body = el("div"); body.style.marginTop = "8px"; body.textContent = "loading…"; root.appendChild(body);
 
-  let d; let sc; let mev;
+  let d; let sc; let mev; let tr;
   try {
     d = await ctx.host.api.evm(pid);
     sc = await ctx.host.api.evmScurve(pid).catch(() => null);
     mev = await ctx.host.api.evmModelEv(pid).catch(() => null);
+    tr = await ctx.host.api.evmTrend(pid).catch(() => null);
   } catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
   body.innerHTML = "";
   const t = d.totals;
@@ -63,6 +74,19 @@ export async function renderEvm(ctx: PanelContext) {
     card("BAC", usd(t.bac), undefined, `EV ${usd(t.ev)} · AC ${usd(t.ac)}`));
   body.append(cards);
 
+  // --- CPI–SPI quadrant (bullseye): project + each control account ---
+  const qpts: { label: string; x: number; y: number; kind?: string }[] = [];
+  if (t.cpi != null && t.spi != null) qpts.push({ label: "Project", x: t.spi, y: t.cpi, kind: "project" });
+  for (const r of d.control_accounts) {
+    if (r.cpi != null && r.spi != null) qpts.push({ label: r.cost_code, x: r.spi, y: r.cpi });
+  }
+  if (qpts.length) {
+    const q = el("div", "dash-card"); q.style.marginBottom = "8px";
+    q.innerHTML = `<b>CPI–SPI quadrant</b> <span class="meta">(● project + control accounts; upper-right = under budget & ahead)</span>`
+      + scatterQuadrant(qpts, { title: "CPI (cost) vs SPI (schedule)", height: 210 });
+    body.append(q);
+  }
+
   // --- S-curve ---
   if (sc && sc.pv?.length) {
     const wrap = el("div", "dash-card"); wrap.style.marginBottom = "8px";
@@ -72,6 +96,22 @@ export async function renderEvm(ctx: PanelContext) {
       { name: "AC (actual)", values: sc.ac, color: "#d9822b" },
     ], { title: "Cost / schedule S-curve", fmt: (n) => cmoney(n), xlabels: sc.labels, height: 190 });
     body.append(wrap);
+  }
+
+  // --- CPI/SPI performance-index trend (captured snapshots) ---
+  if (tr && tr.count >= 2) {
+    const w = el("div", "dash-card"); w.style.marginBottom = "8px";
+    w.innerHTML = lineChart([
+      { name: "CPI", values: tr.cpi, color: "#2e9e5b" },
+      { name: "SPI", values: tr.spi, color: "#5a9bd4" },
+      { name: "target 1.0", values: tr.cpi.map(() => 1), color: "#9a9a9a" },
+    ], { title: "CPI / SPI trend", fmt: (n) => n.toFixed(2), xlabels: tr.labels, height: 180 });
+    body.append(w);
+  } else {
+    const hint = el("div", "meta"); hint.style.margin = "2px 0 8px";
+    hint.textContent = `Capture an EVM snapshot each reporting period (📸 above) to build a CPI/SPI trend`
+      + `${tr && tr.count ? ` — ${tr.count} captured so far` : ""}.`;
+    body.append(hint);
   }
 
   // --- forecast family ---

@@ -1,0 +1,107 @@
+{
+  "key": "evm_snapshot",
+  "name": "EVM Snapshots",
+  "section": "Cost",
+  "icon": "📸",
+  "ref_prefix": "EVM",
+  "title_field": "data_date",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "data_date",
+      "label": "Data date",
+      "type": "date",
+      "required": true,
+      "fieldset": "Period"
+    },
+    {
+      "name": "period_label",
+      "label": "Period",
+      "type": "text",
+      "fieldset": "Period"
+    },
+    {
+      "name": "bac",
+      "label": "BAC ($)",
+      "type": "currency",
+      "fieldset": "Measured"
+    },
+    {
+      "name": "pv",
+      "label": "PV ($)",
+      "type": "currency",
+      "fieldset": "Measured"
+    },
+    {
+      "name": "ev",
+      "label": "EV ($)",
+      "type": "currency",
+      "fieldset": "Measured"
+    },
+    {
+      "name": "ac",
+      "label": "AC ($)",
+      "type": "currency",
+      "fieldset": "Measured"
+    },
+    {
+      "name": "cpi",
+      "label": "CPI",
+      "type": "number",
+      "fieldset": "Indices"
+    },
+    {
+      "name": "spi",
+      "label": "SPI",
+      "type": "number",
+      "fieldset": "Indices"
+    },
+    {
+      "name": "spi_t",
+      "label": "SPI(t)",
+      "type": "number",
+      "fieldset": "Indices"
+    },
+    {
+      "name": "eac",
+      "label": "EAC ($)",
+      "type": "currency",
+      "fieldset": "Forecast"
+    },
+    {
+      "name": "percent_complete",
+      "label": "% complete",
+      "type": "number",
+      "fieldset": "Forecast"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "Forecast"
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "cpi",
+    "spi",
+    "percent_complete"
+  ],
+  "workspace": "construction"
+}

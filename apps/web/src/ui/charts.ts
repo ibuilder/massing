@@ -72,6 +72,36 @@ export function lineChart(series: { name: string; values: number[]; color?: stri
     opts.title ?? "line chart", opts.height ?? 160);
 }
 
+// --- CPI–SPI quadrant scatter (the EVM "bullseye") ---------------------------
+export function scatterQuadrant(points: { label: string; x: number; y: number; kind?: string }[],
+                                opts: { title?: string; center?: number; xLabel?: string; yLabel?: string; height?: number } = {}): string {
+  const W = 300, H = 220, L = 30, R = 10, T = 12, B = 24;
+  const c = opts.center ?? 1.0;
+  const span = Math.max(0.25, 0.5, ...points.flatMap((p) => [Math.abs(p.x - c), Math.abs(p.y - c)]));
+  const lo = c - span * 1.15, hi = c + span * 1.15;
+  const sx = (v: number) => L + ((v - lo) / (hi - lo)) * (W - L - R);
+  const sy = (v: number) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  const cx = sx(c), cy = sy(c), x0 = sx(lo), x1 = sx(hi), y0 = sy(lo), y1 = sy(hi);
+  const tint = (ax: number, ay: number, bx: number, by: number, fill: string): string =>
+    `<rect x="${Math.min(ax, bx).toFixed(1)}" y="${Math.min(ay, by).toFixed(1)}" width="${Math.abs(bx - ax).toFixed(1)}" height="${Math.abs(by - ay).toFixed(1)}" fill="${fill}" opacity="0.1"/>`;
+  let g = tint(cx, cy, x1, y1, POS) + tint(x0, cy, cx, y1, "#e6a700")
+        + tint(cx, cy, x1, y0, "#e6a700") + tint(x0, cy, cx, y0, NEG);
+  g += `<line x1="${cx.toFixed(1)}" y1="${T}" x2="${cx.toFixed(1)}" y2="${(H - B).toFixed(1)}" stroke="${AXIS}" stroke-width="0.6" stroke-dasharray="2 2"/>`;
+  g += `<line x1="${L}" y1="${cy.toFixed(1)}" x2="${(W - R).toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${AXIS}" stroke-width="0.6" stroke-dasharray="2 2"/>`;
+  for (const v of [lo, c, hi]) {
+    g += txt(sx(v), H - 9, v.toFixed(2), { anchor: "middle" });
+    g += txt(L - 2, sy(v) + 2, v.toFixed(2), { anchor: "end" });
+  }
+  g += points.map((p) => {
+    const proj = p.kind === "project";
+    const col = proj ? "var(--accent)" : (p.x >= c && p.y >= c ? POS : (p.x < c && p.y < c ? NEG : "#e6a700"));
+    return `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${proj ? 3.2 : 2}" fill="${col}" stroke="var(--panel2)" stroke-width="0.6"><title>${esc(p.label)} — SPI ${p.x.toFixed(2)} / CPI ${p.y.toFixed(2)}</title></circle>`;
+  }).join("");
+  g += txt(W / 2, H - 1, opts.xLabel ?? "SPI (schedule) →", { anchor: "middle", size: 7 });
+  g += `<text transform="translate(8,${(T + (H - T - B) / 2).toFixed(1)}) rotate(-90)" font-family="system-ui,sans-serif" font-size="7" fill="${AXIS}" text-anchor="middle">${esc(opts.yLabel ?? "CPI (cost) →")}</text>`;
+  return wrap(H, g, opts.title ?? "CPI–SPI quadrant", opts.height ?? 230);
+}
+
 // --- grouped bars (budget vs committed vs actual vs EAC) ---------------------
 export function groupedBar(groups: { label: string; bars: { name: string; value: number; color?: string }[] }[],
                            opts: { title?: string; fmt?: Fmt; height?: number } = {}): string {

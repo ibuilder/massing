@@ -102,6 +102,14 @@ with TestClient(app) as c:
     for _trade, _amt in [("Sitework", 1_500_000), ("Concrete", 3_700_000), ("Steel", 2_450_000),
                          ("MEP", 580_000), ("Finishes", 40_000)]:
         mk(c, pid, "direct_cost", {"description": f"{_trade} cost to date", "cost_code": ccs[cc_by_trade[_trade]], "amount": _amt})
+    # captured weekly EVM snapshots — a real CPI/SPI trend (efficiency slipping) for the trend chart
+    _evm_hist = [("2026-06-01", 1.03, 0.92, 15), ("2026-06-08", 1.00, 0.86, 22),
+                 ("2026-06-15", 0.99, 0.80, 28), ("2026-06-22", 0.97, 0.74, 33),
+                 ("2026-06-29", 0.96, 0.70, 36), ("2026-07-06", 0.95, 0.68, 37)]
+    for _dd, _cpi, _spi, _pc in _evm_hist:
+        mk(c, pid, "evm_snapshot", {"data_date": _dd, "period_label": f"Wk of {_dd}",
+                                    "cpi": _cpi, "spi": _spi, "spi_t": round(_spi + 0.03, 2),
+                                    "percent_complete": _pc})
     c.post(f"/projects/{pid}/cost/sov/from-budget?replace=true")
 
     # pull-plan phase board (Last Planner) — sticky notes across trade swimlanes × weeks, with the
@@ -443,8 +451,8 @@ with TestClient(app) as c:
     singles = [f"{P}/dashboard", f"{P}/members", f"{P}/budget/gmp", f"{P}/budget/cashflow", f"{P}/budget/variance",
                f"{P}/cost/summary", f"{P}/px-summary", f"{P}/schedule/cpm", f"{P}/schedule/earned-value", f"{P}/schedule/lookahead?weeks=3",
                f"{P}/schedule/milestones", f"{P}/schedule/variance", f"{P}/schedule/4d", f"{P}/safety/metrics", f"{P}/bids/leveling",
-               # earned value management (E1–E7): unified metrics, S-curve, earned schedule, model-based EV
-               f"{P}/evm", f"{P}/evm/scurve", f"{P}/evm/earned-schedule", f"{P}/evm/model-ev",
+               # earned value management (E1–E7): unified metrics, S-curve, earned schedule, model-based EV, trend
+               f"{P}/evm", f"{P}/evm/scurve", f"{P}/evm/earned-schedule", f"{P}/evm/model-ev", f"{P}/evm/trend",
                f"{P}/compliance/expiring?within_days=30", f"{P}/enum-options", f"{P}/notifications", f"{P}/my-work", f"{P}/module-pins",
                f"{P}/5d/heatmap?by=progress", f"{P}/5d/heatmap?by=cost", f"{P}/qto/by-floor", f"{P}/estimate/from-model",
                f"{P}/dev-budget", f"{P}/dev-budget/cost-lines", f"{P}/dev-budget/gmp-reconciliation", f"{P}/loan-draws",

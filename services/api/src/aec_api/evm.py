@@ -380,3 +380,70 @@ def snapshot(db: Session, pid: str, data_date: str | None = None) -> dict[str, A
     return {"totals": totals, "control_accounts": control_accounts,
             "activities": sorted(activities, key=lambda x: x["sv"]),
             "earned_schedule": earned_schedule(db, pid, today)}
+
+
+def quadrant(snap: dict[str, Any]) -> dict[str, Any]:
+    """Position the project + each control account on the CPI–SPI plane (the EVM "bullseye"): the
+    four quadrants are on/over budget × ahead/behind schedule, split at (1.0, 1.0). Built from an
+    existing snapshot — no extra query. Used for the quadrant scatter on the dashboard."""
+    t = snap["totals"]
+    points: list[dict[str, Any]] = []
+    if t.get("spi") is not None and t.get("cpi") is not None:
+        points.append({"label": "Project", "spi": t["spi"], "cpi": t["cpi"], "kind": "project"})
+    for ca in snap.get("control_accounts", []):
+        if ca.get("cpi") is not None and ca.get("spi") is not None:
+            points.append({"label": ca["cost_code"], "spi": ca["spi"], "cpi": ca["cpi"], "kind": "ca"})
+    return {"points": points, "center": 1.0,
+            "note": "CPI (cost, y) vs SPI (schedule, x); split at 1.0. Upper-right = under budget + "
+                    "ahead of schedule; lower-left = over budget + behind."}
+
+
+def capture_snapshot(db: Session, pid: str, actor: str, party: str | None = None,
+                     data_date: str | None = None, period_label: str | None = None,
+                     notes: str | None = None) -> dict[str, Any]:
+    """Persist the current EVM state as an `evm_snapshot` record — a dated baseline so CPI/SPI can be
+    trended over reporting periods (and variance-at-completion tracked) rather than only computed on
+    the fly. Idempotent per call; capture one per period."""
+    snap = snapshot(db, pid, data_date)
+    t = snap["totals"]
+    es = snap.get("earned_schedule") or {}
+    data = {
+        "data_date": t["data_date"], "period_label": period_label or "",
+        "bac": t["bac"], "pv": t["pv"], "ev": t["ev"], "ac": t["ac"],
+        "cpi": t["cpi"], "spi": t["spi"], "spi_t": es.get("spi_t"),
+        "eac": (t.get("forecast") or {}).get("eac_working"),
+        "percent_complete": t["percent_complete"], "notes": notes or "",
+    }
+    return me.create_record(db, "evm_snapshot", pid, {"data": data}, actor, party)
+
+
+def trend(db: Session, pid: str) -> dict[str, Any]:
+    """CPI/SPI(/SPI(t)) over captured `evm_snapshot` records, oldest-first — the performance-index
+    trend. Points with no cost efficiency yet (CPI is None) are kept in the history but excluded from
+    the charted series so the line stays well-defined."""
+    def _f(x: Any) -> float | None:
+        try:
+            return None if x is None or x == "" else float(x)
+        except (TypeError, ValueError):
+            return None
+
+    rows = me.list_records(db, "evm_snapshot", pid, limit=100_000)
+    points: list[dict[str, Any]] = []
+    for r in rows:
+        d = r.get("data") or {}
+        points.append({
+            "data_date": d.get("data_date"), "period_label": d.get("period_label") or "",
+            "cpi": _f(d.get("cpi")), "spi": _f(d.get("spi")), "spi_t": _f(d.get("spi_t")),
+            "eac": _f(d.get("eac")), "percent_complete": _f(d.get("percent_complete")),
+        })
+    points.sort(key=lambda p: p["data_date"] or "")
+    charted = [p for p in points if p["cpi"] is not None and p["spi"] is not None]
+    return {
+        "points": points, "count": len(points),
+        "labels": [p["data_date"] for p in charted],
+        "cpi": [p["cpi"] for p in charted],
+        "spi": [p["spi"] for p in charted],
+        "spi_t": [p["spi_t"] for p in charted if p["spi_t"] is not None],
+        "note": "CPI/SPI across captured snapshots. Capture one per reporting period to build the trend; "
+                "a falling line means efficiency is deteriorating.",
+    }

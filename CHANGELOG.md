@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.115 — EVM charts: CPI–SPI quadrant + captured-snapshot performance trend
+Two earned-value visualizations that make cost/schedule performance readable at a glance, plus the
+persisted snapshots that back a real historical trend.
+
+- **CPI–SPI quadrant (the "bullseye")** — a new `scatterQuadrant` chart plots the project and every
+  control account on the cost × schedule plane, split at 1.0: upper-right is under budget + ahead,
+  lower-left is trouble. Built from the existing EVM snapshot — no extra query.
+- **Persisted EVM snapshots** — a new `evm_snapshot` module + `POST /projects/{id}/evm/snapshot`
+  captures the current state (CPI/SPI/SPI(t)/EAC/% complete) as a dated baseline. `GET …/evm/trend`
+  returns them oldest-first, and the dashboard shows a **CPI/SPI performance-index trend** (a falling
+  line = efficiency slipping) with a 📸 Capture-snapshot button. The trend line also renders in the
+  EVM PDF report once ≥ 2 snapshots exist.
+- **Sample model** now seeds six weekly snapshots so the demo trend tells a real "schedule slipping"
+  story out of the box.
+
+Verified: `test_evm` (capture → trend, quadrant data, PDF with trend) + `charts` (scatterQuadrant plots
++ escapes) ; ruff clean; web typecheck + vitest + build.
+
 ## v0.3.114 — Element property + classification editor; sample model refreshed
 Closes the model-authoring loop and brings the demo sample in line with everything shipped this cycle.
 

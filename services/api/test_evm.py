@@ -108,6 +108,21 @@ with TestClient(app) as c:
     assert mm["ev"] == 125000, mm["ev"]                # 0 + 50k + 75k
     assert mm["forecast"]["recommended"]["stage"] in ("early", "mid", "late"), mm["forecast"]["recommended"]
 
+    # --- E8: captured snapshots -> CPI/SPI performance-index trend -------------------------------
+    tr0 = c.get(f"/projects/{pid}/evm/trend").json()
+    assert tr0["count"] == 0 and tr0["cpi"] == [] and tr0["labels"] == [], tr0
+    # capture at the data date (today) so PV — and thus SPI — is the real E1 value, not a past-window 0
+    s1 = c.post(f"/projects/{pid}/evm/snapshot", json={"period_label": "Wk1"})
+    assert s1.status_code in (200, 201) and s1.json().get("id"), s1.text[:160]
+    c.post(f"/projects/{pid}/evm/snapshot", json={"period_label": "Wk2"})
+    tr = c.get(f"/projects/{pid}/evm/trend").json()
+    assert tr["count"] == 2 and len(tr["cpi"]) == 2 and len(tr["spi"]) == 2, tr
+    # the captured snapshot mirrors the live totals (CPI 0.938 / SPI 0.5 from the E1 scenario)
+    assert abs(tr["cpi"][0] - 0.938) < 0.01 and abs(tr["spi"][0] - 0.5) < 0.01, tr
+    # the trend chart line is rendered in the EVM PDF once >= 2 snapshots exist
+    rep2 = c.get(f"/projects/{pid}/reports/evm.pdf")
+    assert rep2.status_code == 200 and rep2.content[:4] == b"%PDF", rep2.status_code
+
     # --- E7: model-based EV — graceful with no property index (0%), structure present -----------
     me_ = c.get(f"/projects/{pid3}/evm/model-ev").json()
     assert me_["total_elements"] == 0 and me_["ev_model"] == 0.0, me_

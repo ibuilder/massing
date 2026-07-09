@@ -184,6 +184,12 @@ def _evm(db: Session, pid: str, name: str) -> Report:
                 [{"name": "PV", "values": [round(x) for x in sc["pv"]]},
                  {"name": "EV", "values": [round(x) for x in sc["ev"]]},
                  {"name": "AC", "values": [round(x) for x in sc["ac"]]}])
+    # CPI/SPI performance-index trend across captured snapshots
+    tr = evm.trend(db, pid)
+    if tr["count"] >= 2:
+        r.chart("line", "CPI / SPI trend (captured snapshots)", tr["labels"],
+                [{"name": "CPI", "values": tr["cpi"]}, {"name": "SPI", "values": tr["spi"]},
+                 {"name": "target 1.0", "values": [1.0] * len(tr["labels"])}])
     return r
 
 

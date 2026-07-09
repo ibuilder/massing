@@ -73,6 +73,7 @@
     <a href="#generate">2 · Generate from zoning</a>
     <a href="#underwrite">3 · Underwrite a deal</a>
     <a href="#run">4 · Run a project</a>
+    <a href="#evm">📊 Earned Value</a>
     <a href="#turnover">5 · Hand it over</a>
     <a href="#dispose">6 · List &amp; value it</a>
     <a href="#operate">7 · Operate it</a>
@@ -140,6 +141,10 @@
       sets, e.g. a steel section as a real <b>IfcIShapeProfileDef</b>), written back server-side with
       <b>stable GUIDs</b> — so it round-trips with any other openBIM tool. To edit a placed element, select
       it and use the toolbar (move / rotate / copy / property edit / add door or window).</li>
+    <li>Select any element to open its <b>properties panel</b>, then expand <b>✎ Edit / Classify</b> to set a
+      typed <b>Pset property</b> (string / number / boolean) or attach a <b>classification reference</b> —
+      <b>Uniclass 2015, OmniClass, Uniformat II</b> or MasterFormat. The code writes back into the IFC as a
+      standard <b>IfcClassificationReference</b>, so it carries into takeoff, cost and asset systems.</li>
   </ol>
   <div class="note">IFC stays the source of truth: the browser captures your intent, the server authors
     the geometry and re-streams it. Heavy parametric authoring can also be driven on the desktop via
@@ -250,6 +255,25 @@
     <img class="shot" src="img/gantt.png" alt="A Gantt schedule generated from the project's activities" />
     <figcaption>Schedule views (Gantt + line-of-balance) generate from the project's activities.</figcaption>
   </figure>
+
+  <h2 id="evm">Tutorial 📊 · Track cost + schedule performance (Earned Value)</h2>
+  <p class="sub">One ANSI/EIA-748 metric set — is the job over budget, behind schedule, and where will it
+    land? Needs schedule activities with a budget + % complete and direct costs by cost code.</p>
+  <ol class="steps">
+    <li>In the construction workspace, open <b>📊 Earned Value</b>. The dashboard shows <b>CPI</b> (cost),
+      <b>SPI</b> ($-schedule) and <b>SPI(t)</b> (time-schedule) with health bands, plus BAC / EV / AC.</li>
+    <li>Read the <b>CPI–SPI quadrant</b>: the project (and every control account) is plotted on the
+      cost × schedule plane, split at 1.0 — upper-right is under budget and ahead; lower-left is trouble.</li>
+    <li>The <b>S-curve</b> plots planned value against earned + actual to the data date; the <b>forecast</b>
+      card shows the EAC family (BAC/CPI, remaining-at-plan, cost+schedule-drag), ETC, VAC and TCPI, with a
+      stage-adaptive recommendation.</li>
+    <li>Give each activity an <b>EV method</b> (percent · 0/100 · 50/50 · units-complete · milestone · LOE)
+      so credit follows the rule you use in the field, not just a flat %.</li>
+    <li>If the model is <b>field-verified</b>, <b>Model-based EV</b> earns value off physically-installed
+      elements and flags a <b>front-loaded SOV</b> when reported progress outruns what's actually built.</li>
+    <li>Click <b>📸 Capture snapshot</b> each reporting period to build a <b>CPI/SPI performance trend</b> —
+      a falling line means efficiency is slipping. Export the whole thing to a signed <b>PDF report</b>.</li>
+  </ol>
 
   <h2 id="turnover">Tutorial 5 · Hand it over (turnover)</h2>
   <p class="sub">Close the project out and produce the handover package.</p>

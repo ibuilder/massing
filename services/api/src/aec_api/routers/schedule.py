@@ -349,6 +349,25 @@ def evm_model_ev(pid: str, db: Session = Depends(get_db), _: str = Depends(requi
     return evm.model_ev(db, pid)
 
 
+@router.get("/projects/{pid}/evm/trend")
+def evm_trend(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """CPI/SPI **performance-index trend** across captured `evm_snapshot` records (oldest-first) — shows
+    whether cost/schedule efficiency is improving or deteriorating over the reporting periods."""
+    from .. import evm
+    return evm.trend(db, pid)
+
+
+@router.post("/projects/{pid}/evm/snapshot")
+def evm_capture(pid: str, data_date: str | None = Body(default=None, embed=True),
+                period_label: str | None = Body(default=None, embed=True),
+                notes: str | None = Body(default=None, embed=True),
+                db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """Capture the current EVM state as a dated `evm_snapshot` baseline, so CPI/SPI can be trended over
+    reporting periods. Capture one per period (weekly/monthly)."""
+    from .. import evm
+    return evm.capture_snapshot(db, pid, actor, None, data_date, period_label, notes)
+
+
 @router.get("/projects/{pid}/schedule/milestones")
 def milestones(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """**Milestone schedule**: the key dates — activities typed `Milestone` (or zero-duration),

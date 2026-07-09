@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   compact, money, chartColor, lineChart, groupedBar, stackedBar, waterfall,
-  tornado, histogram, donut, progressBar, sparkline, signedBars,
+  tornado, histogram, donut, progressBar, sparkline, signedBars, scatterQuadrant,
 } from "./charts";
 
 describe("number formatting", () => {
@@ -98,5 +98,16 @@ describe("chart primitives produce valid svg", () => {
     const svg = waterfall([{ label: "<x>", value: 1, total: true }], {});
     expect(svg).not.toContain("<x>");
     expect(svg).toContain("&lt;x&gt;");
+  });
+
+  it("scatterQuadrant plots a point per row + escapes labels", () => {
+    const svg = scatterQuadrant([
+      { label: "Project", x: 0.68, y: 0.95, kind: "project" },
+      { label: "<cc>", x: 1.1, y: 0.9 },
+    ]);
+    expect(svg.match(/<circle/g)!.length).toBe(2);
+    expect(svg).toContain("&lt;cc&gt;");            // label escaped in the <title>
+    expect(svg).not.toContain("<cc>");
+    expect(scatterQuadrant([])).toContain("<svg");   // empty is safe (no points)
   });
 });

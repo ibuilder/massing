@@ -2226,6 +2226,18 @@ export class ApiClient {
       bac: number; eac: number | null; data_date_period: number; note: string }>(
       `/projects/${pid}/evm/scurve?period=${period}`);
   }
+  /** CPI/SPI performance-index trend across captured EVM snapshots (oldest-first). */
+  evmTrend(pid: string) {
+    return this.json<{ count: number; labels: string[]; cpi: number[]; spi: number[]; spi_t: number[];
+      points: { data_date: string; period_label: string; cpi: number | null; spi: number | null;
+        spi_t: number | null; eac: number | null; percent_complete: number | null }[]; note: string }>(
+      `/projects/${pid}/evm/trend`);
+  }
+  /** Capture the current EVM state as a dated snapshot baseline (feeds the trend). */
+  evmCaptureSnapshot(pid: string, body: { data_date?: string; period_label?: string; notes?: string } = {}) {
+    return this.json<{ id: string; ref: string }>(`/projects/${pid}/evm/snapshot`,
+      { method: "POST", body: JSON.stringify(body) });
+  }
   /** Full GC project budget (GMP): direct + GC/GR + overhead/fee/contingency, each budget vs
    *  committed vs actual vs variance; reconciled to the prime contract + developer proforma. */
   gmpBudget(pid: string) {
