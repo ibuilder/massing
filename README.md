@@ -182,7 +182,12 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Model authoring — architectural finishes (latest, v0.3.106)** — draw **ceilings, floor tile, wood
+- **Model authoring — optimistic draft placement (latest, v0.3.107)** — placing an element now shows an
+  instant amber proxy where it will land, replaced by the real geometry once the server authors the IFC
+  and re-streams the fragment — so drafting feels live. (Server-side incremental single-element fragment
+  append is the remaining perf follow-up.)
+
+- **Model authoring — architectural finishes (v0.3.106)** — draw **ceilings, floor tile, wood
   flooring and wall cladding** (`IfcCovering` by predefined type + finish material) and **railings**
   (`IfcRailing`). The Draft palette now spans all three disciplines — Architectural · Structural · MEP.
 

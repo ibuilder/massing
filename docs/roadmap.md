@@ -77,8 +77,10 @@ editable-storey recipes + Grid & Levels panel, v0.3.103) → **P4** structural (
 native IfcIShapeProfileDef + rebar IfcReinforcingBar + IfcFooting, v0.3.104) → **P5** MEP (duct/pipe/
 cable-carrier/cable runs w/ ports + IfcDistributionSystem + point equipment: panel/outlet/light/
 diffuser/drain/fixture/alarm/sensor/comms, v0.3.105) → **P3** architectural (IfcCovering
-ceiling/tile/wood/cladding + IfcRailing, v0.3.106) → **P6** draft perf (optimistic + incremental
-fragments). Earlier placeholder: **P4-cont/**
+ceiling/tile/wood/cladding + IfcRailing, v0.3.106) → **P6** draft perf — optimistic local proxy shipped
+(v0.3.107); server-side incremental single-element fragment append is the remaining follow-up (touches
+the IFC→fragments publish pipeline). The Draft palette now spans all three disciplines with grid/level
+snapping and instant placement feedback. Earlier placeholder: **P4-cont/**
 structural (steel parametric profiles + rebar) → **P5** MEP (duct/pipe runs, electrical, fire/telecom) →
 **P3** architectural (coverings/ceilings/tile/wood) → **P6** draft perf (optimistic + incremental
 fragments); standards (PredefinedType + classification + Psets at the type level) woven throughout.

@@ -22,6 +22,7 @@ import { buildTree } from "../tree/tree";
 import { installDraftPanel, type ArmedDraft, type DraftPanelHandle } from "./draft/draftPanel";
 import { type FamilyDef } from "./draft/draftCatalog";
 import { GridOverlay } from "./draft/gridOverlay";
+import { DraftProxyLayer } from "./draft/draftProxy";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type ElementProps, type Topic } from "../api/client";
 import { fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
@@ -713,6 +714,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   function disarmDraft() { armed = null; armPts.length = 0; draftHandle?.onArmCleared(); }
   // P1 grid/level drafting refs: the grid overlay + snap, and the active storey/work-plane.
   const gridOverlay = new GridOverlay(viewer.world.scene.three);
+  const draftProxies = new DraftProxyLayer(viewer.world.scene.three);   // P6: optimistic placement feedback
   let activeStorey: string | null = null;       // name passed to Draft recipes; sets the work-plane Z
   let activeStoreyZ = 0;
   function setPlaceMode(kind: PlaceKind | null) {
@@ -905,6 +907,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const params = a.build(planPts);
     if (activeStorey && params.storey === undefined) params.storey = activeStorey;   // author onto the active level
     disarmDraft();
+    draftProxies.fromParams(params, activeStoreyZ);                                   // instant optimistic proxy
     await authorAndReload(a.recipe, params, a.label);
   }
 
@@ -914,10 +917,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         await api.editIfc(projectId!, recipe, params, true);
         notify(`${label} authored — converting…`, "info");
         const state = await waitForPublish(projectId!);
-        if (state === "done") { const shown = await loadProjectModel(); notify(`${label} applied${shown ? " — shown" : ""}`, "success"); }
+        if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); notify(`${label} applied${shown ? " — shown" : ""}`, "success"); }
         else notify(`${label} authored — publish ${state}`, state === "error" ? "error" : "info");
         await reloadModelPins();
-      } catch (err) { notify(`${label} failed: ${(err as Error).message}`, "error"); }
+      } catch (err) { draftProxies.clear(); notify(`${label} failed: ${(err as Error).message}`, "error"); }
     });
   }
 

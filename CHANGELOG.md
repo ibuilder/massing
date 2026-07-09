@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.107 — Model authoring, P6: optimistic draft placement
+Drafting now gives **instant feedback** instead of a blank wait while the server authors and re-streams.
+
+- **Optimistic proxy** (`viewer/draft/draftProxy.ts`) — the moment you place an element, a lightweight
+  amber proxy (box for equipment, line for a wall/beam/duct/pipe/rebar/railing, polygon outline for a
+  slab/roof/covering) appears exactly where it will land, at the active level. When the server finishes
+  authoring the real IFC and the fragment is re-streamed, the proxy clears and the real geometry takes
+  its place (proxies also clear on failure).
+
+This is the client half of the draft-performance work; the server-side **incremental single-element
+fragment** append (converting just the new element instead of the whole model) is the remaining
+optimization and is tracked for a follow-up, since it touches the IFC→fragments publish pipeline.
+
+Verified: web typecheck + vitest (56) + build.
+
 ## v0.3.106 — Model authoring, P3: architectural finishes (ceilings · tile · wood · cladding · railings)
 Interior/finish elements complete the discipline set the Draft palette can author.
 
