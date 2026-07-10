@@ -1,9 +1,11 @@
 {
   "name": "@aec/web",
-  "version": "0.3.124",
+  "version": "0.3.125",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "predev": "node scripts/copy-wasm.mjs",
     "dev": "vite",
@@ -35,6 +37,7 @@
     "camera-controls": "3.1.2",
     "geotiff": "^3.0.5",
     "laz-perf": "^0.0.7",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.0.227",
     "qrcode": "^1.5.4",
     "three": "0.184.0",

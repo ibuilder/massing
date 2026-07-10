@@ -14,7 +14,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 type Mode = "pan" | "distance" | "area" | "count" | "rect" | "calibrate";
 interface Pt { x: number; y: number }                       // PDF user-space
-interface Measure { id: number; kind: Mode; pts: Pt[]; value: number; unit: string; label: string }
+interface Measure { id: number; kind: Mode; pts: Pt[]; value: number; unit: string; label: string; page: number }
 
 const shoelace = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => {
   const b = p[(i + 1) % p.length]; return s + (a.x * b.y - b.x * a.y);
@@ -76,6 +76,7 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
       tbtn("✋ Pan", "Pan / select", () => setMode("pan"), mode === "pan"),
       tbtn("⌫ Undo", "Remove last point / measurement", undo),
       tbtn("↧ CSV", "Export takeoff as CSV", exportCsv),
+      tbtn("⤓ PDF", "Download the marked-up PDF (markups burned in)", () => void exportPdf()),
       tbtn("✕ Close", "Close takeoff", () => ov.remove()),
     );
   }
@@ -126,7 +127,7 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
     else if (mode === "area") { value = shoelace(pts) * unitsPerPt * unitsPerPt; u = unit + "²"; }
     else if (mode === "rect") { const w = Math.abs(pts[1].x - pts[0].x), h = Math.abs(pts[1].y - pts[0].y); value = calOk() ? w * h * unitsPerPt * unitsPerPt : 0; u = unit + "²"; }
     else if (mode === "count") { value = 1; u = "ea"; }
-    measures.push({ id: ++seq, kind: mode, pts, value, unit: u, label: `${mode} ${seq}` });
+    measures.push({ id: ++seq, kind: mode, pts, value, unit: u, label: `${mode} ${seq}`, page: pageNum });
     draft = []; drawOverlay(); renderList();
   }
   function undo() {
@@ -148,7 +149,7 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
       svg.append(el("path", { d, fill: kind === "area" ? color : "none", "fill-opacity": "0.15", stroke: color, "stroke-width": "1.8", ...(dash ? { "stroke-dasharray": "5 4" } : {}) }));
       for (const p of pts) { const [x, y] = S(p); svg.append(el("circle", { cx: `${x}`, cy: `${y}`, r: "3", fill: color })); }
     };
-    for (const m of measures) drawShape(m.kind, m.pts, m.kind === "area" || m.kind === "rect" ? "#33d17a" : "#ffd479");
+    for (const m of measures) if (m.page === pageNum) drawShape(m.kind, m.pts, m.kind === "area" || m.kind === "rect" ? "#33d17a" : "#ffd479");
     if (draft.length) drawShape(mode, draft, mode === "calibrate" ? "#e2554a" : "#4a8cff", mode === "calibrate");
   }
   function renderList() {
@@ -173,6 +174,45 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
       row.append(lbl, v, del); sidebar.append(row);
     }
   }
+  // ---- flatten markups into a real PDF (pdf-lib, MIT — the "persistence" layer) ------------------
+  // Coords are stored in PDF.js viewport-at-scale-1 space = PDF points, TOP-LEFT origin. pdf-lib draws
+  // BOTTOM-LEFT origin, so flip Y: pdfY = pageHeight − y. (Assumes page rotation 0 / cropbox=mediabox,
+  // the common case for construction sheets — rotated pages would need the viewport transform.)
+  async function exportPdf() {
+    if (!measures.length) { toast("nothing to export yet", "error"); return; }
+    try {
+      const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib");
+      const out = await PDFDocument.load(await file!.arrayBuffer());
+      const font = await out.embedFont(StandardFonts.Helvetica);
+      const pages = out.getPages();
+      const YELLOW = rgb(1, 0.83, 0.47), GREEN = rgb(0.2, 0.82, 0.48);
+      for (const m of measures) {
+        const pg = pages[(m.page ?? 1) - 1]; if (!pg) continue;
+        const H = pg.getSize().height;
+        const col = (m.kind === "area" || m.kind === "rect") ? GREEN : YELLOW;
+        const P = (p: Pt) => ({ x: p.x, y: H - p.y });
+        if (m.kind === "count") {
+          for (const p of m.pts) { const q = P(p); pg.drawCircle({ x: q.x, y: q.y, size: 4, color: col }); }
+        } else if (m.kind === "rect" && m.pts.length === 2) {
+          const a = P(m.pts[0]), b = P(m.pts[1]);
+          pg.drawRectangle({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x),
+            height: Math.abs(b.y - a.y), borderColor: col, borderWidth: 1.5, color: col, opacity: 0.12, borderOpacity: 1 });
+        } else {
+          const pts = m.kind === "area" ? [...m.pts, m.pts[0]] : m.pts;
+          for (let i = 1; i < pts.length; i++) { const s = P(pts[i - 1]), e = P(pts[i]); pg.drawLine({ start: s, end: e, thickness: 1.8, color: col }); }
+        }
+        const lp = P(m.pts[0]);
+        const txt = `${m.label}: ${m.kind === "count" ? "1 ea" : m.value.toFixed(2) + " " + m.unit}`;
+        pg.drawText(txt, { x: lp.x + 4, y: lp.y + 4, size: 8, font, color: col });
+      }
+      const bytes = await out.save();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
+      a.download = `${file!.name.replace(/\.pdf$/i, "")}-markup.pdf`; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      toast(`exported marked-up PDF (${measures.length} markups)`, "success");
+    } catch (e) { toast(`PDF export failed: ${(e as Error).message}`, "error"); }
+  }
   function exportCsv() {
     if (!measures.length) { toast("nothing to export yet", "error"); return; }
     const rows = [["label", "type", "quantity", "unit"], ...measures.map((m) => [m.label, m.kind, m.kind === "count" ? "1" : m.value.toFixed(3), m.unit])];
@@ -189,7 +229,7 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
   // test hook (mirrors __viewer): drive modes/clicks/commit from preview_eval
   (window as unknown as Record<string, unknown>).__takeoff = {
     setMode, click: (xPdf: number, yPdf: number) => { draft.push({ x: xPdf, y: yPdf }); if (mode === "count") { commit(); draft = []; } else if (mode === "calibrate" && draft.length === 2) calibrate(); else if (mode === "rect" && draft.length === 2) commit(); drawOverlay(); },
-    commit, measures, calibrated: () => calOk(), close: () => ov.remove(),
+    commit, measures, calibrated: () => calOk(), exportPdf, close: () => ov.remove(),
   };
 }
 

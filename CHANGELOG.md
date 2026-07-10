@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.125 — PDF markup: flatten to a real PDF (markup stack, phase 1)
+First phase of a Bluebeam-Revu-style PDF markup/manipulation stack (three decoupled layers: PDF.js
+render · interactive markup · pdf-lib/pypdf persistence). Built on the existing PDF takeoff.
+
+- **Flatten markups into a downloadable PDF** — the ⤓ PDF button in the PDF takeoff burns every markup
+  (distance, area, count, rectangle + label/quantity) into a real PDF via **pdf-lib** (MIT), so a
+  marked-up drawing round-trips as a PDF, not just CSV. Handles the PDF.js(top-left)→PDF(bottom-left)
+  Y-flip; markups are page-tagged so multi-page sets export to the right page (also fixes cross-page
+  overlay bleed).
+- pdf-lib is code-split (dynamic import) — no cost to the main bundle until you export.
+
+Deliberately **permissive-only**: pdf-lib (client) + pypdf (server, already a dep) — **no PyMuPDF**
+(AGPL, incompatible with a proprietary product without a paid Artifex license). Next phases: Fabric.js
+interactive stamps + tool sets, and server-side pypdf merge/split/rotate.
+
+Verified: web typecheck + build (pdf-lib bundles) + 59 vitest.
+
 ## v0.3.124 — Drawing revisions, sealed issuances, title blocks (AIA completion)
 Completes the AIA drawing-issuance chain from v0.3.123 — revision deltas, digital seals, and title-block
 metadata.
