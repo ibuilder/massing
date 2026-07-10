@@ -12,6 +12,7 @@ import { renderEvm } from "./panels/evm";
 import { renderResourceLoading } from "./panels/resourceLoading";
 import { renderWip } from "./panels/wip";
 import { renderLedger } from "./panels/ledger";
+import { renderTraceability } from "./panels/traceability";
 import { renderLandScreen, renderLifecycle, renderDiligence, renderEsg, renderConceptRender } from "./panels/design";
 import { renderProgram, renderBimKpi, renderStandards, renderIds, renderModelAnalysis } from "./panels/standards";
 import { renderDocuments } from "./panels/documents";
@@ -162,6 +163,7 @@ export class PortalUI {
       __market__: () => this.renderMarket(), __conceptrender__: () => this.renderConceptRender(),
       __evm__: () => this.renderEvm(), __resload__: () => this.renderResourceLoading(),
       __wip__: () => this.renderWip(), __ledger__: () => this.renderLedger(),
+      __traceability__: () => this.renderTraceability(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __modelanalysis__: () => this.renderModelAnalysis(),
@@ -183,6 +185,7 @@ export class PortalUI {
           { key: "__evm__", icon: "📊", label: "Earned Value" },            // EVM: CPI/SPI/forecast + S-curve
           { key: "__wip__", icon: "📄", label: "WIP Schedule" },            // POC + over/under-billing (accounting twin)
           { key: "__ledger__", icon: "📒", label: "General Ledger" },        // balanced journal + trial balance + export
+          { key: "__traceability__", icon: "🔗", label: "Cost Traceability" }, // model→cost→GL by GlobalId
           { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // weather-sequenced work + site hazards
           { key: "__aiassist__", icon: "✍️", label: "AI Assist" },
         ]],
@@ -459,6 +462,7 @@ export class PortalUI {
   private renderResourceLoading() { return renderResourceLoading(this.panelCtx()); }
   private renderWip() { return renderWip(this.panelCtx()); }
   private renderLedger() { return renderLedger(this.panelCtx()); }
+  private renderTraceability() { return renderTraceability(this.panelCtx()); }
 
   private renderLandScreen() { return renderLandScreen(this.panelCtx()); }
   private renderLifecycle() { return renderLifecycle(this.panelCtx()); }

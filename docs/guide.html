@@ -76,6 +76,7 @@
     <a href="#resource">👷 Resource loading</a>
     <a href="#evm">📊 Earned Value</a>
     <a href="#wip">📄 WIP schedule</a>
+    <a href="#trace">🔗 Cost traceability</a>
     <a href="#turnover">5 · Hand it over</a>
     <a href="#dispose">6 · List &amp; value it</a>
     <a href="#operate">7 · Operate it</a>
@@ -306,6 +307,20 @@
     <li>The table shows the full position — contract, estimated cost, cost-to-complete, earned, billed,
       retainage held, gross profit and backlog. The <b>portfolio WIP</b> lists every job worst-cash-position
       first, and it all exports to a signed PDF.</li>
+  </ol>
+
+  <h2 id="trace">Tutorial 🔗 · Trace cost to the model (by GlobalId)</h2>
+  <p class="sub">A cost-code ledger tells you what a <i>division</i> cost. This tells you what
+    <i>a specific column</i> cost — because every cost record can be tagged with the IFC elements it pays
+    for, by GlobalId. That's the model → resource → cost → GL link a cost-code-only system can't make.</p>
+  <ol class="steps">
+    <li>When you create a budget, commitment, direct cost or sub-invoice, tag it with the <b>IFC elements</b>
+      it pays for (their GlobalIds — e.g. the columns a steel-erection cost covers).</li>
+    <li>Open <b>🔗 Cost Traceability</b> in the construction workspace. <b>Coverage</b> is the share of job
+      cost tied to real model elements — overall and per cost code. Low coverage flags cost that isn't
+      defensible against the model yet.</li>
+    <li>Paste a GlobalId into <b>“What did this element cost?”</b> to see every cost line referencing that
+      element, totalled and broken out by kind (budget / commitment / direct cost / sub-invoice).</li>
   </ol>
 
   <h2 id="turnover">Tutorial 5 · Hand it over (turnover)</h2>

@@ -2182,6 +2182,19 @@ export class ApiClient {
       activities: { ref: string; name: string; status: string; start_var: number | null; finish_var: number | null }[] }>(
       `/projects/${pid}/schedule/variance`);
   }
+  /** Cost traceability coverage — cost tied to IFC elements by GlobalId, per cost code. */
+  costTraceability(pid: string) {
+    return this.json<{ total_cost: number; traceable_cost: number; untraceable_cost: number;
+      coverage_pct: number; elements_referenced: number; line_count: number;
+      by_cost_code: { cost_code: string; total: number; traceable: number; coverage_pct: number }[];
+      note: string }>(`/projects/${pid}/cost/traceability`);
+  }
+  /** Every cost line (budget / commitment / direct cost / sub invoice) tagged to one IFC element. */
+  elementCosts(pid: string, guid: string) {
+    return this.json<{ guid: string; total: number; count: number; by_kind: Record<string, number>;
+      lines: { kind: string; ref: string | null; cost_code: string | null; amount: number }[]; note: string }>(
+      `/projects/${pid}/elements/${encodeURIComponent(guid)}/costs`);
+  }
   /** Balanced double-entry journal from job cost + billing + the WIP POC adjustment. */
   journalEntries(pid: string) {
     return this.json<{ entries: { date: string; ref: string; memo: string; debit_total: number;

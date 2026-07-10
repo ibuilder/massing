@@ -664,6 +664,11 @@ reusing the config engine's reference/rollup relational spine.
   + company-wide. `accounting.py` — a standard construction chart of accounts + a balanced double-entry
   journal (job cost / billing / WIP POC adjustment → revenue nets to earned) + trial balance; 📒 General
   Ledger panel + the existing GL-CSV / QuickBooks-IIF export.
-- **I (planned) — Interop + moat.** Balanced cost-coded journal-entry export to the accounting system of
-  record through an approval gate; then derive WIP % complete and resource curves from **model quantities by
-  GlobalId**, for end-to-end model → resource → cost → GL traceability.
+- **Moat (shipped v0.3.121) — Cost traceability by GlobalId.** `traceability.py` — cost lines (budget /
+  commitment / direct cost / sub invoice) carry `element_guids`; the engine computes coverage (share of job
+  cost tied to real model elements) overall and per cost code, and answers "what did this element cost?" by
+  GlobalId. `GET /projects/{id}/cost/traceability` + `/elements/{guid}/costs`, a 🔗 Cost Traceability panel.
+  The end-to-end model → resource → cost → GL link a cost-code-only ledger can't make.
+- **I (planned) — Interop.** Balanced cost-coded journal-entry export to the accounting system of record
+  through an approval gate; then derive WIP % complete and resource curves from **model quantities by
+  GlobalId** (the coverage index above is the foundation).

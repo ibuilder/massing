@@ -124,6 +124,20 @@ def contractor_statements_portfolio(db: Session = Depends(get_db), _: str = Depe
     return contractor.portfolio_statements(db)
 
 
+@router.get("/projects/{pid}/cost/traceability")
+def cost_traceability(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Cost traceability coverage — how much cost is tied to IFC model elements by GlobalId, per cost code."""
+    from .. import traceability
+    return traceability.summary(db, pid)
+
+
+@router.get("/projects/{pid}/elements/{guid}/costs")
+def element_costs(pid: str, guid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Every cost line (budget / commitment / direct cost / sub invoice) tagged to this IFC element."""
+    from .. import traceability
+    return traceability.element_costs(db, pid, guid)
+
+
 @router.get("/projects/{pid}/subcontractor-billing")
 def subcontractor_billing(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Subcontractor billing — the GC-pays-subs mirror of owner billing. Each subcontract's pay

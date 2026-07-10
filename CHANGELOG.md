@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.121 — Cost traceability by IFC GlobalId (model → cost → GL)
+Closes the moat of the resourcing/accounting plan — cost and billing tied to the actual model elements
+they pay for, by GlobalId. A cost-code-only ledger can't answer "what did *this* column cost?"; this can.
+
+- **`traceability.py`** walks every cost line (budget / commitment / direct cost / sub invoice) that
+  carries `element_guids` and computes **coverage** — the share of job cost tied to real model elements —
+  overall and **per cost code**, plus `element_costs(guid)` for "what did this element cost?" (by kind).
+- Endpoints `GET /projects/{pid}/cost/traceability` and `GET /projects/{pid}/elements/{guid}/costs`.
+  A **🔗 Cost Traceability** panel: coverage KPIs (color-banded), a GlobalId lookup, and a
+  per-cost-code coverage table. `costTraceability` / `elementCosts` client methods.
+
+Verified: `test_traceability` (coverage 93.3%, element→cost by GUID and by kind, untagged→0); ruff clean;
+web typecheck + vitest + build.
+
 ## v0.3.120 — General ledger: balanced double-entry journal + trial balance + chart of accounts
 Closes A2 of the resourcing/accounting plan — the posting bridge to the accounting system of record.
 

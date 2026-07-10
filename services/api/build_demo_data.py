@@ -380,6 +380,22 @@ with TestClient(app) as c:
                    files={"file": ("props.json", json.dumps(_idx).encode(), "application/json")})
         except Exception as e:            # noqa: BLE001
             print(f"  props-index skip: {e}")
+    # cost traceability by GlobalId — tag a few cost records with the model elements they pay for,
+    # so the coverage metric + "what did this element cost?" lookup show real data.
+    if _src and os.path.exists(_src):
+        try:
+            from aec_data.ifc_loader import open_model as _om  # data src on sys.path
+            _mm = _om(_src)
+            _cols = [e.GlobalId for e in _mm.by_type("IfcColumn")]
+            _beams = [e.GlobalId for e in _mm.by_type("IfcBeam")]
+            for _desc, _amt, _g in [("Steel columns — fabricate & erect", 850000, _cols[:2]),
+                                    ("Steel beams — erect", 420000, _beams[:1])]:
+                if _g:
+                    c.post(f"/projects/{pid}/modules/direct_cost",
+                           json={"data": {"description": _desc, "cost_code": ccs["05-1200"], "amount": _amt},
+                                 "element_guids": _g})
+        except Exception as e:            # noqa: BLE001
+            print(f"  trace-seed skip: {e}")
 
     # analysis inputs (envelope / MEP / LOD / drawings / design)
     mk_try("envelope_assembly", {"name": "Exterior wall type A", "element_type": "Wall", "climate_zone": "4",
@@ -461,6 +477,7 @@ with TestClient(app) as c:
     singles = [f"{P}/dashboard", f"{P}/members", f"{P}/budget/gmp", f"{P}/budget/cashflow", f"{P}/budget/variance",
                f"{P}/cost/summary", f"{P}/wip", "/wip/portfolio", f"{P}/contractor-statements", "/contractor-statements/portfolio",
                f"{P}/accounting/chart-of-accounts", f"{P}/accounting/journal-entries", f"{P}/accounting/trial-balance",
+               f"{P}/cost/traceability",  # model->cost coverage by IFC GlobalId
                f"{P}/px-summary", f"{P}/schedule/cpm", f"{P}/schedule/earned-value", f"{P}/schedule/lookahead?weeks=3",
                f"{P}/schedule/milestones", f"{P}/schedule/variance", f"{P}/schedule/4d", f"{P}/safety/metrics", f"{P}/bids/leveling",
                f"{P}/schedule/resource-loading?cap=25", f"{P}/schedule/resource-leveling?cap=25",  # cost-loaded manpower + leveling
