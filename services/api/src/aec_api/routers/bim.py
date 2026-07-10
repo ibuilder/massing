@@ -79,17 +79,37 @@ def presence_roster(pid: str, user: str = Depends(current_user)):
     return {"active": presence.active(pid, exclude=user)}
 
 
-# --- drawing markup (2D sheet pins/redlines; promotable to RFIs) --------------
+# --- drawing markup (2D sheet pins/redlines + takeoff markups; promotable to RFIs) ------
 class MarkupIn(BaseModel):
     sheet_id: str
     x: float
     y: float
     note: str | None = None
+    kind: str = "pin"
+    data: dict | None = None
+
+
+class MarkupItemIn(BaseModel):
+    """One markup within a bulk save — the sheet_id comes from the parent, not each item."""
+    x: float
+    y: float
+    note: str | None = None
+    kind: str = "pin"
+    data: dict | None = None
+
+
+class MarkupBulkIn(BaseModel):
+    """Persist a whole sheet's markup scene from the 2D editor. `replace` clears the caller's own prior
+    markups for that sheet first (kept: any already promoted to an RFI)."""
+    sheet_id: str
+    replace: bool = True
+    markups: list[MarkupItemIn]
 
 
 def _markup_out(m: DrawingMarkup) -> dict:
     return {"id": m.id, "sheet_id": m.sheet_id, "x": m.x, "y": m.y, "note": m.note,
-            "author": m.author, "topic_id": m.topic_id, "created_at": m.created_at}
+            "author": m.author, "topic_id": m.topic_id, "kind": m.kind or "pin",
+            "data": m.data, "created_at": m.created_at}
 
 
 @router.get("/projects/{pid}/drawings/markup")
@@ -106,10 +126,28 @@ def list_markup(pid: str, sheet: str | None = None, db: Session = Depends(get_db
 def add_markup(pid: str, body: MarkupIn, db: Session = Depends(get_db),
                actor: str = Depends(require_role("reviewer"))):
     m = DrawingMarkup(project_id=pid, sheet_id=body.sheet_id, x=body.x, y=body.y,
-                      note=body.note, author=actor)
+                      note=body.note, author=actor, kind=body.kind or "pin", data=body.data)
     db.add(m)
     db.commit()
     return _markup_out(m)
+
+
+@router.post("/projects/{pid}/drawings/markup/bulk", status_code=201)
+def save_markup_bulk(pid: str, body: MarkupBulkIn, db: Session = Depends(get_db),
+                     actor: str = Depends(require_role("reviewer"))):
+    """Save the 2D editor's whole markup scene for a sheet. With `replace`, the caller's own prior
+    markups for that sheet are cleared first — but markups promoted to an RFI (topic_id set) are kept,
+    so a located issue is never silently dropped."""
+    if body.replace:
+        (db.query(DrawingMarkup)
+           .filter(DrawingMarkup.project_id == pid, DrawingMarkup.sheet_id == body.sheet_id,
+                   DrawingMarkup.author == actor, DrawingMarkup.topic_id.is_(None))
+           .delete(synchronize_session=False))
+    rows = [DrawingMarkup(project_id=pid, sheet_id=body.sheet_id, x=mk.x, y=mk.y, note=mk.note,
+                          author=actor, kind=mk.kind or "pin", data=mk.data) for mk in body.markups]
+    db.add_all(rows)
+    db.commit()
+    return {"saved": len(rows), "sheet_id": body.sheet_id}
 
 
 @router.delete("/projects/{pid}/drawings/markup/{mid}")
@@ -132,9 +170,12 @@ def promote_markup(pid: str, mid: str, db: Session = Depends(get_db),
         raise HTTPException(404, "no such markup")
     if m.topic_id:
         raise HTTPException(409, "markup already linked to an RFI")
+    detail = m.note or ""
+    if m.data and m.data.get("value"):                       # takeoff markup — include the measurement
+        detail = f"{detail}\n{m.kind}: {m.data.get('value')} {m.data.get('unit', '')}".strip()
     t = Topic(project_id=pid, type="rfi", status="open", author=actor,
-              title=(m.note or "Drawing RFI")[:80],
-              description=f"Raised from a drawing markup on sheet '{m.sheet_id}'.\n\n{m.note or ''}")
+              title=(m.note or f"Drawing {m.kind or 'RFI'}")[:80],
+              description=f"Raised from a {m.kind or 'pin'} markup on sheet '{m.sheet_id}'.\n\n{detail}")
     db.add(t)
     db.flush()
     m.topic_id = t.id

@@ -14,7 +14,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 type Mode = "pan" | "distance" | "area" | "count" | "rect" | "calibrate" | "text" | "stamp";
 interface Pt { x: number; y: number }                       // PDF user-space
-interface Measure { id: number; kind: Mode; pts: Pt[]; value: number; unit: string; label: string; page: number; text?: string }
+export interface Measure { id: number; kind: Mode; pts: Pt[]; value: number; unit: string; label: string; page: number; text?: string }
 
 // Dynamic stamps (Bluebeam-style): {{user}}/{{date}}/{{time}}/{{file}} resolve at placement time.
 const STAMPS = ["APPROVED", "REVIEWED", "FOR CONSTRUCTION", "NOT FOR CONSTRUCTION", "VOID",
@@ -28,7 +28,12 @@ const pathLen = (p: Pt[]) => p.slice(1).reduce((s, a, i) => s + Math.hypot(a.x -
 /** A PDF to open: a local File, or a server URL (fetched with optional auth headers). */
 export type PdfSource = File | { url: string; name: string; headers?: Record<string, string> };
 /** Optional wiring so the marked-up PDF can be saved back to its source (attachment / document / etc.). */
-export interface TakeoffOpts { onSave?: (pdf: Blob, name: string) => Promise<void>; saveLabel?: string }
+export interface TakeoffOpts {
+  onSave?: (pdf: Blob, name: string) => Promise<void>; saveLabel?: string;
+  /** Persist the structured markups to a shared store (e.g. a drawing sheet) so they reload + promote to
+   *  RFI like pins — rather than only flattening to a throwaway PDF. */
+  persist?: { load: () => Promise<Measure[]>; save: (m: Measure[]) => Promise<void> };
+}
 
 export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {}): Promise<void> {
   let docName = "document.pdf";
@@ -115,6 +120,7 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
       tbtn("📂 Load", "Load a saved tool set (JSON)", loadSet),
       tbtn("↧ CSV", "Export takeoff as CSV", exportCsv),
       tbtn("⤓ PDF", "Download the marked-up PDF (markups burned in)", () => void exportPdf()),
+      ...(opts.persist ? [tbtn("⭳ Save to sheet", "Persist these markups to the drawing sheet (reload + promote to RFI)", () => void saveMarkupsToSheet())] : []),
       ...(opts.onSave ? [tbtn("⭱ Save to source", opts.saveLabel || "Save the marked-up PDF back to its source", () => void saveToServer())] : []),
       tbtn("✕ Close", "Close takeoff", () => ov.remove()),
     );
@@ -311,6 +317,12 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
     try { await opts.onSave(new Blob([bytes as BlobPart], { type: "application/pdf" }), docName); toast(opts.saveLabel ? `${opts.saveLabel} — saved` : "saved to server", "success"); }
     catch (e) { toast(`save failed: ${(e as Error).message}`, "error"); }
   }
+  // Persist the structured markups to the shared sheet store (reload + promote to RFI like pins).
+  async function saveMarkupsToSheet() {
+    if (!opts.persist) return;
+    try { await opts.persist.save(measures); toast(`saved ${measures.length} markups to the sheet`, "success"); }
+    catch (e) { toast(`save failed: ${(e as Error).message}`, "error"); }
+  }
   function exportCsv() {
     if (!measures.length) { toast("nothing to export yet", "error"); return; }
     const rows = [["label", "type", "quantity", "unit"], ...measures.map((m) => [m.label, m.kind, m.kind === "count" ? "1" : m.value.toFixed(3), m.unit])];
@@ -321,6 +333,11 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
     toast(`exported ${measures.length} takeoff lines`, "success");
   }
 
+  // Load any markups already persisted for this sheet, so the 2D editor is a live view of the sheet.
+  if (opts.persist) {
+    try { for (const mm of await opts.persist.load()) { mm.id = ++seq; measures.push(mm); } }
+    catch (e) { toast(`couldn't load sheet markups: ${(e as Error).message}`, "error"); }
+  }
   buildBar(); renderList(); await render();
   // fit width on first open
   const avail = viewport.clientWidth - 40; if (canvas.width > avail) setScale(scale * (avail / canvas.width));

@@ -25,6 +25,13 @@ export interface IntegrationGroup { group: string; keys: IntegrationKey[] }
 export interface DrawingMarkupItem {
   id: string; sheet_id: string; x: number; y: number; note: string | null;
   author: string | null; topic_id: string | null; created_at: string;
+  kind?: string; data?: { pts?: { x: number; y: number }[]; value?: number; unit?: string; page?: number; text?: string } | null;
+}
+
+/** One markup in a bulk save from the 2D editor (pin or a structured takeoff markup). */
+export interface SheetMarkupIn {
+  x: number; y: number; note?: string | null; kind?: string;
+  data?: { pts: { x: number; y: number }[]; value: number; unit: string; page: number; text?: string };
 }
 
 /** An A/E/C stamp template from the server library (review / inspection / status / seal). */
@@ -2093,6 +2100,12 @@ export class ApiClient {
   }
   addDrawingMarkup(pid: string, sheetId: string, x: number, y: number, note: string) {
     return this.json<DrawingMarkupItem>(`/projects/${pid}/drawings/markup`, { method: "POST", body: JSON.stringify({ sheet_id: sheetId, x, y, note }) });
+  }
+  /** Persist the 2D editor's whole markup scene for a sheet (structured takeoff markups, promotable to
+   *  RFI like pins). `replace` clears the caller's own prior unpromoted markups for that sheet first. */
+  saveDrawingMarkups(pid: string, sheetId: string, markups: SheetMarkupIn[], replace = true) {
+    return this.json<{ saved: number; sheet_id: string }>(`/projects/${pid}/drawings/markup/bulk`,
+      { method: "POST", body: JSON.stringify({ sheet_id: sheetId, replace, markups }) });
   }
   deleteDrawingMarkup(pid: string, id: string) {
     return this.json<{ ok: boolean }>(`/projects/${pid}/drawings/markup/${id}`, { method: "DELETE" });

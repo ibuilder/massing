@@ -290,11 +290,15 @@ class DrawingMarkup(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     sheet_id: Mapped[str] = mapped_column(String, index=True)   # e.g. "plan:02 - Floor"
-    x: Mapped[float] = mapped_column(Float, default=0.0)
+    x: Mapped[float] = mapped_column(Float, default=0.0)         # anchor (first point) — pin overlay uses this
     y: Mapped[float] = mapped_column(Float, default=0.0)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     author: Mapped[str | None] = mapped_column(String, nullable=True)
     topic_id: Mapped[str | None] = mapped_column(String, nullable=True)   # set when promoted to an RFI
+    # Convergence: the 2D takeoff editor persists richer markups here too. kind = pin | distance | area |
+    # count | rect | text | stamp; data carries the full geometry {pts, value, unit, page, text}.
+    kind: Mapped[str] = mapped_column(String, default="pin")
+    data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

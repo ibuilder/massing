@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.130 — One 2D markup model: takeoff markups persist to the sheet + promote to RFI
+Converges the two previously-disconnected 2D markup systems onto one server-side store. The pdf.js
+takeoff editor's structured markups (distance / area / count / rect / text / stamp) now persist into the
+same `drawing_markups` table as the SVG sheet pins — so they reload on reopen and can be **promoted to an
+RFI** exactly like a pin, instead of only flattening to a throwaway PDF.
+- **Backend** (additive, no migration tool): `drawing_markups` gains `kind` + `data` (JSON geometry).
+  New `POST /projects/{pid}/drawings/markup/bulk` saves a whole sheet's scene (`replace` clears the
+  caller's own prior unpromoted markups — anything promoted to an RFI is kept). RFI promotion now carries
+  the markup's measurement into the issue.
+- **2D editor**: opening a drawing sheet's PDF binds it to the sheet — it **loads** existing markups and a
+  new **⭳ Save to sheet** button persists them. The SVG pin view is untouched (PDF markups live in their
+  own coordinate namespace on the shared store). `test_markup`.
+
 ## v0.3.129 — The 2D editor everywhere + save generated PDFs to Documents + pin perf
 Optimizes the two editors and uses them to best intention throughout (from an audit of both):
 - **Save generated PDFs to Documents** — a marked-up report / pay app / statement / drawing sheet can now

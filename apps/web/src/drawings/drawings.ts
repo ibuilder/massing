@@ -1,4 +1,5 @@
 import type { ApiClient, DrawingMarkupItem } from "../api/client";
+import type { Measure } from "./pdfTakeoff";
 import { noProjectHtml } from "../ui/empty";
 
 /** 2D Drawings Set — a sheet-set browser for the server-generated plans / elevations / sections
@@ -156,10 +157,23 @@ export class DrawingsUI {
     bar.append(
       btn("✎ Markup", "Drop pins + notes on the sheet", () => { this.markupOn = !this.markupOn; this.root.querySelector(".dwg-viewport")!.classList.toggle("marking", this.markupOn); this.buildToolbar(); }, this.markupOn),
       btn("↓ SVG", "Download SVG", () => window.open(this.host_.api.url(sheet.path), "_blank")));
-    if (sheet.pdf) bar.append(btn("🖊 PDF markup", "Open the sheet PDF in the 2D editor — measure / mark up / save", async () => {
+    if (sheet.pdf) bar.append(btn("🖊 PDF markup", "Open the sheet PDF in the 2D editor — measure / mark up / persist to the sheet (promotable to RFI)", async () => {
       const api = this.host_.api, pid = this.host_.projectId();
       const { openPdfUrl, saveToDocuments } = await import("./openPdf");
-      await openPdfUrl(api, api.url(sheet.pdf!), "sheet.pdf", pid ? { saveLabel: "Save to Documents", onSave: saveToDocuments(api, pid) } : {});
+      const sid = `${sheet.id}#pdf`;                          // shares the markup store; own coord space
+      await openPdfUrl(api, api.url(sheet.pdf!), "sheet.pdf", !pid ? {} : {
+        saveLabel: "Save to Documents", onSave: saveToDocuments(api, pid),
+        persist: {
+          load: async (): Promise<Measure[]> => (await api.drawingMarkup(pid, sid))
+            .filter((m) => m.data?.pts?.length)
+            .map((m) => ({ id: 0, kind: (m.kind as Measure["kind"]) || "text", pts: m.data!.pts!,
+              value: m.data!.value ?? 0, unit: m.data!.unit ?? "", label: m.note ?? "",
+              page: m.data!.page ?? 1, text: m.data!.text })),
+          save: async (ms: Measure[]) => { await api.saveDrawingMarkups(pid, sid, ms.map((mm) => ({
+            x: mm.pts[0]?.x ?? 0, y: mm.pts[0]?.y ?? 0, note: mm.label, kind: mm.kind,
+            data: { pts: mm.pts, value: mm.value, unit: mm.unit, page: mm.page, text: mm.text } }))); },
+        },
+      });
     }));
   }
 
