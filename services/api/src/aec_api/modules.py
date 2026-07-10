@@ -76,6 +76,11 @@ def _table(key: str) -> Table:
         # composite index for the hot path: "records in this project in this state" (dashboard
         # rollups, list filters) — more selective than the single-column indexes alone.
         Index(f"ix_mod_{key}_proj_state", "project_id", "workflow_state"),
+        # every list_records does `WHERE project_id=? ORDER BY created_at LIMIT/OFFSET` — without this
+        # that's a filesort of the whole project's rows on each page (brutal at 100k+ on Postgres).
+        Index(f"ix_mod_{key}_proj_created", "project_id", "created_at"),
+        # my-work / assignee queues filter `WHERE project_id=? AND assignee=?`.
+        Index(f"ix_mod_{key}_proj_assignee", "project_id", "assignee"),
         extend_existing=True,
     )
 
@@ -321,13 +326,28 @@ def state_counts(db: Session, key: str, project_id: str) -> dict[str, int]:
     return dict(db.execute(stmt).all())
 
 
-def active_records(db: Session, key: str, project_id: str, exclude_states: set[str]) -> list[dict]:
-    """Lean records NOT in `exclude_states` (e.g. closed/done): only the columns a dashboard needs —
-    id, ref, title, workflow_state, assignee + the `data` blob (for due dates). Skips parsing JSON
-    for the typically-large tail of completed records."""
+def active_records(db: Session, key: str, project_id: str, exclude_states: set[str],
+                   with_data: bool = True, states: set[str] | None = None,
+                   limit: int | None = None) -> list[dict]:
+    """Lean records NOT in `exclude_states` (e.g. closed/done): the columns a dashboard needs —
+    id, ref, title, workflow_state, assignee (+ the `data` blob when `with_data`, for due dates).
+    Skips parsing JSON for the typically-large tail of completed records.
+
+    `with_data=False` omits the JSON entirely (the big cost at scale) for callers that only need the
+    lean columns. `states` restricts to a specific state set (indexed) instead of the whole active
+    tail; `limit` caps the rows returned — together they let a dashboard pull just the actionable
+    slice of a mega-project module instead of every open row."""
     t = TABLES[key]
-    stmt = (select(t.c.id, t.c.ref, t.c.title, t.c.workflow_state, t.c.assignee, t.c.data)
-            .where(t.c.project_id == project_id, t.c.workflow_state.notin_(exclude_states)))
+    cols = [t.c.id, t.c.ref, t.c.title, t.c.workflow_state, t.c.assignee]
+    if with_data:
+        cols.append(t.c.data)
+    stmt = select(*cols).where(t.c.project_id == project_id)
+    if states is not None:
+        stmt = stmt.where(t.c.workflow_state.in_(states))
+    else:
+        stmt = stmt.where(t.c.workflow_state.notin_(exclude_states))
+    if limit is not None:
+        stmt = stmt.limit(limit)
     return [dict(r._mapping) for r in db.execute(stmt)]
 
 
@@ -625,11 +645,20 @@ def notifications(db: Session, project_id: str, user: str, party: str | None,
     return out
 
 
-def my_work(db: Session, project_id: str, user: str, party: str | None) -> list[dict]:
+MY_WORK_PER_MODULE = 100   # newest N actionable rows pulled per module before the global trim
+MY_WORK_LIMIT = 500        # cap on the personal work feed (a to-do queue, not a data export)
+
+
+def my_work(db: Session, project_id: str, user: str, party: str | None,
+            limit: int = MY_WORK_LIMIT) -> list[dict]:
     """Cross-module: records assigned to me, plus those where my party can act now.
 
     Filters in SQL — assignee = me OR workflow_state in the set of states my party can act from
-    (precomputed per module from the workflow) — so it doesn't load every row of all 68 tables."""
+    (precomputed per module from the workflow). Bounded on both axes: each module contributes only
+    its newest ``MY_WORK_PER_MODULE`` matches (indexed `(project_id, assignee)` / `(project_id,
+    workflow_state)` + `ORDER BY modified_at`), and the merged feed is trimmed to ``limit`` — so a
+    mega project with tens of thousands of open records returns a fast, bounded to-do queue instead
+    of a multi-megabyte dump of every actionable row."""
     out = []
     for key, mod in REGISTRY.items():
         t = TABLES[key]
@@ -639,14 +668,26 @@ def my_work(db: Session, project_id: str, user: str, party: str | None) -> list[
         conds = [t.c.assignee == user]
         if actionable_states:
             conds.append(t.c.workflow_state.in_(actionable_states))
-        for r in db.execute(select(t).where(t.c.project_id == project_id, or_(*conds))):
+        stmt = (select(t.c.id, t.c.ref, t.c.title, t.c.workflow_state, t.c.assignee, t.c.modified_at)
+                .where(t.c.project_id == project_id, or_(*conds))
+                .order_by(t.c.modified_at.desc()).limit(MY_WORK_PER_MODULE))
+        for r in db.execute(stmt):
             m = r._mapping
             mine = m["assignee"] == user
             out.append({"module": key, "module_name": mod.get("name", key),
                         "icon": mod.get("icon", "•"), "id": m["id"], "ref": m["ref"],
                         "title": m["title"], "state": m["workflow_state"],
-                        "assignee": m["assignee"], "reason": "assigned" if mine else "ball-in-court"})
-    return out
+                        "assignee": m["assignee"], "modified_at": m["modified_at"],
+                        "reason": "assigned" if mine else "ball-in-court"})
+    # newest-first across all modules, then cap. Sort on the ISO string (never mix datetime/None,
+    # which would raise); assigned-to-me sorts ahead of ball-in-court at equal recency.
+    def _key(x: dict) -> tuple[str, int]:
+        ts = x["modified_at"]
+        return (ts.isoformat() if ts else "", 0 if x["reason"] == "assigned" else 1)
+    out.sort(key=_key, reverse=True)
+    for x in out:
+        x.pop("modified_at", None)
+    return out[:limit]
 
 
 _DUE_FIELDS = ("due_date", "response_due", "need_by", "due")

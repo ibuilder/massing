@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.122 — Battle-tested for mega-project scale (200k+ records)
+Load-tested every heavy read path against a seeded ~220k-record project (research-sized for a $500M+
+job: ~10k RFIs, 20k cost lines, 12k punchlist, 15k timesheets, …) and fixed what didn't hold up.
+
+- **my-work** was returning **every** actionable row across all modules — a ~25 MB, 4 s response on a
+  mega project. Now a bounded to-do queue: newest-N per module (indexed) + a 500-item cap, lean columns
+  only (no JSON blob). 25 MB → ~100 KB, 4 s → ~0.5 s.
+- **BCF export** ran a per-record `get_record` (comments/timeline/rollups it never uses) — an N+1 that
+  took ~12 s on an 8k-issue module. `list_records` already returns every column BCF needs, so it's one
+  query now (~1 s) with a 25k-record cap (logged when hit).
+- **Dashboard** loaded the JSON `data` of the entire non-terminal tail of all 118 modules just to check
+  due dates. Now it reads JSON only for modules that have a due-date field and pulls action items from a
+  bounded, state-filtered query. 3.8 s → ~1.2 s.
+- **Indexes**: added `(project_id, created_at)` — every list does `ORDER BY created_at`, previously a
+  filesort — and `(project_id, assignee)` for the work queues. Backfilled on existing DBs at startup.
+- **Connection pool** is now sized from the environment (`AEC_DB_POOL_SIZE`/`_MAX_OVERFLOW`/`_RECYCLE`/
+  `_TIMEOUT`) instead of SQLAlchemy's 5+10 default, which starves a multi-worker API under load.
+- New reusable harness: `seed_scale.py` (bulk-seeds every module at configurable volume) +
+  `loadtest.py` (per-endpoint latency + concurrency), and a `test_scale` regression that locks in the
+  pagination clamp, bounded my-work, single-query BCF, and index presence.
+
+Verified: full backend suite green (incl. `test_scale`); ruff clean; security review clean.
+
 ## v0.3.121 — Cost traceability by IFC GlobalId (model → cost → GL)
 Closes the moat of the resourcing/accounting plan — cost and billing tied to the actual model elements
 they pay for, by GlobalId. A cost-code-only ledger can't answer "what did *this* column cost?"; this can.

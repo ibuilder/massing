@@ -4,6 +4,8 @@ One set of routes serves every module (RFIs, Submittals, the change-order chain,
 acting user's *party role* gates workflow transitions; the *capability role* gates writes."""
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -567,11 +569,21 @@ def export_module_bcf(pid: str, key: str, db: Session = Depends(get_db),
     """Export a module's records as a BCF 2.1 .bcfzip (coordination issues round-trip with Solibri /
     ACC / BIMcollab). Pinned / element-tied records carry a viewpoint (components + camera)."""
     from .. import bcf_io
-    recs = mod_engine.list_records(db, key, pid, limit=1_000_000)
-    full = [mod_engine.get_record(db, key, pid, r["id"]) for r in recs]   # get anchor + element_guids
-    data = bcf_io.export_records_bcfzip(full, topic_type="Clash" if key == "coordination_issue" else "Issue")
-    return Response(data, media_type="application/octet-stream",
-                    headers={"Content-Disposition": f'attachment; filename="{key}.bcfzip"'})
+    # list_records already returns every column BCF needs (title/ref/workflow_state/assignee/data/
+    # anchor/element_guids) — the old per-row get_record was a pure N+1 that also pulled
+    # comments/timeline/rollups BCF never uses (~12s on an 8k-issue module). One query now.
+    cap = 25_000
+    recs = mod_engine.list_records(db, key, pid, limit=cap + 1)
+    truncated = len(recs) > cap
+    if truncated:
+        recs = recs[:cap]
+        logging.getLogger("aec.bcf").warning(
+            "BCF export of %s truncated to %d records (project %s)", key, cap, pid)
+    data = bcf_io.export_records_bcfzip(recs, topic_type="Clash" if key == "coordination_issue" else "Issue")
+    headers = {"Content-Disposition": f'attachment; filename="{key}.bcfzip"'}
+    if truncated:
+        headers["X-Truncated"] = f"{cap}"
+    return Response(data, media_type="application/octet-stream", headers=headers)
 
 
 @router.post("/projects/{pid}/modules/{key}/bcf/import", status_code=201)

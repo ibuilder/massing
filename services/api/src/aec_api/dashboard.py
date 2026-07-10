@@ -33,6 +33,7 @@ def build(db: Session, pid: str, party: str | None) -> dict[str, Any]:
     terminal_states = {"closed", "answered", "verified", "done"}
     counts = Counter()
 
+    ACTION_CAP = 300          # bound the action-item collection (output is sliced to 100 anyway)
     for key, mod in me.REGISTRY.items():
         states = me.state_counts(db, key, pid)           # GROUP BY — no JSON parsed
         total = sum(states.values())
@@ -42,17 +43,29 @@ def build(db: Session, pid: str, party: str | None) -> dict[str, Any]:
                           "count": total, "by_state": states})
         counts["total"] += total
         counts[f"open:{key}"] += sum(n for s, n in states.items() if s in open_states)
-        for r in me.active_records(db, key, pid, terminal_states):   # JSON only for the active tail
-            if _overdue(r):
-                overdue += 1
-            acts = me.available_actions(mod, r["workflow_state"], party)
-            # only count records that have an actionable, non-trivial next step for this party
-            if acts and r["workflow_state"] in open_states:
-                action_items.append({
-                    "module": key, "module_name": mod["name"], "id": r["id"], "ref": r["ref"],
-                    "title": r["title"], "state": r["workflow_state"],
-                    "actions": [a["action"] for a in acts],
-                })
+
+        # overdue: only modules that actually carry a due-date field need their JSON loaded — at
+        # scale this avoids reading the `data` blob for the entire non-terminal tail of every module.
+        if me._due_field_name(mod):
+            for r in me.active_records(db, key, pid, terminal_states):
+                if _overdue(r):
+                    overdue += 1
+
+        # action items: query only the states where this party has a move AND that are "open", with
+        # lean columns (no JSON) and a cap — not the whole active tail. `available_actions` needs
+        # only workflow_state, which is an indexed column.
+        if len(action_items) < ACTION_CAP:
+            actionable = {s for s in states
+                          if s in open_states and me.available_actions(mod, s, party)}
+            if actionable:
+                need = ACTION_CAP - len(action_items)
+                for r in me.active_records(db, key, pid, terminal_states, with_data=False,
+                                           states=actionable, limit=need):
+                    action_items.append({
+                        "module": key, "module_name": mod["name"], "id": r["id"], "ref": r["ref"],
+                        "title": r["title"], "state": r["workflow_state"],
+                        "actions": [a["action"] for a in me.available_actions(mod, r["workflow_state"], party)],
+                    })
 
     def open_count(key):
         return counts.get(f"open:{key}", 0)

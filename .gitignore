@@ -94,3 +94,6 @@ services/api/*.db-journal
 # transient demo-capture artifacts (build_demo_data.py)
 services/api/_demo_capture_storage/
 services/api/_demo_capture.db
+
+# scale-test harness artifacts (seed_scale.py writes the project id here)
+services/api/_scale_pid.txt

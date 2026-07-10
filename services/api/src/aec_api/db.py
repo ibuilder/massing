@@ -19,7 +19,22 @@ else:
     _ct = int(os.environ.get("AEC_DB_CONNECT_TIMEOUT", "5"))
     _connect_args = {"connect_timeout": _ct, "keepalives": 1, "keepalives_idle": 5,
                      "keepalives_interval": 2, "keepalives_count": 2}
-engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True, future=True)
+if DATABASE_URL.startswith("sqlite"):
+    # SQLite uses a single-file lock; the default pool is fine (and QueuePool sizing is moot).
+    _pool_kw: dict = {}
+else:
+    # Default SQLAlchemy pool (5 + 10 overflow) starves a multi-worker API under mega-project
+    # concurrency — every request that touches the DB queues behind 15 connections. Size it from
+    # the environment (per worker) and recycle idle connections so a long-lived pool doesn't hold
+    # stale sockets. pool_timeout fails fast instead of hanging a request forever on pool exhaustion.
+    _pool_kw = {
+        "pool_size": int(os.environ.get("AEC_DB_POOL_SIZE", "10")),
+        "max_overflow": int(os.environ.get("AEC_DB_MAX_OVERFLOW", "20")),
+        "pool_recycle": int(os.environ.get("AEC_DB_POOL_RECYCLE", "1800")),
+        "pool_timeout": int(os.environ.get("AEC_DB_POOL_TIMEOUT", "30")),
+    }
+engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True,
+                       future=True, **_pool_kw)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
