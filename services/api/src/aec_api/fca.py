@@ -130,12 +130,16 @@ def index(db, pid: str, crv: float | None = None, gfa_sf: float | None = None) -
     }
 
 
-def portfolio(db) -> dict[str, Any]:
+def portfolio(db, project_ids: set[str] | None = None) -> dict[str, Any]:
     """Per-project FCI across the portfolio, worst-first — the capital-prioritization view (allocate
-    to the highest-FCI buildings, which carry the largest backlog relative to value)."""
+    to the highest-FCI buildings, which carry the largest backlog relative to value). `project_ids`
+    (when not None) scopes the roll-up to the caller's projects so no other tenant's data is exposed."""
     import logging
     out = []
-    for p in db.query(Project).all():
+    q = db.query(Project)
+    if project_ids is not None:
+        q = q.filter(Project.id.in_(project_ids))
+    for p in q.all():
         try:
             idx = index(db, p.id)
         except Exception:                              # noqa: BLE001,S112 — a bad project shouldn't sink the roll-up

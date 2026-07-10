@@ -8,13 +8,13 @@ from sqlalchemy.orm import Session
 from .. import audit, turnover
 from ..db import get_db
 from ..models import Project
-from ..rbac import current_user, require_role
+from ..rbac import require_role
 
 router = APIRouter()
 
 
 @router.get("/projects/{pid}/turnover/readiness")
-def readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Punch-list rollup + latest model version — is the project ready for a G704 certification?"""
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
@@ -22,7 +22,7 @@ def readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(current_
 
 
 @router.get("/projects/{pid}/turnover/status")
-def status(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def status(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Turnover package status: substantial-completion cert (signed?), record model, punch readiness."""
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")

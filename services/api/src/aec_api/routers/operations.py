@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from .. import audit, cam, cmms, energy, energy_star_bridge, esg, fca, reserve, twin
 from ..db import get_db
 from ..models import Project
-from ..rbac import current_user, require_role
+from ..rbac import current_user, member_project_ids, require_role
 
 router = APIRouter()
 
@@ -33,7 +33,7 @@ def generate_pm(pid: str, db: Session = Depends(get_db), actor: str = Depends(re
 
 
 @router.get("/projects/{pid}/cmms/kpis")
-def cmms_kpis(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def cmms_kpis(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Maintenance KPIs: open by priority/type, overdue, PM compliance %, MTTR (days)."""
     _project(db, pid)
     return cmms.kpis(db, pid)
@@ -41,7 +41,7 @@ def cmms_kpis(pid: str, db: Session = Depends(get_db), _: str = Depends(current_
 
 @router.get("/projects/{pid}/energy/actual")
 def energy_summary(pid: str, gfa_sf: float | None = None, db: Session = Depends(get_db),
-                   _: str = Depends(current_user)):
+                   _: str = Depends(require_role("viewer"))):
     """Operational (metered) energy rollup: site kBtu + cost by utility, monthly trend, water, and EUI
     (kBtu/sf/yr) using the model's GFA when loaded — or pass ?gfa_sf= explicitly. Distinct from
     GET /projects/{pid}/energy, which is the design-model simulation."""
@@ -51,7 +51,7 @@ def energy_summary(pid: str, gfa_sf: float | None = None, db: Session = Depends(
 
 
 @router.get("/projects/{pid}/twin/readiness")
-def twin_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def twin_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Digital-twin + Digital Product Passport readiness: asset↔system linkage, sensor mapping,
     product-passport completeness, and the building-system graph."""
     _project(db, pid)
@@ -67,7 +67,7 @@ def benchmark_status(_: str = Depends(current_user)):
 
 @router.get("/projects/{pid}/esg")
 def esg_summary(pid: str, gfa_sf: float | None = None, db: Session = Depends(get_db),
-                _: str = Depends(current_user)):
+                _: str = Depends(require_role("viewer"))):
     """Asset ESG rollup: metered energy (EUI), GHG Scope 1/2 from the local factor table, water,
     certification tracking, and the POE actual-vs-design EUI comparison."""
     _project(db, pid)
@@ -78,7 +78,7 @@ def esg_summary(pid: str, gfa_sf: float | None = None, db: Session = Depends(get
 @router.get("/projects/{pid}/reserves/study")
 def reserve_study(pid: str, horizon_years: int = 25, opening_balance: float = 0.0,
                   annual_contribution: float = 0.0, inflation_pct: float = 0.0,
-                  db: Session = Depends(get_db), _: str = Depends(current_user)):
+                  db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Reserve study: recurring replacement events (asset register install + expected life +
     replacement cost, plus open capital-plan items), year-by-year balance trajectory, first
     underfunded year, and the suggested level annual contribution."""
@@ -89,7 +89,7 @@ def reserve_study(pid: str, horizon_years: int = 25, opening_balance: float = 0.
 
 @router.get("/projects/{pid}/fca/index")
 def fca_index(pid: str, crv: float | None = None, gfa_sf: float | None = None,
-              db: Session = Depends(get_db), _: str = Depends(current_user)):
+              db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Facility Condition Index: FCI = (deferred maintenance + capital renewal) / current replacement
     value, with the band, the deferred/renewal split, and breakdowns by UNIFORMAT group, condition
     rating, worst elements, and recommended-year forecast — over the `fca_element` records."""
@@ -99,16 +99,16 @@ def fca_index(pid: str, crv: float | None = None, gfa_sf: float | None = None,
 
 
 @router.get("/fca/portfolio")
-def fca_portfolio(db: Session = Depends(get_db), _: str = Depends(current_user)):
+def fca_portfolio(db: Session = Depends(get_db), user: str = Depends(current_user)):
     """Facility Condition Index per project across the portfolio, worst-first — the capital-
-    prioritization view (fund the highest-FCI buildings first)."""
-    return fca.portfolio(db)
+    prioritization view (fund the highest-FCI buildings first). Scoped to the caller's projects."""
+    return fca.portfolio(db, project_ids=member_project_ids(db, user))
 
 
 @router.get("/projects/{pid}/cam/reconciliation")
 def cam_reconciliation(pid: str, year: int | None = None, gross_up_to_pct: float = 95.0,
                        building_sf: float | None = None, db: Session = Depends(get_db),
-                       _: str = Depends(current_user)):
+                       _: str = Depends(require_role("viewer"))):
     """CAM true-up for an operating year: recoverable pool (variable lines grossed up to the stated
     occupancy), per-tenant pro-rata share vs estimated payments, balance due/credit."""
     _project(db, pid)

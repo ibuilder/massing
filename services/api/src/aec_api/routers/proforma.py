@@ -642,15 +642,18 @@ def draw_package(sid: str, body: DrawPackageIn, db: Session = Depends(get_db)):
 
 
 @router.get("/proforma/portfolio")
-def portfolio(db: Session = Depends(get_db)):
+def portfolio(db: Session = Depends(get_db), user: str = Depends(rbac.current_user)):
     """Multi-deal roll-up across all solved scenarios: total capitalization, equity-weighted
-    blended IRR, aggregate equity multiple, and per-deal metrics."""
+    blended IRR, aggregate equity multiple, and per-deal metrics. Scoped to the caller's projects
+    so the roll-up never blends other tenants' deals."""
     from collections import defaultdict
     from datetime import date as _date
 
     from ..proforma.returns import xirr
 
-    scens = [s for s in db.query(Scenario).order_by(Scenario.created_at).all() if s.result]
+    allowed = rbac.member_project_ids(db, user)   # None = no restriction (dev / api-key)
+    scens = [s for s in db.query(Scenario).order_by(Scenario.created_at).all()
+             if s.result and (allowed is None or s.project_id in allowed)]
     deals = []
     tot_uses = tot_equity = tot_debt = 0.0
     w_eq = w_irr = 0.0

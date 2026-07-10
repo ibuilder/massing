@@ -196,13 +196,13 @@ def triage_rfi(pid: str, rid: str | None = Body(default=None, embed=True),
 
 
 @router.get("/projects/{pid}/my-work")
-def my_work(pid: str, db: Session = Depends(get_db), user: str = Depends(current_user)):
+def my_work(pid: str, db: Session = Depends(get_db), user: str = Depends(require_role("viewer"))):
     """Cross-module work queue for the current user (assigned + ball-in-court)."""
     return mod_engine.my_work(db, pid, user, _party(pid, db, user))
 
 
 @router.get("/projects/{pid}/notifications")
-def notifications(pid: str, db: Session = Depends(get_db), user: str = Depends(current_user)):
+def notifications(pid: str, db: Session = Depends(get_db), user: str = Depends(require_role("viewer"))):
     """Recent activity relevant to the caller (assigned / ball-in-court), newest first."""
     return mod_engine.notifications(db, pid, user, _party(pid, db, user))
 
@@ -257,7 +257,7 @@ def send_digest(pid: str, db: Session = Depends(get_db), _: str = Depends(requir
 
 
 @router.get("/projects/{pid}/notifications/stream")
-async def notifications_stream(pid: str, request: Request, user: str = Depends(current_user)):
+async def notifications_stream(pid: str, request: Request, user: str = Depends(require_role("viewer"))):
     """Server-sent events: pushes the notification feed to the client and re-pushes when
     the relevant activity count changes (polled server-side every few seconds). Uses a
     fresh DB session per poll since the generator outlives the request scope."""
@@ -286,7 +286,7 @@ async def notifications_stream(pid: str, request: Request, user: str = Depends(c
 
 # --- saved views (server-side, per user+module) -----------------------------
 @router.get("/projects/{pid}/modules/{key}/views")
-def list_views(pid: str, key: str, db: Session = Depends(get_db), user: str = Depends(current_user)):
+def list_views(pid: str, key: str, db: Session = Depends(get_db), user: str = Depends(require_role("viewer"))):
     from ..models import SavedView
     rows = db.query(SavedView).filter(SavedView.project_id == pid, SavedView.module == key,
                                       SavedView.user == user).order_by(SavedView.created_at).all()
@@ -296,7 +296,7 @@ def list_views(pid: str, key: str, db: Session = Depends(get_db), user: str = De
 @router.post("/projects/{pid}/modules/{key}/views", status_code=201)
 def save_view(pid: str, key: str, name: str = Body(..., embed=True),
               config: dict = Body(default={}, embed=True),
-              db: Session = Depends(get_db), user: str = Depends(current_user)):
+              db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):
     from ..models import SavedView
     v = db.query(SavedView).filter(SavedView.project_id == pid, SavedView.module == key,
                                    SavedView.user == user, SavedView.name == name).first()
@@ -310,14 +310,14 @@ def save_view(pid: str, key: str, name: str = Body(..., embed=True),
 
 
 @router.get("/projects/{pid}/views/alerts")
-def view_alerts(pid: str, db: Session = Depends(get_db), user: str = Depends(current_user)):
+def view_alerts(pid: str, db: Session = Depends(get_db), user: str = Depends(require_role("viewer"))):
     """Saved-search alert feed: each of my saved views with its total + new-since-last-seen counts."""
     return mod_engine.view_alerts(db, pid, user)
 
 
 @router.post("/projects/{pid}/modules/{key}/views/{vid}/seen")
 def mark_view_seen(pid: str, key: str, vid: str, db: Session = Depends(get_db),
-                   user: str = Depends(current_user)):
+                   user: str = Depends(require_role("reviewer"))):
     """Mark a saved view as seen now — clears its 'new' alert count."""
     from datetime import datetime, timezone
 
@@ -332,7 +332,7 @@ def mark_view_seen(pid: str, key: str, vid: str, db: Session = Depends(get_db),
 
 @router.delete("/projects/{pid}/modules/{key}/views/{vid}")
 def delete_view(pid: str, key: str, vid: str, db: Session = Depends(get_db),
-                user: str = Depends(current_user)):
+                user: str = Depends(require_role("editor"))):
     from ..models import SavedView
     v = db.get(SavedView, vid)
     if v and v.user == user:
@@ -341,14 +341,14 @@ def delete_view(pid: str, key: str, vid: str, db: Session = Depends(get_db),
 
 
 @router.get("/projects/{pid}/enum-options")
-def list_enum_options(pid: str, db: Session = Depends(get_db), user: str = Depends(current_user)):
+def list_enum_options(pid: str, db: Session = Depends(get_db), user: str = Depends(require_role("viewer"))):
     """E1 — project-level custom select options, nested {module: {field: [values]}}."""
     return mod_engine.list_enum_options(db, pid)
 
 
 @router.post("/projects/{pid}/modules/{key}/enum/{field}", status_code=201)
 def add_enum_option(pid: str, key: str, field: str, value: str = Body(..., embed=True),
-                    db: Session = Depends(get_db), user: str = Depends(current_user)):
+                    db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):
     """E1 — add a custom option to a module field's select enum (no JSON edit)."""
     return mod_engine.add_enum_option(db, pid, key, field, value, user)
 

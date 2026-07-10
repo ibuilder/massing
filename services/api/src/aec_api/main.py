@@ -123,6 +123,14 @@ def _production_guard() -> None:
         if auth.secret_is_default():
             problems.append("AEC_AUTH_SECRET is unset — auth tokens are signed with a public dev "
                             "secret and are forgeable")
+        if rbac.TRUST_XUSER:
+            problems.append("AEC_TRUST_XUSER is '1' — the unauthenticated X-User header is fully "
+                            "trusted, allowing anyone to impersonate any user (test-only flag)")
+        if os.environ.get("S3_ENDPOINT") and (
+                os.environ.get("S3_ACCESS_KEY", "minioadmin") == "minioadmin"
+                or os.environ.get("S3_SECRET_KEY", "minioadmin") == "minioadmin"):
+            problems.append("S3_ENDPOINT is set but S3_ACCESS_KEY/S3_SECRET_KEY are the default "
+                            "'minioadmin' — object storage would be world-accessible")
         if problems:
             raise RuntimeError(
                 "refusing to start on Postgres with an unsafe configuration:\n  - "

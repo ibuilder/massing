@@ -219,8 +219,20 @@ def oauth_callback(provider: str, request: Request, code: str | None = None,
     if not email:
         raise HTTPException(403, "provider did not return a verified email")
 
+    # Enterprise gate: only self-provision accounts for allowed email domains. Without an allowlist,
+    # any verified email at an enabled provider could create an account (and, with cross-tenant reads
+    # closed, still see only its own projects — but provisioning itself should be controlled).
+    import os as _os
+    _domains = [d.strip().lower().lstrip("@") for d in
+                _os.environ.get("AEC_OAUTH_ALLOWED_DOMAINS", "").split(",") if d.strip()]
+    _dom = email.rsplit("@", 1)[-1].lower() if "@" in email else ""
+    if _domains and _dom not in _domains:
+        raise HTTPException(403, "this email domain is not permitted to sign in")
+
     u = db.get(User, email)
     if u is None:
+        if _os.environ.get("AEC_OAUTH_NO_AUTOPROVISION") == "1":
+            raise HTTPException(403, "no account for this email — ask an admin to invite you first")
         # SSO accounts are always plain users — no admin tier for end users. Platform admins are
         # ops, set via AEC_ADMIN_EMAILS. Free tier by default (entitlements seam).
         u = User(username=email, password_hash="oauth!" + provider,  # unusable for password login

@@ -92,7 +92,18 @@ def require_role(min_role: str):
                 detail=f"requires {min_role} on project (user {user!r} has {role or 'no'} role)")
         return user
 
+    dep._role_gate = min_role   # tag so the route-authz guard test can detect the membership check
     return dep
+
+
+def member_project_ids(db: Session, user: str) -> set[str] | None:
+    """The set of project ids the caller may see in a cross-project roll-up. Returns None when RBAC is
+    off (dev) or for the api-key/admin identity, meaning "no restriction". Otherwise only the projects
+    the user is a member of — so portfolio aggregations never leak other tenants' data."""
+    if not RBAC_ON or user == "api-key":
+        return None
+    rows = db.query(ProjectMember.project_id).filter(ProjectMember.user == user).all()
+    return {r[0] for r in rows}
 
 
 def party_role_for(db: Session, project_id: str, user: str) -> str | None:

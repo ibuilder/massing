@@ -62,7 +62,7 @@ def concept_render_ingest(pid: str, payload: dict = Body(default={}),
 
 
 @router.get("/projects/{pid}/program/summary")
-def program_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def program_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Concept space-program rollup + adjacency graph: total/net/gross area, mix by use, the node/edge
     graph, unmet adjacency preferences, and the massing hints (gross area + use mix) it feeds."""
     if not db.get(Project, pid):
@@ -81,7 +81,7 @@ def _hard_cost(p: Project) -> float:
 
 
 @router.get("/projects/{pid}/lifecycle")
-def lifecycle(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def lifecycle(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The project's design phases (RIBA 0–7 ↔ AIA) with gate state, deliverables, ISO-19650 status,
     and the phase-allocated A/E design fee from the itemized soft costs."""
     p = db.get(Project, pid)
@@ -112,7 +112,7 @@ def reference(_: str = Depends(current_user)):
 
 
 @router.get("/projects/{pid}/resilience/flood")
-def resilience_flood(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def resilience_flood(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Flood risk (ASCE 24 / FEMA): the Design Flood Elevation (BFE + freeboard) and the flood-proof-MEP
     check — asset-register items installed below the DFE, flagged to be elevated or flood-proofed."""
     if not db.get(Project, pid):
@@ -121,7 +121,7 @@ def resilience_flood(pid: str, db: Session = Depends(get_db), _: str = Depends(c
 
 
 @router.get("/projects/{pid}/resilience/stormwater")
-def resilience_stormwater(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def resilience_stormwater(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Stormwater (Rational Method): peak runoff Q = C·i·A per catchment plus a first-order detention
     volume, so drainage is sized against a real design storm."""
     if not db.get(Project, pid):
@@ -130,7 +130,7 @@ def resilience_stormwater(pid: str, db: Session = Depends(get_db), _: str = Depe
 
 
 @router.get("/projects/{pid}/resilience/weather")
-def resilience_weather(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def resilience_weather(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Weather-sequenced construction: weather-sensitive schedule activities, the site-weather-risk
     register, and weather-delay days rolled up from the daily reports."""
     if not db.get(Project, pid):
@@ -139,7 +139,7 @@ def resilience_weather(pid: str, db: Session = Depends(get_db), _: str = Depends
 
 
 @router.get("/projects/{pid}/resilience/climate-risk")
-def resilience_climate_risk(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def resilience_climate_risk(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Physical climate-risk rollup for ESG — flood exposure + stormwater load + site-weather hazards +
     logged weather delays folded into a single scored rating with the driving factors."""
     if not db.get(Project, pid):
@@ -148,7 +148,7 @@ def resilience_climate_risk(pid: str, db: Session = Depends(get_db), _: str = De
 
 
 @router.get("/projects/{pid}/spine/traceability")
-def spine_traceability(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def spine_traceability(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Discipline Spine traceability — trace discipline → sheets → specs → bid packages → cost codes →
     budget, with per-discipline rollups and the coverage gaps (unpackaged specs, unbudgeted packages,
     un-specced sheets) so scope can't fall between the model, the documents and the money."""
@@ -158,7 +158,7 @@ def spine_traceability(pid: str, db: Session = Depends(get_db), _: str = Depends
 
 
 @router.get("/projects/{pid}/design/options/compare")
-def design_options_compare(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def design_options_compare(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Compare the project's design options / variants apples-to-apples — program + economics per
     option, best-in-class per metric, deltas vs the selected option. The selected option's drawing set
     is the project's current documentation (2D regenerates live from the model)."""
@@ -169,7 +169,7 @@ def design_options_compare(pid: str, db: Session = Depends(get_db), _: str = Dep
 
 
 @router.get("/projects/{pid}/design/standards")
-def design_standards_ruleset(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def design_standards_ruleset(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The design-standards ruleset — approved / preferred / prohibited assemblies, materials, products."""
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
@@ -178,7 +178,7 @@ def design_standards_ruleset(pid: str, db: Session = Depends(get_db), _: str = D
 
 
 @router.get("/projects/{pid}/design/standards/check")
-def design_standards_check(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def design_standards_check(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Audit the loaded model against the design-standards ruleset (prohibited / non-approved
     type + material use). Returns the ruleset only when no model is loaded."""
     if not db.get(Project, pid):
@@ -193,7 +193,7 @@ def design_standards_check(pid: str, db: Session = Depends(get_db), _: str = Dep
 
 
 @router.get("/projects/{pid}/mep/schedule")
-def mep_schedule(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def mep_schedule(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The MEP equipment schedule from the register + a per-system capacity rollup."""
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
@@ -202,7 +202,7 @@ def mep_schedule(pid: str, db: Session = Depends(get_db), _: str = Depends(curre
 
 
 @router.get("/projects/{pid}/mep/model-extract")
-def mep_model_extract(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def mep_model_extract(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """MEP elements read off the loaded model (by IFC class) — complements the register schedule."""
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
@@ -216,7 +216,7 @@ def mep_model_extract(pid: str, db: Session = Depends(get_db), _: str = Depends(
 
 
 @router.get("/projects/{pid}/model/capabilities")
-def model_capabilities(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def model_capabilities(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """IFC read-schema capabilities + the detected schema of this project's loaded model (IFC5/IFCX
     is detected and reported, not yet parsed)."""
     p = db.get(Project, pid)
@@ -227,7 +227,7 @@ def model_capabilities(pid: str, db: Session = Depends(get_db), _: str = Depends
 
 
 @router.get("/projects/{pid}/drawings/sync-status")
-def drawings_sync_status(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def drawings_sync_status(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Model fingerprint + version for 2D staleness detection — the client compares `version` /
     `signature` across renders to know when the on-demand drawings need regenerating. `version` bumps
     every time a new model is published (see /drawings/stream for the push equivalent)."""
@@ -247,7 +247,7 @@ def drawings_sync_status(pid: str, db: Session = Depends(get_db), _: str = Depen
 
 
 @router.get("/projects/{pid}/drawings/stream")
-async def drawings_stream(pid: str, request: Request, _: str = Depends(current_user)):
+async def drawings_stream(pid: str, request: Request, _: str = Depends(require_role("viewer"))):
     """Server-sent events: pushes the model `version` and re-pushes the instant it changes (a new model
     is published), so open 2D drawing views regenerate themselves — live propagation from the model
     without polling or an external event bus."""
@@ -274,7 +274,7 @@ async def drawings_stream(pid: str, request: Request, _: str = Depends(current_u
 @router.get("/projects/{pid}/mep/size")
 def mep_size(pid: str, kind: str = "duct", flow: float = 0.0, velocity: float = 0.0,
              load: float = 0.0, size: float = 0.0, hanger_kind: str = "pipe_steel",
-             db: Session = Depends(get_db), _: str = Depends(current_user)):
+             db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """First-pass MEP sizing. kind = duct (flow=CFM, velocity=fpm) | pipe (flow=GPM, velocity=fps) |
     cooling (load=BTU/h) | hanger (hanger_kind=duct|pipe_steel|pipe_copper, size=in)."""
     if not db.get(Project, pid):
@@ -290,7 +290,7 @@ def mep_size(pid: str, kind: str = "duct", flow: float = 0.0, velocity: float = 
 
 
 @router.get("/projects/{pid}/envelope/audit")
-def envelope_audit(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def envelope_audit(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Envelope code-compliance — every envelope assembly checked against IECC 2021 climate-zone
     minimums (opaque R-value / fenestration U-factor), with a compliance rollup."""
     if not db.get(Project, pid):
@@ -302,7 +302,7 @@ def envelope_audit(pid: str, db: Session = Depends(get_db), _: str = Depends(cur
 @router.get("/projects/{pid}/envelope/check")
 def envelope_check(pid: str, element_type: str = "Wall", climate_zone: str = "4",
                    r_value: float | None = None, u_factor: float | None = None,
-                   db: Session = Depends(get_db), _: str = Depends(current_user)):
+                   db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Check a single assembly against IECC 2021 (element_type + climate_zone + r_value or u_factor)."""
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
@@ -311,7 +311,7 @@ def envelope_check(pid: str, element_type: str = "Wall", climate_zone: str = "4"
 
 
 @router.get("/projects/{pid}/diligence/readiness")
-def diligence_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def diligence_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Pre-acquisition go/no-go rollup: due-diligence items by category/state (cleared vs flagged vs
     open, high-risk flags) + entitlement applications by status (approved vs pending vs denied,
     approvals nearing expiration). The screen a developer reads before releasing contingencies."""

@@ -310,7 +310,7 @@ def speckle_status(_: str = Depends(current_user)):
 
 
 @router.post("/projects/{pid}/interop/speckle/send", status_code=202)
-def speckle_send(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def speckle_send(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("reviewer"))):
     """Send the project's model/data to a Speckle stream (requires the bridge configured)."""
     from .. import speckle_bridge
     if not speckle_bridge.is_enabled():

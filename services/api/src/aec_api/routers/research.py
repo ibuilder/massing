@@ -11,7 +11,7 @@ from .. import lean, pull_plan, takt
 from .. import modules as me
 from ..db import get_db
 from ..models import Project
-from ..rbac import current_user, require_role
+from ..rbac import require_role
 
 _P6_KEY = "{pid}/schedule_p6.json"   # imported Primavera P6 activities (drives 4D calendar dates)
 
@@ -231,7 +231,7 @@ def pull_plan_metrics(pid: str, milestone: str | None = None, db: Session = Depe
 
 
 @router.get("/projects/{pid}/pull-plan/stream")
-async def pull_plan_stream(pid: str, request: Request, _: str = Depends(current_user)):
+async def pull_plan_stream(pid: str, request: Request, _: str = Depends(require_role("viewer"))):
     """Server-sent events for the collaborative pull board: polls a cheap board signature (row count +
     latest modified_at) server-side every few seconds and pushes it when it changes, so every trade's
     board live-refreshes the moment anyone edits a sticky note. Uses a fresh DB session per poll since

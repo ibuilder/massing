@@ -64,7 +64,7 @@ def my_membership(pid: str, db: Session = Depends(get_db), user: str = Depends(c
 
 @router.post("/projects/{pid}/presence")
 def heartbeat(pid: str, viewpoint: dict | None = Body(default=None, embed=True),
-              user: str = Depends(current_user)):
+              user: str = Depends(require_role("reviewer"))):
     """Heartbeat presence (optionally sharing the current camera viewpoint) and get the live
     roster of other users viewing this project."""
     from .. import presence
@@ -73,7 +73,7 @@ def heartbeat(pid: str, viewpoint: dict | None = Body(default=None, embed=True),
 
 
 @router.get("/projects/{pid}/presence")
-def presence_roster(pid: str, user: str = Depends(current_user)):
+def presence_roster(pid: str, user: str = Depends(require_role("viewer"))):
     """Other users currently viewing this project (heartbeat within the TTL)."""
     from .. import presence
     return {"active": presence.active(pid, exclude=user)}
@@ -478,7 +478,7 @@ def sign_attachment(aid: str, db: Session = Depends(get_db), user: str = Depends
 
 @router.get("/projects/{pid}/model.frag")
 def model_frag(pid: str, request: Request, db: Session = Depends(get_db),
-               user: str = Depends(current_user)):
+               user: str = Depends(require_role("viewer"))):
     """Serve the published Fragments tile with HTTP range support + ETag revalidation. The URL is
     stable across republishes, so we revalidate (not immutable): unchanged → 304 (instant re-open),
     republished → fresh bytes. Access: a valid signed URL or (RBAC on) project membership."""

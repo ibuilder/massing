@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.132 — P0 security: close cross-tenant access + gate SSO + atomic refs
+The must-fix block from the enterprise-readiness audit — no data-shape or workflow change, pure hardening.
+- **Cross-tenant access closed:** every `/projects/{pid}/…` route now enforces **project membership**
+  via `require_role` (reads→viewer, writes→reviewer/editor) — 59 routes that authorized on identity
+  alone (incl. full model exports and financial reads) are gated. A new **CI guard** (`test_route_authz`)
+  enumerates all 381 project routes and fails the build if any lacks a membership check, so it can't
+  regress. `require_role` is tagged (`_role_gate`) for detection.
+- **Portfolio roll-ups scoped to memberships:** the cross-project proforma / construction / executive /
+  FCA roll-ups now return only the caller's projects (`rbac.member_project_ids`), never every tenant's
+  GMP / EAC / IRR / equity.
+- **SSO provisioning gated:** OAuth self-provisioning honors `AEC_OAUTH_ALLOWED_DOMAINS` (and an optional
+  `AEC_OAUTH_NO_AUTOPROVISION=1` invite-only mode). The production boot guard now also refuses to start
+  on Postgres when `AEC_TRUST_XUSER=1` (impersonation) or when `S3_ENDPOINT` is set with default
+  `minioadmin` credentials.
+- **Atomic human refs:** record refs (RFI-001…) now come from a per-(project,module) counter row taken
+  under a row lock — concurrent creates can't collide, and deleting a record no longer lets a later
+  create reuse a ref (the old `COUNT(*)` scheme did). `test_ref_counter`.
+
 ## v0.3.131 — Unified sheet view: PDF-editor markups appear on the SVG sheet (shared coordinates)
 Completes the 2D convergence with a **shared coordinate space**. Every takeoff markup now stores a
 page-normalized (0..1) anchor when saved from the PDF editor, so the SVG drawings viewer renders those

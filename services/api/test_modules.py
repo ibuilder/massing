@@ -294,8 +294,9 @@ with TestClient(app) as c:
     gc_work = c.get(f"/projects/{pid}/my-work", headers=H("gc")).json()
     assert gc_work and all(w["reason"] in ("assigned", "ball-in-court") for w in gc_work), gc_work
     assert all({"module", "ref", "state"} <= set(w) for w in gc_work)
-    # a user with no membership/party sees nothing actionable and nothing assigned to them
-    assert c.get(f"/projects/{pid}/my-work", headers=H("nobody")).json() == []
+    # a user with no membership on the project is denied outright (tenant isolation) — under RBAC the
+    # my-work queue is gated by require_role("viewer"), so a non-member can't even probe it
+    assert c.get(f"/projects/{pid}/my-work", headers=H("nobody")).status_code == 403
 
     # ---- email digests: per-member work-queue summaries ----------------------
     # register gc as an account (first user → admin) and give it an email

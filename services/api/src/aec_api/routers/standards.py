@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .. import bim_kpi, cde, ids_authoring, mcp_tools, openbim_quality, standards_expert
 from ..db import get_db
 from ..models import Project
-from ..rbac import current_user
+from ..rbac import current_user, require_role
 
 router = APIRouter()
 
@@ -20,7 +20,7 @@ def _project(db: Session, pid: str) -> Project:
 
 
 @router.get("/projects/{pid}/cde/status")
-def cde_status(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def cde_status(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """CDE container rollup (ISO 19650): state distribution WIP/Shared/Published/Archived,
     suitability spread, and CDE-discipline metrics (revision control, approval-status coverage,
     metadata completeness)."""
@@ -29,7 +29,7 @@ def cde_status(pid: str, db: Session = Depends(get_db), _: str = Depends(current
 
 
 @router.get("/projects/{pid}/info-requirements/register")
-def requirements_register(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def requirements_register(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The information-requirements register (OIR/AIR/PIR/EIR/BEP/MIDP/TIDP) with issued/draft
     counts and core-document coverage (EIR, BEP, AIR)."""
     _project(db, pid)
@@ -38,7 +38,7 @@ def requirements_register(pid: str, db: Session = Depends(get_db), _: str = Depe
 
 @router.get("/projects/{pid}/openbim/quality")
 def openbim_quality_scan(pid: str, use_case: str | None = None, db: Session = Depends(get_db),
-                         _: str = Depends(current_user)):
+                         _: str = Depends(require_role("viewer"))):
     """openBIM quality of the loaded model: LOIN per element, IFC export health, bSDD alignment, and
     (when ?use_case= names an IDS use case) IDS rule-compliance scoring. Needs a loaded model."""
     _project(db, pid)
@@ -54,7 +54,7 @@ def openbim_quality_scan(pid: str, use_case: str | None = None, db: Session = De
 
 
 @router.get("/projects/{pid}/lod/matrix")
-def lod_matrix(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def lod_matrix(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The target LOD matrix (stage x discipline x element category -> LOD 100..500), or the RIBA/AIA
     stage defaults when the register carries none."""
     _project(db, pid)
@@ -63,7 +63,7 @@ def lod_matrix(pid: str, db: Session = Depends(get_db), _: str = Depends(current
 
 
 @router.get("/projects/{pid}/lod/assessment")
-def lod_assessment(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def lod_assessment(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Achieved-LOD assessment of the loaded model (inferred from LOIN facet completeness) against the
     target matrix. Returns targets only when no model is loaded."""
     _project(db, pid)
@@ -77,7 +77,7 @@ def lod_assessment(pid: str, db: Session = Depends(get_db), _: str = Depends(cur
 
 
 @router.get("/projects/{pid}/naming/conventions")
-def naming_conventions(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def naming_conventions(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The document/container filename + drawing sheet-ID naming conventions the validator enforces."""
     _project(db, pid)
     from .. import naming
@@ -86,7 +86,7 @@ def naming_conventions(pid: str, db: Session = Depends(get_db), _: str = Depends
 
 @router.get("/projects/{pid}/naming/validate")
 def naming_validate(pid: str, name: str, kind: str = "container",
-                    db: Session = Depends(get_db), _: str = Depends(current_user)):
+                    db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Validate a single name against the convention. kind = container | sheet."""
     _project(db, pid)
     from .. import naming
@@ -94,7 +94,7 @@ def naming_validate(pid: str, name: str, kind: str = "container",
 
 
 @router.get("/projects/{pid}/naming/audit")
-def naming_audit(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def naming_audit(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Audit the CDE containers + drawing register for naming-convention compliance."""
     _project(db, pid)
     from .. import naming
@@ -111,7 +111,7 @@ def _idx_for(pid: str):
 
 
 @router.get("/projects/{pid}/model/query/views")
-def model_query_views(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def model_query_views(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The saved model-analytics views (count by discipline / class / storey / type)."""
     _project(db, pid)
     from .. import model_query
@@ -121,7 +121,7 @@ def model_query_views(pid: str, db: Session = Depends(get_db), _: str = Depends(
 @router.get("/projects/{pid}/model/query")
 def model_query_run(pid: str, view: str | None = None, group_by: str = "ifc_class", agg: str = "count",
                     quantity: str | None = None, db: Session = Depends(get_db),
-                    _: str = Depends(current_user)):
+                    _: str = Depends(require_role("viewer"))):
     """Analytics query over the loaded model — a saved ?view=, or ad-hoc group_by / agg=sum&quantity=."""
     _project(db, pid)
     from .. import model_query
@@ -130,7 +130,7 @@ def model_query_run(pid: str, view: str | None = None, group_by: str = "ifc_clas
 
 
 @router.get("/projects/{pid}/model/export.csv")
-def model_export_csv(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def model_export_csv(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Export the model element table as CSV (columnar, one row per element)."""
     _project(db, pid)
     from .. import model_query
@@ -139,7 +139,7 @@ def model_export_csv(pid: str, db: Session = Depends(get_db), _: str = Depends(c
 
 
 @router.get("/projects/{pid}/model/export.jsonld")
-def model_export_jsonld(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def model_export_jsonld(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Export the model elements as a JSON-LD graph (bSDD-style vocab, GlobalId as @id)."""
     _project(db, pid)
     from .. import model_query
@@ -147,7 +147,7 @@ def model_export_jsonld(pid: str, db: Session = Depends(get_db), _: str = Depend
 
 
 @router.get("/projects/{pid}/model/export.parquet")
-def model_export_parquet(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def model_export_parquet(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Export the model element table as Apache Parquet (columnar analytics — DuckDB / pandas / Polars).
 
     Needs the optional `pyarrow` dependency; returns 503 with a clear message when it isn't installed."""
@@ -162,7 +162,7 @@ def model_export_parquet(pid: str, db: Session = Depends(get_db), _: str = Depen
 
 
 @router.get("/projects/{pid}/model/columnar/stats")
-def model_columnar_stats(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def model_columnar_stats(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Interning/columnar efficiency stats for the loaded model — dedup ratio + estimated RAM saved by
     the BimOpenSchema-style string-interned columnar form vs the per-element JSON index."""
     _project(db, pid)
@@ -172,7 +172,7 @@ def model_columnar_stats(pid: str, db: Session = Depends(get_db), _: str = Depen
 
 @router.get("/projects/{pid}/model/columnar/aggregate")
 def model_columnar_aggregate(pid: str, group_by: str = "ifc_class",
-                             db: Session = Depends(get_db), _: str = Depends(current_user)):
+                             db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Columnar count group-by over the element table via pyarrow compute (vectorised, no row loop)."""
     _project(db, pid)
     from .. import bim_columns
@@ -185,7 +185,7 @@ def model_columnar_aggregate(pid: str, group_by: str = "ifc_class",
 
 
 @router.get("/projects/{pid}/model/export/params.parquet")
-def model_export_params_parquet(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def model_export_params_parquet(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Export the model's property/quantity set as an EAV Parquet table (the analytics-friendly store —
     query in DuckDB/pandas). Needs pyarrow; 503 if absent."""
     _project(db, pid)
@@ -199,7 +199,7 @@ def model_export_params_parquet(pid: str, db: Session = Depends(get_db), _: str 
 
 
 @router.get("/projects/{pid}/bim-kpi/scorecard")
-def bim_kpi_scorecard(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def bim_kpi_scorecard(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The 10-category BIM KPI scorecard, graded from the CDE, model quality and the issue / asset /
     closeout records (categories with no inputs show 'n/a')."""
     _project(db, pid)
@@ -207,7 +207,7 @@ def bim_kpi_scorecard(pid: str, db: Session = Depends(get_db), _: str = Depends(
 
 
 @router.get("/projects/{pid}/handover/acceptance")
-def handover_acceptance(pid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def handover_acceptance(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Handover data-drop acceptance gate — the owner's checklist against the AIR (requirements,
     asset tags, as-builts, O&M, accepted completion certificate)."""
     _project(db, pid)
@@ -216,7 +216,7 @@ def handover_acceptance(pid: str, db: Session = Depends(get_db), _: str = Depend
 
 @router.get("/projects/{pid}/standards/check")
 def standards_check(pid: str, standard: str = "iso19650", db: Session = Depends(get_db),
-                    _: str = Depends(current_user)):
+                    _: str = Depends(require_role("viewer"))):
     """Standards-compliance check (iso19650 | cobie | ids | uniclass) against the project's own data:
     findings with the clause each references, recommendations, and a 0–100 readiness score."""
     _project(db, pid)

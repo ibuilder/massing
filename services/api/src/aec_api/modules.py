@@ -160,9 +160,22 @@ def _validate_values(mod: dict, data: dict) -> None:
 
 
 def _next_ref(db: Session, key: str, project_id: str, mod: dict) -> str:
-    n = db.execute(select(func.count()).select_from(TABLES[key])
-                   .where(TABLES[key].c.project_id == project_id)).scalar() or 0
-    return f"{mod.get('ref_prefix', key.upper())}-{n + 1:03d}"
+    """Atomically allocate the next ref number from a per-(project, module) counter row, taking a row
+    lock (Postgres) so concurrent creates can't read the same value and mint duplicate refs. On first
+    use the counter seeds from the current row count so existing data keeps its sequence."""
+    from .models import RefCounter
+    row = (db.query(RefCounter)
+             .filter(RefCounter.project_id == project_id, RefCounter.module == key)
+             .with_for_update().first())
+    if row is None:
+        seed = db.execute(select(func.count()).select_from(TABLES[key])
+                          .where(TABLES[key].c.project_id == project_id)).scalar() or 0
+        row = RefCounter(project_id=project_id, module=key, n=seed)
+        db.add(row)
+        db.flush()
+    row.n += 1
+    db.flush()
+    return f"{mod.get('ref_prefix', key.upper())}-{row.n:03d}"
 
 
 def create_record(db: Session, key: str, project_id: str, body: dict, actor: str,

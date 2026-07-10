@@ -33,7 +33,11 @@ def construction_portfolio(db: Session = Depends(get_db), _: str = Depends(rbac.
     rows = []
     tot = {"budget": 0.0, "projected_over_under": 0.0, "open_risks": 0, "risk_exposure": 0.0,
            "recordables": 0, "open_rfis": 0, "over_budget_count": 0}
-    for p in db.query(Project).all():
+    _allowed = rbac.member_project_ids(db, _)     # membership scope (None = no restriction)
+    _q = db.query(Project)
+    if _allowed is not None:
+        _q = _q.filter(Project.id.in_(_allowed))
+    for p in _q.all():
         cs = cost_engine.summary(db, p.id)
         # P0.1 perf: only the (small) open/mitigating risk rows are loaded for the exposure sum; RFIs
         # use a SQL COUNT (no rows loaded); incidents are bounded. Was list_records(limit=1_000_000) x3.
@@ -82,7 +86,11 @@ def executive_portfolio(db: Session = Depends(get_db), _: str = Depends(rbac.cur
     tot = {"gmp": 0.0, "eac": 0.0, "variance_at_completion": 0.0, "committed": 0.0, "equity": 0.0}
     tally = {"on_track": 0, "at_risk": 0, "behind": 0}
     w_eq = w_irr = 0.0
-    for p in db.query(Project).all():
+    _allowed = rbac.member_project_ids(db, _)     # membership scope (None = no restriction)
+    _pq = db.query(Project)
+    if _allowed is not None:
+        _pq = _pq.filter(Project.id.in_(_allowed))
+    for p in _pq.all():
         try:
             s = px.summary(db, p.id)
         except Exception:                              # noqa: BLE001 — a project with no data still lists
