@@ -1218,16 +1218,16 @@ export class ApiClient {
     return this.json<MonteCarloResult>(
       `/proforma/monte-carlo`, { method: "POST", body: JSON.stringify(body) });
   }
-  forecast(assumptions: unknown, actuals: unknown[], as_of_month: number) {
+  forecast(assumptions: unknown, actuals: unknown[], asOfMonth: number) {
     return this.json<ProformaForecast>(`/proforma/forecast`, {
-      method: "POST", body: JSON.stringify({ assumptions, actuals, as_of_month }) });
+      method: "POST", body: JSON.stringify({ assumptions, actuals, as_of_month: asOfMonth }) });
   }
   portfolio() {
     return this.json<{ deal_count: number; totals: Record<string, number | null>; deals: { id: string; name: string; total_uses: number; equity: number; loan: number; equity_irr: number | null; equity_multiple: number | null }[] }>(`/proforma/portfolio`);
   }
-  createScenario(name: string, project_id: string | null, assumptions: unknown) {
+  createScenario(name: string, projectId: string | null, assumptions: unknown) {
     return this.json<{ id: string }>(`/proforma/scenarios`, {
-      method: "POST", body: JSON.stringify({ name, project_id, assumptions }) });
+      method: "POST", body: JSON.stringify({ name, project_id: projectId, assumptions }) });
   }
   drawPackage(sid: string, body: unknown) {
     return this.json<{ sov_lines_created: number; g702: Record<string, number>; g702_pdf: string }>(
@@ -1983,8 +1983,8 @@ export class ApiClient {
   drawingMarkup(pid: string, sheet: string) {
     return this.json<DrawingMarkupItem[]>(`/projects/${pid}/drawings/markup?sheet=${encodeURIComponent(sheet)}`);
   }
-  addDrawingMarkup(pid: string, sheet_id: string, x: number, y: number, note: string) {
-    return this.json<DrawingMarkupItem>(`/projects/${pid}/drawings/markup`, { method: "POST", body: JSON.stringify({ sheet_id, x, y, note }) });
+  addDrawingMarkup(pid: string, sheetId: string, x: number, y: number, note: string) {
+    return this.json<DrawingMarkupItem>(`/projects/${pid}/drawings/markup`, { method: "POST", body: JSON.stringify({ sheet_id: sheetId, x, y, note }) });
   }
   deleteDrawingMarkup(pid: string, id: string) {
     return this.json<{ ok: boolean }>(`/projects/${pid}/drawings/markup/${id}`, { method: "DELETE" });

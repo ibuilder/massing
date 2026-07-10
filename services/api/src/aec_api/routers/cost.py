@@ -375,7 +375,7 @@ def budget_variance(pid: str, db: Session = Depends(get_db), _: str = Depends(re
     try:
         base = json.loads(storage.get(_BUDGET_BASELINE_KEY.format(pid=pid)))
     except Exception:
-        raise HTTPException(409, "no budget baseline set — POST /budget/baseline first")
+        raise HTTPException(409, "no budget baseline set — POST /budget/baseline first") from None
     b = project_budget.gmp_budget(db, pid)
     cur_cats = {c["key"]: c["budget"] for c in b["categories"]}
     cat_delta = [{"key": k, "baseline": base["categories"].get(k, 0), "current": cur_cats.get(k, 0),
@@ -544,7 +544,7 @@ def lien_waiver(pid: str, kind: str = "conditional_progress", app_no: int = 1, c
         return cost.lien_waiver(db, pid, kind, app_no, claimant=claimant, customer=customer,
                                 project_name=(p.name if p else ""), through_date=through_date)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.get("/projects/{pid}/cost/lien-waiver.pdf")

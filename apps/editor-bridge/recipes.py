@@ -10,7 +10,7 @@ Bonsai, so they can be pasted into an MCP `execute` call or imported by a thin a
 """
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 import ifcopenshell
 import ifcopenshell.api

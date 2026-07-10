@@ -319,7 +319,7 @@ def speckle_send(pid: str, db: Session = Depends(get_db), _: str = Depends(curre
     try:
         return speckle_bridge.send_model(pid, p.name, p.source_ifc)
     except NotImplementedError as e:
-        raise HTTPException(501, str(e))
+        raise HTTPException(501, str(e)) from e
 
 
 @router.post("/projects/{pid}/import/rvt", status_code=202)
@@ -342,8 +342,8 @@ async def import_rvt(pid: str, file: UploadFile = File(...), confirm_cost: bool 
     data = await file.read()
     try:
         ifc = aps.translate_rvt_to_ifc(data, file.filename or "model.rvt")
-    except (RuntimeError, NotImplementedError) as e:
-        raise HTTPException(502, f"RVT→IFC bridge: {e}")           # clear, actionable provisioning error
+    except RuntimeError as e:  # NotImplementedError is a RuntimeError subclass — both mean "bridge unavailable"
+        raise HTTPException(502, f"RVT→IFC bridge: {e}") from e    # clear, actionable provisioning error
     _IFC_DIR.joinpath(pid).mkdir(parents=True, exist_ok=True)
     ifc_path = _IFC_DIR / pid / "source.ifc"
     ifc_path.write_bytes(ifc)
