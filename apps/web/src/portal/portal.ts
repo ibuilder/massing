@@ -647,7 +647,10 @@ export class PortalUI {
       head.append(`Dashboard — ${d.party}`);
       const rpt = el("button", "tool-btn") as HTMLButtonElement;
       rpt.textContent = "↓ Status report (PDF)"; rpt.title = "Project status report — KPIs, cost, open items, ball-in-court";
-      rpt.onclick = () => window.open(this.host.api.url(`/projects/${pid}/report.pdf`), "_blank");
+      rpt.onclick = async () => {
+        const { openPdfUrl, saveToDocuments } = await import("../drawings/openPdf");
+        await openPdfUrl(this.host.api, this.host.api.url(`/projects/${pid}/report.pdf`), "status-report.pdf", { saveLabel: "Save to Documents", onSave: saveToDocuments(this.host.api, pid) });
+      };
       head.append(rpt); root.appendChild(head);
 
       // KPI cards — clickable: jump straight to the relevant (filtered) module.

@@ -187,7 +187,7 @@ async function openReportCenter() {
       pdf.onclick = () => window.open(api.reportUrl(pid, rep.id, "pdf"), "_blank");
       const mk = document.createElement("button"); mk.className = "tool-btn"; mk.textContent = "🖊 Markup";
       mk.title = "Open the report in the in-app viewer to review / mark up";
-      mk.onclick = async () => { const { openPdfUrl } = await import("./drawings/openPdf"); await openPdfUrl(api, api.reportUrl(pid, rep.id, "pdf"), `${rep.name}.pdf`); };
+      mk.onclick = async () => { const o = await import("./drawings/openPdf"); await o.openPdfUrl(api, api.reportUrl(pid, rep.id, "pdf"), `${rep.name}.pdf`, { saveLabel: "Save to Documents", onSave: o.saveToDocuments(api, pid) }); };
       const xls = document.createElement("button"); xls.className = "tool-btn"; xls.textContent = "⬇ Excel";
       xls.onclick = () => window.open(api.reportUrl(pid, rep.id, "xlsx"), "_blank");
       row.append(name, pdf, mk, xls); card.appendChild(row);
@@ -233,7 +233,7 @@ async function openReportCenter() {
     body.innerHTML = `<div class="meta">Weekly Davis-Bacon certified payroll from timesheets × labor rates.</div>`;
     const wk = document.createElement("input"); wk.type = "date"; wk.style.cssText = "margin:8px 8px 8px 0;padding:6px";
     const open = document.createElement("button"); open.className = "file-btn"; open.textContent = "⬇ Open WH-347 PDF";
-    open.onclick = () => window.open(api.wh347Url(pid, wk.value || undefined), "_blank");
+    open.onclick = async () => { const o = await import("./drawings/openPdf"); await o.openPdfUrl(api, api.wh347Url(pid, wk.value || undefined), "WH-347.pdf", { saveLabel: "Save to Documents", onSave: o.saveToDocuments(api, pid) }); };
     const sum = document.createElement("button"); sum.className = "file-btn"; sum.textContent = "Preview"; sum.style.marginLeft = "4px";
     const out = document.createElement("div"); out.style.marginTop = "10px";
     sum.onclick = async () => { try { const p = await api.payroll(pid, wk.value || undefined); out.innerHTML = `<div class="meta">Week ${p.week_ending} · ${p.worker_count} workers · ${p.total_hours} h · total ${money(p.total_gross)}</div>`;
@@ -326,7 +326,7 @@ async function openReportCenter() {
     const mk = (label: string, on: () => Promise<void>) => { const b = document.createElement("button"); b.className = "file-btn"; b.textContent = label; b.style.margin = "6px 6px 0 0";
       b.onclick = async () => { b.disabled = true; try { await on(); } catch (e) { toast((e as Error).message, "error"); } b.disabled = false; }; return b; };
     body.append(
-      mk("👁 Open & mark up…", async () => { const [f] = await pick(false); if (!f) return; const { openPdfTakeoff } = await import("./drawings/pdfTakeoff"); await openPdfTakeoff(f); }),
+      mk("👁 Open & mark up…", async () => { const [f] = await pick(false); if (!f) return; const [{ openPdfTakeoff }, { saveToDocuments }] = await Promise.all([import("./drawings/pdfTakeoff"), import("./drawings/openPdf")]); await openPdfTakeoff(f, { saveLabel: "Save to Documents", onSave: saveToDocuments(api, pid) }); }),
       mk("⧉ Merge PDFs…", async () => { const fs = await pick(true); if (fs.length < 2) { toast("pick 2 or more PDFs", "error"); return; } dl(await api.pdfMerge(fs), "merged.pdf"); toast(`merged ${fs.length} PDFs`, "success"); }),
       mk("✂ Split to pages (zip)…", async () => { const [f] = await pick(false); if (!f) return; dl(await api.pdfSplitZip(f), stem(f.name) + "-pages.zip"); toast("split into pages", "success"); }),
       mk("↻ Rotate 90°…", async () => { const [f] = await pick(false); if (!f) return; dl(await api.pdfRotate(f, 90), stem(f.name) + "-rotated.pdf"); toast("rotated", "success"); }),

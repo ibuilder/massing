@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.129 — The 2D editor everywhere + save generated PDFs to Documents + pin perf
+Optimizes the two editors and uses them to best intention throughout (from an audit of both):
+- **Save generated PDFs to Documents** — a marked-up report / pay app / statement / drawing sheet can now
+  be filed into the Document Manager (a folder picker → real, versioned revision) via a shared
+  `saveToDocuments` helper, not just downloaded.
+- **The 2D editor replaces native PDF tabs throughout** — the sheet **PDF markup** button in the drawings
+  editor, the viewer's **Compose sheet (PDF)**, **G702/G703 pay app**, **lien waivers**, the project
+  **status report**, **investment memo / pitch deck**, the **G702 draw package**, and **WH-347** now open in
+  the in-app 2D editor (measure / mark up / save) instead of the browser's native PDF tab.
+- **3D pin-overlay perf** — the BCF/RFI pin overlay reprojected every marker every frame; it now skips the
+  reprojection + DOM writes unless the camera moved, the viewport resized, or the pin set changed (a still
+  scene with many pins costs ~nothing).
+
 ## v0.3.128 — Every PDF opens in the in-app viewer, marks up, and saves back
 Closes the gap where only local files reached the markup viewer and annotations only downloaded. The
 takeoff/markup viewer (`pdfTakeoff.ts`) now opens a PDF from a **server URL** (fetched with auth), not

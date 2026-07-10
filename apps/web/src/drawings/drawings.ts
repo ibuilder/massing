@@ -156,7 +156,11 @@ export class DrawingsUI {
     bar.append(
       btn("✎ Markup", "Drop pins + notes on the sheet", () => { this.markupOn = !this.markupOn; this.root.querySelector(".dwg-viewport")!.classList.toggle("marking", this.markupOn); this.buildToolbar(); }, this.markupOn),
       btn("↓ SVG", "Download SVG", () => window.open(this.host_.api.url(sheet.path), "_blank")));
-    if (sheet.pdf) bar.append(btn("↓ PDF", "Download PDF", () => window.open(this.host_.api.url(sheet.pdf!), "_blank")));
+    if (sheet.pdf) bar.append(btn("🖊 PDF markup", "Open the sheet PDF in the 2D editor — measure / mark up / save", async () => {
+      const api = this.host_.api, pid = this.host_.projectId();
+      const { openPdfUrl, saveToDocuments } = await import("./openPdf");
+      await openPdfUrl(api, api.url(sheet.pdf!), "sheet.pdf", pid ? { saveLabel: "Save to Documents", onSave: saveToDocuments(api, pid) } : {});
+    }));
   }
 
   // --- pan / zoom ------------------------------------------------------------

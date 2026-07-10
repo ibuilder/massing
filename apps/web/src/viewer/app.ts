@@ -1418,7 +1418,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             { k: "Projected over / under", v: fmt(s.projected_over_under), strong: true },
           ])));
         }));
-        b.appendChild(toolBtn2("↓ G702/G703 Pay App (PDF)", () => window.open(api.url(`/projects/${projectId}/cost/g702.pdf?app_no=1`), "_blank")));
+        b.appendChild(toolBtn2("🖊 G702/G703 Pay App (PDF)", async () => {
+          const { openPdfUrl, saveToDocuments } = await import("../drawings/openPdf");
+          await openPdfUrl(api, api.url(`/projects/${projectId}/cost/g702.pdf?app_no=1`), "G702.pdf", { saveLabel: "Save to Documents", onSave: saveToDocuments(api, projectId!) });
+        }));
         b.appendChild(toolBtn2("⚖ Lien waiver / release", () => {
           showResult("Lien waiver / release", (body) => {
             body.appendChild(resultNote("Generate a statutory waiver to accompany the pay application. "
@@ -1433,7 +1436,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               const btn = document.createElement("button");
               btn.className = "tool-btn"; btn.style.cssText = "display:block;width:100%;margin:4px 0;text-align:left";
               btn.textContent = `↓ ${label}`;
-              btn.onclick = () => window.open(api.url(`/projects/${projectId}/cost/lien-waiver.pdf?kind=${kind}&app_no=1`), "_blank");
+              btn.onclick = async () => {
+                const { openPdfUrl, saveToDocuments } = await import("../drawings/openPdf");
+                await openPdfUrl(api, api.url(`/projects/${projectId}/cost/lien-waiver.pdf?kind=${kind}&app_no=1`), "lien-waiver.pdf", { saveLabel: "Save to Documents", onSave: saveToDocuments(api, projectId!) });
+              };
               body.appendChild(btn);
             }
           });
@@ -1992,7 +1998,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   async function buildDrawings(host: HTMLElement) {
     if (!projectId) return;
     host.textContent = "";
-    const open = (path: string) => window.open(api.url(path), "_blank");
+    const open = async (path: string) => {
+      const url = api.url(path);
+      if (/\.pdf(\?|$)/.test(path)) {                       // PDF sheets → the in-app 2D editor (measure/markup)
+        const { openPdfUrl, saveToDocuments } = await import("../drawings/openPdf");
+        await openPdfUrl(api, url, "sheet.pdf", { saveLabel: "Save to Documents", onSave: saveToDocuments(api, projectId!) });
+      } else { window.open(url, "_blank"); }                // SVG plans/elevations stay as native (vector)
+    };
     const drawingBtn = (label: string, path: string) => {
       const b = document.createElement("button");
       b.className = "tool-btn"; b.textContent = label; b.style.cssText = "display:block;margin:4px 0;width:100%;text-align:left";

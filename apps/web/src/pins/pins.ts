@@ -38,12 +38,20 @@ export class PinOverlay {
     this.markers.push({ el, point });
   }
 
-  /** Project each anchor to screen space and place its marker (called every frame). */
+  /** Project each anchor to screen space and place its marker. Called every frame, but the actual
+   *  reprojection + DOM writes are skipped unless the camera moved, the viewport resized, or the marker
+   *  set changed — so a still scene with many pins costs almost nothing. */
+  private _key = "";
   private update() {
     if (!this.markers.length) return;
+    if (this.overlay.offsetParent === null) return;          // overlay hidden — nothing to place
     const cam = this.world.camera.three;
     const dom = this.world.renderer!.three.domElement;
     const w = dom.clientWidth, h = dom.clientHeight;
+    const q = cam.quaternion, p = cam.position;
+    const key = `${p.x.toFixed(3)},${p.y.toFixed(3)},${p.z.toFixed(3)},${q.x.toFixed(4)},${q.y.toFixed(4)},${q.z.toFixed(4)},${q.w.toFixed(4)},${w},${h},${this.markers.length}`;
+    if (key === this._key) return;                           // camera + viewport + pins unchanged
+    this._key = key;
     const v = new THREE.Vector3();
     for (const m of this.markers) {
       v.copy(m.point).project(cam);

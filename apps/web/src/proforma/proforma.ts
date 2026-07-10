@@ -708,9 +708,13 @@ export class ProformaUI {
     if (!pid) { host.insertAdjacentHTML("beforeend", `<div class="meta">Open a project to generate the memo / deck.</div>`); this.root.appendChild(host); return; }
     const row = document.createElement("div"); row.style.cssText = "display:flex;gap:8px;flex-wrap:wrap";
     const memo = document.createElement("button"); memo.className = "file-btn"; memo.textContent = "📄 Investment memo (PDF)";
-    memo.onclick = () => window.open(this.api.url(`/projects/${pid}/investment-memo.pdf`), "_blank");
+    const openDoc = (path: string, name: string) => async () => {
+      const { openPdfUrl, saveToDocuments } = await import("../drawings/openPdf");
+      await openPdfUrl(this.api, this.api.url(path), name, { saveLabel: "Save to Documents", onSave: saveToDocuments(this.api, pid) });
+    };
+    memo.onclick = openDoc(`/projects/${pid}/investment-memo.pdf`, "investment-memo.pdf");
     const deck = document.createElement("button"); deck.className = "file-btn"; deck.textContent = "📊 Pitch deck (PDF)";
-    deck.onclick = () => window.open(this.api.url(`/projects/${pid}/investment-deck.pdf`), "_blank");
+    deck.onclick = openDoc(`/projects/${pid}/investment-deck.pdf`, "pitch-deck.pdf");
     row.append(memo, deck); host.appendChild(row); this.root.appendChild(host);
   }
 
@@ -1354,7 +1358,8 @@ export class ProformaUI {
           const sc = await this.api.createScenario("Draw package", pid, this.a);
           const dp = await this.api.drawPackage(sc.id, { project_id: pid, actuals, as_of_month: 9, app_no: 1 });
           this.setStatus(`SOV (${dp.sov_lines_created} lines) → G702 due $${Math.round(dp.g702.line8_current_payment_due).toLocaleString()}`);
-          window.open(this.api.url(dp.g702_pdf), "_blank");
+          { const { openPdfUrl, saveToDocuments } = await import("../drawings/openPdf");
+            await openPdfUrl(this.api, this.api.url(dp.g702_pdf), "G702-draw.pdf", { saveLabel: "Save to Documents", onSave: saveToDocuments(this.api, pid) }); }
         } catch (e) { this.setStatus(`draw package error: ${(e as Error).message}`); }
       };
       document.getElementById("pf-fc-out")!.appendChild(btn);
