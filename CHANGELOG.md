@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.126 — PDF markup: stamps + tool sets + server merge/split/rotate (phases 2–3)
+Completes the PDF markup/manipulation stack — interactive stamps/text + reusable tool sets on the
+client, and server-side page ops via pypdf. Still permissive-only (no PyMuPDF/AGPL).
+
+- **Text + dynamic stamps** in the PDF takeoff — a 𝗧 Text tool and a 🔖 Stamp picker with dynamic
+  stamps (APPROVED / REVIEWED / FOR CONSTRUCTION / VOID / AS-BUILT / `{{user}} · {{date}}` …) whose
+  `{{user}}/{{date}}/{{time}}/{{file}}` fields resolve at placement. They render on the overlay and
+  **flatten into the exported PDF** (stamps in a red box).
+- **Tool sets** — 💾 Save / 📂 Load the whole markup scene (calibration + all markups) as JSON, so a
+  set of stamps/measurements is reusable and shareable across sheets (the Bluebeam Tool Chest idea).
+- **Server PDF ops (`pdfops.py`, pypdf)** — `POST /pdf/{info,merge,split,extract,rotate}`: merge a
+  drawing set into one file, split to one-PDF-per-page (zip), extract a page range (`1,3,5-7`), rotate
+  by 90°. A **🗂 PDF tools** launcher (merge/split/rotate/extract uploaded PDFs). Non-PDF uploads 422.
+
+Verified: `test_pdfops` (engine + HTTP merge/split/extract/rotate + non-PDF reject); web typecheck +
+build + 59 vitest.
+
 ## v0.3.125 — PDF markup: flatten to a real PDF (markup stack, phase 1)
 First phase of a Bluebeam-Revu-style PDF markup/manipulation stack (three decoupled layers: PDF.js
 render · interactive markup · pdf-lib/pypdf persistence). Built on the existing PDF takeoff.

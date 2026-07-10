@@ -715,6 +715,28 @@ export class ApiClient {
     const q = name ? "?name=" + encodeURIComponent(name) : "";
     return this.url(`/projects/${pid}/drawing-set/issuances/${iid}/sealed.pdf${q}`);
   }
+  // --- PDF manipulation (server pypdf): merge / split / rotate / extract uploaded PDFs -----------
+  private async _pdfPost(path: string, build: (fd: FormData) => void): Promise<Blob> {
+    const fd = new FormData(); build(fd);
+    const r = await fetch(this.url(path), { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    return r.blob();
+  }
+  /** Page count + flags for an uploaded PDF. */
+  async pdfInfo(file: File) {
+    const fd = new FormData(); fd.append("file", file);
+    const r = await fetch(this.url("/pdf/info"), { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    return r.json() as Promise<{ pages: number; encrypted: boolean }>;
+  }
+  /** Merge several uploaded PDFs into one (order = list order). */
+  pdfMerge(files: File[]) { return this._pdfPost("/pdf/merge", (fd) => { for (const f of files) fd.append("files", f); }); }
+  /** Split a PDF into one PDF per page, returned as a .zip. */
+  pdfSplitZip(file: File) { return this._pdfPost("/pdf/split", (fd) => fd.append("file", file)); }
+  /** Rotate pages by `angle` (multiple of 90); `pages` (1-based '1,3-5') limits it, blank = all. */
+  pdfRotate(file: File, angle: number, pages = "") { return this._pdfPost("/pdf/rotate", (fd) => { fd.append("file", file); fd.append("angle", String(angle)); if (pages) fd.append("pages", pages); }); }
+  /** Extract the given pages ('1,3,5-7', 1-based) into a new PDF. */
+  pdfExtract(file: File, pages: string) { return this._pdfPost("/pdf/extract", (fd) => { fd.append("file", file); fd.append("pages", pages); }); }
   /** Record a revision (delta) on a sheet, optionally citing the driving instrument (ASI/CCD/Addendum). */
   reviseDrawing(pid: string, drawingId: string, body: { rev: string; description?: string; date?: string; instrument_type?: string; instrument_ref?: string }) {
     return this.json<{ drawing_id: string; revision: string; delta_count: number }>(

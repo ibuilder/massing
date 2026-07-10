@@ -315,6 +315,20 @@ async function openReportCenter() {
     };
     await load();
   }));
+  tool("🗂 PDF tools (merge / split / rotate)", () => showResult("PDF tools", async (body) => {
+    body.innerHTML = `<div class="meta">Combine, split, rotate, or extract pages from PDFs — server-side (pypdf). Files stay unencrypted; nothing is stored.</div>`;
+    const dl = (blob: Blob, name: string) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
+    const pick = (multi: boolean): Promise<File[]> => new Promise((res) => { const i = document.createElement("input"); i.type = "file"; i.accept = ".pdf,application/pdf"; i.multiple = multi; i.onchange = () => res(i.files ? Array.from(i.files) : []); i.click(); });
+    const stem = (n: string) => n.replace(/\.pdf$/i, "");
+    const mk = (label: string, on: () => Promise<void>) => { const b = document.createElement("button"); b.className = "file-btn"; b.textContent = label; b.style.margin = "6px 6px 0 0";
+      b.onclick = async () => { b.disabled = true; try { await on(); } catch (e) { toast((e as Error).message, "error"); } b.disabled = false; }; return b; };
+    body.append(
+      mk("⧉ Merge PDFs…", async () => { const fs = await pick(true); if (fs.length < 2) { toast("pick 2 or more PDFs", "error"); return; } dl(await api.pdfMerge(fs), "merged.pdf"); toast(`merged ${fs.length} PDFs`, "success"); }),
+      mk("✂ Split to pages (zip)…", async () => { const [f] = await pick(false); if (!f) return; dl(await api.pdfSplitZip(f), stem(f.name) + "-pages.zip"); toast("split into pages", "success"); }),
+      mk("↻ Rotate 90°…", async () => { const [f] = await pick(false); if (!f) return; dl(await api.pdfRotate(f, 90), stem(f.name) + "-rotated.pdf"); toast("rotated", "success"); }),
+      mk("⇲ Extract pages…", async () => { const [f] = await pick(false); if (!f) return; const p = prompt("Pages to extract (e.g. 1,3,5-7):", "1"); if (!p) return; dl(await api.pdfExtract(f, p), stem(f.name) + "-extract.pdf"); toast("extracted", "success"); }),
+    );
+  }));
   tool("📋 ITB coverage (bid invitations)", () => showResult("ITB coverage", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
     try { const t = await api.itb(pid); body.innerHTML = `<div class="meta">${t.package_count} packages · ${t.total_responses}/${t.total_invited} responses · ${t.packages_without_bids} with no bids</div>`;

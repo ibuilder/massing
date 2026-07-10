@@ -12,9 +12,13 @@ import { toast } from "../ui/feedback";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
-type Mode = "pan" | "distance" | "area" | "count" | "rect" | "calibrate";
+type Mode = "pan" | "distance" | "area" | "count" | "rect" | "calibrate" | "text" | "stamp";
 interface Pt { x: number; y: number }                       // PDF user-space
-interface Measure { id: number; kind: Mode; pts: Pt[]; value: number; unit: string; label: string; page: number }
+interface Measure { id: number; kind: Mode; pts: Pt[]; value: number; unit: string; label: string; page: number; text?: string }
+
+// Dynamic stamps (Bluebeam-style): {{user}}/{{date}}/{{time}}/{{file}} resolve at placement time.
+const STAMPS = ["APPROVED", "REVIEWED", "FOR CONSTRUCTION", "NOT FOR CONSTRUCTION", "VOID",
+                "AS-BUILT", "REVISE & RESUBMIT", "{{user}} · {{date}}", "REVISED {{date}}"];
 
 const shoelace = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => {
   const b = p[(i + 1) % p.length]; return s + (a.x * b.y - b.x * a.y);
@@ -33,6 +37,17 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
   let draft: Pt[] = [];
   const measures: Measure[] = [];
   let seq = 0;
+  let stampTpl = STAMPS[0];
+  // resolve a dynamic stamp's {{fields}} at placement time
+  const resolveStamp = (tpl: string): string => {
+    const now = new Date();
+    let user = localStorage.getItem("aec_markup_user") || "";
+    if (/\{\{user\}\}/.test(tpl) && !user) { user = (prompt("Your name (for stamps):", "") || "").trim(); if (user) localStorage.setItem("aec_markup_user", user); }
+    const ctx: Record<string, string> = { user: user || "—", file: file!.name,
+      date: now.toISOString().slice(0, 10), time: now.toTimeString().slice(0, 5),
+      day: String(now.getDate()), month: String(now.getMonth() + 1), year: String(now.getFullYear()) };
+    return tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => ctx[k] ?? "");
+  };
 
   // ---- overlay shell -------------------------------------------------------
   const ov = document.createElement("div");
@@ -73,14 +88,47 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
       tbtn("▱ Area", "Measure area", () => setMode("area"), mode === "area"),
       tbtn("# Count", "Count items", () => setMode("count"), mode === "count"),
       tbtn("▭ Rect", "Rectangle annotation", () => setMode("rect"), mode === "rect"),
+      tbtn("𝗧 Text", "Text markup", () => setMode("text"), mode === "text"),
+      tbtn("🔖 Stamp", "Place the selected stamp", () => setMode("stamp"), mode === "stamp"),
+      stampPicker(),
       tbtn("✋ Pan", "Pan / select", () => setMode("pan"), mode === "pan"),
       tbtn("⌫ Undo", "Remove last point / measurement", undo),
+      tbtn("💾 Save", "Save markups as a tool set (JSON)", saveSet),
+      tbtn("📂 Load", "Load a saved tool set (JSON)", loadSet),
       tbtn("↧ CSV", "Export takeoff as CSV", exportCsv),
       tbtn("⤓ PDF", "Download the marked-up PDF (markups burned in)", () => void exportPdf()),
       tbtn("✕ Close", "Close takeoff", () => ov.remove()),
     );
   }
   const calOk = () => unitsPerPt > 0;
+  function stampPicker(): HTMLSelectElement {
+    const s = document.createElement("select"); s.className = "portal-filter"; s.title = "Stamp template"; s.style.maxWidth = "160px";
+    for (const t of STAMPS) { const o = document.createElement("option"); o.value = t; o.textContent = t; s.appendChild(o); }
+    s.value = stampTpl; s.onchange = () => { stampTpl = s.value; setMode("stamp"); };
+    return s;
+  }
+  // Tool set = the serialized markup scene (calibration + markups) — save/share/reload, Bluebeam-style.
+  function saveSet() {
+    const data = JSON.stringify({ v: 1, calibration: { unitsPerPt, unit }, measures });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+    a.download = `${file!.name.replace(/\.pdf$/i, "")}-markups.json`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast(`saved ${measures.length} markups`, "success");
+  }
+  function loadSet() {
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json,application/json";
+    inp.onchange = async () => {
+      const f = inp.files?.[0]; if (!f) return;
+      try {
+        const d = JSON.parse(await f.text());
+        if (d.calibration) { unitsPerPt = d.calibration.unitsPerPt || unitsPerPt; unit = d.calibration.unit || unit; }
+        if (Array.isArray(d.measures)) { measures.length = 0; for (const m of d.measures) { measures.push(m); if (m.id > seq) seq = m.id; } }
+        buildBar(); renderList(); drawOverlay();
+        toast(`loaded ${measures.length} markups`, "success");
+      } catch (e) { toast(`couldn't load: ${(e as Error).message}`, "error"); }
+    };
+    inp.click();
+  }
 
   // ---- page render ---------------------------------------------------------
   async function render() {
@@ -101,7 +149,7 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
   svg.addEventListener("click", (e) => {
     if (mode === "pan") return;
     draft.push(toPdf(e));
-    if (mode === "count") { commit(); draft = []; }          // each click = one count
+    if (mode === "count" || mode === "text" || mode === "stamp") { commit(); draft = []; }  // single-click placement
     else if (mode === "calibrate" && draft.length === 2) calibrate();
     else if (mode === "rect" && draft.length === 2) commit();
     drawOverlay();
@@ -120,14 +168,17 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
     buildBar(); renderList();
   }
   function commit() {
-    if (mode !== "rect" && mode !== "count" && !calOk()) { toast("calibrate the scale first (📏)", "error"); draft = []; return; }
+    const needsCal = mode === "distance" || mode === "area";
+    if (needsCal && !calOk()) { toast("calibrate the scale first (📏)", "error"); draft = []; return; }
     const pts = [...draft];
-    let value = 0, u = unit;
+    let value = 0, u = unit, text: string | undefined;
     if (mode === "distance") { value = pathLen(pts) * unitsPerPt; }
     else if (mode === "area") { value = shoelace(pts) * unitsPerPt * unitsPerPt; u = unit + "²"; }
     else if (mode === "rect") { const w = Math.abs(pts[1].x - pts[0].x), h = Math.abs(pts[1].y - pts[0].y); value = calOk() ? w * h * unitsPerPt * unitsPerPt : 0; u = unit + "²"; }
     else if (mode === "count") { value = 1; u = "ea"; }
-    measures.push({ id: ++seq, kind: mode, pts, value, unit: u, label: `${mode} ${seq}`, page: pageNum });
+    else if (mode === "text") { text = (prompt("Markup text:", "") || "").trim(); if (!text) { draft = []; return; } u = ""; }
+    else if (mode === "stamp") { text = resolveStamp(stampTpl); u = ""; }
+    measures.push({ id: ++seq, kind: mode, pts, value, unit: u, label: text || `${mode} ${seq}`, page: pageNum, text });
     draft = []; drawOverlay(); renderList();
   }
   function undo() {
@@ -149,7 +200,17 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
       svg.append(el("path", { d, fill: kind === "area" ? color : "none", "fill-opacity": "0.15", stroke: color, "stroke-width": "1.8", ...(dash ? { "stroke-dasharray": "5 4" } : {}) }));
       for (const p of pts) { const [x, y] = S(p); svg.append(el("circle", { cx: `${x}`, cy: `${y}`, r: "3", fill: color })); }
     };
-    for (const m of measures) if (m.page === pageNum) drawShape(m.kind, m.pts, m.kind === "area" || m.kind === "rect" ? "#33d17a" : "#ffd479");
+    const renderText = (m: Measure) => {
+      const [x, y] = S(m.pts[0]); const stamp = m.kind === "stamp"; const col = stamp ? "#e2554a" : "#111";
+      const fs = stamp ? 18 : 13;
+      if (stamp) svg.append(el("rect", { x: `${x - 5}`, y: `${y - fs}`, width: `${(m.text || "").length * fs * 0.6 + 10}`, height: `${fs + 8}`, fill: col, "fill-opacity": "0.08", stroke: col, "stroke-width": "1.5" }));
+      const t = el("text", { x: `${x}`, y: `${y}`, fill: col, "font-size": `${fs}`, "font-weight": "700", "font-family": "sans-serif" });
+      t.textContent = m.text || ""; svg.append(t);
+    };
+    for (const m of measures) if (m.page === pageNum) {
+      if (m.kind === "text" || m.kind === "stamp") renderText(m);
+      else drawShape(m.kind, m.pts, m.kind === "area" || m.kind === "rect" ? "#33d17a" : "#ffd479");
+    }
     if (draft.length) drawShape(mode, draft, mode === "calibrate" ? "#e2554a" : "#4a8cff", mode === "calibrate");
   }
   function renderList() {
@@ -185,12 +246,19 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
       const out = await PDFDocument.load(await file!.arrayBuffer());
       const font = await out.embedFont(StandardFonts.Helvetica);
       const pages = out.getPages();
-      const YELLOW = rgb(1, 0.83, 0.47), GREEN = rgb(0.2, 0.82, 0.48);
+      const YELLOW = rgb(1, 0.83, 0.47), GREEN = rgb(0.2, 0.82, 0.48), RED = rgb(0.89, 0.33, 0.29);
       for (const m of measures) {
         const pg = pages[(m.page ?? 1) - 1]; if (!pg) continue;
         const H = pg.getSize().height;
         const col = (m.kind === "area" || m.kind === "rect") ? GREEN : YELLOW;
         const P = (p: Pt) => ({ x: p.x, y: H - p.y });
+        if (m.kind === "text" || m.kind === "stamp") {
+          const q = P(m.pts[0]); const stamp = m.kind === "stamp"; const size = stamp ? 14 : 11;
+          const txt = m.text || ""; const w = txt.length * size * 0.6 + 10;
+          if (stamp) pg.drawRectangle({ x: q.x - 4, y: q.y - size - 2, width: w, height: size + 8, borderColor: RED, borderWidth: 1.5, color: RED, opacity: 0.08, borderOpacity: 1 });
+          pg.drawText(txt, { x: q.x, y: q.y - size + 2, size, font, color: stamp ? RED : rgb(0, 0, 0) });
+          continue;
+        }
         if (m.kind === "count") {
           for (const p of m.pts) { const q = P(p); pg.drawCircle({ x: q.x, y: q.y, size: 4, color: col }); }
         } else if (m.kind === "rect" && m.pts.length === 2) {
@@ -229,7 +297,10 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
   // test hook (mirrors __viewer): drive modes/clicks/commit from preview_eval
   (window as unknown as Record<string, unknown>).__takeoff = {
     setMode, click: (xPdf: number, yPdf: number) => { draft.push({ x: xPdf, y: yPdf }); if (mode === "count") { commit(); draft = []; } else if (mode === "calibrate" && draft.length === 2) calibrate(); else if (mode === "rect" && draft.length === 2) commit(); drawOverlay(); },
-    commit, measures, calibrated: () => calOk(), exportPdf, close: () => ov.remove(),
+    commit, measures, calibrated: () => calOk(), exportPdf, saveSet,
+    placeText: (t: string, x: number, y: number) => { measures.push({ id: ++seq, kind: "text", pts: [{ x, y }], value: 0, unit: "", label: t, page: pageNum, text: t }); drawOverlay(); renderList(); },
+    placeStamp: (tpl: string, x: number, y: number) => { const t = resolveStamp(tpl); measures.push({ id: ++seq, kind: "stamp", pts: [{ x, y }], value: 0, unit: "", label: t, page: pageNum, text: t }); drawOverlay(); renderList(); },
+    close: () => ov.remove(),
   };
 }
 

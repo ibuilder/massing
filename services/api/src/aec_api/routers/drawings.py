@@ -5,14 +5,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, Body, Depends, Response
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
-from .. import drawingset, issuance, sheetgen
+from .. import drawingset, issuance, pdfops, sheetgen
 from ..db import get_db
 from ..deps import source_ifc_path as _source_ifc
 from ..models import Project
-from ..rbac import require_role
+from ..rbac import current_user, require_role
 from ..throttle import rate_limited
 
 _DATA_SRC = Path(__file__).resolve().parents[4] / "data" / "src"
@@ -175,6 +175,61 @@ def generate_drawing_set(pid: str, body: dict = Body(default={}),
     levels, codes = _levels_and_series(db, pid, disc, bool(body.get("all")),
                                        int(body.get("max_levels") or 60))
     return sheetgen.generate(db, pid, levels, codes)
+
+
+# --- PDF manipulation (pypdf; no PyMuPDF/AGPL) — merge/split/rotate/extract uploaded PDFs ---------
+async def _read_pdf(f: UploadFile) -> bytes:
+    data = await f.read()
+    if data[:4] != b"%PDF":
+        raise HTTPException(422, f"{f.filename or 'file'} is not a PDF")
+    return data
+
+
+@router.post("/pdf/info")
+async def pdf_info(file: UploadFile = File(...), _: str = Depends(current_user)):
+    """Page count + flags for an uploaded PDF."""
+    return pdfops.info(await _read_pdf(file))
+
+
+@router.post("/pdf/merge")
+async def pdf_merge(files: list[UploadFile] = File(...), _: str = Depends(current_user)):
+    """Concatenate several uploaded PDFs into one (order = upload order)."""
+    if len(files) < 2:
+        raise HTTPException(422, "merge needs at least 2 PDFs")
+    out = pdfops.merge([await _read_pdf(f) for f in files])
+    return Response(out, media_type="application/pdf",
+                    headers={"Content-Disposition": 'attachment; filename="merged.pdf"'})
+
+
+@router.post("/pdf/split")
+async def pdf_split(file: UploadFile = File(...), _: str = Depends(current_user)):
+    """Split an uploaded PDF into one PDF per page, returned as a .zip."""
+    zipped = pdfops.zip_bytes(pdfops.split(await _read_pdf(file)),
+                              stem=(file.filename or "doc").rsplit(".", 1)[0])
+    return Response(zipped, media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="pages.zip"'})
+
+
+@router.post("/pdf/extract")
+async def pdf_extract(file: UploadFile = File(...), pages: str = Form(...),
+                      _: str = Depends(current_user)):
+    """A new PDF of just the given pages (`pages` = '1,3,5-7', 1-based)."""
+    sel = pdfops.parse_pages(pages)
+    if not sel:
+        raise HTTPException(422, "no valid page numbers (e.g. '1,3,5-7')")
+    out = pdfops.extract(await _read_pdf(file), sel)
+    return Response(out, media_type="application/pdf",
+                    headers={"Content-Disposition": 'attachment; filename="extract.pdf"'})
+
+
+@router.post("/pdf/rotate")
+async def pdf_rotate(file: UploadFile = File(...), angle: int = Form(90), pages: str = Form(""),
+                     _: str = Depends(current_user)):
+    """Rotate pages by `angle` (multiple of 90). `pages` (1-based, '1,3-5') limits it; blank = all."""
+    sel = pdfops.parse_pages(pages) or None
+    out = pdfops.rotate(await _read_pdf(file), angle, sel)
+    return Response(out, media_type="application/pdf",
+                    headers={"Content-Disposition": 'attachment; filename="rotated.pdf"'})
 
 
 def _svg(svg: str) -> Response:
