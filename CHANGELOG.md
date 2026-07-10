@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.123 — AIA drawing issuance: per-discipline sheet set + issuance register
+Turn the model into a full, correctly-numbered 2D drawing set, then release it the way an A/E office
+does — dated issuances for a purpose, with the sheet-index × issuance matrix the standards expect.
+
+**Discipline sheet-set generation.** **`sheetgen.py`** generates a standard set — **G-** General ·
+**C-** Civil · **L-** Landscape · **S-** Structural · **A-** Architectural · **FP-** Fire Protection ·
+**FA-** Fire Alarm · **P-** Plumbing · **M-** Mechanical · **E-** Electrical · **T-** Telecom — each a
+cover/notes sheet, one plan **per building level** (S-101…S-1NN), and the usual elevations/sections/
+details/schedules, numbered per NCS (`M-101` = Mechanical / Plans / 01). **Fire Alarm (FA-)** is a
+distinct series from Fire Protection (FP-) in the vocabulary, `parse_sheet_id`, naming validation and
+the `drawing` module. `GET …/drawing-set/plan` (preview) + `POST …/drawing-set/generate` (auto-detects
+disciplines from the model, or `{all:true}`/explicit list; idempotent). **Mass-ready**: bulk-inserts in
+one transaction — a 50-storey, 9-discipline set (532 sheets) generates in ~0.1s (was ~11s).
+
+**Drawing issuance register (AIA/CD).** New **`issuance.py`** + `drawing_issuance` module: issue the
+current set for a **purpose** (SD/DD/CD/Issued-for-Permit/Bid/Construction/Addendum/Conformed/Record),
+snapshotting every sheet + its revision. `POST …/drawing-set/issue`, `GET …/issuances` (history),
+`GET …/issuance-matrix` (the **sheet-index × issuance grid** — each sheet's revision in each issue),
+per-issuance transmittal PDF stamped with the purpose. A **📤 Issue set** control + issuance table +
+matrix on the Drawing-set register.
+
+Verified: `test_sheetgen` + `test_issuance` (issue snapshots, matrix reconstructs which sheet went in
+which issuance, per-issuance transmittal, AIA purposes); mass test 532 sheets / 0.1s; ruff clean; web
+typecheck + build clean.
+
 ## v0.3.122 — Battle-tested for mega-project scale (200k+ records)
 Load-tested every heavy read path against a seeded ~220k-record project (research-sized for a $500M+
 job: ~10k RFIs, 20k cost lines, 12k punchlist, 15k timesheets, …) and fixed what didn't hold up.

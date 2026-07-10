@@ -28,6 +28,7 @@ run the job, and hand it over — open, self-hosted, and free to run on one mach
 - **Developer finance** — line-item budgets, Sources & Uses, specialty (energy + vertical farm), investment memo + pitch deck.
 - **Underwriting that's honest** — risk-adjusted revenue + guardrails that flag returns outside market bands.
 - **GC portal** — RFIs, change orders, pay apps, CPM + takt + 4D, lean PPC, safety, closeout — config-driven.
+- **Model → discipline sheet set → AIA issuance** — generate a full 2D drawing set from the model: one NCS-numbered series per discipline (S-/A-/M-/E-/P-/FP-/**FA- Fire Alarm**/T-…), a plan per level, plus sections/details/schedules — hundreds of sheets in a fraction of a second. Then release it the way an A/E office does: dated **issuances** for a purpose (SD → DD → CD → Permit → Bid → Construction → Record), each snapshotting exactly which sheets at which revision went out, with the front-of-set **sheet × issuance matrix** and a per-issuance transmittal.
 - **Spec book → submittal register** — paste your specifications, get a typed submittal log (shop drawings, product data, samples…) with missing-submittal coverage. AI when you have a key, a built-in parser when you don't.
 - **Off-plan listing kit** — a BIM-native Listing Fact Sheet + a signed public link/QR, auto-filled from the model & proforma.
 - **Tri-approach appraisal** — cost + income + sales-comparison reconciled into a Valuation report, RESO-aligned for MLS.

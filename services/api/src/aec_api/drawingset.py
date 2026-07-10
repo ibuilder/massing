@@ -23,8 +23,9 @@ def parse_sheet_id(sheet_number: Any) -> dict[str, Any] | None:
         return None
     from . import classification as cls
     letters, typ, seq = m.group(1).upper(), m.group(2), m.group(3) or ""
-    code = letters[:1]
-    return {"discipline_code": code, "discipline": cls.discipline_name(code),
+    # honour distinct 2-letter series (FA Fire Alarm, FP Fire Protection) before folding to level-1
+    code = letters if letters in cls.SHEET_SERIES else letters[:1]
+    return {"discipline_code": code, "discipline": cls.sheet_series(letters),
             "sheet_type": typ, "sheet_type_name": _SHEET_TYPE.get(typ), "sequence": seq}
 
 

@@ -1,0 +1,32 @@
+{
+  "key": "drawing_issuance",
+  "name": "Drawing Issuances",
+  "section": "Engineering",
+  "icon": "📤",
+  "ref_prefix": "ISS",
+  "title_field": "number",
+  "pinnable": false,
+  "workflow": {
+    "initial": "issued",
+    "states": ["issued", "void"],
+    "transitions": [
+      {"from": "issued", "to": "void", "action": "void", "party": ["GC", "Architect"]}
+    ]
+  },
+  "list_columns": ["purpose", "issue_date", "sheet_count"],
+  "workspace": "construction|design",
+  "fields": [
+    {"name": "number", "label": "Issuance No.", "type": "text", "required": true},
+    {"name": "issue_date", "label": "Issue Date", "type": "date"},
+    {"name": "purpose", "label": "Issued For", "type": "select", "options": [
+      "Schematic Design", "Design Development", "Construction Documents",
+      "Issued for Coordination", "Issued for Permit", "Issued for Bid",
+      "Issued for Construction", "Addendum", "ASI", "Bulletin",
+      "Conformed Set", "Record Drawings"
+    ]},
+    {"name": "description", "label": "Description", "type": "textarea"},
+    {"name": "recipients", "label": "Recipients", "type": "text"},
+    {"name": "sheet_count", "label": "Sheets", "type": "number"},
+    {"name": "notes", "label": "Notes", "type": "textarea"}
+  ]
+}

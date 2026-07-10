@@ -172,6 +172,22 @@ def discipline_name(code: str | None) -> str | None:
     return _CODE_TO_NAME.get((code or "").strip().upper()) if code else None
 
 
+# NCS level-2 designators that name a *distinct* sheet series with its own numbering (not just a
+# refinement that folds to the level-1 discipline). Fire Alarm (FA) and Fire Protection (FP) are the
+# common ones on a building set — FA is documented separately from the electrical (E) series.
+SHEET_SERIES: dict[str, str] = {"FA": "Fire Alarm", "FP": "Fire Protection"}
+
+
+def sheet_series(prefix: str | None) -> str | None:
+    """Discipline name for a drawing-sheet designator, honouring distinct 2-letter series (FA/FP)
+    before folding a longer designator to its level-1 discipline. 'FA' -> 'Fire Alarm',
+    'M' -> 'Mechanical', 'AD' -> 'Architectural'."""
+    p = (prefix or "").strip().upper()
+    if not p:
+        return None
+    return SHEET_SERIES.get(p) or discipline_name(p[:1])
+
+
 def discipline_code(name_or_code: str | None) -> str | None:
     """Normalize a free-text discipline name/code (incl. legacy aliases) to a canonical NCS code."""
     v = (name_or_code or "").strip()

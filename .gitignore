@@ -97,3 +97,7 @@ services/api/_demo_capture.db
 
 # scale-test harness artifacts (seed_scale.py writes the project id here)
 services/api/_scale_pid.txt
+
+# live-server scratch storage from drawings/e2e testing
+services/api/_e2e_storage/
+services/api/_sg_storage/

@@ -5,10 +5,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy.orm import Session
 
-from .. import drawingset
+from .. import drawingset, issuance, sheetgen
 from ..db import get_db
 from ..deps import source_ifc_path as _source_ifc
 from ..models import Project
@@ -42,6 +42,103 @@ def drawing_set_transmittal(pid: str, to: str = "", note: str = "", db: Session 
     pdf = drawingset.transmittal_pdf(reg, p.name if p else pid, recipients, note)
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": 'inline; filename="drawing-transmittal.pdf"'})
+
+
+# --- drawing issuance register (AIA/CD: what went out, when, for what purpose) -------------------
+@router.get("/projects/{pid}/drawing-set/issuance-purposes")
+def issuance_purposes(_: str = Depends(require_role("viewer"))):
+    """The AIA/CD issuance purposes (SD/DD/CD/Permit/Bid/IFC/Addendum/Conformed/Record)."""
+    return {"purposes": issuance.purposes()}
+
+
+@router.get("/projects/{pid}/drawing-set/issuances")
+def drawing_issuances(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The issuance history — every release, its purpose, date, sheet count, recipients."""
+    return issuance.register(db, pid)
+
+
+@router.post("/projects/{pid}/drawing-set/issue", status_code=201)
+def issue_drawing_set(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                      _: str = Depends(require_role("editor"))):
+    """Issue the current drawing set for a purpose — snapshots every current sheet + its revision.
+    Body: `{purpose, date?, description?, recipients?}`."""
+    purpose = str(body.get("purpose") or "").strip()
+    if not purpose:
+        from fastapi import HTTPException
+        raise HTTPException(422, "purpose is required")
+    return issuance.issue(db, pid, purpose, body.get("date"),
+                          str(body.get("description") or ""), str(body.get("recipients") or ""))
+
+
+@router.get("/projects/{pid}/drawing-set/issuance-matrix")
+def drawing_issuance_matrix(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The sheet-index × issuance grid — each sheet's revision in each issuance (the front-of-set matrix)."""
+    return issuance.matrix(db, pid)
+
+
+@router.get("/projects/{pid}/drawing-set/issuances/{iid}/transmittal.pdf")
+def issuance_transmittal(pid: str, iid: str, db: Session = Depends(get_db),
+                         _: str = Depends(require_role("viewer"))):
+    """A transmittal PDF for one issuance, stamped with its purpose + date and the sheets released."""
+    p = db.get(Project, pid)
+    pdf = issuance.transmittal_pdf(db, pid, iid, p.name if p else pid)
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": 'inline; filename="issuance-transmittal.pdf"'})
+
+
+def _levels_and_series(db: Session, pid: str, disciplines: list[str] | None,
+                       all_disciplines: bool, max_levels: int) -> tuple[list[str], list[str]]:
+    """Building levels (storey names) + which discipline sheet series to emit, from the model. If the
+    caller names disciplines, those win; else all series present in the model (always G/S/A) — or the
+    full standard set when `all_disciplines`. Falls back to a single level if the model has no storeys
+    (so the endpoint still produces a set for a thin model)."""
+    level_names: list[str] = ["Level 1"]
+    classes: set[str] = set()
+    try:
+        from aec_data import drawings as _dw  # type: ignore
+        from aec_data.ifc_loader import open_model  # type: ignore
+        model = open_model(_source_ifc(db, pid))
+        storeys = _dw.storey_elevations(model)
+        names = [s.get("name") or f"Level {i + 1}" for i, s in enumerate(storeys)]
+        if names:
+            level_names = names[:max(1, max_levels)]
+        classes = {e.is_a() for e in model}
+    except Exception:                          # noqa: BLE001 — thin/absent model still gets a set
+        pass
+    if disciplines:
+        codes = sheetgen.normalize_codes(disciplines)
+    elif all_disciplines:
+        codes = sheetgen.DEFAULT_CODES
+    else:
+        codes = sheetgen.detect_series(classes)
+    return level_names, (codes or sheetgen.DEFAULT_CODES)
+
+
+@router.get("/projects/{pid}/drawing-set/plan")
+def drawing_set_plan(pid: str, disciplines: str = "", all: bool = False, max_levels: int = 60,
+                     db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Preview the discipline sheet set that would be generated (no records created): one series per
+    discipline with NCS sheet numbers (M-/FA-/S-/…), a plan per level, plus sections/details/schedules.
+    `disciplines` is a comma-separated list of designators or names; `all=true` forces the full set."""
+    disc = [d.strip() for d in disciplines.split(",") if d.strip()]
+    levels, codes = _levels_and_series(db, pid, disc or None, all, max_levels)
+    sheets = sheetgen.plan_set(levels, codes)
+    from collections import Counter
+    return {"levels": len(levels), "series": codes, "sheet_count": len(sheets),
+            "by_discipline": dict(Counter(s["discipline"] for s in sheets)), "sheets": sheets}
+
+
+@router.post("/projects/{pid}/drawing-set/generate", status_code=201)
+def generate_drawing_set(pid: str, body: dict = Body(default={}),
+                         db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Generate the discipline sheet set as `drawing` records — one sheet series per discipline with
+    its own NCS designator (A-/S-/M-/E-/P-/FP-/FA-/T-/…), a plan per building level, and the usual
+    sections/details/schedules. Body: `{disciplines?:[…], all?:bool, max_levels?:int}`. Idempotent —
+    existing sheet numbers are skipped. Flows straight into the drawing-set register + transmittal."""
+    disc = body.get("disciplines") or None
+    levels, codes = _levels_and_series(db, pid, disc, bool(body.get("all")),
+                                       int(body.get("max_levels") or 60))
+    return sheetgen.generate(db, pid, levels, codes)
 
 
 def _svg(svg: str) -> Response:

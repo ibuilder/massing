@@ -238,15 +238,69 @@ async function openReportCenter() {
     body.append(wk, open, sum, out);
   }));
   tool("📐 Drawing-set register", () => showResult("Drawing-set register", async (body) => {
-    body.innerHTML = `<div class="meta">Loading…</div>`;
-    try {
-      const d = await api.drawingSet(pid);
-      body.innerHTML = `<div class="meta">${d.current_count} current · ${d.new_count} new · ${d.revised_count} revised · ${d.superseded_count} superseded · ${d.sheet_count} sheets</div>`;
-      const xmit = document.createElement("a"); xmit.className = "file-btn"; xmit.textContent = "⬇ Transmittal (PDF)";
-      xmit.href = api.drawingTransmittalUrl(pid); xmit.target = "_blank"; xmit.rel = "noopener"; xmit.style.margin = "6px 0";
-      body.appendChild(xmit);
-      table(body, ["Sheet", "Title", "Discipline", "Rev", "Status"], d.sheet_index.map((s: any) => [s.sheet_number, s.title ?? "", s.discipline ?? "", s.current_revision ?? "", s.change]));
-    } catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+    const load = async () => {
+      body.innerHTML = `<div class="meta">Loading…</div>`;
+      try {
+        const d = await api.drawingSet(pid);
+        body.innerHTML = `<div class="meta">${d.current_count} current · ${d.new_count} new · ${d.revised_count} revised · ${d.superseded_count} superseded · ${d.sheet_count} sheets</div>`;
+        // generate a full discipline sheet set (one NCS series per discipline: S-/A-/M-/E-/P-/FP-/FA-/T-)
+        const gen = document.createElement("button"); gen.className = "file-btn"; gen.textContent = "⚙ Generate discipline sheet set";
+        gen.style.margin = "6px 6px 6px 0";
+        gen.onclick = async () => {
+          gen.disabled = true; gen.textContent = "Generating…";
+          try {
+            const g = await api.generateDrawingSet(pid, { all: true });
+            toast(`Created ${g.created} sheets across ${Object.keys(g.by_discipline).length} disciplines`
+              + (g.skipped_existing ? ` (${g.skipped_existing} already existed)` : ""), "success");
+            await load();
+          } catch (e) { toast((e as Error).message, "error"); gen.disabled = false; gen.textContent = "⚙ Generate discipline sheet set"; }
+        };
+        body.appendChild(gen);
+        const xmit = document.createElement("a"); xmit.className = "file-btn"; xmit.textContent = "⬇ Transmittal (PDF)";
+        xmit.href = api.drawingTransmittalUrl(pid); xmit.target = "_blank"; xmit.rel = "noopener"; xmit.style.margin = "6px 0";
+        body.appendChild(xmit);
+        if (Object.keys(d.by_discipline || {}).length)
+          body.insertAdjacentHTML("beforeend", `<div class="meta" style="margin:4px 0">By discipline: ${Object.entries(d.by_discipline).map(([k, v]) => `${escapeHtml(k)} ${v}`).join(" · ")}</div>`);
+
+        // --- AIA issuance: issue the set for a purpose + issuance register + sheet×issuance matrix ---
+        const iss = document.createElement("div"); iss.style.margin = "10px 0 4px";
+        iss.innerHTML = `<div class="section-title">Issuances (AIA)</div>`;
+        const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0";
+        const sel = document.createElement("select"); sel.className = "portal-filter";
+        try { const pu = await api.drawingIssuancePurposes(pid); for (const p of pu.purposes) { const o = document.createElement("option"); o.value = p.name; o.textContent = p.name; sel.appendChild(o); } } catch { /* purposes optional */ }
+        const isb = document.createElement("button"); isb.className = "file-btn"; isb.textContent = "📤 Issue set";
+        isb.onclick = async () => {
+          isb.disabled = true; const prev = isb.textContent; isb.textContent = "Issuing…";
+          try { const r = await api.issueDrawingSet(pid, { purpose: sel.value }); toast(`Issued ${r.sheet_count} sheets for ${r.purpose}`, "success"); await load(); }
+          catch (e) { toast((e as Error).message, "error"); isb.disabled = false; isb.textContent = prev; }
+        };
+        row.append(sel, isb); iss.appendChild(row); body.appendChild(iss);
+        try {
+          const reg = await api.drawingIssuances(pid);
+          if (reg.issuance_count) {
+            table(body, ["Issuance", "Issued For", "Date", "Sheets"], reg.issuances.map((i: any) =>
+              [i.number ?? "", i.purpose ?? "", i.issue_date ?? "", String(i.sheet_count ?? "")]));
+            // per-issuance transmittal PDFs (stamped with the purpose)
+            const links = document.createElement("div"); links.className = "meta"; links.style.margin = "4px 0";
+            for (const i of reg.issuances as any[]) {
+              const a = document.createElement("a"); a.href = api.issuanceTransmittalUrl(pid, i.id);
+              a.target = "_blank"; a.rel = "noopener"; a.textContent = `⬇ ${i.number ?? "issuance"} PDF`;
+              a.style.marginRight = "10px"; links.appendChild(a);
+            }
+            body.appendChild(links);
+            // sheet × issuance matrix (front-of-set grid): each sheet's revision per issuance
+            const mx = await api.drawingIssuanceMatrix(pid);
+            const cols = mx.issuances.map((i: any) => `${i.abbr} ${i.issue_date ?? ""}`);
+            body.insertAdjacentHTML("beforeend", `<div class="meta" style="margin:6px 0 2px">Sheet × issuance matrix</div>`);
+            table(body, ["Sheet", "Discipline", ...cols], mx.rows.map((r) => [r.sheet_number, r.discipline ?? "", ...r.cells.map((c) => c ?? "—")]));
+          }
+        } catch (e) { body.insertAdjacentHTML("beforeend", `<div class="meta">${escapeHtml((e as Error).message)}</div>`); }
+
+        body.insertAdjacentHTML("beforeend", `<div class="section-title" style="margin-top:10px">Sheet index</div>`);
+        table(body, ["Sheet", "Title", "Discipline", "Rev", "Status"], d.sheet_index.map((s: any) => [s.sheet_number, s.title ?? "", s.discipline ?? "", s.current_revision ?? "", s.change]));
+      } catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+    };
+    await load();
   }));
   tool("📋 ITB coverage (bid invitations)", () => showResult("ITB coverage", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;

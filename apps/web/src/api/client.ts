@@ -671,6 +671,45 @@ export class ApiClient {
       new_count: number; revised_count: number; by_discipline: Record<string, number>;
       sheet_index: Record<string, unknown>[] }>(`/projects/${pid}/drawing-set`);
   }
+  /** Preview the discipline sheet set that would be generated (one NCS series per discipline: M-/FA-/S-/…). */
+  drawingSetPlan(pid: string, opts: { disciplines?: string; all?: boolean } = {}) {
+    const q = new URLSearchParams({ ...(opts.disciplines ? { disciplines: opts.disciplines } : {}),
+      ...(opts.all ? { all: "true" } : {}) }).toString();
+    return this.json<{ levels: number; series: string[]; sheet_count: number;
+      by_discipline: Record<string, number>; sheets: Record<string, unknown>[] }>(
+      `/projects/${pid}/drawing-set/plan${q ? "?" + q : ""}`);
+  }
+  /** Generate the discipline sheet set as drawing records (per-discipline NCS numbering, plan per level). */
+  generateDrawingSet(pid: string, body: { disciplines?: string[]; all?: boolean; max_levels?: number } = {}) {
+    return this.json<{ levels: number; series: string[]; planned: number; created: number;
+      skipped_existing: number; by_discipline: Record<string, number>; sheet_count: number }>(
+      `/projects/${pid}/drawing-set/generate`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** Issue the current drawing set for a purpose (AIA/CD) — snapshots every sheet + its revision. */
+  issueDrawingSet(pid: string, body: { purpose: string; date?: string; description?: string; recipients?: string }) {
+    return this.json<{ id: string; purpose: string; issue_date: string; sheet_count: number }>(
+      `/projects/${pid}/drawing-set/issue`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** The issuance history (every release, purpose, date, sheet count, recipients). */
+  drawingIssuances(pid: string) {
+    return this.json<{ issuance_count: number; by_purpose: Record<string, number>;
+      issuances: Record<string, unknown>[] }>(`/projects/${pid}/drawing-set/issuances`);
+  }
+  /** The sheet-index × issuance matrix (each sheet's revision in each issuance). */
+  drawingIssuanceMatrix(pid: string) {
+    return this.json<{ issuances: Record<string, unknown>[]; sheet_count: number;
+      rows: { sheet_number: string; title: string; discipline: string; cells: (string | null)[] }[] }>(
+      `/projects/${pid}/drawing-set/issuance-matrix`);
+  }
+  /** AIA/CD issuance purposes for the "issue for…" picker. */
+  drawingIssuancePurposes(pid: string) {
+    return this.json<{ purposes: { name: string; abbr: string }[] }>(
+      `/projects/${pid}/drawing-set/issuance-purposes`);
+  }
+  /** URL of a per-issuance transmittal PDF (stamped with the purpose + date). */
+  issuanceTransmittalUrl(pid: string, iid: string) {
+    return this.url(`/projects/${pid}/drawing-set/issuances/${iid}/transmittal.pdf`);
+  }
   /** URL of a drawing-transmittal PDF for the current set (recipients comma-separated). */
   drawingTransmittalUrl(pid: string, to = "", note = "") {
     const q = new URLSearchParams({ ...(to ? { to } : {}), ...(note ? { note } : {}) }).toString();
