@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.127 — A/E/C stamps & professional seals (submittal review + PE/RA seal)
+Real construction/design stamping on PDFs — the two legally distinct classes, done properly.
+- **Stamp template library** (server = source of truth, `stamps.py` + `GET /stamps/library`): submittal
+  **review** (both **EJCDC** — Approved / Approved as Noted / Revise and Resubmit / Rejected, and **CSI**
+  — No Exceptions Taken / Make Corrections Noted / Amend and Resubmit / Rejected / For Record Only),
+  **inspection** (Pass / Partial / Fail), and **status** (For Construction / Void / As-Built …). Review
+  stamps carry reviewer, firm, in-responsible-charge, submittal no., spec section, date — and bake in the
+  standard **design-conformance disclaimer** (review is only for general conformance with the design
+  concept; the contractor keeps responsibility for quantities, dimensions, means/methods, coordination).
+- **Professional seal + signature** (`POST /pdf/seal`): renders a *visible* PE/RA seal + signature/date
+  block, then applies a **tamper-evident PAdES digital signature LAST** so any later change is detectable.
+  Honest about compliance — the self-signed platform certificate is demonstration / tamper-evidence, not
+  board-accepted sealing; configure the licensee's own certificate (`ESIGN_P12`) for regulatory use.
+- **UI**: a **🏛 Stamp & seal PDF** tool — pick a PDF, choose a template, fill fields / disposition, place,
+  and download the stamped or sealed PDF. Client methods `stampLibrary` / `pdfStamp` / `pdfSeal`.
+- Rendering is reportlab overlay + pypdf composite (permissive licenses; **no PyMuPDF**). `test_stamps`.
+
 ## v0.3.126 — PDF markup: stamps + tool sets + server merge/split/rotate (phases 2–3)
 Completes the PDF markup/manipulation stack — interactive stamps/text + reusable tool sets on the
 client, and server-side page ops via pypdf. Still permissive-only (no PyMuPDF/AGPL).

@@ -232,6 +232,69 @@ async def pdf_rotate(file: UploadFile = File(...), angle: int = Form(90), pages:
                     headers={"Content-Disposition": 'attachment; filename="rotated.pdf"'})
 
 
+def _json_form(raw: str) -> dict:
+    import json
+    if not raw:
+        return {}
+    try:
+        v = json.loads(raw)
+        return v if isinstance(v, dict) else {}
+    except (ValueError, TypeError) as e:
+        raise HTTPException(422, "values/profile must be a JSON object") from e
+
+
+@router.get("/stamps/library")
+def stamps_library(_: str = Depends(current_user)):
+    """The A/E/C stamp template library — review (EJCDC + CSI), inspection, status, and seal templates.
+    The client renders the picker and preview from this; the server is the source of truth."""
+    from .. import stamps
+    return {"templates": stamps.library()}
+
+
+@router.post("/pdf/stamp")
+async def pdf_stamp(file: UploadFile = File(...), template_id: str = Form(...),
+                    page: int = Form(1), x: float = Form(36), y: float = Form(36),
+                    disposition: str = Form(""), values: str = Form(""),
+                    _: str = Depends(current_user)):
+    """Composite a review / inspection / status stamp onto a page (1-based). (x,y) = top-left of the
+    stamp in PDF points from the page's top-left. `values` = JSON object of field values."""
+    from .. import stamps
+    try:
+        out = stamps.apply_stamp(await _read_pdf(file), page - 1, x, y, template_id,
+                                 _json_form(values), disposition)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    return Response(out, media_type="application/pdf",
+                    headers={"Content-Disposition": 'attachment; filename="stamped.pdf"'})
+
+
+@router.post("/pdf/seal")
+async def pdf_seal(file: UploadFile = File(...), template_id: str = Form(...),
+                   page: int = Form(1), x: float = Form(36), y: float = Form(36),
+                   sign: bool = Form(True), profile: str = Form(...),
+                   _: str = Depends(current_user)):
+    """Render a *visible* professional seal + signature block, then apply a tamper-evident PAdES
+    signature LAST (unless `sign=false`). `profile` = JSON {name,license_no,state,expiration,date}.
+    The self-signed platform cert is demonstration / tamper-evidence, not board-accepted sealing."""
+    from starlette.concurrency import run_in_threadpool
+
+    from .. import stamps
+    data = await _read_pdf(file)
+    prof = _json_form(profile)
+    try:
+        # pyHanko signing calls asyncio.run internally — run off the event loop.
+        out, meta = await run_in_threadpool(stamps.apply_seal, data, page - 1, x, y, template_id,
+                                            prof, sign)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    return Response(out, media_type="application/pdf", headers={
+        "Content-Disposition": 'attachment; filename="sealed.pdf"',
+        "X-Seal-Sealed": str(meta["sealed"]).lower(),
+        "X-Seal-Cert-Kind": meta.get("cert_kind", ""),
+        "X-Seal-Compliance": meta.get("compliance", ""),
+    })
+
+
 def _svg(svg: str) -> Response:
     return Response(svg.encode("utf-8"), media_type="image/svg+xml")
 

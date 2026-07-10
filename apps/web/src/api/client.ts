@@ -27,6 +27,14 @@ export interface DrawingMarkupItem {
   author: string | null; topic_id: string | null; created_at: string;
 }
 
+/** An A/E/C stamp template from the server library (review / inspection / status / seal). */
+export interface StampTemplate {
+  id: string; name: string; category: "review" | "inspection" | "status" | "seal";
+  dispositions?: string[]; disclaimer?: boolean; color: string; size: [number, number];
+  discipline?: string;
+  fields: { key: string; label: string; type: "text" | "multiline" | "date" | "user" }[];
+}
+
 /** A registered data-source connection (local DB / Postgres / Supabase / Procore). */
 export interface ConnectionItem {
   id: string; name: string; type: string; builtin?: boolean;
@@ -737,6 +745,29 @@ export class ApiClient {
   pdfRotate(file: File, angle: number, pages = "") { return this._pdfPost("/pdf/rotate", (fd) => { fd.append("file", file); fd.append("angle", String(angle)); if (pages) fd.append("pages", pages); }); }
   /** Extract the given pages ('1,3,5-7', 1-based) into a new PDF. */
   pdfExtract(file: File, pages: string) { return this._pdfPost("/pdf/extract", (fd) => { fd.append("file", file); fd.append("pages", pages); }); }
+  // --- A/E/C stamps (server: reportlab overlay + pypdf; seals add a PAdES signature) --------------
+  /** The stamp template library — review (EJCDC + CSI), inspection, status, and PE/RA seal templates. */
+  stampLibrary() { return this.json<{ templates: StampTemplate[] }>("/stamps/library"); }
+  /** Composite a review / inspection / status stamp onto a page (1-based). (x,y) = top-left in PDF points. */
+  pdfStamp(file: File, o: { template_id: string; page?: number; x?: number; y?: number; disposition?: string; values?: Record<string, string> }) {
+    return this._pdfPost("/pdf/stamp", (fd) => {
+      fd.append("file", file); fd.append("template_id", o.template_id);
+      fd.append("page", String(o.page ?? 1)); fd.append("x", String(o.x ?? 36)); fd.append("y", String(o.y ?? 36));
+      if (o.disposition) fd.append("disposition", o.disposition);
+      if (o.values) fd.append("values", JSON.stringify(o.values));
+    });
+  }
+  /** Apply a *visible* professional seal, then a tamper-evident PAdES signature LAST. Returns the sealed
+   *  PDF plus the compliance note the server reports (demo cert vs configured cert). */
+  async pdfSeal(file: File, o: { template_id: string; profile: Record<string, string>; page?: number; x?: number; y?: number; sign?: boolean }) {
+    const fd = new FormData();
+    fd.append("file", file); fd.append("template_id", o.template_id); fd.append("profile", JSON.stringify(o.profile));
+    fd.append("page", String(o.page ?? 1)); fd.append("x", String(o.x ?? 36)); fd.append("y", String(o.y ?? 36));
+    fd.append("sign", String(o.sign ?? true));
+    const r = await fetch(this.url("/pdf/seal"), { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    return { blob: await r.blob(), sealed: r.headers.get("X-Seal-Sealed") === "true", compliance: r.headers.get("X-Seal-Compliance") || "" };
+  }
   /** Record a revision (delta) on a sheet, optionally citing the driving instrument (ASI/CCD/Addendum). */
   reviseDrawing(pid: string, drawingId: string, body: { rev: string; description?: string; date?: string; instrument_type?: string; instrument_ref?: string }) {
     return this.json<{ drawing_id: string; revision: string; delta_count: number }>(
