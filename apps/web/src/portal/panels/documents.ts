@@ -130,7 +130,25 @@ export async function renderDocuments(ctx: PanelContext) {
       try { await api.deleteDocument(pid!, f.id); toast("Deleted"); await refreshTreeCounts(); await loadFolder(path); }
       catch (e) { toast(`Delete failed: ${(e as Error).message}`); }
     };
-    act.append(mv, del);
+    // PDFs open in the in-app viewer for markup; saving supersedes to a new revision (docmanager versioning)
+    const extras: HTMLElement[] = [];
+    if (/\.pdf$/i.test(f.name)) {
+      const mk = el2("button") as HTMLButtonElement; mk.textContent = "✎"; mk.title = "Open in viewer & mark up (saves a new revision)";
+      mk.style.cssText = "background:none;border:none;cursor:pointer";
+      mk.onclick = async () => {
+        const { openPdfUrl } = await import("../../drawings/openPdf");
+        await openPdfUrl(api, api.documentDownloadUrl(pid!, f.id), f.name, {
+          saveLabel: "Save as new revision",
+          onSave: async (blob) => {
+            await api.uploadDocument(pid!, path, new File([blob], f.name, { type: "application/pdf" }),
+              f.discipline ? { discipline: f.discipline } : {});
+            await refreshTreeCounts(); await loadFolder(path);
+          },
+        });
+      };
+      extras.push(mk);
+    }
+    act.append(mv, ...extras, del);
     tr.append(nameTd, disc, rev, st, when, act);
     return tr;
   }

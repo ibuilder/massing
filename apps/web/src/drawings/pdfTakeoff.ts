@@ -25,11 +25,29 @@ const shoelace = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => {
 }, 0)) / 2;
 const pathLen = (p: Pt[]) => p.slice(1).reduce((s, a, i) => s + Math.hypot(a.x - p[i].x, a.y - p[i].y), 0);
 
-export async function openPdfTakeoff(preFile?: File): Promise<void> {
-  const file = preFile ?? await pickPdf();
-  if (!file) return;
+/** A PDF to open: a local File, or a server URL (fetched with optional auth headers). */
+export type PdfSource = File | { url: string; name: string; headers?: Record<string, string> };
+/** Optional wiring so the marked-up PDF can be saved back to its source (attachment / document / etc.). */
+export interface TakeoffOpts { onSave?: (pdf: Blob, name: string) => Promise<void>; saveLabel?: string }
+
+export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {}): Promise<void> {
+  let docName = "document.pdf";
+  let srcBuf: ArrayBuffer;
+  if (source && "url" in source) {
+    docName = source.name || "document.pdf";
+    try {
+      const r = await fetch(source.url, { headers: source.headers });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      srcBuf = await r.arrayBuffer();
+    } catch (e) { toast(`couldn't fetch PDF: ${(e as Error).message}`, "error"); return; }
+  } else {
+    const f = source ?? await pickPdf();
+    if (!f) return;
+    docName = f.name; srcBuf = await f.arrayBuffer();
+  }
   let doc: pdfjsLib.PDFDocumentProxy;
-  try { doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise; }
+  // pdf.js may transfer/detach its input buffer — hand it a private copy, keep srcBuf for pdf-lib export.
+  try { doc = await pdfjsLib.getDocument({ data: new Uint8Array(srcBuf.slice(0)) }).promise; }
   catch (e) { toast(`couldn't open PDF: ${(e as Error).message}`, "error"); return; }
 
   let pageNum = 1, scale = 1, mode: Mode = "distance";
@@ -43,7 +61,7 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
     const now = new Date();
     let user = localStorage.getItem("aec_markup_user") || "";
     if (/\{\{user\}\}/.test(tpl) && !user) { user = (prompt("Your name (for stamps):", "") || "").trim(); if (user) localStorage.setItem("aec_markup_user", user); }
-    const ctx: Record<string, string> = { user: user || "—", file: file!.name,
+    const ctx: Record<string, string> = { user: user || "—", file: docName,
       date: now.toISOString().slice(0, 10), time: now.toTimeString().slice(0, 5),
       day: String(now.getDate()), month: String(now.getMonth() + 1), year: String(now.getFullYear()) };
     return tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => ctx[k] ?? "");
@@ -75,7 +93,7 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
   function buildBar() {
     bar.innerHTML = "";
     const name = document.createElement("span"); name.className = "meta"; name.style.fontWeight = "600";
-    name.textContent = file!.name; bar.append(name);
+    name.textContent = docName; bar.append(name);
     const sp = document.createElement("span"); sp.style.flex = "1"; bar.append(sp);
     bar.append(
       tbtn("⟸", "Previous page", () => gotoPage(pageNum - 1)),
@@ -97,6 +115,7 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
       tbtn("📂 Load", "Load a saved tool set (JSON)", loadSet),
       tbtn("↧ CSV", "Export takeoff as CSV", exportCsv),
       tbtn("⤓ PDF", "Download the marked-up PDF (markups burned in)", () => void exportPdf()),
+      ...(opts.onSave ? [tbtn("⭱ Save to source", opts.saveLabel || "Save the marked-up PDF back to its source", () => void saveToServer())] : []),
       tbtn("✕ Close", "Close takeoff", () => ov.remove()),
     );
   }
@@ -111,7 +130,7 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
   function saveSet() {
     const data = JSON.stringify({ v: 1, calibration: { unitsPerPt, unit }, measures });
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
-    a.download = `${file!.name.replace(/\.pdf$/i, "")}-markups.json`; a.click();
+    a.download = `${docName.replace(/\.pdf$/i, "")}-markups.json`; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     toast(`saved ${measures.length} markups`, "success");
   }
@@ -239,11 +258,12 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
   // Coords are stored in PDF.js viewport-at-scale-1 space = PDF points, TOP-LEFT origin. pdf-lib draws
   // BOTTOM-LEFT origin, so flip Y: pdfY = pageHeight − y. (Assumes page rotation 0 / cropbox=mediabox,
   // the common case for construction sheets — rotated pages would need the viewport transform.)
-  async function exportPdf() {
-    if (!measures.length) { toast("nothing to export yet", "error"); return; }
+  // Flatten all markups into the PDF and return the bytes (shared by download + save-to-server).
+  async function buildMarkedPdf(): Promise<Uint8Array | null> {
+    if (!measures.length) { toast("nothing to export yet", "error"); return null; }
     try {
       const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib");
-      const out = await PDFDocument.load(await file!.arrayBuffer());
+      const out = await PDFDocument.load(srcBuf.slice(0));
       const font = await out.embedFont(StandardFonts.Helvetica);
       const pages = out.getPages();
       const YELLOW = rgb(1, 0.83, 0.47), GREEN = rgb(0.2, 0.82, 0.48), RED = rgb(0.89, 0.33, 0.29);
@@ -273,20 +293,30 @@ export async function openPdfTakeoff(preFile?: File): Promise<void> {
         const txt = `${m.label}: ${m.kind === "count" ? "1 ea" : m.value.toFixed(2) + " " + m.unit}`;
         pg.drawText(txt, { x: lp.x + 4, y: lp.y + 4, size: 8, font, color: col });
       }
-      const bytes = await out.save();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
-      a.download = `${file!.name.replace(/\.pdf$/i, "")}-markup.pdf`; a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      toast(`exported marked-up PDF (${measures.length} markups)`, "success");
-    } catch (e) { toast(`PDF export failed: ${(e as Error).message}`, "error"); }
+      return await out.save();
+    } catch (e) { toast(`PDF export failed: ${(e as Error).message}`, "error"); return null; }
+  }
+  async function exportPdf() {
+    const bytes = await buildMarkedPdf(); if (!bytes) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
+    a.download = `${docName.replace(/\.pdf$/i, "")}-markup.pdf`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    toast(`exported marked-up PDF (${measures.length} markups)`, "success");
+  }
+  // Save the flattened markup back to its source (attachment / document version) via the host callback.
+  async function saveToServer() {
+    if (!opts.onSave) return;
+    const bytes = await buildMarkedPdf(); if (!bytes) return;
+    try { await opts.onSave(new Blob([bytes as BlobPart], { type: "application/pdf" }), docName); toast(opts.saveLabel ? `${opts.saveLabel} — saved` : "saved to server", "success"); }
+    catch (e) { toast(`save failed: ${(e as Error).message}`, "error"); }
   }
   function exportCsv() {
     if (!measures.length) { toast("nothing to export yet", "error"); return; }
     const rows = [["label", "type", "quantity", "unit"], ...measures.map((m) => [m.label, m.kind, m.kind === "count" ? "1" : m.value.toFixed(3), m.unit])];
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    a.download = `${file!.name.replace(/\.pdf$/i, "")}-takeoff.csv`; a.click();
+    a.download = `${docName.replace(/\.pdf$/i, "")}-takeoff.csv`; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     toast(`exported ${measures.length} takeoff lines`, "success");
   }

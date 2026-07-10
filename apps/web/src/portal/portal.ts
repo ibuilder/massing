@@ -2201,12 +2201,12 @@ export class PortalUI {
     btn(`📄 Generate ${spec.label}`, "Generate the contract document (PDF)",
         () => window.open(api.contractDocUrl(pid, m.key, rid, spec.doc), "_blank"));
     if (spec.exhibit) btn("📐 Compose Exhibit A", "Build the scope-of-work exhibit from the clause library", () => void this.composeExhibit(m, r, rid));
-    btn("🖊 View & markup", "Open the document with redline / markup tools", async () => {
-      try {
-        const res = await fetch(api.contractDocUrl(pid, m.key, rid, spec.doc), { headers: api.authHeaders() });
-        const file = new File([await res.arrayBuffer()], `${spec.doc}-${r.ref}.pdf`, { type: "application/pdf" });
-        const mod = await import("../drawings/pdfTakeoff"); await mod.openPdfTakeoff(file);
-      } catch (e) { toast(`couldn't open document: ${(e as Error).message}`, "error"); }
+    btn("🖊 View & markup", "Open the document with redline / markup tools (save annotations back as an attachment)", async () => {
+      const { openPdfUrl } = await import("../drawings/openPdf");
+      await openPdfUrl(api, api.contractDocUrl(pid, m.key, rid, spec.doc), `${spec.doc}-${r.ref}.pdf`, {
+        saveLabel: "Attach marked-up copy",
+        onSave: async (blob, name) => { await api.uploadAttachment(pid, m.key, rid, new File([blob], name.replace(/\.pdf$/i, "") + "-markup.pdf", { type: "application/pdf" })); },
+      });
     });
     btn("✍ Sign", "Record a party's signature", () => void this.signContract(m, r, rid));
     btn("🔏 Digitally sign", "Apply a tamper-evident PAdES digital signature to the document", async () => {
@@ -2384,7 +2384,17 @@ export class PortalUI {
     const pdfBtn = document.createElement("button");
     pdfBtn.className = "tool-btn"; pdfBtn.textContent = "↓ PDF";
     pdfBtn.onclick = () => window.open(this.host.api.url(`/projects/${pid}/modules/${m.key}/${rid}/pdf`), "_blank");
-    tools.append(editBtn, delBtn, pdfBtn);
+    const pdfMk = document.createElement("button");
+    pdfMk.className = "tool-btn"; pdfMk.textContent = "🖊 Markup";
+    pdfMk.title = "Open the record PDF in the in-app viewer to mark up (saves back as an attachment)";
+    pdfMk.onclick = async () => {
+      const { openPdfUrl } = await import("../drawings/openPdf");
+      await openPdfUrl(this.host.api, this.host.api.url(`/projects/${pid}/modules/${m.key}/${rid}/pdf`), `${r.ref}.pdf`, {
+        saveLabel: "Attach marked-up copy",
+        onSave: async (blob, name) => { await this.host.api.uploadAttachment(pid, m.key, rid, new File([blob], name.replace(/\.pdf$/i, "") + "-markup.pdf", { type: "application/pdf" })); this.openRecord(m, rid); },
+      });
+    };
+    tools.append(editBtn, delBtn, pdfBtn, pdfMk);
     if (m.revisable) {
       const reviseBtn = document.createElement("button");
       reviseBtn.className = "tool-btn"; reviseBtn.dataset.cap = "review";
@@ -2642,8 +2652,25 @@ export class PortalUI {
       const gallery = document.createElement("div"); gallery.className = "att-gallery";
       for (const a of atts) {
         const isImg = (a.content_type || "").startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp)$/i.test(a.filename);
+        const isPdf = (a.content_type || "").includes("pdf") || /\.pdf$/i.test(a.filename);
         const url = this.host.api.attachmentUrl(a.id);
         const kb = a.size > 1024 * 1024 ? `${(a.size / 1048576).toFixed(1)} MB` : a.size > 1024 ? `${Math.round(a.size / 1024)} KB` : `${a.size} B`;
+        if (isPdf) {
+          // open in the in-app viewer for markup; saving posts a marked-up copy back as a new attachment
+          const pc = document.createElement("button"); pc.className = "att-cell att-file"; pc.title = `${a.filename} · ${kb} — open in viewer / mark up`;
+          pc.innerHTML = `<span class="att-ic">📄</span><span class="att-name">${a.filename}</span>`;
+          pc.onclick = async () => {
+            const { openPdfUrl } = await import("../drawings/openPdf");
+            await openPdfUrl(this.host.api, url, a.filename, {
+              saveLabel: "Save marked-up copy back",
+              onSave: async (blob, nm) => {
+                await this.host.api.uploadAttachment(pid, m.key, rid, new File([blob], nm.replace(/\.pdf$/i, "") + "-markup.pdf", { type: "application/pdf" }));
+                this.openRecord(m, rid);
+              },
+            });
+          };
+          gallery.appendChild(pc); continue;
+        }
         const cell = document.createElement("a"); cell.className = "att-cell"; cell.href = url; cell.target = "_blank"; cell.title = `${a.filename} · ${kb}`;
         if (isImg) {
           const img = document.createElement("img"); img.src = url; img.loading = "lazy"; img.alt = a.filename; cell.appendChild(img);

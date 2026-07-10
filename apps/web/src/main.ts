@@ -185,9 +185,12 @@ async function openReportCenter() {
       const name = document.createElement("span"); name.className = "name"; name.textContent = rep.name;
       const pdf = document.createElement("button"); pdf.className = "tool-btn"; pdf.textContent = "⬇ PDF";
       pdf.onclick = () => window.open(api.reportUrl(pid, rep.id, "pdf"), "_blank");
+      const mk = document.createElement("button"); mk.className = "tool-btn"; mk.textContent = "🖊 Markup";
+      mk.title = "Open the report in the in-app viewer to review / mark up";
+      mk.onclick = async () => { const { openPdfUrl } = await import("./drawings/openPdf"); await openPdfUrl(api, api.reportUrl(pid, rep.id, "pdf"), `${rep.name}.pdf`); };
       const xls = document.createElement("button"); xls.className = "tool-btn"; xls.textContent = "⬇ Excel";
       xls.onclick = () => window.open(api.reportUrl(pid, rep.id, "xlsx"), "_blank");
-      row.append(name, pdf, xls); card.appendChild(row);
+      row.append(name, pdf, mk, xls); card.appendChild(row);
     }
   }
   // interactive / parameterized analytics that aren't plain PDF reports
@@ -323,6 +326,7 @@ async function openReportCenter() {
     const mk = (label: string, on: () => Promise<void>) => { const b = document.createElement("button"); b.className = "file-btn"; b.textContent = label; b.style.margin = "6px 6px 0 0";
       b.onclick = async () => { b.disabled = true; try { await on(); } catch (e) { toast((e as Error).message, "error"); } b.disabled = false; }; return b; };
     body.append(
+      mk("👁 Open & mark up…", async () => { const [f] = await pick(false); if (!f) return; const { openPdfTakeoff } = await import("./drawings/pdfTakeoff"); await openPdfTakeoff(f); }),
       mk("⧉ Merge PDFs…", async () => { const fs = await pick(true); if (fs.length < 2) { toast("pick 2 or more PDFs", "error"); return; } dl(await api.pdfMerge(fs), "merged.pdf"); toast(`merged ${fs.length} PDFs`, "success"); }),
       mk("✂ Split to pages (zip)…", async () => { const [f] = await pick(false); if (!f) return; dl(await api.pdfSplitZip(f), stem(f.name) + "-pages.zip"); toast("split into pages", "success"); }),
       mk("↻ Rotate 90°…", async () => { const [f] = await pick(false); if (!f) return; dl(await api.pdfRotate(f, 90), stem(f.name) + "-rotated.pdf"); toast("rotated", "success"); }),

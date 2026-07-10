@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.128 — Every PDF opens in the in-app viewer, marks up, and saves back
+Closes the gap where only local files reached the markup viewer and annotations only downloaded. The
+takeoff/markup viewer (`pdfTakeoff.ts`) now opens a PDF from a **server URL** (fetched with auth), not
+just a local `File`, and takes an optional **save-back callback** — with a new **⭱ Save to source**
+toolbar button that flattens the markups and posts them back. A shared `openPdfUrl(api, url, name, opts)`
+helper (`drawings/openPdf.ts`) is the single entry every surface routes through:
+- **Record attachments** — a stored PDF attachment now opens in the viewer (📄 tile) instead of a bare
+  link; the marked-up copy saves back as a new attachment on the record.
+- **Document manager** — each PDF gets a **✎** action: open in the viewer, mark up, and **save as a new
+  revision** (docmanager versioning/supersede).
+- **Contracts / change orders** — "🖊 View & markup" now saves the redlined copy back as an attachment
+  (previously the annotations were lost on download).
+- **Module record PDF** — a **🖊 Markup** button opens the generated record PDF in the viewer and saves
+  the marked-up copy back as an attachment.
+- **Report Center** — a **🖊 Markup** button opens any report in the viewer; **PDF tools** gained
+  **👁 Open & mark up…** so any PDF (including a downloaded generated one) can be viewed/marked up in-app.
+
 ## v0.3.127 — A/E/C stamps & professional seals (submittal review + PE/RA seal)
 Real construction/design stamping on PDFs — the two legally distinct classes, done properly.
 - **Stamp template library** (server = source of truth, `stamps.py` + `GET /stamps/library`): submittal
