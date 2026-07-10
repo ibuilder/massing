@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.131 — Unified sheet view: PDF-editor markups appear on the SVG sheet (shared coordinates)
+Completes the 2D convergence with a **shared coordinate space**. Every takeoff markup now stores a
+page-normalized (0..1) anchor when saved from the PDF editor, so the SVG drawings viewer renders those
+markups **on the same sheet** alongside its native pins — one place to see everything on a drawing.
+- **PDF editor** (`pdfTakeoff`): the ⭳ Save-to-sheet path computes each markup's normalized anchor from the
+  PDF page dimensions and persists `data.nx/ny`.
+- **SVG sheet viewer** (`drawings.ts`): loads both its pins and the PDF-editor's takeoff markups, placing the
+  latter by `nx/ny × content-box` (a distinct amber ◆ badge showing the measurement). They're the same
+  `drawing_markups` rows, so they promote to RFI / delete right from the SVG view.
+- No schema change (nx/ny ride in the existing `data` JSON). Web-only.
+
 ## v0.3.130 — One 2D markup model: takeoff markups persist to the sheet + promote to RFI
 Converges the two previously-disconnected 2D markup systems onto one server-side store. The pdf.js
 takeoff editor's structured markups (distance / area / count / rect / text / stamp) now persist into the

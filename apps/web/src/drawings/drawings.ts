@@ -169,9 +169,11 @@ export class DrawingsUI {
             .map((m) => ({ id: 0, kind: (m.kind as Measure["kind"]) || "text", pts: m.data!.pts!,
               value: m.data!.value ?? 0, unit: m.data!.unit ?? "", label: m.note ?? "",
               page: m.data!.page ?? 1, text: m.data!.text })),
-          save: async (ms: Measure[]) => { await api.saveDrawingMarkups(pid, sid, ms.map((mm) => ({
-            x: mm.pts[0]?.x ?? 0, y: mm.pts[0]?.y ?? 0, note: mm.label, kind: mm.kind,
-            data: { pts: mm.pts, value: mm.value, unit: mm.unit, page: mm.page, text: mm.text } }))); },
+          save: async (ms: Measure[], norm) => { await api.saveDrawingMarkups(pid, sid, ms.map((mm) => {
+            const n = norm(mm);                                // page-normalized (0..1) shared anchor
+            return { x: mm.pts[0]?.x ?? 0, y: mm.pts[0]?.y ?? 0, note: mm.label, kind: mm.kind,
+              data: { pts: mm.pts, value: mm.value, unit: mm.unit, page: mm.page, text: mm.text, nx: n.nx, ny: n.ny } };
+          })); await this.loadPins(); },   // refresh so the new markups appear on the SVG view too
         },
       });
     }));
@@ -228,18 +230,36 @@ export class DrawingsUI {
   private async loadPins() {
     const pid = this.host_.projectId();
     if (!pid || !this.current) { this.markup = []; this.renderPins(); return; }
-    try { this.markup = await this.host_.api.drawingMarkup(pid, this.current.id); } catch { this.markup = []; }
+    // Unified sheet view: SVG pins AND the PDF-editor's takeoff markups (which carry a normalized anchor).
+    try {
+      const api = this.host_.api, id = this.current.id;
+      const [pins, takeoff] = await Promise.all([
+        api.drawingMarkup(pid, id),
+        api.drawingMarkup(pid, `${id}#pdf`).catch(() => [] as DrawingMarkupItem[]),
+      ]);
+      this.markup = [...pins, ...takeoff.filter((m) => m.data?.nx != null)];
+    } catch { this.markup = []; }
     this.renderPins();
   }
 
   private renderPins() {
     this.pinLayer.innerHTML = "";
     const pid = this.host_.projectId();
+    // content box (scale-invariant): normalized takeoff anchors map into this same space as pins
+    const svg = this.svgHost.querySelector("svg");
+    const rect = svg?.getBoundingClientRect();
+    const cw = rect && this.scale ? rect.width / this.scale : 0;
+    const ch = rect && this.scale ? rect.height / this.scale : 0;
     this.markup.forEach((p, i) => {
-      const el = document.createElement("div"); el.className = "dwg-pin" + (p.topic_id ? " linked" : "");
-      el.textContent = String(i + 1);
-      el.style.left = `${p.x}px`; el.style.top = `${p.y}px`;
-      el.title = (p.note || "") + (p.topic_id ? "  · linked to RFI" : "");
+      const takeoff = p.kind && p.kind !== "pin" && p.data?.nx != null;
+      const el = document.createElement("div");
+      el.className = "dwg-pin" + (p.topic_id ? " linked" : "") + (takeoff ? " takeoff" : "");
+      el.textContent = takeoff ? "◆" : String(i + 1);
+      const left = takeoff && cw ? p.data!.nx! * cw : p.x;
+      const top = takeoff && ch ? p.data!.ny! * ch : p.y;
+      el.style.left = `${left}px`; el.style.top = `${top}px`;
+      const meas = takeoff && p.data?.value ? ` — ${p.data.value} ${p.data.unit || ""}` : "";
+      el.title = (p.note || (takeoff ? p.kind! : "")) + meas + (p.topic_id ? "  · linked to RFI" : "");
       el.onclick = async (e) => {
         e.stopPropagation();
         if (!pid) return;

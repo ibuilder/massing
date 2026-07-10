@@ -25,13 +25,15 @@ export interface IntegrationGroup { group: string; keys: IntegrationKey[] }
 export interface DrawingMarkupItem {
   id: string; sheet_id: string; x: number; y: number; note: string | null;
   author: string | null; topic_id: string | null; created_at: string;
-  kind?: string; data?: { pts?: { x: number; y: number }[]; value?: number; unit?: string; page?: number; text?: string } | null;
+  kind?: string; data?: { pts?: { x: number; y: number }[]; value?: number; unit?: string; page?: number; text?: string; nx?: number; ny?: number } | null;
 }
 
-/** One markup in a bulk save from the 2D editor (pin or a structured takeoff markup). */
+/** One markup in a bulk save from the 2D editor (pin or a structured takeoff markup). `nx`/`ny` are the
+ *  page-normalized (0..1) anchor — the shared coordinate space that lets the SVG sheet viewer place a
+ *  PDF-editor markup in its own content box. */
 export interface SheetMarkupIn {
   x: number; y: number; note?: string | null; kind?: string;
-  data?: { pts: { x: number; y: number }[]; value: number; unit: string; page: number; text?: string };
+  data?: { pts: { x: number; y: number }[]; value: number; unit: string; page: number; text?: string; nx?: number; ny?: number };
 }
 
 /** An A/E/C stamp template from the server library (review / inspection / status / seal). */

@@ -31,8 +31,13 @@ export type PdfSource = File | { url: string; name: string; headers?: Record<str
 export interface TakeoffOpts {
   onSave?: (pdf: Blob, name: string) => Promise<void>; saveLabel?: string;
   /** Persist the structured markups to a shared store (e.g. a drawing sheet) so they reload + promote to
-   *  RFI like pins — rather than only flattening to a throwaway PDF. */
-  persist?: { load: () => Promise<Measure[]>; save: (m: Measure[]) => Promise<void> };
+   *  RFI like pins — rather than only flattening to a throwaway PDF. `save` also gets a `norm` helper that
+   *  maps a markup's anchor to a page-normalized (0..1) coordinate, so the SVG sheet viewer can place the
+   *  same markup in its own content box (a shared coordinate space across the two 2D editors). */
+  persist?: {
+    load: () => Promise<Measure[]>;
+    save: (m: Measure[], norm: (m: Measure) => { nx: number; ny: number }) => Promise<void>;
+  };
 }
 
 export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {}): Promise<void> {
@@ -318,10 +323,25 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
     catch (e) { toast(`save failed: ${(e as Error).message}`, "error"); }
   }
   // Persist the structured markups to the shared sheet store (reload + promote to RFI like pins).
+  const _pageDims = new Map<number, { w: number; h: number }>();
+  async function pageDims(n: number): Promise<{ w: number; h: number }> {
+    if (!_pageDims.has(n)) {
+      const vp = (await doc.getPage(n)).getViewport({ scale: 1 });
+      _pageDims.set(n, { w: vp.width, h: vp.height });
+    }
+    return _pageDims.get(n)!;
+  }
   async function saveMarkupsToSheet() {
     if (!opts.persist) return;
-    try { await opts.persist.save(measures); toast(`saved ${measures.length} markups to the sheet`, "success"); }
-    catch (e) { toast(`save failed: ${(e as Error).message}`, "error"); }
+    try {
+      for (const p of new Set(measures.map((m) => m.page))) await pageDims(p);  // prime the cache
+      const norm = (m: Measure) => {
+        const d = _pageDims.get(m.page) || { w: 1, h: 1 }; const a = m.pts[0] || { x: 0, y: 0 };
+        return { nx: d.w ? a.x / d.w : 0, ny: d.h ? a.y / d.h : 0 };
+      };
+      await opts.persist.save(measures, norm);
+      toast(`saved ${measures.length} markups to the sheet`, "success");
+    } catch (e) { toast(`save failed: ${(e as Error).message}`, "error"); }
   }
   function exportCsv() {
     if (!measures.length) { toast("nothing to export yet", "error"); return; }
