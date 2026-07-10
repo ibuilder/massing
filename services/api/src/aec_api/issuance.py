@@ -134,3 +134,20 @@ def transmittal_pdf(db: Session, pid: str, issuance_id: str, project_name: str) 
     note = f"Issued for: {iss['purpose']} · {iss['issue_date']}" + (
         f" — {iss['description']}" if iss["description"] else "")
     return drawingset.transmittal_pdf(reg, project_name, recipients, note)
+
+
+def sealed_transmittal_pdf(db: Session, pid: str, issuance_id: str, project_name: str,
+                           sealer_name: str = "") -> tuple[bytes, bool]:
+    """The issuance transmittal, digitally sealed (PAdES) by the professional of record when e-sign is
+    configured — a tamper-evident seal that voids if the PDF is edited (what jurisdictions require for
+    electronic permit/IFC submittal). Returns (pdf, sealed?) — unsealed when e-sign isn't configured."""
+    from . import esign
+    iss = next((i for i in _issuances(db, pid) if i["id"] == issuance_id), None)
+    if not iss:
+        raise HTTPException(404, "issuance not found")
+    pdf = transmittal_pdf(db, pid, issuance_id, project_name)
+    if not esign.is_configured():
+        return pdf, False
+    reason = f"Issued for {iss['purpose']} — {iss['issue_date']}"
+    return esign.digitally_sign(pdf, reason=reason,
+                                name=sealer_name or "Architect / Engineer of Record"), True

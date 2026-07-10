@@ -135,3 +135,50 @@ def drawing_set(db, pid: str) -> dict[str, Any]:
     from . import modules as me
     drawings = me.list_records(db, "drawing", pid, limit=100000) if "drawing" in me.TABLES else []
     return register(drawings)
+
+
+# --- revision / delta register (AIA: each sheet carries a revision block of deltas, each often driven
+# by an Addendum / ASI / CCD / Bulletin) -----------------------------------------------------------
+def revise_sheet(db, pid: str, drawing_id: str, rev: str, description: str = "",
+                 rev_date: str | None = None, instrument_type: str = "", instrument_ref: str = "",
+                 actor: str = "reviser", party: str | None = "GC") -> dict[str, Any]:
+    """Record a revision (delta) on a sheet: append it to the sheet's revision block and bump the
+    sheet's current revision. Optionally cite the change instrument that drove it (ASI-003, Add 2, …)."""
+    from datetime import date
+
+    from . import modules as me
+    rec = me.get_record(db, "drawing", pid, drawing_id)          # 404 if missing
+    data = rec.get("data") or {}
+    revs = list(data.get("revisions") or [])
+    delta: dict[str, Any] = {"rev": str(rev), "date": rev_date or date.today().isoformat(),
+                             "description": description}
+    if instrument_ref:
+        delta["instrument"] = {"type": instrument_type, "ref": instrument_ref}
+    revs.append(delta)
+    me.update_record(db, "drawing", pid, drawing_id,
+                     {"revision": str(rev), "revisions": revs}, actor, party)
+    return {"drawing_id": drawing_id, "revision": str(rev), "delta_count": len(revs)}
+
+
+def revisions(db, pid: str) -> dict[str, Any]:
+    """The cross-sheet revision register — every delta on every sheet (newest first), with the driving
+    change instrument. The 'what changed, when, and why' log a drawing set carries."""
+    from . import modules as me
+    drawings = me.list_records(db, "drawing", pid, limit=100000) if "drawing" in me.TABLES else []
+    out = []
+    by_instrument: dict[str, int] = {}
+    for d in drawings:
+        data = d.get("data") or {}
+        sn = (data.get("sheet_number") or data.get("number") or d.get("ref") or "").strip()
+        for delta in (data.get("revisions") or []):
+            inst = delta.get("instrument") or {}
+            key = (inst.get("ref") or "").strip()
+            if key:
+                by_instrument[key] = by_instrument.get(key, 0) + 1
+            out.append({"sheet_number": sn, "title": data.get("title"),
+                        "discipline": data.get("discipline"), "rev": delta.get("rev"),
+                        "date": delta.get("date"), "description": delta.get("description"),
+                        "instrument": inst or None})
+    out.sort(key=lambda r: (str(r["date"]), str(r["sheet_number"])), reverse=True)
+    return {"delta_count": len(out), "by_instrument": dict(sorted(by_instrument.items())),
+            "revisions": out}

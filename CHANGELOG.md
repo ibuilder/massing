@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.124 — Drawing revisions, sealed issuances, title blocks (AIA completion)
+Completes the AIA drawing-issuance chain from v0.3.123 — revision deltas, digital seals, and title-block
+metadata.
+
+- **Revision / delta register**: `POST /projects/{id}/drawings/{drawing_id}/revise` records a delta on a
+  sheet (rev, date, description) and can cite the driving change instrument (**ASI / CCD / Addendum /
+  Bulletin**); it appends to the sheet's revision block and bumps the current revision.
+  `GET …/drawing-set/revisions` is the cross-sheet register (newest first) with a by-instrument rollup —
+  the "what changed, when, and why" log a set carries.
+- **Sealed issuances (PAdES)**: `GET …/drawing-set/issuances/{iid}/sealed.pdf` returns the issuance
+  transmittal **digitally sealed** by the professional of record via the existing e-sign — the
+  tamper-evident electronic seal jurisdictions require for permit/IFC submittal (unsealed with
+  `X-Sealed: false` when e-sign isn't configured).
+- **Title-block completeness**: generated sheets (`sheet.svg`/`sheet.pdf`) now carry **ISSUED FOR** +
+  **REV** in the title block (`?purpose=&rev=`).
+- Web: a revision register + 🔏 sealed-PDF links on the Drawing-set register; `reviseDrawing` /
+  `drawingRevisions` / `issuanceSealedUrl` client methods.
+
+Verified: `test_drawing_revision` (deltas cite ASI, register rollup, sealed PDF) + `test_preview`
+(title-block change safe); ruff clean; web typecheck + build.
+
 ## v0.3.123 — AIA drawing issuance: per-discipline sheet set + issuance register
 Turn the model into a full, correctly-numbered 2D drawing set, then release it the way an A/E office
 does — dated issuances for a purpose, with the sheet-index × issuance matrix the standards expect.

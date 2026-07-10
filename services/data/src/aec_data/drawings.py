@@ -645,12 +645,13 @@ def render_sheet_svg(layout: dict, meta: dict) -> str:
     out.append(f'<line x1="{m}" y1="{by}" x2="{pw-m:.0f}" y2="{by}" stroke="#111" stroke-width="1.5"/>')
     out.append(f'<text x="{m+8}" y="{by+34:.0f}" font-family="sans-serif" font-size="22" '
                f'font-weight="800">{meta.get("project","PROJECT")}</text>')
-    fields = [("SHEET", meta.get("sheet", "A-101")), ("DATE", meta.get("date", "")),
+    fields = [("SHEET", meta.get("sheet", "A-101")), ("ISSUED FOR", meta.get("purpose", "") or "—"),
+              ("REV", str(meta.get("revision", "") or "—")), ("DATE", meta.get("date", "")),
               ("DRAWN", meta.get("drawn_by", "")), ("SCALE", "AS NOTED")]
     fx = pw - m - 360
     for i, (k, val) in enumerate(fields):
         cx = fx + (i % 2) * 180
-        cy = by + 24 + (i // 2) * 30
+        cy = by + 20 + (i // 2) * 28
         out.append(f'<text x="{cx:.0f}" y="{cy:.0f}" font-family="sans-serif" font-size="10" '
                    f'fill="#888">{k}</text><text x="{cx:.0f}" y="{cy+14:.0f}" '
                    f'font-family="sans-serif" font-size="13" font-weight="600">{val}</text>')
@@ -723,11 +724,12 @@ def render_sheet_pdf(layout: dict, meta: dict) -> bytes:
     m = layout["margin"]; by = ph - m - layout["tb_h"] + 10
     c.setLineWidth(1.5); c.line(m, fy(by), pw - m, fy(by))
     c.setFont("Helvetica-Bold", 22); c.drawString(m + 8, fy(by + 34), meta.get("project", "PROJECT"))
-    fields = [("SHEET", meta.get("sheet", "A-101")), ("DATE", meta.get("date", "")),
+    fields = [("SHEET", meta.get("sheet", "A-101")), ("ISSUED FOR", meta.get("purpose", "") or "—"),
+              ("REV", str(meta.get("revision", "") or "—")), ("DATE", meta.get("date", "")),
               ("DRAWN", meta.get("drawn_by", "")), ("SCALE", "AS NOTED")]
     fx = pw - m - 360
     for i, (k, val) in enumerate(fields):
-        cx = fx + (i % 2) * 180; cy = by + 24 + (i // 2) * 30
+        cx = fx + (i % 2) * 180; cy = by + 20 + (i // 2) * 28
         c.setFont("Helvetica", 9); c.setFillGray(0.55); c.drawString(cx, fy(cy), k)
         c.setFillGray(0); c.setFont("Helvetica-Bold", 12); c.drawString(cx, fy(cy + 14), str(val))
     c.showPage(); c.save()

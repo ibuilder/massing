@@ -86,6 +86,42 @@ def issuance_transmittal(pid: str, iid: str, db: Session = Depends(get_db),
                     headers={"Content-Disposition": 'inline; filename="issuance-transmittal.pdf"'})
 
 
+@router.get("/projects/{pid}/drawing-set/issuances/{iid}/sealed.pdf")
+def issuance_sealed(pid: str, iid: str, name: str = "", db: Session = Depends(get_db),
+                    user: str = Depends(require_role("editor"))):
+    """The issuance transmittal digitally **sealed** (PAdES) by the professional of record — the
+    tamper-evident electronic seal for permit/IFC submittal. Unsealed if e-sign isn't configured
+    (X-Sealed: false)."""
+    p = db.get(Project, pid)
+    pdf, sealed = issuance.sealed_transmittal_pdf(db, pid, iid, p.name if p else pid, name or user)
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": 'inline; filename="issuance-sealed.pdf"',
+                             "X-Sealed": "true" if sealed else "false"})
+
+
+# --- revision / delta register (AIA revision block) ---------------------------------------------
+@router.post("/projects/{pid}/drawings/{drawing_id}/revise", status_code=201)
+def revise_drawing(pid: str, drawing_id: str, body: dict = Body(default={}),
+                   db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):
+    """Record a revision (delta) on a sheet — appends to its revision block, bumps the current
+    revision, and optionally cites the driving change instrument (ASI/CCD/Addendum/Bulletin).
+    Body: `{rev, description?, date?, instrument_type?, instrument_ref?}`."""
+    rev = str(body.get("rev") or "").strip()
+    if not rev:
+        from fastapi import HTTPException
+        raise HTTPException(422, "rev is required")
+    return drawingset.revise_sheet(db, pid, drawing_id, rev, str(body.get("description") or ""),
+                                   body.get("date"), str(body.get("instrument_type") or ""),
+                                   str(body.get("instrument_ref") or ""), actor=user)
+
+
+@router.get("/projects/{pid}/drawing-set/revisions")
+def drawing_revisions(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The cross-sheet revision register — every delta on every sheet (newest first) with the driving
+    change instrument. The 'what changed, when, why' log."""
+    return drawingset.revisions(db, pid)
+
+
 def _levels_and_series(db: Session, pid: str, disciplines: list[str] | None,
                        all_disciplines: bool, max_levels: int) -> tuple[list[str], list[str]]:
     """Building levels (storey names) + which discipline sheet series to emit, from the model. If the
@@ -219,30 +255,33 @@ def model_step_summary(pid: str, db: Session = Depends(get_db), _sec: str = Depe
     return step_scan.scan_file(_source_ifc(db, pid))
 
 
-def _sheet_meta(db: Session, pid: str, sheet: str) -> dict:
+def _sheet_meta(db: Session, pid: str, sheet: str, purpose: str = "", rev: str = "") -> dict:
     from datetime import date
 
     p = db.get(Project, pid)
     return {"project": (p.name if p else "PROJECT").upper(), "sheet": sheet,
+            "purpose": purpose, "revision": rev,
             "date": date.today().isoformat(), "drawn_by": "AEC Platform"}
 
 
 @router.get("/projects/{pid}/drawings/sheet.svg")
-def sheet_svg(pid: str, sheet: str = "A-101", page: str = "A3", db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+def sheet_svg(pid: str, sheet: str = "A-101", page: str = "A3", purpose: str = "", rev: str = "",
+              db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
-    svg = drawings.default_sheet(open_model(_source_ifc(db, pid)), _sheet_meta(db, pid, sheet),
-                                 page=page, fmt="svg")
+    svg = drawings.default_sheet(open_model(_source_ifc(db, pid)),
+                                 _sheet_meta(db, pid, sheet, purpose, rev), page=page, fmt="svg")
     return _svg(svg)
 
 
 @router.get("/projects/{pid}/drawings/sheet.pdf")
-def sheet_pdf(pid: str, sheet: str = "A-101", page: str = "A3", db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+def sheet_pdf(pid: str, sheet: str = "A-101", page: str = "A3", purpose: str = "", rev: str = "",
+              db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
-    pdf = drawings.default_sheet(open_model(_source_ifc(db, pid)), _sheet_meta(db, pid, sheet),
-                                 page=page, fmt="pdf")
+    pdf = drawings.default_sheet(open_model(_source_ifc(db, pid)),
+                                 _sheet_meta(db, pid, sheet, purpose, rev), page=page, fmt="pdf")
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{sheet}.pdf"'})

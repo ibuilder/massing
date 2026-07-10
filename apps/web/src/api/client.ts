@@ -710,6 +710,22 @@ export class ApiClient {
   issuanceTransmittalUrl(pid: string, iid: string) {
     return this.url(`/projects/${pid}/drawing-set/issuances/${iid}/transmittal.pdf`);
   }
+  /** URL of the digitally-sealed (PAdES) issuance transmittal, for permit/IFC submittal. */
+  issuanceSealedUrl(pid: string, iid: string, name = "") {
+    const q = name ? "?name=" + encodeURIComponent(name) : "";
+    return this.url(`/projects/${pid}/drawing-set/issuances/${iid}/sealed.pdf${q}`);
+  }
+  /** Record a revision (delta) on a sheet, optionally citing the driving instrument (ASI/CCD/Addendum). */
+  reviseDrawing(pid: string, drawingId: string, body: { rev: string; description?: string; date?: string; instrument_type?: string; instrument_ref?: string }) {
+    return this.json<{ drawing_id: string; revision: string; delta_count: number }>(
+      `/projects/${pid}/drawings/${drawingId}/revise`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** The cross-sheet revision register — every delta on every sheet (newest first) + instrument rollup. */
+  drawingRevisions(pid: string) {
+    return this.json<{ delta_count: number; by_instrument: Record<string, number>;
+      revisions: { sheet_number: string; discipline: string; rev: string; date: string; description: string; instrument: { type: string; ref: string } | null }[] }>(
+      `/projects/${pid}/drawing-set/revisions`);
+  }
   /** URL of a drawing-transmittal PDF for the current set (recipients comma-separated). */
   drawingTransmittalUrl(pid: string, to = "", note = "") {
     const q = new URLSearchParams({ ...(to ? { to } : {}), ...(note ? { note } : {}) }).toString();

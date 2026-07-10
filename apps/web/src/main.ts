@@ -280,12 +280,15 @@ async function openReportCenter() {
           if (reg.issuance_count) {
             table(body, ["Issuance", "Issued For", "Date", "Sheets"], reg.issuances.map((i: any) =>
               [i.number ?? "", i.purpose ?? "", i.issue_date ?? "", String(i.sheet_count ?? "")]));
-            // per-issuance transmittal PDFs (stamped with the purpose)
+            // per-issuance transmittal PDFs (stamped with the purpose) + digitally-sealed variant
             const links = document.createElement("div"); links.className = "meta"; links.style.margin = "4px 0";
             for (const i of reg.issuances as any[]) {
               const a = document.createElement("a"); a.href = api.issuanceTransmittalUrl(pid, i.id);
-              a.target = "_blank"; a.rel = "noopener"; a.textContent = `⬇ ${i.number ?? "issuance"} PDF`;
-              a.style.marginRight = "10px"; links.appendChild(a);
+              a.target = "_blank"; a.rel = "noopener"; a.textContent = `⬇ ${i.number ?? "issuance"}`;
+              a.style.marginRight = "6px"; links.appendChild(a);
+              const s = document.createElement("a"); s.href = api.issuanceSealedUrl(pid, i.id);
+              s.target = "_blank"; s.rel = "noopener"; s.textContent = "🔏 sealed"; s.title = "Digitally sealed (PAdES) for permit submittal";
+              s.style.marginRight = "14px"; links.appendChild(s);
             }
             body.appendChild(links);
             // sheet × issuance matrix (front-of-set grid): each sheet's revision per issuance
@@ -295,6 +298,16 @@ async function openReportCenter() {
             table(body, ["Sheet", "Discipline", ...cols], mx.rows.map((r) => [r.sheet_number, r.discipline ?? "", ...r.cells.map((c) => c ?? "—")]));
           }
         } catch (e) { body.insertAdjacentHTML("beforeend", `<div class="meta">${escapeHtml((e as Error).message)}</div>`); }
+
+        // revision / delta register (AIA revision block, newest first, with the driving instrument)
+        try {
+          const rv = await api.drawingRevisions(pid);
+          if (rv.delta_count) {
+            body.insertAdjacentHTML("beforeend", `<div class="section-title" style="margin-top:10px">Revisions (${rv.delta_count})</div>`);
+            table(body, ["Sheet", "Rev", "Date", "Description", "Instrument"], rv.revisions.map((r) =>
+              [r.sheet_number, r.rev ?? "", r.date ?? "", r.description ?? "", r.instrument ? `${r.instrument.type ?? ""} ${r.instrument.ref ?? ""}`.trim() : ""]));
+          }
+        } catch { /* revisions optional */ }
 
         body.insertAdjacentHTML("beforeend", `<div class="section-title" style="margin-top:10px">Sheet index</div>`);
         table(body, ["Sheet", "Title", "Discipline", "Rev", "Status"], d.sheet_index.map((s: any) => [s.sheet_number, s.title ?? "", s.discipline ?? "", s.current_revision ?? "", s.change]));
