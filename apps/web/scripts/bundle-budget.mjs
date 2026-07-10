@@ -7,14 +7,22 @@ import { brotliCompressSync } from "node:zlib";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-const DIST = join(process.cwd(), "dist", "assets");
+const DIST_ROOT = join(process.cwd(), "dist");
+const DIST = join(DIST_ROOT, "assets");
 // Budget in KB (Brotli). Set generously above the current shell so it catches regressions, not noise.
 // Bump this deliberately (with a note) when the shell legitimately grows.
 const BUDGET_KB = Number(process.env.BUNDLE_BUDGET_KB || 220);
 
-// The eager shell = the entry chunk + the app chunk + the main CSS. Lazy chunks (three-*, thatopen-*,
-// studio-*, panel-*) are excluded — they don't block first interaction.
-const SHELL = [/^index-.*\.js$/, /^app-.*\.js$/, /^index-.*\.css$/];
+// The eager shell = exactly what index.html loads up front: the entry chunk + its CSS, plus the split
+// first-party `app-*` chunk the entry statically imports. Everything else is a lazy chunk that doesn't
+// block first interaction.
+//
+// We parse the entry/CSS out of index.html rather than filename-matching `index-*.js`: a lazy *vendor*
+// chunk whose source module is `index.js` (e.g. pdfjs-dist, ~160 KB, loaded only when a PDF is opened)
+// also gets an `index-<hash>.js` name from Rollup, and must NOT be miscounted as shell (that false
+// positive is exactly what used to blow the budget). The LAZY libs (three/@thatopen/…) are separate
+// chunks and never part of this set.
+const APP = /^app-.*\.js$/;
 const LAZY = /^(three|thatopen|studio|panel|viewer|charts|proforma)-/;
 
 let files;
@@ -25,10 +33,21 @@ try {
   process.exit(2);
 }
 
-const shellFiles = files.filter((f) => SHELL.some((re) => re.test(f)));
-if (!shellFiles.length) {
-  console.error("bundle-budget: no shell chunks matched — did the entry/app chunk naming change?");
-  console.error("  assets present:", files.filter((f) => /\.(js|css)$/.test(f)).join(", "));
+let html;
+try {
+  html = readFileSync(join(DIST_ROOT, "index.html"), "utf8");
+} catch {
+  console.error(`bundle-budget: ${join(DIST_ROOT, "index.html")} not found — run \`vite build\` first.`);
+  process.exit(2);
+}
+// only the entry assets index.html actually references (under /assets/), not registerSW.js etc.
+const htmlEntry = (re) => [...html.matchAll(re)].map((m) => m[1]);
+const entryJs = htmlEntry(/<script[^>]+src="\/assets\/([^"]+\.js)"/g);
+const entryCss = htmlEntry(/<link[^>]+href="\/assets\/([^"]+\.css)"/g);
+const shellNames = new Set([...entryJs, ...entryCss, ...files.filter((f) => APP.test(f))]);
+const shellFiles = files.filter((f) => shellNames.has(f));
+if (!entryJs.length) {
+  console.error("bundle-budget: no entry <script> found in dist/index.html — did the build output change?");
   process.exit(2);
 }
 

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import ai, mailer, rbac
+from .. import ai, audit, mailer, rbac
 from .. import modules as mod_engine
 from .. import sync as sync_engine
 from ..db import get_db
@@ -365,7 +365,13 @@ def bulk_action(pid: str, key: str, ids: list[str] = Body(..., embed=True),
                 action: str = Body(..., embed=True), value: str | None = Body(None, embed=True),
                 db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):
     """Apply transition / assign / delete to many records at once."""
-    return mod_engine.bulk(db, key, pid, ids, action, user, _party(pid, db, user), value)
+    res = mod_engine.bulk(db, key, pid, ids, action, user, _party(pid, db, user), value)
+    # the engine already committed; audit.record only adds a row, so commit it too (get_db doesn't)
+    audit.record(db, action=f"module.bulk:{key}:{action}", actor=user, method="POST",
+                 path=f"/projects/{pid}/modules/{key}/bulk",
+                 detail={"module": key, "action": action, "count": len(ids), "value": value})
+    db.commit()
+    return res
 
 
 @router.get("/projects/{pid}/modules/{key}")
@@ -432,7 +438,6 @@ async def import_records(pid: str, key: str, file: UploadFile = File(...), mappi
     except ValueError:
         raise HTTPException(422, "mapping must be a JSON object {source_header: field_name}")
     res = imports.do_import(db, key, pid, await file.read(), file.filename, m, user, _party(pid, db, user))
-    from .. import audit
     audit.record(db, action="module.import", method="POST", path=f"/projects/{pid}/modules/{key}/import",
                  detail={"module": key, "imported": res.get("imported", 0)})
     db.commit()
@@ -487,7 +492,11 @@ def update_record(pid: str, key: str, rid: str, data: dict = Body(...),
 def delete_record(pid: str, key: str, rid: str, db: Session = Depends(get_db),
                   user: str = Depends(require_role("editor"))):
     """Delete a record (editor+). Removes its activity/comments too."""
-    return mod_engine.delete_record(db, key, pid, rid, user, _party(pid, db, user))
+    res = mod_engine.delete_record(db, key, pid, rid, user, _party(pid, db, user))
+    audit.record(db, action=f"module.delete:{key}", actor=user, method="DELETE",
+                 path=f"/projects/{pid}/modules/{key}/{rid}", topic_id=rid, detail={"module": key})
+    db.commit()  # engine committed the delete; persist the audit row too (get_db doesn't auto-commit)
+    return res
 
 
 @router.get("/projects/{pid}/modules/{key}/{rid}/related")
@@ -508,7 +517,15 @@ def revise_record(pid: str, key: str, rid: str, db: Session = Depends(get_db),
 def transition(pid: str, key: str, rid: str, action: str = Body(..., embed=True),
                note: str | None = Body(default=None, embed=True),
                db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):
-    return mod_engine.transition(db, key, pid, rid, action, user, _party(pid, db, user), note)
+    res = mod_engine.transition(db, key, pid, rid, action, user, _party(pid, db, user), note)
+    # workflow transitions are the contractual state changes (RFI answered, CO approved) — audit them.
+    # the engine committed the transition; commit the audit row too (get_db doesn't auto-commit).
+    audit.record(db, action=f"module.transition:{key}:{action}", actor=user, method="POST",
+                 path=f"/projects/{pid}/modules/{key}/{rid}/transition", topic_id=rid,
+                 detail={"module": key, "action": action,
+                         "state": res.get("workflow_state") if isinstance(res, dict) else None})
+    db.commit()
+    return res
 
 
 @router.post("/projects/{pid}/modules/{key}/{rid}/link")

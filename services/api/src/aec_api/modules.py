@@ -332,11 +332,14 @@ def view_alerts(db: Session, project_id: str, user: str) -> list[dict]:
 
 def state_counts(db: Session, key: str, project_id: str) -> dict[str, int]:
     """{workflow_state: count} for a module via a single GROUP BY on the indexed `workflow_state`
-    column — no JSON `data` is loaded or parsed. For dashboards that only need status tallies."""
+    column — no JSON `data` is loaded or parsed. For dashboards / rollups that only need status
+    tallies. Empty dict for an unknown module; a NULL state is keyed by ""."""
+    if key not in TABLES:
+        return {}
     t = TABLES[key]
     stmt = (select(t.c.workflow_state, func.count()).where(t.c.project_id == project_id)
             .group_by(t.c.workflow_state))
-    return dict(db.execute(stmt).all())
+    return {(state or ""): int(n) for state, n in db.execute(stmt).all()}
 
 
 def active_records(db: Session, key: str, project_id: str, exclude_states: set[str],

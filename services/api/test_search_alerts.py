@@ -57,6 +57,15 @@ with TestClient(app) as c:
     steel = next(v for v in c.get(f"/projects/{pid}/views/alerts").json() if v["id"] == vid)
     assert steel["new"] == 0, steel
 
+    # --- state_counts: per-state tallies via SQL GROUP BY (dashboards/rollups count without loading
+    # the rows). Sum of the tally must equal the total record count; unknown module -> {}.
+    from aec_api.db import SessionLocal  # noqa: E402
+    with SessionLocal() as _db:
+        sc = me.state_counts(_db, "cost_code", pid)
+        assert sum(sc.values()) == me.count_records(_db, "cost_code", pid) == 4, (sc, "expected 4 total")
+        assert me.state_counts(_db, "cost_code", "no-such-project") == {}, "unknown project -> empty"
+        assert me.state_counts(_db, "not_a_module", pid) == {}, "unknown module -> empty"
+
 print("SEARCH+ALERTS OK - prefix tsquery builder; SQLite search fallback matches a data field; saved-"
       "view alerts report total + new-since-last-seen, a never-seen view counts all as new, mark-seen "
       "clears the count, and only matching new records increment it")

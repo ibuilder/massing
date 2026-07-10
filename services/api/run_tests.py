@@ -47,10 +47,23 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_grid", "test_structural", "test_mep_families", "test_architectural", "test_preview",
          "test_evm", "test_authoring_props", "test_wip", "test_traceability", "test_scale",
          "test_sheetgen", "test_issuance", "test_drawing_revision", "test_pdfops", "test_stamps",
-         "test_markup", "test_route_authz", "test_ref_counter"]
+         "test_markup", "test_route_authz", "test_ref_counter", "test_audit_coverage"]
+
+
+def _manifest_guard() -> list[str]:
+    """Every test_*.py on disk must be registered in TESTS. The manifest is hand-maintained (so it can
+    order/skip and set per-test env), which means a newly-added test file silently escapes the gate
+    unless it's listed. Fail loudly on drift instead — a test nobody runs is worse than no test."""
+    on_disk = {p.stem for p in HERE.glob("test_*.py")}
+    return sorted(on_disk - set(TESTS))
 
 
 def main() -> int:
+    unregistered = _manifest_guard()
+    if unregistered:
+        print("FAIL  run_tests manifest: test file(s) not registered in TESTS "
+              f"(add to run_tests.py): {', '.join(unregistered)}")
+        return 1
     # api src + the data service src (analysis/export bridge), mirroring the runtime image
     pp = os.pathsep.join([str(HERE / "src"), str(HERE.parent / "data" / "src")])
     base = {**os.environ, "PYTHONPATH": pp, "AEC_TRUST_XUSER": "1"}

@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.133 — P1 hardening: audit the contractual mutations + count without loading + CI test guard
+Follow-on to the v0.3.132 P0 block — enterprise-readiness P1 items, all behavior-preserving.
+- **Audit-log coverage for contractual mutations:** module workflow **transitions** (RFI answered,
+  CO approved — `module.transition:<key>:<action>`, with actor, record id, and the resulting state),
+  record **deletes** (`module.delete:<key>`), and **bulk** actions now write to the append-only
+  `audit_log` (readable at `GET /audit`). Previously only project/member/user/settings/contract/IFC
+  events were audited; the config-engine state changes — the ones an owner or auditor most needs to
+  reconstruct — were not. `test_audit_coverage`.
+- **Executive report counts via SQL aggregate:** the executive summary tallied open/total RFIs,
+  submittals, change orders and incidents by loading every record (up to 100k per module) into memory;
+  it now uses a single `GROUP BY workflow_state` per module (`state_counts`), which is hardened to
+  return `{}` for an unknown module and key a NULL state by `""`. `test_search_alerts` covers it.
+- **CI test-manifest guard:** `run_tests.py` now fails the gate if any `test_*.py` on disk isn't
+  registered in its hand-maintained `TESTS` list — a test nobody runs can no longer slip in silently.
+- **Green CI restored (bundle-budget false positive):** the app-shell size guard filename-matched every
+  `index-*.js` chunk, so it wrongly counted the lazy **pdf.js** vendor chunk (its source module is
+  `index.js`, ~163 KB, loaded only when a PDF opens) as part of the eager shell — pushing the reported
+  shell to 330 KB and failing the build on every push. It now derives the true entry from
+  `dist/index.html` (entry chunk + CSS + the split `app-*` chunk); the real first-party shell is 166 KB,
+  well within the 220 KB budget.
+
 ## v0.3.132 — P0 security: close cross-tenant access + gate SSO + atomic refs
 The must-fix block from the enterprise-readiness audit — no data-shape or workflow change, pure hardening.
 - **Cross-tenant access closed:** every `/projects/{pid}/…` route now enforces **project membership**

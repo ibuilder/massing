@@ -96,13 +96,18 @@ def _executive(db: Session, pid: str, name: str) -> Report:
     r.kpi("Variance at completion", _money(bud["variance_at_completion"]))
     r.kpi("Committed", f"{bud['committed_pct']}%")
     r.kpi("Spent", f"{bud['spent_pct']}%")
+    # per-state tallies via SQL GROUP BY — never materialize the records just to count them (a big
+    # project has 100k+ RFIs/submittals; loading them all to produce two integers is the audit's #1
+    # report-perf gap). "Open" = anything not in a terminal state.
+    _TERMINAL = {"closed", "executed", "approved", "rejected", "answered", "void"}
     open_counts = []
     for key, label in [("rfi", "Open RFIs"), ("submittal", "Open submittals"), ("cor", "Open change orders")]:
-        recs = _records(db, key, pid)
-        open_n = sum(1 for x in recs if x["workflow_state"] not in ("closed", "executed", "approved", "rejected", "answered", "void"))
-        open_counts.append([label, open_n, len(recs)])
-    incidents = _records(db, "incident", pid)
-    open_counts.append(["Safety incidents", len(incidents), len(incidents)])
+        sc = me.state_counts(db, key, pid)
+        total = sum(sc.values())
+        open_n = sum(n for st, n in sc.items() if st not in _TERMINAL)
+        open_counts.append([label, open_n, total])
+    inc_total = sum(me.state_counts(db, "incident", pid).values())
+    open_counts.append(["Safety incidents", inc_total, inc_total])
     r.table("Open items", ["Item", "Open", "Total"], open_counts)
     al = px.alerts(db, pid)
     r.kpi("Schedule alerts", f"{al['counts']['high']} high / {al['counts']['medium']} med")
