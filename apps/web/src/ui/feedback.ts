@@ -14,6 +14,11 @@ function host(): HTMLElement {
   if (!toastHost) {
     toastHost = document.createElement("div");
     toastHost.className = "toast-host";
+    // a polite live region so screen readers announce toasts as they appear (they were silent before);
+    // error toasts opt into assertive announcement via role="alert" on the element itself.
+    toastHost.setAttribute("role", "status");
+    toastHost.setAttribute("aria-live", "polite");
+    toastHost.setAttribute("aria-atomic", "false");
     document.body.appendChild(toastHost);
   }
   return toastHost;
@@ -24,6 +29,7 @@ export type ToastKind = "info" | "success" | "error";
 export function toast(message: string, kind: ToastKind = "info", ms = 3200): void {
   const el = document.createElement("div");
   el.className = `toast toast-${kind}`;
+  if (kind === "error") el.setAttribute("role", "alert");  // interrupt: errors are announced at once
   el.textContent = message;
   host().appendChild(el);
   // animate in
@@ -45,7 +51,10 @@ function ensureOverlay(container: HTMLElement): HTMLElement {
   if (!overlay) {
     overlay = document.createElement("div");
     overlay.className = "loading-overlay";
-    overlay.innerHTML = `<div class="spinner"></div><div class="loading-label"></div>`;
+    // announce the loading state + label changes (e.g. download progress) to assistive tech
+    overlay.setAttribute("role", "status");
+    overlay.setAttribute("aria-live", "polite");
+    overlay.innerHTML = `<div class="spinner" aria-hidden="true"></div><div class="loading-label"></div>`;
     container.appendChild(overlay);
   }
   return overlay;

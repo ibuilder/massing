@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.134 — Accessibility: reduced-motion support + screen-reader announcements
+P2 a11y quick wins (Section 508 / WCAG 2.1 — often a procurement gate), no functional change.
+- **Reduced motion:** a global `@media (prefers-reduced-motion: reduce)` rule near-instantly completes
+  every transition/animation (toast slide-ins, spinner, panel fades) for users who set that OS
+  preference — state still changes, just without the motion. Leaves the 3D viewer's own render loop
+  alone (that's content, not decoration).
+- **Screen-reader announcements:** the toast host is now a polite `aria-live` region (`role="status"`),
+  so notifications are announced instead of being silently invisible to assistive tech; **error** toasts
+  use `role="alert"` for immediate (assertive) announcement. The loading overlay is likewise a
+  `role="status"` live region that announces its label (incl. download progress), with the spinner
+  marked `aria-hidden`.
+
 ## v0.3.133 — P1 hardening: audit the contractual mutations + count without loading + CI test guard
 Follow-on to the v0.3.132 P0 block — enterprise-readiness P1 items, all behavior-preserving.
 - **Audit-log coverage for contractual mutations:** module workflow **transitions** (RFI answered,

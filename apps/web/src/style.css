@@ -700,3 +700,18 @@ body.embed #rail-resize,
 body.embed #viewer-tools,
 body.embed #statusbar { display: none !important; }
 body.embed #workspaces { display: none; }
+
+/* Accessibility: honor the OS "reduce motion" setting. Users with vestibular disorders (or who just
+   opt out) get near-instant transitions/animations instead of the toast slide-ins, spinner spin,
+   panel fades, etc. — while state changes still complete. Does not touch the 3D viewer's own render
+   loop, which is content, not decorative motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
