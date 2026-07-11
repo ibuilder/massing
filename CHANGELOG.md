@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.158 — Data-grid UX: inline-edit cells for fast bulk entry
+Roadmap **Track X #1.** Editing many records meant opening a form for each one. Every module list now
+has an **✎ Edit inline** toggle: data cells become inputs (text / number / date / dropdown / checkbox)
+you edit straight in the table, and each change **saves automatically** with a brief green flash — no
+form round-trip. Enter or blur commits a cell. Works across all 120 config modules and composes with
+the existing filter / sort / bulk-select / templates. Reference cells stay as their new relational
+links (v0.3.157); the inline record-picker for references comes next. Opt-in — the read view is
+unchanged until you toggle it on.
+
 ## v0.3.157 — Relational fabric: reference cells become clickable links
 Roadmap **Track R #1.** The 120 tools are deeply relational, but in a module's list a reference field
 (a commitment's cost code, an RFI's spec section, a change event's PCO…) showed only a truncated id.

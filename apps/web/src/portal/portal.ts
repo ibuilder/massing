@@ -979,6 +979,45 @@ export class PortalUI {
 
   // --- record list (sortable / filterable data table + bulk actions) ---------
   private sort: Record<string, { col: string; dir: 1 | -1 } | undefined> = {};
+  // per-module inline-edit toggle: when on, data cells become autosaving inputs (bulk data entry)
+  private editInline: Record<string, boolean> = {};
+
+  /** An inline-editable table cell that autosaves the field on change/blur (no form round-trip).
+   *  Used only in inline-edit mode; reference/multiselect/other types stay read-only for now. */
+  private inlineCell(pid: string, m: ModuleDef, r: ModuleRecord, c: ModuleDef["fields"][number]): HTMLTableCellElement {
+    const td = document.createElement("td");
+    td.onclick = (e) => e.stopPropagation();          // editing a cell must not open the record
+    const save = async (v: unknown) => {
+      try { await this.host.api.updateModuleRecord(pid, m.key, r.id, { [c.name]: v }); r.data[c.name] = v; td.classList.add("saved"); setTimeout(() => td.classList.remove("saved"), 700); }
+      catch (e) { toast(`Couldn't save ${c.label}: ${(e as Error).message}`, "error"); }
+    };
+    if (c.type === "select") {
+      const sel = document.createElement("select"); sel.className = "cell-input";
+      const blank = document.createElement("option"); blank.value = ""; blank.textContent = "—"; sel.append(blank);
+      for (const o of (c.options ?? [])) { const op = document.createElement("option"); op.value = op.textContent = o; sel.append(op); }
+      sel.value = (r.data[c.name] as string) ?? "";
+      sel.onchange = () => void save(sel.value);
+      td.append(sel);
+    } else if (c.type === "checkbox") {
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!r.data[c.name];
+      cb.onchange = () => void save(cb.checked);
+      td.append(cb);
+    } else {
+      const inp = document.createElement("input"); inp.className = "cell-input";
+      inp.type = (c.type === "number" || c.type === "currency") ? "number" : c.type === "date" ? "date" : "text";
+      inp.value = r.data[c.name] == null ? "" : String(r.data[c.name]);
+      let orig = inp.value;
+      inp.onblur = () => {
+        if (inp.value === orig) return;
+        orig = inp.value;
+        const num = c.type === "number" || c.type === "currency";
+        void save(inp.value === "" ? "" : num ? Number(inp.value) : inp.value);
+      };
+      inp.onkeydown = (e) => { if (e.key === "Enter") inp.blur(); };
+      td.append(inp);
+    }
+    return td;
+  }
 
   /** Immediate loading placeholder so a click gives feedback before the fetch returns. */
   private skeleton(label: string) {
@@ -1063,6 +1102,7 @@ export class PortalUI {
     const page = await this.host.api.moduleRecordsFiltered(pid, m.key, { ...filter, limit: PAGE + 1, offset });
     const hasMore = page.length > PAGE;
     const records = hasMore ? page.slice(0, PAGE) : page;
+    const editing = !!this.editInline[m.key];              // inline-edit mode: data cells become inputs
     this.root.innerHTML = "";
     this.root.appendChild(this.bar(m.name, () => this.renderHome()));
 
@@ -1131,7 +1171,13 @@ export class PortalUI {
     const impFile = document.createElement("input"); impFile.type = "file"; impFile.accept = ".xlsx,.xlsm,.csv"; impFile.style.display = "none";
     impFile.onchange = () => { const f = impFile.files?.[0]; if (f) void this.renderImport(m, f); impFile.value = ""; };
     impBtn.onclick = () => impFile.click();
-    actions.append(newBtn, boardBtn, csvBtn, impBtn, impFile, tplBtn, fbox, stateSel, viewSel, saveView);
+    // inline-edit toggle — turn the data cells into autosaving inputs for fast multi-record entry
+    const editBtn = document.createElement("button"); editBtn.className = "tool-btn"; editBtn.dataset.cap = "editor";
+    editBtn.textContent = editing ? "✓ Editing (done)" : "✎ Edit inline";
+    if (editing) editBtn.classList.add("on");
+    editBtn.title = "Edit cells directly in the table — type across many records; changes save automatically";
+    editBtn.onclick = () => { this.editInline[m.key] = !editing; this.openModule(m, filter); };
+    actions.append(newBtn, boardBtn, csvBtn, impBtn, impFile, editBtn, tplBtn, fbox, stateSel, viewSel, saveView);
     // the Schedule module is the relational home for the same activities behind Gantt / LOB / CPM /
     // the 3D 4D scrub — surface those views here so linear + gantt live with the GC schedule.
     if (m.key === "schedule_activity") {
@@ -1278,9 +1324,12 @@ export class PortalUI {
       // textContent, not innerHTML: titles/field values are user data (stored-XSS guard)
       const cell = (text: string) => { const td = document.createElement("td"); td.textContent = text; tr.appendChild(td); };
       cell(r.ref); cell(r.title ?? "");
+      const EDITABLE = ["text", "textarea", "number", "currency", "date", "select", "checkbox"];
       for (const c of cols) {
         const v = r.data[c.name];
-        if (c.type === "reference" && c.module && v) {
+        if (editing && EDITABLE.includes(c.type)) {
+          tr.appendChild(this.inlineCell(pid, m, r, c));
+        } else if (c.type === "reference" && c.module && v) {
           const td = document.createElement("td");
           const id = String(v);
           const info = refMaps[c.name]?.get(id);

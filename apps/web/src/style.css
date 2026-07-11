@@ -394,6 +394,11 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 /* relational reference cell — reads as the linked record and navigates on click */
 .ref-link { color: var(--accent, #4a8cff); text-decoration: none; border-bottom: 1px dotted currentColor; }
 .ref-link:hover { text-decoration: none; opacity: 0.82; }
+/* inline-edit grid: compact cell inputs + a brief "saved" flash */
+.portal-table td .cell-input { width: 100%; min-width: 60px; box-sizing: border-box; font: inherit;
+  padding: 2px 4px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel, #fff); color: inherit; }
+.portal-table td .cell-input:focus { outline: none; border-color: var(--accent, #4a8cff); }
+.portal-table td.saved { transition: background .15s; background: color-mix(in srgb, var(--status-good, #2ea043) 22%, transparent); }
 /* loading skeleton — shimmer rows shown while a list/board fetch is in flight */
 .skel-row { height: 16px; margin: 7px 0; border-radius: 4px; opacity: .7;
   background: linear-gradient(90deg, #23252a 25%, #2f3239 37%, #23252a 63%);
