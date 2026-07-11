@@ -874,7 +874,7 @@ export class ProformaUI {
       try { const m = JSON.parse(localStorage.getItem(MIX_KEY) || ""); if (Array.isArray(m) && m.length) return m; } catch { /* default */ }
       return [{ name: "Studio", target_sf: 500, mix_pct: 0.2 }, { name: "1BR", target_sf: 750, mix_pct: 0.5 }, { name: "2BR", target_sf: 1050, mix_pct: 0.3 }];
     };
-    let mix: UType[] = loadMix();
+    const mix: UType[] = loadMix();
     const mixBox = document.createElement("div");
     mixBox.style.cssText = "margin:6px 0;padding:6px 8px;border:1px solid var(--line);border-radius:6px";
     const renderMix = () => {

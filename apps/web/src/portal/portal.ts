@@ -889,7 +889,7 @@ export class PortalUI {
     localStorage.setItem("portal-recents", JSON.stringify(r));
   }
   private toggleFav(key: string) {
-    const f = this.favs(); f.has(key) ? f.delete(key) : f.add(key);
+    const f = this.favs(); if (f.has(key)) f.delete(key); else f.add(key);
     localStorage.setItem("portal-favs", JSON.stringify([...f]));
     this.refreshCatalog();
   }
@@ -1745,7 +1745,7 @@ export class PortalUI {
     const selAll = document.createElement("input"); selAll.type = "checkbox"; selAll.title = "Select all";
     selAll.onclick = (e) => {
       e.stopPropagation();
-      for (const r of records) selAll.checked ? selected.add(r.id) : selected.delete(r.id);
+      for (const r of records) { if (selAll.checked) selected.add(r.id); else selected.delete(r.id); }
       for (const cb of rowCbs) cb.checked = selAll.checked;
       syncBulk();
     };

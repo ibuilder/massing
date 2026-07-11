@@ -13,5 +13,11 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "overrides": {
+    "eslint": "9.39.5"
+  },
+  "devDependencies": {
+    "eslint": "9.39.5"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@aec/web",
-  "version": "0.3.138",
+  "version": "0.3.139",
   "private": true,
   "type": "module",
   "engines": {
@@ -16,6 +16,8 @@
     "build:desktop": "tsc --noEmit && vite build --mode desktop",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "test": "vitest run",
     "test:watch": "vitest",
     "budget": "node scripts/bundle-budget.mjs",
@@ -48,10 +50,14 @@
     "@capacitor/cli": "^6.2.1",
     "@capacitor/core": "^6.2.1",
     "@capacitor/ios": "^6.2.1",
+    "@eslint/js": "^9.39.5",
     "@types/qrcode": "^1.5.6",
     "@types/three": "0.184.1",
+    "eslint": "^9.39.5",
+    "globals": "^17.7.0",
     "happy-dom": "^15.11.7",
     "typescript": "5.9.3",
+    "typescript-eslint": "^8.63.0",
     "vite": "6.4.3",
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^2.1.9"

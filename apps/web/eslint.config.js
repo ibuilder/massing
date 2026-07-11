@@ -1,0 +1,31 @@
+// ESLint (flat config) for the web app. Pragmatic ruleset: real-bug rules stay as errors; stylistic
+// or intentionally-idiomatic patterns in this codebase are warnings or off, so `npm run lint` is a
+// useful signal (dead code, unreachable, bad awaits) without drowning in noise. Type-unaware for speed.
+import js from "@eslint/js";
+import globals from "globals";
+import tseslint from "typescript-eslint";
+
+export default tseslint.config(
+  { ignores: ["dist/**", "node_modules/**", "src-tauri/**", "public/**", "scripts/**", "*.config.js"] },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  {
+    languageOptions: { globals: { ...globals.browser, ...globals.node, ...globals.worker } },
+    rules: {
+      // this codebase deliberately uses `any` at IFC/three/@thatopen boundaries and compact idioms;
+      // keep the linter focused on genuine defects, not style it intentionally adopts.
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-non-null-assertion": "off",
+      // legitimate closure capture: object-literal getters can't reference `this` (const self = this).
+      "@typescript-eslint/no-this-alias": "off",
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_",
+                                                       caughtErrorsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-empty-function": "off",
+      "@typescript-eslint/ban-ts-comment": "warn",
+      "no-empty": ["warn", { allowEmptyCatch: true }],
+      "prefer-const": "warn",
+      "no-constant-condition": ["error", { checkLoops: false }],
+    },
+  },
+  { files: ["**/*.test.ts"], rules: { "@typescript-eslint/no-unused-expressions": "off" } },
+);

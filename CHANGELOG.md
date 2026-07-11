@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.139 — Web lint gate (ESLint, flat config) wired into CI
+Adds static analysis to the web app so genuine defects (unreachable code, bad awaits, dead
+expressions) are caught in CI alongside the strict `tsc` typecheck and the Vitest suite.
+- **ESLint 9 flat config** (`apps/web/eslint.config.js`) with a pragmatic, low-noise ruleset:
+  real-bug rules stay errors; patterns this codebase adopts on purpose (`any` at IFC/three/@thatopen
+  boundaries, non-null assertions, `const self = this` closure capture in object-literal getters) are
+  off or warnings, so the signal isn't drowned out. New `npm run lint` / `lint:fix` scripts.
+- **CI gate** — a Lint (ESLint) step runs before the Vitest job in the web workflow.
+- **Baseline cleaned to zero** — the 70-file baseline surfaced only 3 errors + 1 warning, all in
+  `portal.ts`/`proforma.ts`; fixed by converting two side-effecting ternaries to `if/else` and one
+  `let`→`const`. No behavior change.
+- **Single, pinned toolchain** — a root `eslint` pin + override collapses the dependency tree to one
+  ESLint (9.39.5), so `npm ci` is deterministic and the CLI resolves the same version everywhere.
+
 ## v0.3.138 — Security: pin the auth path fail-closed (regression guard)
 Audited the whole auth/authz path for fail-open behavior and confirmed it is already **fail-closed** —
 `verify_token` / `verify_password` / `signing.verify_path` all return a deny value (None/False) on any
