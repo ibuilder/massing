@@ -1252,6 +1252,22 @@ export class PortalUI {
     th("Assignee", "assignee"); th("Ball", ""); th("Status", "status");
     const thead = document.createElement("thead"); thead.appendChild(headRow); table.appendChild(thead);
 
+    // Relational cells: resolve each reference column's ids → {ref,title} once (one fetch per
+    // referenced module, not per cell), so a reference reads as the linked record and navigates on
+    // click instead of showing a raw id. Bounded fetch; unresolved ids fall back to the short id.
+    const refCols = cols.filter((c) => c.type === "reference" && c.module);
+    const refMaps: Record<string, Map<string, { ref: string; title: string | null }>> = {};
+    if (refCols.length) {
+      await Promise.all(refCols.map(async (c) => {
+        try {
+          const recs = await this.host.api.moduleRecordsFiltered(pid, c.module!, { limit: 500 });
+          const map = new Map<string, { ref: string; title: string | null }>();
+          for (const rr of recs) map.set(rr.id, { ref: rr.ref, title: rr.title });
+          refMaps[c.name] = map;
+        } catch { /* leave unresolved — falls back to the short id */ }
+      }));
+    }
+
     const tb = document.createElement("tbody");
     for (const r of records) {
       const tr = document.createElement("tr");
@@ -1262,7 +1278,21 @@ export class PortalUI {
       // textContent, not innerHTML: titles/field values are user data (stored-XSS guard)
       const cell = (text: string) => { const td = document.createElement("td"); td.textContent = text; tr.appendChild(td); };
       cell(r.ref); cell(r.title ?? "");
-      for (const c of cols) cell(this.fmtCell(c, r.data[c.name]));
+      for (const c of cols) {
+        const v = r.data[c.name];
+        if (c.type === "reference" && c.module && v) {
+          const td = document.createElement("td");
+          const id = String(v);
+          const info = refMaps[c.name]?.get(id);
+          const a = document.createElement("a"); a.href = "#"; a.className = "ref-link";
+          a.textContent = info ? (info.title ? `${info.ref} · ${info.title}` : info.ref) : id.slice(0, 8);
+          a.title = `Open linked ${c.module.replace(/_/g, " ")}${info ? ` ${info.ref}` : ""}`;
+          a.onclick = (e) => { e.preventDefault(); e.stopPropagation(); this.openByBrief(c.module!, id); };
+          td.appendChild(a); tr.appendChild(td);
+        } else {
+          cell(this.fmtCell(c, v));
+        }
+      }
       tr.appendChild(this.assigneeCell(pid, m, r));   // inline-editable
       tr.appendChild(this.ballCell(m, r));            // ball-in-court party (who owes the next move)
       tr.appendChild(this.statusCell(pid, m, r));     // inline workflow transition

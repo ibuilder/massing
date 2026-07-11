@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.157 — Relational fabric: reference cells become clickable links
+Roadmap **Track R #1.** The 120 tools are deeply relational, but in a module's list a reference field
+(a commitment's cost code, an RFI's spec section, a change event's PCO…) showed only a truncated id.
+Now every reference cell resolves to the **linked record's ref + title** and is a **link** — one click
+opens that record in its own module. The list pre-fetches each referenced module once (one lookup per
+reference column, not per cell), so it stays fast; unresolved ids fall back to the short id. Applies
+automatically to all 120 config modules. Foundation for the record-picker + inline-edit grid to come.
+
 ## v0.3.156 — Responsibility matrix (RACI / DACI) — roadmap Phase A, item 1
 The role-clarity that ran through the field research (PM vs Superintendent, PM vs CM, RACI vs DACI)
 had no home in the app. New **Responsibility** destination (under Plan & Derisk for the GC, and under

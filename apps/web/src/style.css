@@ -391,6 +391,9 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .portal-table tr:hover td { background: var(--hover); }
 /* inline-editable cells (assignee / status) — subtle dashed affordance on hover */
 .portal-table td.editable:hover { outline: 1px dashed var(--accent, #4a8cff); outline-offset: -2px; }
+/* relational reference cell — reads as the linked record and navigates on click */
+.ref-link { color: var(--accent, #4a8cff); text-decoration: none; border-bottom: 1px dotted currentColor; }
+.ref-link:hover { text-decoration: none; opacity: 0.82; }
 /* loading skeleton — shimmer rows shown while a list/board fetch is in flight */
 .skel-row { height: 16px; margin: 7px 0; border-radius: 4px; opacity: .7;
   background: linear-gradient(90deg, #23252a 25%, #2f3239 37%, #23252a 63%);
