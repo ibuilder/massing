@@ -65,4 +65,8 @@ with TestClient(app) as c:
     assert cost_rep.charts and cost_rep.charts[0]["kind"] == "bar", cost_rep.charts
     assert _rr._chart_drawing(cost_rep.charts[0]) is not None    # renders without error
 
+    # dispatch parity: every catalog report has a builder and vice-versa (build/catalog can't drift)
+    _dispatch = set(_rep._BUILDERS) | set(_rep._LOGS)
+    assert set(_rep.REPORTS) == _dispatch, set(_rep.REPORTS).symmetric_difference(_dispatch)
+
 print(f"REPORTS OK - {len(ids)} reports each render a valid PDF + Excel workbook (incl. charts); cost bar; 404 on unknown")

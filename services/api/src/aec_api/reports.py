@@ -6,6 +6,8 @@ records) into a neutral structure, then rendered to PDF (reportlab) or Excel (op
 """
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from sqlalchemy.orm import Session
 
 from . import modules as me
@@ -1367,108 +1369,43 @@ def _contractor(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+# report key → builder. Data-driven dispatch (was a ~90-line if/elif ladder): adding a report is now
+# one registry line, and `catalog()`/`build()` can't drift out of sync with each other.
+_BUILDERS: dict[str, Callable[[Session, str, str], Report]] = {
+    "bep": _bep, "design_options": _design_options, "design_standards": _design_standards,
+    "mep": _mep, "resource_loading": _resource_loading, "envelope": _envelope,
+    "productivity": _productivity, "lod": _lod, "document_control": _document_control,
+    "market_intelligence": _market_intelligence, "naming": _naming, "appraisal": _appraisal,
+    "rent_roll": _rent_roll, "lease_management": _lease_management, "cap_table": _cap_table,
+    "tm_log": _tm_log, "submittal_register": _submittal_register, "quality": _quality,
+    "rfi_register": _rfi_register, "field_log": _field_log, "safety_dashboard": _safety,
+    "closeout": _closeout, "project_health": _project_health, "co_log": _co_log,
+    "action_tracker": _action_tracker, "estimate_continuity": _estimate_continuity,
+    "decision_log": _decision_log, "assumptions_register": _assumptions_register,
+    "precon_alignment": _precon_alignment, "spec_submittal_log": _spec_submittal_log,
+    "site_feasibility": _site_feasibility, "esg": _esg, "fca": _fca, "resilience": _resilience,
+    "bim_kpi": _bim_kpi, "listing_factsheet": _listing_factsheet, "marketing_flyer": _marketing_flyer,
+    "executive": _executive, "risk": _risk, "cost": _cost, "evm": _evm, "wip": _wip,
+    "contractor_financials": _contractor, "contracts": _contracts, "financials": _financials,
+}
+
+# module-record "log" reports share one builder (_log) parameterized by (module, title, columns).
+_LOGS: dict[str, tuple[str, str, list[tuple[str, str]]]] = {
+    "change_orders": ("cor", "Change Order Log", [("subject", "Subject"), ("amount", "Amount"), ("reason", "Reason")]),
+    "rfi": ("rfi", "RFI Log", [("subject", "Subject"), ("discipline", "Discipline"), ("cost_impact", "Cost impact")]),
+    "submittals": ("submittal", "Submittal Log", [("title", "Title"), ("spec_section", "Spec"), ("type", "Type")]),
+    "daily": ("daily_report", "Daily Report Log", [("report_date", "Date"), ("weather", "Weather")]),
+    "safety": ("incident", "Safety / Incident Log", [("subject", "Subject"), ("classification", "Class"), ("severity", "Severity")]),
+}
+
+
 def build(db: Session, pid: str, report: str) -> Report:
     p = db.get(Project, pid)
     name = (p.name if p else pid)
-    if report == "bep":
-        return _bep(db, pid, name)
-    if report == "design_options":
-        return _design_options(db, pid, name)
-    if report == "design_standards":
-        return _design_standards(db, pid, name)
-    if report == "mep":
-        return _mep(db, pid, name)
-    if report == "resource_loading":
-        return _resource_loading(db, pid, name)
-    if report == "envelope":
-        return _envelope(db, pid, name)
-    if report == "productivity":
-        return _productivity(db, pid, name)
-    if report == "lod":
-        return _lod(db, pid, name)
-    if report == "document_control":
-        return _document_control(db, pid, name)
-    if report == "market_intelligence":
-        return _market_intelligence(db, pid, name)
-    if report == "naming":
-        return _naming(db, pid, name)
-    if report == "appraisal":
-        return _appraisal(db, pid, name)
-    if report == "rent_roll":
-        return _rent_roll(db, pid, name)
-    if report == "lease_management":
-        return _lease_management(db, pid, name)
-    if report == "cap_table":
-        return _cap_table(db, pid, name)
-    if report == "tm_log":
-        return _tm_log(db, pid, name)
-    if report == "submittal_register":
-        return _submittal_register(db, pid, name)
-    if report == "quality":
-        return _quality(db, pid, name)
-    if report == "rfi_register":
-        return _rfi_register(db, pid, name)
-    if report == "field_log":
-        return _field_log(db, pid, name)
-    if report == "safety_dashboard":
-        return _safety(db, pid, name)
-    if report == "closeout":
-        return _closeout(db, pid, name)
-    if report == "project_health":
-        return _project_health(db, pid, name)
-    if report == "co_log":
-        return _co_log(db, pid, name)
-    if report == "action_tracker":
-        return _action_tracker(db, pid, name)
-    if report == "estimate_continuity":
-        return _estimate_continuity(db, pid, name)
-    if report == "decision_log":
-        return _decision_log(db, pid, name)
-    if report == "assumptions_register":
-        return _assumptions_register(db, pid, name)
-    if report == "precon_alignment":
-        return _precon_alignment(db, pid, name)
-    if report == "spec_submittal_log":
-        return _spec_submittal_log(db, pid, name)
-    if report == "site_feasibility":
-        return _site_feasibility(db, pid, name)
-    if report == "esg":
-        return _esg(db, pid, name)
-    if report == "fca":
-        return _fca(db, pid, name)
-    if report == "resilience":
-        return _resilience(db, pid, name)
-    if report == "bim_kpi":
-        return _bim_kpi(db, pid, name)
-    if report == "listing_factsheet":
-        return _listing_factsheet(db, pid, name)
-    if report == "marketing_flyer":
-        return _marketing_flyer(db, pid, name)
-    if report == "executive":
-        return _executive(db, pid, name)
-    if report == "risk":
-        return _risk(db, pid, name)
-    if report == "cost":
-        return _cost(db, pid, name)
-    if report == "evm":
-        return _evm(db, pid, name)
-    if report == "wip":
-        return _wip(db, pid, name)
-    if report == "contractor_financials":
-        return _contractor(db, pid, name)
-    if report == "contracts":
-        return _contracts(db, pid, name)
-    if report == "financials":
-        return _financials(db, pid, name)
-    logs = {
-        "change_orders": ("cor", "Change Order Log", [("subject", "Subject"), ("amount", "Amount"), ("reason", "Reason")]),
-        "rfi": ("rfi", "RFI Log", [("subject", "Subject"), ("discipline", "Discipline"), ("cost_impact", "Cost impact")]),
-        "submittals": ("submittal", "Submittal Log", [("title", "Title"), ("spec_section", "Spec"), ("type", "Type")]),
-        "daily": ("daily_report", "Daily Report Log", [("report_date", "Date"), ("weather", "Weather")]),
-        "safety": ("incident", "Safety / Incident Log", [("subject", "Subject"), ("classification", "Class"), ("severity", "Severity")]),
-    }
-    if report in logs:
-        key, title, cols = logs[report]
+    if report in _BUILDERS:
+        return _BUILDERS[report](db, pid, name)
+    if report in _LOGS:
+        key, title, cols = _LOGS[report]
         return _log(db, pid, name, key, title, cols)
     raise ValueError(f"unknown report {report!r}")
 

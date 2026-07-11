@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.150 — Report dispatch: data-driven registry (replaces the 90-line if/elif ladder)
+`reports.build()` chose a builder through a ~90-line `if report == "…"` ladder. It's now a
+`_BUILDERS` dict (key → builder) + a `_LOGS` dict for the module-log reports — adding a report is one
+registry line, and the dispatch can no longer silently drift from the `REPORTS` catalog. `test_reports`
+gains a parity assertion (`REPORTS` keys == builders+logs) so a new report without a builder (or vice
+versa) fails the gate. No behavior change — all 50 reports still render.
+
 ## v0.3.149 — Primavera P6 **XML (PMXML)** import (alongside the existing XER)
 The schedule importer now accepts both Primavera P6 export formats, auto-detected from the content.
 - **`schedule.parse_pmxml`** reads a P6 XML (PMXML) export into the same activity rows
