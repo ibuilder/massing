@@ -1,0 +1,21 @@
+{
+  "key": "responsibility",
+  "name": "Responsibility (RACI)",
+  "section": "Preconstruction",
+  "workspace": "construction|developer|design",
+  "icon": "🧭",
+  "ref_prefix": "RESP",
+  "title_field": "activity",
+  "pinnable": false,
+  "help": "One row per deliverable or decision. The Responsibility panel edits the RACI/DACI grid; this list is the underlying records.",
+  "fields": [
+    { "name": "activity", "label": "Activity / deliverable", "type": "text", "required": true },
+    { "name": "phase", "label": "Phase", "type": "select",
+      "options": ["Pre-Design", "Design", "Preconstruction", "Procurement", "Construction", "Commissioning", "Closeout", "Operations"] },
+    { "name": "category", "label": "Category", "type": "select",
+      "options": ["Design", "Cost", "Schedule", "Quality", "Safety", "Procurement", "Information Mgmt", "Approvals"] },
+    { "name": "milestone", "label": "Milestone / due", "type": "text" },
+    { "name": "reference", "label": "Reference (spec / deliverable)", "type": "text" },
+    { "name": "notes", "label": "Notes", "type": "textarea" }
+  ]
+}

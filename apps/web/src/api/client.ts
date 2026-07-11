@@ -10,7 +10,7 @@ import type {
   DocFolderNode, DrawingMarkupItem, DueFeed, ElementProps, EnergyResult, FinancialStatements,
   IntegrationGroup, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloResult,
   NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole,
-  RecordAttachmentMeta, RelatedRecords, SavedViewDef, SheetMarkupIn, StampTemplate, SyncScheduleItem,
+  RecordAttachmentMeta, RelatedRecords, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, StampTemplate, SyncScheduleItem,
   Topic, Vec3, Viewpoint, WorkItem,
 } from "./types";
 
@@ -1468,6 +1468,23 @@ export class ApiClient {
       by_type: Record<string, { total: number; issued: number; draft: number; superseded: number }>;
       core_coverage: { required: string[]; missing: string[]; complete: boolean }; note: string }>(
       `/projects/${pid}/info-requirements/register`);
+  }
+  // --- Responsibility matrix (RACI / DACI) ----------------------------------
+  responsibilityMatrix(pid: string) {
+    return this.json<ResponsibilityMatrix>(`/projects/${pid}/responsibility`);
+  }
+  responsibilityTemplates(pid: string) {
+    return this.json<{ templates: { key: string; name: string; description: string; rows: number }[] }>(
+      `/projects/${pid}/responsibility/templates`);
+  }
+  setResponsibilityConfig(pid: string, roles: string[], mode: "RACI" | "DACI") {
+    return this.json<{ roles: string[]; mode: string }>(`/projects/${pid}/responsibility/config`, {
+      method: "PUT", body: JSON.stringify({ roles, mode }) });
+  }
+  applyResponsibilityTemplate(pid: string, key: string, mode: "RACI" | "DACI") {
+    return this.json<{ applied: string; created: number; mode: string }>(
+      `/projects/${pid}/responsibility/apply-template`, {
+        method: "POST", body: JSON.stringify({ key, mode }) });
   }
   standardsCheck(pid: string, standard: "iso19650" | "cobie" | "ids" | "uniclass") {
     return this.json<{ standard: string; label?: string; score?: number;

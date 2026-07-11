@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.156 — Responsibility matrix (RACI / DACI) — roadmap Phase A, item 1
+The role-clarity that ran through the field research (PM vs Superintendent, PM vs CM, RACI vs DACI)
+had no home in the app. New **Responsibility** destination (under Plan & Derisk for the GC, and under
+Model & Standards for the design seat, where it doubles as the ISO 19650 MIDP/TIDP task-team
+responsibility view): an editable grid of activities × project roles, each cell an assignment letter.
+- **RACI** (Responsible / Accountable / Consulted / Informed) or **DACI** (Driver / Approver /
+  Contributor / Informed) — one-click toggle that remaps the doer letter across the matrix.
+- **Live validation** enforces the rules that make a RAM useful: exactly one Accountable per row, at
+  least one Responsible — flagged inline as you edit.
+- **Starter templates** (design delivery, buyout, construction, closeout) seed a valid matrix in a
+  click; add/rename/remove role columns and activities; export to CSV.
+- Built on the config-module engine (new `responsibility` module + `responsibility.py`) so every row
+  gets CRUD, RBAC, audit and search for free; the panel degrades to a clean empty state offline.
+
 ## v0.3.155 — Enterprise: SAML 2.0 single sign-on
 Massing can now sit behind a corporate IdP over SAML (Okta, Azure AD/Entra, OneLogin, ADFS,
 Shibboleth), alongside the existing OAuth providers. A new SP surface: **`GET /auth/saml/metadata`**

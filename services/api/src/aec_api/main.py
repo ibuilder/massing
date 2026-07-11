@@ -56,6 +56,7 @@ from .routers import (
     realestate,
     reports,
     research,
+    responsibility,
     review,
     saml,
     schedule,
@@ -270,6 +271,7 @@ app.include_router(documents.router, tags=["documents"])
 app.include_router(market.router, tags=["market"])
 app.include_router(turnover.router, tags=["turnover"])
 app.include_router(research.router, tags=["research"])
+app.include_router(responsibility.router, tags=["responsibility"])
 app.include_router(review.router, tags=["review"])
 app.include_router(drafting.router, tags=["drafting"])
 app.include_router(benchmarking.router, tags=["benchmarking"])

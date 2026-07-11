@@ -295,6 +295,23 @@ export interface Dashboard {
   by_module: { key: string; name: string; section: string; count: number; by_state: Record<string, number> }[];
 }
 
+export interface RespRow {
+  id: string; ref: string | null; activity: string;
+  phase: string | null; category: string | null; milestone: string | null; reference: string | null;
+  assignments: Record<string, string>;
+}
+export interface ResponsibilityMatrix {
+  mode: "RACI" | "DACI"; letters: string[]; doer: string;
+  roles: string[]; rows: RespRow[]; count: number;
+  validation: {
+    missing_accountable: { ref: string | null; activity: string; count: number }[];
+    no_responsible: { ref: string | null; activity: string }[];
+    unknown_role: { ref: string | null; role: string }[];
+    accountable_load: Record<string, number>; clean: boolean;
+  };
+  summary: { activities: number; clean: boolean; issues: number };
+}
+
 export interface ModulePin {
   module: string;
   module_name: string;

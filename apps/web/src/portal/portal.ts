@@ -15,6 +15,7 @@ import { renderLedger } from "./panels/ledger";
 import { renderTraceability } from "./panels/traceability";
 import { renderLandScreen, renderLifecycle, renderDiligence, renderEsg, renderConceptRender } from "./panels/design";
 import { renderProgram, renderBimKpi, renderStandards, renderIds, renderModelAnalysis } from "./panels/standards";
+import { renderResponsibility } from "./panels/responsibility";
 import { renderDocuments } from "./panels/documents";
 import { renderBudget } from "./panels/budget";
 import { renderScheduleViews } from "./panels/schedule";
@@ -167,6 +168,7 @@ export class PortalUI {
       __wip__: () => this.renderWip(), __ledger__: () => this.renderLedger(),
       __traceability__: () => this.renderTraceability(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
+      __responsibility__: () => this.renderResponsibility(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __modelanalysis__: () => this.renderModelAnalysis(),
       __documents__: () => this.renderDocuments(),
@@ -179,6 +181,7 @@ export class PortalUI {
         ["Plan & derisk", [
           { key: "__review__", icon: "🛡", label: "Risk Review" },          // contract clauses / scope gaps / doc Q&A
           { key: "__riskcost__", icon: "⚖️", label: "Risk & Cost" },        // prequal, lien exposure, carbon, takeoff
+          { key: "__responsibility__", icon: "🧭", label: "Responsibility" }, // RACI/DACI matrix — who owns each deliverable
         ]],
         ["Build", [
           ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__schedule__", icon: "📅", label: "Schedule" }] : []),
@@ -212,6 +215,7 @@ export class PortalUI {
         ["Model & standards", [
           { key: "__ids__", icon: "📋", label: "IDS Requirements" },
           { key: "__standards__", icon: "🗂", label: "CDE / Standards" },   // ISO 19650 container discipline + reqs
+          { key: "__responsibility__", icon: "🧭", label: "Responsibility" }, // MIDP/TIDP task-team responsibility (RACI)
           { key: "__documents__", icon: "📁", label: "Documents" },          // role-based standard folder tree
           { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },             // 10-category information-mgmt scorecard
           { key: "__modelqa__", icon: "✅", label: "Model Health" },        // deep-links to the Model Tools checks
@@ -563,6 +567,7 @@ export class PortalUI {
   private renderModelAnalysis() { return renderModelAnalysis(this.panelCtx()); }
   private renderDocuments() { return renderDocuments(this.panelCtx()); }
   private renderStandards() { return renderStandards(this.panelCtx()); }
+  private renderResponsibility() { return renderResponsibility(this.panelCtx()); }
 
   private renderOperations() { return renderOperations(this.panelCtx()); }
   private renderFca() { return renderFca(this.panelCtx()); }
