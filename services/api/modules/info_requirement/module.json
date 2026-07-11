@@ -44,6 +44,27 @@
       "fieldset": "Requirement"
     },
     {
+      "name": "loin_geometry",
+      "label": "LOIN · Geometry",
+      "type": "select",
+      "options": ["Not required", "Symbolic", "Conceptual", "Generic", "Specific", "Detailed / fabrication"],
+      "fieldset": "Level of Information Need"
+    },
+    {
+      "name": "loin_information",
+      "label": "LOIN · Alphanumeric",
+      "type": "select",
+      "options": ["Not required", "Basic identity", "Type / classification", "Full properties", "Properties + performance"],
+      "fieldset": "Level of Information Need"
+    },
+    {
+      "name": "loin_documentation",
+      "label": "LOIN · Documentation",
+      "type": "select",
+      "options": ["Not required", "Reference only", "Supporting documents", "Full documentation set"],
+      "fieldset": "Level of Information Need"
+    },
+    {
       "name": "appointing_party",
       "label": "Appointing Party (Client)",
       "type": "text",

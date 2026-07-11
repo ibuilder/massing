@@ -9,6 +9,7 @@ completeness) that feed the BIM KPI scorecard, and the requirements register (OI
 MIDP/TIDP) with coverage of the core documents a compliant appointment needs."""
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Any
 
 from . import modules as me
@@ -126,6 +127,62 @@ def cascade(db, pid: str) -> dict[str, Any]:
         "children": children, "roots": roots, "orphans": orphans, "misdirected": misdirected,
         "note": "ISO 19650 flow-down: OIR → PIR/AIR → EIR → MIDP/TIDP. Each requirement should derive "
                 "from a higher-level one; orphans don't trace up to organizational intent.",
+    }
+
+
+_LOIN_FIELDS = ("loin_geometry", "loin_information", "loin_documentation")
+
+
+def delivery_plan(db, pid: str, today: date | None = None) -> dict[str, Any]:
+    """The MIDP/TIDP delivery view (ISO 19650): information requirements laid out against their
+    programme dates, so every exchange is tied to a milestone. Returns each requirement with its due
+    date + status (overdue / due-soon / scheduled / issued), a per-milestone (due-month) roll-up, and
+    the summary the plan lives on — overdue count, next deliverable, and LOIN-specification coverage
+    (share of requirements that state a Level of Information Need, per EN 17412)."""
+    today = today or date.today()
+    reqs = me.list_records(db, "info_requirement", pid, limit=10000)
+    items, months, overdue, upcoming, loin_set = [], {}, 0, 0, 0
+    for r in reqs:
+        d = _d(r)
+        issued = (r.get("workflow_state") or "draft") == "issued"
+        raw = d.get("due_date")
+        due = None
+        if raw:
+            try:
+                due = datetime.fromisoformat(str(raw)[:10]).date()
+            except ValueError:
+                due = None
+        if issued:
+            status = "issued"
+        elif due and due < today:
+            status = "overdue"; overdue += 1
+        elif due and (due - today).days <= 30:
+            status = "due_soon"; upcoming += 1
+        else:
+            status = "scheduled"
+        has_loin = any(d.get(f) and d.get(f) != "Not required" for f in _LOIN_FIELDS)
+        if has_loin:
+            loin_set += 1
+        items.append({"id": r["id"], "ref": r.get("ref"), "title": r.get("title"),
+                      "type": (d.get("req_type") or "Other").split(" - ")[0],
+                      "due_date": due.isoformat() if due else None, "status": status, "has_loin": has_loin,
+                      "loin": {f: d.get(f) for f in _LOIN_FIELDS if d.get(f)}})
+        if due:
+            key = due.strftime("%Y-%m")
+            m = months.setdefault(key, {"month": key, "total": 0, "issued": 0, "overdue": 0})
+            m["total"] += 1
+            m["issued"] += 1 if issued else 0
+            m["overdue"] += 1 if status == "overdue" else 0
+    items.sort(key=lambda x: (x["due_date"] or "9999", x["ref"] or ""))
+    nxt = next((i for i in items if i["status"] in ("overdue", "due_soon", "scheduled") and i["due_date"]), None)
+    return {
+        "total": len(items), "overdue": overdue, "due_soon": upcoming,
+        "loin_coverage_pct": _pct(loin_set, len(items)),
+        "next_deliverable": nxt,
+        "by_month": [months[k] for k in sorted(months)],
+        "items": items,
+        "note": "MIDP/TIDP: each information requirement mapped to its programme date. Overdue = past "
+                "due and not issued; LOIN coverage = requirements that state a Level of Information Need.",
     }
 
 

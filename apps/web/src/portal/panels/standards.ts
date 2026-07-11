@@ -203,6 +203,27 @@ export async function renderStandards(ctx: PanelContext) {
         if (healthy) cc.innerHTML += `<div class="meta">✅ every requirement traces up to organizational intent.</div>`;
         body.append(cc);
       } catch { /* cascade is best-effort; register already rendered */ }
+      // MIDP/TIDP delivery plan — requirements against programme dates
+      try {
+        const dp = await ctx.host.api.infoRequirementsDeliveryPlan(pid);
+        const dc = el("div", "dash-card");
+        const bad = dp.overdue > 0;
+        dc.style.cssText = `border-left:3px solid var(${bad ? "--status-crit" : dp.due_soon ? "--status-warn" : "--status-good"});margin-bottom:8px`;
+        dc.innerHTML = `<b>Delivery plan (MIDP / TIDP)</b> `
+          + `<span class="meta">${dp.total} requirement(s)${dp.loin_coverage_pct != null ? ` · ${dp.loin_coverage_pct}% state a LOIN` : ""}</span>`
+          + `<div class="meta" style="margin-top:3px">`
+          + `${dp.overdue ? `🔴 ${dp.overdue} overdue · ` : ""}${dp.due_soon ? `🟡 ${dp.due_soon} due ≤30d · ` : ""}`
+          + (dp.next_deliverable ? `next: ${esc(`${dp.next_deliverable.type} ${dp.next_deliverable.ref ?? ""}`.trim())} ${dp.next_deliverable.due_date ? `(${esc(dp.next_deliverable.due_date)})` : ""}` : "no dated deliverables yet")
+          + `</div>`;
+        if (dp.by_month.length) {
+          dc.innerHTML += `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
+            + `<tr><th style="text-align:left">Milestone</th><th class="num">Due</th><th class="num">Issued</th><th class="num">Overdue</th></tr>`
+            + dp.by_month.map((m) => `<tr><td>${esc(m.month)}</td><td class="num">${m.total}</td><td class="num">${m.issued}</td>`
+              + `<td class="num"${m.overdue ? ' style="color:var(--status-crit)"' : ""}>${m.overdue || "—"}</td></tr>`).join("")
+            + `</table>`;
+        }
+        body.append(dc);
+      } catch { /* delivery plan is best-effort */ }
     }
     if (!st.total && !reg.total) {
       const none = el("div", "meta");

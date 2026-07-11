@@ -1,6 +1,7 @@
 """ISO 19650 CDE container discipline + information-requirements register.
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_cde.py"""
 import os
+from datetime import date, timedelta
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_cde.db"
 os.environ["STORAGE_DIR"] = "./test_storage_cde"
@@ -57,6 +58,28 @@ with TestClient(app) as c:
     assert any(o["type"] == "BEP" for o in cas["orphans"]), cas["orphans"]   # non-OIR, no upstream link
     assert any(m["type"] == "PIR" and m["parent_type"] == "EIR" for m in cas["misdirected"]), cas["misdirected"]
     assert oir["id"] in cas["children"] and eir["id"] in cas["children"][oir["id"]], cas["children"]
+
+    # --- delivery plan (MIDP/TIDP): requirements against programme dates + LOIN coverage -----------
+    today = date.today()
+    _create(c, pid, "info_requirement", {"title": "Overdue struct EIR",
+        "req_type": "TIDP - Task Information Delivery Plan",
+        "due_date": (today - timedelta(days=5)).isoformat(),
+        "loin_geometry": "Detailed / fabrication", "loin_information": "Full properties"})
+    _create(c, pid, "info_requirement", {"title": "Due-soon arch EIR",
+        "req_type": "TIDP - Task Information Delivery Plan",
+        "due_date": (today + timedelta(days=10)).isoformat()})
+    _create(c, pid, "info_requirement", {"title": "Future MEP EIR",
+        "req_type": "TIDP - Task Information Delivery Plan",
+        "due_date": (today + timedelta(days=90)).isoformat()})
+    dp = c.get(f"/projects/{pid}/info-requirements/delivery-plan").json()
+    assert dp["overdue"] >= 1, dp["overdue"]
+    assert dp["due_soon"] >= 1, dp["due_soon"]
+    # the next deliverable is the earliest un-issued dated one (the overdue TIDP)
+    assert dp["next_deliverable"] and dp["next_deliverable"]["status"] == "overdue", dp["next_deliverable"]
+    # LOIN coverage counts the one requirement that states a Level of Information Need
+    assert dp["loin_coverage_pct"] and dp["loin_coverage_pct"] > 0, dp["loin_coverage_pct"]
+    # per-month roll-up present for the dated requirements
+    assert dp["by_month"] and any(m["overdue"] >= 1 for m in dp["by_month"]), dp["by_month"]
 
     # --- CDE container: WIP -> Shared -> Published, with gates --------------------------------------
     a1 = _create(c, pid, "information_container", {"title": "Arch GA plans", "info_type": "Drawing",

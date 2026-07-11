@@ -1478,6 +1478,16 @@ export class ApiClient {
       misdirected: { id: string; ref: string | null; type: string; parent_type: string }[]; note: string }>(
       `/projects/${pid}/info-requirements/cascade`);
   }
+  /** MIDP/TIDP delivery plan — requirements vs programme dates, overdue/due-soon, LOIN coverage. */
+  infoRequirementsDeliveryPlan(pid: string) {
+    type Item = { id: string; ref: string | null; title: string | null; type: string;
+      due_date: string | null; status: string; has_loin: boolean };
+    return this.json<{ total: number; overdue: number; due_soon: number; loin_coverage_pct: number | null;
+      next_deliverable: Item | null;
+      by_month: { month: string; total: number; issued: number; overdue: number }[];
+      items: Item[]; note: string }>(
+      `/projects/${pid}/info-requirements/delivery-plan`);
+  }
   // --- Responsibility matrix (RACI / DACI) ----------------------------------
   responsibilityMatrix(pid: string) {
     return this.json<ResponsibilityMatrix>(`/projects/${pid}/responsibility`);

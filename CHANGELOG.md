@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.168 — openBIM: LOIN + MIDP/TIDP delivery plan
+Roadmap **Phase A #2** (from the second research batch). Two ISO 19650 depth items on information
+requirements. **LOIN** — each requirement now records its **Level of Information Need** per EN 17412-1 /
+ISO 7817: the required depth of **geometry**, **alphanumeric** data, and **documentation** (three
+ordered selects), so an EIR states *how much* information a deliverable needs, not just that it's needed.
+**MIDP / TIDP delivery plan** — a new engine (`cde.delivery_plan()`) lays the requirements out against
+their **programme dates**: each gets an overdue / due-soon / scheduled / issued status, a per-milestone
+(due-month) roll-up, the next deliverable, and **LOIN coverage** (the share that actually state a level).
+Surfaced as a **Delivery plan (MIDP/TIDP)** card in the CDE / Standards panel with overdue/due-soon
+flags. Endpoint `GET /projects/{pid}/info-requirements/delivery-plan`; extends `test_cde`. Ties every
+information exchange to a milestone — the "align exchanges with programme dates" step of the ISO 19650
+delivery checklist.
+
 ## v0.3.167 — openBIM: information-requirement flow-down (ISO 19650 cascade)
 Roadmap **Phase A #1.** The requirements register listed OIR/AIR/PIR/EIR/BEP/MIDP/TIDP but nothing tied
 a requirement to the higher-level one it flows down from — so there was no actual traceability. Each

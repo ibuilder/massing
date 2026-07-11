@@ -45,6 +45,15 @@ def requirements_cascade(pid: str, db: Session = Depends(get_db), _: str = Depen
     return cde.cascade(db, pid)
 
 
+@router.get("/projects/{pid}/info-requirements/delivery-plan")
+def requirements_delivery_plan(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The MIDP/TIDP delivery plan — information requirements against their programme dates with
+    overdue / due-soon status, a per-month roll-up, the next deliverable, and LOIN-specification
+    coverage (EN 17412 Level of Information Need)."""
+    _project(db, pid)
+    return cde.delivery_plan(db, pid)
+
+
 @router.get("/projects/{pid}/openbim/quality")
 def openbim_quality_scan(pid: str, use_case: str | None = None, db: Session = Depends(get_db),
                          _: str = Depends(require_role("viewer"))):
