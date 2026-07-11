@@ -49,5 +49,47 @@ with TestClient(app) as c:
 os.environ.pop("AEC_WEBHOOK_URLS", None)
 assert webhooks.dispatch("x", {"a": 1}) == 0
 
+# --- HMAC signing: sha256 over `<ts>.<body>`, bound by the timestamp (anti-replay) ---------------
+import hashlib as _hh  # noqa: E402
+import hmac as _h  # noqa: E402
+
+os.environ["AEC_WEBHOOK_SECRET"] = "topsecret"
+_body = b'{"event":"x"}'
+sig = webhooks._sign("1700000000", _body)
+assert sig == "sha256=" + _h.new(b"topsecret", b"1700000000." + _body, _hh.sha256).hexdigest(), sig
+os.environ.pop("AEC_WEBHOOK_SECRET")
+assert webhooks._sign("1", _body) is None, "no secret -> unsigned"
+
+# --- retry with backoff + delivery log ----------------------------------------------------------
+os.environ["AEC_WEBHOOK_RETRIES"] = "3"
+os.environ["AEC_WEBHOOK_RETRY_BASE"] = "0"        # no real sleeping in the test
+webhooks._DELIVERIES.clear()
+_calls = {"n": 0}
+
+def _flaky(url, body):                            # fails twice, then succeeds
+    _calls["n"] += 1
+    if _calls["n"] < 3:
+        raise RuntimeError("boom")
+    return 200
+
+webhooks._send = _flaky   # type: ignore
+webhooks._deliver(["http://hook.example/x"], b'{"event":"y"}', "y")
+assert _calls["n"] == 3, _calls
+entry = webhooks.recent(5)[0]
+assert entry["ok"] and entry["attempts"] == 3 and entry["event"] == "y", entry
+
+def _always_fail(url, body):
+    raise RuntimeError("nope")
+
+webhooks._send = _always_fail   # type: ignore
+webhooks._deliver(["http://hook.example/x"], b"{}", "z")
+bad = webhooks.recent(1)[0]
+assert not bad["ok"] and bad["attempts"] == 3 and "nope" in (bad["error"] or ""), bad
+
+# the deliveries endpoint is platform-admin only (no admin here -> denied), and reports signing state
+with TestClient(app) as c2:
+    assert c2.get("/webhooks/deliveries").status_code in (401, 403)
+
 print("WEBHOOKS OK - transition fired record.transition to both URLs (event/module/action/from/to/ref "
-      "present); fail-open on a throwing endpoint; no-op when unconfigured")
+      "present); fail-open on a throwing endpoint; no-op when unconfigured; HMAC sha256(ts.body) "
+      "signing; retry-with-backoff (2 fails->3rd ok) + delivery log; /webhooks/deliveries admin-gated")

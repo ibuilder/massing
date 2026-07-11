@@ -7,10 +7,14 @@ Delivery is fire-and-forget on a daemon thread; set AEC_WEBHOOK_SYNC=1 (tests) f
 """
 from __future__ import annotations
 
+import collections
+import hashlib
+import hmac
 import json
 import logging
 import os
 import threading
+import time
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any
@@ -26,24 +30,84 @@ def _urls() -> list[str]:
     return [u.strip() for u in raw.split(",") if u.strip()]
 
 
+def _secret() -> str:
+    return (settings_store.get("AEC_WEBHOOK_SECRET", "") or "").strip()
+
+
+def _sign(ts: str, body: bytes) -> str | None:
+    """GitHub-style HMAC-SHA256 over `<ts>.<body>` (the timestamp binds the signature to a moment,
+    so a captured request can't be replayed later). None when no secret is configured."""
+    secret = _secret()
+    if not secret:
+        return None
+    mac = hmac.new(secret.encode(), f"{ts}.".encode() + body, hashlib.sha256)
+    return "sha256=" + mac.hexdigest()
+
+
 def build_payload(event: str, **fields: Any) -> dict:
     return {"event": event, "ts": datetime.now(timezone.utc).isoformat(), **fields}
 
 
-def _send(url: str, body: bytes) -> None:
+# Recent delivery log — a bounded, process-local ring for "did my webhook fire?" observability.
+# (Per-worker; not durable across restarts — deliberately lightweight, no DB migration.)
+_DELIVERIES: collections.deque[dict] = collections.deque(maxlen=int(os.environ.get("AEC_WEBHOOK_LOG_MAX", "200")))
+_LOG_LOCK = threading.Lock()
+
+
+def record_delivery(entry: dict) -> None:
+    with _LOG_LOCK:
+        _DELIVERIES.appendleft(entry)
+
+
+def recent(limit: int = 100) -> list[dict]:
+    """Most-recent delivery attempts first (url, event, ok, status, attempts, ts, error)."""
+    with _LOG_LOCK:
+        return list(_DELIVERIES)[:max(0, limit)]
+
+
+def _retries() -> int:
+    return max(1, int(os.environ.get("AEC_WEBHOOK_RETRIES", "3")))
+
+
+def _retry_base() -> float:
+    return float(os.environ.get("AEC_WEBHOOK_RETRY_BASE", "0.5"))
+
+
+def _send(url: str, body: bytes) -> int:
+    """POST `body` to `url`, HMAC-signing it when a secret is set. Returns the HTTP status."""
     validate_outbound_url(url, label="AEC_WEBHOOK_URLS entry")  # block file://etc; LAN targets allowed
-    req = urllib.request.Request(url, data=body, method="POST",
-                                 headers={"Content-Type": "application/json", "User-Agent": "Massing-Webhook"})
+    ts = str(int(time.time()))
+    headers = {"Content-Type": "application/json", "User-Agent": "Massing-Webhook",
+               "X-Massing-Event-Timestamp": ts}
+    sig = _sign(ts, body)
+    if sig:
+        headers["X-Massing-Signature"] = sig
+    req = urllib.request.Request(url, data=body, method="POST", headers=headers)
     timeout = float(os.environ.get("AEC_WEBHOOK_TIMEOUT", "3"))
-    urllib.request.urlopen(req, timeout=timeout)  # noqa: S310 — operator-configured URL, scheme-validated above
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 — scheme-validated above
+        return getattr(resp, "status", 200) or 200
 
 
-def _deliver(urls: list[str], body: bytes) -> None:
+def _deliver(urls: list[str], body: bytes, event: str = "") -> None:
+    """Deliver to each URL with bounded exponential-backoff retries; log every final outcome."""
+    retries = _retries()
     for u in urls:
-        try:
-            _send(u, body)
-        except Exception as e:                       # noqa: BLE001 — never fail over a webhook
-            _log.warning("webhook to %s failed: %s", u, e)
+        status: int | None = None
+        err: str | None = None
+        attempt = 0
+        for attempt in range(1, retries + 1):
+            try:
+                status = _send(u, body)
+                err = None
+                break
+            except Exception as e:                   # noqa: BLE001 — never fail over a webhook
+                err = str(e)[:200]
+                if attempt < retries:
+                    time.sleep(_retry_base() * (2 ** (attempt - 1)))   # 0.5s, 1s, 2s, …
+        if err:
+            _log.warning("webhook to %s failed after %d attempt(s): %s", u, attempt, err)
+        record_delivery({"ts": datetime.now(timezone.utc).isoformat(), "url": u, "event": event,
+                         "ok": err is None, "status": status, "attempts": attempt, "error": err})
 
 
 def dispatch(event: str, payload: dict) -> int:
@@ -54,9 +118,9 @@ def dispatch(event: str, payload: dict) -> int:
         return 0
     body = json.dumps({**payload, "event": event}, default=str).encode("utf-8")
     if os.environ.get("AEC_WEBHOOK_SYNC") == "1":
-        _deliver(urls, body)
+        _deliver(urls, body, event)
     else:
-        threading.Thread(target=_deliver, args=(urls, body), daemon=True).start()
+        threading.Thread(target=_deliver, args=(urls, body, event), daemon=True).start()
     return len(urls)
 
 

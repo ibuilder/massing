@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.148 — Webhook hardening: HMAC signing + retry/backoff + delivery log
+Makes the outbound webhooks (module transitions → external automation) production-grade.
+- **HMAC signing** — when `AEC_WEBHOOK_SECRET` is set, every delivery carries
+  `X-Massing-Signature: sha256=HMAC(secret, "<timestamp>." + body)` + `X-Massing-Event-Timestamp`, so
+  a receiver can verify authenticity and reject replays (the timestamp binds the signature).
+- **Retry with exponential backoff** — a failed delivery retries up to `AEC_WEBHOOK_RETRIES` (default
+  3) with `AEC_WEBHOOK_RETRY_BASE`-second backoff (0.5s, 1s, 2s…) before giving up. Still fail-open —
+  a broken endpoint never blocks the transition.
+- **Delivery log** — a bounded, process-local ring of recent attempts (url, event, ok, status,
+  attempts, error), surfaced to platform admins at **`GET /webhooks/deliveries`** with the signing
+  state — "did my hook fire?" observability.
+- `test_webhooks` extends to pin the signature, the retry (2 fails → 3rd ok) + log, and the admin gate.
+
 ## v0.3.147 — openBIM: IFC4.3 infrastructure discipline + full ISO 19650 suitability codes
 Closes the openBIM standards remainder.
 - **IFC4.3 infrastructure entities** (`IfcAlignment`, `IfcRoad`, `IfcRailway`, `IfcBridge`,

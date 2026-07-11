@@ -568,6 +568,16 @@ def audit_log(action: str | None = Query(None), actor: str | None = Query(None),
              "path": r.path, "topic_id": r.topic_id, "detail": r.detail} for r in rows]
 
 
+@router.get("/webhooks/deliveries")
+def webhook_deliveries(limit: int = Query(100, ge=1, le=500), _: User = Depends(require_admin_user)):
+    """Recent outbound-webhook delivery attempts (newest first) — url, event, ok, status, attempts,
+    error — plus whether HMAC signing is configured. Process-local ring; for 'did my hook fire?'."""
+    from .. import webhooks
+    return {"signing_enabled": bool(webhooks._secret()),
+            "configured_urls": len(webhooks._urls()),
+            "deliveries": webhooks.recent(limit)}
+
+
 @router.post("/auth/reset")
 def reset_with_token(token: str = Body(..., embed=True), new: str = Body(..., embed=True),
                      db: Session = Depends(get_db)):
