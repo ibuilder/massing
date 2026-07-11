@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.163 — Estimating: resource-based (assembly) cost build-up
+Roadmap **Phase B #1.** Model-based estimating used a single blended $/unit per element class. Real
+estimators build a unit cost **up** from a crew: labor hours × rate + materials × quantity + equipment
+× hours. A new engine (`assemblies.py`) does exactly that — a catalog of labor/material/equipment
+**resources** and **assemblies** (recipes like "cast-in-place wall" = concrete + rebar + formwork +
+cement-mason + laborer + pump). Pricing any quantity now returns the **labor / material / equipment
+split**, the built-up unit cost, **and total crew-hours** — the last of which can drive resource loading
+and the schedule, not just a dollar figure. Two endpoints: `GET /estimate/resources/catalog` (the
+reference book, each assembly with its built-up unit cost) and `GET /projects/{pid}/estimate/resource-based`
+(prices the IFC takeoff by mapping each element class to an assembly; unmapped classes are surfaced, not
+silently dropped). Backend-only this release; a UI to compare blended-vs-resource follows. New
+`test_assemblies` (build-up math, L/M/E split, crew-hours, takeoff) — full suite green.
+
 ## v0.3.162 — Data-grid UX: choose which columns show
 Roadmap **Track X #3.** A module list showed a fixed set of columns (whatever the module defined), so
 wide record types either hid fields you needed or you scrolled past ones you didn't. A new **⚙ Columns**

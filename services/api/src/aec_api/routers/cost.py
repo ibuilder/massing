@@ -469,6 +469,28 @@ def estimate_from_model(pid: str, db: Session = Depends(get_db), _: str = Depend
     return est.estimate_from_takeoff(rows, gfa_sf=gfa_sf)
 
 
+@router.get("/estimate/resources/catalog")
+def resource_catalog(_: str = Depends(current_user)):
+    """The resource-based estimating reference: labor/material/equipment resources + assemblies
+    (each with its built-up unit cost and L/M/E split) + the default IFC-class→assembly map."""
+    from .. import assemblies as asm
+    return asm.catalog()
+
+
+@router.get("/projects/{pid}/estimate/resource-based")
+def estimate_resource_based(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Resource-based (assembly) estimate from the IFC takeoff: each element class priced by building
+    the cost UP from labor + material + equipment, returning the L/M/E split and total crew-hours
+    (which feed resource loading + the schedule), not just a blended $/unit. 409 if no source IFC."""
+    from aec_data.qto import takeoff_file  # type: ignore
+
+    from .. import assemblies as asm
+    from ..deps import source_ifc_path
+    path = source_ifc_path(db, pid)
+    rows = takeoff_file(path, force_geometry=True)
+    return asm.estimate_resource_based(rows)
+
+
 @router.get("/classifications")
 def list_classifications(_: str = Depends(current_user)):
     """Regional classification systems available for estimate coding / GAEB export."""
