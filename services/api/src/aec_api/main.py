@@ -57,6 +57,7 @@ from .routers import (
     reports,
     research,
     review,
+    saml,
     schedule,
     scim,
     standards,
@@ -286,6 +287,7 @@ app.include_router(closeout.router, tags=["closeout"])
 app.include_router(convert.router, tags=["convert"])
 app.include_router(auth.router, tags=["auth"])
 app.include_router(scim.router, tags=["scim"])
+app.include_router(saml.router, tags=["saml"])
 app.include_router(connections.router, tags=["connections"])
 app.include_router(opendata.router, tags=["opendata"])
 app.include_router(realestate.router, tags=["realestate"])

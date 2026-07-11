@@ -276,8 +276,10 @@ def mfa_disable(password: str = Body(..., embed=True), code: str = Body("", embe
 # --- OAuth / SSO (Google, Microsoft, Procore) ---------------------------------
 @router.get("/auth/providers")
 def auth_providers():
-    """Enabled SSO providers (those with client id + secret configured) — drives the login UI."""
-    return {"providers": oauth.enabled_providers()}
+    """Enabled SSO providers (those with client id + secret configured) — drives the login UI.
+    `saml` is true when a SAML IdP is configured (its button posts to /auth/saml/login)."""
+    from .. import saml
+    return {"providers": oauth.enabled_providers(), "saml": saml.is_enabled()}
 
 
 def _cookie_secure(request: Request) -> bool:

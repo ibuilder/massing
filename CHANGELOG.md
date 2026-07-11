@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.155 — Enterprise: SAML 2.0 single sign-on
+Massing can now sit behind a corporate IdP over SAML (Okta, Azure AD/Entra, OneLogin, ADFS,
+Shibboleth), alongside the existing OAuth providers. A new SP surface: **`GET /auth/saml/metadata`**
+(SP metadata to register), **`GET /auth/saml/login`** (SP-initiated redirect, HTTP-Redirect binding),
+and **`POST /auth/saml/acs`** (Assertion Consumer Service). A verified email maps to an
+auto-provisioned free-tier user (honoring the same `AEC_OAUTH_ALLOWED_DOMAINS` / no-autoprovision
+gates as OAuth); `/auth/providers` now reports `saml: true` when configured.
+
+Verification is the whole game, so it's done carefully (`saml.py`, using `signxml`): the IdP signing
+cert is **pinned** from config (never trusted from the message's KeyInfo); identity is read **only
+from the cryptographically-verified subtree**, defeating XML Signature Wrapping; and the signed
+assertion's **Conditions** (validity window ± a small clock-skew, AudienceRestriction == our SP) and
+**SubjectConfirmation Recipient** (== our ACS) are enforced. `test_saml` drives real signed assertions
+through the ACS and proves tampered, unsigned, wrong-key, expired, and wrong-audience responses are
+all rejected (403). Enabled only when the IdP entityID + SSO URL + cert are set.
+
 ## v0.3.154 — Enterprise: SCIM 2.0 user provisioning
 Enterprises can now automate account lifecycle from their IdP (Okta, Azure AD/Entra, OneLogin,
 JumpCloud) instead of managing users by hand. A new **`/scim/v2`** surface (RFC 7643/7644) implements
