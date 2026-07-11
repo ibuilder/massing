@@ -136,6 +136,12 @@ function accountMenu(anchor: HTMLElement, platformAdmin = false, tier = "free") 
   if (D.getIsProjectAdmin() && pid) menu.append(item("Project members…", () => membersModal(pid)));
   menu.append(item("Settings…", D.openSettings));
   menu.append(item("Change password…", passwordModal));
+  menu.append(item("Sign out everywhere…", async () => {
+    if (!await confirmModal("Sign out everywhere",
+        "Sign out of every other device and session? This tab stays signed in.", "Revoke sessions")) return;
+    try { await D.api.logoutAll(); toast("Signed out of all other sessions", "info"); }
+    catch { toast("Could not revoke sessions", "error"); }
+  }));
   menu.append(item("Sign out", async () => { await D.api.logout(); D.api.setToken(""); location.reload(); }));
   document.body.appendChild(menu);
   setTimeout(() => document.addEventListener("pointerdown", function off(e) {
@@ -206,7 +212,13 @@ function adminModal() {
         await api.updateUser(u.username, { email: e.trim() });
         toast(`Email updated for ${u.username}`, "info");
       });
-      row.append(nm, tags, spacer, roleBtn, activeBtn, pwBtn, linkBtn, emailBtn);
+      const revokeBtn = act("Revoke sessions", async () => {
+        if (!await confirmModal("Revoke sessions",
+            `Sign ${u.username} out of all devices? They must sign in again.`, "Revoke")) return;
+        await api.revokeUserSessions(u.username);
+        toast(`Revoked ${u.username}'s sessions`, "info");
+      });
+      row.append(nm, tags, spacer, roleBtn, activeBtn, pwBtn, revokeBtn, linkBtn, emailBtn);
       list.append(row);
     }
   };

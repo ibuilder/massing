@@ -4,6 +4,7 @@ as admin; after that, registering others requires an admin token."""
 from __future__ import annotations
 
 import os
+import time
 from datetime import datetime
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request, Response
@@ -262,9 +263,12 @@ def me(db: Session = Depends(get_db), user: str = Depends(current_user)):
 
 # --- self-service -------------------------------------------------------------
 @router.post("/auth/password")
-def change_password(current: str = Body(..., embed=True), new: str = Body(..., embed=True),
+def change_password(request: Request, response: Response,
+                    current: str = Body(..., embed=True), new: str = Body(..., embed=True),
                     db: Session = Depends(get_db), user: str = Depends(current_user)):
-    """Change your own password (requires the current one)."""
+    """Change your own password (requires the current one). Rotating the password revokes every
+    other outstanding session (bumps token_epoch); a fresh token is issued so the current tab
+    stays signed in."""
     u = db.get(User, user)
     if not u:
         raise HTTPException(401, "not authenticated")
@@ -273,8 +277,28 @@ def change_password(current: str = Body(..., embed=True), new: str = Body(..., e
     if len(new) < 8:
         raise HTTPException(400, "password must be at least 8 characters")
     u.password_hash = auth.hash_password(new)
+    u.token_epoch = int(time.time())            # revoke all sessions issued before now
+    audit.record(db, action="auth.password_change", actor=user, method="POST", path="/auth/password")
     db.commit()
-    return {"ok": True}
+    token = auth.create_token(user)             # issued now → passes the epoch check, keeps this tab in
+    _cookie(response, token, request)
+    return {"ok": True, "token": token}
+
+
+@router.post("/auth/logout-all")
+def logout_all(request: Request, response: Response,
+               db: Session = Depends(get_db), user: str = Depends(current_user)):
+    """Sign out everywhere: revoke every outstanding session for the caller (bump token_epoch),
+    then re-mint the current session so this tab stays in. Use after a suspected token leak."""
+    u = db.get(User, user)
+    if not u:
+        raise HTTPException(401, "not authenticated")
+    u.token_epoch = int(time.time())
+    audit.record(db, action="auth.logout_all", actor=user, method="POST", path="/auth/logout-all")
+    db.commit()
+    token = auth.create_token(user)
+    _cookie(response, token, request)
+    return {"ok": True, "token": token}
 
 
 # --- admin: user management ---------------------------------------------------
@@ -344,8 +368,24 @@ def reset_password(username: str, password: str = Body(..., embed=True),
     if len(password) < 8:
         raise HTTPException(400, "password must be at least 8 characters")
     u.password_hash = auth.hash_password(password)
+    u.token_epoch = int(time.time())            # an admin reset revokes the user's live sessions
     audit.record(db, action="user.password_reset", actor=admin.username, method="POST",
                  path=f"/auth/users/{username}/password", detail={"username": username})
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/auth/users/{username}/revoke-sessions")
+def revoke_sessions(username: str, db: Session = Depends(get_db),
+                    admin: User = Depends(require_admin_user)):
+    """Admin: force-revoke all of a user's outstanding tokens (e.g. offboarding / lost device).
+    They must sign in again; deactivating the account (active=false) blocks re-login entirely."""
+    u = db.get(User, username)
+    if not u:
+        raise HTTPException(404, "no such user")
+    u.token_epoch = int(time.time())
+    audit.record(db, action="user.revoke_sessions", actor=admin.username, method="POST",
+                 path=f"/auth/users/{username}/revoke-sessions", detail={"username": username})
     db.commit()
     return {"ok": True}
 
@@ -440,5 +480,6 @@ def reset_with_token(token: str = Body(..., embed=True), new: str = Body(..., em
     if not u or not auth.verify_reset_token(token, u.password_hash):
         raise HTTPException(403, "invalid or expired reset token")
     u.password_hash = auth.hash_password(new)
+    u.token_epoch = int(time.time())            # a password reset revokes any live sessions
     db.commit()
     return {"ok": True, "username": u.username}

@@ -1062,10 +1062,25 @@ export class ApiClient {
   logout() {
     return this.json<{ ok: boolean }>("/auth/logout", { method: "POST" }).catch(() => ({ ok: false }));
   }
-  /** Change your own password (requires the current one). */
-  changePassword(current: string, next: string) {
-    return this.json<{ ok: boolean }>(
+  /** Change your own password (requires the current one). The server revokes all other sessions
+   *  and returns a fresh token for this tab; adopt it so the current session keeps working. */
+  async changePassword(current: string, next: string) {
+    const r = await this.json<{ ok: boolean; token?: string }>(
       "/auth/password", { method: "POST", body: JSON.stringify({ current, new: next }) });
+    if (r.token) this.setToken(r.token);
+    return r;
+  }
+  /** Sign out of every other session (revoke all outstanding tokens); keeps this tab signed in
+   *  via the fresh token the server returns. Use after a suspected token leak. */
+  async logoutAll() {
+    const r = await this.json<{ ok: boolean; token?: string }>("/auth/logout-all", { method: "POST" });
+    if (r.token) this.setToken(r.token);
+    return r;
+  }
+  /** Admin: force-revoke all of a user's outstanding sessions (offboarding / lost device). */
+  revokeUserSessions(username: string) {
+    return this.json<{ ok: boolean }>(
+      `/auth/users/${encodeURIComponent(username)}/revoke-sessions`, { method: "POST" });
   }
 
   // --- admin: user management --------------------------------------------

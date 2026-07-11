@@ -103,6 +103,10 @@ class User(Base):
     # subscription tier seam — everyone is "free" today; gating lives in entitlements.py so the
     # paid tiers are a one-place change later. Nullable for the additive schema sync; NULL = free.
     tier: Mapped[str | None] = mapped_column(String, default="free")
+    # session-revocation watermark (unix seconds): tokens issued before this are rejected. Bumped
+    # on password change / admin reset / "sign out everywhere". Nullable for the additive schema
+    # sync; NULL = no revocation baseline (all unexpired tokens valid). See auth.create_token + rbac.
+    token_epoch: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

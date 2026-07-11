@@ -33,13 +33,18 @@ TRUST_XUSER = os.environ.get("AEC_TRUST_XUSER") == "1"
 LOCAL_MODE = os.environ.get("AEC_LOCAL_MODE") == "1"
 
 
-def _resolve_active(db: Session, sub: str) -> str:
-    """A token/cookie resolved to user `sub`; reject if the account was deactivated so that
-    revoking access takes effect immediately, not only after the 7-day token expiry."""
+def _resolve_active(db: Session, sub: str, iat: int | None = None) -> str:
+    """A token/cookie resolved to user `sub`; reject if the account was deactivated (so revoking
+    access takes effect immediately, not only after the 7-day token expiry) OR if the token was
+    issued before the account's session-revocation watermark (`token_epoch`, bumped on password
+    change / admin reset / 'sign out everywhere' — so a leaked token dies the moment the password
+    is rotated, not 7 days later)."""
     from .models import User
     u = db.get(User, sub)
     if u is not None and u.active is False:
         raise HTTPException(status_code=401, detail="account deactivated")
+    if u is not None and u.token_epoch is not None and (iat or 0) < u.token_epoch:
+        raise HTTPException(status_code=401, detail="session revoked — sign in again")
     return sub
 
 
@@ -56,14 +61,14 @@ def current_user(x_user: str | None = Header(default=None),
         if API_KEY and token == API_KEY:
             return "api-key"
         from . import auth
-        sub = auth.verify_token(token)
-        if sub:
-            return _resolve_active(db, sub)
+        claims = auth.verify_token_claims(token)
+        if claims:
+            return _resolve_active(db, claims["sub"], claims.get("iat"))
     if aec_token:
         from . import auth
-        sub = auth.verify_token(aec_token)
-        if sub:
-            return _resolve_active(db, sub)
+        claims = auth.verify_token_claims(aec_token)
+        if claims:
+            return _resolve_active(db, claims["sub"], claims.get("iat"))
     # no signed identity: trust the dev X-User header only in dev/test, never in production
     if not RBAC_ON or TRUST_XUSER:
         return x_user or "dev"

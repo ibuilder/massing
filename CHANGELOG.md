@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.140 — Enterprise auth: session revocation ("sign out everywhere")
+Bearer tokens can now be revoked before they expire — closing a real gap where a leaked token
+stayed valid for its full 7-day life even after the password was changed.
+- **Token epoch** — every auth token carries an issued-at (`iat`); each account has a `token_epoch`
+  watermark. The RBAC gate rejects any token issued before the watermark, so revocation is immediate
+  (no session table needed). Additive schema sync adds the column to existing DBs.
+- **Password change now revokes other sessions** — changing your password (or an admin resetting it,
+  or a reset-token redemption) bumps the watermark, invalidating every other outstanding token. The
+  current tab is handed a fresh token so it stays signed in.
+- **"Sign out everywhere"** — a new account-menu action (`POST /auth/logout-all`) revokes all other
+  sessions after a suspected token leak. Admins get a per-user **Revoke sessions**
+  (`POST /auth/users/{u}/revoke-sessions`) for offboarding / lost devices — distinct from
+  deactivation (revoke lets them sign in again; deactivate blocks re-login).
+- All revocation events are audit-logged. `test_sessions` pins the contract end-to-end.
+  (SAML/SCIM and TOTP MFA are the next enterprise-auth increments.)
+
 ## v0.3.139 — Web lint gate (ESLint, flat config) wired into CI
 Adds static analysis to the web app so genuine defects (unreachable code, bad awaits, dead
 expressions) are caught in CI alongside the strict `tsc` typecheck and the Vitest suite.

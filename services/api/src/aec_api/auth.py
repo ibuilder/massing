@@ -56,14 +56,18 @@ _RESET_TTL = 3600   # password-reset tokens are short-lived (1 hour)
 
 
 def create_token(sub: str, ttl: int = _TOKEN_TTL) -> str:
-    payload = _b64(json.dumps({"sub": sub, "exp": int(time.time()) + ttl}).encode())
+    # `iat` (issued-at) lets the server revoke sessions: a token is rejected when its iat predates
+    # the account's token_epoch (bumped on password change / "sign out everywhere"). See rbac.
+    now = int(time.time())
+    payload = _b64(json.dumps({"sub": sub, "iat": now, "exp": now + ttl}).encode())
     sig = _b64(hmac.new(_SECRET, payload.encode(), hashlib.sha256).digest())
     return f"{payload}.{sig}"
 
 
-def verify_token(token: str) -> str | None:
-    """Return the subject (username) if the token is a well-signed, unexpired *auth* token.
-    Reset tokens (purpose='reset') are rejected here so they can't be used as bearer tokens."""
+def verify_token_claims(token: str) -> dict | None:
+    """Return the verified auth-token claims ({sub, iat, exp}) if the token is a well-signed,
+    unexpired *auth* token, else None. Reset tokens (purpose='reset') are rejected so they can't
+    be used as bearer tokens. Callers that need session-revocation must read `iat` from here."""
     try:
         payload_b64, sig_b64 = token.split(".")
         expected = _b64(hmac.new(_SECRET, payload_b64.encode(), hashlib.sha256).digest())
@@ -74,9 +78,16 @@ def verify_token(token: str) -> str | None:
             return None
         if payload.get("purpose") not in (None, "auth"):
             return None
-        return payload.get("sub")
+        return payload
     except Exception:
         return None
+
+
+def verify_token(token: str) -> str | None:
+    """Return the subject (username) if the token is a well-signed, unexpired *auth* token.
+    Does NOT apply session-revocation (no DB here) — the DB-side epoch check lives in rbac."""
+    claims = verify_token_claims(token)
+    return claims.get("sub") if claims else None
 
 
 def _pw_fingerprint(pw_hash: str) -> str:
