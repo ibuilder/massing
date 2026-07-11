@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.154 — Enterprise: SCIM 2.0 user provisioning
+Enterprises can now automate account lifecycle from their IdP (Okta, Azure AD/Entra, OneLogin,
+JumpCloud) instead of managing users by hand. A new **`/scim/v2`** surface (RFC 7643/7644) implements
+the Users resource: **create** (provision), **read / filter** (`userName eq`), **PUT / PATCH**
+(including both the Okta `path:active` and Azure `value:{active}` deactivation shapes), and
+**DELETE** (de-provision). Provisioned accounts are SSO-only (a random, unusable password — they sign
+in via OAuth/SAML), and **deactivation revokes any live token immediately** (bumps the session
+watermark), not just at expiry; DELETE is a soft-delete so the audit trail and record authorship
+survive, and a later re-provision reactivates (rehire). The whole surface is gated by a single
+constant-time bearer token (`AEC_SCIM_TOKEN`); unset ⇒ 503 (disabled), so it can't be probed open.
+Adds `User.external_id` (IdP correlation) + `User.provisioned` (additive schema sync).
+
 ## v0.3.153 — Search: GIN index behind module full-text search (Postgres)
 Module full-text search already used Postgres `to_tsvector(...) @@ to_tsquery(...)`, but nothing
 indexed that document — so every search recomputed `to_tsvector` for **every row** (a sequential

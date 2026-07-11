@@ -58,6 +58,7 @@ from .routers import (
     research,
     review,
     schedule,
+    scim,
     standards,
     templates,
     turnover,
@@ -284,6 +285,7 @@ app.include_router(pricing.router, tags=["pricing"])
 app.include_router(closeout.router, tags=["closeout"])
 app.include_router(convert.router, tags=["convert"])
 app.include_router(auth.router, tags=["auth"])
+app.include_router(scim.router, tags=["scim"])
 app.include_router(connections.router, tags=["connections"])
 app.include_router(opendata.router, tags=["opendata"])
 app.include_router(realestate.router, tags=["realestate"])

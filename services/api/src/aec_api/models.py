@@ -113,6 +113,11 @@ class User(Base):
     mfa_secret: Mapped[str | None] = mapped_column(String, nullable=True)
     mfa_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     mfa_recovery: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # SCIM 2.0 provisioning: the IdP's stable opaque id for this user (RFC 7643 externalId), used to
+    # correlate on rename. `provisioned` marks accounts created/managed by the IdP (SSO-only, no
+    # usable password). Both nullable for the additive schema sync. See routers/scim.py.
+    external_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    provisioned: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
