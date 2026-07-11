@@ -9,6 +9,7 @@ viewer can scrub a timeline and color/hide by date."""
 from __future__ import annotations
 
 import csv
+import xml.etree.ElementTree as ET
 from collections.abc import Iterable
 from typing import Any
 
@@ -100,6 +101,46 @@ def parse_xer(text: str) -> list[dict[str, str]]:
                 "start": start[:10], "finish": finish[:10],
             })
     return rows
+
+
+def _local(tag: str) -> str:
+    """Local element name without its XML namespace (`{ns}Activity` → `Activity`)."""
+    return tag.rsplit("}", 1)[-1]
+
+
+def parse_pmxml(text: str) -> list[dict[str, str]]:
+    """Parse a Primavera P6 **XML (PMXML)** export into the same activity rows
+    {activity_id, name, start, finish} as `parse_xer`. Namespace-agnostic (the P6 namespace varies
+    by version, so we match on local tag names). Prefers planned dates, falls back to actual dates.
+    Returns [] for non-XML or XML without <Activity> elements."""
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
+        return []
+    rows: list[dict[str, str]] = []
+    for act in (e for e in root.iter() if _local(e.tag) == "Activity"):
+        vals: dict[str, str] = {}
+        for child in act:
+            name = _local(child.tag)
+            if name not in vals and child.text and child.text.strip():
+                vals[name] = child.text.strip()
+        start = vals.get("PlannedStartDate") or vals.get("StartDate") or vals.get("ActualStartDate") or ""
+        finish = vals.get("PlannedFinishDate") or vals.get("FinishDate") or vals.get("ActualFinishDate") or ""
+        rows.append({
+            "activity_id": vals.get("Id") or vals.get("ObjectId") or "",
+            "name": vals.get("Name") or "",
+            "start": start[:10], "finish": finish[:10],
+        })
+    return rows
+
+
+def parse_schedule(text: str) -> list[dict[str, str]]:
+    """Parse a Primavera P6 export in either format — **XER** (tab-delimited) or **PMXML** (XML) —
+    auto-detected from the content, into activity rows the schedule import consumes."""
+    stripped = text.lstrip()
+    if stripped.startswith("<"):
+        return parse_pmxml(text)
+    return parse_xer(text)
 
 
 def from_xer(model: ifcopenshell.file, xer_path: str) -> list[dict[str, Any]]:

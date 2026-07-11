@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.149 — Primavera P6 **XML (PMXML)** import (alongside the existing XER)
+The schedule importer now accepts both Primavera P6 export formats, auto-detected from the content.
+- **`schedule.parse_pmxml`** reads a P6 XML (PMXML) export into the same activity rows
+  (id / name / planned-or-actual start+finish) as the XER parser — namespace-agnostic (the P6
+  namespace varies by version, so it matches on local tag names). **`parse_schedule`** dispatches
+  XER vs PMXML by sniffing the first non-space character.
+- The existing **`POST /projects/{pid}/schedule/import-xer`** now upserts activities from either
+  format (same re-import idempotency, milestone tagging, and 4D date window); the web import button
+  and file picker accept **.xer / .xml**.
+- `test_research` extends to import a PMXML export end-to-end.
+
 ## v0.3.148 — Webhook hardening: HMAC signing + retry/backoff + delivery log
 Makes the outbound webhooks (module transitions → external automation) production-grade.
 - **HMAC signing** — when `AEC_WEBHOOK_SECRET` is set, every delivery carries

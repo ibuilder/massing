@@ -1786,10 +1786,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             }
           } catch (e) { out.textContent = `code check failed: ${(e as Error).message}`; }
         }));
-        // import a Primavera P6 .xer so the 4D scrub shows real calendar dates
+        // import a Primavera P6 export (.xer or .xml) so the 4D scrub shows real calendar dates
         const xerInput = document.createElement("input");
-        xerInput.type = "file"; xerInput.accept = ".xer"; xerInput.style.display = "none";
-        const xerBtn = toolBtn2("⬆ Import P6 schedule (.xer)", () => xerInput.click());
+        xerInput.type = "file"; xerInput.accept = ".xer,.xml"; xerInput.style.display = "none";
+        const xerBtn = toolBtn2("⬆ Import P6 schedule (.xer / .xml)", () => xerInput.click());
         xerBtn.dataset.cap = "edit";
         xerInput.addEventListener("change", async () => {
           const f = xerInput.files?.[0]; if (!f) return;

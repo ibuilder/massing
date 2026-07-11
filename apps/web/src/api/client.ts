@@ -2577,7 +2577,8 @@ export class ApiClient {
     if (!res.ok) throw new Error(`schedule ${kind}: ${res.status}`);
     return res.text();
   }
-  /** Import a Primavera P6 .xer so the 4D scrub reports real calendar dates. */
+  /** Import a Primavera P6 export (.xer or .xml/PMXML — auto-detected) so the 4D scrub reports
+   *  real calendar dates and the tasks become editable schedule_activity records. */
   async importXer(pid: string, file: File) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/schedule/import-xer`), { method: "POST", body: fd, headers: this.authHeaders() });

@@ -66,7 +66,8 @@ def compute_run(graph: dict):
 @router.post("/projects/{pid}/schedule/import-xer", status_code=201)
 async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
                      actor: str = Depends(require_role("editor"))):
-    """Import a Primavera P6 **.xer** export. Parses the TASK table and **upserts each task as an
+    """Import a Primavera P6 export — **.xer** (tab-delimited) or **.xml (PMXML)**, auto-detected from
+    the content. Parses the tasks/activities and **upserts each as an
     editable `schedule_activity` record** (matched to the prior import by P6 activity code), so the
     GC can keep updating, adding, and re-sequencing tasks after import — imported and hand-entered
     activities live in one editable schedule that drives Gantt / Line-of-Balance / CPM / the 4D
@@ -75,15 +76,15 @@ async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depen
     Returns counts (created/updated) + the date range + a small preview."""
     import json
 
-    from aec_data.schedule import parse_xer  # type: ignore  (data-service engine on sys.path)
+    from aec_data.schedule import parse_schedule  # type: ignore  (data-service engine on sys.path)
 
     from .. import modules as me
     from .. import storage
 
     text = (await file.read()).decode("utf-8", "ignore")
-    activities = parse_xer(text)
+    activities = parse_schedule(text)            # auto-detects XER (tab-delimited) or PMXML (XML)
     if not activities:
-        raise HTTPException(422, "no TASK rows found — is this a Primavera P6 .xer export?")
+        raise HTTPException(422, "no activities found — is this a Primavera P6 .xer or .xml export?")
     starts = [a["start"] for a in activities if a.get("start")]
     finishes = [a["finish"] for a in activities if a.get("finish")]
 

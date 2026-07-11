@@ -159,6 +159,22 @@ with TestClient(app) as c:
     c.delete(f"/projects/{pid}/modules/schedule_activity/{left[0]['id']}")
     assert c.get(f"/projects/{pid}/schedule/4d").json()["source"] == "takt"
 
+    # the SAME endpoint auto-detects Primavera P6 **XML (PMXML)** and creates the same activity records
+    _pmxml = ("<APIBusinessObjects><Project>"
+              "<Activity><Id>X1</Id><Name>Sitework</Name>"
+              "<PlannedStartDate>2026-03-01T08:00:00</PlannedStartDate>"
+              "<PlannedFinishDate>2026-03-10T17:00:00</PlannedFinishDate></Activity>"
+              "<Activity><Id>X2</Id><Name>Utilities</Name>"
+              "<PlannedStartDate>2026-03-11T08:00:00</PlannedStartDate>"
+              "<PlannedFinishDate>2026-03-20T17:00:00</PlannedFinishDate></Activity>"
+              "</Project></APIBusinessObjects>")
+    impx = c.post(f"/projects/{pid}/schedule/import-xer", files={"file": ("p.xml", _pmxml, "application/xml")})
+    assert impx.status_code == 201 and impx.json()["count"] == 2, impx.text
+    xacts = c.get(f"/projects/{pid}/modules/schedule_activity").json()
+    assert {a["data"]["name"] for a in xacts} == {"Sitework", "Utilities"}, xacts
+    c.delete(f"/projects/{pid}/schedule/import-xer")       # restore the clean slate for the block below
+    assert len(c.get(f"/projects/{pid}/modules/schedule_activity").json()) == 0
+
     # relational: once GC schedule_activity records exist, the 4D scrub is driven by them (source=gc),
     # the SAME activities behind the Gantt / Line-of-Balance / CPM views — one relational schedule.
     for a in [{"name": "Foundations", "trade": "Structure", "start": "2026-03-01", "finish": "2026-03-20"},
