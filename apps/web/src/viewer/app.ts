@@ -1513,6 +1513,31 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               v: money(l.total) }))));
           });
         }));
+        b.appendChild(toolBtn2("▤ DXF takeoff (2D CAD)", () => {
+          const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".dxf"; inp.style.display = "none";
+          inp.onchange = async () => {
+            const f = inp.files?.[0]; if (!f) return;
+            out.textContent = "reading DXF…";
+            let r;
+            try { r = await api.takeoffDxf(pid, f); }
+            catch (e) { out.textContent = `DXF takeoff failed: ${(e as Error).message}`; return; }
+            const num = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+            out.textContent = `${r.layer_count} layers · ${num(r.total_length_m)} m · ${num(r.total_area_m2)} m²`;
+            showResult("DXF takeoff (2D CAD, by layer)", (body) => {
+              body.appendChild(resultNote(`<b>${num(r!.total_length_m)} m</b> linear · <b>${num(r!.total_area_m2)} m²</b> area · `
+                + `${r!.entity_count} entities · units: ${r!.units}`, "ok"));
+              body.appendChild(kvTable(r!.layers.filter((l) => l.length_m || l.area_m2 || l.inserts).map((l) => ({
+                k: l.layer,
+                v: [l.length_m ? `${num(l.length_m)} m` : "", l.area_m2 ? `${num(l.area_m2)} m²` : "", l.inserts ? `${l.inserts}×` : ""].filter(Boolean).join(" · ") }))));
+              if (r!.blocks.length) {
+                const bh = document.createElement("div"); bh.className = "meta"; bh.style.marginTop = "8px"; bh.textContent = "Blocks (counts):";
+                body.appendChild(bh);
+                body.appendChild(kvTable(r!.blocks.map((bl) => ({ k: bl.block, v: `${bl.count}×` }))));
+              }
+            });
+          };
+          inp.click();
+        }));
         b.appendChild(toolBtn2("✨ Draft BOQ from description", async () => {
           const desc = await askText("Draft BOQ from description",
             { label: "Describe the project (scope, size, structure, finishes):", multiline: true, okLabel: "Draft" });

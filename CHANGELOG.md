@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.166 — Estimating: quantity takeoff from 2D CAD (DXF)
+Roadmap **Phase B #4.** Estimating no longer needs an IFC model — a new **▤ DXF takeoff** model tool
+takes an uploaded **.dxf** drawing and measures it **by layer**: linear metres (walls, pipe/conduit
+runs), enclosed area (rooms, slabs — closed polylines + circles), and **block counts** (doors, fixtures,
+devices), converting to metres from the drawing's own units. Built on **ezdxf** (MIT, pure-Python — no
+AGPL); DWG converts to DXF first (external, optional). The upload is parsed in a temp file and
+discarded, never written to the source tree; a non-DXF file returns a clean 400. New engine
+`dxf_takeoff.py`, endpoint `POST /projects/{pid}/takeoff/dxf`, and `test_dxf_takeoff`. Estimators who
+live in 2D CAD can now get measured quantities without a full BIM model.
+
 ## v0.3.165 — Estimating: labor demand by trade (estimate → staffing)
 Roadmap **Phase B #3.** The resource estimate now rolls its crew-hours **up by trade** — total hours
 and cost per trade (carpenter, ironworker, cement-mason…), sorted biggest-first — so the model answers

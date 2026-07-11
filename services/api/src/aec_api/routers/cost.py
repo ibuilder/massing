@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 from datetime import date
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Response
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import cost
@@ -489,6 +489,33 @@ def estimate_resource_based(pid: str, db: Session = Depends(get_db), _: str = De
     path = source_ifc_path(db, pid)
     rows = takeoff_file(path, force_geometry=True)
     return asm.estimate_resource_based(rows)
+
+
+@router.post("/projects/{pid}/takeoff/dxf")
+async def takeoff_dxf(pid: str, file: UploadFile = File(...),
+                      _: str = Depends(require_role("viewer"))):
+    """Quantity takeoff from an uploaded 2D CAD drawing (.dxf) — linear metres, enclosed area and
+    block counts per layer, so estimating isn't IFC-only. DWG must be converted to DXF first. The
+    upload is parsed in a temp file (never persisted to the source tree) and discarded. 400 on a file
+    that isn't readable DXF."""
+    import os
+    import tempfile
+
+    from .. import dxf_takeoff
+    data = await file.read()
+    fd, tmp = tempfile.mkstemp(suffix=".dxf")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        try:
+            return dxf_takeoff.takeoff(tmp)
+        except RuntimeError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
 
 
 @router.get("/classifications")

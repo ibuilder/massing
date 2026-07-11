@@ -48,7 +48,8 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_evm", "test_authoring_props", "test_wip", "test_traceability", "test_scale",
          "test_sheetgen", "test_issuance", "test_drawing_revision", "test_pdfops", "test_stamps",
          "test_markup", "test_route_authz", "test_ref_counter", "test_audit_coverage", "test_bsdd",
-         "test_openbim_registry", "test_waterfall", "test_sessions", "test_mfa", "test_stored_ids", "test_cobie", "test_fts_index", "test_scim", "test_saml", "test_responsibility", "test_assemblies"]
+         "test_openbim_registry", "test_waterfall", "test_sessions", "test_mfa", "test_stored_ids", "test_cobie", "test_fts_index", "test_scim", "test_saml", "test_responsibility", "test_assemblies",
+         "test_dxf_takeoff"]
 
 
 def _manifest_guard() -> list[str]:

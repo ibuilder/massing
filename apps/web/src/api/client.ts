@@ -2069,6 +2069,17 @@ export class ApiClient {
       lines: Line[]; unmapped: { ifc_class: string; count: number }[] }>(
       `/projects/${pid}/estimate/resource-based`);
   }
+  /** DXF (2D CAD) quantity takeoff — linear metres, enclosed area and block counts per layer. */
+  async takeoffDxf(pid: string, file: File) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/takeoff/dxf`), {
+      method: "POST", credentials: "include", headers: this.authHeaders(), body: fd });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `takeoff failed (${res.status})`);
+    return res.json() as Promise<{ units: string; unitless: boolean; layer_count: number; entity_count: number;
+      total_length_m: number; total_area_m2: number;
+      layers: { layer: string; entities: number; length_m: number; area_m2: number; inserts: number }[];
+      blocks: { block: string; count: number }[] }>;
+  }
   /** QTO + cost by floor (storey) and discipline (IFC class) — quantities mapped to where they are. */
   qtoByFloor(pid: string) {
     type Line = { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number };

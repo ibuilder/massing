@@ -24,6 +24,7 @@ pypdf>=4.0               # contract/spec text extraction for the review engine (
 defusedxml>=0.7          # XXE / billion-laughs hardening for untrusted CityGML parsing (citygml.py)
 pyarrow>=16.0            # columnar Parquet export of the model element set (model_query.to_parquet)
 signxml>=3.2             # SAML 2.0 assertion XML-DSig signature verification (saml.py)
+ezdxf>=1.1              # DXF quantity takeoff — 2D CAD estimating (dxf_takeoff.py); MIT, pure-Python
 
 # optional: shared rate-limit + login-lockout counters across workers — only imported when
 # AEC_REDIS_URL is set (the prod overlay sets it); harmless to omit for single-worker / dev.
