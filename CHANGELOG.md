@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.146 — fix: `test_stored_ids` must set `IFC_DIR` (the actual red-CI cause)
+`test_stored_ids` uploads a source IFC via `/source-ifc`, which writes to `IFC_DIR` (default
+`/app/ifc`, read-only on CI/in the container). Sibling upload tests set `IFC_DIR` to a writable path;
+this one didn't, so the upload — not the `/validate` temp write fixed in v0.3.145 — was what reddened
+CI. Test now sets `IFC_DIR=./test_ifc_stored_ids`. (The v0.3.145 tempdir fix remains a valid
+defense-in-depth for the `/validate` path.)
+
 ## v0.3.145 — fix: `/validate` wrote its temp IDS into the read-only container path
 The stored-IDS validation (v0.3.143) wrote the temporary `.ids` next to the source tree
 (`_DATA_SRC.parent`), which is writable locally but **read-only (`/app`) in the deployed container** —

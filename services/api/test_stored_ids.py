@@ -8,6 +8,7 @@ import tempfile
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_stored_ids.db"
 os.environ["STORAGE_DIR"] = "./test_storage_stored_ids"
+os.environ["IFC_DIR"] = "./test_ifc_stored_ids"        # writable path — the default is /app/ifc (RO in the container)
 os.environ.pop("AEC_RBAC", None)
 for _f in ("./test_stored_ids.db",):
     if os.path.exists(_f):
