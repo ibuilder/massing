@@ -14,6 +14,7 @@ for f in ("./test_sec.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api import auth  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
@@ -42,6 +43,20 @@ with TestClient(app) as c:
     spoof = c.get(f"/projects/{pid}/members", headers={"X-User": "alice"})
     assert spoof.status_code in (401, 403), f"X-User must not be trusted, got {spoof.status_code}"
     assert c.get(f"/projects/{pid}/members").status_code in (401, 403)   # bare request denied too
+
+    # FAIL-CLOSED: a malformed / tampered bearer token must be REJECTED, never fall open to access.
+    # (regression guard — verify_token & the RBAC gate must deny on any bad token, not error-into-allow)
+    assert c.get(f"/projects/{pid}/members", headers=BEARER("garbage.token")).status_code in (401, 403)
+    assert c.get(f"/projects/{pid}/members", headers=BEARER("not-even-dotted")).status_code in (401, 403)
+    tampered = tok[:-2] + ("aa" if not tok.endswith("aa") else "bb")     # flip the signature bytes
+    assert tampered != tok
+    assert c.get(f"/projects/{pid}/members", headers=BEARER(tampered)).status_code in (401, 403), \
+        "tampered token must be rejected"
+    # unit-level: verify_token yields None (deny) for garbage/tampered/empty — the fail-closed contract
+    assert auth.verify_token("garbage.token") is None
+    assert auth.verify_token(tampered) is None
+    assert auth.verify_token("") is None
+    assert auth.verify_token(tok) == "alice"                             # the genuine token still works
 
     # RBAC defense-in-depth gate: the (otherwise un-guarded) finance + properties surfaces are NOT
     # reachable anonymously when RBAC is on — previously these had no auth dependency at all.
@@ -100,6 +115,7 @@ with TestClient(app) as c:
     assert rdy.status_code == 200 and rdy.json()["db"] == "up", rdy.text[:160]
     assert c.get("/healthz").status_code == 200 and c.get("/readyz").status_code == 200
 
-print("SECURITY OK - X-User not trusted; hardening headers; RBAC gate blocks anonymous finance/"
-      "properties/exports/drawings (401); projects list scoped to members; oversized upload -> 413; "
-      "login brute-force lockout -> 429; default signing-secret detected")
+print("SECURITY OK - X-User not trusted; malformed/tampered bearer tokens fail CLOSED (verify_token->None, "
+      "gate 401); hardening headers; RBAC gate blocks anonymous finance/properties/exports/drawings (401); "
+      "projects list scoped to members; oversized upload -> 413; login brute-force lockout -> 429; "
+      "default signing-secret detected")

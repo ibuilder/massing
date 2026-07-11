@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.138 — Security: pin the auth path fail-closed (regression guard)
+Audited the whole auth/authz path for fail-open behavior and confirmed it is already **fail-closed** —
+`verify_token` / `verify_password` / `signing.verify_path` all return a deny value (None/False) on any
+malformed input or exception, never an allow, and the RBAC middleware denies anonymous callers under
+RBAC. To keep it that way, `test_security` now pins the contract: a garbage / undotted / **tampered**
+bearer token is rejected (401/403) by the gate and `verify_token` returns `None` for it, while the
+genuine token still resolves — so a future edit can't silently turn an auth error into access.
+
 ## v0.3.137 — openBIM: version-pluggable standards registry + BCF 3.0 + bSDD; money-math tests
 Makes the platform's open-standard support **pluggable to any version**, widens interoperability, and
 pins the most error-prone financial math.
