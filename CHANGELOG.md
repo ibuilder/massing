@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.160 — Data-grid UX: paste rows straight from Excel
+Roadmap **Track X #2.** Getting a batch of records in used to mean saving a spreadsheet and uploading
+it. Every module list now has a **⎘ Paste** button: copy a block of cells from Excel or Google Sheets,
+paste them in, and the pasted table flows into the **same import step you already know** — column
+mapping, preview, then commit. No file, no new code path: paste is converted to CSV and handed to the
+existing importer, so it inherits its validation and field-mapping. Keep the header row and map each
+column once. Rounds out in-grid data entry alongside inline edit (v0.3.158) and inline linking (v0.3.159).
+
 ## v0.3.159 — Relational fabric: link records inline from the grid
 Roadmap **Track R #2** (extends v0.3.158's inline edit). In **✎ Edit inline** mode, a reference cell
 now becomes a **record picker** — a dropdown of the linked module's records reading as *ref · title* —

@@ -1198,13 +1198,17 @@ export class PortalUI {
     const impFile = document.createElement("input"); impFile.type = "file"; impFile.accept = ".xlsx,.xlsm,.csv"; impFile.style.display = "none";
     impFile.onchange = () => { const f = impFile.files?.[0]; if (f) void this.renderImport(m, f); impFile.value = ""; };
     impBtn.onclick = () => impFile.click();
+    // paste-from-spreadsheet — Ctrl-V a block of Excel/Sheets cells to bulk-add without a file
+    const pasteBtn = document.createElement("button"); pasteBtn.className = "tool-btn"; pasteBtn.dataset.cap = "review";
+    pasteBtn.textContent = "⎘ Paste"; pasteBtn.title = "Paste rows copied from Excel or Google Sheets to bulk-add records";
+    pasteBtn.onclick = () => this.pasteRows(m);
     // inline-edit toggle — turn the data cells into autosaving inputs for fast multi-record entry
     const editBtn = document.createElement("button"); editBtn.className = "tool-btn"; editBtn.dataset.cap = "editor";
     editBtn.textContent = editing ? "✓ Editing (done)" : "✎ Edit inline";
     if (editing) editBtn.classList.add("on");
     editBtn.title = "Edit cells directly in the table — type across many records; changes save automatically";
     editBtn.onclick = () => { this.editInline[m.key] = !editing; this.openModule(m, filter); };
-    actions.append(newBtn, boardBtn, csvBtn, impBtn, impFile, editBtn, tplBtn, fbox, stateSel, viewSel, saveView);
+    actions.append(newBtn, boardBtn, csvBtn, impBtn, impFile, pasteBtn, editBtn, tplBtn, fbox, stateSel, viewSel, saveView);
     // the Schedule module is the relational home for the same activities behind Gantt / LOB / CPM /
     // the 3D 4D scrub — surface those views here so linear + gantt live with the GC schedule.
     if (m.key === "schedule_activity") {
@@ -1492,6 +1496,42 @@ export class PortalUI {
       };
     };
     return td;
+  }
+
+  /** Paste-from-spreadsheet bulk entry — Ctrl-V a block of cells copied from Excel/Google Sheets
+   *  (tab-separated) straight in, no file needed. The pasted table is converted to CSV and handed to
+   *  the same import flow (preview + column mapping + commit), so paste and file import share one
+   *  robust, validated server path rather than a second bespoke bulk-create loop. */
+  private pasteRows(m: ModuleDef) {
+    const dlg = modalShell(`Paste ${m.name} rows`, 460);
+    const help = document.createElement("div");
+    help.className = "meta";
+    help.textContent = "Copy a block of cells from Excel or Google Sheets and paste below — keep the header row. "
+      + "The next step lets you map each column to a field before anything is created.";
+    const ta = document.createElement("textarea");
+    ta.placeholder = "name\tstatus\tamount\nFooting F-1\topen\t1200\n…";
+    ta.setAttribute("aria-label", "Pasted spreadsheet rows");
+    ta.style.cssText = "width:100%;min-height:150px;margin:8px 0;padding:8px;border:1px solid var(--line);"
+      + "border-radius:6px;background:var(--bg);color:inherit;font-family:ui-monospace,monospace;font-size:12px;white-space:pre;overflow:auto";
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:4px";
+    const cancel = document.createElement("button"); cancel.textContent = "Cancel"; cancel.className = "file-btn";
+    cancel.onclick = () => dlg.close();
+    const ok = document.createElement("button"); ok.textContent = "Continue →"; ok.className = "file-btn"; ok.style.fontWeight = "600";
+    ok.onclick = () => {
+      const text = ta.value.replace(/\r\n?/g, "\n").replace(/\n+$/, "");
+      if (!text.trim()) { dlg.msg.textContent = "Nothing pasted yet."; return; }
+      // TSV → CSV: quote every cell (doubling internal quotes) so tabs/commas survive the round-trip.
+      const csv = text.split("\n")
+        .map((line) => line.split("\t").map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+      const file = new File([csv], "pasted.csv", { type: "text/csv" });
+      dlg.close();
+      void this.renderImport(m, file);
+    };
+    row.append(cancel, ok);
+    dlg.card.append(help, ta, dlg.msg, row);
+    setTimeout(() => ta.focus(), 0);
   }
 
   // --- generic Excel/CSV import: map columns -> fields, preview, import -------
