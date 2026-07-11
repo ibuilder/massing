@@ -5,10 +5,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
-from .. import audit
+from .. import audit, bcf_io
 from ..db import get_db
 from ..deps import source_ifc_path as _source_ifc
 from ..models import Project, ProjectModel, Topic
@@ -215,10 +215,16 @@ def mep(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_rol
 async def run_validate(
     pid: str,
     file: UploadFile | None = File(default=None),
+    format: str = Query("json", pattern="^(json|bcf)$"),
     db: Session = Depends(get_db),
     _sec: str = Depends(require_role("viewer")),
 ):
-    """Validate the source IFC against an uploaded .ids (or the built-in default QA specs)."""
+    """Validate the source IFC against an uploaded .ids (or the built-in default QA specs).
+
+    `format=json` (default) returns the per-specification pass/fail summary. `format=bcf` returns a
+    **.bcfzip punch list of the non-conformances** — one topic per failing specification, its failing
+    elements selected as components — so an IDS audit round-trips into Solibri / ACC / BIMcollab like
+    any other coordination issue."""
     from aec_data import validate  # type: ignore
 
     ifc = _source_ifc(db, pid)
@@ -231,7 +237,13 @@ async def run_validate(
         # validate_file opens the IFC + runs IDS specs (CPU-bound, seconds+). This endpoint is
         # async, so run it off the event loop or it blocks every other request on this worker.
         from starlette.concurrency import run_in_threadpool
-        return await run_in_threadpool(validate.validate_file, ifc, ids_path)
+        result = await run_in_threadpool(validate.validate_file, ifc, ids_path)
+        if format == "bcf":
+            records = validate.failures_to_bcf_records(result)
+            data = bcf_io.export_records_bcfzip(records, topic_type="Issue")
+            return Response(content=data, media_type="application/octet-stream", headers={
+                "Content-Disposition": 'attachment; filename="ids-audit.bcfzip"'})
+        return result
     finally:
         if ids_path:
             Path(ids_path).unlink(missing_ok=True)

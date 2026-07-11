@@ -3,7 +3,9 @@
 Validates an IFC against an buildingSMART IDS spec using ifctester. Accepts an uploaded
 .ids file, or builds a sensible default QA spec set when none is given. Returns a compact
 per-specification pass/fail summary plus the failing element GUIDs (so the viewer can
-highlight them) — and can emit a BCF of failures via reporter.Bcf."""
+highlight them). `failures_to_bcf_records()` turns that result into BCF-ready topics — one per
+failing specification, its failing elements selected as components — which the API exports as a
+.bcfzip punch list (see routers/analysis.py `/validate?format=bcf`)."""
 from __future__ import annotations
 
 from typing import Any
@@ -75,3 +77,34 @@ def validate(model: ifcopenshell.file, ids_path: str | None = None) -> dict[str,
 
 def validate_file(ifc_path: str, ids_path: str | None = None) -> dict[str, Any]:
     return validate(open_model(ifc_path), ids_path)
+
+
+def failures_to_bcf_records(result: dict[str, Any]) -> list[dict[str, Any]]:
+    """Turn a `validate()` result into BCF-ready 'record' dicts — one topic per FAILING specification,
+    tied to that spec's failing element GUIDs. Hand these to `bcf_io.export_records_bcfzip` so an IDS
+    audit round-trips to Solibri / ACC / BIMcollab as a punch list of non-conformances (the failing
+    elements are the topic's selected components, so a coordinator can jump straight to them). Returns
+    an empty list for a fully-passing model."""
+    import uuid
+
+    title = result.get("title", "IDS")
+    out: list[dict[str, Any]] = []
+    for spec in result.get("specifications", []):
+        if spec.get("status") != "fail":
+            continue
+        name = spec.get("name", "specification")
+        failed, applicable = int(spec.get("failed", 0)), int(spec.get("applicable", 0))
+        out.append({
+            "id": str(uuid.uuid4()),
+            "ref": "IDS",
+            "title": f"IDS non-conformance: {name}",
+            "workflow_state": "open",
+            "element_guids": list(spec.get("failed_guids") or []),
+            "data": {
+                "priority": "High",
+                "subject": f"IDS non-conformance: {name}",
+                "description": (f"{failed} of {applicable} applicable element(s) failed the requirement "
+                                f"“{name}”. IDS: {title}."),
+            },
+        })
+    return out

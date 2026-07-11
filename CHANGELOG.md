@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.136 — openBIM: IDS validation failures export as a BCF punch list
+Closes the model-QA loop. `POST /projects/{pid}/validate?format=bcf` now returns a **.bcfzip** of the
+IDS non-conformances — one topic per failing specification, with that spec's failing elements selected
+as the topic's components — so an IDS audit round-trips into Solibri / ACC / BIMcollab exactly like any
+coordination issue, and a coordinator can jump straight to the offending elements. `format=json`
+(default) is unchanged. Reuses the existing IDS validator (`aec_data.validate`) and BCF writer
+(`bcf_io.export_records_bcfzip`); the new pure `validate.failures_to_bcf_records()` does the mapping.
+`test_ids_authoring` covers the conversion + a real round-trip through `parse_records_bcfzip`.
+
 ## v0.3.135 — Accessibility: every native prompt/confirm replaced with keyboard-navigable modals
 Removes the last blocking `window.prompt()`/`window.confirm()` dialogs from the app — 42 call sites
 across the viewer, portal, drawings, connections, account, finance, and PDF-takeoff flows now use the

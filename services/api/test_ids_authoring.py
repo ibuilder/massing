@@ -10,11 +10,13 @@ for _f in ("./test_ids_authoring.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-import tempfile                                          # noqa: E402
-from fastapi.testclient import TestClient                # noqa: E402
-from ifctester import ids                                # noqa: E402
-from aec_api import ids_authoring as ia                  # noqa: E402
-from aec_api.main import app                             # noqa: E402
+import tempfile  # noqa: E402
+
+from fastapi.testclient import TestClient  # noqa: E402
+from ifctester import ids  # noqa: E402
+
+from aec_api import ids_authoring as ia  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- catalog ---
 cat = ia.templates()
@@ -51,6 +53,35 @@ with TestClient(app) as c:
     assert e.status_code == 200 and "Exchange Information Requirements" in e.text, e.text[:120]
     assert c.post("/ids/build", json={}).status_code == 422           # no use_case/specs -> 422
 
+# --- IDS validation failures -> BCF punch list (round-trips into Solibri / ACC / BIMcollab) ---
+from aec_api import bcf_io  # noqa: E402
+from aec_data import validate as _v  # noqa: E402
+
+_result = {
+    "title": "Fire & Life Safety QA",
+    "status": "fail",
+    "specifications": [
+        {"name": "Walls have FireRating", "status": "fail", "applicable": 10, "passed": 7, "failed": 3,
+         "failed_guids": ["1ABxxxxxxxxxxxxxxxxxx01", "2CDxxxxxxxxxxxxxxxxxx02", "3EFxxxxxxxxxxxxxxxxxx03"]},
+        {"name": "Doors have FireRating", "status": "pass", "applicable": 5, "passed": 5, "failed": 0,
+         "failed_guids": []},
+    ],
+}
+_recs = _v.failures_to_bcf_records(_result)
+assert len(_recs) == 1, _recs                        # only the FAILING spec becomes a topic
+assert _recs[0]["element_guids"] == _result["specifications"][0]["failed_guids"], _recs[0]
+assert "Walls have FireRating" in _recs[0]["title"] and _recs[0]["data"]["priority"] == "High", _recs[0]
+# a fully-passing model yields no topics (nothing to punch)
+assert _v.failures_to_bcf_records({"title": "x", "specifications": [
+    {"name": "ok", "status": "pass", "applicable": 3, "passed": 3, "failed": 0, "failed_guids": []}]}) == []
+# the failure records export to a REAL .bcfzip whose topics carry the failing elements as components
+_zip = bcf_io.export_records_bcfzip(_recs, topic_type="Issue")
+assert _zip[:2] == b"PK", "failures export as a real zip"
+_back = bcf_io.parse_records_bcfzip(_zip)
+assert len(_back) == 1, _back
+assert set(_result["specifications"][0]["failed_guids"]).issubset(set(_back[0].get("element_guids") or [])), _back[0]
+
 print("IDS AUTHORING OK - template/use-case catalog; build_ids emits valid buildingSMART IDS 1.0 that "
       "ifctester re-parses (5 specs, applicability+requirements); explicit specs + EIR markdown; "
-      "endpoints download .ids / EIR.md; empty body -> 422")
+      "endpoints download .ids / EIR.md; empty body -> 422; validation failures convert to a BCF "
+      "punch list (one topic per failing spec, failing elements as components) that round-trips.")
