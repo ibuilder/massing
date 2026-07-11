@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.147 — openBIM: IFC4.3 infrastructure discipline + full ISO 19650 suitability codes
+Closes the openBIM standards remainder.
+- **IFC4.3 infrastructure entities** (`IfcAlignment`, `IfcRoad`, `IfcRailway`, `IfcBridge`,
+  `IfcMarineFacility`, `IfcTunnel`, `IfcCourse`, `IfcPavement`, earthworks, …) now classify to the
+  **Civil (C)** discipline instead of being lost to the default — their MasterFormat divisions (34
+  Transportation / 35 Marine) sit outside the building divisions, so they're mapped directly.
+  `classification.is_infra_class()` exposes the set. (`IFC4X3` was already a supported read schema.)
+- **CDE suitability codes** — the information-container vocabulary now carries the higher ISO 19650
+  codes **S5 (manufacture/procurement), S6 (PIM authorization), S7 (AIM authorization)** alongside
+  the existing S0–S4 / A / B / CR / AB.
+- `test_disciplines` pins the infra→Civil mapping.
+
 ## v0.3.146 — fix: `test_stored_ids` must set `IFC_DIR` (the actual red-CI cause)
 `test_stored_ids` uploads a source IFC via `/source-ifc`, which writes to `IFC_DIR` (default
 `/app/ifc`, read-only on CI/in the container). Sibling upload tests set `IFC_DIR` to a writable path;

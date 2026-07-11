@@ -161,8 +161,27 @@ def discipline_of_division(div: str | None) -> str | None:
     return _DIV_TO_DISCIPLINE.get((div or "").strip().zfill(2)[:2]) if div else None
 
 
+# IFC4.3 (ISO 16739-1:2024) infrastructure entities. These live in MasterFormat divisions 34
+# (Transportation) / 35 (Waterway & Marine) that fall outside the Civil discipline's building
+# divisions, so map them straight to Civil (C) rather than losing them to the default.
+INFRA_IFC_CLASSES: frozenset[str] = frozenset({
+    "IfcAlignment", "IfcRoad", "IfcRoadPart", "IfcRailway", "IfcRailwayPart", "IfcRail",
+    "IfcBridge", "IfcBridgePart", "IfcMarineFacility", "IfcMarinePart", "IfcTunnel", "IfcTunnelPart",
+    "IfcCourse", "IfcPavement", "IfcKerb", "IfcEarthworksCut", "IfcEarthworksFill",
+    "IfcEarthworksElement", "IfcTrackElement", "IfcSign", "IfcSignal", "IfcBearing",
+})
+
+
+def is_infra_class(ifc_class: str | None) -> bool:
+    """True for an IFC4.3 infrastructure entity (alignment / road / rail / bridge / marine / …)."""
+    return (ifc_class or "").strip() in INFRA_IFC_CLASSES
+
+
 def discipline_of_ifc_class(ifc_class: str) -> str | None:
-    """The NCS discipline for an IFC class, derived through its MasterFormat section."""
+    """The NCS discipline for an IFC class. IFC4.3 infrastructure entities are Civil (C); everything
+    else is derived through its MasterFormat section."""
+    if is_infra_class(ifc_class):
+        return "C"
     code, _ = classify(ifc_class, "masterformat")
     return discipline_of_division(division_of(code))
 

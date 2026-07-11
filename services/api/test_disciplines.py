@@ -18,6 +18,10 @@ assert c.discipline_of_ifc_class("IfcColumn") == "S", c.discipline_of_ifc_class(
 assert c.discipline_of_ifc_class("IfcDuctSegment") == "M", c.discipline_of_ifc_class("IfcDuctSegment")  # 23 → Mech
 assert c.discipline_of_ifc_class("IfcPipeSegment") == "P", c.discipline_of_ifc_class("IfcPipeSegment")  # 22 → Plumb
 assert c.discipline_of_ifc_class("IfcDoor") == "A", c.discipline_of_ifc_class("IfcDoor")        # 08 → Architectural
+# IFC4.3 infrastructure entities classify to Civil (C), not lost to the default
+assert c.is_infra_class("IfcAlignment") and c.is_infra_class("IfcRoad") and not c.is_infra_class("IfcWall")
+for infra in ("IfcAlignment", "IfcRoad", "IfcRailway", "IfcBridge", "IfcMarineFacility"):
+    assert c.discipline_of_ifc_class(infra) == "C", (infra, c.discipline_of_ifc_class(infra))
 
 # --- division / discipline helpers ---
 assert c.division_of("03 30 00") == "03", c.division_of("03 30 00")
