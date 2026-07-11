@@ -1047,9 +1047,31 @@ export class ApiClient {
       total?: number; source: string; ai_enabled: boolean; message?: string }>(
       `/projects/${pid}/ai/estimate`, { method: "POST", body: JSON.stringify({ description }) });
   }
+  /** Password login. If the account has MFA on, the reply is `{ mfa_required, mfa_token }` instead
+   *  of a token — complete it with `mfaVerify(mfa_token, code)`. */
   login(username: string, password: string) {
-    return this.json<{ token: string; username: string; role: string }>(
+    return this.json<{ token?: string; username: string; role?: string;
+      mfa_required?: boolean; mfa_token?: string }>(
       "/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
+  }
+  /** Login step 2: exchange the challenge ticket + a TOTP or recovery code for a session. */
+  mfaVerify(mfaToken: string, code: string) {
+    return this.json<{ token: string; username: string; role: string }>(
+      "/auth/mfa/verify", { method: "POST", body: JSON.stringify({ mfa_token: mfaToken, code }) });
+  }
+  mfaStatus() {
+    return this.json<{ enabled: boolean; pending: boolean; recovery_remaining: number }>("/auth/mfa/status");
+  }
+  mfaSetup() {
+    return this.json<{ secret: string; otpauth_uri: string }>("/auth/mfa/setup", { method: "POST" });
+  }
+  mfaEnable(code: string) {
+    return this.json<{ enabled: boolean; recovery_codes: string[] }>(
+      "/auth/mfa/enable", { method: "POST", body: JSON.stringify({ code }) });
+  }
+  mfaDisable(password: string, code: string) {
+    return this.json<{ enabled: boolean }>(
+      "/auth/mfa/disable", { method: "POST", body: JSON.stringify({ password, code }) });
   }
   register(username: string, password: string) {
     return this.json<{ username: string; role: string }>(

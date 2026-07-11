@@ -57,8 +57,11 @@ function loginModal() {
   const go = document.createElement("button"); go.className = "file-btn"; go.textContent = "Sign in";
   const submit = async () => {
     if (!u.value.trim() || !p.value) { msg.textContent = "enter a username and password"; return; }
-    try { const r = await D.api.login(u.value.trim(), p.value); D.api.setToken(r.token); close(); location.reload(); }
-    catch { msg.textContent = "invalid username or password"; }
+    try {
+      const r = await D.api.login(u.value.trim(), p.value);
+      if (r.mfa_required && r.mfa_token) { close(); mfaChallengeModal(r.mfa_token); return; }
+      if (r.token) { D.api.setToken(r.token); close(); location.reload(); }
+    } catch { msg.textContent = "invalid username or password"; }
   };
   go.onclick = () => void submit();
   p.onkeydown = (e) => { if (e.key === "Enter") void submit(); };
@@ -89,6 +92,90 @@ function loginModal() {
     div.style.cssText = "text-align:center;margin:4px 0";
     card.insertBefore(div, u); card.insertBefore(wrap, div);
   }).catch(() => {});
+}
+
+/** Login step 2 — the account has MFA on: enter a 6-digit authenticator code (or a recovery code). */
+function mfaChallengeModal(mfaToken: string) {
+  const { card, msg, close } = modalShell("Two-factor authentication");
+  msg.style.color = "var(--err)";
+  const hint = document.createElement("div"); hint.className = "meta";
+  hint.textContent = "Enter the 6-digit code from your authenticator app (or a recovery code).";
+  const code = document.createElement("input"); code.placeholder = "123456"; code.className = "portal-filter";
+  code.autocomplete = "one-time-code"; code.inputMode = "numeric";
+  const row = document.createElement("div"); row.style.cssText = "display:flex;gap:8px;justify-content:flex-end";
+  const cancel = document.createElement("button"); cancel.className = "tool-btn"; cancel.textContent = "Cancel"; cancel.onclick = close;
+  const go = document.createElement("button"); go.className = "file-btn"; go.textContent = "Verify";
+  const submit = async () => {
+    if (!code.value.trim()) { msg.textContent = "enter your authentication code"; return; }
+    try { const r = await D.api.mfaVerify(mfaToken, code.value.trim()); D.api.setToken(r.token); close(); location.reload(); }
+    catch { msg.textContent = "invalid or expired code — try again"; }
+  };
+  go.onclick = () => void submit();
+  code.onkeydown = (e) => { if (e.key === "Enter") void submit(); };
+  row.append(cancel, go); card.append(hint, code, msg, row); code.focus();
+}
+
+/** Manage two-factor auth for the signed-in user: enroll (QR + code), view recovery status, disable. */
+async function mfaModal() {
+  const { card, msg, close } = modalShell("Two-factor authentication");
+  msg.style.color = "var(--err)";
+  const body = document.createElement("div"); body.style.cssText = "display:flex;flex-direction:column;gap:8px";
+  card.append(body);
+  const render = async () => {
+    body.textContent = "Loading…";
+    const st = await D.api.mfaStatus().catch(() => null);
+    body.textContent = "";
+    if (!st) { body.textContent = "Could not load MFA status."; return; }
+    if (st.enabled) {
+      const on = document.createElement("div"); on.className = "meta";
+      on.innerHTML = `✅ <b>Enabled</b> · ${st.recovery_remaining} recovery code(s) remaining`;
+      const off = document.createElement("button"); off.className = "tool-btn"; off.textContent = "Disable MFA…";
+      off.onclick = async () => {
+        const pw = await askText("Disable MFA", { label: "Confirm your password:", password: true });
+        if (pw == null) return;
+        const cd = await askText("Disable MFA", { label: "Enter a current authenticator or recovery code:" });
+        if (cd == null) return;
+        try { await D.api.mfaDisable(pw, cd); toast("Two-factor auth disabled", "info"); await render(); }
+        catch { msg.textContent = "password + a valid code are required to disable MFA"; }
+      };
+      body.append(on, off);
+      return;
+    }
+    // not enabled → enrollment flow
+    const start = document.createElement("button"); start.className = "file-btn"; start.textContent = "Set up authenticator app";
+    start.onclick = async () => {
+      const s = await D.api.mfaSetup().catch(() => null);
+      if (!s) { msg.textContent = "could not start MFA setup"; return; }
+      body.textContent = "";
+      const steps = document.createElement("div"); steps.className = "meta";
+      steps.innerHTML = "1. Add this key to your authenticator app (Google Authenticator, 1Password, Authy…):";
+      const key = document.createElement("code"); key.textContent = s.secret;
+      key.style.cssText = "display:block;padding:6px 8px;background:var(--panel-2,#f4f4f4);border-radius:6px;word-break:break-all;user-select:all";
+      const uri = document.createElement("div"); uri.className = "meta";
+      uri.innerHTML = `<a href="${escapeHtml(s.otpauth_uri)}">Open in an authenticator</a> · then enter the 6-digit code it shows:`;
+      const cin = document.createElement("input"); cin.placeholder = "123456"; cin.className = "portal-filter"; cin.inputMode = "numeric";
+      const confirm = document.createElement("button"); confirm.className = "file-btn"; confirm.textContent = "Confirm & enable";
+      confirm.onclick = async () => {
+        try {
+          const r = await D.api.mfaEnable(cin.value.trim());
+          body.textContent = "";
+          const done = document.createElement("div"); done.className = "meta";
+          done.innerHTML = "✅ <b>MFA enabled.</b> Save these one-time recovery codes somewhere safe — "
+            + "each works once if you lose your device:";
+          const codes = document.createElement("textarea"); codes.readOnly = true; codes.rows = 5;
+          codes.style.cssText = "width:100%;font-family:monospace;user-select:all";
+          codes.value = r.recovery_codes.join("\n");
+          const ok = document.createElement("button"); ok.className = "file-btn"; ok.textContent = "Done"; ok.onclick = close;
+          body.append(done, codes, ok);
+        } catch { msg.textContent = "that code did not match — check the app and try again"; }
+      };
+      body.append(steps, key, uri, cin, confirm); cin.focus();
+    };
+    const note = document.createElement("div"); note.className = "meta";
+    note.textContent = "Add a second factor: after your password, you'll enter a time-based code at sign-in.";
+    body.append(note, start);
+  };
+  await render();
 }
 
 /** Set a new password using an admin-issued one-time reset token (no email infra). */
@@ -136,6 +223,7 @@ function accountMenu(anchor: HTMLElement, platformAdmin = false, tier = "free") 
   if (D.getIsProjectAdmin() && pid) menu.append(item("Project members…", () => membersModal(pid)));
   menu.append(item("Settings…", D.openSettings));
   menu.append(item("Change password…", passwordModal));
+  menu.append(item("Two-factor auth…", () => void mfaModal()));
   menu.append(item("Sign out everywhere…", async () => {
     if (!await confirmModal("Sign out everywhere",
         "Sign out of every other device and session? This tab stays signed in.", "Revoke sessions")) return;

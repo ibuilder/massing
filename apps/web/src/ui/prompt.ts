@@ -7,6 +7,7 @@ import { modalShell } from "./modal";
 
 export function askText(title: string, opts: {
   label?: string; value?: string; placeholder?: string; multiline?: boolean; okLabel?: string;
+  password?: boolean;
 } = {}): Promise<string | null> {
   return new Promise((resolve) => {
     const { card, ov } = modalShell(title, 380);
@@ -15,6 +16,7 @@ export function askText(title: string, opts: {
     if (opts.label) card.append(Object.assign(document.createElement("div"), { className: "meta", textContent: opts.label }));
     const field = document.createElement(opts.multiline ? "textarea" : "input") as HTMLInputElement & HTMLTextAreaElement;
     field.className = "portal-filter"; field.value = opts.value ?? "";
+    if (opts.password && !opts.multiline) field.type = "password";
     if (opts.placeholder) field.placeholder = opts.placeholder;
     field.style.width = "100%";
     if (opts.multiline) { field.rows = 5; field.style.resize = "vertical"; }

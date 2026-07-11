@@ -12,7 +12,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import audit, auth, oauth, rbac, settings_store
+from .. import audit, auth, oauth, rbac, settings_store, totp
 from ..db import get_db
 from ..models import AuditLog, User
 from ..rbac import current_user
@@ -160,17 +160,117 @@ def login(request: Request, response: Response, username: str = Body(..., embed=
     if u.active is False:
         raise HTTPException(403, "account is deactivated")
     _login_clear(username)                      # successful auth clears the counter (Redis + in-proc)
-    token = auth.create_token(username)
-    # httpOnly cookie so SSE + direct-download links (which can't set a header) authenticate
-    # same-origin (via the /api proxy in prod). Fetches use the token in the body for the header.
+    if u.mfa_enabled:
+        # password OK but MFA is on: don't mint a session yet — hand back a short-lived challenge
+        # ticket; the client completes at /auth/mfa/verify with a TOTP or recovery code.
+        return {"mfa_required": True, "mfa_token": auth.create_mfa_token(username), "username": username}
+    return _issue_session(response, request, u)
+
+
+def _issue_session(response: Response, request: Request, u: User) -> dict:
+    """Mint a bearer token, set the httpOnly cookie (so SSE + direct-download links authenticate
+    same-origin), and return the login payload. Shared by password login + MFA verify."""
+    token = auth.create_token(u.username)
     _cookie(response, token, request)
-    return {"token": token, "username": username, "role": u.role}
+    return {"token": token, "username": u.username, "role": u.role}
 
 
 @router.post("/auth/logout")
 def logout(response: Response):
     response.delete_cookie("aec_token", path="/")
     return {"ok": True}
+
+
+# --- MFA (TOTP) ---------------------------------------------------------------
+@router.post("/auth/mfa/verify")
+def mfa_verify(request: Request, response: Response, mfa_token: str = Body(..., embed=True),
+               code: str = Body(..., embed=True), db: Session = Depends(get_db)):
+    """Login step 2: exchange the challenge ticket + a TOTP (or one-time recovery) code for a
+    session. A used recovery code is burned."""
+    sub = auth.verify_mfa_token(mfa_token)
+    u = db.get(User, sub) if sub else None
+    if not u or not u.mfa_enabled or not u.mfa_secret:
+        raise HTTPException(401, "invalid or expired MFA challenge")
+    if u.active is False:
+        raise HTTPException(403, "account is deactivated")
+    if totp.verify(u.mfa_secret, code):
+        return _issue_session(response, request, u)
+    # fall back to a one-time recovery code
+    remaining = list(u.mfa_recovery or [])
+    for h in remaining:
+        if totp.check_recovery(code, h):
+            remaining.remove(h)
+            u.mfa_recovery = remaining
+            audit.record(db, action="auth.mfa_recovery_used", actor=u.username, method="POST",
+                         path="/auth/mfa/verify", detail={"remaining": len(remaining)})
+            db.commit()
+            return _issue_session(response, request, u)
+    raise HTTPException(401, "invalid authentication code")
+
+
+@router.get("/auth/mfa/status")
+def mfa_status(db: Session = Depends(get_db), user: str = Depends(current_user)):
+    u = db.get(User, user)
+    return {"enabled": bool(u and u.mfa_enabled),
+            "pending": bool(u and u.mfa_secret and not u.mfa_enabled),
+            "recovery_remaining": len(u.mfa_recovery or []) if u else 0}
+
+
+@router.post("/auth/mfa/setup")
+def mfa_setup(db: Session = Depends(get_db), user: str = Depends(current_user)):
+    """Begin enrollment: generate (and store, pending) a fresh secret; return it + an otpauth URI
+    to show as a QR/manual key. Not active until confirmed at /auth/mfa/enable with a valid code."""
+    u = db.get(User, user)
+    if not u:
+        raise HTTPException(401, "not authenticated")
+    if u.mfa_enabled:
+        raise HTTPException(409, "MFA is already enabled — disable it first to re-enroll")
+    u.mfa_secret = totp.random_secret()
+    db.commit()
+    return {"secret": u.mfa_secret, "otpauth_uri": totp.provisioning_uri(u.mfa_secret, u.username)}
+
+
+@router.post("/auth/mfa/enable")
+def mfa_enable(code: str = Body(..., embed=True), db: Session = Depends(get_db),
+               user: str = Depends(current_user)):
+    """Confirm enrollment with a code from the authenticator; on success turn MFA on and return
+    one-time recovery codes (shown once — the server stores only their hashes)."""
+    u = db.get(User, user)
+    if not u or not u.mfa_secret:
+        raise HTTPException(400, "start enrollment at /auth/mfa/setup first")
+    if u.mfa_enabled:
+        raise HTTPException(409, "MFA is already enabled")
+    if not totp.verify(u.mfa_secret, code):
+        raise HTTPException(401, "code did not match — check the authenticator and try again")
+    codes = totp.make_recovery_codes()
+    u.mfa_enabled = True
+    u.mfa_recovery = [totp.hash_recovery(c) for c in codes]
+    audit.record(db, action="auth.mfa_enable", actor=user, method="POST", path="/auth/mfa/enable")
+    db.commit()
+    return {"enabled": True, "recovery_codes": codes}
+
+
+@router.post("/auth/mfa/disable")
+def mfa_disable(password: str = Body(..., embed=True), code: str = Body("", embed=True),
+                db: Session = Depends(get_db), user: str = Depends(current_user)):
+    """Turn MFA off. Requires the account password AND a current TOTP/recovery code, so a merely
+    hijacked session can't strip the second factor."""
+    u = db.get(User, user)
+    if not u:
+        raise HTTPException(401, "not authenticated")
+    if not auth.verify_password(password, u.password_hash):
+        raise HTTPException(403, "password is incorrect")
+    if u.mfa_enabled:
+        ok = totp.verify(u.mfa_secret or "", code) or \
+            any(totp.check_recovery(code, h) for h in (u.mfa_recovery or []))
+        if not ok:
+            raise HTTPException(401, "a valid authentication code is required to disable MFA")
+    u.mfa_enabled = None
+    u.mfa_secret = None
+    u.mfa_recovery = None
+    audit.record(db, action="auth.mfa_disable", actor=user, method="POST", path="/auth/mfa/disable")
+    db.commit()
+    return {"enabled": False}
 
 
 # --- OAuth / SSO (Google, Microsoft, Procore) ---------------------------------

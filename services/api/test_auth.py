@@ -92,7 +92,9 @@ with TestClient(app) as c:
     assert c.post("/auth/reset", json={"token": tok, "new": "short"}).status_code == 400
     # consume the token → new password works
     assert c.post("/auth/reset", json={"token": tok, "new": "brandnewpass"}).status_code == 200
-    assert c.post("/auth/login", json={"username": "bob", "password": "brandnewpass"}).status_code == 200
+    _bob = c.post("/auth/login", json={"username": "bob", "password": "brandnewpass"})
+    assert _bob.status_code == 200
+    bob_tok = _bob.json()["token"]   # refresh: every password change/reset revokes bob's prior sessions
     c.cookies.clear()
     # single-use: the same token no longer validates (password hash changed)
     assert c.post("/auth/reset", json={"token": tok, "new": "anotherpass1"}).status_code == 403

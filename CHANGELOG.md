@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.141 — Enterprise auth: TOTP two-factor authentication
+Optional time-based one-time-password MFA, stdlib-only (no new dependencies) — a second factor at
+sign-in for accounts that opt in.
+- **`totp.py`** implements HOTP/TOTP (RFC 4226 / 6238) with HMAC-SHA1, a ±1-step skew window, an
+  `otpauth://` provisioning URI for any authenticator app, and salted one-time recovery codes. The
+  crypto is pinned to the published RFC test vectors.
+- **Enrollment**: `POST /auth/mfa/setup` issues a secret + QR/manual key; `POST /auth/mfa/enable`
+  confirms with a live code and returns 10 one-time **recovery codes** (shown once; only hashes are
+  stored). `GET /auth/mfa/status`; `POST /auth/mfa/disable` requires password **and** a live code.
+- **Login becomes two-step** when MFA is on: password → a short-lived challenge ticket, then
+  `POST /auth/mfa/verify` with a TOTP *or* a (single-use) recovery code → session. Accounts without
+  MFA are unchanged.
+- **Web**: account-menu "Two-factor auth…" (enroll with key + code, view recovery status, disable)
+  and a sign-in challenge step; `askText` gains a masked-`password` option.
+- Additive schema sync adds `mfa_secret/mfa_enabled/mfa_recovery`. `test_mfa` pins RFC vectors + the
+  full enroll → challenge → recovery → disable flow. Enable/disable/recovery-use are audit-logged.
+  (SAML 2.0 SP + SCIM 2.0 remain — they need a live test IdP.)
+
 ## v0.3.140 — Enterprise auth: session revocation ("sign out everywhere")
 Bearer tokens can now be revoked before they expire — closing a real gap where a leaked token
 stayed valid for its full 7-day life even after the password was changed.

@@ -107,6 +107,12 @@ class User(Base):
     # on password change / admin reset / "sign out everywhere". Nullable for the additive schema
     # sync; NULL = no revocation baseline (all unexpired tokens valid). See auth.create_token + rbac.
     token_epoch: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # TOTP multi-factor auth (all nullable for the additive schema sync; NULL = MFA off). `mfa_secret`
+    # is the base32 shared secret (kept even while pending-enable); `mfa_enabled` gates the login
+    # challenge; `mfa_recovery` is a JSON list of salted one-time backup-code hashes. See totp.py.
+    mfa_secret: Mapped[str | None] = mapped_column(String, nullable=True)
+    mfa_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    mfa_recovery: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

@@ -104,6 +104,32 @@ def create_reset_token(sub: str, pw_hash: str, ttl: int = _RESET_TTL) -> str:
     return f"{payload}.{sig}"
 
 
+_MFA_TTL = 300   # the MFA login-challenge ticket is short-lived (5 min)
+
+
+def create_mfa_token(sub: str, ttl: int = _MFA_TTL) -> str:
+    """A short-lived 'you passed the password, now prove the second factor' ticket. It is NOT a
+    bearer token (purpose='mfa' → rejected by verify_token) — only /auth/mfa/verify accepts it."""
+    payload = _b64(json.dumps({"sub": sub, "exp": int(time.time()) + ttl, "purpose": "mfa"}).encode())
+    sig = _b64(hmac.new(_SECRET, payload.encode(), hashlib.sha256).digest())
+    return f"{payload}.{sig}"
+
+
+def verify_mfa_token(token: str) -> str | None:
+    """Return the subject if `token` is a valid, unexpired MFA-challenge ticket, else None."""
+    try:
+        payload_b64, sig_b64 = token.split(".")
+        expected = _b64(hmac.new(_SECRET, payload_b64.encode(), hashlib.sha256).digest())
+        if not hmac.compare_digest(sig_b64, expected):
+            return None
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64 + "=="))
+        if payload.get("purpose") != "mfa" or payload.get("exp", 0) < time.time():
+            return None
+        return payload.get("sub")
+    except Exception:
+        return None
+
+
 _STATE_TTL = 600   # OAuth CSRF state is short-lived (10 min)
 
 
