@@ -271,6 +271,38 @@ export async function renderIds(ctx: PanelContext) {
       dlEir.onclick = () => void ctx.host.api.idsDownload("eir", { use_case: pick.value }, `EIR-${pick.value}.md`)
         .then(() => toast("EIR downloaded", "success")).catch((e) => toast((e as Error).message, "error"));
       body.append(pick, detail, dlIds, dlEir);
+
+      // pin the selected IDS to the project → /validate runs against it with no re-upload
+      const pid = ctx.host.projectId();
+      if (pid) {
+      const pinRow = el("div"); pinRow.style.cssText = "margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap";
+      const pinStatus = el("span", "meta");
+      const pinBtn = el("button", "file-btn") as HTMLButtonElement; pinBtn.textContent = "📌 Pin as project IDS";
+      const unpinBtn = el("button", "tool-btn") as HTMLButtonElement; unpinBtn.textContent = "Unpin";
+      const refreshPin = async () => {
+        try {
+          const s = await ctx.host.api.projectIdsStatus(pid);
+          pinStatus.textContent = s.exists
+            ? `✅ Project IDS pinned (${s.bytes} bytes) — validation runs against it automatically.`
+            : "No project IDS pinned — validation uses the built-in QA specs unless one is uploaded.";
+          unpinBtn.style.display = s.exists ? "" : "none";
+        } catch { pinStatus.textContent = ""; }
+      };
+      pinBtn.onclick = async () => {
+        try {
+          const blob = await ctx.host.api.idsBuildBlob(pick.value);
+          await ctx.host.api.pinProjectIds(pid, blob, `${pick.value}.ids`);
+          toast("IDS pinned to project", "success"); await refreshPin();
+        } catch (e) { toast((e as Error).message, "error"); }
+      };
+      unpinBtn.onclick = async () => {
+        try { await ctx.host.api.unpinProjectIds(pid); toast("Project IDS unpinned", "info"); await refreshPin(); }
+        catch (e) { toast((e as Error).message, "error"); }
+      };
+      pinRow.append(pinBtn, unpinBtn, pinStatus);
+      body.append(pinRow);
+      void refreshPin();
+      }
       showDetail();
     } catch (e) { body.textContent = `failed: ${(e as Error).message}`; }
   }

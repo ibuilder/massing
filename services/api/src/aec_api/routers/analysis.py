@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
-from .. import audit, bcf_io
+from .. import audit, bcf_io, storage
 from ..db import get_db
 from ..deps import source_ifc_path as _source_ifc
 from ..models import Project, ProjectModel, Topic
@@ -211,15 +211,65 @@ def mep(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_rol
     return en.mep_inventory(open_model(_source_ifc(db, pid)))
 
 
+def _ids_key(pid: str) -> str:
+    """Object-storage key for a project's pinned IDS (the information-delivery specification the
+    model must satisfy) — so an EIR/BEP-mandated IDS lives with the project and validation can run
+    against it without re-uploading every time."""
+    return f"{pid}/ids/project.ids"
+
+
+@router.put("/projects/{pid}/ids")
+async def put_project_ids(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
+                          actor: str = Depends(require_role("editor"))):
+    """Pin the project's IDS. Subsequent `/validate` calls (with no uploaded file) run against it."""
+    data = await file.read()
+    if not data.strip():
+        raise HTTPException(400, "empty IDS file")
+    storage.put(_ids_key(pid), data)
+    audit.record(db, action="ids.store", actor=actor, method="PUT", path=f"/projects/{pid}/ids",
+                 detail={"bytes": len(data), "filename": file.filename})
+    db.commit()
+    return {"stored": True, "bytes": len(data)}
+
+
+@router.get("/projects/{pid}/ids")
+def get_project_ids(pid: str, download: bool = Query(False), _sec: str = Depends(require_role("viewer"))):
+    """Whether a project IDS is pinned (+ its size); `?download=1` streams the .ids back."""
+    key = _ids_key(pid)
+    if not storage.exists(key):
+        if download:
+            raise HTTPException(404, "no IDS pinned for this project")
+        return {"exists": False, "bytes": 0}
+    if download:
+        return Response(content=storage.get(key), media_type="application/xml", headers={
+            "Content-Disposition": 'attachment; filename="project.ids"'})
+    return {"exists": True, "bytes": storage.size(key)}
+
+
+@router.delete("/projects/{pid}/ids")
+def delete_project_ids(pid: str, db: Session = Depends(get_db),
+                       actor: str = Depends(require_role("editor"))):
+    key = _ids_key(pid)
+    existed = storage.exists(key)
+    if existed:
+        storage.delete(key)
+        audit.record(db, action="ids.delete", actor=actor, method="DELETE", path=f"/projects/{pid}/ids")
+        db.commit()
+    return {"deleted": existed}
+
+
 @router.post("/projects/{pid}/validate")
 async def run_validate(
     pid: str,
     file: UploadFile | None = File(default=None),
     format: str = Query("json", pattern="^(json|bcf)$"),
+    ids: str = Query("auto", pattern="^(auto|stored|default)$"),
     db: Session = Depends(get_db),
     _sec: str = Depends(require_role("viewer")),
 ):
-    """Validate the source IFC against an uploaded .ids (or the built-in default QA specs).
+    """Validate the source IFC against an IDS. Precedence: an **uploaded** `.ids` wins; otherwise
+    `ids=auto` (default) uses the project's **pinned** IDS when one exists, else the built-in QA
+    specs. `ids=stored` forces the pinned IDS (404 if none); `ids=default` forces the built-in specs.
 
     `format=json` (default) returns the per-specification pass/fail summary. `format=bcf` returns a
     **.bcfzip punch list of the non-conformances** — one topic per failing specification, its failing
@@ -229,9 +279,16 @@ async def run_validate(
 
     ifc = _source_ifc(db, pid)
     ids_path = None
+    ids_bytes: bytes | None = None
     if file is not None:
-        tmp = Path(_DATA_SRC).parent / "_tmp.ids"
-        tmp.write_bytes(await file.read())
+        ids_bytes = await file.read()                       # an explicit upload always wins
+    elif ids in ("auto", "stored") and storage.exists(_ids_key(pid)):
+        ids_bytes = storage.get(_ids_key(pid))              # fall back to the project's pinned IDS
+    elif ids == "stored":
+        raise HTTPException(404, "no IDS pinned for this project (PUT /projects/{pid}/ids first)")
+    if ids_bytes is not None:                               # None → engine uses the built-in defaults
+        tmp = Path(_DATA_SRC).parent / f"_tmp_{pid}.ids"
+        tmp.write_bytes(ids_bytes)
         ids_path = str(tmp)
     try:
         # validate_file opens the IFC + runs IDS specs (CPU-bound, seconds+). This endpoint is

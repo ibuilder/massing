@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.143 — openBIM: pin a project IDS + validate against it
+A project can now **pin the information-delivery specification (IDS)** its model must satisfy — the
+EIR/BEP-mandated one — so validation runs against it every time without re-uploading.
+- **`PUT/GET/DELETE /projects/{pid}/ids`** store, inspect (`?download=1` streams it), and clear the
+  pinned IDS (object storage; editor to change, viewer to read). Store/clear are audit-logged.
+- **`/validate` precedence**: an uploaded `.ids` still wins; otherwise `ids=auto` (default) uses the
+  pinned IDS when present, else the built-in QA specs. `ids=stored` forces the pinned one (404 if
+  none); `ids=default` forces the built-ins. Both JSON summary and the BCF punch list honor it.
+- **Web**: the IDS Requirements panel gains a **"📌 Pin as project IDS"** action (builds the selected
+  use-case IDS and pins it) with live status + unpin; `client` gets `pinProjectIds`/`projectIdsStatus`/
+  `unpinProjectIds`/`idsBuildBlob`.
+- Fixed a latent shared-temp-file collision in `/validate` (per-project temp name now).
+  `test_stored_ids` pins the full lifecycle + precedence end-to-end (real IFC + real IDS engine run).
+
 ## v0.3.142 — openBIM: real bSDD linked-data alignment
 Turns the bSDD story from "is it classified?" into "is it *linked* to a buildingSMART Data
 Dictionary?" — genuine linked-data alignment, building on the v0.3.137 bSDD client + registry.

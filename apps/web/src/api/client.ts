@@ -2048,6 +2048,30 @@ export class ApiClient {
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
 
+  /** Build a use-case IDS and return its bytes (for pinning), rather than triggering a download. */
+  async idsBuildBlob(useCase: string): Promise<Blob> {
+    const res = await fetch(this.url(`/ids/build`), {
+      method: "POST", body: JSON.stringify({ use_case: useCase }),
+      headers: { "Content-Type": "application/json", ...this.authHeaders() } });
+    if (!res.ok) throw new Error(`ids build -> ${res.status}`);
+    return res.blob();
+  }
+  /** Whether a project has a pinned IDS (+ its size). */
+  projectIdsStatus(pid: string) {
+    return this.json<{ exists: boolean; bytes: number }>(`/projects/${pid}/ids`);
+  }
+  /** Pin an IDS to the project so /validate runs against it with no re-upload. */
+  async pinProjectIds(pid: string, ids: Blob, filename = "project.ids") {
+    const fd = new FormData(); fd.append("file", ids, filename);
+    const res = await fetch(this.url(`/projects/${pid}/ids`),
+      { method: "PUT", body: fd, headers: { ...this.authHeaders() } });
+    if (!res.ok) throw new Error(`pin IDS -> ${res.status}`);
+    return res.json() as Promise<{ stored: boolean; bytes: number }>;
+  }
+  unpinProjectIds(pid: string) {
+    return this.json<{ deleted: boolean }>(`/projects/${pid}/ids`, { method: "DELETE" });
+  }
+
   pricingReconcile(pid: string) {
     return this.json<{ lines: { material: string; quantity: number; unit: string; matched?: string | null;
       unit_price?: number; priced_amount?: number | null; estimated_unit_price?: number; variance?: number;
