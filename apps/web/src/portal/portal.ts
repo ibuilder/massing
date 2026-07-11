@@ -1019,6 +1019,33 @@ export class PortalUI {
     return td;
   }
 
+  /** Inline reference picker for edit mode — set/change which record a reference field points at,
+   *  straight in the grid. Options come from the reference column's pre-fetched map (no extra fetch);
+   *  each reads as "ref · title". Saves the linked record's id; a current value outside the fetched
+   *  window (>500) is preserved as its own option so toggling edit mode never drops a link. */
+  private inlineRefCell(pid: string, m: ModuleDef, r: ModuleRecord, c: ModuleDef["fields"][number],
+                        map: Map<string, { ref: string; title: string | null }> | undefined): HTMLTableCellElement {
+    const td = document.createElement("td");
+    td.onclick = (e) => e.stopPropagation();
+    const sel = document.createElement("select"); sel.className = "cell-input";
+    const blank = document.createElement("option"); blank.value = ""; blank.textContent = "—"; sel.append(blank);
+    const entries = map ? [...map.entries()].sort((a, b) => a[1].ref.localeCompare(b[1].ref)) : [];
+    for (const [id, info] of entries) {
+      const op = document.createElement("option"); op.value = id;
+      op.textContent = info.title ? `${info.ref} · ${info.title}` : info.ref;
+      sel.append(op);
+    }
+    const cur = r.data[c.name] == null ? "" : String(r.data[c.name]);
+    if (cur && !map?.has(cur)) { const op = document.createElement("option"); op.value = cur; op.textContent = cur.slice(0, 8); sel.append(op); }
+    sel.value = cur;
+    sel.onchange = async () => {
+      try { await this.host.api.updateModuleRecord(pid, m.key, r.id, { [c.name]: sel.value }); r.data[c.name] = sel.value; td.classList.add("saved"); setTimeout(() => td.classList.remove("saved"), 700); }
+      catch (e) { toast(`Couldn't link ${c.label}: ${(e as Error).message}`, "error"); }
+    };
+    td.append(sel);
+    return td;
+  }
+
   /** Immediate loading placeholder so a click gives feedback before the fetch returns. */
   private skeleton(label: string) {
     this.root.innerHTML = `<div class="section-title">${label}</div>`
@@ -1327,7 +1354,9 @@ export class PortalUI {
       const EDITABLE = ["text", "textarea", "number", "currency", "date", "select", "checkbox"];
       for (const c of cols) {
         const v = r.data[c.name];
-        if (editing && EDITABLE.includes(c.type)) {
+        if (editing && c.type === "reference" && c.module) {
+          tr.appendChild(this.inlineRefCell(pid, m, r, c, refMaps[c.name]));
+        } else if (editing && EDITABLE.includes(c.type)) {
           tr.appendChild(this.inlineCell(pid, m, r, c));
         } else if (c.type === "reference" && c.module && v) {
           const td = document.createElement("td");

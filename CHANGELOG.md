@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.159 — Relational fabric: link records inline from the grid
+Roadmap **Track R #2** (extends v0.3.158's inline edit). In **✎ Edit inline** mode, a reference cell
+now becomes a **record picker** — a dropdown of the linked module's records reading as *ref · title* —
+so you set or change what a record points at without opening its form. Options come from the data
+already fetched for the relational links (no extra requests); a current link that sits outside the
+loaded window is preserved so toggling edit mode never drops it. Saves on change with the same green
+flash. Read mode still shows the clickable link (v0.3.157). Together with v0.3.158 the whole row —
+data fields and relationships — is now editable in place.
+
 ## v0.3.158 — Data-grid UX: inline-edit cells for fast bulk entry
 Roadmap **Track X #1.** Editing many records meant opening a form for each one. Every module list now
 has an **✎ Edit inline** toggle: data cells become inputs (text / number / date / dropdown / checkbox)
