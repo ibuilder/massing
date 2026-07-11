@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.161 — Relational fabric: "referenced by" now reads distinctly on a record
+Roadmap **Track R #3.** A record's Related section already listed both the records it points to and the
+records that point back at it — but with one identical icon and no labels, so you couldn't tell the two
+directions apart. It's now split into two counted groups: **References (n)** — what this record points
+to — and **Referenced by (n)** — its dependents, e.g. the change orders raised against a budget line —
+each with its own direction icon and a one-line caption. Also hardens the section: linked-record titles
+(user text) are now HTML-escaped rather than injected raw. Completes the record-level relational view
+alongside the grid's clickable links (v0.3.157) and inline linking (v0.3.159).
+
 ## v0.3.160 — Data-grid UX: paste rows straight from Excel
 Roadmap **Track X #2.** Getting a batch of records in used to mean saving a spreadsheet and uploading
 it. Every module list now has a **⎘ Paste** button: copy a block of cells from Excel or Google Sheets,

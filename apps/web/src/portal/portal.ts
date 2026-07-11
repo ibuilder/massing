@@ -2270,15 +2270,25 @@ export class PortalUI {
     try { rel = await this.host.api.relatedRecords(pid, key, rid); }
     catch { return; }
     if (!rel.outgoing.length && !rel.incoming.length) return;
-    box.innerHTML = `<div class="section-title">Related</div>`;
-    const link = (label: string, b: { module: string; module_name: string; id: string; ref: string; title: string | null; state: string }) => {
-      const row = document.createElement("button"); row.className = "portal-mod";
-      row.innerHTML = `<span class="ic">↳</span> <b>${label}</b> ${b.ref} ${b.title ?? ""} <span class="badge">${b.state}</span>`;
-      row.onclick = () => this.openByBrief(b.module, b.id);
-      box.appendChild(row);
+    box.innerHTML = "";
+    type Brief = { module: string; module_name: string; id: string; ref: string; title: string | null; state: string; label?: string | null };
+    // Two labelled, counted directions so "what this record points to" reads distinctly from "what
+    // points back at it" (the incoming side is the dependency signal — e.g. the change orders raised
+    // against this budget line). textContent/esc throughout: ref+title are user data (stored-XSS guard).
+    const group = (title: string, caption: string, icon: string, items: Brief[], labelOf: (b: Brief) => string) => {
+      if (!items.length) return;
+      const h = document.createElement("div"); h.className = "section-title"; h.textContent = `${title} (${items.length})`;
+      box.appendChild(h);
+      const cap = document.createElement("div"); cap.className = "meta"; cap.textContent = caption; box.appendChild(cap);
+      for (const b of items) {
+        const row = document.createElement("button"); row.className = "portal-mod";
+        row.innerHTML = `<span class="ic">${icon}</span> <b>${esc(labelOf(b))}</b> ${esc(b.ref)} ${esc(b.title ?? "")} <span class="badge">${esc(b.state)}</span>`;
+        row.onclick = () => this.openByBrief(b.module, b.id);
+        box.appendChild(row);
+      }
     };
-    for (const o of rel.outgoing) link(o.label, o);
-    for (const i of rel.incoming) link(i.module_name, i);
+    group("References", "Records this one points to.", "↳", rel.outgoing, (b) => b.label ?? b.module_name);
+    group("Referenced by", "Records that point to this one — its dependents.", "↰", rel.incoming, (b) => b.module_name);
   }
 
   /** Attachments section: image thumbnails + file links, with multi-file (bulk) + drag-drop upload —
