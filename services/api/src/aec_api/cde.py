@@ -89,6 +89,46 @@ def requirements(db, pid: str) -> dict[str, Any]:
     }
 
 
+# ISO 19650 flow-down tiers — lower = more upstream (organizational intent → task delivery)
+_TIER = {"OIR": 0, "PIR": 1, "AIR": 1, "EIR": 2, "BEP": 2, "MIDP": 3, "TIDP": 4}
+
+
+def cascade(db, pid: str) -> dict[str, Any]:
+    """The information-requirement flow-down (ISO 19650): OIR → PIR/AIR → EIR → MIDP/TIDP, linked by
+    each record's `derives_from`. Returns the requirements as tiered nodes, the parent→children edges,
+    and cascade health — which non-top requirements don't trace up to a higher-level one (a broken
+    flow-down) and any links that point the wrong way (to an equal-or-lower tier)."""
+    reqs = me.list_records(db, "info_requirement", pid, limit=10000)
+    nodes: dict[str, dict] = {}
+    for r in reqs:
+        d = _d(r)
+        code = (d.get("req_type") or "Other").split(" - ")[0]
+        nodes[r["id"]] = {"id": r["id"], "ref": r.get("ref"), "title": r.get("title"), "type": code,
+                          "tier": _TIER.get(code, 9), "state": r.get("workflow_state"),
+                          "derives_from": d.get("derives_from") or None}
+    children: dict[str, list[str]] = {}
+    orphans, misdirected, roots = [], [], []
+    for n in nodes.values():
+        p = n["derives_from"]
+        if p and p in nodes:
+            children.setdefault(p, []).append(n["id"])
+            if nodes[p]["tier"] >= n["tier"] and n["tier"] != 9:
+                misdirected.append({"id": n["id"], "ref": n["ref"], "type": n["type"],
+                                    "parent_type": nodes[p]["type"]})
+        else:
+            # OIRs sit at the top of the cascade (legitimately unlinked); everything else should trace up
+            (roots if n["tier"] == 0 else orphans).append(
+                {"id": n["id"], "ref": n["ref"], "type": n["type"], "title": n["title"]})
+    linked = sum(1 for n in nodes.values() if n["derives_from"] in nodes)
+    return {
+        "total": len(nodes), "linked": linked, "coverage_pct": _pct(linked, len(nodes)),
+        "nodes": sorted(nodes.values(), key=lambda x: (x["tier"], x["ref"] or "")),
+        "children": children, "roots": roots, "orphans": orphans, "misdirected": misdirected,
+        "note": "ISO 19650 flow-down: OIR → PIR/AIR → EIR → MIDP/TIDP. Each requirement should derive "
+                "from a higher-level one; orphans don't trace up to organizational intent.",
+    }
+
+
 def scorecard_inputs(db, pid: str) -> dict[str, Any]:
     """Compact CDE-discipline signals for the BIM KPI scorecard (C3). Kept here so the KPI engine
     has one import for everything ISO 19650."""

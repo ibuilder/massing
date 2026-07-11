@@ -37,6 +37,13 @@
       "fieldset": "Requirement"
     },
     {
+      "name": "derives_from",
+      "label": "Derives from (higher-level requirement)",
+      "type": "reference",
+      "module": "info_requirement",
+      "fieldset": "Requirement"
+    },
+    {
       "name": "appointing_party",
       "label": "Appointing Party (Client)",
       "type": "text",

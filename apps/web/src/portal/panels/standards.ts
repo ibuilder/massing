@@ -181,6 +181,29 @@ export async function renderStandards(ctx: PanelContext) {
         + `</table>`;
     }
     body.append(rc);
+    // requirement flow-down (cascade) — OIR → PIR/AIR → EIR, and where it's broken
+    if (reg.total) {
+      try {
+        const cas = await ctx.host.api.infoRequirementsCascade(pid);
+        const healthy = !cas.orphans.length && !cas.misdirected.length;
+        const cc = el("div", "dash-card");
+        cc.style.cssText = `border-left:3px solid var(${healthy ? "--status-good" : "--status-warn"});margin-bottom:8px`;
+        cc.innerHTML = `<b>Requirement flow-down</b> `
+          + `<span class="meta">${cas.linked}/${cas.total} linked${cas.coverage_pct != null ? ` · ${cas.coverage_pct}%` : ""}</span>`
+          + `<div class="meta">OIR → PIR/AIR → EIR → MIDP/TIDP. Each requirement should derive from a higher-level one.</div>`;
+        if (cas.orphans.length) {
+          cc.innerHTML += `<div class="meta" style="margin-top:4px">⏳ ${cas.orphans.length} not traced up: `
+            + cas.orphans.slice(0, 6).map((o) => esc(`${o.type} ${o.ref ?? ""}`.trim())).join(", ")
+            + (cas.orphans.length > 6 ? " …" : "") + `</div>`;
+        }
+        if (cas.misdirected.length) {
+          cc.innerHTML += `<div class="meta">⚠️ ${cas.misdirected.length} link(s) point the wrong way: `
+            + cas.misdirected.slice(0, 6).map((m) => esc(`${m.type}→${m.parent_type}`)).join(", ") + `</div>`;
+        }
+        if (healthy) cc.innerHTML += `<div class="meta">✅ every requirement traces up to organizational intent.</div>`;
+        body.append(cc);
+      } catch { /* cascade is best-effort; register already rendered */ }
+    }
     if (!st.total && !reg.total) {
       const none = el("div", "meta");
       none.textContent = "No containers or requirements yet — add them under Information Management.";

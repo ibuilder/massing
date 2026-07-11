@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.167 — openBIM: information-requirement flow-down (ISO 19650 cascade)
+Roadmap **Phase A #1.** The requirements register listed OIR/AIR/PIR/EIR/BEP/MIDP/TIDP but nothing tied
+a requirement to the higher-level one it flows down from — so there was no actual traceability. Each
+Information Requirement now has a **Derives from** link (to another requirement), and the CDE / Standards
+panel shows a **Requirement flow-down** card: how many requirements trace up (OIR → PIR/AIR → EIR →
+MIDP/TIDP), which ones **don't** (orphans that don't reach organizational intent — a broken cascade),
+and any links pointing the **wrong way** (to an equal-or-lower tier). Engine `cde.cascade()`, endpoint
+`GET /projects/{pid}/info-requirements/cascade`, extends `test_cde`. The link is set/edited inline with
+the relational grid (v0.3.159). This is the openBIM information-delivery moat: intent traced from the
+client's organizational requirements down to what each task actually delivers.
+
 ## v0.3.166 — Estimating: quantity takeoff from 2D CAD (DXF)
 Roadmap **Phase B #4.** Estimating no longer needs an IFC model — a new **▤ DXF takeoff** model tool
 takes an uploaded **.dxf** drawing and measures it **by layer**: linear metres (walls, pipe/conduit

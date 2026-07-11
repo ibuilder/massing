@@ -36,6 +36,15 @@ def requirements_register(pid: str, db: Session = Depends(get_db), _: str = Depe
     return cde.requirements(db, pid)
 
 
+@router.get("/projects/{pid}/info-requirements/cascade")
+def requirements_cascade(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The ISO 19650 requirement flow-down — OIR → PIR/AIR → EIR → MIDP/TIDP linked by each record's
+    `derives_from` — as a tiered tree plus cascade health (orphans that don't trace up to
+    organizational intent; links pointing the wrong way)."""
+    _project(db, pid)
+    return cde.cascade(db, pid)
+
+
 @router.get("/projects/{pid}/openbim/quality")
 def openbim_quality_scan(pid: str, use_case: str | None = None, db: Session = Depends(get_db),
                          _: str = Depends(require_role("viewer"))):

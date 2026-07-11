@@ -9,8 +9,9 @@ for _f in ("./test_cde.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient             # noqa: E402
-from aec_api.main import app                          # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 
 def _create(c, pid, key, data):
@@ -42,6 +43,20 @@ with TestClient(app) as c:
     assert reg["by_type"]["EIR"]["issued"] == 1, reg["by_type"]
     assert "AIR" in reg["core_coverage"]["missing"] and reg["core_coverage"]["complete"] is False, \
         reg["core_coverage"]
+
+    # --- cascade (ISO 19650 flow-down): link EIR -> OIR (valid); leave BEP orphan; a wrong-way PIR --
+    oir = _create(c, pid, "info_requirement", {"title": "Org OIR",
+        "req_type": "OIR - Organizational Information Requirements"})
+    c.patch(f"/projects/{pid}/modules/info_requirement/{eir['id']}", json={"derives_from": oir["id"]})
+    _create(c, pid, "info_requirement", {"title": "Wrong-way PIR",
+        "req_type": "PIR - Project Information Requirements", "derives_from": eir["id"]})
+    cas = c.get(f"/projects/{pid}/info-requirements/cascade").json()
+    assert cas["total"] == 4, cas["total"]
+    assert cas["linked"] == 2, cas["linked"]                       # eir->oir and pir->eir
+    assert any(r["type"] == "OIR" for r in cas["roots"]), cas["roots"]
+    assert any(o["type"] == "BEP" for o in cas["orphans"]), cas["orphans"]   # non-OIR, no upstream link
+    assert any(m["type"] == "PIR" and m["parent_type"] == "EIR" for m in cas["misdirected"]), cas["misdirected"]
+    assert oir["id"] in cas["children"] and eir["id"] in cas["children"][oir["id"]], cas["children"]
 
     # --- CDE container: WIP -> Shared -> Published, with gates --------------------------------------
     a1 = _create(c, pid, "information_container", {"title": "Arch GA plans", "info_type": "Drawing",

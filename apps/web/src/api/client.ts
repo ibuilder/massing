@@ -1469,6 +1469,15 @@ export class ApiClient {
       core_coverage: { required: string[]; missing: string[]; complete: boolean }; note: string }>(
       `/projects/${pid}/info-requirements/register`);
   }
+  /** ISO 19650 requirement flow-down (OIR→PIR/AIR→EIR→MIDP/TIDP) via each record's derives_from,
+   *  with cascade health: orphans that don't trace up + links pointing the wrong way. */
+  infoRequirementsCascade(pid: string) {
+    type Brief = { id: string; ref: string | null; type: string; title: string | null };
+    return this.json<{ total: number; linked: number; coverage_pct: number | null;
+      roots: Brief[]; orphans: Brief[];
+      misdirected: { id: string; ref: string | null; type: string; parent_type: string }[]; note: string }>(
+      `/projects/${pid}/info-requirements/cascade`);
+  }
   // --- Responsibility matrix (RACI / DACI) ----------------------------------
   responsibilityMatrix(pid: string) {
     return this.json<ResponsibilityMatrix>(`/projects/${pid}/responsibility`);
