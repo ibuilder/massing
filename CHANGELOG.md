@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.153 — Search: GIN index behind module full-text search (Postgres)
+Module full-text search already used Postgres `to_tsvector(...) @@ to_tsquery(...)`, but nothing
+indexed that document — so every search recomputed `to_tsvector` for **every row** (a sequential
+scan, brutal past ~100k records). `init_db` now creates a **GIN expression index** on the exact same
+`to_tsvector(ref + title + data)` document the query matches (built from the shared `_pg_document`
+helper, so the index and the query can't drift). Postgres-only and idempotent
+(`CREATE INDEX IF NOT EXISTS`); a **no-op on SQLite** (dev/CI use the substring-LIKE fallback, which
+needs no index). The regconfig is rendered as a literal so the expression is index-safe.
+
 ## v0.3.152 — Web: decompose the two remaining god-files (client.ts / portal.ts)
 No behavior change — the two largest web modules are split along their existing seams:
 - **`api/client.ts` 2905 → 2612**: the ~300 lines of DTO `interface`/`type` declarations move to a new

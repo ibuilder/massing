@@ -18,7 +18,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException
-from sqlalchemy import JSON, Column, DateTime, Index, String, Table, cast, func, insert, or_, select, update
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Index,
+    String,
+    Table,
+    cast,
+    func,
+    insert,
+    literal_column,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.orm import Session
 
 from . import rbac
@@ -258,9 +272,41 @@ def _pg_tsquery(q: str) -> str | None:
 
 
 def _pg_document(t: Table):
-    """to_tsvector over ref + title + the whole field map (JSON cast to text)."""
-    return func.to_tsvector("english", func.concat_ws(
+    """to_tsvector over ref + title + the whole field map (JSON cast to text). The regconfig is a
+    `literal_column` (not a bind) so this exact expression can also be inlined into the GIN index DDL
+    (`fts_index`) — a bare "english" string renders as a bind param, which a CREATE INDEX can't use."""
+    return func.to_tsvector(literal_column("'english'"), func.concat_ws(
         " ", func.coalesce(t.c.ref, ""), func.coalesce(t.c.title, ""), cast(t.c.data, String)))
+
+
+def fts_index_ddl(key: str) -> str:
+    """The `CREATE INDEX ... USING gin` DDL behind module full-text search, built from the *same*
+    `_pg_document` the query's `@@` matches — so the indexed expression can't drift from the search
+    expression. The regconfig is a literal_column and the coalesce defaults inline via literal_binds,
+    so the whole to_tsvector(...) expression is safe to embed in a CREATE INDEX (no bind params)."""
+    from sqlalchemy.dialects import postgresql
+    expr = _pg_document(TABLES[key]).compile(
+        dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
+    return f'CREATE INDEX IF NOT EXISTS "ix_mod_{key}_fts" ON "mod_{key}" USING gin (({expr}))'
+
+
+def ensure_fts_indexes(engine) -> None:
+    """Postgres-only: create the GIN index on to_tsvector(ref+title+data) behind list_records()'s
+    `@@` search — so full-text search is index-backed instead of a per-row seq scan that recomputes
+    to_tsvector for every row (brutal at 100k+ records). No-op on SQLite (dev/CI use the LIKE
+    fallback, which needs no index). Idempotent (CREATE INDEX IF NOT EXISTS)."""
+    if engine.dialect.name != "postgresql":
+        return
+    import logging
+
+    from sqlalchemy import text
+    log = logging.getLogger("aec_api.modules")
+    for key in TABLES:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(fts_index_ddl(key)))
+        except Exception:            # noqa: BLE001 — an index backfill must never block startup
+            log.warning("FTS GIN index for module %r could not be created", key)
 
 
 def _search_filter(db: Session, t: Table, q: str):

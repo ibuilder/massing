@@ -91,6 +91,8 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _ensure_columns()
     _ensure_indexes()
+    # Postgres-only: GIN index behind the module full-text search (`@@`). No-op on SQLite.
+    modules.ensure_fts_indexes(engine)
     # load admin-configured integration settings into the in-process cache
     from . import settings_store
     with SessionLocal() as _s:
