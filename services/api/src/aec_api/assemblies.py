@@ -170,8 +170,33 @@ def estimate_resource_based(rows: list[dict], mapping: dict[str, str] | None = N
     lines.sort(key=lambda x: x["total"], reverse=True)
     total = round(sum(x["total"] for x in lines), 2)
     return {"lines": lines, "total": total, "by_kind": {k: round(v, 2) for k, v in roll.items()},
-            "labor_hours": round(labor_hours, 2), "unmapped": unmapped, "source": "resource",
+            "labor_hours": round(labor_hours, 2), "by_trade": labor_demand(lines),
+            "unmapped": unmapped, "source": "resource",
             "element_count": int(sum(a["count"] for a in agg.values()))}
+
+
+def labor_demand(estimate_lines: list[dict], crew_hours_per_week: float = 40.0,
+                 duration_weeks: float | None = None) -> list[dict]:
+    """Roll the labor components of a priced estimate up **by trade** — total crew-hours + cost per
+    trade — the bridge from an estimate to staffing / resource loading ("this model needs N
+    carpenter-hours"). When `duration_weeks` is given, also implies the average crew size to finish in
+    that window (hours ÷ weeks ÷ hours-per-week). Sorted by hours, biggest trade first."""
+    by: dict[str, dict[str, Any]] = {}
+    for ln in estimate_lines:
+        for comp in ln.get("lines", []):
+            if comp.get("kind") != "labor":
+                continue
+            t = by.setdefault(comp["resource"], {"resource": comp["resource"], "name": comp["name"],
+                                                 "hours": 0.0, "cost": 0.0})
+            t["hours"] += comp["quantity"]
+            t["cost"] += comp["amount"]
+    out = sorted(by.values(), key=lambda x: x["hours"], reverse=True)
+    for t in out:
+        t["hours"] = round(t["hours"], 1)
+        t["cost"] = round(t["cost"], 2)
+        if duration_weeks and duration_weeks > 0 and crew_hours_per_week > 0:
+            t["avg_crew"] = round(t["hours"] / duration_weeks / crew_hours_per_week, 1)
+    return out
 
 
 def catalog() -> dict[str, Any]:

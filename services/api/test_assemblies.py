@@ -69,6 +69,14 @@ assert beam["assembly"] == "steel_beam" and beam["quantity"] == round(0.5 * 7850
 # project rollup: L/M/E sums to total, and crew-hours are aggregated + positive
 assert round(sum(est["by_kind"].values()), 2) == est["total"], est
 assert est["labor_hours"] > 0, est
+# by_trade: labor rolled up per trade, sorted by hours, and hours reconcile to the total labor-hours
+assert est["by_trade"] and est["by_trade"][0]["hours"] >= est["by_trade"][-1]["hours"], est["by_trade"]
+assert round(sum(t["hours"] for t in est["by_trade"]), 0) == round(est["labor_hours"], 0), est["by_trade"]
+# duration_weeks implies an average crew size per trade
+dem = asm.labor_demand(est["lines"], duration_weeks=10.0)
+assert all("avg_crew" in t and t["avg_crew"] >= 0 for t in dem), dem
+_trades = ", ".join("{} {:.0f}hr".format(t["name"], t["hours"]) for t in est["by_trade"][:4])
+print("labor demand: " + _trades)
 print(f"model estimate: total ${est['total']:,.0f}  L/M/E {est['by_kind']}  {est['labor_hours']:,.0f} crew-hr  "
       f"{len(est['lines'])} lines, {len(est['unmapped'])} unmapped")
 

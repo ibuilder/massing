@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.165 — Estimating: labor demand by trade (estimate → staffing)
+Roadmap **Phase B #3.** The resource estimate now rolls its crew-hours **up by trade** — total hours
+and cost per trade (carpenter, ironworker, cement-mason…), sorted biggest-first — so the model answers
+"how many carpenter-hours does this building need?", the input a scheduler or PM uses to staff and load
+the schedule. The engine's `labor_demand()` can also imply an **average crew size** to finish in a given
+number of weeks (hours ÷ weeks ÷ 40). Shown as a "Labor demand by trade" table in the 🧱 Resource
+estimate model tool. Extends `test_assemblies`. This is the bridge from the estimate's L/M/E split to
+resource loading — the point of computing crew-hours in the first place.
+
 ## v0.3.164 — Estimating: resource estimate in the viewer (labor · material · equipment)
 Roadmap **Phase B #2** — surfaces v0.3.163's engine. The model tools now have a **🧱 Resource estimate**
 button next to the blended "Estimate from model": it prices the takeoff by building each element up from

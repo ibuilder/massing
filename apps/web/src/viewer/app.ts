@@ -1497,6 +1497,14 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               { k: `Material (${pct(r!.by_kind.material)})`, v: money(r!.by_kind.material) },
               { k: `Equipment (${pct(r!.by_kind.equipment)})`, v: money(r!.by_kind.equipment), strong: true },
             ]));
+            // labor demand by trade — the bridge to staffing / resource loading
+            if (r!.by_trade.length) {
+              const lh = document.createElement("div"); lh.className = "meta"; lh.style.marginTop = "8px";
+              lh.textContent = "Labor demand by trade (crew-hours to staff / load the schedule):";
+              body.appendChild(lh);
+              body.appendChild(kvTable(r!.by_trade.map((t) => ({
+                k: `${t.name} — ${Math.round(t.hours).toLocaleString()} hr`, v: money(t.cost) }))));
+            }
             const h = document.createElement("div"); h.className = "meta"; h.style.marginTop = "8px";
             h.textContent = "By assembly (built up from a crew, not a blended rate):";
             body.appendChild(h);

@@ -2065,6 +2065,7 @@ export class ApiClient {
       quantity: number; total: number; unit_cost: number; labor_hours: number; by_kind: { labor: number; material: number; equipment: number } };
     return this.json<{ total: number; element_count: number; labor_hours: number;
       by_kind: { labor: number; material: number; equipment: number };
+      by_trade: { resource: string; name: string; hours: number; cost: number }[];
       lines: Line[]; unmapped: { ifc_class: string; count: number }[] }>(
       `/projects/${pid}/estimate/resource-based`);
   }
