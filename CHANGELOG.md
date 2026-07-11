@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.144 — openBIM: COBie Contact / Zone / System tabs
+Rounds out the COBie handover workbook with the three tabs owners most often flag as missing, all
+derived from the model.
+- **Contact** — the people/organizations behind the model (keyed by email), from
+  IfcPersonAndOrganization / IfcPerson / IfcOrganization, deduped.
+- **Zone** — spatial groupings of spaces (IfcZone) with their member space names.
+- **System** — functional groupings of components (IfcSystem / IfcDistributionSystem) with their
+  member component names + predefined type.
+- The COBie export now **merges** same-named sheets across sources instead of clobbering — so the
+  model-derived System and the commissioning-derived System land in one tab; `_rows_to_sheet` takes
+  the **union** of columns so no source loses a field.
+- `test_cobie` (synthetic IFC) pins the extraction; `test_closeout` asserts the tabs + the merge.
+
 ## v0.3.143 — openBIM: pin a project IDS + validate against it
 A project can now **pin the information-delivery specification (IDS)** its model must satisfy — the
 EIR/BEP-mandated one — so validation runs against it every time without re-uploading.

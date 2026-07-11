@@ -50,8 +50,20 @@ def _xlsx_response(sheets: dict, filename: str) -> Response:
 
 
 def _rows_to_sheet(rows: list[dict]):
-    headers = list(rows[0].keys()) if rows else []
+    # union of keys across all rows (order-preserving) so merged sheets from >1 source keep every
+    # column, not just those on the first row.
+    headers = list(dict.fromkeys(k for r in rows for k in r.keys()))
     return headers, [[r.get(h) for h in headers] for r in rows]
+
+
+def _merge_sheets(*sources: dict) -> dict:
+    """Combine {sheet: rows} dicts, concatenating rows for same-named sheets (e.g. a model-derived
+    COBie System + the commissioning-derived System) instead of one clobbering the other."""
+    out: dict[str, list[dict]] = {}
+    for src in sources:
+        for name, rows in src.items():
+            out.setdefault(name, []).extend(rows)
+    return out
 
 
 @router.get("/projects/{pid}/exports/qto.xlsx")
@@ -97,8 +109,8 @@ def _closeout_cobie_sheets(db, pid: str) -> dict:
 def export_cobie(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import cobie  # type: ignore
 
-    sheets = {k: _rows_to_sheet(v) for k, v in cobie.cobie_file(_source_ifc(db, pid)).items()}
-    sheets.update({k: _rows_to_sheet(v) for k, v in _closeout_cobie_sheets(db, pid).items()})
+    merged = _merge_sheets(cobie.cobie_file(_source_ifc(db, pid)), _closeout_cobie_sheets(db, pid))
+    sheets = {k: _rows_to_sheet(v) for k, v in merged.items()}
     return _xlsx_response(sheets, "cobie.xlsx")
 
 
@@ -162,8 +174,8 @@ def closeout_package(pid: str, db: Session = Depends(get_db), _sec: str = Depend
             z.writestr("as-built/model.ifc", Path(p.source_ifc).read_bytes())
             try:
                 from aec_data import cobie, qto, spaces  # type: ignore
-                _cobie = {k: _rows_to_sheet(v) for k, v in cobie.cobie_file(p.source_ifc).items()}
-                _cobie.update({k: _rows_to_sheet(v) for k, v in _closeout_cobie_sheets(db, pid).items()})
+                _merged = _merge_sheets(cobie.cobie_file(p.source_ifc), _closeout_cobie_sheets(db, pid))
+                _cobie = {k: _rows_to_sheet(v) for k, v in _merged.items()}
                 z.writestr("data/cobie.xlsx", _xlsx_bytes(_cobie))
                 z.writestr("data/qto.xlsx", _xlsx_bytes({"QTO": _rows_to_sheet(qto.takeoff_file(p.source_ifc))}))
                 z.writestr("data/spaces.xlsx", _xlsx_bytes({"Spaces": _rows_to_sheet(spaces.space_schedule_file(p.source_ifc))}))

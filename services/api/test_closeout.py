@@ -63,6 +63,11 @@ with TestClient(app) as c:
     wb = openpyxl.load_workbook(_io.BytesIO(cobie.content))
     assert "Warranty" in wb.sheetnames and "System" in wb.sheetnames, wb.sheetnames
     assert "Asset" in wb.sheetnames and "Document" in wb.sheetnames, wb.sheetnames
+    # model-derived COBie tabs incl. the new Contact / Zone / System spatial-and-functional groupings
+    assert {"Contact", "Facility", "Floor", "Space", "Zone", "Type", "Component", "System"} <= set(wb.sheetnames), wb.sheetnames
+    # the commissioning-derived System row survives the merge with the (model-derived) System tab
+    sysvals = [str(cell.value) for row in wb["System"].iter_rows() for cell in row if cell.value]
+    assert any("HVAC Cx" in v for v in sysvals), sysvals
 
     # --- warranty expiry tracking ---------------------------------------------
     from datetime import date, timedelta
