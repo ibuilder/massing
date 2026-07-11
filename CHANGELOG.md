@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.142 — openBIM: real bSDD linked-data alignment
+Turns the bSDD story from "is it classified?" into "is it *linked* to a buildingSMART Data
+Dictionary?" — genuine linked-data alignment, building on the v0.3.137 bSDD client + registry.
+- **`bsdd.is_bsdd_uri()` / `parse_uri()`** recognize and decompose real bSDD class URIs
+  (`identifier.buildingsmart.org/uri/<org>/<dictionary>/<version>/class/<code>`).
+- **Alignment scoring** now reports two honest tiers — `classified` (has any type/classification)
+  vs **`bsdd_linked`** (classification is an actual bSDD URI) — plus the distinct dictionaries the
+  model references (Uniclass, IFC, an EIR-mandated one…), so a reviewer sees *which* it aligns to.
+- **JSON-LD export** emits a bSDD-classified element's URI as a resolvable `@id` classification node
+  (`"classification": {"@type": "@id"}` in the context), so the model graph is true linked data that
+  resolves against bSDD — not just a bag of local codes.
+- `test_bsdd` extends to pin URI recognition/parse, the two-tier alignment, and the JSON-LD linkage.
+
 ## v0.3.141 — Enterprise auth: TOTP two-factor authentication
 Optional time-based one-time-password MFA, stdlib-only (no new dependencies) — a second factor at
 sign-in for accounts that opt in.

@@ -109,6 +109,38 @@ try:
 except RuntimeError:
     pass
 
+# --- bSDD URI recognition + linked-data alignment (pure, no network) ---------
+WALL_URI = "https://identifier.buildingsmart.org/uri/buildingsmart/uniclass2015/1.2/class/Pr_20_93_52"
+assert bsdd.is_bsdd_uri(WALL_URI) is True
+assert bsdd.is_bsdd_uri("Pr_20_93_52") is False          # a bare code is not a URI
+assert bsdd.is_bsdd_uri(None) is False and bsdd.is_bsdd_uri("") is False
+p = bsdd.parse_uri(WALL_URI)
+assert p["organization"] == "buildingsmart" and p["dictionary"] == "uniclass2015", p
+assert p["version"] == "1.2" and p["code"] == "Pr_20_93_52", p
+assert p["dictionary_uri"] == "https://identifier.buildingsmart.org/uri/buildingsmart/uniclass2015/1.2", p
+assert bsdd.parse_uri("nope")["code"] is None            # non-bSDD string → all-None, no raise
+
+# alignment separates "has any classification" from "is a real bSDD URI"
+from aec_api import model_query, openbim_quality  # noqa: E402
+_IDX = {
+    "g1": {"guid": "g1", "ifc_class": "IfcWall", "type_name": "WT1", "name": "W1",
+           "classification": WALL_URI},                  # bSDD-linked
+    "g2": {"guid": "g2", "ifc_class": "IfcWall", "type_name": "WT1", "name": "W2",
+           "classification": "Pr_20_93_52"},             # classified but bare code (not linked)
+    "g3": {"guid": "g3", "ifc_class": "IfcSlab", "name": "S1"},   # unclassified
+}
+al = openbim_quality.bsdd_alignment(_IDX)
+assert al["total"] == 3 and al["classified"] == 2 and al["bsdd_linked"] == 1, al
+assert al["bsdd_linked_pct"] == round(100 / 3, 1), al
+assert al["dictionaries"] and al["dictionaries"][0]["count"] == 1, al
+
+# JSON-LD emits the bSDD URI as a resolvable @id-typed classification only for the linked element
+ld = model_query.to_jsonld(_IDX)
+assert ld["@context"]["classification"] == {"@type": "@id"}, ld["@context"]
+nodes = {n["@id"]: n for n in ld["@graph"]}
+assert nodes["g1"].get("classification") == WALL_URI, nodes["g1"]
+assert "classification" not in nodes["g2"] and "classification" not in nodes["g3"]
+
 # --- endpoints (monkeypatch the engine so the router never touches network) --
 def fake_search(text, dictionary_uri=None, limit=20, *, transport=None):
     return [{"uri": "u", "name": text, "code": "C", "dictionary": "d"}]
@@ -141,4 +173,5 @@ with TestClient(app) as c:
 
 print("BSDD OK - TextSearch/v1 + Class/v1 parsed; cache hit verified (no re-fetch); "
       "defensive parse + None-on-empty + RuntimeError on network failure; "
-      "endpoints 200/404/502 via monkeypatch")
+      "endpoints 200/404/502 via monkeypatch; bSDD-URI recognition + parse; alignment separates "
+      "classified vs bsdd_linked; JSON-LD emits bSDD URIs as resolvable @id classifications")

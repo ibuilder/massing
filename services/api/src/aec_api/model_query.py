@@ -128,11 +128,22 @@ def to_parquet(idx: dict[str, dict] | None) -> bytes:
 
 
 def to_jsonld(idx: dict[str, dict] | None) -> dict[str, Any]:
-    """A JSON-LD graph of the model elements (bSDD-style vocab, GlobalId as @id)."""
+    """A JSON-LD graph of the model elements (bSDD-style vocab, GlobalId as @id). When an element's
+    classification is a buildingSMART Data Dictionary URI it's emitted as a linked node
+    (`classification: {"@id": <uri>}`) so the graph is genuine linked data, resolvable against bSDD."""
+    from . import bsdd
     ctx = {"@vocab": "https://identifier.buildingsmart.org/uri/buildingsmart/ifc/",
            "guid": "@id", "ifcClass": "ifc_class", "typeName": "type_name",
-           "storey": "storey", "discipline": "discipline"}
-    graph = [{"@id": r["guid"], "@type": r["ifc_class"] or "IfcRoot", "typeName": r["type_name"],
-              "name": r["name"], "storey": r["storey"], "discipline": r["discipline"]}
-             for r in export_rows(idx)]
+           "storey": "storey", "discipline": "discipline",
+           "classification": {"@type": "@id"}}   # value is an IRI (resolves against bSDD)
+    graph = []
+    for gid, e in (idx or {}).items():
+        node: dict[str, Any] = {
+            "@id": gid, "@type": e.get("ifc_class") or "IfcRoot",
+            "typeName": e.get("type_name"), "name": e.get("name"), "storey": e.get("storey"),
+            "discipline": _val(e, "discipline")}
+        cls = e.get("classification")
+        if bsdd.is_bsdd_uri(cls):
+            node["classification"] = cls          # @type:@id in ctx → treated as a resolvable IRI
+        graph.append(node)
     return {"@context": ctx, "@graph": graph, "count": len(graph)}

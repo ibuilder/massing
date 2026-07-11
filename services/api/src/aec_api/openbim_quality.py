@@ -125,15 +125,31 @@ def export_health(idx: dict[str, dict]) -> dict[str, Any]:
 
 
 def bsdd_alignment(idx: dict[str, dict]) -> dict[str, Any]:
-    """bSDD alignment proxy: share of elements carrying a type/classification (the field a bSDD
-    dictionary reference would populate). Honest: true bSDD linkage needs the classification to
-    reference a buildingSMART Data Dictionary URI; here we measure whether it's classified at all."""
+    """bSDD alignment: two tiers, honestly separated.
+      * `classified` — elements carrying any type/classification (the field a bSDD ref populates);
+      * `bsdd_linked` — the subset whose classification is a real **buildingSMART Data Dictionary
+        URI** (identifier.buildingsmart.org/...), i.e. genuine linked-data alignment, not a bare code.
+    Also lists the distinct bSDD dictionaries actually referenced, so a reviewer sees *which*
+    dictionaries the model aligns to (Uniclass, IFC, an EIR-mandated one, …)."""
+    from . import bsdd
     total = len(idx)
-    classified = sum(1 for e in idx.values() if e.get("type_name") or e.get("classification"))
-    return {"total": total, "classified": classified,
+    classified = bsdd_linked = 0
+    dictionaries: dict[str, int] = {}
+    for e in idx.values():
+        cls = e.get("classification")
+        if e.get("type_name") or cls:
+            classified += 1
+        if bsdd.is_bsdd_uri(cls):
+            bsdd_linked += 1
+            duri = bsdd.parse_uri(cls).get("dictionary_uri") or "?"
+            dictionaries[duri] = dictionaries.get(duri, 0) + 1
+    return {"total": total, "classified": classified, "bsdd_linked": bsdd_linked,
             "alignment_pct": round(100 * classified / total, 1) if total else None,
-            "note": "Share of elements carrying a type/classification. Full bSDD alignment requires "
-                    "the classification to reference a buildingSMART Data Dictionary URI."}
+            "bsdd_linked_pct": round(100 * bsdd_linked / total, 1) if total else None,
+            "dictionaries": [{"dictionary_uri": k, "count": v}
+                             for k, v in sorted(dictionaries.items(), key=lambda kv: -kv[1])],
+            "note": "`classified` = has any type/classification; `bsdd_linked` = classification is a "
+                    "buildingSMART Data Dictionary URI (true linked-data alignment)."}
 
 
 def summary(idx: dict[str, dict], specs: list[dict] | None = None) -> dict[str, Any]:

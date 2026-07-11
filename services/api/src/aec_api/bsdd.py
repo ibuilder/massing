@@ -20,7 +20,43 @@ import os
 import httpx
 
 BSDD_BASE = "https://api.bsdd.buildingsmart.org"
+# Canonical root for bSDD (and IFC) dictionary/class identifiers. A classification value that starts
+# with this is a real linked-data reference into a buildingSMART Data Dictionary — not just a local code.
+BSDD_URI_ROOT = "https://identifier.buildingsmart.org"
 _TIMEOUT = 8.0
+
+
+def is_bsdd_uri(value: str | None) -> bool:
+    """True when `value` is a buildingSMART Data Dictionary URI (the identifier a fully bSDD-aligned
+    classification carries), as opposed to a bare code like 'Pr_20_93_52' or a free-text label."""
+    return isinstance(value, str) and value.strip().lower().startswith(BSDD_URI_ROOT.lower() + "/")
+
+
+def parse_uri(uri: str) -> dict[str, str | None]:
+    """Best-effort split of a bSDD class URI into its parts. bSDD URIs look like
+    `https://identifier.buildingsmart.org/uri/<org>/<dictionary>/<version>/class/<code>`.
+    Returns `{"organization","dictionary","version","code","dictionary_uri"}` — any part that
+    can't be located is None. Never raises; a non-bSDD string yields all-None."""
+    out: dict[str, str | None] = {"organization": None, "dictionary": None, "version": None,
+                                  "code": None, "dictionary_uri": None}
+    if not is_bsdd_uri(uri):
+        return out
+    rest = uri.strip().split("/uri/", 1)[1] if "/uri/" in uri else ""
+    parts = [p for p in rest.split("/") if p]
+    if len(parts) >= 1:
+        out["organization"] = parts[0]
+    if len(parts) >= 2:
+        out["dictionary"] = parts[1]
+    if len(parts) >= 3:
+        out["version"] = parts[2]
+    if "class" in parts:
+        i = parts.index("class")
+        if i + 1 < len(parts):
+            out["code"] = parts[i + 1]
+    if out["organization"] and out["dictionary"]:
+        ver = f"/{out['version']}" if out["version"] else ""
+        out["dictionary_uri"] = f"{BSDD_URI_ROOT}/uri/{out['organization']}/{out['dictionary']}{ver}"
+    return out
 _CACHE_MAX = 512
 # Module-level response cache keyed by (path, sorted-params). Bounded (oldest
 # evicted first) so repeated lookups are cheap without growing unbounded.
