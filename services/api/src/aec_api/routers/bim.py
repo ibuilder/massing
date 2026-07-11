@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import re
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -512,9 +512,11 @@ def source_ifc_download(pid: str, db: Session = Depends(get_db), _sec: str = Dep
 
 # --- BCF interoperability ----------------------------------------------------
 @router.get("/projects/{pid}/bcf/export")
-def bcf_export(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+def bcf_export(pid: str, version: str = Query("2.1", pattern="^(2\\.1|3\\.0)$"),
+               db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Export the project's topics as a .bcfzip. `version` = 2.1 (default) or 3.0."""
     _project(db, pid)
-    data = bcf_io.export_bcfzip(db, pid)
+    data = bcf_io.export_bcfzip(db, pid, version=version)
     return Response(data, media_type="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="{pid}.bcfzip"'})
 

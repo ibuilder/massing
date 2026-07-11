@@ -1,9 +1,16 @@
 """BCF .bcfzip import/export (guide §7).
 
-A pragmatic subset of buildingSMART BCF 2.1: one folder per topic GUID containing
-markup.bcf (topic + comments) and, when present, viewpoint.bcfv (camera + components).
-This round-trips the spine that Solibri / ACC / BIMcollab read. Full BCF has more optional
-fields; extend the XML builders/parsers as needed."""
+A pragmatic subset of buildingSMART BCF: one folder per topic GUID containing markup.bcf
+(topic + comments) and, when present, viewpoint.bcfv (camera + components). This round-trips
+the spine that Solibri / ACC / BIMcollab read.
+
+Both **BCF 2.1** and **BCF 3.0** are supported. The two differ mainly in markup.bcf shape:
+in 3.0 the `<Comment>`s and `<Viewpoints>` move *inside* `<Topic>`, and `<Labels>` become a
+`<Labels><Label>…</Label></Labels>` group (2.1 uses bare repeated `<Labels>` and puts comments /
+viewpoints as siblings of `<Topic>`). The visualization info (.bcfv) is effectively unchanged.
+Export defaults to 2.1 (universally accepted); pass `version="3.0"` to emit 3.0. **Import
+auto-detects** the version from `bcf.version` and reads both shapes, so a 3.0 file from a newer
+BIMcollab / ACC no longer silently drops its comments and labels."""
 from __future__ import annotations
 
 import io
@@ -20,48 +27,85 @@ from sqlalchemy.orm import Session
 
 from .models import Comment, Topic, Viewpoint
 
-_BCF_VERSION = "2.1"
+_BCF_VERSION = "2.1"          # default export version
+_BCF_VERSIONS = ("2.1", "3.0")
+SUPPORTED_VERSIONS = _BCF_VERSIONS   # public: the versions this engine reads + writes (openbim registry)
+
+
+def _norm_version(v: str | None) -> str:
+    """Coerce to a supported version string; anything starting '3' -> 3.0, else 2.1."""
+    s = str(v or "").strip()
+    return "3.0" if s.startswith("3") else "2.1"
 
 
 def _iso(dt: datetime | None) -> str:
     return (dt or datetime.now(timezone.utc)).isoformat()
 
 
-def _markup_xml(topic: Topic) -> bytes:
+def _labels_xml(parent: ET.Element, labels, version: str) -> None:
+    """2.1: bare repeated <Labels>. 3.0: a <Labels> group of <Label> children."""
+    if not labels:
+        return
+    if version == "3.0":
+        grp = ET.SubElement(parent, "Labels")
+        for label in labels:
+            ET.SubElement(grp, "Label").text = label
+    else:
+        for label in labels:
+            ET.SubElement(parent, "Labels").text = label
+
+
+def _comment_xml(parent: ET.Element, c) -> None:
+    ce = ET.SubElement(parent, "Comment", {"Guid": c.id})
+    ET.SubElement(ce, "Date").text = _iso(c.created_at)
+    if c.author:
+        ET.SubElement(ce, "Author").text = c.author
+    ET.SubElement(ce, "Comment").text = c.text
+    if c.viewpoint_id:
+        ET.SubElement(ce, "Viewpoint", {"Guid": c.viewpoint_id})
+
+
+def _markup_xml(topic: Topic, version: str = _BCF_VERSION) -> bytes:
+    version = _norm_version(version)
+    is3 = version == "3.0"
     root = ET.Element("Markup")
     t = ET.SubElement(root, "Topic", {"Guid": topic.guid, "TopicType": topic.type, "TopicStatus": topic.status})
     ET.SubElement(t, "Title").text = topic.title or ""
     if topic.priority:
         ET.SubElement(t, "Priority").text = topic.priority
+    _labels_xml(t, topic.labels, version)
+    ET.SubElement(t, "CreationDate").text = _iso(topic.created_at)
+    if topic.author:
+        ET.SubElement(t, "CreationAuthor").text = topic.author
     if topic.assignee:
         ET.SubElement(t, "AssignedTo").text = topic.assignee
     if topic.description:
         ET.SubElement(t, "Description").text = topic.description
-    ET.SubElement(t, "CreationDate").text = _iso(topic.created_at)
-    if topic.author:
-        ET.SubElement(t, "CreationAuthor").text = topic.author
-    for label in topic.labels or []:
-        ET.SubElement(t, "Labels").text = label
 
+    # 3.0 nests comments + viewpoints INSIDE <Topic>; 2.1 has them as siblings of <Topic>.
+    comment_parent = ET.SubElement(t, "Comments") if (is3 and topic.comments) else root
     for c in topic.comments:
-        ce = ET.SubElement(root, "Comment", {"Guid": c.id})
-        ET.SubElement(ce, "Date").text = _iso(c.created_at)
-        if c.author:
-            ET.SubElement(ce, "Author").text = c.author
-        ET.SubElement(ce, "Comment").text = c.text
-        if c.viewpoint_id:
-            ET.SubElement(ce, "Viewpoint", {"Guid": c.viewpoint_id})
+        _comment_xml(comment_parent, c)
+
+    vp_parent = ET.SubElement(t, "Viewpoints") if is3 else None
+    def add_vp(guid: str) -> None:
+        if is3:
+            vp = ET.SubElement(vp_parent, "ViewPoint", {"Guid": guid})
+            ET.SubElement(vp, "Viewpoint").text = f"{guid}.bcfv"
+        else:
+            vp = ET.SubElement(root, "Viewpoints", {"Guid": guid})
+            ET.SubElement(vp, "Viewpoint").text = f"{guid}.bcfv"
 
     has_vp = False
     for v in topic.viewpoints:
-        vp = ET.SubElement(root, "Viewpoints", {"Guid": v.guid})
-        ET.SubElement(vp, "Viewpoint").text = f"{v.guid}.bcfv"
+        add_vp(v.guid)
         has_vp = True
     # a pin (anchor + element GUIDs) with no explicit viewpoint still needs a .bcfv so the element
     # tie + camera survive the round-trip (the GlobalId tie is a non-negotiable)
     if not has_vp and (topic.anchor or topic.element_guids):
-        vp = ET.SubElement(root, "Viewpoints", {"Guid": topic.guid})
-        ET.SubElement(vp, "Viewpoint").text = f"{topic.guid}.bcfv"
+        add_vp(topic.guid)
+    if is3 and vp_parent is not None and len(vp_parent) == 0:
+        t.remove(vp_parent)   # don't emit an empty <Viewpoints> container
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
@@ -161,14 +205,30 @@ def _parse_coloring(vroot: ET.Element) -> list:
     return out
 
 
-def export_bcfzip(db: Session, project_id: str) -> bytes:
+def _all_comments(root: ET.Element, te: ET.Element | None):
+    """Comment elements, whether 2.1 (siblings of <Topic>) or 3.0 (nested <Topic><Comments><Comment>)."""
+    out = list(root.findall("Comment"))
+    if te is not None:
+        out += te.findall("Comments/Comment")
+    return out
+
+
+def _all_labels(te: ET.Element) -> list[str]:
+    """Labels, whether 2.1 (bare repeated <Labels>text) or 3.0 (grouped <Labels><Label>text)."""
+    out = [e.text.strip() for e in te.findall("Labels") if e.text and e.text.strip()]     # 2.1 bare
+    out += [e.text.strip() for e in te.findall("Labels/Label") if e.text and e.text.strip()]  # 3.0 group
+    return out
+
+
+def export_bcfzip(db: Session, project_id: str, version: str = _BCF_VERSION) -> bytes:
+    version = _norm_version(version)
     topics = db.query(Topic).filter(Topic.project_id == project_id).all()
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        bsmart = ET.Element("Version", {"VersionId": _BCF_VERSION})
+        bsmart = ET.Element("Version", {"VersionId": version})
         z.writestr("bcf.version", ET.tostring(bsmart, encoding="utf-8", xml_declaration=True))
         for topic in topics:
-            z.writestr(f"{topic.guid}/markup.bcf", _markup_xml(topic))
+            z.writestr(f"{topic.guid}/markup.bcf", _markup_xml(topic, version))
             wrote_vp = False
             for v in topic.viewpoints:
                 z.writestr(f"{topic.guid}/{v.guid}.bcfv", _viewpoint_xml(v))
@@ -191,13 +251,18 @@ def _record_viewpoint_xml(guid: str, components: list[str], anchor: dict | None)
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
-def export_records_bcfzip(records: list[dict], topic_type: str = "Issue") -> bytes:
-    """Export config-module records (e.g. coordination_issue) as a BCF 2.1 .bcfzip so they round-trip
-    with Solibri / ACC / BIMcollab. Each record → a topic (title/description/priority/status + ref as a
-    label); a pinned/element-tied record also gets a viewpoint (selected components + camera at the pin)."""
+def export_records_bcfzip(records: list[dict], topic_type: str = "Issue",
+                          version: str = _BCF_VERSION) -> bytes:
+    """Export config-module records (e.g. coordination_issue) as a BCF .bcfzip so they round-trip with
+    Solibri / ACC / BIMcollab. Each record → a topic (title/description/priority/status + ref as a
+    label); a pinned/element-tied record also gets a viewpoint (selected components + camera at the
+    pin). `version` selects BCF 2.1 (default) or 3.0 (comments/viewpoints nest under Topic, grouped
+    labels)."""
+    version = _norm_version(version)
+    is3 = version == "3.0"
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("bcf.version", ET.tostring(ET.Element("Version", {"VersionId": _BCF_VERSION}),
+        z.writestr("bcf.version", ET.tostring(ET.Element("Version", {"VersionId": version}),
                                               encoding="utf-8", xml_declaration=True))
         for r in records:
             guid = str(r.get("id"))
@@ -208,18 +273,18 @@ def export_records_bcfzip(records: list[dict], topic_type: str = "Issue") -> byt
             ET.SubElement(t, "Title").text = r.get("title") or data.get("subject") or r.get("ref") or "Issue"
             if data.get("priority"):
                 ET.SubElement(t, "Priority").text = str(data["priority"])
+            _labels_xml(t, [r["ref"]] if r.get("ref") else None, version)  # carry our ref so re-import can match
+            ET.SubElement(t, "CreationDate").text = _iso(None)
             if r.get("assignee"):
                 ET.SubElement(t, "AssignedTo").text = str(r["assignee"])
             if data.get("description"):
                 ET.SubElement(t, "Description").text = str(data["description"])
-            ET.SubElement(t, "CreationDate").text = _iso(None)
-            if r.get("ref"):
-                ET.SubElement(t, "Labels").text = r["ref"]      # carry our ref so re-import can match
             comps = r.get("element_guids") or []
             anchor = r.get("anchor")
             if comps or anchor:
-                ET.SubElement(root, "Viewpoints", {"Guid": guid}).append(ET.Element("Viewpoint"))
-                root.find("Viewpoints/Viewpoint").text = f"{guid}.bcfv"
+                vp_parent = ET.SubElement(t, "Viewpoints") if is3 else ET.SubElement(root, "Viewpoints", {"Guid": guid})
+                vp = ET.SubElement(vp_parent, "ViewPoint", {"Guid": guid}) if is3 else vp_parent
+                ET.SubElement(vp, "Viewpoint").text = f"{guid}.bcfv"
                 z.writestr(f"{guid}/{guid}.bcfv", _record_viewpoint_xml(guid, comps, anchor))
             z.writestr(f"{guid}/markup.bcf", ET.tostring(root, encoding="utf-8", xml_declaration=True))
     return buf.getvalue()
@@ -294,11 +359,11 @@ def import_bcfzip(db: Session, project_id: str, data: bytes) -> int:
                 priority=te.findtext("Priority"),
                 assignee=te.findtext("AssignedTo"),
                 author=te.findtext("CreationAuthor"),
-                labels=[e.text for e in te.findall("Labels") if e.text],
+                labels=_all_labels(te),
                 element_guids=comps or None,
                 anchor=anchor,
             )
-            for ce in root.findall("Comment"):
+            for ce in _all_comments(root, te):
                 topic.comments.append(Comment(
                     author=ce.findtext("Author"),
                     text=ce.findtext("Comment") or "",

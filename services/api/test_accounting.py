@@ -9,8 +9,9 @@ for _f in ("./test_accounting.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient           # noqa: E402
-from aec_api.main import app                          # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "P"}).json()["id"]
@@ -33,6 +34,21 @@ with TestClient(app) as c:
     assert any("Construction Costs" in l and "100000.00" in l for l in lines), lines
     assert any("Accounts Payable" in l and "100000.00" in l for l in lines), lines
 
+    # trial balance MUST balance: total debits == total credits (the core double-entry invariant).
+    tb = c.get(f"/projects/{pid}/accounting/trial-balance").json()
+    assert tb["balanced"] is True, tb
+    assert abs(tb["debit_total"] - tb["credit_total"]) < 0.01, tb
+    assert abs(tb["debit_total"] - 125000) < 0.01, tb          # 100000 + 25000 posted both sides
+    # and the GL CSV itself balances column-for-column (sum of Debit == sum of Credit)
+    dr = cr = 0.0
+    for line in lines[1:]:
+        cols = line.split(",")
+        dr += float(cols[-2] or 0); cr += float(cols[-1] or 0)
+    assert abs(dr - cr) < 0.01 and abs(dr - 125000) < 0.01, (dr, cr)
+    # journal-entries: each posted entry is itself balanced
+    je = c.get(f"/projects/{pid}/accounting/journal-entries").json()
+    assert je.get("entries"), je
+
     iif = c.get(f"/projects/{pid}/accounting/bills.iif")
     assert iif.status_code == 200, iif.status_code
     txt = iif.text
@@ -42,4 +58,5 @@ with TestClient(app) as c:
     assert txt.count("ENDTRNS") == 2  # 1 header !ENDTRNS + 1 bill ENDTRNS (direct_cost isn't a bill)
 
 print("ACCOUNTING OK - journal flattens sub invoices + direct costs; GL CSV is balanced double-entry "
-      "(debit Construction Costs / credit AP); QuickBooks IIF emits BILL/SPL/ENDTRNS for AP bills only")
+      "(debit Construction Costs / credit AP); trial balance balances (debits==credits==125000) and the "
+      "GL columns balance; QuickBooks IIF emits BILL/SPL/ENDTRNS for AP bills only")

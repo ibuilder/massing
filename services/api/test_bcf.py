@@ -11,12 +11,13 @@ for f in ("./test_bcf.db",):
     if os.path.exists(f):
         os.remove(f)
 
-import io                                                      # noqa: E402
-import zipfile                                                 # noqa: E402
+import io  # noqa: E402
+import zipfile  # noqa: E402
 
-from fastapi.testclient import TestClient                      # noqa: E402
-from aec_api.main import app                                   # noqa: E402
-from aec_api import bcf_io                                     # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import bcf_io  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 GUID = "3vB2eYHr1ABcDeFgHiJkLm"          # an IFC GlobalId on the topic's viewpoint
 
@@ -78,8 +79,9 @@ with TestClient(app) as c:
     assert p["status"] == "open", p
 
     # --- viewpoint fidelity: full camera (persp + ortho) + per-element coloring ----
-    from aec_api.models import Viewpoint                          # noqa: E402
-    import xml.etree.ElementTree as ET                            # noqa: E402
+    import xml.etree.ElementTree as ET  # noqa: E402
+
+    from aec_api.models import Viewpoint  # noqa: E402
 
     # perspective: position + target -> direction is derived + normalized; fov + up survive
     vp = Viewpoint(guid="vp-p", components=[GUID],
@@ -120,6 +122,45 @@ with TestClient(app) as c:
     ot = c.get(f"/projects/{dst2}/topics").json()[0]
     assert ot["anchor"]["x"] == 7.0 and ot["anchor"]["z"] == 9.0, ot   # ortho camera position -> anchor
 
+    # --- BCF 3.0: export emits the 3.0 shape; import reads it (incl. the 3.0-only locations) ------
+    exp3 = c.get(f"/projects/{src}/bcf/export?version=3.0")
+    assert exp3.status_code == 200, exp3.text[:200]
+    blob3 = exp3.content
+    with zipfile.ZipFile(io.BytesIO(blob3)) as z:
+        assert 'VersionId="3.0"' in z.read("bcf.version").decode(), "version file says 3.0"
+        pinned = next(n for n in z.namelist() if n.endswith("markup.bcf") and b"Beam vs duct" in z.read(n))
+        mroot = ET.fromstring(z.read(pinned))
+        # 3.0 nests Viewpoints under <Topic> and groups <Labels><Label>; no 2.1-style sibling Viewpoints
+        assert mroot.find("Topic/Viewpoints/ViewPoint") is not None, "3.0 nests Viewpoints under Topic"
+        assert mroot.find("Topic/Labels/Label") is not None, "3.0 groups Labels/Label"
+        assert mroot.find("Viewpoints") is None, "no 2.1 sibling <Viewpoints> in a 3.0 markup"
+    # re-import the 3.0 file into a fresh project -> the 2 topics + the pin survive
+    dst3 = c.post("/projects", json={"name": "BCF 3.0 Target"}).json()["id"]
+    imp3 = c.post(f"/projects/{dst3}/bcf/import", files={"file": ("v3.bcfzip", blob3, "application/zip")})
+    assert imp3.status_code == 200 and imp3.json()["imported"] == 2, imp3.text[:200]
+    clash3 = next(t for t in c.get(f"/projects/{dst3}/topics").json() if t["title"] == "Beam vs duct")
+    assert clash3["element_guids"] == [GUID] and clash3["priority"] == "High", clash3
+
+    # a crafted external 3.0 file (grouped labels + a comment nested under <Topic><Comments>) imports:
+    # this exercises the 3.0-only read paths (_all_labels / _all_comments) directly against the engine.
+    m3 = (b'<?xml version="1.0"?><Markup><Topic Guid="v3-1" TopicType="clash" TopicStatus="open">'
+          b'<Title>3.0 nested</Title><Labels><Label>NC-9</Label></Labels>'
+          b'<Comments><Comment Guid="cc1"><Author>qa</Author><Comment>please fix</Comment></Comment>'
+          b'</Comments></Topic></Markup>')
+    b3buf = io.BytesIO()
+    with zipfile.ZipFile(b3buf, "w") as z:
+        z.writestr("bcf.version", b'<?xml version="1.0"?><Version VersionId="3.0"/>')
+        z.writestr("v3-1/markup.bcf", m3)
+    from aec_api.db import SessionLocal  # noqa: E402
+    from aec_api.models import Topic as _Topic  # noqa: E402
+    p3 = c.post("/projects", json={"name": "BCF 3.0 nested"}).json()["id"]
+    with SessionLocal() as db:
+        assert bcf_io.import_bcfzip(db, p3, b3buf.getvalue()) == 1
+        db.commit()
+        topic = db.query(_Topic).filter(_Topic.project_id == p3).first()
+        assert topic.labels == ["NC-9"], topic.labels               # grouped <Labels><Label> read
+        assert topic.comments and topic.comments[0].text == "please fix", topic.comments  # nested comment read
+
     # empty project still exports a valid (topic-less) bcfzip — no crash
     empty = c.post("/projects", json={"name": "Empty"}).json()["id"]
     e = c.get(f"/projects/{empty}/bcf/export")
@@ -130,4 +171,5 @@ with TestClient(app) as c:
 
 print("BCF OK - Topic export/import round-trips into a fresh project (2 topics, fields + priority); "
       "module records export/parse preserve subject/priority/anchor + components by IFC GUID; "
-      "empty project exports a valid topic-less bcfzip")
+      "BCF 3.0 export nests Viewpoints/Labels under <Topic> and re-imports, and a crafted 3.0 file's "
+      "grouped labels + nested comments are read; empty project exports a valid topic-less bcfzip")

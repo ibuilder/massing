@@ -4,6 +4,35 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.137 — openBIM: version-pluggable standards registry + BCF 3.0 + bSDD; money-math tests
+Makes the platform's open-standard support **pluggable to any version**, widens interoperability, and
+pins the most error-prone financial math.
+- **Money-math correctness tests** — the **equity waterfall** (`proforma/waterfall.run_waterfall`:
+  pref accrual → return-of-capital → IRR-hurdle promote tiers) and the **GL trial balance** were only
+  exercised indirectly. `test_waterfall` pins them to hand-computed numbers (72 pref + 428 RoC = 500 to
+  the LP, 472 unreturned) plus hard invariants: dollar conservation across arbitrary multi-period cash,
+  full return of capital before promote, the promote actually promoting the GP, and European style
+  withholding promote until the LP is whole. `test_accounting` now asserts the double-entry invariant —
+  trial balance debits == credits (== 125000) and the GL columns balance.
+- **openBIM version registry** (`openbim.py`) + **`GET /openbim/capabilities`** — one source of truth
+  for which open standards the platform speaks (IFC, BCF, IDS, bSDD, COBie, ISO 19650 CDE) and, per
+  standard, which versions it **reads** and **writes**. The version lists are **derived from the live
+  engines** (BCF versions from `bcf_io`, IFC schemas from `model_capabilities`) so the matrix can't
+  drift from what's actually implemented, and adding a future version (IFC5, BCF 3.x, IDS 2.0) is a
+  registry entry + an adapter rather than scattered `if version ==` edits. `supports(standard, version,
+  mode)` answers "do we read/write X vN?" for guards and agents. `test_openbim_registry`.
+- **BCF 3.0 read/write.** `bcf_io.py` (previously 2.1-only) now writes **BCF 3.0** on request and
+  auto-detects the version on import. In 3.0 the `<Comments>` and `<Viewpoints>` move inside `<Topic>`
+  and `<Labels>` become a `<Labels><Label>…</Label></Labels>` group — so a 3.0 file from a newer
+  BIMcollab / ACC no longer silently loses its comments and labels on import. Both BCF export endpoints
+  (`GET …/bcf/export` and `GET …/modules/{key}/bcf/export`) take `?version=2.1|3.0` (2.1 remains the
+  default); import auto-detects. `test_bcf` gains a 3.0 round-trip + a crafted-3.0-file read.
+- **bSDD lookup.** New `bsdd.py` — a thin, cached client for the buildingSMART Data Dictionary
+  (`api.bsdd.buildingsmart.org`): `GET /bsdd/search?q=` finds classes, `GET /bsdd/class?uri=` resolves
+  a class's canonical URI + property set. Fixed trusted host (no SSRF surface), 8s timeout, graceful
+  502 on outage. Turns the classification alignment proxy into a path to real dictionary URIs.
+  `test_bsdd` mocks the HTTP (no live network) — search/class parse, cache-hit, defensive parse, 404/502.
+
 ## v0.3.136 — openBIM: IDS validation failures export as a BCF punch list
 Closes the model-QA loop. `POST /projects/{pid}/validate?format=bcf` now returns a **.bcfzip** of the
 IDS non-conformances — one topic per failing specification, with that spec's failing elements selected

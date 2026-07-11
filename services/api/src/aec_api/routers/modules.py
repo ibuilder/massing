@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -581,10 +581,11 @@ async def upload_attachments_bulk(pid: str, key: str, rid: str,
 
 
 @router.get("/projects/{pid}/modules/{key}/bcf/export")
-def export_module_bcf(pid: str, key: str, db: Session = Depends(get_db),
-                      _: str = Depends(require_role("viewer"))):
-    """Export a module's records as a BCF 2.1 .bcfzip (coordination issues round-trip with Solibri /
-    ACC / BIMcollab). Pinned / element-tied records carry a viewpoint (components + camera)."""
+def export_module_bcf(pid: str, key: str, version: str = Query("2.1", pattern="^(2\\.1|3\\.0)$"),
+                      db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Export a module's records as a BCF .bcfzip (coordination issues round-trip with Solibri / ACC /
+    BIMcollab). Pinned / element-tied records carry a viewpoint (components + camera). `version` = 2.1
+    (default) or 3.0."""
     from .. import bcf_io
     # list_records already returns every column BCF needs (title/ref/workflow_state/assignee/data/
     # anchor/element_guids) — the old per-row get_record was a pure N+1 that also pulled
@@ -596,7 +597,8 @@ def export_module_bcf(pid: str, key: str, db: Session = Depends(get_db),
         recs = recs[:cap]
         logging.getLogger("aec.bcf").warning(
             "BCF export of %s truncated to %d records (project %s)", key, cap, pid)
-    data = bcf_io.export_records_bcfzip(recs, topic_type="Clash" if key == "coordination_issue" else "Issue")
+    data = bcf_io.export_records_bcfzip(recs, topic_type="Clash" if key == "coordination_issue" else "Issue",
+                                        version=version)
     headers = {"Content-Disposition": f'attachment; filename="{key}.bcfzip"'}
     if truncated:
         headers["X-Truncated"] = f"{cap}"

@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
-from .. import bim_kpi, cde, ids_authoring, mcp_tools, openbim_quality, standards_expert
+from .. import bim_kpi, bsdd, cde, ids_authoring, mcp_tools, openbim, openbim_quality, standards_expert
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_role
@@ -221,6 +221,40 @@ def standards_check(pid: str, standard: str = "iso19650", db: Session = Depends(
     findings with the clause each references, recommendations, and a 0–100 readiness score."""
     _project(db, pid)
     return standards_expert.check(db, pid, standard)
+
+
+@router.get("/bsdd/search")
+def bsdd_search(q: str, dictionary: str | None = None, limit: int = 20,
+                _: str = Depends(current_user)):
+    """Free-text search the buildingSMART Data Dictionary for classes matching `q`
+    (optionally scoped to one ?dictionary= URI). Reference-data lookup, not
+    project-scoped. A bSDD outage surfaces as 502, not 500."""
+    try:
+        return {"classes": bsdd.search_classes(q, dictionary_uri=dictionary, limit=limit)}
+    except RuntimeError as exc:
+        raise HTTPException(502, "bSDD unavailable") from exc
+
+
+@router.get("/bsdd/class")
+def bsdd_class(uri: str, _: str = Depends(current_user)):
+    """Fetch one bSDD class (with its properties) by full `uri`. 404 when the class
+    isn't found; 502 when bSDD is unreachable."""
+    try:
+        cls = bsdd.get_class(uri)
+    except RuntimeError as exc:
+        raise HTTPException(502, "bSDD unavailable") from exc
+    if cls is None:
+        raise HTTPException(404, "class not found")
+    return cls
+
+
+@router.get("/openbim/capabilities")
+def openbim_capabilities(_: str = Depends(current_user)):
+    """The openBIM standards + version matrix this platform speaks — for each standard (IFC, BCF, IDS,
+    bSDD, COBie, ISO 19650 CDE), which versions we can read and write. Derived from the live engines
+    (BCF versions, IFC schemas), so it never drifts from what's actually implemented; a consumer/agent
+    can ask 'do you read BCF 3.0?' without guessing."""
+    return openbim.capabilities()
 
 
 @router.get("/mcp/tools")
