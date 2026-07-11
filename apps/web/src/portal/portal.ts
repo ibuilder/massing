@@ -1,7 +1,7 @@
 import type { ApiClient, ModuleDef, ModuleRecord, RecordBrief } from "../api/client";
 import { escapeHtml as esc, toast } from "../ui/feedback";
 import { progressBar, groupedBar, money as cmoney } from "../ui/charts";
-import { modalShell, promptModal } from "../ui/modal";
+import { confirmModal, modalShell, promptModal } from "../ui/modal";
 import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
 import type { PanelContext } from "./panelContext";
@@ -1064,7 +1064,7 @@ export class PortalUI {
     sovBtn.onclick = async () => {
       try {
         let r = await this.host.api.sovFromBudget(pid);
-        if (!r.created && r.skipped && confirm(`The SOV already has ${r.skipped} lines. Rebuild it from the budget?`))
+        if (!r.created && r.skipped && (await confirmModal(`The SOV already has ${r.skipped} lines. Rebuild it from the budget?`, "")))
           r = await this.host.api.sovFromBudget(pid, true);
         this.host.setStatus(r.created ? `built ${r.created} SOV lines from the budget` : "SOV unchanged");
         if (r.created) jumpTo("sov");
@@ -1073,7 +1073,7 @@ export class PortalUI {
     const baseBtn = document.createElement("button"); baseBtn.className = "tool-btn"; baseBtn.dataset.cap = "edit";
     baseBtn.textContent = "📌 Set baseline"; baseBtn.title = "Snapshot the current GMP budget to track movement against";
     baseBtn.onclick = async () => {
-      if (!confirm("Snapshot the current GMP budget as the baseline? (re-baseline after an approved change)")) return;
+      if (!(await confirmModal("Snapshot the current GMP budget as the baseline? (re-baseline after an approved change)", ""))) return;
       try { const r = await this.host.api.setBudgetBaseline(pid); this.host.setStatus(`baseline set (${r.lines} lines)`); void this.renderBudget(); }
       catch (e) { this.host.setStatus(`couldn't set baseline: ${(e as Error).message}`); }
     };
@@ -1546,7 +1546,7 @@ export class PortalUI {
       }).catch(() => { blBody.innerHTML = `<div class="meta">No baseline set — click <b>📌 Set baseline</b> to snapshot the current plan and start tracking slip.</div>`; });
     };
     setBtn.onclick = async () => {
-      if (!confirm("Snapshot the current schedule as the baseline? Variance will be measured against it (re-baseline anytime).")) return;
+      if (!(await confirmModal("Snapshot the current schedule as the baseline? Variance will be measured against it (re-baseline anytime).", ""))) return;
       try { const b = await this.host.api.setBaseline(pid); this.host.setStatus(`baseline set (${b.count} activities)`); loadVariance(); }
       catch (e) { this.host.setStatus(`baseline failed: ${(e as Error).message}`); }
     };
@@ -1734,7 +1734,7 @@ export class PortalUI {
     asgBtn.onclick = () => void runBulk("assign", "Assigned", asgIn.value.trim());
     // Delete (kept behind a confirm)
     const delBtn = document.createElement("button"); delBtn.className = "tool-btn"; delBtn.textContent = "Delete";
-    delBtn.onclick = () => { if (confirm(`Delete ${selected.size} record(s)? This cannot be undone.`)) void runBulk("delete", "Deleted"); };
+    delBtn.onclick = async () => { if (await confirmModal(`Delete ${selected.size} record(s)? This cannot be undone.`, "", "Delete", true)) void runBulk("delete", "Deleted"); };
     bulkBar.append(asgIn, asgBtn, delBtn);
     this.root.appendChild(bulkBar);
 
@@ -1820,7 +1820,7 @@ export class PortalUI {
     const pid = this.host.projectId()!;
     const tgt = this.mods.find((x) => x.key === c.to);
     if (!tgt) return;
-    if (!confirm(`Create a ${tgt.name} from ${r.ref}? It will be pre-filled and linked back to ${r.ref}.`)) return;
+    if (!(await confirmModal(`Create a ${tgt.name} from ${r.ref}? It will be pre-filled and linked back to ${r.ref}.`, ""))) return;
     try {
       const data = c.map(r.data);
       if (c.back) data[c.back] = r.id;                 // back-reference field on the new record → this record
@@ -2380,7 +2380,7 @@ export class PortalUI {
     const delBtn = document.createElement("button");
     delBtn.className = "tool-btn"; delBtn.textContent = "🗑 Delete";
     delBtn.onclick = async () => {
-      if (!confirm(`Delete ${r.ref}? This cannot be undone.`)) return;
+      if (!(await confirmModal(`Delete ${r.ref}? This cannot be undone.`, "", "Delete", true))) return;
       try { await this.host.api.deleteModuleRecord(pid, m.key, rid); this.host.setStatus(`deleted ${r.ref}`); this.host.onPinsChanged(); this.openModule(m); }
       catch (e) { this.host.setStatus(`error: ${(e as Error).message}`); }
     };
@@ -2405,7 +2405,7 @@ export class PortalUI {
       reviseBtn.textContent = "⎘ Revise"; reviseBtn.disabled = superseded;
       reviseBtn.title = superseded ? "Already revised" : "Create a tracked revision (re-opens the workflow)";
       reviseBtn.onclick = async () => {
-        if (!confirm(`Create a revision of ${r.ref}? It re-opens the workflow as a new record (${r.ref}.${(r.revision?.number ?? 0) + 1}).`)) return;
+        if (!(await confirmModal(`Create a revision of ${r.ref}? It re-opens the workflow as a new record (${r.ref}.${(r.revision?.number ?? 0) + 1}).`, ""))) return;
         try { const nv = await this.host.api.reviseRecord(pid, m.key, rid); this.host.setStatus(`created ${nv.ref}`); this.openRecord(m, nv.id); }
         catch (e) { this.host.setStatus(`revise failed: ${(e as Error).message}`); }
       };
@@ -2510,7 +2510,7 @@ export class PortalUI {
       showBtn.onclick = () => this.host.onSelectGuids(guids); elRow.appendChild(showBtn);
       const clrBtn = document.createElement("button"); clrBtn.className = "tool-btn"; clrBtn.textContent = "✕ Clear ties";
       clrBtn.onclick = async () => {
-        if (!confirm(`Untie all ${guids.length} elements from ${r.ref}?`)) return;
+        if (!(await confirmModal(`Untie all ${guids.length} elements from ${r.ref}?`, "", "Untie", true))) return;
         try { await this.host.api.tagElements(pid, m.key, rid, [], "set"); this.openRecord(m, rid); }
         catch (e) { this.host.setStatus(`clear failed: ${(e as Error).message}`); }
       };

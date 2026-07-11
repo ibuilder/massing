@@ -11,6 +11,7 @@ import { buildElementProps, buildRawProps } from "./propsView";
 import { type ModelIdMap } from "./modelIds";
 import { showQrModal } from "../ui/qr";
 import { askText } from "../ui/prompt";
+import { confirmModal } from "../ui/modal";
 import { SelectionSets } from "./selectionSets";
 import { MeasureTool, type MeasureMode } from "../tools/measure";
 import { SectionTool } from "../tools/section";
@@ -305,7 +306,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // Large model + backend: server converts → we stream the published .frag. No in-browser parse.
     if (big && connected && pid) {
       let replace = true;
-      try { if ((await api.project(pid)).has_source_ifc) replace = confirm(`Replace this project's model with ${file.name} (${mb(file.size)} MB)? Drawings & analysis will regenerate.`); }
+      try { if ((await api.project(pid)).has_source_ifc) replace = await confirmModal(`Replace this project's model with ${file.name} (${mb(file.size)} MB)? Drawings & analysis will regenerate.`, ""); }
       catch { /* offline check — proceed */ }
       if (!replace) { notify(`kept the current project model`, "info"); return; }
       notify(`${file.name} is large (${mb(file.size)} MB) — converting on the server for smooth streaming…`, "info");
@@ -331,7 +332,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     });
     if (!connected || !pid) { notify(`loaded ${file.name} (no project — view only)`, "success"); return; }
     let replace = true;
-    try { if ((await api.project(pid)).has_source_ifc) replace = confirm(`Replace this project's model with ${file.name}? Drawings & analysis will regenerate.`); }
+    try { if ((await api.project(pid)).has_source_ifc) replace = await confirmModal(`Replace this project's model with ${file.name}? Drawings & analysis will regenerate.`, ""); }
     catch { /* offline check — proceed */ }
     if (!replace) { notify(`loaded ${file.name} (project model unchanged)`, "info"); return; }
     notify(`Adding ${file.name} to the project — generating drawings & analysis…`, "info");
@@ -778,7 +779,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   toolBtn("␡", "Delete selected element", async () => {
     if (!selectedGuid) { notify("select an element first", "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
-    if (!confirm(`Delete element ${selectedGuid.slice(0, 8)}? This re-authors the IFC.`)) return;
+    if (!(await confirmModal(`Delete element ${selectedGuid.slice(0, 8)}? This re-authors the IFC.`, "", "Delete", true))) return;
     await authorAndReload("delete_element", { guid: selectedGuid }, "delete");
   }, "edit");
   const addOpening = async (kind: "door" | "window") => {
@@ -794,7 +795,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   toolBtn("✥", "Move selected element (E,N,Z metres)", async () => {
     if (!selectedGuid) { notify("select an element first", "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
-    const v = prompt("Move by E, N, Z metres (comma-separated):", "1, 0, 0");
+    const v = await askText("Move element", { label: "Move by E, N, Z metres (comma-separated):", value: "1, 0, 0" });
     if (!v) return;
     const [dx, dy, dz] = v.split(",").map((n) => Number(n.trim()) || 0);
     await authorAndReload("move_element", { guid: selectedGuid, dx, dy, dz }, "move");
@@ -802,22 +803,22 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   toolBtn("⟲", "Rotate selected element (degrees about Z)", async () => {
     if (!selectedGuid) { notify("select an element first", "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
-    const a = Number(prompt("Rotate by degrees (about vertical axis):", "90"));
+    const a = Number(await askText("Rotate element", { label: "Rotate by degrees (about vertical axis):", value: "90" }));
     if (!a) return;
     await authorAndReload("rotate_element", { guid: selectedGuid, angle: a }, "rotate");
   }, "edit");
   toolBtn("✎", "Edit a property on the selected element", async () => {
     if (!selectedGuid) { notify("select an element first", "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
-    const pset = prompt("Pset name:", "Pset_WallCommon"); if (!pset) return;
-    const propName = prompt("Property:", "FireRating"); if (!propName) return;
-    const value = prompt(`Value for ${propName}:`, ""); if (value === null) return;
+    const pset = await askText("Edit property", { label: "Pset name:", value: "Pset_WallCommon" }); if (!pset) return;
+    const propName = await askText("Edit property", { label: "Property:", value: "FireRating" }); if (!propName) return;
+    const value = await askText("Edit property", { label: `Value for ${propName}:`, value: "" }); if (value === null) return;
     await authorAndReload("set_element_pset", { guid: selectedGuid, pset, prop: propName, value }, "property edit");
   }, "edit");
   toolBtn("⧉", "Copy selected element (offset E,N,Z metres)", async () => {
     if (!selectedGuid) { notify("select an element first", "error"); return; }
     if (!projectId) { notify("connect a project with a source IFC to edit", "error"); return; }
-    const v = prompt("Copy with offset E, N, Z metres:", "1, 0, 0"); if (!v) return;
+    const v = await askText("Copy element", { label: "Copy with offset E, N, Z metres:", value: "1, 0, 0" }); if (!v) return;
     const [dx, dy, dz] = v.split(",").map((n) => Number(n.trim()) || 0);
     await authorAndReload("copy_element", { guid: selectedGuid, dx, dy, dz }, "copy");
   }, "edit");
@@ -874,10 +875,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     let recipe = "add_wall"; let params: Record<string, unknown> = {};
     if (kind === "wall") {
       const [a, b] = placePts;
-      params = { start: pl(a), end: pl(b), height: Number(prompt("Wall height (m):", "3.0")) || 3.0, thickness: Number(prompt("Wall thickness (m):", "0.2")) || 0.2 };
+      params = { start: pl(a), end: pl(b), height: Number(await askText("Wall height", { label: "Wall height (m):", value: "3.0" })) || 3.0, thickness: Number(await askText("Wall thickness", { label: "Wall thickness (m):", value: "0.2" })) || 0.2 };
     } else if (kind === "column") {
       recipe = "add_column";
-      params = { point: pl(placePts[0]), height: Number(prompt("Column height (m):", "3.0")) || 3.0 };
+      params = { point: pl(placePts[0]), height: Number(await askText("Column height", { label: "Column height (m):", value: "3.0" })) || 3.0 };
     } else if (kind === "family") {
       if (!familyType) { notify("no family selected", "error"); return; }
       recipe = "place_type";
@@ -885,7 +886,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     } else {
       recipe = "add_beam";
       const [a, b] = placePts;
-      params = { start: pl(a), end: pl(b), depth: Number(prompt("Beam depth (m):", "0.5")) || 0.5 };
+      params = { start: pl(a), end: pl(b), depth: Number(await askText("Beam depth", { label: "Beam depth (m):", value: "0.5" })) || 0.5 };
     }
     await authorAndReload(recipe, params, kind === "family" ? `family ${familyType?.name ?? ""}` : kind);
   }
@@ -2070,7 +2071,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     let suggestedTitle = "New RFI";
     let description: string | undefined;
     if (guid) {
-      const note = prompt("Briefly describe the issue (optional — leave blank to let AI draft it):", "") || undefined;
+      const note = (await askText("Describe the issue", { label: "Briefly describe the issue (optional — leave blank to let AI draft it):", value: "" })) || undefined;
       try {
         const el = await api.element(projectId, guid);
         const d = await api.draftRfi(projectId, el, note);
@@ -2079,7 +2080,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         setStatus(d.source === "claude" ? `AI-drafted RFI (${d.discipline})` : `drafted RFI (${d.discipline})`);
       } catch { if (note) description = note; }
     }
-    const title = prompt("RFI title:", suggestedTitle) || suggestedTitle;
+    const title = (await askText("RFI title", { label: "RFI title:", value: suggestedTitle })) || suggestedTitle;
     const topic = await api.createTopic(projectId, {
       type: "rfi", title, description, status: "open",
       anchor: lastPoint ? { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z } : undefined,

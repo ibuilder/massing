@@ -1,6 +1,7 @@
 import type { ApiClient, DrawingMarkupItem } from "../api/client";
 import type { Measure } from "./pdfTakeoff";
 import { noProjectHtml } from "../ui/empty";
+import { askText } from "../ui/prompt";
 
 /** 2D Drawings Set — a sheet-set browser for the server-generated plans / elevations / sections
  *  (cf. PlanGrid plan room + Bluebeam markup + Fieldlens field pins). Left: a sheet register;
@@ -220,7 +221,7 @@ export class DrawingsUI {
       const r = vp.getBoundingClientRect();
       const x = (e.clientX - r.left - this.tx) / this.scale;
       const y = (e.clientY - r.top - this.ty) / this.scale;
-      const note = prompt("Markup note:"); if (note == null) return;
+      const note = await askText("Add markup", { label: "Markup note:" }); if (note == null) return;
       try { await this.host_.api.addDrawingMarkup(pid, this.current.id, x, y, note); await this.loadPins(); }
       catch { this.host_.setStatus("markup needs reviewer access"); }
     });
@@ -264,7 +265,8 @@ export class DrawingsUI {
         e.stopPropagation();
         if (!pid) return;
         const linked = p.topic_id ? " (already an RFI)" : "";
-        const choice = prompt(`Markup #${i + 1}: "${p.note || ""}"${linked}\n\nType:  rfi = raise an RFI,  del = delete`, "");
+        const choice = await askText(`Markup #${i + 1}`, {
+          label: `"${p.note || ""}"${linked} — type "rfi" to raise an RFI, or "del" to delete.`, value: "" });
         if (choice == null) return;
         try {
           if (choice.trim().toLowerCase() === "rfi" && !p.topic_id) {

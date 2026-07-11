@@ -7,7 +7,8 @@
  * IDs and query cells, so HTML injection would otherwise be a stored-XSS vector.
  */
 import type { ApiClient, ConnectionItem, SyncScheduleItem } from "../api/client";
-import { modalShell } from "../ui/modal";
+import { modalShell, confirmModal } from "../ui/modal";
+import { askText } from "../ui/prompt";
 import { escapeHtml, toast } from "../ui/feedback";
 
 type GetPid = () => string | null;
@@ -183,7 +184,7 @@ export function openConnectionsModal(api: ApiClient, getPid: GetPid) {
       if (cx.type === "procore") {
         row.append(act("Sync now", async () => {
           const pid = getPid(); if (!pid) { msg.textContent = "open a project first to import into it"; return; }
-          const pp = prompt("Procore project ID to import from (RFIs, submittals, change events):");
+          const pp = await askText("Import from Procore", { label: "Procore project ID to import from (RFIs, submittals, change events):" });
           if (!pp || !pp.trim()) return;
           const r = await api.syncProcore(pid, cx.id, pp.trim());
           const by = Object.entries(r.results).map(([k, v]) => `${v.imported} ${k}`).join(", ");
@@ -191,7 +192,7 @@ export function openConnectionsModal(api: ApiClient, getPid: GetPid) {
         }));
         row.append(act("Push", async () => {
           const pid = getPid(); if (!pid) { msg.textContent = "open a project first"; return; }
-          const pp = prompt("Procore project ID to push resolved RFIs (answer + status) to:");
+          const pp = await askText("Push to Procore", { label: "Procore project ID to push resolved RFIs (answer + status) to:" });
           if (!pp || !pp.trim()) return;
           const r = await api.pushProcore(pid, cx.id, pp.trim());
           toast(`Pushed ${r.pushed_total} RFI(s) back to Procore`, "info");
@@ -204,7 +205,7 @@ export function openConnectionsModal(api: ApiClient, getPid: GetPid) {
       }
       if (cx.type === "acc") {
         row.append(act("Issues", async () => {
-          const pp = prompt("ACC project ID to list issues from:");
+          const pp = await askText("List ACC issues", { label: "ACC project ID to list issues from:" });
           if (!pp || !pp.trim()) return;
           const r = await api.accIssues(cx.id, pp.trim());
           if (r.error) { msg.textContent = `ACC: ${r.error}`; return; }
@@ -214,7 +215,7 @@ export function openConnectionsModal(api: ApiClient, getPid: GetPid) {
       if (!cx.builtin) {
         row.append(
           act("Test", async () => { detail.textContent = "testing…"; const r = await api.testConnection(cx.id); badge(r.status.ok); detail.textContent = r.status.detail + (r.info.project_count ? ` · ${r.info.project_count} projects` : ""); }),
-          act("Delete", async () => { if (confirm(`Delete connection “${cx.name}”?`)) { await api.deleteConnection(cx.id); await render(); } }));
+          act("Delete", async () => { if (await confirmModal(`Delete connection “${cx.name}”?`, "", "Delete", true)) { await api.deleteConnection(cx.id); await render(); } }));
       }
       list.appendChild(row);
     }

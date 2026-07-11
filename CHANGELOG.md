@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.135 — Accessibility: every native prompt/confirm replaced with keyboard-navigable modals
+Removes the last blocking `window.prompt()`/`window.confirm()` dialogs from the app — 42 call sites
+across the viewer, portal, drawings, connections, account, finance, and PDF-takeoff flows now use the
+shared accessible modal helpers (`confirmModal` / `askText` / `promptModal`), which trap focus, close
+on Esc/backdrop, restore focus on close, and carry `role="dialog"` + `aria-modal`. Destructive actions
+(delete/remove/untie) get a red-styled confirm button. Behavior and every message string are unchanged;
+only the dialog is now navigable and screen-reader friendly. (The remaining `window.prompt` in the
+built bundle lives inside the third-party @thatopen viewer library, not our code.)
+
 ## v0.3.134 — Accessibility: reduced-motion support + screen-reader announcements
 P2 a11y quick wins (Section 508 / WCAG 2.1 — often a procurement gate), no functional change.
 - **Reduced motion:** a global `@media (prefers-reduced-motion: reduce)` rule near-instantly completes

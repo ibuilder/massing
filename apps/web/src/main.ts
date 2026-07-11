@@ -7,7 +7,8 @@ import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
 import { maybeWelcome, showWelcome } from "./ui/onboarding";
 import { mountChecklist, reopenChecklist } from "./ui/checklist";
 import { FieldCapture } from "./field/field";
-import { modalShell } from "./ui/modal";
+import { modalShell, confirmModal } from "./ui/modal";
+import { askText } from "./ui/prompt";
 import { showResult } from "./ui/result";
 import { buildMenu, closeMenus } from "./ui/menus";
 import { initCommandPalette, type Command } from "./ui/palette";
@@ -107,18 +108,19 @@ for (const kind of ["ifc", "frag", "convert", "ref"] as const) {
  * operator supplies a tile server (honoring CLAUDE.md's "self-hosted tiles").
  */
 async function addBasemapFlow() {
-  const template = prompt(
-    "Self-hosted tile URL template (XYZ), e.g. https://tiles.internal/{z}/{x}/{y}.png",
-    "");
+  const template = await askText("Add Basemap", {
+    label: "Self-hosted tile URL template (XYZ), e.g. https://tiles.internal/{z}/{x}/{y}.png",
+    value: "",
+  });
   if (!template || !/\{z\}.*\{x\}.*\{y\}/.test(template)) {
     if (template) { const { toast } = await import("./ui/feedback"); toast("template must contain {z}/{x}/{y}", "error"); }
     return;
   }
-  const ll = prompt("Focus latitude, longitude (decimal degrees)", "40.7484, -73.9857");
+  const ll = await askText("Basemap Focus", { label: "Focus latitude, longitude (decimal degrees)", value: "40.7484, -73.9857" });
   if (!ll) return;
   const [lat, lon] = ll.split(",").map((s) => parseFloat(s.trim()));
   if (!isFinite(lat) || !isFinite(lon)) { const { toast } = await import("./ui/feedback"); toast("invalid lat/lon", "error"); return; }
-  const zoom = parseInt(prompt("Zoom level (1–22)", "17") || "17", 10);
+  const zoom = parseInt((await askText("Basemap Zoom", { label: "Zoom level (1–22)", value: "17" })) || "17", 10);
   try {
     const { toast } = await import("./ui/feedback"); toast("Loading basemap tiles…", "info");
     const gis = await import("./viewer/gis");
@@ -330,7 +332,7 @@ async function openReportCenter() {
       mk("⧉ Merge PDFs…", async () => { const fs = await pick(true); if (fs.length < 2) { toast("pick 2 or more PDFs", "error"); return; } dl(await api.pdfMerge(fs), "merged.pdf"); toast(`merged ${fs.length} PDFs`, "success"); }),
       mk("✂ Split to pages (zip)…", async () => { const [f] = await pick(false); if (!f) return; dl(await api.pdfSplitZip(f), stem(f.name) + "-pages.zip"); toast("split into pages", "success"); }),
       mk("↻ Rotate 90°…", async () => { const [f] = await pick(false); if (!f) return; dl(await api.pdfRotate(f, 90), stem(f.name) + "-rotated.pdf"); toast("rotated", "success"); }),
-      mk("⇲ Extract pages…", async () => { const [f] = await pick(false); if (!f) return; const p = prompt("Pages to extract (e.g. 1,3,5-7):", "1"); if (!p) return; dl(await api.pdfExtract(f, p), stem(f.name) + "-extract.pdf"); toast("extracted", "success"); }),
+      mk("⇲ Extract pages…", async () => { const [f] = await pick(false); if (!f) return; const p = await askText("Extract Pages", { label: "Pages to extract (e.g. 1,3,5-7):", value: "1" }); if (!p) return; dl(await api.pdfExtract(f, p), stem(f.name) + "-extract.pdf"); toast("extracted", "success"); }),
     );
   }));
   tool("🏛 Stamp & seal PDF", () => showResult("Stamp & seal", async (body) => {
@@ -625,7 +627,7 @@ async function importRvtFlow() {
   let st;
   try { st = await api.rvtBridgeStatus(); } catch { toast("Couldn't reach the RVT bridge", "error"); return; }
   if (!st.enabled) { showFreeImportHelp(); return; }      // bridge off → the free path is the answer
-  if (!confirm(`${st.cost_warning}\n\nPick a .rvt and convert it now?`)) return;
+  if (!(await confirmModal(`${st.cost_warning}\n\nPick a .rvt and convert it now?`, ""))) return;
   const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".rvt";
   inp.onchange = async () => {
     const f = inp.files?.[0]; if (!f || !projectId) return;
@@ -1009,7 +1011,7 @@ function onboardCtx() {
 
 /** Create a blank project (no IFC) and switch to it — GC portal + proforma work immediately. */
 async function newProject() {
-  const name = prompt("New project name:");
+  const name = await askText("New Project", { label: "New project name:" });
   if (!name || !name.trim()) return;
   try { const p = await api.createProject(name.trim()); window.location.search = `?project=${p.id}`; }
   catch { toast("Couldn't create project (sign in as an editor?)", "error"); }
@@ -1041,7 +1043,7 @@ function buildProjectPicker(projects: { id: string; name: string; model_kind?: s
   del.className = "tool-btn"; del.style.marginLeft = "4px"; del.textContent = "🗑"; del.title = "Delete current project";
   del.onclick = async () => {
     const cur = projects.find((p) => p.id === projectId);
-    if (!cur || !confirm(`Delete project “${cur.name}” and all its data? This can't be undone.`)) return;
+    if (!cur || !(await confirmModal(`Delete project “${cur.name}” and all its data? This can't be undone.`, "", "Delete", true))) return;
     try {
       await api.deleteProject(cur.id);
       toast(`Deleted “${cur.name}”`, "info");

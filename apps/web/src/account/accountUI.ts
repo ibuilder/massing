@@ -8,7 +8,8 @@
  * which previously hand-rolled its own overlay and so lacked that behaviour.
  */
 import type { ApiClient, AccountUser, AuditEntry, ProjectMember, ProjectRole } from "../api/client";
-import { modalShell } from "../ui/modal";
+import { modalShell, confirmModal } from "../ui/modal";
+import { askText } from "../ui/prompt";
 import { escapeHtml, toast } from "../ui/feedback";
 
 export interface AccountDeps {
@@ -188,7 +189,7 @@ function adminModal() {
       const activeBtn = act(u.active ? "Deactivate" : "Reactivate",
         () => api.updateUser(u.username, { active: !u.active }));
       const pwBtn = act("Reset password", async () => {
-        const np = prompt(`New password for ${u.username} (min 8):`);
+        const np = await askText("Reset password", { label: `New password for ${u.username} (min 8):` });
         if (np == null) return;
         if (np.length < 8) { msg.textContent = "password must be at least 8 characters"; return; }
         await api.resetUserPassword(u.username, np);
@@ -197,10 +198,10 @@ function adminModal() {
       const linkBtn = act("Reset link", async () => {
         const { reset_token } = await api.issueResetToken(u.username);
         await navigator.clipboard?.writeText(reset_token).catch(() => {});
-        prompt(`One-time reset token for ${u.username} (copied; expires in 1h). They paste it at Sign in → "Have a reset token?":`, reset_token);
+        await askText("Reset link", { label: `One-time reset token for ${u.username} (copied; expires in 1h). They paste it at Sign in → "Have a reset token?":`, value: reset_token });
       });
       const emailBtn = act("Email", async () => {
-        const e = prompt(`Email for ${u.username} (blank to clear):`, u.email || "");
+        const e = await askText("Edit email", { label: `Email for ${u.username} (blank to clear):`, value: u.email || "" });
         if (e === null) return;
         await api.updateUser(u.username, { email: e.trim() });
         toast(`Email updated for ${u.username}`, "info");
@@ -261,7 +262,7 @@ function membersModal(pid: string) {
       roleSel.onchange = save; partySel.onchange = save;
       const rm = document.createElement("button"); rm.className = "tool-btn"; rm.textContent = "Remove";
       rm.onclick = async () => {
-        if (!confirm(`Remove ${m.user} from this project?`)) return;
+        if (!(await confirmModal(`Remove ${m.user} from this project?`, "", "Remove", true))) return;
         try { await api.removeMember(pid, m.user); await render(); }
         catch { msg.textContent = `could not remove ${m.user} (last admin?)`; }
       };

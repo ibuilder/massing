@@ -1,5 +1,6 @@
 import type { ApiClient, MassingParams, MassingResult, ProformaResult, FinancialStatements, StatementLine, Appraisal } from "../api/client";
 import { escapeHtml } from "../ui/feedback";
+import { askText } from "../ui/prompt";
 import { signedBars, donut, lineChart, stackedBar, tornado, groupedBar, money as cmoney } from "../ui/charts";
 import { showQrModal } from "../ui/qr";
 
@@ -1538,7 +1539,7 @@ export class ProformaUI {
     save.title = "Save this solve as a named scenario — it then appears in the Portfolio with its returns";
     save.onclick = async () => {
       if (!pid) { this.setStatus("open a project to save a scenario"); return; }
-      const name = prompt("Save scenario as:", "Base case"); if (!name) return;
+      const name = await askText("Save scenario", { label: "Save scenario as:", value: "Base case" }); if (!name) return;
       try { await this.api.createScenario(name, pid, this.a); this.setStatus(`saved scenario “${name}” — now in the Portfolio`); }
       catch (e) { this.setStatus(`save failed: ${(e as Error).message}`); }
     };
