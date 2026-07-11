@@ -1208,7 +1208,12 @@ export class PortalUI {
     if (editing) editBtn.classList.add("on");
     editBtn.title = "Edit cells directly in the table — type across many records; changes save automatically";
     editBtn.onclick = () => { this.editInline[m.key] = !editing; this.openModule(m, filter); };
-    actions.append(newBtn, boardBtn, csvBtn, impBtn, impFile, pasteBtn, editBtn, tplBtn, fbox, stateSel, viewSel, saveView);
+    // column chooser — pick which fields show as columns in wide modules (personal, persisted)
+    const colBtn = document.createElement("button"); colBtn.className = "tool-btn";
+    colBtn.textContent = "⚙ Columns"; colBtn.title = "Choose which fields show as columns";
+    if (this.readColPrefs(m.key)) colBtn.classList.add("on");   // signal a non-default column set is active
+    colBtn.onclick = () => this.columnPicker(m, colNames, filter);
+    actions.append(newBtn, boardBtn, csvBtn, impBtn, impFile, pasteBtn, editBtn, tplBtn, colBtn, fbox, stateSel, viewSel, saveView);
     // the Schedule module is the relational home for the same activities behind Gantt / LOB / CPM /
     // the 3D 4D scrub — surface those views here so linear + gantt live with the GC schedule.
     if (m.key === "schedule_activity") {
@@ -1260,9 +1265,12 @@ export class PortalUI {
       return;
     }
 
-    // columns: module.json list_columns, else first 2 input fields; always ref/status/assignee
+    // columns: a saved per-user choice (⚙ Columns) wins; else module.json list_columns, else first 2
+    // input fields. Ref/Title/Assignee/Ball/Status always frame the row regardless.
     const inputFields = m.fields.filter((f) => f.type !== "rollup" && f.type !== "signature");
-    const cols = (m.list_columns ?? inputFields.slice(0, 2).map((f) => f.name))
+    const defaultColNames = (m.list_columns ?? inputFields.slice(0, 2).map((f) => f.name));
+    const colNames = this.readColPrefs(m.key) ?? defaultColNames;
+    const cols = colNames
       .map((name) => m.fields.find((f) => f.name === name)).filter(Boolean) as ModuleDef["fields"];
 
     // sort
@@ -1496,6 +1504,42 @@ export class PortalUI {
       };
     };
     return td;
+  }
+
+  /** Per-module column choice (localStorage). null = use the module's default columns. */
+  private readColPrefs(key: string): string[] | null {
+    try { const s = localStorage.getItem(`portal-cols:${key}`); const a = s ? JSON.parse(s) : null; return Array.isArray(a) ? a as string[] : null; }
+    catch { return null; }
+  }
+
+  /** Column chooser — pick which fields render as columns in a wide module. Personal + persisted;
+   *  Ref / Title / Assignee / Ball / Status always frame the row, so only data fields are offered.
+   *  Reset clears the choice and falls back to the module's default columns. */
+  private columnPicker(m: ModuleDef, current: string[], filter: { q?: string; state?: string; offset?: number }) {
+    const fields = m.fields.filter((f) => f.type !== "rollup" && f.type !== "signature");
+    const dlg = modalShell(`Columns — ${m.name}`, 360);
+    const help = document.createElement("div"); help.className = "meta";
+    help.textContent = "Choose which fields show as columns. Ref, Title, Assignee, Ball-in-court and Status always show.";
+    const list = document.createElement("div");
+    list.style.cssText = "display:flex;flex-direction:column;gap:6px;max-height:44vh;overflow:auto;margin:8px 0";
+    const boxes = new Map<string, HTMLInputElement>();
+    for (const f of fields) {
+      const lab = document.createElement("label"); lab.style.cssText = "display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer";
+      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = current.includes(f.name);
+      lab.append(cb, document.createTextNode(f.label)); list.appendChild(lab); boxes.set(f.name, cb);
+    }
+    const row = document.createElement("div"); row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:4px";
+    const reset = document.createElement("button"); reset.textContent = "Reset to default"; reset.className = "file-btn"; reset.style.marginRight = "auto";
+    reset.onclick = () => { localStorage.removeItem(`portal-cols:${m.key}`); dlg.close(); void this.openModule(m, filter); };
+    const cancel = document.createElement("button"); cancel.textContent = "Cancel"; cancel.className = "file-btn"; cancel.onclick = () => dlg.close();
+    const ok = document.createElement("button"); ok.textContent = "Apply"; ok.className = "file-btn"; ok.style.fontWeight = "600";
+    ok.onclick = () => {
+      const names = fields.filter((f) => boxes.get(f.name)?.checked).map((f) => f.name);   // preserve field order
+      localStorage.setItem(`portal-cols:${m.key}`, JSON.stringify(names));
+      dlg.close(); void this.openModule(m, filter);
+    };
+    row.append(reset, cancel, ok);
+    dlg.card.append(help, list, dlg.msg, row);
   }
 
   /** Paste-from-spreadsheet bulk entry — Ctrl-V a block of cells copied from Excel/Google Sheets

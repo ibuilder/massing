@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.162 — Data-grid UX: choose which columns show
+Roadmap **Track X #3.** A module list showed a fixed set of columns (whatever the module defined), so
+wide record types either hid fields you needed or you scrolled past ones you didn't. A new **⚙ Columns**
+button opens a checklist of every field — tick the ones you want as columns and they render in field
+order; **Reset to default** returns to the module's built-in set. The choice is remembered per module on
+this device, and the button highlights when a custom set is active. Ref, Title, Assignee, Ball-in-court
+and Status always frame the row. Pairs with inline edit / paste so you can shape a wide table down to
+just the columns you're working in.
+
 ## v0.3.161 — Relational fabric: "referenced by" now reads distinctly on a record
 Roadmap **Track R #3.** A record's Related section already listed both the records it points to and the
 records that point back at it — but with one identical icon and no labels, so you couldn't tell the two
