@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.152 — Web: decompose the two remaining god-files (client.ts / portal.ts)
+No behavior change — the two largest web modules are split along their existing seams:
+- **`api/client.ts` 2905 → 2612**: the ~300 lines of DTO `interface`/`type` declarations move to a new
+  **`api/types.ts`**; the client re-exports them (`export * from "./types"`) so every
+  `import { … } from "../api/client"` site across the app keeps resolving unchanged.
+- **`portal/portal.ts` 2816 → 2302**: the GMP **Budget** dashboard and the unified **Schedule** views
+  (pull-plan board, lookahead, milestones, CPM, EV, baseline/variance, Gantt/LoB) extract to
+  **`portal/panels/budget.ts`** and **`portal/panels/schedule.ts`** via the established `PanelContext`
+  seam (the 11 panels already living there); the class keeps one-line delegators.
+
 ## v0.3.151 — Web: global keyboard focus indicator (WCAG 2.4.7)
 Keyboard users had no consistent visible focus ring — many interactive controls relied on the browser
 default, which the app's custom control styling suppressed in places. A single `:focus-visible` rule now
