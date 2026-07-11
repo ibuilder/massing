@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.145 — fix: `/validate` wrote its temp IDS into the read-only container path
+The stored-IDS validation (v0.3.143) wrote the temporary `.ids` next to the source tree
+(`_DATA_SRC.parent`), which is writable locally but **read-only (`/app`) in the deployed container** —
+so `POST /validate` with an uploaded or pinned IDS raised `PermissionError` in production (and reddened
+CI once `test_stored_ids` first exercised that path). Now writes to the OS temp dir via
+`tempfile.mkstemp`. No API change.
+
 ## v0.3.144 — openBIM: COBie Contact / Zone / System tabs
 Rounds out the COBie handover workbook with the three tabs owners most often flag as missing, all
 derived from the model.

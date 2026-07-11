@@ -2,7 +2,9 @@
 parity) and IDS validation (Bonsai parity). Both read the project's source IFC."""
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Response, UploadFile
@@ -287,9 +289,11 @@ async def run_validate(
     elif ids == "stored":
         raise HTTPException(404, "no IDS pinned for this project (PUT /projects/{pid}/ids first)")
     if ids_bytes is not None:                               # None → engine uses the built-in defaults
-        tmp = Path(_DATA_SRC).parent / f"_tmp_{pid}.ids"
-        tmp.write_bytes(ids_bytes)
-        ids_path = str(tmp)
+        # write to the OS temp dir, not the source tree — the container's /app is read-only, and a
+        # shared filename would collide across concurrent requests.
+        fd, ids_path = tempfile.mkstemp(suffix=".ids")
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(ids_bytes)
     try:
         # validate_file opens the IFC + runs IDS specs (CPU-bound, seconds+). This endpoint is
         # async, so run it off the event loop or it blocks every other request on this worker.
