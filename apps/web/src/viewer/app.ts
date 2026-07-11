@@ -1479,6 +1479,32 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               body.appendChild(toolBtn2(`↧ GAEB · ${label}`, () => window.open(api.url(`/projects/${pid}/estimate/gaeb.x83?system=${sys}`), "_blank")));
           });
         }));
+        b.appendChild(toolBtn2("🧱 Resource estimate (labor·mat·equip)", async () => {
+          out.textContent = "building up cost…";
+          let r;
+          try { r = await api.estimateResourceBased(pid); }
+          catch { out.textContent = "needs a source IFC (open one in Model)"; return; }
+          const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
+          const pct = (n: number) => r!.total ? `${Math.round(n / r!.total * 100)}%` : "0%";
+          out.textContent = `est. ${money(r.total)} · ${Math.round(r.labor_hours).toLocaleString()} crew-hr`;
+          showResult("Resource-based estimate (labor · material · equipment)", (body) => {
+            body.appendChild(resultNote(`<b>${money(r!.total)}</b> across ${r!.lines.length} assemblies · `
+              + `${Math.round(r!.labor_hours).toLocaleString()} crew-hours`
+              + (r!.unmapped.length ? ` · ${r!.unmapped.length} class(es) unmapped` : ""), "ok"));
+            // L/M/E split — the point of resource-based estimating
+            body.appendChild(kvTable([
+              { k: `Labor (${pct(r!.by_kind.labor)})`, v: money(r!.by_kind.labor) },
+              { k: `Material (${pct(r!.by_kind.material)})`, v: money(r!.by_kind.material) },
+              { k: `Equipment (${pct(r!.by_kind.equipment)})`, v: money(r!.by_kind.equipment), strong: true },
+            ]));
+            const h = document.createElement("div"); h.className = "meta"; h.style.marginTop = "8px";
+            h.textContent = "By assembly (built up from a crew, not a blended rate):";
+            body.appendChild(h);
+            body.appendChild(kvTable(r!.lines.map((l) => ({
+              k: `${l.assembly_name} · ${l.ifc_class.replace("Ifc", "")} (${l.quantity} ${l.unit} @ ${money(l.unit_cost)}, ${Math.round(l.labor_hours)} hr)`,
+              v: money(l.total) }))));
+          });
+        }));
         b.appendChild(toolBtn2("✨ Draft BOQ from description", async () => {
           const desc = await askText("Draft BOQ from description",
             { label: "Describe the project (scope, size, structure, finishes):", multiline: true, okLabel: "Draft" });

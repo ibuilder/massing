@@ -2058,6 +2058,16 @@ export class ApiClient {
     return this.json<{ total: number; element_count: number; lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number }[]; unpriced: { ifc_class: string; count: number }[] }>(
       `/projects/${pid}/estimate/from-model`);
   }
+  /** Resource-based (assembly) estimate — each class priced by building the cost up from labor +
+   *  material + equipment, returning the L/M/E split + total crew-hours (not just a blended $/unit). */
+  estimateResourceBased(pid: string) {
+    type Line = { ifc_class: string; assembly: string; assembly_name: string; count: number; unit: string;
+      quantity: number; total: number; unit_cost: number; labor_hours: number; by_kind: { labor: number; material: number; equipment: number } };
+    return this.json<{ total: number; element_count: number; labor_hours: number;
+      by_kind: { labor: number; material: number; equipment: number };
+      lines: Line[]; unmapped: { ifc_class: string; count: number }[] }>(
+      `/projects/${pid}/estimate/resource-based`);
+  }
   /** QTO + cost by floor (storey) and discipline (IFC class) — quantities mapped to where they are. */
   qtoByFloor(pid: string) {
     type Line = { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number };

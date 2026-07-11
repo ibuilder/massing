@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.164 — Estimating: resource estimate in the viewer (labor · material · equipment)
+Roadmap **Phase B #2** — surfaces v0.3.163's engine. The model tools now have a **🧱 Resource estimate**
+button next to the blended "Estimate from model": it prices the takeoff by building each element up from
+a crew and shows the **labor / material / equipment split** (with % of total), **total crew-hours**, and
+a per-assembly breakdown (quantity, built-up unit cost, hours). Where the blended estimate answers "how
+much," this answers "made of what" — the split a real estimate carries and the crew-hours that feed
+resource loading. Unmapped element classes are noted, not hidden.
+
 ## v0.3.163 — Estimating: resource-based (assembly) cost build-up
 Roadmap **Phase B #1.** Model-based estimating used a single blended $/unit per element class. Real
 estimators build a unit cost **up** from a crew: labor hours × rate + materials × quantity + equipment
