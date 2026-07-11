@@ -17,6 +17,15 @@
 }
 
 * { box-sizing: border-box; }
+
+/* Keyboard-focus indicator (WCAG 2.4.7 Focus Visible): a consistent, high-contrast ring on any
+   interactive element focused via the keyboard. `:focus-visible` keeps it off for mouse/touch, so it
+   never feels noisy; `:where(...)` has zero specificity, so component-specific focus styles override. */
+:where(button, a[href], input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
 /* the [hidden] attribute must always win over component display rules
    (e.g. .menu-panel/.rail-btn set display:flex, which would otherwise
    override the UA [hidden]{display:none} and leave them visible) */

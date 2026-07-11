@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.151 — Web: global keyboard focus indicator (WCAG 2.4.7)
+Keyboard users had no consistent visible focus ring — many interactive controls relied on the browser
+default, which the app's custom control styling suppressed in places. A single `:focus-visible` rule now
+draws a 2px accent outline (with offset) on every focusable control — buttons, links, inputs, selects,
+textareas, `summary`, and anything with `tabindex` — **only** for keyboard/AT focus, so mouse clicks
+don't get the ring. Meets WCAG 2.4.7 (Focus Visible). CSS-only, no markup or behavior change.
+
 ## v0.3.150 — Report dispatch: data-driven registry (replaces the 90-line if/elif ladder)
 `reports.build()` chose a builder through a ~90-line `if report == "…"` ladder. It's now a
 `_BUILDERS` dict (key → builder) + a `_LOGS` dict for the module-log reports — adding a report is one
