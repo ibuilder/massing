@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.169 — openBIM: ISO 19650-6 exchange acceptance
+Roadmap **Phase A #3.** Distinct from the project-level handover gate, this reviews **each exchanged
+container** (anything past Work-in-Progress) against the four ISO 19650-6 acceptance criteria —
+**completeness** (type/discipline/originator set), **suitability** (a suitability code), **authorization**
+(published/archived, not merely shared), and **traceability** (a revision) — and flags the ones **not yet
+acceptable** before the next decision point. Reuses the container data already tracked; no new module.
+`cde.exchange_acceptance()`, endpoint `GET /projects/{pid}/cde/exchange-acceptance`, and an **Exchange
+acceptance** card (per-criterion % + non-conformances) in the CDE / Standards panel. Extends `test_cde`.
+Completes the ISO 19650 delivery-checklist "exchange assurance" step.
+
 ## v0.3.168 — openBIM: LOIN + MIDP/TIDP delivery plan
 Roadmap **Phase A #2** (from the second research batch). Two ISO 19650 depth items on information
 requirements. **LOIN** — each requirement now records its **Level of Information Need** per EN 17412-1 /

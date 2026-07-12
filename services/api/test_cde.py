@@ -112,5 +112,18 @@ with TestClient(app) as c:
     assert d["approval_status_pct"] == 50.0, d           # 1 of 2 past WIP
     assert d["metadata_completeness_pct"] == 50.0, d     # only the published one is complete
 
+    # --- exchange acceptance (ISO 19650-6): the published container is acceptable; a shared one that
+    #     lacks a revision fails traceability + authorization -------------------------------------------
+    a2 = _create(c, pid, "information_container", {"title": "MEP model", "info_type": "Model",
+        "discipline": "Mechanical", "originator": "ME", "suitability_code": "S2 - Shared for information"})
+    _act(c, pid, "information_container", a2["id"], "share")   # shared, no revision -> not authorized/traceable
+    ea = c.get(f"/projects/{pid}/cde/exchange-acceptance").json()
+    assert ea["reviewed"] == 2, ea["reviewed"]               # the published + the shared one (WIP excluded)
+    assert ea["nonconforming_count"] == 1, ea                # the shared MEP model
+    nc = ea["nonconforming"][0]
+    assert "authorization" in nc["failed"] and "traceability" in nc["failed"], nc
+    assert ea["criteria_pct"]["suitability"] == 100.0, ea["criteria_pct"]   # both have a suitability code
+    assert ea["acceptable"] is False, ea
+
 print("CDE OK - EIR+BEP issued (AIR missing -> core incomplete); container WIP->Shared->Published "
       "gated on suitability then revision; rollup 1 published / 1 wip, discipline 50% across the board")

@@ -166,6 +166,27 @@ export async function renderStandards(ctx: PanelContext) {
       + `<tr><td>Metadata completeness</td><td class="num">${pct(d.metadata_completeness_pct)}</td></tr>`
       + `</table>`;
     body.append(disc);
+    // ISO 19650-6 exchange acceptance — non-WIP containers vs the four criteria
+    if (st.total) {
+      try {
+        const ea = await ctx.host.api.cdeExchangeAcceptance(pid);
+        if (ea.reviewed > 0) {
+          const ec = el("div", "dash-card");
+          ec.style.cssText = `border-left:3px solid var(${ea.acceptable ? "--status-good" : "--status-warn"});margin-bottom:8px`;
+          const cp = ea.criteria_pct;
+          const p = (v: number | null) => v != null ? `${v}%` : "—";
+          ec.innerHTML = `<b>Exchange acceptance</b> <span class="meta">(${ea.accepted}/${ea.reviewed} containers)</span>`
+            + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
+            + `<tr><td>Completeness</td><td class="num">${p(cp.completeness)}</td><td>Authorization</td><td class="num">${p(cp.authorization)}</td></tr>`
+            + `<tr><td>Suitability</td><td class="num">${p(cp.suitability)}</td><td>Traceability</td><td class="num">${p(cp.traceability)}</td></tr>`
+            + `</table>`
+            + (ea.nonconforming_count ? `<div class="meta" style="margin-top:3px">⚠️ ${ea.nonconforming_count} not yet acceptable: `
+                + ea.nonconforming.slice(0, 5).map((n) => esc(`${n.ref ?? n.title ?? "?"} (${n.failed.join(", ")})`)).join("; ") + `</div>`
+                : `<div class="meta" style="margin-top:3px">✅ every exchanged container meets the criteria.</div>`);
+          body.append(ec);
+        }
+      } catch { /* best-effort */ }
+    }
     // requirements register + core coverage
     const rc = el("div", "dash-card");
     const cov = reg.core_coverage;

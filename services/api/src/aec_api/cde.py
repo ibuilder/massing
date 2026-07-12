@@ -186,6 +186,41 @@ def delivery_plan(db, pid: str, today: date | None = None) -> dict[str, Any]:
     }
 
 
+def exchange_acceptance(db, pid: str) -> dict[str, Any]:
+    """ISO 19650-6 information-exchange acceptance: each container that has left WIP (i.e. been
+    exchanged) is reviewed against the four acceptance criteria — completeness, suitability,
+    authorization, traceability — and the ones not yet acceptable are flagged before the next decision
+    point. Authorization = published/archived (approved for use), vs merely shared for information."""
+    containers = me.list_records(db, "information_container", pid, limit=100000)
+    reviewed = [c for c in containers if (c.get("workflow_state") or "wip") != "wip"]
+    crit = {"completeness": 0, "suitability": 0, "authorization": 0, "traceability": 0}
+    nonconforming = []
+    for c in reviewed:
+        d = _d(c)
+        st = c.get("workflow_state")
+        checks = {
+            "completeness": all((d.get(f) or "").strip() for f in ("info_type", "discipline", "originator")),
+            "suitability": bool((d.get("suitability_code") or "").strip()),
+            "authorization": st in ("published", "archived"),
+            "traceability": bool((d.get("revision") or "").strip()),
+        }
+        for k, ok in checks.items():
+            crit[k] += 1 if ok else 0
+        failed = [k for k, ok in checks.items() if not ok]
+        if failed:
+            nonconforming.append({"id": c["id"], "ref": c.get("ref"), "title": c.get("title"),
+                                  "state": st, "failed": failed})
+    n = len(reviewed)
+    return {
+        "reviewed": n, "accepted": n - len(nonconforming), "nonconforming_count": len(nonconforming),
+        "acceptable": n > 0 and not nonconforming,
+        "criteria_pct": {k: _pct(v, n) for k, v in crit.items()},
+        "nonconforming": nonconforming[:50],
+        "note": "ISO 19650-6 exchange acceptance: each shared/published container reviewed against "
+                "completeness, suitability, authorization and traceability before the next decision point.",
+    }
+
+
 def scorecard_inputs(db, pid: str) -> dict[str, Any]:
     """Compact CDE-discipline signals for the BIM KPI scorecard (C3). Kept here so the KPI engine
     has one import for everything ISO 19650."""

@@ -54,6 +54,14 @@ def requirements_delivery_plan(pid: str, db: Session = Depends(get_db), _: str =
     return cde.delivery_plan(db, pid)
 
 
+@router.get("/projects/{pid}/cde/exchange-acceptance")
+def cde_exchange_acceptance(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """ISO 19650-6 information-exchange acceptance — each exchanged (non-WIP) container reviewed against
+    completeness / suitability / authorization / traceability, with the non-conforming ones flagged."""
+    _project(db, pid)
+    return cde.exchange_acceptance(db, pid)
+
+
 @router.get("/projects/{pid}/openbim/quality")
 def openbim_quality_scan(pid: str, use_case: str | None = None, db: Session = Depends(get_db),
                          _: str = Depends(require_role("viewer"))):

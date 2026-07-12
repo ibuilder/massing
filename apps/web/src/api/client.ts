@@ -1488,6 +1488,13 @@ export class ApiClient {
       items: Item[]; note: string }>(
       `/projects/${pid}/info-requirements/delivery-plan`);
   }
+  /** ISO 19650-6 exchange acceptance — non-WIP containers vs completeness/suitability/auth/traceability. */
+  cdeExchangeAcceptance(pid: string) {
+    return this.json<{ reviewed: number; accepted: number; nonconforming_count: number; acceptable: boolean;
+      criteria_pct: { completeness: number | null; suitability: number | null; authorization: number | null; traceability: number | null };
+      nonconforming: { id: string; ref: string | null; title: string | null; state: string; failed: string[] }[]; note: string }>(
+      `/projects/${pid}/cde/exchange-acceptance`);
+  }
   // --- Responsibility matrix (RACI / DACI) ----------------------------------
   responsibilityMatrix(pid: string) {
     return this.json<ResponsibilityMatrix>(`/projects/${pid}/responsibility`);
