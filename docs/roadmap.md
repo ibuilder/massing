@@ -41,19 +41,20 @@ Full proposal (ranked, with file evidence): https://claude.ai/code/artifact/aabd
   CI guard · B4 converter CLI output-guard + Dependabot `directory:/` · O3 fail-closed prod secrets
   (`${VAR:?}`) · O4 Rust `clippy`/`fmt` PR CI (`rust-ci.yml`) + Trivy (CRITICAL gate + non-blocking HIGH
   report) · P6 `Decimal` money helpers (`money.py`: `q2`/`to_cents`/`allocate`).
+- **Wave 7 — Strictness + Docker hardening (v0.3.193–195).** T5 `noUncheckedIndexedAccess` ON + **251
+  real guards** across 25 files (no blind `!`; 34 justified `// safe:`; caught real latent crashes —
+  empty-selection index, malformed frag pairs, `selectedIndex -1`, unknown-role rank, malformed
+  GeoJSON/GeoTIFF) · T6 type-aware ESLint scoped to `no-floating-promises` (45 unhandled-promise fixes)
+  + `no-misused-promises` (`checksVoidReturn:false`) · B3 API image multi-stage (build toolchain stays
+  in `pybuild`, **no compiler in the runtime**) + web `npm ci` on the workspace lockfile + root
+  `.dockerignore`; dropped the vestigial `packages/shared-types` phantom workspace.
 
 ### ⏳ Deferred — measured blockers, revisit incrementally (not forcing a bad change)
-- **T5 `noUncheckedIndexedAccess`** — **251 real violations** measured (viewer/app 44, proforma 41,
-  main 40, gis 34…). A global flip is a multi-session sweep; mass non-null assertions risk *hiding* real
-  bugs. Do it per-module behind a stricter tsconfig as files are touched, not in one pass.
-- **T6 typed `no-floating-promises` / typed proforma paths** — needs type-aware ESLint (`parserOptions.
-  project`) and surfaces the same broad class of sites. Same incremental treatment as T5.
-- **B2 `pip-compile` lockfiles** — a hashed lock must resolve in the **prod interpreter** (Linux/py3.12);
-  generating it on this dev box (Windows/py3.10) pins the wrong wheels. Do it in a CI/Docker job, not
-  locally — a wrong lock is worse than the current `>=` ranges + Dependabot.
-- **B3 web Dockerfile `npm ci` + multi-stage API image** — `npm ci` needs the root workspace lockfile in
-  the image context; only verifiable via the CI container build. Low reproducibility gain for the
-  iteration cost; fold into the next Docker touch.
+- **B2 `pip-compile` hashed lockfiles** — the one item still blocked *in-session*: a correct hashed lock
+  must resolve in the **prod interpreter** (Linux/py3.12), and generating it on this dev box
+  (Windows/py3.10, no Docker available in the sandbox) risks pinning the wrong wheels — worse than the
+  current `>=` ranges + Dependabot. Do it in a CI/Docker `pip-compile --generate-hashes` job (the
+  correct pattern) so the lock is produced *in* the target environment.
 - **A4/A5 remaining splits** — the portal catalog↔nav orchestration core is intentionally coupled
   (favorites ↔ nav ↔ persona events ↔ in-place DOM refresh); further mechanical extraction adds
   indirection without readability gain. The cleanly-separable pieces are already out (Wave 5).

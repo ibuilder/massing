@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.196 — Docs: Wave 7 (T5/T6/B3) shipped; only B2 remains deferred
+Roadmap updated — the code-quality initiative's Wave 7 (TS strictness + Docker hardening) is now shipped
+and CI-green (v0.3.193–195), leaving **only B2** (hashed pip-compile lockfiles) deferred, with the precise
+reason: a correct hashed lock must be generated in the prod interpreter (Linux/py3.12) via
+`pip-compile --generate-hashes` in a CI/Docker job — this dev sandbox has no Docker, and a Windows/py3.10
+lock would pin the wrong wheels. (A4/A5 portal-core splits remain intentionally-not-done: coupled
+orchestration where extraction adds indirection over value.)
+
 ## v0.3.195 — Docker/build hardening (B3): multi-stage API image + reproducible web npm ci
 **API image** — split the Python install into a `pybuild` stage: the build toolchain (`build-essential`,
 `python3-dev`) compiles any source-only wheel there, then only the installed packages are copied into the
