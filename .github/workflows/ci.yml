@@ -49,6 +49,10 @@ jobs:
       - name: Install
         run: npm ci
 
+      # B1: the client parser + the two server-side .frag producers must pin the same fragments/web-ifc.
+      - name: Fragments/web-ifc version guard
+        run: node scripts/check-fragments-version.mjs
+
       - name: Lint (ESLint)
         run: npm run lint --workspace apps/web
 

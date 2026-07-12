@@ -2,9 +2,15 @@
 # Mirrors the repo layout so routers' relative paths to ../data/src resolve.
 
 # --- converter stage: Node deps for the IFC->Fragments republish (authoring round-trip) ---
+# Pin the fragments/web-ifc pair to the SAME versions as the client parser (apps/web/package.json).
+# CI enforces this (scripts/check-fragments-version.mjs) — a mismatch means the server emits .frag the
+# browser can't parse.
 FROM node:20-slim AS converter
 WORKDIR /conv
-RUN npm init -y >/dev/null 2>&1 && npm install --no-audit --no-fund @thatopen/fragments@3.4.5 web-ifc@0.0.77
+ARG FRAGMENTS_VERSION=3.4.5
+ARG WEBIFC_VERSION=0.0.77
+RUN npm init -y >/dev/null 2>&1 && npm install --no-audit --no-fund \
+    @thatopen/fragments@${FRAGMENTS_VERSION} web-ifc@${WEBIFC_VERSION}
 
 FROM python:3.12-slim
 

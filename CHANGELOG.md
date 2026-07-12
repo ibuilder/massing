@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.182 — Single-source the fragments/web-ifc version (Wave 6, B1)
+Closes the version-coupling landmine CLAUDE.md warns about. `@thatopen/fragments@3.4.5` +
+`web-ifc@0.0.77` were hardcoded in **three** independent places — the web client parser
+(`apps/web/package.json`, the source of truth) and the two server-side `.frag` producers
+(`services/api/Dockerfile`, `services/converter/Dockerfile`) — with nothing keeping them in lockstep, so
+a client bump could silently leave the server emitting fragments the browser can't parse. The Dockerfiles
+now take the versions as build ARGs (self-documenting, overridable), and a new
+`scripts/check-fragments-version.mjs` (wired into the CI **web-build** job) fails the build if either
+Dockerfile drifts from the `package.json` pins. `package.json` is now the one source of truth; CI enforces
+agreement.
+
 ## v0.3.181 — Extract the model-index engine (Wave 5, A1)
 Fixes the worst dependency inversion in the backend. The in-process **property index**
 (`pid → {guid → record}`) and the model-version-keyed **scan-result cache** lived as private globals
