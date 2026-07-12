@@ -88,7 +88,7 @@ def project_gfa_sf(db, pid: str) -> float | None:
     """GFA from the properties index space areas when loaded (m² → sf), else None (caller may pass
     an explicit GFA)."""
     try:
-        from .routers.properties import _INDEX
+        from .model_index import _INDEX
         idx = _INDEX.get(pid) or {}
         m2 = 0.0
         for e in idx.values():

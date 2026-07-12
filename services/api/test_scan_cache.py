@@ -15,8 +15,9 @@ for _f in ("./test_scan_cache.db",):
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from aec_api import model_index as MI  # noqa: E402  (scan cache lives here since v0.3.181)
 from aec_api.main import app  # noqa: E402
-from aec_api.routers import properties as P  # noqa: E402
+from aec_api.routers import properties as P  # noqa: E402  (_gzip_json + the cache aliases)
 
 # --- _gzip_json: small -> plain JSON; large -> gzip on the wire, round-trips ----------------------
 small = P._gzip_json({"a": 1})
@@ -36,17 +37,17 @@ class _BrokenRedis:
         raise RuntimeError("redis down")
 
 
-_saved = P._scan_redis
-P._scan_redis = _BrokenRedis()
+_saved = MI._scan_redis
+MI._scan_redis = _BrokenRedis()
 calls = {"n": 0}
 def _compute():
     calls["n"] += 1
     return {"ok": True, "n": calls["n"]}
-r1 = P._scan_cached("proj-x", "k", _compute)             # redis get raises -> compute + in-process cache
-r2 = P._scan_cached("proj-x", "k", _compute)             # served from in-process cache (redis setex raised)
+r1 = MI.scan_cached("proj-x", "k", _compute)             # redis get raises -> compute + in-process cache
+r2 = MI.scan_cached("proj-x", "k", _compute)             # served from in-process cache (redis setex raised)
 assert r1 == {"ok": True, "n": 1} and r2 == {"ok": True, "n": 1}, (r1, r2)
 assert calls["n"] == 1, "second call must hit the in-process cache, not recompute"
-P._scan_redis = _saved
+MI._scan_redis = _saved
 
 # --- endpoints: color-by ids=true (guids) vs ids=false (compact distribution) ---------------------
 PROPS = {"schema": "IFC4", "elements": [

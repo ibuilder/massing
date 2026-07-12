@@ -1080,7 +1080,7 @@ def _bep(db: Session, pid: str, name: str) -> Report:
 def _lod(db: Session, pid: str, name: str) -> Report:
     """LOD matrix + achieved-LOD coverage of the loaded model (inferred from LOIN facets)."""
     from . import lod
-    from .routers.properties import _INDEX, _ensure_loaded
+    from .model_index import _INDEX, _ensure_loaded
     try:
         _ensure_loaded(pid)
     except Exception:                     # noqa: BLE001 — targets-only when no model is loaded
@@ -1214,7 +1214,7 @@ def _design_options(db: Session, pid: str, name: str) -> Report:
 def _design_standards(db: Session, pid: str, name: str) -> Report:
     """Design-standards ruleset + model compliance (prohibited / non-approved type + material use)."""
     from . import design_standards
-    from .routers.properties import _INDEX, _ensure_loaded
+    from .model_index import _INDEX, _ensure_loaded
     try:
         _ensure_loaded(pid)
     except Exception:                     # noqa: BLE001 — ruleset-only when no model is loaded
@@ -1254,7 +1254,7 @@ def _mep(db: Session, pid: str, name: str) -> Report:
              for b in s["by_system"]] or [["(none)", "", ""]])
     # model-derived MEP counts (complements the register when a model is loaded)
     try:
-        from .routers.properties import _INDEX, _ensure_loaded
+        from .model_index import _INDEX, _ensure_loaded
         _ensure_loaded(pid)
         mx = mep.extract_from_model(_INDEX.get(pid))
     except Exception:                     # noqa: BLE001 — targets-only when no model is loaded

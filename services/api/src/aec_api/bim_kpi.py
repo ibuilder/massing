@@ -45,7 +45,7 @@ def _openbim(pid: str) -> dict | None:
     """Model quality signals when a model is indexed; None otherwise (keeps the scorecard model-optional)."""
     try:
         from . import ids_authoring, openbim_quality
-        from .routers.properties import _INDEX, _ensure_loaded
+        from .model_index import _INDEX, _ensure_loaded
         _ensure_loaded(pid)
         idx = _INDEX.get(pid)
         if not idx:

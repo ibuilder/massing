@@ -75,7 +75,7 @@ def dispatch(db: Session, name: str, args: dict[str, Any], actor: str = "mcp") -
         return bim_kpi.scorecard(db, pid)
     if name == "openbim_quality":
         from . import ids_authoring, openbim_quality
-        from .routers.properties import _INDEX, _ensure_loaded
+        from .model_index import _INDEX, _ensure_loaded
         _ensure_loaded(pid)
         idx = _INDEX.get(pid)
         if not idx:

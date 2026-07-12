@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.181 — Extract the model-index engine (Wave 5, A1)
+Fixes the worst dependency inversion in the backend. The in-process **property index**
+(`pid → {guid → record}`) and the model-version-keyed **scan-result cache** lived as private globals
+inside `routers/properties.py`, yet five engines (`bim_kpi`, `energy`, `evm`, `mcp_tools`, `reports`)
+reached in with `from .routers.properties import _INDEX, _ensure_loaded` — engines depending on an
+HTTP-layer module's internals. Moved to a new `model_index.py` engine with a public API
+(`ensure_loaded` / `get_index` / `get_meta` / `load` / `scan_cached`); the router now imports from it
+(keeping its endpoints), and the five engines import the engine instead of the router. Compatibility
+aliases (`_INDEX`/`_ensure_loaded`/`_scan_cached`) preserve behaviour exactly — same cache objects, so
+in-place mutation stays shared. No API or runtime change; the dependency arrow now points the right
+way and the index is testable/reusable without importing FastAPI. `test_scan_cache` updated to the new
+module.
+
 ## v0.3.180 — OpenAPI-generated TypeScript types (Wave 4, T1 foundation)
 Establishes a compiler-checked contract to the backend. `openapi-typescript` now generates
 `apps/web/src/api/schema.d.ts` (types-only — erased at build, no bundle cost) from the FastAPI

@@ -5,7 +5,6 @@ from __future__ import annotations
 import gzip
 import json
 import os
-import threading
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
 
@@ -21,36 +20,11 @@ def _discipline_name(e: dict) -> str:
     already-indexed ifc_class — no republish, no extra scan."""
     return classification.discipline_name(classification.discipline_of_ifc_class(e.get("ifc_class") or "")) or "General"
 
-# project_id -> { guid -> element record }  (loaded from uploaded props.json)
-# P0.3: bounded LRU so a worker that serves many projects doesn't hold every project's full element
-# list in memory forever. Evicted projects are transparently reloaded from storage on next access.
-_INDEX: dict[str, dict[str, dict]] = {}
-_META: dict[str, dict] = {}
-_LRU: list[str] = []                    # pids in least→most-recently-used order
-_MAX_PROJECTS = int(os.environ.get("AEC_PROPS_CACHE_PROJECTS", "16"))
-# FastAPI runs sync endpoints on multiple threadpool threads, all of which populate/evict these caches.
-# Serialize the populate+evict so an eviction can't fire mid-populate and drop a live project.
-_INDEX_LOCK = threading.Lock()
-
-
-def _touch(pid: str) -> None:
-    """Mark `pid` most-recently-used and evict the least-recently-used over the cap.
-    Caller must hold _INDEX_LOCK (only invoked from _load)."""
-    if pid in _LRU:
-        _LRU.remove(pid)
-    _LRU.append(pid)
-    while len(_LRU) > max(1, _MAX_PROJECTS):
-        old = _LRU.pop(0)
-        _INDEX.pop(old, None)
-        _META.pop(old, None)
-
-
-def _load(pid: str, payload: dict) -> int:
-    with _INDEX_LOCK:
-        _META[pid] = {k: payload.get(k) for k in ("schema", "project", "counts", "facets")}
-        _INDEX[pid] = {e["guid"]: e for e in payload.get("elements", [])}
-        _touch(pid)
-        return len(_INDEX[pid])
+# The model property index (pid -> {guid -> record}) and the scan-result cache live in the
+# `aec_api.model_index` engine — engines (bim_kpi/energy/evm/mcp_tools/reports) consume them too, so
+# they don't belong in this router. Import the names this module still uses (same objects, so in-place
+# mutation stays shared).
+from ..model_index import _INDEX, _META, _ensure_loaded, _load, _scan_cached  # noqa: E402,F401
 
 
 @router.post("/projects/{pid}/properties/index")
@@ -73,64 +47,6 @@ async def upload_index(pid: str, file: UploadFile = File(...), _: str = Depends(
     from .. import model_events
     model_events.bump(pid, _mc.model_signature(_INDEX.get(pid)).get("signature"))
     return {"loaded": n, "meta": _META[pid]}
-
-
-def _ensure_loaded(pid: str) -> None:
-    if pid in _INDEX:
-        return
-    key = f"{pid}/props.json"
-    if storage.exists(key):
-        _load(pid, json.loads(storage.get(key)))
-
-
-# Per-model-signature result cache for the expensive read-only scans (facets/color-by). These are
-# recomputed O(n·psets) on every request today; the result only changes when the model does, so we key
-# the cache on the model version (bumped by model_events on publish) and evict LRU-style.
-# Single worker → in-process only. Multi-worker → also shared via Redis (gzip+json values, TTL) when
-# AEC_REDIS_URL is set, so one worker's scan is reused by every other; fail-open to in-process on any
-# Redis error, mirroring model_events / the rate-limiter.
-_SCAN_CACHE: dict[tuple, object] = {}
-_SCAN_CACHE_ORDER: list[tuple] = []
-_SCAN_CACHE_MAX = 400
-_SCAN_TTL = int(os.environ.get("AEC_SCAN_CACHE_TTL", "3600") or "3600")
-
-_scan_redis = None
-if os.environ.get("AEC_REDIS_URL", "").strip():
-    try:                                    # lazy: redis is only a dep when REDIS_URL is set
-        import redis as _redis_lib
-        _scan_redis = _redis_lib.from_url(os.environ["AEC_REDIS_URL"].strip(),
-                                          socket_timeout=0.25, socket_connect_timeout=0.25)
-    except Exception:                        # noqa: BLE001 — redis missing / bad URL → in-process only
-        _scan_redis = None
-
-
-def _scan_cached(pid: str, key: str, compute):
-    from .. import model_events
-    ver = model_events.current(pid)["version"]
-    rk = None
-    if _scan_redis is not None:
-        rk = f"scan:{pid}:{ver}:{key}"
-        try:                                 # shared read across workers
-            raw = _scan_redis.get(rk)
-            if raw is not None:
-                return json.loads(gzip.decompress(raw))
-        except Exception:                    # noqa: BLE001 — Redis hiccup → fall through to in-process
-            rk = None
-    lck = (pid, ver, key)
-    hit = _SCAN_CACHE.get(lck)
-    if hit is not None:
-        return hit
-    res = compute()
-    _SCAN_CACHE[lck] = res
-    _SCAN_CACHE_ORDER.append(lck)
-    while len(_SCAN_CACHE_ORDER) > _SCAN_CACHE_MAX:
-        _SCAN_CACHE.pop(_SCAN_CACHE_ORDER.pop(0), None)
-    if rk is not None:
-        try:
-            _scan_redis.setex(rk, _SCAN_TTL, gzip.compress(json.dumps(res).encode("utf-8")))
-        except Exception:                    # noqa: BLE001 — caching is best-effort
-            pass
-    return res
 
 
 def _gzip_json(data, threshold: int = 48_000):
