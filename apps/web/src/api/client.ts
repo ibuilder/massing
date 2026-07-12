@@ -1046,6 +1046,17 @@ export class ApiClient {
       site: { ref_latitude: number[] | null; ref_longitude: number[] | null; ref_elevation: number | null } | null }>(
       `/projects/${pid}/models/georeferencing`);
   }
+  /** Scan-to-BIM deviation — upload an as-built point cloud (XYZ/CSV) and compare it to the model surface. */
+  async scanDeviation(pid: string, file: File, tolerance = 0.05) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/scan/deviation?tolerance=${tolerance}`),
+      { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({ detail: res.status }))).detail || `scan -> ${res.status}`);
+    return res.json() as Promise<{ point_count: number; reference_count: number; tolerance: number;
+      within_tolerance: number; within_pct: number | null; out_of_tolerance: number;
+      mean_deviation: number; max_deviation: number; p95_deviation: number;
+      histogram: { band: string; count: number }[]; note: string }>;
+  }
   /** Federation alignment report — do the discipline models share a storey scheme + georef origin? */
   modelAlignment(pid: string) {
     return this.json<{ models: { name: string; storey_count: number; error?: string;

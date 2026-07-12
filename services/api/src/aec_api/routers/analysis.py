@@ -132,6 +132,30 @@ def model_georeferencing(pid: str, db: Session = Depends(get_db), _sec: str = De
     return georef.georeferencing(model)
 
 
+@router.post("/projects/{pid}/scan/deviation")
+async def scan_deviation(pid: str, file: UploadFile = File(...), tolerance: float = Query(0.05, gt=0),
+                         db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Scan-to-BIM deviation — compare an uploaded as-built point cloud (XYZ/CSV) against the source
+    model's surface and report % within tolerance + a deviation histogram (the QA/QC as-built check).
+    409 if no source IFC; 400 on a point cloud we can't read."""
+    import ifcopenshell  # type: ignore
+
+    from .. import scan_deviation as sd
+    p = db.get(Project, pid)
+    if not (p and p.source_ifc and Path(p.source_ifc).exists()):
+        raise HTTPException(409, "project has no source IFC to compare against")
+    pts = sd.parse_point_cloud((await file.read()).decode("utf-8", "ignore"))
+    if len(pts) == 0:
+        raise HTTPException(400, "no readable XYZ points in the upload")
+    try:
+        ref = sd.model_surface_points(ifcopenshell.open(p.source_ifc))
+    except Exception as e:  # noqa: BLE001 — geometry failure is a 4xx, not a 500
+        raise HTTPException(400, f"could not build model geometry: {e}") from e
+    if len(ref) == 0:
+        raise HTTPException(409, "the model has no triangulated geometry to compare against")
+    return sd.analyze(pts, ref, tolerance)
+
+
 @router.get("/projects/{pid}/ai-readiness")
 def ai_readiness_scorecard(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """AI / data-readiness scorecard — grades the project 0-100 on single-source-of-truth, information

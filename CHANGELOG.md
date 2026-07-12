@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.175 — Scan-to-BIM deviation (as-built QA/QC)
+Close the reality-capture loop: upload an as-built **point cloud** (ASCII XYZ / CSV / PTS) from a laser
+scan or photogrammetry survey and compare it against the model surface to see **where the built work
+departs from the design beyond tolerance** — the QA/QC check after a pour or a steel erection. For every
+scan point we take the nearest distance to the model's triangulated surface (a KD-tree over the model
+vertices), then summarize: **% within tolerance**, mean / 95th-percentile / max deviation, an
+out-of-tolerance count, and a **deviation histogram** banded in multiples of the tolerance — the numbers
+behind a red/green deviation heatmap. Engine `scan_deviation.py` (numpy + scipy cKDTree; model surface
+pulled via `ifcopenshell.geom`, capped so a huge model can't blow memory), endpoint
+`POST /projects/{pid}/scan/deviation?tolerance=` (multipart upload; 409 without a source IFC), a client
+method, and a **▦ Scan-to-BIM deviation** viewer tool that renders the summary + histogram. All units in
+metres; GUID-keyed model geometry, fully offline. Test `test_scan_deviation.py`.
+
 ## v0.3.174 — AI / data-readiness scorecard
 Roadmap item from the "hidden bottleneck of agentic AI" research: the blocker to AI isn't the model,
 it's the **data**. A new scorecard grades a project **0–100 on four measurable dimensions** — **single

@@ -1585,6 +1585,37 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           };
           inp.click();
         }));
+        b.appendChild(toolBtn2("▦ Scan-to-BIM deviation (as-built QA)", () => {
+          const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".xyz,.txt,.csv,.pts"; inp.style.display = "none";
+          inp.onchange = async () => {
+            const f = inp.files?.[0]; if (!f) return;
+            out.textContent = "comparing scan to model…";
+            let r;
+            try { r = await api.scanDeviation(pid, f, 0.05); }
+            catch (e) { out.textContent = `scan deviation failed: ${(e as Error).message}`; return; }
+            const num = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 3 });
+            const ok = (r.within_pct ?? 0) >= 90;
+            out.textContent = `${r.within_pct}% within ${num(r.tolerance)} m · max ${num(r.max_deviation)} m`;
+            showResult("Scan-to-BIM deviation (as-built vs model)", (body) => {
+              body.appendChild(resultNote(`<b>${r!.within_pct}%</b> of ${r!.point_count.toLocaleString()} scan points within `
+                + `<b>${num(r!.tolerance)} m</b> of the model surface · ${r!.out_of_tolerance.toLocaleString()} out of tolerance`,
+                ok ? "ok" : "bad"));
+              body.appendChild(kvTable([
+                { k: "Mean deviation", v: `${num(r!.mean_deviation)} m` },
+                { k: "95th-percentile deviation", v: `${num(r!.p95_deviation)} m` },
+                { k: "Max deviation", v: `${num(r!.max_deviation)} m`, strong: r!.max_deviation > r!.tolerance * 3 },
+                { k: "Reference surface points", v: r!.reference_count.toLocaleString() },
+              ]));
+              const h = document.createElement("div"); h.className = "meta"; h.style.marginTop = "8px";
+              h.textContent = "Deviation histogram (share of points by tolerance band):";
+              body.appendChild(h);
+              body.appendChild(kvTable(r!.histogram.map((band) => ({
+                k: band.band, v: `${band.count.toLocaleString()} (${r!.point_count ? Math.round(band.count / r!.point_count * 100) : 0}%)`,
+                strong: band.band.startsWith(">") && band.count > 0 }))));
+            });
+          };
+          inp.click();
+        }));
         b.appendChild(toolBtn2("✨ Draft BOQ from description", async () => {
           const desc = await askText("Draft BOQ from description",
             { label: "Describe the project (scope, size, structure, finishes):", multiline: true, okLabel: "Draft" });
