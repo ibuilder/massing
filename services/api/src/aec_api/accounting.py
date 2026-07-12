@@ -166,3 +166,50 @@ def to_iif_bills(entries: list[dict]) -> str:
                                 f"{e['cost_code']} {e['memo']}".strip()]))
         lines.append("ENDTRNS")
     return "\n".join(lines) + "\n"
+
+
+# --- approval-gated export batch --------------------------------------------------------------------
+# A journal *batch* freezes the current GL + double-entry journal + trial balance into an auditable
+# snapshot (a `journal_batch` module record) that goes through submit → approve → export (the config
+# engine's workflow gates the transitions by party). Export emits GL-CSV / IIF from the FROZEN snapshot
+# — so what the accountant imports is exactly the figures that were reviewed and approved, not live data
+# that may have moved since. Nothing posts to the books without passing the gate.
+
+def snapshot(db: Session, project_id: str) -> dict:
+    """Freeze the current books (flattened GL + balanced journal + trial balance) into a batch snapshot."""
+    gl = journal(db, project_id)
+    je = journal_entries(db, project_id)
+    tb = trial_balance(db, project_id)
+    return {
+        "gl": gl, "journal_entries": je, "trial_balance": tb, "captured": str(me._now()),
+        "totals": {"debits": tb["debit_total"], "credits": tb["credit_total"],
+                   "entries": len(je.get("entries", [])), "balanced": tb["balanced"]},
+    }
+
+
+def create_batch(db: Session, project_id: str, period: str, memo: str,
+                 actor: str, party: str | None) -> dict:
+    """Create an approval-gated journal batch from a frozen snapshot of the current books."""
+    snap = snapshot(db, project_id)
+    t = snap["totals"]
+    return me.create_record(db, "journal_batch", project_id, {"data": {
+        "period": period, "memo": memo,
+        "total_debits": t["debits"], "total_credits": t["credits"],
+        "entry_count": t["entries"], "balanced": "yes" if t["balanced"] else "no",
+        "snapshot": snap,
+    }}, actor, party)
+
+
+def export_batch(db: Session, project_id: str, batch_id: str, fmt: str = "gl") -> tuple[str, str, str]:
+    """Emit an **approved** batch's frozen GL as CSV or IIF → (body, media_type, filename).
+    Raises ValueError('not found') / ('not approved') for the router to map to 404 / 409."""
+    rec = me.get_record(db, "journal_batch", project_id, batch_id)
+    if not rec:
+        raise ValueError("not found")
+    if rec.get("workflow_state") not in ("approved", "exported"):
+        raise ValueError("not approved")
+    gl = ((rec.get("data") or {}).get("snapshot") or {}).get("gl") or []
+    ref = rec.get("ref") or "batch"
+    if fmt == "iif":
+        return to_iif_bills(gl), "application/octet-stream", f"{ref}-bills.iif"
+    return to_gl_csv(gl), "text/csv", f"{ref}-gl.csv"

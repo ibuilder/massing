@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.199 — Accounting interop depth: approval-gated journal export batch
+Roadmap item ②, part 1. A **journal batch** freezes the current books — flattened GL + balanced
+double-entry journal + trial balance — into an auditable snapshot (`journal_batch` config module) that
+moves `draft → submitted → approved → exported`; the config engine gates each transition by party, and
+`audit.py` records it. Export (GL-CSV or QuickBooks-IIF) emits from the **frozen snapshot**, and is
+**409 until the batch is approved** — so the accountant imports exactly the figures that were reviewed
+and signed off, and nothing posts to the books without passing the gate. `accounting.py` gains
+`snapshot`/`create_batch`/`export_batch`; new `POST /accounting/journal-batch` + `GET
+…/{id}/export?fmt=gl|iif` endpoints + client methods. `test_accounting` extended (freeze → export-409 →
+submit+approve → frozen CSV/IIF still balances at 125000; 422 on missing period, 404 on unknown batch).
+(Part 2 — model-quantity-derived WIP % — is the remaining half of item ②.)
+
 ## v0.3.198 — Supply chain (B2): hash-pinned Python lockfile, generated in the prod interpreter
 Closes the last deferred hardening item. Top-level runtime deps now live in `services/api/requirements.in`;
 a new `lockfile.yml` CI job runs `pip-compile --generate-hashes --allow-unsafe` **inside `python:3.12-slim`**

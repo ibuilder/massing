@@ -60,12 +60,11 @@ Everything not shipped, in one place. The product features and the code-quality/
 (Waves 1–7 above) are done; what remains is **one env-blocked ops task, optional feature depth, two
 upstream-blocked items, and one intentional non-goal.**
 
-**① Actionable next — do when a Linux/Docker runner is available**
-- **B2 — hashed `pip-compile` lockfiles** (supply-chain integrity; the only concrete near-term task).
-  Blocked *only by this dev sandbox* (no Docker/PowerShell; Windows/py3.10) — a lock generated here pins
-  the wrong wheels for prod (Linux/py3.12). Ship it as a CI job that runs `pip-compile --generate-hashes`
-  **inside `python:3.12-slim`** so the lock is produced in the target env, then point the Dockerfiles at
-  `pip install --require-hashes`. Current `>=` ranges + weekly Dependabot are safe meanwhile.
+**① Actionable next**
+- ✅ **DONE — B2 hashed `pip-compile` lockfiles** (v0.3.198). `requirements.in` → `requirements.lock`
+  (pinned + sha256-hashed) compiled by `lockfile.yml` inside `python:3.12-slim`; API Dockerfile + CI test
+  gate install `--require-hashes` (rejects substituted wheels). One lock covers the data-service subset +
+  `psycopg[binary]`; the workflow gates pushes on a stale lock.
 
 **② Feature depth — pull up on a specific customer need (optional, not blocking)**
 - **Accounting interop depth (the old "Interop-I").** Cost-coded journal-entry export to the system of

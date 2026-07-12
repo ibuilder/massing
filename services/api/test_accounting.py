@@ -57,6 +57,43 @@ with TestClient(app) as c:
     assert "SPL\tBILL\t2024-01-15\tConstruction Costs\tAce Concrete\t100000.00" in txt, txt
     assert txt.count("ENDTRNS") == 2  # 1 header !ENDTRNS + 1 bill ENDTRNS (direct_cost isn't a bill)
 
+    # --- approval-gated journal batch: freeze → submit → approve → export ---
+    b = c.post(f"/projects/{pid}/accounting/journal-batch", json={"period": "Jan-2024", "memo": "month close"})
+    assert b.status_code == 200, b.text
+    batch = b.json()
+    bid = batch["id"]
+    assert batch["workflow_state"] == "draft", batch
+    assert batch["data"]["balanced"] == "yes" and batch["data"]["total_debits"] == 125000, batch["data"]
+    # the snapshot froze the current GL (2 source records)
+    assert len(batch["data"]["snapshot"]["gl"]) == 2, batch["data"]["snapshot"]["gl"]
+    # missing period is rejected
+    assert c.post(f"/projects/{pid}/accounting/journal-batch", json={}).status_code == 422
+
+    # export is GATED: 409 until approved (nothing posts to the books without the gate)
+    pre = c.get(f"/projects/{pid}/accounting/journal-batch/{bid}/export")
+    assert pre.status_code == 409, pre.status_code
+    # unknown batch → 404
+    assert c.get(f"/projects/{pid}/accounting/journal-batch/nope/export").status_code == 404
+
+    # drive the workflow (RBAC off in tests, so the party gate passes): submit → approve
+    assert c.post(f"/projects/{pid}/modules/journal_batch/{bid}/transition",
+                  json={"action": "submit"}).status_code == 200
+    assert c.post(f"/projects/{pid}/modules/journal_batch/{bid}/transition",
+                  json={"action": "approve"}).status_code == 200
+
+    # now export the FROZEN snapshot as GL CSV + IIF
+    exp = c.get(f"/projects/{pid}/accounting/journal-batch/{bid}/export?fmt=gl")
+    assert exp.status_code == 200 and "text/csv" in exp.headers["content-type"], exp.headers
+    elines = exp.text.strip().splitlines()
+    assert elines[0].startswith("Date,Ref,Account"), elines[0]
+    edr = sum(float(l.split(",")[-2] or 0) for l in elines[1:])
+    ecr = sum(float(l.split(",")[-1] or 0) for l in elines[1:])
+    assert abs(edr - ecr) < 0.01 and abs(edr - 125000) < 0.01, (edr, ecr)   # frozen figures still balance
+    iif2 = c.get(f"/projects/{pid}/accounting/journal-batch/{bid}/export?fmt=iif")
+    assert iif2.status_code == 200 and iif2.text.startswith("!TRNS"), iif2.text[:40]
+
 print("ACCOUNTING OK - journal flattens sub invoices + direct costs; GL CSV is balanced double-entry "
       "(debit Construction Costs / credit AP); trial balance balances (debits==credits==125000) and the "
-      "GL columns balance; QuickBooks IIF emits BILL/SPL/ENDTRNS for AP bills only")
+      "GL columns balance; QuickBooks IIF emits BILL/SPL/ENDTRNS for AP bills only. "
+      "Approval-gated batch: freeze snapshot (draft) -> export 409 until submit+approve -> then GL CSV/IIF "
+      "export the FROZEN figures (still balance 125000); missing period=422, unknown batch=404")

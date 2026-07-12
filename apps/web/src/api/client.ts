@@ -1249,6 +1249,15 @@ export class ApiClient extends HttpCore {
   }
   accountingGlCsvUrl(pid: string) { return this.url(`/projects/${pid}/accounting/gl.csv`); }
   accountingIifUrl(pid: string) { return this.url(`/projects/${pid}/accounting/bills.iif`); }
+  /** Freeze the current books into an approval-gated journal batch (draft → submit → approve → export). */
+  createJournalBatch(pid: string, period: string, memo = "") {
+    return this.json<{ id: string; ref: string; workflow_state: string; data: Record<string, unknown> }>(
+      `/projects/${pid}/accounting/journal-batch`, { method: "POST", body: JSON.stringify({ period, memo }) });
+  }
+  /** Download URL for an APPROVED batch's frozen GL — fmt "gl" (CSV) or "iif" (QuickBooks). */
+  journalBatchExportUrl(pid: string, batchId: string, fmt: "gl" | "iif" = "gl") {
+    return this.url(`/projects/${pid}/accounting/journal-batch/${batchId}/export?fmt=${fmt}`);
+  }
   projectCarbon(pid: string) {
     return this.json<{ total_kgco2e: number; total_tco2e: number; line_count: number; unmatched: number;
       by_material: Record<string, number>; by_cost_code: Record<string, number>; message?: string | null }>(
