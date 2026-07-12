@@ -41,7 +41,7 @@
     "geotiff": "^3.0.5",
     "laz-perf": "^0.0.7",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^6.0.227",
+    "pdfjs-dist": "^6.1.200",
     "qrcode": "^1.5.4",
     "three": "0.184.0",
     "web-ifc": "0.0.77"
