@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.189 — Refactor (T3): extract portal preferences into prefs.ts
+The portal's favorites/recents and the per-persona "which nav sections open first" map were private
+`PortalUI` methods, read by both the nav rail and the module catalog. Pulled them into a small
+`portal/prefs.ts` (localStorage-backed, pure functions) so the two consumers share one source of truth
+instead of reaching into the class. Verified: `tsc`, ESLint, Vitest (59), Vite build all green.
+(portal.ts and viewer/app.ts already received their principled decomposition in earlier releases —
+portal→panels/ + PanelContext, viewer→ViewerContext/install modules; the remaining catalog↔nav
+orchestration is intentionally coupled, so this pulls out the cleanly-separable preferences only.)
+
 ## v0.3.188 — Refactor (T2): extract the API-client transport core into httpCore.ts
 The web `ApiClient` mixed its transport plumbing (base URL, bearer token, `json`/`_pdfPost`/`url`/
 `health`) in with ~200 typed domain methods in one 2,760-line file. Pulled the transport into a small

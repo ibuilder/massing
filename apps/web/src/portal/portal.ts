@@ -5,6 +5,7 @@ import { confirmModal, modalShell, promptModal } from "../ui/modal";
 import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
 import type { PanelContext } from "./panelContext";
+import { SECTIONS_BY_PERSONA, pushRecent, readFavs, readRecents, toggleFav } from "./prefs";
 import { renderOperations, renderFca, renderSpine, renderResilience, renderEnergy, renderTurnover } from "./panels/operations";
 import { renderAiAssist, renderRiskReview } from "./panels/aiassist";
 import { renderBenchmarks, renderRiskCost, renderMarket } from "./panels/analytics";
@@ -269,9 +270,9 @@ export class PortalUI {
     filter.type = "search"; filter.placeholder = "Filter…"; filter.className = "portal-filter pnav-filter";
     nav.appendChild(filter);
 
-    const favs = this.favs();
+    const favs = readFavs();
     const persona = document.body.dataset.persona || localStorage.getItem("persona") || "all";
-    const openSecs = PortalUI.SECTIONS_BY_PERSONA[persona];
+    const openSecs = SECTIONS_BY_PERSONA[persona];
 
     const item = (m: ModuleDef) => {
       const b = document.createElement("button");
@@ -294,7 +295,7 @@ export class PortalUI {
     }
     // Recent — auto-populated last-opened registers (favorites are the opt-in layer; recents work
     // with zero effort). Skip modules already pinned to Favorites to avoid duplicate rows.
-    const recentMods = this.recents()
+    const recentMods = readRecents()
       .map((k) => visible.find((m) => m.key === k))
       .filter((m): m is ModuleDef => !!m && !favs.has(m.key));
     if (recentMods.length) group("🕘 Recent", recentMods, true);
@@ -863,43 +864,8 @@ export class PortalUI {
 
   /** Which sections open by default per persona (the rest collapse). Undefined persona = all open. */
   // R2 — which nav sections open first for each role (research-backed: Procore super-vs-PM split;
-  // real-estate developer lifecycle = feasibility → market/sales → capital → operations). The section
-  // names here must match the workspace a role lives in — the developer's are the *Developer* sections,
-  // not construction ones. buildNav also falls back to "open all" when none of these match the active
-  // workspace, so a role browsing the other workspace never sees everything collapsed.
-  private static SECTIONS_BY_PERSONA: Record<string, string[]> = {
-    gc: ["Field", "Cost", "Change Management", "Contracts"],
-    // the super works the field (daily reports, manpower, safety, quality, schedule);
-    // the PM works the office (RFIs/submittals, cost, change, contracts, preconstruction).
-    superintendent: ["Field", "Safety", "Quality", "Schedule"],
-    project_manager: ["Engineering", "Cost", "Change Management", "Contracts", "Preconstruction"],
-    // the real-estate developer lives in the Developer workspace — feasibility, market/sales, capital, ops.
-    developer: ["Feasibility", "Market & Sales", "Capital", "Operations"],
-    // architect/engineer live in the Design workspace — programming, phases, model authoring, and
-    // the ISO 19650 information-management registers open first.
-    architect: ["Programming", "Design Phases", "Engineering", "BIM", "Information Management"],
-    engineer: ["Engineering", "BIM", "Information Management", "Design Phases"],
-    subcontractor: ["Field", "Safety", "Quality"],
-  };
-
-  private favs(): Set<string> {
-    try { return new Set(JSON.parse(localStorage.getItem("portal-favs") || "[]") as string[]); }
-    catch { return new Set(); }
-  }
-  /** Last-opened module keys, newest first — auto-populated so the nav works with zero setup. */
-  private recents(): string[] {
-    try { return JSON.parse(localStorage.getItem("portal-recents") || "[]") as string[]; }
-    catch { return []; }
-  }
-  private pushRecent(key: string) {
-    const r = [key, ...this.recents().filter((k) => k !== key)].slice(0, 5);
-    localStorage.setItem("portal-recents", JSON.stringify(r));
-  }
-  private toggleFav(key: string) {
-    const f = this.favs(); if (f.has(key)) f.delete(key); else f.add(key);
-    localStorage.setItem("portal-favs", JSON.stringify([...f]));
-    this.refreshCatalog();
-  }
+  // Favorites / recents / per-persona section defaults live in ./prefs (T3) — shared by buildNav
+  // and the module catalog, so both read the same localStorage-backed source of truth.
   private refreshCatalog() {
     if (!this.catalogEl) return;
     const next = this.renderModuleCatalog();
@@ -908,9 +874,9 @@ export class PortalUI {
 
   private renderModuleCatalog(): HTMLElement {
     const wrap = document.createElement("div");
-    const favs = this.favs();
+    const favs = readFavs();
     const persona = document.body.dataset.persona || localStorage.getItem("persona") || "all";
-    const openSecs = PortalUI.SECTIONS_BY_PERSONA[persona];   // undefined => all sections open
+    const openSecs = SECTIONS_BY_PERSONA[persona];   // undefined => all sections open
 
     const filter = document.createElement("input");
     filter.type = "search"; filter.placeholder = "Filter modules…"; filter.className = "portal-filter";
@@ -927,7 +893,7 @@ export class PortalUI {
       star.title = fav ? "Unfavorite" : "Favorite";
       star.setAttribute("aria-label", `${fav ? "Unfavorite" : "Favorite"} ${m.name}`);
       star.setAttribute("aria-pressed", String(fav));
-      star.onclick = (e) => { e.stopPropagation(); this.toggleFav(m.key); };
+      star.onclick = (e) => { e.stopPropagation(); toggleFav(m.key); this.refreshCatalog(); };
       const open = document.createElement("button"); open.type = "button"; open.className = "portal-mod";
       open.append(Object.assign(document.createElement("span"), { className: "ic", textContent: m.icon || "•" }),
         document.createTextNode(" " + m.name));
@@ -1147,7 +1113,7 @@ export class PortalUI {
 
   private async openModule(m: ModuleDef, filter: { q?: string; state?: string; offset?: number } = {}) {
     const pid = this.host.projectId()!;
-    this.pushRecent(m.key);
+    pushRecent(m.key);
     this.skeleton(`Loading ${m.name}…`);
     const PAGE = 100, offset = filter.offset ?? 0;          // page large modules so they never render 1000s of rows
     const page = await this.host.api.moduleRecordsFiltered(pid, m.key, { ...filter, limit: PAGE + 1, offset });
