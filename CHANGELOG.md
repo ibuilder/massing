@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.192 — Docs: close out the Code quality & hardening initiative
+Roadmap updated to reflect that Waves 1–6 of the four-domain audit all shipped CI-green (v0.3.177–191):
+observability, perf/scale, the type boundary (OpenAPI types + `ui/dom.ts`), modularization
+(`model_index.py`, `report_builders/`, `httpCore.ts`, `portal/prefs.ts`), and reproducibility/ops
+(fragments single-source, fail-closed secrets, Rust PR CI, Trivy split, `money.py`). Four items are
+recorded as **deferred with measured blockers** rather than forced: T5 `noUncheckedIndexedAccess`
+(251 real violations → per-module, not one sweep), T6 typed-lint (same class), B2 pip lockfiles (must
+resolve in prod Linux/py3.12, not this dev box), B3 Docker `npm ci` (CI-only verify, low value).
+
 ## v0.3.191 — Add Decimal money helpers money.py (P6)
 Float money math drifts at the cent: `round(2.675, 2)` is `2.67`, and a naive `round()` three-way split
 of $100 sums to 99.99. Added `aec_api/money.py` — `q2()` (round-half-up to cents), `to_cents()`, and a

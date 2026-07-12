@@ -23,39 +23,40 @@ TypeScript · Rust/build-CI). The core is mature; this closes the specific remai
 half-rolled-out patterns. Delivered as ordinary versioned, CI-green releases, safety-net first.
 Full proposal (ranked, with file evidence): https://claude.ai/code/artifact/aabdff8f-e331-4f91-8961-09d0394be4d5
 
-### ✅ Shipped
+### ✅ Shipped — Waves 1–6 (v0.3.177–191)
 - **Wave 1 — Observability (v0.3.177).** O1 server error-log feed (global 500 handler + request-id →
-  `error_log` table + admin `/admin/errors` console, retention-capped) · O2 client-side error capture
-  (`window.onerror`/`unhandledrejection` → `/client-errors`, throttled) + admin **Errors** panel.
-- **Wave 2 — Perf quick-wins (v0.3.178).** P1 `scan_deviation` → `run_in_threadpool` (event-loop stall
-  fixed) · P2 `data_qa`/`code_check`/`by-discipline` now use the model-keyed `_scan_cached` · P5a
-  `(project_id, ts)` index on `record_activity` · P5b lock on the threadpool-mutated property index.
+  `error_log` + admin `/admin/errors`, retention-capped) · O2 client-side capture + admin **Errors** panel.
+- **Wave 2 — Perf quick-wins (v0.3.178).** P1 `scan_deviation` threadpool · P2 model-keyed `_scan_cached`
+  · P5a `(project_id, ts)` index · P5b property-index lock.
+- **Wave 3 — Scale (v0.3.179).** P3 `wip.portfolio()` N+1 → `sum_field` SQL aggregate · P4 dashboard/
+  schedule routers off `list_records(limit=1e6)` → `count_records`/`func.sum`.
+- **Wave 4 — Type boundary (v0.3.181, 190).** T1 OpenAPI-generated TS types (`openapi-typescript` →
+  `schema.d.ts` + `openapiTypes.ts` seam) · T4 typed `ui/dom.ts` (`el()/frag()/clear()/readForm<T>()`)
+  + Vitest suite.
+- **Wave 5 — Modularization (v0.3.181, 186–189).** A1 `model_index.py` extraction (fixed the 5-engine
+  dep inversion) · A2 `reports.py` 1,436 → 176-line dispatch + `report_builders/` package · A3 shared
+  `deps.open_source_ifc()` · T2 `ApiClient` transport → `httpCore.ts` (`HttpCore`) · T3 portal
+  favorites/recents/persona-sections → `portal/prefs.ts`.
+- **Wave 6 — Reproducibility + ops (v0.3.182–185, 191).** B1 single-source fragments/web-ifc pair +
+  CI guard · B4 converter CLI output-guard + Dependabot `directory:/` · O3 fail-closed prod secrets
+  (`${VAR:?}`) · O4 Rust `clippy`/`fmt` PR CI (`rust-ci.yml`) + Trivy (CRITICAL gate + non-blocking HIGH
+  report) · P6 `Decimal` money helpers (`money.py`: `q2`/`to_cents`/`allocate`).
 
-### ▶ NOW — Wave 3 (Scale)
-- **P3** `wip.portfolio()` N+1 fan-out → SQL aggregate the billed-to-date sum (`_json_text`); batch
-  per-project summaries. *(wip.py — highest scale hazard.)*
-- **P4** dashboard + schedule routers: `list_records(limit=1_000_000)` → `count_records` / `func.sum`.
-
-### ⏭ NEXT
-- **Wave 4 — Type boundary.** T1 OpenAPI-generated TS response types (`openapi-typescript` → `schema.d.ts`;
-  kills client/backend drift — **biggest single win**) · T4 shared `form<T>()` upload + `ui/dom.ts`
-  `el()/table()` helpers.
-- **Wave 1 finish.** O3 fail-closed prod secrets (`${VAR:?}` on `POSTGRES_PASSWORD`/`S3_SECRET_KEY`) ·
-  O4 Rust `cargo clippy`/`fmt` on PR CI + trivy HIGH.
-
-### ⏳ LATER
-- **Wave 5 — Modularization.** A1 extract the model-property index → `model_index.py` (5 engines import a
-  router's internals — worst dep inversion) · A2 split `reports.py` (1,436) into a `reports/` package +
-  collapse `REPORTS`/`_BUILDERS`/`_LOGS` to one `ReportSpec` · A3 shared `source_ifc`/IFC-open helper +
-  one `_databridge` · T2 decompose the 2,737-line `ApiClient` → `HttpCore` + lazy domain sub-clients ·
-  T3 extract `portal.ts` grid/form/nav + `viewer/app.ts` `install*` tool modules.
-- **Wave 6 — Reproducibility + depth.** B1 single-source the `@thatopen/fragments`+`web-ifc` pair (3
-  hardcoded spots) · B2 Python `pip-compile` lockfiles · B3 web Dockerfile `npm ci` + multi-stage API
-  image · B4 converter CLI output-guard + Dependabot `directory:/` · P6 `Decimal` money helper
-  (billing/WIP/bid-tab) · A4/A5 remaining splits · T5 `noUncheckedIndexedAccess` + typed `no-floating-promises`
-  · T6 typed proforma paths.
-
-**Top 5 if only five: P3 · P4 · T1 · A1 · B1.**
+### ⏳ Deferred — measured blockers, revisit incrementally (not forcing a bad change)
+- **T5 `noUncheckedIndexedAccess`** — **251 real violations** measured (viewer/app 44, proforma 41,
+  main 40, gis 34…). A global flip is a multi-session sweep; mass non-null assertions risk *hiding* real
+  bugs. Do it per-module behind a stricter tsconfig as files are touched, not in one pass.
+- **T6 typed `no-floating-promises` / typed proforma paths** — needs type-aware ESLint (`parserOptions.
+  project`) and surfaces the same broad class of sites. Same incremental treatment as T5.
+- **B2 `pip-compile` lockfiles** — a hashed lock must resolve in the **prod interpreter** (Linux/py3.12);
+  generating it on this dev box (Windows/py3.10) pins the wrong wheels. Do it in a CI/Docker job, not
+  locally — a wrong lock is worse than the current `>=` ranges + Dependabot.
+- **B3 web Dockerfile `npm ci` + multi-stage API image** — `npm ci` needs the root workspace lockfile in
+  the image context; only verifiable via the CI container build. Low reproducibility gain for the
+  iteration cost; fold into the next Docker touch.
+- **A4/A5 remaining splits** — the portal catalog↔nav orchestration core is intentionally coupled
+  (favorites ↔ nav ↔ persona events ↔ in-place DOM refresh); further mechanical extraction adds
+  indirection without readability gain. The cleanly-separable pieces are already out (Wave 5).
 
 ---
 
