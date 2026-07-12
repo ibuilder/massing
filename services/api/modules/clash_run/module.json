@@ -1,0 +1,21 @@
+{
+  "key": "clash_run",
+  "name": "Clash Runs",
+  "section": "BIM",
+  "icon": "🌂",
+  "ref_prefix": "CLR",
+  "title_field": "label",
+  "fields": [
+    { "name": "label", "label": "Run", "type": "text", "required": true },
+    { "name": "clash_count", "label": "Raw clashes", "type": "number" },
+    { "name": "group_count", "label": "Coordination issues", "type": "number" },
+    { "name": "reduction", "label": "Reduction ×", "type": "number" },
+    { "name": "new_count", "label": "New", "type": "number" },
+    { "name": "active_count", "label": "Active", "type": "number" },
+    { "name": "resolved_count", "label": "Resolved", "type": "number" },
+    { "name": "reappeared_count", "label": "Reappeared", "type": "number" },
+    { "name": "disciplines", "label": "Disciplines", "type": "text" }
+  ],
+  "list_columns": ["clash_count", "group_count", "reduction"],
+  "workspace": "design"
+}

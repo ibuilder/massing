@@ -1989,18 +1989,45 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             body.appendChild(toolBtn2("Open Issues panel", () => (document.querySelector('.rail-btn[data-rail="issues"]') as HTMLElement)?.click()));
           });
         })));
-        b.appendChild(toolBtn2("🔗 Federated clash (disciplines)", () => withLoading(container, "Running federated clash", async () => {
+        b.appendChild(toolBtn2("🔗 Coordinate clashes (grouped issues)", () => withLoading(container, "Running federated clash + coordination", async () => {
           let r;
-          try { r = await api.clashFederated(pid, { create_topics: true }); }
+          try { r = await api.clashFederated(pid, { coordinate: true }); }
           catch { toast("Federated clash needs ≥2 models — add one with “＋ Add discipline IFC”", "error"); return; }
-          out.textContent = `${r.count} cross-model clashes · ${r.created_topics} topics`;
-          toast(`Federated: ${r.count} clashes across ${r.disciplines.join(" × ")}`, r.count ? "info" : "success");
+          const co = r.coordination;
+          out.textContent = co ? `${r.count} clashes → ${co.group_count} issues (${co.reduction}× reduction)` : `${r.count} clashes`;
+          toast(co ? `${co.new} new · ${co.active} active · ${co.resolved} resolved · ${co.reappeared} reappeared` : "no clashes", r.count ? "info" : "success");
           await refreshIssues(); await reloadModelPins();
-          const pairs: Record<string, number> = {};
-          for (const c of r.clashes) { const k = `${c.a_model} × ${c.b_model}`; pairs[k] = (pairs[k] || 0) + 1; }
-          showResult("Federated clash", (body) => {
-            body.appendChild(resultNote(`<b>${r!.count}</b> cross-model clashes across <b>${r!.disciplines.join(" × ")}</b> · <b>${r!.created_topics}</b> topics created.`, r!.count ? "bad" : "ok"));
-            if (Object.keys(pairs).length) body.appendChild(kvTable(Object.entries(pairs).map(([k, v]) => ({ k, v: String(v) }))));
+          showResult("Clash coordination", (body) => {
+            if (!co) { body.appendChild(resultNote(`<b>${r!.count}</b> cross-model clashes.`, r!.count ? "bad" : "ok")); return; }
+            body.appendChild(resultNote(`<b>${r!.count}</b> raw clashes grouped into <b>${co.group_count}</b> tracked coordination issues `
+              + `(<b>${co.reduction}×</b> reduction) across <b>${r!.disciplines.join(" × ")}</b>.`, co.group_count ? "bad" : "ok"));
+            body.appendChild(kvTable([
+              { k: "New", v: String(co.new) }, { k: "Active (carried forward)", v: String(co.active) },
+              { k: "Resolved (auto)", v: String(co.resolved) }, { k: "Reappeared (reopened)", v: String(co.reappeared) },
+            ]));
+            if (Object.keys(co.by_severity).length) {
+              const h = document.createElement("div"); h.className = "meta"; h.style.cssText = "font-weight:700;margin:8px 0 2px"; h.textContent = "By severity"; body.appendChild(h);
+              body.appendChild(kvTable(Object.entries(co.by_severity).map(([k, v]) => ({ k, v: String(v) }))));
+            }
+            if (Object.keys(co.by_discipline).length) {
+              const h = document.createElement("div"); h.className = "meta"; h.style.cssText = "font-weight:700;margin:8px 0 2px"; h.textContent = "By discipline pair"; body.appendChild(h);
+              body.appendChild(kvTable(Object.entries(co.by_discipline).map(([k, v]) => ({ k, v: String(v) }))));
+            }
+            body.appendChild(toolBtn2("📊 Coordination KPIs", () => withLoading(container, "Loading clash KPIs", async () => {
+              const m = await api.clashMetrics(pid);
+              showResult("Clash coordination KPIs", (kb) => {
+                kb.appendChild(resultNote(`<b>${m.open}</b> open · <b>${m.closed}</b> closed · <b>${m.resolution_rate}%</b> resolved · `
+                  + `reappearance <b>${m.reappearance_rate}%</b> over <b>${m.runs}</b> run(s).`, m.open ? "bad" : "ok"));
+                kb.appendChild(kvTable([
+                  { k: "Open aging 0–7d", v: String(m.aging["0-7"] ?? 0) }, { k: "8–14d", v: String(m.aging["8-14"] ?? 0) },
+                  { k: "15–30d", v: String(m.aging["15-30"] ?? 0) }, { k: "30d+", v: String(m.aging["30+"] ?? 0) },
+                ]));
+                if (m.burn_down.length) {
+                  const h = document.createElement("div"); h.className = "meta"; h.style.cssText = "font-weight:700;margin:8px 0 2px"; h.textContent = "Run burn-down"; kb.appendChild(h);
+                  kb.appendChild(kvTable(m.burn_down.map((x) => ({ k: x.run, v: `+${x.new} / −${x.resolved}${x.reappeared ? ` / ↻${x.reappeared}` : ""}` }))));
+                }
+              });
+            })));
             body.appendChild(toolBtn2("Open Issues panel", () => (document.querySelector('.rail-btn[data-rail="issues"]') as HTMLElement)?.click()));
           });
         })));

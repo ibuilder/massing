@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.203 — Wave 8 ①: Clash Coordination Intelligence (grouping · severity · reconcile · KPIs)
+The management layer on top of geometric clash *detection* — the strongest signal from the 2026 field
+scan (4 of 14 sheets), built the way Navisworks / Autodesk Model Coordination / Solibri / Revizto do it.
+New `clash_intel.py` turns a raw clash result set into **tracked coordination issues**:
+- **Grouping** — greedy by-element set-cover: a duct crossing 12 joists becomes **one** issue
+  ("relocate this duct"), not 12 clashes (the industry's order-of-magnitude reduction).
+- **Severity** — a discipline matrix (structural pairs weigh most) × penetration volume × group size →
+  a 0-100 score + Low/Medium/High/Critical band.
+- **Stable identity + reconcile** — a `group_hash` (dominant GlobalId + the other discipline) survives
+  re-runs, so a federation cycle auto-marks issues **resolved** (gone) and auto-**reopens** them
+  (reappeared) *without losing comment history* — the classic Navisworks pain point, handled.
+- **KPIs** — status mix, worst discipline pairs, severity, open-issue aging, per-run burn-down +
+  reappearance rate.
+Issues are created as `coordination_issue` records (already **BCF-native + pinnable + GlobalId-anchored**),
+so everything round-trips with any BIM tool. New endpoints `POST …/clash/{coordinate,analyze}`,
+`GET …/clash/metrics`, and `coordinate=true` on `POST …/clash/federated`; a `clash_run` module persists
+run snapshots; the viewer's federated-clash tool now runs the coordination pass (reduction + new/active/
+resolved/reappeared + severity + a KPIs view). `test_clash_intel` covers grouping, severity, and the
+resolve→reappear→reopen loop across three runs. Pure Python; no new dependency. (Wave 8 ① of 7 — see
+`docs/roadmap.md`.)
+
 ## v0.3.202 — Fix: metadata-only project no longer hangs the viewer on "Loading model"
 A project with an uploaded **property index but no published `.frag`** (geometry never converted) spun the
 viewer's **"Loading model"** overlay forever, and because the auto-load never returned, the Construction /

@@ -44,6 +44,21 @@
       "name": "location",
       "label": "Location",
       "type": "text"
+    },
+    {
+      "name": "clash_hash",
+      "label": "Clash group ID",
+      "type": "text"
+    },
+    {
+      "name": "clash_count",
+      "label": "Clashes in group",
+      "type": "number"
+    },
+    {
+      "name": "severity_score",
+      "label": "Severity score",
+      "type": "number"
     }
   ],
   "workflow": {
@@ -74,9 +89,35 @@
         ]
       },
       {
+        "from": "open",
+        "to": "resolved",
+        "action": "resolve",
+        "party": [
+          "Subcontractor",
+          "Consultant",
+          "GC"
+        ]
+      },
+      {
         "from": "resolved",
         "to": "closed",
         "action": "close",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "resolved",
+        "to": "open",
+        "action": "reopen",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "closed",
+        "to": "open",
+        "action": "reopen",
         "party": [
           "GC"
         ]

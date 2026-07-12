@@ -75,14 +75,17 @@ def run_clash_federated(
     disciplines: dict = Body(default={}, embed=True),  # optional {"STR": "/path/str.ifc", …}
     min_volume: float = 1e-3,
     create_topics: bool = False,
+    coordinate: bool = False,
     limit: int = 200,
     db: Session = Depends(get_db),
     actor: str = Depends(require_role("editor")),
 ):
     """Cross-discipline (federated) clash across 2+ models. Intra-model overlaps are excluded.
     If no `disciplines` map is given, it's built from the project's own models — the primary source
-    IFC + any appended discipline models (POST /projects/{pid}/models). create_topics=true turns the
-    top clashes into BCF clash topics (→ pins / Issues)."""
+    IFC + any appended discipline models (POST /projects/{pid}/models). `create_topics=true` dumps the
+    top clashes as raw BCF clash topics; **`coordinate=true`** instead runs the intelligence layer —
+    grouping the raw clashes into tracked `coordination_issue`s, scoring severity, and reconciling
+    against the prior run (new / active / resolved / reappeared)."""
     from aec_data import clash  # type: ignore
 
     valid = {k: v for k, v in (disciplines or {}).items() if v and Path(v).exists()}
@@ -98,8 +101,17 @@ def run_clash_federated(
         raise HTTPException(409, 'need >=2 accessible discipline models — append one via "Open IFC as discipline"')
     results = clash.detect_federated_files(valid, min_volume=min_volume)
 
+    coordination = None
+    if coordinate:
+        from .. import clash_intel, rbac
+        coordination = clash_intel.coordinate(db, pid, results, actor,
+                                              rbac.party_role_for(db, pid, actor),
+                                              label=f"Federated {', '.join(sorted(valid))}")
+        audit.record(db, action="clash.coordinate", actor=actor, method="POST",
+                     path=f"/projects/{pid}/clash/federated", detail=coordination)
+
     created = 0
-    if create_topics:
+    if create_topics and not coordinate:
         for c in results[:limit]:
             db.add(Topic(
                 project_id=pid, type="clash", status="open",
@@ -112,7 +124,39 @@ def run_clash_federated(
         db.commit()
 
     return {"disciplines": list(valid), "count": len(results), "created_topics": created,
-            "clashes": results[:limit], "truncated": len(results) > limit}
+            "coordination": coordination, "clashes": results[:limit], "truncated": len(results) > limit}
+
+
+@router.post("/projects/{pid}/clash/coordinate")
+def coordinate_clashes(
+    pid: str,
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    actor: str = Depends(require_role("editor")),
+):
+    """Group + score + reconcile a clash result set into tracked coordination issues. Body:
+    `{clashes:[{a_guid,b_guid,a_class,b_class,a_model?,b_model?,volume,point:{x,y,z}}, …], label?}`.
+    Lets a client run detection (federated or single) and post the results for the intelligence pass."""
+    from .. import clash_intel, rbac
+    clashes = body.get("clashes") or []
+    if not isinstance(clashes, list):
+        raise HTTPException(422, "clashes must be a list")
+    return clash_intel.coordinate(db, pid, clashes, actor,
+                                  rbac.party_role_for(db, pid, actor), label=body.get("label"))
+
+
+@router.post("/projects/{pid}/clash/analyze")
+def analyze_clashes(pid: str, body: dict = Body(default={}), _: str = Depends(require_role("viewer"))):
+    """Preview grouping + severity for a clash result set WITHOUT writing any issues (dry run)."""
+    from .. import clash_intel
+    return clash_intel.analyze(body.get("clashes") or [])
+
+
+@router.get("/projects/{pid}/clash/metrics")
+def clash_metrics(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Clash coordination KPIs — status mix, worst discipline pairs, severity, aging, run burn-down."""
+    from .. import clash_intel
+    return clash_intel.metrics(db, pid)
 
 
 @router.get("/projects/{pid}/models/georeferencing")

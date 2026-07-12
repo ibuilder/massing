@@ -991,14 +991,27 @@ export class ApiClient extends HttpCore {
   }
   /** Federated (cross-discipline) clash across the project's layered models — primary source IFC +
    *  any appended discipline models. 409 if fewer than 2 are available. */
-  clashFederated(pid: string, opts: { create_topics?: boolean; min_volume?: number; limit?: number } = {}) {
+  clashFederated(pid: string, opts: { create_topics?: boolean; coordinate?: boolean; min_volume?: number; limit?: number } = {}) {
     const q = new URLSearchParams({ create_topics: String(opts.create_topics ?? true),
+      ...(opts.coordinate != null ? { coordinate: String(opts.coordinate) } : {}),
       ...(opts.min_volume != null ? { min_volume: String(opts.min_volume) } : {}),
       ...(opts.limit != null ? { limit: String(opts.limit) } : {}) }).toString();
     return this.json<{ disciplines: string[]; count: number; created_topics: number; truncated: boolean;
+      coordination: { run: string; new: number; active: number; resolved: number; reappeared: number;
+        clash_count: number; group_count: number; reduction: number;
+        by_discipline: Record<string, number>; by_severity: Record<string, number>; note: string } | null;
       clashes: { a_model: string; a_class: string; a_guid: string; b_model: string; b_class: string;
         b_guid: string; volume: number; method: "mesh" | "aabb"; point: Vec3 }[] }>(
       `/projects/${pid}/clash/federated?${q}`, { method: "POST" });
+  }
+  /** Clash coordination KPIs — status mix, worst discipline pairs, severity, aging, run burn-down. */
+  clashMetrics(pid: string) {
+    return this.json<{ total_issues: number; open: number; closed: number; resolution_rate: number;
+      by_status: Record<string, number>; by_discipline: Record<string, number>;
+      by_severity: Record<string, number>; aging: Record<string, number>; runs: number;
+      reappearance_rate: number;
+      burn_down: { run: string; new: number; resolved: number; reappeared: number; issues: number }[];
+      note: string }>(`/projects/${pid}/clash/metrics`);
   }
   /** Discipline quantity roll-up — reinforcement tonnage, MEP linear runs, structural volume. */
   disciplineQuantities(pid: string) {
