@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.185 — CI: split Trivy into a CRITICAL gate + non-blocking HIGH report
+Following v0.3.184: scoping the API scan past npm's bundled tooling wasn't enough — the **web** image
+(final stage `nginx:alpine`) carries its own rolling set of fixable HIGH CVEs in its apk packages, which
+a shared skip-dir can't cover. Both base images churn fixable HIGHs outside our control, so a blocking
+HIGH gate keeps the pipeline red on upstream timing, not on our code. Resolution: **CRITICAL findings
+still block the publish**, and a **second, non-blocking Trivy step prints fixable HIGH CVEs every build**
+so they're surfaced (not shipped silently) for a human to act on the ones in our own deps — without
+base-image noise gating the release. Restores green container publish; keeps O4's real deliverables
+(Rust PR CI + fail-closed prod secrets + CLI/dep guards) intact.
+
 ## v0.3.184 — CI hotfix: scope Trivy HIGH past npm's bundled build tooling
 The v0.3.183 Trivy bump to HIGH immediately flagged **12 HIGH CVEs — all in npm's own vendored
 node_modules** (cross-spawn / glob / minimatch / tar, DoS/regex issues) that the `node:20-slim` layer
