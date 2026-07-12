@@ -90,6 +90,103 @@ upstream-blocked items, and one intentional non-goal.**
 
 ---
 
+## ☆ Wave 8 — 2026 field-research upgrades (proposed)
+
+Sourced from a July-2026 field scan: 14 industry reference sheets (structural loads, LOD, BuiltWorlds
+Robotics Top-50, PMO/EPMO, BIM Control Stack, Revit-mistakes, ISO-19650 delivery, a 4-part clash
+workflow, planning-vs-controlling, a 10-part construction-execution plan) + three build briefs
+(reality-capture→IFC twin; two real-estate-tokenization roadmaps) + VIM (vimaec.com) and a Revit-MCP
+automation portfolio. Each track below was validated against **institutional references** and its
+dependency licenses verified against our permissive mandate (no AGPL/GPL in the core). Ordered by
+leverage. These **deepen existing seams** (clash+BCF, deviation heatmap, `structure.py`, report-gen,
+cap-table) — none is a rebuild.
+
+**① Clash Coordination Intelligence — the management layer on top of detection (highest leverage).**
+The strongest signal (4 of the 14 sheets walk detect → filter/dedup → assign/resolve → validate/close).
+We already *detect* federated clashes + import clash XLSX + speak BCF; the gap is the **coordination
+workflow**. Proven pattern (Navisworks · Autodesk Model Coordination · Solibri · Revizto · buildingSMART
+BCF): a **two-layer model** — ephemeral `Clash` rows (thousands, regenerated per run) vs persistent
+`Issue` = one **BCF Topic** (tens). Build: (a) **grouping** — by-element set-cover + `DBSCAN` proximity +
+grid/level bucketing → the industry's ~10:1–100:1 reduction; (b) **tolerance/matrix** — hard vs
+soft/clearance + a discipline **clash matrix** (which pairs to test, per-cell severity) as the primary
+false-positive control (research shows ~30–60 % of raw clashes are noise); (c) **severity score**
+(matrix × penetration depth × group size × structural flag); (d) an **assign→in-progress→closed /
+reopened** state machine mapped 1:1 to BCF `TopicStatus`; (e) a **stable `clash_hash`** (sorted GUID pair
++ snapped point) so re-runs auto-set *Resolved* / auto-*ReOpen* on reappearance without losing comments;
+(f) **clash KPIs** (open/closed, aging, by-trade-pair, reappearance rate, burn-down). Pure Python over
+our existing clash + `bcf_io.py`; GUID-keyed; zero license exposure.
+
+**② Model → Field layout + verified as-built (smallest surface, immediate field utility).**
+The BuiltWorlds Robotics-Top-50 sheet points at the 2026 field-robotics wave (Dusty FieldPrinter, Hilti
+Jaibot/PLT, Trimble/Leica robotic total stations). They all consume two open primitives from the model:
+a **PENZD/PNEZD points CSV** (Point-№, Easting, Northing, Z, Description) and **DXF linework** (for floor
+printers). Build a **`model → layout CSV`** exporter (grid intersections from `IfcGrid`, wall control
+lines, MEP hanger/anchor points, sleeve/penetration centroids, column setout — Description encodes type +
+IFC GlobalId; real-world E/N/Z via our set-origin handling) and a **`model → DXF`** layered drawing
+(`ezdxf`, MIT). Close the loop: import measured total-station shots, match by Point-№/GUID, and write a
+**BCF topic per out-of-tolerance point** — as-built verification becomes another BCF type on our existing
+pin/RFI spine. Monetizes "IFC as the source of truth"; no new heavy deps.
+
+**③ Reality walkthrough + schedule-linked verified-as-built (high visual differentiation).**
+From the `photosynth-to-massing` brief. Two parts: (a) a **3D Gaussian-splat "reality" layer** in the
+viewer — photoreal, phone-captured, co-registered with the IFC + LAS/LAZ we already load; the permissive
+path is **end-to-end** (`gsplat`/Nerfstudio Apache-2.0 for capture, `@mkkellogg/GaussianSplats3D` MIT web
+viewer) — *avoid the original Inria 3DGS (non-commercial)*. (b) Turn our **deviation heatmap into
+progress**: per-element capture/verification state + % complete tied to schedule tasks, emitted as BCF —
+the OpenSpace/Disperse/Buildots value proposition, pure software for us. Add **E57 polish** on the
+existing `e57.py`. Automated point-cloud→IFC (**Cloud2BIM is GPL-3.0**) stays an optional *out-of-process*
+converter, never linked into the core.
+
+**④ Preliminary gravity load takedown + ASCE 7 combinations (design-phase depth).**
+The "Types of loads" sheet. Extend `structure.py` (today: system *recommendation* only) with a
+**tributary-area gravity takedown** — dead (self-weight from `IfcMaterial` × geometry + SDL) + live (ASCE
+7 Table 4.3-1 by `IfcSpace` occupancy, with the §4.7 live-load-reduction closed form) distributed by
+tributary geometry and **accumulated storey-by-storey down each column line to the footings** — plus an
+**ASCE 7 load-combination engine** (LRFD §2.3 + ASD §2.4; the coefficients are facts). Output per-column /
+per-footing service + factored axial loads for preliminary sizing. **No FEA, no solver** — pure
+`ifcopenshell` + arithmetic; optional **PyNite (MIT)** / **sectionproperties (MIT)** tier later for
+continuous-member checks (**avoid anaStruct — LGPL-3.0**). Ships with the same PE/RA honesty caveat as our
+stamp/seal path: *preliminary coordination estimate, not a substitute for a licensed engineer; lateral
+(wind/seismic) out of scope*.
+
+**⑤ Model-hygiene checker (quick win).** The "Common Revit mistakes" sheet + the Revit-MCP portfolio's
+*Model Checker / Duplicates Resolver*. Extend our data-QA with **geometric hygiene**: duplicate/overlapping
+elements, unenclosed rooms/spaces, elements on the wrong storey, and unresolved authoring warnings — a
+scored report over the property index, GUID-anchored, feeding BCF issues.
+
+**⑥ Construction Execution Plan (CEP) generator.** The 10-part "How to prepare a CEP" sheet. A CEP is the
+*superset* of a BEP (the BEP governs the model; the CEP governs the work). We already hold the data:
+section-templated generator (scope · stakeholder/RACI · site logistics · work packaging/pull-plan ·
+resources · cost/schedule/risk + EVM · quality/ITP · HSE/resilience · procurement/subs · commissioning/
+COBie-G704) auto-populated from existing modules, BEP linked as an appendix (not duplicated). Reuse the
+report/PDF stack; cite ISO 21502 / CMAA practice areas in original prose (no copyrighted text, no
+competitor names).
+
+**⑦ Compliant syndication / investor-management depth — cap-table-first, token-last (strategic, legal-gated).**
+From the two tokenization briefs. The validated best practice (Securitize, Tokeny, and the non-token gold
+standards Juniper Square / Carta): a securities platform is **~80 % a regulated investor-management system,
+~20 % blockchain** — Postgres is the legal source of truth, the token an optional mirror. We already have
+proforma, JV waterfall, LP portal, capital calls, cap-table. Deepen, in order: **(A)** cap-table as a
+**double-entry, append-only ledger** (immutable `LedgerEntry` rows; balances/waterfall distributions post
+as ledger events) + subscription workflow + e-sign; **(B)** a modular **compliance engine**
+(`can_subscribe`/`can_transfer`: KYC-current, 506(c) verification-not-self-cert, jurisdiction allowlist,
+Rule 144 lockup, **§12(g) holder-count cap with per-person wallet dedupe**, max-ownership, OFAC,
+min-investment) via a third-party KYC/accreditation vendor; **(C)** regulated money movement (**not
+Stripe** — its ToS bars securities/escrow; use Dwolla/Modern Treasury + a qualified escrow agent) + K-1
+tax output; **(D)** SPV-per-asset entity model + Form-D data + bilateral-transfer-with-issuer-consent (the
+lawful secondary-market MVP — a public order book requires a **broker-dealer + ATS**, not code). **(E —
+deferred)** the **ERC-3643 permissioned token** only behind securities counsel; note its T-REX reference
+contracts are **GPL-3.0** (spec is open) — a real licensing decision, not a default. A–C carry ordinary
+SaaS risk and are the near-term prize; D–E are counsel-gated and optional. ⚖️ *Not legal advice; every
+offering step needs a securities attorney.*
+
+**Sequencing recommendation:** ① and ② are the near-term, highest-leverage, lowest-risk builds (both pure
+software on existing seams). ③–⑥ are self-contained increments to schedule by customer pull. ⑦ is a
+strategic multi-release track for the developer/finance side, front-loaded with the non-legal-gated
+cap-table-ledger + compliance-engine work.
+
+---
+
 <!-- ═══════════════════════════ SHIPPED ARCHIVE (historical reference) ═══════════════════════════ -->
 ## Authoring depth + the design engine — ✅ SHIPPED (v0.3.87–88+)
 
