@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import audit, bcf_io, storage
 from ..db import get_db
+from ..deps import open_source_ifc
 from ..deps import source_ifc_path as _source_ifc
 from ..models import Project, ProjectModel, Topic
 from ..rbac import require_role
@@ -119,17 +120,8 @@ def model_georeferencing(pid: str, db: Session = Depends(get_db), _sec: str = De
     """Shared-coordinates / setout basis for the project's source model — full IfcMapConversion
     (eastings/northings/height, true-north bearing, scale) + IfcProjectedCRS (EPSG, datums) + LoGeoRef
     level. The survey basis a coordinator needs for federation and BIM-to-field layout. 409 if no IFC."""
-    import ifcopenshell  # type: ignore
-
     from .. import georef
-    p = db.get(Project, pid)
-    if not (p and p.source_ifc and Path(p.source_ifc).exists()):
-        raise HTTPException(409, "project has no source IFC")
-    try:
-        model = ifcopenshell.open(p.source_ifc)
-    except Exception as e:  # noqa: BLE001 — a bad file is a 4xx, not a 500
-        raise HTTPException(400, f"could not read the IFC: {e}") from e
-    return georef.georeferencing(model)
+    return georef.georeferencing(open_source_ifc(db, pid))
 
 
 @router.post("/projects/{pid}/scan/deviation")
@@ -142,9 +134,7 @@ async def scan_deviation(pid: str, file: UploadFile = File(...), tolerance: floa
     from starlette.concurrency import run_in_threadpool
 
     from .. import scan_deviation as sd
-    p = db.get(Project, pid)
-    if not (p and p.source_ifc and Path(p.source_ifc).exists()):
-        raise HTTPException(409, "project has no source IFC to compare against")
+    ifc_path = _source_ifc(db, pid)  # 409 if the project has no accessible source IFC
     raw = await file.read()
     # The point-cloud parse and — far heavier — the IFC open + full tessellation are CPU-bound and
     # would block the event loop (stalling every other request on this worker) if run inline. Offload
@@ -153,7 +143,7 @@ async def scan_deviation(pid: str, file: UploadFile = File(...), tolerance: floa
     if len(pts) == 0:
         raise HTTPException(400, "no readable XYZ points in the upload")
     try:
-        ref = await run_in_threadpool(lambda: sd.model_surface_points(ifcopenshell.open(p.source_ifc)))
+        ref = await run_in_threadpool(lambda: sd.model_surface_points(ifcopenshell.open(ifc_path)))
     except Exception as e:  # noqa: BLE001 — geometry failure is a 4xx, not a 500
         raise HTTPException(400, f"could not build model geometry: {e}") from e
     if len(ref) == 0:
@@ -176,17 +166,8 @@ def model_qa_report(pid: str, db: Session = Depends(get_db), _sec: str = Depends
     """Model integrity / hygiene scan of the source IFC — duplicate GUIDs, orphaned (no-storey)
     elements, overlapping duplicates, unenclosed spaces and blank names. Complements the LOIN/IDS
     data-quality checks. 409 if the project has no source IFC."""
-    import ifcopenshell  # type: ignore
-
     from .. import model_qa
-    p = db.get(Project, pid)
-    if not (p and p.source_ifc and Path(p.source_ifc).exists()):
-        raise HTTPException(409, "project has no source IFC")
-    try:
-        model = ifcopenshell.open(p.source_ifc)
-    except Exception as e:  # noqa: BLE001 — a bad file is a 4xx, not a 500
-        raise HTTPException(400, f"could not read the IFC: {e}") from e
-    return model_qa.model_qa(model)
+    return model_qa.model_qa(open_source_ifc(db, pid))
 
 
 @router.get("/projects/{pid}/models/alignment")

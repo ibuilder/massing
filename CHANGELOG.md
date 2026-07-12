@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.187 — Refactor (A3): shared open_source_ifc() helper for the analysis endpoints
+Three analysis endpoints (`models/georeferencing`, `models/qa`, `scan/deviation`) each hand-rolled the
+same "resolve the project's source IFC → 409 if missing → ifcopenshell.open → 400 if unreadable" dance.
+Added `deps.open_source_ifc(db, pid)` — one resolve-then-open path with consistent 4xx handling — and
+converged the three sites onto it (georeferencing + models/qa now one-liners; scan/deviation reuses the
+409 resolver, keeping its threadpool open). Behaviour identical; verified via test_georef, test_model_qa,
+test_scan_deviation, test_ai_readiness.
+
 ## v0.3.186 — Refactor (A2): decompose reports.py into a report_builders/ package
 The Report Center's builder module was a 1,436-line god-file holding ~50 per-report builder functions
 alongside the catalog + dispatch. Split the builders into a `report_builders/` package — one module per
