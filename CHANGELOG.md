@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.198 — Supply chain (B2): hash-pinned Python lockfile, generated in the prod interpreter
+Closes the last deferred hardening item. Top-level runtime deps now live in `services/api/requirements.in`;
+a new `lockfile.yml` CI job runs `pip-compile --generate-hashes --allow-unsafe` **inside `python:3.12-slim`**
+(the exact prod base image) and uploads the compiled `requirements.lock` (2,061 lines, every wheel pinned
++ sha256-hashed) — so the resolution always matches production, never a dev box. The API Dockerfile's
+build stage and the CI test gate now `pip install --require-hashes -r requirements.lock`, which **rejects
+any substituted or tampered wheel** (defends against dependency-confusion / registry compromise). One lock
+covers the data-service deps too (a strict subset) and `psycopg[binary]`, so it replaced the two prior
+unpinned installs. `lockfile.yml` also gates pushes: it fails if `requirements.in` changed without
+regenerating the lock. Verified end-to-end by CI (test gate runs the full backend suite against the pinned
+tree; the api image builds from it).
+
 ## v0.3.197 — Docs: consolidate + reprioritize the open roadmap into one section
 Roadmap cleanup — pulled *every* not-yet-done item (previously split across a "Deferred" block and a
 "Feature backlog") into a single prioritized **"What's left"** section: ① actionable next = B2 hashed

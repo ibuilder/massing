@@ -49,6 +49,7 @@ jobs:
       - name: Verify committed lock is up to date
         if: github.event_name == 'push'
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"   # container checkout owner mismatch
           if ! git diff --quiet -- services/api/requirements.lock; then
             echo "::error::services/api/requirements.lock is stale — download the 'requirements-lock' artifact from this run and commit it."
             git --no-pager diff -- services/api/requirements.lock | head -60

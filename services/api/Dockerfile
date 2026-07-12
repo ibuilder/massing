@@ -22,11 +22,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 # resilient to slow/flaky PyPI: longer timeout + retries (heavy scientific wheels)
 ENV PIP_DEFAULT_TIMEOUT=180 PIP_RETRIES=8 PIP_NO_CACHE_DIR=1
-COPY services/api/requirements.txt /tmp/req/api.txt
-COPY services/data/requirements.txt /tmp/req/data.txt
-# install into an isolated prefix we can copy wholesale into the runtime stage
-RUN pip install --prefix=/install -r /tmp/req/api.txt psycopg[binary] \
-    && pip install --prefix=/install -r /tmp/req/data.txt
+COPY services/api/requirements.lock /tmp/req/requirements.lock
+# B2: the hash-pinned, prod-resolved lock. `--require-hashes` rejects any tampered/substituted wheel
+# (supply-chain integrity). This single lock covers the data-service deps (a strict subset) and
+# psycopg[binary], so one install replaces the previous two. Install into an isolated prefix we copy
+# wholesale into the runtime stage.
+RUN pip install --prefix=/install --require-hashes -r /tmp/req/requirements.lock
 
 FROM python:3.12-slim
 
