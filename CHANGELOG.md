@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.171 — Model QA: integrity / hygiene checks
+Roadmap **Model-QA** (from the second research batch's "common modelling mistakes"). Complementing the
+LOIN/IDS *data-quality* checks, a new **🩺 Model QA** tool scans the source IFC for the defects a
+coordinator catches by eye: **duplicate GlobalIds**, **orphaned elements** (not placed in any storey),
+**overlapping duplicates** (same class stacked at one spot), **unenclosed spaces** (an IfcSpace with no
+boundaries — the classic "Room is not enclosed"), and **blank element names**. Each check returns a
+count + a sample of offenders and a clean/not-clean verdict. New engine `model_qa.py`, endpoint
+`GET /projects/{pid}/models/qa`, and `test_model_qa` (builds an IFC in-memory with every defect and
+checks each is caught). ifcopenshell only, no new deps.
+
 ## v0.3.170 — Coordination: shared coordinates / BIM-to-field setout
 Roadmap **Phase C** (from the second research batch's BIM Control Stack). The alignment report only read
 a model's eastings/northings; this reads the **full survey basis**. A new **📍 Georeferencing** model

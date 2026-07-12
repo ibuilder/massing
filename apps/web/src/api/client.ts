@@ -1028,6 +1028,14 @@ export class ApiClient {
       mep: { duct_m: number; pipe_m: number; cable_m: number; counts: Record<string, number> };
       structure: { element_volume_m3: number } }>(`/projects/${pid}/quantities/disciplines`);
   }
+  /** Model integrity scan — duplicate GUIDs, orphaned elements, overlaps, unenclosed spaces, blank names. */
+  modelQa(pid: string) {
+    type Check = { count: number; [k: string]: unknown };
+    return this.json<{ element_count: number; total_issues: number; clean: boolean;
+      checks: { duplicate_guids: Check; orphaned_elements: Check; overlapping_duplicates: Check;
+        unenclosed_spaces: Check & { total_spaces: number }; blank_names: Check & { of_elements: number } };
+      note: string }>(`/projects/${pid}/models/qa`);
+  }
   /** Shared-coordinates / setout basis — IfcMapConversion (E/N/height, true-north, scale) + CRS + LoGeoRef. */
   modelGeoreferencing(pid: string) {
     return this.json<{ georeferenced: boolean; level: number; level_label: string; note: string;

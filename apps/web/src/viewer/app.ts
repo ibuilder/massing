@@ -1459,6 +1459,26 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             }
           });
         }));
+        b.appendChild(toolBtn2("🩺 Model QA (integrity)", async () => {
+          out.textContent = "scanning model…";
+          let q;
+          try { q = await api.modelQa(pid); }
+          catch { out.textContent = "needs a source IFC (open one in Model)"; return; }
+          out.textContent = q.clean ? "clean — no integrity issues" : `${q.total_issues} issue(s)`;
+          showResult("Model integrity / hygiene", (body) => {
+            body.appendChild(resultNote(q!.clean
+              ? `<b>Clean</b> — no integrity issues across ${q!.element_count} elements.`
+              : `<b>${q!.total_issues} issue(s)</b> across ${q!.element_count} elements.`, q!.clean ? "ok" : "bad"));
+            const c = q!.checks;
+            body.appendChild(kvTable([
+              { k: "Duplicate GlobalIds", v: String(c.duplicate_guids.count), strong: c.duplicate_guids.count > 0 },
+              { k: "Orphaned elements (no storey)", v: String(c.orphaned_elements.count), strong: c.orphaned_elements.count > 0 },
+              { k: "Overlapping duplicates", v: String(c.overlapping_duplicates.count), strong: c.overlapping_duplicates.count > 0 },
+              { k: `Unenclosed spaces (of ${c.unenclosed_spaces.total_spaces})`, v: String(c.unenclosed_spaces.count), strong: c.unenclosed_spaces.count > 0 },
+              { k: `Blank names (of ${c.blank_names.of_elements})`, v: String(c.blank_names.count), strong: c.blank_names.count > 0 },
+            ]));
+          });
+        }));
         b.appendChild(toolBtn2("📍 Georeferencing (survey basis)", async () => {
           out.textContent = "reading coordinates…";
           let g;

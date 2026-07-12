@@ -132,6 +132,24 @@ def model_georeferencing(pid: str, db: Session = Depends(get_db), _sec: str = De
     return georef.georeferencing(model)
 
 
+@router.get("/projects/{pid}/models/qa")
+def model_qa_report(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Model integrity / hygiene scan of the source IFC — duplicate GUIDs, orphaned (no-storey)
+    elements, overlapping duplicates, unenclosed spaces and blank names. Complements the LOIN/IDS
+    data-quality checks. 409 if the project has no source IFC."""
+    import ifcopenshell  # type: ignore
+
+    from .. import model_qa
+    p = db.get(Project, pid)
+    if not (p and p.source_ifc and Path(p.source_ifc).exists()):
+        raise HTTPException(409, "project has no source IFC")
+    try:
+        model = ifcopenshell.open(p.source_ifc)
+    except Exception as e:  # noqa: BLE001 — a bad file is a 4xx, not a 500
+        raise HTTPException(400, f"could not read the IFC: {e}") from e
+    return model_qa.model_qa(model)
+
+
 @router.get("/projects/{pid}/models/alignment")
 def model_alignment(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Federation alignment report — do the project's discipline models share the same storey scheme
