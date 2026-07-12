@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.197 — Docs: consolidate + reprioritize the open roadmap into one section
+Roadmap cleanup — pulled *every* not-yet-done item (previously split across a "Deferred" block and a
+"Feature backlog") into a single prioritized **"What's left"** section: ① actionable next = B2 hashed
+pip lockfiles (env-blocked here → a CI `pip-compile --generate-hashes` job in python:3.12-slim);
+② optional feature depth = accounting-interop journal export + the exploratory parking lot; ③ upstream-
+blocked = IFC5/IFCX write-path, native mobile (Capacitor) shell; ④ intentional non-goal = the A4/A5
+portal-core split (deliberately coupled). Refreshed the header to v0.3.196, updated the intro (both the
+feature roadmap and the Waves 1–7 hardening initiative are cleared), and corrected stale "in progress"
+markers in the archive (Sources & Uses shipped as `proforma/sources_uses.py`; EVM E1–E7 and model
+authoring P0–P6 shipped).
+
 ## v0.3.196 — Docs: Wave 7 (T5/T6/B3) shipped; only B2 remains deferred
 Roadmap updated — the code-quality initiative's Wave 7 (TS strictness + Docker hardening) is now shipped
 and CI-green (v0.3.193–195), leaving **only B2** (hashed pip-compile lockfiles) deferred, with the precise

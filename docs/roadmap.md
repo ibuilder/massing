@@ -6,13 +6,16 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.178**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.196**.
 
-> **The product's feature roadmap is effectively cleared** — every headline theme has shipped
-> (generative design + Test Fit, developer/finance portal, full acquisition→turnover lifecycle, openBIM
-> standards, AI-over-model, discipline spine, operations/resilience, scan-to-BIM + 2D→BIM). The active
-> work is now the **Code quality & hardening** initiative below; everything under "Shipped archive" is
-> historical reference. **What's left, prioritized, is the single section that follows.**
+> **Both the product feature roadmap AND the code-quality/hardening initiative are effectively cleared.**
+> Every headline feature theme shipped (generative design + Test Fit, developer/finance portal, full
+> acquisition→turnover lifecycle, openBIM standards, AI-over-model, discipline spine, operations/
+> resilience, scan-to-BIM + 2D→BIM), and the four-domain hardening audit shipped as Waves 1–7
+> (observability, perf/scale, type boundary, modularization, reproducibility/ops, strictness + Docker).
+> **The complete list of what remains — one env-blocked ops task, optional feature depth, and
+> upstream-blocked items — is the single "What's left" section below.** Everything under "Shipped
+> archive" is historical reference only.
 
 ---
 
@@ -49,27 +52,39 @@ Full proposal (ranked, with file evidence): https://claude.ai/code/artifact/aabd
   in `pybuild`, **no compiler in the runtime**) + web `npm ci` on the workspace lockfile + root
   `.dockerignore`; dropped the vestigial `packages/shared-types` phantom workspace.
 
-### ⏳ Deferred — measured blockers, revisit incrementally (not forcing a bad change)
-- **B2 `pip-compile` hashed lockfiles** — the one item still blocked *in-session*: a correct hashed lock
-  must resolve in the **prod interpreter** (Linux/py3.12), and generating it on this dev box
-  (Windows/py3.10, no Docker available in the sandbox) risks pinning the wrong wheels — worse than the
-  current `>=` ranges + Dependabot. Do it in a CI/Docker `pip-compile --generate-hashes` job (the
-  correct pattern) so the lock is produced *in* the target environment.
-- **A4/A5 remaining splits** — the portal catalog↔nav orchestration core is intentionally coupled
-  (favorites ↔ nav ↔ persona events ↔ in-place DOM refresh); further mechanical extraction adds
-  indirection without readability gain. The cleanly-separable pieces are already out (Wave 5).
-
 ---
 
-## Feature backlog — deferred / optional (not blocking)
-- **IFC5 / IFCX write-path** — read path shipped; the write path is **blocked upstream** on
-  web-ifc/Fragments IFC5 support. Revisit when the library lands it.
-- **Native mobile shell** — the web app already ships as an installable offline PWA with field capture;
-  a native store build is a **Capacitor wrapper** (needs a macOS/Xcode + Android-SDK pipeline), a
-  fast-follow, not a rewrite. See [mobile.md](mobile.md).
-- **Exploratory themes (parking lot).** Test Fit yield-optimization depth · underwriting realism ·
-  built-world construction techniques · materials/rendering & computational design. Details preserved in
-  the archive below; pull one up only if a specific customer need surfaces.
+## ⏳ What's left — the whole open roadmap, prioritized
+
+Everything not shipped, in one place. The product features and the code-quality/hardening initiative
+(Waves 1–7 above) are done; what remains is **one env-blocked ops task, optional feature depth, two
+upstream-blocked items, and one intentional non-goal.**
+
+**① Actionable next — do when a Linux/Docker runner is available**
+- **B2 — hashed `pip-compile` lockfiles** (supply-chain integrity; the only concrete near-term task).
+  Blocked *only by this dev sandbox* (no Docker/PowerShell; Windows/py3.10) — a lock generated here pins
+  the wrong wheels for prod (Linux/py3.12). Ship it as a CI job that runs `pip-compile --generate-hashes`
+  **inside `python:3.12-slim`** so the lock is produced in the target env, then point the Dockerfiles at
+  `pip install --require-hashes`. Current `>=` ranges + weekly Dependabot are safe meanwhile.
+
+**② Feature depth — pull up on a specific customer need (optional, not blocking)**
+- **Accounting interop depth (the old "Interop-I").** Cost-coded journal-entry export to the system of
+  record behind an approval gate, then derive WIP % + resource curves from **model quantities by
+  GlobalId** (builds on the shipped `traceability.py` coverage index). Basic GL-CSV / QuickBooks-IIF
+  export already ships — this is the deeper, gated version.
+- **Exploratory parking lot.** Test Fit yield-optimization depth · underwriting realism · built-world
+  construction techniques · materials/rendering & computational design. Detail preserved in the archive
+  below; pull one up only if a customer need surfaces.
+
+**③ Blocked upstream — revisit when the dependency lands**
+- **IFC5 / IFCX write-path** — read path shipped; the write path waits on web-ifc/Fragments IFC5 support.
+- **Native mobile shell** — a **Capacitor wrapper** (needs a macOS/Xcode + Android-SDK pipeline); the app
+  already ships as an installable offline PWA with field capture. See [mobile.md](mobile.md).
+
+**④ Intentional non-goal — documented rationale (not a gap)**
+- **A4/A5 portal-core split** — the catalog↔nav orchestration is deliberately coupled (favorites ↔ nav ↔
+  persona events ↔ in-place DOM refresh); further mechanical extraction adds indirection over
+  readability. The cleanly-separable pieces are already out (Wave 5).
 
 ---
 
@@ -128,7 +143,7 @@ and **IFC5/IFCX/ifcJSON data reads** (tolerant
 JSON→element-index parser; geometry rendering still lands upstream). Genuinely upstream-only remainder: IFC5
 geometry *rendering* (web-ifc/Fragments) and a bundled/trained CV model.
 
-**Earned Value Management — research-backed EVM module (in progress, E1+E2 = v0.3.109):** the app had
+**Earned Value Management — research-backed EVM module (SHIPPED E1–E7, v0.3.109+):** the app had
 two disconnected halves (schedule EV without Actual Cost; cost actuals by cost code with a heuristic
 forecast). `evm.py` joins them **by cost code (control account)** into one ANSI/EIA-748-aligned set:
 PV/EV/AC/BAC, CV/SV/CPI/SPI + bands, per-control-account table, and the EAC/ETC/VAC/TCPI **forecast
@@ -139,7 +154,7 @@ dashboard/report → **E6** EV measurement methods (0/100, 50/50, units-complete
 installed vs billed/stored/retained EV → **E7** shipped: model-based EV (installed-elements % × BAC from field verification — the
 differentiator over P6/Procore-style EVM) + stage-adaptive forecast + earned duration.
 
-**Model authoring — true model-creation program (in progress, P0 = v0.3.102):** upgrading the Model
+**Model authoring — true model-creation program (SHIPPED P0–P6, v0.3.102+):** upgrading the Model
 workspace from shallow prompt-driven placement into a real drafting tool with a full BIM family library.
 Architecture (research-confirmed): the **browser captures intent** (family + parameters + placement),
 the **server authors real IFC** via `ifcopenshell.api` (source of truth), and re-streams fragments — no
@@ -289,9 +304,9 @@ contingency 5–10%; Uses = Acquisition + Hard + Soft + Financing; Sources = Deb
 - ✅ **DONE — B1 line-item hard/soft cost budgets** (`dev_budget.py`, Finance budget panel).
 - ✅ **DONE — B4 specialty assets** (energy + vertical-farm revenue → capex/revenue/opex).
 - ✅ **DONE — B5 investment memo PDF** ("presentation with financials").
-- **B2 — Sources & Uses (first-class view).** ★ *in progress* — grouped Uses (from the cost budget +
-  acquisition + financing) vs Sources (senior debt sized by LTC/LTV/DSCR/debt-yield, mezz, LP/GP
-  equity); per-period draw spread feeding interest reserve. Endpoint + Finance S&U view + memo section.
+- ✅ **DONE — B2 Sources & Uses (first-class view)** (`proforma/sources_uses.py`, `solve_sources_uses`).
+  Grouped Uses (cost budget + acquisition + financing) vs Sources (senior debt sized by
+  LTC/LTV/DSCR/debt-yield, mezz, LP/GP equity); per-period draw spread feeding interest reserve.
 - ✅ **DONE — B3 property & tax assumptions.** `dev_property.py` + GET/PUT `/projects/{id}/property`
   + "🏢 Property & tax" Finance panel: parcel/areas/purchase + tax table (school/county/town/fire →
   total) → OPEX, purchase → acquisition line; per-SF ratios. ✅ **DONE — appraisal/market comps** (see B7).
