@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.174 — AI / data-readiness scorecard
+Roadmap item from the "hidden bottleneck of agentic AI" research: the blocker to AI isn't the model,
+it's the **data**. A new scorecard grades a project **0–100 on four measurable dimensions** — **single
+source of truth** (a GUID-keyed IFC + federated models), **information completeness** (CDE metadata +
+core requirements), **model integrity** (the model-QA defect ratio, when an IFC is loaded), and
+**governance** (requirement traceability + a responsibility matrix, on top of always-on RBAC/audit) —
+with a per-dimension recommendation and a **ready / partial / not-ready** verdict. Answers "can an agent
+act on this project's data yet, and if not, what to fix first?". Engine `ai_readiness.py`, endpoint
+`GET /projects/{pid}/ai-readiness`, an **AI / data-readiness** card atop the CDE / Standards panel, and
+`test_ai_readiness`. Honest heuristic — a readiness indicator, not a guarantee.
+
 ## v0.3.173 — PM: portfolio prioritization matrix
 Roadmap **PM artifacts #2.** The Portfolio view now ranks every project you can see with a
 **prioritization matrix** — each scored **0–100** on four criteria (financial **return** / equity IRR,

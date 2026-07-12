@@ -132,6 +132,16 @@ def model_georeferencing(pid: str, db: Session = Depends(get_db), _sec: str = De
     return georef.georeferencing(model)
 
 
+@router.get("/projects/{pid}/ai-readiness")
+def ai_readiness_scorecard(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """AI / data-readiness scorecard — grades the project 0-100 on single-source-of-truth, information
+    completeness, model integrity and governance ("can an agent act on this data yet?")."""
+    from .. import ai_readiness
+    p = db.get(Project, pid)
+    ifc = p.source_ifc if (p and p.source_ifc and Path(p.source_ifc).exists()) else None
+    return ai_readiness.scorecard(db, pid, ifc_path=ifc)
+
+
 @router.get("/projects/{pid}/models/qa")
 def model_qa_report(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Model integrity / hygiene scan of the source IFC — duplicate GUIDs, orphaned (no-storey)

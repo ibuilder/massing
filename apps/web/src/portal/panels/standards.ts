@@ -141,6 +141,21 @@ export async function renderStandards(ctx: PanelContext) {
       + "and revisions, and the appointment carries its information requirements (EIR, BEP, AIR). "
       + "Manage records under Information Management → Information Containers / Requirements.";
     root.appendChild(intro);
+    // AI / data-readiness — "can an agent act on this project's data yet?"
+    void ctx.host.api.aiReadiness(pid).then((ai) => {
+      const col = ai.verdict === "ready" ? "--status-good" : ai.verdict === "partial" ? "--status-warn" : "--status-crit";
+      const ac = el("div", "dash-card"); ac.style.cssText = `border-left:3px solid var(${col});margin-bottom:8px`;
+      const dim = (label: string, k: keyof typeof ai.dimensions) => {
+        const d = ai.dimensions[k]; if (!d) return "";
+        const c = d.score >= 70 ? "--status-good" : d.score >= 45 ? "--status-warn" : "--status-crit";
+        return `<tr><td>${label}</td><td class="num" style="color:var(${c})">${d.score}</td><td class="meta">${esc(d.advice)}</td></tr>`;
+      };
+      ac.innerHTML = `<b>AI / data-readiness</b> <span class="meta">overall ${ai.overall}/100 · ${esc(ai.verdict.replace("_", " "))}</span>`
+        + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:4px">`
+        + dim("Single source of truth", "single_source_of_truth") + dim("Information completeness", "information_completeness")
+        + dim("Model integrity", "model_integrity") + dim("Governance", "governance") + `</table>`;
+      root.appendChild(ac);
+    }).catch(() => { /* best-effort */ });
     const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
     let st; let reg;
     try { st = await ctx.host.api.cdeStatus(pid); reg = await ctx.host.api.infoRequirementsRegister(pid); }

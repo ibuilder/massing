@@ -1506,6 +1506,13 @@ export class ApiClient {
       items: Item[]; note: string }>(
       `/projects/${pid}/info-requirements/delivery-plan`);
   }
+  /** AI / data-readiness scorecard — single-source / completeness / model-integrity / governance 0-100. */
+  aiReadiness(pid: string) {
+    type Dim = { score: number; advice: string; [k: string]: unknown };
+    return this.json<{ overall: number; verdict: "ready" | "partial" | "not_ready"; note: string;
+      dimensions: { single_source_of_truth: Dim; information_completeness: Dim; governance: Dim;
+        model_integrity?: Dim } }>(`/projects/${pid}/ai-readiness`);
+  }
   /** ISO 19650-6 exchange acceptance — non-WIP containers vs completeness/suitability/auth/traceability. */
   cdeExchangeAcceptance(pid: string) {
     return this.json<{ reviewed: number; accepted: number; nonconforming_count: number; acceptable: boolean;
