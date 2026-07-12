@@ -1,6 +1,7 @@
 /** Typed client for the backend API (guide §7). Geometry comes from .frag; all element
  *  metadata and work artifacts (pins/RFIs/viewpoints) come from here. */
-import { IS_DEMO, demoJson, demoTextOr } from "../demo/demoApi";
+import { IS_DEMO, demoTextOr } from "../demo/demoApi";
+import { HttpCore } from "./httpCore";
 
 // DTO types live in ./types (extracted from this file). Re-export them so the many
 // `import { … } from "../api/client"` sites across the app keep resolving unchanged.
@@ -14,36 +15,9 @@ import type {
   Topic, Vec3, Viewpoint, WorkItem,
 } from "./types";
 
-// dev (Vite @ :5173): hit the API directly (CORS allows :5173).
-// prod build: relative "/api" so nginx reverse-proxies same-origin (no CORS needed).
-// VITE_API_URL overrides either, baked at build time.
-const DEFAULT_API = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "/api");
-
-export class ApiClient {
-  private token = localStorage.getItem("aec-token") || "";
-  constructor(private baseUrl = DEFAULT_API) {}
-
-  /** Bearer token for authenticated requests (persisted). Empty string clears it. */
-  setToken(t: string) {
-    this.token = t;
-    if (t) localStorage.setItem("aec-token", t); else localStorage.removeItem("aec-token");
-  }
-  get authed() { return !!this.token; }
-  /** Auth header to merge into any raw fetch (uploads, etc.). */
-  authHeaders(): Record<string, string> {
-    return this.token ? { Authorization: `Bearer ${this.token}` } : {};
-  }
-
-  private async json<T>(path: string, init?: RequestInit): Promise<T> {
-    if (IS_DEMO) return demoJson<T>(path, init);   // viewer-only build: serve the bundled snapshot
-    const res = await fetch(this.baseUrl + path, {
-      ...init,
-      headers: { "Content-Type": "application/json", ...this.authHeaders(), ...(init?.headers || {}) },
-    });
-    if (!res.ok) throw new Error(`${init?.method ?? "GET"} ${path} -> ${res.status}`);
-    return res.json() as Promise<T>;
-  }
-
+// Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
+// domain methods below. Every `api.method()` call site is unchanged by the split.
+export class ApiClient extends HttpCore {
   // --- auth ---------------------------------------------------------------
   /** Enabled SSO providers (Google/Microsoft/Procore) for the login UI. */
   authProviders() {
@@ -440,12 +414,6 @@ export class ApiClient {
     return this.url(`/projects/${pid}/drawing-set/issuances/${iid}/sealed.pdf${q}`);
   }
   // --- PDF manipulation (server pypdf): merge / split / rotate / extract uploaded PDFs -----------
-  private async _pdfPost(path: string, build: (fd: FormData) => void): Promise<Blob> {
-    const fd = new FormData(); build(fd);
-    const r = await fetch(this.url(path), { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
-    return r.blob();
-  }
   /** Page count + flags for an uploaded PDF. */
   async pdfInfo(file: File) {
     const fd = new FormData(); fd.append("file", file);
@@ -870,19 +838,6 @@ export class ApiClient {
   }
 
   /** Absolute URL for a GET endpoint, e.g. an export download. */
-  url(path: string): string {
-    return this.baseUrl + path;
-  }
-
-  async health(): Promise<boolean> {
-    try {
-      const res = await fetch(this.baseUrl + "/health");
-      return res.ok;
-    } catch {
-      return false;
-    }
-  }
-
   projects() {
     return this.json<{ id: string; name: string; model_kind?: "frag" | "ifc" | null }[]>(`/projects`);
   }

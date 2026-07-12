@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.188 — Refactor (T2): extract the API-client transport core into httpCore.ts
+The web `ApiClient` mixed its transport plumbing (base URL, bearer token, `json`/`_pdfPost`/`url`/
+`health`) in with ~200 typed domain methods in one 2,760-line file. Pulled the transport into a small
+`HttpCore` base class (`api/httpCore.ts`); `ApiClient extends HttpCore` and keeps only the endpoint
+surface. Every `api.method()` call site is unchanged (facade preserved). Verified: `tsc --noEmit`,
+ESLint, and Vitest (59 tests) all green; production Vite build succeeds. (A full sub-client split was
+weighed and rejected — it would churn 200+ call sites for no behavioural gain; transport/domain
+separation is the value that carries low risk.)
+
 ## v0.3.187 — Refactor (A3): shared open_source_ifc() helper for the analysis endpoints
 Three analysis endpoints (`models/georeferencing`, `models/qa`, `scan/deviation`) each hand-rolled the
 same "resolve the project's source IFC → 409 if missing → ifcopenshell.open → 400 if unreadable" dance.
