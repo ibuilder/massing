@@ -1,0 +1,16 @@
+# Keep local build artifacts and secrets out of every image's build context (B3): smaller/faster
+# context transfer, and `COPY apps/web/ …` can't drag a host node_modules/dist into the image.
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/*.pyc
+.git
+.github
+**/.env
+**/.env.*
+**/*.db
+**/.pytest_cache
+**/.ruff_cache
+**/coverage
+apps/web/src-tauri/target

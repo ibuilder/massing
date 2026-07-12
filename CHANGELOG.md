@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.195 — Docker/build hardening (B3): multi-stage API image + reproducible web npm ci
+**API image** — split the Python install into a `pybuild` stage: the build toolchain (`build-essential`,
+`python3-dev`) compiles any source-only wheel there, then only the installed packages are copied into the
+runtime stage (`pip install --prefix=/install` → `COPY --from=pybuild /install /usr/local`). The runtime
+image now carries **no compiler/headers** — smaller, and a reduced attack surface (already ran non-root +
+healthcheck). **Web image** — `npm install` → `npm ci` against the workspace-root lockfile (exact, locked
+tree; fails on drift) for reproducible builds; removed the vestigial `packages/shared-types` phantom
+workspace (no package.json, no imports) so the root install is clean, and regenerated the lockfile.
+Added a root **`.dockerignore`** (keeps host `node_modules`/`dist`/`.venv`/`.git`/`.env`/`*.db` out of
+every build context). Verified locally: lockfile regenerates clean, web build + ESLint + Vitest (66) all
+green; the Dockerfile builds themselves are validated by CI's container matrix. (The nginx web runtime
+ships no node deps, so dev-toolchain `npm audit` advisories don't reach production.)
+
 ## v0.3.194 — Lint (T6): typed no-floating-promises + 45 unhandled-promise fixes
 Enabled type-aware ESLint (`parserOptions.projectService`) scoped to the two promise-safety rules only —
 deliberately NOT the full `recommendedTypeChecked` set (which would flood on the intentional `any` at the

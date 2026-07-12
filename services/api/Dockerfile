@@ -12,6 +12,22 @@ ARG WEBIFC_VERSION=0.0.77
 RUN npm init -y >/dev/null 2>&1 && npm install --no-audit --no-fund \
     @thatopen/fragments@${FRAGMENTS_VERSION} web-ifc@${WEBIFC_VERSION}
 
+# --- python build stage (B3): a full toolchain compiles any source-only wheel HERE, then we lift only
+# the installed packages into the runtime image below. gcc + headers never ship to production, so the
+# runtime image is smaller and carries no compiler in its attack surface. ---
+FROM python:3.12-slim AS pybuild
+# build toolchain + the same shared libs, so wheels that need to compile can link during install
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 libglib2.0-0 build-essential python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+# resilient to slow/flaky PyPI: longer timeout + retries (heavy scientific wheels)
+ENV PIP_DEFAULT_TIMEOUT=180 PIP_RETRIES=8 PIP_NO_CACHE_DIR=1
+COPY services/api/requirements.txt /tmp/req/api.txt
+COPY services/data/requirements.txt /tmp/req/data.txt
+# install into an isolated prefix we can copy wholesale into the runtime stage
+RUN pip install --prefix=/install -r /tmp/req/api.txt psycopg[binary] \
+    && pip install --prefix=/install -r /tmp/req/data.txt
+
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -19,18 +35,14 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app/services/api/src:/app/services/data/src \
     IFC_DIR=/app/ifc
 
-# system libs some wheels (ifcopenshell, shapely) expect, + a toolchain so any
-# source-only dep (meson/cmake builds) can compile instead of failing
+# ONLY the shared libs the scientific wheels (ifcopenshell, shapely) dlopen at runtime — the build
+# toolchain stays in the pybuild stage above and is deliberately not shipped.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 libglib2.0-0 build-essential python3-dev \
+    libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY services/api/requirements.txt /app/services/api/requirements.txt
-COPY services/data/requirements.txt /app/services/data/requirements.txt
-# resilient to slow/flaky PyPI: longer timeout + retries (heavy scientific wheels)
-ENV PIP_DEFAULT_TIMEOUT=180 PIP_RETRIES=8 PIP_NO_CACHE_DIR=1
-RUN pip install -r /app/services/api/requirements.txt psycopg[binary] \
-    && pip install -r /app/services/data/requirements.txt
+# the pre-built site-packages + console scripts (uvicorn) from the build stage
+COPY --from=pybuild /install /usr/local
 
 COPY services/api/src /app/services/api/src
 COPY services/data/src /app/services/data/src
