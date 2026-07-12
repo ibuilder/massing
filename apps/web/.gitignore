@@ -1,1 +1,2 @@
 *.local
+src/api/openapi.json

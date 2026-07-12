@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.180 — OpenAPI-generated TypeScript types (Wave 4, T1 foundation)
+Establishes a compiler-checked contract to the backend. `openapi-typescript` now generates
+`apps/web/src/api/schema.d.ts` (types-only — erased at build, no bundle cost) from the FastAPI
+`/openapi.json`, and a thin `openapiTypes.ts` seam re-exports `paths`/`components`/`operations` plus
+`Schema<K>` / `OkJson<Op>` / `ReqJson<Op>` helpers so endpoints can adopt generated request/response
+types. Regenerate with `npm run gen:api-types` (the intermediate `openapi.json` is gitignored;
+`schema.d.ts` is committed). **Scope note, honestly stated:** the backend returns raw dicts on most
+endpoints — only ~11 of ~540 declare a response model — so today the generated types are precise for
+request bodies, path/query params, the 134 input schemas, and those typed responses; the hand-written
+DTOs in `types.ts` remain the source for untyped responses. Coverage grows automatically as backend
+endpoints adopt `response_model=` (a follow-on track). tsc/eslint/vitest green; bundle size unchanged.
+
 ## v0.3.179 — Scale: SQL-aggregate the portfolio & related-record hot paths (Wave 3)
 Removing the linear-in-project-size loads. **P3 — WIP portfolio N+1:** the WIP schedule loaded up to
 100k owner-invoice rows into Python *per project* to sum billed-to-date, and the portfolio roll-up runs
