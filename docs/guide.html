@@ -115,6 +115,11 @@
       panel (offset / Z-up flip / scale / move-to-point). Add discipline IFCs in the <b>Coordination &amp; QA</b>
       panel (<b>＋ Add discipline IFC</b>), then <b>🔗 Federated clash</b> finds cross-discipline conflicts and
       files them as issues on the model.</li>
+    <li><b>🏗 Raise 2D→BIM</b>: upload a <b>DXF floor plan</b> and it's raised into a real IFC model — a wall per
+      line-work segment, an IfcSpace per closed room — registered as a <b>2D Raise</b> discipline model you can view
+      and clash. Then close the loop with <b>▦ Scan-to-BIM deviation</b>: upload an as-built point cloud (XYZ/CSV) and
+      see the <b>% within tolerance</b> against the model surface, with mean/95th/max deviation and a deviation
+      histogram — the as-built QA/QC check after a pour or an erection.</li>
   </ol>
   <div class="note">There's nothing to "save" — the model is read from its IFC file. Edits you make
     (Tutorial 4+) are written back to IFC server-side, keeping every ID stable.</div>

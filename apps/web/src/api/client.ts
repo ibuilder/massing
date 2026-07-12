@@ -2142,6 +2142,21 @@ export class ApiClient {
       layers: { layer: string; entities: number; length_m: number; area_m2: number; inserts: number }[];
       blocks: { block: string; count: number }[] }>;
   }
+  /** 2D -> BIM raise: turn an uploaded DXF floor plan into an IFC model (walls + spaces). `preview`
+   *  just parses (returns wall/room counts); otherwise registers a "2D Raise" discipline model. */
+  async raisePlan(pid: string, file: File, opts: { wallHeight?: number; wallThickness?: number; preview?: boolean } = {}) {
+    const fd = new FormData(); fd.append("file", file);
+    if (opts.wallHeight != null) fd.append("wall_height", String(opts.wallHeight));
+    if (opts.wallThickness != null) fd.append("wall_thickness", String(opts.wallThickness));
+    if (opts.preview) fd.append("preview", "true");
+    const res = await fetch(this.url(`/projects/${pid}/raise-plan`), {
+      method: "POST", credentials: "include", headers: this.authHeaders(), body: fd });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `raise failed (${res.status})`);
+    return res.json() as Promise<{ id?: string; discipline?: string; units: string;
+      wall_count: number; space_count?: number; room_count?: number;
+      total_wall_length_m: number; total_floor_area_m2: number;
+      wall_height_m?: number; wall_thickness_m?: number }>;
+  }
   /** QTO + cost by floor (storey) and discipline (IFC class) — quantities mapped to where they are. */
   qtoByFloor(pid: string) {
     type Line = { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number };

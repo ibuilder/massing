@@ -278,6 +278,52 @@ async def add_project_model(pid: str, file: UploadFile = File(...), discipline: 
     return {"id": m.id, "discipline": m.discipline, "size": len(data)}
 
 
+@router.post("/projects/{pid}/raise-plan")
+async def raise_plan_to_bim(pid: str, file: UploadFile = File(...),
+                            wall_height: float = Form(3.0), wall_thickness: float = Form(0.2),
+                            preview: bool = Form(False),
+                            db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """2D -> BIM raise: turn an uploaded DXF floor plan into a real IFC4 model (walls extruded from
+    the line-work, IfcSpaces from closed room polygons). `preview=true` just parses and returns the
+    detected wall/room counts without writing anything. Otherwise the raised IFC is registered as a
+    '2D Raise' discipline model (usable in the viewer + federated clash). 400 on an unreadable DXF."""
+    from aec_data import plan_to_bim  # from services/data/src (on sys.path)
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    data = await file.read()
+    with tempfile.TemporaryDirectory() as td:   # never scratch into the read-only /app tree
+        dxf_path = Path(td) / "plan.dxf"
+        dxf_path.write_bytes(data)
+        if preview:
+            try:
+                return plan_to_bim.parse_plan(str(dxf_path))
+            except RuntimeError as e:
+                raise HTTPException(400, str(e)) from e
+        mid = uuid.uuid4().hex
+        ifc_tmp = Path(td) / f"{mid}.ifc"
+        try:
+            stats = plan_to_bim.raise_plan(str(dxf_path), str(ifc_tmp),
+                                           wall_height=wall_height, wall_thickness=wall_thickness)
+        except RuntimeError as e:
+            raise HTTPException(400, str(e)) from e
+        ifc_bytes = ifc_tmp.read_bytes()
+        (_IFC_DIR / pid / "models").mkdir(parents=True, exist_ok=True)
+        ifc_path = _IFC_DIR / pid / "models" / f"{mid}.ifc"
+        ifc_path.write_bytes(ifc_bytes)
+        storage.put(f"{pid}/models/{mid}.ifc", ifc_bytes)
+        m = ProjectModel(id=mid, project_id=pid, discipline="2D Raise", ifc_path=str(ifc_path))
+        db.add(m)
+        audit.record(db, action="model.raise", actor=actor, method="POST",
+                     path=f"/projects/{pid}/raise-plan",
+                     detail={"walls": stats["wall_count"], "spaces": stats["space_count"]})
+        db.commit()
+    return {"id": mid, "discipline": "2D Raise",
+            "wall_count": stats["wall_count"], "space_count": stats["space_count"],
+            "total_wall_length_m": stats["total_wall_length_m"],
+            "total_floor_area_m2": stats["total_floor_area_m2"], "units": stats["units"],
+            "wall_height_m": stats["wall_height_m"], "wall_thickness_m": stats["wall_thickness_m"]}
+
+
 @router.delete("/projects/{pid}/models/{mid}")
 def delete_project_model(pid: str, mid: str, db: Session = Depends(get_db),
                          actor: str = Depends(require_role("editor"))):

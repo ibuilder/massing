@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.176 — 2D → BIM raise (DXF floor plan → IFC model)
+The complement to scan-to-BIM: where deviation checks the *built* result against the model, this
+raises design intent *up* from flat 2D CAD into one. Upload a **DXF floor plan** and get a real,
+GUID-keyed **IFC4 model** — an `IfcWall` extruded from each line-work segment (auto-detecting "wall"
+layers, falling back to all line-work) and an `IfcSpace` (with its floor area in the Qto) from every
+closed room polygon. Drawing units are read from the DXF `$INSUNITS` header and normalised to metres.
+The raised model is registered as a **"2D Raise"** discipline model, so it opens in the viewer and
+takes part in federated clash immediately. A `preview` mode returns the detected wall/room counts
+without writing anything. Engine `plan_to_bim.py` (ezdxf for the CAD read — MIT, no AGPL; ifcopenshell
+for the model, same wall/space patterns as the massing generator), endpoint
+`POST /projects/{pid}/raise-plan` (multipart; temp-dir scratch, never the read-only tree), a client
+method, and a **🏗 Raise 2D→BIM** viewer tool. Test `test_plan_to_bim.py` round-trips the IFC.
+
 ## v0.3.175 — Scan-to-BIM deviation (as-built QA/QC)
 Close the reality-capture loop: upload an as-built **point cloud** (ASCII XYZ / CSV / PTS) from a laser
 scan or photogrammetry survey and compare it against the model surface to see **where the built work

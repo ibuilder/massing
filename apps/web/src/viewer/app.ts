@@ -1616,6 +1616,32 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           };
           inp.click();
         }));
+        b.appendChild(toolBtn2("🏗 Raise 2D→BIM (DXF plan → model)", () => {
+          const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".dxf"; inp.style.display = "none";
+          inp.onchange = async () => {
+            const f = inp.files?.[0]; if (!f) return;
+            out.textContent = "raising 2D plan to a model…";
+            let r;
+            try { r = await api.raisePlan(pid, f, { wallHeight: 3.0, wallThickness: 0.2 }); }
+            catch (e) { out.textContent = `raise failed: ${(e as Error).message}`; return; }
+            const num = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+            out.textContent = `raised ${r.wall_count} walls · ${r.space_count ?? 0} rooms → "2D Raise" model`;
+            showResult("2D → BIM raise (DXF plan → IFC model)", (body) => {
+              body.appendChild(resultNote(`Raised <b>${r!.wall_count} walls</b> + <b>${r!.space_count ?? 0} rooms</b> `
+                + `into a GUID-keyed IFC model, registered as a <b>2D Raise</b> discipline model — open it from the `
+                + `federation panel to view or clash it.`, "ok"));
+              body.appendChild(kvTable([
+                { k: "Walls", v: String(r!.wall_count), strong: true },
+                { k: "Rooms (IfcSpace)", v: String(r!.space_count ?? 0) },
+                { k: "Total wall length", v: `${num(r!.total_wall_length_m)} m` },
+                { k: "Total floor area", v: `${num(r!.total_floor_area_m2)} m²` },
+                { k: "Wall height / thickness", v: `${r!.wall_height_m ?? 3} m / ${r!.wall_thickness_m ?? 0.2} m` },
+                { k: "Drawing units", v: r!.units },
+              ]));
+            });
+          };
+          inp.click();
+        }));
         b.appendChild(toolBtn2("✨ Draft BOQ from description", async () => {
           const desc = await askText("Draft BOQ from description",
             { label: "Describe the project (scope, size, structure, finishes):", multiline: true, okLabel: "Draft" });
