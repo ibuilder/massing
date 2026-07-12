@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.190 — Add typed DOM helpers ui/dom.ts (T4)
+`document.createElement(...)` + a run of property assignments is the single most-repeated pattern in
+the UI (255× in portal.ts alone). Added a thin, dependency-free `ui/dom.ts`: `el(tag, props, children)`
+(typed props — `class`/`text`/`style`/`dataset` plus any element property like `onclick`/`type`),
+`frag()`, `clear()`, and a typed `readForm<T>()`. Ships with a 7-case Vitest suite and is adopted in the
+portal catalog as a first use; available for incremental adoption elsewhere. Vitest now 66 tests; tsc +
+ESLint + build green.
+
 ## v0.3.189 — Refactor (T3): extract portal preferences into prefs.ts
 The portal's favorites/recents and the per-persona "which nav sections open first" map were private
 `PortalUI` methods, read by both the nav rail and the module catalog. Pulled them into a small

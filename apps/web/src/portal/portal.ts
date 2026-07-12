@@ -6,6 +6,7 @@ import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
 import type { PanelContext } from "./panelContext";
 import { SECTIONS_BY_PERSONA, pushRecent, readFavs, readRecents, toggleFav } from "./prefs";
+import { el } from "../ui/dom";
 import { renderOperations, renderFca, renderSpine, renderResilience, renderEnergy, renderTurnover } from "./panels/operations";
 import { renderAiAssist, renderRiskReview } from "./panels/aiassist";
 import { renderBenchmarks, renderRiskCost, renderMarket } from "./panels/analytics";
@@ -929,15 +930,14 @@ export class PortalUI {
   }
 
   private catalogGroup(title: string, key: string, buttons: HTMLElement[], openDefault: boolean): HTMLElement {
-    const g = document.createElement("section"); g.className = "tool-group";
     const saved = localStorage.getItem(`portal-open:${key}`);
     const open0 = saved == null ? openDefault : saved === "1";
+    const g = el("section", { class: "tool-group" });
     g.classList.toggle("open", open0);
-    const head = document.createElement("button"); head.type = "button"; head.className = "tool-group-head";
+    const head = el("button", { type: "button", class: "tool-group-head" });
     head.setAttribute("aria-expanded", String(open0));
     head.innerHTML = `<span class="chev">▸</span><span class="t">${title}</span><span class="cnt">${buttons.length}</span>`;
-    const body = document.createElement("div"); body.className = "tool-group-body";
-    for (const b of buttons) body.appendChild(b);
+    const body = el("div", { class: "tool-group-body" }, buttons);
     head.onclick = () => { const o = !g.classList.contains("open"); g.classList.toggle("open", o); head.setAttribute("aria-expanded", String(o)); localStorage.setItem(`portal-open:${key}`, o ? "1" : "0"); };
     g.append(head, body);
     return g;
