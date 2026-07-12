@@ -250,3 +250,143 @@ def _spec_submittal_log(db: Session, pid: str, name: str) -> Report:
               ("⚠ " + str(x["missing_count"])) if x["missing_count"] else "0", x.get("responsible") or ""]
              for x in s["rows"]] or [["(no spec sections — add them under Preconstruction ▸ Specifications)"] + [""] * 6])
     return r
+
+
+def _cep(db: Session, pid: str, name: str) -> Report:
+    """Construction Execution Plan (CEP) — the GC counterpart to the BEP: a produced governance document
+    that states HOW the project is built, assembled live from the construction modules and summary
+    engines. Ten sections (org / scope / schedule / procurement / cost control / safety / quality /
+    submittal-RFI procedures / permits / closeout) so the plan reflects the real project record, not a
+    stale Word template. Every data pull is guarded — a missing engine or empty module degrades to a
+    placeholder row instead of 500ing the report."""
+
+    def _safe(fn, default=None):
+        try:
+            return fn()
+        except Exception:       # noqa: BLE001 — a missing engine/module must not sink the whole document
+            return default
+
+    bids = _records(db, "bid_package", pid)
+    subs = _records(db, "subcontract", pid)
+    preq = _records(db, "prequalification", pid)
+    acts = _records(db, "schedule_activity", pid)
+    perms = _records(db, "permit", pid)
+    saf = _safe(lambda: __import__("aec_api.safety", fromlist=["safety_summary"]).safety_summary(db, pid), {})
+    qual = _safe(lambda: __import__("aec_api.quality", fromlist=["quality_summary"]).quality_summary(db, pid), {})
+    clo = _safe(lambda: __import__("aec_api.closeout", fromlist=["closeout_summary"]).closeout_summary(db, pid), {})
+    co = _safe(lambda: __import__("aec_api.changeorders", fromlist=["co_log"]).co_log(db, pid), {})
+    subm = _records(db, "submittal", pid)
+    rfi = _records(db, "rfi", pid)
+
+    r = Report("Construction Execution Plan (CEP)", name)
+    r.kpi("Bid packages", len(bids))
+    r.kpi("Subcontracts", len(subs))
+    r.kpi("Schedule activities", len(acts))
+    r.kpi("Permits", len(perms))
+    r.kpi("Submittals", len(subm))
+    r.kpi("Open RFIs", sum(1 for x in rfi if x.get("workflow_state") not in ("closed", "answered", "void")))
+    if saf.get("incidents"):
+        r.kpi("Safety incidents", saf["incidents"].get("incident_count", 0))
+    if clo.get("punchlist"):
+        r.kpi("Punch items", clo["punchlist"].get("punch_count", 0))
+
+    # 1. Plan sections & governing procedure — the document's table of contents, each with the rule it runs by
+    r.table("Plan sections & governing procedure", ["#", "Section", "Governing procedure"], [
+        ["1", "Project organization & authorities", "Roles below; GC PM holds single-point authority for the appointment."],
+        ["2", "Scope & work breakdown", "By bid package / trade; each package maps to a CSI/cost code."],
+        ["3", "Master schedule & milestones", "CPM-driven; Last-Planner make-ready weekly; milestones tracked below."],
+        ["4", "Procurement & subcontracting", "Prequalify → bid → award → execute subcontract; insurance/bond verified."],
+        ["5", "Cost management & change control", "GMP budget; change events → COR → CO; owner approval before proceeding."],
+        ["6", "Safety plan (OSHA)", "Site-specific safety plan; daily toolbox talks; incident + observation logging."],
+        ["7", "Quality plan", "Inspection & test plan; NCR loop; first-pass-yield tracked."],
+        ["8", "Submittal & RFI procedures", "Spec-driven submittal register; RFI within contract response time."],
+        ["9", "Permits & regulatory", "AHJ permits tracked to issuance; inspections scheduled to the work."],
+        ["10", "Closeout & turnover", "Punchlist → commissioning → warranties/O&M → record turnover (G704)."],
+    ])
+
+    # 2. Roles, responsibilities & authorities — standard construction appointment + any project directory
+    roles = [["Owner / Appointing Party", "Funds the work; approves changes and the schedule of values; accepts the project."],
+             ["General Contractor — Project Manager", "Owns this CEP; single point of authority; cost, schedule and contract lead."],
+             ["Superintendent", "Runs the field: daily coordination, safety enforcement, look-ahead scheduling."],
+             ["Project Engineer", "Submittals, RFIs, drawing control and the document record."],
+             ["Safety Manager", "Site-specific safety plan, toolbox talks, incident investigation, OSHA logs."],
+             ["Quality (QC) Manager", "Inspection & test plan, NCR disposition, first-pass-yield."],
+             ["MEP/BIM Coordinator", "Trade coordination and clash resolution against the federated model."]]
+    seen = set()
+    for s in subs:                       # append awarded subcontractors as appointed trade parties
+        d = s.get("data") or {}
+        t = d.get("trade") or d.get("scope") or ""
+        who = d.get("vendor_company") or d.get("vendor") or ""
+        key = (t, who)
+        if who and key not in seen:
+            seen.add(key)
+            roles.append([f"{t} subcontractor — {who}", "Appointed trade party; executes its scope to the contract & schedule."])
+    r.table("Roles, responsibilities & authorities", ["Role", "Responsibility"], roles)
+
+    # 3. Scope & work breakdown — by bid package
+    r.table("Scope & work breakdown (by package)", ["Package", "Trade", "Discipline", "Budget", "State"],
+            [[(x.get("data") or {}).get("name", ""), (x.get("data") or {}).get("trade", ""),
+              (x.get("data") or {}).get("discipline", ""), _money((x.get("data") or {}).get("budget")),
+              x.get("workflow_state", "")] for x in bids] or [["(no bid packages logged)"] + [""] * 4])
+
+    # 4. Master schedule & key milestones — milestone activities (zero-duration or type=milestone), else first activities
+    def _is_ms(d):
+        return str(d.get("activity_type", "")).lower() == "milestone" or str(d.get("duration") or "") in ("0", "0.0")
+    ms = [x for x in acts if _is_ms(x.get("data") or {})] or acts
+    r.table("Master schedule & key milestones", ["Activity", "Trade", "Start", "Finish", "% complete", "State"],
+            [[(x.get("data") or {}).get("name", ""), (x.get("data") or {}).get("trade", ""),
+              (x.get("data") or {}).get("start", ""), (x.get("data") or {}).get("finish", ""),
+              (x.get("data") or {}).get("percent", ""), x.get("workflow_state", "")]
+             for x in ms[:40]] or [["(no schedule activities logged)"] + [""] * 5])
+
+    # 5. Procurement & subcontracting — prequal + executed subs
+    r.table("Prequalified & appointed subcontractors", ["Company", "Trade", "Value", "Insurance exp", "Bond", "State"],
+            [[(x.get("data") or {}).get("vendor_company") or (x.get("data") or {}).get("vendor", ""),
+              (x.get("data") or {}).get("trade", ""), _money((x.get("data") or {}).get("value")),
+              (x.get("data") or {}).get("insurance_exp", ""),
+              "yes" if (x.get("data") or {}).get("bond_required") else "—", x.get("workflow_state", "")]
+             for x in subs] or [[f"({len(preq)} prequalified; no subcontracts executed yet)"] + [""] * 5])
+
+    # 6. Cost management & change control
+    r.table("Cost management & change control", ["Metric", "Value"],
+            [["Change orders", co.get("co_count", 0)], ["Total CO value", _money(co.get("total_value", 0))],
+             ["Pending", _money(co.get("pending_value", 0))], ["Approved", _money(co.get("approved_value", 0))],
+             ["Executed", _money(co.get("executed_value", 0))],
+             ["Change-event ROM exposure", _money(co.get("change_event_rom_exposure", 0))]])
+
+    # 7. Safety plan
+    inc = saf.get("incidents", {})
+    r.table("Safety plan (OSHA)", ["Metric", "Value"],
+            [["Incidents", inc.get("incident_count", 0)], ["Recordables", inc.get("recordable_count", 0)],
+             ["TRIR", inc.get("trir") if inc.get("trir") is not None else "—"],
+             ["DART", inc.get("dart_rate") if inc.get("dart_rate") is not None else "—"],
+             ["Observations", saf.get("observations", {}).get("observation_count", 0)],
+             ["Toolbox talks", saf.get("toolbox_talks", {}).get("talk_count", 0)]])
+
+    # 8. Quality plan
+    ins = qual.get("inspections", {})
+    r.table("Quality plan", ["Metric", "Value"],
+            [["Inspections", ins.get("total", 0)],
+             ["Pass rate", f"{ins.get('pass_rate')}%" if ins.get("pass_rate") is not None else "—"],
+             ["First-pass yield", f"{ins.get('first_pass_yield')}%" if ins.get("first_pass_yield") is not None else "—"],
+             ["Open NCRs", qual.get("ncrs", {}).get("open_count", 0)],
+             ["Open deficiencies", qual.get("deficiencies", {}).get("open_count", 0)]])
+
+    # 9. Permits & regulatory
+    r.table("Permits & regulatory", ["Permit", "Type", "Authority", "Number", "Status", "Expires"],
+            [[(x.get("data") or {}).get("name", ""), (x.get("data") or {}).get("permit_type", ""),
+              (x.get("data") or {}).get("authority", ""), (x.get("data") or {}).get("number", ""),
+              (x.get("data") or {}).get("status", ""), (x.get("data") or {}).get("expires", "")]
+             for x in perms] or [["(no permits logged)"] + [""] * 5])
+
+    # 10. Closeout & turnover
+    pu = clo.get("punchlist", {})
+    r.table("Closeout & turnover", ["Metric", "Value"],
+            [["Punch items", pu.get("punch_count", 0)],
+             ["Punch complete", f"{pu.get('complete_pct')}%" if pu.get("complete_pct") is not None else "—"],
+             ["Commissioning pass rate",
+              f"{clo.get('commissioning', {}).get('pass_rate')}%" if clo.get("commissioning", {}).get("pass_rate") is not None else "—"],
+             ["Warranties expiring (90d)", clo.get("warranties", {}).get("expiring_soon", 0)],
+             ["O&M accepted",
+              f"{clo.get('om_manuals', {}).get('accepted_pct')}%" if clo.get("om_manuals", {}).get("accepted_pct") is not None else "—"]])
+    return r

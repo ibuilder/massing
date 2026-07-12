@@ -149,12 +149,18 @@ continuous-member checks (**avoid anaStruct — LGPL-3.0**). Ships with the same
 stamp/seal path: *preliminary coordination estimate, not a substitute for a licensed engineer; lateral
 (wind/seismic) out of scope*.
 
-**⑤ Model-hygiene checker (quick win).** The "Common Revit mistakes" sheet + the Revit-MCP portfolio's
-*Model Checker / Duplicates Resolver*. Extend our data-QA with **geometric hygiene**: duplicate/overlapping
-elements, unenclosed rooms/spaces, elements on the wrong storey, and unresolved authoring warnings — a
-scored report over the property index, GUID-anchored, feeding BCF issues.
+**⑤ Model-hygiene checker (quick win). — SHIPPED v0.3.206.** The "Common Revit mistakes" sheet + the
+Revit-MCP portfolio's *Model Checker / Duplicates Resolver*. `model_qa.py` now covers **geometric
+hygiene**: duplicate GUIDs, overlapping duplicate elements, orphaned elements, unenclosed rooms/spaces,
+blank names, and (new) **elements on the wrong storey** — GUID-anchored, guarded, scored, feeding the
+Model-QA report/BCF issues.
 
-**⑥ Construction Execution Plan (CEP) generator.** The 10-part "How to prepare a CEP" sheet. A CEP is the
+**⑥ Construction Execution Plan (CEP) generator. — SHIPPED v0.3.207.** The 10-part "How to prepare a CEP"
+sheet. `_cep` report builder assembles a 10-section CEP (org/RACI · scope/WBS · master schedule &
+milestones · procurement/subs · cost & change control · safety · quality · submittal/RFI procedures ·
+permits · closeout/turnover) live from the construction modules + summary engines, PDF/Excel via the
+existing report stack, auto-surfaced in the Report Center (group *Quality*). ISO 21502 / CMAA practice
+areas paraphrased in original prose. A CEP is the
 *superset* of a BEP (the BEP governs the model; the CEP governs the work). We already hold the data:
 section-templated generator (scope · stakeholder/RACI · site logistics · work packaging/pull-plan ·
 resources · cost/schedule/risk + EVM · quality/ITP · HSE/resilience · procurement/subs · commissioning/

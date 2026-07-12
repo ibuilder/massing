@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.207 — Wave 8 ⑥: Construction Execution Plan (CEP) generator
+The GC counterpart to the BEP: a produced governance document that states **how the project is built**,
+assembled live from the construction modules and summary engines rather than a stale Word template. New
+`_cep` report builder emits a **ten-section CEP** — (1) project organization & authorities (standard
+appointment roles + the awarded subcontractors as appointed trade parties), (2) scope & work breakdown
+by bid package, (3) master schedule & key milestones, (4) procurement & subcontracting (prequalified +
+executed subs, insurance/bond), (5) cost management & change control (CO totals from the change-order
+engine), (6) safety plan (OSHA metrics), (7) quality plan (inspections / NCRs / first-pass yield), (8)
+submittal & RFI procedures, (9) permits & regulatory, (10) closeout & turnover (punchlist / commissioning
+/ warranties / O&M). Every data pull is guarded — a missing engine or empty module degrades to a
+placeholder row, never a 500. Registered in the report catalog (group *Quality*), so it **auto-surfaces
+in the Report Center** with PDF / Excel / markup buttons — no frontend change. Covered by the existing
+`test_reports` catalog loop (52 reports each render a valid PDF + Excel; dispatch-parity enforced). ISO
+21502 / CMAA practice areas paraphrased in original prose (no copyrighted text, no competitor names).
+(Wave 8 ⑥ of 7 — see `docs/roadmap.md`.)
+
 ## v0.3.206 — Wave 8 ⑤: wrong-storey model hygiene + green CI (in-memory model tests)
 Completes the Wave 8 model-hygiene track and fixes the API test gate. `model_qa.py` gains a sixth
 integrity check — **wrong storey**: an element assigned to level A but physically placed at level B's
