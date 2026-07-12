@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.209 — Docs: Wave 8 in the in-app tutorial + the guide
+Now that the Wave 8 field upgrades have shipped, the onboarding and guide teach them. `docs/guide.html`
+gains **Tutorial 🛰️ · Coordinate, lay out & walk the as-built** (six steps: coordinate clashes into
+grouped BCF issues, model-driven field setout CSV/DXF, the preliminary load takedown, the wrong-storey
+model-QA check, the Construction Execution Plan, and the Gaussian-splat reality overlay) plus a nav link.
+The in-app first-run **tour** copy is refreshed: the Open-model step now mentions point-cloud / GIS /
+reality-capture overlays, and the Tools step names the field toolkit (coordinate clashes, field layout,
+load takedown). Docs/tutorial only — no behavior change.
+
 ## v0.3.208 — Wave 8 ③(a): Reality-capture walkthrough (3D Gaussian splats) in the viewer
 Walk the as-built reality against the design. The viewer now loads **3D Gaussian-splat** captures
 (`.splat` / `.ksplat`, plus splat-PLY auto-detected by header) as a **view-only overlay** beside the BIM

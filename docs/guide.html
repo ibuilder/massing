@@ -80,6 +80,7 @@
     <a href="#turnover">5 · Hand it over</a>
     <a href="#dispose">6 · List &amp; value it</a>
     <a href="#operate">7 · Operate it</a>
+    <a href="#field-reality">🛰️ Field &amp; reality</a>
     <a href="#glossary">Glossary</a>
     <a href="#faq">FAQ</a>
   </div>
@@ -439,6 +440,43 @@
     <li><b>Field</b> — log installed quantity + crew hours in the <b>Productivity Log</b>; the <b>Field
       Labor Productivity</b> report shows units-per-man-hour by trade. A computer-vision progress bridge
       is available as an opt-in, feature-flagged integration (it invents nothing when off).</li>
+  </ol>
+
+  <h2 id="field-reality">Tutorial 🛰️ · Coordinate, lay out &amp; walk the as-built</h2>
+  <p class="sub">The 2026 field workflows — clash-to-issue coordination, model-driven setout, a preliminary
+    load check, deeper model hygiene, the Construction Execution Plan, and a photoreal reality overlay.
+    Everything is anchored to the IFC <b>GlobalId</b>, so it round-trips.</p>
+  <ol class="steps">
+    <li><b>Coordinate clashes (not just detect them)</b> — publish your discipline models, then in the
+      viewer choose <b>🔗 Coordinate clashes (grouped issues)</b>. Raw clashes are grouped by element
+      (one busy beam that hits ten ducts becomes <i>one</i> issue, not ten), scored by discipline pair +
+      overlap volume, and written as <b>coordination issues</b> in the BCF model. Re-run after a model
+      update and it reconciles automatically — new, still-active, resolved, and <i>reappeared</i> clashes
+      are tracked by a stable hash. The KPI view shows the grouping reduction and the open/resolved split.</li>
+    <li><b>Lay it out in the field</b> — pick <b>📍 Field layout (points CSV / DXF)</b> to turn column /
+      footing / opening / wall placements and grid intersections into numbered <b>setout points</b> in
+      real-world Easting/Northing/Elevation (the survey <code>IfcMapConversion</code> is applied). Export
+      <b>PENZD / PNEZD CSV</b> for a total station or layout robot, or a <b>layered DXF</b> for a floor
+      printer. Each point carries its element GlobalId, so an as-installed survey can be checked back
+      against design by point number — out-of-tolerance points are flagged and anchored to the element.</li>
+    <li><b>Sanity-check the gravity loads</b> — <b>🏛 Load takedown (preliminary)</b> runs an ASCE 7-22
+      tributary-area take-down: slab self-weight + superimposed dead + occupancy live (with the §4.7 live-
+      load reduction), accumulated storey-by-storey down to the footing, with the governing LRFD/ASD
+      combination. It reads storey + column counts off the model. <b>Preliminary only</b> — no lateral,
+      and not a substitute for a licensed structural engineer (the caveat ships with the result).</li>
+    <li><b>Catch modelling mistakes</b> — <b>Model QA</b> now adds a <b>wrong-storey</b> check on top of
+      duplicate GUIDs, overlapping duplicates, orphaned elements, unenclosed spaces and blank names: an
+      element assigned to Level 1 but physically sitting at Level 2's elevation is flagged, GlobalId-anchored.</li>
+    <li><b>Produce the Construction Execution Plan</b> — open <b>Report Center → Construction Execution
+      Plan (CEP)</b>. It assembles a ten-section CEP — organization &amp; authorities, scope by bid package,
+      master schedule &amp; milestones, procurement &amp; subs, cost &amp; change control, safety, quality,
+      submittal/RFI procedures, permits, and closeout — from the modules you already keep. It's the GC
+      counterpart to the BIM Execution Plan; export PDF or Excel.</li>
+    <li><b>Walk the as-built reality</b> — capture the site with a phone/drone (any Gaussian-splat pipeline,
+      e.g. Nerfstudio) and open the <code>.splat</code> / <code>.ksplat</code> via <b>Open mesh / point
+      cloud / GIS / reality capture…</b>. The photoreal splat loads as a view-only overlay beside the BIM
+      model, co-registered with the IFC and your point clouds, so the field team can walk the real
+      condition against the design. It streams from your file — nothing leaves the browser.</li>
   </ol>
 
   <h2 id="glossary">Glossary — plain English</h2>

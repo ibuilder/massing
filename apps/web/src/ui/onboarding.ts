@@ -103,11 +103,11 @@ const STEPS: Step[] = [
   { sel: "#workspaces", title: "Three workspaces, one model",
     body: "Switch between the 3D Model, the Construction portal (RFIs, costs, schedule), and Finance (development proforma). They all share the same project." },
   { sel: "#open-menu", title: "Open a model",
-    body: "Load an IFC or Fragments file, try a bundled sample, or import a Revit file (via the paid bridge). IFC is the source of truth." },
+    body: "Load an IFC or Fragments file, try a bundled sample, or import a Revit file (via the paid bridge). You can also overlay a point cloud, GIS context, or a photoreal reality-capture (Gaussian-splat) scene. IFC stays the source of truth." },
   { sel: "[data-tour=\"projects\"]", title: "Projects",
     body: "Switch projects here, or ＋ New to start a blank one. The portal and proforma work even with no model loaded." },
   { sel: "#rail", title: "Tools & analysis",
-    body: "Spatial tree, layers, issues/RFIs, and the Tools panel — exports, drawings, cost, energy, clash and authoring." },
+    body: "Spatial tree, layers, issues/RFIs, and the Tools panel — exports, drawings, cost, energy, authoring, plus the field toolkit: coordinate clashes into grouped BCF issues, export field-layout setout (CSV/DXF), and a preliminary load takedown." },
   { sel: "[data-tour=\"account\"]", title: "Sign in & your role",
     body: "Sign in with Google, Microsoft or Procore. Pick your role (top-right) to tailor which tools show first." },
 ];
