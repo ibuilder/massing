@@ -166,24 +166,27 @@ competitor names).
 From the two tokenization briefs. The validated best practice (Securitize, Tokeny, and the non-token gold
 standards Juniper Square / Carta): a securities platform is **~80 % a regulated investor-management system,
 ~20 % blockchain** — Postgres is the legal source of truth, the token an optional mirror. We already have
-proforma, JV waterfall, LP portal, capital calls, cap-table. Deepen, in order: **(A)** cap-table as a
-**double-entry, append-only ledger** (immutable `LedgerEntry` rows; balances/waterfall distributions post
-as ledger events) + subscription workflow + e-sign; **(B)** a modular **compliance engine**
-(`can_subscribe`/`can_transfer`: KYC-current, 506(c) verification-not-self-cert, jurisdiction allowlist,
-Rule 144 lockup, **§12(g) holder-count cap with per-person wallet dedupe**, max-ownership, OFAC,
-min-investment) via a third-party KYC/accreditation vendor; **(C)** regulated money movement (**not
-Stripe** — its ToS bars securities/escrow; use Dwolla/Modern Treasury + a qualified escrow agent) + K-1
-tax output; **(D)** SPV-per-asset entity model + Form-D data + bilateral-transfer-with-issuer-consent (the
-lawful secondary-market MVP — a public order book requires a **broker-dealer + ATS**, not code). **(E —
-deferred)** the **ERC-3643 permissioned token** only behind securities counsel; note its T-REX reference
-contracts are **GPL-3.0** (spec is open) — a real licensing decision, not a default. A–C carry ordinary
-SaaS risk and are the near-term prize; D–E are counsel-gated and optional. ⚖️ *Not legal advice; every
-offering step needs a securities attorney.*
+proforma, JV waterfall, LP portal, capital calls, cap-table.
+
+**DECISION (revised) — integrate, don't build.** We will **not** build the securities/compliance stack
+ourselves (KYC/accreditation, transfer-agent recordkeeping, Reg-D compliance engine, escrow, the token) —
+that is licensed, counsel-gated, multi-year work and outside our risk appetite. Instead Massing stays the
+**origination front-end** (the deal, the IFC model, the proforma, the JV waterfall, a read-only cap-table
+view) and **hands the regulated pieces to a licensed platform via API** — the same "connectors OK, we
+never move money" posture as our Procore / QuickBooks bridges. Confirmed integration path: **Securitize**
+— an SEC-registered **transfer agent + broker-dealer/ATS** — exposes a **Securitize Connect API**,
+**Securitize iD** (RESTful KYC/KYB/AML), and **Transfer-Agent-as-a-Service**; for the non-token fund-admin
+route, hand off to a fund administrator (data export / referral). So the buildable work shrinks to a
+**thin connector** (`connectors.py` already has the pattern): push deal + investor + distribution data to
+the partner, pull back verified-KYC / holder-of-record status, deep-link investors into the partner's
+onboarding, and show the partner's cap-table state in the LP portal. The token (ERC-3643) is the
+partner's concern, not ours; its T-REX reference being **GPL-3.0** is now moot for us. ⚖️ *Not legal
+advice; the partner is the licensed entity.*
 
 **Sequencing recommendation:** ① and ② are the near-term, highest-leverage, lowest-risk builds (both pure
-software on existing seams). ③–⑥ are self-contained increments to schedule by customer pull. ⑦ is a
-strategic multi-release track for the developer/finance side, front-loaded with the non-legal-gated
-cap-table-ledger + compliance-engine work.
+software on existing seams). ③–⑥ are self-contained increments to schedule by customer pull. ⑦ is now a
+**lightweight integration** (Securitize-style connector) rather than a build — pursue only when a
+customer needs to actually raise/syndicate, and keep Massing out of the regulated path entirely.
 
 ---
 
