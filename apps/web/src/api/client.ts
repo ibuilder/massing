@@ -2212,13 +2212,29 @@ export class ApiClient extends HttpCore {
         retainage_receivable: number; accounts_payable: number; net_contract_working_capital: number } }>(
       `/projects/${pid}/contractor-statements`);
   }
-  /** WIP schedule: POC → earned vs billed → over/under-billing, retainage, gross profit, backlog. */
-  wip(pid: string) {
+  /** WIP schedule: POC → earned vs billed → over/under-billing, retainage, gross profit, backlog.
+   *  `method`: "cost-to-cost" (default) or "units-installed" (physical model progress by GlobalId). */
+  wip(pid: string, method: "cost-to-cost" | "units-installed" = "cost-to-cost") {
     return this.json<{ contract_value: number; estimated_cost: number; cost_to_date: number;
-      cost_to_complete: number; percent_complete: number; earned_revenue: number; billed_to_date: number;
-      over_billing: number; under_billing: number; billing_status: "over-billed" | "under-billed" | "even";
+      cost_to_complete: number; percent_complete: number; pct_method: string; earned_revenue: number;
+      billed_to_date: number; over_billing: number; under_billing: number;
+      billing_status: "over-billed" | "under-billed" | "even";
       retainage: number; gross_profit: number; gross_margin_pct: number; profit_to_date: number;
-      backlog: number; note: string }>(`/projects/${pid}/wip`);
+      backlog: number; note: string;
+      model?: { model_percent_complete: number; cost_percent_complete: number; divergence_pct: number;
+        installed_elements: number; total_elements: number;
+        flag: "cost-ahead" | "physical-ahead" | "aligned"; note: string };
+    }>(`/projects/${pid}/wip?method=${encodeURIComponent(method)}`);
+  }
+  /** Physical % complete from the model: installed elements ÷ total by IFC GlobalId, optionally
+   *  quantity-weighted. The independent "units-installed" signal that cross-checks cost-to-cost POC. */
+  wipModelProgress(pid: string, quantity?: string) {
+    const q = quantity ? `?quantity=${encodeURIComponent(quantity)}` : "";
+    return this.json<{ available: boolean; method?: string; total_elements?: number;
+      installed_elements?: number; percent_complete_count?: number; percent_complete?: number;
+      quantity?: string; elements_with_quantity?: number; total_quantity?: number;
+      installed_quantity?: number; percent_complete_quantity?: number; note: string
+    }>(`/projects/${pid}/wip/model-progress${q}`);
   }
   /** Portfolio WIP: one row per project, worst cash position (largest under-billing) first. */
   wipPortfolio() {

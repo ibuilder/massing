@@ -94,12 +94,27 @@ def summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_ro
 
 
 @router.get("/projects/{pid}/wip")
-def wip_schedule(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """Work-in-Progress schedule: percentage-of-completion (cost-to-cost) → earned revenue vs billed →
+def wip_schedule(pid: str, method: str = "cost-to-cost",
+                 db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Work-in-Progress schedule: percentage-of-completion → earned revenue vs billed →
     over-/under-billing (contract liability / asset), retainage, gross profit and backlog. The
-    accounting twin to the earned-value module."""
+    accounting twin to the earned-value module.
+
+    `method=cost-to-cost` (default) drives POC by cost-to-date ÷ estimated cost; `method=units-installed`
+    drives it by physical model progress (installed elements ÷ total, by IFC GlobalId). When a model is
+    loaded the response carries a `model` block cross-checking physical vs cost progress either way."""
     from .. import wip
-    return wip.schedule(db, pid)
+    return wip.schedule(db, pid, method=method)
+
+
+@router.get("/projects/{pid}/wip/model-progress")
+def wip_model_progress(pid: str, quantity: str | None = None,
+                       db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Physical percent-complete straight from the model: installed elements ÷ total, keyed by IFC
+    GlobalId, optionally weighted by an IFC base quantity (e.g. `quantity=NetVolume`). The independent
+    'units-installed' progress signal that cross-checks cost-to-cost POC."""
+    from .. import wip
+    return wip.model_progress(db, pid, quantity=quantity)
 
 
 @router.get("/wip/portfolio")

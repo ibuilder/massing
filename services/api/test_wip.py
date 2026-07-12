@@ -2,6 +2,7 @@
 over/under-billing (contract liability / asset), retainage, gross profit, backlog; plus the portfolio
 WIP. The accounting twin to the earned-value module.
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_wip.py"""
+import json
 import os
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_wip.db"
@@ -80,6 +81,50 @@ with TestClient(app) as c:
     assert acc["4000"]["balance"] == 500000 and acc["4000"]["balance_side"] == "credit", acc["4000"]  # revenue nets to earned
     assert acc["2300"]["credit"] == 200000, acc["2300"]                            # over-billing → contract liability
 
+    # --- model-derived physical % complete: an independent POC signal, keyed by IFC GlobalId --------
+    # Seed a 4-element model (Qto NetVolume 10/20/30/40 = 100 total), then mark install status.
+    PROPS = {"project": {"name": "WIP Tower"}, "elements": [
+        {"guid": "e1", "ifc_class": "IfcWall", "storey": "L1", "qtos": {"Qto_WallBaseQuantities": {"NetVolume": 10}}},
+        {"guid": "e2", "ifc_class": "IfcSlab", "storey": "L1", "qtos": {"Qto_SlabBaseQuantities": {"NetVolume": 20}}},
+        {"guid": "e3", "ifc_class": "IfcColumn", "storey": "L2", "qtos": {"Qto_ColumnBaseQuantities": {"NetVolume": 30}}},
+        {"guid": "e4", "ifc_class": "IfcBeam", "storey": "L2", "qtos": {"Qto_BeamBaseQuantities": {"NetVolume": 40}}},
+    ]}
+    c.post(f"/projects/{pid}/properties/index",
+           files={"file": ("props.json", json.dumps(PROPS).encode(), "application/json")})
+    c.put(f"/projects/{pid}/verification/e1", json={"status": "installed"})   # NetVolume 10
+    c.put(f"/projects/{pid}/verification/e2", json={"status": "verified"})    # NetVolume 20
+
+    # count-weighted: 2 of 4 installed = 50%; quantity-weighted: (10+20) of 100 = 30%
+    mp = c.get(f"/projects/{pid}/wip/model-progress").json()
+    assert mp["available"] and mp["total_elements"] == 4 and mp["installed_elements"] == 2, mp
+    assert mp["percent_complete_count"] == 50.0 and mp["percent_complete"] == 50.0, mp
+    mpq = c.get(f"/projects/{pid}/wip/model-progress?quantity=NetVolume").json()
+    assert mpq["total_quantity"] == 100 and mpq["installed_quantity"] == 30, mpq
+    assert mpq["percent_complete_quantity"] == 30.0 and mpq["percent_complete"] == 30.0, mpq
+
+    # default WIP now carries a model cross-check block: physical 50% vs cost-to-cost 50% → aligned
+    wm = c.get(f"/projects/{pid}/wip").json()
+    assert wm["pct_method"] == "cost-to-cost" and wm["percent_complete"] == 50.0, wm
+    assert wm["model"]["model_percent_complete"] == 50.0 and wm["model"]["cost_percent_complete"] == 50.0, wm["model"]
+    assert wm["model"]["divergence_pct"] == 0.0 and wm["model"]["flag"] == "aligned", wm["model"]
+
+    # drive POC by physical model progress instead of cost: earned = 50% × 1M = 500k (units-installed)
+    wu = c.get(f"/projects/{pid}/wip?method=units-installed").json()
+    assert wu["pct_method"] == "units-installed" and wu["percent_complete"] == 50.0, wu
+    assert wu["earned_revenue"] == 500000, wu["earned_revenue"]        # physical-progress-based revenue
+
+    # install one more element (e3) → physical 75% > cost 50% → 'physical-ahead', earned climbs to 750k
+    c.put(f"/projects/{pid}/verification/e3", json={"status": "installed"})
+    wm2 = c.get(f"/projects/{pid}/wip").json()
+    assert wm2["model"]["model_percent_complete"] == 75.0 and wm2["model"]["flag"] == "physical-ahead", wm2["model"]
+    wu2 = c.get(f"/projects/{pid}/wip?method=units-installed").json()
+    assert wu2["percent_complete"] == 75.0 and wu2["earned_revenue"] == 750000, wu2
+
+    # no model loaded on a fresh project → model progress unavailable (graceful), WIP has no model block
+    pid2 = c.post("/projects", json={"name": "No Model"}).json()["id"]
+    assert c.get(f"/projects/{pid2}/wip/model-progress").json()["available"] is False
+    assert "model" not in c.get(f"/projects/{pid2}/wip").json()
+
     # --- report PDFs ------------------------------------------------------------------------------
     for _rep in ("wip", "contractor_financials"):
         rep = c.get(f"/projects/{pid}/reports/{_rep}.pdf")
@@ -87,4 +132,7 @@ with TestClient(app) as c:
 
 print("WIP OK - percentage-of-completion 50% (cost 400k / est 800k) -> earned 500k (50% of 1M contract); "
       "under-billed 200k (contract asset) at 300k billed, flips to over-billed 200k (liability) at 700k; "
-      "gross profit 200k @ 20% margin, backlog 700k, retainage tracked; portfolio WIP + report PDF.")
+      "gross profit 200k @ 20% margin, backlog 700k, retainage tracked; portfolio WIP + report PDF. "
+      "Model-derived physical %: installed elements / total by GlobalId (count 50%, NetVolume-weighted 30%); "
+      "WIP model block cross-checks physical vs cost POC (aligned -> physical-ahead as installs grow); "
+      "method=units-installed drives earned revenue by model progress (500k -> 750k).")

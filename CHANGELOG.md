@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.200 — Model-quantity-derived WIP %: an independent progress signal that cross-checks cost POC
+Roadmap item ②, part 2 (closes item ②). Cost-to-cost percentage-of-completion can mislead — a cost
+overrun makes a *behind* job look *ahead*, and front-loaded billing hides under-production. So WIP now
+derives a second, **physical** progress signal straight from the model: **installed model elements ÷
+total, keyed by IFC GlobalId** (the "units-installed" output method — ASC 606 output measure / EVM
+units-completed), optionally weighted by an IFC base quantity (e.g. `NetVolume`). "Installed" = an
+element whose field-`verification` status is `installed`/`verified`, so this ties revenue recognition
+back to what's actually built in the field, not just what's been spent — and survives re-conversion
+because it's GlobalId-keyed. `wip.py` gains `model_progress()`; `schedule()` gains a `method`
+(`cost-to-cost` default | `units-installed`) and always carries a `model` block cross-checking physical
+vs cost % with a divergence flag (`cost-ahead` = the classic front-loaded-billing signal). New `GET
+…/wip/model-progress` + `method=` on `GET …/wip`; client `wip(pid, method)` + `wipModelProgress`; the
+WIP panel shows a model cross-check card. Portfolio roll-up skips the per-project model scan (stays
+fast). `test_wip` extended (count 50% / NetVolume-weighted 30%; aligned → physical-ahead; units-installed
+drives earned 500k → 750k; unavailable with no model).
+
 ## v0.3.199 — Accounting interop depth: approval-gated journal export batch
 Roadmap item ②, part 1. A **journal batch** freezes the current books — flattened GL + balanced
 double-entry journal + trial balance — into an auditable snapshot (`journal_batch` config module) that

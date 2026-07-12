@@ -67,10 +67,13 @@ upstream-blocked items, and one intentional non-goal.**
   `psycopg[binary]`; the workflow gates pushes on a stale lock.
 
 **② Feature depth — pull up on a specific customer need (optional, not blocking)**
-- **Accounting interop depth (the old "Interop-I").** Cost-coded journal-entry export to the system of
-  record behind an approval gate, then derive WIP % + resource curves from **model quantities by
-  GlobalId** (builds on the shipped `traceability.py` coverage index). Basic GL-CSV / QuickBooks-IIF
-  export already ships — this is the deeper, gated version.
+- ✅ **DONE — Accounting interop depth (the old "Interop-I").** Two halves, both shipped:
+  **(1)** approval-gated journal export batch (v0.3.199) — freeze GL/journal/trial-balance into a
+  `journal_batch` snapshot that moves `draft → submitted → approved → exported`; GL-CSV/IIF export is
+  409 until approved. **(2)** model-quantity-derived WIP % (v0.3.200) — physical percent-complete from
+  installed model elements ÷ total **by IFC GlobalId** (units-installed output method), optionally
+  quantity-weighted; `wip.schedule` gains a `method` + a `model` cross-check block (physical vs cost POC
+  divergence). Builds on `traceability.py` + `verification` install-coverage.
 - **Exploratory parking lot.** Test Fit yield-optimization depth · underwriting realism · built-world
   construction techniques · materials/rendering & computational design. Detail preserved in the archive
   below; pull one up only if a customer need surfaces.

@@ -82,6 +82,27 @@ export async function renderWip(ctx: PanelContext) {
   tbl.innerHTML = `<tbody>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td style="text-align:right">${v}</td></tr>`).join("")}</tbody>`;
   body.append(tbl);
 
+  // --- model cross-check: physical % complete (installed elements ÷ total, by GlobalId) vs cost ---
+  if (w.model) {
+    const m = w.model;
+    const flagColor = m.flag === "cost-ahead" ? "var(--status-warn)"
+      : m.flag === "physical-ahead" ? "var(--status-crit)" : "var(--status-good)";
+    const flagText = m.flag === "cost-ahead"
+      ? "Cost is running ahead of physical progress — the classic front-loaded-billing / cost-overrun signal. Review before recognizing revenue."
+      : m.flag === "physical-ahead"
+        ? "Physical progress is ahead of cost — possible under-costing or productivity gains; you may be under-billing the work in place."
+        : "Physical and cost progress agree — the cost-to-cost POC is corroborated by what's installed in the model.";
+    const mc = el("div", "dash-card"); mc.style.cssText = `margin-top:8px;border-left:3px solid ${flagColor}`;
+    mc.innerHTML = `<b>Model cross-check</b> <span class="meta">— physical progress from the model `
+      + `(${m.installed_elements}/${m.total_elements} elements installed, by IFC GlobalId) vs cost-to-cost POC</span>`
+      + `<div style="display:flex;gap:16px;margin:6px 0;flex-wrap:wrap">`
+      + `<div><div style="font-size:18px;font-weight:600">${m.model_percent_complete}%</div><div class="meta">physical (installed)</div></div>`
+      + `<div><div style="font-size:18px;font-weight:600">${m.cost_percent_complete}%</div><div class="meta">cost-to-cost</div></div>`
+      + `<div><div style="font-size:18px;font-weight:600;color:${flagColor}">${m.divergence_pct > 0 ? "+" : ""}${m.divergence_pct}pt</div><div class="meta">divergence</div></div>`
+      + `</div><div class="meta">${flagText}</div>`;
+    body.append(mc);
+  }
+
   // --- contractor statements (POC income statement + contract-position balance-sheet section) ---
   if (cs) {
     const inc = cs.income_statement, pos = cs.contract_position;
