@@ -97,6 +97,14 @@ export async function loadReferenceModel(file: File): Promise<RefResult> {
       const info = `${pc.count.toLocaleString()} pts${pc.decimated ? ` (decimated from ${pc.sourceCount.toLocaleString()})` : ""}`;
       return { object: pointsFromGeometry(cloudGeometry(pc), name), kind: "points", info };
     }
+    case "e57": {
+      // In-browser E57 (offline). Common Float / ScaledInteger encodings decode here; anything else
+      // throws E57Unsupported so the caller can fall back to the server-side pye57 conversion.
+      const { readE57 } = await import("./e57");
+      const pc = readE57(new Uint8Array(await file.arrayBuffer()));
+      const info = `${pc.count.toLocaleString()} pts${pc.decimated ? ` (decimated from ${pc.sourceCount.toLocaleString()})` : ""}`;
+      return { object: pointsFromGeometry(cloudGeometry(pc), name), kind: "points", info };
+    }
     case "geojson": case "json": case "tif": case "tiff": {
       const g = await loadGisFile(file);                 // GeoJSON vectors or a GeoTIFF DEM terrain
       return { object: g.object, kind: "gis", info: g.info };

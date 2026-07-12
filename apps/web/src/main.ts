@@ -67,19 +67,36 @@ for (const kind of ["ifc", "frag", "convert", "ref"] as const) {
     const inp = e.target as HTMLInputElement;
     const file = inp.files?.[0]; inp.value = "";
     if (!file) return;
-    // .e57 has no in-browser parser: convert server-side to .xyz, then load as a point-cloud overlay
+    // .e57 reality-capture: try the in-browser reader first (offline, no server round-trip); if the
+    // scan uses an encoding it can't decode it throws E57Unsupported → fall back to the server converter.
     if (kind === "ref" && file.name.toLowerCase().endsWith(".e57")) {
       void (async () => {
+        const { toast } = await import("./ui/feedback");
+        const v = await ensureViewer();
         try {
-          const { toast } = await import("./ui/feedback");
+          const { loadReferenceModel } = await import("./viewer/referenceLoader");
+          const res = await loadReferenceModel(file);          // in-browser E57 decode
+          v.addReferenceObject(res.object, file.name);
+          toast(`Loaded E57 scan — ${res.info}`, "success");
+          return;
+        } catch (err) {
+          if ((err as Error).name !== "E57Unsupported") {
+            toast(`E57 import failed: ${(err as Error).message}`, "error");
+            return;
+          }
+          // unsupported encoding → fall through to the server-side pye57 conversion
+        }
+        try {
           const st = await api.e57Status();
-          if (!st.available) { toast(st.message, "info"); return; }
-          toast("Converting E57 scan…", "info");
+          if (!st.available) {
+            toast(`This E57 uses an encoding the offline reader can't decode. ${st.message}`, "info");
+            return;
+          }
+          toast("Converting E57 on the server…", "info");
           const xyz = await api.convertE57(file);
           const xyzFile = new File([xyz], file.name.replace(/\.e57$/i, ".xyz"), { type: "text/plain" });
-          const v = await ensureViewer(); await v.openFile("ref", xyzFile);
+          await v.openFile("ref", xyzFile);
         } catch (err) {
-          const { toast } = await import("./ui/feedback");
           toast(`E57 import failed: ${(err as Error).message}`, "error");
         }
       })();

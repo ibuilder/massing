@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.214 — In-browser E57 reality-capture reader + roadmap consolidation
+
+**In-browser E57 (ASTM E2807) reader.** E57 previously required an optional server-side `pye57`
+conversion; now `.e57` laser scans decode **fully in the browser, offline** — honoring the
+"viewer runs fully offline" non-negotiable. New `viewer/e57.ts` parses the 48-byte header, strips the
+CRC-paged logical stream, reads the XML `Data3D` prototypes, and decodes the CompressedVector binary
+for the common encodings (**Float single/double + ScaledInteger XYZ with optional RGB**, across one or
+more data packets), centring on the bbox midpoint and stride-decimating to the render budget like the
+LAS/LAZ path. Anything it can't decode raises a typed `E57Unsupported`, and `main.ts` **falls back to
+the proven server converter** — so worst case is today's behavior, best case is no round-trip. Wired
+through `referenceLoader` (new `e57` branch) and the Open menu. `e57.test.ts` builds synthetic E57
+files (single-page, multi-page CRC-stride, ScaledInteger+RGB, Float) and round-trips them through the
+reader. Closes the last data-layer item that was tagged "upstream-blocked."
+
+**Roadmap consolidation.** `docs/roadmap.md` is now lean — the banner + a single, re-ranked
+**"What's left"** master backlog (① generative-design depth · ② UX/perf · ③ interop spikes · ④
+upstream-blocked · ⑤ deferred-by-decision · ⑥ non-goals), sweeping up every open item from every
+archive/parking-lot section (A/U/R/M/L/D + each "*Next:*" sub-note). All shipped history moved to a new
+**`docs/roadmap-completed.md`** so *what's left* is never buried under *what's done*.
+
 ## v0.3.213 — Two deferred items closed: capital-markets syndication connector + IFC5/IFCX write path
 
 **(1) IFC5 / IFCX write path.** The IFC5 read path shipped earlier (tolerant JSON→element-index parser);
