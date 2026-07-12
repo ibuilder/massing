@@ -136,7 +136,9 @@ A construction-management portal on top of the viewer — full writeup in
 - **Change-order chain** — PCO ▸ NOC ▸ Directive ▸ Proposal ▸ COR ▸ eTicket, linked and
   audit-logged; approved CORs flow into the contract sum.
 - **Financials** — AIA **G702/G703** pay apps (+ PDF), **Cost Summary** roll-up, **eTicket
-  T&M builder** priced from rate tables.
+  T&M builder** priced from rate tables, and a **WIP schedule** (percentage-of-completion) whose
+  physical progress can be **cross-checked against the model** — installed elements ÷ total by IFC
+  GlobalId, flagging cost running ahead of what's actually built.
 - **Schedule** — Gantt + Empire-State **Line-of-Balance** charts.
 - **Role-tailored dashboard** — per-party KPIs + "ball-in-your-court" action items.
 - **Model pins** — any anchored record (RFI/PCO/COR/punchlist/inspection/…) shows on the
@@ -517,8 +519,11 @@ Deliverables** — with a sticky live-solved returns bar.
   keyed). Every AI engine ships with a deterministic fallback so nothing is fabricated.
 - **Risk & Cost** — subcontractor **prequalification Q-score** + **COI-expiry** tracking, **pay-app ↔
   lien-waiver** reconciliation surfacing per-vendor **lien exposure** (payments run only through a
-  licensed processor, gated on waiver coverage — Massing never moves money), **accounting export** (GL
-  CSV + QuickBooks IIF), **embodied carbon** (A1-A3, from material quantities × EPD factors), a
+  licensed processor, gated on waiver coverage — Massing never moves money), **accounting export** —
+  a balanced double-entry **General Ledger** + trial balance posted from job cost, billing and the WIP
+  adjustment, exported as GL CSV / **QuickBooks IIF** through an **approval-gated journal batch** (freeze
+  → submit → approve → export, so the accountant imports only reviewed figures) — **embodied carbon**
+  (A1-A3, from material quantities × EPD factors), a
   **code-compliance** assistant (IBC/ADA/IECC sections with citations), and **priced takeoff** with
   variance vs the estimate.
 - **Accounts & onboarding** — **SSO** (Google / Microsoft / Procore), a no-admin free-tier model,

@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.201 — UI cohesion: wire the approval-gated journal batch into the General Ledger panel
+A UI/UX cohesion pass over the recent finance work found the v0.3.199 **journal export batch** had shipped
+backend-only — its client methods (`createJournalBatch`/`journalBatchExportUrl`) had no surface, so the
+approval gate was unreachable from the app. The **General Ledger** panel now carries a **Journal export
+batches** section: **Freeze current books into a batch** (period + memo via an accessible modal → draft),
+a list of batches with **state badges** (draft / submitted / approved / exported) and frozen Dr/Cr totals,
+inline **workflow actions** driven by each record's `available_actions` (submit → approve → reject), and
+**GL-CSV / IIF download** links that appear only once a batch is approved. Same GlobalId-keyed data, one
+click from the ledger the figures come from. (The v0.3.200 model-WIP cross-check was already wired into the
+WIP panel; the only remaining finance client method with no panel — `wipModelProgress` — stays a public
+API for embeds, its data already surfaced via the WIP `model` block.) Verified: typecheck + lint clean,
+production build green; endpoints exercised live.
+
 ## v0.3.200 — Model-quantity-derived WIP %: an independent progress signal that cross-checks cost POC
 Roadmap item ②, part 2 (closes item ②). Cost-to-cost percentage-of-completion can mislead — a cost
 overrun makes a *behind* job look *ahead*, and front-loaded billing hides under-production. So WIP now

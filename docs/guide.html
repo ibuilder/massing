@@ -312,6 +312,15 @@
     <li>The table shows the full position — contract, estimated cost, cost-to-complete, earned, billed,
       retainage held, gross profit and backlog. The <b>portfolio WIP</b> lists every job worst-cash-position
       first, and it all exports to a signed PDF.</li>
+    <li><b>Model cross-check.</b> When the project has a model with field-verified install status, the panel
+      also shows <b>physical % complete</b> — installed elements ÷ total, keyed by <b>IFC GlobalId</b> — next
+      to the cost-to-cost figure, with a divergence flag. Cost running well ahead of physical progress is the
+      classic front-loaded-billing / cost-overrun signal; physical ahead of cost can mean you're under-billing
+      the work in place. It ties revenue recognition to what's actually built, not just what's been spent.</li>
+    <li><b>Hand it to accounting.</b> In <b>📒 General Ledger</b>, the balanced double-entry journal and trial
+      balance export as GL CSV or QuickBooks IIF. For a clean month-end, use a <b>journal export batch</b>:
+      <i>Freeze current books into a batch</i> (draft) → submit → approve → export, so the accountant imports
+      exactly the figures that were reviewed and signed off.</li>
   </ol>
 
   <h2 id="trace">Tutorial 🔗 · Trace cost to the model (by GlobalId)</h2>
