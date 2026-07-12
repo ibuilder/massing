@@ -120,7 +120,9 @@ jobs:
       # sidecar serves, so this only needs the Python side.)
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          # 3.12 to match the CI + the pip-compiled lock (services/api/requirements.lock is generated
+          # under 3.12 and pins numpy 2.5.x, which requires Python >= 3.12 — 3.11 can't resolve it).
+          python-version: "3.12"
 
       - name: Build the backend sidecar
         shell: bash

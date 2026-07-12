@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.218 — Desktop build: Python 3.12 to match the lock (completes the installer fix)
+
+Second half of the desktop-installer repair. After v0.3.217 fixed the requirements *path*, the sidecar
+step still failed: the workflow set up **Python 3.11**, but `services/api/requirements.lock` is
+pip-compiled under **3.12** and pins `numpy==2.5.x`, which requires Python ≥3.12 — so 3.11 couldn't
+resolve it (CI already uses 3.12, which is why CI stayed green). Bumped the desktop workflow's
+`setup-python` to 3.12 to match CI and the lock. With v0.3.217's requirements-path fix, tagged releases
+now build the Windows/macOS/Linux installers and attach them to the release.
+
 ## v0.3.217 — Fix the desktop-installer build (releases were empty drafts)
 
 **Ops fix — restores the signed desktop installers on tagged releases.** The Desktop-release workflow's
