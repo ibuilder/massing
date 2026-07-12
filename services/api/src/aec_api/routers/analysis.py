@@ -159,6 +159,61 @@ def clash_metrics(pid: str, db: Session = Depends(get_db), _: str = Depends(requ
     return clash_intel.metrics(db, pid)
 
 
+# --- Wave 8 ②: model → field layout (PENZD CSV + DXF) + as-built verification --------------------
+def _layout_points(db: Session, pid: str, classes: str | None):
+    from .. import layout
+    model = open_source_ifc(db, pid)
+    cls = [c.strip() for c in classes.split(",") if c.strip()] if classes else None
+    return layout, layout.points(model, cls)
+
+
+@router.get("/projects/{pid}/layout/points")
+def layout_points(pid: str, classes: str | None = None, limit: int = 500,
+                  db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Preview the model's field-layout setout points (georeferenced) — grids + column/footing/opening/
+    wall placements, each with its IFC GlobalId. `classes` optionally narrows the IFC classes."""
+    _lay, pts = _layout_points(db, pid, classes)
+    by_kind: dict[str, int] = {}
+    for p in pts:
+        by_kind[p["ifc_class"]] = by_kind.get(p["ifc_class"], 0) + 1
+    return {"count": len(pts), "by_class": by_kind, "points": pts[:limit], "truncated": len(pts) > limit,
+            "note": "Real-world E/N/Z (IfcMapConversion applied when present); Description carries the "
+                    "element code + IFC GlobalId for the field round-trip. Export as PENZD CSV or DXF."}
+
+
+@router.get("/projects/{pid}/layout/points.csv")
+def layout_csv(pid: str, classes: str | None = None, order: str = Query("PENZD"),
+               delimiter: str = Query(","), db: Session = Depends(get_db),
+               _: str = Depends(require_role("viewer"))):
+    """PENZD / PNEZD points file for total-station / marking-robot import (configurable column order)."""
+    lay, pts = _layout_points(db, pid, classes)
+    body = lay.to_penzd_csv(pts, order=order, delimiter=("\t" if delimiter == "tab" else delimiter))
+    return Response(body, media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="layout-{order.lower()}.csv"'})
+
+
+@router.get("/projects/{pid}/layout.dxf")
+def layout_dxf(pid: str, classes: str | None = None, db: Session = Depends(get_db),
+               _: str = Depends(require_role("viewer"))):
+    """Layered DXF layout drawing (points + labels) for floor printers (Dusty-style)."""
+    lay, pts = _layout_points(db, pid, classes)
+    return Response(lay.to_dxf(pts), media_type="application/dxf",
+                    headers={"Content-Disposition": 'attachment; filename="layout.dxf"'})
+
+
+@router.post("/projects/{pid}/layout/verify")
+def layout_verify(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                  _: str = Depends(require_role("viewer"))):
+    """Compare as-installed total-station shots to the design setout: `{measured:[{number,e,n,z}, …],
+    tolerance_m?, classes?}` → per-point 3-D deviation, flagging points out of tolerance (each anchored
+    to its element GlobalId for a field-verification issue)."""
+    lay, pts = _layout_points(db, pid, body.get("classes"))
+    measured = body.get("measured") or []
+    if not isinstance(measured, list):
+        raise HTTPException(422, "measured must be a list of {number,e,n,z}")
+    return lay.verify(pts, measured, float(body.get("tolerance_m", 0.02)))
+
+
 @router.get("/projects/{pid}/models/georeferencing")
 def model_georeferencing(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Shared-coordinates / setout basis for the project's source model — full IfcMapConversion

@@ -1013,6 +1013,28 @@ export class ApiClient extends HttpCore {
       burn_down: { run: string; new: number; resolved: number; reappeared: number; issues: number }[];
       note: string }>(`/projects/${pid}/clash/metrics`);
   }
+  /** Model → field layout setout points (georeferenced; grids + column/footing/opening/wall). */
+  layoutPoints(pid: string, classes?: string) {
+    const q = classes ? `?classes=${encodeURIComponent(classes)}` : "";
+    return this.json<{ count: number; by_class: Record<string, number>; truncated: boolean; note: string;
+      points: { number: string; e: number; n: number; z: number; description: string; kind: string;
+        ifc_class: string; guid: string }[] }>(`/projects/${pid}/layout/points${q}`);
+  }
+  /** PENZD/PNEZD points-CSV download URL for total stations / marking robots. */
+  layoutCsvUrl(pid: string, order: "PENZD" | "PNEZD" = "PENZD", delimiter = ",", classes?: string) {
+    const q = new URLSearchParams({ order, delimiter, ...(classes ? { classes } : {}) }).toString();
+    return this.url(`/projects/${pid}/layout/points.csv?${q}`);
+  }
+  /** Layered DXF layout-drawing download URL for floor printers. */
+  layoutDxfUrl(pid: string, classes?: string) {
+    return this.url(`/projects/${pid}/layout.dxf${classes ? `?classes=${encodeURIComponent(classes)}` : ""}`);
+  }
+  /** Verify as-installed total-station shots against the design setout (deviation by point number). */
+  layoutVerify(pid: string, measured: { number: string; e: number; n: number; z: number }[], toleranceM = 0.02) {
+    return this.json<{ tolerance_m: number; checked: number; in_tolerance: number; max_deviation_m: number;
+      out_of_tolerance: { number: string; guid: string; ifc_class: string; deviation_m: number }[]; note: string }>(
+      `/projects/${pid}/layout/verify`, { method: "POST", body: JSON.stringify({ measured, tolerance_m: toleranceM }) });
+  }
   /** Discipline quantity roll-up — reinforcement tonnage, MEP linear runs, structural volume. */
   disciplineQuantities(pid: string) {
     return this.json<{ rebar: { count: number; weight_kg: number; tonnes: number; estimated: boolean };

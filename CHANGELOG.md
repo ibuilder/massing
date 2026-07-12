@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.204 — Wave 8 ②: Model → field layout (PENZD/PNEZD CSV + DXF) + as-built verification
+The smallest-surface, highest-field-utility Wave 8 item — export the setout that the 2026 field-robotics
+wave consumes, straight from the IFC. New `layout.py`:
+- **Setout points** — grid intersections (`IfcGridAxis`) + column / footing / opening / wall object
+  placements, in **real-world E/N/Z** (the `IfcMapConversion` is applied, so points land on the
+  surveyor's grid), each carrying its **IFC GlobalId in the Description** for the round-trip.
+- **PENZD / PNEZD CSV** (configurable column order + delimiter) — the near-universal total-station /
+  marking-robot interchange (Trimble/Leica/Hilti).
+- **Layered DXF** (`ezdxf`, MIT) — points + labels, a layer per element type — for floor printers
+  (Dusty-style).
+- **As-built verification** — upload the as-installed total-station shots, match by point number, and
+  get per-point 3-D deviation with out-of-tolerance flagged and anchored to the element GlobalId.
+New endpoints `GET …/layout/{points,points.csv,layout.dxf}` + `POST …/layout/verify`; client
+`layoutPoints`/`layoutCsvUrl`/`layoutDxfUrl`/`layoutVerify`; a viewer tool exports CSV/DXF and explains
+the stake → shoot → verify loop. `test_layout` runs against a real IFC (208 setout points on
+`maple_tower`; PENZD+PNEZD+tab CSV; layered DXF; the 100 mm-off point flagged at 20 mm tolerance; the
+IFC2X3 no-map-conversion path degrades gracefully). Pure `ifcopenshell` + `ezdxf`; permissive. (Wave 8 ②
+of 7 — see `docs/roadmap.md`.)
+
 ## v0.3.203 — Wave 8 ①: Clash Coordination Intelligence (grouping · severity · reconcile · KPIs)
 The management layer on top of geometric clash *detection* — the strongest signal from the 2026 field
 scan (4 of 14 sheets), built the way Navisworks / Autodesk Model Coordination / Solibri / Revizto do it.
