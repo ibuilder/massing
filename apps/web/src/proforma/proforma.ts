@@ -941,19 +941,44 @@ export class ProformaUI {
     renderMix(); host.appendChild(mixBox);
 
     const out = document.createElement("div"); out.style.marginTop = "6px";
+    // Sweep plate depth: makes daylight-limited leasable depth an optimize dimension (form follows finance)
+    const sweepLbl = document.createElement("label"); sweepLbl.className = "meta";
+    sweepLbl.style.cssText = "margin-left:8px;cursor:pointer;user-select:none";
+    const sweepCb = document.createElement("input"); sweepCb.type = "checkbox"; sweepCb.style.verticalAlign = "middle";
+    sweepLbl.append(sweepCb, document.createTextNode(" sweep plate depth"));
+    sweepLbl.title = "Also sweep plate depth (×0.6–1.4) — find the depth where daylight-limited yield peaks before a dark core eats rentable area";
     const opt = document.createElement("button"); opt.className = "tool-btn"; opt.style.marginLeft = "6px";
     opt.textContent = "⚡ Optimize (find the deal that pencils)";
     opt.onclick = async () => {
       out.innerHTML = `<span class="meta">sweeping schemes…</span>`;
       try {
-        const r = await this.api.testFitOptimize({ plate_w: +wi.value, plate_d: +di.value, floors: +fi.value, targets: { min_units: 1 } });
+        const targets: Record<string, number | string | boolean> = { min_units: 1 };
+        if (sweepCb.checked) targets.sweep_depth = true;
+        const r = await this.api.testFitOptimize({ plate_w: +wi.value, plate_d: +di.value, floors: +fi.value, targets });
         if (!r.best) { out.innerHTML = `<div class="meta">no feasible scheme for these targets</div>`; return; }
+        const dcol = r.swept_depths.length > 1 ? `<th>Depth</th>` : "";
         const rows = r.ranked.map((s, n) => `<tr${n === 0 ? ' style="font-weight:700"' : ""}>`
           + `<th style="text-align:left">${s.name}${n === 0 ? " ★" : ""}</th>`
+          + (r.swept_depths.length > 1 ? `<td style="text-align:right">${s.plate_d ?? ""}m</td>` : "")
           + `<td style="text-align:right">${s.total_units}</td><td style="text-align:right">${(s.efficiency * 100).toFixed(0)}%</td>`
           + `<td style="text-align:right">${s.parking_stalls}</td><td style="text-align:right">${(s.yield_on_cost * 100).toFixed(1)}%</td></tr>`).join("");
+        // form-follows-finance curve: best yield + daylight/core efficiency per swept depth
+        let curveHtml = "";
+        if (r.depth_curve.length > 1 && r.best_depth_m != null) {
+          const crows = r.depth_curve.map((p) => `<tr${p.plate_d === r.best_depth_m ? ' style="font-weight:700"' : ""}>`
+            + `<th style="text-align:left">${p.plate_d}m${p.plate_d === r.best_depth_m ? " ★" : ""}</th>`
+            + `<td style="text-align:right">${(p.yield_on_cost * 100).toFixed(1)}%</td>`
+            + `<td style="text-align:right">${(p.daylight_efficiency * 100).toFixed(0)}%</td>`
+            + `<td style="text-align:right">${(p.core_efficiency * 100).toFixed(0)}%</td>`
+            + `<td style="text-align:right">${p.total_units}</td></tr>`).join("");
+          curveHtml = `<div class="meta" style="margin:6px 0 2px">Plate-depth sweep — best at <b>${r.best_depth_m}m</b> `
+            + `(daylight-limited yield peaks before the dark core eats rentable area):</div>`
+            + `<table class="sens-table" style="font-size:12px"><tr><th style="text-align:left">Depth</th><th>YoC</th>`
+            + `<th>Daylight</th><th>Core</th><th>Units</th></tr>${crows}</table>`;
+        }
         out.innerHTML = `<div class="meta" style="margin-bottom:2px">Swept ${r.considered} schemes · ${r.feasible} feasible · ranked by ${r.objective.replace(/_/g, " ")}</div>`
-          + `<table class="sens-table" style="font-size:12px"><tr><th style="text-align:left">Scheme</th><th>Units</th><th>Eff.</th><th>Stalls</th><th>YoC</th></tr>${rows}</table>`;
+          + `<table class="sens-table" style="font-size:12px"><tr><th style="text-align:left">Scheme</th>${dcol}<th>Units</th><th>Eff.</th><th>Stalls</th><th>YoC</th></tr>${rows}</table>`
+          + curveHtml;
       } catch { out.innerHTML = `<div class="meta">optimize unavailable (API offline)</div>`; }
     };
     const run = document.createElement("button"); run.className = "file-btn"; run.textContent = "Compare schemes";
@@ -983,7 +1008,7 @@ export class ProformaUI {
           + egLine;
       } catch { out.innerHTML = `<div class="meta">test-fit unavailable (API offline)</div>`; }
     };
-    host.append(run, opt, out); this.root.appendChild(host);
+    host.append(run, opt, sweepLbl, out); this.root.appendChild(host);
   }
 
   /** Property & tax assumptions: parcel/areas/purchase/taxes; taxes → OPEX, price → acquisition. */

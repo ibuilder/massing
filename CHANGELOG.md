@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.215 — Test Fit yield optimization: plate-depth sweep + core-efficiency
+
+Deepens the generative Test Fit optimizer (roadmap ① — deepest, highest-value bucket). **Plate depth is
+now an optimize dimension.** `test_fit.optimize(…, depths=[…])` (or `targets.sweep_depth=True` for an
+auto ×0.6–1.4 range) sweeps unit-mix × parking **× plate depth** and returns a **`depth_curve`** — the
+best yield-on-cost, daylight efficiency, and core efficiency at each depth, plus the `best_depth_m` where
+daylight-limited yield peaks **before a dark interior core starts eating rentable area** (Willis, *Form
+Follows Finance*). New **`core_efficiency`** metric on every layout (share of the gross plate not lost to
+the daylight-dark core — 1.0 on a shallow plate, falling as depth pushes area past the ~9 m daylight
+reach), distinct from `efficiency` which also nets out the corridor. The Finance **📐 Test Fit** panel
+gains a **"sweep plate depth"** toggle that renders the depth curve with the peak depth starred. Backward-
+compatible: with no sweep the optimizer is unchanged (15 schemes, single depth). `POST /test-fit/optimize`
+accepts `depths`; `test_testfit` covers the sweep, the curve, `core_efficiency`, and the shallow-beats-deep
+daylight ordering.
+
 ## v0.3.214 — In-browser E57 reality-capture reader + roadmap consolidation
 
 **In-browser E57 (ASTM E2807) reader.** E57 previously required an optional server-side `pye57`

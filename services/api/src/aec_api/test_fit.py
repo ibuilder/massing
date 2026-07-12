@@ -60,6 +60,11 @@ def layout(plate_w: float, plate_d: float, floors: int = 1, unit_types: list[dic
     nsf_floor = sum(u["w"] * u["d"] for u in units) * M2_TO_SF   # rentable (daylight-aware)
     gsf_floor = plate_w * plate_d * M2_TO_SF
     core_depth = round(max(0.0, plate_d - 2 * lease_d - corridor_w), 2)   # dark non-rentable strip
+    # core-efficiency: share of the gross plate NOT lost to the dark daylight core (the vertical-
+    # circulation / interior strip a too-deep plate can't rent). 1.0 on a shallow plate; falls as depth
+    # pushes area past the daylight reach. Distinct from `efficiency`, which also nets out the corridor.
+    gross_m2 = plate_w * plate_d
+    core_efficiency = round(1 - (core_depth * plate_w) / gross_m2, 3) if gross_m2 else 0.0
     by_type_total = {k: v * max(1, floors) for k, v in by_type.items()}
     return {
         "units": units,                                  # one floor's placed rects (metres)
@@ -76,6 +81,7 @@ def layout(plate_w: float, plate_d: float, floors: int = 1, unit_types: list[dic
             "total_gsf": round(gsf_floor * max(1, floors)),
             "efficiency": round(nsf_floor / gsf_floor, 3) if gsf_floor else 0.0,
             "daylight_efficiency": round(nsf_floor / gsf_floor, 3) if gsf_floor else 0.0,
+            "core_efficiency": core_efficiency,
             "avg_unit_sf": round(nsf_floor / units_per_floor) if units_per_floor else 0,
             "mix": by_type_total,
         },
@@ -169,38 +175,60 @@ _PRESETS: dict[str, list[dict]] = {
 }
 
 
+def depth_range(plate_d: float, n: int = 5) -> list[float]:
+    """A symmetric plate-depth sweep around `plate_d` (×0.6 … ×1.4), clamped to a buildable band
+    (a double-loaded plate needs ≥ ~14 m and rarely exceeds ~45 m). Used to find the depth where
+    daylight-limited yield peaks before a dark interior core starts eating rentable area."""
+    factors = [0.6, 0.8, 1.0, 1.2, 1.4] if n >= 5 else [0.7, 1.0, 1.3]
+    seen: list[float] = []
+    for f in factors:
+        d = round(min(45.0, max(14.0, plate_d * f)), 1)
+        if d not in seen:
+            seen.append(d)
+    return sorted(seen)
+
+
 def optimize(plate_w: float, plate_d: float, floors: int, targets: dict | None = None,
-             econ: dict | None = None) -> dict[str, Any]:
-    """Generative design — sweep unit-mix presets × parking ratios, score each on yield-on-cost and
-    the development spread, filter by `targets` (min_units, min_efficiency, max_parking_ratio,
-    min_yoc), and rank. `econ`: rent_psf_yr, hard_psf, stall_cost, opex_ratio, land, **stabilized_occ**
-    (lease-up vacancy) and **exit_cap** (for the dev spread). Yield-on-cost and the spread use the
-    canonical proforma functions, so this generative screen is consistent with the full underwriting.
-    "Find the deal that pencils.\""""
+             econ: dict | None = None, depths: list[float] | None = None) -> dict[str, Any]:
+    """Generative design — sweep unit-mix presets × parking ratios (× optional **plate depths**), score
+    each on yield-on-cost and the development spread, filter by `targets` (min_units, min_efficiency,
+    max_parking_ratio, min_yoc), and rank. `econ`: rent_psf_yr, hard_psf, stall_cost, opex_ratio, land,
+    **stabilized_occ** (lease-up vacancy) and **exit_cap** (for the dev spread). Pass `depths=[…]` (or
+    `targets.sweep_depth=True` for an auto range) to make **daylight-limited leasable depth an optimize
+    objective** — the result then carries a `depth_curve` (best yield + daylight/core efficiency per
+    depth), surfacing where a plate stops paying for its own depth. Yield-on-cost and the spread use the
+    canonical proforma functions, so this generative screen stays consistent with the full underwriting.
+    "Find the deal that pencils — at the depth that pencils.\""""
     from .proforma import returns  # canonical YoC + dev-spread (untie from a proxy)
 
     t = targets or {}
     e = {"rent_psf_yr": 34.0, "hard_psf": 220.0, "stall_cost": 12_000.0, "opex_ratio": 0.35,
          "land": 0.0, "stabilized_occ": 0.93, "exit_cap": 0.05, **(econ or {})}
+    depth_set = depths if depths else (depth_range(plate_d) if t.get("sweep_depth") else [plate_d])
+    swept = len(depth_set) > 1
     candidates = []
-    for mix_name, mix in _PRESETS.items():
-        for pr in (0.5, 1.0, 1.5):
-            lay = layout(plate_w, plate_d, floors, mix)
-            m = lay["metrics"]
-            pk = parking(m["total_units"], pr)
-            nsf, gsf = m["total_nsf"], m["total_gsf"]
-            egi = nsf * e["rent_psf_yr"] * e["stabilized_occ"]      # effective gross income (vacancy)
-            noi = egi * (1 - e["opex_ratio"])
-            cost = gsf * e["hard_psf"] + pk["cost"] + e["land"]
-            yoc = round(returns.yield_on_cost(noi, cost), 4)
-            spread = round(returns.dev_spread(yoc, e["exit_cap"]) * 10000)   # basis points vs exit cap
-            candidates.append({
-                "name": f"{mix_name} · {pr:g}/unit pkg", "mix_preset": mix_name, "parking_ratio": pr,
-                "total_units": m["total_units"], "efficiency": m["efficiency"],
-                "total_nsf": nsf, "parking_stalls": pk["stalls"],
-                "noi": round(noi), "total_cost": round(cost),
-                "yield_on_cost": yoc, "dev_spread_bps": spread,
-            })
+    for pd in depth_set:
+        for mix_name, mix in _PRESETS.items():
+            for pr in (0.5, 1.0, 1.5):
+                lay = layout(plate_w, pd, floors, mix)
+                m = lay["metrics"]
+                pk = parking(m["total_units"], pr)
+                nsf, gsf = m["total_nsf"], m["total_gsf"]
+                egi = nsf * e["rent_psf_yr"] * e["stabilized_occ"]      # effective gross income (vacancy)
+                noi = egi * (1 - e["opex_ratio"])
+                cost = gsf * e["hard_psf"] + pk["cost"] + e["land"]
+                yoc = round(returns.yield_on_cost(noi, cost), 4)
+                spread = round(returns.dev_spread(yoc, e["exit_cap"]) * 10000)   # basis pts vs exit cap
+                name = f"{mix_name} · {pr:g}/unit pkg" + (f" · {pd:g}m deep" if swept else "")
+                candidates.append({
+                    "name": name, "mix_preset": mix_name, "parking_ratio": pr, "plate_d": round(pd, 1),
+                    "total_units": m["total_units"], "efficiency": m["efficiency"],
+                    "daylight_efficiency": m["daylight_efficiency"], "core_efficiency": m["core_efficiency"],
+                    "daylight_limited": lay["daylight_limited"], "core_depth_m": lay["core_depth_m"],
+                    "total_nsf": nsf, "parking_stalls": pk["stalls"],
+                    "noi": round(noi), "total_cost": round(cost),
+                    "yield_on_cost": yoc, "dev_spread_bps": spread,
+                })
     # filter by targets
     def passes(c: dict) -> bool:
         return (c["total_units"] >= t.get("min_units", 0)
@@ -210,9 +238,21 @@ def optimize(plate_w: float, plate_d: float, floors: int, targets: dict | None =
     feasible = [c for c in candidates if passes(c)]
     objective = t.get("objective", "yield_on_cost")
     feasible.sort(key=lambda c: c.get(objective, 0), reverse=True)
+    # per-depth best (the "form follows finance" curve) — the depth where yield peaks
+    curve = []
+    for pd in sorted(depth_set):
+        at = [c for c in feasible if c["plate_d"] == round(pd, 1)]
+        if at:
+            top = max(at, key=lambda c: c.get(objective, 0))
+            curve.append({"plate_d": round(pd, 1), "yield_on_cost": top["yield_on_cost"],
+                          "daylight_efficiency": top["daylight_efficiency"],
+                          "core_efficiency": top["core_efficiency"], "total_units": top["total_units"],
+                          "dev_spread_bps": top["dev_spread_bps"]})
+    best_depth = max(curve, key=lambda c: c.get(objective, 0))["plate_d"] if curve else None
     return {"considered": len(candidates), "feasible": len(feasible),
             "ranked": feasible[:8], "best": feasible[0] if feasible else None,
-            "objective": objective}
+            "objective": objective, "swept_depths": [round(d, 1) for d in sorted(depth_set)],
+            "depth_curve": curve, "best_depth_m": best_depth}
 
 
 def compare(plate_w: float, plate_d: float, floors: int, schemes: list[dict]) -> dict[str, Any]:

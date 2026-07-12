@@ -39,10 +39,11 @@ documented non-goals — nothing is blocking.** Ordered most-actionable first; p
 customer need. Each line ends with its archive source in parentheses for the full original spec.
 
 **① Generative-design & analysis depth — buildable now, pull up on customer need** *(the deepest, highest-value bucket)*
-- **Test Fit yield optimization** *(§A)* — make daylight-limited leasable depth an **optimize objective**
-  and sweep plate depth; add **core-efficiency** (elevator/stair core) to the yield score; **true
-  polygon-offset footprint** with parking + drive-aisle placement on the real parcel (A6 shipped shoelace
-  area; the offset/placement is the remainder).
+- **Test Fit yield optimization** *(§A)* — ✅ **DONE (v0.3.215)**: daylight-limited plate depth is now an
+  **optimize dimension** (`optimize(depths=…)` / `targets.sweep_depth`) returning a `depth_curve` +
+  `best_depth_m`, and a new **`core_efficiency`** metric scores the daylight-dark core; a "sweep plate
+  depth" toggle charts it in the Test Fit panel. *Remainder:* **true polygon-offset footprint** with
+  parking + drive-aisle placement on the real parcel (A6 shipped shoelace area; the offset/placement is next).
 - **Structural generative depth** *(§R3/§A)* — **per-floor column taper** and **lateral-core geometry**
   in the generated frame (the advisor picks the system + rough sizing today; this makes the geometry
   follow the load path floor-by-floor).

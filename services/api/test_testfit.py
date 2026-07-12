@@ -10,7 +10,9 @@ for f in ("./test_testfit.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
-from aec_api import test_fit as tf, dev_property as dp  # noqa: E402
+
+from aec_api import dev_property as dp
+from aec_api import test_fit as tf  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
 # --- unit-mix layout: double-loaded corridor, yield metrics ------------------
@@ -78,6 +80,7 @@ assert opt["feasible"] >= 1 and opt["best"], opt
 assert opt["best"]["yield_on_cost"] == max(c["yield_on_cost"] for c in opt["ranked"]), "best ranks top"
 # YoC + dev-spread now come from the canonical proforma functions (not a local proxy)
 from aec_api.proforma import returns as _ret  # noqa: E402
+
 b0 = opt["best"]
 assert b0["yield_on_cost"] == round(_ret.yield_on_cost(b0["noi"], b0["total_cost"]), 4), b0
 assert b0["dev_spread_bps"] == round((b0["yield_on_cost"] - 0.05) * 10000), b0   # vs default 5% exit cap
@@ -90,6 +93,27 @@ assert none_feasible["feasible"] == 0 and none_feasible["best"] is None, none_fe
 # objective switch: rank by units
 by_units = tf.optimize(40, 18, 6, targets={"objective": "total_units"})
 assert by_units["best"]["total_units"] == max(c["total_units"] for c in by_units["ranked"]), by_units
+
+# --- plate-depth sweep: daylight-limited depth as an optimize objective -------
+# core-efficiency: a shallow plate loses nothing to a dark core; a deep one does
+assert tf.layout(60, 16)["metrics"]["core_efficiency"] == 1.0, tf.layout(60, 16)["metrics"]
+assert tf.layout(60, 40)["metrics"]["core_efficiency"] < 1.0, tf.layout(60, 40)["metrics"]
+# no-sweep default is unchanged (backward compat): still 5×3 = 15 considered, single depth
+base = tf.optimize(40, 18, 6, targets={"min_units": 1})
+assert base["considered"] == 15 and base["swept_depths"] == [18.0] and len(base["depth_curve"]) == 1, base
+# explicit depth sweep → 15 per depth; a depth_curve; a best depth
+sweep = tf.optimize(40, 18, 6, targets={"min_units": 1}, depths=[16, 24, 40])
+assert sweep["considered"] == 45, sweep["considered"]                 # 3 depths × 5 presets × 3 parking
+assert sweep["swept_depths"] == [16.0, 24.0, 40.0], sweep["swept_depths"]
+assert len(sweep["depth_curve"]) == 3 and sweep["best_depth_m"] in (16.0, 24.0, 40.0), sweep["depth_curve"]
+# every candidate carries the daylight metrics now
+assert all("daylight_efficiency" in c and "core_efficiency" in c and "plate_d" in c for c in sweep["ranked"])
+# the shallow plate is more daylight-efficient than the deep one (form follows finance)
+curve = {c["plate_d"]: c for c in sweep["depth_curve"]}
+assert curve[16.0]["daylight_efficiency"] > curve[40.0]["daylight_efficiency"], curve
+# targets.sweep_depth=True auto-ranges the sweep
+auto = tf.optimize(40, 18, 6, targets={"min_units": 1, "sweep_depth": True})
+assert auto["considered"] > 15 and len(auto["depth_curve"]) >= 3, auto["swept_depths"]
 
 # --- property & tax summary ----------------------------------------------------
 ps = dp.summarize({"purchase_price": 15_744_700, "building_sf": 249_749, "land_sf": 598_668,

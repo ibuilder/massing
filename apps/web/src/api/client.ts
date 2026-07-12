@@ -2597,9 +2597,12 @@ export class ApiClient extends HttpCore {
     return this.json<{ best: string | null; schemes: { name: string; total_units: number; efficiency: number; daylight_efficiency: number; daylight_limited: boolean; total_nsf: number; total_gsf: number; avg_unit_sf: number; parking_stalls: number; mix: Record<string, number> }[]; egress?: EgressResult }>(
       "/test-fit/compare", { method: "POST", body: JSON.stringify(params) });
   }
-  /** Generative design: sweep schemes, filter by targets, rank by yield-on-cost. */
-  testFitOptimize(params: { plate_w: number; plate_d: number; floors: number; targets?: Record<string, number | string>; econ?: Record<string, number> }) {
-    return this.json<{ considered: number; feasible: number; objective: string; best: OptScheme | null; ranked: OptScheme[] }>(
+  /** Generative design: sweep schemes (× optional plate depths), filter by targets, rank by yield-on-cost.
+   * Pass `depths` or `targets.sweep_depth` to make daylight-limited plate depth an optimize dimension. */
+  testFitOptimize(params: { plate_w: number; plate_d: number; floors: number;
+    targets?: Record<string, number | string | boolean>; econ?: Record<string, number>; depths?: number[] }) {
+    return this.json<{ considered: number; feasible: number; objective: string; best: OptScheme | null;
+      ranked: OptScheme[]; swept_depths: number[]; depth_curve: DepthPoint[]; best_depth_m: number | null }>(
       "/test-fit/optimize", { method: "POST", body: JSON.stringify(params) });
   }
   /** Sources & Uses built from the project's cost budget (grouped uses vs sized debt + equity). */
@@ -2752,6 +2755,12 @@ export interface DevBudgetResponse {
 export interface OptScheme {
   name: string; mix_preset: string; parking_ratio: number; total_units: number;
   efficiency: number; total_nsf: number; parking_stalls: number; yield_on_cost: number;
+  plate_d?: number; daylight_efficiency?: number; core_efficiency?: number;
+  daylight_limited?: boolean; dev_spread_bps?: number;
+}
+export interface DepthPoint {
+  plate_d: number; yield_on_cost: number; daylight_efficiency: number;
+  core_efficiency: number; total_units: number; dev_spread_bps: number;
 }
 export interface SpecialtySummary {
   capex_total: number; annual_revenue: number; annual_opex: number;

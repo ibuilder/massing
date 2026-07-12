@@ -333,6 +333,7 @@ class OptimizeIn(BaseModel):
     targets: dict = Field(default_factory=dict)   # min_units, min_efficiency, max_parking_ratio, min_yoc, objective
     econ: dict = Field(default_factory=dict)       # rent_psf_yr, hard_psf, stall_cost, opex_ratio, land
     pid: str | None = None                         # if set, pull live project land + hard $/sf (U6)
+    depths: list[float] | None = None              # sweep these plate depths (m); or targets.sweep_depth
 
 
 @router.post("/test-fit/optimize")
@@ -353,7 +354,8 @@ def test_fit_optimize(body: OptimizeIn, db: Session = Depends(get_db)):
             for ln in ((p.dev_budget or {}).get("lines") or []):
                 if ln.get("category") == "hard" and ln.get("unit_cost") and ln.get("quantity", 1) and "sf" in (ln.get("description") or "").lower():
                     econ.setdefault("hard_psf", float(ln["unit_cost"])); break
-    return tf.optimize(body.plate_w, body.plate_d, body.floors, body.targets, econ)
+    depths = [d for d in (body.depths or []) if d and d > 0] or None
+    return tf.optimize(body.plate_w, body.plate_d, body.floors, body.targets, econ, depths=depths)
 
 
 @router.post("/generate/massing/preview")
