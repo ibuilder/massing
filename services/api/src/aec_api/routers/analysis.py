@@ -214,6 +214,42 @@ def layout_verify(pid: str, body: dict = Body(default={}), db: Session = Depends
     return lay.verify(pts, measured, float(body.get("tolerance_m", 0.02)))
 
 
+# --- Wave 8 ③b: schedule-linked verified-as-built progress ----------------------------------------
+def _index_elements(pid: str) -> list[dict]:
+    """The published element index (guid, ifc_class, storey) for the verified-progress rollup."""
+    import json
+    try:
+        return json.loads(storage.get(f"{pid}/props.json")).get("elements", [])
+    except Exception:                                  # noqa: BLE001 — no published index yet
+        return []
+
+
+@router.get("/projects/{pid}/verified-progress")
+def verified_progress_index(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Roll element-level field verification up to each schedule activity: verified-in-place % vs the
+    claimed % complete, with the trust gap (claimed − verified) worst-first. No model parse — reads the
+    published element index + the field_verification / schedule_activity records."""
+    from .. import verified_progress
+    return verified_progress.index(db, pid, _index_elements(pid))
+
+
+@router.post("/projects/{pid}/verified-progress/from-layout")
+def verified_progress_from_layout(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                                  actor: str = Depends(require_role("editor"))):
+    """Run the as-installed layout check (`{measured, tolerance_m?, classes?}`) and create a
+    field_verification record per checked point — in-tolerance → verified, out-of-tolerance → deviated,
+    each anchored to its element GlobalId. Then returns the refreshed verified-progress rollup."""
+    from .. import rbac, verified_progress
+    lay, pts = _layout_points(db, pid, body.get("classes"))
+    measured = body.get("measured") or []
+    if not isinstance(measured, list):
+        raise HTTPException(422, "measured must be a list of {number,e,n,z}")
+    vr = lay.verify(pts, measured, float(body.get("tolerance_m", 0.02)))
+    seeded = verified_progress.seed_from_layout(db, pid, vr, actor, rbac.party_role_for(db, pid, actor))
+    return {"seeded": seeded, "verify": {k: vr[k] for k in ("checked", "in_tolerance", "out_of_tolerance")},
+            "progress": verified_progress.index(db, pid, _index_elements(pid))}
+
+
 # --- Wave 8 ④: preliminary gravity load takedown + ASCE 7 combinations ---------------------------
 @router.get("/projects/{pid}/loads/defaults")
 def loads_defaults(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):

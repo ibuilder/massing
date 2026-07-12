@@ -2082,6 +2082,31 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             });
           });
         }));
+        b.appendChild(toolBtn2("✅ Verified-as-built progress", () => withLoading(container, "Rolling up verified progress", async () => {
+          let r;
+          try { r = await api.verifiedProgress(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          if (!r.elements_total) {
+            toast("No verified elements yet — run the layout check or log Field Verification records", "info");
+            out.textContent = "no verified elements"; return;
+          }
+          out.textContent = `verified ${r.verified_pct}% · gap ${r.trust_gap}`;
+          showResult("Verified-as-built progress", (body) => {
+            const tone = r!.trust_gap > 10 ? "bad" : r!.trust_gap <= 0 ? "ok" : "";
+            body.appendChild(resultNote(`<b>${r!.verified_pct}%</b> verified in place vs <b>${r!.claimed_pct}%</b> `
+              + `claimed — trust gap <b>${r!.trust_gap} pts</b>. ${r!.elements_verified}/${r!.elements_total} elements `
+              + `verified, ${r!.elements_deviated} deviated (coverage ${r!.coverage_pct}%).`, tone));
+            body.appendChild(kvTable(r!.activities.slice(0, 12).map((a) => ({
+              k: `${a.activity}${a.trade ? ` · ${a.trade}` : ""}`,
+              v: `verified ${a.verified_pct}% / claimed ${a.planned_pct ?? 0}% · gap ${a.trust_gap} (${a.verified}/${a.elements}${a.deviated ? `, ${a.deviated} dev` : ""})`,
+            }))));
+            const note = document.createElement("div"); note.className = "meta";
+            note.style.cssText = "margin-top:8px;font-size:11px";
+            note.textContent = "Trust gap = claimed − verified %. Verified from Field Verification records (or the "
+              + "layout as-installed check), rolled up to each schedule activity by GlobalId. Full report: Report Center → Verified-as-built Progress.";
+            body.appendChild(note);
+          });
+        })));
         b.appendChild(toolBtn2("📐 Alignment check (storey + origin)", () => withLoading(container, "Checking model alignment", async () => {
           let r;
           try { r = await api.modelAlignment(pid); }

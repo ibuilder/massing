@@ -1051,6 +1051,15 @@ export class ApiClient extends HttpCore {
       combinations: { governing_lrfd: { combo: string; kips: number }; governing_asd: { combo: string; kips: number } };
       disclaimer: string }>(`/projects/${pid}/loads/takedown`, { method: "POST", body: JSON.stringify(params) });
   }
+  /** Verified-as-built vs claimed progress per schedule activity + the overall trust gap (③b). */
+  verifiedProgress(pid: string) {
+    return this.json<{ elements_total: number; elements_verified: number; elements_deviated: number;
+      verified_pct: number; claimed_pct: number; trust_gap: number; coverage_pct: number;
+      verification_records: number;
+      activities: { ref: string; activity: string; trade: string | null; elements: number; verified: number;
+        deviated: number; verified_pct: number; planned_pct: number | null; trust_gap: number }[] }>(
+      `/projects/${pid}/verified-progress`);
+  }
   /** Discipline quantity roll-up — reinforcement tonnage, MEP linear runs, structural volume. */
   disciplineQuantities(pid: string) {
     return this.json<{ rebar: { count: number; weight_kg: number; tonnes: number; estimated: boolean };

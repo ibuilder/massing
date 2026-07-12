@@ -6,15 +6,18 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.196**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.210**.
 
-> **Both the product feature roadmap AND the code-quality/hardening initiative are effectively cleared.**
-> Every headline feature theme shipped (generative design + Test Fit, developer/finance portal, full
-> acquisition→turnover lifecycle, openBIM standards, AI-over-model, discipline spine, operations/
-> resilience, scan-to-BIM + 2D→BIM), and the four-domain hardening audit shipped as Waves 1–7
-> (observability, perf/scale, type boundary, modularization, reproducibility/ops, strictness + Docker).
-> **The complete list of what remains — one env-blocked ops task, optional feature depth, and
-> upstream-blocked items — is the single "What's left" section below.** Everything under "Shipped
+> **The product feature roadmap, the code-quality/hardening initiative, AND the Wave 8 field-research
+> upgrades are all effectively cleared.** Every headline feature theme shipped (generative design + Test
+> Fit, developer/finance portal, full acquisition→turnover lifecycle, openBIM standards, AI-over-model,
+> discipline spine, operations/resilience, scan-to-BIM + 2D→BIM); the four-domain hardening audit shipped
+> as Waves 1–7 (observability, perf/scale, type boundary, modularization, reproducibility/ops, strictness
+> + Docker); and **Wave 8** (2026 field scan) shipped six of seven tracks — clash-coordination
+> intelligence, model→field layout, load takedown, model hygiene, the CEP generator, Gaussian-splat
+> reality capture, and schedule-linked verified-as-built progress (v0.3.203–210). **The complete list of
+> what remains — deferred-by-decision integrations, upstream-blocked items, an optional UX/perf backlog,
+> and documented non-goals — is the single "What's left" section below.** Everything under "Shipped
 > archive" is historical reference only.
 
 ---
@@ -56,41 +59,79 @@ Full proposal (ranked, with file evidence): https://claude.ai/code/artifact/aabd
 
 ## ⏳ What's left — the whole open roadmap, prioritized
 
-Everything not shipped, in one place. The product features and the code-quality/hardening initiative
-(Waves 1–7 above) are done; what remains is **one env-blocked ops task, optional feature depth, two
-upstream-blocked items, and one intentional non-goal.**
+**Everything not shipped, consolidated in one place** (this section is the current backlog; all
+historically-deferred items across the archive below have been pulled up here). The product features, the
+code-quality/hardening initiative (Waves 1–7), and Wave 8 (six of seven tracks) are done. What remains is
+**one deferred-by-decision integration, two upstream-blocked items, an optional UX/perf backlog, optional
+feature depth, and documented non-goals.** Nothing here is blocking; pull an item up on a real customer need.
 
-**① Actionable next**
-- ✅ **DONE — B2 hashed `pip-compile` lockfiles** (v0.3.198). `requirements.in` → `requirements.lock`
-  (pinned + sha256-hashed) compiled by `lockfile.yml` inside `python:3.12-slim`; API Dockerfile + CI test
-  gate install `--require-hashes` (rejects substituted wheels). One lock covers the data-service subset +
-  `psycopg[binary]`; the workflow gates pushes on a stale lock.
+**① Deferred by decision — integrate, don't build (pursue on customer pull)**
+- **Wave 8 ⑦ — compliant syndication / investor-management depth.** From the two tokenization briefs. The
+  regulated stack (KYC/accreditation, transfer-agent recordkeeping, Reg-D engine, escrow, the token) is
+  **not** built in-house — it's licensed, counsel-gated work outside our risk appetite. Massing stays the
+  **origination front-end** (deal, IFC model, proforma, JV waterfall, read-only cap-table) and hands the
+  regulated pieces to a licensed platform via a **thin connector** (Securitize Connect API + Securitize iD
+  KYC/KYB/AML + Transfer-Agent-as-a-Service), same "connectors OK, we never move money" posture as our
+  Procore/QuickBooks bridges. Build the connector only when a customer actually needs to raise/syndicate.
+  ⚖️ *Not legal advice; the partner is the licensed entity.* (See Wave 8 ⑦ below for the full decision.)
 
-**② Feature depth — pull up on a specific customer need (optional, not blocking)**
-- ✅ **DONE — Accounting interop depth (the old "Interop-I").** Two halves, both shipped:
-  **(1)** approval-gated journal export batch (v0.3.199) — freeze GL/journal/trial-balance into a
-  `journal_batch` snapshot that moves `draft → submitted → approved → exported`; GL-CSV/IIF export is
-  409 until approved. **(2)** model-quantity-derived WIP % (v0.3.200) — physical percent-complete from
-  installed model elements ÷ total **by IFC GlobalId** (units-installed output method), optionally
-  quantity-weighted; `wip.schedule` gains a `method` + a `model` cross-check block (physical vs cost POC
-  divergence). Builds on `traceability.py` + `verification` install-coverage.
-- **Exploratory parking lot.** Test Fit yield-optimization depth · underwriting realism · built-world
-  construction techniques · materials/rendering & computational design. Detail preserved in the archive
-  below; pull one up only if a customer need surfaces.
-
-**③ Blocked upstream — revisit when the dependency lands**
-- **IFC5 / IFCX write-path** — read path shipped; the write path waits on web-ifc/Fragments IFC5 support.
+**② Blocked upstream — revisit when the dependency lands**
+- **IFC5 / IFCX write-path** — the read path shipped (JSON→element-index parser); the write path waits on
+  web-ifc / Fragments IFC5 support. Track buildingSMART; adopt when it moves past alpha.
 - **Native mobile shell** — a **Capacitor wrapper** (needs a macOS/Xcode + Android-SDK pipeline); the app
   already ships as an installable offline PWA with field capture. See [mobile.md](mobile.md).
 
-**④ Intentional non-goal — documented rationale (not a gap)**
+**③ Optional UX / performance / productivity backlog (Part C — approve item-by-item)**
+Candidate polish from the Design-workspace pass; none scheduled, pull up as the app grows:
+- **Nav density** — per-stage collapse memory + a denser dashboard summary for the multi-card panels.
+- **Role landing dashboards** — extend the Design-home command-center pattern to the Finance and Developer
+  personas (Design home shipped; the other two are the remainder).
+- **Viewer-tool discoverability** — a first-class "Model health" surface with live scores (Data QA,
+  code-readiness, clash, IDS, model hygiene are today spread across the Model Tools rail).
+- **Cross-workspace deep-links** — RFI → drawing → model element; saved views per role; ⌘K scoped to the
+  active workspace.
+- **A11y** — keep verifying new tabs/dashboards (roles, focus order, contrast) as workspaces grow.
+- *(Front-end perf split of `portal.ts` — ✅ done: 14 per-domain panel modules under `portal/panels/`.)*
+
+**④ Optional feature depth — pull up on a specific customer need**
+- **E57 polish** — deepen the existing `e57.py` reality-capture importer (small, self-contained).
+- **Exploratory parking lot** — Test Fit yield-optimization depth · underwriting realism · built-world
+  construction techniques · materials/rendering & computational design. Detail preserved in the archive
+  sections (A / U / R / M) below; pull one up only if a customer need surfaces.
+
+**⑤ Intentional non-goals — documented rationale (not gaps)**
 - **A4/A5 portal-core split** — the catalog↔nav orchestration is deliberately coupled (favorites ↔ nav ↔
-  persona events ↔ in-place DOM refresh); further mechanical extraction adds indirection over
-  readability. The cleanly-separable pieces are already out (Wave 5).
+  persona events ↔ in-place DOM refresh); further mechanical extraction trades readability for indirection.
+  The cleanly-separable pieces are already out (Wave 5).
+- **Out-of-scope-by-design operations integrations** — live ENERGY STAR / BAS / BMS integrations (flagged
+  stubs only), full institutional reporting packs, space/move management (CAFM), 1031 tooling, and a
+  JWT-revocation blacklist + Redis-backed presence (known limits, tracked in PRODUCTION_CHECKLIST). These
+  are deliberate boundaries, not backlog.
+
+**Recently cleared (were on this list):** B2 hashed `pip-compile` lockfiles (v0.3.198) · accounting interop
+depth — approval-gated journal-export batch (v0.3.199) + model-quantity-derived WIP % by GlobalId (v0.3.200)
+· the entire Wave 8 build set ①–⑥ + ③b (v0.3.203–210).
 
 ---
 
-## ☆ Wave 8 — 2026 field-research upgrades (proposed)
+## ☆ Wave 8 — 2026 field-research upgrades (6 of 7 SHIPPED, v0.3.203–210)
+
+> **Status:** ① clash-coordination intelligence (v0.3.203) · ② model→field layout (v0.3.204) · ④ load
+> takedown (v0.3.205) · ⑤ model hygiene (v0.3.206) · ⑥ CEP generator (v0.3.207) · ③(a) Gaussian-splat
+> reality capture (v0.3.208) · ③(b) verified-as-built progress (v0.3.210) — **all shipped.** Only ⑦
+> (compliant syndication) is open, and it is **deferred by decision to a licensed-platform connector**
+> (see the top "What's left" section). The per-track detail below is retained for reference.
+
+**Field scan #2 — coverage validation (pics8, 2026-07).** A second 11-image industry-reference scan (LOD
+100–500 ×3, IFC-vs-Shop-vs-As-Built drawings, PMBOK PM domains, the BIM 3D→7D master guide, the PM
+strategy→benefits delivery workflow ×2, "one model, every discipline", the clash-resolution workflow, and
+the 10-part CEP) was reviewed for new opportunities. **Result: no new tracks — every theme already ships**
+(LOD matrix; submittals/drawing-set/as-built + verified-as-built; risk/stakeholder/quality/cost/schedule/
+procurement/closeout; all 7 BIM dimensions incl. 5D cost + 6D carbon/ESG + 7D CMMS/twin; project-health +
+portfolio; discipline spine + federation; Wave 8 ① clash coordination; Wave 8 ⑥ CEP). Shop drawings are
+covered as a `submittal` type ("Shop Drawing"). The only micro-observation: a distinct **FF&E / interiors**
+discipline (today folded into architectural finishes) — noted as *optional-only*, not a track. This scan is
+a confirmation that platform breadth matches the reference material, not a backlog addition.
 
 Sourced from a July-2026 field scan: 14 industry reference sheets (structural loads, LOD, BuiltWorlds
 Robotics Top-50, PMO/EPMO, BIM Control Stack, Revit-mistakes, ISO-19650 delivery, a 4-part clash
@@ -134,9 +175,13 @@ already load; delivered via `@mkkellogg/gaussian-splats-3d` (MIT), lazy-loaded a
 the app-shell bundle), offline (bundled inline sort worker, in-memory object URL — no CDN), routed through
 the existing reference-overlay flow (`.splat` / `.ksplat`, plus splat-PLY content detection) with worker
 teardown on removal; the permissive capture path is `gsplat`/Nerfstudio (Apache-2.0) — *avoid the original
-Inria 3DGS (non-commercial)*. (b) Turn our **deviation heatmap into
-progress**: per-element capture/verification state + % complete tied to schedule tasks, emitted as BCF —
-the OpenSpace/Disperse/Buildots value proposition, pure software for us. Add **E57 polish** on the
+Inria 3DGS (non-commercial)*. **Part (b) SHIPPED v0.3.210** — `field_verification` module (per-element,
+GlobalId-anchored, workflow = verification state) + `verified_progress.py` roll element verification up to
+each schedule activity as **verified-in-place % vs claimed %** with the **trust gap** (the OpenSpace /
+Disperse / Buildots value proposition, pure software for us); `seed_from_layout` turns an as-installed
+`layout.verify` result into verification records; viewer tool + Report Center report. Original brief:
+Turn our **deviation heatmap into progress** — per-element capture/verification state + % complete tied
+to schedule tasks. Add **E57 polish** on the
 existing `e57.py`. Automated point-cloud→IFC (**Cloud2BIM is GPL-3.0**) stays an optional *out-of-process*
 converter, never linked into the core.
 

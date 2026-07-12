@@ -252,6 +252,39 @@ def _spec_submittal_log(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _verified_progress(db: Session, pid: str, name: str) -> Report:
+    """Verified-as-built vs. claimed progress per schedule activity, with the trust gap (claimed −
+    verified) worst-first — the "we've physically verified X% of what you're reporting as done" report."""
+    import json
+
+    from .. import storage, verified_progress
+    try:
+        elements = json.loads(storage.get(f"{pid}/props.json")).get("elements", [])
+    except Exception:            # noqa: BLE001 — no published index
+        elements = []
+    p = verified_progress.index(db, pid, elements)
+    r = Report("Verified-as-built Progress", name)
+    r.kpi("Elements linked", p["elements_total"])
+    r.kpi("Verified in place", p["elements_verified"])
+    r.kpi("Deviated", p["elements_deviated"])
+    r.kpi("Verified %", f"{p['verified_pct']}%")
+    r.kpi("Claimed %", f"{p['claimed_pct']}%")
+    r.kpi("Trust gap", f"{p['trust_gap']} pts")
+    r.kpi("Coverage", f"{p['coverage_pct']}%")
+    if p["activities"]:
+        top = p["activities"][:20]
+        r.chart("bar", "Verified vs claimed (by activity)", [a["activity"][:24] for a in top],
+                [{"name": "Verified %", "values": [a["verified_pct"] for a in top]},
+                 {"name": "Claimed %", "values": [a["planned_pct"] or 0 for a in top]}])
+    r.table("Activity verification (worst trust gap first)",
+            ["Activity", "Trade", "Elements", "Verified", "Deviated", "Verified %", "Claimed %", "Trust gap"],
+            [[a["activity"], a.get("trade") or "", a["elements"], a["verified"], a["deviated"],
+              f"{a['verified_pct']}%", f"{a['planned_pct'] or 0}%", f"{a['trust_gap']}"]
+             for a in p["activities"]] or [["(no verified elements yet — run the layout check or log field "
+                                            "verifications)"] + [""] * 7])
+    return r
+
+
 def _cep(db: Session, pid: str, name: str) -> Report:
     """Construction Execution Plan (CEP) — the GC counterpart to the BEP: a produced governance document
     that states HOW the project is built, assembled live from the construction modules and summary

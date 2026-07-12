@@ -65,6 +65,7 @@ from .report_builders import (
     _stakeholder_analysis,
     _submittal_register,
     _tm_log,
+    _verified_progress,
     _wip,
 )
 
@@ -120,6 +121,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "bim_kpi": ("BIM KPI Scorecard (ISO 19650)", "Quality"),
     "bep": ("BIM Execution Plan (BEP, ISO 19650)", "Quality"),
     "cep": ("Construction Execution Plan (CEP)", "Quality"),
+    "verified_progress": ("Verified-as-built Progress", "Field"),
     "lod": ("LOD Matrix & Coverage", "Quality"),
     "naming": ("Naming Convention Compliance", "Quality"),
     "document_control": ("Document Control Health", "Quality"),
@@ -139,7 +141,7 @@ def catalog() -> list[dict[str, str]]:
 # report key → builder. Data-driven dispatch (was a ~90-line if/elif ladder): adding a report is now
 # one registry line, and `catalog()`/`build()` can't drift out of sync with each other.
 _BUILDERS: dict[str, Callable[[Session, str, str], Report]] = {
-    "bep": _bep, "cep": _cep, "design_options": _design_options, "design_standards": _design_standards,
+    "bep": _bep, "cep": _cep, "verified_progress": _verified_progress, "design_options": _design_options, "design_standards": _design_standards,
     "mep": _mep, "resource_loading": _resource_loading, "envelope": _envelope,
     "productivity": _productivity, "lod": _lod, "document_control": _document_control,
     "market_intelligence": _market_intelligence, "naming": _naming, "appraisal": _appraisal,

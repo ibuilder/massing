@@ -1,0 +1,34 @@
+{
+  "key": "field_verification",
+  "name": "Field Verification",
+  "section": "Field",
+  "icon": "✅",
+  "ref_prefix": "FV",
+  "title_field": "element",
+  "pinnable": true,
+  "workspace": "construction",
+  "fields": [
+    {"name": "guid", "label": "Element GlobalId", "type": "text", "required": true, "fieldset": "Element"},
+    {"name": "element", "label": "Element", "type": "text", "fieldset": "Element"},
+    {"name": "ifc_class", "label": "IFC Class", "type": "text", "fieldset": "Element"},
+    {"name": "deviation_mm", "label": "Deviation (mm)", "type": "number", "fieldset": "As-built"},
+    {"name": "method", "label": "Method", "type": "select",
+     "options": ["Total station", "Reality capture", "Point cloud", "Visual", "CV"], "fieldset": "As-built"},
+    {"name": "activity", "label": "Schedule Activity", "type": "reference", "module": "schedule_activity", "fieldset": "As-built"},
+    {"name": "observed_date", "label": "Observed", "type": "date", "fieldset": "As-built"},
+    {"name": "photo", "label": "Photo", "type": "file", "fieldset": "As-built"},
+    {"name": "note", "label": "Note", "type": "textarea", "fieldset": "As-built"}
+  ],
+  "workflow": {
+    "initial": "captured",
+    "states": ["captured", "verified", "deviated", "resolved"],
+    "transitions": [
+      {"from": "captured", "to": "verified", "action": "verify", "party": ["GC", "Subcontractor", "Consultant"]},
+      {"from": "captured", "to": "deviated", "action": "flag", "party": ["GC", "Subcontractor", "Consultant"]},
+      {"from": "deviated", "to": "resolved", "action": "resolve", "party": ["GC", "Subcontractor"]},
+      {"from": "verified", "to": "captured", "action": "reopen", "party": ["GC", "Consultant"]},
+      {"from": "resolved", "to": "verified", "action": "accept", "party": ["GC", "Consultant"]}
+    ]
+  },
+  "list_columns": ["ifc_class", "method", "deviation_mm"]
+}

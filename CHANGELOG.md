@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.210 — Wave 8 ③(b): schedule-linked verified-as-built progress (the trust gap)
+Closes the last buildable Wave 8 item. Instead of trusting a self-reported "% complete", Massing now
+rolls **element-level field verification** up to each schedule activity and surfaces the **trust gap** —
+where the claimed percentage runs ahead of what has actually been verified in place (the OpenSpace /
+Disperse / Buildots value proposition, done as pure software over the model we already hold). New:
+- **`field_verification` module** — one GlobalId-anchored record per element, workflow = the verification
+  state (`captured → verified / deviated → resolved`), with deviation (mm), method, photo and a link to
+  its schedule activity.
+- **`verified_progress.py` engine** — maps every element to the activity that builds it (the same hard-tie
+  or class→trade→floor resolution as the 5D map), then computes per-activity **verified-in-place %** vs
+  **claimed %** and the trust gap, worst-over-claim first, plus overall coverage. `seed_from_layout` turns
+  an as-installed `layout.verify` result straight into verification records (in-tolerance → verified,
+  out-of-tolerance → deviated); `layout.verify` now also returns the full per-point deviation list.
+- **Endpoints** `GET …/verified-progress` + `POST …/verified-progress/from-layout`; a viewer tool
+  **✅ Verified-as-built progress** (verified % vs claimed, trust gap, per-activity breakdown); a Report
+  Center report **Verified-as-built Progress** (PDF + Excel, verified-vs-claimed chart). `test_verified_progress`
+  covers the rollup math (claimed 80 % but 2/4 verified → 50 % verified, +30 trust gap), the class→trade
+  fallback, the layout seeding, and the HTTP endpoint.
+
 ## v0.3.209 — Docs: Wave 8 in the in-app tutorial + the guide
 Now that the Wave 8 field upgrades have shipped, the onboarding and guide teach them. `docs/guide.html`
 gains **Tutorial 🛰️ · Coordinate, lay out & walk the as-built** (six steps: coordinate clashes into

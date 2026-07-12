@@ -211,6 +211,7 @@ def verify(design: list[dict], measured: list[dict], tolerance_m: float = 0.02) 
                      "measured": {"e": round(mv[0], 4), "n": round(mv[1], 4), "z": round(mv[2], 4)}})
     out = [d for d in devs if not d["in_tolerance"]]
     return {"tolerance_m": tolerance_m, "checked": len(devs), "in_tolerance": len(devs) - len(out),
-            "out_of_tolerance": out, "max_deviation_m": max((d["deviation_m"] for d in devs), default=0.0),
+            "out_of_tolerance": out, "deviations": devs,
+            "max_deviation_m": max((d["deviation_m"] for d in devs), default=0.0),
             "note": "As-installed vs design setout by Point-№. Points out of tolerance should be raised "
                     "as field-verification issues (BCF), anchored to the element GlobalId."}
