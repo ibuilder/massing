@@ -90,8 +90,11 @@ Candidate polish from the Design-workspace pass; none scheduled, pull up as the 
   scores.** `model_health.py` composes the scattered checks (hygiene, ISO 19650 KPIs, clash coordination,
   verified-as-built) into one 0–100 composite with graded per-lens drill-downs; `GET …/models/health`, a
   **🩺 Model Health** viewer tool heading the model-quality group, and a Report Center scorecard.
-- **Cross-workspace deep-links** — RFI → drawing → model element; saved views per role; ⌘K scoped to the
-  active workspace.
+- ✅ **DONE (v0.3.212) — Cross-workspace deep-links (record ↔ model element, both directions).** The
+  forward direction (record → "👁 Show in model") already shipped; the **reverse** now does too —
+  `traceability.element_records` + `GET …/elements/{guid}/records` + a **🔗 Linked records** section in the
+  viewer's on-selection inspector, so selecting an element surfaces every record (RFI/issue/CO/verification/
+  activity) tied to it. (⌘K + saved-views-per-role already shipped.)
 - **A11y** — keep verifying new tabs/dashboards (roles, focus order, contrast) as workspaces grow.
 - *(Front-end perf split of `portal.ts` — ✅ done: 14 per-domain panel modules under `portal/panels/`.)*
 
@@ -131,9 +134,10 @@ the 10-part CEP) was reviewed for new opportunities. **Result: no new tracks —
 (LOD matrix; submittals/drawing-set/as-built + verified-as-built; risk/stakeholder/quality/cost/schedule/
 procurement/closeout; all 7 BIM dimensions incl. 5D cost + 6D carbon/ESG + 7D CMMS/twin; project-health +
 portfolio; discipline spine + federation; Wave 8 ① clash coordination; Wave 8 ⑥ CEP). Shop drawings are
-covered as a `submittal` type ("Shop Drawing"). The only micro-observation: a distinct **FF&E / interiors**
-discipline (today folded into architectural finishes) — noted as *optional-only*, not a track. This scan is
-a confirmation that platform breadth matches the reference material, not a backlog addition.
+covered as a `submittal` type ("Shop Drawing"). The one micro-observation — **FF&E / furnishings** — was
+folded in additively (v0.3.212): the furnishing IFC classes now classify to MasterFormat Division 12, so
+FF&E takes off and procures correctly without a risky discipline-taxonomy change. Otherwise this scan is a
+confirmation that platform breadth matches the reference material, not a backlog addition.
 
 Sourced from a July-2026 field scan: 14 industry reference sheets (structural loads, LOD, BuiltWorlds
 Robotics Top-50, PMO/EPMO, BIM Control Stack, Revit-mistakes, ISO-19650 delivery, a 4-part clash

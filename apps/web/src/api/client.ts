@@ -1060,6 +1060,13 @@ export class ApiClient extends HttpCore {
         deviated: number; verified_pct: number; planned_pct: number | null; trust_gap: number }[] }>(
       `/projects/${pid}/verified-progress`);
   }
+  /** Reverse deep-link — every record across pinnable modules tied to this element by GlobalId. */
+  elementRecords(pid: string, guid: string) {
+    return this.json<{ guid: string; total: number;
+      modules: { module: string; module_name: string; icon: string; count: number;
+        records: { ref: string | null; title: string; id: number; state: string | null }[] }[] }>(
+      `/projects/${pid}/elements/${encodeURIComponent(guid)}/records`);
+  }
   /** Composite Model Health scorecard — one score over hygiene + ISO 19650 KPIs + clash + verified. */
   modelHealth(pid: string) {
     return this.json<{ overall_score: number | null; band: string; scored_lenses: number; model_available: boolean;

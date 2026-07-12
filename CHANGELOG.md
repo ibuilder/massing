@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.212 — Cross-workspace deep-link (element → linked records) + FF&E classification
+Two roadmap items. **(1) Reverse deep-link — element → linked records.** The portal already had the
+forward direction (a record's "👁 Show in model" selects its tagged elements); the reverse was missing.
+New `traceability.element_records(db, pid, guid)` scans every **pinnable** module and returns the records
+tied to an element by GlobalId (its `element_guids` tag or `data.guid`) — RFIs, coordination issues,
+change orders, field verifications, schedule activities, etc. — grouped by module. `GET
+…/elements/{guid}/records`; the viewer's on-selection inspector now shows a **🔗 Linked records (N)**
+section beside the 5D cost breakdown, so selecting an element in 3D surfaces every record that touches it.
+Completes the record↔element round-trip. **(2) FF&E classification** (from the pics8 field scan): the
+furnishing IFC classes (`IfcFurniture`, `IfcFurnishingElement`, `IfcSystemFurnitureElement`) now classify
+to **MasterFormat Division 12 (Furniture / Furnishings — FF&E)**, so furniture takes off and procures
+correctly — additive, no discipline-taxonomy change. `test_element_records` covers the cross-module
+reverse lookup (a field-verification + an RFI on one element found across both modules) + the FF&E mapping.
+
 ## v0.3.211 — Model Health: one composite score over every model-quality check
 The model-quality checks were spread across the Model Tools rail — Data QA, ISO 19650 KPIs, clash
 coordination, verified-as-built — so a coordinator had to open four tools to know where the model stands.

@@ -153,6 +153,15 @@ def element_costs(pid: str, guid: str, db: Session = Depends(get_db), _: str = D
     return traceability.element_costs(db, pid, guid)
 
 
+@router.get("/projects/{pid}/elements/{guid}/records")
+def element_records(pid: str, guid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Reverse deep-link — every record across all pinnable modules (RFIs, coordination issues, change
+    orders, field verifications, schedule activities, …) tied to this IFC element by GlobalId. Closes the
+    round-trip with the portal's record→element "show in model" direction."""
+    from .. import traceability
+    return traceability.element_records(db, pid, guid)
+
+
 @router.get("/projects/{pid}/subcontractor-billing")
 def subcontractor_billing(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Subcontractor billing — the GC-pays-subs mirror of owner billing. Each subcontract's pay

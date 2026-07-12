@@ -63,6 +63,32 @@ def element_costs(db: Session, pid: str, guid: str) -> dict[str, Any]:
             "note": "Every budget / commitment / direct-cost / sub-invoice line tagged to this GlobalId."}
 
 
+def element_records(db: Session, pid: str, guid: str) -> dict[str, Any]:
+    """Reverse deep-link: every record across all pinnable modules that references this IFC element by
+    GlobalId — the RFIs, coordination issues, change orders, field verifications, schedule activities,
+    etc. tied to it. Closes the round-trip with the portal's "show in model" (record→element) direction:
+    now selecting an element in the viewer surfaces the records that touch it."""
+    groups: list[dict] = []
+    total = 0
+    for key in sorted(me.TABLES):
+        mod = me.REGISTRY.get(key) or {}
+        if not mod.get("pinnable"):                    # element tags live on pinnable modules
+            continue
+        hits = []
+        for r in me.list_records(db, key, pid, limit=100_000):
+            d = r.get("data") or {}
+            if guid in (r.get("element_guids") or []) or d.get("guid") == guid:
+                hits.append({"ref": r.get("ref"), "title": r.get("title") or "", "id": r.get("id"),
+                             "state": r.get("workflow_state")})
+        if hits:
+            groups.append({"module": key, "module_name": mod.get("name", key), "icon": mod.get("icon", "📄"),
+                           "count": len(hits), "records": hits[:50]})
+            total += len(hits)
+    groups.sort(key=lambda g: g["count"], reverse=True)
+    return {"guid": guid, "total": total, "modules": groups,
+            "note": "Records across pinnable modules tied to this GlobalId (by element_guids or data.guid)."}
+
+
 def summary(db: Session, pid: str) -> dict[str, Any]:
     """Cost traceability coverage — traceable (tagged to model elements) vs untraceable, per cost code."""
     lines = _lines(db, pid)

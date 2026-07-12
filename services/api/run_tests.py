@@ -26,7 +26,7 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_bundle", "test_desktop", "test_localmode", "test_project_budget", "test_rvt_bridge",
          "test_bcf", "test_engines", "test_edge_cases", "test_opendata", "test_financials", "test_money",
          "test_migrate", "test_appraisal", "test_marketing", "test_workflow_gate", "test_due_feed", "test_directory",
-         "test_ask", "test_verification", "test_webhooks", "test_operate_capital", "test_payroll_drawings", "test_assistant_itb", "test_construction_depth", "test_distribution", "test_e57", "test_empty_project", "test_metrics", "test_licensing", "test_revit_bridge", "test_precon", "test_specs", "test_feasibility", "test_clash_import", "test_clash_intel", "test_layout", "test_loads", "test_verified_progress", "test_imports", "test_search_alerts", "test_attachments",
+         "test_ask", "test_verification", "test_webhooks", "test_operate_capital", "test_payroll_drawings", "test_assistant_itb", "test_construction_depth", "test_distribution", "test_e57", "test_empty_project", "test_metrics", "test_licensing", "test_revit_bridge", "test_precon", "test_specs", "test_feasibility", "test_clash_import", "test_clash_intel", "test_layout", "test_loads", "test_verified_progress", "test_element_records", "test_imports", "test_search_alerts", "test_attachments",
          # previously not wired into the gate (glob would have caught these) — now covered:
          "test_analytics", "test_discipline", "test_gbxml", "test_review", "test_interop",
          "test_module_config", "test_module_schema", "test_throttle", "test_route_order",

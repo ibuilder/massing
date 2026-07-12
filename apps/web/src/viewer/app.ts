@@ -133,6 +133,35 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   propsVerify.style.cssText = "margin-top:6px;font-size:11px;line-height:1.6";
   propsPanel.appendChild(propsVerify);
 
+  // linked records — the reverse deep-link: which portal records (RFIs, issues, COs, verifications,
+  // activities) reference the selected element by GlobalId. Completes the record→element round-trip.
+  const propsLinks = document.createElement("div"); propsLinks.id = "props-links";
+  propsLinks.style.cssText = "margin-top:6px;font-size:11px;line-height:1.6";
+  propsPanel.appendChild(propsLinks);
+
+  async function renderLinkedRecords(guid: string) {
+    propsLinks.replaceChildren();
+    if (!connected || !projectId || !guid) return;
+    let d; try { d = await api.elementRecords(projectId, guid); } catch { return; }
+    if (!d.total) return;
+    const head = document.createElement("div");
+    head.style.cssText = "font-weight:700;border-top:1px solid var(--line);padding-top:6px";
+    head.textContent = `🔗 Linked records (${d.total})`;
+    propsLinks.appendChild(head);
+    for (const g of d.modules) {
+      const row = document.createElement("div");
+      const lab = document.createElement("b"); lab.textContent = `${g.icon} ${g.module_name} `;
+      row.appendChild(lab);
+      for (const r of g.records) {
+        const chip = document.createElement("span");
+        chip.className = "badge"; chip.textContent = r.ref ?? "";
+        chip.title = `${r.title ?? ""} · ${r.state ?? ""}`;
+        row.append(chip, document.createTextNode(" "));
+      }
+      propsLinks.appendChild(row);
+    }
+  }
+
   async function renderVerify(guid: string) {
     propsVerify.innerHTML = "";
     if (!connected || !projectId || !guid) return;
@@ -182,7 +211,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
 
   async function showProps(map: ModelIdMap, guid?: string) {
-    if (guid) { void render5D(guid); void renderVerify(guid); } else { props5d.innerHTML = ""; propsVerify.innerHTML = ""; }
+    if (guid) { void render5D(guid); void renderVerify(guid); void renderLinkedRecords(guid); }
+    else { props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); }
     if (connected && projectId && guid) {
       try { renderProps(await api.element(projectId, guid)); return; } catch { /* fall through */ }
     }

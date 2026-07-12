@@ -35,6 +35,9 @@ CLASSIFICATIONS: dict[str, dict[str, Any]] = {
             "IfcPipeSegment": ("22 10 00", "Plumbing Piping"),
             "IfcDuctSegment": ("23 30 00", "HVAC Air Distribution"),
             "IfcFlowTerminal": ("23 37 00", "Air Outlets & Inlets"),
+            "IfcFurniture": ("12 50 00", "Furniture (FF&E)"),
+            "IfcFurnishingElement": ("12 00 00", "Furnishings (FF&E)"),
+            "IfcSystemFurnitureElement": ("12 50 00", "Furniture (FF&E)"),
         },
     },
     "din276": {
