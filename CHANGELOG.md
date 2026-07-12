@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.191 — Add Decimal money helpers money.py (P6)
+Float money math drifts at the cent: `round(2.675, 2)` is `2.67`, and a naive `round()` three-way split
+of $100 sums to 99.99. Added `aec_api/money.py` — `q2()` (round-half-up to cents), `to_cents()`, and a
+penny-accurate `allocate()` (largest-remainder split that always sums to the total). Returns plain
+floats/ints so engines can adopt them incrementally without signature changes. New `test_money` suite
+registered in the gate. (Additive — existing `round(x, 2)` sites are unchanged; adoption is opt-in.)
+
 ## v0.3.190 — Add typed DOM helpers ui/dom.ts (T4)
 `document.createElement(...)` + a run of property assignments is the single most-repeated pattern in
 the UI (255× in portal.ts alone). Added a thin, dependency-free `ui/dom.ts`: `el(tag, props, children)`
