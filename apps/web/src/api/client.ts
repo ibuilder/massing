@@ -1035,6 +1035,22 @@ export class ApiClient extends HttpCore {
       out_of_tolerance: { number: string; guid: string; ifc_class: string; deviation_m: number }[]; note: string }>(
       `/projects/${pid}/layout/verify`, { method: "POST", body: JSON.stringify({ measured, tolerance_m: toleranceM }) });
   }
+  /** Load-takedown defaults from the model — storey names/count + interior-column count. */
+  loadsDefaults(pid: string) {
+    return this.json<{ storey_names: string[]; storey_count: number; column_count: number }>(
+      `/projects/${pid}/loads/defaults`);
+  }
+  /** Preliminary gravity load takedown → per-column/footing service + factored (ASCE 7) axial. */
+  loadsTakedown(pid: string, params: { floor_area_sf?: number; storey_count?: number; occupancy?: string;
+      column_count?: number; sdl_psf?: number; slab_thickness_in?: number; storeys?: unknown[] }) {
+    return this.json<{ assumptions: Record<string, number>;
+      storeys: { name: string; occupancy: string; area_sf: number; col_dead_kip: number; col_live_kip: number }[];
+      column: { service_dead_kip: number; service_live_kip: number; service_total_kip: number;
+        factored_lrfd_kip: number; factored_asd_kip: number };
+      footing: { service_total_kip: number; factored_lrfd_kip: number };
+      combinations: { governing_lrfd: { combo: string; kips: number }; governing_asd: { combo: string; kips: number } };
+      disclaimer: string }>(`/projects/${pid}/loads/takedown`, { method: "POST", body: JSON.stringify(params) });
+  }
   /** Discipline quantity roll-up — reinforcement tonnage, MEP linear runs, structural volume. */
   disciplineQuantities(pid: string) {
     return this.json<{ rebar: { count: number; weight_kg: number; tonnes: number; estimated: boolean };

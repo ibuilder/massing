@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.205 — Wave 8 ④: Preliminary gravity load takedown + ASCE 7 load combinations
+A defensible, **non-FEA** structural sanity-check from the model — the tributary-area "load takedown"
+every engineer runs before sizing columns. New `loads.py`: dead (slab self-weight from thickness × concrete
+density + superimposed) + live (ASCE 7-22 Table 4.3-1 by occupancy, with the **§4.7 live-load reduction**
+closed form) → tributary area per column → **accumulate storey-by-storey down to the footing** → **ASCE 7
+load combinations** (LRFD §2.3 + ASD §2.4) → governing factored axial. Output: per-storey rows + the typical
+interior column / footing service & factored loads. New `GET …/loads/defaults` (reads storey + column counts
+off the IFC) + `POST …/loads/takedown` (explicit storeys or auto-built uniform); client `loadsDefaults`/
+`loadsTakedown`; a viewer tool prompts for floor area/occupancy and shows the column + footing loads with the
+governing combinations. `test_loads` checks the ASCE 7 combos (1.2D+1.6L governs; 1.4D dead-only), the §4.7
+reduction (50→24.36 psf), and the takedown arithmetic (3×120 psf×1000 sf = 360 kip dead/column, factored
+~509 kip). **Preliminary only — no lateral (wind/seismic), and not a substitute for a licensed structural
+engineer** (the caveat ships in the API, the UI, and the output). Pure `ifcopenshell` + arithmetic; optional
+PyNite/sectionproperties (MIT) tier noted for later. (Wave 8 ④ of 7 — see `docs/roadmap.md`.)
+
 ## v0.3.204 — Wave 8 ②: Model → field layout (PENZD/PNEZD CSV + DXF) + as-built verification
 The smallest-surface, highest-field-utility Wave 8 item — export the setout that the 2026 field-robotics
 wave consumes, straight from the IFC. New `layout.py`:

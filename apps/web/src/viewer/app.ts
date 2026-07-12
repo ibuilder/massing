@@ -11,7 +11,7 @@ import { buildElementProps, buildRawProps } from "./propsView";
 import { type ModelIdMap } from "./modelIds";
 import { showQrModal } from "../ui/qr";
 import { askText } from "../ui/prompt";
-import { confirmModal } from "../ui/modal";
+import { confirmModal, promptModal } from "../ui/modal";
 import { SelectionSets } from "./selectionSets";
 import { MeasureTool, type MeasureMode } from "../tools/measure";
 import { SectionTool } from "../tools/section";
@@ -2050,6 +2050,37 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               + "with a total station, then upload that CSV to verify deviation by point number.", "ok"));
           });
         })));
+        b.appendChild(toolBtn2("🏛 Load takedown (preliminary)", async () => {
+          let d; try { d = await api.loadsDefaults(pid); } catch { d = { storey_count: 0, column_count: 0, storey_names: [] }; }
+          const v = await promptModal("Preliminary gravity load takedown",
+            [{ name: "area", label: "Typical floor area (ft²)", value: "10000", required: true },
+             { name: "storeys", label: "Storeys", value: String(d.storey_count || 5) },
+             { name: "columns", label: "Interior columns / floor", value: String(d.column_count || 12) },
+             { name: "occ", label: "Occupancy (office/residential/retail/parking…)", value: "office" }],
+            "Compute",
+            `Tributary-area gravity estimate + ASCE 7 combinations — PRELIMINARY only, not a substitute for a licensed engineer. Model has ${d.storey_count} storeys · ${d.column_count} columns.`);
+          if (!v) return;
+          await withLoading(container, "Running load takedown", async () => {
+            let r;
+            try { r = await api.loadsTakedown(pid, { floor_area_sf: Number(v.area), storey_count: Number(v.storeys) || undefined, column_count: Number(v.columns) || undefined, occupancy: v.occ || "office" }); }
+            catch (e) { toast((e as Error).message, "error"); return; }
+            out.textContent = `col ${r.column.factored_lrfd_kip}k (LRFD)`;
+            showResult("Preliminary load takedown", (body) => {
+              body.appendChild(resultNote(`Typical interior column — service <b>${r!.column.service_total_kip} kip</b> `
+                + `(D ${r!.column.service_dead_kip} + L ${r!.column.service_live_kip}); factored <b>${r!.column.factored_lrfd_kip} kip</b> `
+                + `LRFD / <b>${r!.column.factored_asd_kip} kip</b> ASD. Footing service ${r!.footing.service_total_kip} kip.`, "ok"));
+              body.appendChild(kvTable([
+                { k: "Governing LRFD", v: `${r!.combinations.governing_lrfd.combo} = ${r!.combinations.governing_lrfd.kips}k` },
+                { k: "Governing ASD", v: `${r!.combinations.governing_asd.combo} = ${r!.combinations.governing_asd.kips}k` },
+                { k: "Dead load", v: `${r!.assumptions.dead_psf} psf (slab ${r!.assumptions.slab_self_weight_psf} + SDL ${r!.assumptions.superimposed_dead_psf})` },
+                { k: "Live reduction", v: `×${r!.assumptions.live_reduction_factor}` },
+              ]));
+              const warn = document.createElement("div"); warn.className = "meta";
+              warn.style.cssText = "margin-top:8px;font-size:11px;border-left:3px solid var(--status-warn,#ffd479);padding-left:8px";
+              warn.textContent = r!.disclaimer; body.appendChild(warn);
+            });
+          });
+        }));
         b.appendChild(toolBtn2("📐 Alignment check (storey + origin)", () => withLoading(container, "Checking model alignment", async () => {
           let r;
           try { r = await api.modelAlignment(pid); }

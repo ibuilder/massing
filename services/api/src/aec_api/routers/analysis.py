@@ -214,6 +214,43 @@ def layout_verify(pid: str, body: dict = Body(default={}), db: Session = Depends
     return lay.verify(pts, measured, float(body.get("tolerance_m", 0.02)))
 
 
+# --- Wave 8 ④: preliminary gravity load takedown + ASCE 7 combinations ---------------------------
+@router.get("/projects/{pid}/loads/defaults")
+def loads_defaults(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Pre-fill the load takedown from the model — storey names/count + interior-column count."""
+    from .. import loads
+    return loads.from_model(open_source_ifc(db, pid))
+
+
+@router.post("/projects/{pid}/loads/takedown")
+def loads_takedown(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                   _: str = Depends(require_role("viewer"))):
+    """Preliminary gravity load takedown for a typical interior column → per-storey rows + accumulated
+    service/factored (ASCE 7) axial to the footing. Body: explicit `storeys:[{name,area_sf,occupancy,
+    roof?}]`, OR `{storey_count, floor_area_sf, occupancy}` to auto-build uniform storeys (top = roof);
+    plus `sdl_psf?, slab_thickness_in?, column_count?, concrete_pcf?`. Missing counts fall back to the
+    model. **Preliminary only — not a substitute for a licensed structural engineer.**"""
+    from .. import loads
+    storeys = body.get("storeys")
+    col = body.get("column_count")
+    if not storeys:
+        area = float(body.get("floor_area_sf", 0) or 0)
+        if area <= 0:
+            raise HTTPException(422, "provide `storeys:[…]` or a positive `floor_area_sf` (+ optional storey_count)")
+        n = int(body.get("storey_count") or 0)
+        if n <= 0 or col is None:
+            dm = loads.from_model(open_source_ifc(db, pid))
+            n = n or dm["storey_count"] or 1
+            col = col if col is not None else (dm["column_count"] or 12)
+        occ = body.get("occupancy") or "office"
+        storeys = [{"name": f"Level {n - i}", "area_sf": area, "occupancy": occ, "roof": i == 0}
+                   for i in range(n)]
+    return loads.takedown(storeys, sdl_psf=float(body.get("sdl_psf", 20.0)),
+                          slab_thickness_in=float(body.get("slab_thickness_in", 8.0)),
+                          concrete_pcf=float(body.get("concrete_pcf", loads.CONCRETE_PCF)),
+                          column_count=int(col or 12))
+
+
 @router.get("/projects/{pid}/models/georeferencing")
 def model_georeferencing(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Shared-coordinates / setout basis for the project's source model — full IfcMapConversion
