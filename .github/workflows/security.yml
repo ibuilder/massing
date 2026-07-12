@@ -30,7 +30,7 @@ jobs:
       - name: pip-audit (api + data)
         continue-on-error: true        # report-only
         run: |
-          for req in services/api/requirements.txt services/data/requirements.txt; do
+          for req in services/api/requirements.lock services/data/requirements.txt; do
             echo "## $req" >> "$GITHUB_STEP_SUMMARY"
             pip-audit -r "$req" --desc --format markdown >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
           done

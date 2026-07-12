@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.217 — Fix the desktop-installer build (releases were empty drafts)
+
+**Ops fix — restores the signed desktop installers on tagged releases.** The Desktop-release workflow's
+"Build the backend sidecar" step still installed `services/api/requirements.txt`, which was renamed to
+`requirements.lock` during the hashed pip-compile work (v0.3.198). Every tag since then failed that step
+on all three platforms, so no Windows/macOS/Linux installers were built and each GitHub Release stayed an
+**empty draft**. Fixed to install the hashed lock (`pip install --require-hashes -r requirements.lock`,
+matching CI) and the un-hashed data reqs **separately** (pip forbids mixing hashed + un-hashed files in
+one invocation). Also fixed the report-only `security.yml` pip-audit, which pointed at the same missing
+file and so wasn't auditing the API dependencies at all. Tagged releases now produce installers again.
+
 ## v0.3.216 — Underwriting realism: validate the exit cap against sale comps
 
 Deepens the underwriting guardrails (roadmap ① / §U). A going-out cap tighter than the market supports
