@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.170 — Coordination: shared coordinates / BIM-to-field setout
+Roadmap **Phase C** (from the second research batch's BIM Control Stack). The alignment report only read
+a model's eastings/northings; this reads the **full survey basis**. A new **📍 Georeferencing** model
+tool reports the complete `IfcMapConversion` — eastings/northings/height, the **true-north bearing**
+(derived from the X-axis rotation), and scale — plus the `IfcProjectedCRS` (EPSG name, geodetic/vertical
+datums, map projection + zone), and a site lat/long fallback. It grades the model with a **LoGeoRef
+level** (0 → 50) so a coordinator sees at a glance how well-referenced it is — the basis federation and
+**BIM-to-field layout/setout** both depend on. New engine `georef.py`, endpoint
+`GET /projects/{pid}/models/georeferencing`, and `test_georef` (builds a georeferenced IFC in-memory and
+checks the bearing/CRS/level). Permissive: reads via ifcopenshell, no new deps.
+
 ## v0.3.169 — openBIM: ISO 19650-6 exchange acceptance
 Roadmap **Phase A #3.** Distinct from the project-level handover gate, this reviews **each exchanged
 container** (anything past Work-in-Progress) against the four ISO 19650-6 acceptance criteria —

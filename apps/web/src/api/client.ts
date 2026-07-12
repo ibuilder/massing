@@ -1028,6 +1028,16 @@ export class ApiClient {
       mep: { duct_m: number; pipe_m: number; cable_m: number; counts: Record<string, number> };
       structure: { element_volume_m3: number } }>(`/projects/${pid}/quantities/disciplines`);
   }
+  /** Shared-coordinates / setout basis — IfcMapConversion (E/N/height, true-north, scale) + CRS + LoGeoRef. */
+  modelGeoreferencing(pid: string) {
+    return this.json<{ georeferenced: boolean; level: number; level_label: string; note: string;
+      map_conversion: { eastings: number | null; northings: number | null; orthogonal_height: number | null;
+        true_north_bearing_deg: number | null; scale: number } | null;
+      crs: { name: string | null; geodetic_datum: string | null; vertical_datum: string | null;
+        map_projection: string | null; map_zone: string | null } | null;
+      site: { ref_latitude: number[] | null; ref_longitude: number[] | null; ref_elevation: number | null } | null }>(
+      `/projects/${pid}/models/georeferencing`);
+  }
   /** Federation alignment report — do the discipline models share a storey scheme + georef origin? */
   modelAlignment(pid: string) {
     return this.json<{ models: { name: string; storey_count: number; error?: string;

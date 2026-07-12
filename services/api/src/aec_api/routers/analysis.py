@@ -114,6 +114,24 @@ def run_clash_federated(
             "clashes": results[:limit], "truncated": len(results) > limit}
 
 
+@router.get("/projects/{pid}/models/georeferencing")
+def model_georeferencing(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Shared-coordinates / setout basis for the project's source model — full IfcMapConversion
+    (eastings/northings/height, true-north bearing, scale) + IfcProjectedCRS (EPSG, datums) + LoGeoRef
+    level. The survey basis a coordinator needs for federation and BIM-to-field layout. 409 if no IFC."""
+    import ifcopenshell  # type: ignore
+
+    from .. import georef
+    p = db.get(Project, pid)
+    if not (p and p.source_ifc and Path(p.source_ifc).exists()):
+        raise HTTPException(409, "project has no source IFC")
+    try:
+        model = ifcopenshell.open(p.source_ifc)
+    except Exception as e:  # noqa: BLE001 — a bad file is a 4xx, not a 500
+        raise HTTPException(400, f"could not read the IFC: {e}") from e
+    return georef.georeferencing(model)
+
+
 @router.get("/projects/{pid}/models/alignment")
 def model_alignment(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Federation alignment report — do the project's discipline models share the same storey scheme

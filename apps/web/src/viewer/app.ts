@@ -1459,6 +1459,33 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             }
           });
         }));
+        b.appendChild(toolBtn2("📍 Georeferencing (survey basis)", async () => {
+          out.textContent = "reading coordinates…";
+          let g;
+          try { g = await api.modelGeoreferencing(pid); }
+          catch { out.textContent = "needs a source IFC (open one in Model)"; return; }
+          out.textContent = g.level_label;
+          showResult("Shared coordinates / setout basis", (body) => {
+            body.appendChild(resultNote(`<b>${g!.level_label}</b>${g!.crs?.name ? ` · ${g!.crs.name}` : ""}`,
+              g!.level >= 40 ? "ok" : "bad"));
+            const rows: { k: string; v: string; strong?: boolean }[] = [];
+            const mc = g!.map_conversion;
+            if (mc) {
+              if (mc.eastings != null) rows.push({ k: "Eastings / Northings", v: `${Math.round(mc.eastings).toLocaleString()} / ${Math.round(mc.northings ?? 0).toLocaleString()} m` });
+              if (mc.orthogonal_height != null) rows.push({ k: "Orthogonal height", v: `${mc.orthogonal_height} m` });
+              if (mc.true_north_bearing_deg != null) rows.push({ k: "True-north bearing", v: `${mc.true_north_bearing_deg}°` });
+              rows.push({ k: "Scale", v: String(mc.scale) });
+            }
+            if (g!.crs) {
+              if (g!.crs.map_projection) rows.push({ k: "Map projection", v: `${g!.crs.map_projection}${g!.crs.map_zone ? ` (zone ${g!.crs.map_zone})` : ""}` });
+              if (g!.crs.geodetic_datum) rows.push({ k: "Geodetic datum", v: g!.crs.geodetic_datum });
+              if (g!.crs.vertical_datum) rows.push({ k: "Vertical datum", v: g!.crs.vertical_datum });
+            }
+            if (g!.site?.ref_latitude) rows.push({ k: "Site lat / long", v: `${g!.site.ref_latitude.join(" ")} / ${(g!.site.ref_longitude ?? []).join(" ")}` });
+            if (!rows.length) rows.push({ k: "Georeferencing", v: "none found — model is on a local origin" });
+            body.appendChild(kvTable(rows));
+          });
+        }));
         b.appendChild(toolBtn2("📐 Estimate from model (takeoff)", async () => {
           out.textContent = "taking off…";
           let r;
