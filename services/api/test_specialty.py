@@ -10,6 +10,7 @@ for f in ("./test_specialty.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api import specialty as sp  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
@@ -51,12 +52,31 @@ assert sp.summarize({**params, "risk_discount": 0.6})["annual_revenue_underwritt
 
 # --- U5: underwriting guardrails flag implausible returns ----------------------------
 from aec_api import underwrite  # noqa: E402
+
 hot = underwrite.guardrails({"returns": {"equity_irr": 0.71, "equity_multiple": 23.0, "dev_spread": 600}})
 assert not hot["ok"] and any(f["metric"] == "equity_irr" and f["level"] == "high" for f in hot["flags"]), hot
 sane = underwrite.guardrails({"returns": {"equity_irr": 0.16, "equity_multiple": 2.1, "dev_spread": 180}})
 assert sane["ok"] and any(f["metric"] == "ok" for f in sane["flags"]), sane
 thin = underwrite.guardrails({"returns": {"equity_irr": 0.10, "equity_multiple": 1.6, "dev_spread": -20}})
 assert any(f["metric"] == "dev_spread" and f["level"] == "high" for f in thin["flags"]), thin
+
+# --- U3: validate the exit cap against the deal's sale comps -------------------
+_ok = {"returns": {"equity_irr": 0.16, "equity_multiple": 2.1, "dev_spread": 180, "exit_cap": 0.058}}
+comps = [{"data": {"comp_type": "Sale", "cap_rate": 5.5}}, {"data": {"comp_type": "Sale", "cap_rate": 6.0}},
+         {"data": {"comp_type": "Rent", "cap_rate": None}}]        # rent comp carries no cap → ignored
+# an exit cap well under the comp band (0.058 stated but underwrite 0.045) → high flag
+aggressive = underwrite.guardrails({"returns": {**_ok["returns"], "exit_cap": 0.045}}, comps=comps)
+assert any(f["metric"] == "exit_cap" and f["level"] == "high" for f in aggressive["flags"]), aggressive
+assert not aggressive["ok"], aggressive
+# an exit cap inside the comp band but below the median (5.5–6.0%, median 5.75%) → info note, still ok
+inband = underwrite.guardrails({"returns": {**_ok["returns"], "exit_cap": 0.056}}, comps=comps)
+assert inband["ok"] and any(f["metric"] == "exit_cap" and f["level"] == "info" for f in inband["flags"]), inband
+# an exit cap at/above the comp median is conservative → no exit-cap flag at all
+soft = underwrite.guardrails({"returns": {**_ok["returns"], "exit_cap": 0.062}}, comps=comps)
+assert not any(f["metric"] == "exit_cap" for f in soft["flags"]), soft
+# no comps (or comps without cap rates) → no exit-cap flag (backward compatible)
+nocomp = underwrite.guardrails(_ok, comps=[{"data": {"comp_type": "Rent"}}])
+assert not any(f["metric"] == "exit_cap" for f in nocomp["flags"]), nocomp
 
 # --- persistence round-trip --------------------------------------------------
 with TestClient(app) as c:
@@ -66,6 +86,27 @@ with TestClient(app) as c:
     r = c.put(f"/projects/{pid}/specialty", json=params)
     assert r.status_code == 200 and r.json()["summary"]["capex_total"] == s["capex_total"], r.text
     assert c.get(f"/projects/{pid}/specialty").json()["summary"]["capex_total"] == s["capex_total"]
+
+    # U3 end-to-end: project-scoped solve validates the exit cap against the project's sale comps
+    for cap in (5.5, 6.0):
+        c.post(f"/projects/{pid}/modules/comparable", json={"data": {"address": f"comp-{cap}", "comp_type": "Sale", "cap_rate": cap}})
+    deal = {
+        "timing": {"construction_months": 18, "leaseup_months": 12, "hold_years": 5, "start_date": "2026-01-01"},
+        "cost_lines": [{"category": "land", "name": "Land", "amount": 4_000_000, "curve": "upfront", "start_month": 0, "end_month": 0},
+                       {"category": "hard", "name": "Construction", "amount": 20_000_000, "curve": "scurve", "start_month": 1, "end_month": 17}],
+        "debt": {"ltc": 0.65, "rate": 0.085, "points": 0.01, "funding": "equity_first"},
+        "equity": {"lp_pct": 0.9, "gp_pct": 0.1},
+        "operations": {"potential_rent_annual": 3_600_000, "opex_annual": 1_300_000, "stabilized_occ": 0.94},
+        "exit": {"exit_cap": 0.045, "selling_cost_pct": 0.02},   # 4.5% — well under the 5.5–6.0% comps
+        "waterfall": {"pref_rate": 0.08, "style": "american", "clawback": False,
+                      "tiers": [{"hurdle": 0.12, "lp": 0.8, "gp": 0.2}, {"hurdle": None, "lp": 0.6, "gp": 0.4}]},
+        "discount_rate": 0.10,
+    }
+    r = c.post(f"/projects/{pid}/proforma/solve", json=deal)
+    assert r.status_code == 200, r.text[:200]
+    body = r.json()
+    assert body["returns"]["exit_cap"] == 0.045, body["returns"]
+    assert any(f["metric"] == "exit_cap" for f in body["guardrails"]["flags"]), body["guardrails"]
 
 print(f"SPECIALTY OK - energy {sp.starter()['energy']['solar_sf']:,} sf solar -> {e['solar_panels']:,} panels "
       f"${e['capex']:,} capex; PFAL {f['towers']:,} towers -> ${f['annual_revenue']:,}/yr; "

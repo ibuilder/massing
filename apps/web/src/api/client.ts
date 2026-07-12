@@ -1166,6 +1166,11 @@ export class ApiClient extends HttpCore {
   solveProforma(assumptions: unknown) {
     return this.json<ProformaResult>(`/proforma/solve`, { method: "POST", body: JSON.stringify(assumptions) });
   }
+  /** Same solve, but the guardrails also validate the exit cap against the project's sale comps (U3). */
+  solveProformaForProject(pid: string, assumptions: unknown) {
+    return this.json<ProformaResult>(`/projects/${pid}/proforma/solve`,
+      { method: "POST", body: JSON.stringify(assumptions) });
+  }
   /** Three financial statements + tax for the current deal (income/balance/cash-flow + two-sided budget). */
   financials(assumptions: unknown) {
     return this.json<FinancialStatements>(`/proforma/financials`, { method: "POST", body: JSON.stringify(assumptions) });

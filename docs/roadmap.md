@@ -47,9 +47,11 @@ customer need. Each line ends with its archive source in parentheses for the ful
 - **Structural generative depth** *(§R3/§A)* — **per-floor column taper** and **lateral-core geometry**
   in the generated frame (the advisor picks the system + rough sizing today; this makes the geometry
   follow the load path floor-by-floor).
-- **Underwriting realism, deeper** *(§U)* — validate the **exit cap against the Comparables** record; a
-  **full specialty P&L + ramp** (farm/energy business modelled over time, reporting blended vs
-  real-estate-only IRR); wire **Monte-Carlo** sensitivity to the specialty risk discount.
+- **Underwriting realism, deeper** *(§U)* — ✅ **DONE (v0.3.216)**: the exit cap is now **validated against
+  the deal's sale comps** (`guardrails(comps=…)` bands the going-out cap; project-scoped
+  `POST …/proforma/solve`). *Remainder:* a **full specialty P&L + ramp** (farm/energy business modelled
+  over time, reporting blended vs real-estate-only IRR); wire **Monte-Carlo** sensitivity to the specialty
+  risk discount.
 - **Lean / takt production analytics** *(§R2/§R4)* — a **takt line-of-balance chart** in the UI tied to
   **daily-report actuals**; surface **PPC on the dashboard**; **production-rate actual-vs-takt** tracking.
 - **Rendering & computational depth** *(§M)* — a **material editor + per-project palette** (edit the M1

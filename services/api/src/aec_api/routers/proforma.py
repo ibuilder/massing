@@ -41,6 +41,18 @@ def solve_stateless(a: Assumptions):
     return {**result, "guardrails": underwrite.guardrails(result)}
 
 
+@router.post("/projects/{pid}/proforma/solve")
+def solve_for_project(pid: str, a: Assumptions, db: Session = Depends(get_db),
+                      _: str = Depends(rbac.require_role("viewer"))):
+    """Same solve, but the underwriting guardrails also validate the **exit cap against the project's
+    own sale comps** (U3) — flags a going-out cap the market doesn't support. Falls back to the plain
+    band checks when the project has no `comparable` records with cap rates."""
+    from .. import underwrite
+    result = solve(a.model_dump())
+    comps = me.list_records(db, "comparable", pid, limit=100000) if "comparable" in me.TABLES else []
+    return {**result, "guardrails": underwrite.guardrails(result, comps=comps)}
+
+
 @router.post("/proforma/financials")
 def financials_stateless(a: Assumptions):
     """Three financial statements + tax for a deal, without persisting: income statement (NOI →

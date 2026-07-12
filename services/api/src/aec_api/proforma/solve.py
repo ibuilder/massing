@@ -147,6 +147,7 @@ def solve(a: dict) -> dict:
             "npv": round(ret.npv(float(a.get("discount_rate", 0.1)),
                                  [cf for _, cf in eq_cf]), 2),
             "yield_on_cost": round(yoc, 4),
+            "exit_cap": round(float(ex["exit_cap"]), 4),
             "dev_spread": round(ret.dev_spread(yoc, float(ex["exit_cap"])), 4),
             "total_contributions": round(contributions, 2),
             "total_distributions": round(distributions, 2),

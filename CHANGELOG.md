@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.216 — Underwriting realism: validate the exit cap against sale comps
+
+Deepens the underwriting guardrails (roadmap ① / §U). A going-out cap tighter than the market supports
+silently inflates the reversion (value = NOI ÷ cap) and the whole IRR — the most common way a proforma
+"pencils" on paper but not in reality. `underwrite.guardrails(result, comps=…)` now derives the
+**cap-rate band from the deal's own `comparable` sale records** and flags the exit cap against it:
+**high** when >50 bps below the tightest comp, **med** when below the band, **info** when inside it (and
+silent when at/above the comp median — the conservative case). The solve result now surfaces `exit_cap`
+in `returns`, and a new project-scoped **`POST /projects/{pid}/proforma/solve`** runs the comp-aware
+guardrails; the Finance panel calls it automatically when a project is open, so the exit-cap flag appears
+in the underwriting guardrails alongside the IRR/EM/spread/DSCR checks. Pure/backward-compatible: the
+stateless `/proforma/solve` and no-comps projects are unchanged. `test_specialty` covers the band math
+(high/med/info/silent), the rent-comp exclusion, and the end-to-end project-scoped endpoint.
+
 ## v0.3.215 — Test Fit yield optimization: plate-depth sweep + core-efficiency
 
 Deepens the generative Test Fit optimizer (roadmap ① — deepest, highest-value bucket). **Plate depth is

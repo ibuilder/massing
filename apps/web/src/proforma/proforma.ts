@@ -1433,8 +1433,12 @@ export class ProformaUI {
   private async solve() {
     this.setStatus("solving proforma…");
     let r: ProformaResult | undefined;
-    try { r = await this.api.solveProforma(this.a); }
-    catch (e) { this.setStatus(`proforma error: ${(e as Error).message}`); return; }
+    const pid = this.projectId();
+    try {
+      // with a project open, solve project-scoped so the guardrails also validate the exit cap
+      // against the deal's own sale comps (U3); otherwise the plain stateless solve
+      r = pid ? await this.api.solveProformaForProject(pid, this.a) : await this.api.solveProforma(this.a);
+    } catch (e) { this.setStatus(`proforma error: ${(e as Error).message}`); return; }
     this.lastResult = r;
     this.renderResult(r);
     this.renderOverview();           // refresh the executive command center with the new solve
