@@ -1,15 +1,39 @@
 """Model -> field layout (Wave 8 ②): PENZD/PNEZD points CSV + DXF from the IFC, and as-installed
-verification by point number. Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_layout.py"""
-import os
+verification by point number. Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_layout.py
 
-import ifcopenshell   # noqa: E402
+Builds its IFC in-memory (the samples/ dir is gitignored, so CI has no on-disk model to open)."""
+import ifcopenshell  # noqa: E402
+import ifcopenshell.guid  # noqa: E402
 
-from aec_api import layout   # noqa: E402
+from aec_api import layout  # noqa: E402
 
-SAMPLES = os.path.join(os.path.dirname(__file__), "..", "..", "samples")
 
-# --- IFC4 model with columns + walls: extract georeferenced setout points -----------------------------
-m = ifcopenshell.open(os.path.join(SAMPLES, "maple_tower.ifc"))
+def _model(schema="IFC4", n=8, spacing=6.0):
+    """A grid of n*n columns (>50 setout points) + a couple walls, one storey. Each element carries a
+    GlobalId and an IfcLocalPlacement so the layout extractor can read a world translation."""
+    f = ifcopenshell.file(schema=schema)
+
+    def place(x, y, z):
+        pt = f.create_entity("IfcCartesianPoint", Coordinates=(float(x), float(y), float(z)))
+        ax = f.create_entity("IfcAxis2Placement3D", Location=pt)
+        return f.create_entity("IfcLocalPlacement", RelativePlacement=ax)
+
+    storey = f.create_entity("IfcBuildingStorey", GlobalId=ifcopenshell.guid.new(), Name="Level 1",
+                             Elevation=0.0)
+    elements = []
+    for i in range(n):
+        for j in range(n):
+            elements.append(f.create_entity("IfcColumn", GlobalId=ifcopenshell.guid.new(),
+                                             Name=f"C-{i}{j}", ObjectPlacement=place(i * spacing, j * spacing, 0)))
+    elements.append(f.create_entity("IfcWall", GlobalId=ifcopenshell.guid.new(), Name="W-1",
+                                    ObjectPlacement=place(0, 0, 0)))
+    f.create_entity("IfcRelContainedInSpatialStructure", GlobalId=ifcopenshell.guid.new(),
+                    RelatingStructure=storey, RelatedElements=elements)
+    return f
+
+
+# --- IFC4 model with 64 columns + a wall: extract georeferenced setout points -----------------------
+m = _model("IFC4")
 pts = layout.points(m)
 assert len(pts) > 50, len(pts)
 assert all(p["guid"] and p["number"].startswith("P") for p in pts), "numbered + GlobalId-anchored"
@@ -44,12 +68,12 @@ assert v["out_of_tolerance"][0]["guid"] == p0["guid"], "deviation anchored to th
 assert abs(v["max_deviation_m"] - 0.10) < 0.005, v["max_deviation_m"]
 
 # --- older IFC2X3 schema (no IfcMapConversion) must not raise, falls back to local coords ------------
-m2 = ifcopenshell.open(os.path.join(SAMPLES, "basichouse.ifc"))
+m2 = _model("IFC2X3", n=3)
 pts2 = layout.points(m2)
-assert isinstance(pts2, list)   # walls at least; no crash on the missing-map-conversion schema
+assert isinstance(pts2, list) and len(pts2) > 0   # no crash on the missing-map-conversion schema
 
 print("LAYOUT OK - model -> field setout points (grids + column/footing/opening/wall placements), "
-      f"georeferenced, GlobalId in the Description ({len(pts)} pts on maple_tower); PENZD + PNEZD + "
-      "tab CSV; layered DXF for floor printers; as-installed verify matches by point number and flags "
+      f"georeferenced, GlobalId in the Description ({len(pts)} pts on a 64-column model); PENZD + PNEZD "
+      "+ tab CSV; layered DXF for floor printers; as-installed verify matches by point number and flags "
       "the 100 mm-off point (out of 20 mm tolerance), anchored to its GlobalId; IFC2X3 no-map-conversion "
       "path degrades gracefully.")

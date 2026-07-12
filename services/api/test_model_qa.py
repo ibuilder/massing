@@ -60,6 +60,27 @@ g.create_entity("IfcRelContainedInSpatialStructure", GlobalId=ifcopenshell.guid.
 q2 = model_qa.model_qa(g)
 assert q2["clean"] and q2["total_issues"] == 0, q2
 
+# wrong-storey: a wall assigned to L1 (elev 0) but placed at z=3, right at L2 (elev 3) -> flagged
+h = ifcopenshell.file(schema="IFC4")
+
+
+def _hplace(z):
+    return h.create_entity("IfcLocalPlacement", RelativePlacement=h.create_entity(
+        "IfcAxis2Placement3D", Location=h.create_entity("IfcCartesianPoint", Coordinates=(0.0, 0.0, float(z)))))
+
+
+l1 = h.create_entity("IfcBuildingStorey", GlobalId=ifcopenshell.guid.new(), Name="L1", Elevation=0.0)
+h.create_entity("IfcBuildingStorey", GlobalId=ifcopenshell.guid.new(), Name="L2", Elevation=3.0)
+ok = h.create_entity("IfcWall", GlobalId=ifcopenshell.guid.new(), Name="ok", ObjectPlacement=_hplace(0))    # at L1
+bad = h.create_entity("IfcWall", GlobalId=ifcopenshell.guid.new(), Name="bad", ObjectPlacement=_hplace(3))   # near L2
+h.create_entity("IfcRelContainedInSpatialStructure", GlobalId=ifcopenshell.guid.new(),
+                RelatingStructure=l1, RelatedElements=[ok, bad])   # both assigned to L1
+q3 = model_qa.model_qa(h)
+ws = q3["checks"]["wrong_storey"]
+assert ws["count"] == 1 and ws["sample"][0]["guid"] == bad.GlobalId, ws
+assert ws["sample"][0]["nearest_storey"] == "L2" and ws["sample"][0]["placed_z"] == 3.0, ws
+print(f"wrong_storey: flagged '{ws['sample'][0]['name']}' assigned L1 but placed at L2 elevation")
+
 # endpoint: no source IFC -> 409
 from fastapi.testclient import TestClient  # noqa: E402
 

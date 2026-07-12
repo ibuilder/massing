@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.206 — Wave 8 ⑤: wrong-storey model hygiene + green CI (in-memory model tests)
+Completes the Wave 8 model-hygiene track and fixes the API test gate. `model_qa.py` gains a sixth
+integrity check — **wrong storey**: an element assigned to level A but physically placed at level B's
+elevation (the classic "wrong level" authoring mistake), flagged only when the placement sits clearly
+closer to another storey (1 m margin) and guarded so a malformed storey set degrades to "couldn't check"
+instead of 500ing. `test_model_qa` now exercises a positive case (a wall assigned to L1 but placed at
+L2's elevation is caught and anchored to its GlobalId). **CI fix:** `test_layout` and `test_loads`
+opened `samples/*.ifc` on disk, but `samples/` is gitignored — a fresh CI checkout has no model, so the
+API test gate went red on v0.3.204/205. Both now **build their IFC in-memory** (`ifcopenshell.file` — a
+64-column grid for the layout points, a 3-storey/12-column stub for the load takedown), matching the
+pattern the other model tests already use. No behavior change to the layout/loads engines.
+
 ## v0.3.205 — Wave 8 ④: Preliminary gravity load takedown + ASCE 7 load combinations
 A defensible, **non-FEA** structural sanity-check from the model — the tributary-area "load takedown"
 every engineer runs before sizing columns. New `loads.py`: dead (slab self-weight from thickness × concrete

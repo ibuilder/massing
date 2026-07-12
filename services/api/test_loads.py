@@ -9,11 +9,11 @@ for _f in ("./test_loads.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-import ifcopenshell                                  # noqa: E402
-from fastapi.testclient import TestClient            # noqa: E402
+import ifcopenshell  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
-from aec_api import loads                            # noqa: E402
-from aec_api.main import app                         # noqa: E402
+from aec_api import loads  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- ASCE 7 combinations: 1.2D+1.6L governs gravity -------------------------------------------------
 c = loads.asce7_combos(100, 50)
@@ -55,12 +55,18 @@ with TestClient(app) as cc:
     # no storeys and no area → 422
     assert cc.post(f"/projects/{pid}/loads/takedown", json={}).status_code == 422
 
-# --- from_model reads storeys + column count off a real IFC ----------------------------------------
-m = ifcopenshell.open(os.path.join(os.path.dirname(__file__), "..", "..", "samples", "maple_tower.ifc"))
+# --- from_model reads storeys + column count off an IFC (built in-memory; samples/ is gitignored) ---
+import ifcopenshell.guid  # noqa: E402
+
+m = ifcopenshell.file(schema="IFC4")
+for k, ev in enumerate(("Roof", "L2", "L1")):
+    m.create_entity("IfcBuildingStorey", GlobalId=ifcopenshell.guid.new(), Name=ev, Elevation=float(k * 4))
+for _ in range(12):
+    m.create_entity("IfcColumn", GlobalId=ifcopenshell.guid.new(), Name="C")
 dm = loads.from_model(m)
-assert dm["storey_count"] >= 1 and dm["column_count"] > 0, dm
+assert dm["storey_count"] == 3 and dm["column_count"] == 12, dm
 
 print("LOADS OK - ASCE 7 combinations (1.2D+1.6L governs gravity=200k; 1.4D=140k dead-only); "
       "§4.7 live-load reduction (50->24.36 psf at 4000 sf influence); tributary takedown accumulates "
       "3 floors x120psf x1000sf = 360k dead per column, factored ~509k > service; auto-build + explicit "
-      "storey paths via HTTP; from_model reads storeys/columns off maple_tower. Preliminary, PE caveat shipped.")
+      "storey paths via HTTP; from_model reads 3 storeys/12 columns off an IFC. Preliminary, PE caveat shipped.")

@@ -79,7 +79,37 @@ def model_qa(model) -> dict[str, Any]:
     checks["blank_names"] = {"count": len(blank), "of_elements": len(elements),
                              "sample": [{"class": e.is_a(), "guid": e.GlobalId} for e in blank[:20]]}
 
+    # 6. wrong storey — an element assigned to level A but placed at level B's elevation (the classic
+    #    "wrong level" Revit mistake). Flag only when the element sits clearly closer to another storey.
+    try:
+        storeys = [(s, float(s.Elevation)) for s in model.by_type("IfcBuildingStorey")
+                   if getattr(s, "Elevation", None) is not None]
+        elev_by_id = {s.id(): ev for s, ev in storeys}
+        assigned: dict[int, int] = {}                    # element id -> storey id
+        for rel in model.by_type("IfcRelContainedInSpatialStructure"):
+            st = getattr(rel, "RelatingStructure", None)
+            if st is not None and st.is_a("IfcBuildingStorey") and st.id() in elev_by_id:
+                for e in (rel.RelatedElements or []):
+                    assigned[e.id()] = st.id()
+        wrong = []
+        margin = 1.0                                     # metres of clearance before we call it wrong
+        for e in elements:
+            sid = assigned.get(e.id())
+            loc = _loc(e)
+            if sid is None or loc is None or len(storeys) < 2:
+                continue
+            z = loc[2]
+            a_elev = elev_by_id[sid]
+            nearest_s, nearest_elev = min(storeys, key=lambda se: abs(z - se[1]))
+            if nearest_s.id() != sid and (abs(z - a_elev) - abs(z - nearest_elev)) > margin:
+                wrong.append({"class": e.is_a(), "name": e.Name, "guid": e.GlobalId,
+                              "assigned_elev": round(a_elev, 2), "placed_z": round(z, 2),
+                              "nearest_storey": nearest_s.Name})
+        checks["wrong_storey"] = {"count": len(wrong), "sample": wrong[:20]}
+    except Exception:            # noqa: BLE001 — malformed storeys: skip this check, don't crash the scan
+        checks["wrong_storey"] = {"count": 0, "sample": [], "skipped": True}
+
     total = sum(checks[k]["count"] for k in checks)
     return {"element_count": len(elements), "total_issues": total, "clean": total == 0, "checks": checks,
             "note": "Model integrity (complementary to LOIN/IDS data checks): duplicate GUIDs, orphaned "
-                    "elements, overlapping duplicates, unenclosed spaces, blank names."}
+                    "elements, overlapping duplicates, unenclosed spaces, blank names, wrong-storey placement."}
