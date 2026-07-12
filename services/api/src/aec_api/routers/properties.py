@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import threading
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
 
@@ -27,10 +28,14 @@ _INDEX: dict[str, dict[str, dict]] = {}
 _META: dict[str, dict] = {}
 _LRU: list[str] = []                    # pids in least→most-recently-used order
 _MAX_PROJECTS = int(os.environ.get("AEC_PROPS_CACHE_PROJECTS", "16"))
+# FastAPI runs sync endpoints on multiple threadpool threads, all of which populate/evict these caches.
+# Serialize the populate+evict so an eviction can't fire mid-populate and drop a live project.
+_INDEX_LOCK = threading.Lock()
 
 
 def _touch(pid: str) -> None:
-    """Mark `pid` most-recently-used and evict the least-recently-used over the cap."""
+    """Mark `pid` most-recently-used and evict the least-recently-used over the cap.
+    Caller must hold _INDEX_LOCK (only invoked from _load)."""
     if pid in _LRU:
         _LRU.remove(pid)
     _LRU.append(pid)
@@ -41,10 +46,11 @@ def _touch(pid: str) -> None:
 
 
 def _load(pid: str, payload: dict) -> int:
-    _META[pid] = {k: payload.get(k) for k in ("schema", "project", "counts", "facets")}
-    _INDEX[pid] = {e["guid"]: e for e in payload.get("elements", [])}
-    _touch(pid)
-    return len(_INDEX[pid])
+    with _INDEX_LOCK:
+        _META[pid] = {k: payload.get(k) for k in ("schema", "project", "counts", "facets")}
+        _INDEX[pid] = {e["guid"]: e for e in payload.get("elements", [])}
+        _touch(pid)
+        return len(_INDEX[pid])
 
 
 @router.post("/projects/{pid}/properties/index")
@@ -302,20 +308,23 @@ def elements_by_discipline(pid: str, _: str = Depends(require_role("viewer"))):
     idx = _INDEX.get(pid)
     if not idx:
         raise HTTPException(404, "no properties index for project")
-    order = {d["name"]: i for i, d in enumerate(classification.disciplines())}
-    by: dict[str, dict] = {}
-    for e in idx.values():
-        name = _discipline_name(e)
-        d = by.setdefault(name, {"discipline": name, "code": classification.discipline_code(name),
-                                 "count": 0, "classes": {}})
-        d["count"] += 1
-        cls = e.get("ifc_class") or "?"
-        d["classes"][cls] = d["classes"].get(cls, 0) + 1
-    out = sorted(by.values(), key=lambda x: order.get(x["discipline"], 99))
-    for d in out:
-        d["classes"] = sorted(({"ifc_class": k, "count": v} for k, v in d["classes"].items()),
-                              key=lambda x: -x["count"])
-    return {"total": len(idx), "disciplines": out}
+
+    def _compute():
+        order = {d["name"]: i for i, d in enumerate(classification.disciplines())}
+        by: dict[str, dict] = {}
+        for e in idx.values():
+            name = _discipline_name(e)
+            d = by.setdefault(name, {"discipline": name, "code": classification.discipline_code(name),
+                                     "count": 0, "classes": {}})
+            d["count"] += 1
+            cls = e.get("ifc_class") or "?"
+            d["classes"][cls] = d["classes"].get(cls, 0) + 1
+        out = sorted(by.values(), key=lambda x: order.get(x["discipline"], 99))
+        for d in out:
+            d["classes"] = sorted(({"ifc_class": k, "count": v} for k, v in d["classes"].items()),
+                                  key=lambda x: -x["count"])
+        return {"total": len(idx), "disciplines": out}
+    return _scan_cached(pid, "by-discipline", _compute)
 
 
 # (key, label, severity) — the headline % + 3D highlight are driven by "required" rules; "recommended"
@@ -334,29 +343,32 @@ def data_qa(pid: str, _: str = Depends(require_role("viewer"))):
     idx = _INDEX.get(pid)
     if not idx:
         raise HTTPException(404, "no properties index for project")
-    rules = []
-    noncompliant: set[str] = set()
-    for key, label, severity in _QA_RULES:
-        missing = []
-        for g, e in idx.items():
-            if key == "__pset":
-                d = e.get("psets")
-                ok = isinstance(d, dict) and len(d) > 0
-            else:
-                ok = e.get(key) not in (None, "")
-            if not ok:
-                missing.append(g)
-        rules.append({"key": key, "label": label, "severity": severity,
-                      "present": len(idx) - len(missing), "missing": len(missing),
-                      "missing_guids": missing[:5000]})
-        if severity == "required":
-            noncompliant.update(missing)
-    total = len(idx)
-    return {
-        "total": total, "compliant": total - len(noncompliant), "noncompliant": len(noncompliant),
-        "compliant_pct": round(100 * (total - len(noncompliant)) / total, 1) if total else 100.0,
-        "rules": rules, "noncompliant_guids": list(noncompliant)[:5000],
-    }
+
+    def _compute():
+        rules = []
+        noncompliant: set[str] = set()
+        for key, label, severity in _QA_RULES:
+            missing = []
+            for g, e in idx.items():
+                if key == "__pset":
+                    d = e.get("psets")
+                    ok = isinstance(d, dict) and len(d) > 0
+                else:
+                    ok = e.get(key) not in (None, "")
+                if not ok:
+                    missing.append(g)
+            rules.append({"key": key, "label": label, "severity": severity,
+                          "present": len(idx) - len(missing), "missing": len(missing),
+                          "missing_guids": missing[:5000]})
+            if severity == "required":
+                noncompliant.update(missing)
+        total = len(idx)
+        return {
+            "total": total, "compliant": total - len(noncompliant), "noncompliant": len(noncompliant),
+            "compliant_pct": round(100 * (total - len(noncompliant)) / total, 1) if total else 100.0,
+            "rules": rules, "noncompliant_guids": list(noncompliant)[:5000],
+        }
+    return _scan_cached(pid, "qa", _compute)
 
 
 # Code-readiness rules — does the model carry the DATA a code review needs? (property-level, not a
@@ -401,45 +413,48 @@ def code_check(pid: str, _: str = Depends(require_role("viewer"))):
     idx = _INDEX.get(pid)
     if not idx:
         raise HTTPException(404, "no properties index for project")
-    checks = []
-    all_fail: set[str] = set()
-    for rule in _CODE_RULES:
-        applies = rule["applies"]
-        subject = [(g, e) for g, e in idx.items() if applies == "*" or e.get("ifc_class") == applies]
-        if not subject and applies != "*":
-            checks.append({**{k: rule[k] for k in ("id", "label", "code", "note")},
-                           "applies": applies, "checked": 0, "passed": 0, "failed": 0,
-                           "below_min": 0, "fail_guids": [], "status": "n/a"})
-            continue
-        fails, below = [], 0
-        for g, e in subject:
-            v = _first_value(e, rule["keys"])
-            if v in (None, ""):
-                fails.append(g)
+
+    def _compute():
+        checks = []
+        all_fail: set[str] = set()
+        for rule in _CODE_RULES:
+            applies = rule["applies"]
+            subject = [(g, e) for g, e in idx.items() if applies == "*" or e.get("ifc_class") == applies]
+            if not subject and applies != "*":
+                checks.append({**{k: rule[k] for k in ("id", "label", "code", "note")},
+                               "applies": applies, "checked": 0, "passed": 0, "failed": 0,
+                               "below_min": 0, "fail_guids": [], "status": "n/a"})
                 continue
-            if rule.get("min") is not None:
-                try:
-                    if float(v) < float(rule["min"]):
-                        fails.append(g)
-                        below += 1
-                except (TypeError, ValueError):
-                    pass
-        checked = len(subject)
-        passed = checked - len(fails)
-        checks.append({**{k: rule[k] for k in ("id", "label", "code", "note")},
-                       "applies": applies, "checked": checked, "passed": passed, "failed": len(fails),
-                       "below_min": below, "fail_guids": fails[:5000],
-                       "status": "pass" if not fails else "fail"})
-        all_fail.update(fails)
-    checked_rules = [c for c in checks if c["status"] != "n/a"]
-    tot_checked = sum(c["checked"] for c in checked_rules)
-    tot_passed = sum(c["passed"] for c in checked_rules)
-    return {
-        "code": "IBC (data-readiness)", "rules": len(checked_rules),
-        "checked": tot_checked, "passed": tot_passed,
-        "readiness_pct": round(100 * tot_passed / tot_checked, 1) if tot_checked else 100.0,
-        "checks": checks, "fail_guids": list(all_fail)[:5000],
-    }
+            fails, below = [], 0
+            for g, e in subject:
+                v = _first_value(e, rule["keys"])
+                if v in (None, ""):
+                    fails.append(g)
+                    continue
+                if rule.get("min") is not None:
+                    try:
+                        if float(v) < float(rule["min"]):
+                            fails.append(g)
+                            below += 1
+                    except (TypeError, ValueError):
+                        pass
+            checked = len(subject)
+            passed = checked - len(fails)
+            checks.append({**{k: rule[k] for k in ("id", "label", "code", "note")},
+                           "applies": applies, "checked": checked, "passed": passed, "failed": len(fails),
+                           "below_min": below, "fail_guids": fails[:5000],
+                           "status": "pass" if not fails else "fail"})
+            all_fail.update(fails)
+        checked_rules = [c for c in checks if c["status"] != "n/a"]
+        tot_checked = sum(c["checked"] for c in checked_rules)
+        tot_passed = sum(c["passed"] for c in checked_rules)
+        return {
+            "code": "IBC (data-readiness)", "rules": len(checked_rules),
+            "checked": tot_checked, "passed": tot_passed,
+            "readiness_pct": round(100 * tot_passed / tot_checked, 1) if tot_checked else 100.0,
+            "checks": checks, "fail_guids": list(all_fail)[:5000],
+        }
+    return _scan_cached(pid, "code-check", _compute)
 
 
 @router.get("/projects/{pid}/elements/{guid}")

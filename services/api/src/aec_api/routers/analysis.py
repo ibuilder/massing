@@ -139,21 +139,26 @@ async def scan_deviation(pid: str, file: UploadFile = File(...), tolerance: floa
     model's surface and report % within tolerance + a deviation histogram (the QA/QC as-built check).
     409 if no source IFC; 400 on a point cloud we can't read."""
     import ifcopenshell  # type: ignore
+    from starlette.concurrency import run_in_threadpool
 
     from .. import scan_deviation as sd
     p = db.get(Project, pid)
     if not (p and p.source_ifc and Path(p.source_ifc).exists()):
         raise HTTPException(409, "project has no source IFC to compare against")
-    pts = sd.parse_point_cloud((await file.read()).decode("utf-8", "ignore"))
+    raw = await file.read()
+    # The point-cloud parse and — far heavier — the IFC open + full tessellation are CPU-bound and
+    # would block the event loop (stalling every other request on this worker) if run inline. Offload
+    # to the threadpool, mirroring run_validate below.
+    pts = await run_in_threadpool(lambda: sd.parse_point_cloud(raw.decode("utf-8", "ignore")))
     if len(pts) == 0:
         raise HTTPException(400, "no readable XYZ points in the upload")
     try:
-        ref = sd.model_surface_points(ifcopenshell.open(p.source_ifc))
+        ref = await run_in_threadpool(lambda: sd.model_surface_points(ifcopenshell.open(p.source_ifc)))
     except Exception as e:  # noqa: BLE001 — geometry failure is a 4xx, not a 500
         raise HTTPException(400, f"could not build model geometry: {e}") from e
     if len(ref) == 0:
         raise HTTPException(409, "the model has no triangulated geometry to compare against")
-    return sd.analyze(pts, ref, tolerance)
+    return await run_in_threadpool(lambda: sd.analyze(pts, ref, tolerance))
 
 
 @router.get("/projects/{pid}/ai-readiness")

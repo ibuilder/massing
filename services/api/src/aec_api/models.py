@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -167,6 +167,9 @@ class RecordAttachment(Base):
 class RecordActivity(Base):
     """Per-record activity timeline shared by all GC modules (create/update/transition/link)."""
     __tablename__ = "record_activity"
+    # The notifications feed filters project_id then orders by ts desc — a composite index turns that
+    # index-scan + filesort into a single ordered range scan (the feed is polled frequently).
+    __table_args__ = (Index("ix_record_activity_proj_ts", "project_id", "ts"),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     project_id: Mapped[str] = mapped_column(String, index=True)
     module: Mapped[str] = mapped_column(String, index=True)

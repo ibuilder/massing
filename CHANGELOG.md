@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.178 — Perf & concurrency hardening (code-quality Wave 2)
+Applying the audit's highest value-to-effort fixes. **P1 — event-loop stall:** the
+`POST /scan/deviation` endpoint was `async` but ran `ifcopenshell.open` + full tessellation and the
+point-cloud parse synchronously, stalling every other request on the worker for the duration of a large
+scan; all three now run in `run_in_threadpool` (mirroring `run_validate`). **P2 — uncached hot scans:**
+the model **data-QA**, **code-readiness**, and **by-discipline** viewer scans recomputed `O(n·psets)`
+on every request while their siblings (facets/color-by) were cached; they now go through the same
+model-version-keyed `_scan_cached` (Redis-backed, auto-invalidated on republish) — repeat loads are
+served from cache. **P5 — concurrency/scale hardening:** a composite `(project_id, ts)` index on
+`record_activity` turns the frequently-polled notifications feed from an index-scan-plus-filesort into
+one ordered range scan (auto-backfilled on existing DBs); and the in-process property index
+(`_INDEX`/`_LRU`) — mutated from multiple threadpool threads — is now guarded by a lock so an eviction
+can't fire mid-populate and drop a live project. No API shape changes; behaviour identical, just faster
+and safer under load.
+
 ## v0.3.177 — Error-log observability (see when things break)
 The first wave of the code-quality/hardening initiative: a **background place to see failures** instead
 of them dying in a server's stdout. A global exception handler + request-id middleware now catch every
