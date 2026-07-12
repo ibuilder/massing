@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.186 — Refactor (A2): decompose reports.py into a report_builders/ package
+The Report Center's builder module was a 1,436-line god-file holding ~50 per-report builder functions
+alongside the catalog + dispatch. Split the builders into a `report_builders/` package — one module per
+domain (`finance`, `construction`, `precon`, `bim`, `operations`) over a shared `_common` helper — so
+`reports.py` is now a 176-line dispatch layer (the REPORTS catalog, the key→builder registry, and
+`build()`). Public API is byte-identical: `reports.build`, `reports.catalog`, `reports.Report`,
+`reports.to_pdf/to_sheets` all unchanged. Verified: all 8 report-exercising suites green (test_reports
+builds every one of the 51 reports to PDF + Excel); ruff clean whole-tree.
+
 ## v0.3.185 — CI: split Trivy into a CRITICAL gate + non-blocking HIGH report
 Following v0.3.184: scoping the API scan past npm's bundled tooling wasn't enough — the **web** image
 (final stage `nginx:alpine`) carries its own rolling set of fixable HIGH CVEs in its apk packages, which
