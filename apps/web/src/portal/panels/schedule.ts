@@ -16,7 +16,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   const intro = document.createElement("div"); intro.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 8px";
   const listBtn = document.createElement("button"); listBtn.className = "tool-btn"; listBtn.textContent = "✎ Activities (list)";
   listBtn.title = "Open the activity list to add / edit / import tasks";
-  listBtn.onclick = () => { ctx.activeKey = "schedule_activity"; ctx.openModule(m); ctx.buildNav(); };
+  listBtn.onclick = () => { ctx.activeKey = "schedule_activity"; void ctx.openModule(m); ctx.buildNav(); };
   const note = document.createElement("span"); note.className = "meta";
   note.innerHTML = "One relational schedule — these views + the 3D <b>4D sequence</b> (Model → ⏱ 4D) share the same activities.";
   intro.append(listBtn, note);

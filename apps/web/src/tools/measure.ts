@@ -37,9 +37,9 @@ export class MeasureTool {
 
   /** Commit the current measurement point (wire to a click/dblclick). */
   create() {
-    if (this._mode === "length") this.length.create();
-    else if (this._mode === "area") this.area.create();
-    else if (this._mode === "angle") this.angle.create();
+    if (this._mode === "length") void this.length.create();
+    else if (this._mode === "area") void this.area.create();
+    else if (this._mode === "angle") void this.angle.create();
   }
 
   /** Delete the measurement currently under the cursor for the active mode. */

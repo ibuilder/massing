@@ -107,5 +107,5 @@ export function restoreCamera(world: World, vp: Viewpoint | null) {
   if (!vp?.camera?.position) return;
   const p = vp.camera.position;
   const t = vp.camera.target ?? { x: 0, y: 0, z: 0 };
-  world.camera.controls.setLookAt(p.x, p.y, p.z, t.x, t.y, t.z, true);
+  void world.camera.controls.setLookAt(p.x, p.y, p.z, t.x, t.y, t.z, true);
 }

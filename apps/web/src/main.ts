@@ -777,7 +777,7 @@ document.querySelectorAll<HTMLButtonElement>(".fintab").forEach((t) => {
     t.classList.add("active"); t.setAttribute("aria-selected", "true");
     $(`panel-${t.dataset.fin}`).classList.add("active");
     if (t.dataset.fin === "proforma") openProformaTab();
-    if (t.dataset.fin === "portfolio") openPortfolioTab();
+    if (t.dataset.fin === "portfolio") void openPortfolioTab();
   };
 });
 
@@ -1379,4 +1379,4 @@ if (_palette) {
   document.getElementById("workspaces")?.insertAdjacentElement("beforebegin", search);
 }
 
-startup().finally(() => { initNav(); if (_embed) setWorkspace("model"); });
+void startup().finally(() => { initNav(); if (_embed) setWorkspace("model"); });

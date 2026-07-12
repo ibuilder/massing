@@ -252,7 +252,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       if (armPts.length >= 3) void finishDraft(); else notify("need at least 3 points to close", "error");
       return;
     }
-    if (section.enabled) section.createPlane();
+    if (section.enabled) void section.createPlane();
   });
 
   // ---- file loading --------------------------------------------------------
@@ -773,7 +773,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     let types: { guid: string; name: string; ifc_class: string; has_geometry: boolean }[] = [];
     try { types = (await api.types(projectId)).types; } catch { notify("no type catalog (needs a source IFC)", "error"); return; }
     if (!types.length) { notify("no placeable types in this model", "error"); return; }
-    pickFromList(types.map((t) => ({ label: `${t.name}  ·  ${t.ifc_class.replace("Ifc", "").replace("Type", "")}`, value: t })), "Place family — pick a type")
+    void pickFromList(types.map((t) => ({ label: `${t.name}  ·  ${t.ifc_class.replace("Ifc", "").replace("Type", "")}`, value: t })), "Place family — pick a type")
       .then((t) => { if (!t) return; familyType = { guid: t.guid, name: t.name }; setPlaceMode("family"); notify(`click where to place “${t.name}”`, "info"); });
   }
   toolBtn("␡", "Delete selected element", async () => {

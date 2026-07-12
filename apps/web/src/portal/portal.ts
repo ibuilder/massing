@@ -602,7 +602,7 @@ export class PortalUI {
         for (const h of hits) {
           const row = el("button", "portal-mod") as HTMLButtonElement;
           row.innerHTML = `<span class="ic">${h.icon}</span> ${esc(h.ref)} ${esc(h.title ?? "")} <span class="badge">${esc(h.module_name)}</span>`;
-          row.onclick = () => { const m = this.mods.find((x) => x.key === h.module); if (m) this.openRecord(m, h.id); };
+          row.onclick = () => { const m = this.mods.find((x) => x.key === h.module); if (m) void this.openRecord(m, h.id); };
           results.appendChild(row);
         }
       }, 250);
@@ -626,7 +626,7 @@ export class PortalUI {
         chip.onclick = async () => {
           this.sort[m.key] = a.config.sort as (typeof this.sort)[string];
           await this.host.api.markViewSeen(pid, a.module, a.id).catch(() => {});
-          this.openModule(m, { q: a.config.q, state: a.config.state });
+          void this.openModule(m, { q: a.config.q, state: a.config.state });
         };
         wrap.append(chip);
       }
@@ -742,7 +742,7 @@ export class PortalUI {
         for (const a of d.action_items.slice(0, 20)) {
           const row = el("button", "portal-mod") as HTMLButtonElement;
           row.innerHTML = `<span class="ic">→</span> ${esc(a.ref)} ${esc(a.title ?? "")} <span class="badge">${esc(a.state)}</span>`;
-          row.onclick = () => { const m = this.mods.find((x) => x.key === a.module); if (m) this.openRecord(m, a.id); };
+          row.onclick = () => { const m = this.mods.find((x) => x.key === a.module); if (m) void this.openRecord(m, a.id); };
           main.appendChild(row);
         }
       } else {
@@ -758,7 +758,7 @@ export class PortalUI {
           const when = overdue ? `${Math.abs(x.days)}d overdue` : (x.days === 0 ? "due today" : `in ${x.days}d`);
           row.innerHTML = `<span class="ic">${x.icon}</span> <b>${esc(x.ref)}</b> ${esc(x.title ?? "")} `
             + `<span class="badge ${overdue ? "rfi" : "open"}">${when}</span>`;
-          row.onclick = () => { const m = this.mods.find((mm) => mm.key === x.module); if (m) this.openRecord(m, x.id); };
+          row.onclick = () => { const m = this.mods.find((mm) => mm.key === x.module); if (m) void this.openRecord(m, x.id); };
           main.appendChild(row);
         };
         for (const x of due.overdue.slice(0, 10)) rowFor(x, true);
@@ -775,7 +775,7 @@ export class PortalUI {
           row.innerHTML = `<span class="ic">${n.icon}</span> <b>${esc(n.ref)}</b> ${esc(n.action)} `
             + `<span class="badge ${n.reason === "assigned" ? "rfi" : "open"}">${esc(n.reason)}</span> `
             + `<span class="notif-meta">${esc(n.actor ?? "")} · ${ago}</span>`;
-          row.onclick = () => { const m = this.mods.find((x) => x.key === n.module); if (m) this.openRecord(m, n.record_id); };
+          row.onclick = () => { const m = this.mods.find((x) => x.key === n.module); if (m) void this.openRecord(m, n.record_id); };
           main.appendChild(row);
         }
       }).catch(() => {});
@@ -812,7 +812,7 @@ export class PortalUI {
         const color = cc.expired.length ? "var(--status-crit)" : "var(--status-warn)";
         comp.innerHTML = `Compliance: <b style="color:${color}">${cc.expired.length} expired · ${cc.expiring.length} expiring</b> (COI/permit) `;
         const a = document.createElement("a"); a.href = "#"; a.className = "ref-link"; a.textContent = "review";
-        a.onclick = (e) => { e.preventDefault(); const m = this.mods.find((x) => x.key === (cc.expired[0] ?? cc.expiring[0])?.module); if (m) this.openModule(m); };
+        a.onclick = (e) => { e.preventDefault(); const m = this.mods.find((x) => x.key === (cc.expired[0] ?? cc.expiring[0])?.module); if (m) void this.openModule(m); };
         comp.appendChild(a);
       }).catch(() => {});
 
@@ -1133,7 +1133,7 @@ export class PortalUI {
     // filter box + state dropdown
     const fbox = document.createElement("input"); fbox.type = "search"; fbox.placeholder = "filter…";
     fbox.value = filter.q ?? ""; fbox.className = "portal-filter";
-    fbox.onkeydown = (e) => { if (e.key === "Enter") this.openModule(m, { ...filter, q: fbox.value || undefined }); };
+    fbox.onkeydown = (e) => { if (e.key === "Enter") void this.openModule(m, { ...filter, q: fbox.value || undefined }); };
     const stateSel = document.createElement("select"); stateSel.className = "sb-sel";
     const anyOpt = document.createElement("option"); anyOpt.value = ""; anyOpt.textContent = "any state"; stateSel.appendChild(anyOpt);
     for (const s of m.workflow.states ?? []) { const o = document.createElement("option"); o.value = o.textContent = s; stateSel.appendChild(o); }
@@ -1144,14 +1144,14 @@ export class PortalUI {
     const viewSel = document.createElement("select"); viewSel.className = "sb-sel"; viewSel.title = "Saved views";
     const vNone = document.createElement("option"); vNone.value = ""; vNone.textContent = "views…"; viewSel.appendChild(vNone);
     for (const v of views) { const o = document.createElement("option"); o.value = v.id; o.textContent = v.name; viewSel.appendChild(o); }
-    viewSel.onchange = () => { const v = views.find((x) => x.id === viewSel.value); if (v) { this.sort[m.key] = v.config.sort; void this.host.api.markViewSeen(pid, m.key, v.id).catch(() => {}); this.openModule(m, { q: v.config.q, state: v.config.state }); } };
+    viewSel.onchange = () => { const v = views.find((x) => x.id === viewSel.value); if (v) { this.sort[m.key] = v.config.sort; void this.host.api.markViewSeen(pid, m.key, v.id).catch(() => {}); void this.openModule(m, { q: v.config.q, state: v.config.state }); } };
     const saveView = document.createElement("button"); saveView.className = "tool-btn"; saveView.textContent = "＋view";
     saveView.title = "Save current filter/sort as a view (synced to your account)";
     saveView.onclick = async () => {
       const v = await promptModal("Save view", [{ name: "name", label: "View name", required: true }], "Save");
       if (!v) return;
       await this.host.api.saveView(pid, m.key, v.name ?? "", { q: filter.q, state: filter.state, sort: this.sort[m.key] });
-      this.openModule(m, filter);
+      void this.openModule(m, filter);
     };
     // reusable templates: apply a saved set of records, or save the current ones as a template
     const tplBtn = document.createElement("button"); tplBtn.className = "tool-btn"; tplBtn.dataset.cap = "review"; tplBtn.textContent = "⌹ Templates";
@@ -1173,7 +1173,7 @@ export class PortalUI {
         if (!t) return;
         const r = await this.host.api.applyTemplate(pid, m.key, t.id);
         this.host.setStatus(`applied "${r.applied}" — ${r.created} record(s)`);
-        this.openModule(m, filter);
+        void this.openModule(m, filter);
       } else {
         const nv = await promptModal("Save template",
           [{ name: "name", label: "Template name", required: true }], "Save");
@@ -1197,7 +1197,7 @@ export class PortalUI {
     editBtn.textContent = editing ? "✓ Editing (done)" : "✎ Edit inline";
     if (editing) editBtn.classList.add("on");
     editBtn.title = "Edit cells directly in the table — type across many records; changes save automatically";
-    editBtn.onclick = () => { this.editInline[m.key] = !editing; this.openModule(m, filter); };
+    editBtn.onclick = () => { this.editInline[m.key] = !editing; void this.openModule(m, filter); };
     // column chooser — pick which fields show as columns in wide modules (personal, persisted)
     const colBtn = document.createElement("button"); colBtn.className = "tool-btn";
     colBtn.textContent = "⚙ Columns"; colBtn.title = "Choose which fields show as columns";
@@ -1228,7 +1228,7 @@ export class PortalUI {
       impInput.onchange = async () => {
         const f = impInput.files?.[0]; if (!f) return;
         try { const r = await this.host.api.importModuleBcf(pid, m.key, f);
-          this.host.setStatus(`imported ${r.count} BCF issue${r.count === 1 ? "" : "s"}`); this.openModule(m); }
+          this.host.setStatus(`imported ${r.count} BCF issue${r.count === 1 ? "" : "s"}`); void this.openModule(m); }
         catch (e) { this.host.setStatus(`BCF import failed: ${(e as Error).message}`); }
       };
       const imp = document.createElement("button"); imp.className = "tool-btn"; imp.dataset.cap = "review";
@@ -1280,7 +1280,7 @@ export class PortalUI {
       try {
         await this.host.api.bulkAction(pid, m.key, [...selected], action, value);
         toast(`${verb} ${n} ${m.name.toLowerCase()} record${n === 1 ? "" : "s"}`, "info");
-        this.openModule(m, filter);
+        void this.openModule(m, filter);
       } catch (e) { this.host.setStatus(`bulk action failed: ${(e as Error).message}`); }
     };
     bulkBar.append(bulkCount);
@@ -1319,7 +1319,7 @@ export class PortalUI {
     const th = (label: string, col: string) => {
       const h = document.createElement("th"); h.textContent = label + (sort?.col === col ? (sort.dir === 1 ? " ▲" : " ▼") : "");
       h.style.cursor = "pointer";
-      h.onclick = () => { const cur = this.sort[m.key]; this.sort[m.key] = { col, dir: cur?.col === col && cur.dir === 1 ? -1 : 1 }; this.openModule(m, filter); };
+      h.onclick = () => { const cur = this.sort[m.key]; this.sort[m.key] = { col, dir: cur?.col === col && cur.dir === 1 ? -1 : 1 }; void this.openModule(m, filter); };
       headRow.appendChild(h);
     };
     th("Ref", "ref"); th("Title", "title");
@@ -1430,7 +1430,7 @@ export class PortalUI {
       if (!c.back) await this.host.api.linkRecord(pid, m.key, r.id, c.to, nv.id);  // else use an explicit link
       toast(`Created ${nv.ref} from ${r.ref}`, "info");
       this.host.onPinsChanged();
-      this.openRecord(tgt, nv.id);
+      void this.openRecord(tgt, nv.id);
     } catch (e) { toast(`convert failed: ${(e as Error).message}`, "error"); }
   }
 
@@ -1808,7 +1808,7 @@ export class PortalUI {
           // silently overwriting the other person's change (real-time collaboration safety).
           await this.host.api.updateModuleRecord(pid, m.key, existing!.id, data, existing!.modified_at);
           this.host.setStatus(`saved ${existing!.ref}`);
-          this.openRecord(m, existing!.id);
+          void this.openRecord(m, existing!.id);
         } else {
           const body: Record<string, unknown> = { data };
           if (asg.value.trim()) body.assignee = asg.value.trim();
@@ -1819,13 +1819,13 @@ export class PortalUI {
           const rec = await this.host.api.createModuleRecord(pid, m.key, body);
           this.host.setStatus(`created ${rec.ref}`);
           if (body.anchor) this.host.onPinsChanged();
-          this.openRecord(m, rec.id);
+          void this.openRecord(m, rec.id);
         }
       } catch (e) {
         const msg = (e as Error).message;
         if (/-> 409$/.test(msg) && editing) {          // optimistic-lock conflict — someone edited first
           this.host.setStatus("Someone else changed this record while you had it open — reloading the latest; re-apply your edit.");
-          this.openRecord(m, existing!.id);
+          void this.openRecord(m, existing!.id);
           return;
         }
         const mm = /missing required field\(s\):\s*([^"}]+)/i.exec(msg);   // server-side required rules
@@ -2012,7 +2012,7 @@ export class PortalUI {
       out.textContent = "importing…";
       try { const r = await this.host.api.importOpendataPermits(pid, { ...opts(), max: 50 });
         toast(`Imported ${r.imported} permit(s)${r.skipped ? `, skipped ${r.skipped} duplicate(s)` : ""}`, "success");
-        this.openModule(m);
+        void this.openModule(m);
       } catch (e) { out.textContent = `Import failed: ${(e as Error).message}`; }
     };
     row.append(preview, imp); card.appendChild(row);
@@ -2055,7 +2055,7 @@ export class PortalUI {
     delBtn.className = "tool-btn"; delBtn.textContent = "🗑 Delete";
     delBtn.onclick = async () => {
       if (!(await confirmModal(`Delete ${r.ref}? This cannot be undone.`, "", "Delete", true))) return;
-      try { await this.host.api.deleteModuleRecord(pid, m.key, rid); this.host.setStatus(`deleted ${r.ref}`); this.host.onPinsChanged(); this.openModule(m); }
+      try { await this.host.api.deleteModuleRecord(pid, m.key, rid); this.host.setStatus(`deleted ${r.ref}`); this.host.onPinsChanged(); void this.openModule(m); }
       catch (e) { this.host.setStatus(`error: ${(e as Error).message}`); }
     };
     const pdfBtn = document.createElement("button");
@@ -2068,7 +2068,7 @@ export class PortalUI {
       const { openPdfUrl } = await import("../drawings/openPdf");
       await openPdfUrl(this.host.api, this.host.api.url(`/projects/${pid}/modules/${m.key}/${rid}/pdf`), `${r.ref}.pdf`, {
         saveLabel: "Attach marked-up copy",
-        onSave: async (blob, name) => { await this.host.api.uploadAttachment(pid, m.key, rid, new File([blob], name.replace(/\.pdf$/i, "") + "-markup.pdf", { type: "application/pdf" })); this.openRecord(m, rid); },
+        onSave: async (blob, name) => { await this.host.api.uploadAttachment(pid, m.key, rid, new File([blob], name.replace(/\.pdf$/i, "") + "-markup.pdf", { type: "application/pdf" })); void this.openRecord(m, rid); },
       });
     };
     tools.append(editBtn, delBtn, pdfBtn, pdfMk);
@@ -2080,7 +2080,7 @@ export class PortalUI {
       reviseBtn.title = superseded ? "Already revised" : "Create a tracked revision (re-opens the workflow)";
       reviseBtn.onclick = async () => {
         if (!(await confirmModal(`Create a revision of ${r.ref}? It re-opens the workflow as a new record (${r.ref}.${(r.revision?.number ?? 0) + 1}).`, ""))) return;
-        try { const nv = await this.host.api.reviseRecord(pid, m.key, rid); this.host.setStatus(`created ${nv.ref}`); this.openRecord(m, nv.id); }
+        try { const nv = await this.host.api.reviseRecord(pid, m.key, rid); this.host.setStatus(`created ${nv.ref}`); void this.openRecord(m, nv.id); }
         catch (e) { this.host.setStatus(`revise failed: ${(e as Error).message}`); }
       };
       tools.append(reviseBtn);
@@ -2147,7 +2147,7 @@ export class PortalUI {
       const v = await promptModal("Reassign record",
         [{ name: "who", label: "Assign to (user id, blank to clear)", value: r.assignee ?? "" }]);
       if (!v) return;
-      try { await this.host.api.assignRecord(pid, m.key, rid, v.who?.trim() || null); this.openRecord(m, rid); }
+      try { await this.host.api.assignRecord(pid, m.key, rid, v.who?.trim() || null); void this.openRecord(m, rid); }
       catch (e) { this.host.setStatus(`error: ${(e as Error).message}`); }
     };
     asgRow.appendChild(reassign);
@@ -2175,7 +2175,7 @@ export class PortalUI {
       const g = this.host.selectedGuid();
       if (!g) { this.host.setStatus("select an element in the 3D model first (Model workspace)"); return; }
       try { const res = await this.host.api.tagElements(pid, m.key, rid, [g], "add");
-        this.host.setStatus(`tied ${res.count} element${res.count === 1 ? "" : "s"}`); this.openRecord(m, rid); }
+        this.host.setStatus(`tied ${res.count} element${res.count === 1 ? "" : "s"}`); void this.openRecord(m, rid); }
       catch (e) { this.host.setStatus(`tie failed: ${(e as Error).message}`); }
     };
     elRow.appendChild(tagBtn);
@@ -2185,7 +2185,7 @@ export class PortalUI {
       const clrBtn = document.createElement("button"); clrBtn.className = "tool-btn"; clrBtn.textContent = "✕ Clear ties";
       clrBtn.onclick = async () => {
         if (!(await confirmModal(`Untie all ${guids.length} elements from ${r.ref}?`, "", "Untie", true))) return;
-        try { await this.host.api.tagElements(pid, m.key, rid, [], "set"); this.openRecord(m, rid); }
+        try { await this.host.api.tagElements(pid, m.key, rid, [], "set"); void this.openRecord(m, rid); }
         catch (e) { this.host.setStatus(`clear failed: ${(e as Error).message}`); }
       };
       elRow.appendChild(clrBtn);
@@ -2215,7 +2215,7 @@ export class PortalUI {
         b.disabled = missing.length > 0;
         if (missing.length) b.title = `Fill ${missing.map(labelOf).join(", ")} before ${a.action}`;
         b.onclick = async () => {
-          try { await this.host.api.transitionRecord(pid, m.key, rid, a.action); this.openRecord(m, rid); }
+          try { await this.host.api.transitionRecord(pid, m.key, rid, a.action); void this.openRecord(m, rid); }
           catch (e) { this.host.setStatus(`blocked: ${(e as Error).message}`); }
         };
         this.root.appendChild(b);
@@ -2247,7 +2247,7 @@ export class PortalUI {
     addBtn.onclick = async () => {
       if (!ta.value.trim()) return;
       await this.host.api.addComment(pid, m.key, rid, ta.value.trim());
-      this.openRecord(m, rid);
+      void this.openRecord(m, rid);
     };
     this.root.append(ta, addBtn);
 
@@ -2283,7 +2283,7 @@ export class PortalUI {
   /** Open a record given a module key + id (used by reference + related links). */
   private openByBrief(moduleKey: string, id: string) {
     const m = this.mods.find((x) => x.key === moduleKey);
-    if (m) this.openRecord(m, id);
+    if (m) void this.openRecord(m, id);
   }
 
   /** Public: the loaded module definitions (for the command palette). */
@@ -2352,7 +2352,7 @@ export class PortalUI {
               saveLabel: "Save marked-up copy back",
               onSave: async (blob, nm) => {
                 await this.host.api.uploadAttachment(pid, m.key, rid, new File([blob], nm.replace(/\.pdf$/i, "") + "-markup.pdf", { type: "application/pdf" }));
-                this.openRecord(m, rid);
+                void this.openRecord(m, rid);
               },
             });
           };
@@ -2380,14 +2380,14 @@ export class PortalUI {
     drop.onclick = () => file.click();
     const doUpload = async (files: FileList | File[]) => {
       const list = Array.from(files); if (!list.length) return;
-      if (!navigator.onLine) { await this.queueUpload(pid, m.key, rid, list); this.openRecord(m, rid); return; }
+      if (!navigator.onLine) { await this.queueUpload(pid, m.key, rid, list); void this.openRecord(m, rid); return; }
       drop.classList.add("busy"); drop.querySelector("b")!.textContent = `Uploading ${list.length} file${list.length > 1 ? "s" : ""}…`;
       try {
         if (list.length === 1) await this.host.api.uploadAttachment(pid, m.key, rid, list[0]!); // safe: list.length === 1 checked
         else await this.host.api.uploadAttachmentsBulk(pid, m.key, rid, list);
-        this.host.setStatus(`attached ${list.length} file${list.length > 1 ? "s" : ""}`); this.openRecord(m, rid);
+        this.host.setStatus(`attached ${list.length} file${list.length > 1 ? "s" : ""}`); void this.openRecord(m, rid);
       } catch (e) {
-        if (!navigator.onLine) { await this.queueUpload(pid, m.key, rid, list); this.openRecord(m, rid); return; }
+        if (!navigator.onLine) { await this.queueUpload(pid, m.key, rid, list); void this.openRecord(m, rid); return; }
         this.host.setStatus(`upload failed: ${(e as Error).message}`); drop.classList.remove("busy");
       }
     };
@@ -2454,7 +2454,7 @@ export class PortalUI {
         if (!rid || from === state) return;
         const tr = data.transitions.find((t) => t.from === from && t.to === state);
         if (!tr) { this.host.setStatus(`no direct transition ${from} → ${state}`); return; }
-        try { await this.host.api.transitionRecord(pid, m.key, rid, tr.action); this.renderBoard(m); }
+        try { await this.host.api.transitionRecord(pid, m.key, rid, tr.action); void this.renderBoard(m); }
         catch (err) { this.host.setStatus(`blocked: ${(err as Error).message}`); }
       };
       for (const c of data.columns[state] ?? []) {

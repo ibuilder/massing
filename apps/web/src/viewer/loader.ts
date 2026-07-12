@@ -29,7 +29,7 @@ export class ModelLoader {
     this.fragments.list.onItemSet.add(({ value: model }) => {
       model.useCamera(camera);
       viewer.world.scene.three.add(model.object);
-      this.fragments.core.update(true);
+      void this.fragments.core.update(true);
     });
   }
 

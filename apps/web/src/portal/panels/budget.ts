@@ -13,7 +13,7 @@ export async function renderBudget(ctx: PanelContext) {
   ctx.root.appendChild(ctx.bar("Budget", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
   const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
   const vcol = (v: number) => v < 0 ? "var(--status-crit)" : v > 0 ? "var(--status-good)" : "var(--muted)";
-  const jumpTo = (k: string) => { const tm = ctx.mods.find((x) => x.key === k); if (tm) { ctx.activeKey = k; ctx.openModule(tm); ctx.buildNav(); } };
+  const jumpTo = (k: string) => { const tm = ctx.mods.find((x) => x.key === k); if (tm) { ctx.activeKey = k; void ctx.openModule(tm); ctx.buildNav(); } };
 
   const intro = document.createElement("div"); intro.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 8px";
   const jump = document.createElement("select"); jump.className = "sb-sel"; jump.title = "Open a budget input list";

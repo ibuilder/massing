@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.194 — Lint (T6): typed no-floating-promises + 45 unhandled-promise fixes
+Enabled type-aware ESLint (`parserOptions.projectService`) scoped to the two promise-safety rules only —
+deliberately NOT the full `recommendedTypeChecked` set (which would flood on the intentional `any` at the
+IFC/three/@thatopen boundaries). `no-floating-promises` (error) flagged **45** fire-and-forget async calls
+that swallow rejections; all fixed with `void` (each verified to be a self-handling navigation/render
+method, not a raw `fetch`/`import`, with `errorReporting.ts`'s global `unhandledrejection` handler as
+backstop). `no-misused-promises` is scoped to `checksVoidReturn:false` so it catches genuinely-dangerous
+promise-in-conditional/spread misuse (0 found) without churning ~90 idiomatic async event handlers. tsc
+(251-guard T5 intact) + ESLint + Vitest (66) + build all green.
+
 ## v0.3.193 — Type safety (T5): enable noUncheckedIndexedAccess + 251 real guards
 Turned on `noUncheckedIndexedAccess` in the web tsconfig — every array/record index access is now typed
 `T | undefined`, forcing an explicit check. Fixed all **251** resulting violations across 25 files with

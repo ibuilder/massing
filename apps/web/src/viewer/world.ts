@@ -30,7 +30,7 @@ export function createViewer(container: HTMLElement): Viewer {
 
   components.init();
 
-  world.camera.controls.setLookAt(12, 8, 12, 0, 0, 0);
+  void world.camera.controls.setLookAt(12, 8, 12, 0, 0, 0);
 
   // light reference grid (toggled from the bottom settings bar)
   const grids = components.get(OBC.Grids);

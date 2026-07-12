@@ -11,8 +11,20 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    languageOptions: { globals: { ...globals.browser, ...globals.node, ...globals.worker } },
+    // Type-aware linting (T6) — enabled ONLY so `no-floating-promises` / `no-misused-promises` can see
+    // types. We deliberately do NOT switch to `recommendedTypeChecked` (it would flood on the `any` used
+    // at the IFC/three/@thatopen boundaries); we opt in to just the two promise-safety rules below.
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node, ...globals.worker },
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+    },
     rules: {
+      // Unhandled promises swallow errors and cause out-of-order writes; require await/void/.catch.
+      "@typescript-eslint/no-floating-promises": "error",
+      // Catch genuinely-dangerous promise misuse (a Promise used as a condition, or spread) — but NOT
+      // async event handlers (`el.onclick = async …`), which are idiomatic here and safe (the browser
+      // discards the return); flagging ~90 of them would be churn, not a real defect fix.
+      "@typescript-eslint/no-misused-promises": ["error", { checksVoidReturn: false }],
       // this codebase deliberately uses `any` at IFC/three/@thatopen boundaries and compact idioms;
       // keep the linter focused on genuine defects, not style it intentionally adopts.
       "@typescript-eslint/no-explicit-any": "off",
