@@ -264,6 +264,28 @@ class AuditLog(Base):
     detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
+class ErrorLog(Base):
+    """Captured errors for the admin observability feed — unhandled server exceptions (source=
+    'server') and reported client-side JS errors (source='web'). Distinct from AuditLog (which is a
+    business/compliance trail of user writes); this is the "what broke" log an operator checks.
+    Retention-capped by errorlog.prune so it can never grow unbounded on the read-only prod tree."""
+    __tablename__ = "error_log"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    source: Mapped[str] = mapped_column(String, nullable=False, default="server", index=True)  # server | web
+    level: Mapped[str] = mapped_column(String, nullable=False, default="error")  # error | warning
+    kind: Mapped[str | None] = mapped_column(String, nullable=True)          # exception class / event name
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    method: Mapped[str | None] = mapped_column(String, nullable=True)
+    path: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    actor: Mapped[str | None] = mapped_column(String, nullable=True)
+    project_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    request_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    traceback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
 class AppSetting(Base):
     """Admin-configured server settings (integration keys for AI / email / SSO). A value here
     overrides the matching env var. Secrets are write-only over the API. See settings_store."""

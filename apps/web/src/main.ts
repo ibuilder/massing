@@ -13,6 +13,7 @@ import { showResult } from "./ui/result";
 import { buildMenu, closeMenus } from "./ui/menus";
 import { initCommandPalette, type Command } from "./ui/palette";
 import { buildAuthControl } from "./account/accountUI";
+import { installErrorReporting } from "./errorReporting";
 import type { Settings, ViewerApp } from "./viewer/app";
 
 // ---- shell DOM + shared state (no three/@thatopen here — those load lazily) --
@@ -23,6 +24,8 @@ const toolbar = $("topbar");
 const setStatus = (m: string) => (statusEl.textContent = m);
 const notify = (m: string, kind: "info" | "success" | "error" = "info") => { setStatus(m); toast(m, kind); };
 const api = new ApiClient();
+// Capture uncaught browser errors + promise rejections → server error-log feed (best-effort).
+installErrorReporting((e) => api.reportClientError(e));
 
 let projectId: string | null = null;
 let connected = false;

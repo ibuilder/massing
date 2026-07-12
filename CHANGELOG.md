@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.177 — Error-log observability (see when things break)
+The first wave of the code-quality/hardening initiative: a **background place to see failures** instead
+of them dying in a server's stdout. A global exception handler + request-id middleware now catch every
+**unhandled server error**, record it (with traceback, route, user, and a correlation id) to a new
+`error_log` table, and return a clean `500 {detail, request_id}` — and every response carries an
+**`X-Request-ID`** header so a user-reported failure maps straight to its logged row. **Browser errors**
+are captured too: a `window.onerror` / `unhandledrejection` hook (throttled + deduped) posts to
+`POST /client-errors`, landing in the same feed tagged `source:"web"` — so a viewer crash or a failed
+upload is finally visible. Admins get an **Errors** console (account menu → Errors) with source/level
+filters, a totals header, expandable tracebacks, and a prune button; the log is **retention-capped**
+(rows + age, env-tunable) so it can't grow unbounded on the read-only prod tree. Engine `errorlog.py`,
+`routers/observability.py` (`GET/DELETE /admin/errors`, admin-gated), `ErrorLog` model,
+`errorReporting.ts`. Test `test_errorlog.py` covers the engine, the 500 handler end-to-end, the intake,
+and the admin feed. In-house only — no external APM, consistent with the offline mandate.
+
 ## v0.3.176 — 2D → BIM raise (DXF floor plan → IFC model)
 The complement to scan-to-BIM: where deviation checks the *built* result against the model, this
 raises design intent *up* from flat 2D CAD into one. Upload a **DXF floor plan** and get a real,

@@ -822,6 +822,29 @@ export class ApiClient {
     for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v));
     return this.json<AuditEntry[]>(`/audit${qs.toString() ? `?${qs}` : ""}`);
   }
+  /** Admin: the error-log feed (server 500s + reported client errors), newest first. */
+  errorLog(params: { source?: string; level?: string; since_hours?: number; limit?: number } = {}) {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v != null && v !== "") qs.set(k, String(v));
+    return this.json<{ stats: { total: number; by_source: Record<string, number>; [k: string]: unknown };
+      errors: { id: string; ts: string; source: string; level: string; kind: string | null;
+        message: string | null; method: string | null; path: string | null; status: number | null;
+        actor: string | null; project_id: string | null; request_id: string | null;
+        traceback: string | null; detail: Record<string, unknown> | null }[] }>(
+      `/admin/errors${qs.toString() ? `?${qs}` : ""}`);
+  }
+  /** Admin: prune the error log to its retention cap. */
+  clearErrorLog() {
+    return this.json<{ pruned: number }>("/admin/errors", { method: "DELETE" });
+  }
+  /** Report a browser-side error to the server feed. Fire-and-forget: never throws into the app. */
+  reportClientError(e: { message: string; kind?: string; path?: string; level?: string;
+    detail?: Record<string, unknown> }): void {
+    void fetch(this.url("/client-errors"),
+      { method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify(e), keepalive: true }).catch(() => { /* best-effort */ });
+  }
   createUser(username: string, password: string, role: "admin" | "user" = "user", email?: string) {
     return this.json<AccountUser>(
       "/auth/users", { method: "POST", body: JSON.stringify({ username, password, role, email }) });

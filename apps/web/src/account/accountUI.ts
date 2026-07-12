@@ -218,6 +218,7 @@ function accountMenu(anchor: HTMLElement, platformAdmin = false, tier = "free") 
   const pid = D.getProjectId();
   if (platformAdmin) menu.append(item("Manage users…", adminModal));
   if (platformAdmin) menu.append(item("Audit log…", auditModal));
+  if (platformAdmin) menu.append(item("Errors…", errorsModal));
   if (platformAdmin) menu.append(item("Data connections…",
     () => void import("../connections/connectionsUI").then((m) => m.openConnectionsModal(D.api, D.getProjectId))));
   if (D.getIsProjectAdmin() && pid) menu.append(item("Project members…", () => membersModal(pid)));
@@ -424,6 +425,57 @@ function auditModal() {
   };
   apply.onclick = () => void render();
   fAction.onkeydown = fActor.onkeydown = (e) => { if (e.key === "Enter") void render(); };
+  card.append(filters, table, msg);
+  void render();
+}
+
+function errorsModal() {
+  const { card, msg } = modalShell("Errors", 680);
+  msg.style.color = "var(--err)";
+  const api = D.api;
+  const filters = document.createElement("div"); filters.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center";
+  const fSource = document.createElement("select"); fSource.className = "portal-filter";
+  for (const [v, label] of [["", "all sources"], ["server", "server (500s)"], ["web", "web (browser)"]] as const) {
+    const o = document.createElement("option"); o.value = v; o.textContent = label; fSource.append(o);
+  }
+  const apply = document.createElement("button"); apply.className = "tool-btn"; apply.textContent = "Refresh";
+  const prune = document.createElement("button"); prune.className = "tool-btn"; prune.textContent = "Prune to cap";
+  const summary = document.createElement("span"); summary.className = "meta"; summary.style.marginLeft = "auto";
+  filters.append(fSource, apply, prune, summary);
+  const table = document.createElement("div"); table.style.cssText = "max-height:58vh;overflow:auto;margin-top:8px";
+
+  const render = async () => {
+    table.innerHTML = '<div class="meta">loading…</div>'; msg.textContent = "";
+    let data;
+    try { data = await api.errorLog({ source: fSource.value || undefined, limit: 200 }); }
+    catch { table.innerHTML = ""; msg.textContent = "could not load errors (admin only)"; return; }
+    const by = data.stats.by_source || {};
+    summary.textContent = `${data.stats.total} total · server ${by.server ?? 0} · web ${by.web ?? 0}`;
+    if (!data.errors.length) { table.innerHTML = '<div class="meta">no errors recorded 🎉</div>'; return; }
+    const c = (s: string, extra = "") => `<td style="padding:4px 8px;border-bottom:1px solid var(--line);${extra}">${s}</td>`;
+    const badge = (src: string) => `<span style="font-size:10px;padding:1px 6px;border-radius:10px;border:1px solid var(--line);color:${src === "server" ? "var(--err)" : "var(--accent)"}">${src}</span>`;
+    table.innerHTML = `<table class="sens-table" style="width:100%;font-size:12px"><tr>` +
+      `<th style="text-align:left">When</th><th style="text-align:left">Src</th><th style="text-align:left">Kind</th>` +
+      `<th style="text-align:left">Where</th><th style="text-align:left">Message</th><th></th></tr>` +
+      data.errors.map((e, i) => {
+        const where = [e.method, e.path].filter(Boolean).join(" ") + (e.status ? ` · ${e.status}` : "");
+        const rid = e.request_id ? `<div class="meta" style="font-size:10px">${escapeHtml(e.request_id)}</div>` : "";
+        const tb = e.traceback ? `<button class="tool-btn" data-tb="${i}" style="font-size:10px;padding:1px 6px">trace</button>` : "";
+        return `<tr>` +
+          c(new Date(e.ts).toLocaleString(), "white-space:nowrap") + c(badge(e.source)) +
+          c(escapeHtml(e.kind ?? "—"), "white-space:nowrap") +
+          c(escapeHtml(where) + rid) +
+          c(escapeHtml((e.message ?? "").slice(0, 160)), "color:var(--muted)") + c(tb) +
+          `</tr>` +
+          (e.traceback ? `<tr id="tb-${i}" style="display:none"><td colspan="6" style="padding:0 8px 8px"><pre style="white-space:pre-wrap;font-size:11px;max-height:220px;overflow:auto;background:var(--panel-2,rgba(128,128,128,.08));padding:8px;border-radius:6px">${escapeHtml(e.traceback)}</pre></td></tr>` : "");
+      }).join("") + `</table>`;
+    table.querySelectorAll<HTMLButtonElement>("button[data-tb]").forEach((b) => {
+      b.onclick = () => { const row = table.querySelector<HTMLElement>(`#tb-${b.dataset.tb}`); if (row) row.style.display = row.style.display === "none" ? "table-row" : "none"; };
+    });
+  };
+  apply.onclick = () => void render();
+  fSource.onchange = () => void render();
+  prune.onclick = async () => { try { const r = await api.clearErrorLog(); msg.style.color = "var(--muted)"; msg.textContent = `pruned ${r.pruned} old row(s)`; await render(); } catch { msg.style.color = "var(--err)"; msg.textContent = "prune failed"; } };
   card.append(filters, table, msg);
   void render();
 }

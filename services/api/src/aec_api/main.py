@@ -7,14 +7,15 @@ import json
 import logging
 import os
 import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import metrics
-from .db import init_db
+from . import errorlog, metrics
+from .db import SessionLocal, init_db
 from .routers import (
     accounting,
     analysis,
@@ -43,6 +44,7 @@ from .routers import (
     ids,
     market,
     modules,
+    observability,
     opendata,
     operations,
     parcels,
@@ -175,6 +177,40 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Massing API", version="0.1.0", lifespan=lifespan)
 
+
+# Request-id: stamp every request with a short id (echo an inbound X-Request-ID if the client/proxy
+# set one), expose it on the response header, and stash it on request.state so the error logger and
+# the 500 handler can correlate a user-reported failure to its logged row.
+@app.middleware("http")
+async def _request_id(request: Request, call_next):
+    rid = (request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12])[:64]
+    request.state.request_id = rid
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = rid
+    return response
+
+
+@app.exception_handler(Exception)
+async def _unhandled_error(request: Request, exc: Exception):
+    """Catch any unhandled server exception: record it to the error-log feed (best-effort, never
+    re-raising) and return a clean 500 carrying the request id so a user can quote it. HTTPException,
+    validation errors, etc. have their own handlers and never reach here — only real 500s do."""
+    rid = getattr(request.state, "request_id", None)
+    try:
+        db = SessionLocal()
+        try:
+            errorlog.record(db, source="server", level="error", exc=exc, status=500,
+                            method=request.method, path=str(request.url.path),
+                            actor=request.headers.get("X-User"), request_id=rid)
+        finally:
+            db.close()
+    except Exception:                        # noqa: BLE001 — the logger must never mask the original
+        logging.getLogger("aec").exception("error-log persist failed")
+    logging.getLogger("aec").exception("unhandled [%s] %s %s", rid, request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "internal server error", "request_id": rid},
+                        headers={"X-Request-ID": rid or ""})
+
+
 # Host-header pinning (DNS-rebind / stray-vhost protection): set AEC_ALLOWED_HOSTS to the
 # comma-separated production hostnames (e.g. "app.example.com,api.example.com") and any other Host
 # is rejected with 400. Unset (dev/desktop) = no restriction.
@@ -299,6 +335,7 @@ app.include_router(assistant.router, tags=["assistant"])
 app.include_router(construction.router, tags=["construction"])
 app.include_router(operations.router, tags=["operations"])
 app.include_router(standards.router, tags=["standards"])
+app.include_router(observability.router, tags=["observability"])
 
 
 @app.middleware("http")

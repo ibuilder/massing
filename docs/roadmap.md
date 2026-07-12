@@ -10,6 +10,42 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 
 ---
 
+## ★ Current initiative — Code quality & hardening (2026-07)
+
+From a four-domain, file-grounded audit (Python architecture · Python performance/correctness ·
+TypeScript · Rust/build-CI). The core is mature; this closes the specific remaining gaps and finishes
+half-rolled-out patterns. Delivered as ordinary versioned, CI-green releases in 6 waves, safety-net first.
+
+- **Track O — Observability & ops.** O1 server error-log feed (global 500 handler + request-id →
+  `error_log` table + `/admin/errors`, retention-capped) **[backend shipped]**; O2 client-side error
+  capture (`window.onerror`/`unhandledrejection` → `/client-errors`) + admin Errors panel; O3 fail-closed
+  prod secrets (`${VAR:?}`); O4 Rust `cargo clippy`/`fmt` on PR CI + trivy HIGH.
+- **Track P — Python perf/scale.** P1 `scan_deviation` → `run_in_threadpool` (event-loop stall); P2 wrap
+  `data_qa`/`code_check`/`by-discipline` in the existing `_scan_cached`; P3 WIP `portfolio()` N+1 → SQL
+  aggregate; P4 dashboard/schedule `limit=1_000_000` loads → `count_records`/`func.sum`; P5 index/uniqueness/
+  cache-lock hardening; P6 `Decimal` money helper for billing/WIP/bid-tab.
+- **Track A — Python architecture.** A1 extract the model-property index out of `routers/properties.py`
+  into `model_index.py` (5 engines import its router-private internals — worst dep inversion); A2 split
+  `reports.py` (1436) into a `reports/` package + collapse `REPORTS`/`_BUILDERS`/`_LOGS` to one `ReportSpec`;
+  A3 shared `source_ifc`/IFC-open helper + one `_databridge`; A4 split `routers/modules.py` (Procore/schedule
+  out) + `data/drawings.py`; A5 cap report table loads; A6 consistency wins.
+- **Track T — TypeScript.** T1 OpenAPI-generated response types (kill client/backend drift) **[biggest
+  win]**; T2 decompose the 2737-line `ApiClient` → `HttpCore` + lazy domain sub-clients (tree-shaking/shell
+  budget); T3 extract `portal.ts` grid/form/nav + `viewer/app.ts` `install*` tool modules; T4 `form<T>()` +
+  `ui/dom.ts el()/table()` helpers; T5 `noUncheckedIndexedAccess` + typed `no-floating-promises` lint;
+  T6 typed proforma path model.
+- **Track B — Build/deps/reproducibility.** B1 single-source the `@thatopen/fragments`+`web-ifc` pair
+  across the 3 places it's hardcoded (client + 2 Dockerfiles); B2 Python `pip-compile` lockfiles; B3 web
+  Dockerfile `npm ci` (root context) + multi-stage API image; B4 CLI output-path guard + Dependabot
+  `directory:/` + purge dev-venv AGPL.
+
+Full proposal (ranked, with file evidence + sequencing waves):
+https://claude.ai/code/artifact/aabdff8f-e331-4f91-8961-09d0394be4d5
+
+Top five if only five: **P1 · P2 · T1 · A1 · B1**.
+
+---
+
 ## ★ Current initiative — Authoring depth + the design engine (2026-07)
 
 Sourced from a competitive/practice scan (18 industry reference sheets on BEP / LOD / BIM roles /
