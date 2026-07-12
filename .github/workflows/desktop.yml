@@ -128,10 +128,12 @@ jobs:
         shell: bash
         run: |
           python -m pip install --upgrade pip pyinstaller
-          # install the two services separately: the API lock is fully hashed (pip-compile
-          # --generate-hashes → --require-hashes mode), the data reqs are not, and pip forbids
-          # mixing hashed + unhashed files in one invocation.
-          pip install --require-hashes -r services/api/requirements.lock
+          # Install from the unpinned input (NOT requirements.lock). The lock is resolved on Linux
+          # (the prod image + CI), so it pins the Unix-only `uvloop` unconditionally and can't install
+          # on Windows. requirements.in lets pip resolve per-platform — uvicorn[standard] correctly
+          # drops uvloop on Windows, keeps it on macOS/Linux. Prod reproducibility stays on the hashed
+          # lock in the API Docker image + the CI test gate; the desktop sidecar is a bundled binary.
+          pip install -r services/api/requirements.in
           pip install -r services/data/requirements.txt
           # the SPA the sidecar serves (tauri-action also builds it, but the sidecar bundles a copy)
           npm --prefix apps/web run build:desktop

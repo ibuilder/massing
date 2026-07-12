@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.219 — Desktop build: Windows installer (uvloop) — all three platforms now build
+
+Final piece of the installer repair. With v0.3.218 the macOS + Linux installers built, but Windows
+failed: `RuntimeError: uvloop does not support Windows`. `requirements.lock` is resolved on Linux (the
+prod image + CI), so it pins the **Unix-only `uvloop`** (a `uvicorn[standard]` transitive) with no
+platform marker — and it can't build on Windows. The desktop sidecar now installs the API deps from the
+**unpinned `requirements.in`**, letting pip resolve per-platform: `uvicorn[standard]` drops uvloop on
+Windows and keeps it on macOS/Linux. Prod reproducibility is unchanged — the hashed lock still governs
+the API Docker image and the CI test gate; the desktop sidecar is a bundled per-platform binary. All
+three installers (Windows `.msi`/`.exe`, macOS `.dmg`/`.app`, Linux `.AppImage`/`.deb`) now attach to
+tagged releases.
+
 ## v0.3.218 — Desktop build: Python 3.12 to match the lock (completes the installer fix)
 
 Second half of the desktop-installer repair. After v0.3.217 fixed the requirements *path*, the sidecar
