@@ -38,7 +38,7 @@ export function modalShell(titleText: string, minWidth = 280): ModalHandle {
     if (e.key === "Tab") {                    // trap focus within the dialog
       const items = [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
       if (!items.length) return;
-      const first = items[0], last = items[items.length - 1];
+      const first = items[0]!, last = items[items.length - 1]!; // safe: items.length checked above
       const active = document.activeElement as HTMLElement;
       if (e.shiftKey && (active === first || !card.contains(active))) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }

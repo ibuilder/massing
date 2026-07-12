@@ -204,6 +204,7 @@ export class NodeEditor {
     let paths = "";
     for (let i = 0; i < this.edges.length; i++) {
       const e = this.edges[i];
+      if (!e) continue;
       const a = center(`dot-${e.from}-out-${e.from_port}`), b = center(`dot-${e.to}-in-${e.to_port}`);
       if (!a || !b) continue;
       const dx = Math.max(40, Math.abs(b.x - a.x) * 0.5);

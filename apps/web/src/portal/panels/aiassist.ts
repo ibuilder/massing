@@ -34,7 +34,7 @@ export function renderRiskReview(ctx: PanelContext) {
 
     const render = () => {
       body.innerHTML = "";
-      [...tabs.children].forEach((b, i) => b.classList.toggle("active", TABS[i][0] === active));
+      [...tabs.children].forEach((b, i) => b.classList.toggle("active", TABS[i]?.[0] === active));
       const fileInp = el("input") as HTMLInputElement; fileInp.type = "file"; fileInp.accept = ".pdf,.txt";
       fileInp.style.cssText = "display:block;margin:4px 0";
       const ta = el("textarea", "portal-filter") as HTMLTextAreaElement;
@@ -107,7 +107,7 @@ export async function renderAiAssist(ctx: PanelContext) {
 
     const render = async () => {
       body.innerHTML = "";
-      [...tabs.children].forEach((b, i) => b.classList.toggle("active", TABS[i][0] === active));
+      [...tabs.children].forEach((b, i) => b.classList.toggle("active", TABS[i]?.[0] === active));
 
       if (active === "level") {
         const pick = el("select", "portal-filter") as HTMLSelectElement; pick.style.cssText = "margin:4px 0";

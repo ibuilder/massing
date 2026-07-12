@@ -14,7 +14,7 @@ export function noProjectHtml(tool: string): string {
   if (IS_DEMO) {
     return `<div class="empty-state">${tool} runs in the full app`
       + `<span class="es-hint">This is the <b>viewer-only web demo</b> — open a 3D sample from `
-      + `<b>Open&nbsp;▾</b> to explore a model. ${tool[0].toUpperCase() + tool.slice(1)}, with live `
+      + `<b>Open&nbsp;▾</b> to explore a model. ${(tool[0] ?? "").toUpperCase() + tool.slice(1)}, with live `
       + `records, runs in the free desktop app or a self-hosted stack.</span>`
       + `<a class="ref-link" href="${DOWNLOAD}" target="_blank" rel="noopener">Get the app →</a></div>`;
   }

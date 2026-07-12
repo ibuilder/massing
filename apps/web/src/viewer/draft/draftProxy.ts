@@ -37,7 +37,7 @@ export class DraftProxyLayer {
   addPoly(pts: [number, number][], z: number): void {
     if (pts.length < 2) return;
     const vs = pts.map(([e, n]) => new THREE.Vector3(e, z, -n));
-    vs.push(vs[0]);
+    vs.push(vs[0]!); // safe: pts.length >= 2 checked above
     this.group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(vs), this.lineMat));
   }
 
@@ -49,9 +49,9 @@ export class DraftProxyLayer {
     const end = p.end as number[] | undefined;
     const poly = p.points as [number, number][] | undefined;
     if (Array.isArray(pt)) {
-      this.addBox(pt[0], pt[1], z, num(p.width, 0.4), num(p.height, 0.6), num(p.depth, 0.4));
+      this.addBox(pt[0] ?? 0, pt[1] ?? 0, z, num(p.width, 0.4), num(p.height, 0.6), num(p.depth, 0.4));
     } else if (Array.isArray(start) && Array.isArray(end)) {
-      this.addLine(start[0], start[1], end[0], end[1], z);
+      this.addLine(start[0] ?? 0, start[1] ?? 0, end[0] ?? 0, end[1] ?? 0, z);
     } else if (Array.isArray(poly)) {
       this.addPoly(poly, z);
     }

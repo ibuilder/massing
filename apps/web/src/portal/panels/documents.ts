@@ -218,7 +218,7 @@ export async function renderDocuments(ctx: PanelContext) {
     nodes = t.nodes; renderTree();
     right.innerHTML = `<div class="meta" style="padding:8px">Select a folder to view its documents. `
       + `${t.required_gaps.length ? `<b>${t.required_gaps.length}</b> required folder(s) still empty.` : "All required folders populated."}</div>`;
-    if (nodes.length) void loadFolder(nodes[0].path);
+    if (nodes[0]) void loadFolder(nodes[0].path);
   } catch (e) {
     left.textContent = `failed to load folders: ${(e as Error).message}`;
   }

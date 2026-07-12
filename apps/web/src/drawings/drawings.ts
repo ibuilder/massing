@@ -86,7 +86,7 @@ export class DrawingsUI {
                     path: `/projects/${pid}/drawings/plan.svg?${q}` });
     }
     for (const d of DIRS) {
-      sheets.push({ id: `elev:${d}`, label: `Elevation — ${d[0].toUpperCase()}${d.slice(1)}`, type: "elevation",
+      sheets.push({ id: `elev:${d}`, label: `Elevation — ${(d[0] ?? "").toUpperCase()}${d.slice(1)}`, type: "elevation",
                     path: `/projects/${pid}/drawings/elevation.svg?direction=${d}` });
     }
     sheets.push({ id: "sec:AA", label: "Section A-A", type: "section",
@@ -116,7 +116,8 @@ export class DrawingsUI {
 
     // auto-open the first available sheet
     const first = list.querySelector<HTMLButtonElement>(".dwg-item");
-    if (first) { first.classList.add("active"); void this.show(sheets[0]); }
+    const firstSheet = sheets[0];
+    if (first && firstSheet) { first.classList.add("active"); void this.show(firstSheet); }
   }
 
   private async show(sheet: Sheet) {

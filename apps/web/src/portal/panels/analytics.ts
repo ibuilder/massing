@@ -254,7 +254,7 @@ export async function renderRiskCost(ctx: PanelContext) {
           const r = await api.conceptualEstimate(pid, { building_type: type.value, region: region.value, gfa_sf: Number(gfa.value) });
           if (r.error) { out.textContent = r.error; return; }
           out.innerHTML = `<div><b>${cmoney(r.total_cost)}</b> total (${cmoney(r.range.low)}–${cmoney(r.range.high)}) `
-            + `· ${cmoney(r.metrics.total_per_sf)}/sf · hard ${cmoney(r.hard_cost)} + soft ${cmoney(r.soft_cost)}</div>`;
+            + `· ${cmoney(r.metrics.total_per_sf ?? 0)}/sf · hard ${cmoney(r.hard_cost)} + soft ${cmoney(r.soft_cost)}</div>`;
         } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
       };
       ceWrap.append(type, region, gfa, go, out);

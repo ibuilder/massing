@@ -23,11 +23,12 @@ interface Center { x: number; y: number; ll: boolean; }
 
 /** Project a [lon/east, lat/north] pair to centred local metres. */
 function project(p: number[], c: Center): [number, number] {
+  const px = p[0] ?? 0, py = p[1] ?? 0;   // callers guard 2D-ness; default keeps the projection total
   if (c.ll) {
     const mLon = 111_320 * Math.cos((c.y * Math.PI) / 180), mLat = 110_540;
-    return [(p[0] - c.x) * mLon, (p[1] - c.y) * mLat];
+    return [(px - c.x) * mLon, (py - c.y) * mLat];
   }
-  return [p[0] - c.x, p[1] - c.y];
+  return [px - c.x, py - c.y];
 }
 
 /** A blue→green→yellow→brown→white hypsometric ramp for terrain elevation t∈[0,1]. */
@@ -37,13 +38,14 @@ function hypso(t: number): [number, number, number] {
     [0.75, [0.55, 0.42, 0.30]], [1.0, [0.96, 0.96, 0.96]],
   ];
   for (let i = 1; i < stops.length; i++) {
-    if (t <= stops[i][0]) {
-      const [t0, a] = stops[i - 1], [t1, b] = stops[i];
+    const cur = stops[i]!, prev = stops[i - 1]!;   // safe: 1 <= i < stops.length
+    if (t <= cur[0]) {
+      const [t0, a] = prev, [t1, b] = cur;
       const f = (t - t0) / (t1 - t0 || 1);
       return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
     }
   }
-  return stops[stops.length - 1][1];
+  return stops[stops.length - 1]![1];   // safe: stops is a non-empty literal
 }
 
 // --- GeoJSON (vector) -------------------------------------------------------
@@ -73,9 +75,11 @@ function loadGeoJson(text: string, name: string): GisResult {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, ll = true;
   const geoms = features.map((f) => f.geometry).filter((g): g is { type: string; coordinates: unknown } => !!g);
   for (const g of geoms) eachCoord(g, (p) => {
-    minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]);
-    minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]);
-    if (Math.abs(p[0]) > 180 || Math.abs(p[1]) > 90) ll = false;
+    const px = p[0], py = p[1];
+    if (px === undefined || py === undefined) return;   // skip malformed coordinate
+    minX = Math.min(minX, px); maxX = Math.max(maxX, px);
+    minY = Math.min(minY, py); maxY = Math.max(maxY, py);
+    if (Math.abs(px) > 180 || Math.abs(py) > 90) ll = false;
   });
   if (!isFinite(minX)) throw new Error("GeoJSON has no coordinates");
   const c: Center = { x: (minX + maxX) / 2, y: (minY + maxY) / 2, ll };
@@ -90,9 +94,15 @@ function loadGeoJson(text: string, name: string): GisResult {
     const flat: number[] = []; const holes: number[] = [];
     rings.forEach((ring, i) => { if (i > 0) holes.push(flat.length / 2); flat.push(...ring2d(ring)); });
     const tris = earcut(flat, holes, 2);
-    for (const idx of tris) fillPts.push(flat[idx * 2], 0.02, -flat[idx * 2 + 1]);  // lift fill slightly off ground
+    for (const idx of tris) {
+      const fx = flat[idx * 2], fy = flat[idx * 2 + 1];
+      if (fx === undefined || fy === undefined) continue;   // skip out-of-range triangle index
+      fillPts.push(fx, 0.02, -fy);                          // lift fill slightly off ground
+    }
     for (const ring of rings) for (let i = 0; i < ring.length - 1; i++) {           // outline
-      const a = sc(ring[i]), b = sc(ring[i + 1]); linePts.push(...a, ...b);
+      const p0 = ring[i], p1 = ring[i + 1];
+      if (!p0 || !p1) continue;                              // skip malformed ring vertex
+      const a = sc(p0), b = sc(p1); linePts.push(...a, ...b);
     }
   };
 
@@ -100,8 +110,8 @@ function loadGeoJson(text: string, name: string): GisResult {
     nFeat++;
     if (g.type === "Point") ptPts.push(...sc(g.coordinates as Pos));
     else if (g.type === "MultiPoint") (g.coordinates as Pos[]).forEach((p) => ptPts.push(...sc(p)));
-    else if (g.type === "LineString") { const cs = g.coordinates as Pos[]; for (let i = 0; i < cs.length - 1; i++) linePts.push(...sc(cs[i]), ...sc(cs[i + 1])); }
-    else if (g.type === "MultiLineString") for (const cs of g.coordinates as Pos[][]) for (let i = 0; i < cs.length - 1; i++) linePts.push(...sc(cs[i]), ...sc(cs[i + 1]));
+    else if (g.type === "LineString") { const cs = g.coordinates as Pos[]; for (let i = 0; i < cs.length - 1; i++) { const p0 = cs[i], p1 = cs[i + 1]; if (!p0 || !p1) continue; linePts.push(...sc(p0), ...sc(p1)); } }
+    else if (g.type === "MultiLineString") for (const cs of g.coordinates as Pos[][]) for (let i = 0; i < cs.length - 1; i++) { const p0 = cs[i], p1 = cs[i + 1]; if (!p0 || !p1) continue; linePts.push(...sc(p0), ...sc(p1)); }
     else if (g.type === "Polygon") addPolygon(g.coordinates as Pos[][]);
     else if (g.type === "MultiPolygon") for (const poly of g.coordinates as Pos[][][]) addPolygon(poly);
   }
@@ -131,13 +141,16 @@ async function loadGeoTiff(buf: ArrayBuffer, name: string): Promise<GisResult> {
   const rasters = await image.readRasters({ interleave: false });
   const band = rasters[0] as ArrayLike<number>;
 
-  let extentX = Math.abs(bbox[2] - bbox[0]), extentY = Math.abs(bbox[3] - bbox[1]);
+  const [bx0, by0, bx1, by1] = bbox;
+  if (bx0 === undefined || by0 === undefined || bx1 === undefined || by1 === undefined)
+    throw new Error("GeoTIFF has no bounding box");
+  let extentX = Math.abs(bx1 - bx0), extentY = Math.abs(by1 - by0);
   // geographic (degrees) vs projected (metres): trust GTModelTypeGeoKey (2=geographic, 1=projected)
   // when present, else fall back to a magnitude heuristic.
   const gkey = (image as unknown as { geoKeys?: { GTModelTypeGeoKey?: number } }).geoKeys?.GTModelTypeGeoKey;
-  const ll = gkey === 2 || (gkey !== 1 && Math.abs(bbox[0]) <= 180 && Math.abs(bbox[2]) <= 180
-    && Math.abs(bbox[1]) <= 90 && Math.abs(bbox[3]) <= 90);
-  if (ll) { const latc = (bbox[1] + bbox[3]) / 2; extentX *= 111_320 * Math.cos((latc * Math.PI) / 180); extentY *= 110_540; }
+  const ll = gkey === 2 || (gkey !== 1 && Math.abs(bx0) <= 180 && Math.abs(bx1) <= 180
+    && Math.abs(by0) <= 90 && Math.abs(by1) <= 90);
+  if (ll) { const latc = (by0 + by1) / 2; extentX *= 111_320 * Math.cos((latc * Math.PI) / 180); extentY *= 110_540; }
 
   const sx = Math.max(1, Math.ceil(w / MAX_TERRAIN_DIM)), sy = Math.max(1, Math.ceil(h / MAX_TERRAIN_DIM));
   const gw = Math.floor(w / sx), gh = Math.floor(h / sy);
@@ -157,7 +170,7 @@ async function loadGeoTiff(buf: ArrayBuffer, name: string): Promise<GisResult> {
   const pos = geo.attributes.position as THREE.BufferAttribute;
   const colors = new Float32Array(pos.count * 3);
   for (let k = 0; k < pos.count; k++) {
-    const e = elev[k];
+    const e = elev[k] ?? NaN;   // out-of-range → NaN → clamps to minE below (matches nodata handling)
     const ee = isNaN(e) ? minE : e;
     pos.setY(k, ee - minE);                             // height relative to the low point
     const [r, g, b] = hypso((ee - minE) / span);

@@ -23,7 +23,7 @@ function onKey(e: KeyboardEvent) {
   if (e.key === "Tab" && host) {          // trap focus inside the dialog
     const items = focusable();
     if (!items.length) return;
-    const first = items[0], last = items[items.length - 1];
+    const first = items[0]!, last = items[items.length - 1]!; // safe: items.length checked above
     const active = document.activeElement as HTMLElement;
     if (e.shiftKey && (active === first || !host.contains(active))) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }

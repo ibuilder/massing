@@ -122,7 +122,7 @@ async function addBasemapFlow() {
   const ll = await askText("Basemap Focus", { label: "Focus latitude, longitude (decimal degrees)", value: "40.7484, -73.9857" });
   if (!ll) return;
   const [lat, lon] = ll.split(",").map((s) => parseFloat(s.trim()));
-  if (!isFinite(lat) || !isFinite(lon)) { const { toast } = await import("./ui/feedback"); toast("invalid lat/lon", "error"); return; }
+  if (lat === undefined || lon === undefined || !isFinite(lat) || !isFinite(lon)) { const { toast } = await import("./ui/feedback"); toast("invalid lat/lon", "error"); return; }
   const zoom = parseInt((await askText("Basemap Zoom", { label: "Zoom level (1–22)", value: "17" })) || "17", 10);
   try {
     const { toast } = await import("./ui/feedback"); toast("Loading basemap tiles…", "info");
@@ -370,6 +370,7 @@ async function openReportCenter() {
       const t = byId[sel.value]; form.innerHTML = ""; note.textContent = "";
       for (const k of Object.keys(inputs)) delete inputs[k];
       dispSel = null;
+      if (!t) return;
       const isSeal = t.category === "seal";
       if (t.dispositions && t.dispositions.length) {
         dispSel = document.createElement("select"); dispSel.className = "portal-filter"; dispSel.style.flex = "1";
@@ -394,9 +395,10 @@ async function openReportCenter() {
     act.onclick = async () => {
       if (!file) { toast("choose a PDF first", "error"); return; }
       const t = byId[sel.value];
+      if (!t) return;
       const values: Record<string, string> = {};
-      for (const f of t.fields) if (inputs[f.key]?.value) values[f.key] = inputs[f.key].value;
-      const page = parseInt(inputs.__page.value) || 1, x = parseFloat(inputs.__x.value) || 36, y = parseFloat(inputs.__y.value) || 36;
+      for (const f of t.fields) { const iv = inputs[f.key]; if (iv?.value) values[f.key] = iv.value; }
+      const page = parseInt(inputs.__page?.value ?? "") || 1, x = parseFloat(inputs.__x?.value ?? "") || 36, y = parseFloat(inputs.__y?.value ?? "") || 36;
       act.disabled = true;
       try {
         if (t.category === "seal") {
@@ -797,12 +799,12 @@ const PERSONAS: Record<string, PersonaCfg> = {
 };
 const personaSel = document.getElementById("persona") as HTMLSelectElement;
 function applyPersona(p: string, goHome = false) {
-  const cfg = PERSONAS[p] ?? PERSONAS.all;
+  const cfg = PERSONAS[p] ?? PERSONAS.all ?? { ws: null, rail: null, home: "model" };
   document.querySelectorAll<HTMLButtonElement>(".ws-btn").forEach((b) => { b.hidden = !!cfg.ws && !cfg.ws.includes(b.dataset.ws!); });
   document.querySelectorAll<HTMLButtonElement>(".rail-btn").forEach((b) => { b.hidden = !!cfg.rail && !cfg.rail.includes(b.dataset.rail!); });
   const allowedRail = cfg.rail ?? RAIL_ITEMS.map((r) => r.key);
   const activeRail = document.querySelector(".rail-btn.active") as HTMLElement | null;
-  if (!activeRail || !allowedRail.includes(activeRail.dataset.rail!)) showRail(allowedRail[0]);
+  if (!activeRail || !allowedRail.includes(activeRail.dataset.rail!)) { const first = allowedRail[0]; if (first) showRail(first); }
   if (goHome || (cfg.ws && !cfg.ws.includes(currentWs))) setWorkspace(cfg.home);
   localStorage.setItem("persona", p);
   document.body.dataset.persona = p;
@@ -885,7 +887,7 @@ function buildStatusBar() {
   const snapWrap = document.createElement("span"); snapWrap.className = "sb-group";
   const snapL = document.createElement("label"); snapL.textContent = "Snap";
   const snapSel = document.createElement("select"); snapSel.className = "sb-sel";
-  for (const [v, t] of [["0", "off"], ["0.1", "0.1m"], ["0.5", "0.5m"], ["1", "1m"]]) {
+  for (const [v = "", t = ""] of [["0", "off"], ["0.1", "0.1m"], ["0.5", "0.5m"], ["1", "1m"]]) {
     const o = document.createElement("option"); o.value = v; o.textContent = t; snapSel.appendChild(o);
   }
   snapSel.value = String(settings.snap);
@@ -909,7 +911,7 @@ const portalHost = {
   projectId: () => projectId,
   anchorPoint: () => viewerApp?.anchorPoint() ?? null,
   selectedGuid: () => viewerApp?.selectedGuidValue() ?? null,
-  onSelectGuids: (guids: string[]) => { if (guids[0]) { setWorkspace("model"); withViewer((v) => void v.selectByGuid(guids[0], true)); } },
+  onSelectGuids: (guids: string[]) => { const g = guids[0]; if (g) { setWorkspace("model"); withViewer((v) => void v.selectByGuid(g, true)); } },
   onPinsChanged: () => { if (viewerApp) void viewerApp.reloadModelPins(); },
   setStatus,
 };
@@ -961,9 +963,9 @@ async function openPortfolioTab() {
   const m = (v: number | null) => (v == null ? "—" : "$" + Math.round(v).toLocaleString());
   const pc = (v: number | null) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
   const kpis: [string, string][] = [
-    ["Deals", String(p.deal_count)], ["Total cap", m(t.total_capitalization)],
-    ["Total equity", m(t.total_equity)], ["Blended LTC", pc(t.blended_ltc)],
-    ["Portfolio IRR", pc(t.portfolio_irr)], ["Portfolio EM", `${t.portfolio_equity_multiple ?? "—"}×`],
+    ["Deals", String(p.deal_count)], ["Total cap", m(t.total_capitalization ?? null)],
+    ["Total equity", m(t.total_equity ?? null)], ["Blended LTC", pc(t.blended_ltc ?? null)],
+    ["Portfolio IRR", pc(t.portfolio_irr ?? null)], ["Portfolio EM", `${t.portfolio_equity_multiple ?? "—"}×`],
   ];
   const rows = p.deals.map((d) =>
     `<tr><th style="text-align:left">${d.name}</th><td>${m(d.total_uses)}</td>` +
@@ -1210,8 +1212,8 @@ async function applyCapabilities() {
       const m = await api.myRole(projectId);
       rbac = m.rbac; party = m.party_role;
       if (m.rbac) {
-        const r = m.role ? CAP_RANK[m.role] : -1;
-        review = r >= CAP_RANK.reviewer; edit = r >= CAP_RANK.editor; admin = r >= CAP_RANK.admin;
+        const r = m.role ? (CAP_RANK[m.role] ?? 0) : -1;
+        review = r >= (CAP_RANK.reviewer ?? 0); edit = r >= (CAP_RANK.editor ?? 0); admin = r >= (CAP_RANK.admin ?? 0);
       }
     } catch { /* keep defaults (don't hide on a transient error) */ }
   }

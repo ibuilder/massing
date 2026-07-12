@@ -15,7 +15,7 @@ const NEG = "#e2554a";
 const GRID = "var(--line)";
 const AXIS = "var(--muted)";
 
-export function chartColor(i: number): string { return PALETTE[i % PALETTE.length]; }
+export function chartColor(i: number): string { return PALETTE[i % PALETTE.length] ?? PALETTE[0]!; } // safe: PALETTE is a non-empty literal
 
 function esc(s: unknown): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -178,7 +178,7 @@ export function waterfall(steps: { label: string; value: number; total?: boolean
     g += txt(L - 2, gy + 2, fmt(max - (k / 4) * max), { anchor: "end" }); }
   steps.forEach((s, i) => {
     const x = L + i * ((W - L - R) / steps.length) + 2;
-    const yt = y(tops[i]), h = Math.max(y(bots[i]) - yt, 1);
+    const yt = y(tops[i] ?? 0), h = Math.max(y(bots[i] ?? 0) - yt, 1);
     const col = s.total ? "var(--accent)" : s.value >= 0 ? POS : NEG;
     g += `<rect x="${x.toFixed(1)}" y="${yt.toFixed(1)}" width="${Math.max(bw, 1).toFixed(1)}" height="${h.toFixed(1)}" fill="${col}"><title>${esc(s.label)}: ${fmt(s.value)}</title></rect>`;
     g += txt(x + bw / 2, H - 14, s.label.length > 8 ? s.label.slice(0, 8) + "…" : s.label, { anchor: "middle", size: 7 });

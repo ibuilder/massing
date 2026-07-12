@@ -84,7 +84,7 @@ function alloc(h: LasHeader, recLen: number): { sink: Sink; stride: number; n: n
 function finish(h: LasHeader, s: Sink, w: number): PointCloud {
   if (s.colOff >= 0 && s.max > 0) {                         // normalise RGB to 0..1 (8- or 16-bit packed)
     const div = s.max > 255 ? 65535 : 255;
-    for (let i = 0; i < w * 3; i++) if (s.col[i] > 1) s.col[i] /= div;
+    for (let i = 0; i < w * 3; i++) { const c = s.col[i]; if (c !== undefined && c > 1) s.col[i] = c / div; }
   }
   return { positions: s.pos.subarray(0, w * 3), colors: s.col.subarray(0, w * 3), count: w, sourceCount: h.count, decimated: w < h.count };
 }

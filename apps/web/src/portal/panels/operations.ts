@@ -499,7 +499,7 @@ export async function renderTurnover(ctx: PanelContext) {
               { name: "owner", label: "Owner signatory (optional)" },
             ], "Certify");
             if (!v) return;
-            try { await ctx.host.api.turnoverCertify(pid, cert.id, v.arch, v.owner || undefined);
+            try { await ctx.host.api.turnoverCertify(pid, cert.id, v.arch ?? "", v.owner || undefined);
               toast("Substantial completion certified", "success"); void load(); }
             catch (e) { toast((e as Error).message, "error"); }
           };

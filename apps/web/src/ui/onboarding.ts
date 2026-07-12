@@ -137,6 +137,7 @@ export function startTour(): void {
   const finish = () => { markOnboarded(); ov.remove(); };
   const render = () => {
     const s = steps[i];
+    if (!s) return;
     const el = document.querySelector(s.sel) as HTMLElement;
     const r = el.getBoundingClientRect();
     const pad = 6;

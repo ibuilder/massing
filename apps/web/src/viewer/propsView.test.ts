@@ -58,7 +58,7 @@ describe("buildElementProps", () => {
     filter.dispatchEvent(new Event("input"));
     const visible = [...r.querySelectorAll<HTMLElement>(".pv-row")].filter((row) => !row.hidden);
     expect(visible.length).toBe(1);
-    expect(visible[0].textContent).toContain("FireRating");
+    expect(visible[0]!.textContent).toContain("FireRating"); // safe: length asserted to be 1 above
     // its group is force-opened and others with no hits are hidden
     const hiddenGroups = [...r.querySelectorAll<HTMLElement>(".pv-group")].filter((g) => g.hidden);
     expect(hiddenGroups.length).toBe(2);
@@ -125,10 +125,10 @@ describe("buildRawProps (in-browser fallback)", () => {
     expect(btns.length).toBe(2);
     const inputs = root.querySelectorAll<HTMLInputElement>(".pv-edit-i");
     // fieldset order: [0]Pset [1]Property [2]Value [3]Type(select) · [4]System [5]Code [6]Title
-    inputs[0].value = "Pset_Custom"; inputs[1].value = "Manufacturer"; inputs[2].value = "Acme";
-    btns[0].click();
-    inputs[4].value = "Uniclass 2015"; inputs[5].value = "Pr_20_93_52"; inputs[6].value = "Steel column";
-    btns[1].click();
+    inputs[0]!.value = "Pset_Custom"; inputs[1]!.value = "Manufacturer"; inputs[2]!.value = "Acme"; // safe: edit form renders 7 inputs
+    btns[0]!.click(); // safe: btns.length asserted to be 2 above
+    inputs[4]!.value = "Uniclass 2015"; inputs[5]!.value = "Pr_20_93_52"; inputs[6]!.value = "Steel column"; // safe: edit form renders 7 inputs
+    btns[1]!.click(); // safe: btns.length asserted to be 2 above
     await Promise.resolve(); await Promise.resolve();
     expect(calls).toContain("prop:Pset_Custom/Manufacturer=Acme:str");
     expect(calls).toContain("class:Uniclass 2015/Pr_20_93_52/Steel column");
@@ -139,7 +139,7 @@ describe("buildRawProps (in-browser fallback)", () => {
     const hooks = { setProp: async () => { called++; }, classify: async () => { called++; } };
     const root = buildElementProps(sample, hooks);
     const btns = root.querySelectorAll<HTMLButtonElement>(".pv-edit-btn");
-    btns[0].click(); btns[1].click();       // both empty -> validation blocks
+    btns[0]!.click(); btns[1]!.click();       // both empty -> validation blocks // safe: edit form renders 2 buttons
     await Promise.resolve();
     expect(called).toBe(0);
     expect(root.querySelector(".pv-edit-status")?.classList.contains("pv-edit-err")).toBe(true);

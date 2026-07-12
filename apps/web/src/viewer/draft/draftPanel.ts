@@ -139,7 +139,7 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
       if (armedKey === s.key) { arm(null); return; }
       if (!deps.canAuthor()) { deps.notify("connect a project with a source IFC to draft", "error"); return; }
       const vals: ParamValues = {};
-      keys.forEach((k, i) => { vals[k] = getters[i](); });
+      keys.forEach((k, i) => { const g = getters[i]; if (g) vals[k] = g(); });
       const armed: ArmedDraft = {
         key: s.key, label: s.label, recipe: s.recipe, points: s.points, ifcClass: s.ifcClass, hint: s.hint,
         build: (pts) => s.build(pts, vals),

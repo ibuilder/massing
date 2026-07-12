@@ -45,8 +45,8 @@ function saveQueue(q: QueuedCapture[]): void { localStorage.setItem(QKEY, JSON.s
 
 function dataUrlToFile(dataUrl: string, name: string): File {
   const [meta, b64] = dataUrl.split(",");
-  const mime = /:(.*?);/.exec(meta)?.[1] || "image/jpeg";
-  const bin = atob(b64);
+  const mime = /:(.*?);/.exec(meta ?? "")?.[1] || "image/jpeg";
+  const bin = atob(b64 ?? "");
   const u8 = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
   return new File([u8], name, { type: mime });
@@ -167,6 +167,7 @@ export class FieldCapture {
   private async submit(typeKey: string, description: string, location: string, photo: File | null, geo: GeoFix | null): Promise<void> {
     const pid = this.projectId()!;
     const t = TYPES[typeKey];
+    if (!t) return;
     const data: Record<string, unknown> = { subject: description, ...t.extra };
     if (location) data.location = location;
     if (geo) { data.gps_lat = geo.lat; data.gps_lon = geo.lon; data.gps_accuracy_m = geo.acc; }

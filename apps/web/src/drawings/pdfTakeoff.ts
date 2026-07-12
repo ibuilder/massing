@@ -22,9 +22,15 @@ const STAMPS = ["APPROVED", "REVIEWED", "FOR CONSTRUCTION", "NOT FOR CONSTRUCTIO
                 "AS-BUILT", "REVISE & RESUBMIT", "{{user}} · {{date}}", "REVISED {{date}}"];
 
 const shoelace = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => {
-  const b = p[(i + 1) % p.length]; return s + (a.x * b.y - b.x * a.y);
+  const b = p[(i + 1) % p.length];
+  if (!b) return s;                                          // (i+1)%len is in-bounds for non-empty p
+  return s + (a.x * b.y - b.x * a.y);
 }, 0)) / 2;
-const pathLen = (p: Pt[]) => p.slice(1).reduce((s, a, i) => s + Math.hypot(a.x - p[i].x, a.y - p[i].y), 0);
+const pathLen = (p: Pt[]) => p.slice(1).reduce((s, a, i) => {
+  const prev = p[i];                                         // element preceding a (=p[i+1]) in p
+  if (!prev) return s;
+  return s + Math.hypot(a.x - prev.x, a.y - prev.y);
+}, 0);
 
 /** A PDF to open: a local File, or a server URL (fetched with optional auth headers). */
 export type PdfSource = File | { url: string; name: string; headers?: Record<string, string> };
@@ -66,7 +72,7 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
   let draft: Pt[] = [];
   const measures: Measure[] = [];
   let seq = 0;
-  let stampTpl = STAMPS[0];
+  let stampTpl = STAMPS[0] ?? "";                            // STAMPS is a non-empty literal
   // resolve a dynamic stamp's {{fields}} at placement time
   const resolveStamp = async (tpl: string): Promise<string> => {
     const now = new Date();
@@ -188,13 +194,16 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
   svg.addEventListener("dblclick", async () => { if ((mode === "distance" && draft.length >= 2) || (mode === "area" && draft.length >= 3)) await commit(); });
 
   async function calibrate() {
-    const px = Math.hypot(draft[1].x - draft[0].x, draft[1].y - draft[0].y);
+    const [a, b] = draft;
+    if (!a || !b) { drawOverlay(); return; }
+    const px = Math.hypot(b.x - a.x, b.y - a.y);
     const ans = await askText("Calibrate scale", { label: "Real length of the drawn line (e.g. 5 m, 20 ft):", value: "5 m" });
     draft = [];
     if (!ans) { drawOverlay(); return; }
     const m = ans.trim().match(/^([\d.]+)\s*(\w+)?/);
-    if (!m || !+m[1] || px <= 0) { toast("couldn't read that length", "error"); return; }
-    unit = m[2] || "m"; unitsPerPt = +m[1] / px;
+    const numStr = m?.[1];
+    if (!numStr || !+numStr || px <= 0) { toast("couldn't read that length", "error"); return; }
+    unit = m?.[2] || "m"; unitsPerPt = +numStr / px;
     toast(`scale set — 1 ${unit} = ${(1 / unitsPerPt).toFixed(1)} pt`, "success");
     buildBar(); renderList();
   }
@@ -205,7 +214,7 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
     let value = 0, u = unit, text: string | undefined;
     if (mode === "distance") { value = pathLen(pts) * unitsPerPt; }
     else if (mode === "area") { value = shoelace(pts) * unitsPerPt * unitsPerPt; u = unit + "²"; }
-    else if (mode === "rect") { const w = Math.abs(pts[1].x - pts[0].x), h = Math.abs(pts[1].y - pts[0].y); value = calOk() ? w * h * unitsPerPt * unitsPerPt : 0; u = unit + "²"; }
+    else if (mode === "rect") { const [a, b] = pts; const w = a && b ? Math.abs(b.x - a.x) : 0, h = a && b ? Math.abs(b.y - a.y) : 0; value = calOk() ? w * h * unitsPerPt * unitsPerPt : 0; u = unit + "²"; }
     else if (mode === "count") { value = 1; u = "ea"; }
     else if (mode === "text") { text = ((await askText("Markup text", { label: "Markup text:", value: "" })) || "").trim(); if (!text) { draft = []; return; } u = ""; }
     else if (mode === "stamp") { text = await resolveStamp(stampTpl); u = ""; }
@@ -220,19 +229,20 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
 
   // ---- overlay + sidebar rendering -----------------------------------------
   const NS = "http://www.w3.org/2000/svg";
-  const el = (n: string, a: Record<string, string>) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+  const el = (n: string, a: Record<string, string>) => { const e = document.createElementNS(NS, n); for (const k in a) { const v = a[k]; if (v !== undefined) e.setAttribute(k, v); } return e; };
   function drawOverlay() {
     svg.innerHTML = "";
     const S = (p: Pt) => [p.x * scale, p.y * scale] as const;
     const drawShape = (kind: Mode, pts: Pt[], color: string, dash = false) => {
       if (kind === "count") { for (const p of pts) { const [x, y] = S(p); svg.append(el("circle", { cx: `${x}`, cy: `${y}`, r: "5", fill: color, "fill-opacity": "0.8" })); } return; }
-      if (kind === "rect" && pts.length === 2) { const [x0, y0] = S(pts[0]), [x1, y1] = S(pts[1]); svg.append(el("rect", { x: `${Math.min(x0, x1)}`, y: `${Math.min(y0, y1)}`, width: `${Math.abs(x1 - x0)}`, height: `${Math.abs(y1 - y0)}`, fill: color, "fill-opacity": "0.15", stroke: color, "stroke-width": "1.5" })); return; }
+      if (kind === "rect" && pts.length === 2) { const [x0, y0] = S(pts[0]!), [x1, y1] = S(pts[1]!); svg.append(el("rect", { x: `${Math.min(x0, x1)}`, y: `${Math.min(y0, y1)}`, width: `${Math.abs(x1 - x0)}`, height: `${Math.abs(y1 - y0)}`, fill: color, "fill-opacity": "0.15", stroke: color, "stroke-width": "1.5" })); return; }  // safe: length === 2
       const d = pts.map((p, i) => `${i ? "L" : "M"}${S(p)[0]},${S(p)[1]}`).join(" ") + (kind === "area" ? " Z" : "");
       svg.append(el("path", { d, fill: kind === "area" ? color : "none", "fill-opacity": "0.15", stroke: color, "stroke-width": "1.8", ...(dash ? { "stroke-dasharray": "5 4" } : {}) }));
       for (const p of pts) { const [x, y] = S(p); svg.append(el("circle", { cx: `${x}`, cy: `${y}`, r: "3", fill: color })); }
     };
     const renderText = (m: Measure) => {
-      const [x, y] = S(m.pts[0]); const stamp = m.kind === "stamp"; const col = stamp ? "#e2554a" : "#111";
+      const p0 = m.pts[0]; if (!p0) return;
+      const [x, y] = S(p0); const stamp = m.kind === "stamp"; const col = stamp ? "#e2554a" : "#111";
       const fs = stamp ? 18 : 13;
       if (stamp) svg.append(el("rect", { x: `${x - 5}`, y: `${y - fs}`, width: `${(m.text || "").length * fs * 0.6 + 10}`, height: `${fs + 8}`, fill: col, "fill-opacity": "0.08", stroke: col, "stroke-width": "1.5" }));
       const t = el("text", { x: `${x}`, y: `${y}`, fill: col, "font-size": `${fs}`, "font-weight": "700", "font-family": "sans-serif" });
@@ -285,7 +295,8 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
         const col = (m.kind === "area" || m.kind === "rect") ? GREEN : YELLOW;
         const P = (p: Pt) => ({ x: p.x, y: H - p.y });
         if (m.kind === "text" || m.kind === "stamp") {
-          const q = P(m.pts[0]); const stamp = m.kind === "stamp"; const size = stamp ? 14 : 11;
+          const p0 = m.pts[0]; if (!p0) continue;
+          const q = P(p0); const stamp = m.kind === "stamp"; const size = stamp ? 14 : 11;
           const txt = m.text || ""; const w = txt.length * size * 0.6 + 10;
           if (stamp) pg.drawRectangle({ x: q.x - 4, y: q.y - size - 2, width: w, height: size + 8, borderColor: RED, borderWidth: 1.5, color: RED, opacity: 0.08, borderOpacity: 1 });
           pg.drawText(txt, { x: q.x, y: q.y - size + 2, size, font, color: stamp ? RED : rgb(0, 0, 0) });
@@ -294,14 +305,15 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
         if (m.kind === "count") {
           for (const p of m.pts) { const q = P(p); pg.drawCircle({ x: q.x, y: q.y, size: 4, color: col }); }
         } else if (m.kind === "rect" && m.pts.length === 2) {
-          const a = P(m.pts[0]), b = P(m.pts[1]);
+          const a = P(m.pts[0]!), b = P(m.pts[1]!);          // safe: length === 2
           pg.drawRectangle({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(b.x - a.x),
             height: Math.abs(b.y - a.y), borderColor: col, borderWidth: 1.5, color: col, opacity: 0.12, borderOpacity: 1 });
         } else {
           const pts = m.kind === "area" ? [...m.pts, m.pts[0]] : m.pts;
-          for (let i = 1; i < pts.length; i++) { const s = P(pts[i - 1]), e = P(pts[i]); pg.drawLine({ start: s, end: e, thickness: 1.8, color: col }); }
+          for (let i = 1; i < pts.length; i++) { const s = P(pts[i - 1]!), e = P(pts[i]!); pg.drawLine({ start: s, end: e, thickness: 1.8, color: col }); }  // safe: 1 <= i < length
         }
-        const lp = P(m.pts[0]);
+        const lp0 = m.pts[0]; if (!lp0) continue;
+        const lp = P(lp0);
         const txt = `${m.label}: ${m.kind === "count" ? "1 ea" : m.value.toFixed(2) + " " + m.unit}`;
         pg.drawText(txt, { x: lp.x + 4, y: lp.y + 4, size: 8, font, color: col });
       }

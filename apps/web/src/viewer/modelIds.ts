@@ -17,8 +17,8 @@ export function merge(...maps: ModelIdMap[]): ModelIdMap {
   const out: Record<string, Set<number>> = {};
   for (const m of maps) {
     for (const [model, ids] of Object.entries(m)) {
-      out[model] ??= new Set();
-      ids.forEach((id) => out[model].add(id));
+      const set = (out[model] ??= new Set());
+      ids.forEach((id) => set.add(id));
     }
   }
   return out;

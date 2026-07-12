@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.193 — Type safety (T5): enable noUncheckedIndexedAccess + 251 real guards
+Turned on `noUncheckedIndexedAccess` in the web tsconfig — every array/record index access is now typed
+`T | undefined`, forcing an explicit check. Fixed all **251** resulting violations across 25 files with
+*real* guards (destructure-with-check, `?? <default>`, early-return/`continue`, optional chaining) — not
+blind `!`. Non-null assertions were used only where an index is provably in-bounds (right after a
+`.length` check or a literal-tuple index), each annotated `// safe: <reason>` (34 total); **zero**
+`as any` / `@ts-ignore` / `eslint-disable` escapes. The sweep caught real latent crashes now hardened:
+empty-selection `Object.entries(sel)[0]` in `createRfiFromSelection`, malformed-frag-pair `.replace()`,
+a `selectedIndex === -1` throw, `CAP_RANK[role]` defaulting unknown roles to rank 0 (correctly denies
+review/edit/admin), and malformed-GeoJSON/GeoTIFF coordinate handling (skip vs crash). Money math kept
+`?? 0` on numerators/display only, never divisors (no new NaN paths). tsc + ESLint + Vitest (66) + build
+all green.
+
 ## v0.3.192 — Docs: close out the Code quality & hardening initiative
 Roadmap updated to reflect that Waves 1–6 of the four-domain audit all shipped CI-green (v0.3.177–191):
 observability, perf/scale, the type boundary (OpenAPI types + `ui/dom.ts`), modularization

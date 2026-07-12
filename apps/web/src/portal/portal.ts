@@ -249,7 +249,7 @@ export class PortalUI {
         ]],
       ],
     };
-    const stages: [string, Dest[]][] = stagesByWs[this.wsFilter] ?? stagesByWs.construction;
+    const stages: [string, Dest[]][] = stagesByWs[this.wsFilter] ?? stagesByWs.construction ?? [];
     stages.push(["Across projects", [
       { key: "__portfolio__", icon: "🏢", label: "Portfolio" },
       { key: "__benchmarks__", icon: "📈", label: "Benchmarks" },
@@ -357,7 +357,7 @@ export class PortalUI {
     head.style.cssText = "display:flex;justify-content:space-between;align-items:center";
     head.append(Object.assign(document.createElement("span"), { textContent: "Project executive — on schedule & on budget" }));
     const tag = document.createElement("span"); tag.className = "ball-badge";
-    tag.style.cssText = `background:${pill[1]}22;color:${pill[1]};border-color:${pill[1]}`; tag.textContent = pill[0];
+    tag.style.cssText = `background:${pill[1]}22;color:${pill[1]};border-color:${pill[1]}`; tag.textContent = pill[0] ?? "";
     head.appendChild(tag); card.appendChild(head);
 
     const cols = document.createElement("div"); cols.className = "dash-cols";
@@ -686,7 +686,7 @@ export class PortalUI {
         gc:             ["ball", "rfis", "cos", "overdue", "quality", "safety"],
       };
       const order = ORDER_BY_PERSONA[persona] || ["ball", "overdue", "rfis", "cos", "quality", "safety"];
-      const cards = order.map((k) => pool[k]).filter(Boolean);
+      const cards = order.map((k) => pool[k]).filter((c): c is NonNullable<typeof c> => Boolean(c));
       for (const [label, val, onClick] of cards) {
         const c = el("div", "kpi" + (onClick ? " kpi-click" : "")) as HTMLElement;
         c.innerHTML = `<div class="kpi-v">${val}</div><div class="kpi-l">${label}</div>`;
@@ -1150,7 +1150,7 @@ export class PortalUI {
     saveView.onclick = async () => {
       const v = await promptModal("Save view", [{ name: "name", label: "View name", required: true }], "Save");
       if (!v) return;
-      await this.host.api.saveView(pid, m.key, v.name, { q: filter.q, state: filter.state, sort: this.sort[m.key] });
+      await this.host.api.saveView(pid, m.key, v.name ?? "", { q: filter.q, state: filter.state, sort: this.sort[m.key] });
       this.openModule(m, filter);
     };
     // reusable templates: apply a saved set of records, or save the current ones as a template
@@ -1164,7 +1164,7 @@ export class PortalUI {
           [{ name: "pick", label: "Template # to apply (blank = save current as new)" }], "Apply",
           tpls.map((t, i) => `${i + 1}. ${t.name} (${t.item_count})`).join("\n"));
         if (!v) return;
-        pick = v.pick;
+        pick = v.pick ?? "";
       } else {
         toast(`No ${m.name} templates yet — saving the current records as one.`, "info");
       }
@@ -1178,7 +1178,7 @@ export class PortalUI {
         const nv = await promptModal("Save template",
           [{ name: "name", label: "Template name", required: true }], "Save");
         if (!nv) return;
-        try { const s = await this.host.api.saveTemplate(pid, m.key, nv.name); this.host.setStatus(`saved template (${s.item_count} items)`); }
+        try { const s = await this.host.api.saveTemplate(pid, m.key, nv.name ?? ""); this.host.setStatus(`saved template (${s.item_count} items)`); }
         catch (e) { this.host.setStatus(`couldn't save: ${(e as Error).message}`); }
       }
     };
@@ -1662,7 +1662,7 @@ export class PortalUI {
         const v = await promptModal(`Add ${f.label} option`,
           [{ name: "val", label: `New ${f.label} option`, required: true }], "Add");
         if (!v) return;
-        const val = v.val;
+        const val = v.val ?? "";
         try {
           const res = await this.host.api.addEnumOption(pid, m.key, f.name, val.trim());
           let opt = [...selEl.options].find((o) => o.value === res.value);
@@ -1798,6 +1798,7 @@ export class PortalUI {
         if (f.type === "rollup") continue;
         if (f.type === "signature") { const s = sigs[f.name]?.(); if (s) data[f.name] = s; continue; }
         const el = inputs[f.name];
+        if (!el) continue;
         if (f.type === "multiselect") { data[f.name] = [...(el as HTMLSelectElement).selectedOptions].map((o) => o.value); continue; }
         const v = el.value; if (v) data[f.name] = (f.type === "number" || f.type === "currency") ? Number(v) : v;
       }
@@ -1828,7 +1829,7 @@ export class PortalUI {
           return;
         }
         const mm = /missing required field\(s\):\s*([^"}]+)/i.exec(msg);   // server-side required rules
-        if (mm) { const names = mm[1].split(",").map((s) => s.trim()).filter(Boolean); markInvalid(names); }
+        if (mm) { const names = (mm[1] ?? "").split(",").map((s) => s.trim()).filter(Boolean); markInvalid(names); }
         this.host.setStatus(`error: ${msg}`);
       }
     };
@@ -1899,7 +1900,7 @@ export class PortalUI {
         const v = await promptModal("Send for signature",
           [{ name: "emails", label: "Signer email(s), comma-separated", required: true }], "Send");
         if (!v) return;
-        const signers = v.emails.split(",").map((e) => ({ email: e.trim() })).filter((s) => s.email);
+        const signers = (v.emails ?? "").split(",").map((e) => ({ email: e.trim() })).filter((s) => s.email);
         if (!signers.length) return;
         const res = await api.sendForSignature(pid, m.key, rid, signers);
         toast(`sent via ${res.provider} · submission ${res.submission_id ?? "?"}`, "success");
@@ -2003,7 +2004,7 @@ export class PortalUI {
     preview.onclick = async () => {
       out.textContent = "searching…";
       try { const r = await this.host.api.opendataPermits(pid, { ...opts(), limit: 50 });
-        out.textContent = r.count ? `${r.count} filing(s) found — first: ${r.permits[0].address ?? r.permits[0].permit_number}` : "No filings found — try an address/keyword or coordinates.";
+        out.textContent = r.count ? `${r.count} filing(s) found — first: ${r.permits[0]?.address ?? r.permits[0]?.permit_number}` : "No filings found — try an address/keyword or coordinates.";
       } catch (e) { out.textContent = `Search failed: ${(e as Error).message}`; }
     };
     const imp = document.createElement("button"); imp.className = "file-btn"; imp.textContent = "Import";
@@ -2146,7 +2147,7 @@ export class PortalUI {
       const v = await promptModal("Reassign record",
         [{ name: "who", label: "Assign to (user id, blank to clear)", value: r.assignee ?? "" }]);
       if (!v) return;
-      try { await this.host.api.assignRecord(pid, m.key, rid, v.who.trim() || null); this.openRecord(m, rid); }
+      try { await this.host.api.assignRecord(pid, m.key, rid, v.who?.trim() || null); this.openRecord(m, rid); }
       catch (e) { this.host.setStatus(`error: ${(e as Error).message}`); }
     };
     asgRow.appendChild(reassign);
@@ -2382,7 +2383,7 @@ export class PortalUI {
       if (!navigator.onLine) { await this.queueUpload(pid, m.key, rid, list); this.openRecord(m, rid); return; }
       drop.classList.add("busy"); drop.querySelector("b")!.textContent = `Uploading ${list.length} file${list.length > 1 ? "s" : ""}…`;
       try {
-        if (list.length === 1) await this.host.api.uploadAttachment(pid, m.key, rid, list[0]);
+        if (list.length === 1) await this.host.api.uploadAttachment(pid, m.key, rid, list[0]!); // safe: list.length === 1 checked
         else await this.host.api.uploadAttachmentsBulk(pid, m.key, rid, list);
         this.host.setStatus(`attached ${list.length} file${list.length > 1 ? "s" : ""}`); this.openRecord(m, rid);
       } catch (e) {
@@ -2425,7 +2426,7 @@ export class PortalUI {
     let done = 0;
     for (const q of await allQueued()) {
       try {
-        if (q.files.length === 1) await this.host.api.uploadAttachment(q.pid, q.key, q.rid, q.files[0]);
+        if (q.files.length === 1) await this.host.api.uploadAttachment(q.pid, q.key, q.rid, q.files[0]!); // safe: q.files.length === 1 checked
         else await this.host.api.uploadAttachmentsBulk(q.pid, q.key, q.rid, q.files);
         await dequeue(q.id); done += q.files.length;
       } catch { /* leave it queued for the next reconnect */ }

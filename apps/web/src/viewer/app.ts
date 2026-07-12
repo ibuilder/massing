@@ -189,7 +189,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const [modelId, ids] = Object.entries(map)[0] ?? [];
     if (!modelId) return;
     const model = loader.fragments.list.get(modelId);
-    const localId = [...ids][0];
+    const localId = ids ? [...ids][0] : undefined;
     if (!model || localId === undefined) return;
     const [data] = await model.getItemsData([localId], {
       attributesDefault: true,
@@ -848,7 +848,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     try {
       const boxes = await loader.fragments.getBBoxes({ [hit.fragments.modelId]: new Set([hit.localId]) });
       if (!boxes.length) return null;
-      const bx = boxes[0];
+      const bx = boxes[0]!; // safe: boxes.length checked above
       return nearest([bx.min.x, bx.max.x].flatMap((x) =>
         [bx.min.y, bx.max.y].flatMap((y) => [bx.min.z, bx.max.z].map((z) => new THREE.Vector3(x, y, z)))));
     } catch { return null; }
@@ -860,7 +860,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     let p = raw ? (await snapToGeometry(raw, hit)) ?? snapPoint(raw) : null;
     // ortho lock: hold Shift on the 2nd point to constrain to H/V from the 1st
     if (p && e.shiftKey && placePts.length === 1) {
-      const a = placePts[0];
+      const a = placePts[0]!; // safe: placePts.length === 1 checked above
       if (Math.abs(p.x - a.x) >= Math.abs(p.z - a.z)) p = new THREE.Vector3(p.x, p.y, a.z);
       else p = new THREE.Vector3(a.x, p.y, p.z);
     }
@@ -874,18 +874,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const pl = (v: THREE.Vector3) => [v.x, -v.z];
     let recipe = "add_wall"; let params: Record<string, unknown> = {};
     if (kind === "wall") {
-      const [a, b] = placePts;
+      const a = placePts[0]!, b = placePts[1]!; // safe: PLACE_PTS.wall === 2, length >= it checked above
       params = { start: pl(a), end: pl(b), height: Number(await askText("Wall height", { label: "Wall height (m):", value: "3.0" })) || 3.0, thickness: Number(await askText("Wall thickness", { label: "Wall thickness (m):", value: "0.2" })) || 0.2 };
     } else if (kind === "column") {
       recipe = "add_column";
-      params = { point: pl(placePts[0]), height: Number(await askText("Column height", { label: "Column height (m):", value: "3.0" })) || 3.0 };
+      params = { point: pl(placePts[0]!), height: Number(await askText("Column height", { label: "Column height (m):", value: "3.0" })) || 3.0 }; // safe: PLACE_PTS.column === 1
     } else if (kind === "family") {
       if (!familyType) { notify("no family selected", "error"); return; }
       recipe = "place_type";
-      params = { type_guid: familyType.guid, position: pl(placePts[0]) };
+      params = { type_guid: familyType.guid, position: pl(placePts[0]!) }; // safe: PLACE_PTS.family === 1
     } else {
       recipe = "add_beam";
-      const [a, b] = placePts;
+      const a = placePts[0]!, b = placePts[1]!; // safe: PLACE_PTS.beam === 2, length >= it checked above
       params = { start: pl(a), end: pl(b), depth: Number(await askText("Beam depth", { label: "Beam depth (m):", value: "0.5" })) || 0.5 };
     }
     await authorAndReload(recipe, params, kind === "family" ? `family ${familyType?.name ?? ""}` : kind);
@@ -898,7 +898,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const raw = hit?.point ?? screenToGround(e);
     let p = raw ? (await snapToGeometry(raw, hit)) ?? snapPoint(raw) : null;
     if (p && e.shiftKey && armPts.length >= 1) {          // ortho lock from the previous point
-      const a = armPts[armPts.length - 1];
+      const a = armPts[armPts.length - 1]!; // safe: armPts.length >= 1 checked above
       if (Math.abs(p.x - a.x) >= Math.abs(p.z - a.z)) p = new THREE.Vector3(p.x, p.y, a.z);
       else p = new THREE.Vector3(a.x, p.y, p.z);
     }
@@ -1273,8 +1273,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         showResult("Model version history", async (body) => {
           if (!h.length) { body.appendChild(resultNote("No versions yet — publish the model (Authoring) to snapshot one.")); return; }
           if (h.length >= 2) {
-            const d = await api.versionDiff(pid, h[1].version, h[0].version);
-            body.appendChild(resultNote(`v${h[1].version} → v${h[0].version}: <b>+${d.added_count}</b> / <b>−${d.removed_count}</b> elements · ${d.unchanged_count} unchanged`, "ok"));
+            const d = await api.versionDiff(pid, h[1]!.version, h[0]!.version); // safe: h.length >= 2 checked above
+            body.appendChild(resultNote(`v${h[1]!.version} → v${h[0]!.version}: <b>+${d.added_count}</b> / <b>−${d.removed_count}</b> elements · ${d.unchanged_count} unchanged`, "ok"));
           }
           body.appendChild(kvTable(h.map((v) => ({
             k: `v${v.version}${v.note ? " (" + v.note + ")" : ""}`,
@@ -1295,19 +1295,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       }
       const fromPt = toolBtn2("Set from selected point", () => {
         if (!lastPoint) { setStatus("click a point first"); return; }
-        inputs.e.value = lastPoint.x.toFixed(3); inputs.n.value = (-lastPoint.z).toFixed(3); inputs.z.value = lastPoint.y.toFixed(3);
+        inputs.e!.value = lastPoint.x.toFixed(3); inputs.n!.value = (-lastPoint.z).toFixed(3); inputs.z!.value = lastPoint.y.toFixed(3); // safe: inputs.{e,n,z} populated by the loop above
       });
       fromPt.style.cssText = "";
       const apply = document.createElement("button");
       apply.className = "tool-btn"; apply.textContent = "Apply origin"; apply.style.marginLeft = "6px";
       apply.onclick = async () => {
-        origin.setOrigin({ e: +inputs.e.value, n: +inputs.n.value, z: +inputs.z.value });
+        origin.setOrigin({ e: +inputs.e!.value, n: +inputs.n!.value, z: +inputs.z!.value }); // safe: inputs.{e,n,z} populated by the loop above
         for (const [, model] of loader.fragments.list) origin.applyTo(model.object as unknown as THREE.Object3D);
         await loader.fragments.core.update(true);
         if (connected && projectId) {
           fetch(api.url(`/projects/${projectId}`), { method: "PATCH", headers: { "Content-Type": "application/json", ...api.authHeaders() }, body: JSON.stringify({ origin: origin.getOrigin() }) }).catch(() => {});
         }
-        setStatus(`origin set to E${inputs.e.value} N${inputs.n.value} Z${inputs.z.value}`);
+        setStatus(`origin set to E${inputs.e!.value} N${inputs.n!.value} Z${inputs.z!.value}`); // safe: inputs.{e,n,z} populated by the loop above
       };
       ob.append(fromPt, apply);
     }
@@ -1868,7 +1868,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               await colorize.reset();
               let legend = "";
               for (let i = 0; i < res.buckets.length; i++) {
-                const bk = res.buckets[i]; if (!bk.guids.length) continue;
+                const bk = res.buckets[i]!; if (!bk.guids.length) continue; // safe: i < res.buckets.length loop bound
                 const col = res.kind === "numeric" ? rampColor(i, res.buckets.length)
                   : (bk.label === "Other" ? "#5b6470" : hueColor(i, res.buckets.length));
                 await colorize.color(await sets.fromGuids(bk.guids), col);
@@ -2119,7 +2119,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         const place = toolBtn2("⊕ Place selected family", async () => {
           const key = sel.value;
           if (!key) { out.textContent = "pick a family first"; return; }
-          const label = sel.options[sel.selectedIndex].text;
+          const label = sel.options[sel.selectedIndex]?.text ?? key;
           const pos: [number, number] | null = lastPoint ? [lastPoint.x, -lastPoint.z] : null;
           out.textContent = `adding ${label}…`;
           await api.addFamily(pid, key, pos);
@@ -2226,9 +2226,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
   async function createRfiFromSelection() {
     if (!projectId || !selection) { setStatus("select an element first"); return; }
-    const [modelId, ids] = Object.entries(selection)[0];
+    const entry = Object.entries(selection)[0];
+    if (!entry) { setStatus("select an element first"); return; }
+    const [modelId, ids] = entry;
     const model = loader.fragments.list.get(modelId);
     const localId = [...ids][0];
+    if (localId === undefined) { setStatus("select an element first"); return; }
     const [guid] = model ? await model.getGuidsByLocalIds([localId]) : [null];
     // AI/template draft from the selected element's context (Procore Draft-RFI parity)
     let suggestedTitle = "New RFI";
@@ -2294,6 +2297,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       if (projectId && await loadProjectModel()) return;
       const frags = ctx.projectName ? fragsForProject(ctx.projectName) : [["/school_str.frag", "school-STR"], ["/school_arq.frag", "school-ARQ"]];
       for (const [file, id] of frags) {
+        if (!file || !id) continue;
         const res = await fetch(import.meta.env.BASE_URL + file.replace(/^\//, ""));
         if (res.ok) { await loader.loadFragments(await res.arrayBuffer(), id); modelLabels.set(id, id); }
       }

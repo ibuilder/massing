@@ -123,30 +123,31 @@ export class ProformaUI {
       const s = document.createElement("div"); s.className = "pf-section"; sections[key] = s;
     }
     this.root.appendChild(tabbar);
-    for (const [key] of TABS) this.root.appendChild(sections[key]);
+    for (const [key] of TABS) { const s = sections[key]; if (s) this.root.appendChild(s); }
     const showTab = (k: string) => {
-      for (const [key] of TABS) { sections[key].style.display = key === k ? "block" : "none"; tabBtns[key].classList.toggle("active", key === k); }
+      for (const [key] of TABS) { const s = sections[key]; const btn = tabBtns[key]; if (!s || !btn) continue; s.style.display = key === k ? "block" : "none"; btn.classList.toggle("active", key === k); }
       localStorage.setItem("pf-tab", k);
-      if (k === "fin") void this.renderStatements(sections.fin);   // (re)compute statements from the live deal
-      if (k === "appr") void this.renderAppraisal(sections.appr);  // tri-approach valuation + disposition
-      if (k === "ops") void this.renderOperations(sections.ops);   // hold-phase rent roll
-      if (k === "asset") void this.renderAssetMgmt(sections.asset); // reserve study + CIP + CAM true-up
-      if (k === "inv") void this.renderInvestors(sections.inv);    // cap table + capital + statements
+      if (k === "fin" && sections.fin) void this.renderStatements(sections.fin);   // (re)compute statements from the live deal
+      if (k === "appr" && sections.appr) void this.renderAppraisal(sections.appr);  // tri-approach valuation + disposition
+      if (k === "ops" && sections.ops) void this.renderOperations(sections.ops);   // hold-phase rent roll
+      if (k === "asset" && sections.asset) void this.renderAssetMgmt(sections.asset); // reserve study + CIP + CAM true-up
+      if (k === "inv" && sections.inv) void this.renderInvestors(sections.inv);    // cap table + capital + statements
     };
     // route each panel into its section by temporarily pointing this.root at the section
     const self = this as unknown as { root: HTMLElement };
     const into = (el: HTMLElement, fn: () => void) => { const r = self.root; self.root = el; try { fn(); } finally { self.root = r; } };
     this.overviewEl = sections.over; this.renderOverview();
-    into(sections.feas, () => { this.renderMassing(); this.renderTestFit(); this.renderProperty(); });
-    into(sections.cap, () => { this.renderBudget(); this.renderSourcesUses(); this.renderSpecialty(); });
-    into(sections.uw, () => {
-      sections.uw.appendChild(form);
-      const out = document.createElement("div"); out.id = "pf-out"; sections.uw.appendChild(out);
-      const sens = document.createElement("div"); sens.id = "pf-sens"; sections.uw.appendChild(sens);
-      const mc = document.createElement("div"); mc.id = "pf-mc"; sections.uw.appendChild(mc);
+    if (sections.feas) into(sections.feas, () => { this.renderMassing(); this.renderTestFit(); this.renderProperty(); });
+    if (sections.cap) into(sections.cap, () => { this.renderBudget(); this.renderSourcesUses(); this.renderSpecialty(); });
+    const uwSec = sections.uw;
+    if (uwSec) into(uwSec, () => {
+      uwSec.appendChild(form);
+      const out = document.createElement("div"); out.id = "pf-out"; uwSec.appendChild(out);
+      const sens = document.createElement("div"); sens.id = "pf-sens"; uwSec.appendChild(sens);
+      const mc = document.createElement("div"); mc.id = "pf-mc"; uwSec.appendChild(mc);
       this.renderDraws();
     });
-    into(sections.deliver, () => { this.renderDeliverables(); this.renderModelLink(); });
+    if (sections.deliver) into(sections.deliver, () => { this.renderDeliverables(); this.renderModelLink(); });
     showTab(localStorage.getItem("pf-tab") || "over");
   }
 
@@ -200,7 +201,7 @@ export class ProformaUI {
 
     // balance sheet (final year)
     const bs = f.balance_sheet.by_year[f.balance_sheet.by_year.length - 1];
-    grid.appendChild(stmt(`Balance sheet — year ${bs.year} ${f.balance_sheet.balanced ? "✓" : "⚠"}`, [
+    if (bs) grid.appendChild(stmt(`Balance sheet — year ${bs.year} ${f.balance_sheet.balanced ? "✓" : "⚠"}`, [
       { label: "Land", amount: bs.assets.land },
       { label: "Improvements (net of depreciation)", amount: bs.assets.improvements_net },
       { label: "Capitalized financing", amount: bs.assets.capitalized_financing },
@@ -385,7 +386,7 @@ export class ProformaUI {
     const save = document.createElement("button"); save.className = "file-btn"; save.textContent = "Save weights & recompute";
     save.onclick = async () => {
       const weights: Record<string, number> = {};
-      for (const [k] of wKeys) { const n = parseFloat(inputs[k].value); if (!isNaN(n)) weights[k] = n / 100; }
+      for (const [k] of wKeys) { const inp = inputs[k]; if (!inp) continue; const n = parseFloat(inp.value); if (!isNaN(n)) weights[k] = n / 100; }
       save.disabled = true;
       try { await this.api.saveAppraisal(pid, { weights }); await this.renderAppraisal(host); }
       catch (e) { this.setStatus("Save failed: " + (e as Error).message); save.disabled = false; }
@@ -425,7 +426,8 @@ export class ProformaUI {
       try {
         const st = await this.api.reSyndicationStatus();
         const listings = await this.api.moduleRecords(pid, "listing");
-        let lid = listings.length ? listings[listings.length - 1].id : null;
+        const lastListing = listings[listings.length - 1];
+        let lid = lastListing ? lastListing.id : null;
         if (!lid) {
           const { data } = await this.api.listingAutofill(pid);
           lid = (await this.api.createModuleRecord(pid, "listing", { data })).id;
@@ -485,7 +487,7 @@ export class ProformaUI {
       const stepPct = esc.current_base_rent ? Math.round((esc.projected_base_rent / esc.current_base_rent - 1) * 1000) / 10 : 0;
       card.innerHTML = `<div class="section-title">Lease management</div>`
         + `<table class="fin-table">`
-        + `<tr><td>Expiring ≤90 / ≤180 / ≤365 d</td><td class="num">${ex["<=90d"].count} / ${ex["<=180d"].count} / ${ex["<=365d"].count}</td></tr>`
+        + `<tr><td>Expiring ≤90 / ≤180 / ≤365 d</td><td class="num">${ex["<=90d"]?.count ?? 0} / ${ex["<=180d"]?.count ?? 0} / ${ex["<=365d"]?.count ?? 0}</td></tr>`
         + `<tr><td>Holdover · options outstanding</td><td class="num">${lm.renewals.holdover_count} · ${lm.renewals.options_outstanding}</td></tr>`
         + `<tr><td>Rent at risk (≤365 d)</td><td class="num">${money(lm.renewals.at_risk_rent)}</td></tr>`
         + `<tr><td>Base rent now → yr ${esc.years}</td><td class="num">${money(esc.current_base_rent)} → ${money(esc.projected_base_rent)} (+${stepPct}%)</td></tr>`
@@ -799,7 +801,8 @@ export class ProformaUI {
     const params = (): MassingParams => {
       const p: MassingParams = { use_type: useSel.value as "residential" | "commercial", name: "Massing Study" };
       for (const [, key] of fields) {
-        const v = parseFloat(inputs[key].value);
+        const inp = inputs[key]; if (!inp) continue;
+        const v = parseFloat(inp.value);
         if (key === "height_limit") { p.height_limit = isNaN(v) || v <= 0 ? null : v; }
         else if (!isNaN(v)) (p as Record<string, unknown>)[key] = v;
       }
@@ -1165,7 +1168,7 @@ export class ProformaUI {
           const add = document.createElement("button"); add.className = "tool-btn"; add.textContent = "+ line";
           add.onclick = () => { lines.push({ category: cat as "hard", description: "New line", unit_cost: 0, quantity: 1 }); save(); paint(); };
           const cw = document.createElement("label"); cw.className = "meta"; cw.style.fontSize = "11px";
-          cw.innerHTML = `contingency % <input type="number" step="any" value="${+(contingency[cat] * 100).toFixed(2)}" style="width:56px">`;
+          cw.innerHTML = `contingency % <input type="number" step="any" value="${+((contingency[cat] ?? 0) * 100).toFixed(2)}" style="width:56px">`;
           (cw.querySelector("input") as HTMLInputElement).oninput = (e) => { contingency[cat] = num((e.target as HTMLInputElement).value) / 100; save(); };
           addRow.append(add, cw); body.appendChild(addRow);
         }
@@ -1358,7 +1361,7 @@ export class ProformaUI {
             .map((x) => ({ actual_to_date: parseFloat(x.value) || 0 }));
           const sc = await this.api.createScenario("Draw package", pid, this.a);
           const dp = await this.api.drawPackage(sc.id, { project_id: pid, actuals, as_of_month: 9, app_no: 1 });
-          this.setStatus(`SOV (${dp.sov_lines_created} lines) → G702 due $${Math.round(dp.g702.line8_current_payment_due).toLocaleString()}`);
+          this.setStatus(`SOV (${dp.sov_lines_created} lines) → G702 due $${Math.round(dp.g702.line8_current_payment_due ?? 0).toLocaleString()}`);
           { const { openPdfUrl, saveToDocuments } = await import("../drawings/openPdf");
             await openPdfUrl(this.api, this.api.url(dp.g702_pdf), "G702-draw.pdf", { saveLabel: "Save to Documents", onSave: saveToDocuments(this.api, pid) }); }
         } catch (e) { this.setStatus(`draw package error: ${(e as Error).message}`); }
@@ -1390,7 +1393,7 @@ export class ProformaUI {
     const g = r.guardrails;
     if (g && g.flags.length) {
       const worst = g.flags.find((f) => f.level === "high") || g.flags.find((f) => f.level === "med") || g.flags[0];
-      html += `<span class="pf-guard ${worst.level === "info" ? "ok" : worst.level}" title="${g.flags.map((f) => f.message).join(" · ").replace(/"/g, "'")}">`
+      if (worst) html += `<span class="pf-guard ${worst.level === "info" ? "ok" : worst.level}" title="${g.flags.map((f) => f.message).join(" · ").replace(/"/g, "'")}">`
         + `${worst.level === "info" ? "✓ within market bands" : (worst.level === "high" ? "⚠ check assumptions" : "△ review") + ` · ${worst.message.slice(0, 60)}…`}</span>`;
     }
     bar.innerHTML = html;
@@ -1457,7 +1460,7 @@ export class ProformaUI {
     if (!m || !m.n) { this.renderMonteCarloPrompt(); return; }
     const hmax = Math.max(...m.histogram.counts, 1);
     const bars = m.histogram.counts.map((c, i) => {
-      const lo = m.histogram.edges[i];
+      const lo = m.histogram.edges[i] ?? 0;
       return `<span class="pf-bar" title="${(lo * 100).toFixed(1)}%: ${c}" style="height:${Math.round((c / hmax) * 48) + 1}px"></span>`;
     }).join("");
     const prob = Math.round((m.prob_at_least ?? 0) * 100);
@@ -1497,7 +1500,7 @@ export class ProformaUI {
     };
     const head = `<tr><th>IRR</th>${s.x_values.map((x) => `<th>${(x * 100).toFixed(1)}%</th>`).join("")}</tr>`;
     const rows = s.matrix.map((row, j) =>
-      `<tr><th>$${(s.y_values[j] / 1e6).toFixed(1)}M</th>` +
+      `<tr><th>$${((s.y_values[j] ?? 0) / 1e6).toFixed(1)}M</th>` +
       row.map((v) => `<td style="background:${color(v)}">${v == null ? "—" : (v * 100).toFixed(1)}</td>`).join("") +
       `</tr>`).join("");
     // one-way tornado, derived from the same matrix for free: the middle row sweeps exit cap at the
