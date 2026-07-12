@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.172 — PM: stakeholder register + power/interest analysis
+Roadmap **PM artifacts #1** (from the PM-template research). A new **Stakeholders** module (under Project
+Controls) registers each party — organization, role, category, power/influence, interest, stance,
+engagement strategy. A `stakeholder.py` engine turns the register into the **Mendelow power/interest
+grid** — *manage closely* (high/high), *keep satisfied* (high power), *keep informed* (high interest),
+*monitor* (low/low) — with a stance tally and, crucially, the **high-power blockers** to address. Exposed
+as `GET /projects/{pid}/stakeholders/analysis` and a **Stakeholder Analysis** report (power/interest
+quadrants + roster + blockers) in the Report Center, exportable to PDF/Excel. New `test_stakeholder`.
+
 ## v0.3.171 — Model QA: integrity / hygiene checks
 Roadmap **Model-QA** (from the second research batch's "common modelling mistakes"). Complementing the
 LOIN/IDS *data-quality* checks, a new **🩺 Model QA** tool scans the source IFC for the defects a

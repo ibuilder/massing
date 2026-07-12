@@ -29,6 +29,13 @@ def record_distribution(pid: str, key: str, rid: str, db: Session = Depends(get_
     return dist_engine.for_record(db, pid, key, rid)
 
 
+@router.get("/projects/{pid}/stakeholders/analysis")
+def stakeholder_analysis(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Power/interest (Mendelow) grid + stance read of the project's stakeholder register."""
+    from .. import stakeholder
+    return stakeholder.analysis(db, pid)
+
+
 @router.get("/projects/{pid}/tm-summary")
 def tm_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Time & Material (eTicket) cost rollup — labor/material/equipment, billed vs unbilled."""

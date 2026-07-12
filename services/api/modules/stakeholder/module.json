@@ -1,0 +1,35 @@
+{
+  "key": "stakeholder",
+  "name": "Stakeholders",
+  "section": "Project Controls",
+  "icon": "👥",
+  "ref_prefix": "STK",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    { "name": "name", "label": "Name", "type": "text", "required": true, "fieldset": "Identity" },
+    { "name": "organization", "label": "Organization", "type": "text", "fieldset": "Identity" },
+    { "name": "role", "label": "Role / Title", "type": "text", "fieldset": "Identity" },
+    { "name": "category", "label": "Category", "type": "select",
+      "options": ["Client / Owner", "Design team", "Contractor", "Authority / Regulator",
+                  "Community", "Investor / Lender", "End user", "Other"], "fieldset": "Identity" },
+    { "name": "power", "label": "Power / Influence", "type": "select",
+      "options": ["High", "Medium", "Low"], "fieldset": "Assessment" },
+    { "name": "interest", "label": "Interest", "type": "select",
+      "options": ["High", "Medium", "Low"], "fieldset": "Assessment" },
+    { "name": "stance", "label": "Stance", "type": "select",
+      "options": ["Supporter", "Neutral", "Blocker"], "fieldset": "Assessment" },
+    { "name": "engagement_strategy", "label": "Engagement strategy", "type": "textarea", "fieldset": "Engagement" },
+    { "name": "contact", "label": "Contact", "type": "text", "fieldset": "Engagement" }
+  ],
+  "workflow": {
+    "initial": "active",
+    "states": ["active", "inactive"],
+    "transitions": [
+      { "from": "active", "to": "inactive", "action": "deactivate" },
+      { "from": "inactive", "to": "active", "action": "reactivate" }
+    ]
+  },
+  "list_columns": ["organization", "category", "power", "interest"],
+  "workspace": "construction|developer|design"
+}

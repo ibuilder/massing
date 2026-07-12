@@ -59,6 +59,7 @@ REPORTS: dict[str, tuple[str, str]] = {
     "decision_log": ("Decision Log", "Preconstruction"),
     "assumptions_register": ("Assumptions & Clarifications", "Preconstruction"),
     "precon_alignment": ("Preconstruction Alignment", "Preconstruction"),
+    "stakeholder_analysis": ("Stakeholder Analysis (power/interest)", "Project Controls"),
     "spec_submittal_log": ("Spec-Driven Submittal Log", "Preconstruction"),
     "site_feasibility": ("Site Feasibility / Zoning Envelope", "Preconstruction"),
     "esg": ("ESG / Sustainability Summary", "Operations"),
@@ -245,6 +246,28 @@ def _risk(db: Session, pid: str, name: str) -> Report:
     if dg["drivers"].get("top_alerts"):
         r.table("Top schedule alerts", ["Level", "Alert", "Detail"],
                 [[a["level"].upper(), a["title"], a.get("detail", "")] for a in dg["drivers"]["top_alerts"]])
+    return r
+
+
+def _stakeholder_analysis(db: Session, pid: str, name: str) -> Report:
+    """Power/interest (Mendelow) grid + stance read of the stakeholder register."""
+    from . import stakeholder
+    a = stakeholder.analysis(db, pid)
+    r = Report("Stakeholder Analysis", name)
+    r.kpi("Stakeholders", a["total"])
+    r.kpi("Supporters", f"{a['stance']['Supporter']} ({a['supporter_pct'] or 0}%)")
+    r.kpi("Blockers", a["stance"]["Blocker"])
+    for k in ("manage_closely", "keep_satisfied", "keep_informed", "monitor"):
+        q = a["quadrants"][k]
+        if q["stakeholders"]:
+            r.table(f"{q['label']} ({q['count']}) — {q['advice']}",
+                    ["Ref", "Name", "Organization", "Category", "Stance"],
+                    [[s.get("ref") or "", s.get("name") or "", s.get("organization") or "",
+                      s.get("category") or "", s.get("stance") or ""] for s in q["stakeholders"]])
+    if a["high_power_blockers"]:
+        r.table("High-power blockers to address", ["Ref", "Name", "Organization"],
+                [[s.get("ref") or "", s.get("name") or "", s.get("organization") or ""]
+                 for s in a["high_power_blockers"]])
     return r
 
 
@@ -1382,7 +1405,8 @@ _BUILDERS: dict[str, Callable[[Session, str, str], Report]] = {
     "closeout": _closeout, "project_health": _project_health, "co_log": _co_log,
     "action_tracker": _action_tracker, "estimate_continuity": _estimate_continuity,
     "decision_log": _decision_log, "assumptions_register": _assumptions_register,
-    "precon_alignment": _precon_alignment, "spec_submittal_log": _spec_submittal_log,
+    "precon_alignment": _precon_alignment, "stakeholder_analysis": _stakeholder_analysis,
+    "spec_submittal_log": _spec_submittal_log,
     "site_feasibility": _site_feasibility, "esg": _esg, "fca": _fca, "resilience": _resilience,
     "bim_kpi": _bim_kpi, "listing_factsheet": _listing_factsheet, "marketing_flyer": _marketing_flyer,
     "executive": _executive, "risk": _risk, "cost": _cost, "evm": _evm, "wip": _wip,
