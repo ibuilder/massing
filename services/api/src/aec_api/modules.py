@@ -22,6 +22,7 @@ from sqlalchemy import (
     JSON,
     Column,
     DateTime,
+    Float,
     Index,
     String,
     Table,
@@ -468,6 +469,20 @@ def _json_text(db: Session, col, jkey: str):
     return func.json_extract(col, f"$.{jkey}")
 
 
+def sum_field(db: Session, key: str, project_id: str, field: str) -> float:
+    """SQL `SUM` of a numeric JSON field across a project's records — no full-table load into Python.
+    Portable: casts the Postgres `->>` text to float; SQLite `json_extract` is already numeric. NULL /
+    missing values are skipped by SUM. Use for aggregate-only reads (e.g. billed-to-date) instead of
+    `list_records(limit=100000)` + a Python sum."""
+    if key not in TABLES:
+        return 0.0
+    t = TABLES[key]
+    col = _json_text(db, t.c.data, field)
+    expr = func.sum(cast(col, Float)) if _is_postgres(db) else func.sum(col)
+    val = db.execute(select(expr).where(t.c.project_id == project_id)).scalar()
+    return float(val or 0.0)
+
+
 def _rollup(db: Session, key: str, project_id: str, rid: str, f: dict) -> float | int:
     """Aggregate f['source_field'] over incoming records of f['source_module'] that point here."""
     src_key, field = f.get("source_module"), f.get("source_field")
@@ -590,12 +605,15 @@ def related_records(db: Session, key: str, project_id: str, rid: str) -> dict:
     incoming = []
     for src_key, field, src_name in REVERSE_REFS.get(key, []):
         t = TABLES[src_key]
-        for r in db.execute(select(t.c.id, t.c.ref, t.c.title, t.c.workflow_state, t.c.data)
-                            .where(t.c.project_id == project_id)):
+        # filter the reverse-reference match in SQL (JSON extraction) so only the matching source rows
+        # are fetched — the source table is no longer fully scanned + shipped to Python on the
+        # per-record detail view (mirrors _rollup).
+        for r in db.execute(select(t.c.id, t.c.ref, t.c.title, t.c.workflow_state)
+                            .where(t.c.project_id == project_id,
+                                   _json_text(db, t.c.data, field) == rid)):
             m = r._mapping
-            if (m["data"] or {}).get(field) == rid:
-                incoming.append({"module": src_key, "module_name": src_name, "id": m["id"],
-                                 "ref": m["ref"], "title": m["title"], "state": m["workflow_state"]})
+            incoming.append({"module": src_key, "module_name": src_name, "id": m["id"],
+                             "ref": m["ref"], "title": m["title"], "state": m["workflow_state"]})
     return {"outgoing": outgoing, "incoming": incoming}
 
 

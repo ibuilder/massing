@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.179 — Scale: SQL-aggregate the portfolio & related-record hot paths (Wave 3)
+Removing the linear-in-project-size loads. **P3 — WIP portfolio N+1:** the WIP schedule loaded up to
+100k owner-invoice rows into Python *per project* to sum billed-to-date, and the portfolio roll-up runs
+that for every job — the worst scale hazard in the codebase. Added a portable
+`modules.sum_field(db, key, pid, field)` (SQL `SUM` over the JSON column: Postgres `->>`+cast,
+SQLite `json_extract`) and pointed the WIP billed-to-date total at it. **P4 — dashboard timesheet
+hours:** the safety-metrics endpoint summed `timesheet.hours` by loading every row; now a single SQL
+sum (the manpower log stays row-wise because it needs the headcount→hours fallback). **related_records:**
+the per-record detail view full-scanned each reverse-referencing module and filtered the match in Python;
+the reference match is now pushed into SQL via the existing `_json_text` extraction (mirrors `_rollup`).
+Identical output, far less work at scale. *(The schedule/CPM/gantt `list_records` loads were reviewed and
+left as-is — they legitimately need every activity row. The ref-uniqueness DB backstop is deferred as
+low-value/higher-risk.)*
+
 ## v0.3.178 — Perf & concurrency hardening (code-quality Wave 2)
 Applying the audit's highest value-to-effort fixes. **P1 — event-loop stall:** the
 `POST /scan/deviation` endpoint was `async` but ran `ifcopenshell.open` + full tessellation and the

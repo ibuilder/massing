@@ -46,9 +46,9 @@ def schedule(db: Session, pid: str) -> dict[str, Any]:
     pcs = me.list_records(db, "prime_contract", pid, limit=1000) if "prime_contract" in me.TABLES else []
     pc_val = sum(_n((r.get("data") or {}).get("value")) for r in pcs)
     contract_value = round((pc_val + co) if pc_val else cs["budget"], 2)
-    # billed to date: owner invoices
-    billed = round(sum(_n((r.get("data") or {}).get("amount"))
-                       for r in me.list_records(db, "owner_invoice", pid, limit=100_000))
+    # billed to date: owner invoices — SQL SUM, not a 100k-row load into Python (this runs per project
+    # in the portfolio roll-up, so the full-table materialization was the worst scale hazard).
+    billed = round(me.sum_field(db, "owner_invoice", pid, "amount")
                    if "owner_invoice" in me.TABLES else 0.0, 2)
     retainage = round(cost.g703(db, pid)["totals"].get("retainage", 0.0)
                       or (cost.DEFAULT_RETAINAGE / 100 * billed), 2)

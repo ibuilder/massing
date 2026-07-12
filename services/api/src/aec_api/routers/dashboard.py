@@ -154,9 +154,10 @@ def safety_metrics(pid: str, hours: float | None = None, db: Session = Depends(g
             pass
     if hours is None:                              # derive man-hours from the logs if not supplied
         SHIFT = 8.0                                # standard crew shift when a log gives headcount, not hours
-        hours = sum(float((x.get("data") or {}).get("hours") or 0)
-                    for x in me.list_records(db, "timesheet", pid, limit=1_000_000))
-        for x in me.list_records(db, "manpower_log", pid, limit=1_000_000):
+        # timesheet hours is a pure column sum — SQL-aggregate it instead of loading every row (this is
+        # the highest-volume table here; manpower logs need the headcount fallback so stay row-wise).
+        hours = me.sum_field(db, "timesheet", pid, "hours") if "timesheet" in me.TABLES else 0.0
+        for x in me.list_records(db, "manpower_log", pid, limit=100_000):
             d = x.get("data") or {}
             h = float(d.get("hours") or 0)
             if not h:                              # crew count × an 8h shift = man-hours for the day
