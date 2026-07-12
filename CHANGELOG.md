@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.184 — CI hotfix: scope Trivy HIGH past npm's bundled build tooling
+The v0.3.183 Trivy bump to HIGH immediately flagged **12 HIGH CVEs — all in npm's own vendored
+node_modules** (cross-spawn / glob / minimatch / tar, DoS/regex issues) that the `node:20-slim` layer
+carries; they're build-time tooling, not runtime attack surface, and can't be pinned by us (they track
+the base image). The scan now `skip-dirs` npm's bundled tree, so real HIGH/CRITICAL CVEs in **our**
+fragments/web-ifc + Python deps still block the publish, without base-image tooling noise. (The API test
+gate, web build, and full backend suite were already green on v0.3.183 — this only unblocks the container
+publish.)
+
 ## v0.3.183 — Ops/build hardening (Wave 1/6: O3 · O4 · B4) + A1 lint fix
 Cross-cutting hardening + a follow-up to v0.3.181.
 - **O3 — fail-closed prod secrets.** The prod compose overlay now sets `POSTGRES_PASSWORD` (postgres +
