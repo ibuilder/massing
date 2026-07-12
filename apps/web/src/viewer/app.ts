@@ -963,13 +963,22 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           api.url(`/projects/${projectId}/model.frag`), { headers: api.authHeaders() },
           (loaded, total) => setLoadingLabel(container,
             `downloading model ${Math.round(loaded / total * 100)}% (${mb(loaded)}/${mb(total)} MB)`));
-      } catch { return false; }                 // no published model yet
+      } catch { return false; }                 // 404 / no published model yet — fall through to no-model
+      // A metadata-only project (property index uploaded, geometry never published) has no .frag, so the
+      // request 404s above. Guard the degenerate variants too: an empty body, or a non-.frag payload
+      // (e.g. a proxy / SPA host that rewrites a 404 into a 200 HTML page) would otherwise reach the
+      // Fragments worker, which can *hang* — not reject — on input it can't parse, leaving the
+      // "loading model" overlay up forever. Fail open to the same graceful no-model state a brand-new
+      // project already takes.
+      if (buffer.byteLength === 0) return false;
       await loader.disposeAll();
       modelLabels.clear();
       const id = `project-${projectId}`;
       modelLabels.set(id, ctx.projectName || "project");
       setLoadingLabel(container, "preparing geometry…");
-      await loader.loadFragments(buffer, id);
+      try {
+        await loader.loadFragments(buffer, id);
+      } catch { modelLabels.delete(id); return false; }   // corrupt / non-.frag bytes — fall through
       refreshFederation();
       await fitToModels();
       return true;

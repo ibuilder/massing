@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.202 — Fix: metadata-only project no longer hangs the viewer on "Loading model"
+A project with an uploaded **property index but no published `.frag`** (geometry never converted) spun the
+viewer's **"Loading model"** overlay forever, and because the auto-load never returned, the Construction /
+Finance **portal never mounted** ("No project open"). The backend correctly **404s** `model.frag` for such
+a project — that path was already handled — but the degenerate variants weren't: an **empty 200 body**, or a
+**non-`.frag` payload** (e.g. a proxy / SPA host that rewrites a 404 into a 200 HTML page) reached the
+Fragments worker, which can **hang** (not reject) on input it can't parse, so `withLoading`'s `finally` never
+fired. `loadProjectModel()` now fails open to the same graceful no-model state a brand-new project takes:
+skip an empty body, and wrap `loadFragments` so unparseable bytes fall through instead of stalling. New
+`apps/web/src/ui/autoload.test.ts` covers 404 / empty-200 / non-`.frag` / valid-`.frag`. Verified: backend
+`model.frag` 404 + `model_kind: None` confirmed against the API; typecheck + lint clean; full web suite green.
+
 ## v0.3.201 — UI cohesion: wire the approval-gated journal batch into the General Ledger panel
 A UI/UX cohesion pass over the recent finance work found the v0.3.199 **journal export batch** had shipped
 backend-only — its client methods (`createJournalBatch`/`journalBatchExportUrl`) had no surface, so the
