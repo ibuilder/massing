@@ -56,7 +56,7 @@
     "@types/three": "0.184.1",
     "eslint": "^9.39.5",
     "globals": "^17.7.0",
-    "happy-dom": "^15.11.7",
+    "happy-dom": "^20.10.6",
     "openapi-typescript": "^7.13.0",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.63.0",
