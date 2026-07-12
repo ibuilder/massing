@@ -6,7 +6,13 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.86**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.178**.
+
+> **The product's feature roadmap is effectively cleared** — every headline theme has shipped
+> (generative design + Test Fit, developer/finance portal, full acquisition→turnover lifecycle, openBIM
+> standards, AI-over-model, discipline spine, operations/resilience, scan-to-BIM + 2D→BIM). The active
+> work is now the **Code quality & hardening** initiative below; everything under "Shipped archive" is
+> historical reference. **What's left, prioritized, is the single section that follows.**
 
 ---
 
@@ -14,39 +20,59 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 
 From a four-domain, file-grounded audit (Python architecture · Python performance/correctness ·
 TypeScript · Rust/build-CI). The core is mature; this closes the specific remaining gaps and finishes
-half-rolled-out patterns. Delivered as ordinary versioned, CI-green releases in 6 waves, safety-net first.
+half-rolled-out patterns. Delivered as ordinary versioned, CI-green releases, safety-net first.
+Full proposal (ranked, with file evidence): https://claude.ai/code/artifact/aabdff8f-e331-4f91-8961-09d0394be4d5
 
-- **Track O — Observability & ops.** O1 server error-log feed (global 500 handler + request-id →
-  `error_log` table + `/admin/errors`, retention-capped) **[backend shipped]**; O2 client-side error
-  capture (`window.onerror`/`unhandledrejection` → `/client-errors`) + admin Errors panel; O3 fail-closed
-  prod secrets (`${VAR:?}`); O4 Rust `cargo clippy`/`fmt` on PR CI + trivy HIGH.
-- **Track P — Python perf/scale.** P1 `scan_deviation` → `run_in_threadpool` (event-loop stall); P2 wrap
-  `data_qa`/`code_check`/`by-discipline` in the existing `_scan_cached`; P3 WIP `portfolio()` N+1 → SQL
-  aggregate; P4 dashboard/schedule `limit=1_000_000` loads → `count_records`/`func.sum`; P5 index/uniqueness/
-  cache-lock hardening; P6 `Decimal` money helper for billing/WIP/bid-tab.
-- **Track A — Python architecture.** A1 extract the model-property index out of `routers/properties.py`
-  into `model_index.py` (5 engines import its router-private internals — worst dep inversion); A2 split
-  `reports.py` (1436) into a `reports/` package + collapse `REPORTS`/`_BUILDERS`/`_LOGS` to one `ReportSpec`;
-  A3 shared `source_ifc`/IFC-open helper + one `_databridge`; A4 split `routers/modules.py` (Procore/schedule
-  out) + `data/drawings.py`; A5 cap report table loads; A6 consistency wins.
-- **Track T — TypeScript.** T1 OpenAPI-generated response types (kill client/backend drift) **[biggest
-  win]**; T2 decompose the 2737-line `ApiClient` → `HttpCore` + lazy domain sub-clients (tree-shaking/shell
-  budget); T3 extract `portal.ts` grid/form/nav + `viewer/app.ts` `install*` tool modules; T4 `form<T>()` +
-  `ui/dom.ts el()/table()` helpers; T5 `noUncheckedIndexedAccess` + typed `no-floating-promises` lint;
-  T6 typed proforma path model.
-- **Track B — Build/deps/reproducibility.** B1 single-source the `@thatopen/fragments`+`web-ifc` pair
-  across the 3 places it's hardcoded (client + 2 Dockerfiles); B2 Python `pip-compile` lockfiles; B3 web
-  Dockerfile `npm ci` (root context) + multi-stage API image; B4 CLI output-path guard + Dependabot
-  `directory:/` + purge dev-venv AGPL.
+### ✅ Shipped
+- **Wave 1 — Observability (v0.3.177).** O1 server error-log feed (global 500 handler + request-id →
+  `error_log` table + admin `/admin/errors` console, retention-capped) · O2 client-side error capture
+  (`window.onerror`/`unhandledrejection` → `/client-errors`, throttled) + admin **Errors** panel.
+- **Wave 2 — Perf quick-wins (v0.3.178).** P1 `scan_deviation` → `run_in_threadpool` (event-loop stall
+  fixed) · P2 `data_qa`/`code_check`/`by-discipline` now use the model-keyed `_scan_cached` · P5a
+  `(project_id, ts)` index on `record_activity` · P5b lock on the threadpool-mutated property index.
 
-Full proposal (ranked, with file evidence + sequencing waves):
-https://claude.ai/code/artifact/aabdff8f-e331-4f91-8961-09d0394be4d5
+### ▶ NOW — Wave 3 (Scale)
+- **P3** `wip.portfolio()` N+1 fan-out → SQL aggregate the billed-to-date sum (`_json_text`); batch
+  per-project summaries. *(wip.py — highest scale hazard.)*
+- **P4** dashboard + schedule routers: `list_records(limit=1_000_000)` → `count_records` / `func.sum`.
 
-Top five if only five: **P1 · P2 · T1 · A1 · B1**.
+### ⏭ NEXT
+- **Wave 4 — Type boundary.** T1 OpenAPI-generated TS response types (`openapi-typescript` → `schema.d.ts`;
+  kills client/backend drift — **biggest single win**) · T4 shared `form<T>()` upload + `ui/dom.ts`
+  `el()/table()` helpers.
+- **Wave 1 finish.** O3 fail-closed prod secrets (`${VAR:?}` on `POSTGRES_PASSWORD`/`S3_SECRET_KEY`) ·
+  O4 Rust `cargo clippy`/`fmt` on PR CI + trivy HIGH.
+
+### ⏳ LATER
+- **Wave 5 — Modularization.** A1 extract the model-property index → `model_index.py` (5 engines import a
+  router's internals — worst dep inversion) · A2 split `reports.py` (1,436) into a `reports/` package +
+  collapse `REPORTS`/`_BUILDERS`/`_LOGS` to one `ReportSpec` · A3 shared `source_ifc`/IFC-open helper +
+  one `_databridge` · T2 decompose the 2,737-line `ApiClient` → `HttpCore` + lazy domain sub-clients ·
+  T3 extract `portal.ts` grid/form/nav + `viewer/app.ts` `install*` tool modules.
+- **Wave 6 — Reproducibility + depth.** B1 single-source the `@thatopen/fragments`+`web-ifc` pair (3
+  hardcoded spots) · B2 Python `pip-compile` lockfiles · B3 web Dockerfile `npm ci` + multi-stage API
+  image · B4 converter CLI output-guard + Dependabot `directory:/` · P6 `Decimal` money helper
+  (billing/WIP/bid-tab) · A4/A5 remaining splits · T5 `noUncheckedIndexedAccess` + typed `no-floating-promises`
+  · T6 typed proforma paths.
+
+**Top 5 if only five: P3 · P4 · T1 · A1 · B1.**
 
 ---
 
-## ★ Current initiative — Authoring depth + the design engine (2026-07)
+## Feature backlog — deferred / optional (not blocking)
+- **IFC5 / IFCX write-path** — read path shipped; the write path is **blocked upstream** on
+  web-ifc/Fragments IFC5 support. Revisit when the library lands it.
+- **Native mobile shell** — the web app already ships as an installable offline PWA with field capture;
+  a native store build is a **Capacitor wrapper** (needs a macOS/Xcode + Android-SDK pipeline), a
+  fast-follow, not a rewrite. See [mobile.md](mobile.md).
+- **Exploratory themes (parking lot).** Test Fit yield-optimization depth · underwriting realism ·
+  built-world construction techniques · materials/rendering & computational design. Details preserved in
+  the archive below; pull one up only if a specific customer need surfaces.
+
+---
+
+<!-- ═══════════════════════════ SHIPPED ARCHIVE (historical reference) ═══════════════════════════ -->
+## Authoring depth + the design engine — ✅ SHIPPED (v0.3.87–88+)
 
 Sourced from a competitive/practice scan (18 industry reference sheets on BEP / LOD / BIM roles /
 Revit MEP plant rooms / naming conventions / P6 scheduling / envelope assemblies / construction-tech
@@ -174,7 +200,7 @@ posture with an MCP server for AI agents + connectors is well-aligned — lean i
 
 ---
 
-## ★ Active plan (sequenced — work top to bottom)
+## Active plan (sequenced) — ✅ SHIPPED archive
 
 User-directed sequence (historical, as of v0.2.8; superseded by later themes below — latest **v0.3.86**).
 Carry this out in order; each item ships as its own release.
@@ -216,7 +242,7 @@ field-capture PWA).
 
 ---
 
-## A. Model generation & **Test Fit**  ★ next major theme
+## A. Model generation & **Test Fit**  — archive / parking-lot
 We have generative *massing*; Test Fit is the optimization layer above it — making the program
 actually **fit** the site/floor-plate and **optimizing yield**, with side-by-side scenarios. Our
 edge stays IFC-native (every fit is real openBIM, flowing into drawings/QTO/estimate/proforma).
@@ -278,7 +304,7 @@ contingency 5–10%; Uses = Acquisition + Hard + Soft + Financing; Sources = Deb
   surfaced as a **Valuation** tab in Finance with a **Valuation report (PDF/Excel)**. `GET|POST
   /projects/{id}/appraisal`. See [realestate-marketing.md](realestate-marketing.md).
 
-## U. Underwriting realism  ★ next major theme
+## U. Underwriting realism  — archive / parking-lot
 The engine solves the math correctly, but it accepts un-risk-adjusted inputs — e.g. feeding
 specialty *operating* revenue (a farm/energy business) straight in as if it were de-risked rent
 produced an implausible ~71% IRR in the vertical-farm E2E. "Real underwriting" adds the discipline,
@@ -308,7 +334,7 @@ defaults, and guardrails that make the IRR credible. Grounded in CRE practice:
 - ✅ **DONE — U6** Test Fit optimize accepts `pid` and seeds land (property) + hard $/sf (budget) from the live project. Was: U6 — Tie Test Fit optimize to the live proforma (vs the proxy) so generative yield-on-cost
   uses the real cost budget + underwritten NOI.
 
-## R. Built-world techniques (research-grounded)  ★ next major theme
+## R. Built-world techniques (research-grounded)  — archive / parking-lot
 Lessons from the literature on how tall buildings are actually financed and built — to make the
 generative + construction sides reflect real practice, not just geometry. Sources: Carol Willis,
 [*Form Follows Finance*](https://archive.org/details/formfollowsfinan0000will) and
@@ -361,7 +387,7 @@ and ASU.
   - **In-app workflow map** — a state diagram of the module workflow on the record view (current state
     highlighted, gated transitions drawn as edges).
 
-## M. Materials, rendering & computational design  ★ next major theme
+## M. Materials, rendering & computational design  — archive / parking-lot
 Closing gaps vs Revit (families/materials), Rhino/Revit/Matterport (rendering), and Dynamo
 (visual data/computational). Stays IFC-native + web-first (That Open / Fragments stores per-mesh
 material info). Grounded in: [IfcMaterial layer sets](https://forums.buildingsmart.org/t/why-are-material-layer-sets-excluded-from-ifc4-reference-view-mvd/3638),
@@ -473,7 +499,7 @@ a11y pass. Plus: mobile (Capacitor) build hardening; RVT→IFC (APS) polish.
 
 ---
 
-## Status & what's left
+## Status & what's left — ✅ archive (v0.1.87 reconciliation)
 The headline themes are **shipped** (v0.1.87): generative design + **Test Fit** (A1/A3/A4/A5/A6),
 the **developer/finance portal** (B1 budgets · B2 Sources & Uses · B3 property/tax · B4 specialty ·
 B5 investment memo), the full **lifecycle** (acquisition→turnover), **AI assistant**, **SSO**, and
