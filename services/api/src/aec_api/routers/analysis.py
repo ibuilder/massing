@@ -342,6 +342,21 @@ def model_qa_report(pid: str, db: Session = Depends(get_db), _sec: str = Depends
     return model_qa.model_qa(open_source_ifc(db, pid))
 
 
+@router.get("/projects/{pid}/models/health")
+def model_health_scorecard(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Composite **Model Health** scorecard — one 0–100 score over the model-quality checks (integrity/
+    hygiene, ISO 19650 KPIs, clash coordination, verified-as-built), each lens linking to its tool. Opens
+    the source IFC for the hygiene lens when present; the data/coordination/verified lenses work from the
+    records + published index, so it still scores without a parsed model."""
+    from .. import model_health
+    model = None
+    try:
+        model = open_source_ifc(db, pid)             # enables the hygiene lens; other lenses don't need it
+    except Exception:                                # noqa: BLE001 — no source IFC: score the DB-based lenses
+        pass
+    return model_health.scorecard(db, pid, model=model, elements=_index_elements(pid))
+
+
 @router.get("/projects/{pid}/models/alignment")
 def model_alignment(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Federation alignment report — do the project's discipline models share the same storey scheme

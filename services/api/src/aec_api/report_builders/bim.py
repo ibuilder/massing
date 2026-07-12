@@ -28,6 +28,38 @@ def _bim_kpi(db: Session, pid: str, name: str) -> Report:
     return r
 
 
+def _model_health(db: Session, pid: str, name: str) -> Report:
+    """Model Health — the single composite score over the model-quality checks (integrity/hygiene, ISO
+    19650 KPIs, clash coordination, verified-as-built), each lens graded and headlined."""
+    import json
+
+    from .. import model_health, storage
+    from ..deps import open_source_ifc
+    model = None
+    try:
+        model = open_source_ifc(db, pid)             # enables the hygiene lens
+    except Exception:            # noqa: BLE001 — score the DB-based lenses without a parsed model
+        pass
+    try:
+        elements = json.loads(storage.get(f"{pid}/props.json")).get("elements", [])
+    except Exception:            # noqa: BLE001
+        elements = []
+    h = model_health.scorecard(db, pid, model=model, elements=elements)
+    r = Report("Model Health Scorecard", name)
+    r.kpi("Overall", f"{h['overall_score']}/100" if h["overall_score"] is not None else "—")
+    r.kpi("Band", h["band"])
+    r.kpi("Checks scored", f"{h['scored_lenses']} / {len(h['lenses'])}")
+    r.kpi("Model parsed", "yes" if h["model_available"] else "no")
+    if any(ln["score"] is not None for ln in h["lenses"]):
+        scored = [ln for ln in h["lenses"] if ln["score"] is not None]
+        r.chart("bar", "Health by lens", [ln["label"] for ln in scored],
+                [{"name": "Score", "values": [ln["score"] for ln in scored]}])
+    r.table("Model-quality lenses", ["Lens", "Score", "Status", "Headline"],
+            [[ln["label"], f"{ln['score']}/100" if ln["score"] is not None else "n/a",
+              ln["status"].upper(), ln["headline"]] for ln in h["lenses"]])
+    return r
+
+
 def _bep(db: Session, pid: str, name: str) -> Report:
     """ISO 19650 BIM Execution Plan — a produced governance document, assembled from the CDE, the
     information-requirements register, the discipline vocabulary and the delivery (drawing-set)

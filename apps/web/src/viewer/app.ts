@@ -1990,6 +1990,28 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             body.appendChild(toolBtn2("Open Issues panel", () => (document.querySelector('.rail-btn[data-rail="issues"]') as HTMLElement)?.click()));
           });
         })));
+        b.appendChild(toolBtn2("🩺 Model Health (all checks, one score)", () => withLoading(container, "Scoring model health", async () => {
+          let r;
+          try { r = await api.modelHealth(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = r.overall_score != null ? `health ${r.overall_score} · ${r.band}` : "no model data";
+          const dot: Record<string, string> = { good: "🟢", warn: "🟡", poor: "🔴", na: "⚪" };
+          showResult("Model Health", (body) => {
+            const tone = r!.overall_score == null ? "" : r!.overall_score >= 80 ? "ok" : r!.overall_score < 50 ? "bad" : "";
+            body.appendChild(resultNote(r!.overall_score != null
+              ? `Composite <b>${r!.overall_score}/100</b> — <b>${r!.band}</b> (${r!.scored_lenses} of ${r!.lenses.length} checks scored).`
+              : "No model-quality inputs yet — load a model and log coordination / verification to score.", tone));
+            body.appendChild(kvTable(r!.lenses.map((l) => ({
+              k: `${dot[l.status] || "⚪"} ${l.label}`,
+              v: `${l.score != null ? `${l.score}/100` : "n/a"} — ${l.headline}`,
+            }))));
+            const note = document.createElement("div"); note.className = "meta";
+            note.style.cssText = "margin-top:8px;font-size:11px";
+            note.textContent = "One score over integrity/hygiene (Model QA), ISO 19650 KPIs (BIM scorecard), "
+              + "clash coordination, and verified-as-built. Each lens has its own tool in this rail (or the Report Center) to act on it.";
+            body.appendChild(note);
+          });
+        })));
         b.appendChild(toolBtn2("🔗 Coordinate clashes (grouped issues)", () => withLoading(container, "Running federated clash + coordination", async () => {
           let r;
           try { r = await api.clashFederated(pid, { coordinate: true }); }

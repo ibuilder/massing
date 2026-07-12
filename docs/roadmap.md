@@ -86,8 +86,10 @@ Candidate polish from the Design-workspace pass; none scheduled, pull up as the 
 - **Nav density** — per-stage collapse memory + a denser dashboard summary for the multi-card panels.
 - **Role landing dashboards** — extend the Design-home command-center pattern to the Finance and Developer
   personas (Design home shipped; the other two are the remainder).
-- **Viewer-tool discoverability** — a first-class "Model health" surface with live scores (Data QA,
-  code-readiness, clash, IDS, model hygiene are today spread across the Model Tools rail).
+- ✅ **DONE (v0.3.211) — Viewer-tool discoverability: a first-class "Model Health" surface with live
+  scores.** `model_health.py` composes the scattered checks (hygiene, ISO 19650 KPIs, clash coordination,
+  verified-as-built) into one 0–100 composite with graded per-lens drill-downs; `GET …/models/health`, a
+  **🩺 Model Health** viewer tool heading the model-quality group, and a Report Center scorecard.
 - **Cross-workspace deep-links** — RFI → drawing → model element; saved views per role; ⌘K scoped to the
   active workspace.
 - **A11y** — keep verifying new tabs/dashboards (roles, focus order, contrast) as workspaces grow.

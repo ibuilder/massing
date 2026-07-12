@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.211 — Model Health: one composite score over every model-quality check
+The model-quality checks were spread across the Model Tools rail — Data QA, ISO 19650 KPIs, clash
+coordination, verified-as-built — so a coordinator had to open four tools to know where the model stands.
+New `model_health.py` **composes** them (it re-implements nothing) into a single **0–100 composite
+score** with four graded lenses, each linking to the tool that acts on it: **integrity & hygiene**
+(`model_qa` — duplicate GUIDs, overlaps, orphans, unenclosed, blanks, wrong-storey), **information &
+delivery** (`bim_kpi` ISO 19650 KPI health %), **coordination** (`clash_intel` resolution rate), and
+**verified as-built** (`verified_progress` verified-in-place % + trust gap). The composite is a weighted
+mean over the lenses that have inputs; a lens with no inputs shows **n/a** and is excluded rather than
+guessed, so the score is honest. New `GET …/models/health` (opens the source IFC for the hygiene lens
+when present; the other lenses score from records + the published index, so it works without a parsed
+model); a viewer tool **🩺 Model Health (all checks, one score)** heading the model-quality group with the
+composite band + per-lens breakdown; and a Report Center **Model Health Scorecard** (PDF/Excel, health-by-
+lens chart). `test_model_health` covers the composite math, the clean-model = hygiene-100 case, the
+n/a-lens exclusion, and the HTTP endpoint. (Part C "first-class Model Health surface" — see `docs/roadmap.md`.)
+
 ## v0.3.210 — Wave 8 ③(b): schedule-linked verified-as-built progress (the trust gap)
 Closes the last buildable Wave 8 item. Instead of trusting a self-reported "% complete", Massing now
 rolls **element-level field verification** up to each schedule activity and surfaces the **trust gap** —

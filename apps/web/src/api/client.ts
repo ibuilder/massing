@@ -1060,6 +1060,12 @@ export class ApiClient extends HttpCore {
         deviated: number; verified_pct: number; planned_pct: number | null; trust_gap: number }[] }>(
       `/projects/${pid}/verified-progress`);
   }
+  /** Composite Model Health scorecard — one score over hygiene + ISO 19650 KPIs + clash + verified. */
+  modelHealth(pid: string) {
+    return this.json<{ overall_score: number | null; band: string; scored_lenses: number; model_available: boolean;
+      lenses: { key: string; label: string; tool: string; score: number | null; status: string; headline: string }[] }>(
+      `/projects/${pid}/models/health`);
+  }
   /** Discipline quantity roll-up — reinforcement tonnage, MEP linear runs, structural volume. */
   disciplineQuantities(pid: string) {
     return this.json<{ rebar: { count: number; weight_kg: number; tonnes: number; estimated: boolean };
