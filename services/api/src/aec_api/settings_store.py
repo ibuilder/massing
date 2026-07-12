@@ -56,6 +56,12 @@ CATALOG: list[dict[str, Any]] = [
         {"key": "APS_CLIENT_SECRET", "label": "APS client secret", "secret": True},
         {"key": "APS_DA_ACTIVITY", "label": "Design-Automation activity id", "secret": False},
     ]},
+    {"group": "Capital-markets syndication (ledger sync — never moves money)", "keys": [
+        {"key": "SECURITIES_PLATFORM_URL", "label": "Investor-platform base URL", "secret": False},
+        {"key": "SECURITIES_API_KEY", "label": "Platform API key", "secret": True},
+        {"key": "SECURITIES_TARGET", "label": "Target (generic/securitize)", "secret": False,
+         "default": "generic"},
+    ]},
 ]
 SECRET_KEYS = {k["key"] for g in CATALOG for k in g["keys"] if k.get("secret")}
 ALL_KEYS = {k["key"] for g in CATALOG for k in g["keys"]}

@@ -17,9 +17,11 @@ from typing import Any
 from . import bcf_io
 from . import model_capabilities as _mc
 
-# IFC5 / IFCX is a JSON data-read path (no geometry yet — that waits on web-ifc/Fragments upstream);
-# it's reported separately from the STEP schemas so a caller knows read != full support.
+# IFC5 / IFCX is a JSON data read+write path (no geometry yet — that waits on web-ifc/Fragments
+# upstream); it's reported separately from the STEP schemas so a caller knows read != full support.
+# The write side emits the element/property layer as ifcJSON / IFCX from the model index (ifc5_writer).
 _IFC_JSON_READ = ["IFC5"]
+_IFC_JSON_WRITE = ["IFC5"]
 
 # Which openBIM standards are pluggable here. Version lists that a live engine owns are filled in
 # by _resolve() below from that engine, so this table stays declarative + drift-free.
@@ -31,7 +33,8 @@ _REGISTRY: dict[str, dict[str, Any]] = {
         "write": ["IFC4", "IFC4X3"],
         "current": "IFC4X3",   # IFC4.3 = ISO 16739-1:2024
         "notes": "IFC is the source of truth; geometry is pre-converted to Fragments for the web viewer. "
-                 "IFC4X3 is ISO 16739-1:2024 (infrastructure/alignment). IFC5/IFCX is a JSON data-read path.",
+                 "IFC4X3 is ISO 16739-1:2024 (infrastructure/alignment). IFC5/IFCX is a JSON "
+                 "data read+write path (ifcJSON / IFCX element+property export; geometry waits upstream).",
     },
     "bcf": {
         "name": "BIM Collaboration Format",
@@ -82,6 +85,7 @@ def _resolve(key: str, entry: dict[str, Any]) -> dict[str, Any]:
     out = {"key": key, **{k: v for k, v in entry.items() if v is not None}}
     if key == "ifc":
         out["read"] = list(_mc.SUPPORTED_SCHEMAS) + _IFC_JSON_READ
+        out["write"] = list(entry.get("write") or []) + _IFC_JSON_WRITE
     elif key == "bcf":
         out["read"] = list(bcf_io.SUPPORTED_VERSIONS)
         out["write"] = list(bcf_io.SUPPORTED_VERSIONS)

@@ -316,6 +316,25 @@ export class ApiClient extends HttpCore {
       total_distributed: number; total_unreturned: number; by_class: Record<string, number>;
       rows: Record<string, unknown>[] }>(`/projects/${pid}/cap-table`);
   }
+  /** The syndication package — the cap table serialized to a neutral investor-platform schema. Always
+   * available offline; this is the payload the capital-markets connector pushes. */
+  securitiesPackage(pid: string) {
+    return this.json<{ schema: string; project: string; fund: Record<string, unknown>;
+      positions: Record<string, unknown>[]; disclosures: Record<string, unknown>; disclaimer: string }>(
+      `/projects/${pid}/securities/package`);
+  }
+  /** Whether the capital-markets syndication bridge is configured. Ledger sync only — never moves money. */
+  securitiesSyndicationStatus() {
+    return this.json<{ enabled: boolean; target: string; implemented: boolean; moves_money: boolean;
+      targets_supported: string[]; message: string }>(`/securities-syndication/status`);
+  }
+  /** Sync the cap table into the configured investor / digital-securities platform (positions only —
+   * no funds move). 422 with an actionable message if the bridge isn't configured. */
+  syndicateSecurities(pid: string) {
+    return this.json<{ target: string; remote_id: string | null; positions_pushed: number;
+      moves_money: boolean; status: string }>(
+      `/projects/${pid}/securities/syndicate`, { method: "POST" });
+  }
   /** Run a distribution / equity-waterfall scenario over the cap table (pref → RoC → promote tiers). */
   waterfallScenario(pid: string, body: { exit_amount?: number; contribution_date?: string;
     exit_date?: string; distributable?: number[]; dates?: string[]; pref_rate?: number;

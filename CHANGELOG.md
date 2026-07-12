@@ -4,6 +4,36 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.213 — Two deferred items closed: capital-markets syndication connector + IFC5/IFCX write path
+
+**(1) IFC5 / IFCX write path.** The IFC5 read path shipped earlier (tolerant JSON→element-index parser);
+the write path was deferred as "waits on web-ifc / Fragments." That dependency only blocks *geometry*
+authoring — the **data** layer (elements + property sets) is plain JSON and tractable now. New
+`aec_data/ifc5_writer.py` inverts the reader: it serializes the model index to **ifcJSON**
+(buildingSMART `{"type":"ifcJSON","data":[…]}`, full-fidelity — guid/class/name/type/storey + property
+groups round-trip exactly) or **IFCX** (the OpenUSD-style node list; USD attributes are flat so property
+groups collapse to one attribute set, values preserved). `GET …/model/export.ifcx?flavor=ifcjson|ifcx`
+streams it; `openbim` now advertises **IFC5 in `ifc.write`** (not just read). `test_ifcx_write` round-trips
+both flavors back through the reader and asserts the registry change. Geometry authoring still lands
+upstream — this is the data write path, the inverse of what already reads.
+
+**(2) Capital-markets syndication connector (ledger sync — never moves money).**
+Closes the last deferred capital-markets item as a **flagged data connector** (the parcels/APS pattern):
+export the investor cap table to a securitization / investor-management platform, without rebuilding the
+regulated issuance stack. New `securities_bridge` serializes `capital.cap_table` into a neutral
+**syndication package** (`schema: massing.syndication.v1` — fund summary + per-investor positions +
+disclosures), served at `GET …/securities/package` and **always available offline** regardless of the
+connector. When configured (`SECURITIES_PLATFORM_URL` + `SECURITIES_API_KEY`, admin-editable in
+Settings), `POST …/securities/syndicate` pushes the package to the platform over stdlib `urllib` (a
+generic authenticated REST target is implemented; named platforms raise an actionable error until wired).
+**Scope guard — this connector never moves money:** it syncs the *ledger* (positions, ownership %,
+recorded contributed/distributed totals) so the external platform's records match ours; capital calls,
+distributions and transfers are executed by the licensed platform, not here. Every response carries
+`moves_money: false` and the package a disclaimer. The Investors tab (proforma) gains a **Capital-markets
+syndication** card: download the package JSON, see connector status, and sync when enabled. Status gate
+uses `current_user`; the push requires **admin**. `test_securities_bridge` covers the disabled export,
+the actionable 422, a stubbed generic push (positions only), and the unimplemented-target error.
+
 ## v0.3.212 — Cross-workspace deep-link (element → linked records) + FF&E classification
 Two roadmap items. **(1) Reverse deep-link — element → linked records.** The portal already had the
 forward direction (a record's "👁 Show in model" selects its tagged elements); the reverse was missing.

@@ -668,7 +668,42 @@ export class ProformaUI {
         finally { btn.removeAttribute("disabled"); }
       });
       this.renderWaterfall(host, pid);
+      void this.renderSyndication(host, pid);
     } catch (e) { host.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
+  }
+
+  /** Capital-markets syndication card (under Investors): export the cap table as a neutral investor-
+   *  platform package, and — if the connector is configured — sync positions into a securitization /
+   *  investor-management platform. Ledger sync only: this never moves money. */
+  private async renderSyndication(host: HTMLElement, pid: string) {
+    const card = document.createElement("div"); card.className = "fin-card"; card.style.marginTop = "10px";
+    card.innerHTML = `<div class="section-title">Capital-markets syndication</div>`
+      + `<div class="meta">Export the cap table as a neutral investor-platform package, or sync positions into a `
+      + `securitization / investor-management platform. Ledger sync only — this connector never moves money.</div>`;
+    const bar = document.createElement("div"); bar.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center";
+    const dl = document.createElement("a"); dl.className = "file-btn"; dl.textContent = "⬇ Syndication package (JSON)";
+    dl.href = this.api.url(`/projects/${pid}/securities/package`); dl.target = "_blank"; dl.rel = "noopener";
+    dl.title = "The cap table serialized to the investor-platform schema — importable anywhere";
+    const sync = document.createElement("button"); sync.className = "file-btn"; sync.textContent = "⤴ Sync to investor platform";
+    sync.onclick = async () => {
+      sync.disabled = true;
+      try {
+        const st = await this.api.securitiesSyndicationStatus();
+        if (!st.enabled) { this.setStatus(st.message); return; }  // actionable: how to configure the platform URL + key
+        const res = await this.api.syndicateSecurities(pid);
+        this.setStatus(`Synced to ${res.target}${res.remote_id ? ` (id ${res.remote_id})` : ""} — ${res.positions_pushed} positions (ledger only, no funds moved).`);
+      } catch (e) { this.setStatus("Sync failed: " + (e as Error).message); }
+      finally { sync.disabled = false; }
+    };
+    bar.append(dl, sync);
+    const status = document.createElement("span"); status.className = "meta"; status.style.marginLeft = "4px";
+    bar.append(status);
+    card.appendChild(bar); host.appendChild(card);
+    try {
+      const st = await this.api.securitiesSyndicationStatus();
+      status.textContent = st.enabled ? `● ${st.target} connected` : "○ connector not configured";
+      status.style.color = st.enabled ? "var(--ok, #2e7d32)" : "var(--muted, #888)";
+    } catch { /* status is best-effort */ }
   }
 
   /** Equity-waterfall scenario card (under Investors): model a distribution / exit through the

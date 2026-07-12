@@ -6,7 +6,18 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from .. import capital, comps, distwaterfall, leasemgmt, marketing, rbac, re_bridge, rentroll, signing
+from .. import (
+    capital,
+    comps,
+    distwaterfall,
+    leasemgmt,
+    marketing,
+    rbac,
+    re_bridge,
+    rentroll,
+    securities_bridge,
+    signing,
+)
 from .. import modules as me
 from ..db import get_db
 from ..models import Project
@@ -219,6 +230,44 @@ def listing_syndicate(pid: str, lid: str, db: Session = Depends(get_db),
     reso = marketing.to_reso(rec)
     try:
         return re_bridge.syndicate(reso, rec.get("ref"))
+    except (RuntimeError, NotImplementedError) as e:
+        raise HTTPException(422, str(e))
+
+
+def _syndication_package(db: Session, pid: str) -> dict:
+    """Build the neutral syndication package from the cap table. Always available offline."""
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    ct = capital.cap_table(_investors(db, pid))
+    disclosures = (p.dev_property or {}).get("offering") or {}
+    return securities_bridge.syndication_payload(p.name, ct, disclosures)
+
+
+@router.get("/projects/{pid}/securities/package")
+def securities_package(pid: str, db: Session = Depends(get_db),
+                       _: str = Depends(rbac.require_role("viewer"))):
+    """The syndication package (cap table → neutral investor-platform schema). This is the payload the
+    capital-markets bridge pushes; it exports the same JSON regardless of whether the bridge is wired."""
+    return _syndication_package(db, pid)
+
+
+@router.get("/securities-syndication/status")
+def securities_syndication_status(_: str = Depends(rbac.current_user)):
+    """Whether the capital-markets syndication bridge is configured (off unless a platform URL+key set).
+    This connector syncs the investor ledger only and never moves money."""
+    return securities_bridge.status()
+
+
+@router.post("/projects/{pid}/securities/syndicate")
+def securities_syndicate(pid: str, db: Session = Depends(get_db),
+                         _: str = Depends(rbac.require_role("admin"))):
+    """Sync the cap table into the configured investor / digital-securities platform (positions only —
+    no funds move). Requires the bridge to be configured; 422 with an actionable message otherwise. The
+    package export endpoint works regardless."""
+    package = _syndication_package(db, pid)
+    try:
+        return securities_bridge.syndicate(package, pid)
     except (RuntimeError, NotImplementedError) as e:
         raise HTTPException(422, str(e))
 

@@ -172,6 +172,47 @@ def model_export_jsonld(pid: str, db: Session = Depends(get_db), _: str = Depend
     return model_query.to_jsonld(_idx_for(pid))
 
 
+def _index_shape(pid: str) -> dict:
+    """Adapt the in-memory columnar index ({guid: record}) to the element-index shape the IFC5 writer
+    consumes (the same shape ifc5_reader produces). Empty but well-formed when no model is loaded."""
+    idx = _idx_for(pid) or {}
+    elements = []
+    for rec in idx.values():
+        elements.append({
+            "guid": rec.get("guid"), "ifc_class": rec.get("ifc_class"), "name": rec.get("name"),
+            "type_name": rec.get("type_name"), "storey": rec.get("storey"),
+            "psets": rec.get("psets") or {}, "qtos": rec.get("qtos") or {},
+        })
+    classes = sorted({e["ifc_class"] for e in elements if e["ifc_class"]})
+    storeys = sorted({e["storey"] for e in elements if e["storey"]})
+    from ..model_index import get_meta  # per-project {schema, project, counts, facets}
+    meta = get_meta(pid) or {}
+    return {
+        "schema": "IFC5", "project": meta.get("project") or {"guid": None, "name": None},
+        "counts": {"elements": len(elements), "classes": len(classes), "storeys": len(storeys)},
+        "facets": {"classes": classes, "storeys": storeys}, "elements": elements,
+    }
+
+
+@router.get("/projects/{pid}/model/export.ifcx")
+def model_export_ifcx(pid: str, flavor: str = "ifcjson", db: Session = Depends(get_db),
+                      _: str = Depends(require_role("viewer"))):
+    """Export the model's element+property layer as IFC5 JSON. `flavor`: `ifcjson` (buildingSMART
+    ifcJSON, default, full-fidelity round-trip) or `ifcx` (OpenUSD-style IFCX node list). Geometry is
+    out of scope until web-ifc / Fragments add IFC5 upstream — this is the data write path."""
+    _project(db, pid)
+    import sys
+    from pathlib import Path
+    data_src = Path(__file__).resolve().parents[4] / "data" / "src"
+    if str(data_src) not in sys.path:
+        sys.path.insert(0, str(data_src))
+    from aec_data import ifc5_writer  # type: ignore
+    fl = "ifcx" if flavor == "ifcx" else "ifcjson"
+    data = ifc5_writer.to_bytes(_index_shape(pid), fl, indent=2)
+    return Response(data, media_type="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="model-{pid}.{fl}.ifcx"'})
+
+
 @router.get("/projects/{pid}/model/export.parquet")
 def model_export_parquet(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Export the model element table as Apache Parquet (columnar analytics — DuckDB / pandas / Polars).
