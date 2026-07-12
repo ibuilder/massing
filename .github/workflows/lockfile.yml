@@ -1,0 +1,57 @@
+name: Lockfile (pip-compile)
+
+# B2 — produce the pinned + hashed Python lock IN the production interpreter (Linux/py3.12), so the
+# resolved wheels always match prod. Run manually (workflow_dispatch) after editing requirements.in;
+# it uploads the compiled lock as an artifact to download + commit, and (as a gate) also fails on any
+# push that leaves services/api/requirements.lock out of date with requirements.in.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "services/api/requirements.in"
+      - "services/api/requirements.lock"
+      - ".github/workflows/lockfile.yml"
+
+jobs:
+  compile:
+    name: pip-compile --generate-hashes (py3.12)
+    runs-on: ubuntu-latest
+    container: python:3.12-slim   # exact prod base image, so the resolution matches the API Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      # build tooling in case a dep only ships an sdist and pip-compile must build it to hash
+      - name: System deps
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends \
+            build-essential python3-dev libgl1 libglib2.0-0 git
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Install pip-tools
+        run: pip install --no-cache-dir pip-tools
+
+      - name: Compile lock
+        run: |
+          pip-compile --quiet --generate-hashes --allow-unsafe \
+            --output-file services/api/requirements.lock \
+            services/api/requirements.in
+
+      # Always publish the freshly-compiled lock so a human can download + commit it (bootstrap /
+      # manual refresh path).
+      - name: Upload compiled lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: requirements-lock
+          path: services/api/requirements.lock
+
+      # On push events, fail if the committed lock doesn't match a fresh compile — catches a
+      # requirements.in edit that forgot to regenerate the lock.
+      - name: Verify committed lock is up to date
+        if: github.event_name == 'push'
+        run: |
+          if ! git diff --quiet -- services/api/requirements.lock; then
+            echo "::error::services/api/requirements.lock is stale — download the 'requirements-lock' artifact from this run and commit it."
+            git --no-pager diff -- services/api/requirements.lock | head -60
+            exit 1
+          fi
+          echo "lock is up to date"
