@@ -2429,6 +2429,15 @@ export class ApiClient {
       status_tally: { on_track: number; at_risk: number; behind: number }; project_count: number }>(
       `/portfolio/executive`);
   }
+  /** Portfolio prioritization — projects ranked 0-100 on return / budget / schedule / risk. */
+  portfolioPrioritization() {
+    type Scores = { return: number; budget: number; schedule: number; risk: number };
+    return this.json<{ weights: Scores; criteria: string[];
+      projects: { id: string; name: string; status: string; rank: number; composite: number;
+        scores: Scores; equity_irr: number | null; gmp: number }[];
+      top: { name: string } | null; bottom: { name: string } | null; note: string }>(
+      `/portfolio/prioritization`);
+  }
   /** Subcontractor billing rollup — each subcontract's pay apps vs contract value (GC-pays-subs). */
   subcontractorBilling(pid: string) {
     return this.json<{ subs: { subcontract_ref: string | null; vendor: string | null; trade: string | null;

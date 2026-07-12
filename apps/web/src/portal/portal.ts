@@ -1114,6 +1114,30 @@ export class PortalUI {
       tbl.appendChild(tb); card.appendChild(tbl); this.root.appendChild(card);
       this.root.appendChild(Object.assign(document.createElement("div"), { className: "meta",
         textContent: "Click a project to switch to it. On-schedule (SPI / % complete / late milestones) + on-budget (GMP / variance) + developer returns (IRR / EM) across the book." }));
+      // prioritization matrix — projects ranked 0-100 on return / budget / schedule / risk
+      void this.host.api.portfolioPrioritization().then((pr) => {
+        if (!pr.projects.length) return;
+        const pc = document.createElement("div"); pc.className = "dash-card"; pc.style.marginTop = "10px";
+        const bar = (v: number) => { const col = v >= 70 ? "var(--status-good)" : v >= 45 ? "var(--status-warn)" : "var(--status-crit)"; return `<span style="display:inline-block;min-width:34px;text-align:right;color:${col};font-variant-numeric:tabular-nums">${v}</span>`; };
+        const pt = document.createElement("table"); pt.className = "portal-table"; pt.style.fontSize = "11px";
+        pt.innerHTML = `<thead><tr><th scope="col">#</th><th scope="col">Project</th><th scope="col" style="text-align:right">Score</th>`
+          + `<th scope="col" style="text-align:right">Return</th><th scope="col" style="text-align:right">Budget</th>`
+          + `<th scope="col" style="text-align:right">Schedule</th><th scope="col" style="text-align:right">Risk</th></tr></thead>`;
+        const pb = document.createElement("tbody");
+        for (const p of pr.projects) {
+          const tr = document.createElement("tr"); tr.className = "kpi-click";
+          tr.innerHTML = `<td>${p.rank}</td><td>${esc(p.name)}</td>`
+            + `<td style="text-align:right;font-weight:700">${bar(p.composite)}</td>`
+            + `<td style="text-align:right">${bar(p.scores.return)}</td><td style="text-align:right">${bar(p.scores.budget)}</td>`
+            + `<td style="text-align:right">${bar(p.scores.schedule)}</td><td style="text-align:right">${bar(p.scores.risk)}</td>`;
+          tr.onclick = () => { if (p.id !== here) window.location.search = `?project=${p.id}`; };
+          pb.appendChild(tr);
+        }
+        pt.appendChild(pb);
+        pc.innerHTML = `<b>Prioritization matrix</b> <span class="meta">weighted 0–100 · return ${Math.round(pr.weights.return * 100)}% / budget ${Math.round(pr.weights.budget * 100)}% / schedule ${Math.round(pr.weights.schedule * 100)}% / risk ${Math.round(pr.weights.risk * 100)}%</span>`;
+        pc.appendChild(pt);
+        this.root.appendChild(pc);
+      }).catch(() => { /* prioritization is best-effort */ });
     }).catch(() => { status.className = "empty-state"; status.innerHTML = `Portfolio unavailable<span class="es-hint">Needs at least one project with schedule/budget data.</span>`; });
   }
 

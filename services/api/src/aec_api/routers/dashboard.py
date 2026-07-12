@@ -122,6 +122,16 @@ def executive_portfolio(db: Session = Depends(get_db), _: str = Depends(rbac.cur
     return {"projects": rows, "totals": tot, "status_tally": tally, "project_count": len(rows)}
 
 
+@router.get("/portfolio/prioritization")
+def portfolio_prioritization(db: Session = Depends(get_db), user: str = Depends(rbac.current_user)):
+    """Ranked portfolio prioritization — scores each accessible project 0–100 on return / on-budget /
+    on-schedule / delivery-risk and ranks them, reusing the executive-portfolio rows (and its
+    membership scoping). Weights default to a return-leaning blend."""
+    from .. import prioritization
+    pf = executive_portfolio(db, user)
+    return prioritization.rank(pf["projects"])
+
+
 @router.get("/projects/{pid}/safety/metrics")
 def safety_metrics(pid: str, hours: float | None = None, db: Session = Depends(get_db),
                    _: str = Depends(require_role("viewer"))):

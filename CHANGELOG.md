@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.173 — PM: portfolio prioritization matrix
+Roadmap **PM artifacts #2.** The Portfolio view now ranks every project you can see with a
+**prioritization matrix** — each scored **0–100** on four criteria (financial **return** / equity IRR,
+**on-budget** / CPI + variance, **on-schedule** / SPI + % complete penalized for late milestones, and
+**delivery-risk** / status) into a weighted composite, ranked best-first with a color-graded score per
+criterion. Reuses the executive-portfolio rows (and their membership scoping), so no double-counting.
+New engine `prioritization.py` (pure, weight-configurable), endpoint `GET /portfolio/prioritization`,
+a ranked card in the Portfolio panel, and `test_prioritization`. Answers "where do capital and attention
+go across the book?"
+
 ## v0.3.172 — PM: stakeholder register + power/interest analysis
 Roadmap **PM artifacts #1** (from the PM-template research). A new **Stakeholders** module (under Project
 Controls) registers each party — organization, role, category, power/influence, interest, stance,
