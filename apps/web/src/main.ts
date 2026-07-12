@@ -146,7 +146,7 @@ buildMenu("open-menu", "Open ▾", [
   { label: "Open Project (.mmproj)…", onClick: () => void openProjectBundle() },
   { label: "Open IFC…", onClick: () => openModelFile("ifc") },
   { label: "Open Fragments (.frag)…", onClick: () => openModelFile("frag") },
-  { label: "Open mesh / point cloud / GIS…", onClick: () => openModelFile("ref") },
+  { label: "Open mesh / point cloud / GIS / reality capture…", onClick: () => openModelFile("ref") },
   { label: "Add basemap (self-hosted tiles)…", onClick: () => void addBasemapFlow() },
   { label: "Sample models", sep: true },
   { label: "School — Structural", onClick: () => withViewer((v) => void v.loadSample("/school_str.frag", "School (Structural)")) },
@@ -1344,7 +1344,7 @@ const _palette = _embed ? null : initCommandPalette({
     cmds.push(
       { id: "act:new", label: "New project", hint: "Action", run: () => void newProject() },
       { id: "act:ifc", label: "Open IFC…", hint: "Action", run: () => openModelFile("ifc") },
-      { id: "act:ref", label: "Open mesh / point cloud / GIS…", hint: "Action", run: () => openModelFile("ref") },
+      { id: "act:ref", label: "Open mesh / point cloud / GIS / reality capture…", hint: "Action", run: () => openModelFile("ref") },
       { id: "act:reports", label: "Open Report Center", hint: "Action", run: () => void openReportCenter() },
       { id: "act:save", label: "Save Project (.mmproj)", hint: "Action", run: () => saveProjectBundle() },
       { id: "act:help", label: "Keyboard shortcuts / help", hint: "Action", run: () => toast(SHORTCUTS + " · ⌘K palette", "info", 6000) },

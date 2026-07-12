@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.208 — Wave 8 ③(a): Reality-capture walkthrough (3D Gaussian splats) in the viewer
+Walk the as-built reality against the design. The viewer now loads **3D Gaussian-splat** captures
+(`.splat` / `.ksplat`, plus splat-PLY auto-detected by header) as a **view-only overlay** beside the BIM
+model — the on-site phone/drone photogrammetry → splat that the 2026 reality-capture wave produces, co-
+registered with the IFC and the LAS/LAZ point clouds we already read. Built on `@mkkellogg/gaussian-
+splats-3d` (MIT): its `DropInViewer` drops into the existing three.js scene as a `THREE.Group` and self-
+sorts each frame via `onBeforeRender`, so no render-loop changes were needed; it flows through the same
+"open reference model" path (extensions + `accept` filter + federation registry), and its sort worker +
+GPU buffers are torn down when the overlay is removed. **Offline-first** (our non-negotiable): the library
+and its **inline-blob sort worker** are bundled — no CDN — and the scene parses from an in-memory object
+URL, never the network. The library is **lazy-loaded as its own chunk** (252 KB / 66 KB gzip), fetched
+only when a user actually opens a capture, so the eager app shell stays within budget (179.7 KB < 220 KB).
+`SharedArrayBuffer` is off (no COOP/COEP header requirement); CPU sort for widest device support. Note: the
+blob-URL worker needs `worker-src blob:` if the opt-in strict CSP is enabled. `splat.test.ts` covers the
+splat-PLY detector. Part (b) — schedule-linked verified-as-built progress — remains on the roadmap.
+
 ## v0.3.207 — Wave 8 ⑥: Construction Execution Plan (CEP) generator
 The GC counterpart to the BEP: a produced governance document that states **how the project is built**,
 assembled live from the construction modules and summary engines rather than a stale Word template. New

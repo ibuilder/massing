@@ -15,15 +15,17 @@ import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { XYZLoader } from "three/addons/loaders/XYZLoader.js";
 import { readPointCloud, type PointCloud } from "./pointcloud";
 import { loadGisFile } from "./gis";
+import { loadSplatScene, isSplatPly } from "./splat";
 
 export interface RefResult {
   object: THREE.Object3D;
-  kind: "mesh" | "points" | "gis";
+  kind: "mesh" | "points" | "gis" | "splat";
   info: string;                   // short human note (point/vertex count, decimation)
+  dispose?: () => void;           // extra teardown beyond geometry/material disposal (e.g. splat worker)
 }
 
 export const REF_EXTENSIONS = ["obj", "stl", "ply", "gltf", "glb", "pcd", "xyz", "las", "laz", "e57",
-                               "geojson", "json", "tif", "tiff", "gml", "citygml"] as const;
+                               "geojson", "json", "tif", "tiff", "gml", "citygml", "splat", "ksplat"] as const;
 
 function meshFromGeometry(geo: THREE.BufferGeometry, name: string): THREE.Object3D {
   if (!geo.getAttribute("normal")) geo.computeVertexNormals();
@@ -70,9 +72,14 @@ export async function loadReferenceModel(file: File): Promise<RefResult> {
     case "stl":
       return mesh(new STLLoader().parse(await file.arrayBuffer()));
     case "ply": {
+      // A PLY can be a plain mesh/cloud OR a Gaussian-splat capture — tell them apart by the header.
+      const header = await file.slice(0, 4096).text();
+      if (isSplatPly(header)) return { kind: "splat", ...(await loadSplatScene(file)) };
       const g = new PLYLoader().parse(await file.arrayBuffer());
       return g.index && g.index.count > 0 ? mesh(g) : pts(g);   // faces → mesh, else point cloud
     }
+    case "splat": case "ksplat":
+      return { kind: "splat", ...(await loadSplatScene(file)) };
     case "gltf": case "glb": {
       const obj = await parseGltf(await file.arrayBuffer()); obj.name = name;
       return { object: obj, kind: "mesh", info: ext.toUpperCase() };

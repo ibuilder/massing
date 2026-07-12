@@ -99,7 +99,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // track a human label per loaded model so the federation panel can list disciplines
   const modelLabels = new Map<string, string>();
   // view-only reference overlays (meshes / point clouds) added alongside the fragment models
-  const referenceModels = new Map<string, { object: THREE.Object3D; label: string }>();
+  const referenceModels = new Map<string, { object: THREE.Object3D; label: string; dispose?: () => void }>();
   let refCount = 0;
   const nextId = (label?: string) => {
     const id = `model-${++modelCount}`;
@@ -282,7 +282,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       if (!res) return;
       const id = `ref-${++refCount}`;
       viewer.world.scene.three.add(res.object);
-      referenceModels.set(id, { object: res.object, label: file.name });
+      referenceModels.set(id, { object: res.object, label: file.name, dispose: res.dispose });
       refreshFederation();
       await fitToModels();
       void loader.fragments.core.update(true);
@@ -1202,6 +1202,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       const mat = (m as { material?: THREE.Material | THREE.Material[] }).material;
       if (Array.isArray(mat)) mat.forEach((x) => x.dispose()); else mat?.dispose?.();
     });
+    ref.dispose?.();                 // splat overlays own a sort worker + GPU buffers to free
     referenceModels.delete(id);
   }
 

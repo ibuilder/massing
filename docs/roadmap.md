@@ -128,10 +128,13 @@ IFC GlobalId; real-world E/N/Z via our set-origin handling) and a **`model → D
 pin/RFI spine. Monetizes "IFC as the source of truth"; no new heavy deps.
 
 **③ Reality walkthrough + schedule-linked verified-as-built (high visual differentiation).**
-From the `photosynth-to-massing` brief. Two parts: (a) a **3D Gaussian-splat "reality" layer** in the
-viewer — photoreal, phone-captured, co-registered with the IFC + LAS/LAZ we already load; the permissive
-path is **end-to-end** (`gsplat`/Nerfstudio Apache-2.0 for capture, `@mkkellogg/GaussianSplats3D` MIT web
-viewer) — *avoid the original Inria 3DGS (non-commercial)*. (b) Turn our **deviation heatmap into
+**Part (a) SHIPPED v0.3.208.** From the `photosynth-to-massing` brief. Two parts: (a) a **3D Gaussian-splat
+"reality" layer** in the viewer — photoreal, phone-captured, co-registered with the IFC + LAS/LAZ we
+already load; delivered via `@mkkellogg/gaussian-splats-3d` (MIT), lazy-loaded as its own chunk (out of
+the app-shell bundle), offline (bundled inline sort worker, in-memory object URL — no CDN), routed through
+the existing reference-overlay flow (`.splat` / `.ksplat`, plus splat-PLY content detection) with worker
+teardown on removal; the permissive capture path is `gsplat`/Nerfstudio (Apache-2.0) — *avoid the original
+Inria 3DGS (non-commercial)*. (b) Turn our **deviation heatmap into
 progress**: per-element capture/verification state + % complete tied to schedule tasks, emitted as BCF —
 the OpenSpace/Disperse/Buildots value proposition, pure software for us. Add **E57 polish** on the
 existing `e57.py`. Automated point-cloud→IFC (**Cloud2BIM is GPL-3.0**) stays an optional *out-of-process*
