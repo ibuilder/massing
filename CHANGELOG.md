@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.183 — Ops/build hardening (Wave 1/6: O3 · O4 · B4) + A1 lint fix
+Cross-cutting hardening + a follow-up to v0.3.181.
+- **O3 — fail-closed prod secrets.** The prod compose overlay now sets `POSTGRES_PASSWORD` (postgres +
+  the API's `DATABASE_URL`) and `S3_SECRET_KEY` (minio + the API) via `${VAR:?}`, so the stack **refuses
+  to start** without real credentials instead of silently inheriting the dev `bim`/`minioadmin` defaults.
+- **O4 — Rust PR CI + Trivy HIGH.** New `rust-ci.yml` runs `cargo clippy -D warnings` + `cargo fmt
+  --check` on the Tauri shell, path-filtered to `apps/web/src-tauri/**` (no cost on unrelated PRs) — it
+  previously only compiled at release time. The container scan now gates on **HIGH + CRITICAL** fixable
+  CVEs (was CRITICAL-only).
+- **B4 — converter CLI + Dependabot.** `cli.mjs` no longer clobbers its input when the file lacks an
+  `.ifc/.rvt` extension (appends `.frag` instead); the Dependabot npm ecosystem points at the repo root
+  (where the workspace `package-lock.json` actually lives) so it can open working PRs.
+- **A1 fix.** Import-sort (ruff I001) slip in `evm.py` from the v0.3.181 `model_index` rename — the only
+  thing that had gone red (lint, not tests). Whole-tree ruff is green again.
+
 ## v0.3.182 — Single-source the fragments/web-ifc version (Wave 6, B1)
 Closes the version-coupling landmine CLAUDE.md warns about. `@thatopen/fragments@3.4.5` +
 `web-ifc@0.0.77` were hardcoded in **three** independent places — the web client parser

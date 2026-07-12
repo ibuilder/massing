@@ -268,8 +268,8 @@ def model_ev(db: Session, pid: str, data_date: str | None = None) -> dict[str, A
     """
     from sqlalchemy import select
 
-    from .models import ElementVerification
     from .model_index import _INDEX, _ensure_loaded
+    from .models import ElementVerification
 
     _ensure_loaded(pid)
     total = len(_INDEX.get(pid, {}))

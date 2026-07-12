@@ -13,7 +13,13 @@ if (!input) {
   process.exit(1);
 }
 
-const out = output ?? input.replace(/\.(ifc|rvt)$/i, ".frag");
+// Derive the output name from the input, but never overwrite the input: if it has no .ifc/.rvt
+// extension the replace is a no-op (out === input), which would clobber the source — append instead.
+let out = output;
+if (!out) {
+  out = input.replace(/\.(ifc|rvt)$/i, ".frag");
+  if (out === input) out = `${input}.frag`;
+}
 const t0 = Date.now();
 
 let ifcBytes;

@@ -101,12 +101,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Vulnerability gate: CRITICAL findings with a fix available block the publish.
+      # Vulnerability gate: CRITICAL + HIGH findings with a fix available block the publish (O4 —
+      # raised from CRITICAL-only so fixable HIGH CVEs don't ship silently).
       - name: Scan (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/${{ github.repository }}-${{ matrix.name }}:${{ github.sha }}
-          severity: CRITICAL
+          severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
 

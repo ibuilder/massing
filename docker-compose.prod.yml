@@ -54,12 +54,20 @@ services:
       # Host-header pinning (opt-in): e.g. "app.example.com,localhost" — include localhost so the
       # container healthcheck and the internal nginx proxy keep working. Empty = no restriction.
       AEC_ALLOWED_HOSTS: "${AEC_ALLOWED_HOSTS:-}"
+      # Fail-closed on the datastore secrets in production — refuse to start rather than silently fall
+      # back to the dev defaults (the base compose uses `${…:-bim}` / `${…:-minioadmin}` for local dev).
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-bim}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env for production}@postgres:5432/${POSTGRES_DB:-bim}"
+      S3_SECRET_KEY: "${S3_SECRET_KEY:?set S3_SECRET_KEY in .env for production}"
 
   postgres:
     restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env for production}"
 
   minio:
     restart: unless-stopped
+    environment:
+      MINIO_ROOT_PASSWORD: "${S3_SECRET_KEY:?set S3_SECRET_KEY in .env for production}"
 
 volumes:
   caddy-data:
