@@ -99,10 +99,12 @@
         <!-- FINANCE workspace: full-width proforma + portfolio roll-up -->
         <section id="ws-finance" class="workspace">
           <div id="fin-tabs" role="tablist" aria-label="Finance views">
-            <button class="fintab active" data-fin="proforma" role="tab" aria-selected="true">Proforma</button>
+            <button class="fintab active" data-fin="home" role="tab" aria-selected="true">Home</button>
+            <button class="fintab" data-fin="proforma" role="tab" aria-selected="false">Proforma</button>
             <button class="fintab" data-fin="portfolio" role="tab" aria-selected="false">Portfolio</button>
           </div>
-          <div id="panel-proforma" class="fullpanel active"></div>
+          <div id="panel-home" class="fullpanel active"></div>
+          <div id="panel-proforma" class="fullpanel"></div>
           <div id="panel-portfolio" class="fullpanel"></div>
         </section>
       </main>

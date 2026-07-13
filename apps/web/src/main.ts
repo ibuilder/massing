@@ -769,7 +769,7 @@ function setWorkspace(key: string) {
   if (key === "design") openDesignTab();
   if (key === "construction") openPortalTab();
   if (key === "developer") openDeveloperTab();
-  if (key === "finance") openProformaTab();
+  if (key === "finance") void openFinanceHomeTab();
   if (key === "model") void ensureViewer().then((v) => v.onModelShown());   // lazy-load the 3D app
   localStorage.setItem("workspace", key);
 }
@@ -793,6 +793,7 @@ document.querySelectorAll<HTMLButtonElement>(".fintab").forEach((t) => {
     document.querySelectorAll("#ws-finance .fullpanel").forEach((p) => p.classList.remove("active"));
     t.classList.add("active"); t.setAttribute("aria-selected", "true");
     $(`panel-${t.dataset.fin}`).classList.add("active");
+    if (t.dataset.fin === "home") void openFinanceHomeTab();
     if (t.dataset.fin === "proforma") openProformaTab();
     if (t.dataset.fin === "portfolio") void openPortfolioTab();
   };
@@ -1012,6 +1013,75 @@ async function openPortfolioTab() {
   } catch { /* program roll-up optional */ }
 }
 
+// Finance home — a command-center landing for the finance persona (mirrors the Developer/Design
+// homes): the deal's returns + capital stack from the latest saved scenario and Sources & Uses, with
+// quick-launches to the proforma editor, portfolio roll-up, and the investor memo/deck PDFs.
+async function openFinanceHomeTab() {
+  const panel = $("panel-home");
+  if (!projectId) {
+    panel.innerHTML = `<div class="section-title">Finance</div>`
+      + `<div class="meta">Open or create a project to see its finance command center — returns, capital stack, and the investor documents.</div>`;
+    return;
+  }
+  panel.innerHTML = `<div class="section-title">Finance — command center</div><div class="meta">loading…</div>`;
+  const m = (v: number | null | undefined) => (v == null ? "—" : "$" + Math.round(v).toLocaleString());
+  const pc = (v: number | null | undefined) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
+  const [scen, su] = await Promise.all([
+    api.listScenarios(projectId).catch(() => [] as Awaited<ReturnType<typeof api.listScenarios>>),
+    api.sourcesUses(projectId).catch(() => null),
+  ]);
+  const latest = scen.length ? scen[scen.length - 1] : null;
+  const r = latest?.returns ?? {};
+  const irr = r.equity_irr ?? null;
+  const kpi = (v: string, l: string, tone?: string) =>
+    `<div class="kpi"><div class="kpi-v" style="font-size:17px${tone ? `;color:${tone}` : ""}">${v}</div><div class="kpi-l">${l}</div></div>`;
+
+  const total = su?.total_uses ?? null;
+  const debt = su?.debt ?? null;
+  const equity = su?.equity ?? null;
+  // capital-stack mini-bar (debt vs equity)
+  let stackHtml = "";
+  if (total && (debt || equity)) {
+    const dPct = Math.round(((debt ?? 0) / total) * 100), ePct = 100 - dPct;
+    stackHtml = `<div class="section-title" style="margin-top:12px">Capital stack</div>`
+      + `<div style="display:flex;height:26px;border-radius:6px;overflow:hidden;margin:6px 0;font-size:11px;color:#fff">`
+      + `<div style="flex:${dPct};background:#8aa0b8;display:flex;align-items:center;justify-content:center">Debt ${dPct}%</div>`
+      + `<div style="flex:${ePct};background:#16324f;display:flex;align-items:center;justify-content:center">Equity ${ePct}%</div></div>`
+      + `<div class="meta">${m(debt)} senior debt · ${m(equity)} equity · ${m(total)} total`
+      + (su && su.balanced === false ? ` · <span style="color:var(--status-warn)">sources ≠ uses</span>` : "") + `</div>`;
+  }
+
+  const goFin = (fin: string) => () => document.querySelector<HTMLButtonElement>(`.fintab[data-fin="${fin}"]`)?.click();
+  const openPdf = (path: string, name: string) => async () => {
+    const { openPdfUrl, saveToDocuments } = await import("./drawings/openPdf");
+    await openPdfUrl(api, api.url(path), name, { saveLabel: "Save to Documents", onSave: saveToDocuments(api, projectId!) });
+  };
+
+  panel.innerHTML =
+    `<div class="section-title">Finance — command center</div>`
+    + (latest ? `<div class="meta" style="margin-bottom:6px">Latest scenario: <b>${latest.name}</b></div>`
+              : `<div class="meta" style="margin-bottom:6px">No solved scenario yet — build one in the Proforma tab and its returns land here.</div>`)
+    + `<div class="kpi-grid">`
+    + kpi(pc(irr), "Equity IRR", irr != null && irr >= 0.15 ? "var(--status-good)" : irr != null && irr < 0.08 ? "var(--status-warn)" : undefined)
+    + kpi(r.equity_multiple == null ? "—" : `${r.equity_multiple.toFixed(2)}×`, "Equity multiple")
+    + kpi(pc(r.project_irr), "Project IRR")
+    + kpi(pc(r.yield_on_cost), "Yield on cost")
+    + kpi(m(r.npv), "NPV")
+    + `</div>`
+    + stackHtml
+    + `<div class="section-title" style="margin-top:14px">Open</div>`
+    + `<div id="fin-home-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>`;
+
+  const actions = $("fin-home-actions");
+  const btn = (label: string, cls: string, on: () => void) => {
+    const b = document.createElement("button"); b.className = cls; b.textContent = label; b.onclick = on; actions.appendChild(b);
+  };
+  btn("Proforma →", "file-btn", goFin("proforma"));
+  btn("Portfolio →", "tool-btn", goFin("portfolio"));
+  btn("📄 Investment memo", "tool-btn", openPdf(`/projects/${projectId}/investment-memo.pdf`, "investment-memo.pdf"));
+  btn("📊 Pitch deck", "tool-btn", openPdf(`/projects/${projectId}/investment-deck.pdf`, "pitch-deck.pdf"));
+}
+
 // loadable geometry per project -> the type tag shown in the picker. RVT/DWG/NWC origin isn't
 // tracked (those need the paid Autodesk bridge and convert to IFC/frag first), so a project is
 // only ever ".frag" (published tile), ".ifc" (source IFC on disk), or has no model yet.
@@ -1025,7 +1095,9 @@ function onboardCtx() {
     openSample: () => { setWorkspace("model"); withViewer((v) => void v.loadSample("/basichouse.frag", "BasicHouse")); },
     generate: () => {
       setWorkspace("finance");
-      // let the proforma render, then reveal the "Generate from zoning" panel
+      // finance now lands on the Home tab — switch to the Proforma tab, then reveal the
+      // "Generate from zoning" panel once it renders
+      document.querySelector<HTMLButtonElement>('.fintab[data-fin="proforma"]')?.click();
       setTimeout(() => document.getElementById("pf-massing")?.scrollIntoView({ behavior: "smooth", block: "center" }), 400);
     },
   };

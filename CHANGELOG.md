@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.228 — Finance home: a command-center landing for the finance persona
+
+The Finance workspace opened straight into the proforma editor; now it lands on a **command center** —
+the same pattern the Design and Developer personas already have. A new default **Home** tab (alongside
+Proforma and Portfolio) summarizes the deal's financial picture: the returns from the latest saved
+scenario (equity IRR — tinted good/warn by threshold — equity multiple, project IRR, yield on cost, NPV),
+a **capital-stack bar** (senior debt vs equity with the split and a sources-≠-uses warning when it doesn't
+balance, from Sources & Uses), and quick-launches to the Proforma editor, the Portfolio roll-up, and the
+investor **memo** and **pitch-deck** PDFs. Everything degrades to a clear empty state before a scenario is
+solved.
+
+With this, all three non-GC personas have a role-tailored landing (Design = model-health/phase-progress,
+Developer = real-estate register + deal returns, Finance = returns + capital + investor docs); the GC keeps
+its on-schedule/on-budget PX dashboard.
+
+New `listScenarios(pid)` client method + `openFinanceHomeTab()` in `main.ts`; a Home fintab in the finance
+workspace. Verified live: the capital stack renders from project Sources & Uses, the empty-state shows
+before a scenario, and the quick-launches switch tabs / open the PDFs.
+
 ## v0.3.227 — Investor pitch deck, expanded: exec summary + capital stack + business plan
 
 The generated investment **pitch deck** (`/investment-deck.pdf`) grew from 6 to **9 slides** toward a real

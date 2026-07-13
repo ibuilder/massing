@@ -1194,6 +1194,13 @@ export class ApiClient extends HttpCore {
     return this.json<{ id: string }>(`/proforma/scenarios`, {
       method: "POST", body: JSON.stringify({ name, project_id: projectId, assumptions }) });
   }
+  /** Saved proforma scenarios for a project (with their solved returns), oldest→newest. */
+  listScenarios(projectId: string) {
+    return this.json<{ id: string; name: string; project_id: string | null;
+      returns: { equity_irr?: number | null; equity_multiple?: number | null; project_irr?: number | null;
+        yield_on_cost?: number | null; npv?: number | null } | null }[]>(
+      `/proforma/scenarios?project_id=${encodeURIComponent(projectId)}`);
+  }
   drawPackage(sid: string, body: unknown) {
     return this.json<{ sov_lines_created: number; g702: Record<string, number>; g702_pdf: string }>(
       `/proforma/scenarios/${sid}/draw-package`, { method: "POST", body: JSON.stringify(body) });
