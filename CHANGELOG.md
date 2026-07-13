@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.239 — Modeling program: model-browser groupings + search
+
+The model tree is now a proper **model browser**. A toolbar adds a **group-by** switch — **By level**
+(the spatial default), **By discipline** (A/S/M/P/E/FP, using the index's own discipline classification
+with an IFC-class fallback), **By IFC class**, and **By type / family** (instances under their type, the
+Revit Project Browser view) — and a **search box** that filters every leaf by name, GUID, class, type,
+or discipline across all groups, auto-expanding the branches that match so hits are visible without
+hunting. Each group header shows its element count; clicking a leaf still selects by GUID.
+
+Verified live against a 108-element federated model: all four groupings render with correct counts
+(Structural 75 · Mechanical 24 · Plumbing 6 · General 3), searching "duct" narrows to the 6 matching
+segments and auto-expands, clearing restores the full tree, and leaf clicks fire the GUID selection.
+
 ## v0.3.238 — Modeling program, phase 6d: docked Properties panel (Revit-style)
 
 Properties used to appear in a **floating** aside on selection; it's now a **docked rail panel** — its own

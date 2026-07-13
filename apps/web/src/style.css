@@ -228,7 +228,13 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .tool-btn:hover { background: var(--control-hover); }
 .tool-btn.on { background: var(--accent); }
 
-/* tree */
+/* tree / model browser */
+.tree-wrap { display: flex; flex-direction: column; gap: 6px; }
+.tree-bar { display: flex; gap: 6px; align-items: center; }
+.tree-search { flex: 1 1 auto; min-width: 0; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel2); color: var(--text); font-size: 12px; }
+.tree-groupby { flex: 0 0 auto; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel2); color: var(--text); font-size: 12px; }
+.tree-host { overflow: auto; }
+.tree-empty { padding: 8px 2px; }
 .tree, .tree ul { list-style: none; margin: 0; padding-left: 12px; }
 .tree { padding-left: 0; }
 .tree-node { cursor: pointer; padding: 2px 0; user-select: none; }

@@ -8,6 +8,8 @@ export interface ElementProps {
   name: string | null;
   type_name: string | null;
   storey: string | null;
+  /** Server-computed A/S/M/P/E/FP discipline bucket, when the index provides it. */
+  discipline?: string | null;
   psets: Record<string, Record<string, unknown>>;
   qtos: Record<string, Record<string, unknown>>;
 }
