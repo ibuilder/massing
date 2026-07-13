@@ -257,7 +257,8 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
 
     generate_ifc(metrics, str(ifc_path), name=body.name, frame=body.frame, bay=body.bay_m,
                  units=body.units, envelope=body.envelope, wwr=body.wwr, core=body.core,
-                 unit_layout=body.unit_layout, members=members, parking=body.parking)
+                 unit_layout=body.unit_layout, members=members, parking=body.parking,
+                 parcel_polygon=metrics.get("buildable_polygon"))
     metrics["framed"] = body.frame
     metrics["unitized"] = body.units
     metrics["enclosed"] = body.envelope

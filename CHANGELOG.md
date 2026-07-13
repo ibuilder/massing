@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.221 — Surface parking placed on the real parcel remainder (polygon-aware)
+
+Generated surface parking now fills the **actual land the building doesn't use** instead of a fixed
+strip stamped behind the plate. New pure `pack_parking(poly, bldg_w, bldg_d, n, …)` lays stalls in
+double-loaded modules (two 5 m stall rows sharing a 7 m two-way drive aisle), sweeping the parcel's
+bounding box and keeping a stall only when its whole rectangle is **inside the parcel polygon** (ray-cast
+point-in-polygon) **and clear of the origin-centred building footprint** (plus a 2 m drive-apron buffer).
+`generate_ifc` recentres the parcel on its bbox centre to share the building's frame, then places the
+packed stalls as real `IfcSpace(PARKING)` on the Site Parking storey. On an irregular or tight parcel the
+supply is now **parcel-bound** — you get the stalls the site can actually hold, not the number requested,
+which is the honest feasibility answer. Rectangular-lot inputs with no polygon keep the legacy strip
+(unchanged). Completes the A6 remainder (the shoelace footprint + inward setback offset shipped earlier).
+
+Engine `massing.pack_parking()` + `massing._point_in_poly()`; wired through `routers/generate.py`
+(passes `metrics["buildable_polygon"]`). Tests: `test_massing` — packer keeps stalls inside a 60×60
+parcel and off the building box, supply is parcel-bound (asking for 100 000 returns what fits), triangular
+parcel clips corners, degenerate inputs safe; plus an end-to-end `generate_ifc(parcel_polygon=…)` placing
+stalls clear of the footprint.
+
 ## v0.3.220 — Generated frame follows the load path: per-floor column taper + lateral core
 
 The structural advisor now shapes the *generated geometry* floor-by-floor instead of stamping one fixed

@@ -48,6 +48,27 @@ assert abs(mo["footprint_m2"] - 1200.0) < 5.0 and len(mo["buildable_polygon"]) =
 collapsed = massing.compute_massing({"lot_polygon": sq, "far": 3.0, "side_setback": 40})
 assert collapsed["footprint_m2"] == 0.0 and collapsed["buildable_polygon"] == [], collapsed["footprint_m2"]
 
+# --- A6: pack surface parking into the real parcel remainder -----------------
+# a 60×60 m parcel centred on origin, with a 20×20 m building at the centre
+parcel = [[-30, -30], [30, -30], [30, 30], [-30, 30]]
+stalls = massing.pack_parking(parcel, 20.0, 20.0, 200)
+assert len(stalls) > 0, "parcel has room for surface stalls around the building"
+# every stall centre is inside the parcel
+assert all(massing._point_in_poly(sx, sy, parcel) for sx, sy in stalls), "stall outside parcel"
+# no stall overlaps the 20×20 building keep-out box (10 m half + 2 m buffer = 12 m; stall half 2.5/1.25)
+for sx, sy in stalls:
+    assert not (abs(sx) < 12.0 + 1.25 and abs(sy) < 12.0 + 2.5), ("stall on the building", sx, sy)
+# parcel-limited: asking for far more than fits returns what the parcel holds, not the request
+big = massing.pack_parking(parcel, 20.0, 20.0, 100000)
+assert len(big) == len(massing.pack_parking(parcel, 20.0, 20.0, len(big))), "supply is parcel-bound"
+# a triangular parcel: point-in-poly keeps stalls off the clipped corners
+tri = [[-40, -20], [40, -20], [0, 40]]
+tstalls = massing.pack_parking(tri, 10.0, 10.0, 300)
+assert all(massing._point_in_poly(sx, sy, tri) for sx, sy in tstalls) and len(tstalls) > 0, "tri parcel"
+# degenerate inputs are safe
+assert massing.pack_parking([], 10, 10, 5) == [] and massing.pack_parking(parcel, 20, 20, 0) == []
+print(f"PARK-PACK OK - {len(stalls)} stalls in a 60x60 parcel around a 20x20 building; parcel-bound supply; tri parcel {len(tstalls)}")
+
 # bad input is rejected
 try:
     massing.compute_massing({"far": 2.0})
@@ -234,6 +255,28 @@ if _have_ifc:
             print(f"PARKING OK - {len(stalls)} stalls as IfcSpace(PARKING) on a Site Parking storey, each with area")
         finally:
             os.remove(ppath)
+
+        # --- A6: parking placed on the REAL parcel remainder (polygon-aware) --
+        pfd2, ppath2 = tempfile.mkstemp(suffix=".ifc"); os.close(pfd2)
+        try:
+            # a big parcel around the building — recentred on its bbox centre inside generate_ifc
+            fw, fd = float(m["plate_w"]), float(m["plate_d"])
+            half_w, half_d = fw / 2 + 30, fd / 2 + 30
+            parcel = [[-half_w, -half_d], [half_w, -half_d], [half_w, half_d], [-half_w, half_d]]
+            massing.generate_ifc(m, ppath2, name="ParkedParcel", parking=60, parcel_polygon=parcel)
+            pm2 = open_model(ppath2)
+            import ifcopenshell.util.element as _ue3
+            pstalls = [s for s in pm2.by_type("IfcSpace")
+                       if (_ue3.get_pset(s, "Pset_SpaceCommon") or {}).get("Reference") == "PARKING"]
+            assert len(pstalls) > 0, "stalls packed into the parcel remainder"
+            # no stall centre sits on the origin-centred building footprint (12 m keep-out + stall half)
+            hbw, hbd = fw / 2 + 2.0, fd / 2 + 2.0
+            for s in pstalls:
+                x, y = s.ObjectPlacement.RelativePlacement.Location.Coordinates[:2]
+                assert not (abs(x) < hbw + 1.25 and abs(y) < hbd + 2.5), ("stall on building", x, y)
+            print(f"PARCEL-PARK OK - {len(pstalls)} stalls packed into the parcel remainder, clear of the building")
+        finally:
+            os.remove(ppath2)
 
         # --- service core + MEP risers (core=True) --------------------------
         fd5, cpath = tempfile.mkstemp(suffix=".ifc"); os.close(fd5)

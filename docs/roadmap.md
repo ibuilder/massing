@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.220**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.221**.
 
 > **The product feature roadmap, the code-quality/hardening initiative, AND the Wave 8 field-research
 > upgrades are all effectively cleared.** Every headline feature theme shipped (generative design + Test
@@ -42,8 +42,10 @@ customer need. Each line ends with its archive source in parentheses for the ful
 - **Test Fit yield optimization** *(§A)* — ✅ **DONE (v0.3.215)**: daylight-limited plate depth is now an
   **optimize dimension** (`optimize(depths=…)` / `targets.sweep_depth`) returning a `depth_curve` +
   `best_depth_m`, and a new **`core_efficiency`** metric scores the daylight-dark core; a "sweep plate
-  depth" toggle charts it in the Test Fit panel. *Remainder:* **true polygon-offset footprint** with
-  parking + drive-aisle placement on the real parcel (A6 shipped shoelace area; the offset/placement is next).
+  depth" toggle charts it in the Test Fit panel. **Polygon-offset footprint + parcel parking now DONE
+  (v0.3.221)**: inward setback offset (`offset_polygon`) gives the buildable footprint, and
+  `pack_parking()` places surface stalls + drive aisles in the **real parcel remainder** (inside the
+  polygon, clear of the building box) so parking supply is parcel-bound. Full §A Test Fit bucket cleared.
 - **Structural generative depth** *(§R3/§A)* — ✅ **DONE (v0.3.220)**: the generated frame now follows the
   load path floor-by-floor. `structure.column_schedule()` tapers columns with **√(floors carried)** (base
   widest → top narrowest, floored 400 mm, 50 mm zones) and `structure.lateral_core()` sizes a central
@@ -108,8 +110,9 @@ customer need. Each line ends with its archive source in parentheses for the ful
   stubs only), full institutional reporting packs, space/move management (CAFM), 1031 tooling, and a
   JWT-revocation blacklist + Redis-backed presence (known limits, tracked in PRODUCTION_CHECKLIST).
 
-**Recently cleared (were on this list):** structural generative depth — per-floor column taper +
-lateral-core geometry (v0.3.220) · Test Fit plate-depth optimize + `core_efficiency` (v0.3.215) ·
+**Recently cleared (were on this list):** parcel-aware surface parking placement (v0.3.221) · structural
+generative depth — per-floor column taper + lateral-core geometry (v0.3.220) · Test Fit plate-depth
+optimize + `core_efficiency` (v0.3.215) ·
 underwriting exit-cap-vs-comps guardrails (v0.3.216) · capital-markets syndication connector + IFC5/IFCX data write path
 (v0.3.213) · in-browser E57 reality-capture reader (v0.3.214) · cross-workspace deep-links both directions
 (v0.3.211–212) · FF&E classification (v0.3.212) · B2 hashed `pip-compile` lockfiles (v0.3.198) · accounting

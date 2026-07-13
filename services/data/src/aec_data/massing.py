@@ -145,6 +145,55 @@ def compute_massing(p: dict) -> dict[str, Any]:
     }
 
 
+def _point_in_poly(x: float, y: float, poly: list) -> bool:
+    """Ray-cast point-in-polygon (even-odd rule). `poly` is [[x,y],…] in metres."""
+    inside = False
+    n = len(poly)
+    j = n - 1
+    for i in range(n):
+        xi, yi = poly[i]
+        xj, yj = poly[j]
+        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-9) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
+def pack_parking(poly: list, bldg_w: float, bldg_d: float, n: int,
+                 stall_w: float = 2.5, stall_d: float = 5.0, aisle: float = 7.0,
+                 buffer: float = 2.0) -> list[list[float]]:
+    """Pack up to `n` surface stalls into the parcel `poly` REMAINDER — the land inside the polygon
+    that the building footprint (an origin-centred `bldg_w × bldg_d` rectangle, plus a `buffer`
+    setback for the drive apron) doesn't occupy. Stalls are laid in double-loaded modules (two 5 m
+    stall rows sharing a 7 m two-way aisle), swept row-by-row across the parcel's bounding box; a
+    stall is kept only when its whole rectangle is inside the polygon and clear of the building box.
+    Returns [[cx, cy], …] stall centres (may be < n when the parcel can't hold that many — that IS
+    the parcel-limited answer). `poly` must be centred in the same frame as the building (origin)."""
+    if not poly or len(poly) < 3 or n <= 0:
+        return []
+    xs = [p[0] for p in poly]
+    ys = [p[1] for p in poly]
+    minx, maxx, miny, maxy = min(xs), max(xs), min(ys), max(ys)
+    hbw, hbd = bldg_w / 2 + buffer, bldg_d / 2 + buffer     # building keep-out half-extents
+    stalls: list[list[float]] = []
+    module = 2 * stall_d + aisle
+    base = miny + stall_d / 2
+    while base < maxy and len(stalls) < n:
+        for ry in (base, base + stall_d + aisle):           # the two rows in this double-loaded module
+            x = minx + stall_w / 2
+            while x < maxx and len(stalls) < n:
+                corners = [(x - stall_w / 2, ry - stall_d / 2), (x + stall_w / 2, ry - stall_d / 2),
+                           (x + stall_w / 2, ry + stall_d / 2), (x - stall_w / 2, ry + stall_d / 2)]
+                inside = all(_point_in_poly(cx, cy, poly) for cx, cy in corners)
+                # AABB overlap with the building keep-out box
+                overlaps = abs(x) < hbw + stall_w / 2 and abs(ry) < hbd + stall_d / 2
+                if inside and not overlaps:
+                    stalls.append([round(x, 2), round(ry, 2)])
+                x += stall_w
+        base += module
+    return stalls
+
+
 def gridlines(extent: float, bay: float) -> list[float]:
     """Evenly-spaced grid line positions across `extent` (centred on 0) with spacing ≈ `bay` —
     columns land on both edges and the interior. Returns n+1 coordinates for n bays."""
@@ -157,7 +206,7 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
                  frame: bool = False, bay: float = 7.5, units: bool = False,
                  envelope: bool = False, wwr: float = 0.4, core: bool = False,
                  unit_layout: str = "grid", members: dict | None = None,
-                 parking: int = 0) -> str:
+                 parking: int = 0, parcel_polygon: list | None = None) -> str:
     """Write an IFC4 model: site → building → one storey + slab per level. Each floor gets either a
     single floor-plate space, or — with `units=True` — the floor subdivided into per-unit IfcSpaces
     (the proforma's unit count), so areas/COBie/rent are grounded in real apartments. With
@@ -417,20 +466,31 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
                                        name="Site Parking")
         pstorey.Elevation = 0.0
         ifcopenshell.api.run("aggregate.assign_object", model, products=[pstorey], relating_object=building)
-        per_row = max(1, int(fw // STALL_W))      # stalls per row across the building width
-        y0 = fd / 2 + 6.0                         # lot begins beyond the rear setback
-        placed, row = 0, 0
         n = int(parking)
-        while placed < n and row < 60:            # a module = two stall rows back-to-back + an aisle
-            base = y0 + row * (2 * STALL_D + AISLE)
-            for ry in (base + STALL_D / 2, base + STALL_D + AISLE + STALL_D / 2):
-                x = -fw / 2 + STALL_W / 2
-                col = 0
-                while placed < n and col < per_row:
-                    make_space(pstorey, 0.0, f"Stall {placed + 1:03d}", f"Parking {placed + 1:03d}",
-                               x, ry, STALL_W * 0.94, STALL_D * 0.94, "PARKING")
-                    x += STALL_W; col += 1; placed += 1
-            row += 1
+        centres: list[list[float]] = []
+        if parcel_polygon and len(parcel_polygon) >= 3:
+            # A6 — pack stalls into the REAL parcel remainder: recentre the parcel on its bbox centre
+            # so it shares the building's origin frame, then fill the land the building doesn't use.
+            pxs = [float(pt[0]) for pt in parcel_polygon]; pys = [float(pt[1]) for pt in parcel_polygon]
+            cx0, cy0 = (min(pxs) + max(pxs)) / 2, (min(pys) + max(pys)) / 2
+            centred = [[float(x) - cx0, float(y) - cy0] for x, y in parcel_polygon]
+            centres = pack_parking(centred, fw, fd, n, STALL_W, STALL_D, AISLE)
+        if not centres:
+            # fallback (no parcel geometry): the legacy strip beyond the rear setback
+            per_row = max(1, int(fw // STALL_W))
+            y0 = fd / 2 + 6.0
+            placed, row = 0, 0
+            while placed < n and row < 60:
+                base = y0 + row * (2 * STALL_D + AISLE)
+                for ry in (base + STALL_D / 2, base + STALL_D + AISLE + STALL_D / 2):
+                    x = -fw / 2 + STALL_W / 2
+                    col = 0
+                    while placed < n and col < per_row:
+                        centres.append([x, ry]); x += STALL_W; col += 1; placed += 1
+                row += 1
+        for idx, (x, ry) in enumerate(centres):
+            make_space(pstorey, 0.0, f"Stall {idx + 1:03d}", f"Parking {idx + 1:03d}",
+                       x, ry, STALL_W * 0.94, STALL_D * 0.94, "PARKING")
     from . import material_layers, materials
     materials.apply_palette(model)               # real IFC materials + surface colours (M1)
     material_layers.apply_layer_sets(model)      # Revit-style layered assemblies on walls/slabs/roofs (M3)
