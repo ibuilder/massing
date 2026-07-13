@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.234 — Modeling program, phase 3: author rooms/spaces
+
+The backend `add_spaces` recipe (grid IfcSpace rooms over each floor's footprint) had no UI — you could
+author walls and columns but not the **rooms** that drive the space schedule, COBie, gbXML, and area
+take-offs. Added an **"➕ Add rooms / spaces"** button to the Grid & Levels section (next to the existing
+"➕ Add level"): pick rooms-per-floor + ceiling height and it authors a real space schedule into the model.
+Verified live: `add_spaces` authored 8 IfcSpace rooms (4 per floor × 2 floors) on a generated shell. With
+level-add already present, the datum/space authoring gap the modeling audit flagged is now covered in the
+UI. (Level rename / set-elevation deferred — they need per-storey GUID plumbing.) Phase 3 of the modeling
+upgrade; next: edit-in-place (drag/stretch).
+
 ## v0.3.233 — Modeling program, phase 4: author-ready starting templates
 
 The old sample models were three static `.frag` files you could only *look at* — they load without a
