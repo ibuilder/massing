@@ -37,6 +37,19 @@ jobs:
         with:
           workspaces: apps/web/src-tauri -> target
 
+      # tauri-build's build script validates that the externalBin sidecar
+      # (binaries/aec-bim-server-<triple>) EXISTS before it will compile the crate. This lint-only job
+      # doesn't build the heavy PyInstaller sidecar (that's desktop.yml), so stub an empty file with the
+      # runner's target triple: clippy type-checks the Rust, it never bundles or runs the sidecar. Without
+      # this the build script fails with "resource path … doesn't exist" and clippy/fmt never run.
+      - name: Stub the sidecar binary (lint compiles the Rust, doesn't bundle the sidecar)
+        run: |
+          mkdir -p binaries
+          triple="$(rustc -vV | sed -n 's/^host: //p')"
+          touch "binaries/aec-bim-server-${triple}"
+          chmod +x "binaries/aec-bim-server-${triple}"
+          echo "stubbed binaries/aec-bim-server-${triple}"
+
       - name: Format check
         run: cargo fmt --all -- --check
 
