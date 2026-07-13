@@ -66,6 +66,7 @@ export interface ViewerApp {
   exportIfc(): void;
   handleKey(key: string): boolean;
   onModelShown(): void;
+  openAuthoring(): void;
 }
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -2482,6 +2483,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     anchorPoint: () => (lastPoint ? { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z } : null),
     selectedGuidValue: () => selectedGuid,
     triggerOpen, openFile, addReferenceObject, loadSample, exportFrag, exportIfc, handleKey,
+    // Open the authoring surface: rebuild the tools panel (so a just-published model's Draft section
+    // appears) and expand + scroll to the "Draft — author elements" group. Called when a new model is
+    // started from scratch, so the drawing tools are front-and-centre instead of buried.
+    openAuthoring: () => {
+      void Promise.resolve(buildToolsPanel()).then(() => {
+        const g = document.querySelector('[data-tool="draft"]');
+        if (!g) return;
+        g.classList.add("open");
+        g.querySelector(".tool-group-head")?.setAttribute("aria-expanded", "true");
+        localStorage.setItem("tools-open:draft", "1");
+        g.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    },
     onModelShown: () => {
       // Wait for the container to actually have dimensions (the workspace just toggled visible, so
       // layout may not have flushed yet) before resizing — resizing at 0×0 sets a NaN aspect.

@@ -6,7 +6,15 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.230**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.231**.
+
+> **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
+> direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
+> no from-scratch start; the backend authoring engine (~30 GUID-stable recipes) was already real. Reversing
+> the old "web = viewer, Blender = editor" non-goal. **P1 shipped (v0.3.231):** blank model from scratch +
+> first-class Author-mode surfacing. **Next:** P2 declutter (Author vs Review modes, kill legacy buttons) ·
+> P3 grid/level/space authoring UI · P4 author-ready templates + richer samples · P5 edit-in-place
+> (drag/stretch). See the MODELING tasks.
 
 > **The product feature roadmap, the code-quality/hardening initiative, AND the Wave 8 field-research
 > upgrades are all effectively cleared.** Every headline feature theme shipped (generative design + Test

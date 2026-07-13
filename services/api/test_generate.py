@@ -76,6 +76,17 @@ with TestClient(app) as c:  # context manager triggers startup -> create tables
     assert sched[0]["side_mm"] >= sched[-1]["side_mm"], "columns taper base->top"
     assert "lateral_core" in stc and "provided" in stc["lateral_core"], stc["lateral_core"]
 
+    # blank authoring model — the from-scratch start for the modeler (base IFC + levels + ground datum)
+    bpid = c.post("/projects", json={"name": "Scratch"}).json()["id"]
+    br = c.post(f"/projects/{bpid}/model/blank", json={"name": "From Scratch", "storeys": 4, "storey_height": 3.0})
+    assert br.status_code == 200 and br.json()["storeys"] == 4, br.text
+    bsrc = c.get(f"/projects/{bpid}").json()["source_ifc"]
+    bm = open_model(bsrc)
+    assert len(bm.by_type("IfcBuildingStorey")) == 4, "4 levels authored"
+    assert len(bm.by_type("IfcSlab")) == 1 and len(bm.by_type("IfcWall")) == 0, "ground datum only, no building"
+    assert bm.by_type("IfcProject") and bm.by_type("IfcBuilding"), "valid spatial structure to author into"
+    assert abs(bm.by_type("IfcBuildingStorey")[1].Elevation - 3.0) < 1e-6, "levels at the requested height"
+
     # place a family via the add_family recipe (publish off; node not required in the gate)
     r = c.post(f"/projects/{pid}/edit",
                json={"recipe": "add_family", "params": {"family": "sofa", "position": [5.0, 5.0]},

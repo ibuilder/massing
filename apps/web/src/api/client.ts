@@ -2798,6 +2798,12 @@ export class ApiClient extends HttpCore {
     return this.json<MassingResult & { source_ifc: string; publish: string }>(
       `/projects/${pid}/generate/massing`, { method: "POST", body: JSON.stringify(params) });
   }
+  /** Create a blank authoring model (base IFC + levels + ground datum) — the from-scratch start for
+   *  the in-browser modeler; sets it as the project's source IFC + publishes. */
+  createBlankModel(pid: string, opts?: { name?: string; storeys?: number; storey_height?: number }) {
+    return this.json<{ storeys: number; storey_height: number; source_ifc: string; publish: string }>(
+      `/projects/${pid}/model/blank`, { method: "POST", body: JSON.stringify(opts || {}) });
+  }
 }
 
 export interface DevBudgetLine {

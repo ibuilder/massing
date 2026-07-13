@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.231 — Modeling program, phase 1: start a model from scratch
+
+**A direction change: the web app becomes a real modeling tool, not just a viewer.** The audit was blunt —
+the Model workspace was ~80% viewer/analysis, authoring was buried in an edit-gated Tools-rail sub-panel,
+and there was **no way to start a model from nothing** (authoring required an existing IFC). The engine was
+never the problem — the backend already has a ~30-recipe GUID-stable IFC authoring API (walls, columns,
+steel, rebar, MEP, coverings, families, storeys, spaces, transforms). This ships the missing foundation.
+
+- **Blank model from scratch.** New `generate_blank_ifc` + `POST /projects/{pid}/model/blank` author a
+  minimal valid IFC — project/site/building, N **levels** (the datum you draw against), and a thin
+  **ground-reference slab** for scale — with no building geometry. `POST` sets it as the source IFC and
+  publishes it, so authoring works immediately.
+- **"✏️ New model from scratch" flow.** One action creates a project, authors the blank model, lands you in
+  the Model workspace, and **auto-opens the Draft/authoring panel** (`viewer.openAuthoring()`) so the
+  drawing tools are front-and-centre instead of hidden. In the Open menu.
+- Verified end-to-end against a live backend: new model → blank IFC published in ~1 s → Draft panel opens
+  with the full element palette → an `add_wall` recipe authors a real wall with a stable GlobalId.
+
+`CLAUDE.md` updated to make in-browser authoring a first-class goal (Blender/Bonsai becomes optional/interop,
+not the required editor). This is phase 1 of a multi-release modeling upgrade — next: declutter the toolbar
+into Author vs Review modes and remove the redundant legacy buttons; grid/level/space authoring UI;
+author-ready templates; and edit-in-place (drag/stretch). Test: `test_generate` (blank model → 4 levels at
+the requested height, ground datum only, valid spatial structure to author into).
+
 ## v0.3.230 — Collapsible nav stages with per-workspace memory
 
 The left-nav destination rail groups first-class destinations by lifecycle stage (Plan & derisk · Build ·

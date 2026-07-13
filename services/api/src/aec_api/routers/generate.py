@@ -201,6 +201,39 @@ def _seed_gc_portal(db, pid: str, body: MassingIn, m: dict, actor: str) -> dict:
     return {"seeded": True, "cost_codes": len(divisions), "activities": acts, "gmp": hard}
 
 
+class BlankModelIn(BaseModel):
+    """Create a blank authoring model — the from-scratch start for the in-browser modeler."""
+    name: str = "New Model"
+    storeys: int = Field(default=3, ge=1, le=80)
+    storey_height: float = Field(default=3.5, gt=2.0, le=10.0)
+
+
+@router.post("/projects/{pid}/model/blank")
+def create_blank_model(pid: str, body: BlankModelIn, db: Session = Depends(get_db),
+                       actor: str = Depends(require_role("editor"))):
+    """Create a **blank authoring model** for the project — base IFC + `storeys` levels + a
+    ground-reference datum, no building geometry — set it as the project's source IFC and publish it.
+    The from-scratch starting point for the modeler; everything else is authored via the edit recipes
+    (add_wall, add_column, add_family, …). Unblocks authoring without generating a whole massing first."""
+    from aec_data.massing import generate_blank_ifc  # type: ignore
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    _IFC_DIR.joinpath(pid).mkdir(parents=True, exist_ok=True)
+    ifc_path = _IFC_DIR / pid / "source.ifc"
+    generate_blank_ifc(str(ifc_path), name=body.name, storeys=body.storeys, storey_height=body.storey_height)
+    storage.put(f"{pid}/source.ifc", ifc_path.read_bytes())
+    p.source_ifc = str(ifc_path)
+    db.commit()
+    audit.record(db, action="ifc.blank", actor=actor, method="POST",
+                 path=f"/projects/{pid}/model/blank", detail={"storeys": body.storeys})
+    db.commit()
+    _publish_bg(pid)
+    return {"storeys": body.storeys, "storey_height": body.storey_height,
+            "source_ifc": str(ifc_path), "publish": "running"}
+
+
 @router.post("/projects/{pid}/generate/massing")
 def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
                      actor: str = Depends(require_role("editor"))):

@@ -1,9 +1,13 @@
 # Project: Massing
 
 ## What this is
-A standalone web BIM viewer + data platform for AEC firms. IFC is the source of truth.
-Blender/Bonsai is the desktop editor (not the web viewer). RVT support is an optional,
-paid Autodesk bridge — never assume RVT can be read offline.
+A standalone web BIM **modeling program** + data platform for AEC firms. IFC is the source of truth.
+The web app is a genuine authoring tool: create a model from scratch (blank IFC → levels/grid datum),
+then draw walls/columns/slabs/families/MEP via server-side GUID-stable edit recipes — **not just a
+viewer**. (Directional change, 2026-07: in-browser authoring is now a first-class goal, reversing the
+earlier "web = viewer, Blender = editor" split.) Blender/Bonsai remains an optional advanced/interop
+editor, not the required one. RVT support is an optional, paid Autodesk bridge — never assume RVT can
+be read offline.
 
 ## Non-negotiables
 - Reference model elements by IFC GlobalId (GUID), never by transient viewer IDs.

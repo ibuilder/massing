@@ -498,6 +498,60 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
     return out_path
 
 
+def generate_blank_ifc(out_path: str, name: str = "New Model", storeys: int = 3,
+                       storey_height: float = 3.5, ground_size: float = 30.0) -> str:
+    """A **blank authoring model** — the from-scratch starting point for the in-browser modeler.
+    Writes a minimal valid IFC4: project/site/building, `storeys` levels spaced `storey_height` apart
+    (the datum you draw against), and a single thin **ground-reference slab** at level 0 so the viewer
+    has a visible ground plane + scale to place geometry on. No walls/columns/spaces — the user authors
+    everything from here via the edit recipes (add_wall, add_column, add_family, …). Returns the path."""
+    import ifcopenshell
+    import ifcopenshell.api
+    import numpy as np
+
+    storeys = max(1, int(storeys))
+    storey_height = max(2.0, float(storey_height))
+
+    model = ifcopenshell.api.run("project.create_file", version="IFC4")
+    project = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcProject", name=name)
+    ifcopenshell.api.run("unit.assign_unit", model, length={"is_metric": True, "raw": "METERS"})
+    ctx = ifcopenshell.api.run("context.add_context", model, context_type="Model")
+    body = ifcopenshell.api.run("context.add_context", model, context_type="Model",
+                                context_identifier="Body", target_view="MODEL_VIEW", parent=ctx)
+    site = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcSite", name="Site")
+    building = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcBuilding", name="Building")
+    ifcopenshell.api.run("aggregate.assign_object", model, products=[site], relating_object=project)
+    ifcopenshell.api.run("aggregate.assign_object", model, products=[building], relating_object=site)
+
+    storey_objs = []
+    for i in range(storeys):
+        s = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcBuildingStorey",
+                                 name=f"Level {i + 1}")
+        s.Elevation = round(i * storey_height, 3)
+        ifcopenshell.api.run("aggregate.assign_object", model, products=[s], relating_object=building)
+        storey_objs.append(s)
+
+    # a thin ground-reference slab at level 0 — a visible datum/ground plane to draw on (deletable)
+    pos = model.create_entity("IfcAxis2Placement2D",
+                              Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0)),
+                              RefDirection=model.create_entity("IfcDirection", (1.0, 0.0)))
+    profile = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA", Position=pos,
+                                  XDim=float(ground_size), YDim=float(ground_size))
+    slab = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcSlab",
+                                name="Ground reference", predefined_type="BASESLAB")
+    m = np.eye(4); m[2, 3] = -0.05
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=slab, matrix=m)
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                               profile=profile, depth=0.05)
+    ifcopenshell.api.run("geometry.assign_representation", model, product=slab, representation=rep)
+    ifcopenshell.api.run("spatial.assign_container", model, products=[slab], relating_structure=storey_objs[0])
+
+    from . import materials
+    materials.apply_palette(model)               # so the ground slab renders shaded, not flat grey
+    model.write(out_path)
+    return out_path
+
+
 def dome_metrics(radius: float, efficiency: float = 0.85, avg_unit_m2: float = 0) -> dict[str, Any]:
     """Program metrics for a monolithic / earth dome house (a hemisphere of `radius` m)."""
     import math

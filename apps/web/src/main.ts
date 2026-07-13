@@ -160,6 +160,7 @@ window.addEventListener("blur", () => closeMenus());
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenus(); });
 // pre-warm the viewer when the file menus open so triggerOpen/export resolve promptly
 buildMenu("open-menu", "Open ▾", [
+  { label: "✏️ New model from scratch…", onClick: () => void startModeling() },
   { label: "Open Project (.mmproj)…", onClick: () => void openProjectBundle() },
   { label: "Open IFC…", onClick: () => openModelFile("ifc") },
   { label: "Open Fragments (.frag)…", onClick: () => openModelFile("frag") },
@@ -770,7 +771,15 @@ function setWorkspace(key: string) {
   if (key === "construction") openPortalTab();
   if (key === "developer") openDeveloperTab();
   if (key === "finance") void openFinanceHomeTab();
-  if (key === "model") void ensureViewer().then((v) => v.onModelShown());   // lazy-load the 3D app
+  if (key === "model") void ensureViewer().then((v) => {
+    v.onModelShown();
+    // just started a model from scratch → open the authoring rail so the Draft tools are front-and-centre
+    if (sessionStorage.getItem("author-open") === "1") {
+      sessionStorage.removeItem("author-open");
+      if (RAIL_ITEMS.some((r) => r.key === "tools")) showRail("tools");
+      setTimeout(() => v.openAuthoring?.(), 300);
+    }
+  });
   localStorage.setItem("workspace", key);
 }
 // deep-link from a tool section to the workspace that owns the full records (e.g. Cost → Construction)
@@ -1099,6 +1108,7 @@ function onboardCtx() {
     // the demo serves read-only sample data, so create/generate (which persist) stay disabled there
     connected: connected && !import.meta.env.VITE_PAGES,
     newProject: () => void newProject(),
+    startModeling: () => void startModeling(),
     openSample: () => { setWorkspace("model"); withViewer((v) => void v.loadSample("/basichouse.frag", "BasicHouse")); },
     generate: () => {
       setWorkspace("finance");
@@ -1116,6 +1126,21 @@ async function newProject() {
   if (!name || !name.trim()) return;
   try { const p = await api.createProject(name.trim()); window.location.search = `?project=${p.id}`; }
   catch { toast("Couldn't create project (sign in as an editor?)", "error"); }
+}
+
+/** Start a new MODEL from scratch: create a project, author a blank IFC (levels + ground datum), and
+ *  land in the Model workspace ready to draw. The "make a model" entry point for the in-browser modeler. */
+async function startModeling() {
+  const name = await askText("New model", { label: "Name your model:", value: "New Model" });
+  if (!name || !name.trim()) return;
+  try {
+    const p = await api.createProject(name.trim());
+    await api.createBlankModel(p.id, { name: name.trim(), storeys: 3 });
+    localStorage.setItem("workspace", "model");   // land in the Model workspace, ready to author
+    sessionStorage.setItem("author-open", "1");    // signal the viewer to open the Draft/Author panel
+    toast("Blank model created — opening the modeler…", "success");
+    window.location.search = `?project=${p.id}`;
+  } catch { toast("Couldn't start a model (sign in as an editor?)", "error"); }
 }
 
 function buildProjectPicker(projects: { id: string; name: string; model_kind?: string | null }[]) {
