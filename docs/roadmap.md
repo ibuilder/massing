@@ -6,16 +6,17 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.232**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.233**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
 > no from-scratch start; the backend authoring engine (~30 GUID-stable recipes) was already real. Reversing
 > the old "web = viewer, Blender = editor" non-goal. **Shipped:** P1 blank model from scratch + first-class
 > Author-mode surfacing (v0.3.231); P2 removed the redundant legacy place buttons (~90 lines) — the Draft
-> panel is the single authoring surface (v0.3.232). **Next:** P2b an explicit Author/Review tool grouping ·
-> P3 grid/level/space authoring UI · P4 author-ready templates + richer samples · P5 edit-in-place
-> (drag/stretch). See the MODELING tasks.
+> panel is the single authoring surface (v0.3.232); P4 author-ready **template picker** (blank + office
+> bay/residential floor/warehouse, all editable) replaces the view-only samples as the start (v0.3.233).
+> **Next:** P3 grid/level/space authoring UI · P5 edit-in-place (drag/stretch) · P2b Author/Review tool
+> grouping. See the MODELING tasks.
 
 > **The product feature roadmap, the code-quality/hardening initiative, AND the Wave 8 field-research
 > upgrades are all effectively cleared.** Every headline feature theme shipped (generative design + Test

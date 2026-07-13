@@ -1,6 +1,6 @@
 import "./style.css";
 import { PortalUI } from "./portal/portal";   // eager: the default Construction/Developer workspace
-import { ApiClient, type StampTemplate } from "./api/client";
+import { ApiClient, type MassingParams, type StampTemplate } from "./api/client";
 import { toast, escapeHtml } from "./ui/feedback";
 import { money } from "./ui/charts";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
@@ -1128,17 +1128,55 @@ async function newProject() {
   catch { toast("Couldn't create project (sign in as an editor?)", "error"); }
 }
 
-/** Start a new MODEL from scratch: create a project, author a blank IFC (levels + ground datum), and
- *  land in the Model workspace ready to draw. The "make a model" entry point for the in-browser modeler. */
+/** Author-ready starting points for a new model. "blank" is an empty canvas (levels + ground datum);
+ *  the rest generate a small, real, fully-editable IFC via the massing engine so you begin with
+ *  structure to build on instead of a blank void. All open in the Model workspace ready to draw. */
+const MODEL_TEMPLATES: { key: string; icon: string; title: string; desc: string; params?: MassingParams }[] = [
+  { key: "blank", icon: "▦", title: "Blank canvas", desc: "3 levels + a ground datum. Draw everything from scratch." },
+  { key: "office", icon: "🏢", title: "Office bay", desc: "A small framed structural bay (columns + beams + envelope) over 3 levels.",
+    params: { name: "Office bay", use_type: "commercial", lot_width: 24, lot_depth: 18, far: 2.5, height_limit: 14, floor_to_floor: 4, frame: true, bay_m: 6, envelope: true, wwr: 0.4 } },
+  { key: "residential", icon: "🏠", title: "Residential floor", desc: "One residential floor, double-loaded corridor with unit demising walls.",
+    params: { name: "Residential floor", use_type: "residential", lot_width: 44, lot_depth: 16, far: 1.0, height_limit: 4, units: true, unit_layout: "corridor", avg_unit_m2: 60, envelope: true } },
+  { key: "warehouse", icon: "🏭", title: "Warehouse shell", desc: "A large single-storey enclosed shed — a clear-span shell to fit out.",
+    params: { name: "Warehouse shell", use_type: "commercial", lot_width: 60, lot_depth: 40, far: 1.0, height_limit: 9, floor_to_floor: 9, envelope: true } },
+];
+
+function pickModelTemplate(): Promise<typeof MODEL_TEMPLATES[number] | null> {
+  return new Promise((resolve) => {
+    const { card, close } = modalShell("Start a new model", 420);
+    const intro = document.createElement("div"); intro.className = "meta";
+    intro.textContent = "Pick a starting point — a blank canvas, or a small editable model with structure to build on. Everything is authored openBIM (real IFC).";
+    card.appendChild(intro);
+    let chosen: typeof MODEL_TEMPLATES[number] | null = null;
+    const grid = document.createElement("div"); grid.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px";
+    for (const t of MODEL_TEMPLATES) {
+      const b = document.createElement("button"); b.className = "file-btn"; b.type = "button";
+      b.style.cssText = "text-align:left;padding:10px;display:flex;flex-direction:column;gap:3px;align-items:flex-start;height:100%";
+      b.innerHTML = `<span style="font-size:15px">${t.icon} <b>${escapeHtml(t.title)}</b></span><span class="meta" style="font-size:11px;white-space:normal">${escapeHtml(t.desc)}</span>`;
+      b.onclick = () => { chosen = t; close(); resolve(t); };
+      grid.appendChild(b);
+    }
+    card.appendChild(grid);
+    const cancel = document.createElement("button"); cancel.className = "tool-btn"; cancel.textContent = "Cancel"; cancel.style.marginTop = "4px";
+    cancel.onclick = () => { close(); resolve(chosen); };
+    card.appendChild(cancel);
+  });
+}
+
+/** Start a new MODEL: pick a template (blank or a small editable starter), create the project, author
+ *  the model, and land in the Model workspace ready to draw. The "make a model" entry point. */
 async function startModeling() {
-  const name = await askText("New model", { label: "Name your model:", value: "New Model" });
+  const tpl = await pickModelTemplate();
+  if (!tpl) return;
+  const name = await askText("New model", { label: "Name your model:", value: tpl.params?.name ?? "New Model" });
   if (!name || !name.trim()) return;
   try {
+    toast("Creating your model…", "info");
     const p = await api.createProject(name.trim());
-    await api.createBlankModel(p.id, { name: name.trim(), storeys: 3 });
+    if (tpl.key === "blank" || !tpl.params) await api.createBlankModel(p.id, { name: name.trim(), storeys: 3 });
+    else await api.generateMassing(p.id, { ...tpl.params, name: name.trim() });
     localStorage.setItem("workspace", "model");   // land in the Model workspace, ready to author
     sessionStorage.setItem("author-open", "1");    // signal the viewer to open the Draft/Author panel
-    toast("Blank model created — opening the modeler…", "success");
     window.location.search = `?project=${p.id}`;
   } catch { toast("Couldn't start a model (sign in as an editor?)", "error"); }
 }

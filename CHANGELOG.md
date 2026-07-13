@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.233 — Modeling program, phase 4: author-ready starting templates
+
+The old sample models were three static `.frag` files you could only *look at* — they load without a
+project, so authoring is impossible on them. The "New model from scratch" flow now opens a **template
+picker** with four **author-ready** starting points, each opening as a real, editable IFC project in the
+Model workspace with the Draft tools ready:
+
+- **▦ Blank canvas** — 3 levels + a ground datum; draw everything from scratch.
+- **🏢 Office bay** — a small framed structural bay (columns + beams + envelope) over 3 levels.
+- **🏠 Residential floor** — one floor, double-loaded corridor with unit demising walls.
+- **🏭 Warehouse shell** — a large single-storey enclosed clear-span shed to fit out.
+
+Blank uses `…/model/blank` (P1); the rest are presets through the existing massing generator, so they
+produce real geometry you then edit — not a locked demo. The picker is an accessible dialog (focus-trapped,
+Esc). Verified live: the picker shows all four; the office-bay template generates a published, framed
+3-storey editable model in ~1 s. (The static School/BasicHouse samples stay in the Open menu as view-only
+reference.) Phase 4 of the modeling upgrade; next: grid/level/space authoring UI and edit-in-place.
+
 ## v0.3.232 — Modeling program, phase 2: remove the redundant authoring buttons
 
 Killing the "excess buttons" from the audit. The viewer toolbar had **two ways to place the same element** —
