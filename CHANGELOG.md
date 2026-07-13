@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.237 — Modeling program, phase 6c: cluster the rail Navigate / Author / Coordinate
+
+The left rail's toggles are now grouped into the three workflow clusters every reference tool uses (Revit,
+BlenderBIM/Bonsai, Bluebeam): **Navigate** (Tree · Layers) · **Author** (Tools) · **Coordinate** (Clash ·
+Issues), with a subtle divider/label between them (a thin rule in icon mode, the cluster name when the rail
+is expanded). Each toggle's aria-label is prefixed with its cluster for screen readers. This completes the
+core of the rail redesign — the model workspace now reads as a modeling+coordination cockpit rather than a
+flat list of panels. Verified live: the three cluster labels render and grouping is correct.
+
+*(One deliberate deferral: a docked Properties panel with a Revit-style type/instance split. Ours already
+shows rich, editable element properties — attributes, Psets, classification — in a floating panel on
+selection; docking it into the rail is a follow-up, not a gap, since the capability is present.)*
+
 ## v0.3.236 — Modeling program, phase 6b: a dedicated Clash & coordination toggle
 
 The clash/coordination engine was genuinely strong but **buried** inside a "Coordination & QA" accordion in

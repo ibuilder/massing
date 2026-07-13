@@ -698,12 +698,14 @@ const RAIL_ICONS: Record<string, string> = {
   tools: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.4v2.1M8 12.5v2.1M1.4 8h2.1M12.5 8h2.1M3.3 3.3l1.5 1.5M11.2 11.2l1.5 1.5M3.3 12.7l1.5-1.5M11.2 4.8l1.5-1.5"/></svg>`,
   clash: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.6v3M8 11.4v3M1.6 8h3M11.4 8h3M3.4 3.4 5.5 5.5M10.5 10.5l2.1 2.1M12.6 3.4 10.5 5.5M5.5 10.5l-2.1 2.1"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>`,
 };
-const RAIL_ITEMS: { key: string; label: string; title: string }[] = [
-  { key: "tree", label: "Tree", title: "Model tree" },
-  { key: "layers", label: "Layers", title: "Layers" },
-  { key: "tools", label: "Tools", title: "Model tools & authoring" },
-  { key: "clash", label: "Clash", title: "Clash & coordination" },
-  { key: "issues", label: "Issues", title: "Issues / RFIs" },
+// Rail toggles grouped into three workflow clusters (Navigate / Author / Coordinate) — the taxonomy
+// every reference tool uses (Revit, BlenderBIM/Bonsai, Bluebeam). A subtle group label separates them.
+const RAIL_ITEMS: { key: string; label: string; title: string; cluster: string }[] = [
+  { key: "tree", label: "Tree", title: "Model tree", cluster: "Navigate" },
+  { key: "layers", label: "Layers", title: "Layers & visibility", cluster: "Navigate" },
+  { key: "tools", label: "Tools", title: "Model tools & authoring", cluster: "Author" },
+  { key: "clash", label: "Clash", title: "Clash & coordination", cluster: "Coordinate" },
+  { key: "issues", label: "Issues", title: "Issues / RFIs", cluster: "Coordinate" },
 ];
 const railEl = $("rail");
 function showRail(key: string) {
@@ -712,11 +714,18 @@ function showRail(key: string) {
   document.querySelectorAll(".rpanel").forEach((p) => p.classList.remove("active"));
   $(`panel-${key}`).classList.add("active");
 }
+let lastCluster = "";
 for (const it of RAIL_ITEMS) {
+  if (it.cluster !== lastCluster) {   // a small cluster divider/label so the rail reads Navigate/Author/Coordinate
+    lastCluster = it.cluster;
+    const lbl = document.createElement("span");
+    lbl.className = "rail-cluster"; lbl.textContent = it.cluster; lbl.setAttribute("aria-hidden", "true");
+    railEl.appendChild(lbl);
+  }
   const b = document.createElement("button");
   b.className = "rail-btn"; b.dataset.rail = it.key;
   b.innerHTML = `<span class="rail-ic">${RAIL_ICONS[it.key]}</span><span class="rail-lbl">${it.label}</span>`;
-  b.title = it.title; b.setAttribute("aria-label", it.title);
+  b.title = `${it.cluster} · ${it.title}`; b.setAttribute("aria-label", `${it.cluster}: ${it.title}`);
   b.onclick = () => {
     const isActive = b.classList.contains("active") && !appEl.classList.contains("rail-collapsed");
     if (isActive) appEl.classList.add("rail-collapsed");
