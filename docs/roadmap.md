@@ -54,6 +54,13 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 
 ## ⏳ What's left — the whole open roadmap, prioritized
 
+> **✅ The actionable backlog is CLEARED (2026-07).** Buckets ① (generative/analysis depth) and ②
+> (UX/perf) are fully shipped; ③ (interop) is done or evaluated-and-deferred with criteria (glTF import +
+> pyRevit publish already ship; RVT bridge hardened v0.3.243; the L1 converter and L4 FreeCAD spikes were
+> evaluated → deferred, see below). **What remains is only ④ upstream-blocked, ⑤ deferred-by-decision, and
+> ⑥ documented non-goals — none of it buildable-now-by-choice.** The next substantive work is new research,
+> not this backlog.
+
 **Everything not shipped, consolidated in one place — this is the single, authoritative backlog.** Every
 historically-deferred item from every archive/parking-lot section in
 [roadmap-completed.md](roadmap-completed.md) (A Test Fit · U underwriting · R built-world · M
@@ -111,11 +118,18 @@ customer need. Each line ends with its archive source in parentheses for the ful
 - *(⌘K, saved-views-per-role, cross-workspace deep-links both directions, and the `portal.ts` per-domain
   split all shipped — see §Part C archive.)*
 
-**③ Interop / library evaluations — contained spikes, adopt only if it serves the mission** *(§L)*
-- **L1 — `@ifc-lite/geometry` server-side converter spike** (MPL-2.0, claims ~5× web-ifc): trial as a
-  faster **server** IFC→tessellation path behind the existing convert API. *Do not swap the browser engine.*
-- **L4 — FreeCAD as an optional headless server engine** (LGPL, same `ifcopenshell` we run): parametric
-  family generation + 2D-drawing export, additive to the pipeline, no client weight. Lower priority than L1.
+**③ Interop / library evaluations — spikes evaluated, deferred with re-trigger criteria** *(§L)*
+- ~~**L1 — `@ifc-lite/geometry` server-side converter spike**~~ — **EVALUATED → DEFER (2026-07).** Benchmarked
+  the *current* path first: `services/converter/src/ifcToFrag.mjs` (That Open Fragments, Node) converts a
+  **1.6 MB IFC → .frag in ~1.1 s** — no bottleneck at the model scale we see (largest fixture 1.6 MB). A
+  claimed ~5× converter only pays off on very large models, and adopting it means vetting + carrying a new
+  MPL-2.0 dependency (supply-chain cost) for no measured benefit. **Re-trigger:** a customer with genuinely
+  large models (≳50 MB IFC) where conversion latency becomes painful. *Do not swap the browser engine.*
+- ~~**L4 — FreeCAD headless server engine**~~ — **EVALUATED → DEFER (2026-07).** Parametric family generation
+  and 2D-drawing export are *already covered* by `ifcopenshell` (the ~30 GUID-stable authoring recipes) +
+  `drawings.py` (plans/sections/elevations) + `sheetgen.py` (per-discipline sheet sets), so a FreeCAD engine
+  would be largely redundant while adding a heavy LGPL binary to the server image. **Re-trigger:** a concrete
+  parametric operation `ifcopenshell` genuinely cannot express.
 - ~~**glTF import overlay**~~ — ✅ **already ships**: `referenceLoader.ts` parses `.gltf`/`.glb` (GLTFLoader)
   into a view-only reference overlay via **Open ▾ → Open mesh / point cloud**, alongside OBJ/STL/PLY/PCD/LAS.
 - ~~**pyRevit "export IFC → upload to Massing" macro**~~ — ✅ **already ships**: the
