@@ -231,3 +231,23 @@ jobs:
           path: |
             apps/web/src-tauri/target/release/bundle/**
             apps/web/src-tauri/target/*/release/bundle/**
+
+  # Publish the release automatically once EVERY platform bundle has been built + uploaded. `needs:
+  # build` on a matrix job only reports success when all legs pass, so a single failed platform leaves
+  # the release as a draft (never ship a partial, asset-split release to the auto-updater). This is the
+  # step that was missing — builds attached installers to the draft but nothing flipped it live.
+  publish-release:
+    needs: [create-release, build]
+    if: ${{ github.ref_type == 'tag' && needs.create-release.result == 'success' && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the draft release (mark latest)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release edit "$TAG" --repo "$REPO" --draft=false --latest
+          echo "published $TAG"

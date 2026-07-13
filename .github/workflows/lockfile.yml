@@ -18,6 +18,15 @@ jobs:
     runs-on: ubuntu-latest
     container: python:3.12-slim   # exact prod base image, so the resolution matches the API Dockerfile
     steps:
+      # Install git BEFORE checkout. In the slim container git is absent, so actions/checkout falls
+      # back to a tarball download with NO .git — then the "Verify" step's `git diff` reports "Not a
+      # git repository", exits non-zero, and the lock is wrongly flagged stale. Installing git first
+      # makes checkout produce a real working tree so the diff gate actually works.
+      - name: Install git (must precede checkout)
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends git
+          rm -rf /var/lib/apt/lists/*
+
       - uses: actions/checkout@v4
 
       # build tooling in case a dep only ships an sdist and pip-compile must build it to hash
