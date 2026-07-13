@@ -5,7 +5,46 @@ functions; feeds the generative model so the frame is sensible for the building'
 a fixed section."""
 from __future__ import annotations
 
+import math
 from typing import Any
+
+
+def column_schedule(floors: int, base_col_mm: float, span_m: float = 7.5) -> list[dict[str, Any]]:
+    """Per-floor column taper. A column at level i carries (floors − i) floors of tributary load;
+    axial load ∝ floors carried and column area ∝ load, so the **side ∝ √(floors carried)**. The
+    ground column (carries everything) is `base_col_mm`; upper columns shrink with √load, floored at
+    400 mm and rounded to 50 mm so adjacent levels share a section (real buildings taper in zones)."""
+    floors = max(1, int(floors))
+    out: list[dict[str, Any]] = []
+    for i in range(floors):
+        carried = floors - i                       # this level supports itself + everything above
+        side = base_col_mm * math.sqrt(carried / floors)
+        side_mm = round(max(400.0, side) / 50) * 50
+        out.append({"floor": i, "floors_carried": carried, "side_mm": side_mm})
+    return out
+
+
+def lateral_core(height_m: float, floors: int, plate_w_m: float, plate_d_m: float,
+                 lateral: str) -> dict[str, Any]:
+    """A central reinforced-concrete lateral core sized to the building. Provided when the system uses
+    a core/shear-wall lateral (mid-rise and up). Core plan ≈ 20% of the floorplate (rule of thumb for a
+    stiff enough core), min ~6 m; wall thickness grows with height (drift). Positioned at the plan
+    centre (0,0). Returns geometry the generator can extrude the full height for real lateral stiffness."""
+    uses_core = "core" in lateral.lower()          # a *central* core, not distributed shear walls
+    plate_area = max(1.0, plate_w_m * plate_d_m)
+    core_area = 0.20 * plate_area                  # ~20% of the plate for a code-plausible core
+    side = max(6.0, math.sqrt(core_area))          # ~square core, ≥6 m so stairs+lifts fit
+    core_w = round(min(side, plate_w_m * 0.6), 1)
+    core_d = round(min(side, plate_d_m * 0.6), 1)
+    wall_mm = round(min(900, max(250, 200 + height_m * 4)) / 50) * 50   # thicker as it gets taller
+    return {
+        "provided": uses_core, "plan_w_m": core_w, "plan_d_m": core_d, "wall_mm": wall_mm,
+        "position": {"x": 0.0, "y": 0.0}, "full_height": True,
+        "note": (f"Central {core_w:g}×{core_d:g} m core, {wall_mm} mm walls, extruded the full "
+                 f"{floors}-storey height — carries wind/seismic to the foundation."
+                 if uses_core else "Lateral resisted by distributed shear walls / braced bays; "
+                 "no single central core at this scale."),
+    }
 
 
 def _system(height_m: float, floors: int) -> tuple[str, str, str]:
@@ -49,10 +88,19 @@ def recommend(height_m: float, floors: int, span_m: float = 7.5,
 
     load_path = (f"Gravity: slab → {'beams → ' if not flat_plate else ''}columns → foundation. "
                  f"Lateral: wind/seismic → {lateral.lower()} → foundation.")
+
+    # Per-floor taper + lateral core so the *generated geometry* follows the load path, not a
+    # fixed section. Plate size for the core is unknown here, so pass a span-derived nominal plate;
+    # the generator overrides it with the real footprint when it calls lateral_core() itself.
+    schedule = column_schedule(floors, col_mm, span_m)
+    nominal_plate = span_m * 5                      # ~5 bays if the caller gives us no footprint
+    core = lateral_core(height_m, floors, nominal_plate, nominal_plate, lateral)
     return {
         "system": system, "lateral_system": lateral, "rationale": rationale,
         "height_m": round(height_m, 1), "floors": floors, "span_m": span_m, "slenderness": slenderness,
         "members_mm": {"slab": slab_mm, "beam_depth": beam_depth_mm, "column": col_mm,
                        "uses_beams": not flat_plate},
+        "column_schedule": schedule, "base_column_mm": col_mm,
+        "top_column_mm": schedule[-1]["side_mm"], "lateral_core": core,
         "load_path": load_path, "flags": flags,
     }

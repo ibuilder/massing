@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.220 — Generated frame follows the load path: per-floor column taper + lateral core
+
+The structural advisor now shapes the *generated geometry* floor-by-floor instead of stamping one fixed
+column everywhere. A column at level _i_ carries the floors above it, so its axial load — and thus its
+cross-sectional area — grows toward the base; side length scales with **√(floors carried)**, floored at
+400 mm and rounded to 50 mm zones (real frames taper in bands, not continuously). The advisor returns a
+per-floor `column_schedule` (base = widest, top = narrowest) plus `base_column_mm`/`top_column_mm`, and
+`generate_ifc` extrudes each storey's columns at that storey's section, so a tall building visibly narrows
+its frame as it rises.
+
+Alongside it, a **central lateral core**: when the recommended lateral system is a core (mid-rise and up),
+the advisor sizes a reinforced-concrete core (~20 % of the floorplate, min 6 m) with wall thickness that
+grows with height for drift control (250–900 mm), and the generator extrudes the service-core walls as
+real shear walls at that thickness — not the thin default. Low-rise buildings (distributed shear walls /
+braced bays) correctly get **no** central core. Sized on the real footprint at generate time. The proforma
+massing summary now shows the taper (`cols taper 900→500 mm`) and the core (`6×6 m core, 400 mm walls`).
+
+Engine `structure.column_schedule()` + `structure.lateral_core()`; wired through `routers/generate.py`
+into `massing.generate_ifc(members=…)`. Tests: `test_structure` (taper monotonic base→top, √-load, 400 mm
+floor, core thickens with height, 1-storey edge case), `test_generate` (endpoint returns the schedule +
+core), `test_massing` (generated column X-extents taper 0.90→0.50 m; core walls extrude at 400 mm). Also
+fixed a stale `test_massing` MEP assertion (the core adds a riser **and** a distribution main per floor).
+
 ## v0.3.219 — Desktop build: Windows installer (uvloop) — all three platforms now build
 
 Final piece of the installer repair. With v0.3.218 the macOS + Linux installers built, but Windows

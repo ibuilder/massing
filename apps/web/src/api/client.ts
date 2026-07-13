@@ -2821,7 +2821,11 @@ export interface MassingMetrics {
   building_height_m: number; buildable_gfa_m2: number; buildable_gfa_sf: number;
   net_sellable_m2: number; units: number; binding_constraint: string;
   structure?: { system: string; lateral_system: string; rationale: string; load_path: string;
-    slenderness: number; members_mm: { slab: number; beam_depth: number; column: number; uses_beams: boolean }; flags: string[] };
+    slenderness: number; members_mm: { slab: number; beam_depth: number; column: number; uses_beams: boolean };
+    column_schedule?: { floor: number; floors_carried: number; side_mm: number }[];
+    base_column_mm?: number; top_column_mm?: number;
+    lateral_core?: { provided: boolean; plan_w_m: number; plan_d_m: number; wall_mm: number; note: string };
+    flags: string[] };
 }
 export interface MassingResult {
   metrics: MassingMetrics;

@@ -245,8 +245,15 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
     from .. import structure as st
     rec = st.recommend(metrics["building_height_m"], metrics["floors"], body.bay_m, body.use_type)
     mm = rec["members_mm"]
+    # lateral core sized on the REAL footprint (recommend() used a nominal plate); the generator
+    # extrudes it as thickened shear walls per floor
+    lat_core = st.lateral_core(metrics["building_height_m"], metrics["floors"],
+                               float(metrics["plate_w"]), float(metrics["plate_d"]), rec["lateral_system"])
+    rec["lateral_core"] = lat_core
     members = {"slab_m": mm["slab"] / 1000, "column_m": mm["column"] / 1000,
-               "beam_depth_m": mm["beam_depth"] / 1000, "beam_width_m": max(0.3, mm["beam_depth"] / 1000 * 0.6)}
+               "beam_depth_m": mm["beam_depth"] / 1000, "beam_width_m": max(0.3, mm["beam_depth"] / 1000 * 0.6),
+               "column_schedule_mm": [s["side_mm"] for s in rec["column_schedule"]],
+               "lateral_core": lat_core}
 
     generate_ifc(metrics, str(ifc_path), name=body.name, frame=body.frame, bay=body.bay_m,
                  units=body.units, envelope=body.envelope, wwr=body.wwr, core=body.core,

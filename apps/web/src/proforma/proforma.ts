@@ -861,7 +861,12 @@ export class ProformaUI {
               `IRR <b>${pct(ret?.equity_irr ?? null)}</b> · ${ret?.equity_multiple ?? "—"}× EM</div>` : "") +
         (r.proforma.solve_error ? `<div class="meta" style="color:var(--status-crit)">proforma: ${r.proforma.solve_error}</div>` : "") +
         (m.structure ? `<div class="meta">🏛 Structure: <b>${m.structure.system}</b> · ${m.structure.lateral_system}` +
-              ` · cols ${m.structure.members_mm.column} mm</div>` : "") +
+              ((m.structure.base_column_mm && m.structure.top_column_mm && m.structure.top_column_mm < m.structure.base_column_mm)
+                ? ` · cols taper ${m.structure.base_column_mm}→${m.structure.top_column_mm} mm (base→top)`
+                : ` · cols ${m.structure.members_mm.column} mm`) +
+              (m.structure.lateral_core?.provided
+                ? ` · ${m.structure.lateral_core.plan_w_m}×${m.structure.lateral_core.plan_d_m} m core, ${m.structure.lateral_core.wall_mm} mm walls` : "") +
+              `</div>` : "") +
         (generated ? `<div class="meta" style="color:var(--accent)">✓ IFC model generated & publishing — open the Model workspace to view.</div>` : "");
     };
 

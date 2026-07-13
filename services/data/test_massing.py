@@ -112,6 +112,48 @@ if _have_ifc:
         finally:
             os.remove(fpath)
 
+        # --- per-floor column taper + lateral core (R3 → geometry) ----------
+        fd6, tpath = tempfile.mkstemp(suffix=".ifc"); os.close(fd6)
+        try:
+            # base floor 900 mm tapering to 500 mm at the top; thick 400 mm shear-core walls
+            sched = [900, 800, 700, 600, 500]                   # one per floor, base first
+            mem = {"column_schedule_mm": sched,
+                   "lateral_core": {"plan_w_m": 6.0, "plan_d_m": 6.0, "wall_mm": 400}}
+            massing.generate_ifc(m, tpath, name="Tapered", frame=True, core=True, bay=7.5, members=mem)
+            tm = open_model(tpath)
+            gset = ifcopenshell.geom.settings()
+
+            def _xspan(el):                                     # world-space X extent of an element's mesh
+                sh = ifcopenshell.geom.create_shape(gset, el)
+                xs = sh.geometry.verts[0::3]
+                return max(xs) - min(xs)
+
+            tcols = tm.by_type("IfcColumn")
+            # group columns by storey elevation → each floor's column width
+            by_elev: dict[float, float] = {}
+            for c in tcols:
+                z = round(c.ObjectPlacement.RelativePlacement.Location.Coordinates[2], 1)
+                by_elev.setdefault(z, _xspan(c))
+            widths = [by_elev[z] for z in sorted(by_elev)]      # base → top
+            assert len(widths) == m["floors"], (len(widths), m["floors"])
+            # base column is widest, top is narrowest — the frame tapers as designed
+            assert widths[0] > widths[-1] + 0.1, ("taper base>top", widths)
+            assert all(widths[k] >= widths[k + 1] - 1e-6 for k in range(len(widths) - 1)), widths
+            assert abs(widths[0] - 0.9) < 0.05 and abs(widths[-1] - 0.5) < 0.05, widths
+            # lateral core: walls are the 400 mm shear-wall spec, not the 200 mm default.
+            # thickness lives on the geometry (the thinner plan dimension of the wall box)
+            def _wall_thk(w):
+                sh = ifcopenshell.geom.create_shape(gset, w)
+                xs = sh.geometry.verts[0::3]; ys = sh.geometry.verts[1::3]
+                return min(max(xs) - min(xs), max(ys) - min(ys))
+            core_walls = tm.by_type("IfcWall")
+            thk = min(_wall_thk(w) for w in core_walls)
+            assert abs(thk - 0.4) < 0.06, ("shear-wall thickness ~400mm", thk)
+            print(f"TAPER OK - columns {widths[0]:.2f}->{widths[-1]:.2f} m base->top; "
+                  f"lateral core walls {thk*1000:.0f} mm")
+        finally:
+            os.remove(tpath)
+
         # --- unit subdivision (units=True) ----------------------------------
         fd3, upath = tempfile.mkstemp(suffix=".ifc"); os.close(fd3)
         try:
@@ -203,10 +245,12 @@ if _have_ifc:
             assert len(cm.by_type("IfcStair")) == 2 * m["floors"], "two egress stairs per floor"
             _snames = {s.Name for s in cm.by_type("IfcStair")}
             assert "Egress stair 1" in _snames and "Egress stair 2" in _snames, _snames
-            assert len(cm.by_type("IfcDuctSegment")) == m["floors"], "supply riser per floor"
-            assert len(cm.by_type("IfcPipeSegment")) == m["floors"], "plumbing riser per floor"
+            # per floor: a vertical supply-air riser + a horizontal supply-air distribution main
+            assert len(cm.by_type("IfcDuctSegment")) == 2 * m["floors"], "supply riser + air main per floor"
+            # per floor: a plumbing riser + a domestic-water distribution main
+            assert len(cm.by_type("IfcPipeSegment")) == 2 * m["floors"], "plumbing riser + water main per floor"
             assert len(cm.by_type("IfcWall")) == 4 * m["floors"], "core walls"
-            print(f"CORE OK - elevator + 2 egress stairs (code-separated) + duct/pipe risers + core walls across {m['floors']} floors")
+            print(f"CORE OK - elevator + 2 egress stairs (code-separated) + duct/pipe risers+mains + core walls across {m['floors']} floors")
         finally:
             os.remove(cpath)
 

@@ -69,6 +69,13 @@ with TestClient(app) as c:  # context manager triggers startup -> create tables
     assert len(m.by_type("IfcSpace")) == floors
     assert abs(uunit.calculate_unit_scale(m) - 1.0) < 1e-9, "model must be in metres (mm regression)"
 
+    # R3 structural advisor rode along: per-floor column taper + lateral core in the metrics
+    stc = g["metrics"]["structure"]
+    sched = stc["column_schedule"]
+    assert len(sched) == floors and sched[0]["floors_carried"] == floors, sched
+    assert sched[0]["side_mm"] >= sched[-1]["side_mm"], "columns taper base->top"
+    assert "lateral_core" in stc and "provided" in stc["lateral_core"], stc["lateral_core"]
+
     # place a family via the add_family recipe (publish off; node not required in the gate)
     r = c.post(f"/projects/{pid}/edit",
                json={"recipe": "add_family", "params": {"family": "sofa", "position": [5.0, 5.0]},

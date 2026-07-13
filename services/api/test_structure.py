@@ -39,6 +39,33 @@ assert slender["slenderness"] > 7 and any("lender" in f for f in slender["flags"
 assert "slab" in high["load_path"] and "foundation" in high["load_path"], high["load_path"]
 assert high["members_mm"]["uses_beams"] is True and low["members_mm"]["uses_beams"] is False
 
+# --- per-floor column taper --------------------------------------------------
+sched = high["column_schedule"]
+assert len(sched) == high["floors"], "one entry per floor"
+assert sched[0]["floor"] == 0 and sched[0]["floors_carried"] == high["floors"], sched[0]
+assert sched[-1]["floors_carried"] == 1, sched[-1]
+# base column is the widest, top is the narrowest — the frame tapers upward
+assert sched[0]["side_mm"] == high["base_column_mm"], (sched[0], high["base_column_mm"])
+assert sched[-1]["side_mm"] == high["top_column_mm"] <= sched[0]["side_mm"], sched
+assert high["top_column_mm"] >= 400, "top column floored at 400 mm"
+# monotonic non-increasing base→top (√load taper, rounded to 50 mm zones)
+sides = [s["side_mm"] for s in sched]
+assert all(sides[k] >= sides[k + 1] for k in range(len(sides) - 1)), sides
+# side ∝ √(floors carried): the actual mid-height column is meaningfully smaller than the base
+assert sched[len(sched) // 2]["side_mm"] < sched[0]["side_mm"], "columns narrow with height"
+
+# --- lateral core sizing -----------------------------------------------------
+lc_hi = high["lateral_core"]
+assert lc_hi["provided"] is True, "high-rise uses a central core"
+assert lc_hi["plan_w_m"] >= 6.0 and lc_hi["wall_mm"] >= 250, lc_hi
+# taller building → thicker core walls (drift control)
+assert supertall["lateral_core"]["wall_mm"] >= lc_hi["wall_mm"], "walls thicken with height"
+assert low["lateral_core"]["provided"] is False, "low-rise: distributed shear walls, no central core"
+
+# 1-storey edge case: schedule still valid, no divide-by-zero
+one = st.recommend(4, 1, 7.5)
+assert len(one["column_schedule"]) == 1 and one["column_schedule"][0]["floors_carried"] == 1
+
 # --- endpoint ----------------------------------------------------------------
 with TestClient(app) as c:
     r = c.post("/structure/recommend", json={"height_m": 120, "floors": 34, "span_m": 9})

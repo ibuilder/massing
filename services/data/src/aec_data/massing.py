@@ -180,6 +180,13 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
     COL = float(mem.get("column_m", 0.6))
     BEAM_W = float(mem.get("beam_width_m", 0.4))
     BEAM_D = float(mem.get("beam_depth_m", 0.6))
+    # Per-floor column taper (R3): a list of column side lengths in MILLIMETRES, base floor first
+    # (from structure.column_schedule). When present the frame narrows its columns storey-by-storey
+    # instead of one fixed section, so the geometry follows the axial load path. Lateral core: an
+    # optional {plan_w_m, plan_d_m, wall_mm} that thickens the service-core walls into real shear walls.
+    COL_SCHEDULE = [float(s) / 1000.0 for s in mem.get("column_schedule_mm", [])]
+    LAT_CORE = mem.get("lateral_core") or {}
+    CORE_WALL = float(LAT_CORE.get("wall_mm", 0)) / 1000.0 if LAT_CORE.get("wall_mm") else 0.0
 
     def rect_profile(m, w, d):
         # web-ifc REQUIRES IfcProfileDef.Position (ifcopenshell tolerates None, web-ifc skips the
@@ -202,13 +209,14 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
     ifcopenshell.api.run("aggregate.assign_object", model, products=[site], relating_object=project)
     ifcopenshell.api.run("aggregate.assign_object", model, products=[building], relating_object=site)
 
-    def add_column(storey, elev, x, y):
+    def add_column(storey, elev, x, y, side=None):
+        s = float(side) if side else COL
         col = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcColumn", name="Column",
                                    predefined_type="COLUMN")
         m = np.eye(4); m[0, 3] = x; m[1, 3] = y; m[2, 3] = elev
         ifcopenshell.api.run("geometry.edit_object_placement", model, product=col, matrix=m)
         rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
-                                   profile=rect_profile(model, COL, COL), depth=f2f)
+                                   profile=rect_profile(model, s, s), depth=f2f)
         ifcopenshell.api.run("geometry.assign_representation", model, product=col, representation=rep)
         ifcopenshell.api.run("spatial.assign_container", model, products=[col], relating_structure=storey)
 
@@ -336,9 +344,12 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
         ifcopenshell.api.run("spatial.assign_container", model, products=[slab], relating_structure=storey)
 
         if frame:                              # concrete frame: columns on the grid + beams both ways
+            # taper: pick this storey's column side from the schedule (base floor = index 0), clamp
+            # to the last entry for any floors beyond the schedule length
+            col_side = COL_SCHEDULE[min(i, len(COL_SCHEDULE) - 1)] if COL_SCHEDULE else None
             for x in gx:
                 for y in gy:
-                    add_column(storey, elev, x, y)
+                    add_column(storey, elev, x, y, side=col_side)
             for y in gy:                       # beams along X
                 for j in range(len(gx) - 1):
                     add_beam(storey, elev, gx[j], y, gx[j + 1], y)
@@ -364,15 +375,19 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
                     pass
 
         if core:                               # service core: shafts + stair + MEP risers
-            cw, cd = min(7.0, fw * 0.4), min(5.0, fd * 0.5)
+            # lateral core sizes the core when provided (structure.lateral_core), else the default
+            cw = min(7.0, fw * 0.4) if not LAT_CORE.get("plan_w_m") else min(float(LAT_CORE["plan_w_m"]), fw * 0.6)
+            cd = min(5.0, fd * 0.5) if not LAT_CORE.get("plan_d_m") else min(float(LAT_CORE["plan_d_m"]), fd * 0.6)
             ccx, ccy = 0.0, fd / 2 - cd / 2 - 1.0    # core to the rear, off the facade
             half_w, half_d = cw / 2, cd / 2
+            wall_t = CORE_WALL or 0.2               # thicken to the shear-wall spec when supplied
             for (x1, y1, x2, y2) in [(ccx - half_w, ccy - half_d, ccx + half_w, ccy - half_d),
                                      (ccx + half_w, ccy + half_d, ccx - half_w, ccy + half_d),
                                      (ccx + half_w, ccy - half_d, ccx + half_w, ccy + half_d),
                                      (ccx - half_w, ccy + half_d, ccx - half_w, ccy - half_d)]:
-                add_planar("IfcWall", storey, elev, x1, y1, x2, y2, 1.0, 0.2, f2f,
-                           psets={"Pset_WallCommon": {"IsExternal": False, "LoadBearing": True}})
+                add_planar("IfcWall", storey, elev, x1, y1, x2, y2, 1.0, wall_t, f2f,
+                           psets={"Pset_WallCommon": {"IsExternal": False, "LoadBearing": True,
+                                                      "ThicknessMm": round(wall_t * 1000)}})
             add_box("IfcTransportElement", storey, elev, ccx - 1.4, ccy, 2.0, 2.4, f2f,
                     predefined="ELEVATOR", name="Elevator")
             add_box("IfcStair", storey, elev, ccx + 1.6, ccy, 2.6, cd * 0.8, f2f, name="Egress stair 1")
