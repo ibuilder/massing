@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.232 — Modeling program, phase 2: remove the redundant authoring buttons
+
+Killing the "excess buttons" from the audit. The viewer toolbar had **two ways to place the same element** —
+the parameter-driven, snapping, per-level **Draft panel** (the real one) *and* an older click-to-place set
+of toolbar buttons (Add wall / Add column / Add beam / Place family) that popped `prompt()` dialogs for
+dimensions. The toolbar four were a redundant, clunkier duplicate of what the Draft panel does better, so
+they're removed along with their whole legacy code path — `setPlaceMode`, `capturePlacePoint`,
+`openFamilyPicker`, and the generic `pickFromList` picker (~90 lines). The Draft panel is now the single
+authoring surface (as of P1 it opens front-and-centre on a new model).
+
+The genuinely useful **selection-based** edit buttons stay (delete · add door/window to a selected wall ·
+move · rotate · edit property · copy) since the Draft panel doesn't cover those. Net: fewer buttons, one
+clear way to draw, no behaviour lost. Verified live: the four place buttons are gone, the selection-edit
+buttons remain, and authoring via the Draft panel is unchanged. Phase 2 of the modeling upgrade; next: an
+explicit Author/Review tool grouping, then grid/level/space authoring UI.
+
 ## v0.3.231 — Modeling program, phase 1: start a model from scratch
 
 **A direction change: the web app becomes a real modeling tool, not just a viewer.** The audit was blunt —
