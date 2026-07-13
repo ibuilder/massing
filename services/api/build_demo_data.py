@@ -469,7 +469,7 @@ with TestClient(app) as c:
 
     # --- crawl the GET endpoints the web app calls ---
     snap["GET /projects"] = [{"id": pid, "name": "Demo Tower", "model_kind": None}]
-    grab(c, "/modules"); grab(c, "/portfolio/executive"); grab(c, "/portfolio/construction"); grab(c, "/proforma/portfolio")
+    grab(c, "/modules"); grab(c, "/modules/graph"); grab(c, "/portfolio/executive"); grab(c, "/portfolio/construction"); grab(c, "/proforma/portfolio")
     grab(c, "/benchmarks/costs?min_samples=3"); grab(c, "/benchmarks/response-rates")
     grab(c, "/ids/templates"); grab(c, "/energy/benchmark-status"); grab(c, "/reports")
     grab(c, "/estimate/conceptual/catalog"); grab(c, "/mcp/tools"); grab(c, "/market/snapshot")
@@ -487,7 +487,8 @@ with TestClient(app) as c:
                f"{P}/5d/heatmap?by=progress", f"{P}/5d/heatmap?by=cost", f"{P}/qto/by-floor", f"{P}/estimate/from-model",
                f"{P}/dev-budget", f"{P}/dev-budget/cost-lines", f"{P}/dev-budget/gmp-reconciliation", f"{P}/loan-draws",
                f"{P}/construction-draws", f"{P}/subcontractor-billing", f"{P}/proforma/model-metrics", f"{P}/property",
-               f"{P}/sources-uses", f"{P}/specialty", f"{P}/ai/risk-summary", f"{P}/lean/ppc", f"{P}/properties/meta",
+               f"{P}/sources-uses", f"{P}/specialty", f"{P}/specialty/proforma", f"{P}/ai/risk-summary", f"{P}/lean/ppc", f"{P}/properties/meta",
+               f"{P}/materials/palette", f"{P}/schedule/takt/progress", f"/proforma/scenarios?project_id={pid}",
                f"{P}/specs/submittal-log", f"{P}/feasibility",
                # lifecycle panels (v0.3.49+): design gates, turnover, diligence, operations, asset mgmt, ESG
                f"{P}/lifecycle", f"{P}/turnover/readiness", f"{P}/turnover/status",
@@ -527,6 +528,7 @@ with TestClient(app) as c:
         grab(c, f"{P}/documents/folder?path={_up.quote(folder)}")
     for kind in ("gantt", "lob"):
         grab(c, f"{P}/schedule/{kind}.svg", as_text=True)
+    grab(c, f"{P}/schedule/takt.svg", as_text=True)   # takt LOB with actuals overlay (Schedule panel)
     # override /me -> read-only viewer, landing in the GC persona (hides write controls)
     snap[f"GET {P}/me"] = {"user": "demo", "role": "viewer", "party_role": "GC", "rbac": True}
     # per-module: list + board + views + per-record detail/related

@@ -184,7 +184,22 @@ Deliverables** — with a sticky live-solved returns bar.
 
 ## Recent platform work
 
-- **Earned Value Management — complete (latest, v0.3.109–v0.3.113)** — a standards-aligned (ANSI/EIA-748) EVM engine
+> **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
+> are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
+
+- **Since v0.3.113 — the platform filled out end to end (→ v0.3.228, current).** The complete
+  **acquisition → design → build → turnover → operate** lifecycle (RIBA/AIA phase gates, soft-cost
+  itemization, ASI/bulletins/SK, G704 turnover, FCA/FCI + reserves operations); **openBIM standards depth**
+  (IDS→BCF, bSDD, COBie Contact/Zone/System, IFC4.3 infra, ISO 19650 CDE); **AI over the model**, the
+  per-discipline **drawing-set spine**, **climate/water resilience**, **scan-to-BIM + 2D→BIM + Gaussian
+  splats**; enterprise **auth** (TOTP MFA, SAML/SCIM, session revocation); and a four-domain
+  **code-quality/hardening** initiative. Most recently, **generative-design & analysis depth**: per-floor
+  **column taper + lateral core**, **parcel-aware surface parking**, a specialty **multi-year P&L + ramp +
+  blended IRR** with **Monte-Carlo** risk, **actual-vs-takt** production tracking, a per-project **material
+  editor**, a **module-relations graph**, a 9-slide **investor pitch deck**, and a **Finance command-center
+  home**. See the changelog for each release.
+
+- **Earned Value Management — complete (v0.3.109–v0.3.113)** — a standards-aligned (ANSI/EIA-748) EVM engine
   that **joins schedule earned value with cost actuals by cost code**: PV/EV/AC/BAC, CV/SV/**CPI/SPI** with
   health bands, a per-control-account table, and the full **EAC/ETC/VAC/TCPI** forecast family (>1.10
   to-complete warning). Plus **Earned Schedule** — ES, SV(t), **SPI(t)**, IEAC(t) → **forecast finish
