@@ -54,12 +54,70 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 
 ## ⏳ What's left — the whole open roadmap, prioritized
 
-> **✅ The actionable backlog is CLEARED (2026-07).** Buckets ① (generative/analysis depth) and ②
+> **✅ The v0.3.x actionable backlog is CLEARED (2026-07).** Buckets ① (generative/analysis depth) and ②
 > (UX/perf) are fully shipped; ③ (interop) is done or evaluated-and-deferred with criteria (glTF import +
 > pyRevit publish already ship; RVT bridge hardened v0.3.243; the L1 converter and L4 FreeCAD spikes were
-> evaluated → deferred, see below). **What remains is only ④ upstream-blocked, ⑤ deferred-by-decision, and
-> ⑥ documented non-goals — none of it buildable-now-by-choice.** The next substantive work is new research,
-> not this backlog.
+> evaluated → deferred, see below). Of the original open buckets, only ④ upstream-blocked, ⑤
+> deferred-by-decision, and ⑥ documented non-goals remain. **New actionable work now lives in the Wave 9
+> research scan directly below** — vetted net-new upgrades from a 2026-07 field/product scan.
+
+## 🔬 Wave 9 — 2026-07 research scan (openBIM depth · generative · AI)
+
+Sourced from a 14-image AEC field scan + 14 product/repo teardowns (IFC5, ifcmapping, Kamai, Bentley
+SYNCHRO, SPARC-FP, AECFoundry, five GitHub repos), each vetted against the mission **and the existing
+code**. Most scanned content was already covered — LOD (we have `/lod/assessment`+matrix), drawing types
+IFC/Shop/As-Built (drawings + submittals + turnover), Revit Category→Family→Type→Instance (our
+type/instance model), PM/CM stacks + cost-management (GC portal + proforma/EVM), ITP/NCR (the `inspection`
++ `ncr` modules), a description→code-sections assistant (`codecheck.py`), and manual calibrated PDF takeoff.
+The genuinely **net-new, permissive-license, buildable** items, ranked:
+
+- **W9-1 — Property mapping / normalization engine** *(S–M · net-new)* — the missing **transform** verb
+  between IDS-validate and COBie-export. A `propmap.py` rules engine remaps a source model's psets/props
+  onto a target (IDS/employer) structure via a GUID-stable ifcopenshell recipe (unit/type coercion,
+  auto-suggest from a pinned IDS/bSDD), with preview-diff + apply. *Turns messy federated inputs into
+  standards-clean IFC — closes the loop between our IDS check and deliverable export.* (ifcmapping.com)
+- **W9-2 — Code-compliance depth: occupancy load + egress capacity** *(M · partial→depth)* — we already
+  ship a **description→IBC-sections** assistant (`codecheck.py`) and a **data-readiness** element check
+  (`/elements/code-check`: presence + minimum widths). Net-new depth: compute **occupancy load** (IfcSpace
+  area ÷ §1004 factor), **egress capacity** (load × §1005 factor vs provided door/stair widths), and
+  fire-separation between occupancies; cite the IBC section and round-trip failures as **BCF** topics.
+  Scope explicitly as *pre-check / assist*, never certified; encode thresholds, not ICC prose. (SPARC-FP;
+  UpCodes/Solibri validate demand)
+- **W9-3 — IFC5 composition / property-override layers** *(M · net-new)* — exploit the part of IFC5 that
+  needs **no geometry engine**: USD-like **non-destructive overlay layers** (base → discipline →
+  coordination → override) resolving to an effective value with provenance + cross-layer conflict flags.
+  A `layers.py` engine over the property index; a "Layers" panel mirroring clash UX for data. *Advances the
+  IFC5 story ahead of the upstream geometry alpha, entirely at the data layer.* (biblus IFC5)
+- **W9-4 — Semantic knowledge-graph over model + specs + code** *(L · staged, partial→depth)* — grow the
+  property index into a queryable **graph**: nodes = IFC entities + extracted spec/code clauses; edges = IFC
+  relationships (bounds / supports / has-opening / contained-in) + derived links (space → required rating).
+  NL→graph query returns **multi-hop, cited** answers (GUID + spec page + code section). Postgres-native
+  (recursive CTE / ltree — avoid GPL graph DBs). *Makes the whole project — not just the model — citably
+  queryable, and it's the explainability substrate under W9-2.* (AECFoundry; ASK-BIM / Graph-RAG-over-IFC)
+- **W9-5 — Site logistics & equipment-motion on the 4D slider** *(L; M first step · depth)* — the one real
+  depth gap vs SYNCHRO: temporary resources (cranes / hoists / trucks / laydown / fencing) as first-class
+  objects with time-bound 3D paths that **move** as the 4D slider advances, + crane-reach swept volumes
+  feeding the clash engine (moving-equipment conflicts over time). *M first step:* static, time-phased
+  logistics site objects without motion interpolation. *Turns the 4D animation into a real constructability
+  + site-safety rehearsal.* (Bentley SYNCHRO — clean-room parity)
+- **W9-6 — Generative fit-out: furnish + office space-planning** *(S + M · net-new)* — extend Test Fit
+  (residential unit-mix) into fit-out: **(a)** furnish a room/unit — place `IfcFurniture` from a
+  room-type→furniture-set template with clearances (S); **(b)** procedural office space-planning — a
+  headcount program (desks / offices / meeting rooms + circulation %) + floorplate → `IfcSpace` zones +
+  `IfcFurniture` + auto BOM (M). *Extends generative design from residential into commercial fit-out,
+  IFC-native.* (AutoCAD-automation repos — algorithmic idea only; three declare no license)
+
+**Optional / lower priority:**
+- **W9-7 — AI 2D-PDF auto-takeoff** *(M · optional connector)* — we already ship **manual** calibrated PDF
+  takeoff (measure / area / count); AI auto-extraction of quantities from a PDF set (Kamai-style) is deeper
+  but proprietary/paid → a flagged bridge (like the APS RVT path), never core. (kamai.io)
+- **W9-8 — NL imperative authoring** *(S · parity)* — "add a 2-hr fire wall between the corridor and the
+  stair" → a proposed edit recipe → confirm → apply, layered on the existing recipe engine + "ask the model"
+  AI. (Synaps)
+
+**Evaluated → skip (no merit / off-mission):** FastPlan (generic LLM plan PDF), Datum/Prodatum (small-firm
+site SaaS, below us), Airi Lab (diffusion rendering — off-mission + offline/licensing conflict), MECIDTOOLS
++ scadlab (AutoCAD/OpenSCAD scripting we already exceed), Synaps-as-product (2D CAD, behind us on openBIM).
 
 **Everything not shipped, consolidated in one place — this is the single, authoritative backlog.** Every
 historically-deferred item from every archive/parking-lot section in
