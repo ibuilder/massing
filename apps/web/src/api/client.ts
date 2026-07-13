@@ -2500,6 +2500,17 @@ export class ApiClient extends HttpCore {
     if (!res.ok) throw new Error(`schedule ${kind}: ${res.status}`);
     return res.text();
   }
+  /** The takt line-of-balance chart with the ACTUAL ascent overlaid (dashed) on the plan. */
+  async taktSvg(pid: string) {
+    if (IS_DEMO) return demoTextOr(`/projects/${pid}/schedule/takt.svg`, "");
+    const res = await fetch(this.url(`/projects/${pid}/schedule/takt.svg`), { headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`takt svg: ${res.status}`);
+    return res.text();
+  }
+  /** Actual-vs-takt production tracking for the project (per-trade variance + rates) + bundled PPC. */
+  taktProgress(pid: string) {
+    return this.json<TaktProgressResult>(`/projects/${pid}/schedule/takt/progress`);
+  }
   /** Import a Primavera P6 export (.xer or .xml/PMXML — auto-detected) so the 4D scrub reports
    *  real calendar dates and the tasks become editable schedule_activity records. */
   async importXer(pid: string, file: File) {
@@ -2802,6 +2813,20 @@ export interface SpecialtyResponse {
   summary: SpecialtySummary;
   deltas: { cost_line: { category: string; name: string; amount: number; curve: string } | null;
     other_income_annual_add: number; opex_annual_add: number };
+}
+export interface TaktProgressRow {
+  trade: string; as_of_day: number; floors_done: number; planned_done: number;
+  variance_floors: number; actual_floors_per_week: number; planned_floors_per_week: number;
+  status: "ahead" | "behind" | "on-takt";
+}
+export interface TaktProgressResult {
+  floors: number;
+  plan: { floors: number; duration_days: number; duration_weeks: number; floors_per_week: number;
+    trades: { name: string; takt_days: number; start_day: number; finish_day: number }[] };
+  progress: { as_of_day: number; rows: TaktProgressRow[]; lead_trade: string | null;
+    lead_actual_floors_per_week: number; planned_floors_per_week: number;
+    total_variance_floors: number; overall_status: "ahead" | "behind" | "on-takt" };
+  ppc: { commitments: number; completed: number; ppc: number; missed: number; rating: string };
 }
 export interface SpecialtyProformaRow {
   year: number; op_year: number; ramp: number; revenue: number; energy_offset: number;

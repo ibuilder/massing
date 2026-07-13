@@ -38,6 +38,104 @@ def schedule_takt_svg(floors: int = 10):
     return Response(takt.takt_svg(takt.plan(max(1, floors))), media_type="image/svg+xml")
 
 
+class TaktProgressIn(BaseModel):
+    floors: int = Field(gt=0)
+    trades: list[dict] | None = None
+    jit_lead_days: int = 1
+    actuals: list[dict] = Field(default_factory=list)   # [{trade, floors_done, as_of_day?}]
+    as_of_day: int | None = None
+
+
+@router.post("/schedule/takt/progress")
+def schedule_takt_progress(body: TaktProgressIn):
+    """Actual-vs-takt tracking (R2/R4): compare each trade's actual floors complete against the
+    line-of-balance plan → floor variance (+ahead/−behind), achieved production rate (floors/week),
+    and an on/ahead/behind read. `actuals` = [{trade, floors_done, as_of_day?}, …]."""
+    plan = takt.plan(body.floors, body.trades, jit_lead_days=body.jit_lead_days)
+    return {"plan": plan, "progress": takt.progress(plan, body.actuals, body.as_of_day)}
+
+
+def _takt_actuals_from_activities(acts: list[dict], floors: int) -> tuple[list[dict], int]:
+    """Roll GC `schedule_activity` records up into per-trade actual floors-complete + an as-of day.
+    A floor counts as done for a trade when its activity is 100% complete or carries an actual finish.
+    `as_of_day` is the elapsed span from the earliest activity start to the latest actual finish, so
+    the actual-vs-takt read is grounded in the schedule's own dates (no wall-clock dependency)."""
+    from datetime import date
+
+    def _d(v):
+        try:
+            return date.fromisoformat(str(v)[:10])
+        except Exception:                            # noqa: BLE001 — missing/blank date
+            return None
+
+    done: dict[str, int] = {}
+    starts: list[date] = []
+    fins: list[date] = []
+    for a in acts:
+        trade = a.get("trade")
+        if not trade:
+            continue
+        s = _d(a.get("start") or a.get("actual_start"))
+        if s:
+            starts.append(s)
+        pct = a.get("percent_complete")
+        af = _d(a.get("actual_finish"))
+        complete = (pct is not None and float(pct) >= 100) or af is not None
+        if complete:
+            done[trade] = done.get(trade, 0) + 1
+            if af:
+                fins.append(af)
+    as_of = (max(fins) - min(starts)).days if (starts and fins) else 0
+    actuals = [{"trade": t, "floors_done": min(floors, n), "as_of_day": max(0, as_of)}
+               for t, n in done.items()]
+    return actuals, max(0, as_of)
+
+
+@router.get("/projects/{pid}/schedule/takt/progress")
+def project_takt_progress(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Project actual-vs-takt: derive per-trade floors-complete from the GC `schedule_activity`
+    records and compare to the takt plan sized from the model's storey count. Also returns PPC so a
+    dashboard card can show plan health + Last-Planner reliability together (R2/R4)."""
+    import json
+
+    from .. import storage
+    try:
+        idx = json.loads(storage.get(f"{pid}/props.json"))
+        from .. import fourd
+        floors = max([fourd._floor_index(e.get("storey")) for e in idx.get("elements", [])] + [0]) + 1
+    except Exception:                                # noqa: BLE001 — no published index yet
+        floors = 1
+    acts = [dict(r.get("data") or {}) for r in me.list_records(db, "schedule_activity", pid, limit=1_000_000)] \
+        if "schedule_activity" in me.TABLES else []
+    actuals, as_of = _takt_actuals_from_activities(acts, floors)
+    plan = takt.plan(floors)
+    prog = takt.progress(plan, actuals, as_of)
+    ppc_records = me.list_records(db, "weekly_plan", pid, limit=1_000_000) if "weekly_plan" in me.TABLES else []
+    return {"floors": floors, "plan": plan, "progress": prog, "ppc": lean.ppc(ppc_records)}
+
+
+@router.get("/projects/{pid}/schedule/takt.svg")
+def project_takt_svg(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Line-of-balance chart for the project with the **actual ascent overlaid** (dashed) on the plan."""
+    import json
+
+    from fastapi import Response
+
+    from .. import storage
+    try:
+        idx = json.loads(storage.get(f"{pid}/props.json"))
+        from .. import fourd
+        floors = max([fourd._floor_index(e.get("storey")) for e in idx.get("elements", [])] + [0]) + 1
+    except Exception:                                # noqa: BLE001
+        floors = 1
+    acts = [dict(r.get("data") or {}) for r in me.list_records(db, "schedule_activity", pid, limit=1_000_000)] \
+        if "schedule_activity" in me.TABLES else []
+    actuals, as_of = _takt_actuals_from_activities(acts, floors)
+    plan = takt.plan(floors)
+    overlay = takt.progress(plan, actuals, as_of)["overlay"]
+    return Response(takt.takt_svg(plan, overlay), media_type="image/svg+xml")
+
+
 @router.get("/benchmarks")
 def get_benchmarks():
     """Citable benchmark ranges (cost/sf, cap rates, productivity, lean PPC) for grounding defaults (R5)."""

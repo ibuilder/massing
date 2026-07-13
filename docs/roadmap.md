@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.223**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.224**.
 
 > **The product feature roadmap, the code-quality/hardening initiative, AND the Wave 8 field-research
 > upgrades are all effectively cleared.** Every headline feature theme shipped (generative design + Test
@@ -57,8 +57,11 @@ customer need. Each line ends with its archive source in parentheses for the ful
   `specialty.proforma()`/`blended_irr()`); **Monte-Carlo the specialty risk discount** → distribution of
   blended IRR (v0.3.223, `specialty.monte_carlo()` + "Risk sim" panel button). The whole §U depth bucket
   is cleared.
-- **Lean / takt production analytics** *(§R2/§R4)* — a **takt line-of-balance chart** in the UI tied to
-  **daily-report actuals**; surface **PPC on the dashboard**; **production-rate actual-vs-takt** tracking.
+- **Lean / takt production analytics** *(§R2/§R4)* — ✅ **DONE (v0.3.224)**: `takt.progress()` +
+  `takt_svg` **actuals overlay** measure actual-vs-takt (floor variance, achieved vs planned floors/week,
+  ahead/behind); project `…/schedule/takt/progress` derives per-trade completion from `schedule_activity`
+  and **bundles PPC**; a "Takt — actual vs plan" Schedule-panel card shows the overlaid LOB + variance +
+  PPC. Planned LOB + JIT already shipped.
 - **Rendering & computational depth** *(§M)* — a **material editor + per-project palette** (edit the M1
   IfcMaterial/SurfaceStyle assignments); a **module-relations graph view** (reuse the Studio node canvas);
   heavier: real-time GI / baked AO / exterior HDRI skies.
@@ -110,8 +113,9 @@ customer need. Each line ends with its archive source in parentheses for the ful
   stubs only), full institutional reporting packs, space/move management (CAFM), 1031 tooling, and a
   JWT-revocation blacklist + Redis-backed presence (known limits, tracked in PRODUCTION_CHECKLIST).
 
-**Recently cleared (were on this list):** Monte-Carlo the specialty risk discount → blended-IRR
-distribution (v0.3.223) · specialty multi-year P&L + ramp + blended-vs-RE IRR (v0.3.222) ·
+**Recently cleared (were on this list):** actual-vs-takt production tracking + LOB actuals overlay + PPC
+bundle (v0.3.224) · Monte-Carlo the specialty risk discount → blended-IRR distribution (v0.3.223) ·
+specialty multi-year P&L + ramp + blended-vs-RE IRR (v0.3.222) ·
 parcel-aware surface parking placement (v0.3.221) · structural generative depth — per-floor column taper +
 lateral-core geometry (v0.3.220) · Test Fit plate-depth optimize + `core_efficiency` (v0.3.215) ·
 underwriting exit-cap-vs-comps guardrails (v0.3.216) · capital-markets syndication connector + IFC5/IFCX data write path

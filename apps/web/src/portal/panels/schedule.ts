@@ -287,4 +287,31 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     void ctx.host.api.scheduleSvg(pid, kind).then((svg) => { holder.innerHTML = svg; })
       .catch(() => { holder.innerHTML = `<div class="meta">No ${title.toLowerCase()} yet — add activities with start/finish dates.</div>`; });
   }
+
+  // Takt — actual vs plan: the line-of-balance takt chart with the actual ascent overlaid, plus a
+  // per-trade variance table (floors ahead/behind, achieved vs planned production rate) + PPC.
+  const taktCard = document.createElement("div"); taktCard.className = "dash-card"; taktCard.style.marginBottom = "10px";
+  taktCard.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: "Takt — actual vs plan" }));
+  const taktChart = document.createElement("div"); taktChart.style.overflowX = "auto";
+  taktChart.innerHTML = `<div class="meta">loading takt chart…</div>`;
+  const taktBody = document.createElement("div"); taktBody.style.marginTop = "6px";
+  taktCard.appendChild(taktChart); taktCard.appendChild(taktBody); ctx.root.appendChild(taktCard);
+  void ctx.host.api.taktSvg(pid).then((svg) => { taktChart.innerHTML = svg; })
+    .catch(() => { taktChart.innerHTML = `<div class="meta">No takt chart yet — the model's storey count drives the plan.</div>`; });
+  void ctx.host.api.taktProgress(pid).then((tp) => {
+    const pg = tp.progress;
+    const color = (s: string) => s === "ahead" ? "var(--status-good)" : s === "behind" ? "var(--status-warn)" : "var(--text)";
+    const head = `<div class="meta">Overall <b style="color:${color(pg.overall_status)}">${pg.overall_status}</b>`
+      + ` · lead ${pg.lead_trade ?? "—"} at <b>${pg.lead_actual_floors_per_week}</b> vs plan <b>${pg.planned_floors_per_week}</b> floors/wk`
+      + ` · PPC <b>${Math.round((tp.ppc.ppc ?? 0) * 100)}%</b> (${tp.ppc.rating})</div>`;
+    const rows = pg.rows.map((r) =>
+      `<tr><td>${r.trade}</td><td style="text-align:right">${r.floors_done}/${r.planned_done}</td>`
+      + `<td style="text-align:right;color:${color(r.status)}">${r.variance_floors > 0 ? "+" : ""}${r.variance_floors}</td>`
+      + `<td style="text-align:right">${r.actual_floors_per_week}</td><td style="text-align:right">${r.planned_floors_per_week}</td></tr>`).join("");
+    taktBody.innerHTML = head + (pg.rows.length
+      ? `<table class="mini-table" style="margin-top:4px;width:100%;font-size:11px"><thead><tr>`
+        + `<th>Trade</th><th style="text-align:right">Done/plan</th><th style="text-align:right">Var</th>`
+        + `<th style="text-align:right">Act fl/wk</th><th style="text-align:right">Plan fl/wk</th></tr></thead><tbody>${rows}</tbody></table>`
+      : `<div class="meta">No completed floors yet — mark schedule activities complete (per trade) to track actual vs takt.</div>`);
+  }).catch(() => { taktBody.innerHTML = `<div class="meta">actual-vs-takt unavailable</div>`; });
 }

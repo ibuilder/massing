@@ -76,6 +76,29 @@ assert takt.plan(20)["duration_days"] > p["duration_days"]
 fast = takt.plan(10, [{"name": "Structure", "takt_days": 2}])
 assert fast["floors_per_week"] > p["floors_per_week"]
 
+# --- R2/R4: actual-vs-takt progress tracking ---------------------------------
+# structure on-plan, envelope + MEP behind, as of day 40
+_act = [{"trade": "Structure", "floors_done": 8, "as_of_day": 40},
+        {"trade": "Envelope", "floors_done": 5, "as_of_day": 40},
+        {"trade": "MEP rough-in", "floors_done": 2, "as_of_day": 40}]
+prog = takt.progress(p, _act)
+assert prog["as_of_day"] == 40 and len(prog["rows"]) == 3, prog
+_rows = {r["trade"]: r for r in prog["rows"]}
+# variance = actual − planned-by-that-day; behind trades are negative
+assert _rows["MEP rough-in"]["variance_floors"] < 0 and _rows["MEP rough-in"]["status"] == "behind", _rows["MEP rough-in"]
+# an ahead trade reads positive
+ahead = takt.progress(p, [{"trade": "Structure", "floors_done": 10, "as_of_day": 20}])
+assert ahead["rows"][0]["variance_floors"] > 0 and ahead["rows"][0]["status"] == "ahead", ahead["rows"][0]
+# achieved production rate is floors_done / weeks
+assert _rows["Structure"]["actual_floors_per_week"] == round(8 / (40 / 7), 2), _rows["Structure"]
+# overall behind when the trades are collectively behind plan
+assert prog["overall_status"] == "behind" and prog["total_variance_floors"] < 0, prog
+# the LOB SVG can overlay the actual ascent (dashed) on the plan
+svg_actual = takt.takt_svg(p, prog["overlay"])
+assert "stroke-dasharray" in svg_actual and "actual" in svg_actual, "actual overlay drawn"
+# unknown trade names are ignored, not errors
+assert takt.progress(p, [{"trade": "Bogus", "floors_done": 3, "as_of_day": 10}])["rows"] == []
+
 # --- C3: 4D sequencing — elements appear when their trade reaches their floor -
 from aec_api import fourd  # noqa: E402
 els = [{"guid": "c1", "ifc_class": "IfcColumn", "storey": "Level 1"},
@@ -109,6 +132,14 @@ with TestClient(app) as c:
     assert t.status_code == 200 and t.json()["crew_peak"] == 5, t.text
     svg = c.get("/schedule/takt.svg", params={"floors": 8})
     assert svg.status_code == 200 and svg.content[:4] == b"<svg" and b"floors/wk" in svg.content, svg.status_code
+    # actual-vs-takt progress endpoint (stateless)
+    tp = c.post("/schedule/takt/progress", json={"floors": 8,
+                "actuals": [{"trade": "Structure", "floors_done": 6, "as_of_day": 30},
+                            {"trade": "Envelope", "floors_done": 2, "as_of_day": 30}]})
+    assert tp.status_code == 200, tp.text
+    tpj = tp.json()
+    assert tpj["plan"]["floors"] == 8 and len(tpj["progress"]["rows"]) == 2, tpj
+    assert tpj["progress"]["overall_status"] in ("ahead", "behind", "on-takt"), tpj["progress"]
     b = c.get("/benchmarks")
     assert b.status_code == 200 and "cap_rate" in b.json()["benchmarks"], b.text
     pid = c.post("/projects", json={"name": "Lean Job"}).json()["id"]
@@ -245,6 +276,18 @@ with TestClient(app) as c:
     assert any(x["name"] == "BL-late-add" and x["status"] == "added" for x in var["activities"]), var
     assert var["summary"]["slipped"] >= 1 and var["summary"]["max_slip_days"] >= 6, var["summary"]
     assert var["activities"][0]["finish_var"] is not None, "biggest slip sorted first"
+
+    # project actual-vs-takt: derives per-trade floors-done from schedule_activity + bundles PPC.
+    # (many activities exist by now — the endpoint responds with plan + progress + ppc regardless.)
+    tp2 = c.get(f"/projects/{pid}/schedule/takt/progress")
+    assert tp2.status_code == 200, tp2.text
+    tp2j = tp2.json()
+    assert "plan" in tp2j and "progress" in tp2j and "ppc" in tp2j, list(tp2j)
+    assert tp2j["ppc"]["commitments"] == 3, tp2j["ppc"]                 # the 3 weekly_plan commitments
+    assert tp2j["progress"]["overall_status"] in ("ahead", "behind", "on-takt"), tp2j["progress"]
+    # the project LOB SVG renders (with the actual overlay when trades have completed floors)
+    psvg = c.get(f"/projects/{pid}/schedule/takt.svg")
+    assert psvg.status_code == 200 and psvg.content[:4] == b"<svg", psvg.status_code
 
 print(f"RESEARCH OK - takt {p['duration_days']}d / {p['floors_per_week']} fl-wk / {len(p['delivery_plan'])} JIT deliveries; "
       f"lean PPC {m['ppc']} ({m['rating']}); benchmarks + weekly_plan + comparable modules + endpoints verified")

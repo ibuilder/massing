@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.224 — Actual-vs-takt production tracking: the LOB chart learns the real ascent
+
+The line-of-balance takt plan (trades chasing floor-to-floor at a steady rate) now measures **actual
+against plan**. New `takt.progress(plan, actuals)` compares each trade's actual floors-complete with the
+floors it *should* have finished by that day, giving a **floor variance** (+ahead / −behind), the
+**achieved production rate** (floors/week) vs the planned rate, and an on-takt / ahead / behind read for
+each trade and the job overall. The lead trade's achieved rate vs the planned pace is the headline: is the
+train ascending at takt? `takt_svg` gained an **actuals overlay** — each trade's real ascent drawn as a
+dashed line against the solid plan, so plan-vs-actual reads at a glance.
+
+Project endpoint `GET …/schedule/takt/progress` derives per-trade floors-complete from the GC
+`schedule_activity` records (100% complete or an actual finish date), sizes the takt plan from the model's
+storey count, and **bundles PPC** (Last-Planner reliability) so one payload drives a dashboard card showing
+plan health + reliability together; `GET …/schedule/takt.svg` renders the overlaid chart; and a stateless
+`POST /schedule/takt/progress` computes it from posted actuals. A **"Takt — actual vs plan"** card in the
+Schedule panel shows the overlaid chart + a per-trade variance table (done/plan, variance, actual vs planned
+floors/week) + overall status + PPC.
+
+Engine `takt.progress()` + `takt_svg(actuals=…)`; `routers/research.py` endpoints; Schedule-panel card.
+Tests: `test_research` — variance sign (ahead/behind/on-takt), achieved-rate math, overlay drawn, unknown
+trades ignored, plus the project endpoint (floors-done from activities, clamped to storeys, PPC bundled) +
+stateless endpoint. Closes the §R2/R4 production-analytics thread (planned LOB + JIT already shipped).
+
 ## v0.3.223 — Monte-Carlo the specialty risk discount → distribution of blended deal IRR
 
 Closes the §U4 thread. The specialty **risk discount** (the U4 haircut that keeps a farm/energy operating

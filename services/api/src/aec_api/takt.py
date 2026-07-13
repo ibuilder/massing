@@ -64,12 +64,63 @@ def plan(floors: int, trades: list[dict] | None = None, start_day: int = 0,
     }
 
 
+def progress(p: dict, actuals: list[dict], as_of_day: int | None = None) -> dict[str, Any]:
+    """Actual-vs-takt tracking. `p` is a `plan()` result; `actuals` is [{trade, floors_done,
+    as_of_day?}, …] — how many floors each trade has actually completed as of a reporting day (rolled
+    up from daily reports). For each trade we compare **planned floors complete by that day** (from the
+    LOB finishes) with the actual, giving a floor variance (+ahead / −behind) and an achieved production
+    rate (floors/week). The lead trade's achieved rate vs the planned `floors_per_week` is the headline:
+    is the train ascending at takt? Returns per-trade rows + an overall on/ahead/behind read, and the
+    actual-ascent overlay points the LOB chart draws as dashed lines against the plan."""
+    floors = int(p["floors"])
+    by_name = {t["name"]: t for t in p["trades"]}
+    default_day = as_of_day if as_of_day is not None else max(
+        [int(a.get("as_of_day", 0)) for a in actuals] or [0])
+    rows: list[dict[str, Any]] = []
+    overlay: list[dict[str, Any]] = []
+    for a in actuals:
+        name = a.get("trade")
+        tr = by_name.get(name)
+        if not tr:
+            continue
+        day = int(a.get("as_of_day", default_day) or default_day)
+        actual_done = max(0, min(floors, int(a.get("floors_done", 0) or 0)))
+        # planned floors complete by `day` = count of floor finishes at/under day.
+        # finish[f] = floor_starts[f] + takt_days (each floor takes one takt to complete)
+        td = int(tr.get("takt_days", 5))
+        planned_done = sum(1 for s in tr["floor_starts"] if s + td <= day)
+        var = actual_done - planned_done                    # + ahead of plan, − behind
+        weeks = day / 7 if day > 0 else 0
+        rate = round(actual_done / weeks, 2) if weeks > 0 else 0.0
+        planned_rate = round(planned_done / weeks, 2) if weeks > 0 else 0.0
+        rows.append({
+            "trade": name, "as_of_day": day, "floors_done": actual_done,
+            "planned_done": planned_done, "variance_floors": var,
+            "actual_floors_per_week": rate, "planned_floors_per_week": planned_rate,
+            "status": ("ahead" if var > 0 else "behind" if var < 0 else "on-takt"),
+        })
+        overlay.append({"trade": name, "as_of_day": day, "floors_done": actual_done})
+    # headline: the lead (first) trade paces the build
+    lead = rows[0] if rows else None
+    total_var = sum(r["variance_floors"] for r in rows)
+    return {
+        "as_of_day": default_day, "rows": rows, "overlay": overlay,
+        "lead_trade": lead["trade"] if lead else None,
+        "lead_actual_floors_per_week": lead["actual_floors_per_week"] if lead else 0.0,
+        "planned_floors_per_week": p.get("floors_per_week", 0.0),
+        "total_variance_floors": total_var,
+        "overall_status": ("ahead" if total_var > 0 else "behind" if total_var < 0 else "on-takt"),
+    }
+
+
 _COLORS = ["#4a8cff", "#33d17a", "#ffd479", "#e2554a", "#b083d6", "#6cb6ff", "#f08c5a"]
 
 
-def takt_svg(p: dict) -> str:
+def takt_svg(p: dict, actuals: list[dict] | None = None) -> str:
     """Line-of-balance chart: floors (Y) vs days (X), one sloped line per trade chasing up the
-    building. A flatter/steeper slope = faster/slower ascent; the gap between lines = the buffer."""
+    building. A flatter/steeper slope = faster/slower ascent; the gap between lines = the buffer.
+    When `actuals` (the `progress().overlay` list) is given, each trade's actual ascent is drawn as a
+    dashed line from its start to (as_of_day, floors_done) — so plan vs actual reads at a glance."""
     floors = p["floors"]
     dur = max(1, p["duration_days"])
     W, H, ml, mt, mb = 760, 40 + floors * 22 + 70, 50, 30, 40
@@ -92,5 +143,21 @@ def takt_svg(p: dict) -> str:
         parts.append(f'<polyline points="{pts}" fill="none" stroke="{col}" stroke-width="2.5"/>')
         parts.append(f'<circle cx="{ml + 14 + i * 130}" cy="{mt - 14}" r="4" fill="{col}"/>'
                      f'<text x="{ml + 22 + i * 130}" y="{mt - 10}" font-size="10" fill="#333">{tr["name"]}</text>')
+    # actual ascent overlay: dashed line from each trade's start point to (as_of_day, floors_done)
+    if actuals:
+        name_idx = {tr["name"]: i for i, tr in enumerate(p["trades"])}
+        for a in actuals:
+            i = name_idx.get(a.get("trade"))
+            if i is None:
+                continue
+            col = _COLORS[i % len(_COLORS)]
+            s0 = p["trades"][i]["floor_starts"][0]
+            done = max(0, min(floors, int(a.get("floors_done", 0) or 0)))
+            day = int(a.get("as_of_day", 0) or 0)
+            parts.append(f'<polyline points="{x(s0):.0f},{y(0):.0f} {x(day):.0f},{y(done):.0f}" '
+                         f'fill="none" stroke="{col}" stroke-width="2" stroke-dasharray="4 3" opacity="0.85"/>')
+            parts.append(f'<circle cx="{x(day):.0f}" cy="{y(done):.0f}" r="3" fill="{col}"/>')
+        parts.append(f'<text x="{ml + plot_w}" y="{mt - 10}" font-size="9" fill="#888" '
+                     f'text-anchor="end">— plan · ┄ actual</text>')
     parts.append("</svg>")
     return "".join(parts)
