@@ -16,18 +16,24 @@ fn spawn_update_check(handle: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         let updater = match handle.updater() {
             Ok(u) => u,
-            Err(e) => { eprintln!("updater unavailable: {e}"); return; }
+            Err(e) => {
+                eprintln!("updater unavailable: {e}");
+                return;
+            }
         };
         match updater.check().await {
             Ok(Some(update)) => {
                 eprintln!("installing update {}", update.version);
-                if let Err(e) = update.download_and_install(|_chunk, _total| {}, || {}).await {
+                if let Err(e) = update
+                    .download_and_install(|_chunk, _total| {}, || {})
+                    .await
+                {
                     eprintln!("update install failed: {e}");
                     return;
                 }
                 handle.restart();
             }
-            Ok(None) => {}                       // already up to date
+            Ok(None) => {} // already up to date
             Err(e) => eprintln!("update check failed: {e}"),
         }
     });
@@ -37,9 +43,9 @@ fn spawn_update_check(handle: tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())   // self-update from signed releases
-        .plugin(tauri_plugin_dialog::init())   // native Open/Save dialogs
-        .plugin(tauri_plugin_fs::init())        // read/write the chosen file
+        .plugin(tauri_plugin_updater::Builder::new().build()) // self-update from signed releases
+        .plugin(tauri_plugin_dialog::init()) // native Open/Save dialogs
+        .plugin(tauri_plugin_fs::init()) // read/write the chosen file
         .setup(|app| {
             spawn_update_check(app.handle().clone());
             // data dir under the OS app-data location (matches the PyInstaller build's default)
@@ -50,13 +56,15 @@ pub fn run() {
                 Ok(c) => c,
                 Err(e) => {
                     // dev / sidecar-less build: keep loading the configured frontend
-                    eprintln!("sidecar 'aec-bim-server' unavailable ({e}); loading frontend directly");
+                    eprintln!(
+                        "sidecar 'aec-bim-server' unavailable ({e}); loading frontend directly"
+                    );
                     return Ok(());
                 }
             };
             let mut cmd = cmd
                 .env("AEC_PORT", PORT.to_string())
-                .env("AEC_OPEN_BROWSER", "0");   // the WebView is the UI, not a browser tab
+                .env("AEC_OPEN_BROWSER", "0"); // the WebView is the UI, not a browser tab
             if let Some(d) = data_dir {
                 cmd = cmd.env("AEC_DATA_DIR", d.to_string_lossy().to_string());
             }
@@ -71,7 +79,8 @@ pub fn run() {
                     // when the port is listening, navigate the window to the local server (same-origin)
                     if let Some(win) = app.get_webview_window("main") {
                         std::thread::spawn(move || {
-                            for _ in 0..160 {   // ~40s
+                            for _ in 0..160 {
+                                // ~40s
                                 if std::net::TcpStream::connect(("127.0.0.1", PORT)).is_ok() {
                                     if let Ok(url) = format!("http://127.0.0.1:{PORT}/").parse() {
                                         let _ = win.navigate(url);
