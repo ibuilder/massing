@@ -382,10 +382,14 @@ async def import_rvt(pid: str, file: UploadFile = File(...), confirm_cost: bool 
         raise HTTPException(404, "project not found")
     if not aps.is_enabled():
         raise HTTPException(501, aps.status()["message"])          # bridge off → free alternative
+    if not (file.filename or "").lower().endswith(".rvt"):         # reject before charging the cost
+        raise HTTPException(400, "expected a Revit .rvt file (this bridge converts native .rvt only)")
     if not confirm_cost:
         raise HTTPException(402, "RVT conversion incurs Autodesk APS cloud-credit cost. Re-send with "
                                  "confirm_cost=true to proceed.")
     data = await file.read()
+    if not data:
+        raise HTTPException(400, "empty .rvt file")
     try:
         ifc = aps.translate_rvt_to_ifc(data, file.filename or "model.rvt")
     except RuntimeError as e:  # NotImplementedError is a RuntimeError subclass — both mean "bridge unavailable"

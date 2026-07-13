@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.242**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.243**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
@@ -116,10 +116,19 @@ customer need. Each line ends with its archive source in parentheses for the ful
   faster **server** IFC→tessellation path behind the existing convert API. *Do not swap the browser engine.*
 - **L4 — FreeCAD as an optional headless server engine** (LGPL, same `ifcopenshell` we run): parametric
   family generation + 2D-drawing export, additive to the pipeline, no client weight. Lower priority than L1.
-- **glTF import overlay** + a one-click **pyRevit "export IFC → upload to Massing" macro** — both
-  convenience niceties (glTF *export* + the pyRevit *export* path already ship), neither mission-critical.
-- **RVT→IFC (APS) bridge polish** — the paid Autodesk Model-Derivative path already works behind a flag;
-  incremental hardening only.
+- ~~**glTF import overlay**~~ — ✅ **already ships**: `referenceLoader.ts` parses `.gltf`/`.glb` (GLTFLoader)
+  into a view-only reference overlay via **Open ▾ → Open mesh / point cloud**, alongside OBJ/STL/PLY/PCD/LAS.
+- ~~**pyRevit "export IFC → upload to Massing" macro**~~ — ✅ **already ships**: the
+  `integrations/pyrevit/Massing.extension` **"Publish to Massing"** button exports the active Revit doc to IFC
+  (built-in exporter), uploads it, runs the server-side Fragments conversion, waits, and offers to open it —
+  the one-click export→upload flow, no APS bridge. (Plus Open-in-Massing, BCF issue sync, Settings.)
+- ~~**RVT→IFC (APS) bridge polish**~~ — ✅ **hardened (v0.3.243)**: the paid Autodesk **Design Automation**
+  path stays a properly-gated stub (it can't be implemented generically — the WorkItem arguments depend on
+  the operator's provisioned Activity's parameter names, so it raises a clear "provision your Activity"
+  error rather than fake IFC). Added **input validation** (reject non-`.rvt` / empty *before* the cost gate)
+  and **`test_aps.py`** locking the gate order — 501 (off) → 400 (wrong type) → 402 (unconfirmed cost) →
+  400 (empty) → 502 (stub activity). The free path (export IFC from Revit, or the pyRevit "Publish" button)
+  remains the recommendation.
 
 **④ Blocked upstream — revisit when the dependency lands**
 - **IFC5 / IFCX *geometry* write** — the **data** write-path shipped (v0.3.213, ifcJSON/IFCX element+

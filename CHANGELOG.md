@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.243 — RVT→IFC (APS) bridge hardening
+
+The paid Autodesk Revit→IFC bridge is hardened: the `/import/rvt` endpoint now **validates input before
+the cost gate** — a non-`.rvt` file or an empty upload is rejected with a 400 rather than proceeding
+toward a billed conversion — and a new **`test_aps.py`** locks the full gate order (501 bridge-off →
+400 wrong-type → 402 unconfirmed-cost → 400 empty → 502 stub-activity). The conversion itself remains a
+correctly-gated stub: it can't be implemented generically (the Design Automation WorkItem arguments
+depend on the operator's provisioned Activity), so it raises a clear "provision your Activity" error
+instead of faking output. The free path (export IFC from Revit, or the pyRevit **Publish to Massing**
+button) stays the recommended route.
+
 ## v0.3.242 — Command-center density toggle (compact / comfortable)
 
 The role home dashboards (GC executive band, Developer/Finance/Design command centers) get a
