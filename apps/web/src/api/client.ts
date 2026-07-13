@@ -2623,6 +2623,21 @@ export class ApiClient extends HttpCore {
   saveSpecialty(pid: string, params: Record<string, unknown>) {
     return this.json<SpecialtyResponse>(`/projects/${pid}/specialty`, { method: "PUT", body: JSON.stringify(params) });
   }
+  /** Multi-year specialty P&L with a production ramp + a specialty-only IRR (U4 depth). */
+  specialtyProforma(pid: string, opts?: { years?: number; ramp_years?: number; ramp_start?: number; terminal_cap?: number }) {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts || {})) if (v != null) q.set(k, String(v));
+    const qs = q.toString();
+    return this.json<{ proforma: SpecialtyProforma }>(`/projects/${pid}/specialty/proforma${qs ? "?" + qs : ""}`);
+  }
+  /** Blend the saved specialty business into the deal's equity cash flows: RE-only vs blended IRR. */
+  specialtyBlended(pid: string, assumptions: unknown, opts?: { years?: number; ramp_years?: number; ramp_start?: number; terminal_cap?: number }) {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts || {})) if (v != null) q.set(k, String(v));
+    const qs = q.toString();
+    return this.json<{ blended: SpecialtyBlended }>(`/projects/${pid}/specialty/blended${qs ? "?" + qs : ""}`,
+      { method: "POST", body: JSON.stringify(assumptions) });
+  }
   /** Proforma seed metrics derived from the project's source IFC (areas / space + storey counts). */
   proformaModelMetrics(pid: string) {
     return this.json<{ space_count: number; spaces_with_area: number; storey_count: number; net_floor_area_m2: number; net_floor_area_sf: number }>(
@@ -2778,6 +2793,22 @@ export interface SpecialtyResponse {
   summary: SpecialtySummary;
   deltas: { cost_line: { category: string; name: string; amount: number; curve: string } | null;
     other_income_annual_add: number; opex_annual_add: number };
+}
+export interface SpecialtyProformaRow {
+  year: number; op_year: number; ramp: number; revenue: number; energy_offset: number;
+  opex: number; net: number; cumulative: number;
+}
+export interface SpecialtyProforma {
+  years: number; ramp_years: number; ramp_start: number; terminal_cap: number;
+  capex_total: number; stabilized_net_annual: number; terminal_value: number;
+  rows: SpecialtyProformaRow[]; cumulative_net: number;
+  specialty_irr: number | null; payback_op_year: number | null;
+}
+export interface SpecialtyBlended {
+  re_only_irr: number | null; blended_irr: number | null; irr_lift: number | null;
+  error?: string;
+  specialty?: { specialty_irr: number | null; capex_total: number; stabilized_net_annual: number;
+    terminal_value: number; payback_op_year: number | null };
 }
 export interface FamilyItem {
   key: string; label: string; ifc_class: string; category: string; dims: [number, number, number];

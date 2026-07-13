@@ -162,6 +162,46 @@ def put_specialty(pid: str, body: dict, db: Session = Depends(get_db), _sec: str
     return {"params": body, "summary": sp.summarize(body), "deltas": sp.to_proforma_deltas(body)}
 
 
+@router.get("/projects/{pid}/specialty/proforma")
+def get_specialty_proforma(pid: str, years: int = 10, ramp_years: int = 3,
+                           ramp_start: float = 0.4, terminal_cap: float = 0.10,
+                           db: Session = Depends(get_db),
+                           _sec: str = Depends(rbac.require_role("viewer"))):
+    """Multi-year specialty P&L with a production ramp + a specialty-only IRR (U4 depth). The energy/
+    farm business ramps to full output over `ramp_years`; opex runs full from year 1, so early years
+    earn less — a credible operating-business view rather than a single stabilised year."""
+    from .. import specialty as sp
+    from ..models import Project as _P
+    p = db.get(_P, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    params = p.dev_specialty or sp.starter()
+    return {"proforma": sp.proforma(params, years=years, ramp_years=ramp_years,
+                                    ramp_start=ramp_start, terminal_cap=terminal_cap)}
+
+
+@router.post("/projects/{pid}/specialty/blended")
+def post_specialty_blended(pid: str, a: Assumptions, years: int = 10, ramp_years: int = 3,
+                           ramp_start: float = 0.4, terminal_cap: float = 0.10,
+                           db: Session = Depends(get_db),
+                           _sec: str = Depends(rbac.require_role("viewer"))):
+    """Blend the specialty business into the deal's **equity** cash flows: solve the real-estate
+    proforma from `a`, fold the ramped specialty nets + capex + terminal into the equity stream, and
+    report **real-estate-only vs blended IRR** and the lift (U4). Uses the project's saved specialty
+    params. Answers 'does the farm/energy actually move the deal return, net of its risk discount?'"""
+    from .. import specialty as sp
+    from ..models import Project as _P
+    p = db.get(_P, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    params = p.dev_specialty or sp.starter()
+    result = solve(a.model_dump())
+    cf = result.get("cash_flow", {})
+    re_equity = [{"date": d, "amount": amt} for d, amt in zip(cf.get("dates", []), cf.get("equity", []))]
+    return {"blended": sp.blended_irr(re_equity, params, years=years, ramp_years=ramp_years,
+                                      ramp_start=ramp_start, terminal_cap=terminal_cap)}
+
+
 @router.get("/projects/{pid}/property")
 def get_property(pid: str, db: Session = Depends(get_db), _sec: str = Depends(rbac.require_role("viewer"))):
     """Property & tax assumptions + computed summary (totals, per-SF ratios, proforma deltas)."""

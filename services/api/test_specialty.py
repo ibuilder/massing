@@ -50,6 +50,35 @@ assert dl["other_income_annual_add"] == sd["annual_revenue_underwritten"] + sd["
 # a bigger discount underwrites less
 assert sp.summarize({**params, "risk_discount": 0.6})["annual_revenue_underwritten"] < sd["annual_revenue_underwritten"]
 
+# --- U4 depth: multi-year specialty P&L + production ramp --------------------
+pf = sp.proforma(params, years=10, ramp_years=3, ramp_start=0.4)
+assert len(pf["rows"]) == 10 and pf["rows"][0]["op_year"] == 1, pf["rows"][0]
+# ramp: year-1 output is a fraction, reaching 100% by ramp_years
+assert pf["rows"][0]["ramp"] == 0.4 and pf["rows"][2]["ramp"] == 1.0, [r["ramp"] for r in pf["rows"][:3]]
+# early years earn less (revenue ramps, opex full from day 1) → net rises to a plateau
+assert pf["rows"][0]["net"] < pf["rows"][2]["net"], "ramp lifts net toward stabilization"
+assert all(pf["rows"][i]["net"] <= pf["rows"][i + 1]["net"] for i in range(2)), "net non-decreasing through ramp"
+# last year is stabilized; terminal caps the stabilized net
+assert pf["stabilized_net_annual"] == pf["rows"][-1]["net"], "last ramp year is stabilized"
+assert pf["terminal_value"] == round(pf["stabilized_net_annual"] / 0.10), pf["terminal_value"]
+assert pf["specialty_irr"] is not None and pf["payback_op_year"] and 1 <= pf["payback_op_year"] <= 10, pf
+# cumulative net threads through the rows (last row's cumulative == reported cumulative_net)
+assert pf["cumulative_net"] == pf["rows"][-1]["cumulative"], pf["cumulative_net"]
+# a slower ramp (lower start, stretched over more years) lowers the specialty IRR
+slow = sp.proforma(params, years=10, ramp_years=6, ramp_start=0.1)
+assert slow["specialty_irr"] <= pf["specialty_irr"], "slower ramp -> lower specialty IRR"
+
+# --- U4 depth: blended IRR — specialty folded into the RE equity stream ------
+re_cf = [{"date": "2027-01-01", "amount": -10_000_000}, {"date": "2029-01-01", "amount": 1_500_000},
+         {"date": "2032-01-01", "amount": 15_000_000}]
+bl = sp.blended_irr(re_cf, params)
+assert bl["re_only_irr"] is not None and bl["blended_irr"] is not None, bl
+assert bl["blended_irr"] > bl["re_only_irr"], "a profitable specialty business lifts the blended IRR"
+assert bl["irr_lift"] == round(bl["blended_irr"] - bl["re_only_irr"], 4), bl
+assert bl["specialty"]["specialty_irr"] == sp.proforma(params, start_year=2028)["specialty_irr"], "reuses proforma"
+# guarded when there are no equity cash flows
+assert sp.blended_irr([], params)["blended_irr"] is None
+
 # --- U5: underwriting guardrails flag implausible returns ----------------------------
 from aec_api import underwrite  # noqa: E402
 
@@ -107,6 +136,14 @@ with TestClient(app) as c:
     body = r.json()
     assert body["returns"]["exit_cap"] == 0.045, body["returns"]
     assert any(f["metric"] == "exit_cap" for f in body["guardrails"]["flags"]), body["guardrails"]
+
+    # U4 depth: specialty multi-year P&L endpoint (ramp + specialty IRR)
+    pr = c.get(f"/projects/{pid}/specialty/proforma", params={"years": 8, "ramp_years": 3}).json()["proforma"]
+    assert len(pr["rows"]) == 8 and pr["rows"][0]["op_year"] == 1 and pr["specialty_irr"] is not None, pr
+    assert pr["rows"][0]["net"] < pr["stabilized_net_annual"], "ramp: year 1 below stabilized"
+    # blended-IRR endpoint: solve the RE deal, fold in the saved specialty params, report the lift
+    br = c.post(f"/projects/{pid}/specialty/blended", json=deal).json()["blended"]
+    assert br["re_only_irr"] is not None and br["blended_irr"] is not None and br["irr_lift"] is not None, br
 
 print(f"SPECIALTY OK - energy {sp.starter()['energy']['solar_sf']:,} sf solar -> {e['solar_panels']:,} panels "
       f"${e['capex']:,} capex; PFAL {f['towers']:,} towers -> ${f['annual_revenue']:,}/yr; "

@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.222 — Specialty assets modelled over time: multi-year P&L + production ramp + blended IRR
+
+The on-site energy/vertical-farm business is now underwritten as an **operating business over time**, not
+a single stabilised year. New `specialty.proforma()` runs a multi-year P&L where revenue and generation
+**ramp** linearly from a start fraction to full output over `ramp_years`, while opex (grow-lights, labour)
+runs at full load from year 1 — so the early years earn less, or lose money, before the business
+stabilises (the honest picture of a startup ag/energy operation). It reports per-year rows (ramp %, revenue
++ offset, opex, net, cumulative), a **specialty-only IRR** (capex at t0, ramped nets, plus a terminal value
+= stabilised net ÷ exit cap), and the payback year. All cash flows use the **risk-adjusted** (underwritten)
+figures, so nothing is overstated.
+
+New `specialty.blended_irr()` folds that business into the deal's **equity** cash flows and reports
+**real-estate-only IRR vs blended IRR and the lift** — the answer to "does the farm/energy actually move
+the deal return, net of its risk discount?" Endpoints `GET …/specialty/proforma` (query: years, ramp_years,
+ramp_start, terminal_cap) and `POST …/specialty/blended` (solves the RE proforma from the posted
+assumptions, then blends the saved specialty params). A **"P&L + ramp"** view in the Specialty panel charts
+the year-by-year table, the specialty IRR/payback/terminal, and the blended-deal IRR lift.
+
+Engine reuses the robust `proforma.returns.xirr`. Tests: `test_specialty` — ramp fractions + net rising to
+the stabilised plateau, terminal = net ÷ cap, payback, slower ramp → lower IRR, blended lift + guards,
+plus both endpoints end-to-end. *(Remaining §U4 thread: wiring Monte-Carlo sensitivity to the specialty
+risk discount — next.)*
+
 ## v0.3.221 — Surface parking placed on the real parcel remainder (polygon-aware)
 
 Generated surface parking now fills the **actual land the building doesn't use** instead of a fixed

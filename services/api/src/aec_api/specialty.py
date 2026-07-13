@@ -93,6 +93,105 @@ def summarize(params: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def proforma(params: dict[str, Any], years: int = 10, ramp_years: int = 3,
+             ramp_start: float = 0.4, terminal_cap: float = 0.10,
+             start_year: int = 2027) -> dict[str, Any]:
+    """Multi-year specialty P&L with a production **ramp**. A new energy/farm business doesn't reach
+    full output in year 1 — revenue and on-site generation ramp linearly from `ramp_start` to 100 %
+    over `ramp_years`, while opex (grow-lights, labour) runs at full load from day one, so the early
+    years earn less (or lose money) before the business stabilises. Cash flows use the **risk-adjusted**
+    (underwritten) revenue/offset from `summarize()`, not the gross potential. Returns per-year rows +
+    a **specialty-only IRR** (capex at t0, net cash years 1…N, plus a terminal value = stabilised net ÷
+    `terminal_cap`) so the specialty return is separable from — and blendable with — the real estate."""
+    from datetime import date
+
+    from .proforma.returns import xirr
+
+    s = summarize(params)
+    rev_full = float(s["annual_revenue_underwritten"])
+    off_full = float(s["annual_offset_underwritten"])
+    opex_full = float(s["annual_opex"])
+    capex = float(s["capex_total"])
+    years = max(1, int(years)); ramp_years = max(1, int(ramp_years))
+
+    rows: list[dict[str, Any]] = []
+    cum = -capex
+    payback_year: int | None = None
+    for y in range(1, years + 1):
+        frac = min(1.0, ramp_start + (1 - ramp_start) * (y - 1) / max(1, ramp_years - 1))
+        rev, off = rev_full * frac, off_full * frac
+        net = rev + off - opex_full                    # opex is full from year 1 (lights on, staffed)
+        cum += net
+        if payback_year is None and cum >= 0:
+            payback_year = y
+        rows.append({"year": start_year + y - 1, "op_year": y, "ramp": round(frac, 3),
+                     "revenue": round(rev), "energy_offset": round(off), "opex": round(opex_full),
+                     "net": round(net), "cumulative": round(cum)})
+
+    stabilized_net = rev_full + off_full - opex_full
+    terminal = stabilized_net / terminal_cap if terminal_cap > 0 else 0.0
+    # dated annual cash flows for a robust IRR (capex at t0, nets thereafter, terminal in the last year)
+    cfs: list[tuple[date, float]] = [(date(start_year, 1, 1), -capex)]
+    for r in rows:
+        cfs.append((date(r["year"], 1, 1), float(r["net"])))
+    cfs[-1] = (cfs[-1][0], cfs[-1][1] + terminal)      # add terminal sale to the final year
+    irr = xirr(cfs)
+
+    return {
+        "years": years, "ramp_years": ramp_years, "ramp_start": round(ramp_start, 3),
+        "terminal_cap": terminal_cap, "capex_total": round(capex),
+        "stabilized_net_annual": round(stabilized_net), "terminal_value": round(terminal),
+        "rows": rows, "cumulative_net": round(rows[-1]["cumulative"]) if rows else round(-capex),
+        "specialty_irr": round(irr, 4) if irr is not None else None,
+        "payback_op_year": payback_year,
+    }
+
+
+def blended_irr(re_equity_cashflows: list[dict[str, Any]], params: dict[str, Any],
+                years: int = 10, ramp_years: int = 3, ramp_start: float = 0.4,
+                terminal_cap: float = 0.10) -> dict[str, Any]:
+    """Blend the specialty business into the real-estate **equity** cash flows and report the deal IRR
+    with vs without it. `re_equity_cashflows` is [{"date": "YYYY-MM-DD", "amount": float}, …] (the LP/
+    equity stream from the proforma solve). The specialty capex is added at the first (invest) date and
+    each specialty net year is folded into the matching calendar year; the terminal value lands with the
+    real-estate exit (last date). Returns real-estate-only IRR, blended IRR, and the lift."""
+    from datetime import date
+
+    from .proforma.returns import xirr
+
+    def _d(s: str) -> date:
+        y, m, dd = (int(x) for x in str(s)[:10].split("-"))
+        return date(y, m, dd)
+
+    re_cf = [(_d(c["date"]), float(c["amount"])) for c in re_equity_cashflows if c.get("date")]
+    re_cf.sort()
+    re_irr = xirr(re_cf) if re_cf else None
+    if not re_cf:
+        return {"re_only_irr": None, "blended_irr": None, "irr_lift": None, "error": "no equity cash flows"}
+
+    invest_date, exit_date = re_cf[0][0], re_cf[-1][0]
+    sp = proforma(params, years=years, ramp_years=ramp_years, ramp_start=ramp_start,
+                  terminal_cap=terminal_cap, start_year=invest_date.year + 1)
+    # merge specialty into the RE stream by calendar year
+    merged: dict[date, float] = dict(re_cf)
+    merged[invest_date] = merged.get(invest_date, 0.0) - float(sp["capex_total"])
+    for r in sp["rows"]:
+        d = date(r["year"], invest_date.month, invest_date.day)
+        d = min(d, exit_date)                          # don't extend past the RE exit; pile late nets on exit
+        merged[d] = merged.get(d, 0.0) + float(r["net"])
+    merged[exit_date] = merged.get(exit_date, 0.0) + float(sp["terminal_value"])
+    blended_cf = sorted(merged.items())
+    bl_irr = xirr(blended_cf)
+    return {
+        "re_only_irr": round(re_irr, 4) if re_irr is not None else None,
+        "blended_irr": round(bl_irr, 4) if bl_irr is not None else None,
+        "irr_lift": (round(bl_irr - re_irr, 4) if (bl_irr is not None and re_irr is not None) else None),
+        "specialty": {"specialty_irr": sp["specialty_irr"], "capex_total": sp["capex_total"],
+                      "stabilized_net_annual": sp["stabilized_net_annual"],
+                      "terminal_value": sp["terminal_value"], "payback_op_year": sp["payback_op_year"]},
+    }
+
+
 def to_proforma_deltas(params: dict[str, Any]) -> dict[str, Any]:
     """How the specialty assets adjust a proforma: a hard-cost capex line, plus operations deltas.
     Uses the **risk-adjusted** (underwritten) revenue/offset — not the gross potential — so the deal

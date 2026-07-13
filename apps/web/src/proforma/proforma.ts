@@ -1145,6 +1145,40 @@ export class ProformaUI {
           this.setStatus(`applied specialty assets: ${money(r.summary.capex_total)} capex, ${money(r.summary.annual_net_contribution)}/yr net`);
         };
         bodyEl.appendChild(apply);
+
+        // U4 depth: a multi-year P&L with production ramp + specialty-only IRR + blended-deal lift
+        const pnl = document.createElement("button"); pnl.className = "tool-btn"; pnl.style.cssText = "margin:6px 0 0 6px";
+        pnl.textContent = "P&L + ramp";
+        const pnlOut = document.createElement("div"); pnlOut.className = "meta"; pnlOut.style.marginTop = "6px";
+        pnl.onclick = async () => {
+          pnlOut.innerHTML = `<span class="meta">modelling ramp…</span>`;
+          try {
+            await this.api.saveSpecialty(pid, params);           // persist edits so the P&L reflects them
+            const { proforma: pf } = await this.api.specialtyProforma(pid, { years: 10, ramp_years: 3 });
+            const irr = pf.specialty_irr == null ? "—" : pct(pf.specialty_irr);
+            const rows = pf.rows.map((r) =>
+              `<tr><td>Y${r.op_year}</td><td style="text-align:right">${Math.round(r.ramp * 100)}%</td>`
+              + `<td style="text-align:right">${money(r.revenue + r.energy_offset)}</td>`
+              + `<td style="text-align:right">${money(r.net)}</td>`
+              + `<td style="text-align:right;color:${r.cumulative < 0 ? "var(--status-crit)" : "var(--accent)"}">${money(r.cumulative)}</td></tr>`).join("");
+            // blend into the live deal's equity to show the IRR lift (this.a is the RE-only proforma)
+            let blendLine = "";
+            try {
+              const { blended: b } = await this.api.specialtyBlended(pid, this.a, { years: 10, ramp_years: 3 });
+              if (b.blended_irr != null && b.re_only_irr != null)
+                blendLine = `<div style="margin-top:4px">Deal IRR <b>${pct(b.re_only_irr)}</b> → blended <b>${pct(b.blended_irr)}</b>`
+                  + (b.irr_lift != null ? ` <span style="color:var(--accent)">(+${(b.irr_lift * 100).toFixed(1)} pts)</span>` : "") + `</div>`;
+            } catch { /* deal not solved yet — show the standalone P&L only */ }
+            pnlOut.innerHTML =
+              `<div>Specialty IRR <b>${irr}</b> · capex ${money(pf.capex_total)} · stabilized ${money(pf.stabilized_net_annual)}/yr`
+              + ` · payback ${pf.payback_op_year ? "Y" + pf.payback_op_year : "—"} · terminal ${money(pf.terminal_value)}</div>`
+              + `<table class="mini-table" style="margin-top:4px;width:100%;font-size:11px"><thead><tr>`
+              + `<th>Yr</th><th style="text-align:right">Ramp</th><th style="text-align:right">Rev+offset</th>`
+              + `<th style="text-align:right">Net</th><th style="text-align:right">Cum.</th></tr></thead><tbody>${rows}</tbody></table>`
+              + blendLine;
+          } catch (e) { pnlOut.innerHTML = `<div class="meta" style="color:var(--status-crit)">${(e as Error).message}</div>`; }
+        };
+        bodyEl.appendChild(pnl); bodyEl.appendChild(pnlOut);
       };
       paint(resp.summary);
     }).catch(() => { bodyEl.innerHTML = `<div class="meta">specialty assets unavailable (API offline)</div>`; });
