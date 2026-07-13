@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.235 — Modeling program, phase 6a: cut the duplicative rail sections
+
+Starting the left-rail redesign (a modeling+coordination cockpit, grounded in how Revit, BlenderBIM/Bonsai,
+and Bluebeam lay out their panels). The Model workspace's "Tools" panel had become an 11-section dumping
+ground, four sections of which **re-plotted whole other workspaces**: Cost/Pay Apps, Schedule, Drawings (2D),
+and Energy & MEP. A modeler coordinating geometry shouldn't scroll past pay-app tables to reach a tool.
+
+Removed those four from the model rail — and deleted ~700 lines of their now-duplicate builder code — leaving
+a compact **deep-link row** (💰 Cost → Construction · 📅 Schedule → Construction · 📐 Drawings → Drawings ·
+⚡ Energy → Design) so they're one click away without cluttering the modeling surface. Nothing is lost from
+the product; each still owns its real workspace. The rail now keeps only model-native tools: the Draft
+authoring palette, Grid & Levels, Working origin, Models (federation), round-trip authoring, Coordination &
+QA, and Exports.
+
+Next in the redesign: a dedicated **Clash** toggle (surfacing the existing clash/coordination engine), a
+docked **Properties** panel (Revit-style type/instance split), and re-clustering the rail icons
+Navigate / Author / Coordinate.
+
 ## v0.3.234 — Modeling program, phase 3: author rooms/spaces
 
 The backend `add_spaces` recipe (grid IfcSpace rooms over each floor's footprint) had no UI — you could
