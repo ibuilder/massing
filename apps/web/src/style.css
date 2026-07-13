@@ -604,8 +604,18 @@ body[data-cap-admin="off"] [data-cap="admin"] { display: none !important; }
   #status { display: none; }                 /* free a row — state is shown in the bottom bar */
   #persona-lead { display: none; }           /* keep just the role dropdown on phones */
   #persona-wrap { padding-left: 6px; }
-  #workspaces { margin-left: 0; }
-  .ws-btn { padding: 4px 9px; }
+  /* workspace switcher = the primary nav: give it its own full-width row that scrolls
+     horizontally instead of wrapping 5 tabs onto two cramped lines */
+  #workspaces { margin-left: 0; flex: 1 0 100%; order: 5; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  #workspaces::-webkit-scrollbar { display: none; }
+  .ws-btn { padding: 8px 14px; min-height: 40px; flex: 0 0 auto; white-space: nowrap; }
+  /* tappable ~36px touch targets for the header controls (was 22–28px tall) without ballooning rows */
+  #topbar .file-btn, #topbar .menu-btn, #topbar #cmdk-btn, #topbar #persona,
+  #topbar .tool-btn, #rail-toggle { min-height: 36px; display: inline-flex; align-items: center; }
+  /* the project-name switcher is ~200px and forces its own row — clip it so the project actions pack
+     onto one line (this bare .tool-btn lives directly in the topbar, not in the Open/Save menus) */
+  #topbar > .tool-btn { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #open-menu .tool-btn, #save-menu .tool-btn { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fullpanel { padding: 10px 12px; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .pf-form { grid-template-columns: 1fr; }

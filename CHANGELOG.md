@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.244 — Mobile UX polish (phone-viewport touch targets + nav)
+
+Tuned the header for phones (≤560px): the workspace switcher becomes its own **horizontally-scrollable
+row** (five tabs no longer wrap onto two cramped lines), header controls get **tappable ~36–40px touch
+targets** (were 22–28px), and the ~200px project-name switcher is **clipped with an ellipsis** so the
+project actions pack onto one line. Net: fewer, bigger, easier-to-hit controls and a cleaner nav — the
+topbar drops from six cramped rows to five tappable ones, with no horizontal overflow. The verifiable
+web/PWA slice of the mobile track (native iOS/Android builds still need a macOS+Xcode / Android-SDK CI
+pipeline — see docs/mobile.md).
+
 ## v0.3.243 — RVT→IFC (APS) bridge hardening
 
 The paid Autodesk Revit→IFC bridge is hardened: the `/import/rvt` endpoint now **validates input before
