@@ -653,6 +653,12 @@ body[data-cap-admin="off"] [data-cap="admin"] { display: none !important; }
 .pnav-stage { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
   padding: 8px 4px 2px; user-select: none; }
 .pnav-stage:first-of-type { padding-top: 4px; }
+/* collapsible stage groups — the summary is the stage header, with a disclosure caret */
+.pnav-stage-group > summary.pnav-stage { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 4px; }
+.pnav-stage-group > summary.pnav-stage::-webkit-details-marker { display: none; }
+.pnav-stage-group > summary.pnav-stage::before { content: "▾"; font-size: 8px; opacity: .55; }
+.pnav-stage-group:not([open]) > summary.pnav-stage::before { content: "▸"; }
+.pnav-stage-group > summary.pnav-stage:hover { color: var(--text); }
 .pnav-khint { font-size: 11px; color: var(--muted); padding: 8px 4px 4px; user-select: none; }
 .pnav-khint kbd { font: inherit; border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; }
 .pnav-showall { margin-top: 8px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); border-radius: 0; padding-top: 8px; }

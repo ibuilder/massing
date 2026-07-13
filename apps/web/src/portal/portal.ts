@@ -5,7 +5,7 @@ import { confirmModal, modalShell, promptModal } from "../ui/modal";
 import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
 import type { PanelContext } from "./panelContext";
-import { SECTIONS_BY_PERSONA, pushRecent, readFavs, readRecents, toggleFav } from "./prefs";
+import { SECTIONS_BY_PERSONA, pushRecent, readCollapsedStages, readFavs, readRecents, setStageCollapsed, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
 import { renderOperations, renderFca, renderSpine, renderResilience, renderEnergy, renderTurnover } from "./panels/operations";
 import { renderAiAssist, renderRiskReview } from "./panels/aiassist";
@@ -260,17 +260,27 @@ export class PortalUI {
       { key: "__portfolio__", icon: "🏢", label: "Portfolio" },
       { key: "__benchmarks__", icon: "📈", label: "Benchmarks" },
     ]]);
+    // Stage groups are collapsible with per-workspace memory, so the rail stays scannable as
+    // destinations grow — a stage the user folds stays folded next time they're in that workspace.
+    const collapsed = readCollapsedStages();
     for (const [stage, items] of stages) {
       if (!items.length) continue;
-      const h = document.createElement("div"); h.className = "pnav-stage"; h.textContent = stage;
-      nav.appendChild(h);
+      const det = document.createElement("details"); det.className = "pnav-stage-group";
+      const skey = `${this.wsFilter}:${stage}`;
+      // keep the active destination's stage open even if the user had folded it
+      const hasActive = items.some((d) => d.key === this.activeKey);
+      det.open = hasActive || !collapsed.has(skey);
+      det.ontoggle = () => setStageCollapsed(skey, !det.open);
+      const sum = document.createElement("summary"); sum.className = "pnav-stage"; sum.textContent = stage;
+      det.appendChild(sum);
       for (const d of items) {
         const b = document.createElement("button");
         b.className = "pnav-item pnav-home" + (this.activeKey === d.key ? " active" : "");
         b.innerHTML = `<span class="ic">${d.icon}</span> ${d.label.replace("&", "&amp;")}`;
         b.onclick = d.go ?? (() => { this.activeKey = d.key; void dests[d.key]?.(); this.buildNav(); });
-        nav.appendChild(b);
+        det.appendChild(b);
       }
+      nav.appendChild(det);
     }
 
     const filter = document.createElement("input");

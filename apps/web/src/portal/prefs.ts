@@ -26,6 +26,20 @@ export function readFavs(): Set<string> {
   catch { return new Set(); }
 }
 
+/** Nav stage groups the user has collapsed, keyed "workspace:stage" — so a folded stage stays folded
+ *  next time they're in that workspace (the rail stays scannable as destinations grow). */
+export function readCollapsedStages(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem("portal-collapsed-stages") || "[]") as string[]); }
+  catch { return new Set(); }
+}
+
+/** Persist a stage's collapsed flag (keyed "workspace:stage"). */
+export function setStageCollapsed(key: string, collapsed: boolean): void {
+  const s = readCollapsedStages();
+  if (collapsed) s.add(key); else s.delete(key);
+  localStorage.setItem("portal-collapsed-stages", JSON.stringify([...s]));
+}
+
 /** Toggle a module's favorite flag; returns the updated set (already persisted). */
 export function toggleFav(key: string): Set<string> {
   const f = readFavs();

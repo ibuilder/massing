@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.229**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.230**.
 
 > **The product feature roadmap, the code-quality/hardening initiative, AND the Wave 8 field-research
 > upgrades are all effectively cleared.** Every headline feature theme shipped (generative design + Test
@@ -77,7 +77,9 @@ customer need. Each line ends with its archive source in parentheses for the ful
   home — Design (model-health / phase-progress), Developer (RE register + deal returns), and now **Finance**
   (returns + capital stack + investor docs, a new Home tab in the finance workspace). The GC keeps its
   on-schedule/on-budget PX dashboard.
-- **Nav density** — per-stage collapse memory + a denser dashboard summary for the multi-card panels.
+- **Nav density** — ✅ **per-stage collapse memory DONE (v0.3.230)**: nav stage groups are collapsible
+  `<details>` that persist folded per `workspace:stage`; the active destination's stage stays open.
+  *Remainder:* a denser summary mode for the multi-card command-center panels.
 - **A11y** — keep verifying new tabs/dashboards (roles, focus order, contrast) as workspaces grow.
   *(v0.3.229 audited this cycle's new panels — SVG accessible names, labeled form controls, `scope` headers,
   a reusable `.sr-only`; ongoing as more panels ship.)*

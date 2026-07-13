@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.230 — Collapsible nav stages with per-workspace memory
+
+The left-nav destination rail groups first-class destinations by lifecycle stage (Plan & derisk · Build ·
+Turn over · …). Those stage headers are now **collapsible** — fold a stage you don't use and it **stays
+folded** next time you're in that workspace (persisted per `workspace:stage` in localStorage), so the rail
+stays scannable as destinations keep growing. Each stage is a `<details>` with a disclosure caret; the
+stage that owns the active destination always stays open regardless of the saved state, so you never lose
+your place. Verified live: folding a stage persists and restores on return to that workspace, and other
+stages are unaffected.
+
+*(The "denser multi-card dashboard summary" half of this nav-density item remains a smaller follow-up.)*
+
 ## v0.3.229 — Accessibility pass on the new panels
 
 An a11y audit of the panels added this cycle — the Finance command-center home, the module-relations
