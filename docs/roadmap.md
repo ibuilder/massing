@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.237**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.238**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
@@ -14,7 +14,7 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 > the old "web = viewer, Blender = editor" non-goal (see [CLAUDE.md](../CLAUDE.md)). Research-informed by
 > Revit, BlenderBIM/Bonsai and Bluebeam panel layouts.
 >
-> **Shipped (P1–P4 authoring, P6a–c rail):**
+> **Shipped (P1–P4 authoring, P6a–d rail):**
 > - **P1** blank model from scratch (`generate_blank_ifc` + `POST …/model/blank`) + first-class Author-mode surfacing (v0.3.231)
 > - **P2** removed the redundant legacy place buttons + ~90 lines dead code — Draft panel is the single authoring surface (v0.3.232)
 > - **P3** room/space authoring UI (➕ Add rooms/spaces via `add_spaces`; level-add already existed) (v0.3.234)
@@ -22,12 +22,11 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 > - **P6a** cut the four duplicative rail sections (cost/schedule/drawings/energy → deep-links); removed ~700 lines (v0.3.235)
 > - **P6b** dedicated **💥 Clash & coordination** rail toggle (federated + single clash, clash list, metrics, promote-to-BCF) (v0.3.236)
 > - **P6c** rail re-clustered **Navigate / Author / Coordinate** (v0.3.237)
+> - **P6d** docked **📋 Properties** rail panel with a Revit-style Type/Instance identity header — Properties no longer float; they dock in the Author cluster (v0.3.238)
 >
 > **Open — tracked here:**
 > - **P5 — edit-in-place** (drag/stretch/move geometry directly, vs click-place + full republish). The biggest
 >   "feels like a real modeler" upgrade and the most interaction-heavy — needs a focused design pass. *(task #360)*
-> - **P6d — docked Properties panel** (Revit-style **Type vs Instance** split). Properties render richly today
->   in a *floating* `#props` panel on selection; docking it into the rail as its own toggle is the polish left.
 > - **Model-browser groupings** — group the model tree by IFC class / discipline / system + search (Revit
 >   Project Browser / Bonsai spatial-decomposition parity).
 > - **Level rename / set-elevation** UI — recipes exist (`rename_storey`, `set_storey_elevation`); needs

@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.238 — Modeling program, phase 6d: docked Properties panel (Revit-style)
+
+Properties used to appear in a **floating** aside on selection; it's now a **docked rail panel** — its own
+📋 **Props** toggle in the Author cluster — the way Revit's Properties palette works. The panel leads with a
+**Revit-style identity header**: the element name, its **Type** (the family/type it's an instance of), and
+its class + level, above the instance parameters and property sets (attributes / quantities / editable
+Psets / classification, all unchanged). When nothing is selected it shows a clear "select an element" prompt.
+Esc / the ✕ clears the selection.
+
+Verified live: the Props toggle appears in the Navigate / Author / Coordinate rail, the panel docks and
+shows its empty-state, no console errors. Completes the rail's Author cluster (Tools/Draft + Properties).
+Part of the left-rail redesign; the model-browser groupings, level rename, selection sets, and edit-in-place
+are still open (see the roadmap).
+
 ## v0.3.237 — Modeling program, phase 6c: cluster the rail Navigate / Author / Coordinate
 
 The left rail's toggles are now grouped into the three workflow clusters every reference tool uses (Revit,
@@ -12,10 +26,6 @@ Issues), with a subtle divider/label between them (a thin rule in icon mode, the
 is expanded). Each toggle's aria-label is prefixed with its cluster for screen readers. This completes the
 core of the rail redesign — the model workspace now reads as a modeling+coordination cockpit rather than a
 flat list of panels. Verified live: the three cluster labels render and grouping is correct.
-
-*(One deliberate deferral: a docked Properties panel with a Revit-style type/instance split. Ours already
-shows rich, editable element properties — attributes, Psets, classification — in a floating panel on
-selection; docking it into the rail is a follow-up, not a gap, since the capability is present.)*
 
 ## v0.3.236 — Modeling program, phase 6b: a dedicated Clash & coordination toggle
 

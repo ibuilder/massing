@@ -26,7 +26,7 @@ import { GridOverlay } from "./draft/gridOverlay";
 import { DraftProxyLayer } from "./draft/draftProxy";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type ElementProps, type Topic } from "../api/client";
-import { fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
+import { escapeHtml, fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
 import { showResult, kvTable, resultNote } from "../ui/result";
 
 /** View options the settings bar owns (in main) and the viewer applies. */
@@ -78,8 +78,9 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const projectId = ctx.projectId;
   const setStatus = ctx.setStatus;
   const notify = ctx.notify;
-  const propsPanel = $("props");
+  const propsPanel = $("panel-props");   // Properties is now a docked rail panel (Revit-style), not a floating aside
   const propsBody = $("props-body");
+  const propsHint = () => { propsBody.innerHTML = `<div class="meta">Select an element in the model to see its type, parameters, and property sets.</div>`; };
 
   const viewer = createViewer(container);
   const loader = new ModelLoader(viewer);
@@ -117,7 +118,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   async function selectMap(map: ModelIdMap | null, opts: { guid?: string; fit?: boolean } = {}) {
     if (selection) await loader.fragments.resetHighlight(selection);
     selection = map;
-    if (!map) { propsPanel.hidden = true; return; }
+    if (!map) { propsHint(); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); return; }
     await loader.fragments.highlight(SELECT_MAT(), map);
     await loader.fragments.core.update(true);
     if (opts.fit) await fitToItems(map);
@@ -139,6 +140,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const propsLinks = document.createElement("div"); propsLinks.id = "props-links";
   propsLinks.style.cssText = "margin-top:6px;font-size:11px;line-height:1.6";
   propsPanel.appendChild(propsLinks);
+  propsHint();   // show the "select an element" prompt until something is picked
 
   async function renderLinkedRecords(guid: string) {
     propsLinks.replaceChildren();
@@ -227,12 +229,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       relations: { IsDefinedBy: { attributes: true, relations: true } },
       relationsDefault: { attributes: false, relations: false },
     });
-    propsPanel.hidden = false;
     propsBody.replaceChildren(buildRawProps(data));
   }
 
   function renderProps(el: ElementProps) {
-    propsPanel.hidden = false;
     // structured property + classification editor — only when we can write (connected + project);
     // each edit applies a server recipe and re-publishes, then we re-fetch the element's props.
     const hooks = (connected && projectId) ? {
@@ -245,7 +245,17 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         try { renderProps(await api.element(projectId!, el.guid)); } catch { /* index still rebuilding */ }
       },
     } : undefined;
-    propsBody.replaceChildren(buildElementProps(el, hooks));
+    // Revit-style identity header: the Type (the family/type it's an instance of) sits above the
+    // instance parameters + property sets, so "what is this" reads before "its values".
+    const head = document.createElement("div");
+    head.style.cssText = "border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--panel2)";
+    const cls = el.ifc_class.replace("Ifc", "");
+    head.innerHTML = `<div style="font-weight:700;font-size:13px">${escapeHtml(el.name || cls)}</div>`
+      + `<div class="meta" style="font-size:11px;margin-top:2px">Type: <b>${escapeHtml(el.type_name || "—")}</b></div>`
+      + `<div class="meta" style="font-size:11px">Class: ${escapeHtml(cls)}${el.storey ? ` · Level: ${escapeHtml(el.storey)}` : ""}</div>`;
+    const wrap = document.createElement("div");
+    wrap.append(head, buildElementProps(el, hooks));
+    propsBody.replaceChildren(wrap);
   }
 
   async function selectByGuid(guid: string, fit = false) {
@@ -257,7 +267,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (armed) { disarmDraft(); notify("draft cancelled", "info"); return; }
-    if (!propsPanel.hidden) void selectMap(null);
+    if (selectedGuid) void selectMap(null);
   });
 
   // ---- 3D click ------------------------------------------------------------
