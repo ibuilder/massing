@@ -370,6 +370,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       await api.uploadSourceIfc(pid, file);            // saves + sets source_ifc + publishes off-thread
       const state = await waitForPublish(pid, (s) => setStatus(`processing model: ${s}…`));
       void buildToolsPanel();                          // re-checks has_source_ifc → un-gates the tools
+      void buildClashPanel();
       notify(state === "done"
         ? `${file.name} is the project model — drawings, QA, energy & authoring are ready`
         : `model added; server processing: ${state}`, state === "done" ? "success" : "info");
@@ -1677,6 +1678,75 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     setStatus(`restored: ${topic.title}`);
   });
 
+  // --- Clash & coordination panel (its own rail toggle) --------------------
+  // Surfaces the clash/coordination engine as a first-class panel: run cross-discipline clash, click a
+  // clash to fly to it, see coordination KPIs, and promote to tracked issues (BCF). Modeled on Autodesk
+  // Model Coordination's clash-group list. All backed by endpoints that already ship.
+  async function buildClashPanel() {
+    const panel = $("panel-clash");
+    if (!panel) return;
+    panel.innerHTML = `<div class="section-title">Clash &amp; coordination</div>`;
+    if (!projectId) { panel.insertAdjacentHTML("beforeend", `<div class="meta">Open a project to run clash coordination.</div>`); return; }
+    const intro = document.createElement("div"); intro.className = "meta"; intro.style.cssText = "font-size:11px;margin-bottom:8px;line-height:1.4";
+    intro.textContent = "Detect cross-discipline interferences, click a clash to fly to it in 3D, and promote to a tracked issue (BCF).";
+    panel.appendChild(intro);
+    const cbtn = (label: string, on: () => void, cap?: "edit" | "review") => {
+      const b = document.createElement("button"); b.className = "tool-btn"; b.textContent = label;
+      b.style.cssText = "display:block;width:100%;text-align:left;margin:3px 0"; if (cap) b.dataset.cap = cap;
+      b.onclick = on; return b;
+    };
+    const out = document.createElement("div"); out.className = "meta"; out.style.cssText = "margin:6px 0;font-size:11.5px;line-height:1.45";
+    const list = document.createElement("div"); list.style.cssText = "display:flex;flex-direction:column;gap:2px;max-height:44vh;overflow:auto;margin-top:4px";
+    const renderClashes = (clashes: { a_class: string; b_class: string; a_guid: string; b_guid: string; a_model: string; b_model: string; volume: number }[]) => {
+      list.innerHTML = "";
+      if (!clashes.length) { list.innerHTML = `<div class="meta" style="color:var(--status-good)">No hard clashes 🎉</div>`; return; }
+      list.insertAdjacentHTML("beforeend", `<div class="section-title" style="margin:4px 0 2px">${clashes.length} clash${clashes.length === 1 ? "" : "es"} — click to inspect</div>`);
+      clashes.slice(0, 300).forEach((c, i) => {
+        const row = document.createElement("button"); row.className = "tool-btn";
+        row.style.cssText = "display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;font-size:11px;padding:4px 7px";
+        row.innerHTML = `<span>${i + 1}. ${c.a_class.replace("Ifc", "")} <span style="color:var(--status-crit)">✕</span> ${c.b_class.replace("Ifc", "")}</span>`
+          + `<span class="meta">${c.volume.toFixed(3)} m³</span>`;
+        row.title = `${c.a_model} vs ${c.b_model} — click to select + zoom to the clash`;
+        row.onclick = () => void selectByGuid(c.a_guid || c.b_guid, true).then(() => setStatus(`clash ${i + 1}: ${c.a_class} ✕ ${c.b_class}`));
+        list.appendChild(row);
+      });
+    };
+    panel.appendChild(cbtn("💥 Run clash — all disciplines", () => void withLoading(panel, "Running federated clash", async () => {
+      try {
+        const r = await api.clashFederated(projectId!, { create_topics: true, coordinate: true });
+        const co = r.coordination;
+        out.innerHTML = `<b>${r.count}</b> clashes · ${r.disciplines.length} disciplines · <b>${r.created_topics}</b> issue(s)`
+          + (co ? `<br>${co.new} new · ${co.active} active · ${co.resolved} resolved${co.reduction ? ` · ${Math.round(co.reduction * 100)}% ↓` : ""}` : "");
+        renderClashes(r.clashes);
+      } catch {
+        out.innerHTML = `Federated clash needs ≥2 layered models. Add a discipline IFC (Tools → Models federation), or run the single-model check below.`;
+        list.innerHTML = "";
+      }
+    }), "edit"));
+    panel.appendChild(cbtn("⚡ Single-model check (structure ✕ MEP/walls)", () => void withLoading(panel, "Running clash", async () => {
+      try {
+        const r = await api.runClash(projectId!, { a: "IfcBeam,IfcSlab,IfcColumn,IfcStair", b: "IfcDuctSegment,IfcPipeSegment,IfcWall", min_volume: 0.02 });
+        out.innerHTML = `<b>${r.count}</b> clashes · <b>${r.created_topics}</b> issue(s) created. Open <b>Issues</b> to coordinate.`;
+        list.innerHTML = "";
+      } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
+    }), "edit"));
+    panel.appendChild(cbtn("📊 Coordination metrics", () => void (async () => {
+      try {
+        const m = await api.clashMetrics(projectId!);
+        showResult("Clash coordination metrics", (body) => {
+          body.appendChild(resultNote(`<b>${m.open}</b> open · <b>${m.closed}</b> closed · ${Math.round(m.resolution_rate * 100)}% resolved · ${m.runs} run(s)`, m.open ? "bad" : "ok"));
+          body.appendChild(kvTable([
+            { k: "By discipline pair", v: Object.entries(m.by_discipline).map(([k, v]) => `${k}: ${v}`).join(" · ") || "—" },
+            { k: "By severity", v: Object.entries(m.by_severity).map(([k, v]) => `${k}: ${v}`).join(" · ") || "—" },
+            { k: "Reappearance rate", v: `${Math.round(m.reappearance_rate * 100)}%` },
+          ]));
+        });
+      } catch (e) { toast(`metrics: ${(e as Error).message}`, "error"); }
+    })()));
+    panel.appendChild(cbtn("📌 Open in Issues (BCF)", () => (document.querySelector('.rail-btn[data-rail="issues"]') as HTMLElement)?.click()));
+    panel.append(out, list);
+  }
+
   async function refreshIssues() {
     if (!projectId) return;
     const topics = await api.pins(projectId);
@@ -1782,10 +1852,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       try { await buildPanels(); } catch (e) { console.warn("panels:", e); }
     }
     void buildToolsPanel();
+    void buildClashPanel();
   })();
 
-  // rebuild the tools panel when the persona changes (reorders primary vs "More tools")
-  window.addEventListener("aec:persona", () => void buildToolsPanel());
+  // rebuild the tools + clash panels when the persona changes (reorders primary vs "More tools")
+  window.addEventListener("aec:persona", () => { void buildToolsPanel(); void buildClashPanel(); });
 
   return {
     applySettings, selectByGuid, reloadModelPins, fitToModels, refreshIssues,

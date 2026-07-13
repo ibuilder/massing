@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.236 — Modeling program, phase 6b: a dedicated Clash & coordination toggle
+
+The clash/coordination engine was genuinely strong but **buried** inside a "Coordination & QA" accordion in
+the Tools panel. It's now a **first-class rail toggle** (💥 Clash), modeled on Autodesk Model Coordination —
+the left rail is now Tree · Layers · Tools · **Clash** · Issues.
+
+The panel surfaces tools that already ship: **Run clash — all disciplines** (federated cross-discipline
+across the layered models, with coordination KPIs — new / active / resolved / % reduction), a
+**single-model check** (structure ✕ MEP/walls) for a model without appended disciplines, a **clash list**
+where clicking a clash selects + zooms to it in 3D, **Coordination metrics** (open/closed, resolution rate,
+by-discipline-pair, by-severity, reappearance), and **Open in Issues (BCF)** — every clash promotes to a
+tracked issue. Backed by `/clash`, `/clash/federated`, `/clash/metrics`.
+
+Verified live end-to-end: the Clash toggle appears, the panel builds, and a single-model check on a
+framed+cored model found **1,422 clashes and created 200 BCF issues**. Phase 6b of the left-rail redesign;
+next: a docked Properties panel (Revit-style type/instance) and Navigate/Author/Coordinate icon clustering.
+
 ## v0.3.235 — Modeling program, phase 6a: cut the duplicative rail sections
 
 Starting the left-rail redesign (a modeling+coordination cockpit, grounded in how Revit, BlenderBIM/Bonsai,

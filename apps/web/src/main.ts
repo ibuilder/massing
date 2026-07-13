@@ -696,12 +696,14 @@ const RAIL_ICONS: Record<string, string> = {
   layers: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M8 1.6 14.6 5 8 8.4 1.4 5 8 1.6Z"/><path d="m1.4 8 6.6 3.4L14.6 8"/><path d="m1.4 11 6.6 3.4L14.6 11" opacity=".55"/></svg>`,
   issues: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 14.6V1.8"/><path d="M3.6 2.6h8.4l-2 3 2 3H3.6"/></svg>`,
   tools: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.4v2.1M8 12.5v2.1M1.4 8h2.1M12.5 8h2.1M3.3 3.3l1.5 1.5M11.2 11.2l1.5 1.5M3.3 12.7l1.5-1.5M11.2 4.8l1.5-1.5"/></svg>`,
+  clash: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.6v3M8 11.4v3M1.6 8h3M11.4 8h3M3.4 3.4 5.5 5.5M10.5 10.5l2.1 2.1M12.6 3.4 10.5 5.5M5.5 10.5l-2.1 2.1"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>`,
 };
 const RAIL_ITEMS: { key: string; label: string; title: string }[] = [
   { key: "tree", label: "Tree", title: "Model tree" },
   { key: "layers", label: "Layers", title: "Layers" },
+  { key: "tools", label: "Tools", title: "Model tools & authoring" },
+  { key: "clash", label: "Clash", title: "Clash & coordination" },
   { key: "issues", label: "Issues", title: "Issues / RFIs" },
-  { key: "tools", label: "Tools", title: "Tools & analysis" },
 ];
 const railEl = $("rail");
 function showRail(key: string) {
