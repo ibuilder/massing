@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.226**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.227**.
 
 > **The product feature roadmap, the code-quality/hardening initiative, AND the Wave 8 field-research
 > upgrades are all effectively cleared.** Every headline feature theme shipped (generative design + Test
@@ -67,8 +67,10 @@ customer need. Each line ends with its archive source in parentheses for the ful
   **module-relations graph** (v0.3.226, `module_graph.build()` + `GET /modules/graph` + 🕸 SVG panel — nodes
   = modules, edges = reference/rollup links, sized by in-degree). *Only heavier GPU work remains as a
   documented non-goal:* real-time GI / baked AO / exterior HDRI skies (out of scope for a web viewer).
-- **Developer deliverable** *(§B6)* — a **pitch-deck variant** of the investment memo (10–20 slides, market
-  + timeline sections, photos) alongside the existing memo/deck PDFs.
+- **Developer deliverable** *(§B6)* — ✅ **DONE (v0.3.227)**: the investment **pitch deck**
+  (`/investment-deck.pdf`) was already a landscape slide deck with market + timeline + photos; expanded to
+  **9 slides** (added Executive summary, Capital stack, Business plan & value creation) toward the 10–20
+  slide investor-deck target. Memo + deck both ship from live project data.
 
 **② UX / performance / productivity (Part C — approve item-by-item)**
 - **Role landing dashboards** — extend the Design-home command-center pattern to the **Finance and
@@ -115,8 +117,9 @@ customer need. Each line ends with its archive source in parentheses for the ful
   stubs only), full institutional reporting packs, space/move management (CAFM), 1031 tooling, and a
   JWT-revocation blacklist + Redis-backed presence (known limits, tracked in PRODUCTION_CHECKLIST).
 
-**Recently cleared (were on this list):** module-relations graph view (v0.3.226) · per-project material
-editor + palette apply/republish (v0.3.225) ·
+**Recently cleared (were on this list):** investor pitch-deck expansion — exec summary + capital stack +
+business plan (v0.3.227) · module-relations graph view (v0.3.226) · per-project material editor + palette
+apply/republish (v0.3.225) ·
 actual-vs-takt production tracking + LOB actuals overlay + PPC bundle (v0.3.224) · Monte-Carlo the specialty risk discount → blended-IRR distribution (v0.3.223) ·
 specialty multi-year P&L + ramp + blended-vs-RE IRR (v0.3.222) ·
 parcel-aware surface parking placement (v0.3.221) · structural generative depth — per-floor column taper +

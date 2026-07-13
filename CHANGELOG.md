@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.227 — Investor pitch deck, expanded: exec summary + capital stack + business plan
+
+The generated investment **pitch deck** (`/investment-deck.pdf`) grew from 6 to **9 slides** toward a real
+investor deck, all from the same live project data. Three new slides: an **Executive summary** (the thesis
+in prose — total capitalization, the equity ask, the underwritten IRR/multiple over the deal horizon — plus
+three headline metrics and highlights); a **Capital stack** (a stacked bar of senior debt vs equity with
+loan-to-cost and the equity check, a clearer read than the Sources & Uses table); and a **Business plan &
+value creation** slide that frames the **development-margin thesis** — build yield-on-cost vs the exit cap,
+with the spread in bps as the value the development creates — followed by the entitle → build → stabilize →
+exit strategy. Everything degrades gracefully when no proforma scenario is saved.
+
+The deck now runs: title · exec summary · deal-in-numbers · market & positioning · Sources & Uses · capital
+stack · development timeline · business plan · returns & the ask. Landscape, big-number slides, with site
+photos from project attachments on the cover.
+
+`report.investment_deck_pdf` in `report.py`. Test: `test_dev_budget` — the deck renders and now has 9
+slides (was 6). Completes the §B6 developer-deliverable item (the memo + deck already shipped; this deepens
+the deck to the roadmap's 10–20-slide investor-deck target).
+
 ## v0.3.226 — Module-relations graph: see how the ~180 config modules wire together
 
 The config-driven modules form a data model; now you can see its shape. New `module_graph.build(registry)`

@@ -327,6 +327,40 @@ def investment_deck_pdf(db: Session, pid: str, project_name: str) -> bytes:
             pass
     c.showPage()
 
+    # 1b — executive summary (the thesis in prose + three headline metrics)
+    slide("Executive summary")
+    _tot_mo = 6 + int((timing := (result or {}).get("timing", {})).get("construction_months") or 18) \
+        + int(timing.get("leaseup_months") or 12) + 15
+    thesis = (f"{(project_name or pid)[:40]} is a {_money(total_uses)} ground-up real-estate development. "
+              f"The sponsor is raising {_money(equity)} of equity")
+    if result and ret.get("equity_irr") is not None:
+        thesis += (f", underwritten to a {_pct(ret.get('equity_irr'))} equity IRR and "
+                   f"{ret.get('equity_multiple', '—')}x equity multiple over roughly {_tot_mo} months")
+    thesis += "."
+    c.setFont("Helvetica", 14); c.setFillColor(colors.HexColor("#333"))
+    # simple word-wrap of the thesis across the slide width
+    words, line, ty = thesis.split(" "), "", H - 110
+    for w in words:
+        if c.stringWidth(line + " " + w, "Helvetica", 14) > W - 2 * m:
+            c.drawString(m, ty, line); ty -= 22; line = w
+        else:
+            line = (line + " " + w).strip()
+    if line:
+        c.drawString(m, ty, line)
+    c.setFillColor(colors.black)
+    kpi(m, H - 250, _money(total_uses), "Total capitalization")
+    kpi(m + 300, H - 250, _pct(ret.get("yield_on_cost")) if result else "—", "Yield on cost")
+    kpi(m + 600, H - 250, _pct(ret.get("equity_irr")) if result else "—", "Equity IRR")
+    c.setFont("Helvetica", 12); c.setFillColor(colors.HexColor("#555"))
+    c.drawString(m, H - 320, "Highlights")
+    c.setFillColor(colors.black); c.setFont("Helvetica", 12); hy = H - 344
+    _hl = [f"{_pct(loan / total_uses) if total_uses else 'n/a'} senior leverage; {_money(equity)} equity check.",
+           f"{bs['hard_pct'] * 100:.0f}% hard / {bs['soft_pct'] * 100:.0f}% soft cost structure.",
+           "Underwriting, budget, and schedule all generated from one live project model."]
+    for h in _hl:
+        c.drawString(m + 12, hy, "•  " + h); hy -= 20
+    c.showPage()
+
     # 2 — the deal in numbers
     slide("The deal in numbers")
     kpi(m, H - 160, _money(total_uses), "Total project cost")
@@ -388,6 +422,31 @@ def investment_deck_pdf(db: Session, pid: str, project_name: str) -> bytes:
         c.drawString(W / 2 + m / 2, y, label); c.drawRightString(W - m, y, _money(amt)); y -= 22
     c.showPage()
 
+    # 3a — the capital stack, as a stacked bar (senior debt bottom, equity on top)
+    slide("Capital stack")
+    stack = [("Senior debt", loan, colors.HexColor("#8aa0b8")), ("Equity", equity, navy)]
+    tot = sum(v for _, v, _ in stack) or 1
+    barX, barW, barBottom, barH = m, 150, 120, H - 260
+    sy = barBottom
+    for label, val, col in stack:
+        seg = barH * val / tot
+        c.setFillColor(col); c.rect(barX, sy, barW, seg, fill=1, stroke=0)
+        c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 13)
+        if seg > 30:
+            c.drawString(barX + 12, sy + seg / 2 + 4, f"{label} — {_money(val)}")
+            c.setFont("Helvetica", 11); c.drawString(barX + 12, sy + seg / 2 - 12, _pct(val / tot))
+        sy += seg
+    c.setFillColor(colors.black); c.setFont("Helvetica", 13)
+    tx = barX + barW + 40; ty2 = barBottom + barH - 20
+    c.setFont("Helvetica-Bold", 15); c.drawString(tx, ty2, "How the project is funded")
+    c.setFont("Helvetica", 12); ty2 -= 28
+    for line in [f"Total capitalization: {_money(tot)}.",
+                 f"Senior debt at {_pct(loan / tot)} loan-to-cost.",
+                 f"Equity: {_money(equity)} ({_pct(equity / tot)}) — the ask.",
+                 "Debt sized to cost; equity funds the balance and takes first loss / last dollar."]:
+        c.drawString(tx, ty2, line); ty2 -= 24
+    c.showPage()
+
     # 3b — development timeline (indicative phases drawn as a gantt-style bar)
     slide("Development timeline")
     timing = (result or {}).get("timing", {}) if isinstance(result, dict) else {}
@@ -441,6 +500,34 @@ def investment_deck_pdf(db: Session, pid: str, project_name: str) -> bytes:
     c.setFont("Helvetica-Oblique", 9); c.setFillColor(colors.HexColor("#999"))
     c.drawString(m, 34, "Indicative phasing; construction/lease-up from the saved scenario where set.")
     c.setFillColor(colors.black)
+    c.showPage()
+
+    # 3c — business plan & value creation (the development-margin thesis + strategy)
+    slide("Business plan & value creation")
+    yoc = ret.get("yield_on_cost") if result else None
+    xcap = ret.get("exit_cap") if result else None
+    spread = (yoc - xcap) if (isinstance(yoc, (int, float)) and isinstance(xcap, (int, float))) else None
+    c.setFont("Helvetica-Bold", 15); c.setFillColor(navy)
+    c.drawString(m, H - 100, "Build to a yield above where the market prices the finished asset.")
+    c.setFillColor(colors.black); c.setFont("Helvetica", 12)
+    if spread is not None:
+        kpi(m, H - 175, _pct(yoc), "Yield on cost (build)")
+        kpi(m + 300, H - 175, _pct(xcap), "Exit cap (sell)")
+        kpi(m + 600, H - 175, f"{spread * 10000:.0f} bps", "Development spread")
+        c.setFont("Helvetica", 12)
+        c.drawString(m, H - 215, f"The {spread * 10000:.0f} bps spread between build yield and exit cap is the value "
+                     "the development creates — the margin the equity earns for taking development risk.")
+    else:
+        c.setFont("Helvetica-Oblique", 12); c.setFillColor(colors.HexColor("#999"))
+        c.drawString(m, H - 175, "Save a proforma scenario to quantify the build-vs-exit spread.")
+        c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 13); c.drawString(m, H - 275, "Strategy")
+    c.setFont("Helvetica", 12); vy = H - 300
+    for step in ["Entitle & de-risk — lock zoning, design, and the GMP before the equity is fully deployed.",
+                 "Build to budget — the GC GMP is reconciled to the underwritten hard cost, tracked live.",
+                 "Lease to stabilization — reach the underwritten occupancy and NOI.",
+                 "Exit — sell (or refinance) the stabilized asset at the market cap rate."]:
+        c.drawString(m + 12, vy, "•  " + step); vy -= 22
     c.showPage()
 
     # 4 — returns + the ask
