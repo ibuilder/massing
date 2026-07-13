@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.229 — Accessibility pass on the new panels
+
+An a11y audit of the panels added this cycle — the Finance command-center home, the module-relations
+graph, the material editor, and the takt actual-vs-plan card — closing the gaps that screen-reader and
+keyboard users would hit:
+
+- **Named the graphics.** The module-relations SVG and the takt line-of-balance chart now carry
+  `role="img"` + an `aria-label` (and the graph a `<title>`) describing the content — e.g. "Module-relations
+  graph: 124 modules, 111 links" — instead of being an unlabeled blob. The Finance capital-stack bar gets an
+  `aria-label` with the debt/equity split.
+- **Labeled every form control.** The material editor's per-class colour, transparency, and name inputs and
+  the graph's workspace filter now have `aria-label`s (previously anonymous); the material and takt data
+  tables use `scope="col"` headers.
+- Added a reusable `.sr-only` utility for visually-hidden accessible text.
+
+All controls were already native buttons/inputs/selects (keyboard-reachable) — the gap was accessible
+*names*, which are now present. Verified live: the graph SVG and all material inputs expose their labels.
+
 ## v0.3.228 — Finance home: a command-center landing for the finance persona
 
 The Finance workspace opened straight into the proforma editor; now it lands on a **command center** —

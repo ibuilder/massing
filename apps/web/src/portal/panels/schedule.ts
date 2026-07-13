@@ -293,6 +293,8 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   const taktCard = document.createElement("div"); taktCard.className = "dash-card"; taktCard.style.marginBottom = "10px";
   taktCard.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: "Takt — actual vs plan" }));
   const taktChart = document.createElement("div"); taktChart.style.overflowX = "auto";
+  taktChart.setAttribute("role", "img");
+  taktChart.setAttribute("aria-label", "Takt line-of-balance chart: planned trade ascent floor-by-floor, with actual progress overlaid when trades have completed floors");
   taktChart.innerHTML = `<div class="meta">loading takt chart…</div>`;
   const taktBody = document.createElement("div"); taktBody.style.marginTop = "6px";
   taktCard.appendChild(taktChart); taktCard.appendChild(taktBody); ctx.root.appendChild(taktCard);
@@ -310,8 +312,8 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       + `<td style="text-align:right">${r.actual_floors_per_week}</td><td style="text-align:right">${r.planned_floors_per_week}</td></tr>`).join("");
     taktBody.innerHTML = head + (pg.rows.length
       ? `<table class="mini-table" style="margin-top:4px;width:100%;font-size:11px"><thead><tr>`
-        + `<th>Trade</th><th style="text-align:right">Done/plan</th><th style="text-align:right">Var</th>`
-        + `<th style="text-align:right">Act fl/wk</th><th style="text-align:right">Plan fl/wk</th></tr></thead><tbody>${rows}</tbody></table>`
+        + `<th scope="col">Trade</th><th scope="col" style="text-align:right">Done/plan</th><th scope="col" style="text-align:right">Var</th>`
+        + `<th scope="col" style="text-align:right">Act fl/wk</th><th scope="col" style="text-align:right">Plan fl/wk</th></tr></thead><tbody>${rows}</tbody></table>`
       : `<div class="meta">No completed floors yet — mark schedule activities complete (per trade) to track actual vs takt.</div>`);
   }).catch(() => { taktBody.innerHTML = `<div class="meta">actual-vs-takt unavailable</div>`; });
 }

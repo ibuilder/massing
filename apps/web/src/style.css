@@ -18,6 +18,12 @@
 
 * { box-sizing: border-box; }
 
+/* visually-hidden but exposed to assistive tech — for labels/headers that shouldn't render visually */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
 /* Keyboard-focus indicator (WCAG 2.4.7 Focus Visible): a consistent, high-contrast ring on any
    interactive element focused via the keyboard. `:focus-visible` keeps it off for mouse/touch, so it
    never feels noisy; `:where(...)` has zero specificity, so component-specific focus styles override. */

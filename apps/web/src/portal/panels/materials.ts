@@ -43,8 +43,8 @@ export async function renderMaterials(ctx: PanelContext) {
     body.innerHTML = "";
     const table = document.createElement("table"); table.className = "mini-table";
     table.style.cssText = "width:100%;font-size:12px;border-collapse:collapse";
-    table.innerHTML = `<thead><tr><th style="text-align:left">Element class</th><th>Material</th>`
-      + `<th>Colour</th><th>Transp.</th><th></th></tr></thead>`;
+    table.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Element class</th><th scope="col">Material</th>`
+      + `<th scope="col">Colour</th><th scope="col">Transp.</th><th scope="col"><span class="sr-only">Edited</span></th></tr></thead>`;
     const tb = document.createElement("tbody");
     for (const cls of Object.keys(effective).sort()) {
       const e = effective[cls]; if (!e) continue;
@@ -53,15 +53,18 @@ export async function renderMaterials(ctx: PanelContext) {
       const nameCell = document.createElement("td");
       const nameInp = document.createElement("input"); nameInp.type = "text"; nameInp.value = e.name;
       nameInp.style.cssText = "width:130px;font-size:11px";
+      nameInp.setAttribute("aria-label", `Material name for ${cls}`);
       nameInp.oninput = () => markOverride(cls, { ...e, name: nameInp.value });
       nameCell.appendChild(nameInp);
       const colorCell = document.createElement("td"); colorCell.style.textAlign = "center";
       const color = document.createElement("input"); color.type = "color"; color.value = hex(e.color);
+      color.setAttribute("aria-label", `Colour for ${cls}`);
       color.oninput = () => markOverride(cls, { ...effective[cls]!, color: fromHex(color.value) });
       colorCell.appendChild(color);
       const tCell = document.createElement("td"); tCell.style.textAlign = "center";
       const t = document.createElement("input"); t.type = "number"; t.min = "0"; t.max = "1"; t.step = "0.05";
       t.value = String(e.transparency); t.style.width = "56px";
+      t.setAttribute("aria-label", `Transparency for ${cls} (0–1)`);
       t.oninput = () => markOverride(cls, { ...effective[cls]!, transparency: Math.max(0, Math.min(1, parseFloat(t.value) || 0)) });
       tCell.appendChild(t);
       const flagCell = document.createElement("td"); flagCell.className = "meta";

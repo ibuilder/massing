@@ -23,7 +23,10 @@ function graphSvg(g: ModuleGraph): string {
     const ang = (i / n) * Math.PI * 2 - Math.PI / 2;
     pos.set(nd.key, { x: cx + R * Math.cos(ang), y: cy + R * Math.sin(ang) });
   });
-  const parts: string[] = [`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,sans-serif">`];
+  const parts: string[] = [
+    `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,sans-serif" `
+    + `role="img" aria-label="Module-relations graph: ${g.node_count} modules, ${g.edge_count} links${g.workspace ? `, ${esc(g.workspace)} workspace` : ""}">`
+    + `<title>Module-relations graph — ${g.node_count} modules, ${g.edge_count} cross-module links</title>`];
   // edges first (under the nodes), curved toward the centre so the hub structure reads
   for (const e of g.edges) {
     const a = pos.get(e.source), b = pos.get(e.target);
@@ -64,6 +67,7 @@ export async function renderModuleGraph(ctx: PanelContext) {
 
   const controls = document.createElement("div"); controls.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:6px";
   const sel = document.createElement("select"); sel.className = "portal-filter";
+  sel.setAttribute("aria-label", "Filter the module-relations graph by workspace");
   sel.innerHTML = `<option value="">All workspaces</option>`
     + ["construction", "developer", "design", "operations"].map((w) => `<option value="${w}">${w}</option>`).join("");
   controls.appendChild(Object.assign(document.createElement("span"), { className: "meta", textContent: "Workspace:" }));

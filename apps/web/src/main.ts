@@ -1080,7 +1080,7 @@ function openFinanceHomeTab() {
     if (stEl && total && (debt || equity)) {
       const dPct = Math.round(((debt ?? 0) / total) * 100), ePct = 100 - dPct;
       stEl.innerHTML = `<div class="section-title" style="margin-top:12px">Capital stack</div>`
-        + `<div style="display:flex;height:26px;border-radius:6px;overflow:hidden;margin:6px 0;font-size:11px;color:#fff">`
+        + `<div role="img" aria-label="Capital stack: ${dPct}% senior debt, ${ePct}% equity" style="display:flex;height:26px;border-radius:6px;overflow:hidden;margin:6px 0;font-size:11px;color:#fff">`
         + `<div style="flex:${dPct};background:#8aa0b8;display:flex;align-items:center;justify-content:center">Debt ${dPct}%</div>`
         + `<div style="flex:${ePct};background:#16324f;display:flex;align-items:center;justify-content:center">Equity ${ePct}%</div></div>`
         + `<div class="meta">${m(debt)} senior debt · ${m(equity)} equity · ${m(total)} total`
