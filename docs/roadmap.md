@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.239**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.240**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
@@ -24,13 +24,12 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 > - **P6c** rail re-clustered **Navigate / Author / Coordinate** (v0.3.237)
 > - **P6d** docked **📋 Properties** rail panel with a Revit-style Type/Instance identity header — Properties no longer float; they dock in the Author cluster (v0.3.238)
 > - **Model browser** — the tree now has a **group-by** switch (level / discipline / IFC class / type-family) + **search** across name·GUID·class·type·discipline, auto-expanding matches (Revit Project Browser parity) (v0.3.239)
+> - **Manage levels** — per-storey rename + set-elevation editor (GUID-stable `rename_storey`/`set_storey_elevation` recipes; storey listing now carries GUIDs) (v0.3.240)
+> - **Selection sets** — named saved searches you can isolate in one click; persisted per-project (Navisworks/Bluebeam search-set pattern) (v0.3.240)
 >
 > **Open — tracked here:**
 > - **P5 — edit-in-place** (drag/stretch/move geometry directly, vs click-place + full republish). The biggest
 >   "feels like a real modeler" upgrade and the most interaction-heavy — needs a focused design pass. *(task #360)*
-> - **Level rename / set-elevation** UI — recipes exist (`rename_storey`, `set_storey_elevation`); needs
->   per-storey GUID plumbing in the levels API.
-> - **Selection sets** — named saved selections in the Visibility panel (Navisworks/Bluebeam pattern).
 
 > **The product feature roadmap, the code-quality/hardening initiative, AND the Wave 8 field-research
 > upgrades are all effectively cleared.** Every headline feature theme shipped (generative design + Test

@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.240 — Modeling program: manage levels + named selection sets
+
+Two model-management tools land in the rail. **Manage levels** (Tools ▸ Grid & Levels) lists every
+storey with editable **name** and **elevation** fields — Save re-authors the IFC through the GUID-stable
+`rename_storey` / `set_storey_elevation` recipes and republishes, so levels are finally editable, not
+just addable. The storey listing now carries each level's **GUID** so edits target the right storey.
+
+**Named selection sets** (Layers panel, the Navisworks / Bluebeam "search set" pattern) let you save a
+search — by name, IFC class, type, discipline, or level — as a named set and **isolate** it in one click;
+"Show all" clears the isolation. Sets persist per-project in the browser (a personal view aid, they never
+touch the model). Verified live on a 108-element federated model: a "structural" set resolves to 75
+elements, all 75 map to loaded fragment geometry and isolate, and show-all restores visibility.
+
 ## v0.3.239 — Modeling program: model-browser groupings + search
 
 The model tree is now a proper **model browser**. A toolbar adds a **group-by** switch — **By level**

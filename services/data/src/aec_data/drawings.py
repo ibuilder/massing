@@ -35,7 +35,7 @@ def storey_elevations(model: ifcopenshell.file) -> list[dict[str, Any]]:
     out = []
     for s in model.by_type("IfcBuildingStorey"):
         elev = float(getattr(s, "Elevation", 0.0) or 0.0) * scale
-        out.append({"name": s.Name, "elevation": elev})
+        out.append({"name": s.Name, "elevation": elev, "guid": s.GlobalId})
     return sorted(out, key=lambda x: x["elevation"])
 
 

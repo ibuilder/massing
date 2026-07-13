@@ -18,6 +18,7 @@ import { SectionTool } from "../tools/section";
 import { VisibilityTool } from "../tools/visibility";
 import { ColorizeTool } from "../tools/colorize";
 import { LayerManager } from "../tools/layers";
+import { type SelSet, loadSelSets, saveSelSets, resolveGuids } from "../tools/selectionSetsStore";
 import { OriginTool } from "../tools/origin";
 import { buildTree } from "../tree/tree";
 import { installDraftPanel, type ArmedDraft, type DraftPanelHandle } from "./draft/draftPanel";
@@ -735,7 +736,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   toolBtn("☰", "Toggle storey levels overlay", async (b) => {
     if (levelObjs.length) { for (const o of levelObjs) viewer.world.scene.three.remove(o); levelObjs.length = 0; b.classList.remove("on"); void loader.fragments.core.update(true); return; }
     if (!projectId) { notify("connect a project for storey levels", "error"); return; }
-    let storeys: { name: string; elevation: number }[] = [];
+    let storeys: { name: string | null; elevation: number; guid: string }[] = [];
     try { storeys = await api.drawingStoreys(projectId); } catch { notify("no storeys (needs source IFC)", "error"); return; }
     const box = new THREE.Box3();
     viewer.world.scene.three.traverse((o) => { const msh = o as THREE.Mesh; if (msh.isMesh) box.expandByObject(msh); });
@@ -1045,8 +1046,78 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       row.append(cb, swatch, name);
       layersPanel.appendChild(row);
     }
+
+    // Named selection sets (Navisworks/Bluebeam Search-Set pattern) — saved queries you can isolate.
+    buildSelSets(layersPanel, elements);
+
     await refreshIssues();
     await reloadModelPins();
+  }
+
+  /** Render the "Selection sets" block into the Layers panel: saved queries → isolate. */
+  function buildSelSets(host: HTMLElement, elements: ElementProps[]) {
+    if (!projectId) return;
+    const pid = projectId;
+    const wrap = document.createElement("div"); wrap.className = "selset-block";
+    const title = document.createElement("div"); title.className = "section-title"; title.style.marginTop = "10px";
+    title.textContent = "Selection sets";
+    wrap.appendChild(title);
+
+    const list = document.createElement("div"); wrap.appendChild(list);
+
+    const draw = () => {
+      const sets = loadSelSets(pid);
+      list.innerHTML = "";
+      if (!sets.length) {
+        const hint = document.createElement("div"); hint.className = "meta"; hint.style.fontSize = "11px";
+        hint.textContent = "Save a search as a set to isolate it in one click.";
+        list.appendChild(hint);
+      }
+      sets.forEach((s, i) => {
+        const row = document.createElement("div"); row.className = "selset-row";
+        const label = document.createElement("span"); label.className = "selset-name";
+        label.textContent = `${s.name} (${s.guids.length})`;
+        label.title = `Isolate — query: “${s.q}”`;
+        label.onclick = async () => {
+          if (!s.guids.length) { notify(`“${s.name}” has no elements`, "error"); return; }
+          await layerMgr.isolateGuids(s.guids);
+          setStatus(`isolated set “${s.name}” · ${s.guids.length}`);
+        };
+        const del = document.createElement("button");
+        del.className = "selset-del"; del.textContent = "✕"; del.title = "Delete set";
+        del.setAttribute("aria-label", `Delete set ${s.name}`);
+        del.onclick = () => { const next = loadSelSets(pid); next.splice(i, 1); saveSelSets(pid, next); draw(); };
+        row.append(label, del);
+        list.appendChild(row);
+      });
+    };
+
+    const actions = document.createElement("div"); actions.className = "selset-actions";
+    const add = document.createElement("button"); add.className = "mini-btn"; add.textContent = "➕ New set…";
+    add.title = "Save a search (by name / class / type / discipline / level) as an isolatable set";
+    add.onclick = async () => {
+      const q = await askText("New selection set", { label: "Match elements containing (name / class / type / discipline / level):", value: "" });
+      if (!q) return;
+      const guids = resolveGuids(elements, q);
+      if (!guids.length) { notify(`no elements match “${q}”`, "error"); return; }
+      const name = await askText("New selection set", { label: `Name this set (${guids.length} elements)`, value: q });
+      if (!name) return;
+      const sets = loadSelSets(pid);
+      const existing = sets.findIndex((s) => s.name === name);
+      const entry: SelSet = { name, q, guids };
+      if (existing >= 0) sets[existing] = entry; else sets.push(entry);
+      saveSelSets(pid, sets);
+      draw();
+      notify(`saved set “${name}” · ${guids.length} elements`, "success");
+    };
+    const showAll = document.createElement("button"); showAll.className = "mini-btn"; showAll.textContent = "👁 Show all";
+    showAll.title = "Clear isolation — make every element visible again";
+    showAll.onclick = async () => { await layerMgr.showAll(); setStatus("all elements visible"); };
+    actions.append(add, showAll);
+
+    wrap.append(actions);
+    draw();
+    host.appendChild(wrap);
   }
 
   async function reloadModelPins() {
@@ -1355,7 +1426,50 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           { rooms_per_storey: rooms, ceiling_height: Number.isFinite(ch) && ch > 0 ? ch : 3.0 }, `${rooms} rooms/floor`);
       });
       addRooms.title = "Author IfcSpace rooms gridded over each floor — the space schedule feeds COBie, gbXML, and area take-offs";
-      glBody.append(status, levelSel, load, toggle, addLvl, addRooms);
+
+      // Manage levels: rename + set-elevation per storey (GUID-stable recipes). Inline editor.
+      const levelsMgr = document.createElement("div");
+      levelsMgr.className = "levels-mgr"; levelsMgr.hidden = true;
+      const renderLevelsMgr = async () => {
+        levelsMgr.innerHTML = `<div class="meta">Loading levels…</div>`;
+        let storeys: { name: string | null; elevation: number; guid: string }[];
+        try { storeys = await api.drawingStoreys(pid); }
+        catch { levelsMgr.innerHTML = `<div class="meta">No levels (needs a source IFC).</div>`; return; }
+        storeys.sort((a, b) => a.elevation - b.elevation);
+        levelsMgr.innerHTML = "";
+        if (!storeys.length) { levelsMgr.innerHTML = `<div class="meta">No levels yet — add one above.</div>`; return; }
+        for (const s of storeys) {
+          const row = document.createElement("div"); row.className = "level-row";
+          const nameI = document.createElement("input");
+          nameI.type = "text"; nameI.value = s.name ?? ""; nameI.className = "level-name";
+          nameI.setAttribute("aria-label", "Level name");
+          const elevI = document.createElement("input");
+          elevI.type = "number"; elevI.step = "0.1"; elevI.value = s.elevation.toFixed(3); elevI.className = "level-elev";
+          elevI.setAttribute("aria-label", "Elevation in metres");
+          const unit = document.createElement("span"); unit.className = "meta"; unit.textContent = "m";
+          const save = document.createElement("button");
+          save.className = "mini-btn"; save.textContent = "Save"; save.title = "Apply rename / elevation change";
+          save.onclick = async () => {
+            const newName = nameI.value.trim();
+            const newElev = Number(elevI.value);
+            const renamed = !!newName && newName !== (s.name ?? "");
+            const moved = Number.isFinite(newElev) && Math.abs(newElev - s.elevation) > 1e-6;
+            if (!renamed && !moved) { notify("no change to this level", "info"); return; }
+            if (renamed) await authorAndReload("rename_storey", { guid: s.guid, name: newName }, `rename level → ${newName}`);
+            if (moved) await authorAndReload("set_storey_elevation", { guid: s.guid, elevation: newElev }, `set ${newName || "level"} to ${newElev} m`);
+            await renderLevelsMgr();   // refresh baselines after republish
+          };
+          row.append(nameI, elevI, unit, save);
+          levelsMgr.appendChild(row);
+        }
+      };
+      const manage = toolBtn2("✎ Manage levels", async () => {
+        if (levelsMgr.hidden) { await renderLevelsMgr(); levelsMgr.hidden = false; }
+        else levelsMgr.hidden = true;
+      });
+      manage.title = "Rename levels and set their elevation — edits the IFC by storey GUID";
+
+      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------

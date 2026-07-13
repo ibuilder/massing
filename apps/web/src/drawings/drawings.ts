@@ -78,7 +78,7 @@ export class DrawingsUI {
       Object.entries(s).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
 
     const sheets: Sheet[] = [];
-    let storeys: { name: string; elevation: number }[] = [];
+    let storeys: { name: string | null; elevation: number; guid: string }[] = [];
     try { storeys = await this.host_.api.drawingStoreys(pid); } catch { /* no source IFC */ }
     for (const s of storeys) {
       const q = pq({ elevation: s.elevation, cut_height: 1.2, title: `PLAN - ${s.name}` });

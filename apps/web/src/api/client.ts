@@ -1159,7 +1159,7 @@ export class ApiClient extends HttpCore {
 
   // 2D documentation
   drawingStoreys(pid: string) {
-    return this.json<{ name: string; elevation: number }[]>(`/projects/${pid}/drawings/storeys`);
+    return this.json<{ name: string | null; elevation: number; guid: string }[]>(`/projects/${pid}/drawings/storeys`);
   }
 
   // real-estate development finance (Proforma)

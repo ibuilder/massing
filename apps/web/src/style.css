@@ -249,6 +249,23 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .layer-row .count { color: var(--muted); font-size: 11px; }
 .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); cursor: pointer; }
 
+/* levels manager (Grid & Levels) */
+.mini-btn { font: inherit; font-size: 12px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel2); color: var(--text); cursor: pointer; }
+.mini-btn:hover { background: var(--control-hover); }
+.levels-mgr { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 2px; }
+.level-row { display: flex; align-items: center; gap: 4px; }
+.level-row .level-name { flex: 1 1 auto; min-width: 0; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel2); color: var(--text); font-size: 12px; }
+.level-row .level-elev { flex: 0 0 62px; width: 62px; padding: 3px 4px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel2); color: var(--text); font-size: 12px; }
+
+/* named selection sets (Layers panel) */
+.selset-block { margin-top: 6px; }
+.selset-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.selset-row .selset-name { flex: 1; cursor: pointer; color: var(--muted); font-size: 12px; }
+.selset-row .selset-name:hover { color: var(--accent); }
+.selset-del { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 12px; padding: 0 3px; }
+.selset-del:hover { color: var(--danger, #e5534b); }
+.selset-actions { display: flex; gap: 6px; margin-top: 6px; }
+
 /* issues */
 .issue { padding: 7px 8px; margin-bottom: 6px; background: var(--panel); border-radius: 5px; cursor: pointer; border-left: 3px solid var(--accent); }
 .issue:hover { background: var(--hover); }

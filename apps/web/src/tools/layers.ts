@@ -77,4 +77,15 @@ export class LayerManager {
     const layer = this.layers.get(id);
     if (layer) return this.visibility.isolate(layer.items);
   }
+
+  /** Isolate an ad-hoc set of GUIDs (hide everything else) without registering a layer. */
+  async isolateGuids(guids: string[]) {
+    const items = await this.sets.fromGuids(guids);
+    return this.visibility.isolate(items);
+  }
+
+  /** Reset every element back to visible (clear any isolation). */
+  showAll() {
+    return this.visibility.showAll();
+  }
 }

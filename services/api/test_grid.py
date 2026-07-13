@@ -69,6 +69,12 @@ lv2 = grid.grid_and_levels(m2)["levels"]
 assert [lv["name"] for lv in lv2] == ["Level 1", "Level 2"], lv2
 assert abs(lv2[1]["elevation"] - 4.0) < 1e-6, lv2[1]     # metres
 
+# storey_elevations exposes a GUID per level (the key the web level-manager targets recipes with)
+from aec_data import drawings as _dwg  # noqa: E402
+se = _dwg.storey_elevations(m2)
+assert all(s.get("guid") for s in se), se
+assert m2.by_guid(se[0]["guid"]).is_a("IfcBuildingStorey"), se[0]
+
 new_guid = r["changed"]
 edit.apply_recipe(OUT, "set_storey_elevation", {"guid": new_guid, "elevation": 7.5}, OUT)
 edit.apply_recipe(OUT, "rename_storey", {"guid": new_guid, "name": "Roof"}, OUT)
