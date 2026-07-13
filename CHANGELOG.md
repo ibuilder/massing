@@ -20,8 +20,11 @@ Developer = real-estate register + deal returns, Finance = returns + capital + i
 its on-schedule/on-budget PX dashboard.
 
 New `listScenarios(pid)` client method + `openFinanceHomeTab()` in `main.ts`; a Home fintab in the finance
-workspace. Verified live: the capital stack renders from project Sources & Uses, the empty-state shows
-before a scenario, and the quick-launches switch tabs / open the PDFs.
+workspace. The home renders its **shell synchronously** (header, KPI placeholders, and the quick-launch
+buttons) before the returns/capital data loads — so the panel is never blank even if the data request is
+slow, offline, or fails; the returns and capital stack fill in afterward. Verified live: the shell appears
+immediately, the capital stack renders from project Sources & Uses, the empty-state shows before a
+scenario, and the quick-launches switch tabs / open the PDFs.
 
 ## v0.3.227 — Investor pitch deck, expanded: exec summary + capital stack + business plan
 

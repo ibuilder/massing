@@ -1016,70 +1016,77 @@ async function openPortfolioTab() {
 // Finance home — a command-center landing for the finance persona (mirrors the Developer/Design
 // homes): the deal's returns + capital stack from the latest saved scenario and Sources & Uses, with
 // quick-launches to the proforma editor, portfolio roll-up, and the investor memo/deck PDFs.
-async function openFinanceHomeTab() {
-  const panel = $("panel-home");
-  if (!projectId) {
-    panel.innerHTML = `<div class="section-title">Finance</div>`
-      + `<div class="meta">Open or create a project to see its finance command center — returns, capital stack, and the investor documents.</div>`;
-    return;
-  }
-  panel.innerHTML = `<div class="section-title">Finance — command center</div><div class="meta">loading…</div>`;
+function openFinanceHomeTab() {
+  const panel = document.getElementById("panel-home");
+  if (!panel) return;                                    // defensive: never throw to a blank panel
   const m = (v: number | null | undefined) => (v == null ? "—" : "$" + Math.round(v).toLocaleString());
   const pc = (v: number | null | undefined) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
-  const [scen, su] = await Promise.all([
-    api.listScenarios(projectId).catch(() => [] as Awaited<ReturnType<typeof api.listScenarios>>),
-    api.sourcesUses(projectId).catch(() => null),
-  ]);
-  const latest = scen.length ? scen[scen.length - 1] : null;
-  const r = latest?.returns ?? {};
-  const irr = r.equity_irr ?? null;
   const kpi = (v: string, l: string, tone?: string) =>
     `<div class="kpi"><div class="kpi-v" style="font-size:17px${tone ? `;color:${tone}` : ""}">${v}</div><div class="kpi-l">${l}</div></div>`;
 
-  const total = su?.total_uses ?? null;
-  const debt = su?.debt ?? null;
-  const equity = su?.equity ?? null;
-  // capital-stack mini-bar (debt vs equity)
-  let stackHtml = "";
-  if (total && (debt || equity)) {
-    const dPct = Math.round(((debt ?? 0) / total) * 100), ePct = 100 - dPct;
-    stackHtml = `<div class="section-title" style="margin-top:12px">Capital stack</div>`
-      + `<div style="display:flex;height:26px;border-radius:6px;overflow:hidden;margin:6px 0;font-size:11px;color:#fff">`
-      + `<div style="flex:${dPct};background:#8aa0b8;display:flex;align-items:center;justify-content:center">Debt ${dPct}%</div>`
-      + `<div style="flex:${ePct};background:#16324f;display:flex;align-items:center;justify-content:center">Equity ${ePct}%</div></div>`
-      + `<div class="meta">${m(debt)} senior debt · ${m(equity)} equity · ${m(total)} total`
-      + (su && su.balanced === false ? ` · <span style="color:var(--status-warn)">sources ≠ uses</span>` : "") + `</div>`;
-  }
+  // Render the full shell SYNCHRONOUSLY first — so the panel is never blank while data loads (or if it
+  // never resolves offline). Data fills in afterward. Actions are always present (they don't need data).
+  const pid = projectId;
+  panel.innerHTML =
+    `<div class="section-title">Finance — command center</div>`
+    + (pid
+      ? `<div class="meta" id="fin-home-scenario" style="margin-bottom:6px">Loading the latest scenario…</div>`
+        + `<div class="kpi-grid" id="fin-home-kpis">`
+        + kpi("—", "Equity IRR") + kpi("—", "Equity multiple") + kpi("—", "Project IRR")
+        + kpi("—", "Yield on cost") + kpi("—", "NPV") + `</div>`
+        + `<div id="fin-home-stack"></div>`
+      : `<div class="meta">Open or create a project to see its finance command center — returns, capital stack, and the investor documents.</div>`)
+    + `<div class="section-title" style="margin-top:14px">Open</div>`
+    + `<div id="fin-home-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>`;
 
   const goFin = (fin: string) => () => document.querySelector<HTMLButtonElement>(`.fintab[data-fin="${fin}"]`)?.click();
   const openPdf = (path: string, name: string) => async () => {
     const { openPdfUrl, saveToDocuments } = await import("./drawings/openPdf");
-    await openPdfUrl(api, api.url(path), name, { saveLabel: "Save to Documents", onSave: saveToDocuments(api, projectId!) });
+    await openPdfUrl(api, api.url(path), name, { saveLabel: "Save to Documents", onSave: saveToDocuments(api, pid!) });
   };
-
-  panel.innerHTML =
-    `<div class="section-title">Finance — command center</div>`
-    + (latest ? `<div class="meta" style="margin-bottom:6px">Latest scenario: <b>${latest.name}</b></div>`
-              : `<div class="meta" style="margin-bottom:6px">No solved scenario yet — build one in the Proforma tab and its returns land here.</div>`)
-    + `<div class="kpi-grid">`
-    + kpi(pc(irr), "Equity IRR", irr != null && irr >= 0.15 ? "var(--status-good)" : irr != null && irr < 0.08 ? "var(--status-warn)" : undefined)
-    + kpi(r.equity_multiple == null ? "—" : `${r.equity_multiple.toFixed(2)}×`, "Equity multiple")
-    + kpi(pc(r.project_irr), "Project IRR")
-    + kpi(pc(r.yield_on_cost), "Yield on cost")
-    + kpi(m(r.npv), "NPV")
-    + `</div>`
-    + stackHtml
-    + `<div class="section-title" style="margin-top:14px">Open</div>`
-    + `<div id="fin-home-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>`;
-
-  const actions = $("fin-home-actions");
+  const actions = document.getElementById("fin-home-actions")!;
   const btn = (label: string, cls: string, on: () => void) => {
     const b = document.createElement("button"); b.className = cls; b.textContent = label; b.onclick = on; actions.appendChild(b);
   };
   btn("Proforma →", "file-btn", goFin("proforma"));
   btn("Portfolio →", "tool-btn", goFin("portfolio"));
-  btn("📄 Investment memo", "tool-btn", openPdf(`/projects/${projectId}/investment-memo.pdf`, "investment-memo.pdf"));
-  btn("📊 Pitch deck", "tool-btn", openPdf(`/projects/${projectId}/investment-deck.pdf`, "pitch-deck.pdf"));
+  if (pid) {
+    btn("📄 Investment memo", "tool-btn", openPdf(`/projects/${pid}/investment-memo.pdf`, "investment-memo.pdf"));
+    btn("📊 Pitch deck", "tool-btn", openPdf(`/projects/${pid}/investment-deck.pdf`, "pitch-deck.pdf"));
+  }
+  if (!pid) return;
+
+  // fill in returns + capital stack asynchronously; any failure leaves the shell intact
+  void (async () => {
+    const [scen, su] = await Promise.all([
+      api.listScenarios(pid).catch(() => [] as Awaited<ReturnType<typeof api.listScenarios>>),
+      api.sourcesUses(pid).catch(() => null),
+    ]);
+    if (projectId !== pid) return;                       // the user switched projects mid-load — bail
+    const latest = scen.length ? scen[scen.length - 1] : null;
+    const r = latest?.returns ?? {};
+    const irr = r.equity_irr ?? null;
+    const scEl = document.getElementById("fin-home-scenario");
+    if (scEl) scEl.innerHTML = latest
+      ? `Latest scenario: <b>${latest.name}</b>`
+      : "No solved scenario yet — build one in the Proforma tab and its returns land here.";
+    const kEl = document.getElementById("fin-home-kpis");
+    if (kEl) kEl.innerHTML =
+      kpi(pc(irr), "Equity IRR", irr != null && irr >= 0.15 ? "var(--status-good)" : irr != null && irr < 0.08 ? "var(--status-warn)" : undefined)
+      + kpi(r.equity_multiple == null ? "—" : `${r.equity_multiple.toFixed(2)}×`, "Equity multiple")
+      + kpi(pc(r.project_irr), "Project IRR") + kpi(pc(r.yield_on_cost), "Yield on cost") + kpi(m(r.npv), "NPV");
+    const total = su?.total_uses ?? null, debt = su?.debt ?? null, equity = su?.equity ?? null;
+    const stEl = document.getElementById("fin-home-stack");
+    if (stEl && total && (debt || equity)) {
+      const dPct = Math.round(((debt ?? 0) / total) * 100), ePct = 100 - dPct;
+      stEl.innerHTML = `<div class="section-title" style="margin-top:12px">Capital stack</div>`
+        + `<div style="display:flex;height:26px;border-radius:6px;overflow:hidden;margin:6px 0;font-size:11px;color:#fff">`
+        + `<div style="flex:${dPct};background:#8aa0b8;display:flex;align-items:center;justify-content:center">Debt ${dPct}%</div>`
+        + `<div style="flex:${ePct};background:#16324f;display:flex;align-items:center;justify-content:center">Equity ${ePct}%</div></div>`
+        + `<div class="meta">${m(debt)} senior debt · ${m(equity)} equity · ${m(total)} total`
+        + (su && su.balanced === false ? ` · <span style="color:var(--status-warn)">sources ≠ uses</span>` : "") + `</div>`;
+    }
+  })();
 }
 
 // loadable geometry per project -> the type tag shown in the picker. RVT/DWG/NWC origin isn't
