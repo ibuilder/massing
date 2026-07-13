@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.225**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.226**.
 
 > **The product feature roadmap, the code-quality/hardening initiative, AND the Wave 8 field-research
 > upgrades are all effectively cleared.** Every headline feature theme shipped (generative design + Test
@@ -62,11 +62,11 @@ customer need. Each line ends with its archive source in parentheses for the ful
   ahead/behind); project `…/schedule/takt/progress` derives per-trade completion from `schedule_activity`
   and **bundles PPC**; a "Takt — actual vs plan" Schedule-panel card shows the overlaid LOB + variance +
   PPC. Planned LOB + JIT already shipped.
-- **Rendering & computational depth** *(§M)* — **material editor + per-project palette DONE (v0.3.225)**:
-  `materials.merge_palette()` + `…/materials/palette` (GET/PUT) + `…/materials/apply` (re-colour +
-  republish) + a 🎨 Materials panel edit the M1 IfcMaterial/SurfaceStyle assignments per project.
-  *Remainder:* a **module-relations graph view** (reuse the Studio node canvas); heavier: real-time GI /
-  baked AO / exterior HDRI skies.
+- **Rendering & computational depth** *(§M)* — ✅ **DONE**. Material editor + per-project palette
+  (v0.3.225, `materials.merge_palette()` + `…/materials/palette` GET/PUT + `…/materials/apply` + 🎨 panel);
+  **module-relations graph** (v0.3.226, `module_graph.build()` + `GET /modules/graph` + 🕸 SVG panel — nodes
+  = modules, edges = reference/rollup links, sized by in-degree). *Only heavier GPU work remains as a
+  documented non-goal:* real-time GI / baked AO / exterior HDRI skies (out of scope for a web viewer).
 - **Developer deliverable** *(§B6)* — a **pitch-deck variant** of the investment memo (10–20 slides, market
   + timeline sections, photos) alongside the existing memo/deck PDFs.
 
@@ -115,7 +115,8 @@ customer need. Each line ends with its archive source in parentheses for the ful
   stubs only), full institutional reporting packs, space/move management (CAFM), 1031 tooling, and a
   JWT-revocation blacklist + Redis-backed presence (known limits, tracked in PRODUCTION_CHECKLIST).
 
-**Recently cleared (were on this list):** per-project material editor + palette apply/republish (v0.3.225) ·
+**Recently cleared (were on this list):** module-relations graph view (v0.3.226) · per-project material
+editor + palette apply/republish (v0.3.225) ·
 actual-vs-takt production tracking + LOB actuals overlay + PPC bundle (v0.3.224) · Monte-Carlo the specialty risk discount → blended-IRR distribution (v0.3.223) ·
 specialty multi-year P&L + ramp + blended-vs-RE IRR (v0.3.222) ·
 parcel-aware surface parking placement (v0.3.221) · structural generative depth — per-floor column taper +

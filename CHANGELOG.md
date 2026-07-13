@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.226 — Module-relations graph: see how the ~180 config modules wire together
+
+The config-driven modules form a data model; now you can see its shape. New `module_graph.build(registry)`
+reads the module registry back as a graph — one node per module, one edge per cross-module link — where
+edges come from **reference** fields (a record points at another module's record) and **rollup** fields (a
+module aggregates a numeric field from records that point at it). Each node carries its in/out degree, and
+the result surfaces the **most-referenced hubs** (the cost code tops it, referenced by ~23 modules) and the
+**orphans** with no links. A `workspace` filter keeps a workspace's modules + the targets they reference so
+the full ~180-node graph stays legible. Pure over the registry — no database.
+
+Endpoint `GET /modules/graph?workspace=` returns the graph. A **🕸 Module Relations** destination in the
+Design workspace renders it as an SVG: nodes on a ring laid out by workspace/section, sized by in-degree so
+hubs stand out, reference edges solid and rollup edges dashed, hubs labelled, with a workspace filter and a
+most-referenced summary. Hover any node for its links.
+
+Engine `module_graph.py`; `routers/modules.py` endpoint; `portal/panels/moduleGraph.ts`. Tests:
+`test_modules` — every module is a node, cost-impact reference edges target cost_code, cost_code tops the
+in-degree ranking and its node degree matches its edges, workspace scope is a subset, only reference/rollup
+edge kinds. **Completes the §M rendering/computational-depth bucket** (material editor v0.3.225 + this).
+
 ## v0.3.225 — Material editor: a per-project palette you can edit and re-apply
 
 The M1 material/colour assignment (each IFC element class → an IfcMaterial + IfcSurfaceStyle colour, so

@@ -2511,6 +2511,11 @@ export class ApiClient extends HttpCore {
   taktProgress(pid: string) {
     return this.json<TaktProgressResult>(`/projects/${pid}/schedule/takt/progress`);
   }
+  /** The module-relations graph: nodes = modules, edges = reference + rollup links (optional workspace). */
+  modulesGraph(workspace?: string) {
+    const qs = workspace ? `?workspace=${encodeURIComponent(workspace)}` : "";
+    return this.json<ModuleGraph>(`/modules/graph${qs}`);
+  }
   /** M1 material palette: default table + saved per-project overrides + the effective (merged) palette. */
   materialPalette(pid: string) {
     return this.json<MaterialPaletteResult>(`/projects/${pid}/materials/palette`);
@@ -2825,6 +2830,18 @@ export interface SpecialtyResponse {
   summary: SpecialtySummary;
   deltas: { cost_line: { category: string; name: string; amount: number; curve: string } | null;
     other_income_annual_add: number; opex_annual_add: number };
+}
+export interface ModuleGraphNode {
+  key: string; label: string; section: string; workspace: string; icon: string;
+  in_degree: number; out_degree: number;
+}
+export interface ModuleGraphEdge {
+  source: string; target: string; field: string | null; label: string; kind: "reference" | "rollup";
+}
+export interface ModuleGraph {
+  workspace: string | null; node_count: number; edge_count: number;
+  nodes: ModuleGraphNode[]; edges: ModuleGraphEdge[];
+  most_referenced: { key: string; label: string; in_degree: number }[]; orphan_count: number;
 }
 export interface MaterialEntry {
   name: string; category: string; color: [number, number, number]; transparency: number;

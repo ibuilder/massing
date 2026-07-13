@@ -30,6 +30,23 @@ with TestClient(app) as c:
         refs = [f for f in mods[k]["fields"] if f.get("type") == "reference" and f.get("module") == "cost_code"]
         assert refs, f"{k} should reference cost_code"
 
+    # module-relations graph — nodes = modules, edges = reference + rollup links
+    g = c.get("/modules/graph").json()
+    assert g["node_count"] == len(mods) and g["edge_count"] > 0, (g["node_count"], len(mods))
+    gkeys = {n["key"] for n in g["nodes"]}
+    assert gkeys == set(mods), "every module is a node"
+    # the cost_code references above must appear as edges targeting cost_code
+    cc_in = [e for e in g["edges"] if e["target"] == "cost_code" and e["kind"] == "reference"]
+    assert {"rfi", "cor", "change_event"} <= {e["source"] for e in cc_in}, "cost-impact edges → cost_code"
+    # cost_code is heavily referenced → it tops the in-degree ranking, and its node in-degree matches
+    assert g["most_referenced"] and g["most_referenced"][0]["key"] == "cost_code", g["most_referenced"][:3]
+    cc_node = next(n for n in g["nodes"] if n["key"] == "cost_code")
+    assert cc_node["in_degree"] == len(cc_in) + len([e for e in g["edges"] if e["target"] == "cost_code" and e["kind"] == "rollup"]), cc_node
+    # workspace scope keeps its modules + referenced targets, and is a subset of the full graph
+    gc_g = c.get("/modules/graph", params={"workspace": "construction"}).json()
+    assert 0 < gc_g["node_count"] <= g["node_count"] and gc_g["workspace"] == "construction", gc_g["node_count"]
+    assert {e["kind"] for e in g["edges"]} <= {"reference", "rollup"}, "only reference/rollup edges"
+
     # Tier-1 field completeness (super + PM field set, benchmarked to Procore/Fieldwire)
     def fnames(k):
         return {f["name"] for f in mods[k]["fields"]}

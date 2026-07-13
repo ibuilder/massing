@@ -17,6 +17,7 @@ import { renderLedger } from "./panels/ledger";
 import { renderTraceability } from "./panels/traceability";
 import { renderLandScreen, renderLifecycle, renderDiligence, renderEsg, renderConceptRender } from "./panels/design";
 import { renderMaterials } from "./panels/materials";
+import { renderModuleGraph } from "./panels/moduleGraph";
 import { renderProgram, renderBimKpi, renderStandards, renderIds, renderModelAnalysis } from "./panels/standards";
 import { renderResponsibility } from "./panels/responsibility";
 import { renderDocuments } from "./panels/documents";
@@ -168,6 +169,7 @@ export class PortalUI {
       __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
       __market__: () => this.renderMarket(), __conceptrender__: () => this.renderConceptRender(),
       __materials__: () => this.renderMaterials(),
+      __modulegraph__: () => this.renderModuleGraph(),
       __evm__: () => this.renderEvm(), __resload__: () => this.renderResourceLoading(),
       __wip__: () => this.renderWip(), __ledger__: () => this.renderLedger(),
       __traceability__: () => this.renderTraceability(),
@@ -225,6 +227,7 @@ export class PortalUI {
           { key: "__modelqa__", icon: "✅", label: "Model Health" },        // deep-links to the Model Tools checks
           { key: "__modelanalysis__", icon: "🔬", label: "Model Analysis" }, // query/LOD/envelope/MEP/naming/capabilities
           { key: "__materials__", icon: "🎨", label: "Materials" },          // per-project M1 palette editor + re-colour
+          { key: "__modulegraph__", icon: "🕸", label: "Module Relations" }, // how the config modules wire together
           { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // flood DFE + stormwater sizing
           { key: "__spine__", icon: "🔗", label: "Discipline Spine" },       // sheets→specs→bid→budget trace
         ]],
@@ -481,6 +484,7 @@ export class PortalUI {
   private renderEsg() { return renderEsg(this.panelCtx()); }
   private renderConceptRender() { return renderConceptRender(this.panelCtx()); }
   private renderMaterials() { return renderMaterials(this.panelCtx()); }
+  private renderModuleGraph() { return renderModuleGraph(this.panelCtx()); }
 
   // --- Model Health launcher: the model-QA checks live in the Model viewer's Tools rail (they need
   //     the loaded 3D geometry), so from Design we explain them and deep-link straight there. --------

@@ -53,6 +53,15 @@ def list_modules():
     ]
 
 
+@router.get("/modules/graph")
+def modules_graph(workspace: str | None = None):
+    """The module-relations graph: one node per module, one edge per cross-module link (reference +
+    rollup fields). Optionally scope to a `workspace` (keeps its modules + the targets they reference).
+    Drives a node-canvas relations view — see how the ~180 config modules actually wire together."""
+    from .. import module_graph
+    return module_graph.build(mod_engine.REGISTRY, workspace=workspace)
+
+
 @router.post("/projects/{pid}/sync/procore")
 def sync_procore(pid: str, connection_id: str = Body(..., embed=True),
                  procore_project_id: str = Body(..., embed=True),
