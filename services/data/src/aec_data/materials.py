@@ -34,6 +34,36 @@ PALETTE: dict[str, tuple[str, str, tuple[float, float, float], float]] = {
 }
 
 
+def palette_to_json(palette: dict | None = None) -> dict[str, dict[str, Any]]:
+    """The palette as JSON-friendly rows (for the material editor UI): class → {name, category,
+    color:[r,g,b] 0–1, transparency}."""
+    palette = palette or PALETTE
+    return {cls: {"name": name, "category": cat, "color": [round(c, 4) for c in rgb],
+                  "transparency": round(transp, 3)}
+            for cls, (name, cat, rgb, transp) in palette.items()}
+
+
+def palette_from_json(rows: dict[str, dict[str, Any]]) -> dict[str, tuple]:
+    """Inverse of `palette_to_json` — a JSON palette (class → {name, category, color, transparency})
+    back to the internal tuple form apply_palette consumes. Missing/short colors default to grey."""
+    out: dict[str, tuple] = {}
+    for cls, r in (rows or {}).items():
+        col = r.get("color") or [0.7, 0.7, 0.72]
+        rgb = tuple(float(c) for c in (list(col) + [0.7, 0.7, 0.72])[:3])
+        out[cls] = (str(r.get("name") or cls.replace("Ifc", "")), str(r.get("category") or "generic"),
+                    rgb, float(r.get("transparency") or 0.0))
+    return out
+
+
+def merge_palette(overrides: dict[str, dict[str, Any]] | None) -> dict[str, tuple]:
+    """The default PALETTE with per-project JSON overrides applied on top (per class). Classes absent
+    from the overrides keep their default material/colour; this is what a project actually renders."""
+    merged = dict(PALETTE)
+    if overrides:
+        merged.update(palette_from_json(overrides))
+    return merged
+
+
 def _body_reps(el):
     rep = getattr(el, "Representation", None)
     return list(rep.Representations) if rep else []

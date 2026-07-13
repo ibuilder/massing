@@ -2511,6 +2511,18 @@ export class ApiClient extends HttpCore {
   taktProgress(pid: string) {
     return this.json<TaktProgressResult>(`/projects/${pid}/schedule/takt/progress`);
   }
+  /** M1 material palette: default table + saved per-project overrides + the effective (merged) palette. */
+  materialPalette(pid: string) {
+    return this.json<MaterialPaletteResult>(`/projects/${pid}/materials/palette`);
+  }
+  saveMaterialPalette(pid: string, overrides: Record<string, MaterialEntry>) {
+    return this.json<{ overrides: Record<string, MaterialEntry>; effective: Record<string, MaterialEntry> }>(
+      `/projects/${pid}/materials/palette`, { method: "PUT", body: JSON.stringify({ overrides }) });
+  }
+  applyMaterialPalette(pid: string) {
+    return this.json<{ applied: { styled: number; materialed: number; materials: number; classes: number }; publish: string }>(
+      `/projects/${pid}/materials/apply`, { method: "POST" });
+  }
   /** Import a Primavera P6 export (.xer or .xml/PMXML — auto-detected) so the 4D scrub reports
    *  real calendar dates and the tasks become editable schedule_activity records. */
   async importXer(pid: string, file: File) {
@@ -2813,6 +2825,14 @@ export interface SpecialtyResponse {
   summary: SpecialtySummary;
   deltas: { cost_line: { category: string; name: string; amount: number; curve: string } | null;
     other_income_annual_add: number; opex_annual_add: number };
+}
+export interface MaterialEntry {
+  name: string; category: string; color: [number, number, number]; transparency: number;
+}
+export interface MaterialPaletteResult {
+  default: Record<string, MaterialEntry>;
+  overrides: Record<string, MaterialEntry>;
+  effective: Record<string, MaterialEntry>;
 }
 export interface TaktProgressRow {
   trade: string; as_of_day: number; floors_done: number; planned_done: number;

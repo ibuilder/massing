@@ -54,6 +54,22 @@ with TestClient(app) as c:
     lc2 = c.get(f"/projects/{pid}/lifecycle").json()
     assert lc2["current_stage"]["riba_stage"].startswith("1 "), lc2["current_stage"]
 
+    # --- M1: per-project material palette (the material editor) ---
+    mp = c.get(f"/projects/{pid}/materials/palette").json()
+    assert "IfcColumn" in mp["default"] and "IfcColumn" in mp["effective"], list(mp)
+    assert mp["overrides"] == {}, mp["overrides"]                       # none saved yet
+    # override columns to a red painted-steel; only the changed class need be present
+    ov = {"IfcColumn": {"name": "Painted steel", "category": "steel", "color": [0.9, 0.1, 0.1], "transparency": 0.0}}
+    put = c.put(f"/projects/{pid}/materials/palette", json={"overrides": ov}).json()
+    assert put["effective"]["IfcColumn"]["color"] == [0.9, 0.1, 0.1], put["effective"]["IfcColumn"]
+    # GET reflects the saved override; other classes stay at the default
+    mp2 = c.get(f"/projects/{pid}/materials/palette").json()
+    assert mp2["overrides"]["IfcColumn"]["name"] == "Painted steel", mp2["overrides"]
+    assert mp2["effective"]["IfcColumn"]["color"] == [0.9, 0.1, 0.1], mp2["effective"]["IfcColumn"]
+    assert mp2["effective"]["IfcBeam"] == mp2["default"]["IfcBeam"], "unchanged class keeps default"
+    # apply with no source model → 400 (nothing to re-colour)
+    assert c.post(f"/projects/{pid}/materials/apply").status_code == 400
+
 print("DESIGN PHASE OK - soft costs itemized (9 lines sum to 25%; A/E 7%, phase-split CD biggest); "
       "8 RIBA/AIA phases seeded (idempotent); gate submit->approve (Architect+Owner, requires signed_by); "
       "current stage advances after gate")

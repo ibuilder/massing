@@ -61,6 +61,92 @@ def concept_render_ingest(pid: str, payload: dict = Body(default={}),
     return res
 
 
+# --- M1: per-project material palette (the material editor) --------------------------------------
+_PALETTE_KEY = "{pid}/palette.json"
+
+
+@router.get("/projects/{pid}/materials/palette")
+def get_material_palette(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The material palette for the project (M1): the default class→material/colour table, the saved
+    per-project overrides, and the **effective** palette (default with overrides applied) — what the
+    model actually renders. Drives the material-editor UI."""
+    import json
+
+    from aec_data import materials as mats  # type: ignore
+
+    from .. import storage
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    try:
+        overrides = json.loads(storage.get(_PALETTE_KEY.format(pid=pid)))
+    except Exception:                             # noqa: BLE001 — no saved overrides yet
+        overrides = {}
+    return {"default": mats.palette_to_json(mats.PALETTE),
+            "overrides": overrides,
+            "effective": mats.palette_to_json(mats.merge_palette(overrides))}
+
+
+@router.put("/projects/{pid}/materials/palette")
+def put_material_palette(pid: str, body: dict = Body(...), db: Session = Depends(get_db),
+                         _: str = Depends(require_role("editor"))):
+    """Save per-project material overrides (class → {name, category, color:[r,g,b], transparency}).
+    Only the classes you change need be present; the rest fall back to the default palette. Persisted
+    to project storage; call `…/materials/apply` to re-colour + republish the model."""
+    import json
+
+    from aec_data import materials as mats  # type: ignore
+
+    from .. import storage
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    overrides = body.get("overrides", body) if isinstance(body, dict) else {}
+    storage.put(_PALETTE_KEY.format(pid=pid), json.dumps(overrides).encode())
+    return {"overrides": overrides, "effective": mats.palette_to_json(mats.merge_palette(overrides))}
+
+
+@router.post("/projects/{pid}/materials/apply")
+def apply_material_palette(pid: str, db: Session = Depends(get_db),
+                           actor: str = Depends(require_role("editor"))):
+    """Re-colour the model with the saved palette overrides and republish it: load the source IFC,
+    re-run the M1 material/surface-style assignment with the merged palette, write it back, and kick
+    the convert→fragments + reindex so the viewer shows the new colours. No-op message if no model."""
+    import json
+    import tempfile
+
+    import ifcopenshell
+
+    from aec_data import materials as mats  # type: ignore
+
+    from .. import storage
+    from .authoring import _publish_bg
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    try:
+        raw = storage.get(f"{pid}/source.ifc")
+    except Exception:                             # noqa: BLE001 — nothing published yet
+        raise HTTPException(400, "no source model to re-colour — generate or upload one first")
+    try:
+        overrides = json.loads(storage.get(_PALETTE_KEY.format(pid=pid)))
+    except Exception:                             # noqa: BLE001
+        overrides = {}
+    # /app is read-only in prod → work entirely in a tempfile, then push back to storage
+    with tempfile.NamedTemporaryFile(suffix=".ifc", delete=False) as tf:
+        tf.write(raw)
+        tmp = tf.name
+    try:
+        model = ifcopenshell.open(tmp)
+        counts = mats.apply_palette(model, mats.merge_palette(overrides))
+        model.write(tmp)
+        with open(tmp, "rb") as fh:
+            storage.put(f"{pid}/source.ifc", fh.read())
+    finally:
+        import os
+        os.unlink(tmp)
+    _publish_bg(pid)
+    return {"applied": counts, "publish": "running"}
+
+
 @router.get("/projects/{pid}/program/summary")
 def program_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Concept space-program rollup + adjacency graph: total/net/gross area, mix by use, the node/edge

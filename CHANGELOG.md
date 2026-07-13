@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.225 — Material editor: a per-project palette you can edit and re-apply
+
+The M1 material/colour assignment (each IFC element class → an IfcMaterial + IfcSurfaceStyle colour, so
+the model renders in real materials instead of flat grey) is now **editable per project**. New palette
+helpers — `materials.palette_to_json()` / `palette_from_json()` / `merge_palette()` — expose the built-in
+per-category table as JSON and let a project override any class's material name, category, colour, or
+transparency; only the changed classes are stored, the rest fall back to the default.
+
+Endpoints (design router): `GET …/materials/palette` returns the default table, the saved overrides, and
+the **effective** merged palette; `PUT …/materials/palette` persists overrides to project storage; and
+`POST …/materials/apply` loads the source IFC, re-runs the material/surface-style assignment with the
+merged palette (in a tempfile — `/app` is read-only in prod), writes it back, and kicks the
+convert→fragments reindex so the viewer shows the new colours. A **🎨 Materials** destination in the Design
+workspace's Model & standards group renders the editable palette table (colour picker + transparency +
+material name per class) with Save, Apply + republish, and Reset controls.
+
+Engine `services/data/aec_data/materials.py`; `routers/design.py` endpoints; `portal/panels/materials.ts`.
+Tests: `test_design_phase` — GET returns default + effective, PUT persists an override, GET reflects it
+(unchanged classes keep the default), apply 400s with no source model.
+
 ## v0.3.224 — Actual-vs-takt production tracking: the LOB chart learns the real ascent
 
 The line-of-balance takt plan (trades chasing floor-to-floor at a steady rate) now measures **actual
