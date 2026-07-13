@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.241**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.242**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
@@ -103,9 +103,8 @@ customer need. Each line ends with its archive source in parentheses for the ful
   home — Design (model-health / phase-progress), Developer (RE register + deal returns), and now **Finance**
   (returns + capital stack + investor docs, a new Home tab in the finance workspace). The GC keeps its
   on-schedule/on-budget PX dashboard.
-- **Nav density** — ✅ **per-stage collapse memory DONE (v0.3.230)**: nav stage groups are collapsible
-  `<details>` that persist folded per `workspace:stage`; the active destination's stage stays open.
-  *Remainder:* a denser summary mode for the multi-card command-center panels.
+- **Nav density** — ✅ **DONE**: per-stage collapse memory (v0.3.230) + a **command-center density toggle**
+  (v0.3.242, ⊞ Comfortable / ⊟ Compact, persisted) that tightens the multi-card home dashboards. Bucket cleared.
 - **A11y** — keep verifying new tabs/dashboards (roles, focus order, contrast) as workspaces grow.
   *(v0.3.229 audited this cycle's new panels — SVG accessible names, labeled form controls, `scope` headers,
   a reusable `.sr-only`; ongoing as more panels ship.)*
@@ -138,10 +137,12 @@ customer need. Each line ends with its archive source in parentheses for the ful
   licensed entity.* (Full decision in the Wave 8 §⑦ archive — [roadmap-completed.md](roadmap-completed.md).)
 
 **⑥ Intentional non-goals — documented rationale (not gaps)**
-- **In-browser IFC authoring** — Blender/Bonsai is the desktop editor by design (§L Pascal Editor); the
-  web app stays a viewer + edit-gated place-tools. **`.mpp` (MS Project) parsing** — proprietary OLE binary,
-  no reliable OSS reader; path is *Save As XML/CSV → import* (§L). **Custom Revit/Navisworks plugin** —
-  Autodesk's certified `revit-ifc` already covers it (§L).
+- ~~**In-browser IFC authoring**~~ — **REVERSED (2026-07): now a first-class, shipped capability.** The web
+  app is a genuine authoring tool — from-scratch models, GUID-stable draw/edit recipes, drag-to-move
+  edit-in-place, model browser, manage levels, selection sets (see the initiative banner above). Blender/Bonsai
+  remains an *optional* advanced/interop editor, no longer the required one. **`.mpp` (MS Project) parsing** —
+  proprietary OLE binary, no reliable OSS reader; path is *Save As XML/CSV → import* (§L). **Custom
+  Revit/Navisworks plugin** — Autodesk's certified `revit-ifc` already covers it (§L).
 - **A4/A5 portal-core split** — the catalog↔nav orchestration is deliberately coupled (favorites ↔ nav ↔
   persona events ↔ in-place DOM refresh); further extraction trades readability for indirection. The
   cleanly-separable pieces are already out (Wave 5).

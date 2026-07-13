@@ -716,6 +716,16 @@ body[data-cap-admin="off"] [data-cap="admin"] { display: none !important; }
 .kpi-click:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (max-width: 820px) { .dash-cols { grid-template-columns: 1fr; } }
 
+/* compact command-center density — a personal viewing preference (portal home dashboards).
+   Tightens padding, gaps and type so more fits on screen; no information is removed. */
+.dense .dash-card { padding: 5px 8px; margin-bottom: 6px; }
+.dense .dash-cols { gap: 10px; margin-top: 4px; }
+.dense .kpi-grid { gap: 4px; margin: 4px 0; }
+.dense .kpi { padding: 5px 4px; }
+.dense .kpi-v { font-size: 16px; }
+.dense .kpi-l { font-size: 9px; }
+.dense .section-title { margin: 2px 0 4px; }
+
 /* ball-in-court party pill (who owes the next action) */
 .ball-badge { display: inline-block; font-size: 10px; font-weight: 600; line-height: 15px;
   padding: 0 7px; border-radius: 9px; background: var(--accent-soft); color: var(--accent);

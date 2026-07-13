@@ -40,6 +40,17 @@ export function setStageCollapsed(key: string, collapsed: boolean): void {
   localStorage.setItem("portal-collapsed-stages", JSON.stringify([...s]));
 }
 
+/** Command-center density: "compact" tightens the multi-card home dashboards (less padding, smaller
+ *  type, secondary meta/progress lines hidden) for users who want more on screen at once. Default
+ *  "comfortable". Persisted globally (a personal viewing preference, not per project/persona). */
+export function readDensity(): "comfortable" | "compact" {
+  return localStorage.getItem("portal-density") === "compact" ? "compact" : "comfortable";
+}
+
+export function setDensity(d: "comfortable" | "compact"): void {
+  localStorage.setItem("portal-density", d);
+}
+
 /** Toggle a module's favorite flag; returns the updated set (already persisted). */
 export function toggleFav(key: string): Set<string> {
   const f = readFavs();

@@ -5,7 +5,7 @@ import { confirmModal, modalShell, promptModal } from "../ui/modal";
 import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
 import type { PanelContext } from "./panelContext";
-import { SECTIONS_BY_PERSONA, pushRecent, readCollapsedStages, readFavs, readRecents, setStageCollapsed, toggleFav } from "./prefs";
+import { SECTIONS_BY_PERSONA, pushRecent, readCollapsedStages, readDensity, readFavs, readRecents, setDensity, setStageCollapsed, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
 import { renderOperations, renderFca, renderSpine, renderResilience, renderEnergy, renderTurnover } from "./panels/operations";
 import { renderAiAssist, renderRiskReview } from "./panels/aiassist";
@@ -598,11 +598,33 @@ export class PortalUI {
 
   private renderIds() { return renderIds(this.panelCtx()); }
 
+  /** Reflect the persisted command-center density onto the portal root so `.dense …` CSS tightens
+   *  the home dashboards. Harmless on other views (module tables carry no dash-cards). */
+  private applyDensity() {
+    this.root.classList.toggle("dense", readDensity() === "compact");
+  }
+
   private async renderHome() {
     this.root.innerHTML = "";
     const pid = this.host.projectId()!;
     const root = this.root;
     const el = (tag: string, cls = "") => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
+
+    // command-center density: a compact/comfortable toggle that tightens the multi-card dashboards.
+    this.applyDensity();
+    const densRow = el("div"); densRow.style.cssText = "display:flex;justify-content:flex-end;margin-bottom:4px";
+    const densBtn = el("button", "tool-btn") as HTMLButtonElement;
+    densBtn.style.cssText = "font-size:11px;padding:2px 8px";
+    const paintDens = () => {
+      const compact = readDensity() === "compact";
+      densBtn.textContent = compact ? "⊟ Compact" : "⊞ Comfortable";
+      densBtn.title = compact ? "Switch to comfortable spacing" : "Switch to a denser command center";
+      densBtn.setAttribute("aria-pressed", String(compact));
+    };
+    densBtn.onclick = () => { setDensity(readDensity() === "compact" ? "comfortable" : "compact"); this.applyDensity(); paintDens(); };
+    paintDens();
+    densRow.append(densBtn);
+    root.append(densRow);
 
     // cross-module search
     const search = el("input") as HTMLInputElement;

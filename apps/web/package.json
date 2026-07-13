@@ -1,6 +1,6 @@
 {
   "name": "@aec/web",
-  "version": "0.3.241",
+  "version": "0.3.242",
   "private": true,
   "type": "module",
   "engines": {

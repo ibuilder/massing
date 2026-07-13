@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.242 — Command-center density toggle (compact / comfortable)
+
+The role home dashboards (GC executive band, Developer/Finance/Design command centers) get a
+**⊞ Comfortable / ⊟ Compact** toggle. Compact tightens card padding, grid gaps and KPI type so more of
+the dashboard fits on one screen — no information is removed, just the whitespace. The choice persists
+globally (a personal viewing preference, like the per-stage nav collapse memory). Clears the last
+open item in the roadmap's UX/nav-density bucket.
+
 ## v0.3.241 — Modeling program, phase 5: edit-in-place (drag-to-move gizmo)
 
 Elements can now be **moved by dragging**, not just by typing an offset. Turn on **Edit in place** (◈
