@@ -79,6 +79,25 @@ assert bl["specialty"]["specialty_irr"] == sp.proforma(params, start_year=2028)[
 # guarded when there are no equity cash flows
 assert sp.blended_irr([], params)["blended_irr"] is None
 
+# --- U4 depth: Monte-Carlo the specialty risk discount ----------------------
+mc_vars = [{"path": "risk_discount", "dist": {"kind": "triangular", "low": 0.2, "mode": 0.35, "high": 0.6}},
+           {"path": "pfal.green_price_lb", "dist": {"kind": "normal", "mean": 5.0, "std": 1.0, "min": 2.0}}]
+mc = sp.monte_carlo(re_cf, params, mc_vars, iterations=200, seed=7)
+assert mc["metrics"]["blended_irr"]["n"] == 200 and mc["metrics"]["specialty_irr"]["n"] > 0, mc
+mcb = mc["metrics"]["blended_irr"]
+assert mcb["p5"] <= mcb["p50"] <= mcb["p95"] and "histogram" in mcb, mcb   # ordered percentiles + histogram
+# reproducible with a fixed seed
+assert sp.monte_carlo(re_cf, params, mc_vars, iterations=200, seed=7)["metrics"]["blended_irr"]["p50"] == mcb["p50"]
+# target-probability readout
+mct = sp.monte_carlo(re_cf, params, mc_vars, iterations=200, seed=7, targets={"blended_irr": 0.15})
+assert 0.0 <= mct["metrics"]["blended_irr"]["prob_at_least"] <= 1.0, mct
+# a harsher risk-discount band underwrites less → a lower median blended IRR than a mild band
+harsh = sp.monte_carlo(re_cf, params, [{"path": "risk_discount", "dist": {"kind": "uniform", "low": 0.6, "high": 0.9}}],
+                       iterations=200, seed=7)
+mild = sp.monte_carlo(re_cf, params, [{"path": "risk_discount", "dist": {"kind": "uniform", "low": 0.0, "high": 0.2}}],
+                      iterations=200, seed=7)
+assert harsh["metrics"]["blended_irr"]["p50"] <= mild["metrics"]["blended_irr"]["p50"], "harsher haircut -> lower IRR"
+
 # --- U5: underwriting guardrails flag implausible returns ----------------------------
 from aec_api import underwrite  # noqa: E402
 
@@ -144,6 +163,14 @@ with TestClient(app) as c:
     # blended-IRR endpoint: solve the RE deal, fold in the saved specialty params, report the lift
     br = c.post(f"/projects/{pid}/specialty/blended", json=deal).json()["blended"]
     assert br["re_only_irr"] is not None and br["blended_irr"] is not None and br["irr_lift"] is not None, br
+
+    # Monte-Carlo the specialty risk discount → distribution of blended IRR (endpoint)
+    mcbody = {"assumptions": deal,
+              "variables": [{"path": "risk_discount", "dist": {"kind": "triangular", "low": 0.2, "mode": 0.35, "high": 0.6}}],
+              "iterations": 200, "targets": {"blended_irr": 0.15}}
+    mr = c.post(f"/projects/{pid}/specialty/monte-carlo", json=mcbody).json()
+    bm = mr["metrics"]["blended_irr"]
+    assert bm["n"] == 200 and "prob_at_least" in bm and bm["p5"] <= bm["p95"], mr
 
 print(f"SPECIALTY OK - energy {sp.starter()['energy']['solar_sf']:,} sf solar -> {e['solar_panels']:,} panels "
       f"${e['capex']:,} capex; PFAL {f['towers']:,} towers -> ${f['annual_revenue']:,}/yr; "

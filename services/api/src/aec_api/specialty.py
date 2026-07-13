@@ -192,6 +192,51 @@ def blended_irr(re_equity_cashflows: list[dict[str, Any]], params: dict[str, Any
     }
 
 
+def monte_carlo(re_equity_cashflows: list[dict[str, Any]], params: dict[str, Any],
+                variables: list[dict[str, Any]], iterations: int = 500, seed: int = 42,
+                years: int = 10, ramp_years: int = 3, ramp_start: float = 0.4,
+                terminal_cap: float = 0.10, targets: dict[str, float] | None = None) -> dict[str, Any]:
+    """Monte-Carlo the **specialty risk**: sample specialty drivers (the U4 `risk_discount` haircut,
+    produce prices, …) and report the distribution of **blended deal IRR** and **specialty-only IRR**.
+    Answers 'once the haircut and price volatility are uncertain, how much does the farm/energy actually
+    help — and how often does it hurt?' Each `variables` entry is {path, dist} where `path` is a dotted
+    key into the specialty params (e.g. 'risk_discount', 'pfal.green_price_lb') and `dist` is a
+    monte-carlo distribution (normal/uniform/triangular, optionally clamped). Reuses the proforma MC
+    sampler + summary so distributions and percentile readouts match the rest of the tool."""
+    import copy
+
+    import numpy as np
+
+    from .proforma.monte_carlo import _sample, _summary
+    from .proforma.sensitivity import _set_path
+
+    rng = np.random.default_rng(seed)
+    targets = targets or {}
+    samples = {v["path"]: _sample(rng, v["dist"], iterations) for v in variables}
+    blended: list[float] = []
+    spec: list[float] = []
+    for i in range(iterations):
+        p = copy.deepcopy(params)
+        for path, arr in samples.items():
+            try:
+                _set_path(p, path, float(arr[i]))
+            except (KeyError, IndexError, TypeError):
+                pass                                       # a path absent from these params is skipped
+        bl = blended_irr(re_equity_cashflows, p, years=years, ramp_years=ramp_years,
+                         ramp_start=ramp_start, terminal_cap=terminal_cap)
+        blended.append(bl["blended_irr"] if bl["blended_irr"] is not None else float("nan"))
+        sp_irr = (bl.get("specialty") or {}).get("specialty_irr")
+        spec.append(float(sp_irr) if sp_irr is not None else float("nan"))
+    return {
+        "iterations": iterations, "seed": seed,
+        "variables": [{"path": v["path"], "dist": v["dist"]} for v in variables],
+        "metrics": {
+            "blended_irr": _summary(np.array(blended, dtype=float), targets.get("blended_irr")),
+            "specialty_irr": _summary(np.array(spec, dtype=float), targets.get("specialty_irr")),
+        },
+    }
+
+
 def to_proforma_deltas(params: dict[str, Any]) -> dict[str, Any]:
     """How the specialty assets adjust a proforma: a hard-cost capex line, plus operations deltas.
     Uses the **risk-adjusted** (underwritten) revenue/offset — not the gross potential — so the deal

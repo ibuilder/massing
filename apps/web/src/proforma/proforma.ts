@@ -1179,6 +1179,34 @@ export class ProformaUI {
           } catch (e) { pnlOut.innerHTML = `<div class="meta" style="color:var(--status-crit)">${(e as Error).message}</div>`; }
         };
         bodyEl.appendChild(pnl); bodyEl.appendChild(pnlOut);
+
+        // U4 depth: Monte-Carlo the risk discount → distribution of blended deal IRR
+        const risk = document.createElement("button"); risk.className = "tool-btn"; risk.style.cssText = "margin:6px 0 0 6px";
+        risk.textContent = "Risk sim";
+        risk.title = "Monte-Carlo the specialty risk discount → distribution of blended deal IRR";
+        risk.onclick = async () => {
+          pnlOut.innerHTML = `<span class="meta">running 500 risk draws…</span>`;
+          try {
+            await this.api.saveSpecialty(pid, params);
+            const r = await this.api.specialtyMonteCarlo(pid, {
+              assumptions: this.a,
+              variables: [
+                { path: "risk_discount", dist: { kind: "triangular", low: 0.2, mode: 0.35, high: 0.6 } },
+                { path: "pfal.green_price_lb", dist: { kind: "normal", mean: 5.0, std: 1.0, min: 2.0 } },
+              ],
+              iterations: 500, targets: { blended_irr: 0.15 },
+            });
+            const b = r.metrics.blended_irr, s = r.metrics.specialty_irr;
+            if (!b || !s) { pnlOut.innerHTML = `<div class="meta">no risk-sim result</div>`; return; }
+            const prob = b.prob_at_least == null ? "—" : `${Math.round(b.prob_at_least * 100)}%`;
+            pnlOut.innerHTML =
+              `<div>Blended IRR across ${r.iterations} draws (risk discount 20–60%, greens $/lb σ=1):</div>`
+              + `<div style="margin-top:2px">P5 <b>${pct(b.p5)}</b> · P50 <b>${pct(b.p50)}</b> · P95 <b>${pct(b.p95)}</b>`
+              + ` · P[≥15%] <b>${prob}</b></div>`
+              + `<div class="meta" style="margin-top:2px">specialty-only IRR: P5 ${pct(s.p5)} · P50 ${pct(s.p50)} · P95 ${pct(s.p95)}</div>`;
+          } catch (e) { pnlOut.innerHTML = `<div class="meta" style="color:var(--status-crit)">${(e as Error).message}</div>`; }
+        };
+        bodyEl.appendChild(risk);
       };
       paint(resp.summary);
     }).catch(() => { bodyEl.innerHTML = `<div class="meta">specialty assets unavailable (API offline)</div>`; });

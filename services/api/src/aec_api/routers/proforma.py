@@ -543,6 +543,41 @@ def run_monte_carlo(body: MonteCarloIn):
                        body.iterations, body.seed, body.metrics, body.targets)
 
 
+class SpecialtyMonteCarloIn(BaseModel):
+    assumptions: Assumptions                              # the real-estate deal (for the equity stream)
+    variables: list[MonteCarloVar] = Field(min_length=1)  # dotted specialty paths, e.g. "risk_discount"
+    iterations: int = Field(default=500, ge=100, le=3000)
+    seed: int = 42
+    targets: dict[str, float] | None = None               # e.g. {"blended_irr": 0.15}
+    years: int = 10
+    ramp_years: int = 3
+    ramp_start: float = 0.4
+    terminal_cap: float = 0.10
+
+
+@router.post("/projects/{pid}/specialty/monte-carlo")
+def run_specialty_monte_carlo(pid: str, body: SpecialtyMonteCarloIn, db: Session = Depends(get_db),
+                              _sec: str = Depends(rbac.require_role("viewer"))):
+    """Monte-Carlo the **specialty risk discount** (U4): sample the haircut / produce prices on the
+    saved specialty params, blend into the deal's equity each draw, and return the distribution of
+    **blended deal IRR** and **specialty-only IRR** (percentiles, P[≥target], histogram). Quantifies
+    'how much does the farm/energy actually help once its risk is uncertain — and how often it hurts?'"""
+    from .. import specialty as sp
+    from ..models import Project as _P
+    p = db.get(_P, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    params = p.dev_specialty or sp.starter()
+    result = solve(body.assumptions.model_dump())
+    cf = result.get("cash_flow", {})
+    re_equity = [{"date": d, "amount": amt} for d, amt in zip(cf.get("dates", []), cf.get("equity", []))]
+    return sp.monte_carlo(re_equity, params,
+                          [{"path": v.path, "dist": v.dist.model_dump(exclude_none=True)} for v in body.variables],
+                          iterations=body.iterations, seed=body.seed, years=body.years,
+                          ramp_years=body.ramp_years, ramp_start=body.ramp_start,
+                          terminal_cap=body.terminal_cap, targets=body.targets)
+
+
 # --- scenarios (persisted, versioned) ---------------------------------------
 class ScenarioIn(BaseModel):
     name: str

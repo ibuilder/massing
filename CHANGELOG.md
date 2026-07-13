@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.223 — Monte-Carlo the specialty risk discount → distribution of blended deal IRR
+
+Closes the §U4 thread. The specialty **risk discount** (the U4 haircut that keeps a farm/energy operating
+business from being underwritten like de-risked real estate) is now a **Monte-Carlo driver**, not a single
+point. New `specialty.monte_carlo()` samples specialty params (`risk_discount`, produce prices, any dotted
+path) across a distribution (normal / uniform / triangular, optionally clamped), blends each draw into the
+deal's equity, and returns the **distribution of blended deal IRR and specialty-only IRR** — percentiles
+(P5…P95), mean/std, P[metric ≥ target], and a histogram. It reuses the proforma Monte-Carlo sampler +
+summary, so the readouts match the rest of the risk tooling, and it's reproducible under a fixed seed.
+
+Answers the real question: *once the haircut and price volatility are uncertain, how much does the
+farm/energy actually help — and how often does it hurt?* A harsher haircut band measurably lowers the
+blended-IRR distribution. Endpoint `POST …/specialty/monte-carlo` (assumptions + variables + iterations +
+targets); a **"Risk sim"** button in the Specialty panel runs 500 draws and shows the blended-IRR P5/P50/P95
++ P[≥15%] and the specialty-only spread.
+
+Engine `specialty.monte_carlo()` (reuses `proforma.monte_carlo._sample`/`_summary` +
+`proforma.sensitivity._set_path`). Tests: `test_specialty` — ordered percentiles + histogram, seed
+reproducibility, target-probability readout, harsher-haircut → lower blended IRR, plus the endpoint
+end-to-end. **The full §U underwriting-depth bucket (exit-cap comps · specialty P&L + ramp · blended IRR ·
+Monte-Carlo risk) is now cleared.**
+
 ## v0.3.222 — Specialty assets modelled over time: multi-year P&L + production ramp + blended IRR
 
 The on-site energy/vertical-farm business is now underwritten as an **operating business over time**, not

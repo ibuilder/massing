@@ -9,7 +9,7 @@ export * from "./types";
 import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DocFolderNode, DrawingMarkupItem, DueFeed, ElementProps, EnergyResult, FinancialStatements,
-  IntegrationGroup, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloResult,
+  IntegrationGroup, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
   NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole,
   RecordAttachmentMeta, RelatedRecords, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, StampTemplate, SyncScheduleItem,
   Topic, Vec3, Viewpoint, WorkItem,
@@ -2637,6 +2637,15 @@ export class ApiClient extends HttpCore {
     const qs = q.toString();
     return this.json<{ blended: SpecialtyBlended }>(`/projects/${pid}/specialty/blended${qs ? "?" + qs : ""}`,
       { method: "POST", body: JSON.stringify(assumptions) });
+  }
+  /** Monte-Carlo the specialty risk discount → distribution of blended & specialty IRR. */
+  specialtyMonteCarlo(pid: string, body: {
+    assumptions: unknown; variables: { path: string; dist: Record<string, unknown> }[];
+    iterations?: number; seed?: number; targets?: Record<string, number>;
+    years?: number; ramp_years?: number; ramp_start?: number; terminal_cap?: number;
+  }) {
+    return this.json<{ iterations: number; metrics: Record<string, MonteCarloMetric> }>(
+      `/projects/${pid}/specialty/monte-carlo`, { method: "POST", body: JSON.stringify(body) });
   }
   /** Proforma seed metrics derived from the project's source IFC (areas / space + storey counts). */
   proformaModelMetrics(pid: string) {
