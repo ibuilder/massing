@@ -130,34 +130,42 @@
   </figure>
 
   <h2 id="draft">Tutorial ✏️ · Draft &amp; author the model</h2>
-  <p class="sub">Build and edit the model itself — a real family library across all three disciplines,
-    authored as standards-compliant IFC.</p>
+  <p class="sub">A genuine in-browser BIM authoring tool — start from nothing, draw and edit real
+    standards-compliant IFC across all three disciplines, and coordinate it. Not just a viewer.</p>
   <ol class="steps">
-    <li>In the <b>Model</b> workspace (with a project + source IFC loaded), open the <b>Grid &amp; Levels</b>
-      tool and click <b>⊞ Load grid + levels</b>. The grid axes (A/B/C × 1/2/3) draw with bubbles; pick the
-      <b>active level</b> from the dropdown — that sets the work-plane your elements land on.</li>
-    <li>Open the <b>Draft — author elements</b> tool. Choose a discipline tab — <b>Architectural ·
-      Structural · MEP · Site</b> — then an element or family and set its <b>named parameters</b>.</li>
-    <li>Click <b>▶ Place</b> and click in the model. Points snap to grid intersections; hold <b>Shift</b>
-      for ortho; for slabs/ceilings click the corners and <b>double-click</b> to close; press <b>Esc</b> to
-      cancel. An <b>amber proxy</b> shows instantly, then real geometry appears as the server authors it.</li>
+    <li><b>Start from scratch.</b> Hit <b>New model</b> and pick <b>Blank</b> (levels + a ground datum) or a
+      <b>starter template</b> — office bay, residential floor, or warehouse — all fully editable. It publishes
+      a real IFC in about a second, ready to draw on. (Or open a sample / your own IFC to edit an existing model.)</li>
+    <li>Open the <b>Grid &amp; Levels</b> tool → <b>⊞ Load grid + levels</b>. The grid axes (A/B/C × 1/2/3)
+      draw with bubbles; pick the <b>active level</b> from the dropdown to set the work-plane. Use
+      <b>✎ Manage levels</b> to rename a level or set its elevation — edits are re-authored by storey GUID.</li>
+    <li>Open the <b>Draft</b> panel — the single authoring surface. Choose a discipline tab — <b>Architectural ·
+      Structural · MEP · Site</b> — pick an element or family, set its <b>named parameters</b>, then click in the
+      model. Points snap to grid intersections; hold <b>Shift</b> for ortho; for slabs/ceilings click the corners
+      and <b>double-click</b> to close; <b>Esc</b> cancels. An <b>amber proxy</b> shows instantly, then real
+      geometry appears as the server authors it. <b>➕ Add rooms / spaces</b> grids IfcSpace rooms over each floor.</li>
     <li>The library spans <b>walls, slabs, roofs, coverings</b> (ceilings, floor tile, wood flooring,
       cladding) and <b>railings</b>; <b>steel W-shapes, rebar, columns, beams and footings</b>; and full
       <b>MEP</b> — duct/pipe/cable-tray/cable runs (with connection ports + distribution systems), fittings
       (elbows/tees), electrical panels, outlets, lights, diffusers, floor drains, plumbing fixtures, fire
       alarms, smoke detectors and telecom outlets.</li>
-    <li>Everything is authored as <b>native IFC</b> (correct entity + predefined type + standard property
-      sets, e.g. a steel section as a real <b>IfcIShapeProfileDef</b>), written back server-side with
-      <b>stable GUIDs</b> — so it round-trips with any other openBIM tool. To edit a placed element, select
-      it and use the toolbar (move / rotate / copy / property edit / add door or window).</li>
-    <li>Select any element to open its <b>properties panel</b>, then expand <b>✎ Edit / Classify</b> to set a
-      typed <b>Pset property</b> (string / number / boolean) or attach a <b>classification reference</b> —
-      <b>Uniclass 2015, OmniClass, Uniformat II</b> or MasterFormat. The code writes back into the IFC as a
-      standard <b>IfcClassificationReference</b>, so it carries into takeoff, cost and asset systems.</li>
+    <li><b>Edit in place.</b> Select an element and turn on <b>◈ Edit in place</b> — a drag <b>gizmo</b> appears
+      with X/Y/Z handles and a live ΔE/ΔN/ΔZ readout; drag to move it (grid-snap applies) and it re-authors on
+      release. Or use the toolbar for typed <b>move / rotate / copy / add door or window</b>. Every edit rewrites
+      the IFC by <b>stable GUID</b>, so every linked record (RFIs, issues, verifications) survives.</li>
+    <li><b>Find and organize.</b> The <b>model browser</b> (Tree) groups the model by <b>level / discipline /
+      IFC class / type-family</b> and <b>searches</b> across name, GUID, class, type and discipline. Save any
+      search as a named <b>selection set</b> (Layers panel) and <b>isolate</b> it in one click — “Show all” clears it.</li>
+    <li>Select any element to open its docked <b>📋 Properties</b> panel (Type/Instance header), then expand
+      <b>✎ Edit / Classify</b> to set a typed <b>Pset property</b> (string / number / boolean) or attach a
+      <b>classification reference</b> — <b>Uniclass 2015, OmniClass, Uniformat II</b> or MasterFormat. It writes
+      back into the IFC as a standard <b>IfcClassificationReference</b>, carrying into takeoff, cost and asset systems.</li>
+    <li>Coordinate: open <b>💥 Clash &amp; coordination</b> to run a federated or single-model clash, review the
+      hits, and promote them to <b>BCF issues</b> — all on the model you just authored.</li>
   </ol>
   <div class="note">IFC stays the source of truth: the browser captures your intent, the server authors
-    the geometry and re-streams it. Heavy parametric authoring can also be driven on the desktop via
-    Blender + Bonsai over the same operations.</div>
+    the geometry and re-streams it. Everything round-trips with any other openBIM tool. Heavy parametric
+    authoring can also be driven on the desktop via Blender + Bonsai over the same operations.</div>
 
   <h2 id="generate">Tutorial 2 · Generate a building from zoning ⭐</h2>
   <p class="sub">The headline feature: turn a lot + zoning rules into a real building and a first-cut deal.</p>

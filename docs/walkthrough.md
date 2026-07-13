@@ -18,10 +18,11 @@ actions + timing) or follow it as a **written click-through**. Pairs with the
 *On screen:* the landing page hero, then cut into the app on the Model workspace.
 
 **0:15 — One model, three workspaces**
-> "Everything keys off the building's IFC model. Three workspaces — Model, Construction, Finance —
-> share it."
-*On screen:* click between the Model / Construction / Finance tabs; open a sample in the viewer,
-orbit once, click an element to show properties.
+> "Everything keys off the building's IFC model — and you can author it right here in the browser, not
+> just view it. Three workspaces — Model, Construction, Finance — share it."
+*On screen:* click between the Model / Construction / Finance tabs; open a sample, orbit once, click an
+element to show its docked Properties; flash the authoring rail — **New model**, the **Draft** tools,
+**◈ Edit in place** dragging an element, the **model browser** grouping by discipline.
 
 **0:35 — Generate a building from zoning ⭐**
 > "Start from nothing but a lot and its zoning. Enter the lot, FAR, setbacks, a height limit…"
@@ -70,15 +71,22 @@ element for its **5D** cost readout, then the **cost heatmap** coloring the buil
 ---
 
 ## Written click-through (no narration)
-1. **Model** workspace → **Open ▾ → a sample** → orbit, click an element, open the tree.
-2. **Finance → Generate from zoning** → enter lot/FAR/setbacks → **Estimate yield** → **Generate IFC model + apply**.
-3. **Model** → see the building. **Finance → Test Fit → Compare / ⚡ Optimize**.
-4. **Finance** → cost budget → **Apply** → **Sources & Uses** → tune drivers → read the returns bar.
-5. **📄 Investment memo** + **📊 Pitch deck** PDFs. Then the capital chain: **sync the GMP** to hard cost, model **construction-loan draws**, export the **lender draw-request** PDF.
-6. **＋ New** project → **Construction** → create an RFI → **Schedule → 4D sequence** scrub → **Ask AI**.
-7. **Schedule → Budget** (GMP table + cash-flow) → back in **Model**, click an element for its **5D** cost → open the **cost heatmap**. Generate a **pay app (G702/G703)**.
-8. Invite a teammate (account menu) with a **capability** + **party** role (multi-user).
-9. **Punchlist** verify → **COBie / turnover package** export.
+1. **Model** workspace → **Open ▾ → a sample** → orbit, click an element for its docked **📋 Properties**
+   (Type/Instance). Open the **model browser** (Tree): switch **group-by** (level / discipline / IFC
+   class / type) and **search** to filter; click a leaf to select. Save a search as a **selection set**
+   (Layers panel) and isolate it in one click.
+2. **Author a model from scratch:** **New model** (blank or a starter template) → the **Draft** panel
+   draws walls / columns / slabs / rooms on the active level (grid-snap). Turn on **◈ Edit in place**,
+   select an element, and **drag the gizmo** to move it. **Manage levels** to rename or set elevations.
+   Run **💥 Clash** to coordinate. Every edit re-authors the IFC by GUID, so links survive.
+3. **Finance → Generate from zoning** → enter lot/FAR/setbacks → **Estimate yield** → **Generate IFC model + apply**.
+4. **Model** → see the building. **Finance → Test Fit → Compare / ⚡ Optimize**.
+5. **Finance** → cost budget → **Apply** → **Sources & Uses** → tune drivers → read the returns bar.
+6. **📄 Investment memo** + **📊 Pitch deck** PDFs. Then the capital chain: **sync the GMP** to hard cost, model **construction-loan draws**, export the **lender draw-request** PDF.
+7. **＋ New** project → **Construction** → create an RFI → **Schedule → 4D sequence** scrub → **Ask AI**.
+8. **Schedule → Budget** (GMP table + cash-flow) → back in **Model**, click an element for its **5D** cost → open the **cost heatmap**. Generate a **pay app (G702/G703)**.
+9. Invite a teammate (account menu) with a **capability** + **party** role (multi-user).
+10. **Punchlist** verify → **COBie / turnover package** export.
 
 ## Recording tips
 - 1080p, hide the cursor trail, slow the mouse. ~3 min keeps attention; a 60-sec cut (scenes at

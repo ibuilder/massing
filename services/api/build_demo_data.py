@@ -517,6 +517,8 @@ with TestClient(app) as c:
     for path in ("/model/capabilities", "/model/step-summary", "/model/query", "/model/query/views",
                  "/lod/assessment", "/lod/matrix", "/envelope/audit", "/mep/model-extract",
                  "/naming/audit", "/naming/conventions", "/model/columnar/stats", "/model/grid",
+                 # model browser (tree group-by/search + selection sets) + the level manager read these
+                 "/elements?limit=5000", "/drawings/storeys",
                  "/model/columnar/aggregate", "/drawings/sync-status",
                  "/documents/tree", "/documents/health", "/documents/template",
                  "/documents/by-role?role=Superintendent", "/documents/phase-gaps?phase=CD",

@@ -1,4 +1,4 @@
-# Massing — viewer · GC portal · proforma
+# Massing — BIM modeling · GC portal · proforma
 
 ![Massing — one IFC model from acquisition to turnover](docs/img/og-image.png)
 
@@ -10,10 +10,12 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Live demo](https://img.shields.io/badge/demo-in%20browser-33d17a)](https://massing.build/app/)
 
-> **Open, self-hosted, IFC-native AEC platform.** A web **BIM viewer + modeling**, a **near-100-module
-> GC portal** (RFIs, pay apps, CPM schedule, TRIR), and a **development proforma** — **one model, from
-> land acquisition through operations.** Generate a building from a zoning envelope, then coordinate,
-> draw, schedule, underwrite & operate it. Built on **That Open + IfcOpenShell**. **$0 to run.**
+> **Open, self-hosted, IFC-native AEC platform.** A genuine **in-browser BIM modeling tool** (author a
+> model from scratch — blank or a template — draw and drag-edit real IFC by GUID, then coordinate), a
+> **near-100-module GC portal** (RFIs, pay apps, CPM schedule, TRIR), and a **development proforma** —
+> **one model, from land acquisition through operations.** Generate a building from a zoning envelope, or
+> model it by hand; then coordinate, schedule, underwrite & operate it. Built on **That Open +
+> IfcOpenShell**. **$0 to run.**
 
 **What it is** — three pillars on one IFC-keyed model, switched by a Model / Construction / Finance bar:
 
@@ -55,7 +57,9 @@ pay app, COBie, work order, meter reading) tied to the same GlobalIds.
 - **openBIM standards (ISO 19650)** — a Common Data Environment (WIP → Shared → Published →
   Archived), information-requirements register (EIR/BEP/AIR), model-quality scoring (IDS compliance,
   LOIN, export health, bSDD), a 10-category BIM-KPI scorecard, and standards-compliance checks.
-- **BIM authoring + coordination** — in-viewer modeling, clash detection, IDS validation.
+- **BIM authoring + coordination** — from-scratch in-browser modeling (blank/template start, Draft
+  toolkit, drag-to-move edit-in-place, manage levels, model browser with group-by/search, selection
+  sets), clash detection, IDS validation.
 - **AI over the model** — an MCP server so external agents (Claude Desktop) can drive the project,
   drawing-sheet extraction, and grounded standards experts. Offline-first; nothing fabricated.
 - **Construction management** — RFIs, submittals, change orders, pay apps, 4D/5D.
@@ -88,13 +92,17 @@ Highlights, all **built and verified** in this repo unless noted:
 - **Data export** — QTO, COBie, space schedules → XLSX.
 - **2D documentation** — dimensioned grid **plans** (grid derived from columns), **sections**,
   **elevations** (N/S/E/W) with level lines, and composed **PDF sheets** with title blocks.
-- **Authoring round-trip (in-viewer modeling)** — a full toolbar of authoring ops, each a
+- **Authoring round-trip (in-browser modeling)** — a full toolkit of authoring ops, each a
   server-side `ifcopenshell` recipe → background republish (reconvert + reindex). GUID-stable,
-  so pins/RFIs/clashes survive. **Create:** walls, slabs, columns, beams, roofs (sketch on the
-  model/grid). **Openings:** doors/windows void the host wall + fill it. **Edit:** delete,
-  move, rotate, copy, per-element Pset edit. **Drafting aids:** grid + corner snap, a 6-face
-  section box, a storey-levels overlay. Verified live end-to-end (upload IFC → add wall →
-  republish → updated `.frag` + reindex). Desktop GUI authoring is the Blender + Bonsai bridge.
+  so pins/RFIs/clashes survive. **Start:** a blank model (levels + ground datum) or a starter
+  template (office bay / residential floor / warehouse). **Create:** walls, slabs, columns, beams,
+  roofs, rooms/spaces (sketch on the model/grid). **Openings:** doors/windows void the host wall +
+  fill it. **Edit:** **drag-to-move edit-in-place** (transform gizmo + ghost preview), plus typed
+  delete / move / rotate / copy / per-element Pset edit. **Levels:** rename + set-elevation.
+  **Browse:** model tree grouped by level / discipline / class / type with search; named selection
+  sets you can isolate. **Drafting aids:** grid + corner snap, a 6-face section box, a storey-levels
+  overlay. Verified live end-to-end (new model → draw → edit-in-place → clash → export). Desktop GUI
+  authoring is the Blender + Bonsai bridge.
 - **Generative design — zoning → a fully-developed IFC building + proforma** — enter a municipal
   zoning envelope (lot, FAR, coverage, setbacks, height
   limit, floor-to-floor) and the platform computes the buildable program (footprint, floors, GFA,
