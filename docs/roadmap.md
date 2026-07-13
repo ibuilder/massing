@@ -11,13 +11,28 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
 > no from-scratch start; the backend authoring engine (~30 GUID-stable recipes) was already real. Reversing
-> the old "web = viewer, Blender = editor" non-goal. **Shipped:** P1 blank model from scratch + first-class
-> Author-mode surfacing (v0.3.231); P2 removed the redundant legacy place buttons (~90 lines) — the Draft
-> panel is the single authoring surface (v0.3.232); P4 author-ready **template picker** (blank + office
-> bay/residential floor/warehouse, all editable) replaces the view-only samples as the start (v0.3.233);
-> P3 room/space authoring UI (➕ Add rooms/spaces via `add_spaces`; level-add already existed) (v0.3.234).
-> **Next:** P5 edit-in-place (drag/stretch) · P2b Author/Review tool grouping · level rename/set-elevation.
-> See the MODELING tasks.
+> the old "web = viewer, Blender = editor" non-goal (see [CLAUDE.md](../CLAUDE.md)). Research-informed by
+> Revit, BlenderBIM/Bonsai and Bluebeam panel layouts.
+>
+> **Shipped (P1–P4 authoring, P6a–c rail):**
+> - **P1** blank model from scratch (`generate_blank_ifc` + `POST …/model/blank`) + first-class Author-mode surfacing (v0.3.231)
+> - **P2** removed the redundant legacy place buttons + ~90 lines dead code — Draft panel is the single authoring surface (v0.3.232)
+> - **P3** room/space authoring UI (➕ Add rooms/spaces via `add_spaces`; level-add already existed) (v0.3.234)
+> - **P4** author-ready **template picker** — blank + office bay / residential floor / warehouse, all editable (v0.3.233)
+> - **P6a** cut the four duplicative rail sections (cost/schedule/drawings/energy → deep-links); removed ~700 lines (v0.3.235)
+> - **P6b** dedicated **💥 Clash & coordination** rail toggle (federated + single clash, clash list, metrics, promote-to-BCF) (v0.3.236)
+> - **P6c** rail re-clustered **Navigate / Author / Coordinate** (v0.3.237)
+>
+> **Open — tracked here:**
+> - **P5 — edit-in-place** (drag/stretch/move geometry directly, vs click-place + full republish). The biggest
+>   "feels like a real modeler" upgrade and the most interaction-heavy — needs a focused design pass. *(task #360)*
+> - **P6d — docked Properties panel** (Revit-style **Type vs Instance** split). Properties render richly today
+>   in a *floating* `#props` panel on selection; docking it into the rail as its own toggle is the polish left.
+> - **Model-browser groupings** — group the model tree by IFC class / discipline / system + search (Revit
+>   Project Browser / Bonsai spatial-decomposition parity).
+> - **Level rename / set-elevation** UI — recipes exist (`rename_storey`, `set_storey_elevation`); needs
+>   per-storey GUID plumbing in the levels API.
+> - **Selection sets** — named saved selections in the Visibility panel (Navisworks/Bluebeam pattern).
 
 > **The product feature roadmap, the code-quality/hardening initiative, AND the Wave 8 field-research
 > upgrades are all effectively cleared.** Every headline feature theme shipped (generative design + Test
