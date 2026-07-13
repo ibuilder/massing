@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.241 — Modeling program, phase 5: edit-in-place (drag-to-move gizmo)
+
+Elements can now be **moved by dragging**, not just by typing an offset. Turn on **Edit in place** (◈
+in the model toolbar), select an element, and a Blender/Revit-style **transform gizmo** appears on it
+with X / Y / Z handles; a translucent amber **ghost box** follows the drag for instant feedback, and a
+live ΔE / ΔN / ΔZ readout shows the move. On release the world-space delta is mapped to the GUID-stable
+`move_element` recipe and the model republishes — so the moved element keeps its identity and every link
+(RFIs, issues, verifications) to it survives. Grid-snap applies to the drag; the gizmo re-attaches to the
+element after the move so you can nudge it again. Camera orbit is suspended while a handle is dragged.
+
+Verified live against the loaded federated model: the gizmo constructs, attaches its ghost, cleans up on
+hide/dispose, and the world→recipe axis remap is correct (Δx→E, −Δz→N, Δy→Z). This completes the
+in-browser modeling initiative's tracked backlog (P1–P6 + model browser, manage levels, selection sets,
+and edit-in-place). Stretch/resize of parametric geometry remains a future enhancement.
+
 ## v0.3.240 — Modeling program: manage levels + named selection sets
 
 Two model-management tools land in the rail. **Manage levels** (Tools ▸ Grid & Levels) lists every

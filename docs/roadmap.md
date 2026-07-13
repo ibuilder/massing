@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.240**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.241**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
@@ -14,7 +14,13 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 > the old "web = viewer, Blender = editor" non-goal (see [CLAUDE.md](../CLAUDE.md)). Research-informed by
 > Revit, BlenderBIM/Bonsai and Bluebeam panel layouts.
 >
-> **Shipped (P1–P4 authoring, P6a–d rail):**
+> **Status: the tracked backlog is cleared** — P1–P6 plus the model browser, manage-levels, selection
+> sets, and edit-in-place have all shipped. The Model workspace is now a genuine authoring+coordination
+> program (create from scratch → draw/edit by GUID-stable recipe → drag-to-move → clash/coordinate), not a
+> viewer with buttons. Remaining is a future enhancement, not a tracked gap: **parametric stretch/resize**
+> (drag an element's extents, not just its position).
+>
+> **Shipped (P1–P5 authoring, P6a–d rail + browser/levels/sets):**
 > - **P1** blank model from scratch (`generate_blank_ifc` + `POST …/model/blank`) + first-class Author-mode surfacing (v0.3.231)
 > - **P2** removed the redundant legacy place buttons + ~90 lines dead code — Draft panel is the single authoring surface (v0.3.232)
 > - **P3** room/space authoring UI (➕ Add rooms/spaces via `add_spaces`; level-add already existed) (v0.3.234)
@@ -26,10 +32,7 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 > - **Model browser** — the tree now has a **group-by** switch (level / discipline / IFC class / type-family) + **search** across name·GUID·class·type·discipline, auto-expanding matches (Revit Project Browser parity) (v0.3.239)
 > - **Manage levels** — per-storey rename + set-elevation editor (GUID-stable `rename_storey`/`set_storey_elevation` recipes; storey listing now carries GUIDs) (v0.3.240)
 > - **Selection sets** — named saved searches you can isolate in one click; persisted per-project (Navisworks/Bluebeam search-set pattern) (v0.3.240)
->
-> **Open — tracked here:**
-> - **P5 — edit-in-place** (drag/stretch/move geometry directly, vs click-place + full republish). The biggest
->   "feels like a real modeler" upgrade and the most interaction-heavy — needs a focused design pass. *(task #360)*
+> - **P5 — edit-in-place** — drag-to-move transform gizmo on the selected element (ghost preview + ΔE/ΔN/ΔZ readout + grid-snap), committed via the GUID-stable `move_element` recipe (v0.3.241)
 
 > **The product feature roadmap, the code-quality/hardening initiative, AND the Wave 8 field-research
 > upgrades are all effectively cleared.** Every headline feature theme shipped (generative design + Test

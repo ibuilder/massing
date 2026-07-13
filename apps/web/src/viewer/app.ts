@@ -25,6 +25,7 @@ import { installDraftPanel, type ArmedDraft, type DraftPanelHandle } from "./dra
 import { type FamilyDef } from "./draft/draftCatalog";
 import { GridOverlay } from "./draft/gridOverlay";
 import { DraftProxyLayer } from "./draft/draftProxy";
+import { TransformGizmo } from "./draft/transformGizmo";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type ElementProps, type Topic } from "../api/client";
 import { escapeHtml, fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
@@ -98,6 +99,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   let selection: ModelIdMap | null = null;
   let lastPoint: THREE.Vector3 | null = null;
   let selectedGuid: string | null = null;
+  let editInPlace = false;            // P5: show the move gizmo on the selected element
+  let gizmo: TransformGizmo | null = null;
   let modelCount = 0;
   // track a human label per loaded model so the federation panel can list disciplines
   const modelLabels = new Map<string, string>();
@@ -119,11 +122,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   async function selectMap(map: ModelIdMap | null, opts: { guid?: string; fit?: boolean } = {}) {
     if (selection) await loader.fragments.resetHighlight(selection);
     selection = map;
-    if (!map) { propsHint(); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); return; }
+    if (!map) { gizmo?.hide(); propsHint(); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); return; }
     await loader.fragments.highlight(SELECT_MAT(), map);
     await loader.fragments.core.update(true);
     if (opts.fit) await fitToItems(map);
     await showProps(map, opts.guid);
+    if (editInPlace) await attachGizmo(map);
   }
 
   // 5D inspector — appended under the property panel; populated on selection
@@ -275,6 +279,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const mouse = new THREE.Vector2();
   container.addEventListener("click", async (e) => {
     if (measure.mode !== "off") { measure.create(); return; }
+    if (gizmo?.dragging) return;                 // a gizmo-handle drag isn't a select/deselect click
     mouse.set(e.clientX, e.clientY);
     const hit = await loader.fragments.raycast({
       camera: viewer.world.camera.three, mouse, dom: viewer.world.renderer!.three.domElement,
@@ -816,6 +821,17 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const [dx, dy, dz] = v.split(",").map((n) => Number(n.trim()) || 0);
     await authorAndReload("copy_element", { guid: selectedGuid, dx, dy, dz }, "copy");
   }, "edit");
+  toolBtn("◈", "Edit in place — drag the gizmo to move the selected element", (b) => {
+    editInPlace = !editInPlace;
+    b.classList.toggle("on", editInPlace);
+    if (editInPlace) {
+      if (selection) { void attachGizmo(selection); }
+      notify("Edit-in-place on — select an element and drag the gizmo to move it", "info");
+    } else {
+      gizmo?.hide();
+      setStatus("edit-in-place off");
+    }
+  }, "edit");
 
   /** Round a point's plan coords (x,z) to the grid-snap increment; leave height (y). */
   function snapPoint(p: THREE.Vector3): THREE.Vector3 {
@@ -1014,6 +1030,36 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (box.isEmpty()) return;
     await viewer.world.camera.controls.fitToSphere(box.getBoundingSphere(new THREE.Sphere()), true);
     await loader.fragments.core.update(true);
+  }
+
+  // ---- P5 edit-in-place: drag-to-move gizmo --------------------------------
+  function ensureGizmo(): TransformGizmo {
+    if (gizmo) return gizmo;
+    const g = new TransformGizmo(
+      viewer.world.camera.three,
+      viewer.world.renderer!.three.domElement,
+      viewer.world.scene.three,
+      (enabled) => { viewer.world.camera.controls.enabled = enabled; },
+    );
+    g.onDrag = (d) => setStatus(`move  ΔE ${d.dx.toFixed(2)} · ΔN ${d.dy.toFixed(2)} · ΔZ ${d.dz.toFixed(2)} m`);
+    g.onCommit = async (d) => {
+      const guid = selectedGuid;
+      if (!guid || !projectId) return;
+      await authorAndReload("move_element", { guid, dx: d.dx, dy: d.dy, dz: d.dz }, "move");
+      if (editInPlace && selectedGuid === guid) await selectByGuid(guid);   // re-attach on the moved element
+    };
+    gizmo = g;
+    return g;
+  }
+  /** Attach the move gizmo to a selection's world bounding box (edit-in-place mode). */
+  async function attachGizmo(map: ModelIdMap) {
+    const boxes = await loader.fragments.getBBoxes(map);
+    const box = new THREE.Box3();
+    for (const b of boxes) box.union(b);
+    if (box.isEmpty()) return;
+    const g = ensureGizmo();
+    g.setSnap(ctx.getSettings().snap);
+    g.attach(box);
   }
 
   // ---- rail panels ---------------------------------------------------------
