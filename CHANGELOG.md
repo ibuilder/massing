@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.257 — Wave 11 · B2: parametric door & window generators
+
+Doors and windows now get **real lining, frame and panel geometry** from IfcOpenShell's built-in parametric
+generators (`geometry.add_door_representation` / `add_window_representation`) instead of a single flat box
+proxy — a LOD 300→350 jump for near-zero geometry code. Every existing **◧ Add door** / **◨ Add window** tool
+benefits automatically (parametric is the default); the recipes also accept an `operation` type
+(`SINGLE_SWING_LEFT`, `DOUBLE_DOOR_SINGLE_SWING`, window `SINGLE_PANEL`, …). Lining depth is sized from the
+host wall's thickness. The host is properly voided (`IfcRelVoidsElement`) and the door/window fills the
+opening (`IfcRelFillsElement`); a generator failure falls back to the box proxy so authoring never breaks.
+This is the real door/window geometry that the Wave 11 detail-rule engine will hang the IBC/ASTM flashing
+detail + keynote + spec off. Engine in `edit.py`; `test_openings.py` green.
+
 ## v0.3.256 — Wave 11 · F0: the representation/LOD spine (foundation)
 
 The architectural foundation the rest of Wave 11 hangs off — **one GUID-stable element that can carry

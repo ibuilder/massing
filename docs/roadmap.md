@@ -415,9 +415,10 @@ this spine first; every track hangs off it.
   over ifcopenshell/IFC docs to ground code-gen; A3 **AI emits *recipes*** (parametric, GUID-stable, editable —
   the property Zoo/Text-to-CAD lack); A4 LLM **scene-digest** tool over the semantic graph. *ifc-bonsai-mcp
   (MIT) is the design reference; ifcopenshell is LGPL.*
-- **B · Geometry depth → LOD 350/400** *(L, multi-sub-wave)* — B1 verify/upgrade void+fill (already using
-  `feature.add_feature`/`add_filling` ✓); B2 **parametric door/window generators** (`geometry.add_door/window_
-  representation` — frames/linings/panels for near-zero code, the LOD jump); B3 wall **Axis rep + clippings/
+- **B · Geometry depth → LOD 350/400** *(L, multi-sub-wave)* — B1 void+fill (already uses
+  `feature.add_feature`/`add_filling` ✓); **B2 ✅ SHIPPED v0.3.257** — parametric door/window generators
+  (`geometry.add_door/window_representation`: real lining/frame/panels, `operation` type, wall-sized lining,
+  box-proxy fallback; `test_openings.py`); B3 wall **Axis rep + clippings/
   booleans** (sloped tops, gable walls); B4 **procedural-mesh escape hatch** (`add_mesh_representation` →
   IfcTriangulatedFaceSet for anything parametric recipes can't); B5 **connections/fasteners/hangers** +
   `IfcRelConnects*` (LOD 350 coordination); B6 **domain catalogs** in value order — steel connections → rebar

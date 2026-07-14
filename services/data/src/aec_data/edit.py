@@ -640,13 +640,56 @@ def add_roof(model: ifcopenshell.file, points, thickness: float = 0.3,
     return roof.GlobalId
 
 
+def _wall_thickness(host, default: float = 0.2) -> float:
+    """The host wall's thickness (m) for sizing a door/window lining — from Qto_WallBaseQuantities if
+    present, else a sensible default."""
+    import ifcopenshell.util.element as ue
+
+    q = ue.get_pset(host, "Qto_WallBaseQuantities") or {}
+    w = q.get("Width")
+    try:
+        return float(w) if w else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _fill_representation(model, body, kind: str, width: float, height: float,
+                        operation: str | None, scale: float, lining_depth: float):
+    """B2 — parametric door/window geometry via IfcOpenShell's built-in generators (real lining, frame
+    and panels — a LOD 300→350 jump over the old single box proxy). Returns a shape representation, or
+    None so the caller falls back to the box proxy if the generator rejects the parameters."""
+    try:
+        if kind == "window":
+            return ifcopenshell.api.run(
+                "geometry.add_window_representation", model, context=body,
+                overall_height=float(height), overall_width=float(width),
+                partition_type=(operation or "SINGLE_PANEL"),
+                lining_properties={"LiningDepth": lining_depth, "LiningThickness": 0.05,
+                                   "MullionThickness": 0.0, "TransomThickness": 0.0},
+                panel_properties=[{"FrameDepth": 0.04, "FrameThickness": 0.05}],
+                unit_scale=scale)
+        return ifcopenshell.api.run(
+            "geometry.add_door_representation", model, context=body,
+            overall_height=float(height), overall_width=float(width),
+            operation_type=(operation or "SINGLE_SWING_LEFT"),
+            lining_properties={"LiningDepth": lining_depth, "LiningThickness": 0.05,
+                               "TransomThickness": 0.0},
+            panel_properties={"PanelDepth": 0.04, "PanelWidth": 1.0,
+                              "FrameDepth": 0.0, "FrameThickness": 0.0},
+            unit_scale=scale)
+    except Exception:  # noqa: BLE001 — bad enum / generator failure → caller uses the box proxy
+        return None
+
+
 def add_opening(model: ifcopenshell.file, host_guid: str, width: float = 0.9, height: float = 2.1,
                 sill: float = 0.0, kind: str = "door", storey: str | None = None,
-                position=None) -> str:
+                position=None, operation: str | None = None, parametric: bool = True) -> str:
     """Cut an opening in the host wall (IfcOpeningElement voiding it) and fill it with an
     IfcDoor/IfcWindow. `kind` ∈ door|window; `sill` is the bottom height (m). `position` is an
     optional [E,N] plan point — projected onto the wall axis to place the opening there;
-    omit it to center on the wall."""
+    omit it to center on the wall. When `parametric` (default), the fill gets real lining/frame/panel
+    geometry from IfcOpenShell's door/window generators (`operation` = the swing/partition type);
+    a generator failure falls back to a simple panel proxy so authoring never breaks."""
     import ifcopenshell.util.placement as uplace
     import ifcopenshell.util.unit as uunit
     import numpy as np
@@ -684,8 +727,12 @@ def add_opening(model: ifcopenshell.file, host_guid: str, width: float = 0.9, he
     except Exception:
         pass
     ifcopenshell.api.run("geometry.edit_object_placement", model, product=el, matrix=opm)
-    panel = _rect_profile(model, float(width), 0.06)
-    prep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body, profile=panel, depth=float(height))
+    prep = _fill_representation(model, body, kind, width, height, operation, scale,
+                               _wall_thickness(host)) if parametric else None
+    if prep is None:                                   # fallback: simple panel proxy (never breaks)
+        panel = _rect_profile(model, float(width), 0.06)
+        prep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                    profile=panel, depth=float(height))
     ifcopenshell.api.run("geometry.assign_representation", model, product=el, representation=prep)
     ifcopenshell.api.run("feature.add_filling", model, opening=opening, element=el)
     st = _first_storey(model, storey)
@@ -917,10 +964,10 @@ RECIPES = {
     "add_roof": lambda m, p: add_roof(m, p["points"], float(p.get("thickness", 0.3)), p.get("storey")),
     "add_door": lambda m, p: add_opening(m, p["host_guid"], float(p.get("width", 0.9)),
                                          float(p.get("height", 2.1)), float(p.get("sill", 0.0)), "door",
-                                         p.get("storey"), p.get("position")),
+                                         p.get("storey"), p.get("position"), p.get("operation")),
     "add_window": lambda m, p: add_opening(m, p["host_guid"], float(p.get("width", 1.2)),
                                            float(p.get("height", 1.2)), float(p.get("sill", 0.9)), "window",
-                                           p.get("storey"), p.get("position")),
+                                           p.get("storey"), p.get("position"), p.get("operation")),
     "delete_element": lambda m, p: delete_element(m, p["guid"]),
     "move_element": lambda m, p: move_element(m, p["guid"], float(p.get("dx", 0)),
                                               float(p.get("dy", 0)), float(p.get("dz", 0))),
