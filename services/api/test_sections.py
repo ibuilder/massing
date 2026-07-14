@@ -38,6 +38,26 @@ for d in ("north", "south", "east", "west"):
     svg = drawings.elevation(m, d)
     assert "<svg" in svg[:120] and f"{d.upper()} ELEVATION" in svg, f"{d} elevation"
 
+# regression: space tags + element callouts must be built in WORLD coords too, so their centroids
+# align with the (world-placed) linework instead of collapsing to each element's local origin.
+massing.generate_blank_ifc(TMP, name="Tag Test", storeys=1, storey_height=3.5, ground_size=20.0)
+mt = open_model(TMP)
+stt = mt.by_type("IfcBuildingStorey")[0].Name
+edit.add_spaces(mt, rooms_per_storey=4, ceiling_height=3.0)
+wt = edit.add_wall(mt, [8, 6], [14, 6], 3.0, 0.2, stt)
+edit.add_opening(mt, wt, width=0.9, height=2.1, kind="door")
+mesh_bounds = drawings.bake(mt)
+xs = [b for _, mh in mesh_bounds if getattr(mh, "bounds", None) is not None
+      for b in (mh.bounds[0][0], mh.bounds[1][0])]
+lo_x, hi_x = min(xs), max(xs)
+tags = drawings.space_tags(mt)
+assert tags, "expected room tags"
+# at least one room tag must sit away from x=0 (proves world placement, not local-origin collapse)
+assert any(abs(t["x"]) > 1.0 for t in tags), f"space tags collapsed to local origin: {[t['x'] for t in tags]}"
+assert all(lo_x - 1 <= t["x"] <= hi_x + 1 for t in tags), "tags must fall within the world linework bounds"
+cos = drawings.element_callouts(mt, ("IfcDoor",))
+assert cos and cos[0]["x"] > 5.0, f"door callout should be near the world-placed wall (~x=11), got {cos}"
+
 if os.path.exists(TMP):
     os.remove(TMP)
 

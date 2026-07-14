@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.277 — Fix: align room tags & callouts with the world-placed drawing linework
+
+Follow-up to v0.3.276. The bake fix moved section/plan linework into world coordinates, but the two
+annotation builders — `space_tags` (room tags) and `element_callouts` (door/window callouts) — still
+read element geometry in *local* coordinates, so their label centroids collapsed onto each element's
+own origin and no longer sat on the linework (every off-origin room tag stacked at 0,0). Factored the
+world-coords setup into a shared `_world_settings()` helper and applied it to both builders, so tags and
+callouts land on the elements they label. Regression coverage added to `test_sections.py` (off-origin
+model: tags/callouts must fall within the linework bounds, not at the origin).
+
 ## v0.3.276 — Sections & elevations in the UI + world-placement fix for all drawings
 
 The section and elevation SVG generators existed server-side but were unreachable — added a **📐 Sections

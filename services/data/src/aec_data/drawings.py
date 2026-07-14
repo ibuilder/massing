@@ -39,16 +39,21 @@ def storey_elevations(model: ifcopenshell.file) -> list[dict[str, Any]]:
     return sorted(out, key=lambda x: x["elevation"])
 
 
-def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
-    """Bake every element's world-space mesh ONCE so many views can section the same set."""
-    settings = geom.settings()
-    # apply each element's ObjectPlacement so verts are in WORLD space — otherwise every element
-    # collapses to its own local origin and off-origin geometry stacks at (0,0) in plans/sections.
+def _world_settings(geom_mod):
+    """Geometry settings that apply each element's ObjectPlacement, so verts come back in WORLD space.
+    Without this every element collapses to its own local origin — off-origin geometry stacks at (0,0)
+    in plans/sections, and any annotation built from these verts misaligns with the linework."""
+    settings = geom_mod.settings()
     try:
         settings.set("use-world-coords", True)
     except Exception:  # pragma: no cover - older builds use the enum name
         settings.set(settings.USE_WORLD_COORDS, True)
-    it = geom.iterator(settings, model, max(1, multiprocessing.cpu_count() - 1))
+    return settings
+
+
+def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
+    """Bake every element's world-space mesh ONCE so many views can section the same set."""
+    it = geom.iterator(_world_settings(geom), model, max(1, multiprocessing.cpu_count() - 1))
     meshes: list[tuple[str, trimesh.Trimesh]] = []
     if not it.initialize():
         return meshes
@@ -305,7 +310,7 @@ def space_tags(model: ifcopenshell.file) -> list[dict]:
     import ifcopenshell.geom as _geom
     import ifcopenshell.util.element as _ue
 
-    settings = _geom.settings()
+    settings = _world_settings(_geom)   # world coords → tag centroids align with the world-placed linework
     tags = []
     for sp in model.by_type("IfcSpace"):
         name = getattr(sp, "LongName", None) or getattr(sp, "Name", None) or "Room"
@@ -330,7 +335,7 @@ def element_callouts(model: ifcopenshell.file, classes=("IfcDoor", "IfcWindow"))
     centroid. Rendered with a leader line pointing from the label to the element."""
     import ifcopenshell.geom as _geom
 
-    settings = _geom.settings()
+    settings = _world_settings(_geom)   # world coords → callout centroids align with the linework
     out: list[dict] = []
     for cls in classes:
         for el in model.by_type(cls):
