@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.259 — Wave 11 · D3+D7: the detail-rule engine + IBC window-flashing case
+
+The brain that turns model state into construction-document content — and the headline worked case. A new
+**✨ Auto-detail (rules)** tool (Grid &amp; Levels) runs an **IDS-shaped condition→content rule library** over
+the model:
+
+- **Rules** = an `applies` block (IFC entity, predefined type, a property on the element, or a
+  relationship-context facet like "fills an opening in an **exterior** wall") + an `attach` block (the
+  content bundle — classification codes + detail/instruction documents), written through the Track-D
+  carriers, GUID-stable.
+- **The worked case (D7):** a window in an exterior wall auto-gets the **IBC 2021 §1404.4 / ASTM E2112 /
+  AAMA 711 flashing detail** (sill-pan → jamb → head shingle-lap sequence, as an installation instruction)
+  + **MasterFormat 08 51 00** + **UniFormat B2020**. An interior-wall window gets nothing. Exterior doors get
+  their sill-pan/jamb flashing (08 11 00); fire-rated walls get an assembly keynote (09 21 16, tag UL/GA no.).
+- **The same rules validate as IDS QA** — a missing-keynote pre-flight lists elements that match a rule but
+  lack their required code (author-time attach, QA-time check). Shown before/after in the tool.
+
+Engine `rules.py` (`apply_rules` / `validate_rules` + seed rule library); `apply_detailing_rules` recipe +
+`GET /detailing/rules/validate`. `test_rules.py` green. Pure ifcopenshell; code citations are facts.
+
 ## v0.3.258 — Wave 11 · Track D carrier layer: codes & detail documents
 
 The join layer between the model and the construction documents — attach **keynote/spec codes** and

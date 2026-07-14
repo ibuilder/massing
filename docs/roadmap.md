@@ -438,10 +438,12 @@ this spine first; every track hangs off it.
 - **D · Code + spec + detail intelligence (IBC / MasterFormat)** *(L)* — D1 **code-analysis sheet generator**
   (occupancy Ch.3, construction type/ratings Ch.6/Table 601, allowable area Table 506.2, occupant load Table
   1004.5, egress Ch.10 — mostly model data we already compute in W9-2); D2 **routed egress/life-safety plans**
-  (path-trace over the W9-4 semantic graph, not just tabulated); D3 an **IDS-shaped rule engine** —
-  applicability facets (entity + PredefinedType, classification, property, `partOf`/relationship context via
-  the semantic graph) → **content bundle** (attach detail SVG + install instruction + spec section), the *same*
-  rules reused for **IDS QA validation** (author-time attach, QA-time validate); **D4 ✅ SHIPPED v0.3.258 — classification + document carriers**
+  (path-trace over the W9-4 semantic graph, not just tabulated); **D3 ✅ SHIPPED v0.3.259 — IDS-shaped rule engine**
+  (`apply_rules`: applicability facets — entity + PredefinedType, property, host-external/host-fire-rated
+  relationship context → content bundle written via the Track-D carriers; `validate_rules` reuses the same
+  rules as IDS QA missing-keynote pre-flight; ✨ Auto-detail tool + `apply_detailing_rules` recipe +
+  `GET /detailing/rules/validate`; seed rule library; `test_rules.py`). **D7 ✅ the window-flashing worked
+  case** ships in the seed library (exterior window → IBC §1404.4/ASTM E2112/AAMA 711 flashing detail + 08 51 00); **D4 ✅ SHIPPED v0.3.258 — classification + document carriers**
   (`classify` emits `IfcRelAssociatesClassification` for UniFormat/MasterFormat/OmniClass/Uniclass;
   `attach_document` emits `IfcRelAssociatesDocument`→Reference→Information for details/instructions, deduped;
   `element_detailing` inspector + 🏷 Detailing tool + `GET /detailing/{guid}`; `test_detailing.py`).

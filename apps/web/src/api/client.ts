@@ -995,6 +995,17 @@ export class ApiClient extends HttpCore {
   classify(pid: string, guids: string[], system: string, code: string, name?: string, edition?: string, publish = true) {
     return this.editIfc(pid, "classify", { guids, system, code, name, edition }, publish);
   }
+  /** W11 D3: auto-detail — run the condition→content rule set (e.g. exterior window → IBC flashing
+   *  detail + 08 51 00), writing code/detail bundles to every matching element. */
+  applyDetailingRules(pid: string, publish = true) {
+    return this.editIfc(pid, "apply_detailing_rules", {}, publish);
+  }
+  /** W11 D3: IDS-style QA — elements that a rule applies to but are missing their required keynote/spec code. */
+  validateDetailing(pid: string) {
+    return this.json<{ rules_evaluated: number; gaps: number;
+      elements: { rule: string; guid: string; name: string; missing: string }[] }>(
+      `/projects/${pid}/detailing/rules/validate`);
+  }
   /** W11 Track D: attach a document (detail drawing / installation instruction) to elements. */
   attachDocument(pid: string, guids: string[], name: string,
                  opts: { location?: string; identification?: string; description?: string; purpose?: string } = {}, publish = true) {

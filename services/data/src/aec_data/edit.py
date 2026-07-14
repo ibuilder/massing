@@ -1045,7 +1045,15 @@ RECIPES = {
     "attach_document": lambda m, p: _det().attach_document(m, p["guids"], p["name"], p.get("location"),
                                                           p.get("description"), p.get("identification"),
                                                           p.get("purpose")),
+    # W11 D3 — auto-detail: evaluate the condition→content rule set, write matched code/detail bundles
+    "apply_detailing_rules": lambda m, p: _rules().apply_rules(m, p.get("rules")),
 }
+
+
+def _rules():
+    """Lazy handle to the detailing rule engine."""
+    from . import rules
+    return rules
 
 
 def _rep():

@@ -71,6 +71,18 @@ def type_detail(pid: str, type_guid: str, db: Session = Depends(get_db),
         raise HTTPException(404, str(e)) from e
 
 
+@router.get("/projects/{pid}/detailing/rules/validate")
+def validate_detailing(pid: str, db: Session = Depends(get_db),
+                       _: str = Depends(require_role("viewer"))):
+    """W11 D3: IDS-style QA — for every element a seed rule applies to, report the ones missing their
+    required keynote/spec code (the 'components missing a keynote' pre-flight). Read-only."""
+    from aec_data import rules  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return rules.validate_rules(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/detailing/{guid}")
 def element_detailing(pid: str, guid: str, db: Session = Depends(get_db),
                       _: str = Depends(require_role("viewer"))):

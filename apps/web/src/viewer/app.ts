@@ -1858,8 +1858,34 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       detailBtn.title = "Attach keynote/spec codes (UniFormat/MasterFormat/OmniClass) and detail/instruction "
         + "documents to the selected element — IFC-native carriers that feed keynotes, schedules & the spec/drawing set";
 
+      // W11 D3: auto-detail the whole model from the rule library + an IDS-style missing-keynote pre-flight.
+      const openAutoDetail = async () => {
+        let val;
+        try { val = await api.validateDetailing(pid); }
+        catch (e) { notify(`validate failed: ${(e as Error).message}`, "error"); return; }
+        showResult("Auto-detail (code / spec / detail rules)", (body) => {
+          body.appendChild(resultNote(val.gaps
+            ? `<b>${val.gaps}</b> element(s) match a rule but are <b>missing</b> their keynote/spec — e.g. an `
+              + `exterior window with no flashing detail. Run auto-detail to attach them.`
+            : "Every rule-covered element already carries its code & detail. ✓", val.gaps ? "bad" : "ok"));
+          if (val.gaps) {
+            body.appendChild(kvTable(val.elements.slice(0, 12).map((g) => ({ k: g.name, v: g.missing }))));
+          }
+          const run = toolBtn2("✨ Auto-detail model (apply rules)", async () => {
+            await authorAndReload("apply_detailing_rules", {}, "auto-detail");
+            await openAutoDetail();
+          });
+          run.title = "Attach the code/spec/detail bundle to every element a rule matches — e.g. exterior "
+            + "window → IBC §1404.4 / ASTM E2112 flashing detail + install instruction + spec 08 51 00. GUID-stable.";
+          body.appendChild(run);
+        });
+      };
+      const autoDetailBtn = toolBtn2("✨ Auto-detail (rules)", openAutoDetail);
+      autoDetailBtn.title = "Run the condition→content rule library over the model — exterior windows/doors get "
+        + "IBC/ASTM flashing details + specs, rated walls get assembly keynotes. Same rules validate as IDS QA.";
+
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, detailBtn, manage, levelsMgr);
+        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------
