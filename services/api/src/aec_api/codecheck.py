@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 from typing import Any
 
@@ -139,3 +140,142 @@ def check(description: str, context: str | None = None) -> dict[str, Any]:
         except Exception as e:                               # noqa: BLE001
             _log.warning("AI code check failed (%s) — using rules", e)
     return _rules_check(desc)
+
+
+# --- Computed occupancy-load + egress-capacity analysis (Wave 9 · W9-2) ------------------------------
+# A COMPUTED pre-check over the model's IfcSpaces/IfcDoors — the depth layer above the presence-only
+# /elements/code-check. Encodes IBC *thresholds* (which are facts), never ICC prose. NOT a certified
+# review or a substitute for the AHJ; travel-distance / performance-based egress are out of scope.
+_M2_TO_FT2 = 10.7639
+_M_TO_IN = 39.3701
+_MIN_EGRESS_DOOR_M = 0.813   # 32 in clear width (IBC 1010.1.1)
+
+# IBC Table 1004.5 — maximum floor-area allowance per occupant (ft²/occupant) + basis (net vs gross).
+_OCC_FACTORS = [   # (keyword regex, label, ft²/occupant, basis)
+    (r"assembly.*concentrat|chairs? only|theater|auditorium|arena|stadium", "Assembly (concentrated)", 7, "net"),
+    (r"assembly|dining|restaurant|conference|lobby|gym|exhibit|worship|church", "Assembly (unconcentrated)", 15, "net"),
+    (r"kitchen", "Commercial kitchen", 200, "gross"),
+    (r"classroom|education|school|daycare|kindergarten", "Educational (classroom)", 20, "net"),
+    (r"office|business|clinic|bank|professional|admin", "Business", 150, "gross"),
+    (r"mercantile|retail|store|sales|shop", "Mercantile", 60, "gross"),
+    (r"resid|dwelling|apartment|hotel|dorm|sleeping|bedroom|guest", "Residential", 200, "gross"),
+    (r"warehouse|storage|stock", "Storage", 500, "gross"),
+    (r"industrial|factory|manufactur", "Industrial", 100, "gross"),
+    (r"institution|hospital|nursing|patient|ward", "Institutional", 240, "gross"),
+    (r"parking|garage", "Parking", 200, "gross"),
+    (r"mechanical|electrical|equipment|utility|riser|shaft|closet|corridor|circulation", "Accessory", 300, "gross"),
+]
+_DEFAULT_FACTOR = ("Business (assumed)", 150, "gross")
+
+
+def _occ_factor(text: str) -> tuple[str, int, str]:
+    t = (text or "").lower()
+    for rx, label, factor, basis in _OCC_FACTORS:
+        if re.search(rx, t):
+            return label, factor, basis
+    return _DEFAULT_FACTOR
+
+
+def _space_area_ft2(e: dict) -> float | None:
+    qtos = e.get("qtos") or {}
+    q = qtos.get("Qto_SpaceBaseQuantities") or {}
+    for key in ("NetFloorArea", "GrossFloorArea"):
+        v = q.get(key)
+        if isinstance(v, (int, float)):
+            return float(v) * _M2_TO_FT2
+    return None
+
+
+def _space_occupancy(e: dict) -> str:
+    p = (e.get("psets") or {}).get("Pset_SpaceOccupancyRequirements") or {}
+    return str(p.get("OccupancyType") or e.get("name") or e.get("long_name") or "")
+
+
+def _door_width_m(e: dict) -> float | None:
+    for container, grp, key in (("psets", "Pset_DoorCommon", "Width"),
+                                ("qtos", "Qto_DoorBaseQuantities", "Width")):
+        v = ((e.get(container) or {}).get(grp) or {}).get(key)
+        if isinstance(v, (int, float)):
+            return float(v)
+    return None
+
+
+def egress_analysis(elements: dict[str, dict]) -> dict[str, Any]:
+    """Occupant load (IBC 1004) per space + building total, and egress capacity (IBC 1005) vs the
+    provided egress-door width. `elements` is the property index {guid: element-dict}."""
+    spaces: list[dict] = []
+    by_occ: dict[str, dict] = {}
+    total_load, total_area = 0, 0.0
+    for guid, e in elements.items():
+        if e.get("ifc_class") != "IfcSpace":
+            continue
+        area = _space_area_ft2(e)
+        label, factor, basis = _occ_factor(_space_occupancy(e))
+        if area is None:
+            spaces.append({"guid": guid, "name": e.get("name"), "occupancy": label,
+                           "area_ft2": None, "load": None, "note": "no floor-area quantity"})
+            continue
+        load = math.ceil(area / factor - 1e-6)   # round up genuine fractions, not float-dust
+        total_load += load
+        total_area += area
+        agg = by_occ.setdefault(label, {"occupancy": label, "factor": factor, "basis": basis,
+                                        "spaces": 0, "area_ft2": 0.0, "load": 0})
+        agg["spaces"] += 1
+        agg["area_ft2"] = round(agg["area_ft2"] + area, 1)
+        agg["load"] += load
+        spaces.append({"guid": guid, "name": e.get("name"), "occupancy": label, "factor": factor,
+                       "basis": basis, "area_ft2": round(area, 1), "load": load,
+                       "needs_2_exits": load > 49})
+    # egress capacity: required egress width = occupant load × 0.15 in/occ (IBC 1005.3.2, doors/level)
+    req_in = round(total_load * 0.15, 1)
+    doors = below_min = 0
+    provided_in = 0.0
+    min_fail: list[str] = []
+    for guid, e in elements.items():
+        if e.get("ifc_class") != "IfcDoor":
+            continue
+        w = _door_width_m(e)
+        if w is None:
+            continue
+        doors += 1
+        if w + 1e-6 < _MIN_EGRESS_DOOR_M:
+            below_min += 1
+            min_fail.append(guid)
+        else:
+            provided_in += w * _M_TO_IN   # egress-capable doors contribute capacity
+    return {
+        "building": {"occupant_load": total_load, "area_ft2": round(total_area, 1),
+                     "spaces": sum(1 for s in spaces if s["load"] is not None),
+                     "spaces_missing_area": sum(1 for s in spaces if s["load"] is None)},
+        "egress": {"required_width_in": req_in, "provided_width_in": round(provided_in, 1),
+                   "adequate": (round(provided_in, 1) >= req_in) if total_load else None,
+                   "factor_in_per_occ": 0.15, "code": "IBC 1005.3"},
+        "doors": {"checked": doors, "below_min_32in": below_min, "fail_guids": min_fail,
+                  "min_clear_m": _MIN_EGRESS_DOOR_M, "code": "IBC 1010.1.1"},
+        "by_occupancy": sorted(by_occ.values(), key=lambda x: -x["load"]),
+        "spaces": spaces,
+        "citations": ["IBC 1004.5 (occupant-load factors)", "IBC 1005.3 (egress width per occupant)",
+                      "IBC 1006.2 (two exits when load > 49)", "IBC 1010.1.1 (32 in min clear door)"],
+        "disclaimer": "Pre-check / design assist computed from the IFC — not a certified code review or "
+                      "a substitute for the authority having jurisdiction. Travel-distance and "
+                      "performance-based egress are out of scope.",
+    }
+
+
+def egress_from_model(model) -> dict[str, Any]:
+    """Extract IfcSpace + IfcDoor (with their psets/qtos) straight from the source IFC and run the
+    egress analysis. Spaces are read from the model — the property index holds only *physical*
+    elements, so IfcSpace (a spatial element) isn't in it."""
+    import ifcopenshell.util.element as ue
+
+    idx: dict[str, dict] = {}
+    for cls in ("IfcSpace", "IfcDoor"):
+        for el in model.by_type(cls):
+            idx[el.GlobalId] = {
+                "ifc_class": cls,
+                "name": getattr(el, "Name", None),
+                "long_name": getattr(el, "LongName", None),
+                "psets": ue.get_psets(el, psets_only=True),
+                "qtos": ue.get_psets(el, qtos_only=True),
+            }
+    return egress_analysis(idx)

@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.246 — Wave 9 · W9-2: occupancy load + egress capacity (computed)
+
+Code-checking goes from *presence* to *computation*. New **🏛 Occupancy & egress** tool (Coordination &
+QA) computes, straight from the model's IfcSpaces + IfcDoors: **occupant load** per space (IBC 1004.5
+area-per-occupant factors by occupancy — Business 1:150, Assembly 1:15, Residential 1:200, …) and the
+building total; **required egress width** (occupant load × 0.15 in, IBC 1005.3) vs the **provided**
+egress-door width, with an adequate / short verdict; a **32 in minimum clear door** check (IBC 1010.1.1)
+with click-to-isolate; and a **two-exits-when-load->49** flag (IBC 1006.2), all with cited sections. It's
+a **pre-check / design assist**, not a certified review (thresholds are encoded, not ICC prose; travel
+distance is out of scope). `codecheck.egress_analysis` + `codecheck.egress_from_model` +
+`/codecheck/egress` + `test_codecheck.py` extended. Verified live on a 40-space model (344 occupants,
+required 51.6 in egress).
+
 ## v0.3.245 — Wave 9 · W9-1: property mapping / normalization
 
 The missing **transform** verb between IDS-validate and COBie-export. Federated models name the same

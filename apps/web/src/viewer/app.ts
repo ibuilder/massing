@@ -1648,6 +1648,28 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               + "with a total station, then upload that CSV to verify deviation by point number.", "ok"));
           });
         })));
+        b.appendChild(toolBtn2("🏛 Occupancy & egress (IBC pre-check)", () => withLoading(container, "Computing occupancy load + egress", async () => {
+          let r;
+          try { r = await api.codecheckEgress(pid); }
+          catch { toast("Needs a source IFC with IfcSpaces", "error"); return; }
+          const load = r.building.occupant_load;
+          out.textContent = `${load} occ · egress ${r.egress.adequate === false ? "SHORT" : "ok"}`;
+          showResult("Occupancy load & egress — IBC pre-check", (body) => {
+            body.appendChild(resultNote(`Computed from <b>${r!.building.spaces}</b> spaces + doors — <b>${load}</b> total occupants over ${r!.building.area_ft2.toLocaleString()} ft². `
+              + `Required egress width <b>${r!.egress.required_width_in} in</b> vs <b>${r!.egress.provided_width_in} in</b> provided → `
+              + `<b>${r!.egress.adequate == null ? "n/a" : r!.egress.adequate ? "adequate" : "SHORT — add egress width"}</b>.`,
+              r!.egress.adequate === false ? "bad" : "ok"));
+            if (r!.building.spaces_missing_area) body.appendChild(resultNote(`${r!.building.spaces_missing_area} space(s) have no floor-area quantity and were skipped — add areas for a complete count.`, ""));
+            if (r!.by_occupancy.length) body.appendChild(kvTable(r!.by_occupancy.map((o) => ({ k: `${o.occupancy} (1:${o.factor} ${o.basis})`, v: `${o.load} occ · ${o.spaces} space(s) · ${o.area_ft2.toLocaleString()} ft²` }))));
+            if (r!.doors.below_min_32in) {
+              body.appendChild(resultNote(`${r!.doors.below_min_32in} of ${r!.doors.checked} doors are below the 32 in (0.81 m) minimum clear width (IBC 1010.1.1).`, "bad"));
+              body.appendChild(toolBtn2("◎ Isolate narrow doors in 3D", () => { void layerMgr.isolateGuids(r!.doors.fail_guids); }));
+            }
+            const twoExit = r!.spaces.filter((s) => s.needs_2_exits);
+            if (twoExit.length) body.appendChild(resultNote(`${twoExit.length} space(s) exceed 49 occupants → two exits required (IBC 1006.2): ${twoExit.slice(0, 6).map((s) => s.name || "space").join(", ")}${twoExit.length > 6 ? "…" : ""}.`, ""));
+            body.appendChild(resultNote(r!.disclaimer + " Cited: " + r!.citations.join("; ") + ".", ""));
+          });
+        })));
         b.appendChild(toolBtn2("🔧 Normalize properties (IDS-ready)", async () => {
           if (!projectId) { notify("connect a project first", "error"); return; }
           let det;

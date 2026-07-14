@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.245**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.246**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
@@ -76,13 +76,13 @@ The genuinely **net-new, permissive-license, buildable** items, ranked:
   + a GUID-stable `map_properties` recipe (move/copy semantics, type coercion) + `/propmap/detect` + `/propmap/plan`
   + a **🔧 Normalize properties** tool + `test_propmap.py`. Verified live remapping 12 walls' non-standard
   `ThicknessMm` onto `Qto_WallBaseQuantities.Width`. (ifcmapping.com)
-- **W9-2 — Code-compliance depth: occupancy load + egress capacity** *(M · partial→depth)* — we already
-  ship a **description→IBC-sections** assistant (`codecheck.py`) and a **data-readiness** element check
-  (`/elements/code-check`: presence + minimum widths). Net-new depth: compute **occupancy load** (IfcSpace
-  area ÷ §1004 factor), **egress capacity** (load × §1005 factor vs provided door/stair widths), and
-  fire-separation between occupancies; cite the IBC section and round-trip failures as **BCF** topics.
-  Scope explicitly as *pre-check / assist*, never certified; encode thresholds, not ICC prose. (SPARC-FP;
-  UpCodes/Solibri validate demand)
+- ~~**W9-2 — Code-compliance depth: occupancy load + egress capacity**~~ — ✅ **SHIPPED (v0.3.246)**:
+  computed **occupant load** (IBC 1004.5 factors by occupancy) per space + building total, **egress width**
+  required (load × 0.15 in) vs provided egress-door width (adequate/short), **32 in min door** (IBC 1010.1.1,
+  click-to-isolate), and **two-exits-when-load>49** (IBC 1006.2), all cited. `codecheck.egress_analysis` +
+  `egress_from_model` + `/codecheck/egress` + a **🏛 Occupancy & egress** tool + tests. Pre-check/assist,
+  not certified. Verified live (40-space model → 344 occupants, 51.6 in required). *Fire-separation between
+  occupancies + BCF round-trip deferred as a follow-up.* (SPARC-FP; UpCodes/Solibri validate demand)
 - **W9-3 — IFC5 composition / property-override layers** *(M · net-new)* — exploit the part of IFC5 that
   needs **no geometry engine**: USD-like **non-destructive overlay layers** (base → discipline →
   coordination → override) resolving to an effective value with provenance + cross-layer conflict flags.

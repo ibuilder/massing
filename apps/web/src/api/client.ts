@@ -986,6 +986,17 @@ export class ApiClient extends HttpCore {
         passed: number; failed: number; below_min: number; fail_guids: string[]; status: string }[];
       fail_guids: string[] }>(`/projects/${pid}/elements/code-check`);
   }
+  // W9-2 computed occupancy load (IBC 1004) + egress capacity (IBC 1005) — pre-check assist
+  codecheckEgress(pid: string) {
+    return this.json<{
+      building: { occupant_load: number; area_ft2: number; spaces: number; spaces_missing_area: number };
+      egress: { required_width_in: number; provided_width_in: number; adequate: boolean | null; factor_in_per_occ: number; code: string };
+      doors: { checked: number; below_min_32in: number; fail_guids: string[]; min_clear_m: number; code: string };
+      by_occupancy: { occupancy: string; factor: number; basis: string; spaces: number; area_ft2: number; load: number }[];
+      spaces: { guid: string; name: string | null; occupancy: string; area_ft2: number | null; load: number | null; needs_2_exits?: boolean; note?: string }[];
+      citations: string[]; disclaimer: string;
+    }>(`/projects/${pid}/codecheck/egress`);
+  }
 
   // pins / topics (Phase 4)
   pins(pid: string) {
