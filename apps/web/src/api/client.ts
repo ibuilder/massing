@@ -997,6 +997,9 @@ export class ApiClient extends HttpCore {
       citations: string[]; disclaimer: string;
     }>(`/projects/${pid}/codecheck/egress`);
   }
+  codecheckEgressBcf(pid: string) {
+    return this.json<{ created: number; topics: string[] }>(`/projects/${pid}/codecheck/egress/bcf`, { method: "POST", body: "{}" });
+  }
 
   // W9-5 site logistics on the 4D timeline
   getLogistics(pid: string) {

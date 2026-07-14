@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.251 — Wave 9 · W9-2b: round-trip code findings to BCF
+
+The computed occupancy/egress findings can now become **trackable BCF issues** — a "📌 Promote to BCF
+issues" button in the Occupancy &amp; egress result turns each below-min door, egress shortfall, and
+two-exits-required space into a `codecheck` **BCF topic** (anchored at the element / building, so it shows
+in the Issues panel and round-trips via `.bcfzip` with other openBIM tools). Idempotent — re-running a
+review replaces the prior code findings rather than piling up. `POST /codecheck/egress/bcf`. Verified
+live: an egress-shortfall finding becomes an anchored topic in the Issues list. (Completes W9-2's
+"round-trip to BCF"; fire-separation between occupancies still needs space-boundary geometry and stays a
+follow-up.)
+
 ## v0.3.250 — Wave 9 · W9-5: site logistics on the 4D timeline (first step)
 
 SYNCHRO-style **site logistics** without leaving openBIM. New **🏗 Site logistics** tool places temporary

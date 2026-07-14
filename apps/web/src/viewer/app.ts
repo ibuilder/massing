@@ -1823,6 +1823,15 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             const twoExit = r!.spaces.filter((s) => s.needs_2_exits);
             if (twoExit.length) body.appendChild(resultNote(`${twoExit.length} space(s) exceed 49 occupants → two exits required (IBC 1006.2): ${twoExit.slice(0, 6).map((s) => s.name || "space").join(", ")}${twoExit.length > 6 ? "…" : ""}.`, ""));
             body.appendChild(resultNote(r!.disclaimer + " Cited: " + r!.citations.join("; ") + ".", ""));
+            const nFindings = r!.doors.below_min_32in + (r!.egress.adequate === false ? 1 : 0) + r!.spaces.filter((s) => s.needs_2_exits).length;
+            if (nFindings) {
+              const bcf = toolBtn2(`📌 Promote ${nFindings} finding${nFindings === 1 ? "" : "s"} to BCF issues`, async () => {
+                try { const res = await api.codecheckEgressBcf(pid); notify(`created ${res.created} BCF issue${res.created === 1 ? "" : "s"} — see the Issues panel`, "success"); await refreshIssues(); }
+                catch (e) { notify((e as Error).message, "error"); }
+              });
+              bcf.title = "Create trackable BCF topics from the code findings (below-min doors, egress shortfall, two-exit spaces)";
+              body.appendChild(bcf);
+            }
           });
         })));
         b.appendChild(toolBtn2("🔧 Normalize properties (IDS-ready)", async () => {

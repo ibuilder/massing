@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.250**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.251**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
@@ -81,8 +81,10 @@ The genuinely **net-new, permissive-license, buildable** items, ranked:
   required (load × 0.15 in) vs provided egress-door width (adequate/short), **32 in min door** (IBC 1010.1.1,
   click-to-isolate), and **two-exits-when-load>49** (IBC 1006.2), all cited. `codecheck.egress_analysis` +
   `egress_from_model` + `/codecheck/egress` + a **🏛 Occupancy & egress** tool + tests. Pre-check/assist,
-  not certified. Verified live (40-space model → 344 occupants, 51.6 in required). *Fire-separation between
-  occupancies + BCF round-trip deferred as a follow-up.* (SPARC-FP; UpCodes/Solibri validate demand)
+  not certified. Verified live (40-space model → 344 occupants, 51.6 in required). **BCF round-trip
+  SHIPPED (W9-2b, v0.3.251)**: `POST /codecheck/egress/bcf` promotes findings (below-min doors, egress
+  shortfall, two-exit spaces) to anchored `codecheck` BCF topics, idempotent, visible in the Issues panel.
+  *Fire-separation between occupancies still deferred (needs space-boundary geometry).* (SPARC-FP; UpCodes/Solibri)
 - ~~**W9-3 — IFC5 composition / property-override layers**~~ — ✅ **SHIPPED (v0.3.247)**: USD-like
   non-destructive overlay layers (base → strongest) composing over the model — strongest enabled layer wins,
   conflicts flagged with provenance + both values, **bake** flattens to a GUID-stable IFC version. `layers.py`
