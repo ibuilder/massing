@@ -535,6 +535,20 @@ def place_family(pid: str, family: str = Body(..., embed=True),
     return result
 
 
+@router.post("/projects/{pid}/ai/author")
+def ai_author(pid: str, text: str = Body(..., embed=True),
+              context: dict = Body(default={}, embed=True),
+              db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Natural-language authoring — map a plain-English instruction ("add a 3 m wall from 0,0 to 5,0",
+    "window in the selected wall") to a validated **plan** of {recipe, params}. Interpretation only:
+    nothing is written. The client shows the plan for confirmation, then applies each step via the
+    normal POST /edit path (GUID-stable, audited). Deterministic keyword baseline; no API key required."""
+    from aec_data import nlauthor  # type: ignore
+
+    result = nlauthor.interpret(text, context)
+    return result
+
+
 @router.post("/projects/{pid}/edit")
 def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
          publish: bool = Body(default=False), db: Session = Depends(get_db),

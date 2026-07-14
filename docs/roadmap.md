@@ -548,10 +548,13 @@ core. Datasmith **does** preserve GlobalId + metadata as runtime tags, but stric
 Two of three lead with an **AI/MCP natural-language layer over the model** — validating our Track A. Keep our
 IFC-native + openBIM round-trip and CD/detailing depth as the moat; **do NOT** copy Arcol's non-IFC
 Revit-export-only interup or their concept-only scope, nor Nonica/Atomatiq's Revit/desktop dependency.
-- **AI-MCP** *(M · ★★★★★)* — an **MCP server over our edit-recipe engine**: read tools (quantities, schedules,
-  clashes, code violations, warnings) + **write-gated** tools (place/move/recolor/set-property, create sheet,
-  add view). Natural-language authoring + audit, IFC-native, no Revit — **this IS Wave-11 Track A**, and Nonica
-  proves the market + the read-free/write-paid tiering + concurrency guardrail. Highest on-strategy move.
+- **AI-MCP / NL authoring** *(M · ★★★★★)* — natural-language authoring over our edit-recipe engine, IFC-native,
+  no Revit. **S1+S2 ✅ SHIPPED v0.3.271** — `nlauthor.py` (`RECIPE_SPECS` table + `validate_call` guardrail +
+  keyword `interpret`), `POST /ai/author` (interpret-only, confirm-before-apply), ✨ command bar. Deterministic
+  no-API-key baseline. *Next: S3 Claude tool-use interpretation (recipes as tools, `tool_choice:auto`,
+  clarify-before-draw); S4 confirm-UX + `/edit-preview` ghosting + revert-to-version undo; S5 multi-recipe +
+  clarifying-question multi-turn. Then read tools (quantities/schedules/clashes/violations) + an actual MCP
+  server surface. Nonica proves the market + the read-free/write-gated tiering.*
 - **COLLAB-1** *(L · ★★★★★)* — **real-time multiplayer co-editing** (presence, cursors, live-streamed edits) +
   lightweight in-model comments. Arcol's headline moat and our biggest gap for "replace Revit in the browser."
 - **SITE-1** *(M · ★★★★)* — **auto site context + parcel/zoning-envelope ingestion** for a North-American

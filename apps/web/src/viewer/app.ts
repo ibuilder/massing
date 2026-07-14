@@ -1429,6 +1429,41 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // --- Grid & Levels: drafting reference frame (grid snap + active work-plane) ----------
     const glBody = section("gridlevels", "Grid & Levels", { requires: "sourceIfc" });
     if (glBody) {
+      // Natural-language command bar — the low-barrier "type what you want" authoring surface.
+      const cmdWrap = document.createElement("div"); cmdWrap.className = "nl-cmd";
+      cmdWrap.style.cssText = "display:flex;gap:4px;margin-bottom:6px";
+      const cmdIn = document.createElement("input");
+      cmdIn.type = "text"; cmdIn.className = "portal-filter"; cmdIn.style.flex = "1";
+      cmdIn.placeholder = "✨ Type what to build — e.g. add a 3m wall from 0,0 to 5,0";
+      cmdIn.setAttribute("aria-label", "Natural-language authoring command");
+      const cmdGo = document.createElement("button"); cmdGo.className = "mini-btn"; cmdGo.textContent = "Go";
+      const runCmd = async () => {
+        const text = cmdIn.value.trim(); if (!text) return;
+        let res;
+        try {
+          res = await api.aiAuthor(pid, text, {
+            selected_guids: selectedGuid ? [selectedGuid] : undefined,
+            active_storey: activeStorey || undefined });
+        } catch (e) { notify(`command failed: ${(e as Error).message}`, "error"); return; }
+        if (res.needs_clarification) { notify(res.needs_clarification, "info"); return; }
+        showResult("Interpreted command", (body) => {
+          body.appendChild(resultNote(`“${text}” →`, ""));
+          for (const step of res.plan) {
+            body.appendChild(kvTable([{ k: step.recipe, v: step.summary || "", strong: true }]));
+            const apply = toolBtn2(step.destructive ? `⚠ Apply (destructive): ${step.recipe}` : `✓ Apply: ${step.recipe}`, async () => {
+              if (step.destructive && !(await confirmModal(`This will ${step.recipe.replace("_", " ")}. Continue?`, "", "Apply", true))) return;
+              cmdIn.value = "";
+              await authorAndReload(step.recipe, step.params, step.summary || step.recipe);
+            });
+            body.appendChild(apply);
+          }
+        });
+      };
+      cmdGo.onclick = () => void runCmd();
+      cmdIn.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); void runCmd(); } };
+      cmdWrap.append(cmdIn, cmdGo);
+      glBody.appendChild(cmdWrap);
+
       const status = document.createElement("div"); status.className = "meta";
       status.textContent = "Load the grid + levels to snap placement and set the active work-plane.";
       const levelSel = document.createElement("select"); levelSel.className = "portal-filter";

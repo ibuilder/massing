@@ -1024,6 +1024,13 @@ export class ApiClient extends HttpCore {
                opts: { bar_size?: string; tie_size?: string; cover?: number; tie_spacing?: number } = {}, publish = true) {
     return this.editIfc(pid, "add_rebar_cage", { column_guid: columnGuid, ...opts }, publish);
   }
+  /** Natural-language authoring: interpret a plain-English instruction into a validated plan of
+   *  {recipe, params} (no execution — apply each step via editIfc after the user confirms). */
+  aiAuthor(pid: string, text: string, context: { selected_guids?: string[]; active_storey?: string } = {}) {
+    return this.json<{ source: string; needs_clarification: string | null;
+      plan: { recipe: string; params: Record<string, unknown>; summary?: string; ok: boolean; destructive: boolean; errors: string[] }[] }>(
+      `/projects/${pid}/ai/author`, { method: "POST", body: JSON.stringify({ text, context }) });
+  }
   /** W11 B6: author an IfcCurtainWall (mullions + transoms + glazing panels) along a line. */
   addCurtainWall(pid: string, start: [number, number], end: [number, number],
                  opts: { height?: number; cols?: number; rows?: number } = {}, publish = true) {

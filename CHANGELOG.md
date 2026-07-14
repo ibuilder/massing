@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.271 — Natural-language authoring command bar (the low-barrier way in)
+
+**Type what you want to build.** A new **✨ command bar** at the top of the Author panel turns plain English
+into modelling — "add a 3 m wall from 0,0 to 5,0", "put a window in the selected wall", "steel column W14x30
+at 6,6", "set LOD 350 on the selection", "add 6 rooms". The instruction is mapped to a **validated plan** of
+`{recipe, params}` and shown for **confirmation** — nothing is written until you click Apply, and each step
+runs through the normal GUID-stable `/edit` path (audited, undoable). Destructive ops (delete) require a
+second confirm.
+
+This is the deterministic **no-API-key baseline** (regex + keyword matching, unit-normalized dimensions
+mm/cm/ft/in → metres, coordinate + section/LOD/phase parsing, selection + active-storey context) — so it
+works for everyone with zero setup. It's also the foundation (shared `RECIPE_SPECS` table + `validate_call`
+guardrail) for the LLM tool-use path next, and the first slice of the AI-authoring moat validated by the
+Nonica/Arcol competitor research. Engine `nlauthor.py` (`interpret` / `validate_call` / `RECIPE_SPECS`);
+`POST /projects/{id}/ai/author` (interpret-only). `test_nlauthor.py` green.
+
 ## v0.3.270 — Wave 11 · B6: curtain-wall systems
 
 Completes the B6 domain-geometry catalog. **🪟 Curtain wall** authors an `IfcCurtainWall` along a line that
