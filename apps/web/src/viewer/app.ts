@@ -1667,7 +1667,72 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       groupsBtn.title = "Organise placed elements — IfcGroup (named set), IfcElementAssembly (part-of whole), "
         + "and rectangular parametric arrays. Groups/assemblies build from saved selection sets; GUID-stable";
 
-      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn, manage, levelsMgr);
+      // W10-8 element phasing: tag new/existing/demolish/temporary status (renovation/demolition modeling).
+      const PHASES = [["new", "🟢 New"], ["existing", "⚪ Existing"], ["demolish", "🔴 Demolish"],
+        ["temporary", "🟡 Temporary"]] as const;
+      const openPhasingPanel = async () => {
+        let sum;
+        try { sum = await api.phasing(pid); }
+        catch (e) { notify(`phasing failed: ${(e as Error).message}`, "error"); return; }
+        const sets = loadSelSets(pid);
+        showResult("Phasing (new / existing / demolish / temporary)", (body) => {
+          body.appendChild(kvTable([
+            { k: "🟢 New", v: String(sum.counts.NEW), bar: sum.total ? sum.counts.NEW / sum.total : 0 },
+            { k: "⚪ Existing", v: String(sum.counts.EXISTING), bar: sum.total ? sum.counts.EXISTING / sum.total : 0 },
+            { k: "🔴 Demolish", v: String(sum.counts.DEMOLISH), bar: sum.total ? sum.counts.DEMOLISH / sum.total : 0 },
+            { k: "🟡 Temporary", v: String(sum.counts.TEMPORARY), bar: sum.total ? sum.counts.TEMPORARY / sum.total : 0 },
+            { k: "Unphased", v: String(sum.counts.UNSET), bar: sum.total ? sum.counts.UNSET / sum.total : 0 },
+          ]));
+          const tag = async (phase: "new" | "existing" | "demolish" | "temporary", guids: string[], what: string) => {
+            if (!guids.length) { notify("nothing to phase", "error"); return; }
+            await authorAndReload("set_phase", { guids, phase }, `${what} → ${phase}`);
+            await openPhasingPanel();
+          };
+          // tag the current selection
+          body.appendChild(resultNote(selectedGuid
+            ? "<b>Tag the selected element</b>" : "<b>Select an element</b>, or use a saved selection set below.", ""));
+          if (selectedGuid) {
+            const rowS = document.createElement("div"); rowS.className = "level-row";
+            for (const [ph, lbl] of PHASES) {
+              const bt = document.createElement("button"); bt.className = "mini-btn"; bt.textContent = lbl;
+              bt.onclick = () => tag(ph, [selectedGuid!], "selection");
+              rowS.appendChild(bt);
+            }
+            body.appendChild(rowS);
+          }
+          // tag a saved selection set
+          for (const s of sets) {
+            const row = document.createElement("div"); row.className = "level-row";
+            const label = document.createElement("span"); label.className = "meta";
+            label.textContent = `${s.name} · ${s.guids.length}`; label.style.flex = "1"; row.appendChild(label);
+            for (const [ph, lbl] of PHASES) {
+              const bt = document.createElement("button"); bt.className = "mini-btn"; bt.textContent = lbl.slice(0, 2);
+              bt.title = `Tag "${s.name}" as ${ph}`; bt.onclick = () => tag(ph, s.guids, s.name);
+              row.appendChild(bt);
+            }
+            body.appendChild(row);
+          }
+          const iso = toolBtn2("◎ Isolate a phase in 3D", async () => {
+            try {
+              const r = await api.colorBy(pid, "Massing_Phasing.Status", 6);
+              showResult("Isolate by phase", (b2) => {
+                if (!r.buckets.length) { b2.appendChild(resultNote("No phased elements yet.", "")); return; }
+                for (const bk of r.buckets) {
+                  b2.appendChild(toolBtn2(`◎ ${bk.label} · ${bk.count}`,
+                    () => { void layerMgr.isolateGuids(bk.guids); notify(`isolated ${bk.count} · ${bk.label}`, "success"); }));
+                }
+                b2.appendChild(toolBtn2("Show all", () => { void layerMgr.showAll?.(); }));
+              });
+            } catch (e) { notify(`isolate failed: ${(e as Error).message}`, "error"); }
+          });
+          iso.style.marginTop = "6px"; body.appendChild(iso);
+        });
+      };
+      const phaseBtn = toolBtn2("🕐 Phasing", openPhasingPanel);
+      phaseBtn.title = "Tag elements new / existing / demolish / temporary (Massing_Phasing.Status) — the "
+        + "renovation & demolition-sequencing dimension for as-built LOD-500 models. Colour by phase; GUID-stable";
+
+      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn, phaseBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------

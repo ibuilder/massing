@@ -984,6 +984,16 @@ export class ApiClient extends HttpCore {
   arrayElement(pid: string, guid: string, nx: number, ny: number, dx: number, dy: number, dz = 0, publish = true) {
     return this.editIfc(pid, "array_element", { guid, nx, ny, dx, dy, dz }, publish);
   }
+  /** W10-8: element phase/status distribution (new · existing · demolish · temporary · unset). */
+  phasing(pid: string) {
+    return this.json<{ total: number; phased: number; prop: string;
+      counts: Record<"NEW" | "EXISTING" | "DEMOLISH" | "TEMPORARY" | "UNSET", number> }>(
+      `/projects/${pid}/phasing`);
+  }
+  /** W10-8: tag elements with a construction phase (new | existing | demolish | temporary). */
+  setPhase(pid: string, guids: string[], phase: "new" | "existing" | "demolish" | "temporary", publish = true) {
+    return this.editIfc(pid, "set_phase", { guids, phase }, publish);
+  }
   /** AI-draft an RFI from an element's context (Claude when keyed, else a template draft). */
   draftRfi(pid: string, element: unknown, note?: string) {
     return this.json<{ ai_enabled: boolean; subject: string; question: string; discipline: string; suggested_priority: string; source: string }>(

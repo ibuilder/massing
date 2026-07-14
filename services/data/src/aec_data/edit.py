@@ -715,6 +715,42 @@ def set_element_pset(model: ifcopenshell.file, guid: str, pset: str, prop: str,
     return guid
 
 
+_PHASE_CODES = {"new": "NEW", "existing": "EXISTING", "demolish": "DEMOLISH", "temporary": "TEMPORARY"}
+
+
+def set_phase(model: ifcopenshell.file, guids, phase: str = "new") -> int:
+    """W10-8: tag elements with a construction **phase / status** (new · existing · demolish ·
+    temporary) — the renovation/sequencing dimension needed for LOD-500 as-built + demolition models.
+    Stamps `Massing_Phasing.Status` (the widely-used NEW/EXISTING/DEMOLISH/TEMPORARY status coding, so
+    it colours/filters and round-trips) on each element. GUID-stable; a bad GUID never aborts the batch.
+    Returns the count tagged."""
+    code = _PHASE_CODES.get((phase or "new").strip().lower(), (phase or "NEW").strip().upper())
+    n = 0
+    for g in guids or []:
+        try:
+            set_element_pset(model, g, "Massing_Phasing", "Status", code, "str")
+            n += 1
+        except Exception:  # noqa: BLE001 — skip stale/unknown GUIDs, keep tagging the rest
+            pass
+    return n
+
+
+def phase_summary(model: ifcopenshell.file) -> dict:
+    """Count physical elements per phase/status (unset = not yet phased). Feeds a phasing overview and
+    the colour-by-status view."""
+    import ifcopenshell.util.element as ue
+
+    counts: dict[str, int] = {"NEW": 0, "EXISTING": 0, "DEMOLISH": 0, "TEMPORARY": 0, "UNSET": 0}
+    total = 0
+    for el in model.by_type("IfcElement"):
+        total += 1
+        ps = ue.get_pset(el, "Massing_Phasing") or {}
+        status = str(ps.get("Status") or "").upper()
+        counts[status if status in counts else "UNSET"] += 1
+    return {"total": total, "counts": counts,
+            "phased": total - counts["UNSET"], "prop": "Massing_Phasing.Status"}
+
+
 def set_classification(model: ifcopenshell.file, guid: str, system: str, code: str,
                        name: str | None = None, edition: str | None = None) -> str:
     """Tag one element (by GUID) with a classification reference — Uniclass 2015, OmniClass,
@@ -925,6 +961,8 @@ RECIPES = {
                                                        int(p.get("ny", 1)), float(p.get("dx", 1.0)),
                                                        float(p.get("dy", 0.0)), float(p.get("dz", 0.0))),
     "ungroup": lambda m, p: _grp().ungroup(m, p["guid"]),
+    # W10-8 element phasing — tag new/existing/demolish/temporary status
+    "set_phase": lambda m, p: set_phase(m, p["guids"], p.get("phase", "new")),
 }
 
 

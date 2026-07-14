@@ -71,6 +71,18 @@ def type_detail(pid: str, type_guid: str, db: Session = Depends(get_db),
         raise HTTPException(404, str(e)) from e
 
 
+@router.get("/projects/{pid}/phasing")
+def phasing_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W10-8: element phase/status distribution (new · existing · demolish · temporary · unset) over the
+    model. Tag elements with the `set_phase` recipe (POST /edit); colour the model by
+    `Massing_Phasing.Status` via the existing colour-by-property view."""
+    from aec_data import edit as ed  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return ed.phase_summary(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/groups")
 def list_groups(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W10-3: every IfcGroup (named set / selection) and IfcElementAssembly (part-of whole) in the

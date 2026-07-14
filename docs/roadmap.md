@@ -356,10 +356,12 @@ solver last.
   alongside the physical: analytical members/nodes, supports, load cases. IFC: `IfcStructuralAnalysisModel`,
   `IfcStructuralCurveMember`/`SurfaceMember`, `IfcStructuralPointConnection`, `IfcStructuralLoadCase`,
   `IfcRelConnectsStructuralActivity`. *Depends on the physical structural elements (exist).*
-- **W10-8 — Phasing & design options** *(S/M · pure ifcopenshell · mostly wiring)* — phase (existing/new/demo)
-  per element tied to the **4D timeline**; design options modeled on the **IFC5-style property-override
-  layers** we already ship. IFC: phasing Pset or `IfcTask`+`IfcRelAssignsToProcess`; options via override
-  layers / `IfcGroup`. *Reuses existing machinery.*
+- **W10-8 — Phasing & design options** ✅ Phasing SHIPPED v0.3.254 *(S/M · pure ifcopenshell)* — `set_phase`
+  tags elements **new/existing/demolish/temporary** via `Massing_Phasing.Status` (the standard status coding,
+  so it colours/filters/round-trips), `phase_summary` counts by status. **🕐 Phasing** viewer tool (tag the
+  selection or a saved selection set, phase overview, isolate-a-phase-in-3D) + `set_phase` recipe + `GET
+  /phasing`. `test_phasing.py` green. *Design options already covered by the W9-3 IFC5 property-override
+  layers; tying phase to the 4D timeline slider is the remaining sub-item.*
 - **W10-9 — Parametric constraints & dimensional locks (the hard one)** *(L · higher-risk · needs an LGPL
   solver)* — geometric constraint solving (locks, equality, alignment) has **no IFC representation**; store
   constraints in a sidecar model, solve, bake to IFC. Start with 1D/alignment locks; a full 2D sketch solver

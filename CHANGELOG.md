@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.254 — Wave 10 · W10-8: element phasing
+
+The renovation / demolition-sequencing dimension needed for as-built and phased models. A new **🕐 Phasing**
+tool (Grid &amp; Levels) tags elements **new · existing · demolish · temporary** — writing the widely-used
+`Massing_Phasing.Status` code (NEW/EXISTING/DEMOLISH/TEMPORARY) so it colours, filters, and round-trips:
+
+- Tag the selected element, or bulk-tag any saved selection set, from a one-click phase palette.
+- A phase-distribution overview (counts + bars per status, plus unphased).
+- **Isolate a phase in 3D** — pick a status to isolate just those elements.
+
+Re-tagging updates the status in place (no duplicate pset); stale GUIDs are skipped; all GUID-stable. Engine
+`set_phase` / `phase_summary` in `edit.py`; `set_phase` recipe + `GET /phasing`. `test_phasing.py` green.
+(Design options reuse the W9-3 IFC5 property-override layers already shipped.)
+
 ## v0.3.253 — Wave 10 · W10-3: groups, assemblies & arrays
 
 Three IFC-native ways to compose placed elements, all GUID-stable, via a new **🧩 Groups &amp; arrays** tool
