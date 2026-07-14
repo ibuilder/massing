@@ -267,10 +267,22 @@ def egress_analysis(elements: dict[str, dict]) -> dict[str, Any]:
     }
 
 
-# IBC occupancy-label → group letter (Ch. 3), for the code-analysis summary
-_OCC_GROUP = {"Assembly": "A", "Business": "B", "Educational": "E", "Factory/Industrial": "F",
-              "High-hazard": "H", "Institutional": "I", "Mercantile": "M", "Residential": "R",
-              "Storage": "S", "Utility": "U"}
+# IBC occupancy-label → group letter (Ch. 3), for the code-analysis summary. Matched as ordered
+# substrings, NOT exact keys — the labels `_occ_factor` emits carry parentheticals and synonyms
+# ("Assembly (unconcentrated)", "Educational (classroom)", "Industrial", "Business (assumed)"), so an
+# exact dict silently drops most of them to "". First substring hit wins (order matters where a label
+# could match two keys). Accessory/utility spaces have no standalone group → left unresolved ("").
+_OCC_GROUP_MATCH: list[tuple[str, str]] = [
+    ("assembly", "A"), ("kitchen", "B"), ("business", "B"), ("educational", "E"),
+    ("institutional", "I"), ("mercantile", "M"), ("residential", "R"),
+    ("parking", "S"), ("storage", "S"), ("industrial", "F"), ("factory", "F"),
+    ("high-hazard", "H"),
+]
+
+
+def _occ_group(label: str) -> str:
+    t = (label or "").lower()
+    return next((g for key, g in _OCC_GROUP_MATCH if key in t), "")
 
 
 def code_analysis(model, occupancy_group: str = "", construction_type: str = "",
@@ -284,7 +296,7 @@ def code_analysis(model, occupancy_group: str = "", construction_type: str = "",
     eg = egress_from_model(model)
     by_occ = eg.get("by_occupancy") or []
     primary = by_occ[0]["occupancy"] if by_occ else ""
-    group = (occupancy_group or _OCC_GROUP.get(primary, "")).upper()
+    group = (occupancy_group or _occ_group(primary)).upper()
     ctype = construction_type or "II-B (verify with AHJ)"
     stories = len(model.by_type("IfcBuildingStorey"))
     gross_ft2 = eg["building"]["area_ft2"]

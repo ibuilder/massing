@@ -24,7 +24,7 @@ edit.add_opening(m, w, width=0.9, height=2.1, kind="door")
 a = cc.code_analysis(m)
 assert a["building"]["stories"] == 2, a["building"]
 assert a["building"]["gross_area_ft2"] > 0 and a["building"]["occupant_load"] > 0, a["building"]
-assert a["occupancy"]["group"] in {"B", "A", "M", "S", "—"}, a["occupancy"]      # inferred group letter
+assert a["occupancy"]["group"] == "B", a["occupancy"]      # business spaces → Group B (must resolve, not "—")
 assert a["construction_type"].startswith("II-B"), a["construction_type"]         # default
 assert a["sprinklered"] is False
 # egress + doors carried through from the egress computation
@@ -42,6 +42,13 @@ assert a2["sprinklered"] is True and a2["allowable"]["sprinkler_increase"] == "e
 # --- occupant-load-by-occupancy breakdown present -------------------------------------------------
 assert isinstance(a["occupant_load_by_occupancy"], list) and a["occupant_load_by_occupancy"], a
 assert all("occupancy" in o and "load" in o for o in a["occupant_load_by_occupancy"])
+
+# --- occupancy-label → group letter resolves for the parenthetical/synonym labels (regression) ------
+for lbl, g in [("Assembly (unconcentrated)", "A"), ("Educational (classroom)", "E"),
+               ("Industrial", "F"), ("Parking", "S"), ("Business (assumed)", "B"),
+               ("Commercial kitchen", "B"), ("Mercantile", "M")]:
+    assert cc._occ_group(lbl) == g, f"{lbl!r} -> {cc._occ_group(lbl)!r}, expected {g}"
+assert cc._occ_group("Accessory") == "", "accessory has no standalone group"
 
 if os.path.exists(TMP):
     os.remove(TMP)

@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.275 — Fix: code-analysis occupancy group now resolves for every occupancy label
+
+The v0.3.274 code-analysis summary looked up the occupancy group in an exact-match dict keyed on
+`"Business"`/`"Assembly"`/…, but the space-mix labels carry qualifiers and synonyms
+(`"Assembly (unconcentrated)"`, `"Educational (classroom)"`, `"Industrial"`, `"Parking"`, the
+`"Business (assumed)"` default) — so 6 of 13 labels silently fell through to group **"—"**. Replaced the
+exact dict with an ordered **substring** matcher (`_occ_group`) so those resolve to A/E/F/S/B correctly;
+accessory/utility spaces (no standalone group) still return blank by design. Regression coverage added.
+
 ## v0.3.274 — Code analysis: permit-set G-series code summary
 
 The IBC **code-analysis summary** a permit set carries on its G-series code sheet — now computed straight
