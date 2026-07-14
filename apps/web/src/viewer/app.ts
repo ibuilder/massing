@@ -2057,15 +2057,25 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           for (const [axis, lbl] of [["x", "Section X–X"], ["y", "Section Y–Y"]] as const) {
             const b2 = document.createElement("button"); b2.className = "mini-btn"; b2.textContent = `✂ ${lbl}`;
             b2.onclick = () => openDrawing(`section.svg?axis=${axis}&title=${encodeURIComponent(lbl)}`);
-            secR.appendChild(b2);
+            const dx = document.createElement("button"); dx.className = "mini-btn"; dx.textContent = "⤓ DXF"; dx.title = `${lbl} → DXF (CAD)`;
+            dx.onclick = () => openDrawing(`section.dxf?axis=${axis}`);
+            secR.append(b2, dx);
           }
           row("Elevations");
           const elR = btnRow();
           for (const dir of ["north", "south", "east", "west"] as const) {
             const b2 = document.createElement("button"); b2.className = "mini-btn"; b2.textContent = `🧭 ${dir.charAt(0).toUpperCase()}${dir.slice(1)}`;
             b2.onclick = () => openDrawing(`elevation.svg?direction=${dir}`);
-            elR.appendChild(b2);
+            const dx = document.createElement("button"); dx.className = "mini-btn"; dx.textContent = "⤓"; dx.title = `${dir} elevation → DXF (CAD)`;
+            dx.onclick = () => openDrawing(`elevation.dxf?direction=${dir}`);
+            elR.append(b2, dx);
           }
+          row("Plan");
+          const plR = btnRow();
+          const planDxf = document.createElement("button"); planDxf.className = "mini-btn"; planDxf.textContent = "⤓ Plan DXF (CAD)";
+          planDxf.title = "Export the plan cut linework as a DXF any CAD tool can open" + (activeStorey ? ` (${activeStorey})` : "");
+          planDxf.onclick = () => { const q = new URLSearchParams(); if (activeStoreyZ) q.set("elevation", String(activeStoreyZ)); openDrawing(`plan.dxf?${q.toString()}`); };
+          plR.appendChild(planDxf);
         });
       });
       sectBtn.title = "Cut sections (auto-centred on the model) and projected N/S/E/W elevations — vector "

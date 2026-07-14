@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.281 — DXF export for plans, sections & elevations (CAD interchange)
+
+The drawing set now exports to **DXF** so the linework opens in any CAD tool. A hand-written, dependency-free
+R12 DXF writer (`dxf.py` — POLYLINE entities, no library, no license exposure) serialises the same
+world-placed polylines the SVG views use: `plan_dxf` / `section_dxf` (auto-centred cut) / `elevation_dxf`
+on named layers (PLAN / SECTION / ELEVATION). New `GET /drawings/plan.dxf`, `/section.dxf`, `/elevation.dxf`
+endpoints and **⤓ DXF** buttons alongside each view in the Sections & elevations tool. `test_dxf.py` covers
+the R12 envelope, closed-loop detection, degenerate-skip, and world placement.
+
 ## v0.3.280 — Fix: S3 structured-output schema (LLM authoring path) + apply-all recovery
 
 Two follow-ups to the S3 command bar. (1) The plan schema declared each step's `params` as an open

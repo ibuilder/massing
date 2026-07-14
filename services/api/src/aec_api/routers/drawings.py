@@ -299,6 +299,11 @@ def _svg(svg: str) -> Response:
     return Response(svg.encode("utf-8"), media_type="image/svg+xml")
 
 
+def _dxf(dxf_text: str, name: str) -> Response:
+    return Response(dxf_text.encode("utf-8"), media_type="image/vnd.dxf",
+                    headers={"Content-Disposition": f'attachment; filename="{name}.dxf"'})
+
+
 @router.get("/projects/{pid}/drawings/storeys")
 def list_storeys(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import drawings  # type: ignore
@@ -348,6 +353,36 @@ def elevation(pid: str, direction: str = "north", db: Session = Depends(get_db),
     svg = drawings.elevation(open_model(_source_ifc(db, pid)), direction,
                              f"{direction.upper()} ELEVATION")
     return _svg(svg)
+
+
+@router.get("/projects/{pid}/drawings/plan.dxf")
+def plan_dxf(pid: str, elevation: float = 0.0, cut_height: float = 1.2,
+             db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Plan linework as a downloadable **DXF** (R12) for CAD interchange — any CAD tool opens it."""
+    from aec_data import drawings  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    return _dxf(drawings.plan_dxf(open_model(_source_ifc(db, pid)), elevation, cut_height), f"plan-{pid}")
+
+
+@router.get("/projects/{pid}/drawings/section.dxf")
+def section_dxf(pid: str, axis: str = "x", offset: float | None = None,
+                db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Vertical section linework as a downloadable **DXF** (R12); omit `offset` to auto-centre the cut."""
+    from aec_data import drawings  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    return _dxf(drawings.section_dxf(open_model(_source_ifc(db, pid)), axis, offset), f"section-{axis}-{pid}")
+
+
+@router.get("/projects/{pid}/drawings/elevation.dxf")
+def elevation_dxf(pid: str, direction: str = "north",
+                  db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Projected elevation outlines as a downloadable **DXF** (R12)."""
+    from aec_data import drawings  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    return _dxf(drawings.elevation_dxf(open_model(_source_ifc(db, pid)), direction), f"elevation-{direction}-{pid}")
 
 
 @router.get("/projects/{pid}/model/export.gltf")

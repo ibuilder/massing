@@ -21,7 +21,7 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 
 ## ⚡ Order of attack — the next ~8, highest value first
 
-1. **DXF export + schedules-on-a-PDF-sheet** — finish the construction-document set (Wave 11 C6).
+1. **Schedules-on-a-PDF-sheet** — finish the construction-document set (Wave 11 C6; DXF export ✅ v0.3.281).
 2. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (unblocks real geometry depth).
 3. **CODE-1 — jurisdiction adoption-facts catalog** — zero copyright risk; unlocks the whole code library.
 4. **E8 — the ~50 valid-IFC guardrail rules** — the reliability edge; a novice can't produce broken IFC.
@@ -43,10 +43,11 @@ The single architectural spine (multi-representation, view-keyed elements) + the
 generator already ship; these deepen geometry, drawings, code-intelligence, and the authoring UX.
 
 **Construction-document generation (finish the CD set) — highest value**
-- **C6 (near-term slices)** — **DXF export**, **schedules on a PDF sheet**, reference-line datums
-  (`IfcReferent`/`IfcVirtualElement`), and **"drawn detail follows LOD"** poché (representation selection +
-  `IfcMaterialLayerSet` poché + annotation density → schematic single-line ↔ CD layered poché). Permissive
-  libs only (no AGPL).
+- **C6 (near-term slices)** — ✅ **DXF export SHIPPED v0.3.281** (`dxf.py` R12 writer + plan/section/elevation
+  `.dxf` endpoints + ⤓ DXF buttons; dependency-free). Remaining: **schedules on a PDF sheet**, reference-line
+  datums (`IfcReferent`/`IfcVirtualElement`), and **"drawn detail follows LOD"** poché (representation
+  selection + `IfcMaterialLayerSet` poché + annotation density → schematic single-line ↔ CD layered poché).
+  Permissive libs only (no AGPL).
 
 **Geometry depth → LOD 350/400**
 - **B3** — wall **Axis representation + clippings/booleans** (sloped tops, gable walls).

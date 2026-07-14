@@ -504,6 +504,30 @@ def plan_file(ifc_path: str, elevation: float, cut_height: float = 1.2, title: s
     return plan_svg(open_model(ifc_path), elevation, cut_height, title)
 
 
+# --- DXF export (CAD interchange) -------------------------------------------
+def plan_dxf(model: ifcopenshell.file, elevation: float = 0.0, cut_height: float = 1.2) -> str:
+    """Plan cut linework as R12 DXF — a horizontal section at `elevation + cut_height`."""
+    from . import dxf
+    return dxf.polylines_to_dxf(cut(model, "plan", elevation + cut_height), layer="PLAN")
+
+
+def section_dxf(model: ifcopenshell.file, axis: str, offset: float | None = None) -> str:
+    """Vertical section linework as R12 DXF; `offset` None auto-centres the cut on the model."""
+    from . import dxf
+    meshes = bake(model)
+    if offset is None:
+        offset = _axis_center(meshes, 0 if axis == "x" else 1)
+    view = "section-x" if axis == "x" else "section-y"
+    return dxf.polylines_to_dxf(cut_baked(meshes, view, offset), layer="SECTION")
+
+
+def elevation_dxf(model: ifcopenshell.file, direction: str = "north") -> str:
+    """Projected elevation outlines as R12 DXF (closed silhouettes)."""
+    from . import dxf
+    return dxf.polylines_to_dxf(elevation_outlines(bake(model), direction), layer="ELEVATION",
+                                closed_hint=True)
+
+
 # --- sheet composer (Revit-style sheet sets & title blocks) -----------------
 _PT_PER_M = 1.0 / 0.000352778  # paper points per metre at 1:1
 
