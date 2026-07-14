@@ -90,6 +90,9 @@ RECIPE_SPECS: dict[str, dict[str, Any]] = {
     },
 }
 
+# bounded number pattern — no unbounded \d+ / \s* runs, so the parse is linear (no polynomial ReDoS)
+_NUM = r"\d{1,9}(?:\.\d{1,6})?"
+_UNIT = r"(?:mm|cm|m|ft|in|'|\")"
 _UNITS_TO_M = {"m": 1.0, "mm": 0.001, "cm": 0.01, "ft": 0.3048, "'": 0.3048, "in": 0.0254, '"': 0.0254}
 _LOD_WORDS = re.compile(r"\b(100|200|300|350|400|500)\b")
 _PHASE_WORDS = {"existing": "existing", "demolish": "demolish", "demo": "demolish",
@@ -98,7 +101,7 @@ _PHASE_WORDS = {"existing": "existing", "demolish": "demolish", "demo": "demolis
 
 def _len_m(text: str, default: float | None = None) -> float | None:
     """First length in the text → metres (e.g. '3m'→3.0, '300mm'→0.3, "10ft"/"10'"→3.048)."""
-    m = re.search(r"(\d+(?:\.\d+)?)\s*(mm|cm|m|ft|in|'|\")", text)
+    m = re.search("(" + _NUM + r")\s{0,6}(mm|cm|m|ft|in|'|\")", text)
     if not m:
         return default
     return float(m.group(1)) * _UNITS_TO_M.get(m.group(2), 1.0)
@@ -107,7 +110,7 @@ def _len_m(text: str, default: float | None = None) -> float | None:
 def _points(text: str) -> list[list[float]]:
     """All coordinate pairs `x,y` (parens optional) in order — the [E,N] points in the instruction."""
     return [[float(a), float(b)] for a, b in
-            re.findall(r"\(?\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)?", text)]
+            re.findall(r"\(?\s{0,4}(-?" + _NUM + r")\s{0,4},\s{0,4}(-?" + _NUM + r")\s{0,4}\)?", text)]
 
 
 def validate_call(recipe: str, params: dict) -> dict:
@@ -211,7 +214,7 @@ def interpret(text: str, context: dict | None = None) -> dict:
         if length is not None:
             params["width"] = length
     elif recipe == "add_spaces":
-        n = re.search(r"(\d+)\s+(?:rooms|spaces)", t)
+        n = re.search(r"(\d{1,6})\s{1,4}(?:rooms|spaces)", t)
         if n:
             params["rooms_per_storey"] = int(n.group(1))
     elif recipe == "set_lod":
@@ -239,12 +242,12 @@ def interpret(text: str, context: dict | None = None) -> dict:
 
 
 def _wall_height(text: str) -> float | None:
-    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:m|mm|cm|ft|in|'|\")?\s*(?:tall|high|height)", text.lower())
+    m = re.search("(" + _NUM + r")\s{0,4}" + _UNIT + r"?\s{0,4}(?:tall|high|height)", text.lower())
     return _len_m(m.group(0)) if m else None
 
 
 def _thickness(text: str) -> float | None:
-    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:m|mm|cm|ft|in|'|\")?\s*(?:thick|thickness|wide)", text.lower())
+    m = re.search("(" + _NUM + r")\s{0,4}" + _UNIT + r"?\s{0,4}(?:thick|thickness|wide)", text.lower())
     return _len_m(m.group(0)) if m else None
 
 

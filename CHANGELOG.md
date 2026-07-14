@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.273 — Security: ReDoS-harden the NL command-bar regexes
+
+CodeQL flagged 5 `py/polynomial-redos` alerts in the natural-language authoring parser (unbounded `\d+` /
+`\s*` runs in `nlauthor.py`). Bounded every quantifier (`\d{1,9}(?:\.\d{1,6})?`, `\s{0,6}`) so the parse
+is linear on any input — no catastrophic backtracking. Parsing behaviour unchanged (`test_nlauthor.py` green).
+
 ## v0.3.272 — Fix: IFC2x3 MEP browser crash + degenerate-input guard
 
 From the post-release debug worktree:
