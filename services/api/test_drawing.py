@@ -9,7 +9,7 @@ _DATA_SRC = os.path.join(os.path.dirname(__file__), "..", "data", "src")
 if _DATA_SRC not in sys.path:
     sys.path.insert(0, _DATA_SRC)
 
-from aec_data import drawing, edit, massing  # noqa: E402
+from aec_data import detailing, drawing, edit, massing  # noqa: E402
 from aec_data.ifc_loader import open_model  # noqa: E402
 
 TMP = os.path.join(os.path.dirname(__file__), "_drawing_test.ifc")
@@ -18,11 +18,14 @@ m = open_model(TMP)
 st = m.by_type("IfcBuildingStorey")[0].Name
 
 # a rectangular room of 4 walls + a column
-edit.add_wall(m, [0, 0], [6, 0], 3.0, 0.2, st)
+w1 = edit.add_wall(m, [0, 0], [6, 0], 3.0, 0.2, st)
 edit.add_wall(m, [6, 0], [6, 4], 3.0, 0.2, st)
 edit.add_wall(m, [6, 4], [0, 4], 3.0, 0.2, st)
 edit.add_wall(m, [0, 4], [0, 0], 3.0, 0.2, st)
-edit.add_column(m, [3, 2], 3.0, 0.4, 0.4, st)
+col = edit.add_column(m, [3, 2], 3.0, 0.4, 0.4, st)
+# Track-D codes on two elements → keynotes on the plan
+detailing.classify(m, [w1], "MasterFormat", "04 20 00", "Unit Masonry")
+detailing.classify(m, [col], "MasterFormat", "05 12 00", "Structural Steel Framing")
 
 r = drawing.plan_svg(m, scale=100)
 svg = r["svg"]
@@ -38,6 +41,19 @@ assert re.search(r'width="[\d.]+mm"', svg) and 'viewBox="0 0 ' in svg, svg[:200]
 # bounds cover the 6×4 m room
 assert r["bounds"]["max"][0] - r["bounds"]["min"][0] >= 6.0, r["bounds"]
 
+# C2 dimensions: overall width/height dimension strings present with metric text
+assert '<g class="dim">' in svg and svg.count('<g class="dim">') == 2, svg.count('<g class="dim">')
+assert 'class="dimt"' in svg and " m<" in svg, "no dimension text"
+
+# C2 keynotes: the two coded elements → 2 legend entries + numbered bubbles + a KEYNOTES legend header
+assert r["keynotes"] == 2, r
+assert "KEYNOTES" in svg and "04 20 00" in svg and "05 12 00" in svg, "keynote legend missing codes"
+assert svg.count('class="kn"') >= 2, "keynote bubbles missing"
+
+# keynotes/dimensions can be turned off
+plain = drawing.plan_svg(m, scale=100, dimensions=False, keynotes=False)
+assert plain["keynotes"] == 0 and '<g class="dim">' not in plain["svg"] and "KEYNOTES" not in plain["svg"]
+
 # storey filter: a bogus storey name → no elements → empty-but-valid SVG
 empty = drawing.plan_svg(m, storey="Nonexistent Level")
 assert empty["elements"] == 0 and empty["svg"].startswith("<svg"), empty
@@ -51,6 +67,7 @@ assert w50 > w100, (w50, w100)
 if os.path.exists(TMP):
     os.remove(TMP)
 
-print("DRAWING OK - plan_svg derives a schematic plan from footprints: 4 walls + 1 column -> 5 class-styled "
-      "polygons in a valid, paper-dimensioned SVG (PLAN 1:100); storey filter yields an empty-but-valid "
-      "sheet; scale drives paper size (1:50 larger than 1:100). No geometry kernel required.")
+print("DRAWING OK - plan_svg derives a schematic plan from footprints (4 walls + column + slab -> 6 "
+      "class-styled polygons); C2 adds overall width/height DIMENSION strings (metric) + KEYNOTE bubbles "
+      "+ legend from Track-D classification codes (04 20 00 / 05 12 00); storey filter -> empty-but-valid "
+      "sheet; scale drives paper size; dims/keynotes toggle off. No geometry kernel required.")

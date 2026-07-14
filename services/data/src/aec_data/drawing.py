@@ -15,6 +15,7 @@ Later slices add dimensions, tags/keynotes (from the Track-D classification code
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import ifcopenshell
 
@@ -29,6 +30,12 @@ _STYLE = """
 .IfcRoof{fill:#f6efe6}
 .grid{stroke:#b00;stroke-width:0.2;stroke-dasharray:4 2}
 .label{font:2px sans-serif;fill:#333}
+.dim line{stroke:#06c;stroke-width:0.2}
+.dimt{font:2px sans-serif;fill:#06c;text-anchor:middle}
+.kn{fill:#fff;stroke:#b00;stroke-width:0.3}
+.knt{font:2.4px sans-serif;fill:#b00;text-anchor:middle;dominant-baseline:middle}
+.lgd{font:2.6px sans-serif;fill:#222}
+.lgd-h{font:bold 3px sans-serif;fill:#000}
 """.strip()
 
 
@@ -130,22 +137,46 @@ def _footprint(el):
     return out
 
 
+def _element_codes(el):
+    """(system, code, title) tuples from an element's IfcRelAssociatesClassification — the Track-D
+    keynote/spec codes that drive keynotes on the drawing."""
+    out = []
+    for rel in (getattr(el, "HasAssociations", None) or []):
+        if not rel.is_a("IfcRelAssociatesClassification"):
+            continue
+        ref = rel.RelatingClassification
+        src = getattr(ref, "ReferencedSource", None)
+        while src is not None and src.is_a("IfcClassificationReference"):
+            src = getattr(src, "ReferencedSource", None)
+        out.append((getattr(src, "Name", None) if src is not None else None,
+                    getattr(ref, "Identification", None), getattr(ref, "Name", None)))
+    return out
+
+
+def _centroid(fp):
+    return (sum(p[0] for p in fp) / len(fp), sum(p[1] for p in fp) / len(fp))
+
+
+# keynote systems, in priority order (a reference keynote points at the spec section → MasterFormat wins)
+_KEYNOTE_SYS = ("MasterFormat", "UniFormat", "OmniClass", "Uniclass")
+
 # elements worth drawing on a plan, coarsest→finest (drawing order)
 _PLAN_CLASSES = ["IfcSlab", "IfcRoof", "IfcSpace", "IfcWall", "IfcColumn", "IfcFooting"]
 
 
 def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 100,
-             margin_mm: float = 10.0) -> dict:
+             margin_mm: float = 18.0, dimensions: bool = True, keynotes: bool = True) -> dict:
     """Generate a schematic **plan SVG** from element footprints. `storey` limits to one level (by name);
-    `scale` is the drawing scale (1:`scale`). Returns {svg, elements, bounds, scale}. Coordinates are laid
-    out in millimetres of paper at the given scale (1 model metre → 1000/scale mm)."""
+    `scale` is the drawing scale (1:`scale`). With `dimensions`, overall width/height dimension strings are
+    drawn; with `keynotes`, elements carrying a Track-D classification code get numbered keynote bubbles + a
+    legend. Returns {svg, elements, keynotes, bounds, scale}. Paper coords are millimetres at the scale."""
     import ifcopenshell.util.element as ue
     import ifcopenshell.util.unit as uu
 
     unit_scale = uu.calculate_unit_scale(model)               # metres per file unit
     paper = (1000.0 / float(scale)) * unit_scale              # file-unit → paper-mm
 
-    shapes: list[tuple[str, list]] = []
+    shapes: list[tuple[Any, str, list]] = []
     for cls in _PLAN_CLASSES:
         for el in model.by_type(cls):
             if el.is_a("IfcElementType"):
@@ -156,15 +187,16 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
                     continue
             fp = _footprint(el)
             if fp and len(fp) >= 3:
-                shapes.append((el.is_a(), fp))
+                shapes.append((el, el.is_a(), fp))
 
     if not shapes:
-        return {"svg": _empty_svg(), "elements": 0, "bounds": None, "scale": scale}
+        return {"svg": _empty_svg(), "elements": 0, "keynotes": 0, "bounds": None, "scale": scale}
 
-    xs = [p[0] for _, fp in shapes for p in fp]
-    ys = [p[1] for _, fp in shapes for p in fp]
+    xs = [p[0] for _, _, fp in shapes for p in fp]
+    ys = [p[1] for _, _, fp in shapes for p in fp]
     minx, maxx, miny, maxy = min(xs), max(xs), min(ys), max(ys)
-    w = (maxx - minx) * paper + 2 * margin_mm
+    legend_mm = 62.0 if keynotes else 0.0
+    w = (maxx - minx) * paper + 2 * margin_mm + legend_mm
     h = (maxy - miny) * paper + 2 * margin_mm
 
     def tx(x):        # world→paper, flip Y (SVG y grows down; plan north is up)
@@ -173,23 +205,87 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
     def ty(y):
         return round((maxy - y) * paper + margin_mm, 2)
 
-    polys = []
-    for cls, fp in shapes:
-        d = " ".join(f"{tx(x)},{ty(y)}" for x, y in fp)
-        polys.append(f'<polygon class="el {cls}" points="{d}"/>')
+    polys = [f'<polygon class="el {cls}" points="{" ".join(f"{tx(x)},{ty(y)}" for x, y in fp)}"/>'
+             for _, cls, fp in shapes]
+
+    # ── keynotes: unique classification codes across the drawn elements → numbered legend + bubbles ──
+    bubbles: list[str] = []
+    legend_rows: list[tuple[int, str, str]] = []
+    if keynotes:
+        order: dict[tuple[str, str], int] = {}
+        for el, _cls, fp in shapes:
+            codes = _element_codes(el)
+            pick = next((c for sys in _KEYNOTE_SYS for c in codes if c[0] == sys), None)
+            if not pick or not pick[1]:
+                continue
+            key = (pick[0], pick[1])
+            if key not in order:
+                order[key] = len(order) + 1
+                legend_rows.append((order[key], f"{pick[0]} {pick[1]}", pick[2] or ""))
+            num = order[key]
+            cx, cy = _centroid(fp)
+            bx, by = tx(cx), ty(cy)
+            bubbles.append(f'<circle class="kn" cx="{bx}" cy="{by}" r="2.4"/>'
+                           f'<text class="knt" x="{bx}" y="{round(by + 0.8, 2)}">{num}</text>')
+
+    # ── dimensions: overall width (below) + overall height (left) ──
+    dims: list[str] = []
+    if dimensions:
+        y0 = round(ty(miny) + 8, 2)                            # below the plan
+        dims.append(_hdim(tx(minx), tx(maxx), y0, (maxx - minx) * unit_scale))
+        x0 = round(tx(minx) - 8, 2)                            # left of the plan
+        dims.append(_vdim(x0, ty(maxy), ty(miny), (maxy - miny) * unit_scale))
+
+    legend_svg = ""
+    if keynotes and legend_rows:
+        lx = round(w - legend_mm + 4, 2)
+        rows = [f'<text class="lgd-h" x="{lx}" y="{round(margin_mm, 2)}">KEYNOTES</text>']
+        for i, (num, code, title) in enumerate(legend_rows[:24]):
+            ry = round(margin_mm + 6 + i * 5, 2)
+            rows.append(f'<circle class="kn" cx="{lx + 2}" cy="{round(ry - 1.2, 2)}" r="2.2"/>'
+                        f'<text class="knt" x="{lx + 2}" y="{round(ry - 0.4, 2)}">{num}</text>'
+                        f'<text class="lgd" x="{lx + 7}" y="{ry}">{_esc(code)} - {_esc(title)[:30]}</text>')
+        legend_svg = "".join(rows)
 
     svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{round(w, 1)}mm" height="{round(h, 1)}mm" '
         f'viewBox="0 0 {round(w, 2)} {round(h, 2)}">'
         f"<style>{_STYLE}</style>"
         f'<rect class="sheet" x="0" y="0" width="{round(w, 2)}" height="{round(h, 2)}"/>'
-        + "".join(polys)
-        + f'<text class="label" x="{margin_mm}" y="{round(h - 3, 2)}">PLAN 1:{scale}'
+        + "".join(polys) + "".join(dims) + "".join(bubbles) + legend_svg
+        + f'<text class="label" x="{margin_mm}" y="{round(h - 4, 2)}">PLAN 1:{scale}'
         + (f" — {storey}" if storey else "") + "</text>"
         + "</svg>"
     )
-    return {"svg": svg, "elements": len(shapes), "scale": scale,
-            "bounds": {"min": [minx, miny], "max": [maxx, maxy]}}
+    return {"svg": svg, "elements": len(shapes), "keynotes": len(legend_rows),
+            "scale": scale, "bounds": {"min": [minx, miny], "max": [maxx, maxy]}}
+
+
+def _fmt_m(v: float) -> str:
+    return f"{v:.2f} m"
+
+
+def _hdim(x1: float, x2: float, y: float, dist_m: float) -> str:
+    """A horizontal dimension string with witness ticks and centred text (distance in metres)."""
+    xm = round((x1 + x2) / 2, 2)
+    return (f'<g class="dim"><line x1="{x1}" y1="{round(y - 3, 2)}" x2="{x1}" y2="{round(y + 1, 2)}"/>'
+            f'<line x1="{x2}" y1="{round(y - 3, 2)}" x2="{x2}" y2="{round(y + 1, 2)}"/>'
+            f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}"/>'
+            f'<text class="dimt" x="{xm}" y="{round(y - 1, 2)}">{_fmt_m(dist_m)}</text></g>')
+
+
+def _vdim(x: float, y1: float, y2: float, dist_m: float) -> str:
+    """A vertical dimension string (rotated text)."""
+    ym = round((y1 + y2) / 2, 2)
+    return (f'<g class="dim"><line x1="{round(x - 1, 2)}" y1="{y1}" x2="{round(x + 3, 2)}" y2="{y1}"/>'
+            f'<line x1="{round(x - 1, 2)}" y1="{y2}" x2="{round(x + 3, 2)}" y2="{y2}"/>'
+            f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}"/>'
+            f'<text class="dimt" x="{round(x - 1, 2)}" y="{ym}" '
+            f'transform="rotate(-90 {round(x - 1, 2)} {ym})">{_fmt_m(dist_m)}</text></g>')
+
+
+def _esc(s: str) -> str:
+    return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _empty_svg() -> str:

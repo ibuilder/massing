@@ -427,7 +427,9 @@ this spine first; every track hangs off it.
   generator (`drawing.py::plan_svg`): derives footprints **directly from authored extruded-profile geometry**
   (no OCC — our geometry path is web-ifc, ifcopenshell's OCC engine produces no mesh here), class-styled poché
   SVG scaled to paper mm, storey-scoped; 🖨 Generate plan tool + `GET /drawings/plan.svg`; `test_drawing.py`.
-  *Next C-slices: sections/elevations, dimensions, keynotes from Track-D codes, per-GUID cache.* Original plan
+  **C2 ✅ SHIPPED v0.3.261** — overall dimension strings + keynote bubbles & legend generated from each drawn
+  element's Track-D classification codes (the loop closes: attach spec code → keynote on the plan).
+  *Next C-slices: sections/elevations, sheets + titleblocks, PDF/DXF, per-GUID cache.* Original plan
   eyed `ifcopenshell.geom.serializers.svg` (OCC HLR) but that engine is inert in our build; C2 **parametric IFC dimensions** (geometry-anchored, the merged IfcOpenShell PR #8083 pattern:
   `IfcAnnotation` + `IfcRelAssignsToProduct` + face/layer/edge/vertex anchor JSON; regenerate on move) + smart
   tags via `drawing.assign_product`; C3 **sheets & titleblocks** (`IfcDocumentInformation` Scope="SHEET",

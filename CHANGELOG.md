@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.261 — Wave 11 · C2: dimensions & keynotes on the plan
+
+The plan drawing now **reads the model's intelligence.** `plan_svg` gains two layers:
+
+- **Dimensions** — overall width &amp; height dimension strings (witness ticks + metric text), so the plan
+  carries real measurements, not just linework.
+- **Keynotes** — every drawn element carrying a **Track-D classification code** (MasterFormat/UniFormat) gets
+  a numbered keynote bubble, and a **keynote legend** maps each number to its code + title. The keynotes are
+  generated *directly from the codes the Auto-detail rule engine attaches* — so the loop closes: place a wall
+  → it gets a spec code → the plan shows the keynote and legends it. Both layers toggle off.
+
+The 🖨 Generate plan tool automatically produces the richer sheet (dimensions + keynote legend). Pure
+computation from the authored geometry + classifications — no geometry kernel. `test_drawing.py` extended
+(dimension strings, keynote bubbles + legend from 04 20 00 / 05 12 00). Next C-slices: sections/elevations,
+sheets + titleblocks, PDF/DXF.
+
 ## v0.3.260 — Wave 11 · C1: plan-drawing generator (SVG)
 
 The first slice of the **construction-document set** — generate a schematic **plan drawing** (SVG) straight
