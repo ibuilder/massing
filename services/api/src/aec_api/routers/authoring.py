@@ -71,6 +71,18 @@ def type_detail(pid: str, type_guid: str, db: Session = Depends(get_db),
         raise HTTPException(404, str(e)) from e
 
 
+@router.get("/projects/{pid}/lod")
+def lod_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). Advance elements with the
+    `set_lod` recipe; `ensure_contexts` establishes the view-keyed representation contexts the drawing
+    pipeline needs. LOD is element maturity, not a geometry mode — the same GUID carries it as it refines."""
+    from aec_data import representations as rep  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return rep.lod_summary(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/query")
 def query_elements(pid: str, q: str, limit: int = 2000, db: Session = Depends(get_db),
                    _: str = Depends(require_role("viewer"))):

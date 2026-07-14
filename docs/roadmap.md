@@ -404,11 +404,12 @@ this spine first; every track hangs off it.
 
 **Unified foundation & tracks** (sequenced; the spine + guardrails lead):
 
-- **F0 — The representation/context spine + LOD state** *(M · pure ifcopenshell · FOUNDATION, build first)* —
-  `ensure_contexts` (Model+Plan roots; Body/Axis/Box/FootPrint/Annotation subcontexts w/ TargetView+TargetScale);
-  an element **LOD-stage** property (`Pset_MassingLOD.Stage` 100→500); derive `Box`/`Axis`/`FootPrint` on
-  demand from `Body`; persist hand-authored alternates only when they genuinely differ. Everything below keys
-  off this.
+- **F0 — The representation/context spine + LOD state** ✅ SHIPPED v0.3.256 *(M · pure ifcopenshell)* —
+  `ensure_contexts` finds-or-creates the Model+Plan roots + Body/Axis/Box/FootPrint/Annotation subcontexts
+  (by `TargetView`), idempotent; `set_lod`/`lod_summary` carry an element **LOD stage** (`Pset_MassingLOD.Stage`
+  100→500, advances in place, GUID-stable) + a 📶 Level of Development viewer tool + `GET /lod`.
+  `representations.py`, `test_representations.py` green. *Still to do in F0b: derive `Box`/`Axis`/`FootPrint`
+  geometry on demand from `Body` (consumed by the C drawing generator).*
 - **A · Open-ended authoring (the moat)** *(L)* — A1 **sandboxed `execute_ifc_code` recipe** (AST-whitelisted,
   ifcopenshell-only, no fs/Blender — turns our fixed recipe registry into unbounded authoring); A2 **RAG index**
   over ifcopenshell/IFC docs to ground code-gen; A3 **AI emits *recipes*** (parametric, GUID-stable, editable —

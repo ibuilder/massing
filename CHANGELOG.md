@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.256 — Wave 11 · F0: the representation/LOD spine (foundation)
+
+The architectural foundation the rest of Wave 11 hangs off — **one GUID-stable element that can carry
+several view-keyed representations, plus an explicit LOD stage**. A new **📶 Level of Development** tool
+(Grid &amp; Levels):
+
+- **⚙ Establish drawing contexts** — `ensure_contexts` finds-or-creates the full view-keyed context tree:
+  Model + **Plan** roots and the `Body`/`Axis`/`Box`/`Annotation`/`FootPrint` subcontexts (each tagged by
+  `TargetView`) that construction-drawing generation and coarse↔fine display need. Idempotent.
+- **LOD stage** — tag the selected element or a saved selection set **100 → 500** (`Pset_MassingLOD.Stage`).
+  LOD is element *maturity*, not a geometry mode: the same GUID-stable element carries it as its geometry
+  and data are refined. Advancing updates in place (no duplicate pset); a distribution overview shows the
+  model's maturity at a glance.
+
+Engine `representations.py` (`ensure_contexts` / `set_lod` / `lod_summary`); `ensure_contexts` + `set_lod`
+recipes + `GET /lod`. `test_representations.py` green. This is track **F0** — everything downstream (parametric
+door/window generators, the SVG drawing generator, detail-follows-LOD) keys off this spine.
+
 ## v0.3.255 — Wave 11 · power selection (IfcOpenShell selector DSL)
 
 The first foundation piece of Wave 11 (LOD-400/500 authoring): a **🔎 Query (selector)** tool that runs the

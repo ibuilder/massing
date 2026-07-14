@@ -989,7 +989,16 @@ RECIPES = {
     "ungroup": lambda m, p: _grp().ungroup(m, p["guid"]),
     # W10-8 element phasing — tag new/existing/demolish/temporary status
     "set_phase": lambda m, p: set_phase(m, p["guids"], p.get("phase", "new")),
+    # W11 F0 — the representation/context spine + LOD stage
+    "ensure_contexts": lambda m, p: _rep().ensure_contexts(m),
+    "set_lod": lambda m, p: _rep().set_lod(m, p["guids"], p.get("stage", "300")),
 }
+
+
+def _rep():
+    """Lazy handle to the representations module (it imports edit.set_element_pset → avoid a cycle)."""
+    from . import representations
+    return representations
 
 
 def _fam(model):

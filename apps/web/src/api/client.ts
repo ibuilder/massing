@@ -984,6 +984,21 @@ export class ApiClient extends HttpCore {
   arrayElement(pid: string, guid: string, nx: number, ny: number, dx: number, dy: number, dz = 0, publish = true) {
     return this.editIfc(pid, "array_element", { guid, nx, ny, dx, dy, dz }, publish);
   }
+  /** W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). */
+  lodSummary(pid: string) {
+    return this.json<{ total: number; staged: number; prop: string;
+      counts: Record<"100" | "200" | "300" | "350" | "400" | "500" | "UNSET", number> }>(
+      `/projects/${pid}/lod`);
+  }
+  /** W11 F0: tag elements with a LOD stage (element maturity 100→500). */
+  setLod(pid: string, guids: string[], stage: "100" | "200" | "300" | "350" | "400" | "500", publish = true) {
+    return this.editIfc(pid, "set_lod", { guids, stage }, publish);
+  }
+  /** W11 F0: establish the view-keyed representation contexts (Model+Plan; Body/Axis/Box/Annotation/
+   *  FootPrint) the drawing pipeline needs. Idempotent. */
+  ensureContexts(pid: string, publish = false) {
+    return this.editIfc(pid, "ensure_contexts", {}, publish);
+  }
   /** W11: power selection via the IfcOpenShell selector DSL — e.g. `IfcWall`, `IfcWall, IfcDoor`,
    *  `IfcWall, Pset_WallCommon.FireRating=2HR`, `IfcElement, material=concrete`. */
   queryElements(pid: string, q: string, limit = 2000) {

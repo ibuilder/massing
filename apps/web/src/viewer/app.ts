@@ -1764,7 +1764,61 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       queryBtn.title = "Power-select with the IfcOpenShell selector DSL (by class, property, material) — "
         + "isolate matches or save them as a reusable selection set. The base for bulk edits & rule-driven detailing";
 
-      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn, phaseBtn, queryBtn, manage, levelsMgr);
+      // W11 F0: LOD-stage spine — dial an element's maturity 100→500, and establish the view-keyed
+      // representation contexts the construction-drawing pipeline needs.
+      const LODS = ["100", "200", "300", "350", "400", "500"] as const;
+      const openLodPanel = async () => {
+        let sum;
+        try { sum = await api.lodSummary(pid); }
+        catch (e) { notify(`LOD failed: ${(e as Error).message}`, "error"); return; }
+        const sets = loadSelSets(pid);
+        showResult("Level of Development (schematic → construction)", (body) => {
+          body.appendChild(kvTable(LODS.map((s) => ({
+            k: `LOD ${s}`, v: String(sum.counts[s]), bar: sum.total ? sum.counts[s] / sum.total : 0 }))
+            .concat([{ k: "Unstaged", v: String(sum.counts.UNSET), bar: sum.total ? sum.counts.UNSET / sum.total : 0 }])));
+          const tag = async (stage: typeof LODS[number], guids: string[], what: string) => {
+            if (!guids.length) { notify("nothing to stage", "error"); return; }
+            await authorAndReload("set_lod", { guids, stage }, `${what} → LOD ${stage}`);
+            await openLodPanel();
+          };
+          body.appendChild(resultNote(selectedGuid
+            ? "<b>Set the selected element's LOD</b>" : "<b>Select an element</b> or use a saved selection set.", ""));
+          if (selectedGuid) {
+            const row = document.createElement("div"); row.className = "level-row";
+            for (const s of LODS) {
+              const bt = document.createElement("button"); bt.className = "mini-btn"; bt.textContent = s;
+              bt.onclick = () => tag(s, [selectedGuid!], "selection"); row.appendChild(bt);
+            }
+            body.appendChild(row);
+          }
+          for (const s of sets) {
+            const row = document.createElement("div"); row.className = "level-row";
+            const label = document.createElement("span"); label.className = "meta";
+            label.textContent = `${s.name} · ${s.guids.length}`; label.style.flex = "1"; row.appendChild(label);
+            for (const st of LODS) {
+              const bt = document.createElement("button"); bt.className = "mini-btn"; bt.textContent = st;
+              bt.title = `Set "${s.name}" to LOD ${st}`; bt.onclick = () => tag(st, s.guids, s.name); row.appendChild(bt);
+            }
+            body.appendChild(row);
+          }
+          const ctx = toolBtn2("⚙ Establish drawing contexts", async () => {
+            try { const r = await api.ensureContexts(pid);
+              const created = (r.changed as { created?: number })?.created ?? 0;
+              notify(created ? `created ${created} view context(s)` : "drawing contexts already present", "success");
+            } catch (e) { notify(`contexts failed: ${(e as Error).message}`, "error"); }
+          });
+          ctx.style.marginTop = "6px";
+          ctx.title = "Create the Model+Plan / Body·Axis·Box·Annotation·FootPrint representation contexts "
+            + "(by TargetView) that construction-drawing generation needs. Idempotent.";
+          body.appendChild(ctx);
+        });
+      };
+      const lodBtn = toolBtn2("📶 Level of Development", openLodPanel);
+      lodBtn.title = "Dial an element's LOD maturity 100 (schematic) → 500 (as-built), and establish the "
+        + "view-keyed representation contexts for construction-drawing generation. GUID-stable.";
+
+      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
+        phaseBtn, queryBtn, lodBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------
