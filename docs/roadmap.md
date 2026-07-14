@@ -425,7 +425,9 @@ this spine first; every track hangs off it.
   (swept-disk along a directrix) → MEP connected systems + fittings → curtain-wall systems. **Steel
   connections ✅ SHIPPED v0.3.265** — `connections.py` `add_base_plate` (IfcPlate + IfcMechanicalFastener
   anchor bolts, assembled with the column) + `add_shear_tab` (beam shear connection); 🔩 viewer tools +
-  recipes + `test_steel_connections.py`. *Next: rebar cages/bends, MEP fittings, curtain-wall.*
+  recipes + `test_steel_connections.py`. **Rebar cages ✅ SHIPPED v0.3.266** — `rebar.py::add_rebar_cage`
+  (longitudinal bars + stirrups as swept-disk `IfcReinforcingBar`, assembled with the column; 🪝 tool +
+  recipe + `test_rebar.py`). *Next: MEP fittings/connected systems, curtain-wall.*
 - **C · Construction-document generation (the deliverable)** *(L)* — **C1 ✅ SHIPPED v0.3.260** — plan-drawing
   generator (`drawing.py::plan_svg`): derives footprints **directly from authored extruded-profile geometry**
   (no OCC — our geometry path is web-ifc, ifcopenshell's OCC engine produces no mesh here), class-styled poché
@@ -493,3 +495,72 @@ on and the exact layer every technique above sits on. **Bonsai/BlenderBIM (GPL)*
 **reimplement the techniques, never vendor the code.** ifc-bonsai-mcp glue is **MIT** (safe to mirror);
 MCP4IFC paper is CC-BY-SA (docs only). SVG→PDF/DXF via permissive libs only (**no AGPL** — no PyMuPDF).
 CC0 asset sources vetted per-asset. IDS is an open buildingSMART standard (we already ship IDS→BCF).
+
+## 🔮 Future — 2026-07 research inbox (building codes · Unreal · competitors)
+
+Vetted findings from a 6-link research round (constructionyeti building-codes, ifc-to-unreal, Unreal
+material-scripting, arcol.io, atomatiq.io, nonica.io). Parked as **future** items — not scheduled; picked up
+after the current Wave 11 tracks. Each notes size + value; license/legal flags are firm.
+
+### 🏛️ Building-code library (jurisdiction-aware code compliance)
+The copyright-safe strategy: **own the rules, facts, and checks; deep-link out for prose; license prose later.**
+GREEN (do freely): store section numbers/titles/edition years, jurisdiction→adopted-edition **adoption facts**,
+numeric thresholds/formulas (facts of law — exactly what `codecheck.py` already encodes), and **our own
+paraphrased** rule content. RED (never): scraping/redistributing ICC/ASTM verbatim **prose** — the 2026
+ASTM-v-UpCodes fair-use ruling is preliminary and ICC-v-UpCodes is unresolved; a commercial SaaS reproducing
+code text is the exact market-harm scenario in active litigation.
+- **CODE-1** *(S · high)* — jurisdiction + adoption **facts** catalog (CodeFamily/Edition/Jurisdiction/Adoption,
+  seeded from ICC Code-Adoptions DB + DOE energy-code status, all 50 states + DC). "Your jurisdiction adopted:
+  IBC 2021, IECC 2021 …" + verify link. Zero copyright risk; unlocks the rest.
+- **CODE-2** *(M · high)* — externalize `codecheck.py` thresholds (`_RULES`/`_OCC_FACTORS`/egress constants)
+  into **edition-scoped `CodeRule` rows** + `resolve_code_context(location, date)`; thread `code_ctx` through
+  `egress_analysis`. Makes the checker edition-aware (2015/2018/2021/2024) vs "generic latest." Falls back to
+  IBC-2021 seed when a project has no location (nothing breaks).
+- **CODE-3** *(M · high)* — edition-aware citations in the **Track-D detail-rule engine** (an exterior window
+  cites the project's *actually adopted* IBC section, e.g. 2021 §1404.4 vs a 2024 renumber).
+- **CODE-4** *(S · med)* — local-amendment overlay model + manual-entry UI (store *our summary* + a link, not
+  UpCodes' compilation). Captures the amendment gap legally.
+- **CODE-5** *(M · med)* — emit `CodeRule`s as **buildingSMART IDS** XML so the same jurisdiction-resolved
+  rules validate IFC via any IDS checker (on-brand for the openBIM moat; extends our IDS→BCF pipeline).
+- **CODE-6** *(L · med, flagged/paid)* — licensed **prose** integration (ICC **Code Connect** JSON API and/or
+  eCode360 for local amendments) behind a feature flag + cost warning, mirroring the APS/RVT paid-bridge
+  pattern. Only after CODE-1–3 prove demand — it's a contract/cost commitment, not code risk.
+
+### 🎮 Unreal Engine — optional, marketing-only (never core)
+Honest verdict: Unreal **breaks offline, doesn't author, and carries royalty/seat licensing** (5% over $1M, or
+$1,850/seat/yr; Twinmotion free <$1M else $445/seat) — categorically incompatible with our permissive/offline
+core. Datasmith **does** preserve GlobalId + metadata as runtime tags, but strictly **one-way (viz only)**.
+- **VIZ-1** *(S · high · ON-MISSION)* — **glTF/`.glb` (and optional `.udatasmith`) export** from our
+  IfcOpenShell pipeline. Feeds Twinmotion/Unreal **and** better web viewers (model-viewer/Needle) with **zero
+  Unreal license exposure**. Do this regardless of Unreal. *(NB: check overlap with the existing glTF work.)*
+- **VIZ-2** *(S/M · on-mission)* — **three.js PBR "presentation mode"** (IBL/HDRI, SSAO/bloom, baked
+  lightmaps) — captures ~90% of "impress the client" value while staying offline + license-free.
+- **VIZ-3** *(L · optional/paid/flagged)* — Pixel-Streamed cinematic mode (cloud-GPU Unreal → WebRTC to a
+  browser tab, on-demand spin-up). License-gated (Epic royalty/custom license, per-session GPU cost);
+  marketing/high-end only, never the default viewer.
+- **VIZ-4** *(L · optional/paid/flagged)* — VR design-review bridge (Datasmith IFC → Unreal, GlobalId tags →
+  click-through to our API). Same license caveat; a Blender-tier optional interop, not core.
+
+### 🥷 Competitor-informed (arcol.io · nonica.io · atomatiq.io)
+Two of three lead with an **AI/MCP natural-language layer over the model** — validating our Track A. Keep our
+IFC-native + openBIM round-trip and CD/detailing depth as the moat; **do NOT** copy Arcol's non-IFC
+Revit-export-only interup or their concept-only scope, nor Nonica/Atomatiq's Revit/desktop dependency.
+- **AI-MCP** *(M · ★★★★★)* — an **MCP server over our edit-recipe engine**: read tools (quantities, schedules,
+  clashes, code violations, warnings) + **write-gated** tools (place/move/recolor/set-property, create sheet,
+  add view). Natural-language authoring + audit, IFC-native, no Revit — **this IS Wave-11 Track A**, and Nonica
+  proves the market + the read-free/write-paid tiering + concurrency guardrail. Highest on-strategy move.
+- **COLLAB-1** *(L · ★★★★★)* — **real-time multiplayer co-editing** (presence, cursors, live-streamed edits) +
+  lightweight in-model comments. Arcol's headline moat and our biggest gap for "replace Revit in the browser."
+- **SITE-1** *(M · ★★★★)* — **auto site context + parcel/zoning-envelope ingestion** for a North-American
+  address (parcel geometry, setbacks/height/FAR → buildable envelope); feeds authoring + the code engine.
+- **PROFORMA-LIVE** *(M · ★★★★)* — tighten the **model↔proforma live loop**: yields/unit-mix/parking/efficiency
+  + cost recompute **inline as you model**, not only in the portal (UX/binding upgrade over existing proforma).
+- **COST-AGENT** *(M · ★★★★)* — an estimating agent that re-estimates on each geometry change + learns from
+  historical cost data (companion to AI-MCP + the estimating→5D track).
+- **BOARDS** *(M · ★★★½)* — a "Boards" presentation surface: styled design-option views, shadow studies,
+  auto-generated stakeholder decks as first-class artifacts alongside sheets.
+- **NL-QA** *(S · ★★★½)* — built-in natural-language QA recipes once AI-MCP exists ("audit issues + suggest
+  fixes," "check room accessibility," "normalize inconsistent Psets"). Map onto code-check + model-hygiene.
+- *Validated/overlap (verify, don't rebuild):* bulk IFC Pset editor (⊂ our override layers), manufacturer
+  product-configurator → IFC type (⊂ families/types; content/marketplace angle), in-context comments (⊂ BCF —
+  gap is a lightweight authoring-surface comment).

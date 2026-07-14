@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.266 — Wave 11 · B6: rebar cages + research-inbox roadmap
+
+**Reinforcement detailing (LOD 400).** A new **🪝 Rebar cage** tool builds a real reinforcement cage in the
+selected concrete column: **4 longitudinal corner bars + stirrups** at a spacing, offset by concrete cover,
+as **swept-disk `IfcReinforcingBar`s** (a disk of the bar radius swept along its centreline — the correct way
+to model reinforcement; straight for the bars, closed-rectangle for the ties), grouped with the column into an
+`IfcElementAssembly`. Engine `rebar.py::add_rebar_cage`; `add_rebar_cage` recipe. `test_rebar.py` green.
+
+**Roadmap — future research inbox.** Folded a 6-source research round (building codes, Unreal, and the
+arcol/atomatiq/nonica competitor scan) into a new **🔮 Future** section as parked items: a copyright-safe
+**jurisdiction-aware building-code library** (own the rules/facts + deep-link; license prose later), **Unreal
+as an optional paid viz bridge only** (glTF export + three.js PBR are the on-mission wins), and competitor-
+informed items led by an **MCP server over our edit-recipe engine** (validates Track A), real-time
+multiplayer, and auto site/zoning ingestion.
+
 ## v0.3.265 — Wave 11 · B6: structural steel connections (LOD 350/400)
 
 Bare steel members become **fabrication assemblies.** Two connection recipes turn LOD-300 members into

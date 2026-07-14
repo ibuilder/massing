@@ -1054,7 +1054,16 @@ RECIPES = {
     "add_shear_tab": lambda m, p: _conn().add_shear_tab(m, p["beam_guid"], float(p.get("thickness", 0.01)),
                                                         float(p.get("depth", 0.2)), float(p.get("width", 0.1)),
                                                         int(p.get("bolts", 2)), storey=p.get("storey")),
+    "add_rebar_cage": lambda m, p: _rebar().add_rebar_cage(m, p["column_guid"], p.get("bar_size", "#8"),
+                                                          p.get("tie_size", "#3"), float(p.get("cover", 0.04)),
+                                                          float(p.get("tie_spacing", 0.25)), p.get("storey")),
 }
+
+
+def _rebar():
+    """Lazy handle to the reinforcement-detailing module."""
+    from . import rebar
+    return rebar
 
 
 def _conn():

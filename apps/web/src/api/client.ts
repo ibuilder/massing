@@ -1019,6 +1019,11 @@ export class ApiClient extends HttpCore {
   addShearTab(pid: string, beamGuid: string, opts: { bolts?: number } = {}, publish = true) {
     return this.editIfc(pid, "add_shear_tab", { beam_guid: beamGuid, ...opts }, publish);
   }
+  /** W11 B6: author a reinforcement cage (longitudinal bars + stirrups) in a concrete column. */
+  addRebarCage(pid: string, columnGuid: string,
+               opts: { bar_size?: string; tie_size?: string; cover?: number; tie_spacing?: number } = {}, publish = true) {
+    return this.editIfc(pid, "add_rebar_cage", { column_guid: columnGuid, ...opts }, publish);
+  }
   /** W11 C4: computed door / window / room schedules from the model. */
   drawingSchedules(pid: string) {
     return this.json<Record<"doors" | "windows" | "rooms", { columns: string[]; rows: string[][] }>>(

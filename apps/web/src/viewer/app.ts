@@ -1952,10 +1952,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       });
       shearTabBtn.title = "Author a shear-tab plate + bolts at the selected steel beam's end and assemble it "
         + "with the beam — a simple beam-to-column shear connection (LOD 350/400). GUID-stable.";
+      const rebarBtn = toolBtn2("🪝 Rebar cage (concrete column)", async () => {
+        if (!selectedGuid) { notify("select a concrete column first", "error"); return; }
+        await authorAndReload("add_rebar_cage", { column_guid: selectedGuid }, "rebar cage");
+      });
+      rebarBtn.title = "Author a reinforcement cage — 4 longitudinal corner bars + stirrups (swept-disk "
+        + "IfcReinforcingBar) in the selected concrete column, assembled with it (LOD 400). GUID-stable.";
 
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
         phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn,
-        basePlateBtn, shearTabBtn, manage, levelsMgr);
+        basePlateBtn, shearTabBtn, rebarBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------
