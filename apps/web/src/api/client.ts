@@ -984,6 +984,22 @@ export class ApiClient extends HttpCore {
   arrayElement(pid: string, guid: string, nx: number, ny: number, dx: number, dy: number, dz = 0, publish = true) {
     return this.editIfc(pid, "array_element", { guid, nx, ny, dx, dy, dz }, publish);
   }
+  /** W11 Track D: one element's attached carriers — classification codes + documents (details/instructions). */
+  elementDetailing(pid: string, guid: string) {
+    return this.json<{ guid: string; name: string; ifc_class: string;
+      classifications: { system: string | null; code: string | null; title: string | null }[];
+      documents: { identification: string | null; name: string | null; location: string | null; description: string | null }[] }>(
+      `/projects/${pid}/detailing/${encodeURIComponent(guid)}`);
+  }
+  /** W11 Track D: classify elements with a keynote/spec/element code (UniFormat/MasterFormat/OmniClass). */
+  classify(pid: string, guids: string[], system: string, code: string, name?: string, edition?: string, publish = true) {
+    return this.editIfc(pid, "classify", { guids, system, code, name, edition }, publish);
+  }
+  /** W11 Track D: attach a document (detail drawing / installation instruction) to elements. */
+  attachDocument(pid: string, guids: string[], name: string,
+                 opts: { location?: string; identification?: string; description?: string; purpose?: string } = {}, publish = true) {
+    return this.editIfc(pid, "attach_document", { guids, name, ...opts }, publish);
+  }
   /** W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). */
   lodSummary(pid: string) {
     return this.json<{ total: number; staged: number; prop: string;

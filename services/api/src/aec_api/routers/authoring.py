@@ -71,6 +71,22 @@ def type_detail(pid: str, type_guid: str, db: Session = Depends(get_db),
         raise HTTPException(404, str(e)) from e
 
 
+@router.get("/projects/{pid}/detailing/{guid}")
+def element_detailing(pid: str, guid: str, db: Session = Depends(get_db),
+                      _: str = Depends(require_role("viewer"))):
+    """W11 Track D: one element's attached carriers — classification codes (UniFormat/MasterFormat/
+    OmniClass keynote+spec codes) and documents (details/installation instructions). Written by the
+    `classify` and `attach_document` recipes; consumed by keynote/schedule/spec/drawing generation."""
+    from aec_data import detailing  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    try:
+        return detailing.element_detailing(open_model(p.source_ifc), guid)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(404, f"element {guid} not found") from e
+
+
 @router.get("/projects/{pid}/lod")
 def lod_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). Advance elements with the

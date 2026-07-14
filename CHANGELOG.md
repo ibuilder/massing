@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.258 — Wave 11 · Track D carrier layer: codes & detail documents
+
+The join layer between the model and the construction documents — attach **keynote/spec codes** and
+**detail/instruction documents** to elements, IFC-natively. A new **🏷 Detailing** tool (Grid &amp; Levels)
+on the selected element:
+
+- **Classification codes** — `IfcRelAssociatesClassification` for **UniFormat** (element → keynote),
+  **MasterFormat** (work result → spec section), **OmniClass** (product), Uniclass. One element carries
+  all three; each code is the join key a keynote, a schedule row and a spec section share.
+- **Documents** — `IfcRelAssociatesDocument` → `IfcDocumentReference` → `IfcDocumentInformation` attaches a
+  **detail drawing + installation instruction** (name, detail no. like `A-541/3`, URI). Deduped by
+  identification so re-attaching a shared detail reuses one record.
+- A **detailing inspector** reads an element's codes + documents back.
+
+This is exactly what the (next) detail-rule engine writes when "exterior window → IBC §1404.4 flashing
+detail + ASTM E2112 instruction + spec 08 51 00" fires, and what keynote/schedule/spec/drawing generation
+will read. Engine `detailing.py` (`classify` / `attach_document` / `element_detailing`); recipes +
+`GET /detailing/{guid}`. `test_detailing.py` green.
+
 ## v0.3.257 — Wave 11 · B2: parametric door & window generators
 
 Doors and windows now get **real lining, frame and panel geometry** from IfcOpenShell's built-in parametric

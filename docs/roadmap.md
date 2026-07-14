@@ -441,10 +441,11 @@ this spine first; every track hangs off it.
   (path-trace over the W9-4 semantic graph, not just tabulated); D3 an **IDS-shaped rule engine** —
   applicability facets (entity + PredefinedType, classification, property, `partOf`/relationship context via
   the semantic graph) → **content bundle** (attach detail SVG + install instruction + spec section), the *same*
-  rules reused for **IDS QA validation** (author-time attach, QA-time validate); D4 **classification carriers**
-  — emit `IfcRelAssociatesClassification` for **UniFormat** (element/keynote) + **MasterFormat** (spec section)
-  + **OmniClass** (product), plus `IfcRelAssociatesDocument` (detail + instruction) and an internal
-  `Pset_Massing_SpecLink` breadcrumb; D5 **keynotes & detail callouts** on drawings generated *from* the
+  rules reused for **IDS QA validation** (author-time attach, QA-time validate); **D4 ✅ SHIPPED v0.3.258 — classification + document carriers**
+  (`classify` emits `IfcRelAssociatesClassification` for UniFormat/MasterFormat/OmniClass/Uniclass;
+  `attach_document` emits `IfcRelAssociatesDocument`→Reference→Information for details/instructions, deduped;
+  `element_detailing` inspector + 🏷 Detailing tool + `GET /detailing/{guid}`; `test_detailing.py`).
+  *Still to add: the `Pset_Massing_SpecLink` breadcrumb.* D5 **keynotes & detail callouts** on drawings generated *from* the
   element's classification (NCS UDS Module 7); D6 **3-part MasterFormat project manual** (group elements by
   MasterFormat → SectionFormat Part 1/2/3, Part 3 Execution = the attached install instructions); D7 the
   **worked case**: place a window in an exterior wall → auto-attach IBC §1404.4 + ASTM E2112 + AAMA 711

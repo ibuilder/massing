@@ -1817,8 +1817,49 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       lodBtn.title = "Dial an element's LOD maturity 100 (schematic) → 500 (as-built), and establish the "
         + "view-keyed representation contexts for construction-drawing generation. GUID-stable.";
 
+      // W11 Track D: attach code/spec/detail carriers to the selected element (classification codes +
+      // detail/instruction documents) — what keynotes, schedules and the spec/drawing generators read.
+      const openDetailingPanel = async () => {
+        if (!selectedGuid) { notify("select an element to detail", "error"); return; }
+        const guid = selectedGuid;
+        let det;
+        try { det = await api.elementDetailing(pid, guid); }
+        catch (e) { notify(`detailing failed: ${(e as Error).message}`, "error"); return; }
+        showResult(`Detailing — ${det.name}`, (body) => {
+          body.appendChild(kvTable(det.classifications.length
+            ? det.classifications.map((c) => ({ k: c.system || "code", v: `${c.code ?? ""}${c.title ? " · " + c.title : ""}` }))
+            : [{ k: "Classifications", v: "none" }]));
+          body.appendChild(resultNote(det.documents.length
+            ? "<b>Documents</b>: " + det.documents.map((d) => `${d.identification ?? ""} ${d.name ?? ""}`.trim()).join(" · ")
+            : "No details/instructions attached.", ""));
+          const reopen = () => openDetailingPanel();
+          const CLS = [["MasterFormat", "spec section, e.g. 08 51 00"], ["UniFormat", "element/keynote, e.g. B2020"],
+            ["OmniClass", "product, e.g. 23-17 11 11"], ["Uniclass", "e.g. SS_25_10"]] as const;
+          for (const [sys, hint] of CLS) {
+            body.appendChild(toolBtn2(`＋ ${sys} code`, async () => {
+              const code = await askText(`${sys} code`, { label: hint, value: "" }); if (!code) return;
+              const title = await askText(`${sys} code`, { label: "Title (optional)", value: "" });
+              await authorAndReload("classify", { guids: [guid], system: sys, code: code.trim(), name: title?.trim() || undefined }, `${sys} ${code.trim()}`);
+              await reopen();
+            }));
+          }
+          body.appendChild(toolBtn2("📎 Attach detail / instruction", async () => {
+            const name = await askText("Attach document", { label: "Document name", value: "Flashing detail" }); if (!name) return;
+            const ident = await askText("Attach document", { label: "Detail no. / key (e.g. A-541/3)", value: "" });
+            const loc = await askText("Attach document", { label: "Location (URI — SVG/PDF)", value: "" });
+            await authorAndReload("attach_document",
+              { guids: [guid], name: name.trim(), identification: ident?.trim() || undefined, location: loc?.trim() || undefined },
+              `document ${name.trim()}`);
+            await reopen();
+          }));
+        });
+      };
+      const detailBtn = toolBtn2("🏷 Detailing (codes & documents)", openDetailingPanel);
+      detailBtn.title = "Attach keynote/spec codes (UniFormat/MasterFormat/OmniClass) and detail/instruction "
+        + "documents to the selected element — IFC-native carriers that feed keynotes, schedules & the spec/drawing set";
+
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, manage, levelsMgr);
+        phaseBtn, queryBtn, lodBtn, detailBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------

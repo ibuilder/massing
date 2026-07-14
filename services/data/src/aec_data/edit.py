@@ -1039,6 +1039,12 @@ RECIPES = {
     # W11 F0 — the representation/context spine + LOD stage
     "ensure_contexts": lambda m, p: _rep().ensure_contexts(m),
     "set_lod": lambda m, p: _rep().set_lod(m, p["guids"], p.get("stage", "300")),
+    # W11 Track D carrier layer — classification (keynote/spec code) + document (detail/instruction)
+    "classify": lambda m, p: _det().classify(m, p["guids"], p["system"], p["code"],
+                                             p.get("name"), p.get("edition")),
+    "attach_document": lambda m, p: _det().attach_document(m, p["guids"], p["name"], p.get("location"),
+                                                          p.get("description"), p.get("identification"),
+                                                          p.get("purpose")),
 }
 
 
@@ -1046,6 +1052,12 @@ def _rep():
     """Lazy handle to the representations module (it imports edit.set_element_pset → avoid a cycle)."""
     from . import representations
     return representations
+
+
+def _det():
+    """Lazy handle to the detailing module (it imports edit.set_classification → avoid a cycle)."""
+    from . import detailing
+    return detailing
 
 
 def _fam(model):
