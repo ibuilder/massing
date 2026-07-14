@@ -181,6 +181,18 @@ def element_detailing(pid: str, guid: str, db: Session = Depends(get_db),
         raise HTTPException(404, f"element {guid} not found") from e
 
 
+@router.get("/projects/{pid}/mep")
+def mep_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W11 B6: MEP system browser — each IfcDistributionSystem with its segment/fitting/terminal
+    breakdown + a connectivity signal (elements with unconnected ports), plus segments/fittings not
+    yet assigned to any system. Add fittings with the `add_mep_fitting` recipe."""
+    from aec_data import mep  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return mep.mep_summary(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/lod")
 def lod_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). Advance elements with the

@@ -1959,9 +1959,44 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       rebarBtn.title = "Author a reinforcement cage — 4 longitudinal corner bars + stirrups (swept-disk "
         + "IfcReinforcingBar) in the selected concrete column, assembled with it (LOD 400). GUID-stable.";
 
+      // W11 B6: MEP fitting at the last-clicked point + a system browser.
+      const mepFittingBtn = toolBtn2("🔀 MEP fitting (elbow / tee)", async () => {
+        if (!lastPoint) { notify("click a point in the model first, then add the fitting", "error"); return; }
+        const kind = await askText("MEP fitting", { label: "Type: bend (elbow) · junction (tee) · transition", value: "bend" });
+        if (!kind) return;
+        const sys = await askText("MEP fitting", { label: "System name", value: "HVAC Supply" });
+        const pd = { bend: "BEND", elbow: "BEND", junction: "JUNCTION", tee: "JUNCTION", transition: "TRANSITION" }[kind.trim().toLowerCase()] || "BEND";
+        await authorAndReload("add_mep_fitting",
+          { ifc_class: "IfcDuctFitting", point: [lastPoint.x, -lastPoint.z], predefined: pd, system: sys?.trim() || "HVAC Supply" },
+          `MEP ${pd.toLowerCase()}`);
+      });
+      mepFittingBtn.title = "Author a MEP fitting (elbow/tee/transition, with ports) at the last-clicked point "
+        + "and assign it to a distribution system — the LOD 350/400 detailing that joins loose runs. GUID-stable.";
+      const mepSysBtn = toolBtn2("🔀 MEP systems", async () => {
+        let s;
+        try { s = await api.mepSummary(pid); }
+        catch (e) { notify(`MEP failed: ${(e as Error).message}`, "error"); return; }
+        showResult("MEP systems", (body) => {
+          if (!s.systems.length) { body.appendChild(resultNote("No distribution systems yet — add duct/pipe runs + fittings.", "")); return; }
+          for (const sy of s.systems) {
+            body.appendChild(kvTable([
+              { k: sy.name, v: `${sy.members} elements`, strong: true },
+              { k: "  segments · fittings · terminals", v: `${sy.segments} · ${sy.fittings} · ${sy.terminals}` },
+              { k: "  elements with open ports", v: String(sy.elements_with_open_ports) },
+            ]));
+          }
+          if (s.unassigned.segments || s.unassigned.fittings) {
+            body.appendChild(resultNote(`⚠ Unassigned to any system: <b>${s.unassigned.segments}</b> segment(s), `
+              + `<b>${s.unassigned.fittings}</b> fitting(s).`, "bad"));
+          }
+        });
+      });
+      mepSysBtn.title = "Browse IfcDistributionSystems — per-system segment/fitting/terminal counts, a "
+        + "connectivity signal (elements with unconnected ports), and anything not yet assigned to a system.";
+
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
         phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn,
-        basePlateBtn, shearTabBtn, rebarBtn, manage, levelsMgr);
+        basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------

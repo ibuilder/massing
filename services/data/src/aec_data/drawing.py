@@ -190,7 +190,12 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
                 shapes.append((el, el.is_a(), fp))
 
     if not shapes:
-        return {"svg": _empty_svg(), "elements": 0, "keynotes": 0, "bounds": None, "scale": scale}
+        # carry `paper`/`inner` even when empty so sheet_svg can still compose a border+titleblock
+        # sheet (a bogus storey / model with no plan geometry must not crash the sheet generator)
+        empty = _empty_svg()
+        inner = empty[empty.index(">", empty.index("<svg")) + 1: empty.rindex("</svg>")]
+        return {"svg": empty, "inner": inner, "paper": [100.0, 60.0], "elements": 0,
+                "keynotes": 0, "bounds": None, "scale": scale}
 
     xs = [p[0] for _, _, fp in shapes for p in fp]
     ys = [p[1] for _, _, fp in shapes for p in fp]

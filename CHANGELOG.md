@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.268 — Wave 11 · B6 MEP fittings + edge-hardening
+
+**MEP fittings & system browser.** `add_mep_fitting` authors an elbow (`BEND`), tee/cross (`JUNCTION`), or
+size change (`TRANSITION`) as an `IfcDuctFitting`/`IfcPipeFitting`/`IfcCableCarrierFitting` at a point — with
+the right number of connection **ports** and assignment to a named `IfcDistributionSystem` — the LOD 350/400
+detailing that turns loose runs into a real system. A new **🔀 MEP systems** tool browses each
+`IfcDistributionSystem` (segment/fitting/terminal counts + a connectivity signal: elements with unconnected
+ports, plus anything unassigned), and **🔀 MEP fitting** places a fitting at the last-clicked point. Engine
+`edit.py::add_mep_fitting` + `mep.py::mep_summary`; recipe + `GET /mep`. `test_mep_systems.py` green.
+
+**Edge-hardening (parallel bug-audit worktree).** Fixed a real crash — `drawing.sheet_svg` raised
+`KeyError('paper')` on an empty model / bogus storey (the empty-geometry branch of `plan_svg` omitted the
+`paper`/`inner` keys `sheet_svg` reads); it now composes a border+titleblock sheet instead. Added
+`test_wave11_edges.py` — ~30 edge/error-path assertions across all 8 Wave 11 modules (families, groups, rebar,
+connections, drawing, detailing, rules, representations): bad-dims/blank-name raises, array-detach invariant,
+keynote priority, rule idempotency + untested facets, LOD int-coercion, and the `sheet_svg` regression guard.
+
 ## v0.3.267 — Security: CodeQL remediation pass
 
 Hardening from the GitHub CodeQL scan. Genuine fixes:

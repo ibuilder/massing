@@ -516,6 +516,56 @@ def add_mep_run(model: ifcopenshell.file, ifc_class: str, start, end, shape: str
     return seg.GlobalId
 
 
+# fitting PredefinedType → number of connection ports (IfcDuct/PipeFittingTypeEnum: JUNCTION = tee/cross)
+_MEP_FITTING_PORTS = {"BEND": 2, "TRANSITION": 2, "CONNECTOR": 2, "OBSTRUCTION": 2,
+                      "JUNCTION": 3, "ENTRY": 1, "EXIT": 1}
+
+
+def add_mep_fitting(model: ifcopenshell.file, ifc_class: str, point, size: float = 0.3,
+                    predefined: str = "BEND", storey: str | None = None, system: str = "MEP") -> str:
+    """A MEP **fitting** (IfcDuctFitting / IfcPipeFitting / IfcCableCarrierFitting) at an XY point — an
+    elbow (BEND), tee/cross (JUNCTION), or size change (TRANSITION) that joins runs. A sized box body,
+    the right number of connection **ports** for the fitting type, and assignment to the named
+    IfcDistributionSystem. The LOD 350/400 detailing that turns loose segments into a real system."""
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    scale = uunit.calculate_unit_scale(model)
+    body = _body_context(model)
+    st = _first_storey(model, storey)
+    elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale
+    fit = ifcopenshell.api.run("root.create_entity", model, ifc_class=ifc_class,
+                               name=ifc_class.replace("Ifc", "").replace("Fitting", " fitting").strip())
+    pd = (predefined or "BEND").upper()
+    if hasattr(fit, "PredefinedType"):
+        try:
+            fit.PredefinedType = pd
+        except Exception:                             # noqa: BLE001 — invalid enum for the schema
+            pd = "BEND"
+    m = np.eye(4)
+    m[0, 3], m[1, 3], m[2, 3] = float(point[0]), float(point[1]), elev
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=fit, matrix=m)
+    s = max(0.05, float(size))
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                               profile=_rect_profile(model, s, s), depth=s)
+    ifcopenshell.api.run("geometry.assign_representation", model, product=fit, representation=rep)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[fit], relating_structure=st)
+    for _ in range(_MEP_FITTING_PORTS.get(pd, 2)):
+        try:
+            ifcopenshell.api.run("system.add_port", model, element=fit)
+        except Exception:                             # noqa: BLE001 — older ifcopenshell w/o system.add_port
+            pass
+    try:
+        name = system or "MEP"
+        sysobj = next((sy for sy in model.by_type("IfcDistributionSystem") if sy.Name == name), None) \
+            or ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcDistributionSystem", name=name)
+        ifcopenshell.api.run("system.assign_system", model, products=[fit], system=sysobj)
+    except Exception:                                 # noqa: BLE001 — system assignment best-effort
+        pass
+    return fit.GlobalId
+
+
 def add_mep_terminal(model: ifcopenshell.file, ifc_class: str, point, width: float = 0.4,
                      depth: float = 0.4, height: float = 0.4, predefined: str | None = None,
                      storey: str | None = None) -> str:
@@ -1005,6 +1055,9 @@ RECIPES = {
                                                float(p.get("size", 0.3)), p.get("storey"), p.get("system", "Power")),
     "add_wire": lambda m, p: add_mep_run(m, "IfcCableSegment", p["start"], p["end"], "round",
                                          float(p.get("size", 0.02)), p.get("storey"), p.get("system", "Power")),
+    "add_mep_fitting": lambda m, p: add_mep_fitting(m, p["ifc_class"], p["point"], float(p.get("size", 0.3)),
+                                                    p.get("predefined", "BEND"), p.get("storey"),
+                                                    p.get("system", "MEP")),
     "add_mep_terminal": lambda m, p: add_mep_terminal(m, p["ifc_class"], p["point"],
                                                       float(p.get("width", 0.4)), float(p.get("depth", 0.4)),
                                                       float(p.get("height", 0.4)), p.get("predefined"),

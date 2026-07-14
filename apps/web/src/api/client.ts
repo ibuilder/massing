@@ -1024,6 +1024,17 @@ export class ApiClient extends HttpCore {
                opts: { bar_size?: string; tie_size?: string; cover?: number; tie_spacing?: number } = {}, publish = true) {
     return this.editIfc(pid, "add_rebar_cage", { column_guid: columnGuid, ...opts }, publish);
   }
+  /** W11 B6: MEP system browser — systems with segment/fitting/terminal counts + connectivity signal. */
+  mepSummary(pid: string) {
+    return this.json<{ total_systems: number; unassigned: { segments: number; fittings: number };
+      systems: { guid: string; name: string; members: number; segments: number; fittings: number;
+        terminals: number; other: number; elements_with_open_ports: number }[] }>(`/projects/${pid}/mep`);
+  }
+  /** W11 B6: author a MEP fitting (elbow BEND / tee JUNCTION / TRANSITION) at a point, on a system. */
+  addMepFitting(pid: string, ifcClass: string, point: [number, number],
+                opts: { predefined?: string; size?: number; system?: string } = {}, publish = true) {
+    return this.editIfc(pid, "add_mep_fitting", { ifc_class: ifcClass, point, ...opts }, publish);
+  }
   /** W11 C4: computed door / window / room schedules from the model. */
   drawingSchedules(pid: string) {
     return this.json<Record<"doors" | "windows" | "rooms", { columns: string[]; rows: string[][] }>>(
