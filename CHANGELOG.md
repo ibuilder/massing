@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.264 — Wave 11 · C4: computed schedules (door / window / room)
+
+The tabular half of a CD set — **schedules computed straight from the model.** A new **📋 Schedules** tool
+lists the **door**, **window**, and **room** schedules (marks, widths/heights, types, levels, areas), pulling
+values directly from the elements (door/window `OverallWidth`/`OverallHeight`, space `NetFloorArea`, the
+containing level). Each is also a standalone SVG table for a schedule sheet. Engine `drawing.py::schedules` /
+`schedule_svg`; `GET /projects/{id}/drawings/schedules` (JSON) + `/drawings/schedule.svg?kind=doors|windows|rooms`.
+`test_drawing.py` extended (door 0.90 m / window 1.50 m captured, table SVG with header + grid, bad-kind 400).
+
 ## v0.3.263 — Wave 11 · C3b: sheet PDF export (the submittable deliverable)
 
 **The payoff of the whole chain: a PDF you can submit to the AHJ.** A new **⤓ Sheet PDF (A-101)** tool renders

@@ -78,6 +78,29 @@ assert len(pdf) > 1500, f"PDF too small ({len(pdf)} bytes)"
 pdf_empty = drawing.sheet_pdf(m, storey="Nonexistent Level")
 assert pdf_empty[:5] == b"%PDF-", "empty-storey PDF invalid"
 
+# --- C4 schedules: door/window/room tables computed from the model ----------------------------------
+# add a door + window so the schedules have rows
+d1 = edit.add_opening(m, w1, width=0.9, height=2.1, kind="door")
+wn1 = edit.add_opening(m, w1, width=1.5, height=1.2, sill=0.9, kind="window", position=[4.5, 0])
+sch = drawing.schedules(m)
+assert set(sch) == {"doors", "windows", "rooms"}, sch.keys()
+assert sch["doors"]["columns"][:3] == ["Mark", "Width (m)", "Height (m)"], sch["doors"]["columns"]
+assert len(sch["doors"]["rows"]) >= 1 and len(sch["windows"]["rows"]) >= 1, sch
+# the door's width was captured from OverallWidth (0.90 m)
+assert any(row[1] == "0.90" for row in sch["doors"]["rows"]), sch["doors"]["rows"]
+assert any(row[1] == "1.50" for row in sch["windows"]["rows"]), sch["windows"]["rows"]
+# render a schedule table SVG
+dsvg = drawing.schedule_svg(m, "doors")
+assert dsvg["svg"].startswith("<svg") and "DOOR SCHEDULE" in dsvg["svg"] and dsvg["rows"] >= 1
+assert 'class="sc-h"' in dsvg["svg"] and 'class="sc-g"' in dsvg["svg"]      # header + grid
+# unknown kind rejected
+try:
+    drawing.schedule_svg(m, "bogus")
+    bad = False
+except ValueError:
+    bad = True
+assert bad, "unknown schedule kind should raise"
+
 # storey filter: a bogus storey name → no elements → empty-but-valid SVG
 empty = drawing.plan_svg(m, storey="Nonexistent Level")
 assert empty["elements"] == 0 and empty["svg"].startswith("<svg"), empty

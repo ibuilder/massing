@@ -106,6 +106,35 @@ def sheet_svg(pid: str, storey: str | None = None, scale: int = 100, number: str
                     headers={"X-Sheet-Number": result["number"]})
 
 
+@router.get("/projects/{pid}/drawings/schedules")
+def drawing_schedules(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W11 C4: computed door / window / room schedules from the model (marks, sizes, types, levels, areas)
+    — the tabular half of a CD set."""
+    from aec_data import drawing  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return drawing.schedules(open_model(p.source_ifc))
+
+
+@router.get("/projects/{pid}/drawings/schedule.svg")
+def schedule_svg(pid: str, kind: str = "doors", db: Session = Depends(get_db),
+                 _: str = Depends(require_role("viewer"))):
+    """W11 C4: one schedule (doors|windows|rooms) rendered as an SVG table."""
+    from fastapi.responses import Response  # local import
+
+    from aec_data import drawing  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    try:
+        result = drawing.schedule_svg(open_model(p.source_ifc), kind=kind)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return Response(content=result["svg"], media_type="image/svg+xml",
+                    headers={"X-Schedule-Rows": str(result["rows"])})
+
+
 @router.get("/projects/{pid}/drawings/sheet.pdf")
 def sheet_pdf(pid: str, storey: str | None = None, scale: int = 100, number: str = "A-101",
               title: str = "FLOOR PLAN", db: Session = Depends(get_db),

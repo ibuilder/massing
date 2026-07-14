@@ -1011,6 +1011,11 @@ export class ApiClient extends HttpCore {
                  opts: { location?: string; identification?: string; description?: string; purpose?: string } = {}, publish = true) {
     return this.editIfc(pid, "attach_document", { guids, name, ...opts }, publish);
   }
+  /** W11 C4: computed door / window / room schedules from the model. */
+  drawingSchedules(pid: string) {
+    return this.json<Record<"doors" | "windows" | "rooms", { columns: string[]; rows: string[][] }>>(
+      `/projects/${pid}/drawings/schedules`);
+  }
   /** W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). */
   lodSummary(pid: string) {
     return this.json<{ total: number; staged: number; prop: string;

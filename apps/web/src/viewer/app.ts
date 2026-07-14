@@ -1911,8 +1911,35 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       pdfBtn.title = "Download the sheet as a PDF (ARCH-D, titleblock, plan poché + dimensions + keynotes) — "
         + "the submittable construction-document deliverable, rendered server-side.";
 
+      // W11 C4: computed door / window / room schedules from the model.
+      const openSchedules = async () => {
+        let sc;
+        try { sc = await api.drawingSchedules(pid); }
+        catch (e) { notify(`schedules failed: ${(e as Error).message}`, "error"); return; }
+        showResult("Schedules (door / window / room)", (body) => {
+          for (const [kind, label] of [["doors", "Door schedule"], ["windows", "Window schedule"], ["rooms", "Room schedule"]] as const) {
+            const t = sc[kind];
+            body.appendChild(resultNote(`<b>${label}</b> — ${t.rows.length} row(s)`, ""));
+            if (!t.rows.length) continue;
+            const tbl = document.createElement("table"); tbl.className = "kv-table"; tbl.style.marginBottom = "6px";
+            const hr = document.createElement("tr");
+            for (const c of t.columns) { const th = document.createElement("th"); th.textContent = c; hr.appendChild(th); }
+            tbl.appendChild(hr);
+            for (const row of t.rows.slice(0, 60)) {
+              const tr = document.createElement("tr");
+              for (const cell of row) { const td = document.createElement("td"); td.textContent = cell; tr.appendChild(td); }
+              tbl.appendChild(tr);
+            }
+            body.appendChild(tbl);
+          }
+        });
+      };
+      const schedBtn = toolBtn2("📋 Schedules", openSchedules);
+      schedBtn.title = "Computed door / window / room schedules (marks, sizes, types, levels, areas) — the "
+        + "tabular half of the CD set, straight from the model. Also at GET /drawings/schedule.svg.";
+
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, manage, levelsMgr);
+        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------
