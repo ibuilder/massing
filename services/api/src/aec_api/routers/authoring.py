@@ -55,6 +55,22 @@ def list_types(pid: str, db: Session = Depends(get_db), _: str = Depends(require
     return {"types": ed.list_types(open_model(p.source_ifc))}
 
 
+@router.get("/projects/{pid}/types/{type_guid}")
+def type_detail(pid: str, type_guid: str, db: Session = Depends(get_db),
+                _: str = Depends(require_role("viewer"))):
+    """W10-1 type inspector: class, PredefinedType, box dims, type Psets, material layers, and the
+    placed occurrences of one family type. Create/edit/material go through POST /edit with the
+    create_type | edit_type_params | assign_material_set recipes (versioned + GUID-stable)."""
+    from aec_data import families  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    try:
+        return families.type_detail(open_model(p.source_ifc), type_guid)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+
+
 @router.get("/projects/{pid}/propmap/detect")
 def propmap_detect(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W9-1: every (pset, property) actually present on the model's elements — the 'source' side a

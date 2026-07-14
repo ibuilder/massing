@@ -935,10 +935,32 @@ export class ApiClient extends HttpCore {
     return this.json<{ by: string; buckets: Record<string, string[]>; counts: Record<string, number>; element_count: number }>(
       `/projects/${pid}/5d/heatmap?by=${by}`);
   }
-  /** Placeable types ("families") in the project's source IFC, for the place-family picker. */
+  /** Placeable types ("families") in the project's source IFC, for the place-family picker and the
+   *  type browser. Carries PredefinedType + how many occurrences reference each type. */
   types(pid: string) {
-    return this.json<{ types: { guid: string; name: string; ifc_class: string; has_geometry: boolean }[] }>(
-      `/projects/${pid}/types`);
+    return this.json<{ types: TypeRow[] }>(`/projects/${pid}/types`);
+  }
+  /** W10-1 type inspector: class, predefined, box dims, type Psets, material layers, occurrences. */
+  typeDetail(pid: string, typeGuid: string) {
+    return this.json<TypeDetail>(`/projects/${pid}/types/${encodeURIComponent(typeGuid)}`);
+  }
+  /** W10-1: author a custom family type (class + optional [w,d,h] box + PredefinedType + type Psets).
+   *  Returns the new type GUID in `changed`. Versioned + GUID-stable via the /edit recipe path. */
+  createType(pid: string, ifc_class: string, name: string, dims?: [number, number, number] | null,
+             predefined?: string | null, psets?: Record<string, Record<string, unknown>> | null,
+             publish = true) {
+    return this.editIfc(pid, "create_type", { ifc_class, name, dims, predefined, psets }, publish);
+  }
+  /** W10-1: edit a type's params. Changing `dims` propagates to EVERY placed occurrence at once
+   *  (shared RepresentationMap), GUID-stable — no re-placement. */
+  editType(pid: string, type_guid: string, patch: { name?: string; dims?: [number, number, number];
+             predefined?: string; psets?: Record<string, Record<string, unknown>> }, publish = true) {
+    return this.editIfc(pid, "edit_type_params", { type_guid, ...patch }, publish);
+  }
+  /** W10-1: give a type an ordered IfcMaterialLayerSet ([{material, thickness(m)}]); occurrences inherit. */
+  assignMaterialSet(pid: string, type_guid: string,
+                    layers: { material: string; thickness: number }[], publish = true) {
+    return this.editIfc(pid, "assign_material_set", { type_guid, layers }, publish);
   }
   /** AI-draft an RFI from an element's context (Claude when keyed, else a template draft). */
   draftRfi(pid: string, element: unknown, note?: string) {
@@ -2963,6 +2985,20 @@ export interface SpecialtyBlended {
 }
 export interface FamilyItem {
   key: string; label: string; ifc_class: string; category: string; dims: [number, number, number];
+}
+/** A family type row (W10-1 type browser) — placeable IfcTypeProduct with its occurrence count. */
+export interface TypeRow {
+  guid: string; name: string; ifc_class: string; predefined: string | null;
+  has_geometry: boolean; occurrence_count: number;
+}
+/** Full type inspector (W10-1) — dims, type Psets, material layers, and placed occurrences. */
+export interface TypeDetail {
+  guid: string; name: string; ifc_class: string; predefined: string | null;
+  dims: [number, number, number] | null; has_geometry: boolean;
+  psets: Record<string, Record<string, unknown>>;
+  materials: { material: string | null; thickness: number | null }[];
+  occurrence_count: number;
+  occurrences: { guid: string; name: string; ifc_class: string }[];
 }
 export interface EvmEarnedSchedule {
   period: string; planned_start: string; planned_finish: string;

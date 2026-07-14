@@ -320,12 +320,14 @@ all of it is **pure ifcopenshell** (no new deps, no license risk).
 Ordering principle: foundations that multiply everything first → breadth → the genuinely-hard constraint
 solver last.
 
-- **W10-1 — Real type/family system (foundation)** *(M · pure ifcopenshell · highest leverage)* — promote the
-  box-only type path into a first-class family system: types carry **type Psets**, **material layer/profile
-  sets**, and multiple representations; occurrences inherit via `assign_type`; type edits propagate to all
-  occurrences (GUID-stable). `create_type` / `edit_type_params` / `assign_material_set` + `/types` endpoints +
-  a type browser/inspector. IFC: `IfcTypeProduct`, `RepresentationMap`, `IfcRelDefinesByType`,
-  `IfcMaterialLayerSet(Usage)` / `IfcMaterialProfileSet(Usage)`. *Depends on nothing — deepens existing code.*
+- **W10-1 — Real type/family system (foundation)** ✅ SHIPPED v0.3.252 *(M · pure ifcopenshell)* — promoted the
+  box-only type path into a first-class family system: `create_type` (custom class + sized box + PredefinedType
+  + type Psets, idempotent), `edit_type_params` (dims edit mutates the shared box solid **in place** → flows to
+  every placed occurrence at once, GUID-stable), `assign_material_set` (`IfcMaterialLayerSet`, replace-on-reassign),
+  `type_detail` inspector (dims / Psets / materials / occurrences) + enriched `/types` (occurrence counts) +
+  `GET /types/{guid}` + a **🧱 Family types** browser/inspector in the viewer. Shared box-representation builder
+  refactored out of `ensure_type`. `test_types.py` proves in-place propagation via the shared `RepresentationMap`.
+  *Next: multiple representations + `IfcMaterialProfileSet` for beams/columns (folds into W10-2).*
 - **W10-2 — Parametric family generators (code-defined)** *(L · pure ifcopenshell; optional build123d/OCP)* —
   each catalog entry becomes a **generator** with typed params + optional formulas; a param change re-runs it
   and swaps the map; params persist as a type Pset. Ship a **profile library** (I/L/T/U/C/rect/circle) +

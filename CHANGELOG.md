@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.252 — Wave 10 · W10-1: first-class type/family system
+
+The box-only type path is now a real **family type system** — the Revit "type properties" surface, IFC-native.
+A new **🧱 Family types** tool (Grid &amp; Levels) browses every `IfcTypeProduct` with its placed-occurrence
+count, and lets you:
+
+- **Create a custom type** — any type class, an optional sized box, a PredefinedType, and type-level
+  property sets (`create_type`). Idempotent by (class, name).
+- **Edit a type's size** — and the change flows to **every placed occurrence at once**. Occurrences share
+  the type's `RepresentationMap` (via `IfcMappedItem`), so `edit_type_params` mutates the one box solid in
+  place — GUID-stable, no re-placement, no lost pins/RFIs.
+- **Assign a material layer set** — an ordered `IfcMaterialLayerSet` (name + thickness per layer) that
+  occurrences inherit through the type (`assign_material_set`); re-assigning replaces cleanly.
+- **Inspect** a type — class, PredefinedType, box dims, type Psets, material layers, and its occurrences.
+
+All three edits run through the versioned, GUID-stable `/edit` recipe path and reconvert. This deepens the
+existing `families.ensure_type`/`place_type` spine (shared box-representation builder) into the foundation the
+rest of Wave 10 (parametric generators, groups, MEP systems, schedules) stands on.
+
 ## v0.3.251 — Wave 9 · W9-2b: round-trip code findings to BCF
 
 The computed occupancy/egress findings can now become **trackable BCF issues** — a "📌 Promote to BCF

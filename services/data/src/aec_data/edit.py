@@ -50,8 +50,11 @@ def list_types(model: ifcopenshell.file) -> list[dict]:
         if key in seen:
             continue
         seen.add(key)
+        occ = sum(len(rel.RelatedObjects) for rel in (getattr(t, "Types", None) or []))
         out.append({"guid": t.GlobalId, "name": name, "ifc_class": t.is_a(),
-                    "has_geometry": bool(getattr(t, "RepresentationMaps", None))})
+                    "predefined": getattr(t, "PredefinedType", None),
+                    "has_geometry": bool(getattr(t, "RepresentationMaps", None)),
+                    "occurrence_count": occ})
     out.sort(key=lambda x: (x["ifc_class"], x["name"]))
     return out
 
@@ -907,7 +910,20 @@ RECIPES = {
     "map_properties": lambda m, p: _map_properties(m, p["rules"]),
     # W9-3 bake resolved IFC5-style override layers into the model (each override -> set_element_pset)
     "apply_layers": lambda m, p: _apply_layers(m, p["overrides"]),
+    # W10-1 first-class type/family system — create/edit types, assign material sets
+    "create_type": lambda m, p: _fam(m).create_type(m, p["ifc_class"], p["name"], p.get("dims"),
+                                                     p.get("predefined"), p.get("psets")),
+    "edit_type_params": lambda m, p: _fam(m).edit_type_params(m, p["type_guid"], p.get("name"),
+                                                              p.get("dims"), p.get("predefined"),
+                                                              p.get("psets")),
+    "assign_material_set": lambda m, p: _fam(m).assign_material_set(m, p["type_guid"], p["layers"]),
 }
+
+
+def _fam(model):
+    """Lazy handle to the families module (avoids an import cycle: families imports edit for helpers)."""
+    from . import families
+    return families
 
 
 def _map_properties(model: ifcopenshell.file, rules) -> int:

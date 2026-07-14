@@ -156,8 +156,6 @@ def ensure_type(model: ifcopenshell.file, key: str, dims=None):
     re-placing the same family reuses one type. Passing `dims` ([w, d, h] m) builds a distinct,
     parametrically-sized **type variant** (named with its size) — Revit-style type families.
     Returns the type entity."""
-    from .edit import _body_context  # lazy — avoid import cycle (edit references families in RECIPES)
-
     spec = _BY_KEY.get(key)
     if spec is None:
         raise ValueError(f"unknown family {key!r}; have {sorted(_BY_KEY)}")
@@ -170,29 +168,221 @@ def ensure_type(model: ifcopenshell.file, key: str, dims=None):
                      if (getattr(t, "Name", None) or "") == name), None)
     if existing is not None:
         return existing
-    import ifcopenshell.util.unit as uunit
 
     typ = ifcopenshell.api.run("root.create_entity", model, ifc_class=spec["ifc_class"],
                                name=name)
     _set_predefined(typ, spec["predefined"])
-    w, d, h = use_dims                                    # dims are in metres
-    scale = uunit.calculate_unit_scale(model)            # metres per file unit
-    body = _body_context(model)
-    if body is not None:
-        # profile dims are stored in file units (not auto-converted), so divide by scale;
-        # the extrusion `depth` IS converted by add_profile_representation, so keep it in metres.
-        # Position is REQUIRED by web-ifc (null Position → element skipped → invisible in the viewer).
-        pos = model.create_entity("IfcAxis2Placement2D",
-                                  Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0)),
-                                  RefDirection=model.create_entity("IfcDirection", (1.0, 0.0)))
-        profile = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA", Position=pos,
-                                      XDim=w / scale, YDim=d / scale)
-        rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
-                                   profile=profile, depth=h)
-        # assigning a representation to a *type* produces a RepresentationMap (mapped geometry),
-        # which type.assign_type then maps onto every occurrence we place.
-        ifcopenshell.api.run("geometry.assign_representation", model, product=typ, representation=rep)
+    # a sized-box mapped representation → RepresentationMap; type.assign_type maps it onto every
+    # occurrence we place. Shared with create_type so all our types carry an editable box solid.
+    _assign_box_representation(model, typ, use_dims)
     return typ
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# W10-1 · first-class type/family system — custom types, type Psets, material sets,
+# parametric dims edits that PROPAGATE to every occurrence (GUID-stable), and a type
+# inspector. This deepens the ensure_type/place_type spine into a real family system.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _assign_box_representation(model: ifcopenshell.file, typ, dims) -> None:
+    """Build a sized-box mapped representation (rectangle profile extruded to h) and assign it to a
+    type — producing the RepresentationMap that place_type maps onto every occurrence. Shared by
+    ensure_type and create_type so all our types carry an editable box solid."""
+    import ifcopenshell.util.unit as uunit
+
+    from .edit import _body_context  # lazy — avoid import cycle
+
+    w, d, h = (float(x) for x in dims)
+    scale = uunit.calculate_unit_scale(model)                # metres per file unit
+    body = _body_context(model)
+    if body is None:
+        return
+    pos = model.create_entity("IfcAxis2Placement2D",
+                              Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0)),
+                              RefDirection=model.create_entity("IfcDirection", (1.0, 0.0)))
+    profile = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA", Position=pos,
+                                  XDim=w / scale, YDim=d / scale)
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                               profile=profile, depth=h)
+    ifcopenshell.api.run("geometry.assign_representation", model, product=typ, representation=rep)
+
+
+def _rep_solid(typ):
+    """The rectangular IfcExtrudedAreaSolid inside a type's mapped body representation (or None).
+    Mutating THIS in place changes every occurrence at once — occurrences share the RepresentationMap
+    via IfcMappedItem, which is exactly how parametric type edits propagate GUID-stably."""
+    for rm in (getattr(typ, "RepresentationMaps", None) or []):
+        rep = getattr(rm, "MappedRepresentation", None)
+        for it in (getattr(rep, "Items", None) or []):
+            if it.is_a("IfcExtrudedAreaSolid") and it.SweptArea and \
+                    it.SweptArea.is_a("IfcRectangleProfileDef"):
+                return it
+    return None
+
+
+def _type_dims(typ):
+    """Read back a box type's [w, d, h] in metres from its extruded-solid rep, or None."""
+    import ifcopenshell.util.unit as uunit
+
+    solid = _rep_solid(typ)
+    if solid is None:
+        return None
+    scale = uunit.calculate_unit_scale(typ.file)           # metres per file unit, from the owning file
+    return [round(float(solid.SweptArea.XDim) * scale, 4),
+            round(float(solid.SweptArea.YDim) * scale, 4),
+            round(float(solid.Depth) * scale, 4)]
+
+
+def _find_type(model: ifcopenshell.file, type_guid: str):
+    t = next((t for t in model.by_type("IfcTypeProduct") if t.GlobalId == type_guid), None)
+    if t is None:
+        raise ValueError(f"type {type_guid!r} not found")
+    return t
+
+
+def _apply_psets(model: ifcopenshell.file, product, psets) -> None:
+    """Attach/merge type-level property sets: {pset_name: {prop: value}}. pset.add_pset is
+    find-or-create, so re-applying the same pset name edits it rather than duplicating."""
+    for pset_name, props in (psets or {}).items():
+        if not props:
+            continue
+        pset = ifcopenshell.api.run("pset.add_pset", model, product=product, name=str(pset_name))
+        ifcopenshell.api.run("pset.edit_pset", model, pset=pset,
+                             properties={str(k): v for k, v in props.items()})
+
+
+def create_type(model: ifcopenshell.file, ifc_class: str, name: str, dims=None,
+                predefined: str | None = None, psets=None) -> str:
+    """W10-1: author a *custom* IfcTypeProduct ("family type") from scratch — any type class, an
+    optional sized box representation ([w, d, h] m), an optional PredefinedType, and type-level
+    property sets. Returns the new type's GUID. Deduped by (class, name): re-creating returns the
+    existing type (and still applies psets), so it's idempotent."""
+    if not ifc_class or not ifc_class.startswith("Ifc") or not ifc_class.endswith("Type"):
+        raise ValueError(f"ifc_class must be an IfcXxxType, got {ifc_class!r}")
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("type name is required")
+    existing = next((t for t in model.by_type(ifc_class)
+                     if (getattr(t, "Name", None) or "") == name), None)
+    if existing is not None:
+        if psets:
+            _apply_psets(model, existing, psets)
+        return existing.GlobalId
+
+    typ = ifcopenshell.api.run("root.create_entity", model, ifc_class=ifc_class, name=name)
+    _set_predefined(typ, predefined)
+    if dims:
+        d = [float(x) for x in dims]
+        if len(d) != 3 or any(v <= 0 for v in d):
+            raise ValueError(f"dims must be three positive [w, d, h] metres, got {dims!r}")
+        _assign_box_representation(model, typ, d)
+    if psets:
+        _apply_psets(model, typ, psets)
+    return typ.GlobalId
+
+
+def edit_type_params(model: ifcopenshell.file, type_guid: str, name: str | None = None,
+                     dims=None, predefined: str | None = None, psets=None) -> dict:
+    """W10-1: edit a type's parameters. Changing `dims` mutates the type's box solid IN PLACE, so
+    the new size flows to **every placed occurrence at once** (they share the RepresentationMap) —
+    GUID-stable, no re-placement. Also renames, re-stamps PredefinedType, and merges type Psets.
+    Returns a summary of what changed."""
+    import ifcopenshell.util.unit as uunit
+
+    typ = _find_type(model, type_guid)
+    changed: dict[str, Any] = {"guid": type_guid}
+    if name and name.strip() and name.strip() != (getattr(typ, "Name", None) or ""):
+        typ.Name = name.strip()
+        changed["name"] = typ.Name
+    if predefined is not None:
+        _set_predefined(typ, predefined or None)
+        changed["predefined"] = getattr(typ, "PredefinedType", None)
+    if dims:
+        d = [float(x) for x in dims]
+        if len(d) != 3 or any(v <= 0 for v in d):
+            raise ValueError(f"dims must be three positive [w, d, h] metres, got {dims!r}")
+        solid = _rep_solid(typ)
+        scale = uunit.calculate_unit_scale(model)
+        if solid is not None:                              # mutate in place → propagates to occurrences
+            w, dd, h = d
+            solid.SweptArea.XDim = w / scale
+            solid.SweptArea.YDim = dd / scale
+            solid.Depth = h / scale
+        else:                                              # no box solid yet — build one
+            _assign_box_representation(model, typ, d)
+        changed["dims"] = d
+        changed["occurrences_updated"] = _occurrence_count(typ)
+    if psets:
+        _apply_psets(model, typ, psets)
+        changed["psets"] = sorted(psets.keys())
+    return changed
+
+
+def assign_material_set(model: ifcopenshell.file, type_guid: str, layers) -> dict:
+    """W10-1: give a type an IfcMaterialLayerSet — ordered [{material, thickness(m)}] layers
+    (walls/slabs/roofs). Occurrences inherit the material through the type. Replaces any prior set."""
+    typ = _find_type(model, type_guid)
+    if not layers:
+        raise ValueError("at least one material layer is required")
+
+    # drop any existing material association so re-assigning is clean/idempotent
+    for rel in list(getattr(typ, "HasAssociations", None) or []):
+        if rel.is_a("IfcRelAssociatesMaterial"):
+            ifcopenshell.api.run("material.unassign_material", model, products=[typ])
+            break
+
+    mset = ifcopenshell.api.run("material.add_material_set", model,
+                                name=f"{typ.Name or typ.is_a()} assembly", set_type="IfcMaterialLayerSet")
+    total = 0.0
+    for spec in layers:
+        mname = str(spec.get("material") or "Material").strip() or "Material"
+        thick = float(spec.get("thickness") or 0.1)
+        mat = next((m for m in model.by_type("IfcMaterial") if m.Name == mname), None) \
+            or ifcopenshell.api.run("material.add_material", model, name=mname)
+        layer = ifcopenshell.api.run("material.add_layer", model, layer_set=mset, material=mat)
+        ifcopenshell.api.run("material.edit_layer", model, layer=layer,
+                             attributes={"LayerThickness": thick, "Name": mname})
+        total += thick
+    ifcopenshell.api.run("material.assign_material", model, products=[typ], material=mset)
+    return {"guid": type_guid, "layers": len(layers), "total_thickness_m": round(total, 4)}
+
+
+def _occurrence_count(typ) -> int:
+    """How many placed occurrences reference this type (via IfcRelDefinesByType)."""
+    return sum(len(rel.RelatedObjects) for rel in (getattr(typ, "Types", None) or []))
+
+
+def type_detail(model: ifcopenshell.file, type_guid: str) -> dict:
+    """W10-1 inspector: everything about one type — class, predefined, box dims, type Psets,
+    material layers, and its placed occurrences (capped list + count)."""
+    import ifcopenshell.util.element as ue
+
+    typ = _find_type(model, type_guid)
+    occ: list[dict] = []
+    for rel in (getattr(typ, "Types", None) or []):
+        for o in rel.RelatedObjects:
+            occ.append({"guid": o.GlobalId, "name": getattr(o, "Name", None) or o.is_a(),
+                        "ifc_class": o.is_a()})
+    materials: list[dict] = []
+    mat = ue.get_material(typ)
+    if mat is not None and mat.is_a("IfcMaterialLayerSet"):
+        for lyr in (mat.MaterialLayers or []):
+            materials.append({"material": getattr(lyr.Material, "Name", None) if lyr.Material else None,
+                              "thickness": lyr.LayerThickness})
+    elif mat is not None and mat.is_a("IfcMaterial"):
+        materials.append({"material": mat.Name, "thickness": None})
+    return {
+        "guid": type_guid,
+        "name": getattr(typ, "Name", None) or typ.is_a(),
+        "ifc_class": typ.is_a(),
+        "predefined": getattr(typ, "PredefinedType", None),
+        "dims": _type_dims(typ),
+        "has_geometry": bool(getattr(typ, "RepresentationMaps", None)),
+        "psets": ue.get_psets(typ, psets_only=True),
+        "materials": materials,
+        "occurrence_count": len(occ),
+        "occurrences": occ[:200],
+    }
 
 
 def add_family(model: ifcopenshell.file, key: str, storey: str | None = None,

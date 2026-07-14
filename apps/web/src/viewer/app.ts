@@ -1527,7 +1527,85 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       });
       manage.title = "Rename levels and set their elevation — edits the IFC by storey GUID";
 
-      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, manage, levelsMgr);
+      // W10-1 first-class type/family system: browse types, create a custom type, edit a type's size
+      // (propagates to every placed occurrence at once — shared RepresentationMap, GUID-stable), and
+      // give it a material layer set. The Revit "type properties" surface, IFC-native.
+      const parseDims = (s: string): [number, number, number] | null => {
+        const p = s.split(/[,x×]/).map((v) => Number(v.trim()));
+        return p.length === 3 && p.every((n) => Number.isFinite(n) && n > 0) ? [p[0]!, p[1]!, p[2]!] : null;
+      };
+      const shortClass = (c: string) => c.replace(/^Ifc/, "").replace(/Type$/, "");
+      const openTypeInspector = async (guid: string, reopen: () => void) => {
+        let det;
+        try { det = await api.typeDetail(pid, guid); }
+        catch (e) { notify(`type load failed: ${(e as Error).message}`, "error"); return; }
+        showResult(`Type — ${det.name}`, (body) => {
+          const back = toolBtn2("‹ All types", reopen); back.style.marginBottom = "6px"; body.appendChild(back);
+          body.appendChild(kvTable([
+            { k: "Class", v: shortClass(det.ifc_class), strong: true },
+            { k: "Predefined", v: det.predefined || "—" },
+            { k: "Size (w×d×h m)", v: det.dims ? det.dims.map((n) => n.toFixed(3)).join(" × ") : "no box geometry" },
+            { k: "Placed occurrences", v: String(det.occurrence_count) },
+            { k: "Material layers", v: det.materials.length
+              ? det.materials.map((m) => `${m.material ?? "?"}${m.thickness != null ? ` ${(m.thickness * 1000).toFixed(0)}mm` : ""}`).join(" · ") : "—" },
+          ]));
+          const psetNames = Object.keys(det.psets || {});
+          if (psetNames.length) {
+            const rows = psetNames.flatMap((pn) =>
+              Object.entries(det.psets[pn] as Record<string, unknown>).map(([k, v]) => ({ k: `${pn}.${k}`, v: String(v) })));
+            body.appendChild(resultNote(`<b>Type properties</b> — inherited by all ${det.occurrence_count} occurrence(s).`, ""));
+            body.appendChild(kvTable(rows.slice(0, 40)));
+          }
+          const editSize = toolBtn2("✎ Edit size (propagates to occurrences)", async () => {
+            const cur = det.dims ? det.dims.map((n) => n.toFixed(3)).join(", ") : "1.0, 0.5, 0.75";
+            const v = await askText("Edit type size", { label: "Width, depth, height (metres)", value: cur }); if (!v) return;
+            const d = parseDims(v); if (!d) { notify("need three positive numbers, e.g. 1.8, 0.6, 0.9", "error"); return; }
+            await authorAndReload("edit_type_params", { type_guid: guid, dims: d }, `resize ${det.name}`);
+            await openTypeInspector(guid, reopen);
+          });
+          editSize.title = "Changes the type's box — every placed occurrence updates at once (GUID-stable)";
+          body.appendChild(editSize);
+          const mat = toolBtn2("🧱 Set material layers", async () => {
+            const cur = det.materials.map((m) => `${m.material ?? "Material"}:${m.thickness ?? 0.1}`).join(", ") || "Gypsum:0.015, Steel:0.1, Gypsum:0.015";
+            const v = await askText("Material layer set", { label: "name:thickness_m, … (outer → inner)", value: cur }); if (!v) return;
+            const layers = v.split(",").map((seg) => { const [n, t] = seg.split(":"); return { material: (n || "Material").trim(), thickness: Number((t || "0.1").trim()) || 0.1 }; });
+            if (!layers.length) return;
+            await authorAndReload("assign_material_set", { type_guid: guid, layers }, `material set for ${det.name}`);
+            await openTypeInspector(guid, reopen);
+          });
+          mat.title = "Assign an IfcMaterialLayerSet — occurrences inherit the assembly (walls/slabs/roofs)";
+          body.appendChild(mat);
+        });
+      };
+      const openTypeBrowser = async () => {
+        let rows;
+        try { rows = (await api.types(pid)).types; }
+        catch (e) { notify(`types failed: ${(e as Error).message}`, "error"); return; }
+        showResult("Family types", (body) => {
+          const create = toolBtn2("＋ New type", async () => {
+            const cls = await askText("New type", { label: "Type class (e.g. IfcFurnitureType, IfcWallType)", value: "IfcFurnitureType" }); if (!cls) return;
+            const name = await askText("New type", { label: "Type name", value: "New Type" }); if (!name) return;
+            const dimsS = await askText("New type", { label: "Size w, d, h (metres) — blank for no geometry", value: "1.0, 0.5, 0.75" });
+            const dims = dimsS ? parseDims(dimsS) : null;
+            await authorAndReload("create_type", { ifc_class: cls.trim(), name: name.trim(), dims }, `type ${name.trim()}`);
+            await openTypeBrowser();
+          });
+          create.style.marginBottom = "6px"; body.appendChild(create);
+          if (!rows.length) { body.appendChild(resultNote("No types yet — create one, or place a family from the library.", "")); return; }
+          body.appendChild(resultNote(`<b>${rows.length}</b> type(s). Click one to inspect, resize, or set materials.`, ""));
+          for (const t of rows.slice().sort((a, b) => b.occurrence_count - a.occurrence_count || a.name.localeCompare(b.name))) {
+            const btn = toolBtn2(`${t.name} · ${shortClass(t.ifc_class)}${t.occurrence_count ? ` ×${t.occurrence_count}` : ""}`,
+              () => openTypeInspector(t.guid, openTypeBrowser));
+            if (!t.has_geometry) btn.title = "No box geometry — resize will build one";
+            body.appendChild(btn);
+          }
+        });
+      };
+      const typesBtn = toolBtn2("🧱 Family types", openTypeBrowser);
+      typesBtn.title = "Browse & author IFC type families (Revit-style type properties): create types, edit a "
+        + "type's size (propagates to all occurrences), assign material layers — IFC-native, GUID-stable";
+
+      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------
