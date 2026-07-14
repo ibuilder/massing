@@ -48,13 +48,18 @@ def _swept_bar(model, body, name, directrix_pts, radius, closed=False):
     """An IfcReinforcingBar whose geometry is a disk of `radius` swept along `directrix_pts` (world XYZ,
     metres) — straight for a longitudinal bar, a closed rectangle for a stirrup. Identity placement, so
     the directrix carries absolute coordinates."""
+    import ifcopenshell.util.unit as uu
+    # manual IfcSweptDiskSolid — nothing here goes through the SI-converting API, and the placement is
+    # identity, so directrix coords AND radius must be authored in file units (metres ÷ unit_scale).
+    s = uu.calculate_unit_scale(model)
     bar = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcReinforcingBar", name=name)
     ifcopenshell.api.run("geometry.edit_object_placement", model, product=bar, matrix=np.eye(4))
-    pts = [model.create_entity("IfcCartesianPoint", (float(x), float(y), float(z))) for x, y, z in directrix_pts]
+    pts = [model.create_entity("IfcCartesianPoint", (float(x) / s, float(y) / s, float(z) / s))
+           for x, y, z in directrix_pts]
     if closed:
         pts.append(pts[0])
     poly = model.create_entity("IfcPolyline", Points=pts)
-    solid = model.create_entity("IfcSweptDiskSolid", Directrix=poly, Radius=float(radius))
+    solid = model.create_entity("IfcSweptDiskSolid", Directrix=poly, Radius=float(radius) / s)
     rep = model.create_entity("IfcShapeRepresentation", ContextOfItems=body,
                               RepresentationIdentifier="Body", RepresentationType="AdvancedSweptSolid",
                               Items=[solid])

@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.269 — Fix: authoring correctness on non-metre models + egress door width
+
+Bug fixes from a parallel correctness-audit worktree (verified against real ifcopenshell):
+
+- **HIGH — profile geometry on millimetre/imported models.** `geometry.add_profile_representation` SI-converts
+  only the extrusion *depth*, not the profile — so profile dims must be authored in **file units**
+  (metres ÷ unit_scale). `_rect_profile`, `connections._circle`, `steel.i_profile`, `rebar._swept_bar`, and the
+  inline builders in `add_spaces`/`add_slab`/`add_mep_run`/`add_rebar`/`add_roof`/`add_covering` wrote raw
+  metres — making every wall/column/beam/slab/MEP/rebar **1000× too thin** on a mm model (ifcopenshell's
+  default and most imported IFCs). Our own blank models are metre-based (scale=1) so tests never caught it.
+  Also fixed `add_rebar_cage` hard-failing ("cover too large") and `add_spaces` double-scaling its placement,
+  both consequences on mm models.
+- **MED — egress door width always 0.** `codecheck._door_width_m` read `Pset_DoorCommon.Width`, but authored
+  doors store width in the `OverallWidth` **attribute** — so `provided_width_in` was 0 and egress adequacy
+  meaningless. Now reads `OverallWidth` (unit-scaled).
+- **MED — copies re-parented to the wrong storey.** `copy_element` (used by arrays) put every copy in the
+  *lowest* storey; now inherits the source element's container.
+
+New `test_unit_scale.py` authors into a forced-millimetre model and asserts column/wall/steel/duct/slab/rebar
+carry correct **real** sizes + rebar no longer crashes + egress width > 0. All metre-model tests unchanged
+(scale=1 makes every ÷scale a no-op).
+
 ## v0.3.268 — Wave 11 · B6 MEP fittings + edge-hardening
 
 **MEP fittings & system browser.** `add_mep_fitting` authors an elbow (`BEND`), tee/cross (`JUNCTION`), or

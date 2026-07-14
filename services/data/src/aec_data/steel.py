@@ -38,14 +38,19 @@ def section_dims_m(name: str) -> dict[str, float]:
 
 
 def i_profile(model, name: str):
-    """A native IfcIShapeProfileDef for a W-shape (with a Position — web-ifc needs it)."""
+    """A native IfcIShapeProfileDef for a W-shape (with a Position — web-ifc needs it). Dims are given
+    in METRES but the profile must carry file units (metres ÷ unit_scale), else the section is 1000×
+    too small on a millimetre model."""
+    import ifcopenshell.util.unit as uu
+    s = uu.calculate_unit_scale(model)
     d = section_dims_m(name)
     pos = model.create_entity("IfcAxis2Placement2D",
                               Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0)),
                               RefDirection=model.create_entity("IfcDirection", (1.0, 0.0)))
     return model.create_entity(
         "IfcIShapeProfileDef", ProfileType="AREA", ProfileName=name, Position=pos,
-        OverallWidth=d["bf"], OverallDepth=d["d"], WebThickness=d["tw"], FlangeThickness=d["tf"])
+        OverallWidth=d["bf"] / s, OverallDepth=d["d"] / s, WebThickness=d["tw"] / s,
+        FlangeThickness=d["tf"] / s)
 
 
 def rebar_diameter(size: str) -> float:

@@ -157,7 +157,7 @@ def add_spaces(model: ifcopenshell.file, rooms_per_storey: int = 4,
     scale = uunit.calculate_unit_scale(model)  # meters -> file units for placement
     count = 0
     for storey in storeys:
-        elev = float(getattr(storey, "Elevation", 0) or 0)  # file units
+        elev_m = float(getattr(storey, "Elevation", 0) or 0) * scale  # file units → metres
         n = 0
         for r in range(rows):
             for c in range(cols):
@@ -167,14 +167,13 @@ def add_spaces(model: ifcopenshell.file, rooms_per_storey: int = 4,
                 space = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcSpace",
                                              name=f"{storey.Name} - Room {n:02d}")
                 space.LongName = f"Room {n:02d}"
-                # placement (file units): geometry is meters → divide by scale
-                ox = (mn[0] + c * w) / scale
-                oy = (mn[1] + r * d) / scale
-                matrix = np.eye(4); matrix[0, 3] = ox; matrix[1, 3] = oy; matrix[2, 3] = elev
+                # placement is in METRES (edit_object_placement SI-converts it); w/d are metres
+                matrix = np.eye(4)
+                matrix[0, 3] = mn[0] + c * w; matrix[1, 3] = mn[1] + r * d; matrix[2, 3] = elev_m
                 ifcopenshell.api.run("geometry.edit_object_placement", model, product=space, matrix=matrix)
-                # extruded rectangle (meters)
+                # profile dims must be file units (metres ÷ scale) — the API converts only the depth
                 profile = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA",
-                                              XDim=w, YDim=d)
+                                              XDim=w / scale, YDim=d / scale)
                 rep = ifcopenshell.api.run("geometry.add_profile_representation", model,
                                            context=body, profile=profile, depth=ceiling_height)
                 ifcopenshell.api.run("geometry.assign_representation", model, product=space, representation=rep)
@@ -200,14 +199,18 @@ def _body_context(model):
 
 
 def _rect_profile(model, xdim: float, ydim: float):
-    """An IfcRectangleProfileDef WITH a Position. web-ifc requires the profile placement to be set
-    (ifcopenshell tolerates a null Position, but web-ifc silently skips the element → it renders
-    invisible in the viewer). Always give parametric profiles an origin placement."""
+    """An IfcRectangleProfileDef (dims given in METRES) WITH a Position. web-ifc requires the profile
+    placement to be set (ifcopenshell tolerates a null Position, but web-ifc silently skips the element
+    → it renders invisible). NB: geometry.add_profile_representation SI-converts only the extrusion
+    *depth*, not the profile — so profile dims must be authored in **file units** (metres ÷ unit_scale),
+    else a wall/column is 1000× too thin on a millimetre model."""
+    import ifcopenshell.util.unit as uunit
+    scale = uunit.calculate_unit_scale(model)          # metres per file unit (1 for m, 0.001 for mm)
     pos = model.create_entity("IfcAxis2Placement2D",
                               Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0)),
                               RefDirection=model.create_entity("IfcDirection", (1.0, 0.0)))
     return model.create_entity("IfcRectangleProfileDef", ProfileType="AREA", Position=pos,
-                               XDim=float(xdim), YDim=float(ydim))
+                               XDim=float(xdim) / scale, YDim=float(ydim) / scale)
 
 
 def _first_storey(model, name=None):
@@ -297,7 +300,8 @@ def add_slab(model: ifcopenshell.file, points, thickness: float = 0.2,
     slab = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcSlab", name="Slab")
     matrix = np.eye(4); matrix[2, 3] = elev
     ifcopenshell.api.run("geometry.edit_object_placement", model, product=slab, matrix=matrix)
-    pts = [model.create_entity("IfcCartesianPoint", Coordinates=(float(p[0]), float(p[1]))) for p in points]
+    pts = [model.create_entity("IfcCartesianPoint",                # profile coords in file units (÷ scale)
+                               Coordinates=(float(p[0]) / scale, float(p[1]) / scale)) for p in points]
     pts.append(pts[0])  # close the loop
     poly = model.create_entity("IfcPolyline", Points=pts)
     profile = model.create_entity("IfcArbitraryClosedProfileDef", ProfileType="AREA", OuterCurve=poly)
@@ -422,7 +426,8 @@ def add_rebar(model: ifcopenshell.file, start, end, size: str = "#5",
     pos = model.create_entity("IfcAxis2Placement2D",
                               Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0)),
                               RefDirection=model.create_entity("IfcDirection", (1.0, 0.0)))
-    profile = model.create_entity("IfcCircleProfileDef", ProfileType="AREA", Position=pos, Radius=dia / 2.0)
+    profile = model.create_entity("IfcCircleProfileDef", ProfileType="AREA", Position=pos,
+                                  Radius=dia / 2.0 / scale)          # file units (metres ÷ scale)
     rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
                                profile=profile, depth=length)
     ifcopenshell.api.run("geometry.assign_representation", model, product=bar, representation=rep)
@@ -490,12 +495,12 @@ def add_mep_run(model: ifcopenshell.file, ifc_class: str, start, end, shape: str
     pos = model.create_entity("IfcAxis2Placement2D",
                               Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0)),
                               RefDirection=model.create_entity("IfcDirection", (1.0, 0.0)))
-    if shape == "rect":
+    if shape == "rect":                                            # profile dims in file units (÷ scale)
         profile = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA", Position=pos,
-                                      XDim=float(size), YDim=float(size) * 0.4)
+                                      XDim=float(size) / scale, YDim=float(size) * 0.4 / scale)
     else:
         profile = model.create_entity("IfcCircleProfileDef", ProfileType="AREA", Position=pos,
-                                      Radius=float(size) / 2.0)
+                                      Radius=float(size) / 2.0 / scale)
     rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
                                profile=profile, depth=length)
     ifcopenshell.api.run("geometry.assign_representation", model, product=seg, representation=rep)
@@ -618,7 +623,8 @@ def add_covering(model: ifcopenshell.file, points, predefined: str = "CEILING",
         pass
     matrix = np.eye(4); matrix[2, 3] = elev
     ifcopenshell.api.run("geometry.edit_object_placement", model, product=cov, matrix=matrix)
-    pts = [model.create_entity("IfcCartesianPoint", Coordinates=(float(p[0]), float(p[1]))) for p in points]
+    pts = [model.create_entity("IfcCartesianPoint",                # profile coords in file units (÷ scale)
+                               Coordinates=(float(p[0]) / scale, float(p[1]) / scale)) for p in points]
     pts.append(pts[0])
     poly = model.create_entity("IfcPolyline", Points=pts)
     profile = model.create_entity("IfcArbitraryClosedProfileDef", ProfileType="AREA", OuterCurve=poly)
@@ -679,7 +685,8 @@ def add_roof(model: ifcopenshell.file, points, thickness: float = 0.3,
     roof = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcRoof", name="Roof")
     matrix = np.eye(4); matrix[2, 3] = elev
     ifcopenshell.api.run("geometry.edit_object_placement", model, product=roof, matrix=matrix)
-    pts = [model.create_entity("IfcCartesianPoint", Coordinates=(float(p[0]), float(p[1]))) for p in points]
+    pts = [model.create_entity("IfcCartesianPoint",                # profile coords in file units (÷ scale)
+                               Coordinates=(float(p[0]) / scale, float(p[1]) / scale)) for p in points]
     pts.append(pts[0])
     poly = model.create_entity("IfcPolyline", Points=pts)
     profile = model.create_entity("IfcArbitraryClosedProfileDef", ProfileType="AREA", OuterCurve=poly)
@@ -817,7 +824,7 @@ def copy_element(model: ifcopenshell.file, guid: str, dx: float = 0.0, dy: float
     new = ifcopenshell.api.run("root.copy_class", model, product=el)
     if el.Representation:
         new.Representation = ue.copy_deep(model, el.Representation)
-    st = _first_storey(model)
+    st = ue.get_container(el) or _first_storey(model)     # keep the source's storey, not the lowest one
     if st:
         ifcopenshell.api.run("spatial.assign_container", model, products=[new], relating_structure=st)
     if dx or dy or dz:

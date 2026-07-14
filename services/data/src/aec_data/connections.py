@@ -44,8 +44,10 @@ def _place(model, el, x: float, y: float, z: float) -> None:
 
 
 def _circle(model, radius: float):
+    import ifcopenshell.util.unit as uu
+    scale = uu.calculate_unit_scale(model)             # radius must be file units (metres ÷ scale)
     return model.create_entity(
-        "IfcCircleProfileDef", ProfileType="AREA", Radius=radius,
+        "IfcCircleProfileDef", ProfileType="AREA", Radius=float(radius) / scale,
         Position=model.create_entity("IfcAxis2Placement2D",
                                      Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0))))
 

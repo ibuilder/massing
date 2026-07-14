@@ -192,10 +192,15 @@ def _space_occupancy(e: dict) -> str:
 
 
 def _door_width_m(e: dict) -> float | None:
-    for container, grp, key in (("psets", "Pset_DoorCommon", "Width"),
-                                ("qtos", "Qto_DoorBaseQuantities", "Width")):
+    # authored doors store their clear width in the OverallWidth ATTRIBUTE (not a pset); prefer it,
+    # then fall back to the (less common) quantity/pset widths.
+    ow = e.get("overall_width")
+    if isinstance(ow, (int, float)) and ow > 0:
+        return float(ow)
+    for container, grp, key in (("qtos", "Qto_DoorBaseQuantities", "Width"),
+                                ("psets", "Pset_DoorCommon", "Width")):
         v = ((e.get(container) or {}).get(grp) or {}).get(key)
-        if isinstance(v, (int, float)):
+        if isinstance(v, (int, float)) and v > 0:
             return float(v)
     return None
 
@@ -267,14 +272,18 @@ def egress_from_model(model) -> dict[str, Any]:
     egress analysis. Spaces are read from the model — the property index holds only *physical*
     elements, so IfcSpace (a spatial element) isn't in it."""
     import ifcopenshell.util.element as ue
+    import ifcopenshell.util.unit as uu
 
+    scale = uu.calculate_unit_scale(model)                # OverallWidth is in file units → metres
     idx: dict[str, dict] = {}
     for cls in ("IfcSpace", "IfcDoor"):
         for el in model.by_type(cls):
+            ow = getattr(el, "OverallWidth", None) if cls == "IfcDoor" else None
             idx[el.GlobalId] = {
                 "ifc_class": cls,
                 "name": getattr(el, "Name", None),
                 "long_name": getattr(el, "LongName", None),
+                "overall_width": float(ow) * scale if isinstance(ow, (int, float)) else None,
                 "psets": ue.get_psets(el, psets_only=True),
                 "qtos": ue.get_psets(el, qtos_only=True),
             }
