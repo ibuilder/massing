@@ -1047,7 +1047,20 @@ RECIPES = {
                                                           p.get("purpose")),
     # W11 D3 — auto-detail: evaluate the condition→content rule set, write matched code/detail bundles
     "apply_detailing_rules": lambda m, p: _rules().apply_rules(m, p.get("rules")),
+    # W11 B6 — structural steel connections (fabrication LOD 350/400)
+    "add_base_plate": lambda m, p: _conn().add_base_plate(m, p["column_guid"], float(p.get("width", 0.4)),
+                                                          float(p.get("depth", 0.4)), float(p.get("thickness", 0.025)),
+                                                          int(p.get("bolts", 4)), storey=p.get("storey")),
+    "add_shear_tab": lambda m, p: _conn().add_shear_tab(m, p["beam_guid"], float(p.get("thickness", 0.01)),
+                                                        float(p.get("depth", 0.2)), float(p.get("width", 0.1)),
+                                                        int(p.get("bolts", 2)), storey=p.get("storey")),
 }
+
+
+def _conn():
+    """Lazy handle to the connections module (it imports edit helpers → avoid a cycle)."""
+    from . import connections
+    return connections
 
 
 def _rules():

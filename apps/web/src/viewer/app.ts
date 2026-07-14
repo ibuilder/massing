@@ -1938,8 +1938,24 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       schedBtn.title = "Computed door / window / room schedules (marks, sizes, types, levels, areas) — the "
         + "tabular half of the CD set, straight from the model. Also at GET /drawings/schedule.svg.";
 
+      // W11 B6: steel connections — base plate on the selected column, shear tab on the selected beam
+      // (bare LOD-300 members → LOD-350/400 fabrication assemblies).
+      const basePlateBtn = toolBtn2("🔩 Base plate (steel column)", async () => {
+        if (!selectedGuid) { notify("select a steel column first", "error"); return; }
+        await authorAndReload("add_base_plate", { column_guid: selectedGuid, bolts: 4 }, "base plate");
+      });
+      basePlateBtn.title = "Author a base plate + 4 anchor bolts under the selected steel column and group "
+        + "them into an IfcElementAssembly — the LOD 350/400 fabrication connection. GUID-stable.";
+      const shearTabBtn = toolBtn2("🔩 Shear tab (steel beam)", async () => {
+        if (!selectedGuid) { notify("select a steel beam first", "error"); return; }
+        await authorAndReload("add_shear_tab", { beam_guid: selectedGuid, bolts: 3 }, "shear tab");
+      });
+      shearTabBtn.title = "Author a shear-tab plate + bolts at the selected steel beam's end and assemble it "
+        + "with the beam — a simple beam-to-column shear connection (LOD 350/400). GUID-stable.";
+
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn, manage, levelsMgr);
+        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn,
+        basePlateBtn, shearTabBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------

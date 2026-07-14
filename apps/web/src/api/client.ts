@@ -1011,6 +1011,14 @@ export class ApiClient extends HttpCore {
                  opts: { location?: string; identification?: string; description?: string; purpose?: string } = {}, publish = true) {
     return this.editIfc(pid, "attach_document", { guids, name, ...opts }, publish);
   }
+  /** W11 B6: author a base plate + anchor bolts under a steel column (fabrication assembly). */
+  addBasePlate(pid: string, columnGuid: string, opts: { bolts?: number; width?: number; depth?: number } = {}, publish = true) {
+    return this.editIfc(pid, "add_base_plate", { column_guid: columnGuid, ...opts }, publish);
+  }
+  /** W11 B6: author a shear tab + bolts at a steel beam end (fabrication assembly). */
+  addShearTab(pid: string, beamGuid: string, opts: { bolts?: number } = {}, publish = true) {
+    return this.editIfc(pid, "add_shear_tab", { beam_guid: beamGuid, ...opts }, publish);
+  }
   /** W11 C4: computed door / window / room schedules from the model. */
   drawingSchedules(pid: string) {
     return this.json<Record<"doors" | "windows" | "rooms", { columns: string[]; rows: string[][] }>>(

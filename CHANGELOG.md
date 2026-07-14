@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.265 — Wave 11 · B6: structural steel connections (LOD 350/400)
+
+Bare steel members become **fabrication assemblies.** Two connection recipes turn LOD-300 members into
+LOD-350/400 shop assemblies, on the selected element:
+
+- **🔩 Base plate (steel column)** — an `IfcPlate` base plate + up to 4 anchor bolts (`IfcMechanicalFastener`,
+  ANCHORBOLT) authored under the column, then grouped **with the column** into an `IfcElementAssembly`.
+- **🔩 Shear tab (steel beam)** — a shear-tab plate + bolts at the beam end, assembled with the beam (a simple
+  beam-to-column shear connection).
+
+Each is real IFC geometry, GUID-stable, sized/placed from the member's own placement. This is the first
+domain-catalog slice of Track B6 (steel connections → rebar cages → MEP fittings → curtain-wall). Engine
+`connections.py` (`add_base_plate` / `add_shear_tab`); `add_base_plate` / `add_shear_tab` recipes.
+`test_steel_connections.py` green.
+
 ## v0.3.264 — Wave 11 · C4: computed schedules (door / window / room)
 
 The tabular half of a CD set — **schedules computed straight from the model.** A new **📋 Schedules** tool

@@ -421,8 +421,11 @@ this spine first; every track hangs off it.
   box-proxy fallback; `test_openings.py`); B3 wall **Axis rep + clippings/
   booleans** (sloped tops, gable walls); B4 **procedural-mesh escape hatch** (`add_mesh_representation` →
   IfcTriangulatedFaceSet for anything parametric recipes can't); B5 **connections/fasteners/hangers** +
-  `IfcRelConnects*` (LOD 350 coordination); B6 **domain catalogs** in value order — steel connections → rebar
-  (swept-disk along a directrix) → MEP connected systems + fittings → curtain-wall systems.
+  `IfcRelConnects*` (LOD 350 coordination); **B6 domain catalogs** in value order — steel connections → rebar
+  (swept-disk along a directrix) → MEP connected systems + fittings → curtain-wall systems. **Steel
+  connections ✅ SHIPPED v0.3.265** — `connections.py` `add_base_plate` (IfcPlate + IfcMechanicalFastener
+  anchor bolts, assembled with the column) + `add_shear_tab` (beam shear connection); 🔩 viewer tools +
+  recipes + `test_steel_connections.py`. *Next: rebar cages/bends, MEP fittings, curtain-wall.*
 - **C · Construction-document generation (the deliverable)** *(L)* — **C1 ✅ SHIPPED v0.3.260** — plan-drawing
   generator (`drawing.py::plan_svg`): derives footprints **directly from authored extruded-profile geometry**
   (no OCC — our geometry path is web-ifc, ifcopenshell's OCC engine produces no mesh here), class-styled poché
