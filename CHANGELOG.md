@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.272 — Fix: IFC2x3 MEP browser crash + degenerate-input guard
+
+From the post-release debug worktree:
+
+- **IFC2x3 MEP browser crash.** `mep_summary` called `model.by_type("IfcDistributionSystem")`, which *raises*
+  on an IFC2x3 model (that class is IFC4+) — and legacy MEP models are commonly IFC2x3. It now degrades to an
+  empty result via a schema-safe `_by_type` helper (matches the `energy.py` pattern).
+- **Coincident start/end points** in `add_wall`/`add_beam`/`add_rebar`/`add_mep_run`/`add_railing`/
+  `add_curtain_wall` produced an opaque "only finite values are allowed" placement crash (zero-length axis).
+  They now raise a clear `ValueError("start and end points must differ")`.
+
+Guarded by additions to `test_mep_systems.py` (IFC2x3) and `test_curtainwall.py` (zero length).
+
 ## v0.3.271 — Natural-language authoring command bar (the low-barrier way in)
 
 **Type what you want to build.** A new **✨ command bar** at the top of the Author panel turns plain English

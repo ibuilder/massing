@@ -264,7 +264,9 @@ def add_wall(model: ifcopenshell.file, start, end, height: float = 3.0,
     scale = uunit.calculate_unit_scale(model)
     body = _body_context(model)
     sx, sy, ex, ey = float(start[0]), float(start[1]), float(end[0]), float(end[1])
-    length = math.hypot(ex - sx, ey - sy) or 1.0
+    length = math.hypot(ex - sx, ey - sy)
+    if length < 1e-9:
+        raise ValueError("start and end points must differ")
     ang = math.atan2(ey - sy, ex - sx)
     st = _first_storey(model, storey)
     elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale   # file units -> m
@@ -352,7 +354,9 @@ def add_beam(model: ifcopenshell.file, start, end, width: float = 0.3, depth: fl
     scale = uunit.calculate_unit_scale(model)
     body = _body_context(model)
     sx, sy, ex, ey = float(start[0]), float(start[1]), float(end[0]), float(end[1])
-    length = math.hypot(ex - sx, ey - sy) or 1.0
+    length = math.hypot(ex - sx, ey - sy)
+    if length < 1e-9:
+        raise ValueError("start and end points must differ")
     dx, dy = (ex - sx) / length, (ey - sy) / length
     st = _first_storey(model, storey)
     elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale
@@ -415,7 +419,9 @@ def add_rebar(model: ifcopenshell.file, start, end, size: str = "#5",
     scale = uunit.calculate_unit_scale(model)
     body = _body_context(model)
     sx, sy, ex, ey = float(start[0]), float(start[1]), float(end[0]), float(end[1])
-    length = math.hypot(ex - sx, ey - sy) or 1.0
+    length = math.hypot(ex - sx, ey - sy)
+    if length < 1e-9:
+        raise ValueError("start and end points must differ")
     dx, dy = (ex - sx) / length, (ey - sy) / length
     st = _first_storey(model, storey)
     elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale
@@ -484,7 +490,9 @@ def add_mep_run(model: ifcopenshell.file, ifc_class: str, start, end, shape: str
     scale = uunit.calculate_unit_scale(model)
     body = _body_context(model)
     sx, sy, ex, ey = float(start[0]), float(start[1]), float(end[0]), float(end[1])
-    length = math.hypot(ex - sx, ey - sy) or 1.0
+    length = math.hypot(ex - sx, ey - sy)
+    if length < 1e-9:
+        raise ValueError("start and end points must differ")
     dx, dy = (ex - sx) / length, (ey - sy) / length
     st = _first_storey(model, storey)
     elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale
@@ -654,7 +662,9 @@ def add_railing(model: ifcopenshell.file, start, end, height: float = 1.1,
     scale = uunit.calculate_unit_scale(model)
     body = _body_context(model)
     sx, sy, ex, ey = float(start[0]), float(start[1]), float(end[0]), float(end[1])
-    length = math.hypot(ex - sx, ey - sy) or 1.0
+    length = math.hypot(ex - sx, ey - sy)
+    if length < 1e-9:
+        raise ValueError("start and end points must differ")
     ang = math.atan2(ey - sy, ex - sx)
     st = _first_storey(model, storey)
     elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale

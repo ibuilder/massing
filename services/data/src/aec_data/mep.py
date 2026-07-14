@@ -30,12 +30,21 @@ def _port_connected(port) -> bool:
     return bool(getattr(port, "ConnectedTo", None) or getattr(port, "ConnectedFrom", None))
 
 
+def _by_type(model, cls):
+    """by_type that returns [] for a class absent from the model's schema (IfcDistributionSystem and the
+    duct/pipe/fitting classes are IFC4+; model.by_type raises RuntimeError on an IFC2x3 model)."""
+    try:
+        return model.by_type(cls)
+    except RuntimeError:
+        return []
+
+
 def mep_summary(model: ifcopenshell.file) -> dict:
     """Every IfcDistributionSystem with its member breakdown (segments / fittings / terminals / other)
     and a connectivity signal: how many member elements have at least one *unconnected* port. Returns
     {systems:[…], total_systems, unassigned:{segments,fittings}}."""
     systems: list[dict] = []
-    for sysobj in model.by_type("IfcDistributionSystem"):
+    for sysobj in _by_type(model, "IfcDistributionSystem"):
         members = [o for rel in (getattr(sysobj, "IsGroupedBy", None) or []) for o in rel.RelatedObjects]
         segs = sum(1 for m in members if m.is_a() in _SEG)
         fits = sum(1 for m in members if m.is_a() in _FIT)
@@ -56,7 +65,7 @@ def mep_summary(model: ifcopenshell.file) -> dict:
     def _unassigned(classes):
         n = 0
         for cls in classes:
-            for el in model.by_type(cls):
+            for el in _by_type(model, cls):
                 grouped = any(rel.is_a("IfcRelAssignsToGroup") and rel.RelatingGroup.is_a("IfcDistributionSystem")
                               for rel in (getattr(el, "HasAssignments", None) or []))
                 if not grouped:

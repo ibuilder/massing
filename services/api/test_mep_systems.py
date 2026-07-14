@@ -61,6 +61,12 @@ assert r["changed"], r
 mo = open_model(OUT)
 assert any(x["name"] == "HVAC Return" for x in mep.mep_summary(mo)["systems"])
 
+# --- IFC2x3 models must not crash the browser (IfcDistributionSystem is IFC4+) --------------------
+import ifcopenshell  # noqa: E402
+
+legacy = mep.mep_summary(ifcopenshell.file(schema="IFC2X3"))
+assert legacy["total_systems"] == 0 and legacy["systems"] == [], legacy
+
 for f in (TMP, OUT):
     if os.path.exists(f):
         os.remove(f)

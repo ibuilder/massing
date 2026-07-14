@@ -65,6 +65,14 @@ assert rc["changed"]["panels"] == 2, rc
 mo = open_model(OUT)
 assert mo.by_guid(rc["changed"]["curtain_wall"]).is_a() == "IfcCurtainWall"
 
+# --- coincident start/end raises a clear error (not an opaque placement crash) --------------------
+try:
+    curtainwall.add_curtain_wall(m, [1, 1], [1, 1])
+    raised = False
+except ValueError as e:
+    raised = "differ" in str(e)
+assert raised, "zero-length curtain wall should raise a clear ValueError"
+
 for f in (TMP, MM, OUT):
     if os.path.exists(f):
         os.remove(f)

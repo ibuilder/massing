@@ -39,7 +39,9 @@ def add_curtain_wall(model: ifcopenshell.file, start, end, height: float = 3.5, 
     st = _first_storey(model, storey)
     elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale
     sx, sy, ex, ey = float(start[0]), float(start[1]), float(end[0]), float(end[1])
-    length = math.hypot(ex - sx, ey - sy) or 1.0
+    length = math.hypot(ex - sx, ey - sy)
+    if length < 1e-9:
+        raise ValueError("start and end points must differ")
     dx, dy = (ex - sx) / length, (ey - sy) / length          # unit axis (X of the wall frame)
     cols = max(1, int(cols))
     rows = max(1, int(rows))
