@@ -136,6 +136,25 @@ def schedule_svg(pid: str, kind: str = "doors", db: Session = Depends(get_db),
                     headers={"X-Schedule-Rows": str(result["rows"])})
 
 
+@router.get("/projects/{pid}/drawings/schedule.pdf")
+def schedule_pdf(pid: str, kinds: str = "doors,windows,rooms", number: str = "A-601",
+                 title: str = "SCHEDULES", db: Session = Depends(get_db),
+                 _: str = Depends(require_role("viewer"))):
+    """W11 C6: the computed schedules laid out on an issuable ARCH-D **sheet** (border + titleblock) as a
+    submittable PDF. `kinds` is a comma list of doors|windows|rooms."""
+    from fastapi.responses import Response  # local import
+
+    from aec_data import drawing  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    want = [k.strip() for k in kinds.split(",") if k.strip() in ("doors", "windows", "rooms")]
+    pdf = drawing.schedule_pdf(open_model(p.source_ifc), kinds=want or None,
+                               project=p.name or "Project", number=number, title=title)
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{number}.pdf"'})
+
+
 @router.get("/projects/{pid}/drawings/sheet.pdf")
 def sheet_pdf(pid: str, storey: str | None = None, scale: int = 100, number: str = "A-101",
               title: str = "FLOOR PLAN", db: Session = Depends(get_db),

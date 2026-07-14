@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.282 — Schedules on an issuable PDF sheet (finishes the CD set)
+
+The computed door/window/room schedules now lay out on an issuable **ARCH-D sheet** (border + titleblock)
+and render to PDF — the tabular half of the construction-document set as a submittable sheet, next to the
+plan/section/elevation sheets. New `drawing.schedule_pdf` (columns per schedule, row truncation guard),
+`GET /drawings/schedule.pdf?kinds=…`, and a **⤓ Schedules sheet (A-601 PDF)** viewer tool. The titleblock
+draw was factored into a shared `_titleblock_pdf` helper reused by the plan and schedule sheets. With DXF
+(v0.3.281) this completes the near-term CD-set slices.
+
 ## v0.3.281 — DXF export for plans, sections & elevations (CAD interchange)
 
 The drawing set now exports to **DXF** so the linework opens in any CAD tool. A hand-written, dependency-free

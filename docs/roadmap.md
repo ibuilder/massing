@@ -21,14 +21,16 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 
 ## ⚡ Order of attack — the next ~8, highest value first
 
-1. **Schedules-on-a-PDF-sheet** — finish the construction-document set (Wave 11 C6; DXF export ✅ v0.3.281).
-2. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (unblocks real geometry depth).
-3. **CODE-1 — jurisdiction adoption-facts catalog** — zero copyright risk; unlocks the whole code library.
-4. **E8 — the ~50 valid-IFC guardrail rules** — the reliability edge; a novice can't produce broken IFC.
-5. **E4 — progressive-disclosure LOD-gated toolbar** — lowers the barrier to entry for the authoring suite.
-6. **D5 — keynotes & detail callouts from classification** — closes the attach-code → keynote-on-plan loop.
-7. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for NL authoring.
-8. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring.
+*(CD set finished: DXF export ✅ v0.3.281, schedules-on-a-PDF-sheet ✅ v0.3.282.)*
+
+1. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (unblocks real geometry depth).
+2. **CODE-1 — jurisdiction adoption-facts catalog** — zero copyright risk; unlocks the whole code library.
+3. **E8 — the ~50 valid-IFC guardrail rules** — the reliability edge; a novice can't produce broken IFC.
+4. **E4 — progressive-disclosure LOD-gated toolbar** — lowers the barrier to entry for the authoring suite.
+5. **D5 — keynotes & detail callouts from classification** — closes the attach-code → keynote-on-plan loop.
+6. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for NL authoring.
+7. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring.
+8. **W10-4 — MEP systems connectivity & sizing depth** — fully-connected logical systems + validation.
 
 ---
 
@@ -44,10 +46,11 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
 
 **Construction-document generation (finish the CD set) — highest value**
 - **C6 (near-term slices)** — ✅ **DXF export SHIPPED v0.3.281** (`dxf.py` R12 writer + plan/section/elevation
-  `.dxf` endpoints + ⤓ DXF buttons; dependency-free). Remaining: **schedules on a PDF sheet**, reference-line
-  datums (`IfcReferent`/`IfcVirtualElement`), and **"drawn detail follows LOD"** poché (representation
-  selection + `IfcMaterialLayerSet` poché + annotation density → schematic single-line ↔ CD layered poché).
-  Permissive libs only (no AGPL).
+  `.dxf` endpoints; dependency-free); ✅ **schedules-on-a-PDF-sheet SHIPPED v0.3.282** (`drawing.schedule_pdf`
+  on an ARCH-D titleblock sheet + `GET /drawings/schedule.pdf`). Remaining: reference-line datums
+  (`IfcReferent`/`IfcVirtualElement`) and **"drawn detail follows LOD"** poché (representation selection +
+  `IfcMaterialLayerSet` poché + annotation density → schematic single-line ↔ CD layered poché). Permissive
+  libs only (no AGPL).
 
 **Geometry depth → LOD 350/400**
 - **B3** — wall **Axis representation + clippings/booleans** (sloped tops, gable walls).

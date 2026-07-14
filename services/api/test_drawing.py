@@ -111,6 +111,18 @@ w100 = float(re.search(r'width="([\d.]+)mm"', svg).group(1))
 w50 = float(re.search(r'width="([\d.]+)mm"', r50["svg"]).group(1))
 assert w50 > w100, (w50, w100)
 
+# C6: schedules laid out on an issuable PDF sheet — add a door + rooms so the tables have rows
+edit.add_opening(m, w1, width=0.9, height=2.1, kind="door")
+edit.add_spaces(m, rooms_per_storey=2, ceiling_height=3.0)
+sched_pdf = drawing.schedule_pdf(m, project="Drawing Test", number="A-601")
+assert sched_pdf[:4] == b"%PDF" and len(sched_pdf) > 800, "schedule sheet should be a non-trivial PDF"
+# a subset (rooms only) also renders
+rooms_only = drawing.schedule_pdf(m, kinds=["rooms"])
+assert rooms_only[:4] == b"%PDF", "rooms-only schedule PDF"
+# and the plan sheet PDF still renders after the titleblock refactor
+sheet_pdf = drawing.sheet_pdf(m, project="Drawing Test", number="A-101")
+assert sheet_pdf[:4] == b"%PDF" and len(sheet_pdf) > 800, "plan sheet PDF"
+
 if os.path.exists(TMP):
     os.remove(TMP)
 

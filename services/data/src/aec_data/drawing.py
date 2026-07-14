@@ -500,7 +500,16 @@ def sheet_pdf(model: ifcopenshell.file, storey: str | None = None, scale: int = 
                 c.setFillColorRGB(0.13, 0.13, 0.13)
                 c.drawString((lx + 7) * mm, by, f"{code} - {ttl[:30]}")
 
-    # titleblock
+    _titleblock_pdf(c, mm, inset, project, number, title, f"SCALE 1:{scale}", date, drawn_by, north=True)
+
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def _titleblock_pdf(c, mm, inset: float, project: str, number: str, title: str,
+                    scale_text: str, date: str, drawn_by: str, north: bool = False) -> None:
+    """Draw the shared ARCH-D titleblock strip (right edge) on the reportlab canvas."""
     tbx = _SHEET_W - _TB_W - inset
     tby = inset
     tbh = _SHEET_H - 2 * inset
@@ -518,16 +527,80 @@ def sheet_pdf(model: ifcopenshell.file, storey: str | None = None, scale: int = 
     c.setFont("Helvetica-Bold", 9)
     c.drawString((tbx + 6) * mm, (_SHEET_H - (tby + tbh - 46)) * mm, title[:30])
     c.setFont("Helvetica", 7)
-    scale_line = f"SCALE 1:{scale}" + (f"   {date}" if date else "")
+    scale_line = scale_text + (f"   {date}" if date else "")
     c.drawString((tbx + 6) * mm, (_SHEET_H - (tby + tbh - 30)) * mm, scale_line)
     if drawn_by:
         c.drawString((tbx + 6) * mm, (_SHEET_H - (tby + tbh - 22)) * mm, f"DRAWN {drawn_by}")
     c.setFont("Helvetica-Bold", 15)
     c.drawRightString((tbx + _TB_W - 6) * mm, (_SHEET_H - (tby + tbh - 6)) * mm, number)
-    # north arrow (simple)
-    c.setFont("Helvetica", 7)
-    c.drawCentredString((tbx + _TB_W - 16) * mm, (_SHEET_H - tby - 32) * mm, "N")
+    if north:
+        c.setFont("Helvetica", 7)
+        c.drawCentredString((tbx + _TB_W - 16) * mm, (_SHEET_H - tby - 32) * mm, "N")
 
+
+def schedule_pdf(model: ifcopenshell.file, kinds: list[str] | None = None, project: str = "Project",
+                 number: str = "A-601", title: str = "SCHEDULES", date: str = "",
+                 drawn_by: str = "") -> bytes:
+    """W11 C6: render the computed door/window/room **schedules onto an issuable ARCH-D sheet** (border +
+    titleblock) as PDF via reportlab — the tabular half of the CD set as a submittable sheet, laid out in
+    columns. `kinds` selects which schedules (default all three)."""
+    from io import BytesIO
+
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+
+    data = schedules(model)
+    kinds = kinds or ["doors", "windows", "rooms"]
+    inset = 8.0
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=(_SHEET_W * mm, _SHEET_H * mm))
+    c.setLineWidth(1)
+    c.setStrokeColorRGB(0, 0, 0)
+    c.rect(inset * mm, inset * mm, (_SHEET_W - 2 * inset) * mm, (_SHEET_H - 2 * inset) * mm)
+
+    area_left = inset + 6
+    area_right = _SHEET_W - _TB_W - inset - 6
+    top = _SHEET_H - inset - 12
+    col_x = area_left
+    col_w = 128.0                     # each schedule column block
+    row_h = 5.2
+
+    def _y(v):                        # sheet-space mm (top-origin) → PDF points (bottom-origin)
+        return (_SHEET_H - v) * mm
+
+    for kind in kinds:
+        tbl = data.get(kind) or {"columns": [], "rows": []}
+        cols, rows = tbl["columns"], tbl["rows"]
+        if col_x + col_w > area_right and col_x > area_left:
+            break                     # ran out of horizontal room on this single sheet
+        y = top
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(col_x * mm, _y(y), _SCHED_TITLE.get(kind, kind.upper()))
+        y += 6
+        # header
+        n = max(1, len(cols))
+        cw = col_w / n
+        c.setFont("Helvetica-Bold", 6)
+        for i, h in enumerate(cols):
+            c.drawString((col_x + i * cw) * mm, _y(y), str(h)[:16])
+        y += 1.5
+        c.setLineWidth(0.4)
+        c.line(col_x * mm, _y(y), (col_x + col_w) * mm, _y(y))
+        y += 3
+        c.setFont("Helvetica", 6)
+        for r in rows:
+            if y > _SHEET_H - inset - 10:
+                c.setFont("Helvetica-Oblique", 6)
+                c.drawString(col_x * mm, _y(y), "… (truncated — see the interactive schedule)")
+                break
+            for i, cell in enumerate(r[:n]):
+                c.drawString((col_x + i * cw) * mm, _y(y), str(cell)[:18])
+            y += row_h
+        col_x += col_w + 8
+
+    _titleblock_pdf(c, mm, inset, project, number, title, "SCHEDULE", date, drawn_by)
     c.showPage()
     c.save()
     return buf.getvalue()

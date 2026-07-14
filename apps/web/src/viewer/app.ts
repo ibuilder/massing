@@ -2043,6 +2043,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       schedBtn.title = "Computed door / window / room schedules (marks, sizes, types, levels, areas) — the "
         + "tabular half of the CD set, straight from the model. Also at GET /drawings/schedule.svg.";
 
+      // W11 C6: the schedules laid out on an issuable ARCH-D sheet (PDF) — the submittable tabular sheet.
+      const schedPdfBtn = toolBtn2("⤓ Schedules sheet (A-601 PDF)", () => {
+        window.open(api.url(`/projects/${projectId}/drawings/schedule.pdf?number=A-601`), "_blank");
+      });
+      schedPdfBtn.title = "Lay the door / window / room schedules on an ARCH-D titleblock sheet and download "
+        + "as a submittable PDF — the tabular half of the CD set as an issuable sheet.";
+
       // W11 C5: sections & elevations — cut linework straight from the baked model geometry. The
       // section auto-centres on the model (no offset needed); elevations project each cardinal face.
       const sectBtn = toolBtn2("📐 Sections & elevations", () => {
@@ -2153,7 +2160,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         + "glazing panels on a bays×rows grid, aggregated as one assembly (LOD 350/400). GUID-stable.";
 
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, asBuiltBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn, sectBtn,
+        phaseBtn, queryBtn, lodBtn, asBuiltBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn, schedPdfBtn, sectBtn,
         basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, manage, levelsMgr);
     }
 
