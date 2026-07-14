@@ -1873,6 +1873,46 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       lodBtn.title = "Dial an element's LOD maturity 100 (schematic) → 500 (as-built), and establish the "
         + "view-keyed representation contexts for construction-drawing generation. GUID-stable.";
 
+      // W11 G1: LOD-500 = field-verified as-built (BIMForum defines no geometry for it — it's a
+      // reliability/data attribute). Stamp the selection as verified + show model readiness.
+      const openAsBuiltPanel = async () => {
+        let s;
+        try { s = await api.lod500(pid); }
+        catch { toast("Needs a source IFC", "error"); return; }
+        showResult("As-built verification (LOD 500)", (body) => {
+          body.appendChild(resultNote(`<b>LOD 500</b> is a field-verified as-built reliability attribute — BIMForum sets no `
+            + `geometric requirement for it. Model readiness: <b>${s!.readiness_pct}%</b> `
+            + `(${s!.verified} of ${s!.total} elements verified).`, s!.readiness_pct >= 100 ? "ok" : ""));
+          if (Object.keys(s!.by_method).length) {
+            body.appendChild(kvTable(Object.entries(s!.by_method).map(([k, v]) => ({ k, v: `${v} element(s)` }))));
+          }
+          const form = document.createElement("div"); form.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0";
+          const who = document.createElement("input"); who.className = "portal-filter"; who.placeholder = "verified by"; who.style.cssText = "flex:1 1 100px;min-width:0;font-size:12px";
+          const method = document.createElement("select"); method.className = "portal-filter"; method.style.fontSize = "12px";
+          for (const mth of s!.methods) { const o = document.createElement("option"); o.value = mth; o.textContent = mth; method.appendChild(o); }
+          form.append(who, method); body.appendChild(form);
+          const doVerify = toolBtn2("✅ Verify selection as-built", async () => {
+            const guid = selectedGuid;
+            if (!guid) { notify("select the element(s) to verify first", "error"); return; }
+            await withLoading(container, "stamping as-built verification + republishing", async () => {
+              try {
+                await api.verifyAsbuilt(pid, [guid], { verified_by: who.value.trim(), method: method.value }, true);
+                const state = await waitForPublish(projectId!);
+                if (state === "done") { await loadProjectModel(); notify("verified as-built", "success"); }
+                else notify(`verified — publish ${state}`, state === "error" ? "error" : "info");
+                await reloadModelPins();
+              } catch (e) { notify(`verify failed: ${(e as Error).message}`, "error"); }
+            });
+          });
+          doVerify.title = "Stamp the selected element(s) with Massing_AsBuilt (VERIFIED + who/when/method) — the "
+            + "field-verified reliability layer that makes it a genuine LOD-500 record.";
+          body.appendChild(doVerify);
+        });
+      };
+      const asBuiltBtn = toolBtn2("✅ As-built verify (LOD 500)", openAsBuiltPanel);
+      asBuiltBtn.title = "Mark elements field-verified as-built and see LOD-500 readiness — the data/reliability "
+        + "attribute BIMForum actually defines as LOD 500 (no geometric requirement).";
+
       // W11 Track D: attach code/spec/detail carriers to the selected element (classification codes +
       // detail/instruction documents) — what keynotes, schedules and the spec/drawing generators read.
       const openDetailingPanel = async () => {
@@ -2094,7 +2134,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         + "glazing panels on a bays×rows grid, aggregated as one assembly (LOD 350/400). GUID-stable.";
 
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn, sectBtn,
+        phaseBtn, queryBtn, lodBtn, asBuiltBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn, sectBtn,
         basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, manage, levelsMgr);
     }
 

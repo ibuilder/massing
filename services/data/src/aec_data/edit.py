@@ -891,6 +891,61 @@ def phase_summary(model: ifcopenshell.file) -> dict:
             "phased": total - counts["UNSET"], "prop": "Massing_Phasing.Status"}
 
 
+_VERIFY_METHODS = {"field-measure", "laser-scan", "total-station", "photo", "submittal", "inspection"}
+
+
+def verify_asbuilt(model: ifcopenshell.file, guids, verified_by: str = "",
+                   method: str = "field-measure", note: str = "", date: str | None = None) -> int:
+    """G1: stamp elements as **field-verified as-built** — the reliability attribute BIMForum actually
+    defines as LOD 500 (LOD 500 has NO geometric requirement; it's verified-as-built *data*). Writes
+    `Massing_AsBuilt` (Status=VERIFIED + VerifiedBy / VerifiedDate / Method / Note provenance) on each
+    element so the model can report LOD-500 readiness and it round-trips as a Pset. GUID-stable; a bad
+    GUID never aborts the batch. Returns the count verified."""
+    meth = (method or "field-measure").strip().lower()
+    if meth not in _VERIFY_METHODS:
+        meth = "field-measure"
+    stamp = (date or "").strip() or _today_iso()
+    n = 0
+    for g in guids or []:
+        try:
+            set_element_pset(model, g, "Massing_AsBuilt", "Status", "VERIFIED", "str")
+            set_element_pset(model, g, "Massing_AsBuilt", "VerifiedBy", str(verified_by or ""), "str")
+            set_element_pset(model, g, "Massing_AsBuilt", "VerifiedDate", stamp, "str")
+            set_element_pset(model, g, "Massing_AsBuilt", "Method", meth, "str")
+            if note:
+                set_element_pset(model, g, "Massing_AsBuilt", "Note", str(note), "str")
+            n += 1
+        except Exception:  # noqa: BLE001 — skip stale/unknown GUIDs, keep verifying the rest
+            pass
+    return n
+
+
+def _today_iso() -> str:
+    from datetime import date as _date
+    return _date.today().isoformat()
+
+
+def asbuilt_summary(model: ifcopenshell.file) -> dict:
+    """LOD-500 readiness: how much of the model is field-verified as-built. Counts physical elements
+    with `Massing_AsBuilt.Status==VERIFIED`, broken down by verification method, plus the readiness %.
+    The cheap, high-claim 'LOD 500' reliability layer over LOD-400 geometry."""
+    import ifcopenshell.util.element as ue
+
+    total = verified = 0
+    by_method: dict[str, int] = {}
+    for el in model.by_type("IfcElement"):
+        total += 1
+        ps = ue.get_pset(el, "Massing_AsBuilt") or {}
+        if str(ps.get("Status") or "").upper() == "VERIFIED":
+            verified += 1
+            m = str(ps.get("Method") or "unspecified").lower()
+            by_method[m] = by_method.get(m, 0) + 1
+    return {"total": total, "verified": verified, "unverified": total - verified,
+            "readiness_pct": round(100.0 * verified / total, 1) if total else 0.0,
+            "by_method": by_method, "prop": "Massing_AsBuilt.Status",
+            "methods": sorted(_VERIFY_METHODS)}
+
+
 def set_classification(model: ifcopenshell.file, guid: str, system: str, code: str,
                        name: str | None = None, edition: str | None = None) -> str:
     """Tag one element (by GUID) with a classification reference — Uniclass 2015, OmniClass,
@@ -1106,6 +1161,10 @@ RECIPES = {
     "ungroup": lambda m, p: _grp().ungroup(m, p["guid"]),
     # W10-8 element phasing — tag new/existing/demolish/temporary status
     "set_phase": lambda m, p: set_phase(m, p["guids"], p.get("phase", "new")),
+    # W11 G1 — LOD-500 field-verified as-built stamp
+    "verify_asbuilt": lambda m, p: verify_asbuilt(m, p["guids"], p.get("verified_by", ""),
+                                                  p.get("method", "field-measure"), p.get("note", ""),
+                                                  p.get("date")),
     # W11 F0 — the representation/context spine + LOD stage
     "ensure_contexts": lambda m, p: _rep().ensure_contexts(m),
     "set_lod": lambda m, p: _rep().set_lod(m, p["guids"], p.get("stage", "300")),

@@ -235,6 +235,19 @@ def phasing_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(re
     return ed.phase_summary(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/lod500")
+def asbuilt_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W11 G1: LOD-500 readiness — the share of the model that is **field-verified as-built** (the
+    reliability attribute BIMForum actually defines as LOD 500; it has no geometric requirement). Counts
+    elements with `Massing_AsBuilt.Status==VERIFIED`, by verification method. Stamp elements with the
+    `verify_asbuilt` recipe (POST /edit)."""
+    from aec_data import edit as ed  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return ed.asbuilt_summary(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/groups")
 def list_groups(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W10-3: every IfcGroup (named set / selection) and IfcElementAssembly (part-of whole) in the

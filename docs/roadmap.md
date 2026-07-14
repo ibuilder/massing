@@ -489,9 +489,12 @@ this spine first; every track hangs off it.
   you model**; E8 **guardrails encoding Bonsai's ~50 "don't make broken IFC" rules** server-side (novice can't
   produce invalid IFC — the reliability edge); E9 the **selector DSL** ✅ SHIPPED v0.3.255 (`query_elements` +
   🔎 Query tool + `GET /query`) + `geom.tree` spatial index.
-- **G · LOD-500 verified-as-built data** *(M)* — G1 verification/as-built Pset + COBie + provenance stamps;
-  G2 field-verified dimensions/variances; G3 external-doc refs (warranties/O&M/serials) via
-  `IfcRelAssociatesDocument`. *This is the cheap, high-claim "LOD 500" layer.*
+- **G · LOD-500 verified-as-built data** *(M)* — **G1 ✅ SHIPPED v0.3.279** — `verify_asbuilt` recipe stamps
+  `Massing_AsBuilt` (VERIFIED + VerifiedBy/Date/Method/Note provenance); `asbuilt_summary` → LOD-500 readiness
+  % by method; `GET /lod500`; ✅ As-built verify viewer tool; `test_lod500.py`. G2 field-verified
+  dimensions/variances; G3 external-doc refs (warranties/O&M/serials + Manufacturer/Serial via the standard
+  `Pset_ManufacturerTypeInformation`/`Pset_ManufacturerOccurrence`) via `IfcRelAssociatesDocument`.
+  *This is the cheap, high-claim "LOD 500" layer.*
 - **H · Content library** *(M)* — H1 seed furniture families + PBR materials from **vetted CC0** sources
   (Poly Pizza/Quaternius/Kenney meshes; ambientCG/Poly Haven/AMD MaterialX PBR — CC0/CC-BY only; exclude
   BIMobject/TurboSquid/etc.), attribution + license stored per asset.

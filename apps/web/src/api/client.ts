@@ -1031,6 +1031,15 @@ export class ApiClient extends HttpCore {
       plan: { recipe: string; params: Record<string, unknown>; summary?: string; ok: boolean; destructive: boolean; errors: string[] }[] }>(
       `/projects/${pid}/ai/author`, { method: "POST", body: JSON.stringify({ text, context }) });
   }
+  /** W11 G1: LOD-500 readiness — share of the model field-verified as-built, by method. */
+  lod500(pid: string) {
+    return this.json<{ total: number; verified: number; unverified: number; readiness_pct: number;
+      by_method: Record<string, number>; methods: string[]; prop: string }>(`/projects/${pid}/lod500`);
+  }
+  /** W11 G1: stamp elements as field-verified as-built (Massing_AsBuilt) — the LOD-500 reliability layer. */
+  verifyAsbuilt(pid: string, guids: string[], opts: { verified_by?: string; method?: string; note?: string } = {}, publish = true) {
+    return this.editIfc(pid, "verify_asbuilt", { guids, ...opts }, publish);
+  }
   /** W11 B6: author an IfcCurtainWall (mullions + transoms + glazing panels) along a line. */
   addCurtainWall(pid: string, start: [number, number], end: [number, number],
                  opts: { height?: number; cols?: number; rows?: number } = {}, publish = true) {

@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.279 — LOD-500 as-built verification (G1)
+
+BIMForum defines LOD 500 as a *field-verified as-built* reliability attribute — with **no** geometric
+requirement — so we support it as a data layer over the geometry. New `verify_asbuilt` recipe stamps
+elements with `Massing_AsBuilt` (Status=VERIFIED + VerifiedBy / VerifiedDate / Method / Note provenance),
+and `asbuilt_summary` reports **LOD-500 readiness** (share of elements field-verified, broken down by
+method: field-measure / laser-scan / total-station / photo / submittal / inspection). New
+`GET /projects/{pid}/lod500` endpoint and a **✅ As-built verify (LOD 500)** viewer tool — stamp the
+selection, watch readiness climb. GUID-stable, round-trips as a Pset. `test_lod500.py` covers the stamp,
+method fallback, bad-GUID skipping, and readiness math.
+
 ## v0.3.278 — AI command bar S3: Claude multi-step authoring + one-click Apply all
 
 The natural-language command bar ("type what to build") now plans with Claude when an Anthropic API key
