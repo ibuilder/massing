@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.262 — Wave 11 · C3: issuable sheets + titleblock
+
+The plan becomes a **sheet you can issue.** A new **📄 Issue sheet (A-101)** tool composes an **ARCH-D
+(36×24″) sheet**: a border, a **titleblock** (MASSING mark, project name, sheet title, sheet number, scale,
+north arrow), and the plan placed in a **scaled viewport** (aspect-preserving) inside the drawing area. The
+sheet title/number track the active level. This is the construction-document deliverable format — the same
+sheet the door/window/room schedules and detail callouts will land on next.
+
+Engine `drawing.py::sheet_svg` (plan refactored to expose its inner content + paper size for composition);
+`GET /projects/{id}/drawings/sheet.svg?storey=&scale=&number=&title=`. `test_drawing.py` extended. Pure SVG,
+no new deps; **PDF/DXF export is the next C-slice** (permissive svglib+reportlab — reportlab is already
+present, BSD-licensed).
+
 ## v0.3.261 — Wave 11 · C2: dimensions & keynotes on the plan
 
 The plan drawing now **reads the model's intelligence.** `plan_svg` gains two layers:

@@ -88,6 +88,24 @@ def plan_svg(pid: str, storey: str | None = None, scale: int = 100, db: Session 
                     headers={"X-Plan-Elements": str(result["elements"])})
 
 
+@router.get("/projects/{pid}/drawings/sheet.svg")
+def sheet_svg(pid: str, storey: str | None = None, scale: int = 100, number: str = "A-101",
+              title: str = "FLOOR PLAN", db: Session = Depends(get_db),
+              _: str = Depends(require_role("viewer"))):
+    """W11 C3: an issuable **sheet** — ARCH-D border + titleblock (project name, sheet number, scale,
+    north arrow) with the plan placed in a scaled viewport. The construction-document deliverable."""
+    from fastapi.responses import Response  # local import
+
+    from aec_data import drawing  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    result = drawing.sheet_svg(open_model(p.source_ifc), storey=storey, scale=int(scale),
+                               project=p.name or "Project", number=number, title=title)
+    return Response(content=result["svg"], media_type="image/svg+xml",
+                    headers={"X-Sheet-Number": result["number"]})
+
+
 @router.get("/projects/{pid}/detailing/rules/validate")
 def validate_detailing(pid: str, db: Session = Depends(get_db),
                        _: str = Depends(require_role("viewer"))):

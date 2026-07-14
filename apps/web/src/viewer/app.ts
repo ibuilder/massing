@@ -1891,10 +1891,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         window.open(api.url(`/projects/${projectId}/drawings/plan.svg?${q.toString()}`), "_blank");
       });
       planBtn.title = "Generate a schematic plan drawing (SVG, 1:100) from the model geometry — walls/columns/"
-        + "slabs as class-styled poché. The first slice of the construction-document set; the active level scopes it.";
+        + "slabs as class-styled poché with dimensions + keynotes. The active level scopes it.";
+
+      // W11 C3: compose an issuable sheet (ARCH-D border + titleblock) around the plan.
+      const sheetBtn = toolBtn2("📄 Issue sheet (A-101)", () => {
+        const q = new URLSearchParams({ scale: "100", number: "A-101", title: "FLOOR PLAN" });
+        if (activeStorey) { q.set("storey", activeStorey); q.set("title", `${activeStorey.toUpperCase()} PLAN`); }
+        window.open(api.url(`/projects/${projectId}/drawings/sheet.svg?${q.toString()}`), "_blank");
+      });
+      sheetBtn.title = "Compose an issuable construction sheet — ARCH-D border + titleblock (project, sheet "
+        + "number, scale, north arrow) with the plan placed in a scaled viewport. The deliverable.";
 
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, manage, levelsMgr);
+        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------

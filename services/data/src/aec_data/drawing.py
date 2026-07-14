@@ -247,17 +247,17 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
                         f'<text class="lgd" x="{lx + 7}" y="{ry}">{_esc(code)} - {_esc(title)[:30]}</text>')
         legend_svg = "".join(rows)
 
-    svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{round(w, 1)}mm" height="{round(h, 1)}mm" '
-        f'viewBox="0 0 {round(w, 2)} {round(h, 2)}">'
+    inner = (
         f"<style>{_STYLE}</style>"
         f'<rect class="sheet" x="0" y="0" width="{round(w, 2)}" height="{round(h, 2)}"/>'
         + "".join(polys) + "".join(dims) + "".join(bubbles) + legend_svg
         + f'<text class="label" x="{margin_mm}" y="{round(h - 4, 2)}">PLAN 1:{scale}'
-        + (f" — {storey}" if storey else "") + "</text>"
-        + "</svg>"
+        + (f" - {_esc(storey)}" if storey else "") + "</text>"
     )
-    return {"svg": svg, "elements": len(shapes), "keynotes": len(legend_rows),
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{round(w, 1)}mm" height="{round(h, 1)}mm" '
+           f'viewBox="0 0 {round(w, 2)} {round(h, 2)}">{inner}</svg>')
+    return {"svg": svg, "inner": inner, "paper": [round(w, 2), round(h, 2)],
+            "elements": len(shapes), "keynotes": len(legend_rows),
             "scale": scale, "bounds": {"min": [minx, miny], "max": [maxx, maxy]}}
 
 
@@ -286,6 +286,81 @@ def _vdim(x: float, y1: float, y2: float, dist_m: float) -> str:
 
 def _esc(s: str) -> str:
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+_SHEET_STYLE = (
+    ".border{fill:none;stroke:#000;stroke-width:1}"
+    ".tbline{stroke:#000;stroke-width:0.4}"
+    ".tb-t{font:3.4px sans-serif;fill:#000}"
+    ".tb-l{font:2.4px sans-serif;fill:#555}"
+    ".tb-b{font:bold 5px sans-serif;fill:#000}"
+    ".tb-logo{font:bold 6px sans-serif;fill:#000;letter-spacing:1px}"
+    ".narrow{stroke:#000;stroke-width:0.5;fill:#000}"
+)
+
+# ARCH D landscape (in mm): 36×24 in
+_SHEET_W, _SHEET_H = 914.0, 610.0
+_TB_W = 150.0                      # titleblock strip width (right edge)
+
+
+def sheet_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 100,
+              project: str = "Project", number: str = "A-101", title: str = "FLOOR PLAN",
+              date: str = "", drawn_by: str = "") -> dict:
+    """W11 C3: compose an issuable **sheet** — an ARCH-D border with a titleblock (project, sheet number,
+    scale, date, revision block, north arrow) and the plan drawing placed in a scaled viewport. Returns
+    {svg, number, plan}. Pure SVG (no geometry kernel, no extra deps); PDF export is a follow-on slice."""
+    plan = plan_svg(model, storey=storey, scale=scale)
+    pw, ph = plan["paper"]
+
+    inset = 8.0                                          # sheet border inset
+    draw_w = _SHEET_W - _TB_W - 2 * inset - 6
+    draw_h = _SHEET_H - 2 * inset - 6
+    # fit the plan viewport into the drawing area, preserving aspect
+    fit = min(draw_w / pw, draw_h / ph) if pw and ph else 1.0
+    vw, vh = round(pw * fit, 2), round(ph * fit, 2)
+    vx = round(inset + 3 + (draw_w - vw) / 2, 2)
+    vy = round(inset + 3 + (draw_h - vh) / 2, 2)
+
+    tbx = _SHEET_W - _TB_W - inset                       # titleblock left edge
+    tby = inset
+    tbh = _SHEET_H - 2 * inset
+    # titleblock rows (from the bottom): sheet number (big), title, scale/date, project (top)
+    rows = "".join(
+        f'<line class="tbline" x1="{tbx}" y1="{round(tby + tbh - y, 2)}" '
+        f'x2="{tbx + _TB_W}" y2="{round(tby + tbh - y, 2)}"/>'
+        for y in (16, 40, 64))
+    north = (f'<g transform="translate({round(tbx + _TB_W - 16, 2)},{round(tby + 20, 2)})">'
+             f'<polygon class="narrow" points="0,-9 3,4 0,1 -3,4"/>'
+             f'<text class="tb-l" x="0" y="10" text-anchor="middle">N</text></g>')
+
+    plan_vp = (f'<svg x="{vx}" y="{vy}" width="{vw}" height="{vh}" '
+               f'viewBox="0 0 {pw} {ph}" preserveAspectRatio="xMidYMid meet">{plan["inner"]}</svg>')
+
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{_SHEET_W}mm" height="{_SHEET_H}mm" '
+        f'viewBox="0 0 {_SHEET_W} {_SHEET_H}"><style>{_SHEET_STYLE}</style>'
+        f'<rect x="0" y="0" width="{_SHEET_W}" height="{_SHEET_H}" fill="#fff"/>'
+        f'<rect class="border" x="{inset}" y="{inset}" width="{_SHEET_W - 2 * inset}" '
+        f'height="{_SHEET_H - 2 * inset}"/>'
+        # drawing viewport
+        + plan_vp
+        # titleblock frame + rows
+        + f'<rect class="border" x="{tbx}" y="{tby}" width="{_TB_W}" height="{tbh}"/>' + rows + north
+        + f'<text class="tb-logo" x="{round(tbx + 6, 2)}" y="{round(tby + 12, 2)}">MASSING</text>'
+        + f'<text class="tb-l" x="{round(tbx + 6, 2)}" y="{round(tby + 22, 2)}">{_esc(project)[:34]}</text>'
+        # title
+        + f'<text class="tb-t" x="{round(tbx + 6, 2)}" y="{round(tby + tbh - 46, 2)}">{_esc(title)[:30]}</text>'
+        + (f'<text class="tb-l" x="{round(tbx + 6, 2)}" y="{round(tby + tbh - 26, 2)}">SCALE 1:{scale}'
+           f'{"   " + _esc(date) if date else ""}</text>')
+        + (f'<text class="tb-l" x="{round(tbx + 6, 2)}" y="{round(tby + tbh - 20, 2)}">'
+           f'{("DRAWN " + _esc(drawn_by)) if drawn_by else ""}</text>')
+        # big sheet number bottom-right
+        + f'<text class="tb-b" x="{round(tbx + _TB_W - 6, 2)}" y="{round(tby + tbh - 5, 2)}" '
+        f'text-anchor="end">{_esc(number)}</text>'
+        + "</svg>"
+    )
+    return {"svg": svg, "number": number, "title": title,
+            "plan": {"elements": plan["elements"], "keynotes": plan["keynotes"]}}
 
 
 def _empty_svg() -> str:

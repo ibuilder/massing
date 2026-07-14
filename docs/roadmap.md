@@ -429,7 +429,10 @@ this spine first; every track hangs off it.
   SVG scaled to paper mm, storey-scoped; 🖨 Generate plan tool + `GET /drawings/plan.svg`; `test_drawing.py`.
   **C2 ✅ SHIPPED v0.3.261** — overall dimension strings + keynote bubbles & legend generated from each drawn
   element's Track-D classification codes (the loop closes: attach spec code → keynote on the plan).
-  *Next C-slices: sections/elevations, sheets + titleblocks, PDF/DXF, per-GUID cache.* Original plan
+  **C3 ✅ SHIPPED v0.3.262** — issuable ARCH-D **sheet + titleblock** (project/number/scale/north arrow) with
+  the plan in a scaled viewport (`drawing.py::sheet_svg`, `GET /drawings/sheet.svg`, 📄 Issue sheet tool).
+  *Next C-slices: PDF/DXF export (reportlab present, add svglib), sections/elevations, computed schedules on
+  the sheet, per-GUID cache.* Original plan
   eyed `ifcopenshell.geom.serializers.svg` (OCC HLR) but that engine is inert in our build; C2 **parametric IFC dimensions** (geometry-anchored, the merged IfcOpenShell PR #8083 pattern:
   `IfcAnnotation` + `IfcRelAssignsToProduct` + face/layer/edge/vertex anchor JSON; regenerate on move) + smart
   tags via `drawing.assign_product`; C3 **sheets & titleblocks** (`IfcDocumentInformation` Scope="SHEET",

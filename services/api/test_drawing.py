@@ -54,6 +54,21 @@ assert svg.count('class="kn"') >= 2, "keynote bubbles missing"
 plain = drawing.plan_svg(m, scale=100, dimensions=False, keynotes=False)
 assert plain["keynotes"] == 0 and '<g class="dim">' not in plain["svg"] and "KEYNOTES" not in plain["svg"]
 
+# plan now also exposes inner content + paper size (for sheet composition)
+assert "inner" in r and isinstance(r["paper"], list) and len(r["paper"]) == 2, r.keys()
+
+# --- C3 sheet: ARCH-D border + titleblock, plan nested in a scaled viewport --------------------------
+sh = drawing.sheet_svg(m, scale=100, project="Riverside Mixed-Use", number="A-101", title="FIRST FLOOR PLAN")
+ssvg = sh["svg"]
+assert ssvg.startswith("<svg") and 'width="914.0mm"' in ssvg and 'height="610.0mm"' in ssvg, "not ARCH-D"
+# titleblock content
+assert ">MASSING<" in ssvg and "Riverside Mixed-Use" in ssvg, "titleblock project missing"
+assert ">A-101<" in ssvg and "FIRST FLOOR PLAN" in ssvg and "SCALE 1:100" in ssvg, "titleblock fields missing"
+# a north arrow + a nested plan viewport carrying the plan content (keynote legend inside)
+assert ">N<" in ssvg and 'preserveAspectRatio="xMidYMid meet"' in ssvg, "no plan viewport"
+assert "KEYNOTES" in ssvg, "plan (with keynotes) not embedded in the sheet"
+assert sh["number"] == "A-101" and sh["plan"]["elements"] == 6, sh
+
 # storey filter: a bogus storey name → no elements → empty-but-valid SVG
 empty = drawing.plan_svg(m, storey="Nonexistent Level")
 assert empty["elements"] == 0 and empty["svg"].startswith("<svg"), empty
@@ -69,5 +84,6 @@ if os.path.exists(TMP):
 
 print("DRAWING OK - plan_svg derives a schematic plan from footprints (4 walls + column + slab -> 6 "
       "class-styled polygons); C2 adds overall width/height DIMENSION strings (metric) + KEYNOTE bubbles "
-      "+ legend from Track-D classification codes (04 20 00 / 05 12 00); storey filter -> empty-but-valid "
-      "sheet; scale drives paper size; dims/keynotes toggle off. No geometry kernel required.")
+      "+ legend from Track-D classification codes (04 20 00 / 05 12 00); C3 composes an ARCH-D SHEET with "
+      "a titleblock (MASSING / project / A-101 / scale / north arrow) nesting the plan in a scaled viewport; "
+      "storey filter -> empty sheet; scale drives paper size; dims/keynotes toggle off. No geometry kernel.")
