@@ -20,6 +20,13 @@ from ..models import User
 router = APIRouter()
 
 
+def _safe_relay(target: str) -> bool:
+    """A RelayState/return-URL is only safe to redirect to if it's a same-site absolute path — one
+    leading slash, and NOT a protocol-relative (`//host`) or backslash (`/\\host`) form that browsers
+    resolve to another origin. Guards against open redirects."""
+    return bool(target) and target.startswith("/") and not target.startswith(("//", "/\\"))
+
+
 def _acs(request: Request) -> str:
     """Our ACS URL: the configured value (needed behind a reverse proxy where the internal URL
     differs from the public one), else computed from the request."""
@@ -85,7 +92,9 @@ def saml_acs(request: Request, SAMLResponse: str = Form(...), RelayState: str = 
                  path="/auth/saml/acs", detail={"provider": "saml"})
     db.commit()
 
-    dest = RelayState if RelayState.startswith("/") else os.environ.get("AEC_APP_URL", "/")
+    # only allow a same-site absolute path — reject protocol-relative ("//evil.com") and
+    # backslash ("/\evil.com") forms that browsers treat as cross-origin (open-redirect guard)
+    dest = RelayState if _safe_relay(RelayState) else os.environ.get("AEC_APP_URL", "/")
     resp = RedirectResponse(dest, status_code=303)
     _cookie(resp, auth.create_token(email), request)
     return resp

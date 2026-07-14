@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# least privilege: these jobs only read the repo
+permissions:
+  contents: read
+
 jobs:
   api-tests:
     name: API test gate

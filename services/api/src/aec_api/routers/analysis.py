@@ -88,12 +88,22 @@ def run_clash_federated(
     against the prior run (new / active / resolved / reappeared)."""
     from aec_data import clash  # type: ignore
 
-    valid = {k: v for k, v in (disciplines or {}).items() if v and Path(v).exists()}
+    # the ONLY IFC paths this project may federate — its own source + registered discipline models.
+    # A client-supplied `disciplines` map may *select* from these, but never inject an arbitrary path
+    # (that would be authenticated arbitrary-file read). Build the allow-list first, then intersect.
+    p = db.get(Project, pid)
+    allowed: set[str] = set()
+    if p and p.source_ifc:
+        allowed.add(p.source_ifc)
+    registry = list(db.query(ProjectModel).filter_by(project_id=pid))
+    allowed.update(m.ifc_path for m in registry)
+
+    valid = {k: v for k, v in (disciplines or {}).items()
+             if v in allowed and Path(v).exists()}
     if not valid:                                   # auto-build from the project's model registry
-        p = db.get(Project, pid)
         if p and p.source_ifc and Path(p.source_ifc).exists():
             valid["Source"] = p.source_ifc
-        for m in db.query(ProjectModel).filter_by(project_id=pid):
+        for m in registry:
             if Path(m.ifc_path).exists():
                 key = m.discipline if m.discipline not in valid else f"{m.discipline} ({m.id[:4]})"
                 valid[key] = m.ifc_path

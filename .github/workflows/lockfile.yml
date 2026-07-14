@@ -12,6 +12,9 @@ on:
       - "services/api/requirements.lock"
       - ".github/workflows/lockfile.yml"
 
+permissions:
+  contents: read
+
 jobs:
   compile:
     name: pip-compile --generate-hashes (py3.12)

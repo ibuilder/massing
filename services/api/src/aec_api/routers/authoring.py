@@ -607,10 +607,10 @@ async def upload_source_ifc(pid: str, file: UploadFile = File(...), publish: boo
         from .. import licensing
         licensing.require("api_access", "Programmatic publish (REST API)")
     data = await file.read()
-    _IFC_DIR.joinpath(pid).mkdir(parents=True, exist_ok=True)
-    ifc_path = _IFC_DIR / pid / "source.ifc"
+    _IFC_DIR.joinpath(storage.safe_seg(pid)).mkdir(parents=True, exist_ok=True)
+    ifc_path = _IFC_DIR / storage.safe_seg(pid) / "source.ifc"
     ifc_path.write_bytes(data)
-    storage.put(f"{pid}/source.ifc", data)          # durable copy
+    storage.put(f"{storage.safe_seg(pid)}/source.ifc", data)          # durable copy
     p.source_ifc = str(ifc_path)
     db.commit()
     audit.record(db, action="ifc.upload", actor=actor, method="POST",
@@ -640,10 +640,10 @@ async def add_project_model(pid: str, file: UploadFile = File(...), discipline: 
         raise HTTPException(404, "project not found")
     data = await file.read()
     mid = uuid.uuid4().hex
-    (_IFC_DIR / pid / "models").mkdir(parents=True, exist_ok=True)
-    ifc_path = _IFC_DIR / pid / "models" / f"{mid}.ifc"
+    (_IFC_DIR / storage.safe_seg(pid) / "models").mkdir(parents=True, exist_ok=True)
+    ifc_path = _IFC_DIR / storage.safe_seg(pid) / "models" / f"{mid}.ifc"
     ifc_path.write_bytes(data)
-    storage.put(f"{pid}/models/{mid}.ifc", data)          # durable copy
+    storage.put(f"{storage.safe_seg(pid)}/models/{mid}.ifc", data)          # durable copy
     m = ProjectModel(id=mid, project_id=pid, discipline=(discipline or "Model").strip() or "Model",
                      ifc_path=str(ifc_path))
     db.add(m)
@@ -682,10 +682,10 @@ async def raise_plan_to_bim(pid: str, file: UploadFile = File(...),
         except RuntimeError as e:
             raise HTTPException(400, str(e)) from e
         ifc_bytes = ifc_tmp.read_bytes()
-        (_IFC_DIR / pid / "models").mkdir(parents=True, exist_ok=True)
-        ifc_path = _IFC_DIR / pid / "models" / f"{mid}.ifc"
+        (_IFC_DIR / storage.safe_seg(pid) / "models").mkdir(parents=True, exist_ok=True)
+        ifc_path = _IFC_DIR / storage.safe_seg(pid) / "models" / f"{mid}.ifc"
         ifc_path.write_bytes(ifc_bytes)
-        storage.put(f"{pid}/models/{mid}.ifc", ifc_bytes)
+        storage.put(f"{storage.safe_seg(pid)}/models/{mid}.ifc", ifc_bytes)
         m = ProjectModel(id=mid, project_id=pid, discipline="2D Raise", ifc_path=str(ifc_path))
         db.add(m)
         audit.record(db, action="model.raise", actor=actor, method="POST",
@@ -769,10 +769,10 @@ async def import_rvt(pid: str, file: UploadFile = File(...), confirm_cost: bool 
         ifc = aps.translate_rvt_to_ifc(data, file.filename or "model.rvt")
     except RuntimeError as e:  # NotImplementedError is a RuntimeError subclass — both mean "bridge unavailable"
         raise HTTPException(502, f"RVT→IFC bridge: {e}") from e    # clear, actionable provisioning error
-    _IFC_DIR.joinpath(pid).mkdir(parents=True, exist_ok=True)
-    ifc_path = _IFC_DIR / pid / "source.ifc"
+    _IFC_DIR.joinpath(storage.safe_seg(pid)).mkdir(parents=True, exist_ok=True)
+    ifc_path = _IFC_DIR / storage.safe_seg(pid) / "source.ifc"
     ifc_path.write_bytes(ifc)
-    storage.put(f"{pid}/source.ifc", ifc)
+    storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc)
     p.source_ifc = str(ifc_path)
     db.commit()
     audit.record(db, action="ifc.import_rvt", actor=actor, method="POST", path=f"/projects/{pid}/import/rvt",

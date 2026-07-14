@@ -9,6 +9,9 @@ on:
   pull_request:
     paths: ["apps/web/src-tauri/**"]
 
+permissions:
+  contents: read
+
 jobs:
   clippy-fmt:
     name: clippy + fmt

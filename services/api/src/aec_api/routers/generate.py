@@ -220,10 +220,10 @@ def create_blank_model(pid: str, body: BlankModelIn, db: Session = Depends(get_d
     p = db.get(Project, pid)
     if not p:
         raise HTTPException(404, "project not found")
-    _IFC_DIR.joinpath(pid).mkdir(parents=True, exist_ok=True)
-    ifc_path = _IFC_DIR / pid / "source.ifc"
+    _IFC_DIR.joinpath(storage.safe_seg(pid)).mkdir(parents=True, exist_ok=True)
+    ifc_path = _IFC_DIR / storage.safe_seg(pid) / "source.ifc"
     generate_blank_ifc(str(ifc_path), name=body.name, storeys=body.storeys, storey_height=body.storey_height)
-    storage.put(f"{pid}/source.ifc", ifc_path.read_bytes())
+    storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())
     p.source_ifc = str(ifc_path)
     db.commit()
     audit.record(db, action="ifc.blank", actor=actor, method="POST",
@@ -245,8 +245,8 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
     if not p:
         raise HTTPException(404, "project not found")
 
-    _IFC_DIR.joinpath(pid).mkdir(parents=True, exist_ok=True)
-    ifc_path = _IFC_DIR / pid / "source.ifc"
+    _IFC_DIR.joinpath(storage.safe_seg(pid)).mkdir(parents=True, exist_ok=True)
+    ifc_path = _IFC_DIR / storage.safe_seg(pid) / "source.ifc"
 
     if body.shape == "dome":
         # monolithic / earth dome — hemispherical shell (no zoning math; sized by radius)
@@ -255,7 +255,7 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
         metrics["framed"] = metrics["unitized"] = metrics["enclosed"] = metrics["cored"] = False
         metrics["structure"] = {"system": "Monolithic dome shell", "rationale":
                                 "A thin reinforced shell carries load in compression — no separate frame."}
-        storage.put(f"{pid}/source.ifc", ifc_path.read_bytes())
+        storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())
         p.source_ifc = str(ifc_path)
         if not p.dev_budget:                                   # seed Finance so it isn't $0 after generate
             p.dev_budget = _seed_dev_budget(body, metrics)
@@ -298,7 +298,7 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
     metrics["cored"] = body.core
     metrics["parking_stalls"] = body.parking
     metrics["structure"] = rec
-    storage.put(f"{pid}/source.ifc", ifc_path.read_bytes())   # durable copy
+    storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())   # durable copy
     p.source_ifc = str(ifc_path)
     if not p.dev_budget:                                       # seed Finance so it isn't $0 after generate
         p.dev_budget = _seed_dev_budget(body, metrics)

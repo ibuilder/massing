@@ -121,9 +121,10 @@ def scim_resource_types(_: bool = Depends(require_scim)):
 
 
 def _parse_username_filter(flt: str) -> str | None:
-    """Extract the userName from a SCIM `userName eq "x"` filter (the only filter IdPs use here)."""
+    """Extract the userName from a SCIM `userName eq "x"` filter (the only filter IdPs use here).
+    Strip first + a single bounded whitespace run so the pattern has no ambiguous `\\s*…\\s*` (ReDoS)."""
     import re
-    m = re.match(r'\s*userName\s+eq\s+"(.*)"\s*$', flt, re.IGNORECASE)
+    m = re.match(r'userName\s+eq\s+"([^"]*)"$', (flt or "").strip(), re.IGNORECASE)
     return m.group(1) if m else None
 
 

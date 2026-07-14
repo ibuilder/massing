@@ -276,7 +276,7 @@ export class PortalUI {
       for (const d of items) {
         const b = document.createElement("button");
         b.className = "pnav-item pnav-home" + (this.activeKey === d.key ? " active" : "");
-        b.innerHTML = `<span class="ic">${d.icon}</span> ${d.label.replace("&", "&amp;")}`;
+        b.innerHTML = `<span class="ic">${d.icon}</span> ${d.label.replace(/&/g, "&amp;").replace(/</g, "&lt;")}`;
         b.onclick = d.go ?? (() => { this.activeKey = d.key; void dests[d.key]?.(); this.buildNav(); });
         det.appendChild(b);
       }

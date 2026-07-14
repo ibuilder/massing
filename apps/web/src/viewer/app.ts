@@ -2485,7 +2485,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           out.textContent = `${label} added · converting…`;
           const state = await waitForPublish(pid);
           if (state === "done") await loadProjectModel();
-          out.innerHTML = `added <b>${label}</b>${pos ? ` at ${pos[0].toFixed(1)}, ${pos[1].toFixed(1)} m` : " at origin"}<br>publish: ${state}`;
+          out.innerHTML = `added <b>${escapeHtml(label)}</b>${pos ? ` at ${pos[0].toFixed(1)}, ${pos[1].toFixed(1)} m` : " at origin"}<br>publish: ${escapeHtml(state)}`;
         });
         place.dataset.cap = "edit";
         // Import external IFC type content (manufacturer / 3rd-party families) into the project.

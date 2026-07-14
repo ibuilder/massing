@@ -8,8 +8,20 @@ be served with HTTP range requests (streaming / resumable downloads)."""
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Protocol
+
+_SAFE_SEG = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def safe_seg(seg: str) -> str:
+    """Validate a single path segment (e.g. a project id / model id) before it's used to build a
+    filesystem path — rejects traversal, separators, and NUL. Project/model ids are opaque
+    hex/UUID keys, so the [A-Za-z0-9._-] whitelist never rejects a legitimate one. Raises ValueError."""
+    if not seg or seg in (".", "..") or not _SAFE_SEG.match(seg):
+        raise ValueError(f"unsafe path segment: {seg!r}")
+    return seg
 
 
 class Backend(Protocol):
@@ -27,9 +39,12 @@ class LocalBackend:
 
     def _p(self, key: str) -> Path:
         # containment guard: a key like "../../etc/x" must never resolve outside the storage root
-        # (attachment keys include a user-supplied filename). Reject anything that escapes.
+        # (attachment keys include a user-supplied filename). Reject anything that escapes — reject
+        # NUL/absolute/backslash keys up front, then require the resolved path to stay under root.
+        if not key or "\x00" in key or key.startswith(("/", "\\")) or ".." in key.replace("\\", "/").split("/"):
+            raise ValueError(f"unsafe storage key: {key!r}")
         dest = (self.root / key).resolve()
-        if dest != self.root and self.root not in dest.parents:
+        if dest != self.root and not dest.is_relative_to(self.root):
             raise ValueError(f"unsafe storage key: {key!r}")
         return dest
 

@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.267 — Security: CodeQL remediation pass
+
+Hardening from the GitHub CodeQL scan. Genuine fixes:
+
+- **Open redirect (SAML ACS)** — `RelayState` now must be a *same-site absolute path*; protocol-relative
+  (`//evil.com`) and backslash (`/\evil.com`) forms — which browsers resolve cross-origin — are rejected.
+- **Authenticated arbitrary-file read (federated clash)** — the `disciplines` map may now only *select* from
+  the project's own registered model paths (source IFC + appended discipline models); a client can no longer
+  point it at an arbitrary server path.
+- **Path-traversal defense-in-depth** — a `storage.safe_seg()` whitelist guards every `pid`/`mid` segment used
+  to build a filesystem path (upload/publish/models/import), and `LocalBackend` now rejects `..`/absolute/NUL
+  keys up front + requires the resolved path to stay under the storage root (`is_relative_to`).
+- **ReDoS (SCIM filter)** — the `userName eq "…"` parser drops the ambiguous `\s*…\s*` and uses a bounded
+  `[^"]*`, eliminating catastrophic backtracking.
+- **DOM-XSS / sanitization** — escape the user-influenced label in the place-family status line; make the nav
+  label escape global (`/&/g` + `<`).
+- **Stack-trace exposure** — the readiness probe logs the DB error server-side and returns a generic
+  "database unavailable" instead of the exception text.
+- **Least-privilege CI** — `permissions: contents: read` added to the CI, lockfile, and Rust workflows.
+
+Remaining CodeQL alerts are triaged false-positives (HMAC-SHA256 *token signing* — passwords use
+`pbkdf2_sha256`; the signed-token cookie; the intentional admin-only **read-only** SQL console; the trusted-
+HTML `resultNote` helper whose callers `escapeHtml` untrusted data; `DOMParser` XML that is never injected;
+a `blob:` object URL) and are dismissed with justification.
+
 ## v0.3.266 — Wave 11 · B6: rebar cages + research-inbox roadmap
 
 **Reinforcement detailing (LOD 400).** A new **🪝 Rebar cage** tool builds a real reinforcement cage in the

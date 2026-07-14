@@ -458,8 +458,9 @@ def ready() -> Response:
         return JSONResponse({"status": "unavailable", "db": "timeout",
                              "error": f"DB did not respond within {_READY_TIMEOUT:g}s"}, status_code=503)
     except Exception as exc:        # noqa: BLE001 — any DB error means "not ready"
-        return JSONResponse({"status": "unavailable", "db": "down", "error": str(exc)[:200]},
-                            status_code=503)
+        logging.getLogger("aec").warning("readiness DB check failed: %s", exc)   # detail to logs, not response
+        return JSONResponse({"status": "unavailable", "db": "down",
+                             "error": "database unavailable"}, status_code=503)
     return JSONResponse({"status": "ready", "db": "up"})
 
 
