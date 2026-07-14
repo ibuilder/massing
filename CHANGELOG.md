@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.249 — Wave 9 · W9-6: generative fit-out (auto-furnish)
+
+Generative design extends from massing into **fit-out**. New **🪑 Furnish spaces** tool (Tools ▸ Grid &
+Levels) grids real furniture (`IfcFurnishingElement`) into every `IfcSpace`'s footprint with aisle
+clearances — pick a template (desk / table / bed / sofa) and a per-room cap (0 = fill the footprint). It
+reads each room's actual geometry, places items on a clearance-aware grid, and contains them in the right
+storey, so the furniture is real openBIM that flows into QTO / BOM / COBie. `furnish_spaces` recipe +
+`test_fitout.py`. Verified live: a blank 2-storey model → 8 rooms → 432 desks placed end-to-end. (The
+headcount-program office space-planning generator is a documented follow-up.)
+
 ## v0.3.248 — Wave 9 · W9-4: semantic model graph (v1)
 
 The property index answers attribute lookups ("this door's width"); it can't answer **relational**

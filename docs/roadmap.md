@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.248**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.249**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
@@ -104,12 +104,13 @@ The genuinely **net-new, permissive-license, buildable** items, ranked:
   feeding the clash engine (moving-equipment conflicts over time). *M first step:* static, time-phased
   logistics site objects without motion interpolation. *Turns the 4D animation into a real constructability
   + site-safety rehearsal.* (Bentley SYNCHRO — clean-room parity)
-- **W9-6 — Generative fit-out: furnish + office space-planning** *(S + M · net-new)* — extend Test Fit
-  (residential unit-mix) into fit-out: **(a)** furnish a room/unit — place `IfcFurniture` from a
-  room-type→furniture-set template with clearances (S); **(b)** procedural office space-planning — a
-  headcount program (desks / offices / meeting rooms + circulation %) + floorplate → `IfcSpace` zones +
-  `IfcFurniture` + auto BOM (M). *Extends generative design from residential into commercial fit-out,
-  IFC-native.* (AutoCAD-automation repos — algorithmic idea only; three declare no license)
+- **W9-6 — Generative fit-out: furnish + office space-planning** *(S + M)* — **(a) ✅ SHIPPED (v0.3.249)**:
+  **auto-furnish** — grids real `IfcFurnishingElement` (desk/table/bed/sofa templates) into every
+  `IfcSpace`'s footprint with aisle clearances + storey containment, feeding QTO/BOM. `furnish_spaces`
+  recipe + a **🪑 Furnish spaces** tool + `test_fitout.py`; verified live (blank → 8 rooms → 432 desks).
+  **(b) still open**: a procedural **office space-planning** generator — headcount program (desks / offices /
+  meeting rooms + circulation %) + floorplate → `IfcSpace` zones + furniture + auto BOM (M). (AutoCAD-automation
+  repos — algorithmic idea only)
 
 **Optional / lower priority:**
 - **W9-7 — AI 2D-PDF auto-takeoff** *(M · optional connector)* — we already ship **manual** calibrated PDF

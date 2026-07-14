@@ -1473,6 +1473,15 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       });
       addRooms.title = "Author IfcSpace rooms gridded over each floor — the space schedule feeds COBie, gbXML, and area take-offs";
 
+      // W9-6 generative fit-out: grid furniture into every space's footprint
+      const furnish = toolBtn2("🪑 Furnish spaces", async () => {
+        const item = await askText("Furnish spaces", { label: "Furniture (desk / table / bed / sofa)", value: "desk" }); if (!item) return;
+        const nS = await askText("Furnish spaces", { label: "Per room (0 = fill the footprint)", value: "0" });
+        const per = Math.max(0, Math.round(Number(nS) || 0));
+        await authorAndReload("furnish_spaces", { item: item.trim().toLowerCase(), per_room: per }, `furnish (${item.trim()})`);
+      });
+      furnish.title = "Generative fit-out — grid IfcFurniture into each room's footprint with clearances (real IFC, feeds QTO/BOM)";
+
       // Manage levels: rename + set-elevation per storey (GUID-stable recipes). Inline editor.
       const levelsMgr = document.createElement("div");
       levelsMgr.className = "levels-mgr"; levelsMgr.hidden = true;
@@ -1515,7 +1524,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       });
       manage.title = "Rename levels and set their elevation — edits the IFC by storey GUID";
 
-      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, manage, levelsMgr);
+      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------

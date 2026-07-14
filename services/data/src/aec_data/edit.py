@@ -776,6 +776,71 @@ def _recipe_add_family(model, p):
 
 
 # recipe registry — what an API endpoint / Bonsai-MCP can invoke by name
+def furnish_spaces(model: ifcopenshell.file, item: str = "desk", per_room: int = 0) -> int:
+    """Generative fit-out (Wave 9 · W9-6): auto-furnish every IfcSpace by gridding furniture
+    (IfcFurnishingElement) inside each room's real footprint with aisle clearance. Templates by `item`
+    (metres, w×d×h). `per_room=0` fits as many as the footprint allows; otherwise caps per room.
+    Returns the number of furniture items placed. Mirrors add_spaces' geometry/placement handling."""
+    import multiprocessing
+
+    import ifcopenshell.geom as geom
+    import ifcopenshell.util.element as ue
+    import numpy as np
+
+    templates = {"desk": (1.5, 0.75, 0.75), "table": (2.0, 1.0, 0.75),
+                 "bed": (2.0, 1.5, 0.5), "sofa": (2.0, 0.9, 0.8)}
+    w, d, h = templates.get(item, templates["desk"])
+    body = _body_context(model)
+
+    # per-space footprint bbox from the baked geometry (SI metres, as add_spaces reads it)
+    settings = geom.settings()
+    it = geom.iterator(settings, model, max(1, multiprocessing.cpu_count() - 1))
+    boxes: dict[str, tuple] = {}
+    if it.initialize():
+        while True:
+            sh = it.get()
+            el = model.by_guid(sh.guid)
+            if el and el.is_a() == "IfcSpace":
+                v = np.asarray(sh.geometry.verts, dtype=float).reshape(-1, 3)
+                if v.size:
+                    boxes[sh.guid] = (v[:, 0].min(), v[:, 1].min(), v[:, 0].max(), v[:, 1].max(), v[:, 2].min())
+            if not it.next():
+                break
+
+    aisle = 0.8   # clear space around each item (m)
+    cw, cd = w + aisle, d + aisle
+    placed = 0
+    for guid, (x0, y0, x1, y1, z0) in boxes.items():
+        space = model.by_guid(guid)
+        # spaces may be CONTAINED in or (more commonly) AGGREGATED under the storey — resolve either
+        st = ue.get_container(space) or ue.get_aggregate(space)
+        cols = max(0, int((x1 - x0 - aisle) // cw))
+        rows = max(0, int((y1 - y0 - aisle) // cd))
+        target = cols * rows if not per_room else min(per_room, cols * rows)
+        k = 0
+        for r in range(rows):
+            for c in range(cols):
+                if k >= target:
+                    break
+                cx = x0 + aisle / 2 + cw / 2 + c * cw
+                cy = y0 + aisle / 2 + cd / 2 + r * cd
+                f = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcFurnishingElement",
+                                         name=item.title())
+                matrix = np.eye(4)
+                matrix[0, 3] = cx
+                matrix[1, 3] = cy
+                matrix[2, 3] = z0
+                ifcopenshell.api.run("geometry.edit_object_placement", model, product=f, matrix=matrix)
+                rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                           profile=_rect_profile(model, w, d), depth=h)
+                ifcopenshell.api.run("geometry.assign_representation", model, product=f, representation=rep)
+                if st is not None:
+                    ifcopenshell.api.run("spatial.assign_container", model, products=[f], relating_structure=st)
+                placed += 1
+                k += 1
+    return placed
+
+
 RECIPES = {
     "add_wall": lambda m, p: add_wall(m, p["start"], p["end"], float(p.get("height", 3.0)),
                                       float(p.get("thickness", 0.2)), p.get("storey")),
@@ -807,6 +872,8 @@ RECIPES = {
     "add_family": lambda m, p: _recipe_add_family(m, p),
     "add_spaces": lambda m, p: add_spaces(m, int(p.get("rooms_per_storey", 4)),
                                           float(p.get("ceiling_height", 3.0))),
+    # W9-6 generative fit-out: grid furniture into each space's footprint
+    "furnish_spaces": lambda m, p: furnish_spaces(m, p.get("item", "desk"), int(p.get("per_room", 0))),
     "add_storey": lambda m, p: add_storey(m, p["name"], float(p.get("elevation", 0.0))),
     "rename_storey": lambda m, p: rename_storey(m, p["guid"], p["name"]),
     "set_storey_elevation": lambda m, p: set_storey_elevation(m, p["guid"], float(p.get("elevation", 0.0))),
