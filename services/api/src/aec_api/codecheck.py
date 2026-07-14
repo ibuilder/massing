@@ -267,6 +267,50 @@ def egress_analysis(elements: dict[str, dict]) -> dict[str, Any]:
     }
 
 
+# IBC occupancy-label → group letter (Ch. 3), for the code-analysis summary
+_OCC_GROUP = {"Assembly": "A", "Business": "B", "Educational": "E", "Factory/Industrial": "F",
+              "High-hazard": "H", "Institutional": "I", "Mercantile": "M", "Residential": "R",
+              "Storage": "S", "Utility": "U"}
+
+
+def code_analysis(model, occupancy_group: str = "", construction_type: str = "",
+                  sprinklered: bool = False) -> dict[str, Any]:
+    """Assemble the **IBC code-analysis summary** a permit set carries on its G-series code sheet —
+    occupancy classification, construction type, gross area + stories, the **computed occupant load +
+    egress** (reused from the egress analysis), and the governing code sections for allowable area/height
+    and fire-resistance. `occupancy_group`/`construction_type` are project inputs (else inferred/defaulted).
+    A pre-check assist that cites sections; NOT a certified review — verify allowable area against the
+    actual Table 506.2 with the AHJ."""
+    eg = egress_from_model(model)
+    by_occ = eg.get("by_occupancy") or []
+    primary = by_occ[0]["occupancy"] if by_occ else ""
+    group = (occupancy_group or _OCC_GROUP.get(primary, "")).upper()
+    ctype = construction_type or "II-B (verify with AHJ)"
+    stories = len(model.by_type("IfcBuildingStorey"))
+    gross_ft2 = eg["building"]["area_ft2"]
+
+    return {
+        "occupancy": {"group": group or "—", "primary": primary or "—",
+                      "mix": [o["occupancy"] for o in by_occ]},
+        "construction_type": ctype, "sprinklered": bool(sprinklered),
+        "building": {"gross_area_ft2": gross_ft2, "stories": stories,
+                     "occupant_load": eg["building"]["occupant_load"]},
+        "occupant_load_by_occupancy": by_occ,
+        "egress": eg["egress"], "doors": eg["doors"],
+        "allowable": {
+            "note": "Compare gross area/height/stories against the allowable for this occupancy + "
+                    "construction type. Base allowable area (Table 506.2) increases for frontage "
+                    "(§506.3) and an NFPA-13 sprinkler system (§506.2/§504).",
+            "sections": ["IBC Table 506.2 (allowable area)", "IBC §504 (height & stories)",
+                         "IBC §506.3 (frontage increase)", "IBC Table 601/602 (element fire ratings)"],
+            "sprinkler_increase": "eligible" if sprinklered else "not applied",
+        },
+        "citations": eg["citations"] + ["IBC Ch. 3 (occupancy)", "IBC Ch. 6 / Table 601 (construction type)",
+                                        "IBC Table 506.2 (allowable area)", "IBC §504 (height/stories)"],
+        "disclaimer": eg["disclaimer"],
+    }
+
+
 def egress_from_model(model) -> dict[str, Any]:
     """Extract IfcSpace + IfcDoor (with their psets/qtos) straight from the source IFC and run the
     egress analysis. Spaces are read from the model — the property index holds only *physical*

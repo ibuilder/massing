@@ -1141,6 +1141,22 @@ export class ApiClient extends HttpCore {
       citations: string[]; disclaimer: string;
     }>(`/projects/${pid}/codecheck/egress`);
   }
+  /** W11 D1: the IBC code-analysis summary (occupancy, construction type, area/stories, occupant load,
+   *  egress, governing sections) for the G-series code sheet. */
+  codeAnalysis(pid: string, opts: { occupancy_group?: string; construction_type?: string; sprinklered?: boolean } = {}) {
+    const q = new URLSearchParams();
+    if (opts.occupancy_group) q.set("occupancy_group", opts.occupancy_group);
+    if (opts.construction_type) q.set("construction_type", opts.construction_type);
+    if (opts.sprinklered) q.set("sprinklered", "true");
+    return this.json<{ occupancy: { group: string; primary: string; mix: string[] };
+      construction_type: string; sprinklered: boolean;
+      building: { gross_area_ft2: number; stories: number; occupant_load: number };
+      occupant_load_by_occupancy: { occupancy: string; load: number; area_ft2: number }[];
+      egress: { required_width_in: number; provided_width_in: number; adequate: boolean | null };
+      doors: { checked: number; below_min_32in: number };
+      allowable: { note: string; sections: string[]; sprinkler_increase: string };
+      citations: string[]; disclaimer: string }>(`/projects/${pid}/codecheck/analysis?${q.toString()}`);
+  }
   codecheckEgressBcf(pid: string) {
     return this.json<{ created: number; topics: string[] }>(`/projects/${pid}/codecheck/egress/bcf`, { method: "POST", body: "{}" });
   }

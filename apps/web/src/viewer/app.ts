@@ -2353,6 +2353,33 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             }
           });
         })));
+        b.appendChild(toolBtn2("🏛 Code analysis (G-series summary)", () => withLoading(container, "Assembling the IBC code-analysis summary", async () => {
+          let r;
+          try { r = await api.codeAnalysis(pid); }
+          catch { toast("Needs a source IFC with IfcSpaces", "error"); return; }
+          out.textContent = `${r.occupancy.group} · ${r.construction_type.split(" ")[0]} · ${r.building.stories} st`;
+          showResult("Code analysis — permit-set G-series summary", (body) => {
+            body.appendChild(resultNote(`The IBC <b>code-analysis summary</b> a permit set carries on its G-series code sheet, assembled from the model. `
+              + `Verify allowable area/height against the actual Table 506.2 with the AHJ.`, "ok"));
+            body.appendChild(kvTable([
+              { k: "Occupancy group", v: `${r!.occupancy.group}${r!.occupancy.primary && r!.occupancy.primary !== "—" ? ` — ${r!.occupancy.primary}` : ""}` },
+              { k: "Occupancy mix", v: r!.occupancy.mix.length ? r!.occupancy.mix.join(", ") : "—" },
+              { k: "Construction type", v: r!.construction_type },
+              { k: "Sprinklered (NFPA-13)", v: r!.sprinklered ? "yes" : "no" },
+              { k: "Stories", v: String(r!.building.stories) },
+              { k: "Gross area", v: `${r!.building.gross_area_ft2.toLocaleString()} ft²` },
+              { k: "Computed occupant load", v: `${r!.building.occupant_load} occ` },
+            ]));
+            body.appendChild(resultNote(`Egress width required <b>${r!.egress.required_width_in} in</b> vs <b>${r!.egress.provided_width_in} in</b> provided → `
+              + `<b>${r!.egress.adequate == null ? "n/a" : r!.egress.adequate ? "adequate" : "SHORT"}</b>. `
+              + `Doors checked ${r!.doors.checked}${r!.doors.below_min_32in ? ` · ${r!.doors.below_min_32in} below 32 in` : ""}.`,
+              r!.egress.adequate === false || r!.doors.below_min_32in ? "bad" : "ok"));
+            if (r!.occupant_load_by_occupancy.length) body.appendChild(kvTable(r!.occupant_load_by_occupancy.map((o) => ({ k: o.occupancy, v: `${o.load} occ · ${o.area_ft2.toLocaleString()} ft²` }))));
+            body.appendChild(resultNote(`<b>Allowable area & height</b> — ${r!.allowable.note} Sprinkler increase: <b>${r!.allowable.sprinkler_increase}</b>. `
+              + `Governing sections: ${r!.allowable.sections.join("; ")}.`, ""));
+            body.appendChild(resultNote(r!.disclaimer, ""));
+          });
+        })));
         b.appendChild(toolBtn2("🔧 Normalize properties (IDS-ready)", async () => {
           if (!projectId) { notify("connect a project first", "error"); return; }
           let det;

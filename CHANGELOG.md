@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.274 — Code analysis: permit-set G-series code summary
+
+The IBC **code-analysis summary** a permit set carries on its G-series code sheet — now computed straight
+from the model. `codecheck.code_analysis()` assembles occupancy classification (inferred from the space
+mix or set explicitly), construction type, gross area + story count, the **computed occupant load + egress**
+(reused from the occupancy/egress pre-check), and the governing sections for allowable area/height
+(Table 506.2, §504, §506.3) and element fire ratings (Table 601/602). New `GET /projects/{pid}/codecheck/
+analysis` endpoint (occupancy_group / construction_type / sprinklered inputs) and a **🏛 Code analysis**
+tool in the viewer's QA rail that lays it out as a code-sheet block. Pre-check assist that cites sections —
+verify allowable area with the AHJ; not a certified review.
+
 ## v0.3.273 — Security: ReDoS-harden the NL command-bar regexes
 
 CodeQL flagged 5 `py/polynomial-redos` alerts in the natural-language authoring parser (unbounded `\d+` /

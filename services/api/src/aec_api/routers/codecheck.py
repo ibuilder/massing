@@ -41,6 +41,23 @@ def codecheck_egress(pid: str, db: Session = Depends(get_db), _: str = Depends(r
     return codecheck.egress_from_model(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/codecheck/analysis")
+def code_analysis(pid: str, occupancy_group: str = "", construction_type: str = "",
+                  sprinklered: bool = False, db: Session = Depends(get_db),
+                  _: str = Depends(require_role("viewer"))):
+    """W11 D1: the IBC **code-analysis summary** for the G-series code sheet — occupancy classification,
+    construction type, gross area + stories, computed occupant load + egress, and the governing sections
+    for allowable area/height and fire ratings. Pre-check assist; verify allowable area with the AHJ."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — the code analysis needs a model with IfcSpaces")
+    return codecheck.code_analysis(open_model(p.source_ifc), occupancy_group, construction_type, sprinklered)
+
+
 @router.post("/projects/{pid}/codecheck/egress/bcf")
 def egress_to_bcf(pid: str, db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
     """W9-2b: promote the computed egress/code findings to **BCF topics** — so a below-min door or an

@@ -455,9 +455,11 @@ this spine first; every track hangs off it.
   annotation density → schematic single-line ↔ CD layered poché); C6 reference-line datums (`IfcReferent`/
   `IfcVirtualElement`). *Views/annotations/sheets stored IN the IFC so they round-trip; render cache in MinIO
   keyed by GUID+geom-hash.*
-- **D · Code + spec + detail intelligence (IBC / MasterFormat)** *(L)* — D1 **code-analysis sheet generator**
-  (occupancy Ch.3, construction type/ratings Ch.6/Table 601, allowable area Table 506.2, occupant load Table
-  1004.5, egress Ch.10 — mostly model data we already compute in W9-2); D2 **routed egress/life-safety plans**
+- **D · Code + spec + detail intelligence (IBC / MasterFormat)** *(L)* — **D1 ✅ SHIPPED v0.3.274 — code-analysis
+  summary** (`codecheck.code_analysis`: occupancy Ch.3 inferred-from-space-mix or explicit, construction type +
+  Table 601 element ratings, allowable area Table 506.2/§504/§506.3 sections, occupant load Table 1004.5 +
+  egress Ch.10 reused from W9-2; `GET /codecheck/analysis`; 🏛 Code analysis QA tool renders the G-series code-sheet
+  block; `test_code_analysis.py`); D2 **routed egress/life-safety plans**
   (path-trace over the W9-4 semantic graph, not just tabulated); **D3 ✅ SHIPPED v0.3.259 — IDS-shaped rule engine**
   (`apply_rules`: applicability facets — entity + PredefinedType, property, host-external/host-fire-rated
   relationship context → content bundle written via the Track-D carriers; `validate_rules` reuses the same
