@@ -26,11 +26,12 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 1. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (unblocks real geometry depth).
 2. **CODE-1 — jurisdiction adoption-facts catalog** — zero copyright risk; unlocks the whole code library.
 3. **E8 — the ~50 valid-IFC guardrail rules** — the reliability edge; a novice can't produce broken IFC.
-4. **E4 — progressive-disclosure LOD-gated toolbar** — lowers the barrier to entry for the authoring suite.
-5. **D5 — keynotes & detail callouts from classification** — closes the attach-code → keynote-on-plan loop.
-6. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for NL authoring.
-7. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring.
-8. **W10-4 — MEP systems connectivity & sizing depth** — fully-connected logical systems + validation.
+4. **D5 — keynotes & detail callouts from classification** — closes the attach-code → keynote-on-plan loop.
+5. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for NL authoring.
+6. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring.
+7. **W10-4 — MEP systems connectivity & sizing depth** — fully-connected logical systems + validation.
+
+*(E4 progressive-disclosure toolbar ✅ v0.3.283.)*
 
 ---
 
@@ -73,7 +74,7 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
 
 **Master-builder UX (low barrier)**
 - **E8** — **guardrails encoding the ~50 "don't make broken IFC" rules** server-side (a novice can't produce invalid IFC — the reliability edge).
-- **E4** — **progressive-disclosure LOD-gated toolbar** (novices see place-wall/door/window; fabrication tools behind an advanced mode).
+- ✅ **E4 SHIPPED v0.3.283** — **progressive-disclosure toolbar**: everyday authoring + drawing tools visible; LOD-350/400 fabrication + detailing tools behind a persisted "🔧 Advanced fabrication tools" toggle.
 - **E1** — **inference snapping** (endpoint/mid/face/parallel/perp) + Shift-lock.
 - **E2** — **type-a-dimension-while-drawing** (VCB).
 - **E3** — **sketch-to-BIM push/pull** (2D profile → extrude).

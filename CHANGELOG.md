@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.283 — Progressive-disclosure toolbar: fabrication tools behind an "Advanced" toggle (E4)
+
+Lowering the barrier to entry: the Model tools rail now shows only the everyday authoring + drawing tools
+by default (rooms, furnish, types, groups, phasing, query, LOD, as-built, plans/sheets/schedules/sections).
+The LOD-350/400 **fabrication + detailing** tools — steel base plates & shear tabs, rebar cages, MEP
+fittings, curtain wall, and the detailing/auto-detail tools — tuck behind a **🔧 Advanced fabrication
+tools** toggle. A first-time modeler sees a simple toolset; the choice persists in localStorage, so power
+users keep their fabrication tools open.
+
 ## v0.3.282 — Schedules on an issuable PDF sheet (finishes the CD set)
 
 The computed door/window/room schedules now lay out on an issuable **ARCH-D sheet** (border + titleblock)

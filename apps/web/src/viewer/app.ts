@@ -2159,9 +2159,29 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       curtainBtn.title = "Author an IfcCurtainWall along a line — vertical mullions + horizontal transoms + "
         + "glazing panels on a bays×rows grid, aggregated as one assembly (LOD 350/400). GUID-stable.";
 
+      // E4 — progressive disclosure: everyday authoring + drawings stay visible; LOD-350/400 fabrication
+      // and detailing tools tuck behind an "Advanced" toggle so a first-time modeler isn't overwhelmed.
+      // The choice persists, so power users keep their fabrication tools open.
+      const advWrap = document.createElement("div");
+      advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn);
+      const advKey = "massing.viewer.advancedTools";
+      let advOpen = false;
+      try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }
+      const advToggle = toolBtn2("🔧 Advanced fabrication tools ▾", () => {
+        advOpen = !advOpen;
+        advWrap.hidden = !advOpen;
+        advToggle.textContent = `🔧 Advanced fabrication tools ${advOpen ? "▴" : "▾"}`;
+        try { localStorage.setItem(advKey, advOpen ? "1" : "0"); } catch { /* storage blocked */ }
+      });
+      advToggle.title = "Show the LOD-350/400 fabrication + detailing tools (steel connections, rebar, MEP "
+        + "fittings, curtain wall, auto-detail). Hidden by default to keep the everyday toolset simple.";
+      advWrap.hidden = !advOpen;
+      advToggle.textContent = `🔧 Advanced fabrication tools ${advOpen ? "▴" : "▾"}`;
+
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, asBuiltBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn, schedPdfBtn, sectBtn,
-        basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, manage, levelsMgr);
+        phaseBtn, queryBtn, lodBtn, asBuiltBtn, planBtn, sheetBtn, pdfBtn, schedBtn, schedPdfBtn, sectBtn,
+        advToggle, advWrap, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------
