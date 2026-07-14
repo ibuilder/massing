@@ -962,6 +962,28 @@ export class ApiClient extends HttpCore {
                     layers: { material: string; thickness: number }[], publish = true) {
     return this.editIfc(pid, "assign_material_set", { type_guid, layers }, publish);
   }
+  /** W10-3: every IfcGroup (named set) and IfcElementAssembly (part-of whole) with member counts. */
+  groups(pid: string) {
+    return this.json<{ groups: GroupRow[]; assemblies: AssemblyRow[] }>(`/projects/${pid}/groups`);
+  }
+  /** W10-3 inspector: the members/parts of one group or assembly. */
+  groupDetail(pid: string, guid: string) {
+    return this.json<{ guid: string; kind: "group" | "assembly"; name: string; member_count: number;
+      members: { guid: string; name: string; ifc_class: string }[] }>(
+      `/projects/${pid}/groups/${encodeURIComponent(guid)}`);
+  }
+  /** W10-3: author an IfcGroup (named set) over the given element GUIDs (re-using a name adds to it). */
+  createGroup(pid: string, name: string, guids: string[], publish = true) {
+    return this.editIfc(pid, "create_group", { name, guids }, publish);
+  }
+  /** W10-3: aggregate the given elements into an IfcElementAssembly (a real part-of whole). */
+  createAssembly(pid: string, name: string, guids: string[], predefined?: string | null, publish = true) {
+    return this.editIfc(pid, "create_assembly", { name, guids, predefined }, publish);
+  }
+  /** W10-3: rectangular parametric array — nx×ny copies at pitch (dx,dy) m (dz per column). */
+  arrayElement(pid: string, guid: string, nx: number, ny: number, dx: number, dy: number, dz = 0, publish = true) {
+    return this.editIfc(pid, "array_element", { guid, nx, ny, dx, dy, dz }, publish);
+  }
   /** AI-draft an RFI from an element's context (Claude when keyed, else a template draft). */
   draftRfi(pid: string, element: unknown, note?: string) {
     return this.json<{ ai_enabled: boolean; subject: string; question: string; discipline: string; suggested_priority: string; source: string }>(
@@ -2991,6 +3013,10 @@ export interface TypeRow {
   guid: string; name: string; ifc_class: string; predefined: string | null;
   has_geometry: boolean; occurrence_count: number;
 }
+/** A named set of elements (W10-3) — IfcGroup with its member count. */
+export interface GroupRow { guid: string; name: string; kind: string; members: number; }
+/** A part-of whole (W10-3) — IfcElementAssembly with its part count. */
+export interface AssemblyRow { guid: string; name: string; predefined: string | null; parts: number; }
 /** Full type inspector (W10-1) — dims, type Psets, material layers, and placed occurrences. */
 export interface TypeDetail {
   guid: string; name: string; ifc_class: string; predefined: string | null;

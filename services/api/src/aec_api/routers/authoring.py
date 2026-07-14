@@ -71,6 +71,32 @@ def type_detail(pid: str, type_guid: str, db: Session = Depends(get_db),
         raise HTTPException(404, str(e)) from e
 
 
+@router.get("/projects/{pid}/groups")
+def list_groups(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W10-3: every IfcGroup (named set / selection) and IfcElementAssembly (part-of whole) in the
+    model, with member counts. Create/array/ungroup go through POST /edit with the create_group |
+    create_assembly | array_element | ungroup recipes (versioned + GUID-stable)."""
+    from aec_data import groups  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return groups.list_groups(open_model(p.source_ifc))
+
+
+@router.get("/projects/{pid}/groups/{guid}")
+def group_detail(pid: str, guid: str, db: Session = Depends(get_db),
+                 _: str = Depends(require_role("viewer"))):
+    """W10-3 inspector: the members/parts of one group or assembly."""
+    from aec_data import groups  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    try:
+        return groups.group_detail(open_model(p.source_ifc), guid)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+
+
 @router.get("/projects/{pid}/propmap/detect")
 def propmap_detect(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W9-1: every (pset, property) actually present on the model's elements — the 'source' side a

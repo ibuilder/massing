@@ -917,6 +917,14 @@ RECIPES = {
                                                               p.get("dims"), p.get("predefined"),
                                                               p.get("psets")),
     "assign_material_set": lambda m, p: _fam(m).assign_material_set(m, p["type_guid"], p["layers"]),
+    # W10-3 groups / assemblies / arrays — compose placed elements
+    "create_group": lambda m, p: _grp().create_group(m, p.get("name", "Group"), p["guids"]),
+    "create_assembly": lambda m, p: _grp().create_assembly(m, p.get("name", "Assembly"), p["guids"],
+                                                           p.get("predefined")),
+    "array_element": lambda m, p: _grp().array_element(m, p["guid"], int(p.get("nx", 2)),
+                                                       int(p.get("ny", 1)), float(p.get("dx", 1.0)),
+                                                       float(p.get("dy", 0.0)), float(p.get("dz", 0.0))),
+    "ungroup": lambda m, p: _grp().ungroup(m, p["guid"]),
 }
 
 
@@ -924,6 +932,12 @@ def _fam(model):
     """Lazy handle to the families module (avoids an import cycle: families imports edit for helpers)."""
     from . import families
     return families
+
+
+def _grp():
+    """Lazy handle to the groups module (it imports edit.copy_element → avoid an import cycle)."""
+    from . import groups
+    return groups
 
 
 def _map_properties(model: ifcopenshell.file, rules) -> int:

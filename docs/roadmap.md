@@ -334,9 +334,13 @@ solver last.
   swept/boolean primitives so doors/windows/columns/casework are *generated*, not boxes. Freeform families via
   an optional **build123d (Apache-2.0) / OCP (LGPL)** track bridged through `ifcopenshell.geom` BRep/tessellation.
   IFC: profile defs, `IfcExtrudedAreaSolid`, `IfcBooleanClippingResult`. *Depends on W10-1.*
-- **W10-3 — Groups, assemblies, arrays & nested families** *(S · pure ifcopenshell · quick win)* — group/ungroup,
-  `IfcElementAssembly`, parametric arrays, nested/shared sub-components. IFC: `IfcGroup`+`IfcRelAssignsToGroup`,
-  `IfcElementAssembly`+`IfcRelAggregates`. *Depends on W10-1.*
+- **W10-3 — Groups, assemblies, arrays & nested families** ✅ SHIPPED v0.3.253 *(S · pure ifcopenshell)* —
+  `create_group`/`ungroup` (`IfcGroup` named set, re-name adds, members keep containment), `create_assembly`
+  (`IfcElementAssembly` aggregating parts, spatially contained), `array_element` (rectangular nx×ny parametric
+  array; copies detached from the source's inherited group/aggregate so they're independent). `groups.py` +
+  recipes + `GET /groups` & `/groups/{guid}` inspectors + a **🧩 Groups & arrays** viewer tool (build from
+  saved selection sets, isolate members on click). `test_groups.py` green. *Nested/shared sub-components fold
+  into W10-2 (a generator can emit an assembly).*
 - **W10-4 — MEP systems, connectivity & sizing depth** *(M · pure ifcopenshell)* — upgrade current
   segments/ports into fully-connected logical systems with port-to-port connectivity + flow/sizing psets +
   a system browser + connectivity validation. IFC: `IfcDistributionSystem` via `IfcRelAssignsToGroup`,

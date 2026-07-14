@@ -1605,7 +1605,69 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       typesBtn.title = "Browse & author IFC type families (Revit-style type properties): create types, edit a "
         + "type's size (propagates to all occurrences), assign material layers — IFC-native, GUID-stable";
 
-      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, manage, levelsMgr);
+      // W10-3 groups / assemblies / arrays: organise placed elements. Groups/assemblies build from a
+      // saved selection set (Navisworks-style); arrays duplicate the selected element on a grid.
+      const openGroupsPanel = async () => {
+        let existing;
+        try { existing = await api.groups(pid); }
+        catch (e) { notify(`groups failed: ${(e as Error).message}`, "error"); return; }
+        const sets = loadSelSets(pid);
+        showResult("Groups, assemblies & arrays", (body) => {
+          // ── array the selected element ──
+          const arr = toolBtn2(selectedGuid ? "▦ Array selected element" : "▦ Array (select an element first)", async () => {
+            if (!selectedGuid) { notify("select an element to array", "error"); return; }
+            const counts = await askText("Array", { label: "Columns × rows (nx, ny)", value: "3, 1" }); if (!counts) return;
+            const cd = counts.split(/[,x×]/).map((v) => Math.max(1, Math.round(Number(v.trim()) || 1)));
+            const pitch = await askText("Array", { label: "Pitch dx, dy (metres)", value: "1.5, 0" }); if (!pitch) return;
+            const pd = pitch.split(",").map((v) => Number(v.trim()) || 0);
+            await authorAndReload("array_element",
+              { guid: selectedGuid, nx: cd[0] ?? 2, ny: cd[1] ?? 1, dx: pd[0] ?? 1, dy: pd[1] ?? 0 },
+              `array ${(cd[0] ?? 2)}×${(cd[1] ?? 1)}`);
+          });
+          arr.style.marginBottom = "6px"; body.appendChild(arr);
+
+          // ── group / assemble from a saved selection set ──
+          body.appendChild(resultNote(sets.length
+            ? "<b>Group or assemble a selection set</b> — a Group is a named set; an Assembly is a real part-of whole."
+            : "Save a named selection set (model browser) to group or assemble it.", ""));
+          for (const s of sets) {
+            const row = document.createElement("div"); row.className = "level-row";
+            const label = document.createElement("span"); label.className = "meta";
+            label.textContent = `${s.name} · ${s.guids.length}`; label.style.flex = "1";
+            const gBtn = document.createElement("button"); gBtn.className = "mini-btn"; gBtn.textContent = "Group";
+            gBtn.onclick = () => authorAndReload("create_group", { name: s.name, guids: s.guids }, `group ${s.name}`);
+            const aBtn = document.createElement("button"); aBtn.className = "mini-btn"; aBtn.textContent = "Assemble";
+            aBtn.onclick = () => authorAndReload("create_assembly", { name: s.name, guids: s.guids }, `assembly ${s.name}`);
+            row.append(label, gBtn, aBtn); body.appendChild(row);
+          }
+
+          // ── existing groups + assemblies ──
+          const all = [...existing.groups.map((g) => ({ ...g, kind: "group" as const, count: g.members })),
+            ...existing.assemblies.map((a) => ({ guid: a.guid, name: a.name, kind: "assembly" as const, count: a.parts }))];
+          if (all.length) {
+            body.appendChild(resultNote(`<b>${all.length}</b> group(s)/assembly(ies) — click to isolate members.`, ""));
+            for (const it of all) {
+              const b = toolBtn2(`${it.kind === "assembly" ? "▣" : "▢"} ${it.name} · ${it.count}`, async () => {
+                try { const d = await api.groupDetail(pid, it.guid);
+                  await layerMgr.isolateGuids(d.members.map((mm) => mm.guid));
+                  notify(`${it.name}: isolated ${d.member_count} member(s)`, "success");
+                } catch (e) { notify(`inspect failed: ${(e as Error).message}`, "error"); }
+              });
+              if (it.kind === "group") {
+                b.oncontextmenu = (ev) => { ev.preventDefault();
+                  void authorAndReload("ungroup", { guid: it.guid }, `ungroup ${it.name}`); };
+                b.title = "Click: isolate members · right-click: ungroup";
+              }
+              body.appendChild(b);
+            }
+          }
+        });
+      };
+      const groupsBtn = toolBtn2("🧩 Groups & arrays", openGroupsPanel);
+      groupsBtn.title = "Organise placed elements — IfcGroup (named set), IfcElementAssembly (part-of whole), "
+        + "and rectangular parametric arrays. Groups/assemblies build from saved selection sets; GUID-stable";
+
+      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------

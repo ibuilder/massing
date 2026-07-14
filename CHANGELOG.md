@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.253 — Wave 10 · W10-3: groups, assemblies & arrays
+
+Three IFC-native ways to compose placed elements, all GUID-stable, via a new **🧩 Groups &amp; arrays** tool
+(Grid &amp; Levels):
+
+- **Group** (`IfcGroup`) — a named, non-geometric *set* of elements (a saved selection / system you can name,
+  isolate, schedule). Members keep their own spatial containers; re-using a name adds to the group. Build one
+  from any saved selection set; right-click an existing group to dissolve it (`ungroup`, members untouched).
+- **Assembly** (`IfcElementAssembly`) — a real *part-of* whole: a named element that aggregates its parts
+  (a braced frame, a curtain-wall unit, a pre-cast panel). The assembly is spatially contained; its parts hang
+  under it via `IfcRelAggregates`.
+- **Array** — rectangular parametric duplication: copy the selected element on an nx × ny grid at a fixed
+  pitch (a bay of columns, a run of fixtures) in one action. Arrayed copies are independent occurrences —
+  they don't silently swell the source's group or double-aggregate its assembly.
+
+Existing groups/assemblies are listed with member counts; clicking one **isolates its members** in 3D. Engine
+in `groups.py`; `create_group` / `create_assembly` / `array_element` / `ungroup` recipes + `GET /groups` and
+`/groups/{guid}` inspectors. `test_groups.py` covers the relationships, inspectors, and recipe path.
+
 ## v0.3.252 — Wave 10 · W10-1: first-class type/family system
 
 The box-only type path is now a real **family type system** — the Revit "type properties" surface, IFC-native.
