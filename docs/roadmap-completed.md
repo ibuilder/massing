@@ -74,8 +74,8 @@ cap-table) — none is a rebuild.
 **① Clash Coordination Intelligence — the management layer on top of detection (highest leverage).**
 The strongest signal (4 of the 14 sheets walk detect → filter/dedup → assign/resolve → validate/close).
 We already *detect* federated clashes + import clash XLSX + speak BCF; the gap is the **coordination
-workflow**. Proven pattern (Navisworks · Autodesk Model Coordination · Solibri · Revizto · buildingSMART
-BCF): a **two-layer model** — ephemeral `Clash` rows (thousands, regenerated per run) vs persistent
+workflow**. The proven industry pattern (model-coordination platforms + the buildingSMART BCF
+standard): a **two-layer model** — ephemeral `Clash` rows (thousands, regenerated per run) vs persistent
 `Issue` = one **BCF Topic** (tens). Build: (a) **grouping** — by-element set-cover + `DBSCAN` proximity +
 grid/level bucketing → the industry's ~10:1–100:1 reduction; (b) **tolerance/matrix** — hard vs
 soft/clearance + a discipline **clash matrix** (which pairs to test, per-cell severity) as the primary
@@ -87,8 +87,8 @@ reopened** state machine mapped 1:1 to BCF `TopicStatus`; (e) a **stable `clash_
 our existing clash + `bcf_io.py`; GUID-keyed; zero license exposure.
 
 **② Model → Field layout + verified as-built (smallest surface, immediate field utility).**
-The BuiltWorlds Robotics-Top-50 sheet points at the 2026 field-robotics wave (Dusty FieldPrinter, Hilti
-Jaibot/PLT, Trimble/Leica robotic total stations). They all consume two open primitives from the model:
+The BuiltWorlds Robotics-Top-50 sheet points at the 2026 field-robotics wave (floor-printing robots,
+layout/drilling robots, robotic total stations). They all consume two open primitives from the model:
 a **PENZD/PNEZD points CSV** (Point-№, Easting, Northing, Z, Description) and **DXF linework** (for floor
 printers). Build a **`model → layout CSV`** exporter (grid intersections from `IfcGrid`, wall control
 lines, MEP hanger/anchor points, sleeve/penetration centroids, column setout — Description encodes type +
@@ -146,20 +146,20 @@ report/PDF stack; cite ISO 21502 / CMAA practice areas in original prose (no cop
 competitor names).
 
 **⑦ Compliant syndication / investor-management depth — cap-table-first, token-last (strategic, legal-gated).**
-From the two tokenization briefs. The validated best practice (Securitize, Tokeny, and the non-token gold
-standards Juniper Square / Carta): a securities platform is **~80 % a regulated investor-management system,
-~20 % blockchain** — Postgres is the legal source of truth, the token an optional mirror. We already have
-proforma, JV waterfall, LP portal, capital calls, cap-table.
+From the two tokenization briefs. The validated best practice across regulated securities platforms and
+the non-token fund-administration gold standards: a securities platform is **~80 % a regulated
+investor-management system, ~20 % blockchain** — Postgres is the legal source of truth, the token an
+optional mirror. We already have proforma, JV waterfall, LP portal, capital calls, cap-table.
 
 **DECISION (revised) — integrate, don't build.** We will **not** build the securities/compliance stack
 ourselves (KYC/accreditation, transfer-agent recordkeeping, Reg-D compliance engine, escrow, the token) —
 that is licensed, counsel-gated, multi-year work and outside our risk appetite. Instead Massing stays the
 **origination front-end** (the deal, the IFC model, the proforma, the JV waterfall, a read-only cap-table
 view) and **hands the regulated pieces to a licensed platform via API** — the same "connectors OK, we
-never move money" posture as our Procore / QuickBooks bridges. Confirmed integration path: **Securitize**
-— an SEC-registered **transfer agent + broker-dealer/ATS** — exposes a **Securitize Connect API**,
-**Securitize iD** (RESTful KYC/KYB/AML), and **Transfer-Agent-as-a-Service**; for the non-token fund-admin
-route, hand off to a fund administrator (data export / referral). So the buildable work shrinks to a
+never move money" posture as our Procore / QuickBooks bridges. Confirmed integration path: **a licensed
+securities platform** — an SEC-registered **transfer agent + broker-dealer/ATS** — exposing a **partner
+connect API**, a **RESTful KYC/KYB/AML identity service**, and **Transfer-Agent-as-a-Service**; for the
+non-token fund-admin route, hand off to a fund administrator (data export / referral). So the buildable work shrinks to a
 **thin connector** (`connectors.py` already has the pattern): push deal + investor + distribution data to
 the partner, pull back verified-KYC / holder-of-record status, deep-link investors into the partner's
 onboarding, and show the partner's cap-table state in the LP portal. The token (ERC-3643) is the
@@ -168,8 +168,8 @@ advice; the partner is the licensed entity.*
 
 **Sequencing recommendation:** ① and ② are the near-term, highest-leverage, lowest-risk builds (both pure
 software on existing seams). ③–⑥ are self-contained increments to schedule by customer pull. ⑦ is now a
-**lightweight integration** (Securitize-style connector) rather than a build — pursue only when a
-customer needs to actually raise/syndicate, and keep Massing out of the regulated path entirely.
+**lightweight integration** (a licensed-securities-platform connector) rather than a build — pursue only
+when a customer needs to actually raise/syndicate, and keep Massing out of the regulated path entirely.
 
 ---
 
@@ -296,7 +296,7 @@ document manager over object storage that auto-names uploads to the information 
 + AIA phase-gap checks. Reuses the discipline spine, CDE states, naming validator and storage backend.
 
 **Strategic read:** the construction-tech trend is platform consolidation + AI agents + connected
-ecosystems + interoperability (Procore/Autodesk/Trimble M&A). Our open, IFC-native, self-hosted, one-model
+ecosystems + interoperability (ongoing industry M&A). Our open, IFC-native, self-hosted, one-model
 posture with an MCP server for AI agents + connectors is well-aligned — lean into interoperability
 (import/export breadth) and AI-over-the-model.
 
@@ -554,10 +554,10 @@ bundling/auto-update policy these feed into.
   from Revit (no bridge)…"* documenting Revit's built-in IFC export + pyRevit batch export, so the
   free single-project promise is reachable without the paid Autodesk bridge. Not bundled (it runs
   inside desktop Revit; we never read .rvt offline).
-- **Revit / Navisworks export plugin?** ❌ **Not needed (decided 2026-06).** Autodesk's
+- **Custom Revit export plugin?** ❌ **Not needed (decided 2026-06).** Autodesk's
   [revit-ifc](https://github.com/Autodesk/revit-ifc) is the official, free, open-source, *certified*
   IFC exporter for Revit 2019+ (ships natively; an OSS override exists) — a custom plugin would just
-  duplicate it. Navisworks is a coordination/review tool, not an authoring app; its IFC export is
+  duplicate it. Coordination/review tools are not authoring apps and their IFC export is
   weak/third-party, so the correct workflow is **export IFC from each authoring source** (Revit native)
   and federate here. Our free pyRevit path (L3) already covers batch export. *Optional future nicety:*
   a one-click pyRevit macro that exports IFC **and uploads to a Massing project** — convenience
@@ -836,4 +836,80 @@ reusing the config engine's reference/rollup relational spine.
 - **I (planned) — Interop.** Balanced cost-coded journal-entry export to the accounting system of record
   through an approval gate; then derive WIP % complete and resource curves from **model quantities by
   GlobalId** (the coverage index above is the foundation).
+
+---
+
+## 🏗️ Wave 9–11 — authoring suite + Master Builder + AI-MCP (shipped)
+
+The in-browser authoring push and everything downstream of it. Version tags + a one-line note per shipped
+item; the still-open remainder of each track lives in [roadmap.md](roadmap.md).
+
+### Model workspace → true in-browser authoring program (P1–P6, v0.3.231–241)
+The 2026-07 direction change: the Model workspace became a genuine authoring+coordination program
+(create from scratch → draw/edit by GUID-stable recipe → drag-to-move → clash/coordinate).
+- **P1** blank model from scratch (`generate_blank_ifc` + `POST …/model/blank`) + first-class Author-mode surfacing (v0.3.231)
+- **P2** removed redundant legacy place buttons + ~90 lines dead code — Draft panel is the single authoring surface (v0.3.232)
+- **P3** room/space authoring UI (➕ Add rooms/spaces via `add_spaces`) (v0.3.234)
+- **P4** author-ready **template picker** — blank + office bay / residential floor / warehouse (v0.3.233)
+- **P6a** cut four duplicative rail sections → deep-links; removed ~700 lines (v0.3.235)
+- **P6b** dedicated **💥 Clash & coordination** rail toggle (federated + single clash, list, metrics, promote-to-BCF) (v0.3.236)
+- **P6c** rail re-clustered **Navigate / Author / Coordinate** (v0.3.237)
+- **P6d** docked **📋 Properties** rail panel with a Type/Instance identity header (v0.3.238)
+- **Model browser** — **group-by** (level / discipline / IFC class / type-family) + **search** across name·GUID·class·type·discipline, auto-expanding matches (v0.3.239)
+- **Manage levels** — per-storey rename + set-elevation (`rename_storey`/`set_storey_elevation`; storey listing carries GUIDs) (v0.3.240)
+- **Selection sets** — named saved searches you can isolate in one click, persisted per-project (v0.3.240)
+- **P5 edit-in-place** — drag-to-move transform gizmo (ghost preview + ΔE/ΔN/ΔZ + grid-snap) via the GUID-stable `move_element` recipe (v0.3.241)
+
+### Wave 9 — 2026-07 research scan (v0.3.245–251)
+- **W9-1** property mapping / normalization — the **transform** verb between IDS-validate and COBie-export (`propmap.py`, `map_properties` recipe, `/propmap/detect`+`/plan`, 🔧 Normalize properties) (v0.3.245)
+- **W9-2** computed **occupancy load + egress capacity** (IBC 1004.5/1010.1.1/1006.2; `codecheck.egress_analysis`, `/codecheck/egress`, 🏛 Occupancy & egress) (v0.3.246); **W9-2b** BCF round-trip (`POST /codecheck/egress/bcf`) (v0.3.251). *Fire-separation between occupancies still deferred (needs space-boundary geometry).*
+- **W9-3** IFC5-style **property-override layers** — USD-like non-destructive overlays, strongest-wins, `bake` flattens to a GUID-stable IFC (`layers.py`, `/layers`+`/resolve`+`/bake`, `apply_layers`, 🧬 Property layers) (v0.3.247)
+- **W9-4 v1** semantic **model graph** from IFC relationships — multi-hop cited neighbor queries (`graph.py`, `/graph/neighbors`, 🕸 Related elements) (v0.3.248). *Harder half (spec/drawing/code ingest + NL→graph) still open — see roadmap.md.*
+- **W9-5 (M first step)** site logistics on the 4D timeline — temporary resources as first-class time-phased 3D glyphs (`logistics.py`, `/logistics`+`/state`, 🏗 Site logistics) (v0.3.250). *L part (motion along paths + swept crane-reach clash) still open.*
+- **W9-6a** generative fit-out — **auto-furnish** grids real `IfcFurnishingElement` into every `IfcSpace` (`furnish_spaces` recipe, 🪑 Furnish spaces) (v0.3.249)
+
+### ① Generative-design & analysis depth — DONE (v0.3.215–227)
+- **Test Fit** — daylight-limited plate-depth **optimize** + `core_efficiency` (v0.3.215); polygon-offset buildable footprint + parcel-bound surface parking (v0.3.221)
+- **Structural generative** — per-floor column taper by √(floors carried) + sized lateral RC core, extruded as real shear walls (v0.3.220)
+- **Underwriting realism** — exit-cap-vs-comps guardrails (v0.3.216); specialty P&L + ramp + blended-vs-RE IRR (v0.3.222); Monte-Carlo the specialty risk discount → blended-IRR distribution (v0.3.223)
+- **Lean / takt** — `takt.progress()` + actuals overlay (floor variance, achieved vs planned, PPC) (v0.3.224)
+- **Rendering / computational** — material editor + per-project palette (v0.3.225); module-relations graph view (v0.3.226). *Heavier GPU work (real-time GI / baked AO / HDRI skies) is a documented web-viewer non-goal.*
+- **Developer deliverable** — investment pitch deck expanded to 9 slides (exec summary, capital stack, business plan) (v0.3.227)
+
+### ② UX / performance / productivity — DONE (v0.3.228–242)
+- **Role landing dashboards** — tailored Design / Developer / Finance homes (v0.3.228)
+- **Nav density** — per-stage collapse memory (v0.3.230) + command-center density toggle (⊞/⊟, persisted) (v0.3.242)
+- **A11y** — audited this cycle's new panels (SVG accessible names, labeled controls, `scope` headers, `.sr-only`) (v0.3.229); ongoing as panels ship
+- ⌘K, saved-views-per-role, cross-workspace deep-links (both directions), and the `portal.ts` per-domain split all shipped earlier
+
+### ③ Interop / library evaluations (v0.3.243)
+- **L1** `@ifc-lite/geometry` server-side converter spike — **EVALUATED → DEFER**: the current Fragments path converts a 1.6 MB IFC → `.frag` in ~1.1 s, no bottleneck at our model scale. *Re-trigger: a customer with ≳50 MB IFC where conversion latency bites.*
+- **L4** FreeCAD headless engine — **EVALUATED → DEFER**: parametric families + 2D drawings are already covered by `ifcopenshell` recipes + `drawings.py` + `sheetgen.py`. *Re-trigger: a concrete parametric op `ifcopenshell` cannot express.*
+- **glTF import overlay** — already ships (`referenceLoader.ts` parses `.gltf`/`.glb` into a view-only reference overlay)
+- **pyRevit "Publish to Massing" macro** — already ships (`integrations/pyrevit/Massing.extension`: export IFC → upload → convert → open; no paid bridge)
+- **RVT→IFC via the paid Autodesk bridge** — hardened (v0.3.243): a properly-gated Design-Automation stub + input validation + `test_aps.py` locking the gate order (501 → 400 → 402 → 400 → 502)
+
+### Wave 10 — IFC authoring suite (shipped parts)
+- **W10-1** real type/family system — `create_type`/`edit_type_params` (in-place shared-box propagation, GUID-stable)/`assign_material_set`, `type_detail` inspector, 🧱 Family types browser (v0.3.252)
+- **W10-3** groups, assemblies, arrays — `create_group`/`ungroup`, `create_assembly`, `array_element`, 🧩 Groups & arrays viewer tool (v0.3.253)
+- **W10-8** phasing — `set_phase` tags new/existing/demolish/temporary via `Massing_Phasing.Status`, `phase_summary`, 🕐 Phasing tool (v0.3.254). *Tying phase to the 4D slider remains a sub-item.*
+
+### Wave 11 — The Master Builder (shipped parts, v0.3.255–279)
+- **E9** selector DSL (`query_elements` + 🔎 Query + `GET /query`) + `geom.tree` spatial index (v0.3.255)
+- **F0** the representation/context spine + LOD state — `ensure_contexts` (Model+Plan roots, Body/Axis/Box/FootPrint/Annotation subcontexts), `set_lod`/`lod_summary` (`Pset_MassingLOD.Stage` 100→500), 📶 Level of Development tool (v0.3.256). *F0b (derive Box/Axis/FootPrint from Body) still open.*
+- **B2** parametric door/window generators — `geometry.add_door/window_representation` (real lining/frame/panels, wall-sized lining, box-proxy fallback) (v0.3.257)
+- **D4** classification + document carriers — `classify` → `IfcRelAssociatesClassification` (UniFormat/MasterFormat/OmniClass/Uniclass), `attach_document` → `IfcRelAssociatesDocument`, `element_detailing` inspector, 🏷 Detailing tool (v0.3.258)
+- **D3** IDS-shaped detail-rule engine — `apply_rules` (applicability facets → content bundle via the Track-D carriers), `validate_rules` (missing-keynote pre-flight), ✨ Auto-detail tool + seed library (v0.3.259); **D7** the window-flashing worked case ships in the seed library (exterior window → IBC §1404.4/ASTM E2112/AAMA 711 flashing + 08 51 00)
+- **C1** plan-drawing generator — `drawing.py::plan_svg` derives footprints **directly from authored extruded-profile geometry** (no OCC), class-styled poché scaled to paper mm, storey-scoped, 🖨 Generate plan (v0.3.260)
+- **C2** overall dimension strings + keynote bubbles & legend generated from each element's Track-D classification codes (v0.3.261)
+- **C3** issuable ARCH-D **sheet + titleblock** (`drawing.py::sheet_svg`, 📄 Issue sheet) (v0.3.262); **C3b** the sheet rendered **to PDF** via reportlab — the submittable AHJ deliverable (`sheet_pdf`, ⤓ Sheet PDF) (v0.3.263)
+- **C4** computed **door/window/room schedules** (`drawing.py::schedules`/`schedule_svg`, 📋 Schedules) (v0.3.264)
+- **B6** domain-geometry catalog — steel connections (`connections.py::add_base_plate`/`add_shear_tab`, 🔩) (v0.3.265) · rebar cages (`rebar.py::add_rebar_cage`, 🪝) (v0.3.266) · MEP fittings + connected systems (`add_mep_fitting`, `mep.py::mep_summary`, 🔀) (v0.3.268; also fixed a `sheet_svg` empty-model crash + `test_wave11_edges.py`) · curtain-wall (`curtainwall.py::add_curtain_wall`, 🪟) (v0.3.270)
+- **D1** code-analysis summary — `codecheck.code_analysis` (occupancy Ch.3, construction type + Table 601, allowable area 506.2/504/506.3, occupant load 1004.5 + egress Ch.10), 🏛 Code analysis QA tool, `/codecheck/analysis` (v0.3.274)
+- **C5** sections & elevations reachable — 📐 Sections & elevations tool (cut X–X/Y–Y sections + projected N/S/E/W elevations from `drawings.py`, auto-centred cut); also fixed a world-placement bug so all 2D output places off-origin elements correctly (v0.3.276)
+- **G1** LOD-500 verified-as-built — `verify_asbuilt` stamps `Massing_AsBuilt` (VERIFIED + provenance), `asbuilt_summary` → readiness % by method, `/lod500`, ✅ As-built verify tool (v0.3.279)
+
+### AI-MCP / NL authoring (shipped, v0.3.271–278)
+- **S1+S2** natural-language authoring over the edit-recipe engine — `nlauthor.py` (`RECIPE_SPECS` + `validate_call` guardrail + keyword `interpret`), `POST /ai/author` (interpret-only, confirm-before-apply), ✨ command bar. Deterministic no-API-key baseline (v0.3.271)
+- **S3** multi-step LLM interpretation — `nl_ai.plan()` produces a structured JSON plan against `RECIPE_SPECS` ("a 5×4 m room" → 4 walls); every step re-validated by `validate_call`, GUIDs filled from selection (never fabricated), destructive recipes withheld, keyword fallback; ✓ Apply-all chains edits into one republish (v0.3.278)
 
