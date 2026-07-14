@@ -44,6 +44,21 @@ def _fill_context(recipe: str, params: dict, spec: dict, ctx: dict) -> dict:
     return p
 
 
+def _coerce_params(raw) -> dict:
+    """A step's `params` may arrive as a dict (keyword/tests) or a JSON string (the LLM path — strict
+    structured outputs can't express an open object, so the model returns params as a JSON string).
+    Normalise either to a dict; anything unparseable becomes empty (validation then reports what's missing)."""
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        try:
+            v = json.loads(raw)
+            return v if isinstance(v, dict) else {}
+        except (ValueError, TypeError):
+            return {}
+    return {}
+
+
 def _steps_to_plan(steps: list[dict], ctx: dict) -> dict:
     """Turn raw {recipe, params} steps (from the model) into a validated plan. Network-free — the unit of
     logic worth testing without a live API. Unknown/invalid steps become a clarification, never an apply."""
@@ -57,7 +72,7 @@ def _steps_to_plan(steps: list[dict], ctx: dict) -> dict:
         if spec is None:
             errors.append(f"unknown or unavailable recipe {recipe!r}")
             continue
-        params = _fill_context(recipe, (step or {}).get("params") or {}, spec, ctx)
+        params = _fill_context(recipe, _coerce_params((step or {}).get("params")), spec, ctx)
         call = nlauthor.validate_call(recipe, params)
         if call["ok"]:
             call["summary"] = nlauthor._summary(call)
@@ -72,13 +87,21 @@ def _steps_to_plan(steps: list[dict], ctx: dict) -> dict:
             "needs_clarification": ("some steps were skipped — " + "; ".join(errors)) if errors else None}
 
 
+# Strict structured outputs require additionalProperties:false on EVERY object, which can't express the
+# per-recipe `params` object (its keys vary by recipe). So `params` is a JSON STRING the model fills and
+# `_coerce_params` parses — keeping every object in the schema closed.
 _PLAN_SCHEMA = {
-    "type": "object", "additionalProperties": False, "required": ["steps"],
+    "type": "object", "additionalProperties": False, "required": ["steps", "clarification"],
     "properties": {
         "steps": {"type": "array", "items": {
             "type": "object", "additionalProperties": False, "required": ["recipe", "params"],
-            "properties": {"recipe": {"type": "string"}, "params": {"type": "object"}}}},
-        "clarification": {"type": "string"},
+            "properties": {
+                "recipe": {"type": "string"},
+                "params": {"type": "string",
+                           "description": "a JSON object of the recipe's parameters, e.g. "
+                                          '{"start":[0,0],"end":[5,0],"height":3}'}}}},
+        "clarification": {"type": "string",
+                          "description": "empty string unless the request is too vague to place geometry"},
     },
 }
 
@@ -104,6 +127,8 @@ def _system(ctx: dict) -> str:
     return (
         "You convert a builder's plain-English instruction into an ordered authoring PLAN for a BIM model. "
         "Return steps as {recipe, params} using ONLY these recipes:\n" + _spec_brief() + "\n\n"
+        "Each step's `params` is a JSON STRING — a JSON object of that recipe's parameters, e.g. "
+        '"{\\"start\\":[0,0],\\"end\\":[5,0],\\"height\\":3}". '
         "Rules: coordinates are [Easting, Northing] pairs in METRES; lengths/heights/thicknesses are in "
         "metres (convert feet/inches/mm yourself). Emit one step per element (e.g. a room of 4 walls = 4 "
         "add_wall steps). Do NOT output GUIDs, the `storey`, or any host/target element id — the app fills "

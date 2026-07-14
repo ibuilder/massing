@@ -53,6 +53,15 @@ r5 = nl_ai._steps_to_plan([{"recipe": "add_column", "params": {"point": [3, 2]}}
 assert len(r5["plan"]) == 1 and r5["plan"][0]["recipe"] == "add_column", r5
 assert r5["needs_clarification"] and "skipped" in r5["needs_clarification"], r5
 
+# --- params may arrive as a JSON STRING (the strict structured-output path) -----------------------
+r6 = nl_ai._steps_to_plan([{"recipe": "add_column", "params": '{"point":[3,2],"height":4}'}], {})
+assert r6["plan"] and r6["plan"][0]["params"]["point"] == [3.0, 2.0] and r6["plan"][0]["params"]["height"] == 4.0, r6
+# an unparseable params string degrades to empty → validation reports the missing required field
+r7 = nl_ai._steps_to_plan([{"recipe": "add_column", "params": "not json"}], {})
+assert not r7["plan"] and r7["needs_clarification"], r7
+assert nl_ai._coerce_params('{"a":1}') == {"a": 1} and nl_ai._coerce_params({"a": 1}) == {"a": 1}
+assert nl_ai._coerce_params("[1,2]") == {} and nl_ai._coerce_params(None) == {}
+
 # --- no API key → deterministic keyword baseline (source 'keyword') --------------------------------
 kw = nl_ai.plan("add a wall from 0,0 to 6,0", {"active_storey": "Level 1"})
 assert kw["source"] == "keyword" and kw["plan"] and kw["plan"][0]["recipe"] == "add_wall", kw

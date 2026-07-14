@@ -1455,16 +1455,25 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             const applyAll = toolBtn2(`✓ Apply all ${res.plan.length} steps`, () =>
               withLoading(container, `authoring ${res.plan.length} steps + republishing`, async () => {
                 cmdIn.value = "";
+                let applied = 0;
                 try {
                   for (let i = 0; i < res.plan.length; i++) {
                     const s = res.plan[i]; if (!s) continue;
                     await api.editIfc(projectId!, s.recipe, s.params, i === res.plan.length - 1);
+                    applied++;
                   }
                   const state = await waitForPublish(projectId!);
                   if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); notify(`${res.plan.length} steps applied${shown ? " — shown" : ""}`, "success"); }
                   else notify(`steps authored — publish ${state}`, state === "error" ? "error" : "info");
                   await reloadModelPins();
-                } catch (err) { notify(`apply-all failed: ${(err as Error).message}`, "error"); }
+                } catch (err) {
+                  // a step failed mid-chain — earlier edits already advanced the source IFC but their
+                  // republish (deferred to the last step) never fired. Republish now so they're not
+                  // stranded, and report how far we got.
+                  if (applied > 0) { try { await api.publish(projectId!); await waitForPublish(projectId!); await loadProjectModel(); await reloadModelPins(); } catch { /* leave as-is */ } }
+                  draftProxies.clear();
+                  notify(`apply-all stopped after ${applied}/${res.plan.length} step(s): ${(err as Error).message}`, "error");
+                }
               }));
             applyAll.title = "Apply every step of the plan in order, republishing the model once at the end.";
             body.appendChild(applyAll);

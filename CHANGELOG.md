@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.280 — Fix: S3 structured-output schema (LLM authoring path) + apply-all recovery
+
+Two follow-ups to the S3 command bar. (1) The plan schema declared each step's `params` as an open
+`{type: object}`, which Anthropic's strict structured outputs reject (every object must set
+`additionalProperties: false`) — so a keyed request would 400 and silently fall back to the keyword
+baseline, meaning Claude multi-step planning never actually ran. `params` is now a JSON **string** the
+model fills and `_coerce_params` parses (tolerant of both string and dict, so the keyword path and tests
+are unaffected); every object in the schema is closed. (2) **Apply-all** now recovers from a mid-chain
+failure: because earlier edits already advance the source IFC but defer their republish to the last step,
+a failure part-way used to strand them unpublished — it now republishes what applied and reports
+"stopped after N/M steps" instead of leaving the model in a committed-but-unconverted state.
+
 ## v0.3.279 — LOD-500 as-built verification (G1)
 
 BIMForum defines LOD 500 as a *field-verified as-built* reliability attribute — with **no** geometric
