@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.276 — Sections & elevations in the UI + world-placement fix for all drawings
+
+The section and elevation SVG generators existed server-side but were unreachable — added a **📐 Sections
+& elevations** tool to the viewer's drawing rail: cut sections (X–X / Y–Y) and projected N/S/E/W
+elevations, true linework from the model geometry. The section cut now **auto-centres** on the model
+(`section_svg(offset=None)`) so it lands through the building instead of the world origin — no coordinate
+to guess.
+
+**Fix (affects every drawing):** the geometry bake fed the plan/section/elevation/sheet generators
+element meshes in *local* coordinates — each element's ObjectPlacement wasn't applied, so anything not
+authored at the origin collapsed onto (0,0) and overlapping elements stacked. `bake()` now sets
+`use-world-coords`, so all 2D output places elements where they actually are. Plans, sections, elevations,
+and composed sheets of any real (off-origin) model are now correct. New `test_sections.py` guards the
+auto-centre + world placement.
+
 ## v0.3.275 — Fix: code-analysis occupancy group now resolves for every occupancy label
 
 The v0.3.274 code-analysis summary looked up the occupancy group in an exact-match dict keyed on

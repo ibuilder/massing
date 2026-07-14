@@ -443,9 +443,14 @@ this spine first; every track hangs off it.
   the submittable AHJ deliverable (`drawing.py::sheet_pdf`, `GET /drawings/sheet.pdf`, ⤓ Sheet PDF tool).
   **C4 ✅ SHIPPED v0.3.264** — computed **door/window/room schedules** from the model (`drawing.py::schedules`
   / `schedule_svg`, 📋 Schedules tool, `GET /drawings/schedules` + `/schedule.svg`).
+  **C5 ✅ SHIPPED v0.3.276 — sections & elevations reachable** (📐 Sections & elevations viewer tool → cut
+  X–X/Y–Y sections + projected N/S/E/W elevations from `drawings.py`; the section cut auto-centres on the
+  model, `section_svg(offset=None)`. Also fixed a world-placement bug: `bake()` now sets `use-world-coords`
+  so ALL 2D output — plans/sections/elevations/sheets — places off-origin elements correctly instead of
+  collapsing them onto (0,0); `test_sections.py`).
   *NB: a pre-existing `drawings.py` (plural) does accurate trimesh section-cut linework (bake/cut work — the
   OCC engine is NOT inert); `drawing.py` (singular) is the footprint/keynote/sheet/PDF layer. Next C-slices:
-  put schedules on a PDF sheet, sections/elevations (reuse drawings.py cut), DXF.* Original plan
+  put schedules on a PDF sheet, DXF export.* Original plan
   eyed `ifcopenshell.geom.serializers.svg` (OCC HLR) but that engine is inert in our build; C2 **parametric IFC dimensions** (geometry-anchored, the merged IfcOpenShell PR #8083 pattern:
   `IfcAnnotation` + `IfcRelAssignsToProduct` + face/layer/edge/vertex anchor JSON; regenerate on move) + smart
   tags via `drawing.assign_product`; C3 **sheets & titleblocks** (`IfcDocumentInformation` Scope="SHEET",

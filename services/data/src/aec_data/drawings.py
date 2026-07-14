@@ -42,6 +42,12 @@ def storey_elevations(model: ifcopenshell.file) -> list[dict[str, Any]]:
 def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
     """Bake every element's world-space mesh ONCE so many views can section the same set."""
     settings = geom.settings()
+    # apply each element's ObjectPlacement so verts are in WORLD space — otherwise every element
+    # collapses to its own local origin and off-origin geometry stacks at (0,0) in plans/sections.
+    try:
+        settings.set("use-world-coords", True)
+    except Exception:  # pragma: no cover - older builds use the enum name
+        settings.set(settings.USE_WORLD_COORDS, True)
     it = geom.iterator(settings, model, max(1, multiprocessing.cpu_count() - 1))
     meshes: list[tuple[str, trimesh.Trimesh]] = []
     if not it.initialize():
@@ -463,9 +469,29 @@ def elevation(model: ifcopenshell.file, direction: str = "north", title: str | N
     return elevation_svg(meshes, direction, levels, title or f"{direction.upper()} ELEVATION", grid=grid)
 
 
-def section_svg(model: ifcopenshell.file, axis: str, offset: float, title: str = "SECTION") -> str:
+def _axis_center(meshes: list[tuple[str, trimesh.Trimesh]], ax: int) -> float:
+    """Midpoint of the model's extent along world axis `ax` (0=x, 1=y) from the baked meshes —
+    so an auto-placed section cuts through the building, not the world origin."""
+    lo = hi = None
+    for _, m in meshes:
+        b = getattr(m, "bounds", None)
+        if b is None:
+            continue
+        lo = b[0][ax] if lo is None else min(lo, b[0][ax])
+        hi = b[1][ax] if hi is None else max(hi, b[1][ax])
+    return 0.0 if lo is None else (lo + hi) / 2.0
+
+
+def section_svg(model: ifcopenshell.file, axis: str, offset: float | None = None,
+                title: str = "SECTION") -> str:
+    """Cut the model on a vertical plane. `offset` is the world coordinate (metres) of the cut on the
+    perpendicular axis; when None the cut auto-centres on the model so it lands through the building
+    regardless of where the model sits relative to the origin."""
     view = "section-x" if axis == "x" else "section-y"
-    polys = cut(model, view, offset)
+    meshes = bake(model)
+    if offset is None:
+        offset = _axis_center(meshes, 0 if axis == "x" else 1)
+    polys = cut_baked(meshes, view, offset)
     return to_svg(polys, title=title, subtitle=f"{axis.upper()} = {offset:.2f} m")
 
 

@@ -1973,6 +1973,34 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       schedBtn.title = "Computed door / window / room schedules (marks, sizes, types, levels, areas) — the "
         + "tabular half of the CD set, straight from the model. Also at GET /drawings/schedule.svg.";
 
+      // W11 C5: sections & elevations — cut linework straight from the baked model geometry. The
+      // section auto-centres on the model (no offset needed); elevations project each cardinal face.
+      const sectBtn = toolBtn2("📐 Sections & elevations", () => {
+        showResult("Sections & elevations", (body) => {
+          body.appendChild(resultNote("Generate a cut <b>section</b> (through the middle of the model) or a projected "
+            + "<b>elevation</b> of each face — true linework from the model geometry, opens as SVG.", "ok"));
+          const openDrawing = (path: string) => window.open(api.url(`/projects/${projectId}/drawings/${path}`), "_blank");
+          const row = (label: string) => { const d = document.createElement("div"); d.className = "meta"; d.style.margin = "6px 0 2px"; d.textContent = label; body.appendChild(d); return d; };
+          const btnRow = () => { const r = document.createElement("div"); r.style.cssText = "display:flex;flex-wrap:wrap;gap:6px"; body.appendChild(r); return r; };
+          row("Sections (auto-centred cut)");
+          const secR = btnRow();
+          for (const [axis, lbl] of [["x", "Section X–X"], ["y", "Section Y–Y"]] as const) {
+            const b2 = document.createElement("button"); b2.className = "mini-btn"; b2.textContent = `✂ ${lbl}`;
+            b2.onclick = () => openDrawing(`section.svg?axis=${axis}&title=${encodeURIComponent(lbl)}`);
+            secR.appendChild(b2);
+          }
+          row("Elevations");
+          const elR = btnRow();
+          for (const dir of ["north", "south", "east", "west"] as const) {
+            const b2 = document.createElement("button"); b2.className = "mini-btn"; b2.textContent = `🧭 ${dir.charAt(0).toUpperCase()}${dir.slice(1)}`;
+            b2.onclick = () => openDrawing(`elevation.svg?direction=${dir}`);
+            elR.appendChild(b2);
+          }
+        });
+      });
+      sectBtn.title = "Cut sections (auto-centred on the model) and projected N/S/E/W elevations — vector "
+        + "linework from the model geometry, the other half of the drawing set alongside plans.";
+
       // W11 B6: steel connections — base plate on the selected column, shear tab on the selected beam
       // (bare LOD-300 members → LOD-350/400 fabrication assemblies).
       const basePlateBtn = toolBtn2("🔩 Base plate (steel column)", async () => {
@@ -2045,7 +2073,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         + "glazing panels on a bays×rows grid, aggregated as one assembly (LOD 350/400). GUID-stable.";
 
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn,
+        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn, sectBtn,
         basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, manage, levelsMgr);
     }
 

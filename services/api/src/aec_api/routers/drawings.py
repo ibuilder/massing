@@ -329,8 +329,10 @@ def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str =
 
 
 @router.get("/projects/{pid}/drawings/section.svg")
-def section(pid: str, axis: str = "x", offset: float = 0.0, title: str = "SECTION",
+def section(pid: str, axis: str = "x", offset: float | None = None, title: str = "SECTION",
             db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Vertical section SVG. `offset` = world coordinate (m) of the cut on the axis perpendicular to
+    `axis` (x|y); omit it to auto-centre the cut through the model."""
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
