@@ -558,10 +558,13 @@ Revit-export-only interup or their concept-only scope, nor Nonica/Atomatiq's Rev
 - **AI-MCP / NL authoring** *(M · ★★★★★)* — natural-language authoring over our edit-recipe engine, IFC-native,
   no Revit. **S1+S2 ✅ SHIPPED v0.3.271** — `nlauthor.py` (`RECIPE_SPECS` table + `validate_call` guardrail +
   keyword `interpret`), `POST /ai/author` (interpret-only, confirm-before-apply), ✨ command bar. Deterministic
-  no-API-key baseline. *Next: S3 Claude tool-use interpretation (recipes as tools, `tool_choice:auto`,
-  clarify-before-draw); S4 confirm-UX + `/edit-preview` ghosting + revert-to-version undo; S5 multi-recipe +
-  clarifying-question multi-turn. Then read tools (quantities/schedules/clashes/violations) + an actual MCP
-  server surface. Nonica proves the market + the read-free/write-gated tiering.*
+  no-API-key baseline. **S3 ✅ SHIPPED v0.3.278** — `nl_ai.plan()` uses Claude (structured JSON plan against
+  the `RECIPE_SPECS` schema, `effort:low`) for **multi-step** interpretation ("a 5×4 m room" → 4 walls); every
+  step re-validated by `validate_call`, GUIDs filled from the selection (never fabricated), destructive recipes
+  withheld from the model, keyword fallback on any failure; ✓ **Apply-all** chains the edits into one republish;
+  `test_nl_ai.py`. *Next: S4 confirm-UX + `/edit-preview` ghosting + revert-to-version undo; S5 multi-turn
+  clarifying questions. Then read tools (quantities/schedules/clashes/violations) + an actual MCP server
+  surface. Nonica proves the market + the read-free/write-gated tiering.*
 - **COLLAB-1** *(L · ★★★★★)* — **real-time multiplayer co-editing** (presence, cursors, live-streamed edits) +
   lightweight in-model comments. Arcol's headline moat and our biggest gap for "replace Revit in the browser."
 - **SITE-1** *(M · ★★★★)* — **auto site context + parcel/zoning-envelope ingestion** for a North-American

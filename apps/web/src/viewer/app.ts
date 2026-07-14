@@ -1447,7 +1447,28 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         } catch (e) { notify(`command failed: ${(e as Error).message}`, "error"); return; }
         if (res.needs_clarification) { notify(res.needs_clarification, "info"); return; }
         showResult("Interpreted command", (body) => {
-          body.appendChild(resultNote(`“${text}” →`, ""));
+          body.appendChild(resultNote(`“${text}” → ${res.source === "claude" ? "planned by AI" : "matched"} `
+            + `<b>${res.plan.length}</b> step${res.plan.length === 1 ? "" : "s"}`, ""));
+          // S3: a multi-step plan (e.g. a room = 4 walls) applies in ONE republish — chain each edit
+          // with publish deferred to the last, so the model reconverts once instead of per step.
+          if (res.plan.length > 1 && !res.plan.some((s) => s.destructive)) {
+            const applyAll = toolBtn2(`✓ Apply all ${res.plan.length} steps`, () =>
+              withLoading(container, `authoring ${res.plan.length} steps + republishing`, async () => {
+                cmdIn.value = "";
+                try {
+                  for (let i = 0; i < res.plan.length; i++) {
+                    const s = res.plan[i]; if (!s) continue;
+                    await api.editIfc(projectId!, s.recipe, s.params, i === res.plan.length - 1);
+                  }
+                  const state = await waitForPublish(projectId!);
+                  if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); notify(`${res.plan.length} steps applied${shown ? " — shown" : ""}`, "success"); }
+                  else notify(`steps authored — publish ${state}`, state === "error" ? "error" : "info");
+                  await reloadModelPins();
+                } catch (err) { notify(`apply-all failed: ${(err as Error).message}`, "error"); }
+              }));
+            applyAll.title = "Apply every step of the plan in order, republishing the model once at the end.";
+            body.appendChild(applyAll);
+          }
           for (const step of res.plan) {
             body.appendChild(kvTable([{ k: step.recipe, v: step.summary || "", strong: true }]));
             const apply = toolBtn2(step.destructive ? `⚠ Apply (destructive): ${step.recipe}` : `✓ Apply: ${step.recipe}`, async () => {

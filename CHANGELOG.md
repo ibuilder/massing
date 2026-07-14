@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.278 — AI command bar S3: Claude multi-step authoring + one-click Apply all
+
+The natural-language command bar ("type what to build") now plans with Claude when an Anthropic API key
+is set — a single instruction like *"a 5×4 m room at 0,0"* becomes an ordered **multi-step plan** (four
+walls), and *"add three columns along the north wall"* resolves without exact coordinates. New
+`nl_ai.plan()` builds the plan against the shared `RECIPE_SPECS` schema and **re-validates every step**
+through the same `validate_call` guardrail as the keyword path before it reaches you — the model never
+writes anything, never invents GUIDs (host/target elements come from the current selection), and
+destructive recipes are withheld from it entirely. No key → the deterministic keyword baseline, unchanged.
+Multi-step plans get a **✓ Apply all N steps** button that chains the edits and republishes the model
+once instead of per step. The paid path is rate-limited; any LLM hiccup falls back to keyword parsing,
+never an error. New `test_nl_ai.py` covers the plan assembly, context-fill, and fallback.
+
 ## v0.3.277 — Fix: align room tags & callouts with the world-placed drawing linework
 
 Follow-up to v0.3.276. The bake fix moved section/plan linework into world coordinates, but the two

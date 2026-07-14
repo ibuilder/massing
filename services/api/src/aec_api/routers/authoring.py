@@ -23,6 +23,7 @@ from .. import audit, storage
 from ..db import get_db
 from ..models import Project, ProjectModel
 from ..rbac import current_user, require_role
+from ..throttle import rate_limited
 from . import properties as props_router
 
 _IFC_DIR = Path(os.environ.get("IFC_DIR", "/app/ifc"))   # local IFC copies the converter can read
@@ -535,18 +536,22 @@ def place_family(pid: str, family: str = Body(..., embed=True),
     return result
 
 
+_ai_author_throttle = rate_limited("draft", 30)          # the paid LLM path when a key is set
+
+
 @router.post("/projects/{pid}/ai/author")
 def ai_author(pid: str, text: str = Body(..., embed=True),
               context: dict = Body(default={}, embed=True),
-              db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+              db: Session = Depends(get_db), _: str = Depends(require_role("editor")),
+              __: None = Depends(_ai_author_throttle)):
     """Natural-language authoring — map a plain-English instruction ("add a 3 m wall from 0,0 to 5,0",
-    "window in the selected wall") to a validated **plan** of {recipe, params}. Interpretation only:
-    nothing is written. The client shows the plan for confirmation, then applies each step via the
-    normal POST /edit path (GUID-stable, audited). Deterministic keyword baseline; no API key required."""
-    from aec_data import nlauthor  # type: ignore
+    "a 5x4 m room at 0,0", "window in the selected wall") to a validated **plan** of {recipe, params}.
+    Interpretation only: nothing is written. The client shows the plan for confirmation, then applies each
+    step via the normal POST /edit path (GUID-stable, audited). Claude does multi-step planning when an
+    Anthropic API key is set; otherwise a deterministic keyword baseline — no key required."""
+    from .. import nl_ai
 
-    result = nlauthor.interpret(text, context)
-    return result
+    return nl_ai.plan(text, context)
 
 
 @router.post("/projects/{pid}/edit")
