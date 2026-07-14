@@ -106,6 +106,24 @@ def sheet_svg(pid: str, storey: str | None = None, scale: int = 100, number: str
                     headers={"X-Sheet-Number": result["number"]})
 
 
+@router.get("/projects/{pid}/drawings/sheet.pdf")
+def sheet_pdf(pid: str, storey: str | None = None, scale: int = 100, number: str = "A-101",
+              title: str = "FLOOR PLAN", db: Session = Depends(get_db),
+              _: str = Depends(require_role("viewer"))):
+    """W11 C3b: the issuable sheet rendered to **PDF** (reportlab) — the submittable construction-document
+    deliverable. ARCH-D border + titleblock + plan poché + dimensions + keynote legend."""
+    from fastapi.responses import Response  # local import
+
+    from aec_data import drawing  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    data = drawing.sheet_pdf(open_model(p.source_ifc), storey=storey, scale=int(scale),
+                             project=p.name or "Project", number=number, title=title)
+    return Response(content=data, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{number}.pdf"'})
+
+
 @router.get("/projects/{pid}/detailing/rules/validate")
 def validate_detailing(pid: str, db: Session = Depends(get_db),
                        _: str = Depends(require_role("viewer"))):

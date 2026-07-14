@@ -431,8 +431,9 @@ this spine first; every track hangs off it.
   element's Track-D classification codes (the loop closes: attach spec code → keynote on the plan).
   **C3 ✅ SHIPPED v0.3.262** — issuable ARCH-D **sheet + titleblock** (project/number/scale/north arrow) with
   the plan in a scaled viewport (`drawing.py::sheet_svg`, `GET /drawings/sheet.svg`, 📄 Issue sheet tool).
-  *Next C-slices: PDF/DXF export (reportlab present, add svglib), sections/elevations, computed schedules on
-  the sheet, per-GUID cache.* Original plan
+  **C3b ✅ SHIPPED v0.3.263** — the sheet rendered **to PDF** via reportlab (BSD; no SVG→PDF dep) —
+  the submittable AHJ deliverable (`drawing.py::sheet_pdf`, `GET /drawings/sheet.pdf`, ⤓ Sheet PDF tool).
+  *Next C-slices: computed schedules on the sheet, sections/elevations, DXF, per-GUID cache.* Original plan
   eyed `ifcopenshell.geom.serializers.svg` (OCC HLR) but that engine is inert in our build; C2 **parametric IFC dimensions** (geometry-anchored, the merged IfcOpenShell PR #8083 pattern:
   `IfcAnnotation` + `IfcRelAssignsToProduct` + face/layer/edge/vertex anchor JSON; regenerate on move) + smart
   tags via `drawing.assign_product`; C3 **sheets & titleblocks** (`IfcDocumentInformation` Scope="SHEET",

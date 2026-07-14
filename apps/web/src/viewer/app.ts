@@ -1902,8 +1902,17 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       sheetBtn.title = "Compose an issuable construction sheet — ARCH-D border + titleblock (project, sheet "
         + "number, scale, north arrow) with the plan placed in a scaled viewport. The deliverable.";
 
+      // W11 C3b: the submittable PDF of the sheet (reportlab, permit-ready).
+      const pdfBtn = toolBtn2("⤓ Sheet PDF (A-101)", () => {
+        const q = new URLSearchParams({ scale: "100", number: "A-101", title: "FLOOR PLAN" });
+        if (activeStorey) { q.set("storey", activeStorey); q.set("title", `${activeStorey.toUpperCase()} PLAN`); }
+        window.open(api.url(`/projects/${projectId}/drawings/sheet.pdf?${q.toString()}`), "_blank");
+      });
+      pdfBtn.title = "Download the sheet as a PDF (ARCH-D, titleblock, plan poché + dimensions + keynotes) — "
+        + "the submittable construction-document deliverable, rendered server-side.";
+
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, manage, levelsMgr);
+        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------

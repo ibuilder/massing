@@ -363,6 +363,171 @@ def sheet_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 
             "plan": {"elements": plan["elements"], "keynotes": plan["keynotes"]}}
 
 
+# plan poché fill per IFC class (matches the SVG stylesheet), for the PDF renderer
+_PDF_FILL = {"IfcWall": (0.29, 0.29, 0.29), "IfcColumn": (0.16, 0.16, 0.16),
+             "IfcSlab": (0.95, 0.95, 0.95), "IfcSpace": (0.93, 0.96, 1.0),
+             "IfcRoof": (0.96, 0.94, 0.90), "IfcFooting": (0.90, 0.90, 0.90)}
+
+
+def sheet_pdf(model: ifcopenshell.file, storey: str | None = None, scale: int = 100,
+              project: str = "Project", number: str = "A-101", title: str = "FLOOR PLAN",
+              date: str = "", drawn_by: str = "") -> bytes:
+    """W11 C3b: render the issuable sheet (ARCH-D border + titleblock + plan poché + dimensions + keynote
+    legend) **directly to PDF** via reportlab (BSD, no SVG→PDF dependency). Returns PDF bytes — the
+    submittable construction-document deliverable. Reuses the same footprint/code helpers as the SVG path."""
+    from io import BytesIO
+
+    import ifcopenshell.util.element as ue
+    import ifcopenshell.util.unit as uu
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+
+    unit_scale = uu.calculate_unit_scale(model)
+    paper = (1000.0 / float(scale)) * unit_scale
+    margin_mm = 18.0
+
+    shapes: list[tuple[Any, str, list]] = []
+    for cls in _PLAN_CLASSES:
+        for el in model.by_type(cls):
+            if el.is_a("IfcElementType"):
+                continue
+            if storey:
+                st = ue.get_container(el) or ue.get_aggregate(el)
+                if st is None or (getattr(st, "Name", None) or "") != storey:
+                    continue
+            fp = _footprint(el)
+            if fp and len(fp) >= 3:
+                shapes.append((el, cls, fp))
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=(_SHEET_W * mm, _SHEET_H * mm))
+    inset = 8.0
+    # sheet border
+    c.setLineWidth(1)
+    c.rect(inset * mm, inset * mm, (_SHEET_W - 2 * inset) * mm, (_SHEET_H - 2 * inset) * mm)
+
+    if shapes:
+        xs = [p[0] for _, _, fp in shapes for p in fp]
+        ys = [p[1] for _, _, fp in shapes for p in fp]
+        minx, maxx, miny, maxy = min(xs), max(xs), min(ys), max(ys)
+        legend_mm = 62.0
+        pw = (maxx - minx) * paper + 2 * margin_mm + legend_mm
+        ph = (maxy - miny) * paper + 2 * margin_mm
+        draw_w = _SHEET_W - _TB_W - 2 * inset - 6
+        draw_h = _SHEET_H - 2 * inset - 6
+        fit = min(draw_w / pw, draw_h / ph) if pw and ph else 1.0
+        vw, vh = pw * fit, ph * fit
+        vx = inset + 3 + (draw_w - vw) / 2
+        vy = inset + 3 + (draw_h - vh) / 2
+
+        def PT(x, y):
+            """world (file units) → PDF points (origin bottom-left)."""
+            sx = vx + ((x - minx) * paper + margin_mm) * fit
+            sy = vy + ((maxy - y) * paper + margin_mm) * fit
+            return sx * mm, (_SHEET_H - sy) * mm
+
+        # plan poché
+        for _el, cls, fp in shapes:
+            path = c.beginPath()
+            x0, y0 = PT(*fp[0])
+            path.moveTo(x0, y0)
+            for pnt in fp[1:]:
+                path.lineTo(*PT(*pnt))
+            path.close()
+            c.setFillColorRGB(*_PDF_FILL.get(cls, (0.9, 0.9, 0.9)))
+            c.setStrokeColorRGB(0.07, 0.07, 0.07)
+            c.setLineWidth(0.3)
+            c.drawPath(path, fill=1, stroke=1)
+
+        # overall dimensions (width below, height left) in metres
+        c.setStrokeColorRGB(0.0, 0.4, 0.8)
+        c.setFillColorRGB(0.0, 0.4, 0.8)
+        c.setFont("Helvetica", 6)
+        (wx1, wy1), (wx2, _wy2) = PT(minx, miny), PT(maxx, miny)
+        dy = wy1 - 8 * mm
+        c.setLineWidth(0.4)
+        c.line(wx1, dy, wx2, dy)
+        c.drawCentredString((wx1 + wx2) / 2, dy + 2, f"{(maxx - minx) * unit_scale:.2f} m")
+        (hx1, hy1), (_hx2, hy2) = PT(minx, miny), PT(minx, maxy)
+        dx = hx1 - 8 * mm
+        c.line(dx, hy1, dx, hy2)
+        c.saveState()
+        c.translate(dx - 2, (hy1 + hy2) / 2)
+        c.rotate(90)
+        c.drawCentredString(0, 0, f"{(maxy - miny) * unit_scale:.2f} m")
+        c.restoreState()
+
+        # keynotes: numbered bubbles + legend (from Track-D classification codes)
+        order: dict[tuple[str, str], int] = {}
+        legend_rows: list[tuple[int, str, str]] = []
+        for el, _cls, fp in shapes:
+            codes = _element_codes(el)
+            pick = next((cc for sysn in _KEYNOTE_SYS for cc in codes if cc[0] == sysn), None)
+            if not pick or not pick[1]:
+                continue
+            key = (pick[0], pick[1])
+            if key not in order:
+                order[key] = len(order) + 1
+                legend_rows.append((order[key], f"{pick[0]} {pick[1]}", pick[2] or ""))
+            cx, cy = _centroid(fp)
+            bx, by = PT(cx, cy)
+            c.setFillColorRGB(1, 1, 1)
+            c.setStrokeColorRGB(0.7, 0, 0)
+            c.setLineWidth(0.3)
+            c.circle(bx, by, 2.4 * mm, fill=1, stroke=1)
+            c.setFillColorRGB(0.7, 0, 0)
+            c.setFont("Helvetica", 6)
+            c.drawCentredString(bx, by - 2, str(order[key]))
+        if legend_rows:
+            lx = (_SHEET_W - _TB_W - inset - legend_mm + 4)
+            c.setFillColorRGB(0, 0, 0)
+            c.setFont("Helvetica-Bold", 7)
+            c.drawString(lx * mm, (_SHEET_H - margin_mm) * mm, "KEYNOTES")
+            c.setFont("Helvetica", 6)
+            for i, (num, code, ttl) in enumerate(legend_rows[:24]):
+                ry = margin_mm + 6 + i * 5
+                by = (_SHEET_H - ry) * mm
+                c.setFillColorRGB(1, 1, 1)
+                c.setStrokeColorRGB(0.7, 0, 0)
+                c.circle((lx + 2) * mm, by + 1, 2.2 * mm, fill=1, stroke=1)
+                c.setFillColorRGB(0.7, 0, 0)
+                c.drawCentredString((lx + 2) * mm, by - 1, str(num))
+                c.setFillColorRGB(0.13, 0.13, 0.13)
+                c.drawString((lx + 7) * mm, by, f"{code} - {ttl[:30]}")
+
+    # titleblock
+    tbx = _SHEET_W - _TB_W - inset
+    tby = inset
+    tbh = _SHEET_H - 2 * inset
+    c.setStrokeColorRGB(0, 0, 0)
+    c.setFillColorRGB(0, 0, 0)
+    c.setLineWidth(1)
+    c.rect(tbx * mm, tby * mm, _TB_W * mm, tbh * mm)
+    c.setLineWidth(0.4)
+    for yy in (16, 40, 64):
+        c.line(tbx * mm, (tby + tbh - yy) * mm, (tbx + _TB_W) * mm, (tby + tbh - yy) * mm)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString((tbx + 6) * mm, (_SHEET_H - tby - 12) * mm, "MASSING")
+    c.setFont("Helvetica", 7)
+    c.drawString((tbx + 6) * mm, (_SHEET_H - tby - 22) * mm, project[:34])
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString((tbx + 6) * mm, (_SHEET_H - (tby + tbh - 46)) * mm, title[:30])
+    c.setFont("Helvetica", 7)
+    scale_line = f"SCALE 1:{scale}" + (f"   {date}" if date else "")
+    c.drawString((tbx + 6) * mm, (_SHEET_H - (tby + tbh - 30)) * mm, scale_line)
+    if drawn_by:
+        c.drawString((tbx + 6) * mm, (_SHEET_H - (tby + tbh - 22)) * mm, f"DRAWN {drawn_by}")
+    c.setFont("Helvetica-Bold", 15)
+    c.drawRightString((tbx + _TB_W - 6) * mm, (_SHEET_H - (tby + tbh - 6)) * mm, number)
+    # north arrow (simple)
+    c.setFont("Helvetica", 7)
+    c.drawCentredString((tbx + _TB_W - 16) * mm, (_SHEET_H - tby - 32) * mm, "N")
+
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def _empty_svg() -> str:
     return ('<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 100 60">'
             f"<style>{_STYLE}</style>"

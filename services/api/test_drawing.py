@@ -69,6 +69,15 @@ assert ">N<" in ssvg and 'preserveAspectRatio="xMidYMid meet"' in ssvg, "no plan
 assert "KEYNOTES" in ssvg, "plan (with keynotes) not embedded in the sheet"
 assert sh["number"] == "A-101" and sh["plan"]["elements"] == 6, sh
 
+# --- C3b sheet PDF: valid PDF bytes rendered via reportlab -------------------------------------------
+pdf = drawing.sheet_pdf(m, scale=100, project="Riverside Mixed-Use", number="A-101", title="FIRST FLOOR PLAN")
+assert isinstance(pdf, (bytes, bytearray)) and pdf[:5] == b"%PDF-", pdf[:16]
+assert b"%%EOF" in pdf[-1024:], "PDF not finalized"
+assert len(pdf) > 1500, f"PDF too small ({len(pdf)} bytes)"
+# a bogus storey → still a valid (border+titleblock-only) PDF, no crash
+pdf_empty = drawing.sheet_pdf(m, storey="Nonexistent Level")
+assert pdf_empty[:5] == b"%PDF-", "empty-storey PDF invalid"
+
 # storey filter: a bogus storey name → no elements → empty-but-valid SVG
 empty = drawing.plan_svg(m, storey="Nonexistent Level")
 assert empty["elements"] == 0 and empty["svg"].startswith("<svg"), empty

@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.263 — Wave 11 · C3b: sheet PDF export (the submittable deliverable)
+
+**The payoff of the whole chain: a PDF you can submit to the AHJ.** A new **⤓ Sheet PDF (A-101)** tool renders
+the issuable sheet — ARCH-D border + titleblock + plan **poché** + overall dimensions + keynote legend —
+**directly to PDF** via `reportlab` (BSD, already a dependency; no SVG→PDF converter, no AGPL). Everything on
+the sheet comes from the model: geometry from the authored profiles, keynotes from the Track-D spec codes.
+
+Model → author → auto-detail (IBC flashing rules) → **PDF construction sheet**, all in the browser, offline,
+GUID-stable, no Revit/Autodesk. Engine `drawing.py::sheet_pdf`; `GET /projects/{id}/drawings/sheet.pdf`.
+`test_drawing.py` verifies valid PDF bytes (`%PDF`/`%%EOF`, non-trivial size, empty-storey safety). Next:
+computed schedules on the sheet, sections/elevations, per-GUID cache.
+
 ## v0.3.262 — Wave 11 · C3: issuable sheets + titleblock
 
 The plan becomes a **sheet you can issue.** A new **📄 Issue sheet (A-101)** tool composes an **ARCH-D
