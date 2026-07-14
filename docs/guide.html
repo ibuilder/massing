@@ -487,6 +487,41 @@
       condition against the design. It streams from your file — nothing leaves the browser.</li>
   </ol>
 
+  <h2 id="openbim-data">Tutorial 🧬 · openBIM data tools (Wave 9)</h2>
+  <p class="sub">Six data-layer tools that make the model coordinated, checkable, and searchable — all in
+    the <b>Model</b> workspace's <b>Tools</b> rail (Coordination &amp; QA, plus Grid &amp; Levels).</p>
+  <ol class="steps">
+    <li><b>🔧 Normalize properties</b> — the <i>transform</i> step between IDS validation and COBie/export.
+      Federated models name the same thing differently (<code>Fire_Rating</code> vs <code>FireRating</code>);
+      this <b>detects</b> every pset/property in the model, lets you build <b>remap rules</b>
+      (source <i>Pset.Prop</i> → target, with type coercion + move/copy), <b>previews</b> the match counts,
+      then rewrites the IFC by GUID so pins/RFIs survive. Turns messy inputs into standards-clean data.</li>
+    <li><b>🏛 Occupancy &amp; egress (IBC pre-check)</b> — computes the <b>occupant load</b> per space
+      (IBC 1004.5 area factors by occupancy) and building total, the <b>required egress width</b>
+      (load × 0.15 in) vs the provided egress-door width, plus a 32-in min-door check and a
+      two-exits-when-load&gt;49 flag — all with cited IBC sections. A design-stage <i>pre-check / assist</i>,
+      not a certified review or a substitute for the AHJ.</li>
+    <li><b>🧬 Property layers (IFC5 overlays)</b> — IFC5-style <b>non-destructive composition</b>: stack
+      named override layers (base → discipline → coordination), each carrying property overrides from the
+      selected element. The strongest enabled layer wins, disagreements surface as <b>conflicts</b> (with
+      provenance + both values — the data-world twin of clash detection), and <b>Bake</b> flattens the
+      result into a GUID-stable IFC version. Nothing touches the model until you bake.</li>
+    <li><b>🕸 Related elements (model graph)</b> — answers <i>relational</i> questions the property index
+      can't, straight from the IFC's own relationships: select an element and see its multi-hop
+      neighbourhood (its level, the openings in it, the space it bounds, everything on the same storey),
+      every hop <b>cited</b> by relationship. Click any related element to select it in 3D.</li>
+    <li><b>🪑 Furnish spaces</b> (Grid &amp; Levels) — generative fit-out: grids real
+      <b>IfcFurnishingElement</b> (desk / table / bed / sofa templates) into every room's footprint with
+      aisle clearances, contained in the right storey — so the furniture flows into QTO / BOM / COBie.</li>
+    <li><b>🏗 Site logistics (4D timeline)</b> — place temporary construction resources (crane with a reach
+      ring, hoist, laydown, gate, fence, haul route) in project coordinates with a <b>schedule window</b>.
+      They render as 3D glyphs and <b>time-phase by date</b>: pick a date and only what's active then is
+      shown — a constructability + site-safety rehearsal on the model.</li>
+  </ol>
+  <div class="note">All six keep IFC the source of truth (permissive licenses, offline), and each is a
+    thin, honest slice — code-checking is a pre-check, the graph is the model half (spec/code ingestion is
+    a follow-up), and logistics is the static time-phased first step (equipment motion is a follow-up).</div>
+
   <h2 id="glossary">Glossary — plain English</h2>
   <table class="gl">
     <tr><td>IFC</td><td>The open file format for building models. The platform's "source of truth" — every record points at an element's permanent IFC ID.</td></tr>

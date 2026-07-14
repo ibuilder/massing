@@ -60,6 +60,12 @@ pay app, COBie, work order, meter reading) tied to the same GlobalIds.
 - **BIM authoring + coordination** — from-scratch in-browser modeling (blank/template start, Draft
   toolkit, drag-to-move edit-in-place, manage levels, model browser with group-by/search, selection
   sets), clash detection, IDS validation.
+- **openBIM data depth (Wave 9)** — **property mapping / normalization** (remap vendor psets onto an
+  IDS/employer structure, the transform between validation and export); **IFC5-style property-override
+  layers** (non-destructive composition with conflict detection + bake); a **semantic model graph**
+  (multi-hop, cited IFC-relationship queries); **computed code pre-check** (occupancy load + egress
+  capacity, IBC-cited); **generative fit-out** (auto-furnish spaces); and **site logistics on the 4D
+  timeline** (schedule-windowed cranes/laydown/gates).
 - **AI over the model** — an MCP server so external agents (Claude Desktop) can drive the project,
   drawing-sheet extraction, and grounded standards experts. Offline-first; nothing fabricated.
 - **Construction management** — RFIs, submittals, change orders, pay apps, 4D/5D.

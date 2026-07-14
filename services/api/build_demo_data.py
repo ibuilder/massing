@@ -519,6 +519,8 @@ with TestClient(app) as c:
                  "/naming/audit", "/naming/conventions", "/model/columnar/stats", "/model/grid",
                  # model browser (tree group-by/search + selection sets) + the level manager read these
                  "/elements?limit=5000", "/drawings/storeys",
+                 # Wave 9 openBIM data tools: property normalization, code pre-check, IFC5 layers, graph, logistics
+                 "/propmap/detect", "/codecheck/egress", "/graph", "/layers", "/logistics",
                  "/model/columnar/aggregate", "/drawings/sync-status",
                  "/documents/tree", "/documents/health", "/documents/template",
                  "/documents/by-role?role=Superintendent", "/documents/phase-gaps?phase=CD",
