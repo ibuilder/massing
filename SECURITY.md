@@ -1,9 +1,15 @@
 # Security policy
 
 ## Reporting a vulnerability
-Please report security issues privately via a [GitHub security advisory](https://github.com/ibuilder/massing/security/advisories/new)
-(or email the maintainer). Do not open a public issue for an unpatched vulnerability. We aim to
-acknowledge within a few days and to ship a fix or mitigation promptly.
+Please report security issues **privately** — do not open a public issue for an unpatched
+vulnerability. Use either private channel:
+
+- **Email (preferred):** [builder@massing.cloud](mailto:builder@massing.cloud). PGP available on request.
+- **GitHub:** a [private security advisory](https://github.com/ibuilder/massing/security/advisories/new)
+  (via the repository's **Security → Advisories → Report a vulnerability** button).
+
+We aim to acknowledge within a few days and to ship a fix or mitigation promptly. Please include steps
+to reproduce, affected version/commit, and impact.
 
 ## Threat model
 The platform ships in two postures:
