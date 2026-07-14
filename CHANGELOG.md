@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.245 — Wave 9 · W9-1: property mapping / normalization
+
+The missing **transform** verb between IDS-validate and COBie-export. Federated models name the same
+concept differently (`Pset_WallCommon.FireRating` vs a vendor's `Fire_Rating`); IDS flags the mismatch
+but nothing fixed it. New **🔧 Normalize properties** tool (Coordination & QA): **detect** every
+pset/property actually on the model (with counts + samples), build remap **rules** (source Pset.Prop →
+target Pset.Prop, with type coercion and move/copy semantics), **preview** the match counts (dry-run),
+then **apply** — a GUID-stable `map_properties` edit recipe rewrites the IFC and republishes, so pins /
+RFIs / clashes survive. `propmap.py` engine + `/propmap/detect` + `/propmap/plan` endpoints +
+`test_propmap.py`. Verified live: `Pset_WallCommon.ThicknessMm` → `Qto_WallBaseQuantities.Width` across
+12 walls (source removed, target written, GUIDs preserved). First item of the Wave 9 research scan.
+
 ## v0.3.244 — Mobile UX polish (phone-viewport touch targets + nav)
 
 Tuned the header for phones (≤560px): the workspace switcher becomes its own **horizontally-scrollable

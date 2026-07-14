@@ -14,6 +14,14 @@ export interface ElementProps {
   qtos: Record<string, Record<string, unknown>>;
 }
 
+/** A property-normalization rule (W9-1): remap a source pset/prop onto a target structure. */
+export interface PropMapRule {
+  from_pset: string; from_prop: string;
+  to_pset?: string; to_prop: string;
+  cast?: "string" | "number" | "bool";
+  keep_source?: boolean;
+}
+
 /** Project-scoped capability role, least→most privileged. */
 export type ProjectRole = "viewer" | "reviewer" | "editor" | "admin";
 

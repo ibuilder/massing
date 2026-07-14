@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.244**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.245**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
@@ -71,11 +71,11 @@ type/instance model), PM/CM stacks + cost-management (GC portal + proforma/EVM),
 + `ncr` modules), a description→code-sections assistant (`codecheck.py`), and manual calibrated PDF takeoff.
 The genuinely **net-new, permissive-license, buildable** items, ranked:
 
-- **W9-1 — Property mapping / normalization engine** *(S–M · net-new)* — the missing **transform** verb
-  between IDS-validate and COBie-export. A `propmap.py` rules engine remaps a source model's psets/props
-  onto a target (IDS/employer) structure via a GUID-stable ifcopenshell recipe (unit/type coercion,
-  auto-suggest from a pinned IDS/bSDD), with preview-diff + apply. *Turns messy federated inputs into
-  standards-clean IFC — closes the loop between our IDS check and deliverable export.* (ifcmapping.com)
+- ~~**W9-1 — Property mapping / normalization engine**~~ — ✅ **SHIPPED (v0.3.245)**: the **transform** verb
+  between IDS-validate and COBie-export. `propmap.py` (`detect` present psets/props → `plan` dry-run → `apply`)
+  + a GUID-stable `map_properties` recipe (move/copy semantics, type coercion) + `/propmap/detect` + `/propmap/plan`
+  + a **🔧 Normalize properties** tool + `test_propmap.py`. Verified live remapping 12 walls' non-standard
+  `ThicknessMm` onto `Qto_WallBaseQuantities.Width`. (ifcmapping.com)
 - **W9-2 — Code-compliance depth: occupancy load + egress capacity** *(M · partial→depth)* — we already
   ship a **description→IBC-sections** assistant (`codecheck.py`) and a **data-readiness** element check
   (`/elements/code-check`: presence + minimum widths). Net-new depth: compute **occupancy load** (IfcSpace

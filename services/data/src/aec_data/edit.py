@@ -836,7 +836,15 @@ RECIPES = {
                                             p.get("storey")),
     "set_classification": lambda m, p: set_classification(m, p["guid"], p["system"], p["code"],
                                                           p.get("name"), p.get("edition")),
+    # W9-1 property normalization: remap source psets/props onto a target (IDS/employer) structure
+    "map_properties": lambda m, p: _map_properties(m, p["rules"]),
 }
+
+
+def _map_properties(model: ifcopenshell.file, rules) -> int:
+    """Bulk property remap (Wave 9 W9-1) — delegate to the propmap engine; returns values changed."""
+    from . import propmap
+    return propmap.apply(model, rules)
 
 
 def _coerce(v, dtype):

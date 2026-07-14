@@ -10,7 +10,7 @@ import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DocFolderNode, DrawingMarkupItem, DueFeed, ElementProps, EnergyResult, FinancialStatements,
   IntegrationGroup, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
-  NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole,
+  NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropMapRule,
   RecordAttachmentMeta, RelatedRecords, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, StampTemplate, SyncScheduleItem,
   Topic, Vec3, Viewpoint, WorkItem,
 } from "./types";
@@ -1160,6 +1160,16 @@ export class ApiClient extends HttpCore {
   // 2D documentation
   drawingStoreys(pid: string) {
     return this.json<{ name: string | null; elevation: number; guid: string }[]>(`/projects/${pid}/drawings/storeys`);
+  }
+
+  // W9-1 property mapping / normalization — the transform verb between IDS-validate and COBie-export
+  propmapDetect(pid: string) {
+    return this.json<{ element_count: number; properties: { pset: string; prop: string; count: number; kind: string; sample: string }[] }>(
+      `/projects/${pid}/propmap/detect`);
+  }
+  propmapPlan(pid: string, rules: PropMapRule[]) {
+    return this.json<{ dry_run: boolean; changed: number; rules: { from: string; to: string; matched: number; cast: string; keep_source: boolean; samples: { guid: string; from: string; to: string }[] }[] }>(
+      `/projects/${pid}/propmap/plan`, { method: "POST", body: JSON.stringify({ rules }) });
   }
 
   // real-estate development finance (Proforma)

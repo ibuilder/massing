@@ -27,7 +27,7 @@ import { GridOverlay } from "./draft/gridOverlay";
 import { DraftProxyLayer } from "./draft/draftProxy";
 import { TransformGizmo } from "./draft/transformGizmo";
 import { PinOverlay, restoreCamera } from "../pins/pins";
-import { type ApiClient, type ElementProps, type Topic } from "../api/client";
+import { type ApiClient, type ElementProps, type PropMapRule, type Topic } from "../api/client";
 import { escapeHtml, fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
 import { showResult, kvTable, resultNote } from "../ui/result";
 
@@ -1648,6 +1648,64 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               + "with a total station, then upload that CSV to verify deviation by point number.", "ok"));
           });
         })));
+        b.appendChild(toolBtn2("🔧 Normalize properties (IDS-ready)", async () => {
+          if (!projectId) { notify("connect a project first", "error"); return; }
+          let det;
+          try { det = await api.propmapDetect(pid); }
+          catch { toast("Property normalization needs a source IFC", "error"); return; }
+          showResult("Normalize properties → standard structure", (body) => {
+            body.appendChild(resultNote(`Remap this model's property names onto a standard (IDS / employer) structure — the <b>transform</b> step between IDS validation and COBie/export. Each rule moves a source <i>Pset.Property</i> to a target across every element, GUID-stable. Model has <b>${det!.element_count}</b> elements.`, "ok"));
+            const rules: PropMapRule[] = [];
+            const mk = (ph: string) => { const i = document.createElement("input"); i.className = "portal-filter"; i.placeholder = ph; i.style.cssText = "font-size:12px;margin:2px;flex:1 1 90px;min-width:0"; return i; };
+            const fromPset = mk("from Pset"), fromProp = mk("from Prop"), toPset = mk("to Pset (blank = same)"), toProp = mk("to Prop");
+            const cast = document.createElement("select"); cast.className = "portal-filter"; cast.style.cssText = "font-size:12px;margin:2px";
+            for (const c of ["string", "number", "bool"]) { const o = document.createElement("option"); o.value = c; o.textContent = c; cast.appendChild(o); }
+            const lbl = document.createElement("div"); lbl.className = "meta"; lbl.style.marginTop = "6px"; lbl.textContent = "Detected properties (click to use as source):";
+            const detWrap = document.createElement("div"); detWrap.style.cssText = "max-height:130px;overflow:auto;margin:4px 0;border:1px solid var(--line);border-radius:6px";
+            for (const p of det!.properties.slice(0, 80)) {
+              const row = document.createElement("div"); row.className = "tree-leaf"; row.style.cssText = "padding:3px 8px;cursor:pointer;font-size:12px";
+              row.textContent = `${p.pset}.${p.prop}  ·  ${p.count}×  ·  e.g. ${p.sample}`;
+              row.onclick = () => { fromPset.value = p.pset; fromProp.value = p.prop; };
+              detWrap.appendChild(row);
+            }
+            body.append(lbl, detWrap);
+            const form = document.createElement("div"); form.style.cssText = "display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin:4px 0";
+            const arrow = document.createElement("span"); arrow.textContent = "→"; arrow.style.margin = "0 2px";
+            const addBtn = document.createElement("button"); addBtn.className = "mini-btn"; addBtn.textContent = "+ rule";
+            form.append(fromPset, fromProp, arrow, toPset, toProp, cast, addBtn);
+            body.appendChild(form);
+            const ruleList = document.createElement("div"); ruleList.style.margin = "6px 0"; body.appendChild(ruleList);
+            const status = document.createElement("div"); status.className = "meta"; status.style.marginTop = "6px";
+            const drawRules = () => {
+              ruleList.innerHTML = "";
+              rules.forEach((r, i) => {
+                const row = document.createElement("div"); row.className = "selset-row";
+                row.innerHTML = `<span class="selset-name" style="cursor:default">${escapeHtml(r.from_pset)}.${escapeHtml(r.from_prop)} → ${escapeHtml(r.to_pset || r.from_pset)}.${escapeHtml(r.to_prop)} <span class="meta">(${r.cast})</span></span>`;
+                const del = document.createElement("button"); del.className = "selset-del"; del.textContent = "✕";
+                del.onclick = () => { rules.splice(i, 1); drawRules(); };
+                row.appendChild(del); ruleList.appendChild(row);
+              });
+            };
+            addBtn.onclick = () => {
+              if (!fromPset.value.trim() || !fromProp.value.trim() || !toProp.value.trim()) { notify("need from Pset + from Prop + to Prop", "error"); return; }
+              rules.push({ from_pset: fromPset.value.trim(), from_prop: fromProp.value.trim(), to_pset: toPset.value.trim() || undefined, to_prop: toProp.value.trim(), cast: cast.value as PropMapRule["cast"] });
+              fromProp.value = ""; toProp.value = ""; status.textContent = ""; drawRules();
+            };
+            const actions = document.createElement("div"); actions.style.cssText = "display:flex;gap:6px;margin-top:4px";
+            const preview = document.createElement("button"); preview.className = "mini-btn"; preview.textContent = "👁 Preview";
+            preview.onclick = async () => {
+              if (!rules.length) { notify("add a rule first", "error"); return; }
+              try { const pl = await api.propmapPlan(pid, rules); status.textContent = `${pl.changed} value(s) would change — ` + pl.rules.map((r) => `${r.to}: ${r.matched}`).join(" · "); }
+              catch (e) { notify((e as Error).message, "error"); }
+            };
+            const apply = document.createElement("button"); apply.className = "mini-btn"; apply.textContent = "✔ Apply + republish";
+            apply.onclick = async () => {
+              if (!rules.length) { notify("add a rule first", "error"); return; }
+              await authorAndReload("map_properties", { rules }, `normalize ${rules.length} propert${rules.length === 1 ? "y" : "ies"}`);
+            };
+            actions.append(preview, apply); body.append(actions, status);
+          });
+        }));
         b.appendChild(toolBtn2("🏛 Load takedown (preliminary)", async () => {
           let d; try { d = await api.loadsDefaults(pid); } catch { d = { storey_count: 0, column_count: 0, storey_names: [] }; }
           const v = await promptModal("Preliminary gravity load takedown",

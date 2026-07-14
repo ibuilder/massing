@@ -55,6 +55,29 @@ def list_types(pid: str, db: Session = Depends(get_db), _: str = Depends(require
     return {"types": ed.list_types(open_model(p.source_ifc))}
 
 
+@router.get("/projects/{pid}/propmap/detect")
+def propmap_detect(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W9-1: every (pset, property) actually present on the model's elements — the 'source' side a
+    user normalizes FROM — with occurrence counts + a sample value. Feeds the property-mapping UI."""
+    from aec_data import propmap  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return propmap.detect(open_model(p.source_ifc))
+
+
+@router.post("/projects/{pid}/propmap/plan")
+def propmap_plan(pid: str, rules: list[dict] = Body(..., embed=True),
+                 db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """W9-1 dry-run: how many elements each remap rule would touch, with before/after samples. No
+    mutation — apply for real via POST /edit {recipe: "map_properties", params: {rules}}."""
+    from aec_data import propmap  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return propmap.plan(open_model(p.source_ifc), rules)
+
+
 @router.get("/families/catalog")
 def family_catalog(_: str = Depends(current_user)):
     """Starter IFC family library (furniture / sanitary / appliances / plants) you can add to any
