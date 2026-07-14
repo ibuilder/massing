@@ -78,6 +78,100 @@ def propmap_plan(pid: str, rules: list[dict] = Body(..., embed=True),
     return propmap.plan(open_model(p.source_ifc), rules)
 
 
+# --- W9-3: IFC5-style non-destructive property-override layers ---------------------------------------
+@router.get("/projects/{pid}/layers")
+def get_layers(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The project's property-override layer stack (composes over the model without mutating the IFC)."""
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    return p.prop_layers or {"layers": []}
+
+
+@router.put("/projects/{pid}/layers")
+def put_layers(pid: str, stack: dict = Body(...), db: Session = Depends(get_db),
+               actor: str = Depends(require_role("editor"))):
+    """Replace the layer stack. Pure data — nothing is written to the IFC until baked."""
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    p.prop_layers = {"layers": stack.get("layers", [])}
+    audit.record(db, action="layers.save", actor=actor, method="PUT", path=f"/projects/{pid}/layers",
+                 detail={"layers": len(p.prop_layers["layers"])})
+    db.commit()
+    return p.prop_layers
+
+
+def _base_lookup(source_ifc: str):
+    """A (guid, pset, prop) -> current model value resolver over the source IFC, for annotating what
+    each override overrides. Opens the model once and caches element lookups by GUID."""
+    import ifcopenshell.util.element as ue  # type: ignore
+
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    model = open_model(source_ifc)
+    cache: dict = {}
+
+    def lookup(guid: str, pset: str, prop: str):
+        el = cache.get(guid)
+        if el is None:
+            try:
+                el = model.by_guid(guid)
+            except Exception:  # noqa: BLE001
+                el = False
+            cache[guid] = el
+        if not el:
+            return None
+        d = ue.get_pset(el, pset)
+        return d.get(prop) if isinstance(d, dict) else None
+
+    return lookup
+
+
+@router.get("/projects/{pid}/layers/resolve")
+def resolve_layers(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Compose the enabled layers into effective values, with provenance + cross-layer conflicts —
+    the data-world twin of clash detection. Non-destructive; the IFC is untouched until baked."""
+    from .. import layers as _layers
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    stack = (p.prop_layers or {}).get("layers", [])
+    has_ifc = bool(p.source_ifc and Path(p.source_ifc).exists())
+    lookup = _base_lookup(p.source_ifc) if (stack and has_ifc) else None
+    return _layers.resolve(stack, lookup)
+
+
+@router.post("/projects/{pid}/layers/bake")
+def bake_layers(pid: str, publish: bool = Body(default=True, embed=True),
+                db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """Flatten the resolved composition into the IFC (each effective override -> a GUID-stable pset
+    edit), producing a new version. Republishes so pins/RFIs/clashes survive."""
+    from aec_data import edit as ed  # type: ignore
+
+    from .. import layers as _layers
+
+    p = _project(db, pid)
+    stack = (p.prop_layers or {}).get("layers", [])
+    overrides = _layers.bake_overrides(stack)
+    if not overrides:
+        return {"baked": 0, "message": "no enabled overrides to bake"}
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+    out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+    result = ed.apply_recipe(p.source_ifc, "apply_layers", {"overrides": overrides}, out)
+    p.source_ifc = out
+    audit.record(db, action="layers.bake", actor=actor, method="POST",
+                 path=f"/projects/{pid}/layers/bake", detail={"baked": result["changed"]})
+    db.commit()
+    out_body = {"baked": result["changed"]}
+    if publish:
+        _publish_bg(pid)
+        out_body["publish"] = "running"
+    return out_body
+
+
 @router.get("/families/catalog")
 def family_catalog(_: str = Depends(current_user)):
     """Starter IFC family library (furniture / sanitary / appliances / plants) you can add to any

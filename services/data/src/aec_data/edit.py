@@ -838,6 +838,8 @@ RECIPES = {
                                                           p.get("name"), p.get("edition")),
     # W9-1 property normalization: remap source psets/props onto a target (IDS/employer) structure
     "map_properties": lambda m, p: _map_properties(m, p["rules"]),
+    # W9-3 bake resolved IFC5-style override layers into the model (each override -> set_element_pset)
+    "apply_layers": lambda m, p: _apply_layers(m, p["overrides"]),
 }
 
 
@@ -845,6 +847,19 @@ def _map_properties(model: ifcopenshell.file, rules) -> int:
     """Bulk property remap (Wave 9 W9-1) — delegate to the propmap engine; returns values changed."""
     from . import propmap
     return propmap.apply(model, rules)
+
+
+def _apply_layers(model: ifcopenshell.file, overrides) -> int:
+    """Bake resolved override layers (Wave 9 W9-3): write each effective {guid,pset,prop,value} into
+    the IFC via set_element_pset. GUID-stable; a bad element never aborts the batch."""
+    n = 0
+    for o in overrides:
+        try:
+            set_element_pset(model, o["guid"], o["pset"], o["prop"], o.get("value"), o.get("dtype", "str"))
+            n += 1
+        except Exception:  # noqa: BLE001, S112
+            continue
+    return n
 
 
 def _coerce(v, dtype):

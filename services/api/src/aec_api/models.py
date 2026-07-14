@@ -33,6 +33,9 @@ class Project(Base):
     dev_specialty: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # property & tax assumptions: parcel/areas/purchase/taxes (dev_property.py)
     dev_property: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # W9-3: IFC5-style non-destructive property-override layer stack {"layers": [...]} — composes over
+    # the model without mutating the IFC until baked. See layers.py.
+    prop_layers: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     topics: Mapped[list[Topic]] = relationship(back_populates="project", cascade="all, delete-orphan")

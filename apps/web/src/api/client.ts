@@ -10,7 +10,7 @@ import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DocFolderNode, DrawingMarkupItem, DueFeed, ElementProps, EnergyResult, FinancialStatements,
   IntegrationGroup, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
-  NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropMapRule,
+  NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   RecordAttachmentMeta, RelatedRecords, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, StampTemplate, SyncScheduleItem,
   Topic, Vec3, Viewpoint, WorkItem,
 } from "./types";
@@ -996,6 +996,25 @@ export class ApiClient extends HttpCore {
       spaces: { guid: string; name: string | null; occupancy: string; area_ft2: number | null; load: number | null; needs_2_exits?: boolean; note?: string }[];
       citations: string[]; disclaimer: string;
     }>(`/projects/${pid}/codecheck/egress`);
+  }
+
+  // W9-3 IFC5-style property-override layers (non-destructive composition over the model)
+  getLayers(pid: string) {
+    return this.json<{ layers: PropLayer[] }>(`/projects/${pid}/layers`);
+  }
+  putLayers(pid: string, layers: PropLayer[]) {
+    return this.json<{ layers: PropLayer[] }>(`/projects/${pid}/layers`, { method: "PUT", body: JSON.stringify({ layers }) });
+  }
+  resolveLayers(pid: string) {
+    return this.json<{
+      layers: { name: string; enabled: boolean; overrides: number }[];
+      overrides: { guid: string; pset: string; prop: string; base: unknown; effective: unknown; winning_layer: string; setters: string[] }[];
+      conflicts: { guid: string; pset: string; prop: string; winning_layer: string; values: { layer: string; value: unknown }[] }[];
+      effective_count: number; conflict_count: number;
+    }>(`/projects/${pid}/layers/resolve`);
+  }
+  bakeLayers(pid: string) {
+    return this.json<{ baked: number; publish?: string; message?: string }>(`/projects/${pid}/layers/bake`, { method: "POST", body: JSON.stringify({ publish: true }) });
   }
 
   // pins / topics (Phase 4)

@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.246**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.247**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
@@ -83,11 +83,12 @@ The genuinely **net-new, permissive-license, buildable** items, ranked:
   `egress_from_model` + `/codecheck/egress` + a **🏛 Occupancy & egress** tool + tests. Pre-check/assist,
   not certified. Verified live (40-space model → 344 occupants, 51.6 in required). *Fire-separation between
   occupancies + BCF round-trip deferred as a follow-up.* (SPARC-FP; UpCodes/Solibri validate demand)
-- **W9-3 — IFC5 composition / property-override layers** *(M · net-new)* — exploit the part of IFC5 that
-  needs **no geometry engine**: USD-like **non-destructive overlay layers** (base → discipline →
-  coordination → override) resolving to an effective value with provenance + cross-layer conflict flags.
-  A `layers.py` engine over the property index; a "Layers" panel mirroring clash UX for data. *Advances the
-  IFC5 story ahead of the upstream geometry alpha, entirely at the data layer.* (biblus IFC5)
+- ~~**W9-3 — IFC5 composition / property-override layers**~~ — ✅ **SHIPPED (v0.3.247)**: USD-like
+  non-destructive overlay layers (base → strongest) composing over the model — strongest enabled layer wins,
+  conflicts flagged with provenance + both values, **bake** flattens to a GUID-stable IFC version. `layers.py`
+  + `Project.prop_layers` + `/layers` (GET/PUT) + `/layers/resolve` + `/layers/bake` + `apply_layers` recipe
+  + a **🧬 Property layers** tool + `test_layers.py`. Verified live (two-layer FireRating conflict → "2HR"
+  baked). (biblus IFC5)
 - **W9-4 — Semantic knowledge-graph over model + specs + code** *(L · staged, partial→depth)* — grow the
   property index into a queryable **graph**: nodes = IFC entities + extracted spec/code clauses; edges = IFC
   relationships (bounds / supports / has-opening / contained-in) + derived links (space → required rating).

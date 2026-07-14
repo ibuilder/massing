@@ -22,6 +22,13 @@ export interface PropMapRule {
   keep_source?: boolean;
 }
 
+/** One IFC5-style non-destructive property-override layer (W9-3). */
+export interface PropLayer {
+  name: string;
+  enabled: boolean;
+  overrides: { guid: string; pset: string; prop: string; value: unknown }[];
+}
+
 /** Project-scoped capability role, least→most privileged. */
 export type ProjectRole = "viewer" | "reviewer" | "editor" | "admin";
 

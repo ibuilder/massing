@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.247 — Wave 9 · W9-3: IFC5-style property-override layers
+
+Brings IFC5's compositional model to the data layer **today**, without waiting on the upstream geometry
+alpha. New **🧬 Property layers** tool: build an ordered stack of named, non-destructive **overlay
+layers** (base → discipline → coordination → override), each carrying `{guid, pset, prop, value}`
+overrides added from the selected element. They **compose over the model without mutating the IFC** — the
+strongest enabled layer wins, disagreements surface as **conflicts** (the data-world twin of clash
+detection, with provenance and both values), and **Resolve** shows the effective value + what it
+overrides. **Bake** flattens the composition into a new GUID-stable IFC version (so pins/RFIs/clashes
+survive) and republishes. `layers.py` engine + `Project.prop_layers` column + `/layers` (GET/PUT),
+`/layers/resolve`, `/layers/bake` + an `apply_layers` recipe + `test_layers.py`. Verified live: a two-layer
+FireRating conflict resolves to the coordination layer's "2HR" and bakes onto the wall.
+
 ## v0.3.246 — Wave 9 · W9-2: occupancy load + egress capacity (computed)
 
 Code-checking goes from *presence* to *computation*. New **🏛 Occupancy & egress** tool (Coordination &

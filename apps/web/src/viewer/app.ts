@@ -27,7 +27,7 @@ import { GridOverlay } from "./draft/gridOverlay";
 import { DraftProxyLayer } from "./draft/draftProxy";
 import { TransformGizmo } from "./draft/transformGizmo";
 import { PinOverlay, restoreCamera } from "../pins/pins";
-import { type ApiClient, type ElementProps, type PropMapRule, type Topic } from "../api/client";
+import { type ApiClient, type ElementProps, type PropLayer, type PropMapRule, type Topic } from "../api/client";
 import { escapeHtml, fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
 import { showResult, kvTable, resultNote } from "../ui/result";
 
@@ -1648,6 +1648,70 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               + "with a total station, then upload that CSV to verify deviation by point number.", "ok"));
           });
         })));
+        b.appendChild(toolBtn2("🧬 Property layers (IFC5 overlays)", async () => {
+          if (!projectId) { notify("connect a project first", "error"); return; }
+          let stack: PropLayer[];
+          try { stack = (await api.getLayers(pid)).layers; }
+          catch { toast("Could not load layers", "error"); return; }
+          showResult("Property-override layers — IFC5 composition", (body) => {
+            body.appendChild(resultNote(`Non-destructive <b>overlay layers</b> that compose over the model (IFC5-style) — the strongest enabled layer wins, disagreements surface as <b>conflicts</b>, and nothing touches the IFC until you <b>bake</b>. Layers are ordered base → strongest.`, "ok"));
+            const list = document.createElement("div"); list.style.margin = "6px 0";
+            const status = document.createElement("div"); status.className = "meta"; status.style.marginTop = "6px";
+            const draw = () => {
+              list.innerHTML = "";
+              stack.forEach((L, i) => {
+                const row = document.createElement("div"); row.className = "level-row";
+                const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = L.enabled !== false;
+                cb.onchange = () => { L.enabled = cb.checked; };
+                const nm = document.createElement("span"); nm.style.flex = "1"; nm.style.fontSize = "12px";
+                nm.textContent = `${i + 1}. ${L.name} `; const badge = document.createElement("span"); badge.className = "meta"; badge.textContent = `(${L.overrides.length} override${L.overrides.length === 1 ? "" : "s"})`; nm.appendChild(badge);
+                const del = document.createElement("button"); del.className = "selset-del"; del.textContent = "✕";
+                del.onclick = () => { stack.splice(i, 1); draw(); };
+                row.append(cb, nm, del); list.appendChild(row);
+              });
+              if (!stack.length) { const e = document.createElement("div"); e.className = "meta"; e.textContent = "No layers yet — add one, then add overrides from a selected element."; list.appendChild(e); }
+            };
+            draw(); body.appendChild(list);
+            // add-layer + add-override-from-selection
+            const addL = document.createElement("button"); addL.className = "mini-btn"; addL.textContent = "＋ Layer";
+            const ovForm = document.createElement("div"); ovForm.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;align-items:center;margin:6px 0";
+            const mk = (ph: string) => { const i = document.createElement("input"); i.className = "portal-filter"; i.placeholder = ph; i.style.cssText = "font-size:12px;margin:2px;flex:1 1 80px;min-width:0"; return i; };
+            const psetI = mk("Pset"), propI = mk("Prop"), valI = mk("value");
+            const layerSel = document.createElement("select"); layerSel.className = "portal-filter"; layerSel.style.cssText = "font-size:12px;margin:2px";
+            const drawSel = () => { layerSel.innerHTML = ""; stack.forEach((L, i) => { const o = document.createElement("option"); o.value = String(i); o.textContent = L.name; layerSel.appendChild(o); }); };
+            const addOv = document.createElement("button"); addOv.className = "mini-btn"; addOv.textContent = "＋ override (selected element)";
+            addOv.onclick = () => {
+              if (!selectedGuid) { notify("select an element in 3D first", "error"); return; }
+              if (!psetI.value.trim() || !propI.value.trim() || !stack.length) { notify("need a layer + Pset + Prop", "error"); return; }
+              const L = stack[Number(layerSel.value) || 0]; if (!L) { notify("add a layer first", "error"); return; }
+              L.overrides.push({ guid: selectedGuid, pset: psetI.value.trim(), prop: propI.value.trim(), value: valI.value });
+              propI.value = ""; valI.value = ""; draw(); status.textContent = `added override on ${selectedGuid.slice(0, 8)}… to “${L.name}”`;
+            };
+            addL.onclick = async () => { const n = await askText("New layer", { label: "Layer name (e.g. Fire coordination):", value: "" }); if (!n) return; stack.push({ name: n, enabled: true, overrides: [] }); draw(); drawSel(); };
+            drawSel();
+            body.append(addL, ovForm); ovForm.append(document.createTextNode("to "), layerSel, psetI, propI, valI, addOv);
+            const actions = document.createElement("div"); actions.style.cssText = "display:flex;gap:6px;margin-top:6px;flex-wrap:wrap";
+            const save = document.createElement("button"); save.className = "mini-btn"; save.textContent = "💾 Save layers";
+            save.onclick = async () => { try { await api.putLayers(pid, stack); notify("layers saved", "success"); } catch (e) { notify((e as Error).message, "error"); } };
+            const resolve = document.createElement("button"); resolve.className = "mini-btn"; resolve.textContent = "🔍 Resolve + conflicts";
+            resolve.onclick = async () => {
+              try { await api.putLayers(pid, stack); const r = await api.resolveLayers(pid);
+                status.innerHTML = `<b>${r.effective_count}</b> effective override(s) · <b>${r.conflict_count}</b> conflict(s)`
+                  + (r.conflicts.length ? "<br>" + r.conflicts.slice(0, 6).map((c) => `⚠ ${escapeHtml(c.pset)}.${escapeHtml(c.prop)}: ${c.values.map((v) => `${escapeHtml(String(v.value))} (${escapeHtml(v.layer)})`).join(" vs ")} → wins <b>${escapeHtml(c.winning_layer)}</b>`).join("<br>") : "");
+              } catch (e) { notify((e as Error).message, "error"); }
+            };
+            const bake = document.createElement("button"); bake.className = "mini-btn on"; bake.textContent = "🔥 Bake to IFC";
+            bake.onclick = async () => {
+              if (!(await confirmModal("Bake the composed layers into the IFC? This writes the effective values as a new model version (GUID-stable).", "", "Bake", false))) return;
+              await api.putLayers(pid, stack).catch(() => {});
+              await withLoading(container, "Baking layers + republishing", async () => {
+                try { const r = await api.bakeLayers(pid); notify(`baked ${r.baked} override(s) — converting…`, "info"); await waitForPublish(pid); await loadProjectModel(); notify("layers baked into the model", "success"); }
+                catch (e) { notify((e as Error).message, "error"); }
+              });
+            };
+            actions.append(save, resolve, bake); body.append(actions, status);
+          });
+        }));
         b.appendChild(toolBtn2("🏛 Occupancy & egress (IBC pre-check)", () => withLoading(container, "Computing occupancy load + egress", async () => {
           let r;
           try { r = await api.codecheckEgress(pid); }
