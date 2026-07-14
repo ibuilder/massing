@@ -430,7 +430,7 @@ this spine first; every track hangs off it.
   recipe + `test_rebar.py`). **MEP fittings ✅ SHIPPED v0.3.268** — `add_mep_fitting` (elbow/junction/
   transition fitting with ports + system assignment) + `mep.py::mep_summary` (system browser + connectivity
   signal); 🔀 tools + `GET /mep` + `test_mep_systems.py`. Also v0.3.268: fixed a `sheet_svg` empty-model crash
-  + added `test_wave11_edges.py` (~30 edge cases across all 8 Wave 11 modules). *Next: curtain-wall systems.*
+  + added `test_wave11_edges.py` (~30 edge cases across all 8 Wave 11 modules). **Curtain-wall ✅ SHIPPED v0.3.270** — `curtainwall.py::add_curtain_wall` (IfcCurtainWall aggregating mullions + transoms + glazing panels on a bays×rows grid, unit-scale-correct); 🪟 tool + recipe + `test_curtainwall.py`. **B6 domain-geometry catalog complete** (steel connections · rebar · MEP fittings · curtain-wall).
 - **C · Construction-document generation (the deliverable)** *(L)* — **C1 ✅ SHIPPED v0.3.260** — plan-drawing
   generator (`drawing.py::plan_svg`): derives footprints **directly from authored extruded-profile geometry**
   (no OCC — our geometry path is web-ifc, ifcopenshell's OCC engine produces no mesh here), class-styled poché

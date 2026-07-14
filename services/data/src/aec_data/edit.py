@@ -1117,7 +1117,17 @@ RECIPES = {
     "add_rebar_cage": lambda m, p: _rebar().add_rebar_cage(m, p["column_guid"], p.get("bar_size", "#8"),
                                                           p.get("tie_size", "#3"), float(p.get("cover", 0.04)),
                                                           float(p.get("tie_spacing", 0.25)), p.get("storey")),
+    "add_curtain_wall": lambda m, p: _cw().add_curtain_wall(m, p["start"], p["end"], float(p.get("height", 3.5)),
+                                                           int(p.get("cols", 3)), int(p.get("rows", 2)),
+                                                           float(p.get("mullion", 0.06)),
+                                                           float(p.get("panel_thickness", 0.03)), p.get("storey")),
 }
+
+
+def _cw():
+    """Lazy handle to the curtain-wall module."""
+    from . import curtainwall
+    return curtainwall
 
 
 def _rebar():

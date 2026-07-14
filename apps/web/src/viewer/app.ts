@@ -1994,9 +1994,24 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       mepSysBtn.title = "Browse IfcDistributionSystems — per-system segment/fitting/terminal counts, a "
         + "connectivity signal (elements with unconnected ports), and anything not yet assigned to a system.";
 
+      // W11 B6: curtain wall along a line (start = last-clicked point, end from a prompt).
+      const curtainBtn = toolBtn2("🪟 Curtain wall", async () => {
+        const start: [number, number] = lastPoint ? [lastPoint.x, -lastPoint.z] : [0, 0];
+        const endS = await askText("Curtain wall", { label: "End point E, N (metres) — start is the last click", value: `${(start[0] + 6).toFixed(1)}, ${start[1].toFixed(1)}` });
+        if (!endS) return;
+        const ep = endS.split(",").map((v) => Number(v.trim()));
+        const grid = await askText("Curtain wall", { label: "Bays × rows (cols, rows)", value: "3, 2" });
+        const g = (grid || "3,2").split(/[,x×]/).map((v) => Math.max(1, Math.round(Number(v.trim()) || 1)));
+        await authorAndReload("add_curtain_wall",
+          { start, end: [ep[0] ?? start[0] + 6, ep[1] ?? start[1]], cols: g[0] ?? 3, rows: g[1] ?? 2 },
+          "curtain wall");
+      });
+      curtainBtn.title = "Author an IfcCurtainWall along a line — vertical mullions + horizontal transoms + "
+        + "glazing panels on a bays×rows grid, aggregated as one assembly (LOD 350/400). GUID-stable.";
+
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
         phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, sheetBtn, pdfBtn, schedBtn,
-        basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, manage, levelsMgr);
+        basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------

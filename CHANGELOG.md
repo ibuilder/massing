@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.270 — Wave 11 · B6: curtain-wall systems
+
+Completes the B6 domain-geometry catalog. **🪟 Curtain wall** authors an `IfcCurtainWall` along a line that
+**aggregates** a real framing grid: vertical **mullions** + horizontal **transoms** (`IfcMember`, MULLION)
+bounding **glazing panels** (`IfcPlate`, CURTAIN_PANEL) on a bays×rows layout — one LOD-350/400 assembly,
+contained in the storey, GUID-stable. Oriented to the wall axis; profile dims are unit-scale-correct
+(verified identical real sizes on metre **and** millimetre models). Engine `curtainwall.py::add_curtain_wall`;
+`add_curtain_wall` recipe + viewer tool. `test_curtainwall.py` green.
+
 ## v0.3.269 — Fix: authoring correctness on non-metre models + egress door width
 
 Bug fixes from a parallel correctness-audit worktree (verified against real ifcopenshell):

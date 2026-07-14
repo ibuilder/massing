@@ -1024,6 +1024,11 @@ export class ApiClient extends HttpCore {
                opts: { bar_size?: string; tie_size?: string; cover?: number; tie_spacing?: number } = {}, publish = true) {
     return this.editIfc(pid, "add_rebar_cage", { column_guid: columnGuid, ...opts }, publish);
   }
+  /** W11 B6: author an IfcCurtainWall (mullions + transoms + glazing panels) along a line. */
+  addCurtainWall(pid: string, start: [number, number], end: [number, number],
+                 opts: { height?: number; cols?: number; rows?: number } = {}, publish = true) {
+    return this.editIfc(pid, "add_curtain_wall", { start, end, ...opts }, publish);
+  }
   /** W11 B6: MEP system browser — systems with segment/fitting/terminal counts + connectivity signal. */
   mepSummary(pid: string) {
     return this.json<{ total_systems: number; unassigned: { segments: number; fittings: number };
