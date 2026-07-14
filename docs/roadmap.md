@@ -254,3 +254,115 @@ interop — approval-gated journal export (v0.3.199) + model-quantity WIP % by G
 Wave 8 build ①–⑥ + ③b (v0.3.203–210).
 
 ---
+
+## 🔐 Sign-in & first-run onboarding (2026-07 research)
+
+**Goal:** make social sign-in the prominent default and sequence it into the tutorial — *without* a hard
+gate (the app runs free/offline without an account; a signup wall before the "aha" moment craters
+top-of-funnel for open/self-hostable tools). We already have Google + Microsoft OAuth (config-gated, shown
+above the password form), MFA, SSO/SAML/SCIM, and a first-run welcome modal + ≤5-step tour. This is
+**prominence + flow**, not new auth. Research-cited (Corbado social-login data, reverse-trial/value-first
+studies, Chameleon onboarding benchmarks, WorkOS on the Apple rule). Files:
+`apps/web/src/ui/onboarding.ts`, `apps/web/src/account/accountUI.ts`.
+
+**First slice (one sprint — the core ask):**
+- **B1 — optional sign-in as the welcome modal's first panel** *(M)* — a headline + one prominent
+  **Continue with Microsoft** + **Continue with Google** (only the providers the server has configured, via
+  `authProviders()`), a quiet "More options," and a clearly-visible **"Explore without an account →"** that
+  drops to the existing quick-start cards. Prominent, never a wall.
+- **B2 — sign-in → tour** *(S)* — after a successful sign-in *or* "Explore without an account", auto-launch
+  the existing tour and `markOnboarded()` once. Implements "prompt socials on startup → tutorial pops up."
+- **A1 — keep Google + Microsoft as co-equal visible defaults** *(S)* — Microsoft is the B2B/M365-Azure AD
+  pick our audience (GCs, developers, A/E) actually lives in; zero new backend.
+- **A2 — collapse everything else behind "More sign-in options"** *(S)* — password, org SSO/SAML, Procore —
+  kills the "NASCAR" six-logo decision paralysis at the highest-intent moment.
+- **C1 — reorder the sign-in modal to lead with one big provider button + "More options"** *(S)* — match the
+  first-run panel for consistency.
+
+**Fast-follow:**
+- **B3 — role self-selection right after sign-in** *(M)* — reuse the existing role picker as an inline step,
+  then gear the tools rail / tour to that role (role personalization is ~+40% retention; we already have the
+  role model, just surface it earlier).
+- **B4 — keep the tour ≤5 steps** *(S)* — repoint the old final "sign in" step now that sign-in moves to the
+  front (completion drops >50% past 5 steps).
+- **C2 — value-moment prompt** *(S)* — higher-contrast "Sign in" toolbar button + a "Sign in to save your
+  work" affordance once a guest has created/modified something (ask after a win, not a wall).
+
+**Deferred with explicit triggers:**
+- **A3 — Sign in with Apple** *(M)* — web-only today means Apple's "must also offer Sign in with Apple" rule
+  does **not** apply (it binds only a native App Store app that offers another social login); ~5% consumer
+  coverage + privacy relay. Build only alongside a native iOS wrapper; adds the $99/yr Apple Developer
+  Program + a private-relay email path.
+- **A4 — skip Facebook (net-negative, consumer-coded, high in-app-browser failure) and GitHub (wrong
+  audience); LinkedIn only if analytics show demand.**
+- **B5 — persistent quick-start checklist** *(L)* — checklist-launched tours convert best (~67%); a home for
+  secondary discovery, deferred past the first slice.
+
+*Privacy/mission guardrails: keep the guest/offline path fully functional; no telemetry/personal data before
+consent; SSO buttons stay config-gated so self-hosters don't advertise providers they haven't set up.*
+
+## 🏛️ Wave 10 — Full IFC authoring suite (Revit / Bonsai parity) — 2026-07 research
+
+**Goal:** grow the ~30-recipe engine into a genuine model-authoring suite (families, types, parametric
+generators, MEP systems, annotation, schedules, groups/phasing) — Revit + BlenderBIM/Bonsai capability in
+the browser, IFC-native.
+
+**The framing insight that drives the plan:** IFC has **no native parametric/constraint model** — it stores
+baked geometry + parameters-as-properties. So a "parametric family" must be **our generator** that (a) emits
+a baked `IfcRepresentationMap` and (b) stores its driving params as an `IfcPropertySet` on the
+`IfcTypeObject`; editing a param re-runs the generator and swaps the map. **This is exactly how Bonsai works
+— and Bonsai is built on the same ifcopenshell core we already use, so its techniques port straight to our
+Python recipes (no Blender dep).** We already have the load-bearing spine: `families.py` builds
+`IfcTypeProduct` + `RepresentationMap` and `edit.py::place_type` shares mapped geometry via `type.assign_type`
+— it's just box-only + parameter-less today. Wave 10 **deepens this spine**, it doesn't rebuild it. Nearly
+all of it is **pure ifcopenshell** (no new deps, no license risk).
+
+Ordering principle: foundations that multiply everything first → breadth → the genuinely-hard constraint
+solver last.
+
+- **W10-1 — Real type/family system (foundation)** *(M · pure ifcopenshell · highest leverage)* — promote the
+  box-only type path into a first-class family system: types carry **type Psets**, **material layer/profile
+  sets**, and multiple representations; occurrences inherit via `assign_type`; type edits propagate to all
+  occurrences (GUID-stable). `create_type` / `edit_type_params` / `assign_material_set` + `/types` endpoints +
+  a type browser/inspector. IFC: `IfcTypeProduct`, `RepresentationMap`, `IfcRelDefinesByType`,
+  `IfcMaterialLayerSet(Usage)` / `IfcMaterialProfileSet(Usage)`. *Depends on nothing — deepens existing code.*
+- **W10-2 — Parametric family generators (code-defined)** *(L · pure ifcopenshell; optional build123d/OCP)* —
+  each catalog entry becomes a **generator** with typed params + optional formulas; a param change re-runs it
+  and swaps the map; params persist as a type Pset. Ship a **profile library** (I/L/T/U/C/rect/circle) +
+  swept/boolean primitives so doors/windows/columns/casework are *generated*, not boxes. Freeform families via
+  an optional **build123d (Apache-2.0) / OCP (LGPL)** track bridged through `ifcopenshell.geom` BRep/tessellation.
+  IFC: profile defs, `IfcExtrudedAreaSolid`, `IfcBooleanClippingResult`. *Depends on W10-1.*
+- **W10-3 — Groups, assemblies, arrays & nested families** *(S · pure ifcopenshell · quick win)* — group/ungroup,
+  `IfcElementAssembly`, parametric arrays, nested/shared sub-components. IFC: `IfcGroup`+`IfcRelAssignsToGroup`,
+  `IfcElementAssembly`+`IfcRelAggregates`. *Depends on W10-1.*
+- **W10-4 — MEP systems, connectivity & sizing depth** *(M · pure ifcopenshell)* — upgrade current
+  segments/ports into fully-connected logical systems with port-to-port connectivity + flow/sizing psets +
+  a system browser + connectivity validation. IFC: `IfcDistributionSystem` via `IfcRelAssignsToGroup`,
+  `IfcRelConnectsPorts`, `IfcRelNests`, flow/sizing Psets. *Extends existing MEP recipes.*
+- **W10-5 — Annotation & tagging layer** *(M · pure ifcopenshell · UI-heavy)* — 2D annotation on the existing
+  plan/section/elevation views: tags (auto-pull type/mark), dimensions, text, detail items, keynotes (reuse
+  classification). IFC: `IfcAnnotation` (+`IfcTextLiteralWithExtent`, `IfcAnnotationFillArea`) in an
+  `Annotation`/`Plan` context; keynotes via `IfcRelAssociatesClassification`. *Depends on the drawing engine.*
+- **W10-6 — Schedules & quantity takeoff** *(M · pure ifcopenshell)* — attach quantity sets to elements;
+  compute schedule / keynote-legend views (schedules are computed, not stored) into the existing export
+  pipeline. IFC: `IfcElementQuantity` (`IfcQuantityLength/Area/Volume/Count`). *Depends on W10-1.*
+- **W10-7 — Structural analytical model** *(L · pure ifcopenshell · net-new domain)* — an analytical model
+  alongside the physical: analytical members/nodes, supports, load cases. IFC: `IfcStructuralAnalysisModel`,
+  `IfcStructuralCurveMember`/`SurfaceMember`, `IfcStructuralPointConnection`, `IfcStructuralLoadCase`,
+  `IfcRelConnectsStructuralActivity`. *Depends on the physical structural elements (exist).*
+- **W10-8 — Phasing & design options** *(S/M · pure ifcopenshell · mostly wiring)* — phase (existing/new/demo)
+  per element tied to the **4D timeline**; design options modeled on the **IFC5-style property-override
+  layers** we already ship. IFC: phasing Pset or `IfcTask`+`IfcRelAssignsToProcess`; options via override
+  layers / `IfcGroup`. *Reuses existing machinery.*
+- **W10-9 — Parametric constraints & dimensional locks (the hard one)** *(L · higher-risk · needs an LGPL
+  solver)* — geometric constraint solving (locks, equality, alignment) has **no IFC representation**; store
+  constraints in a sidecar model, solve, bake to IFC. Start with 1D/alignment locks; a full 2D sketch solver
+  is a research effort, not a sprint. **License:** use FreeCAD's **planegcs (LGPL, extractable)**; *avoid
+  python-solvespace (GPL) and OpenSCAD (GPL)*. *Depends on W10-2 — arguably diminishing returns for full parity.*
+
+**License map:** W10-1/3/4/6/8 are pure ifcopenshell (no deps, no risk); W10-2 freeform sub-track uses
+build123d/CadQuery (Apache-2.0) on OCP/OCCT (LGPL); W10-9 needs planegcs (LGPL). **Avoid:** OpenSCAD (GPL),
+python-solvespace (GPL), FreeCAD-as-app (GPL bits). **Skip entirely:** worksharing/worksets — no IFC concept
+and irrelevant to a server-recipe authoring model. **Honest hard-vs-easy:** the quick wins deepen APIs we
+already call; the genuine effort is the *family-editor UX* (live parametric feedback in the web viewer) and
+the W10-9 constraint solver.
