@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.248 — Wave 9 · W9-4: semantic model graph (v1)
+
+The property index answers attribute lookups ("this door's width"); it can't answer **relational**
+questions. New **🕸 Related elements** tool builds a typed graph straight from the model's own IFC
+relationships (`contained_in` · `aggregates` · `bounds` · `has_opening` · `fills` · `serves`) and, for
+the selected element, returns its **multi-hop neighbourhood with cited relationship paths** — e.g. a wall
+→ its level → everything else on that level. Click any related element to select it in 3D. `graph.py`
+(`build` + `neighbors`) + `/graph` (stats) + `/graph/neighbors` + `test_graph.py`. Verified live: 117
+nodes / 116 edges on a federated model; a wall reaches 38 related elements within two hops. (First,
+model-half slice — spec/code-document ingestion and NL→graph query are a deliberate follow-up.)
+
 ## v0.3.247 — Wave 9 · W9-3: IFC5-style property-override layers
 
 Brings IFC5's compositional model to the data layer **today**, without waiting on the upstream geometry

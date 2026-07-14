@@ -78,6 +78,30 @@ def propmap_plan(pid: str, rules: list[dict] = Body(..., embed=True),
     return propmap.plan(open_model(p.source_ifc), rules)
 
 
+# --- W9-4: semantic model graph (IFC relationships) -------------------------------------------------
+@router.get("/projects/{pid}/graph")
+def model_graph(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Graph stats — node + edge counts by relationship type (contained_in / aggregates / bounds /
+    has_opening / fills / serves), built from the model's own IfcRel* relationships."""
+    from aec_data import graph  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return graph.build(open_model(p.source_ifc))
+
+
+@router.get("/projects/{pid}/graph/neighbors")
+def model_graph_neighbors(pid: str, guid: str, depth: int = 1,
+                          db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The connected subgraph around an element out to `depth` hops — every related node cited by GUID +
+    the relationship path that reaches it. The multi-hop, relational answer the property index can't give."""
+    from aec_data import graph  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return graph.neighbors(open_model(p.source_ifc), guid, depth)
+
+
 # --- W9-3: IFC5-style non-destructive property-override layers ---------------------------------------
 @router.get("/projects/{pid}/layers")
 def get_layers(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):

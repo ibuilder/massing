@@ -1648,6 +1648,28 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               + "with a total station, then upload that CSV to verify deviation by point number.", "ok"));
           });
         })));
+        b.appendChild(toolBtn2("🕸 Related elements (model graph)", () => withLoading(container, "Building model graph", async () => {
+          if (!selectedGuid) { notify("select an element in 3D first", "error"); return; }
+          const guid = selectedGuid;
+          let r;
+          try { r = await api.graphNeighbors(pid, guid, 2); }
+          catch { toast("Needs a source IFC", "error"); return; }
+          if (!r.found) { toast("Element not in the graph", "error"); return; }
+          out.textContent = `${r.neighbor_count ?? 0} related`;
+          const relLabel: Record<string, string> = { contained_in: "is in", aggregates: "contains", bounds: "bounds", has_opening: "has opening", fills: "fills", serves: "serves" };
+          showResult("Related elements — model graph (IFC relationships)", (body) => {
+            body.appendChild(resultNote(`Multi-hop relationships from the selected element, straight from the model's IFC structure — every hop is cited by relationship. <b>${r!.neighbor_count ?? 0}</b> related element(s) within 2 hops.`, "ok"));
+            if (!r!.paths.length) { body.appendChild(resultNote("This element has no modelled relationships (no spatial containment, openings, or boundaries).", "")); return; }
+            for (const p of r!.paths.slice(0, 40)) {
+              const row = document.createElement("div"); row.className = "tree-leaf"; row.style.cssText = "cursor:pointer;padding:3px 6px;font-size:12px";
+              const chain = p.path.map((s) => `${s.dir === "out" ? "→" : "←"} ${relLabel[s.rel] || s.rel}`).join(" ");
+              row.innerHTML = `<b>${escapeHtml((p.name || p.class.replace("Ifc", "")))}</b> <span class="meta">${escapeHtml(p.class.replace("Ifc", ""))}</span> <span class="meta">${escapeHtml(chain)}</span>`;
+              row.title = "Select this element in 3D";
+              row.onclick = () => { void selectByGuid(p.guid, true); };
+              body.appendChild(row);
+            }
+          });
+        })));
         b.appendChild(toolBtn2("🧬 Property layers (IFC5 overlays)", async () => {
           if (!projectId) { notify("connect a project first", "error"); return; }
           let stack: PropLayer[];

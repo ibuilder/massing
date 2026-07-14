@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.247**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.248**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
@@ -89,12 +89,15 @@ The genuinely **net-new, permissive-license, buildable** items, ranked:
   + `Project.prop_layers` + `/layers` (GET/PUT) + `/layers/resolve` + `/layers/bake` + `apply_layers` recipe
   + a **🧬 Property layers** tool + `test_layers.py`. Verified live (two-layer FireRating conflict → "2HR"
   baked). (biblus IFC5)
-- **W9-4 — Semantic knowledge-graph over model + specs + code** *(L · staged, partial→depth)* — grow the
-  property index into a queryable **graph**: nodes = IFC entities + extracted spec/code clauses; edges = IFC
-  relationships (bounds / supports / has-opening / contained-in) + derived links (space → required rating).
-  NL→graph query returns **multi-hop, cited** answers (GUID + spec page + code section). Postgres-native
-  (recursive CTE / ltree — avoid GPL graph DBs). *Makes the whole project — not just the model — citably
-  queryable, and it's the explainability substrate under W9-2.* (AECFoundry; ASK-BIM / Graph-RAG-over-IFC)
+- **W9-4 — Semantic knowledge-graph over model + specs + code** *(L · staged)* — ✅ **v1 SHIPPED (v0.3.248)**:
+  a typed graph from the model's IFC relationships (contained_in / aggregates / bounds / has_opening / fills /
+  serves) with **multi-hop, cited neighbor queries** (`graph.py` + `/graph` + `/graph/neighbors` + a
+  **🕸 Related elements** tool + `test_graph.py`; 117 nodes/116 edges live, a wall reaches 38 within 2 hops).
+  *Still open (the harder half): ingesting **specs / drawings / code documents** as graph nodes + an NL→graph
+  query with cited sources — the piece that makes W9-2's code-checks explainable.* (AECFoundry; ASK-BIM)
+  *(Follow-up spec: ingest spec/code clauses as graph nodes + derived links (space → required rating) + an
+  NL→graph query returning cited answers with GUID + spec page + code section — the explainability substrate
+  under W9-2. AECFoundry; ASK-BIM / Graph-RAG-over-IFC.)*
 - **W9-5 — Site logistics & equipment-motion on the 4D slider** *(L; M first step · depth)* — the one real
   depth gap vs SYNCHRO: temporary resources (cranes / hoists / trucks / laydown / fencing) as first-class
   objects with time-bound 3D paths that **move** as the 4D slider advances, + crane-reach swept volumes

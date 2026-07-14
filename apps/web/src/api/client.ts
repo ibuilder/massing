@@ -998,6 +998,19 @@ export class ApiClient extends HttpCore {
     }>(`/projects/${pid}/codecheck/egress`);
   }
 
+  // W9-4 semantic model graph (IFC relationships) — multi-hop, cited relational queries
+  modelGraphStats(pid: string) {
+    return this.json<{ nodes: number; edges: number; by_rel: Record<string, number> }>(`/projects/${pid}/graph`);
+  }
+  graphNeighbors(pid: string, guid: string, depth = 1) {
+    return this.json<{
+      root: string; found: boolean; depth?: number; neighbor_count?: number;
+      nodes: { guid: string; class: string; name: string | null }[];
+      edges: { from: string; to: string; rel: string }[];
+      paths: { guid: string; class: string; name: string | null; path: { rel: string; dir: string; to: string }[] }[];
+    }>(`/projects/${pid}/graph/neighbors?guid=${encodeURIComponent(guid)}&depth=${depth}`);
+  }
+
   // W9-3 IFC5-style property-override layers (non-destructive composition over the model)
   getLayers(pid: string) {
     return this.json<{ layers: PropLayer[] }>(`/projects/${pid}/layers`);
