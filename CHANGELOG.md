@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.260 — Wave 11 · C1: plan-drawing generator (SVG)
+
+The first slice of the **construction-document set** — generate a schematic **plan drawing** (SVG) straight
+from the model. A new **🖨 Generate plan (SVG)** tool (Grid &amp; Levels) opens a 1:100 plan of the active level:
+walls/columns/slabs/roofs/spaces drawn as **class-styled poché** (a CSS class per IFC class controls
+linework/fill), correctly scaled to paper millimetres with a viewBox and a title.
+
+Because our geometry path is web-ifc→Fragments (ifcopenshell's OpenCASCADE engine produces no mesh here), the
+generator takes the research-recommended optimization: it derives each footprint **directly from the authored
+extruded-profile geometry** (profile polygon × placement × solid position) — deterministic, no geometry kernel.
+Engine `drawing.py` (`plan_svg`); `GET /projects/{id}/drawings/plan.svg?storey=&scale=`. `test_drawing.py`
+green. Next C-slices layer on dimensions, keynotes (from the Track-D codes), sheets/titleblocks and PDF/DXF.
+
 ## v0.3.259 — Wave 11 · D3+D7: the detail-rule engine + IBC window-flashing case
 
 The brain that turns model state into construction-document content — and the headline worked case. A new

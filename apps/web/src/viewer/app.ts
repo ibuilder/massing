@@ -1884,8 +1884,17 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       autoDetailBtn.title = "Run the condition→content rule library over the model — exterior windows/doors get "
         + "IBC/ASTM flashing details + specs, rated walls get assembly keynotes. Same rules validate as IDS QA.";
 
+      // W11 C1: generate a schematic plan drawing (SVG) from the model, at the active level if one is set.
+      const planBtn = toolBtn2("🖨 Generate plan (SVG)", () => {
+        const q = new URLSearchParams({ scale: "100" });
+        if (activeStorey) q.set("storey", activeStorey);
+        window.open(api.url(`/projects/${projectId}/drawings/plan.svg?${q.toString()}`), "_blank");
+      });
+      planBtn.title = "Generate a schematic plan drawing (SVG, 1:100) from the model geometry — walls/columns/"
+        + "slabs as class-styled poché. The first slice of the construction-document set; the active level scopes it.";
+
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, manage, levelsMgr);
+        phaseBtn, queryBtn, lodBtn, detailBtn, autoDetailBtn, planBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------
