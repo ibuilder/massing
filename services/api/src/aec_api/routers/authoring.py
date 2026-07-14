@@ -71,6 +71,23 @@ def type_detail(pid: str, type_guid: str, db: Session = Depends(get_db),
         raise HTTPException(404, str(e)) from e
 
 
+@router.get("/projects/{pid}/query")
+def query_elements(pid: str, q: str, limit: int = 2000, db: Session = Depends(get_db),
+                   _: str = Depends(require_role("viewer"))):
+    """W11: power selection via the IfcOpenShell **selector DSL** — e.g. `IfcWall`,
+    `IfcWall, IfcDoor`, `IfcSpace, Pset_SpaceCommon.IsExternal=TRUE`, `IfcWall, material=concrete`.
+    Returns the matched elements (guid/name/class/storey). Feeds selection sets, bulk edits, schedule
+    scoping, and rule-driven detail/spec attachment. 400 on invalid query syntax."""
+    from aec_data import edit as ed  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    try:
+        return ed.query_elements(open_model(p.source_ifc), q, limit)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
 @router.get("/projects/{pid}/phasing")
 def phasing_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W10-8: element phase/status distribution (new · existing · demolish · temporary · unset) over the

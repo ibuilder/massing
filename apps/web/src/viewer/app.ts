@@ -1732,7 +1732,39 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       phaseBtn.title = "Tag elements new / existing / demolish / temporary (Massing_Phasing.Status) — the "
         + "renovation & demolition-sequencing dimension for as-built LOD-500 models. Colour by phase; GUID-stable";
 
-      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn, phaseBtn, manage, levelsMgr);
+      // W11 selector DSL: power-select by class / pset / material, then isolate or save as a selection set.
+      const openQueryPanel = async () => {
+        const q = await askText("Selector query", {
+          label: "IfcOpenShell selector — e.g. IfcWall  ·  IfcWall, IfcDoor  ·  IfcWall, Pset_WallCommon.FireRating=2HR",
+          value: "IfcWall, IfcColumn" });
+        if (!q) return;
+        let r;
+        try { r = await api.queryElements(pid, q); }
+        catch (e) { notify(`query failed: ${(e as Error).message}`, "error"); return; }
+        showResult(`Query — ${r.count} match${r.count === 1 ? "" : "es"}`, (body) => {
+          body.appendChild(resultNote(`<code>${q}</code> → <b>${r.count}</b> element(s)`
+            + (r.truncated ? ` (showing ${r.elements.length})` : ""), r.count ? "ok" : "bad"));
+          if (!r.elements.length) return;
+          const guids = r.elements.map((e) => e.guid);
+          body.appendChild(toolBtn2("◎ Isolate matches in 3D", () => {
+            void layerMgr.isolateGuids(guids); notify(`isolated ${guids.length}`, "success"); }));
+          body.appendChild(toolBtn2("💾 Save as selection set", async () => {
+            const name = await askText("Save selection set", { label: "Set name", value: q.slice(0, 40) }); if (!name) return;
+            const sets = loadSelSets(pid).filter((s) => s.name !== name);
+            sets.push({ name, q, guids }); saveSelSets(pid, sets);
+            notify(`saved "${name}" (${guids.length})`, "success");
+          }));
+          const list = document.createElement("div"); list.className = "meta"; list.style.marginTop = "4px";
+          list.textContent = r.elements.slice(0, 12).map((e) => `${e.name} (${e.ifc_class.replace(/^Ifc/, "")})`).join(" · ")
+            + (r.elements.length > 12 ? " …" : "");
+          body.appendChild(list);
+        });
+      };
+      const queryBtn = toolBtn2("🔎 Query (selector)", openQueryPanel);
+      queryBtn.title = "Power-select with the IfcOpenShell selector DSL (by class, property, material) — "
+        + "isolate matches or save them as a reusable selection set. The base for bulk edits & rule-driven detailing";
+
+      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn, phaseBtn, queryBtn, manage, levelsMgr);
     }
 
     // --- persona-ordered tool sections ---------------------------------------

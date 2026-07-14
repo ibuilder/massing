@@ -374,3 +374,102 @@ python-solvespace (GPL), FreeCAD-as-app (GPL bits). **Skip entirely:** workshari
 and irrelevant to a server-recipe authoring model. **Honest hard-vs-easy:** the quick wins deepen APIs we
 already call; the genuine effort is the *family-editor UX* (live parametric feedback in the web viewer) and
 the W10-9 constraint solver.
+
+## 🏗️ Wave 11 — The Master Builder: LOD-400/500 authoring + code-compliant construction sets (2026-07 research)
+
+**Goal:** one browser tool that replaces Revit + Navisworks + Autodesk APS + Bonsai — model **one
+GUID-stable parametric model** whose detail dials from **schematic (LOD 100/200) → design development
+(300) → construction (LOD 400) → as-built (500)**, and from that single model generate a **full,
+municipality-approvable construction document set** (plans/sections/elevations/details/schedules + project
+manual) carrying **IBC details, code references, and installation instructions** — with a barrier-to-entry
+low enough that any builder becomes a master builder. Approved by user 2026-07 (all tracks); this Wave
+**unifies and supersedes** the Wave 10 items where they converge (W10-2 generators ⊂ B, W10-5 annotation ⊂ C,
+W10-6 schedules ⊂ C).
+
+**The reframe that reshapes everything (BIMForum LOD spec):** you don't "model to LOD 500." LOD 500 is a
+*field-verified as-built* **data/reliability** attribute — BIMForum defines **no** geometric requirement for
+it. So the real target is **LOD 400 geometry + LOD 500 verified-as-built data + provenance**, which plays
+straight to our architecture (geometry streams as `.frag`, data comes from the API). We can credibly support
+"LOD 500" as a verification/COBie/provenance layer well before every fabrication bolt is modeled.
+
+**The one architectural spine that unifies all tracks** — *multi-representation, view-keyed elements.* A
+single `IfcProduct` (stable GlobalId across the whole ladder) carries **several `IfcShapeRepresentation`s**
+under **`IfcGeometricRepresentationSubContext`** tagged by `RepresentationIdentifier` (`Body`/`Box`/`Axis`/
+`FootPrint`/`Annotation`) + **`TargetView`** (MODEL/PLAN/SECTION/ELEVATION_VIEW) + **`TargetScale`**. This one
+mechanism does three jobs at once: (1) **LOD dialing** — refine `Body` + swap placeholder types for real
+types + add Psets, in place, GUID-stable; (2) **drawing generation** — the generator selects each element's
+representation by `(identifier, target_view, target_scale)`, falling back to a live `ifcopenshell.geom` HLR
+cut of `Body`; (3) **coarse↔fine display** — `Box`/`Axis` for schematic, layered `Body` poché for CDs. Build
+this spine first; every track hangs off it.
+
+**Unified foundation & tracks** (sequenced; the spine + guardrails lead):
+
+- **F0 — The representation/context spine + LOD state** *(M · pure ifcopenshell · FOUNDATION, build first)* —
+  `ensure_contexts` (Model+Plan roots; Body/Axis/Box/FootPrint/Annotation subcontexts w/ TargetView+TargetScale);
+  an element **LOD-stage** property (`Pset_MassingLOD.Stage` 100→500); derive `Box`/`Axis`/`FootPrint` on
+  demand from `Body`; persist hand-authored alternates only when they genuinely differ. Everything below keys
+  off this.
+- **A · Open-ended authoring (the moat)** *(L)* — A1 **sandboxed `execute_ifc_code` recipe** (AST-whitelisted,
+  ifcopenshell-only, no fs/Blender — turns our fixed recipe registry into unbounded authoring); A2 **RAG index**
+  over ifcopenshell/IFC docs to ground code-gen; A3 **AI emits *recipes*** (parametric, GUID-stable, editable —
+  the property Zoo/Text-to-CAD lack); A4 LLM **scene-digest** tool over the semantic graph. *ifc-bonsai-mcp
+  (MIT) is the design reference; ifcopenshell is LGPL.*
+- **B · Geometry depth → LOD 350/400** *(L, multi-sub-wave)* — B1 verify/upgrade void+fill (already using
+  `feature.add_feature`/`add_filling` ✓); B2 **parametric door/window generators** (`geometry.add_door/window_
+  representation` — frames/linings/panels for near-zero code, the LOD jump); B3 wall **Axis rep + clippings/
+  booleans** (sloped tops, gable walls); B4 **procedural-mesh escape hatch** (`add_mesh_representation` →
+  IfcTriangulatedFaceSet for anything parametric recipes can't); B5 **connections/fasteners/hangers** +
+  `IfcRelConnects*` (LOD 350 coordination); B6 **domain catalogs** in value order — steel connections → rebar
+  (swept-disk along a directrix) → MEP connected systems + fittings → curtain-wall systems.
+- **C · Construction-document generation (the deliverable)** *(L)* — C1 **headless drawing generator** on
+  `ifcopenshell.geom.serializers.svg` (OCC HLR, LGPL — clean-room the Bonsai *technique*, its module is GPL):
+  three-layer SVG (underlay/linework/annotation), cut rules keyed on `target_view`, per-GUID geometry cache,
+  bbox filter; C2 **parametric IFC dimensions** (geometry-anchored, the merged IfcOpenShell PR #8083 pattern:
+  `IfcAnnotation` + `IfcRelAssignsToProduct` + face/layer/edge/vertex anchor JSON; regenerate on move) + smart
+  tags via `drawing.assign_product`; C3 **sheets & titleblocks** (`IfcDocumentInformation` Scope="SHEET",
+  token-substituted SVG titleblock, viewport placement) → **SVG→PDF/DXF** (permissive libs only, no AGPL);
+  C4 **computed schedules** (door/window/room/finish/quantity from the model → table blocks on sheets);
+  C5 **drawn detail follows LOD** (representation selection + stylesheet + `IfcMaterialLayerSet` poché +
+  annotation density → schematic single-line ↔ CD layered poché); C6 reference-line datums (`IfcReferent`/
+  `IfcVirtualElement`). *Views/annotations/sheets stored IN the IFC so they round-trip; render cache in MinIO
+  keyed by GUID+geom-hash.*
+- **D · Code + spec + detail intelligence (IBC / MasterFormat)** *(L)* — D1 **code-analysis sheet generator**
+  (occupancy Ch.3, construction type/ratings Ch.6/Table 601, allowable area Table 506.2, occupant load Table
+  1004.5, egress Ch.10 — mostly model data we already compute in W9-2); D2 **routed egress/life-safety plans**
+  (path-trace over the W9-4 semantic graph, not just tabulated); D3 an **IDS-shaped rule engine** —
+  applicability facets (entity + PredefinedType, classification, property, `partOf`/relationship context via
+  the semantic graph) → **content bundle** (attach detail SVG + install instruction + spec section), the *same*
+  rules reused for **IDS QA validation** (author-time attach, QA-time validate); D4 **classification carriers**
+  — emit `IfcRelAssociatesClassification` for **UniFormat** (element/keynote) + **MasterFormat** (spec section)
+  + **OmniClass** (product), plus `IfcRelAssociatesDocument` (detail + instruction) and an internal
+  `Pset_Massing_SpecLink` breadcrumb; D5 **keynotes & detail callouts** on drawings generated *from* the
+  element's classification (NCS UDS Module 7); D6 **3-part MasterFormat project manual** (group elements by
+  MasterFormat → SectionFormat Part 1/2/3, Part 3 Execution = the attached install instructions); D7 the
+  **worked case**: place a window in an exterior wall → auto-attach IBC §1404.4 + ASTM E2112 + AAMA 711
+  flashing detail (sill-pan/jamb/head shingle-lap sequence) + keynote + spec 08 51 00. D8 **approvability
+  pre-flight** (reviewer-checklist: UL/GA numbers on rated walls, egress traced, COMcheck attached, A117.1
+  clearances) — extends the IDS→BCF pipeline.
+- **E · Master-builder UX (low barrier)** *(L)* — E1 **SketchUp-style inference snapping** (endpoint/mid/
+  face/parallel/perp) + Shift-lock; E2 **type-a-dimension-while-drawing** (VCB); E3 **sketch-to-BIM push/pull**
+  (2D profile → extrude); E4 **progressive-disclosure LOD-gated toolbar** (novices see place-wall/door/window;
+  fabrication tools behind an advanced mode); E5 **direct-manipulation parametric handles**; E6 **recipe-log
+  undo/redo + design-option branches** (the recipe log IS the undo stack); E7 **live schedules/quantities as
+  you model**; E8 **guardrails encoding Bonsai's ~50 "don't make broken IFC" rules** server-side (novice can't
+  produce invalid IFC — the reliability edge); E9 the **selector DSL** ✅ SHIPPED v0.3.255 (`query_elements` +
+  🔎 Query tool + `GET /query`) + `geom.tree` spatial index.
+- **G · LOD-500 verified-as-built data** *(M)* — G1 verification/as-built Pset + COBie + provenance stamps;
+  G2 field-verified dimensions/variances; G3 external-doc refs (warranties/O&M/serials) via
+  `IfcRelAssociatesDocument`. *This is the cheap, high-claim "LOD 500" layer.*
+- **H · Content library** *(M)* — H1 seed furniture families + PBR materials from **vetted CC0** sources
+  (Poly Pizza/Quaternius/Kenney meshes; ambientCG/Poly Haven/AMD MaterialX PBR — CC0/CC-BY only; exclude
+  BIMobject/TurboSquid/etc.), attribution + license stored per asset.
+
+**Recommended sequencing:** **F0 spine → E8 guardrails + B1–B3 geometry wins → C1–C3 drawing generator →
+D1/D3/D4/D7 code+detail intelligence → A open-ended authoring → E inference UX → G/H woven throughout.** Each
+is its own verified release; several Wave 10 items (W10-2/4/5/6) fold in here.
+
+**License guardrails (firm):** `ifcopenshell` + `ifcopenshell.geom` serializers are **LGPL** — safe to depend
+on and the exact layer every technique above sits on. **Bonsai/BlenderBIM (GPL)** drawing/annotation modules —
+**reimplement the techniques, never vendor the code.** ifc-bonsai-mcp glue is **MIT** (safe to mirror);
+MCP4IFC paper is CC-BY-SA (docs only). SVG→PDF/DXF via permissive libs only (**no AGPL** — no PyMuPDF).
+CC0 asset sources vetted per-asset. IDS is an open buildingSMART standard (we already ship IDS→BCF).

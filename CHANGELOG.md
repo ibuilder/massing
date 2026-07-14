@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.255 — Wave 11 · power selection (IfcOpenShell selector DSL)
+
+The first foundation piece of Wave 11 (LOD-400/500 authoring): a **🔎 Query (selector)** tool that runs the
+IfcOpenShell **selector query language** over the model — `IfcWall` · `IfcWall, IfcDoor` ·
+`IfcWall, Pset_WallCommon.FireRating=2HR` · `IfcElement, material=concrete`. Matches can be **isolated in 3D**
+or **saved as a reusable selection set**. This is the power-selection primitive that bulk edits, schedule
+scoping, and (next) rule-driven detail/spec attachment all build on. Engine `query_elements` in `edit.py`;
+`GET /projects/{id}/query`. `test_selector.py` green (class, multi-class union, pset-value filter, limit
+truncation, invalid-query 400).
+
 ## v0.3.254 — Wave 10 · W10-8: element phasing
 
 The renovation / demolition-sequencing dimension needed for as-built and phased models. A new **🕐 Phasing**

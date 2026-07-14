@@ -59,6 +59,32 @@ def list_types(model: ifcopenshell.file) -> list[dict]:
     return out
 
 
+def query_elements(model: ifcopenshell.file, query: str, limit: int = 2000) -> dict:
+    """Run an IfcOpenShell **selector query** (the `.IfcWall`, `IfcWall, IfcDoor`,
+    `IfcWall, material=concrete`, `IfcSpace, Pset_SpaceCommon.IsExternal=TRUE` DSL) over the model and
+    return the matched elements. This is the power-selection primitive behind bulk edits, schedule
+    scoping, and rule-driven detail/spec attachment. Returns {query, count, truncated, elements:[{guid,
+    name, ifc_class, storey}]}. Invalid syntax raises ValueError with the parser message."""
+    import ifcopenshell.util.element as ue
+    import ifcopenshell.util.selector as sel
+
+    q = (query or "").strip()
+    if not q:
+        raise ValueError("empty query")
+    try:
+        matched = sel.filter_elements(model, q)
+    except Exception as e:  # noqa: BLE001 — surface the selector parser error as a clean 400
+        raise ValueError(f"invalid selector query: {str(e)[:200]}") from e
+    out: list[dict] = []
+    for el in matched:
+        if len(out) >= limit:
+            break
+        st = ue.get_container(el)
+        out.append({"guid": el.GlobalId, "name": getattr(el, "Name", None) or el.is_a(),
+                    "ifc_class": el.is_a(), "storey": getattr(st, "Name", None) if st else None})
+    return {"query": q, "count": len(matched), "truncated": len(matched) > len(out), "elements": out}
+
+
 def place_type(model: ifcopenshell.file, type_guid: str, storey_name: str,
                position=None) -> str | None:
     """Instantiate an occurrence of an IFC type ("family") on a storey, optionally positioned
