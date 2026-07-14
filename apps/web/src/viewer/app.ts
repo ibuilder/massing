@@ -24,6 +24,8 @@ import { buildTree } from "../tree/tree";
 import { installDraftPanel, type ArmedDraft, type DraftPanelHandle } from "./draft/draftPanel";
 import { type FamilyDef } from "./draft/draftCatalog";
 import { GridOverlay } from "./draft/gridOverlay";
+import { LogisticsOverlay } from "./draft/logisticsOverlay";
+import { type LogisticsResource } from "../api/client";
 import { DraftProxyLayer } from "./draft/draftProxy";
 import { TransformGizmo } from "./draft/transformGizmo";
 import { PinOverlay, restoreCamera } from "../pins/pins";
@@ -768,6 +770,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   function disarmDraft() { armed = null; armPts.length = 0; draftHandle?.onArmCleared(); }
   // P1 grid/level drafting refs: the grid overlay + snap, and the active storey/work-plane.
   const gridOverlay = new GridOverlay(viewer.world.scene.three);
+  const logisticsOverlay = new LogisticsOverlay(viewer.world.scene.three);
   const draftProxies = new DraftProxyLayer(viewer.world.scene.three);   // P6: optimistic placement feedback
   let activeStorey: string | null = null;       // name passed to Draft recipes; sets the work-plane Z
   let activeStoreyZ = 0;
@@ -1657,6 +1660,63 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               + "with a total station, then upload that CSV to verify deviation by point number.", "ok"));
           });
         })));
+        b.appendChild(toolBtn2("🏗 Site logistics (4D timeline)", async () => {
+          if (!projectId) { notify("connect a project first", "error"); return; }
+          let resources: LogisticsResource[];
+          try { resources = (await api.getLogistics(pid)).resources; }
+          catch { toast("Could not load logistics", "error"); return; }
+          logisticsOverlay.render(resources); logisticsOverlay.showAll();
+          showResult("Site logistics — time-phased on the 4D timeline", (body) => {
+            body.appendChild(resultNote(`Temporary construction resources (cranes / laydown / gates / fencing / haul routes) placed in project coordinates with a schedule window — they show + hide as the timeline advances. Click in the model first to set a point, then add a resource there. <b>${resources.length}</b> placed.`, "ok"));
+            const list = document.createElement("div"); list.style.margin = "6px 0";
+            const status = document.createElement("div"); status.className = "meta"; status.style.marginTop = "6px";
+            const draw = () => {
+              list.innerHTML = "";
+              resources.forEach((r, i) => {
+                const row = document.createElement("div"); row.className = "selset-row";
+                const s = document.createElement("span"); s.className = "selset-name"; s.style.cursor = "default";
+                s.textContent = `${r.kind} · ${r.label || r.id}${r.start ? ` · ${r.start}→${r.end || "…"}` : ""}`;
+                const del = document.createElement("button"); del.className = "selset-del"; del.textContent = "✕";
+                del.onclick = () => { resources.splice(i, 1); logisticsOverlay.render(resources); draw(); };
+                row.append(s, del); list.appendChild(row);
+              });
+              if (!resources.length) { const e = document.createElement("div"); e.className = "meta"; e.textContent = "No resources yet."; list.appendChild(e); }
+            };
+            draw(); body.appendChild(list);
+            // add form
+            const form = document.createElement("div"); form.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;align-items:center;margin:6px 0";
+            const kind = document.createElement("select"); kind.className = "portal-filter"; kind.style.cssText = "font-size:12px;margin:2px";
+            for (const k of ["crane", "hoist", "laydown", "gate", "fence", "haul_route", "trailer", "parking"]) { const o = document.createElement("option"); o.value = k; o.textContent = k; kind.appendChild(o); }
+            const mk = (ph: string) => { const i = document.createElement("input"); i.className = "portal-filter"; i.placeholder = ph; i.style.cssText = "font-size:12px;margin:2px;flex:0 1 110px;min-width:0"; return i; };
+            const label = mk("label"); const startI = mk("start YYYY-MM-DD"); const endI = mk("end YYYY-MM-DD");
+            const add = document.createElement("button"); add.className = "mini-btn"; add.textContent = "＋ at last point";
+            add.onclick = () => {
+              if (!lastPoint) { notify("click a point in the model first", "error"); return; }
+              const id = `r${Date.now().toString(36)}`;
+              const e = lastPoint.x, n = -lastPoint.z;   // world (E, y, -N) → E, N
+              const r: LogisticsResource = { id, kind: kind.value, label: label.value.trim() || kind.value, position: [e, 0, n], start: startI.value.trim() || undefined, end: endI.value.trim() || undefined };
+              if (kind.value === "crane") r.radius = 25;
+              resources.push(r); logisticsOverlay.render(resources); label.value = ""; draw();
+              status.textContent = `added ${kind.value} at E ${e.toFixed(1)}, N ${n.toFixed(1)}`;
+            };
+            form.append(kind, label, startI, endI, add); body.appendChild(form);
+            // time-phase + save
+            const actions = document.createElement("div"); actions.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center";
+            const dateI = mk("show at date"); dateI.style.flex = "0 1 130px";
+            const phase = document.createElement("button"); phase.className = "mini-btn"; phase.textContent = "⏱ Show at date";
+            phase.onclick = async () => {
+              try { const st = await api.putLogistics(pid, resources).then(() => api.logisticsState(pid, dateI.value.trim() || undefined));
+                logisticsOverlay.showActive(new Set(st.active.map((x) => x.id)));
+                status.textContent = `${st.active_count} of ${st.total} active${st.date ? ` on ${st.date}` : ""}`;
+              } catch (e) { notify((e as Error).message, "error"); }
+            };
+            const showAll = document.createElement("button"); showAll.className = "mini-btn"; showAll.textContent = "👁 Show all";
+            showAll.onclick = () => { logisticsOverlay.showAll(); status.textContent = ""; };
+            const save = document.createElement("button"); save.className = "mini-btn on"; save.textContent = "💾 Save";
+            save.onclick = async () => { try { await api.putLogistics(pid, resources); notify("logistics saved", "success"); } catch (e) { notify((e as Error).message, "error"); } };
+            actions.append(dateI, phase, showAll, save); body.append(actions, status);
+          });
+        }));
         b.appendChild(toolBtn2("🕸 Related elements (model graph)", () => withLoading(container, "Building model graph", async () => {
           if (!selectedGuid) { notify("select an element in 3D first", "error"); return; }
           const guid = selectedGuid;

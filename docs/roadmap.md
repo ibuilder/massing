@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.249**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.250**.
 
 > **🎯 Active initiative — turn the Model workspace into a true in-browser modeling program** (2026-07,
 > direction change). The audit found the Model section was ~80 % viewer/analysis with authoring buried and
@@ -98,12 +98,14 @@ The genuinely **net-new, permissive-license, buildable** items, ranked:
   *(Follow-up spec: ingest spec/code clauses as graph nodes + derived links (space → required rating) + an
   NL→graph query returning cited answers with GUID + spec page + code section — the explainability substrate
   under W9-2. AECFoundry; ASK-BIM / Graph-RAG-over-IFC.)*
-- **W9-5 — Site logistics & equipment-motion on the 4D slider** *(L; M first step · depth)* — the one real
-  depth gap vs SYNCHRO: temporary resources (cranes / hoists / trucks / laydown / fencing) as first-class
-  objects with time-bound 3D paths that **move** as the 4D slider advances, + crane-reach swept volumes
-  feeding the clash engine (moving-equipment conflicts over time). *M first step:* static, time-phased
-  logistics site objects without motion interpolation. *Turns the 4D animation into a real constructability
-  + site-safety rehearsal.* (Bentley SYNCHRO — clean-room parity)
+- **W9-5 — Site logistics & equipment-motion on the 4D slider** *(L; M first step)* — ✅ **M FIRST STEP
+  SHIPPED (v0.3.250)**: temporary resources (crane w/ reach ring, hoist, laydown, gate, fence, haul route,
+  trailer, parking) as first-class objects in project coords with a **schedule window**, rendered as 3D
+  glyphs that **time-phase** by date. `logistics.py` (`state_at`/`summary`) + `Project.site_logistics` +
+  `/logistics` (GET/PUT) + `/logistics/state` + a `LogisticsOverlay` + a **🏗 Site logistics** tool +
+  `test_logistics.py`. Verified live (3 resources time-phased). **Still open (the L part):** smooth **motion
+  along paths** as the slider advances + swept crane-reach clash (moving-equipment conflicts over time).
+  (Bentley SYNCHRO — clean-room parity)
 - **W9-6 — Generative fit-out: furnish + office space-planning** *(S + M)* — **(a) ✅ SHIPPED (v0.3.249)**:
   **auto-furnish** — grids real `IfcFurnishingElement` (desk/table/bed/sofa templates) into every
   `IfcSpace`'s footprint with aisle clearances + storey containment, feeding QTO/BOM. `furnish_spaces`

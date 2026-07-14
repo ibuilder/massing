@@ -78,6 +78,47 @@ def propmap_plan(pid: str, rules: list[dict] = Body(..., embed=True),
     return propmap.plan(open_model(p.source_ifc), rules)
 
 
+# --- W9-5: site logistics on the 4D timeline --------------------------------------------------------
+@router.get("/projects/{pid}/logistics")
+def get_logistics(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Site-logistics resources (cranes / laydown / gates …) with schedule windows — pure data, drawn
+    as time-phased overlays on the 4D timeline."""
+    from .. import logistics  # type: ignore
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    res = (p.site_logistics or {}).get("resources", [])
+    return {"resources": res, "summary": logistics.summary(res)}
+
+
+@router.put("/projects/{pid}/logistics")
+def put_logistics(pid: str, body: dict = Body(...), db: Session = Depends(get_db),
+                  actor: str = Depends(require_role("editor"))):
+    """Replace the site-logistics resource list."""
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    p.site_logistics = {"resources": body.get("resources", [])}
+    audit.record(db, action="logistics.save", actor=actor, method="PUT",
+                 path=f"/projects/{pid}/logistics", detail={"resources": len(p.site_logistics["resources"])})
+    db.commit()
+    return p.site_logistics
+
+
+@router.get("/projects/{pid}/logistics/state")
+def logistics_state(pid: str, date: str | None = None, db: Session = Depends(get_db),
+                    _: str = Depends(require_role("viewer"))):
+    """Which logistics resources are active on `date` (blank = the whole plan) — drives the time-phased
+    overlay as the 4D slider moves."""
+    from .. import logistics  # type: ignore
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    return logistics.state_at((p.site_logistics or {}).get("resources", []), date)
+
+
 # --- W9-4: semantic model graph (IFC relationships) -------------------------------------------------
 @router.get("/projects/{pid}/graph")
 def model_graph(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):

@@ -10,7 +10,7 @@ import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DocFolderNode, DrawingMarkupItem, DueFeed, ElementProps, EnergyResult, FinancialStatements,
   IntegrationGroup, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
-  NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
+  LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   RecordAttachmentMeta, RelatedRecords, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, StampTemplate, SyncScheduleItem,
   Topic, Vec3, Viewpoint, WorkItem,
 } from "./types";
@@ -996,6 +996,17 @@ export class ApiClient extends HttpCore {
       spaces: { guid: string; name: string | null; occupancy: string; area_ft2: number | null; load: number | null; needs_2_exits?: boolean; note?: string }[];
       citations: string[]; disclaimer: string;
     }>(`/projects/${pid}/codecheck/egress`);
+  }
+
+  // W9-5 site logistics on the 4D timeline
+  getLogistics(pid: string) {
+    return this.json<{ resources: LogisticsResource[]; summary: { total: number; by_kind: Record<string, number>; start: string | null; end: string | null } }>(`/projects/${pid}/logistics`);
+  }
+  putLogistics(pid: string, resources: LogisticsResource[]) {
+    return this.json<{ resources: LogisticsResource[] }>(`/projects/${pid}/logistics`, { method: "PUT", body: JSON.stringify({ resources }) });
+  }
+  logisticsState(pid: string, date?: string) {
+    return this.json<{ date: string | null; active: LogisticsResource[]; active_count: number; total: number }>(`/projects/${pid}/logistics/state${date ? `?date=${encodeURIComponent(date)}` : ""}`);
   }
 
   // W9-4 semantic model graph (IFC relationships) — multi-hop, cited relational queries

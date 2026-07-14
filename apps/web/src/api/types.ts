@@ -22,6 +22,13 @@ export interface PropMapRule {
   keep_source?: boolean;
 }
 
+/** A temporary site-logistics resource on the 4D timeline (W9-5). */
+export interface LogisticsResource {
+  id: string; kind: string; label?: string;
+  position?: [number, number, number]; polygon?: [number, number][]; radius?: number;
+  start?: string; end?: string;
+}
+
 /** One IFC5-style non-destructive property-override layer (W9-3). */
 export interface PropLayer {
   name: string;

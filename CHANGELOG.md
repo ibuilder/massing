@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.250 — Wave 9 · W9-5: site logistics on the 4D timeline (first step)
+
+SYNCHRO-style **site logistics** without leaving openBIM. New **🏗 Site logistics** tool places temporary
+construction resources — cranes (with a reach ring), hoists, laydown yards, gates, fencing, haul routes,
+trailers, parking — in project coordinates, each with a **schedule window**. They render as lightweight
+3D glyphs and **time-phase on the timeline**: pick a date and only the resources active then are shown,
+so the site plan becomes a constructability + safety rehearsal. `logistics.py` (`state_at` + `summary`) +
+`Project.site_logistics` + `/logistics` (GET/PUT) + `/logistics/state` + a `LogisticsOverlay` +
+`test_logistics.py`. Verified live: 3 resources → all active mid-schedule, only the open-ended gate after
+the crane/laydown windows close; overlay renders glyphs + time-phases visibility. (The static, time-phased
+first step; smooth **motion along paths** + swept crane-reach clash is the deferred follow-up.)
+
 ## v0.3.249 — Wave 9 · W9-6: generative fit-out (auto-furnish)
 
 Generative design extends from massing into **fit-out**. New **🪑 Furnish spaces** tool (Tools ▸ Grid &
