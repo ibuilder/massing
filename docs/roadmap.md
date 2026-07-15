@@ -306,6 +306,62 @@ Surfaced on push at v0.3.309; **not runtime/CI-exposed**, so triaged rather than
 
 ---
 
+## 🎨 UI/UX Master Pass — the designer's modeling workspace (end-of-roadmap consolidation)
+
+Research-backed (Bonsai/IfcOpenShell · Revit + Dynamo/pyRevit · SketchUp + 3D Warehouse · Tekla component
+catalog · ArchiCAD GDL/Info-Box). **Why now:** the model rail has grown to **~97 tools across 7 loosely-named
+collapsible sections** (`models / origin / draft / gridlevels / exports / qa / authoring`) — real capability,
+but organized by accretion, not by how a designer actually models. Two capabilities the wave shipped are also
+under-surfaced: **annotation exists only baked into generated plan SVGs** (C2/D5) — there is *no interactive
+in-view annotation* — and the **content library is scattered across separate buttons** (🏗 CONTENT-1, the
+family catalog, the W10-1 type browser) rather than one browsable palette. This track consolidates the whole
+authoring surface into an industry-standard workspace and fills those two gaps.
+
+**Transferable patterns adopted** (from the research): task-grouped ribbon left-to-right by lifecycle (Revit
+tabs); **type-first "Add" flow** (Bonsai `+Add IfcWallType`, Revit Type Selector) — GUID-stable occurrences
+inherit from a reusable type; **instance-vs-type split** in Properties (Revit palette); a **Project-Browser
+tree** as the model spine (Revit browser / Bonsai IFC tree); a **catalog content panel** with search +
+`tag:`/`type:` filters, a Recent bucket, thumbnails and editable tags (Tekla catalog + SketchUp 3D Warehouse);
+a **pick content → pick host → auto-build** placement flow (Tekla connections, doors-in-walls); a live
+**inference/snap engine + typed dimensions** (SketchUp — builds on the shipped E1 inference); an **Info-Box**
+contextual settings strip (ArchiCAD); **UI as a thin wrapper over scriptable GUID-safe recipes** (our RECIPES
+≈ `ifcopenshell.api` / Revit API — the same verbs already power the command bar + sandbox); and an
+**appendable IFC-as-library** model (Bonsai: any IFC file is a type library; no proprietary content DB).
+
+- **UX-1 — Ribbon consolidation** *(M · high)* — regroup the ~97 tools into a task ribbon that follows the
+  modeler's lifecycle, replacing the 7 accreted sections: **Build/Author** (grids·levels → walls·columns·
+  slabs·roofs·families·MEP, sloped/mesh/sandbox under an "advanced" fold) · **Annotate** (UX-2) · **Library**
+  (UX-3) · **Analyze** (code/EBC · egress · decision-readiness · labour · model-health) · **Coordinate**
+  (clash · IDS/BCF · MEP connectivity · phasing) · **Document** (drawings · sheets · schedules · issuances) ·
+  **Data** (properties · classifications · exports · connections). Keep the persona-primary/"More tools"
+  collapse (already built) but re-key it to these groups. Reuses the `section()` helper in `viewer/app.ts`.
+- **UX-2 — Interactive annotation tool** *(L · high · net-new)* — place **`IfcAnnotation`** in the 3D/plan
+  view: dimensions (aligned/linear, snapped via the E1 inference engine), text/leader notes, element-aware
+  **tags** (read a live IFC property), symbols, and **revision clouds**. Persisted as real IFC (round-trips
+  via BCF/openBIM) and **feeds the drawing generator** (`drawings.py`) so a view-placed dimension appears on
+  the sheet — closing the loop the baked-SVG path can't. New `annotate.py` recipes + an **Annotate** rail
+  group. *Note: Bonsai's own annotation is Inkscape-dependent + early-stage — treat this as a substantial
+  greenfield build, our SVG drawing stack is an advantage.*
+- **UX-3 — Unified Library palette** *(L · high)* — one browsable **content panel** unifying the W10-1
+  type/family system + the CONTENT-1 catalog (logistics/furniture/landscaping) + external IFC/glTF import
+  (CONTENT-1-remaining): a **thumbnail grid**, case-insensitive search with `tag:`/`type:`/`discipline:`
+  filters, a **Recent** bucket, predefined groups, and **click/drag-to-place**. Hosted content uses a
+  **pick-item → pick-host → auto-build** flow (a door picks its wall; a steel connection picks its beams).
+  **Appendable IFC libraries** — load types (+ profiles/materials) from any IFC file, per Bonsai. New
+  `library` client + a **Library** rail group; extends `familyCatalog` / `contentCatalog` / the type browser.
+- **UX-4 — Designer workspace layout** *(M · high)* — assemble the four resources a designer needs into one
+  coherent shell: a **Project-Browser spine** (spatial tree + views/sheets/schedules + the type library —
+  extends the existing model browser), the docked **Properties** palette with the **instance-vs-type split**
+  (extends P6d), the **Library** palette (UX-3), the **task ribbon** (UX-1), plus an **Info-Box** contextual
+  strip (active tool/element → its top IFC props inline) and a visible **"Script this" affordance** that opens
+  the command bar / sandbox on the same recipe verbs (making the code interface a first-class, discoverable
+  resource, not a hidden power-user path). A11y + mobile-viewport pass folded in.
+
+*Sequence: UX-1 (reorg, low-risk, immediate legibility win) → UX-3 (library, reuses catalogs) → UX-2
+(annotation, the biggest net-new build) → UX-4 (assemble the shell). Each ships as its own verified release.*
+
+---
+
 ## 🔮 Future — 2026-07 research inbox (building codes · Unity/Unreal viz)
 
 Parked as **future** items — not scheduled; picked up after the current Wave 11 tracks. Each notes size +

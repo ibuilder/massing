@@ -101,3 +101,6 @@ services/api/_scale_pid.txt
 # live-server scratch storage from drawings/e2e testing
 services/api/_e2e_storage/
 services/api/_sg_storage/
+
+# local dev-server storage backends (filesystem object store when running the API locally)
+services/api/dev_*_storage/
