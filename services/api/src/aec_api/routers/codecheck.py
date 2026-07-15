@@ -241,3 +241,61 @@ def egress_to_bcf(pid: str, db: Session = Depends(get_db), actor: str = Depends(
                  path=f"/projects/{pid}/codecheck/egress/bcf", detail={"created": len(created)})
     db.commit()
     return {"created": len(created), "topics": [t.id for t in created]}
+
+
+@router.post("/projects/{pid}/rfi/readiness/bcf")
+def readiness_to_bcf(pid: str, db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """RFI-0: promote the **decision-readiness gaps** to BCF topics — every information gap a builder would
+    otherwise have to raise an RFI about (failed code checks, missing details, model-data holes, open
+    clashes) becomes a trackable, GUID-anchored issue that round-trips with clashes/RFIs. One topic per gap,
+    priority from the gap's severity. Idempotent: re-running clears prior readiness topics first."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import rfi_prevention
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — the readiness audit needs a model")
+    model = open_model(p.source_ifc)
+    audit_r = rfi_prevention.decision_readiness(db, pid, model)
+
+    import ifcopenshell.util.placement as up  # type: ignore
+    import ifcopenshell.util.unit as uu  # type: ignore
+    scale = uu.calculate_unit_scale(model)
+
+    def _anchor(guid: str) -> dict | None:
+        try:
+            el = model.by_guid(guid)
+            m = up.get_local_placement(el.ObjectPlacement)
+            return {"x": float(m[0][3]) * scale, "y": float(m[2][3]) * scale, "z": float(-m[1][3]) * scale}
+        except Exception:  # noqa: BLE001
+            return None
+
+    # idempotent refresh: clear prior readiness topics so re-running doesn't pile up duplicates
+    db.query(Topic).filter(Topic.project_id == pid, Topic.type == "readiness").delete()
+
+    created: list[Topic] = []
+    for g in audit_r["gaps"]:
+        guids = [x for x in (g.get("guids") or []) if x]
+        detail = g.get("detail", "") or ""
+        fix = g.get("fix", "") or ""
+        cite = g.get("citation")
+        desc = detail + (f"  Fix: {fix}." if fix else "") + (f"  ({cite})" if cite else "")
+        labels = ["readiness", g["category"]]
+        created.append(Topic(
+            project_id=pid, type="readiness", status="open",
+            priority="high" if g["severity"] == "high" else "normal",
+            title=g["title"][:200],
+            description=desc.strip(),
+            element_guids=guids or None,
+            anchor=(_anchor(guids[0]) if guids else None),
+            labels=labels, author=actor))
+    for t in created:
+        db.add(t)
+    audit.record(db, action="readiness.create_topics", actor=actor, method="POST",
+                 path=f"/projects/{pid}/rfi/readiness/bcf",
+                 detail={"created": len(created), "ready": audit_r.get("ready")})
+    db.commit()
+    return {"created": len(created), "topics": [t.id for t in created],
+            "ready": audit_r.get("ready"), "high_severity": audit_r.get("high_severity")}

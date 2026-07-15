@@ -214,8 +214,11 @@ ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
 ### 🚫 RFI-prevention (the openBIM information-delivery moat)
 - ✅ **RFI-0 (first slice) SHIPPED v0.3.307** — **decision-readiness audit** (`rfi_prevention.decision_readiness`
   composes approvability + detail-rule validate + model-hygiene + clash → one ranked gap list, each with a
-  fix; `GET /rfi/readiness` + a 🚫 Decision-readiness tool). *Next: missing-dimension detection, round findings
-  to BCF, and the NL-QA natural-language layer over it.*
+  fix; `GET /rfi/readiness` + a 🚫 Decision-readiness tool).
+- ✅ **RFI-0 → BCF SHIPPED v0.3.313** — `POST /rfi/readiness/bcf` promotes every readiness gap to a
+  GUID-anchored, category-labelled, severity-prioritised `type="readiness"` BCF topic (idempotent; mirrors the
+  egress→BCF pattern); 📌 Promote-to-BCF button on the 🚫 tool. *Next: missing-dimension detection + the NL-QA
+  natural-language layer over the audit.*
 - **RFI-0 (original spec)** *(M · ★★★★★)* — the proactive inverse of the RFI: scan the model +
   drawings + specs for the **information gaps a builder would otherwise have to ask about** — missing
   dimensions, unresolved details, undefined finishes/specs, un-substantiated ratings, missing keynotes,

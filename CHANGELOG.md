@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.313 — Decision-readiness gaps → BCF (RFI-0 next slice)
+
+The decision-readiness audit (v0.3.307) now **rounds its gaps to trackable BCF issues**. New
+`POST /projects/{pid}/rfi/readiness/bcf` runs `rfi_prevention.decision_readiness` and promotes every gap —
+failed code checks, missing details/keynotes, model-data holes, open clashes — to a `type="readiness"` BCF
+`Topic`: GUID-anchored (a 3D pin from the gap's first element), category-labelled, priority from the gap's
+severity (high → high). Idempotent — re-running clears the prior readiness topics so they never pile up
+(mirrors the W9-2b egress→BCF pattern). The 🚫 Decision-readiness tool gains a **📌 Promote N gaps to BCF
+issues** button, so the "what's missing before we issue?" list becomes a resolvable, round-tripping issue set
+in the Issues panel. New `rfiReadinessBcf` client. `test_readiness_bcf.py` (integration: 9 gaps → 9 topics,
+409 without a source IFC, idempotent re-run).
+
 ## v0.3.312 — Security: Capacitor 6 → 7, clears the transitive `tar` advisories (SEC-DEP-1)
 
 Dependency-hygiene release. The mobile shell's `@capacitor/*` packages (`android`, `cli`, `core`, `ios`)

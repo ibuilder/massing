@@ -2906,6 +2906,14 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
                 body.appendChild(iso);
               }
             }
+            if (r!.total_gaps) {
+              const bcf = toolBtn2(`📌 Promote ${r!.total_gaps} gap${r!.total_gaps === 1 ? "" : "s"} to BCF issues`, async () => {
+                try { const res = await api.rfiReadinessBcf(projectId!); notify(`created ${res.created} BCF issue${res.created === 1 ? "" : "s"} — see the Issues panel`, "success"); await refreshIssues(); }
+                catch (e) { notify((e as Error).message, "error"); }
+              });
+              bcf.title = "Create trackable, GUID-anchored BCF topics from the readiness gaps so they round-trip with clashes/RFIs";
+              body.appendChild(bcf);
+            }
             body.appendChild(resultNote(r!.disclaimer, ""));
           });
         })));

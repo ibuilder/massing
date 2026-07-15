@@ -1284,6 +1284,11 @@ export class ApiClient extends HttpCore {
       gaps: { category: string; severity: string; title: string; detail: string; fix: string; citation?: string;
         count?: number | null; guids?: string[] }[] }>(`/projects/${pid}/rfi/readiness`);
   }
+  /** RFI-0: promote the decision-readiness gaps to BCF topics (one per gap, GUID-anchored, priority by severity). */
+  rfiReadinessBcf(pid: string) {
+    return this.json<{ created: number; topics: string[]; ready: boolean; high_severity: number }>(
+      `/projects/${pid}/rfi/readiness/bcf`, { method: "POST", body: "{}" });
+  }
   /** W11 D8: plan-reviewer approvability pre-flight (egress, door widths, occupancy, rated assemblies). */
   approvability(pid: string) {
     return this.json<{ checks: { check: string; citation: string; status: string; detail: string; guids?: string[] }[];
