@@ -250,6 +250,44 @@ def set_storey_elevation(model: ifcopenshell.file, guid: str, elevation: float =
     return guid
 
 
+def add_mesh_representation(model: ifcopenshell.file, verts, faces, name: str = "Mesh",
+                            ifc_class: str = "IfcBuildingElementProxy", storey: str | None = None) -> str:
+    """B4: the **procedural-mesh escape hatch** — author an element from a raw triangle mesh
+    (`IfcTriangulatedFaceSet`) for geometry the parametric recipes can't express. `verts` is a list of
+    [x, y, z] points in metres; `faces` is a list of [i, j, k] **0-based** vertex indices. Placed on the
+    storey. GUID-stable. Returns the new element's GUID."""
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    pts = [[float(c) for c in v[:3]] for v in (verts or [])]
+    tris = [[int(i) for i in f[:3]] for f in (faces or [])]
+    if len(pts) < 3 or not tris:
+        raise ValueError("a mesh needs at least 3 vertices and 1 triangle")
+    n = len(pts)
+    for t in tris:
+        if any(i < 0 or i >= n for i in t):
+            raise ValueError("a face index is out of range for the vertex list")
+    scale = uunit.calculate_unit_scale(model)                # metres -> file units
+    body = _body_context(model)
+    st = _first_storey(model, storey)
+    elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale
+    el = ifcopenshell.api.run("root.create_entity", model, ifc_class=ifc_class, name=name)
+    matrix = np.eye(4); matrix[2, 3] = elev
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=el, matrix=matrix)
+    coord_list = model.create_entity(
+        "IfcCartesianPointList3D", CoordList=[[c / scale for c in p] for p in pts])
+    face_set = model.create_entity(
+        "IfcTriangulatedFaceSet", Coordinates=coord_list, Closed=False,
+        CoordIndex=[[i + 1 for i in t] for t in tris])       # IFC CoordIndex is 1-based
+    rep = model.create_entity(
+        "IfcShapeRepresentation", ContextOfItems=body, RepresentationIdentifier="Body",
+        RepresentationType="Tessellation", Items=[face_set])
+    ifcopenshell.api.run("geometry.assign_representation", model, product=el, representation=rep)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[el], relating_structure=st)
+    return el.GlobalId
+
+
 def set_wall_slope(model: ifcopenshell.file, guid: str, start_height: float, end_height: float) -> dict:
     """B3: give a wall a **sloped top** — the top goes from `start_height` (at the wall's start end) to
     `end_height` (at the end), for parapet slopes / shed / gable walls. Rebuilds the wall's Body as a
@@ -1302,6 +1340,10 @@ RECIPES = {
     "execute_ifc_code": lambda m, p: _sandbox().execute_ifc_code(m, p["code"]),
     # B3 — sloped-top wall (parapet slope / shed / gable)
     "set_wall_slope": lambda m, p: set_wall_slope(m, p["guid"], p["start_height"], p["end_height"]),
+    # B4 — procedural-mesh escape hatch (IfcTriangulatedFaceSet)
+    "add_mesh_representation": lambda m, p: add_mesh_representation(
+        m, p["verts"], p["faces"], p.get("name", "Mesh"),
+        p.get("ifc_class", "IfcBuildingElementProxy"), p.get("storey")),
     "add_covering": lambda m, p: add_covering(m, p["points"], p.get("predefined", "CEILING"),
                                               float(p.get("thickness", 0.02)), p.get("material"), p.get("storey")),
     "add_railing": lambda m, p: add_railing(m, p["start"], p["end"], float(p.get("height", 1.1)),

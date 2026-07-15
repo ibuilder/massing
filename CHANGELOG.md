@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.305 — Procedural-mesh escape hatch (B4)
+
+Author an element from a **raw triangle mesh** for geometry the parametric recipes can't express. New
+`add_mesh_representation` recipe builds an `IfcTriangulatedFaceSet` (Tessellation body) from `verts`
+(`[[x,y,z]…]` metres) + `faces` (`[[i,j,k]…]` 0-based), with index/degeneracy validation. GUID-stable,
+versioned/undo-able. New **△ Add mesh** tool (JSON input) in the Advanced cluster; also directly callable
+by the AI command bar / `execute_ifc_code`. Verified objectively — `test_mesh.py` tessellates a pyramid and
+confirms the extents (2×2 base, apex 2 m, ≥6 triangles), and the output round-trips through the real
+web-ifc → Fragments converter into a valid fragment.
+
 ## v0.3.304 — Sloped-top walls: parapet slope / shed / gable (B3)
 
 Walls can now have a **sloped top**. New `set_wall_slope` recipe rebuilds the selected wall's Body as a

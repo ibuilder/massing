@@ -2355,9 +2355,39 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       slopeBtn.title = "Give the selected wall a sloped top (start height → end height) — parapet slope, "
         + "shed, or gable wall. Rebuilds the Body as a trapezoidal extrusion; GUID-stable + undo-able.";
 
+      // B4 — procedural-mesh escape hatch: author an element from a raw triangle mesh (JSON verts/faces).
+      const meshBtn = toolBtn2("△ Add mesh (verts/faces JSON)", () => {
+        showResult("Add procedural mesh", (body) => {
+          body.appendChild(resultNote("Author an element from a raw triangle mesh for geometry the "
+            + "recipes can't express. Paste <code>{\"verts\":[[x,y,z]…],\"faces\":[[i,j,k]…]}</code> "
+            + "(faces are 0-based vertex indices, coords in metres). GUID-stable + undo-able.", ""));
+          const ta = document.createElement("textarea"); ta.className = "portal-filter";
+          ta.style.cssText = "width:100%;min-height:100px;font-family:monospace;font-size:12px";
+          ta.placeholder = '{"verts":[[0,0,0],[2,0,0],[2,2,0],[0,2,0],[1,1,2]],"faces":[[0,1,4],[1,2,4],[2,3,4],[3,0,4],[0,2,1],[0,3,2]]}';
+          body.appendChild(ta);
+          const go = toolBtn2("△ Add mesh + republish", async () => {
+            let parsed: { verts?: number[][]; faces?: number[][] };
+            try { parsed = JSON.parse(ta.value); } catch { notify("invalid JSON", "error"); return; }
+            if (!parsed.verts?.length || !parsed.faces?.length) { notify("need verts and faces", "error"); return; }
+            await withLoading(container, "authoring mesh + republishing", async () => {
+              try {
+                await api.addMesh(pid, parsed.verts!, parsed.faces!, "Mesh", true);
+                const state = await waitForPublish(projectId!);
+                if (state === "done") { await loadProjectModel(); notify("mesh added", "success"); }
+                else notify(`added — publish ${state}`, state === "error" ? "error" : "info");
+                await reloadModelPins();
+              } catch (e) { notify(`mesh failed: ${(e as Error).message}`, "error"); }
+            });
+          });
+          body.appendChild(go);
+        });
+      });
+      meshBtn.title = "Author an element from a raw triangle mesh (IfcTriangulatedFaceSet) — the escape "
+        + "hatch for geometry the parametric recipes can't express.";
+
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, slopeBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, ifcCodeBtn);
       const advKey = "massing.viewer.advancedTools";
       let advOpen = false;
       try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }

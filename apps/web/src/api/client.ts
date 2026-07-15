@@ -1057,6 +1057,10 @@ export class ApiClient extends HttpCore {
   setWallSlope(pid: string, guid: string, startHeight: number, endHeight: number, publish = true) {
     return this.editIfc(pid, "set_wall_slope", { guid, start_height: startHeight, end_height: endHeight }, publish);
   }
+  /** B4: author an element from a raw triangle mesh (verts [[x,y,z]…], faces [[i,j,k]…] 0-based). */
+  addMesh(pid: string, verts: number[][], faces: number[][], name = "Mesh", publish = true) {
+    return this.editIfc(pid, "add_mesh_representation", { verts, faces, name }, publish);
+  }
   /** W11 E8: validate an edit's params against the authoring guardrails without applying it. */
   editPrecheck(pid: string, recipe: string, params: Record<string, unknown>) {
     return this.json<{ ok: boolean; errors: string[]; warnings: string[] }>(

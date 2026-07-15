@@ -58,8 +58,9 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
   extrusion (no boolean), top rising start_height→end_height; ⟋ Slope wall top tool. Verified by
   tessellation + a real web-ifc→Fragments converter round-trip. *Remaining B3 sub-items: wall Axis
   representation + arbitrary clip planes (gable peak mid-span).*
-- **B4** — **procedural-mesh escape hatch** (`add_mesh_representation` → `IfcTriangulatedFaceSet` for anything
-  the parametric recipes can't express).
+- ✅ **B4 SHIPPED v0.3.305** — **procedural-mesh escape hatch** (`add_mesh_representation` →
+  `IfcTriangulatedFaceSet` from verts/faces; △ Add mesh tool + AI/code-callable). Verified by tessellation +
+  converter round-trip.
 - **B5** — **connections / fasteners / hangers** + `IfcRelConnects*` (LOD-350 coordination).
 - **F0b** — derive **Box / Axis / FootPrint** geometry on demand from `Body` (consumed by the C drawing generator).
 
