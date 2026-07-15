@@ -47,6 +47,19 @@ _DENIED_NAMES = frozenset({
     "globals", "locals", "vars", "input", "exit", "quit", "help", "breakpoint", "type", "object",
     "super", "memoryview", "bytearray", "bytes", "classmethod", "staticmethod", "property", "dir",
 })
+# denied ATTRIBUTE names (defence-in-depth on top of the restricted namespace, which is the real fix): a
+# walk of any exposed object's non-dunder attributes must never reach a module, reflection helper, or the
+# string-format machinery (str.format does dunder attribute access at runtime, bypassing the AST no-dunder
+# check). These are module / stdlib names; the intended authoring call `ifcopenshell.api.run(...)` is a
+# bound function on the facade, so `.run` itself is *not* denied.
+_DENIED_ATTRS = frozenset({
+    "format", "format_map", "format_spec",        # str.format runtime dunder access
+    "os", "sys", "subprocess", "builtins", "importlib", "inspect", "ctypes", "ctypeslib", "shutil",
+    "tempfile", "pickle", "socket", "io", "zipfile", "pathlib", "runpy", "code", "codeop", "pty",
+    "system", "popen", "spawn", "spawnv", "spawnl", "spawnve", "execv", "execve", "execl", "fork", "kill",
+    "import_module", "load_module", "exec_module", "get_data",
+    "environ", "getenv", "putenv", "wrapped_data",
+})
 _MAX_LEN = 8000
 
 
@@ -63,8 +76,11 @@ def _check(tree: ast.AST) -> None:
                 raise SandboxError(f"disallowed name: {node.id}")
             if isinstance(node.ctx, ast.Load) and node.id in _DENIED_NAMES:
                 raise SandboxError(f"disallowed builtin: {node.id}")
-        if isinstance(node, ast.Attribute) and "__" in node.attr:
-            raise SandboxError(f"disallowed attribute: {node.attr}")
+        if isinstance(node, ast.Attribute):
+            if "__" in node.attr:
+                raise SandboxError(f"disallowed attribute: {node.attr}")
+            if node.attr in _DENIED_ATTRS:
+                raise SandboxError(f"disallowed attribute: {node.attr}")
 
 
 def enabled() -> bool:
@@ -91,11 +107,23 @@ def execute_ifc_code(model, code: str) -> dict[str, Any]:
     _check(tree)
 
     import builtins as _b
+    import types
 
-    import ifcopenshell  # the snippet's authoring surface (ifcopenshell.api.run, etc.)
+    import ifcopenshell
+    import ifcopenshell.api
+    import ifcopenshell.guid
+    # CRITICAL: never expose the real `ifcopenshell` module — a module leaks its transitive imports (os,
+    # sys, subprocess, importlib…) as plain non-dunder attributes, which is a full RCE escape. Expose a
+    # minimal **facade** carrying only the authoring callables we intend. Each is a bound function (not a
+    # module), so there is no attribute path from it back to a module.
+    ifc_facade = types.SimpleNamespace(
+        api=types.SimpleNamespace(run=ifcopenshell.api.run),
+        guid=types.SimpleNamespace(new=ifcopenshell.guid.new),
+        create_entity=ifcopenshell.api.run,   # convenience alias
+    )
     safe_builtins = {n: getattr(_b, n) for n in _SAFE_BUILTIN_NAMES if hasattr(_b, n)}
     before = len(list(model))
-    ns: dict[str, Any] = {"__builtins__": safe_builtins, "model": model, "ifcopenshell": ifcopenshell}
+    ns: dict[str, Any] = {"__builtins__": safe_builtins, "model": model, "ifcopenshell": ifc_facade}
     try:
         exec(compile(tree, "<ifc_code>", "exec"), ns)  # noqa: S102 — sandboxed per the module docstring
     except SandboxError:

@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.301 — SECURITY: close an RCE escape in the A1 sandbox
+
+An adversarial review of v0.3.300 proved the AST sandbox was escapable to full RCE **when the flag is on**:
+exposing the real `ifcopenshell` module let a snippet reach its transitive imports as plain (non-dunder)
+attributes — `ifcopenshell.os.system(...)`, `ifcopenshell.api.importlib.import_module('subprocess')`,
+`ifcopenshell.api.inspect.builtins.eval(...)`, etc. Fixed by **never exposing a module**: the snippet now
+gets a minimal **facade** carrying only the intended authoring callables (`ifcopenshell.api.run`,
+`ifcopenshell.guid.new`) — bound functions with no attribute path back to a module. Added an
+attribute-name **denylist** (defense-in-depth) that also blocks the `str.format`/`format_map` dunder-read
+bypass and `model.wrapped_data`. `test_sandbox.py` now asserts all 12 proven escape payloads are blocked
+while the legitimate `ifcopenshell.api.run` authoring path still works. (The feature remains off by default.)
+
 ## v0.3.300 — Sandboxed `execute_ifc_code` escape hatch (A1)
 
 The unbounded authoring escape hatch — run a small ifcopenshell snippet against the model for what the fixed

@@ -57,6 +57,21 @@ assert rejected("type('X', (), {})"), "type() class-creation rejected"
 assert rejected("(1"), "syntax error surfaces as SandboxError"
 assert rejected(""), "empty rejected"
 
+# --- red-team: the module-attribute RCE escapes a security review found MUST all be blocked ---------
+assert rejected("ifcopenshell.os.system('echo hi')"), "ifcopenshell.os.* RCE must be blocked"
+assert rejected("ifcopenshell.sys.modules"), "ifcopenshell.sys must be blocked"
+assert rejected("ifcopenshell.express.subprocess.check_output(['whoami'])"), "subprocess chain blocked"
+assert rejected("ifcopenshell.api.importlib.import_module('subprocess')"), "importlib chain blocked"
+assert rejected("ifcopenshell.api.inspect.builtins.eval('6*7')"), "inspect.builtins chain blocked"
+assert rejected("ifcopenshell.zipfile.io.open('x','w')"), "zipfile.io.open chain blocked"
+assert rejected("ifcopenshell.os.environ.get('PATH')"), "environ leak blocked"
+assert rejected("ifcopenshell.tempfile"), "tempfile attr blocked"
+assert rejected("'{0.__class__}'.format(())"), "str.format dunder-read bypass blocked"
+assert rejected("'{0}'.format(model).format_map({})"), "format_map blocked"
+# the facade exposes ONLY the intended authoring callables — reaching anything else raises
+assert rejected("ifcopenshell.express"), "non-exposed subpackage blocked"
+assert rejected("model.wrapped_data"), "model.wrapped_data blocked"
+
 # --- a whitelisted ifcopenshell snippet authors into the model ------------------------------------
 m = open_model(TMP)
 n0 = len(m.by_type("IfcWall"))
