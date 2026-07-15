@@ -2494,12 +2494,17 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             }
           });
         })));
-        b.appendChild(toolBtn2("🏛 Code analysis (G-series summary)", () => withLoading(container, "Assembling the IBC code-analysis summary", async () => {
+        const runCodeAnalysis = (jur: string) => withLoading(container, "Assembling the IBC code-analysis summary", async () => {
           let r;
-          try { r = await api.codeAnalysis(pid); }
+          try { r = await api.codeAnalysis(pid, jur ? { jurisdiction: jur } : {}); }
           catch { toast("Needs a source IFC with IfcSpaces", "error"); return; }
-          out.textContent = `${r.occupancy.group} · ${r.construction_type.split(" ")[0]} · ${r.building.stories} st`;
+          const ed = r.code_context.ibc_edition;
+          out.textContent = `${r.occupancy.group} · ${r.construction_type.split(" ")[0]} · ${r.building.stories} st${ed ? ` · IBC ${ed}` : ""}`;
           showResult("Code analysis — permit-set G-series summary", (body) => {
+            const cc = r!.code_context;
+            body.appendChild(resultNote(`Code edition: <b>IBC ${cc.ibc_edition ?? "—"}</b> `
+              + (cc.resolved ? `(${cc.jurisdiction} adoption, as-of ${cc.as_of})` : "(national baseline — enter your state below)")
+              + `. <i>${cc.verify}</i>`, cc.resolved ? "ok" : ""));
             body.appendChild(resultNote(`The IBC <b>code-analysis summary</b> a permit set carries on its G-series code sheet, assembled from the model. `
               + `Verify allowable area/height against the actual Table 506.2 with the AHJ.`, "ok"));
             body.appendChild(kvTable([
@@ -2518,22 +2523,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             if (r!.occupant_load_by_occupancy.length) body.appendChild(kvTable(r!.occupant_load_by_occupancy.map((o) => ({ k: o.occupancy, v: `${o.load} occ · ${o.area_ft2.toLocaleString()} ft²` }))));
             body.appendChild(resultNote(`<b>Allowable area & height</b> — ${r!.allowable.note} Sprinkler increase: <b>${r!.allowable.sprinkler_increase}</b>. `
               + `Governing sections: ${r!.allowable.sections.join("; ")}.`, ""));
-            // CODE-1: which code editions does the project's jurisdiction adopt?
-            const jur = document.createElement("div"); jur.style.cssText = "display:flex;gap:6px;align-items:center;margin:6px 0";
-            const jurIn = document.createElement("input"); jurIn.className = "portal-filter"; jurIn.placeholder = "state (e.g. CA)"; jurIn.maxLength = 2; jurIn.style.cssText = "width:120px;font-size:12px";
-            const jurBtn = document.createElement("button"); jurBtn.className = "mini-btn"; jurBtn.textContent = "Adopted codes";
-            const jurOut = document.createElement("div"); jurOut.className = "meta"; jurOut.style.marginTop = "4px";
-            jurBtn.onclick = async () => {
-              try {
-                const a = await api.codeAdoptions(jurIn.value.trim());
-                const ed = a.codes.map((cc) => `${cc.family} ${cc.edition}`).join(", ");
-                jurOut.innerHTML = `<b>${a.jurisdiction || "baseline"}</b> ${a.resolved ? `(seed, as-of ${a.as_of})` : "(national baseline — not seeded)"}: ${ed}. <i>${a.verify}</i>`;
-              } catch (e) { jurOut.textContent = (e as Error).message; }
-            };
-            jur.append(jurIn, jurBtn); body.append(jur, jurOut);
+            // CODE-1/3: set the jurisdiction → re-run the analysis edition-aware (cites the adopted IBC).
+            const jurWrap = document.createElement("div"); jurWrap.style.cssText = "display:flex;gap:6px;align-items:center;margin:6px 0";
+            const jurLbl = document.createElement("span"); jurLbl.className = "meta"; jurLbl.textContent = "Jurisdiction (US state):";
+            const jurIn = document.createElement("input"); jurIn.className = "portal-filter"; jurIn.placeholder = "e.g. CA"; jurIn.maxLength = 2; jurIn.value = cc.jurisdiction || ""; jurIn.style.cssText = "width:80px;font-size:12px";
+            const jurBtn = document.createElement("button"); jurBtn.className = "mini-btn"; jurBtn.textContent = "↻ Re-check for this state";
+            jurBtn.onclick = () => { void runCodeAnalysis(jurIn.value.trim().toUpperCase()); };
+            jurIn.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); void runCodeAnalysis(jurIn.value.trim().toUpperCase()); } };
+            jurWrap.append(jurLbl, jurIn, jurBtn); body.appendChild(jurWrap);
             body.appendChild(resultNote(r!.disclaimer, ""));
           });
-        })));
+        });
+        b.appendChild(toolBtn2("🏛 Code analysis (G-series summary)", () => { void runCodeAnalysis(""); }));
         b.appendChild(toolBtn2("🔧 Normalize properties (IDS-ready)", async () => {
           if (!projectId) { notify("connect a project first", "error"); return; }
           let det;

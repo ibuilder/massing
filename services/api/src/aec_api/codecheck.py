@@ -286,11 +286,12 @@ def _occ_group(label: str) -> str:
 
 
 def code_analysis(model, occupancy_group: str = "", construction_type: str = "",
-                  sprinklered: bool = False) -> dict[str, Any]:
+                  sprinklered: bool = False, jurisdiction: str = "") -> dict[str, Any]:
     """Assemble the **IBC code-analysis summary** a permit set carries on its G-series code sheet —
     occupancy classification, construction type, gross area + stories, the **computed occupant load +
     egress** (reused from the egress analysis), and the governing code sections for allowable area/height
-    and fire-resistance. `occupancy_group`/`construction_type` are project inputs (else inferred/defaulted).
+    and fire-resistance. `occupancy_group`/`construction_type` are project inputs (else inferred/defaulted);
+    `jurisdiction` (US state code) resolves the adopted IBC **edition** so citations name it (CODE-1/3).
     A pre-check assist that cites sections; NOT a certified review — verify allowable area against the
     actual Table 506.2 with the AHJ."""
     eg = egress_from_model(model)
@@ -301,7 +302,15 @@ def code_analysis(model, occupancy_group: str = "", construction_type: str = "",
     stories = len(model.by_type("IfcBuildingStorey"))
     gross_ft2 = eg["building"]["area_ft2"]
 
+    # CODE-1/3: resolve the jurisdiction's adopted IBC edition so the summary names the actual edition
+    from aec_data import codes  # type: ignore
+    ctx = codes.resolve(jurisdiction)
+    ibc_ed = ctx["primary"].get("IBC")
+    ibc_label = f"IBC {ibc_ed}" if ibc_ed else "IBC"
+
     return {
+        "code_context": {"jurisdiction": ctx["jurisdiction"], "ibc_edition": ibc_ed,
+                         "resolved": ctx["resolved"], "as_of": ctx["as_of"], "verify": ctx["verify"]},
         "occupancy": {"group": group or "—", "primary": primary or "—",
                       "mix": [o["occupancy"] for o in by_occ]},
         "construction_type": ctype, "sprinklered": bool(sprinklered),
@@ -317,9 +326,14 @@ def code_analysis(model, occupancy_group: str = "", construction_type: str = "",
                          "IBC §506.3 (frontage increase)", "IBC Table 601/602 (element fire ratings)"],
             "sprinkler_increase": "eligible" if sprinklered else "not applied",
         },
-        "citations": eg["citations"] + ["IBC Ch. 3 (occupancy)", "IBC Ch. 6 / Table 601 (construction type)",
-                                        "IBC Table 506.2 (allowable area)", "IBC §504 (height/stories)"],
-        "disclaimer": eg["disclaimer"],
+        "citations": eg["citations"] + [f"{ibc_label} Ch. 3 (occupancy)",
+                                        f"{ibc_label} Ch. 6 / Table 601 (construction type)",
+                                        f"{ibc_label} Table 506.2 (allowable area)",
+                                        f"{ibc_label} §504 (height/stories)"],
+        "disclaimer": eg["disclaimer"] + (f" Code context: {ibc_label}"
+                                          + (f" ({ctx['jurisdiction']} adoption, as-of {ctx['as_of']})"
+                                             if ctx["resolved"] else " (national baseline — set a jurisdiction)")
+                                          + f". {ctx['verify']}"),
     }
 
 

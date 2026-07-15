@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.286 — Edition-aware code analysis: cite the jurisdiction's adopted IBC (CODE-3)
+
+The code-analysis summary now uses CODE-1: pass a `jurisdiction` (US state) and it resolves the adopted
+**IBC edition** and names it throughout — the headline badge shows "IBC 2021", the citations read "IBC 2021
+Table 506.2 …", and the disclaimer records the code context ("IBC 2021 (CA adoption, as-of 2024)"). With no
+jurisdiction it uses the national baseline and prompts for one. The 🏛 Code-analysis tool gains a
+**Jurisdiction** field that re-checks edition-aware in place. `GET /codecheck/analysis?jurisdiction=…`. Still
+a pre-check assist — verify the edition in force with the AHJ.
+
 ## v0.3.285 — Jurisdiction code context: adopted-edition catalog (CODE-1)
 
 The substrate for edition-aware code checking. New `codes.py` encodes only facts of law + published-edition

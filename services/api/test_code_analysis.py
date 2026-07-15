@@ -34,6 +34,14 @@ secs = " ".join(a["allowable"]["sections"] + a["citations"])
 assert "Table 506.2" in secs and "504" in secs and "Table 601" in secs, secs
 assert a["disclaimer"], "must carry the not-a-certified-review disclaimer"
 
+# --- CODE-1/3: jurisdiction resolves the adopted IBC edition into the summary + citations ----------
+assert a["code_context"]["ibc_edition"] == 2021 and a["code_context"]["resolved"] is False, a["code_context"]
+aj = cc.code_analysis(m, jurisdiction="CA")
+assert aj["code_context"]["jurisdiction"] == "CA" and aj["code_context"]["resolved"], aj["code_context"]
+assert aj["code_context"]["ibc_edition"] == 2021 and aj["code_context"]["as_of"], aj["code_context"]
+assert any("IBC 2021" in cite for cite in aj["citations"]), aj["citations"]
+assert "IBC 2021" in aj["disclaimer"] and "CA adoption" in aj["disclaimer"], aj["disclaimer"]
+
 # --- explicit inputs: occupancy group + construction type + sprinklered ---------------------------
 a2 = cc.code_analysis(m, occupancy_group="A", construction_type="I-A", sprinklered=True)
 assert a2["occupancy"]["group"] == "A" and a2["construction_type"] == "I-A", a2["occupancy"]

@@ -70,7 +70,7 @@ def codecheck_egress(pid: str, db: Session = Depends(get_db), _: str = Depends(r
 
 @router.get("/projects/{pid}/codecheck/analysis")
 def code_analysis(pid: str, occupancy_group: str = "", construction_type: str = "",
-                  sprinklered: bool = False, db: Session = Depends(get_db),
+                  sprinklered: bool = False, jurisdiction: str = "", db: Session = Depends(get_db),
                   _: str = Depends(require_role("viewer"))):
     """W11 D1: the IBC **code-analysis summary** for the G-series code sheet — occupancy classification,
     construction type, gross area + stories, computed occupant load + egress, and the governing sections
@@ -82,7 +82,8 @@ def code_analysis(pid: str, occupancy_group: str = "", construction_type: str = 
         raise HTTPException(404, "project not found")
     if not p.source_ifc:
         raise HTTPException(409, "no source IFC — the code analysis needs a model with IfcSpaces")
-    return codecheck.code_analysis(open_model(p.source_ifc), occupancy_group, construction_type, sprinklered)
+    return codecheck.code_analysis(open_model(p.source_ifc), occupancy_group, construction_type,
+                                   sprinklered, jurisdiction)
 
 
 @router.post("/projects/{pid}/codecheck/egress/bcf")

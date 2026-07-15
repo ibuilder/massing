@@ -1157,12 +1157,14 @@ export class ApiClient extends HttpCore {
   }
   /** W11 D1: the IBC code-analysis summary (occupancy, construction type, area/stories, occupant load,
    *  egress, governing sections) for the G-series code sheet. */
-  codeAnalysis(pid: string, opts: { occupancy_group?: string; construction_type?: string; sprinklered?: boolean } = {}) {
+  codeAnalysis(pid: string, opts: { occupancy_group?: string; construction_type?: string; sprinklered?: boolean; jurisdiction?: string } = {}) {
     const q = new URLSearchParams();
     if (opts.occupancy_group) q.set("occupancy_group", opts.occupancy_group);
     if (opts.construction_type) q.set("construction_type", opts.construction_type);
     if (opts.sprinklered) q.set("sprinklered", "true");
-    return this.json<{ occupancy: { group: string; primary: string; mix: string[] };
+    if (opts.jurisdiction) q.set("jurisdiction", opts.jurisdiction);
+    return this.json<{ code_context: { jurisdiction: string | null; ibc_edition: number | null; resolved: boolean; as_of: number | null; verify: string };
+      occupancy: { group: string; primary: string; mix: string[] };
       construction_type: string; sprinklered: boolean;
       building: { gross_area_ft2: number; stories: number; occupant_load: number };
       occupant_load_by_occupancy: { occupancy: string; load: number; area_ft2: number }[];

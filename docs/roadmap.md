@@ -189,8 +189,10 @@ market-harm scenario in active litigation.
 - **CODE-2** *(M · high)* — externalize `codecheck.py` thresholds (`_RULES`/`_OCC_FACTORS`/egress constants)
   into **edition-scoped `CodeRule` rows** + `resolve_code_context(location, date)`; thread `code_ctx` through
   `egress_analysis`. Edition-aware (2015/2018/2021/2024) vs "generic latest," with an IBC-2021 fallback seed.
-- **CODE-3** *(M · high)* — edition-aware citations in the **Track-D detail-rule engine** (an exterior window
-  cites the project's *actually adopted* IBC section).
+- **CODE-3** *(M · high)* — ✅ **first slice SHIPPED v0.3.286**: the **code-analysis** summary is edition-aware
+  (resolves the jurisdiction's adopted IBC edition and names it in the badge/citations/disclaimer;
+  `?jurisdiction=` + a Jurisdiction field). *Next: thread the edition into the Track-D detail-rule citations
+  so an exterior window cites the actually-adopted section, and add CODE-2's edition-scoped thresholds.*
 - **CODE-4** *(S · med)* — local-amendment overlay model + manual-entry UI (store *our summary* + a link, not a third-party compilation).
 - **CODE-5** *(M · med)* — emit `CodeRule`s as **buildingSMART IDS** XML so the same jurisdiction-resolved
   rules validate IFC via any IDS checker (extends our IDS→BCF pipeline).
