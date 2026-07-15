@@ -62,7 +62,9 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
 **Code + spec + detail intelligence (IBC / MasterFormat)**
 - **D2** — **routed egress / life-safety plans** (path-trace over the W9-4 semantic graph, not just tabulated).
 - **D5** — **keynotes & detail callouts** on drawings, generated *from* the element's classification (NCS UDS Module 7).
-- **D6** — **3-part MasterFormat project manual** (group by MasterFormat → SectionFormat Part 1/2/3; Part 3 Execution = attached install instructions).
+- ✅ **D6 SHIPPED v0.3.289** — **3-part MasterFormat project manual** (`specmanual.py`: elements grouped
+  into CSI divisions → sections, SectionFormat Part 1/2/3, Part 3 Execution from attached install docs;
+  `GET /spec/manual{,.txt}` + a 📖 Project manual tool). Seeded from the model, spec-writer-edited.
 - **D8** — **approvability pre-flight** (reviewer checklist: UL/GA numbers on rated walls, egress traced, COMcheck attached, A117.1 clearances) — extends the IDS→BCF pipeline.
 - **`Pset_Massing_SpecLink` breadcrumb** — the remaining Track-D carrier.
 

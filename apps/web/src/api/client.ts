@@ -1031,6 +1031,13 @@ export class ApiClient extends HttpCore {
       plan: { recipe: string; params: Record<string, unknown>; summary?: string; ok: boolean; destructive: boolean; errors: string[] }[] }>(
       `/projects/${pid}/ai/author`, { method: "POST", body: JSON.stringify({ text, context }) });
   }
+  /** W11 D6: the 3-part MasterFormat project manual seeded from the model. */
+  specManual(pid: string) {
+    return this.json<{ system: string; section_count: number; division_count: number; note: string;
+      divisions: { division: string; title: string; sections: { code: string; title: string;
+        element_count: number; part1_general: string; part2_products: string[]; part3_execution: string[] }[] }[] }>(
+      `/projects/${pid}/spec/manual`);
+  }
   /** W11 E8: validate an edit's params against the authoring guardrails without applying it. */
   editPrecheck(pid: string, recipe: string, params: Record<string, unknown>) {
     return this.json<{ ok: boolean; errors: string[]; warnings: string[] }>(

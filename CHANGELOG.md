@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.289 — 3-part MasterFormat project manual — the spec book (D6)
+
+Closes the loop from "classify an element + attach its detail" to "a spec section writes itself." New
+`specmanual.py` groups the model's elements by their MasterFormat work-result classification into CSI
+**divisions → sections**, each framed in SectionFormat 3-part shape: **Part 1 General**, **Part 2 Products**
+(the element types + materials actually in that section), **Part 3 Execution** (the installation
+instructions attached via `IfcRelAssociatesDocument`, or a manufacturer-instructions fallback). New
+`GET /projects/{pid}/spec/manual` (structured) + `/spec/manual.txt` (downloadable outline) and a **📖 Project
+manual** viewer tool. A pre-check starting point — the real manual is authored by the spec writer.
+`test_specmanual.py`.
+
 ## v0.3.288 — Clear the critical dev-dependency advisories (vitest 3, happy-dom 20)
 
 Bumped the two dev/test dependencies carrying critical Dependabot advisories — `vitest` ^2.1.9 → ^3.2.6

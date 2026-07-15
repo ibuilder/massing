@@ -155,6 +155,32 @@ def schedule_pdf(pid: str, kinds: str = "doors,windows,rooms", number: str = "A-
                     headers={"Content-Disposition": f'inline; filename="{_safe_filename(number)}.pdf"'})
 
 
+@router.get("/projects/{pid}/spec/manual")
+def spec_manual(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W11 D6: the 3-part MasterFormat **project manual** seeded from the model — elements grouped into CSI
+    divisions → sections, each in SectionFormat Part 1/2/3 (Products from element types+materials, Execution
+    from attached install docs). The spec book that accompanies the drawings."""
+    from aec_data import specmanual  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return specmanual.project_manual(open_model(p.source_ifc))
+
+
+@router.get("/projects/{pid}/spec/manual.txt")
+def spec_manual_text(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W11 D6: the project manual rendered as a downloadable plain-text spec outline."""
+    from fastapi.responses import Response  # local import
+
+    from aec_data import specmanual  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    text = specmanual.manual_text(open_model(p.source_ifc), project=p.name or "Project")
+    return Response(content=text, media_type="text/plain",
+                    headers={"Content-Disposition": f'attachment; filename="{_safe_filename(pid, "manual")}-manual.txt"'})
+
+
 @router.get("/projects/{pid}/drawings/sheet.pdf")
 def sheet_pdf(pid: str, storey: str | None = None, scale: int = 100, number: str = "A-101",
               title: str = "FLOOR PLAN", db: Session = Depends(get_db),

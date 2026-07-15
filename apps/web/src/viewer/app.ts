@@ -2056,6 +2056,38 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       schedPdfBtn.title = "Lay the door / window / room schedules on an ARCH-D titleblock sheet and download "
         + "as a submittable PDF — the tabular half of the CD set as an issuable sheet.";
 
+      // W11 D6: the 3-part MasterFormat project manual (the spec book), seeded from classifications.
+      const manualBtn = toolBtn2("📖 Project manual (spec book)", () => withLoading(container, "Assembling the project manual", async () => {
+        let man;
+        try { man = await api.specManual(projectId!); }
+        catch { toast("Needs a source IFC", "error"); return; }
+        showResult("Project manual — 3-part MasterFormat spec book", (body) => {
+          body.appendChild(resultNote(`<b>${man!.division_count}</b> division(s) · <b>${man!.section_count}</b> section(s), `
+            + `seeded from MasterFormat classifications. ${man!.note}`, man!.section_count ? "ok" : ""));
+          if (!man!.section_count) {
+            body.appendChild(resultNote("No MasterFormat-classified elements yet — classify elements in the "
+              + "🏷 Detailing tool (advanced) to seed the manual.", ""));
+          }
+          for (const div of man!.divisions) {
+            const h = document.createElement("div"); h.className = "meta"; h.style.cssText = "font-weight:600;margin:8px 0 2px";
+            h.textContent = `DIVISION ${div.division} — ${div.title}`;
+            body.appendChild(h);
+            for (const s of div.sections) {
+              body.appendChild(kvTable([
+                { k: `§ ${s.code}`, v: `${s.title} — ${s.element_count} element(s)`, strong: true },
+                { k: "Part 2 — Products", v: s.part2_products.join(", ") },
+                { k: "Part 3 — Execution", v: s.part3_execution.join("; ") },
+              ]));
+            }
+          }
+          const dl = toolBtn2("⤓ Download manual (.txt)", () => window.open(api.url(`/projects/${projectId}/spec/manual.txt`), "_blank"));
+          body.appendChild(dl);
+        });
+      }));
+      manualBtn.title = "Generate the 3-part MasterFormat project manual — elements grouped into CSI "
+        + "divisions → sections (Part 1 General / Part 2 Products / Part 3 Execution), seeded from the "
+        + "model's classifications + attached install docs. The spec book that accompanies the drawings.";
+
       // W11 C5: sections & elevations — cut linework straight from the baked model geometry. The
       // section auto-centres on the model (no offset needed); elevations project each cardinal face.
       const sectBtn = toolBtn2("📐 Sections & elevations", () => {
@@ -2186,7 +2218,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       advToggle.textContent = `🔧 Advanced fabrication tools ${advOpen ? "▴" : "▾"}`;
 
       glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, asBuiltBtn, planBtn, sheetBtn, pdfBtn, schedBtn, schedPdfBtn, sectBtn,
+        phaseBtn, queryBtn, lodBtn, asBuiltBtn, planBtn, sheetBtn, pdfBtn, schedBtn, schedPdfBtn, manualBtn, sectBtn,
         advToggle, advWrap, manage, levelsMgr);
     }
 
