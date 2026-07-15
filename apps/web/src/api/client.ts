@@ -1031,6 +1031,11 @@ export class ApiClient extends HttpCore {
       plan: { recipe: string; params: Record<string, unknown>; summary?: string; ok: boolean; destructive: boolean; errors: string[] }[] }>(
       `/projects/${pid}/ai/author`, { method: "POST", body: JSON.stringify({ text, context }) });
   }
+  /** W11 E8: validate an edit's params against the authoring guardrails without applying it. */
+  editPrecheck(pid: string, recipe: string, params: Record<string, unknown>) {
+    return this.json<{ ok: boolean; errors: string[]; warnings: string[] }>(
+      `/projects/${pid}/edit/precheck`, { method: "POST", body: JSON.stringify({ recipe, params }) });
+  }
   /** W11 G1: LOD-500 readiness — share of the model field-verified as-built, by method. */
   lod500(pid: string) {
     return this.json<{ total: number; verified: number; unverified: number; readiness_pct: number;

@@ -1482,6 +1482,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             body.appendChild(kvTable([{ k: step.recipe, v: step.summary || "", strong: true }]));
             const apply = toolBtn2(step.destructive ? `⚠ Apply (destructive): ${step.recipe}` : `✓ Apply: ${step.recipe}`, async () => {
               if (step.destructive && !(await confirmModal(`This will ${step.recipe.replace("_", " ")}. Continue?`, "", "Apply", true))) return;
+              // E8: surface guardrail warnings (e.g. an implausibly large size) before committing
+              try {
+                const pc = await api.editPrecheck(pid, step.recipe, step.params);
+                if (!pc.ok) { notify(pc.errors.join("; "), "error"); return; }
+                if (pc.warnings.length && !(await confirmModal(pc.warnings.join("; "), "Apply anyway?", "Apply", false))) return;
+              } catch { /* precheck unavailable — the server gate still enforces on apply */ }
               cmdIn.value = "";
               await authorAndReload(step.recipe, step.params, step.summary || step.recipe);
             });

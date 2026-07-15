@@ -586,6 +586,17 @@ def ai_author(pid: str, text: str = Body(..., embed=True),
     return nl_ai.plan(text, context)
 
 
+@router.post("/projects/{pid}/edit/precheck")
+def edit_precheck(pid: str, recipe: str = Body(..., embed=True), params: dict = Body(default={}, embed=True),
+                  _: str = Depends(require_role("editor"))):
+    """W11 E8: validate an edit's params against the authoring **guardrails** WITHOUT applying it —
+    {ok, errors, warnings}. The client calls this before committing so a novice is told about a broken
+    edit (zero-length wall, non-positive size, missing host) before it ever touches the model."""
+    from aec_data import guards  # type: ignore
+
+    return guards.precheck(recipe, params)
+
+
 @router.post("/projects/{pid}/edit")
 def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
          publish: bool = Body(default=False), db: Session = Depends(get_db),

@@ -1275,6 +1275,10 @@ def apply_recipe(ifc_path: str, recipe: str, params: dict, out_path: str) -> dic
     preserved, so downstream pins/RFIs/clashes (keyed by GUID) survive."""
     if recipe not in RECIPES:
         raise ValueError(f"unknown recipe {recipe!r}; have {list(RECIPES)}")
+    from . import guards  # E8 — reject a broken edit before it touches the model
+    pre = guards.precheck(recipe, params)
+    if not pre["ok"]:
+        raise ValueError("; ".join(pre["errors"]))
     model = open_model(ifc_path)
     changed = RECIPES[recipe](model, params)
     model.write(out_path)

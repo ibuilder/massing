@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.284 — Authoring guardrails: reject broken edits before they touch the model (E8)
+
+The reliability edge — a novice can't produce invalid IFC. New `guards.py::precheck` runs params-level,
+name-based rules over any recipe: coordinates must be finite [E,N] pairs, a line's endpoints must differ
+(no zero-length walls), physical dimensions must be positive and finite, integer counts ≥ 1, LOD-stage in
+range, and required host/target references present. **`apply_recipe` now enforces the gate** — a broken
+edit raises a clear message and never writes a file (verified against 49 recipe-exercising tests; it
+rejects nothing legitimate). Errors block; suspicious-but-legal inputs (an implausibly large dimension →
+likely unit slip, a non-standard phase) surface as **warnings**. New `POST /projects/{pid}/edit/precheck`
+lets the UI warn *before* committing, and the AI command bar now prechecks each step (blocks on errors,
+confirms through warnings). `test_guards.py` covers the rules and the enforcement path.
+
 ## v0.3.283 — Progressive-disclosure toolbar: fabrication tools behind an "Advanced" toggle (E4)
 
 Lowering the barrier to entry: the Model tools rail now shows only the everyday authoring + drawing tools

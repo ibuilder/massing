@@ -25,13 +25,12 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 
 1. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (unblocks real geometry depth).
 2. **CODE-1 — jurisdiction adoption-facts catalog** — zero copyright risk; unlocks the whole code library.
-3. **E8 — the ~50 valid-IFC guardrail rules** — the reliability edge; a novice can't produce broken IFC.
-4. **D5 — keynotes & detail callouts from classification** — closes the attach-code → keynote-on-plan loop.
-5. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for NL authoring.
-6. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring.
-7. **W10-4 — MEP systems connectivity & sizing depth** — fully-connected logical systems + validation.
+3. **D5 — keynotes & detail callouts from classification** — closes the attach-code → keynote-on-plan loop.
+4. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for NL authoring.
+5. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring.
+6. **W10-4 — MEP systems connectivity & sizing depth** — fully-connected logical systems + validation.
 
-*(E4 progressive-disclosure toolbar ✅ v0.3.283.)*
+*(E4 progressive-disclosure toolbar ✅ v0.3.283; E8 authoring guardrails first slice ✅ v0.3.284.)*
 
 ---
 
@@ -73,7 +72,10 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
 - **A4** — LLM **scene-digest** tool over the semantic graph.
 
 **Master-builder UX (low barrier)**
-- **E8** — **guardrails encoding the ~50 "don't make broken IFC" rules** server-side (a novice can't produce invalid IFC — the reliability edge).
+- ✅ **E8 (first slice) SHIPPED v0.3.284** — **authoring guardrails** (`guards.py::precheck` enforced in
+  `apply_recipe` + `POST /edit/precheck`): finite coords, no zero-length lines, positive dims, valid enums,
+  required refs; blocks broken edits, warns on unit-slip magnitudes. *Next: extend to nested `dims`,
+  model-aware checks (host is a wall, storey exists), and the fuller rule set.*
 - ✅ **E4 SHIPPED v0.3.283** — **progressive-disclosure toolbar**: everyday authoring + drawing tools visible; LOD-350/400 fabrication + detailing tools behind a persisted "🔧 Advanced fabrication tools" toggle.
 - **E1** — **inference snapping** (endpoint/mid/face/parallel/perp) + Shift-lock.
 - **E2** — **type-a-dimension-while-drawing** (VCB).
