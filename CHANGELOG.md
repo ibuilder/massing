@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.317 — Deeper authoring guardrails (E8)
+
+The pre-apply guardrails now catch more classes of broken edit before they touch the model. `guards.precheck`
+gains: nested type **`dims`** validation (each value finite; dimension keys must be positive — mirrors the
+top-level rules, non-dimension keys only finite-checked), **`points`** footprint arrays (every vertex a
+finite [E,N] pair; ≥2 vertices), **sloped-wall heights** (`start_height`/`end_height` finite ≥ 0),
+**procedural-mesh** `verts`/`faces` (non-empty), and new **reference requirements** — `connect_mep` needs
+both `guid_a` + `guid_b`, `set_system_predefined` needs a `system`. Still fast, deterministic, params-level
+(no I/O); errors block, suspicious-but-legal values warn. `test_guards.py` extended. This closes the E8
+"deepen" follow-up (the first slice shipped earlier).
+
 ## v0.3.316 — Sprinkler coverage pre-check (NFPA-13-informed)
 
 New `mep.sprinkler_coverage(model, hazard)` counts the SPRINKLER heads and compares against the number

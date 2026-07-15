@@ -77,6 +77,45 @@ def precheck(recipe: str, params: dict | None) -> dict[str, Any]:
             elif float(p[name]) < 0:
                 errors.append(f"{name} must be 0 or greater")
 
+    # sloped-wall top heights (set_wall_slope): finite and >= 0 (a 0 m end is legitimate)
+    for name in ("start_height", "end_height"):
+        if name in p and p[name] is not None:
+            if not _finite(p[name]):
+                errors.append(f"{name} must be a finite number")
+            elif float(p[name]) < 0:
+                errors.append(f"{name} must be 0 or greater")
+
+    # nested type `dims` map (create_type / edit_type) — every value finite; a *dimension* key (width/
+    # height/…) must be positive, like the top-level params (non-dimension keys are only finite-checked).
+    dims = p.get("dims")
+    if isinstance(dims, dict):
+        for k, v in dims.items():
+            if v is None:
+                continue
+            if not _finite(v):
+                errors.append(f"dims.{k} must be a finite number")
+            elif k in _POSITIVE_DIMS and float(v) <= 0:
+                errors.append(f"dims.{k} must be greater than 0")
+            elif k in _NONNEG_DIMS and float(v) < 0:
+                errors.append(f"dims.{k} must be 0 or greater")
+            elif abs(float(v)) > _HUGE_M:
+                warnings.append(f"dims.{k} is {float(v):g} — unusually large; check the units")
+
+    # a polyline / footprint `points` array: each vertex a finite [E, N(,Z)] pair
+    pl = p.get("points")
+    if isinstance(pl, (list, tuple)) and pl:
+        if any(_as_point(pt) is None for pt in pl):
+            errors.append("points must all be finite [E, N] pairs in metres")
+        elif len(pl) < 2:
+            errors.append("points needs at least 2 vertices")
+
+    # a procedural mesh (add_mesh_representation): verts + faces must be non-empty lists
+    if recipe == "add_mesh_representation":
+        if not isinstance(p.get("verts"), (list, tuple)) or not p.get("verts"):
+            errors.append("verts must be a non-empty list of [x, y, z] points")
+        if not isinstance(p.get("faces"), (list, tuple)) or not p.get("faces"):
+            errors.append("faces must be a non-empty list of [i, j, k] indices")
+
     # integer counts must be >= 1
     for name in ("cols", "rows", "rooms_per_storey", "nx", "ny"):
         if name in p and p[name] is not None:
@@ -94,19 +133,31 @@ def precheck(recipe: str, params: dict | None) -> dict[str, Any]:
             warnings.append(f"phase '{p['phase']}' isn't a standard status ({sorted(_PHASES)}); it'll be tagged verbatim")
 
     # required references present (params-level only — existence-in-model is checked at apply time)
-    for name in ("host_guid", "guid"):
+    for name, msg in _REF_MSG.items():
         if recipe in _NEEDS.get(name, ()) and not str(p.get(name) or "").strip():
-            errors.append(f"{name} is required — select a host/target element first")
+            errors.append(f"{name} is required — {msg}")
     if recipe in _NEEDS.get("guids", ()) and not (p.get("guids") or []):
         errors.append("no target elements — make a selection first")
 
     return {"ok": not errors, "errors": errors, "warnings": warnings}
 
 
+# single-reference param -> the friendly "why" shown when it's missing
+_REF_MSG = {
+    "host_guid": "select a host element first",
+    "guid": "select a target element first",
+    "guid_a": "pick the first element to connect",
+    "guid_b": "pick the second element to connect",
+    "system": "a system name is required",
+}
+
 # which recipes require which reference params (drives the "select something first" guard)
 _NEEDS = {
     "host_guid": ("add_door", "add_window", "add_opening"),
     "guid": ("delete_element", "move_element", "rotate_element", "copy_element", "set_element_pset",
              "set_classification", "set_storey_elevation", "rename_storey", "set_wall_slope"),
+    "guid_a": ("connect_mep",),
+    "guid_b": ("connect_mep",),
+    "system": ("set_system_predefined",),
     "guids": ("set_lod", "set_phase", "verify_asbuilt", "set_manufacturer_info", "record_asbuilt_dimension"),   # map_properties works over all elements (rules), no selection
 }

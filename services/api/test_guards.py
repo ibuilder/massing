@@ -54,6 +54,28 @@ assert err("delete_element", {})[0]                                             
 huge = guards.precheck("add_wall", {"start": [0, 0], "end": [5, 0], "height": 9000})
 assert huge["ok"] and huge["warnings"], huge
 
+# --- E8 deepen: nested type dims, points arrays, slope heights, new refs, mesh ----------------------
+# nested `dims` map (type create/edit) — non-positive/non-finite rejected, huge warns
+assert guards.precheck("create_type", {"dims": {"width": 0.9, "height": 2.1}})["ok"]
+assert err("create_type", {"dims": {"width": 0, "height": 2.1}})[0]                # dims.width <= 0
+assert err("edit_type", {"dims": {"height": float("nan")}})[0]                     # dims non-finite
+assert guards.precheck("create_type", {"dims": {"width": 9000}})["warnings"]       # huge dims → warn
+# a footprint `points` array — malformed points rejected, valid pass
+assert guards.precheck("add_slab", {"points": [[0, 0], [5, 0], [5, 5], [0, 5]], "thickness": 0.2})["ok"]
+assert err("add_slab", {"points": [[0, 0], [float("nan"), 0], [5, 5]]})[0]         # a NaN vertex
+assert err("add_slab", {"points": [[0, 0]]})[0]                                    # < 2 vertices
+# sloped-wall heights: finite, >= 0
+assert guards.precheck("set_wall_slope", {"guid": "w", "start_height": 2, "end_height": 4})["ok"]
+assert err("set_wall_slope", {"guid": "w", "start_height": -1, "end_height": 4})[0]
+assert err("set_wall_slope", {"guid": "w", "start_height": 2, "end_height": float("inf")})[0]
+# new reference requirements: connect_mep needs both guids, set_system_predefined needs a system
+assert err("connect_mep", {"guid_a": "a"})[0]                                      # missing guid_b
+assert guards.precheck("connect_mep", {"guid_a": "a", "guid_b": "b"})["ok"]
+assert err("set_system_predefined", {"discipline": "fire"})[0]                     # missing system
+# procedural mesh needs non-empty verts + faces
+assert err("add_mesh_representation", {"verts": [], "faces": [[0, 1, 2]]})[0]
+assert guards.precheck("add_mesh_representation", {"verts": [[0, 0, 0], [1, 0, 0], [0, 1, 0]], "faces": [[0, 1, 2]]})["ok"]
+
 # --- apply_recipe enforces the gate (a broken edit never writes a file) ----------------------------
 TMP = os.path.join(os.path.dirname(__file__), "_guards_test.ifc")
 OUT = os.path.join(os.path.dirname(__file__), "_guards_out.ifc")

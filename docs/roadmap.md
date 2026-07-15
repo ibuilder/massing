@@ -89,7 +89,10 @@ carriers, D6 project manual, D8 approvability pre-flight all ship (see the archi
 
 **Master-builder UX (low barrier)** — *E4 progressive-disclosure toolbar + E8 authoring-guardrails (first
 slice) + E9 selector DSL ship (see the archive); these remain:*
-- **E8 (deepen)** — extend the guardrails to nested `dims`, model-aware checks (host is a wall, storey exists), and the fuller "don't make broken IFC" rule set.
+- ✅ **E8 (deepen) SHIPPED v0.3.317** — guardrails extended to nested type `dims`, footprint `points` arrays,
+  sloped-wall heights, procedural-mesh verts/faces, and new reference requirements (connect_mep guid_a+guid_b,
+  set_system_predefined system). *Remaining: model-aware checks (host is actually a wall, storey exists) — need
+  the model at precheck time, a bigger change than the params-level rules.*
 - ✅ **E1 SHIPPED v0.3.299** — **drawing inference** (`inference.ts`): automatic on-axis / parallel /
   perpendicular snapping from the previous point + edge, within ~6°, without holding Shift; hard
   geometry-vertex snap still wins; unit-tested. *Next: live inference guide-lines + a midpoint hover target.*
