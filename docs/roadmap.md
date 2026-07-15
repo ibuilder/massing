@@ -27,14 +27,15 @@ sections / elevations / schedules → SVG·PDF·DXF + the 3-part project manual)
 engine), **authoring guardrails + progressive disclosure**, and the **LOD-500 turnover layer**. What's left
 deepens each track:
 
-1. **CODE-2 — externalize codecheck thresholds → edition-scoped `CodeRule`** — makes the whole checker edition-aware (CODE-1 catalog + CODE-3 first slice already ship).
-2. **D5 — keynotes & detail callouts from classification** — section/detail markers on drawings, generated from the element's classification.
-3. **W10-4 — MEP systems connectivity & sizing depth** — fully-connected logical systems (`IfcRelConnectsPorts`/`IfcRelNests`) + validation.
-4. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for the NL command bar.
-5. **E1 — SketchUp-style inference snapping** (endpoint/mid/face/parallel/perp) — the biggest barrier-to-entry win for drawing.
-6. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring (AST-whitelisted).
-7. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
-8. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
+1. **D5 — keynotes & detail callouts from classification** — section/detail markers on drawings, generated from the element's classification.
+2. **W10-4 — MEP systems connectivity & sizing depth** — fully-connected logical systems (`IfcRelConnectsPorts`/`IfcRelNests`) + validation.
+3. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for the NL command bar.
+4. **E1 — SketchUp-style inference snapping** (endpoint/mid/face/parallel/perp) — the biggest barrier-to-entry win for drawing.
+5. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring (AST-whitelisted).
+6. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
+7. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
+
+*(CODE-2 edition-scoped occupant-load factors ✅ v0.3.295.)*
 
 ---
 
@@ -183,9 +184,10 @@ market-harm scenario in active litigation.
 *(✅ **CODE-1 catalog** (`codes.py`) and **CODE-3 first slice** (edition-aware code-analysis) ship — see the
 archive. These extend them:)*
 - **CODE-1 follow-ups** — extend the per-state adoption seed from authoritative sources (ICC adoptions DB + DOE energy-code status) and add per-project jurisdiction storage.
-- **CODE-2** *(M · high, next)* — externalize `codecheck.py` thresholds (`_RULES`/`_OCC_FACTORS`/egress constants)
-  into **edition-scoped `CodeRule` rows** + `resolve_code_context(location, date)`; thread `code_ctx` through
-  `egress_analysis`. Edition-aware (2015/2018/2021/2024) vs "generic latest," with an IBC-2021 fallback seed.
+- ✅ **CODE-2 (first slice) SHIPPED v0.3.295** — edition-scoped **occupant-load factors** threaded through
+  `egress_analysis`/`egress_from_model` (the Business 100→150 gross change at IBC 2018); `code_analysis`
+  resolves the jurisdiction's edition and computes the load with it. *Next: externalize the fuller `_RULES`
+  threshold table into edition-scoped rows + `resolve_code_context(location, date)` as more deltas are encoded.*
 - **CODE-3 (deepen)** — thread the resolved edition into the Track-D detail-rule citations so an exterior window cites the *actually-adopted* section.
 - **CODE-4** *(S · med)* — local-amendment overlay model + manual-entry UI (store *our summary* + a link, not a third-party compilation).
 - **CODE-5** *(M · med)* — emit `CodeRule`s as **buildingSMART IDS** XML so the same jurisdiction-resolved

@@ -168,12 +168,30 @@ _OCC_FACTORS = [   # (keyword regex, label, ft²/occupant, basis)
 _DEFAULT_FACTOR = ("Business (assumed)", 150, "gross")
 
 
-def _occ_factor(text: str) -> tuple[str, int, str]:
+# CODE-2: edition-scoped occupant-load-factor deltas (facts of law). The one well-established change in
+# Table 1004.5 across current editions: Business areas moved from 100 gross (IBC 2012/2015) to 150 gross
+# (IBC 2018 onward). Same regex label, edition-dependent factor. Everything else is stable across editions.
+_OCC_FACTOR_BY_EDITION: dict[str, dict[int, int]] = {
+    "Business": {2012: 100, 2015: 100, 2018: 150, 2021: 150, 2024: 150},
+    "Business (assumed)": {2012: 100, 2015: 100, 2018: 150, 2021: 150, 2024: 150},
+}
+
+
+def _edition_factor(label: str, factor: int, edition: int | None) -> int:
+    """Apply an edition-specific occupant-load factor when one differs from the default (else `factor`)."""
+    if edition is None:
+        return factor
+    table = _OCC_FACTOR_BY_EDITION.get(label)
+    return table.get(int(edition), factor) if table else factor
+
+
+def _occ_factor(text: str, edition: int | None = None) -> tuple[str, int, str]:
     t = (text or "").lower()
     for rx, label, factor, basis in _OCC_FACTORS:
         if re.search(rx, t):
-            return label, factor, basis
-    return _DEFAULT_FACTOR
+            return label, _edition_factor(label, factor, edition), basis
+    label, factor, basis = _DEFAULT_FACTOR
+    return label, _edition_factor(label, factor, edition), basis
 
 
 def _space_area_ft2(e: dict) -> float | None:
@@ -205,9 +223,11 @@ def _door_width_m(e: dict) -> float | None:
     return None
 
 
-def egress_analysis(elements: dict[str, dict]) -> dict[str, Any]:
+def egress_analysis(elements: dict[str, dict], edition: int | None = None) -> dict[str, Any]:
     """Occupant load (IBC 1004) per space + building total, and egress capacity (IBC 1005) vs the
-    provided egress-door width. `elements` is the property index {guid: element-dict}."""
+    provided egress-door width. `elements` is the property index {guid: element-dict}. `edition` (an IBC
+    year) selects edition-scoped load factors (CODE-2) — e.g. the Business factor is 100 gross ≤2015 vs 150
+    gross ≥2018; None keeps the current-edition default (150)."""
     spaces: list[dict] = []
     by_occ: dict[str, dict] = {}
     total_load, total_area = 0, 0.0
@@ -215,7 +235,7 @@ def egress_analysis(elements: dict[str, dict]) -> dict[str, Any]:
         if e.get("ifc_class") != "IfcSpace":
             continue
         area = _space_area_ft2(e)
-        label, factor, basis = _occ_factor(_space_occupancy(e))
+        label, factor, basis = _occ_factor(_space_occupancy(e), edition)
         if area is None:
             spaces.append({"guid": guid, "name": e.get("name"), "occupancy": label,
                            "area_ft2": None, "load": None, "note": "no floor-area quantity"})
@@ -249,6 +269,7 @@ def egress_analysis(elements: dict[str, dict]) -> dict[str, Any]:
         else:
             provided_in += w * _M_TO_IN   # egress-capable doors contribute capacity
     return {
+        "code_edition": int(edition) if edition else None,
         "building": {"occupant_load": total_load, "area_ft2": round(total_area, 1),
                      "spaces": sum(1 for s in spaces if s["load"] is not None),
                      "spaces_missing_area": sum(1 for s in spaces if s["load"] is None)},
@@ -294,18 +315,19 @@ def code_analysis(model, occupancy_group: str = "", construction_type: str = "",
     `jurisdiction` (US state code) resolves the adopted IBC **edition** so citations name it (CODE-1/3).
     A pre-check assist that cites sections; NOT a certified review — verify allowable area against the
     actual Table 506.2 with the AHJ."""
-    eg = egress_from_model(model)
+    # CODE-1/2/3: resolve the jurisdiction's adopted IBC edition first, so the occupant-load computation
+    # uses that edition's load factors and the summary names it.
+    from aec_data import codes  # type: ignore
+    ctx = codes.resolve(jurisdiction)
+    ibc_ed = ctx["primary"].get("IBC")
+
+    eg = egress_from_model(model, ibc_ed)
     by_occ = eg.get("by_occupancy") or []
     primary = by_occ[0]["occupancy"] if by_occ else ""
     group = (occupancy_group or _occ_group(primary)).upper()
     ctype = construction_type or "II-B (verify with AHJ)"
     stories = len(model.by_type("IfcBuildingStorey"))
     gross_ft2 = eg["building"]["area_ft2"]
-
-    # CODE-1/3: resolve the jurisdiction's adopted IBC edition so the summary names the actual edition
-    from aec_data import codes  # type: ignore
-    ctx = codes.resolve(jurisdiction)
-    ibc_ed = ctx["primary"].get("IBC")
     ibc_label = f"IBC {ibc_ed}" if ibc_ed else "IBC"
 
     return {
@@ -428,10 +450,10 @@ def approvability(model) -> dict[str, Any]:
     }
 
 
-def egress_from_model(model) -> dict[str, Any]:
+def egress_from_model(model, edition: int | None = None) -> dict[str, Any]:
     """Extract IfcSpace + IfcDoor (with their psets/qtos) straight from the source IFC and run the
     egress analysis. Spaces are read from the model — the property index holds only *physical*
-    elements, so IfcSpace (a spatial element) isn't in it."""
+    elements, so IfcSpace (a spatial element) isn't in it. `edition` selects edition-scoped load factors."""
     import ifcopenshell.util.element as ue
     import ifcopenshell.util.unit as uu
 
@@ -448,4 +470,4 @@ def egress_from_model(model) -> dict[str, Any]:
                 "psets": ue.get_psets(el, psets_only=True),
                 "qtos": ue.get_psets(el, qtos_only=True),
             }
-    return egress_analysis(idx)
+    return egress_analysis(idx, edition)

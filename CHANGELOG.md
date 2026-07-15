@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.295 — Edition-scoped occupant-load factors (CODE-2)
+
+The egress computation is now edition-aware, not just the citations. `egress_analysis`/`egress_from_model`
+take an IBC `edition` and apply edition-scoped occupant-load factors — the one well-established Table 1004.5
+change: **Business areas are 100 gross ft²/occ in IBC 2012/2015 vs 150 gross in IBC 2018+**. `code_analysis`
+resolves the jurisdiction's adopted edition first and threads it in, so a project in a 2015-edition
+jurisdiction computes a *higher* occupant load (and required egress width) than the 2021 baseline, exposed
+through the existing Jurisdiction field. The egress result carries `code_edition`; the default (no
+jurisdiction) keeps the current-edition factor. Facts of law only. `test_code_analysis.py` extended.
+
 ## v0.3.294 — Docs, landing page & demo refreshed to the current product
 
 Housekeeping so the outward-facing surfaces match what shipped. The **README**, the **in-app guide**

@@ -42,6 +42,15 @@ assert aj["code_context"]["ibc_edition"] == 2021 and aj["code_context"]["as_of"]
 assert any("IBC 2021" in cite for cite in aj["citations"]), aj["citations"]
 assert "IBC 2021" in aj["disclaimer"] and "CA adoption" in aj["disclaimer"], aj["disclaimer"]
 
+# --- CODE-2: edition-scoped occupant-load factor (Business 100 gross ≤2015 vs 150 ≥2018) -----------
+# TX is seeded to IBC 2015 → Business factor 100 → MORE occupants than the 2021 baseline (150).
+a2021 = cc.code_analysis(m)                       # baseline IBC 2021 (factor 150)
+a2015 = cc.code_analysis(m, jurisdiction="TX")    # IBC 2015 (factor 100)
+assert a2015["code_context"]["ibc_edition"] == 2015, a2015["code_context"]
+assert a2015["building"]["occupant_load"] > a2021["building"]["occupant_load"], \
+    (a2015["building"]["occupant_load"], a2021["building"]["occupant_load"])
+assert a2015["egress"]["required_width_in"] > a2021["egress"]["required_width_in"], "more occupants → more egress width"
+
 # --- explicit inputs: occupancy group + construction type + sprinklered ---------------------------
 a2 = cc.code_analysis(m, occupancy_group="A", construction_type="I-A", sprinklered=True)
 assert a2["occupancy"]["group"] == "A" and a2["construction_type"] == "I-A", a2["occupancy"]
