@@ -2323,9 +2323,41 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       ifcCodeBtn.title = "Run a sandboxed ifcopenshell snippet against the model — the unbounded escape hatch "
         + "for authoring the recipes can't express. Disabled unless the server sets AEC_ALLOW_IFC_CODE=1.";
 
+      // B3 — sloped-top wall (parapet slope / shed / gable): rebuild the selected wall's top to slope
+      // from start_height → end_height.
+      const slopeBtn = toolBtn2("⟋ Slope wall top", () => {
+        if (!selectedGuid) { notify("select a wall first", "error"); return; }
+        const guid = selectedGuid;
+        showResult("Slope wall top", (body) => {
+          body.appendChild(resultNote("Give the selected wall a <b>sloped top</b> — the top rises from "
+            + "the start height (at the wall's start point) to the end height (parapet slope / shed / "
+            + "gable). GUID-stable, versioned (undo restores the flat top).", ""));
+          const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;margin:4px 0";
+          const sIn = document.createElement("input"); sIn.type = "number"; sIn.className = "portal-filter"; sIn.placeholder = "start height (m)"; sIn.step = "0.1"; sIn.style.cssText = "flex:1;min-width:0;font-size:12px";
+          const eIn = document.createElement("input"); eIn.type = "number"; eIn.className = "portal-filter"; eIn.placeholder = "end height (m)"; eIn.step = "0.1"; eIn.style.cssText = "flex:1;min-width:0;font-size:12px";
+          row.append(sIn, eIn); body.appendChild(row);
+          const go = toolBtn2("⟋ Apply slope + republish", async () => {
+            const sh = parseFloat(sIn.value), eh = parseFloat(eIn.value);
+            if (!(sh > 0) || !(eh > 0)) { notify("enter positive start & end heights", "error"); return; }
+            await withLoading(container, "sloping the wall top + republishing", async () => {
+              try {
+                await api.setWallSlope(pid, guid, sh, eh, true);
+                const state = await waitForPublish(projectId!);
+                if (state === "done") { await loadProjectModel(); notify("wall top sloped", "success"); }
+                else notify(`sloped — publish ${state}`, state === "error" ? "error" : "info");
+                await reloadModelPins();
+              } catch (e) { notify(`slope failed: ${(e as Error).message}`, "error"); }
+            });
+          });
+          body.appendChild(go);
+        });
+      });
+      slopeBtn.title = "Give the selected wall a sloped top (start height → end height) — parapet slope, "
+        + "shed, or gable wall. Rebuilds the Body as a trapezoidal extrusion; GUID-stable + undo-able.";
+
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, slopeBtn, ifcCodeBtn);
       const advKey = "massing.viewer.advancedTools";
       let advOpen = false;
       try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }

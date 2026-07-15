@@ -27,11 +27,13 @@ sections / elevations / schedules → SVG·PDF·DXF + the 3-part project manual)
 engine), **authoring guardrails + progressive disclosure**, and the **LOD-500 turnover layer**. What's left
 deepens each track:
 
-1. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
-2. **A2/A4** — RAG index over ifcopenshell docs to ground code-gen; LLM scene-digest over the semantic graph.
-3. **CODE-4/5/6, VIZ-2, COLLAB-1, SITE-1, PROFORMA-LIVE** — the remaining Future / frontier items.
+**The "next ~8" order of attack is cleared.** What remains is deeper-authoring + frontier work:
+1. **A2/A4** — RAG index over ifcopenshell docs to ground code-gen; LLM scene-digest over the semantic graph.
+2. **B4/B5, F0b** — procedural-mesh escape hatch, connections/fasteners + `IfcRelConnects*`, derive Box/Axis/FootPrint from Body.
+3. **CODE-4/5/6, VIZ-2** — local-amendment overlay, IDS emit, licensed prose (flagged); three.js PBR presentation mode.
+4. **Frontier (own planning pass):** COLLAB-1 real-time multiplayer, SITE-1 parcel/zoning ingestion, PROFORMA-LIVE, COST-AGENT, BOARDS, NL-QA.
 
-*(CODE-2 ✅ v0.3.295; D5 ✅ v0.3.296; W10-4 ✅ v0.3.297; S4 ✅ v0.3.298; E1 ✅ v0.3.299; A1 ✅ v0.3.300 (RCE-hardened v0.3.301); G2 ✅ v0.3.302.)*
+*(CODE-2 ✅ v0.3.295; D5 ✅ v0.3.296; W10-4 ✅ v0.3.297; S4 ✅ v0.3.298; E1 ✅ v0.3.299; A1 ✅ v0.3.300 (RCE-hardened v0.3.301); G2 ✅ v0.3.302; B3 sloped tops ✅ v0.3.304.)*
 
 ---
 
@@ -52,7 +54,10 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
   elevations/schedules → SVG·PDF·DXF + the project manual already ship — see the archive.)*
 
 **Geometry depth → LOD 350/400**
-- **B3** — wall **Axis representation + clippings/booleans** (sloped tops, gable walls).
+- ✅ **B3 (sloped tops) SHIPPED v0.3.304** — `set_wall_slope` rebuilds the wall Body as a trapezoidal
+  extrusion (no boolean), top rising start_height→end_height; ⟋ Slope wall top tool. Verified by
+  tessellation + a real web-ifc→Fragments converter round-trip. *Remaining B3 sub-items: wall Axis
+  representation + arbitrary clip planes (gable peak mid-span).*
 - **B4** — **procedural-mesh escape hatch** (`add_mesh_representation` → `IfcTriangulatedFaceSet` for anything
   the parametric recipes can't express).
 - **B5** — **connections / fasteners / hangers** + `IfcRelConnects*` (LOD-350 coordination).

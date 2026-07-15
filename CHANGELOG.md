@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.304 — Sloped-top walls: parapet slope / shed / gable (B3)
+
+Walls can now have a **sloped top**. New `set_wall_slope` recipe rebuilds the selected wall's Body as a
+**trapezoidal side profile extruded across the thickness** — a plain `IfcExtrudedAreaSolid` (no boolean, so
+every geometry engine renders it), with the top rising from `start_height` (at the wall's start point) to
+`end_height`. GUID-stable, versioned/undo-able. New **⟋ Slope wall top** tool (Advanced cluster). Verified
+objectively, not by eye: `test_wall_slope.py` tessellates the result (`ifcopenshell.geom`) and confirms the
+start end sits at ~2 m and the far end at ~4 m (a real rising slope, base at Z = 0), and the output was
+round-tripped through the actual web-ifc → Fragments converter into a valid fragment (it renders). This was
+the last item on the Master-Builder order of attack.
+
 ## v0.3.303 — Fix: `test_edit_undo` CI failure (read-only `/app`)
 
 The S4 undo test (v0.3.298) failed the CI API gate with `PermissionError: /app` — it drives `/model/blank`,

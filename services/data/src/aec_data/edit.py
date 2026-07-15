@@ -250,6 +250,63 @@ def set_storey_elevation(model: ifcopenshell.file, guid: str, elevation: float =
     return guid
 
 
+def set_wall_slope(model: ifcopenshell.file, guid: str, start_height: float, end_height: float) -> dict:
+    """B3: give a wall a **sloped top** — the top goes from `start_height` (at the wall's start end) to
+    `end_height` (at the end), for parapet slopes / shed / gable walls. Rebuilds the wall's Body as a
+    **trapezoidal side profile extruded across the thickness** (a plain IfcExtrudedAreaSolid — no boolean,
+    so every geometry engine renders it). GUID-stable. The wall must be a standard rectangular-extruded
+    wall (as authored by add_wall); returns {guid, start_height, end_height, length, thickness}."""
+    import ifcopenshell.util.unit as uunit
+
+    try:
+        el = model.by_guid(guid)
+    except (RuntimeError, Exception):  # noqa: BLE001 — by_guid raises for an unknown GUID
+        el = None
+    if el is None or not el.is_a("IfcWall"):
+        raise ValueError(f"{guid} is not an IfcWall")
+    sh, eh = float(start_height), float(end_height)
+    if sh <= 0 or eh <= 0:
+        raise ValueError("start_height and end_height must be > 0")
+    scale = uunit.calculate_unit_scale(model)
+    rep = next((r for r in (getattr(getattr(el, "Representation", None), "Representations", None) or [])
+                if getattr(r, "RepresentationIdentifier", None) == "Body"), None)
+    solid = rep.Items[0] if (rep and rep.Items) else None
+    if solid is None or not solid.is_a("IfcExtrudedAreaSolid"):
+        raise ValueError("wall geometry isn't a standard extrusion — can't slope it")
+    prof = solid.SweptArea
+    if prof.is_a("IfcRectangleProfileDef"):                  # a fresh add_wall: length×thickness, extruded up
+        xdim, ydim = float(prof.XDim), float(prof.YDim)      # length, thickness in FILE units
+    elif prof.is_a("IfcArbitraryClosedProfileDef") and prof.OuterCurve.is_a("IfcPolyline"):
+        # a wall we already sloped: length = the profile's X-extent, thickness = the extrusion depth
+        pxs = [float(p.Coordinates[0]) for p in prof.OuterCurve.Points]
+        xdim, ydim = (max(pxs) - min(pxs)), float(solid.Depth)
+    else:
+        raise ValueError("wall geometry isn't a standard rectangular/sloped extrusion — can't slope it")
+    hx = xdim / 2.0
+    # trapezoid side profile (file units): along-length X, height Y; top edge start_h → end_h
+    pts = [(-hx, 0.0), (hx, 0.0), (hx, eh / scale), (-hx, sh / scale)]
+    poly = model.create_entity("IfcPolyline", Points=[
+        model.create_entity("IfcCartesianPoint", (float(x), float(y))) for x, y in pts]
+        + [model.create_entity("IfcCartesianPoint", (float(pts[0][0]), float(pts[0][1])))])
+    new_prof = model.create_entity("IfcArbitraryClosedProfileDef", ProfileType="AREA", OuterCurve=poly)
+    # place the profile plane in the wall's local X–Z, extrude across thickness (local -Y, centred)
+    place = model.create_entity(
+        "IfcAxis2Placement3D",
+        Location=model.create_entity("IfcCartesianPoint", (0.0, ydim / 2.0, 0.0)),
+        Axis=model.create_entity("IfcDirection", (0.0, -1.0, 0.0)),
+        RefDirection=model.create_entity("IfcDirection", (1.0, 0.0, 0.0)))
+    new_solid = model.create_entity(
+        "IfcExtrudedAreaSolid", SweptArea=new_prof, Position=place,
+        ExtrudedDirection=model.create_entity("IfcDirection", (0.0, 0.0, 1.0)), Depth=ydim)
+    rep.Items = [new_solid]
+    try:                                                    # tidy the now-orphaned rectangular solid
+        model.remove(solid)
+    except Exception:  # noqa: BLE001
+        pass
+    return {"guid": guid, "start_height": sh, "end_height": eh,
+            "length": round(xdim * scale, 4), "thickness": round(ydim * scale, 4)}
+
+
 def add_wall(model: ifcopenshell.file, start, end, height: float = 3.0,
              thickness: float = 0.2, storey: str | None = None) -> str:
     """Author an IfcWall from two XY points (meters): a rectangular profile (length ×
@@ -1243,6 +1300,8 @@ RECIPES = {
     "connect_mep": lambda m, p: connect_mep(m, p["guid_a"], p["guid_b"]),
     # A1 — sandboxed ifcopenshell escape hatch (gated by AEC_ALLOW_IFC_CODE; AST-whitelisted)
     "execute_ifc_code": lambda m, p: _sandbox().execute_ifc_code(m, p["code"]),
+    # B3 — sloped-top wall (parapet slope / shed / gable)
+    "set_wall_slope": lambda m, p: set_wall_slope(m, p["guid"], p["start_height"], p["end_height"]),
     "add_covering": lambda m, p: add_covering(m, p["points"], p.get("predefined", "CEILING"),
                                               float(p.get("thickness", 0.02)), p.get("material"), p.get("storey")),
     "add_railing": lambda m, p: add_railing(m, p["start"], p["end"], float(p.get("height", 1.1)),

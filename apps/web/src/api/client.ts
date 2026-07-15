@@ -1053,6 +1053,10 @@ export class ApiClient extends HttpCore {
     return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean } }>(
       `/projects/${pid}/edit/redo`, { method: "POST", body: JSON.stringify({ publish }) });
   }
+  /** B3: give a wall a sloped top (start_height → end_height) for parapet/shed/gable walls. */
+  setWallSlope(pid: string, guid: string, startHeight: number, endHeight: number, publish = true) {
+    return this.editIfc(pid, "set_wall_slope", { guid, start_height: startHeight, end_height: endHeight }, publish);
+  }
   /** W11 E8: validate an edit's params against the authoring guardrails without applying it. */
   editPrecheck(pid: string, recipe: string, params: Record<string, unknown>) {
     return this.json<{ ok: boolean; errors: string[]; warnings: string[] }>(

@@ -107,6 +107,6 @@ def precheck(recipe: str, params: dict | None) -> dict[str, Any]:
 _NEEDS = {
     "host_guid": ("add_door", "add_window", "add_opening"),
     "guid": ("delete_element", "move_element", "rotate_element", "copy_element", "set_element_pset",
-             "set_classification", "set_storey_elevation", "rename_storey"),
+             "set_classification", "set_storey_elevation", "rename_storey", "set_wall_slope"),
     "guids": ("set_lod", "set_phase", "verify_asbuilt", "set_manufacturer_info", "record_asbuilt_dimension"),   # map_properties works over all elements (rules), no selection
 }
