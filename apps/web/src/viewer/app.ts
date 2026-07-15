@@ -2385,9 +2385,52 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       meshBtn.title = "Author an element from a raw triangle mesh (IfcTriangulatedFaceSet) — the escape "
         + "hatch for geometry the parametric recipes can't express.";
 
+      // CONTENT-1 — site content library: place logistics / furniture / landscaping, each classified into
+      // the right IFC class + phase (logistics = temporary, time-phases on the 4D slider).
+      const contentBtn = toolBtn2("🏗 Site content library", () => withLoading(container, "Loading the content catalog", async () => {
+        let cat;
+        try { cat = await api.contentCatalog(); }
+        catch (e) { notify(`catalog failed: ${(e as Error).message}`, "error"); return; }
+        showResult("Site content library", (body) => {
+          body.appendChild(resultNote(`<b>${cat!.count}</b> catalogued parts. ${cat!.note} Placed at an E,N `
+            + `point as the correct IFC class + phase + classification (a sized placeholder box; swap in a `
+            + `detailed mesh via Add mesh / an imported asset).`, ""));
+          for (const [group, items] of Object.entries(cat!.groups)) {
+            const h = document.createElement("div"); h.className = "meta"; h.style.cssText = "font-weight:600;margin:8px 0 2px";
+            h.textContent = group;
+            body.appendChild(h);
+            const row = document.createElement("div"); row.style.cssText = "display:flex;flex-wrap:wrap;gap:4px";
+            for (const it of items) {
+              const b2 = document.createElement("button"); b2.className = "mini-btn";
+              b2.textContent = it.key.replace(/_/g, " ") + (it.phase === "temporary" ? " ⏱" : "");
+              b2.title = `${it.ifc_class} · ${it.classification}${it.phase ? ` · ${it.phase}` : ""} · ~${it.default_dims_m.join("×")} m`;
+              b2.onclick = async () => {
+                const v = await askText(`Place ${it.key.replace(/_/g, " ")}`, { label: "Location E, N (metres):", value: "0, 0" });
+                if (!v) return;
+                const parts = v.split(",").map((s) => parseFloat(s.trim()));
+                if (parts.length < 2 || parts.some((n) => !isFinite(n))) { notify("enter E, N", "error"); return; }
+                await withLoading(container, `placing ${it.key} + republishing`, async () => {
+                  try {
+                    await api.placeContent(projectId!, it.key, [parts[0]!, parts[1]!], undefined, true);
+                    const state = await waitForPublish(projectId!);
+                    if (state === "done") { await loadProjectModel(); notify(`placed ${it.key}`, "success"); }
+                    else notify(`placed — publish ${state}`, state === "error" ? "error" : "info");
+                    await reloadModelPins();
+                  } catch (e) { notify(`place failed: ${(e as Error).message}`, "error"); }
+                });
+              };
+              row.appendChild(b2);
+            }
+            body.appendChild(row);
+          }
+        });
+      }));
+      contentBtn.title = "Place site logistics (cranes, hoists, fencing, sanitary units, laydown), furniture, "
+        + "and landscaping — each classified into the right IFC class + phase (logistics time-phases on the 4D slider).";
+
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, contentBtn, ifcCodeBtn);
       const advKey = "massing.viewer.advancedTools";
       let advOpen = false;
       try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }
