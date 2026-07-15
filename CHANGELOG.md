@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.288 — Clear the critical dev-dependency advisories (vitest 3, happy-dom 20)
+
+Bumped the two dev/test dependencies carrying critical Dependabot advisories — `vitest` ^2.1.9 → ^3.2.6
+(resolved 3.2.7) and `happy-dom` ^15.11.7 → ^20.8.9 (resolved 20.10.6) — clearing 4 critical + several high
+alerts. Both are test-only (the runner and its DOM), never shipped to production, so real-world exposure
+was low; this is hygiene. Verified the full web test suite (13 files / 79 tests) still passes on the new
+majors, plus typecheck + build + bundle budget. (Remaining Dependabot items are transitive build tooling —
+`tar`/`esbuild`/`glib` — for a follow-up.)
+
 ## v0.3.287 — Harden download filenames (defense-in-depth)
 
 A security pass over this session's new endpoints came back clean; this applies its one hardening note.
