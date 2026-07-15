@@ -6,9 +6,10 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.309** (README / guide /
-Pages / demo / marketing refreshed to the authoring wave; a shareable current-status page at
-`docs/status.html`).
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.312** (recent: docs/marketing
+refresh + status page · CODE-EBC existing-building classifier · MEP-FP fire-protection systems · Capacitor 7
+security). A research-backed **UI/UX Master Pass** plan (designer workspace: ribbon · annotation · library)
+is queued below.
 
 > **This file holds only what is still OPEN.** Everything shipped — every wave, track, and release —
 > lives in [roadmap-completed.md](roadmap-completed.md), so *what's left* is never buried under *what's
