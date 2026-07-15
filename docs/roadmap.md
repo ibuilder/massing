@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.280**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.293**.
 
 > **This file holds only what is still OPEN.** Everything shipped — every wave, track, and release —
 > lives in [roadmap-completed.md](roadmap-completed.md), so *what's left* is never buried under *what's
@@ -21,16 +21,20 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 
 ## ⚡ Order of attack — the next ~8, highest value first
 
-*(CD set finished: DXF export ✅ v0.3.281, schedules-on-a-PDF-sheet ✅ v0.3.282.)*
+The Master Builder wave's headline deliverables have shipped — the **construction-document set** (plans /
+sections / elevations / schedules → SVG·PDF·DXF + the 3-part project manual), **code intelligence**
+(code-analysis, egress pre-check, jurisdiction-aware editions, approvability pre-flight, detail-rule
+engine), **authoring guardrails + progressive disclosure**, and the **LOD-500 turnover layer**. What's left
+deepens each track:
 
-1. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (unblocks real geometry depth).
-2. **CODE-2 — externalize codecheck thresholds → edition-scoped `CodeRule`** — makes the checker edition-aware (CODE-1 catalog ✅ v0.3.285).
-3. **D5 — keynotes & detail callouts from classification** — closes the attach-code → keynote-on-plan loop.
-4. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for NL authoring.
-5. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring.
-6. **W10-4 — MEP systems connectivity & sizing depth** — fully-connected logical systems + validation.
-
-*(E4 progressive-disclosure toolbar ✅ v0.3.283; E8 authoring guardrails first slice ✅ v0.3.284.)*
+1. **CODE-2 — externalize codecheck thresholds → edition-scoped `CodeRule`** — makes the whole checker edition-aware (CODE-1 catalog + CODE-3 first slice already ship).
+2. **D5 — keynotes & detail callouts from classification** — section/detail markers on drawings, generated from the element's classification.
+3. **W10-4 — MEP systems connectivity & sizing depth** — fully-connected logical systems (`IfcRelConnectsPorts`/`IfcRelNests`) + validation.
+4. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for the NL command bar.
+5. **E1 — SketchUp-style inference snapping** (endpoint/mid/face/parallel/perp) — the biggest barrier-to-entry win for drawing.
+6. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring (AST-whitelisted).
+7. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
+8. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
 
 ---
 
@@ -44,13 +48,11 @@ order-of-attack above is the priority spine.
 The single architectural spine (multi-representation, view-keyed elements) + the guardrails and the drawing
 generator already ship; these deepen geometry, drawings, code-intelligence, and the authoring UX.
 
-**Construction-document generation (finish the CD set) — highest value**
-- **C6 (near-term slices)** — ✅ **DXF export SHIPPED v0.3.281** (`dxf.py` R12 writer + plan/section/elevation
-  `.dxf` endpoints; dependency-free); ✅ **schedules-on-a-PDF-sheet SHIPPED v0.3.282** (`drawing.schedule_pdf`
-  on an ARCH-D titleblock sheet + `GET /drawings/schedule.pdf`). Remaining: reference-line datums
-  (`IfcReferent`/`IfcVirtualElement`) and **"drawn detail follows LOD"** poché (representation selection +
-  `IfcMaterialLayerSet` poché + annotation density → schematic single-line ↔ CD layered poché). Permissive
-  libs only (no AGPL).
+**Construction-document generation (the CD set ships; these deepen it)**
+- **C6 (remaining slices)** — reference-line datums (`IfcReferent`/`IfcVirtualElement`) and **"drawn detail
+  follows LOD"** poché (representation selection + `IfcMaterialLayerSet` poché + annotation density →
+  schematic single-line ↔ CD layered poché). Permissive libs only (no AGPL). *(DXF export + plans/sections/
+  elevations/schedules → SVG·PDF·DXF + the project manual already ship — see the archive.)*
 
 **Geometry depth → LOD 350/400**
 - **B3** — wall **Axis representation + clippings/booleans** (sloped tops, gable walls).
@@ -59,16 +61,11 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
 - **B5** — **connections / fasteners / hangers** + `IfcRelConnects*` (LOD-350 coordination).
 - **F0b** — derive **Box / Axis / FootPrint** geometry on demand from `Body` (consumed by the C drawing generator).
 
-**Code + spec + detail intelligence (IBC / MasterFormat)**
+**Code + spec + detail intelligence (IBC / MasterFormat)** — *D1 code-analysis, D3/D7 detail rules, D4
+carriers, D6 project manual, D8 approvability pre-flight all ship (see the archive); these remain:*
 - **D2** — **routed egress / life-safety plans** (path-trace over the W9-4 semantic graph, not just tabulated).
 - **D5** — **keynotes & detail callouts** on drawings, generated *from* the element's classification (NCS UDS Module 7).
-- ✅ **D6 SHIPPED v0.3.289** — **3-part MasterFormat project manual** (`specmanual.py`: elements grouped
-  into CSI divisions → sections, SectionFormat Part 1/2/3, Part 3 Execution from attached install docs;
-  `GET /spec/manual{,.txt}` + a 📖 Project manual tool). Seeded from the model, spec-writer-edited.
-- ✅ **D8 SHIPPED v0.3.290** — **approvability pre-flight** (`codecheck.approvability`: egress capacity,
-  door clear width, two-exits, occupancy classification, fire-rated-assembly substantiation — each cited,
-  with a readiness score; `GET /codecheck/approvability` + a ✅ pre-flight tool that isolates flags). *Next:
-  wire COMcheck/energy-doc + A117.1 clearance checks and round findings to BCF.*
+- **D8 follow-ups** — wire COMcheck/energy-doc + A117.1 clearance checks into the pre-flight and round its findings to BCF.
 - **`Pset_Massing_SpecLink` breadcrumb** — the remaining Track-D carrier.
 
 **Open-ended authoring (the moat)**
@@ -76,12 +73,9 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
 - **A2** — **RAG index** over ifcopenshell / IFC docs to ground code-gen.
 - **A4** — LLM **scene-digest** tool over the semantic graph.
 
-**Master-builder UX (low barrier)**
-- ✅ **E8 (first slice) SHIPPED v0.3.284** — **authoring guardrails** (`guards.py::precheck` enforced in
-  `apply_recipe` + `POST /edit/precheck`): finite coords, no zero-length lines, positive dims, valid enums,
-  required refs; blocks broken edits, warns on unit-slip magnitudes. *Next: extend to nested `dims`,
-  model-aware checks (host is a wall, storey exists), and the fuller rule set.*
-- ✅ **E4 SHIPPED v0.3.283** — **progressive-disclosure toolbar**: everyday authoring + drawing tools visible; LOD-350/400 fabrication + detailing tools behind a persisted "🔧 Advanced fabrication tools" toggle.
+**Master-builder UX (low barrier)** — *E4 progressive-disclosure toolbar + E8 authoring-guardrails (first
+slice) + E9 selector DSL ship (see the archive); these remain:*
+- **E8 (deepen)** — extend the guardrails to nested `dims`, model-aware checks (host is a wall, storey exists), and the fuller "don't make broken IFC" rule set.
 - **E1** — **inference snapping** (endpoint/mid/face/parallel/perp) + Shift-lock.
 - **E2** — **type-a-dimension-while-drawing** (VCB).
 - **E3** — **sketch-to-BIM push/pull** (2D profile → extrude).
@@ -89,12 +83,10 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
 - **E6** — **recipe-log undo/redo + design-option branches** (the recipe log *is* the undo stack).
 - **E7** — **live schedules / quantities as you model**.
 
-**LOD-500 verified-as-built data + content library**
+**LOD-500 verified-as-built data + content library** — *G1 as-built verify + G3 manufacturer/serial ship
+(see the archive); these remain:*
 - **G2** — field-verified dimensions / variances.
-- ✅ **G3 (Manufacturer/Serial) SHIPPED v0.3.291** — `set_manufacturer_info` stamps the standard
-  `Pset_ManufacturerTypeInformation`/`Pset_ManufacturerOccurrence`; `asbuilt_summary` counts
-  with_manufacturer/with_serial; stamp form in the as-built tool. *Remaining: warranty/O&M **document** refs
-  via `IfcRelAssociatesDocument` (attach_document exists — wire an O&M-doc UI).*
+- **G3 follow-up** — warranty / O&M **document** refs via `IfcRelAssociatesDocument` (`attach_document` exists — wire an O&M-doc UI).
 - **H1** — seed **CC0 furniture families + PBR materials** (CC0/CC-BY only — ambientCG, Poly Haven, Poly Pizza, Quaternius, Kenney, AMD MaterialX), attribution + license stored per asset.
 
 **License guardrails (firm):** `ifcopenshell` + its geom serializers are **LGPL** — safe to depend on.
@@ -188,19 +180,13 @@ facts**, numeric thresholds/formulas (facts of law — exactly what `codecheck.p
 own paraphrased** rule content. **RED (never):** scraping/redistributing ICC/ASTM verbatim **prose** — the
 relevant fair-use rulings are preliminary/unresolved and a commercial SaaS reproducing code text is the exact
 market-harm scenario in active litigation.
-- ✅ **CODE-1 SHIPPED v0.3.285** — jurisdiction + adoption **facts** catalog (`codes.py`: code families +
-  editions on the 3-year cycle, `resolve(jurisdiction)` → adopted editions with a national-baseline fallback,
-  mandatory verify-with-AHJ note + as-of year; `GET /codes/{families,adoptions,seeded}` + an Adopted-codes
-  lookup in the code-analysis tool). Copyright-safe (facts only). *Seed is a dated starting point — extend
-  the per-state adoptions from authoritative sources (ICC adoptions DB + DOE energy-code status); add
-  per-project jurisdiction storage next.* Unlocks CODE-2/3.
-- **CODE-2** *(M · high)* — externalize `codecheck.py` thresholds (`_RULES`/`_OCC_FACTORS`/egress constants)
+*(✅ **CODE-1 catalog** (`codes.py`) and **CODE-3 first slice** (edition-aware code-analysis) ship — see the
+archive. These extend them:)*
+- **CODE-1 follow-ups** — extend the per-state adoption seed from authoritative sources (ICC adoptions DB + DOE energy-code status) and add per-project jurisdiction storage.
+- **CODE-2** *(M · high, next)* — externalize `codecheck.py` thresholds (`_RULES`/`_OCC_FACTORS`/egress constants)
   into **edition-scoped `CodeRule` rows** + `resolve_code_context(location, date)`; thread `code_ctx` through
   `egress_analysis`. Edition-aware (2015/2018/2021/2024) vs "generic latest," with an IBC-2021 fallback seed.
-- **CODE-3** *(M · high)* — ✅ **first slice SHIPPED v0.3.286**: the **code-analysis** summary is edition-aware
-  (resolves the jurisdiction's adopted IBC edition and names it in the badge/citations/disclaimer;
-  `?jurisdiction=` + a Jurisdiction field). *Next: thread the edition into the Track-D detail-rule citations
-  so an exterior window cites the actually-adopted section, and add CODE-2's edition-scoped thresholds.*
+- **CODE-3 (deepen)** — thread the resolved edition into the Track-D detail-rule citations so an exterior window cites the *actually-adopted* section.
 - **CODE-4** *(S · med)* — local-amendment overlay model + manual-entry UI (store *our summary* + a link, not a third-party compilation).
 - **CODE-5** *(M · med)* — emit `CodeRule`s as **buildingSMART IDS** XML so the same jurisdiction-resolved
   rules validate IFC via any IDS checker (extends our IDS→BCF pipeline).

@@ -912,4 +912,23 @@ The 2026-07 direction change: the Model workspace became a genuine authoring+coo
 ### AI-MCP / NL authoring (shipped, v0.3.271–278)
 - **S1+S2** natural-language authoring over the edit-recipe engine — `nlauthor.py` (`RECIPE_SPECS` + `validate_call` guardrail + keyword `interpret`), `POST /ai/author` (interpret-only, confirm-before-apply), ✨ command bar. Deterministic no-API-key baseline (v0.3.271)
 - **S3** multi-step LLM interpretation — `nl_ai.plan()` produces a structured JSON plan against `RECIPE_SPECS` ("a 5×4 m room" → 4 walls); every step re-validated by `validate_call`, GUIDs filled from selection (never fabricated), destructive recipes withheld, keyword fallback; ✓ Apply-all chains edits into one republish (v0.3.278)
+- **S3 fix** — `_PLAN_SCHEMA` params were an open object (strict structured-output 400s); params now a JSON string parsed by `_coerce_params`; apply-all recovers from a mid-chain failure (republishes what applied, reports "stopped after N/M") (v0.3.280)
+
+### Wave 11 — CD-set finish + code intelligence + LOD-500 turnover (v0.3.281–293)
+- **C6 DXF export** — `dxf.py` dependency-free R12 writer; `plan_dxf`/`section_dxf`/`elevation_dxf` on named layers + `.dxf` endpoints + ⤓ DXF buttons (v0.3.281)
+- **C6 schedules-on-a-PDF-sheet** — `drawing.schedule_pdf` lays the door/window/room schedules on an ARCH-D titleblock sheet; `GET /drawings/schedule.pdf`, 📋 Schedules sheet tool; titleblock factored to a shared `_titleblock_pdf` (v0.3.282). **The construction-document set is now complete** (plans/sections/elevations/schedules → SVG/PDF/DXF).
+- **E4 progressive-disclosure toolbar** — everyday authoring + drawing tools visible; LOD-350/400 fabrication + detailing tools behind a persisted "🔧 Advanced fabrication tools" toggle (v0.3.283)
+- **E8 authoring guardrails (first slice)** — `guards.py::precheck` enforced in `apply_recipe` (finite coords, no zero-length lines, positive dims, valid enums, required refs) + `POST /edit/precheck`; blocks broken edits, warns on unit-slip magnitudes; verified against 49 recipe-exercising tests (v0.3.284)
+- **CODE-1 jurisdiction catalog** — `codes.py` code-family/edition catalog + `resolve(jurisdiction)` → adopted editions with a national-baseline fallback + mandatory verify-with-AHJ note; `GET /codes/{families,adoptions,seeded}`; copyright-safe facts only (v0.3.285)
+- **CODE-3 edition-aware code analysis (first slice)** — `code_analysis` resolves the jurisdiction's adopted IBC edition and names it in the badge/citations/disclaimer; `?jurisdiction=` + a Jurisdiction field (v0.3.286)
+- **Hardening** — whitelist Content-Disposition filename segments on the DXF/PDF drawing endpoints (defence-in-depth after a clean security review) (v0.3.287)
+- **Dependency hygiene** — bump vitest 3 + happy-dom 20 to clear 4 critical Dependabot advisories (dev/test-only); full web suite re-verified (v0.3.288)
+- **D6 3-part MasterFormat project manual** — `specmanual.py` groups elements into CSI divisions → sections, SectionFormat Part 1/2/3 (Part 3 Execution from attached install docs); `GET /spec/manual{,.txt}` + 📖 Project manual tool (v0.3.289)
+- **D8 approvability pre-flight** — `codecheck.approvability` runs a plan-reviewer checklist (egress capacity, door clear width, two-exits, occupancy classification, substantiated fire-rated assemblies), each cited, with a readiness score; `GET /codecheck/approvability` + ✅ pre-flight tool that isolates flags (v0.3.290)
+- **G3 manufacturer/serial (O&M/turnover)** — `set_manufacturer_info` stamps the standard `Pset_ManufacturerTypeInformation`/`Pset_ManufacturerOccurrence`; `asbuilt_summary` counts with_manufacturer/with_serial; stamp form in the as-built tool (v0.3.291)
+- **Debug fixes** — a post-release audit caught two wrong-result bugs: `specmanual` layer-set materials never surfaced (now resolves `IfcMaterialLayerSetUsage` → layer materials); D8 occupancy check counted free-text `LongName` (now gates on `Pset_SpaceOccupancyRequirements.OccupancyType`); both regression-tested (v0.3.292)
+- **Model Health — Code & permit-readiness lens** — the composite scorecard gains a fifth lens from the D8 pre-flight, so the single "is my project healthy?" number now spans integrity, ISO-19650, clash, verified-as-built, and permit-readiness (v0.3.293)
+
+### Roadmap hygiene + docs (2026-07)
+- Reorganized the roadmap so the active file holds only open work; moved every shipped item to this archive; removed all competitor name-drops from both files; refreshed README / in-app guide / Pages landing to the current end-to-end capability.
 
