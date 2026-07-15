@@ -50,6 +50,19 @@ assert r["keynotes"] == 2, r
 assert "KEYNOTES" in svg and "04 20 00" in svg and "05 12 00" in svg, "keynote legend missing codes"
 assert svg.count('class="kn"') >= 2, "keynote bubbles missing"
 
+# D5 detail callouts: attach a detail drawing to the column → a callout + DETAILS legend keyed to it
+detailing.attach_document(m, [col], "Column base detail", location="details/S-501.pdf")
+rd = drawing.plan_svg(m, scale=100)
+assert rd["details"] == 1, rd
+svgd = rd["svg"]
+assert "DETAILS" in svgd and "Column base detail" in svgd, "detail legend missing"
+assert svgd.count('class="dc"') >= 2, "detail callout symbol(s) missing (plan + legend)"
+# a plan with no attached details reports zero and omits the DETAILS legend
+assert "DETAILS" not in svg and r["details"] == 0, "unattached plan should have no details"
+# details can be turned off
+nod = drawing.plan_svg(m, scale=100, details=False)
+assert nod["details"] == 0 and "DETAILS" not in nod["svg"]
+
 # keynotes/dimensions can be turned off
 plain = drawing.plan_svg(m, scale=100, dimensions=False, keynotes=False)
 assert plain["keynotes"] == 0 and '<g class="dim">' not in plain["svg"] and "KEYNOTES" not in plain["svg"]

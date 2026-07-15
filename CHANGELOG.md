@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.296 — Detail callouts on the plan (D5)
+
+Closes the attach-a-detail → callout-on-the-drawing loop. The plan generator now draws an **NCS-style detail
+callout** (a divided circle with a leader) on every element that carries an attached detail drawing
+(`IfcRelAssociatesDocument`), plus a **DETAILS legend** keyed to each detail — distinct from the keynote
+bubbles (which reference spec/classification codes). `drawing.plan_svg` gains a `details` toggle and returns
+a `details` count; the callouts flow through to the issuable SVG sheet automatically. So: attach a detail in
+the 🏷 Detailing tool → generate the plan → the referencing callout appears. `test_drawing.py` extended.
+
 ## v0.3.295 — Edition-scoped occupant-load factors (CODE-2)
 
 The egress computation is now edition-aware, not just the citations. `egress_analysis`/`egress_from_model`

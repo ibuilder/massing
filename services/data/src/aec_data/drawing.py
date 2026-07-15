@@ -36,6 +36,10 @@ _STYLE = """
 .knt{font:2.4px sans-serif;fill:#b00;text-anchor:middle;dominant-baseline:middle}
 .lgd{font:2.6px sans-serif;fill:#222}
 .lgd-h{font:bold 3px sans-serif;fill:#000}
+.dc{fill:#fff;stroke:#06c;stroke-width:0.4}
+.dcx{stroke:#06c;stroke-width:0.4}
+.dct{font:2px sans-serif;fill:#06c;text-anchor:middle;dominant-baseline:middle}
+.lead{stroke:#06c;stroke-width:0.25}
 """.strip()
 
 
@@ -153,6 +157,20 @@ def _element_codes(el):
     return out
 
 
+def _element_docs(el):
+    """Attached detail-drawing / instruction names from an element's IfcRelAssociatesDocument — the
+    Track-D document carriers that drive **detail callouts** on the drawing (D5)."""
+    out = []
+    for rel in (getattr(el, "HasAssociations", None) or []):
+        if not rel.is_a("IfcRelAssociatesDocument"):
+            continue
+        doc = rel.RelatingDocument
+        name = getattr(doc, "Name", None) or getattr(doc, "Identification", None)
+        if name:
+            out.append(str(name))
+    return out
+
+
 def _centroid(fp):
     return (sum(p[0] for p in fp) / len(fp), sum(p[1] for p in fp) / len(fp))
 
@@ -165,11 +183,14 @@ _PLAN_CLASSES = ["IfcSlab", "IfcRoof", "IfcSpace", "IfcWall", "IfcColumn", "IfcF
 
 
 def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 100,
-             margin_mm: float = 18.0, dimensions: bool = True, keynotes: bool = True) -> dict:
+             margin_mm: float = 18.0, dimensions: bool = True, keynotes: bool = True,
+             details: bool = True) -> dict:
     """Generate a schematic **plan SVG** from element footprints. `storey` limits to one level (by name);
     `scale` is the drawing scale (1:`scale`). With `dimensions`, overall width/height dimension strings are
     drawn; with `keynotes`, elements carrying a Track-D classification code get numbered keynote bubbles + a
-    legend. Returns {svg, elements, keynotes, bounds, scale}. Paper coords are millimetres at the scale."""
+    legend; with `details`, elements carrying an attached detail (IfcRelAssociatesDocument) get a **detail
+    callout** (a divided circle) + a DETAILS legend keyed to the detail drawing (D5). Returns
+    {svg, elements, keynotes, details, bounds, scale}. Paper coords are millimetres at the scale."""
     import ifcopenshell.util.element as ue
     import ifcopenshell.util.unit as uu
 
@@ -233,6 +254,31 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
             bubbles.append(f'<circle class="kn" cx="{bx}" cy="{by}" r="2.4"/>'
                            f'<text class="knt" x="{bx}" y="{round(by + 0.8, 2)}">{num}</text>')
 
+    # ── detail callouts: elements with an attached detail → a divided-circle callout + DETAILS legend ──
+    callouts: list[str] = []
+    detail_rows: list[tuple[int, str]] = []
+    if details:
+        dorder: dict[str, int] = {}
+        for el, _cls, fp in shapes:
+            docs = _element_docs(el)
+            if not docs:
+                continue
+            name = docs[0]
+            if name not in dorder:
+                dorder[name] = len(dorder) + 1
+                detail_rows.append((dorder[name], name))
+            dn = dorder[name]
+            cx, cy = _centroid(fp)
+            # offset up-left of the centroid so the callout doesn't sit on the keynote bubble
+            bx, by = round(tx(cx) - 4, 2), round(ty(cy) - 4, 2)
+            # NCS-style divided circle: detail number (top) over sheet ref (bottom, "—" here) + a short leader
+            callouts.append(
+                f'<line class="lead" x1="{bx}" y1="{by}" x2="{round(tx(cx), 2)}" y2="{round(ty(cy), 2)}"/>'
+                f'<circle class="dc" cx="{bx}" cy="{by}" r="3.2"/>'
+                f'<line class="dcx" x1="{bx - 3.2}" y1="{by}" x2="{bx + 3.2}" y2="{by}"/>'
+                f'<text class="dct" x="{bx}" y="{round(by - 0.6, 2)}">{dn}</text>'
+                f'<text class="dct" x="{bx}" y="{round(by + 2.6, 2)}">—</text>')
+
     # ── dimensions: overall width (below) + overall height (left) ──
     dims: list[str] = []
     if dimensions:
@@ -242,8 +288,9 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
         dims.append(_vdim(x0, ty(maxy), ty(miny), (maxy - miny) * unit_scale))
 
     legend_svg = ""
+    lx = round(w - legend_mm + 4, 2)
+    ry_next = margin_mm
     if keynotes and legend_rows:
-        lx = round(w - legend_mm + 4, 2)
         rows = [f'<text class="lgd-h" x="{lx}" y="{round(margin_mm, 2)}">KEYNOTES</text>']
         for i, (num, code, title) in enumerate(legend_rows[:24]):
             ry = round(margin_mm + 6 + i * 5, 2)
@@ -251,18 +298,27 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
                         f'<text class="knt" x="{lx + 2}" y="{round(ry - 0.4, 2)}">{num}</text>'
                         f'<text class="lgd" x="{lx + 7}" y="{ry}">{_esc(code)} - {_esc(title)[:30]}</text>')
         legend_svg = "".join(rows)
+        ry_next = margin_mm + 6 + min(len(legend_rows), 24) * 5 + 4
+    if details and detail_rows:
+        rows = [f'<text class="lgd-h" x="{lx}" y="{round(ry_next, 2)}">DETAILS</text>']
+        for i, (num, name) in enumerate(detail_rows[:16]):
+            ry = round(ry_next + 6 + i * 5, 2)
+            rows.append(f'<circle class="dc" cx="{lx + 2}" cy="{round(ry - 1.2, 2)}" r="2.4"/>'
+                        f'<text class="dct" x="{lx + 2}" y="{round(ry - 0.4, 2)}">{num}</text>'
+                        f'<text class="lgd" x="{lx + 7}" y="{ry}">{_esc(name)[:32]}</text>')
+        legend_svg += "".join(rows)
 
     inner = (
         f"<style>{_STYLE}</style>"
         f'<rect class="sheet" x="0" y="0" width="{round(w, 2)}" height="{round(h, 2)}"/>'
-        + "".join(polys) + "".join(dims) + "".join(bubbles) + legend_svg
+        + "".join(polys) + "".join(dims) + "".join(bubbles) + "".join(callouts) + legend_svg
         + f'<text class="label" x="{margin_mm}" y="{round(h - 4, 2)}">PLAN 1:{scale}'
         + (f" - {_esc(storey)}" if storey else "") + "</text>"
     )
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{round(w, 1)}mm" height="{round(h, 1)}mm" '
            f'viewBox="0 0 {round(w, 2)} {round(h, 2)}">{inner}</svg>')
     return {"svg": svg, "inner": inner, "paper": [round(w, 2), round(h, 2)],
-            "elements": len(shapes), "keynotes": len(legend_rows),
+            "elements": len(shapes), "keynotes": len(legend_rows), "details": len(detail_rows),
             "scale": scale, "bounds": {"min": [minx, miny], "max": [maxx, maxy]}}
 
 

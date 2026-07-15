@@ -27,15 +27,14 @@ sections / elevations / schedules → SVG·PDF·DXF + the 3-part project manual)
 engine), **authoring guardrails + progressive disclosure**, and the **LOD-500 turnover layer**. What's left
 deepens each track:
 
-1. **D5 — keynotes & detail callouts from classification** — section/detail markers on drawings, generated from the element's classification.
-2. **W10-4 — MEP systems connectivity & sizing depth** — fully-connected logical systems (`IfcRelConnectsPorts`/`IfcRelNests`) + validation.
-3. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for the NL command bar.
-4. **E1 — SketchUp-style inference snapping** (endpoint/mid/face/parallel/perp) — the biggest barrier-to-entry win for drawing.
-5. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring (AST-whitelisted).
-6. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
-7. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
+1. **W10-4 — MEP systems connectivity & sizing depth** — fully-connected logical systems (`IfcRelConnectsPorts`/`IfcRelNests`) + validation.
+2. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for the NL command bar.
+3. **E1 — SketchUp-style inference snapping** (endpoint/mid/face/parallel/perp) — the biggest barrier-to-entry win for drawing.
+4. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring (AST-whitelisted).
+5. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
+6. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
 
-*(CODE-2 edition-scoped occupant-load factors ✅ v0.3.295.)*
+*(CODE-2 edition-scoped occupant-load factors ✅ v0.3.295; D5 detail callouts ✅ v0.3.296.)*
 
 ---
 
@@ -65,7 +64,10 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
 **Code + spec + detail intelligence (IBC / MasterFormat)** — *D1 code-analysis, D3/D7 detail rules, D4
 carriers, D6 project manual, D8 approvability pre-flight all ship (see the archive); these remain:*
 - **D2** — **routed egress / life-safety plans** (path-trace over the W9-4 semantic graph, not just tabulated).
-- **D5** — **keynotes & detail callouts** on drawings, generated *from* the element's classification (NCS UDS Module 7).
+- ✅ **D5 SHIPPED v0.3.296** — **detail callouts** on the plan: an NCS-style divided-circle callout + a
+  DETAILS legend for every element carrying an attached detail (`IfcRelAssociatesDocument`), distinct from
+  the C2 keynote bubbles; `plan_svg` `details` toggle + count, flows into the SVG sheet. *(Keynotes-from-
+  classification already ship via C2.) Next: detail callouts on the PDF sheet path + real sheet-number refs.*
 - **D8 follow-ups** — wire COMcheck/energy-doc + A117.1 clearance checks into the pre-flight and round its findings to BCF.
 - **`Pset_Massing_SpecLink` breadcrumb** — the remaining Track-D carrier.
 
