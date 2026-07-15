@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.292 — Fix two debug-audit findings in the D6 manual + D8 pre-flight
+
+A post-release debug audit caught two wrong-result bugs (no crashes), now fixed with regression tests:
+- **Project manual (D6) missed layer-set materials.** `specmanual._element_materials` (was `_element_material`)
+  now resolves an `IfcMaterialLayerSetUsage` → `IfcMaterialLayerSet` → its layer materials (and profile /
+  constituent sets + material lists), so a real wall's materials actually reach Part 2 Products instead of
+  silently yielding nothing. Returns all distinct names, not one.
+- **Approvability (D8) occupancy check always passed.** It counted a space's free-text `LongName` (which our
+  own `add_spaces` always sets to "Room NN") as evidence of occupancy classification, so it could never fail.
+  It now gates strictly on `Pset_SpaceOccupancyRequirements.OccupancyType`.
+
 ## v0.3.291 — Manufacturer / serial for the O&M / turnover layer (G3)
 
 Completes the LOD-500 data layer. New `set_manufacturer_info` recipe stamps the standard IFC

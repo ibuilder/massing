@@ -390,11 +390,15 @@ def approvability(model) -> dict[str, Any]:
 
     # 4. occupancy classification present (spaces carry an occupancy → the code analysis is valid)
     spaces = model.by_type("IfcSpace")
-    classified = [s for s in spaces if (ue.get_pset(s, "Pset_SpaceOccupancyRequirements") or {}).get("OccupancyType")
-                  or getattr(s, "LongName", None)]
+    # a real occupancy classification lives in Pset_SpaceOccupancyRequirements.OccupancyType — NOT the
+    # space's free-text LongName (which our own add_spaces always sets to "Room NN"), so LongName would
+    # green-light every auto-authored space.
+    classified = [s for s in spaces
+                  if str((ue.get_pset(s, "Pset_SpaceOccupancyRequirements") or {}).get("OccupancyType") or "").strip()]
     checks.append({"check": "Occupancy classification on spaces", "citation": "IBC Ch. 3",
                    "status": "na" if not spaces else ("pass" if len(classified) == len(spaces) else "fail"),
-                   "detail": f"{len(classified)} of {len(spaces)} space(s) carry an occupancy/use"})
+                   "detail": f"{len(classified)} of {len(spaces)} space(s) carry an occupancy type "
+                             "(Pset_SpaceOccupancyRequirements.OccupancyType)"})
 
     # 5. fire-rated assemblies substantiated (a rated wall/slab carries a UL/GA/detail reference)
     rated, undocumented = [], []

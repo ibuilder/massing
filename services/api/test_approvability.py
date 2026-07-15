@@ -42,6 +42,19 @@ a3 = cc.approvability(m2)
 fire3 = next(c for c in a3["checks"] if c["check"].startswith("Fire-rated"))
 assert fire3["status"] == "pass", fire3
 
+# --- occupancy check must gate on a real OccupancyType, NOT the free-text LongName that add_spaces sets
+occ_check = next(c for c in a["checks"] if c["check"].startswith("Occupancy classification"))
+assert occ_check["status"] == "fail", occ_check   # 3 add_spaces rooms have LongName but no OccupancyType
+# stamp a real occupancy type on every space (spaces are spatial, not IfcElement) → the check passes
+import ifcopenshell.api  # noqa: E402
+
+for sp in m.by_type("IfcSpace"):
+    ps = ifcopenshell.api.run("pset.add_pset", m, product=sp, name="Pset_SpaceOccupancyRequirements")
+    ifcopenshell.api.run("pset.edit_pset", m, pset=ps, properties={"OccupancyType": "Business"})
+a_occ = cc.approvability(m)
+occ2 = next(c for c in a_occ["checks"] if c["check"].startswith("Occupancy classification"))
+assert occ2["status"] == "pass", occ2
+
 # score is passed/gating
 s = a3["summary"]
 assert s["gating"] >= 1 and (s["score_pct"] is None or 0 <= s["score_pct"] <= 100), s

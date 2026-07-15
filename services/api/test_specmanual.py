@@ -45,6 +45,20 @@ assert any("erection" in e.lower() for e in metals["part3_execution"]), metals["
 # divisions come out CSI-ordered (04 before 05)
 assert [d["division"] for d in man["divisions"]] == ["04", "05"], man["divisions"]
 
+# regression: a wall carrying a material LAYER SET (via a type) must surface its layer materials in
+# Part 2 Products (the IfcMaterialLayerSetUsage case previously yielded nothing).
+from aec_data import families  # noqa: E402
+
+tg = families.create_type(m, "IfcWallType", "CMU-8")
+families.assign_material_set(m, tg, [{"material": "Concrete Masonry Unit", "thickness": 0.19},
+                                     {"material": "Rigid Insulation", "thickness": 0.05}])
+wt = edit.place_type(m, tg, st, position=[0, 8])
+detailing.classify(m, [wt], "MasterFormat", "04 22 00", "Concrete Unit Masonry")
+man2 = specmanual.project_manual(m)
+sec_0422 = next(s for d in man2["divisions"] for s in d["sections"] if s["code"] == "04 22 00")
+prods = " ".join(sec_0422["part2_products"])
+assert "Concrete Masonry Unit" in prods and "Rigid Insulation" in prods, sec_0422["part2_products"]
+
 # text rendering
 txt = specmanual.manual_text(m, project="Spec Manual Test")
 assert "PROJECT MANUAL" in txt and "DIVISION 04 — MASONRY" in txt and "SECTION 05 12 00" in txt, txt

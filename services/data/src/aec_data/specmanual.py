@@ -34,25 +34,32 @@ def _division(code: str) -> str:
     return (code or "").strip()[:2]
 
 
-def _element_material(el) -> str | None:
+def _element_materials(el) -> list[str]:
+    """All distinct material names on an element. Handles a plain IfcMaterial, an IfcMaterialList, and the
+    layer/profile/constituent **sets** (and their *usages*, which is what a real wall/beam actually carries —
+    an IfcMaterialLayerSetUsage → IfcMaterialLayerSet → layers). Empty when there's no material."""
     try:
         m = ue.get_material(el)
     except Exception:  # noqa: BLE001
-        return None
+        return []
     if m is None:
-        return None
-    for attr in ("Name",):                       # IfcMaterial / IfcMaterialLayerSet(Usage) / profile
-        n = getattr(m, attr, None)
-        if n:
-            return str(n)
-    for layered in ("ForLayerSet", "MaterialLayers", "Materials"):
-        sub = getattr(m, layered, None)
-        if sub:
-            first = sub[0] if isinstance(sub, (list, tuple)) else sub
-            n = getattr(getattr(first, "Material", first), "Name", None)
-            if n:
-                return str(n)
-    return None
+        return []
+    out: list[str] = []
+    n = getattr(m, "Name", None)                 # a plain IfcMaterial has .Name; usages/sets don't
+    if n:
+        out.append(str(n))
+    s = getattr(m, "ForLayerSet", None) or getattr(m, "ForProfileSet", None) or m   # usage → its set
+    for coll in ("MaterialLayers", "MaterialProfiles", "MaterialConstituents"):
+        for item in (getattr(s, coll, None) or []):
+            nm = getattr(getattr(item, "Material", None), "Name", None)
+            if nm:
+                out.append(str(nm))
+    for item in (getattr(s, "Materials", None) or []):        # IfcMaterialList holds IfcMaterial directly
+        nm = getattr(item, "Name", None)
+        if nm:
+            out.append(str(nm))
+    seen: set[str] = set()
+    return [x for x in out if not (x in seen or seen.add(x))]
 
 
 def project_manual(model, system: str = "MasterFormat") -> dict[str, Any]:
@@ -79,8 +86,7 @@ def project_manual(model, system: str = "MasterFormat") -> dict[str, Any]:
             t = ue.get_type(el)
             if t is not None and getattr(t, "Name", None):
                 sec["products"].add(str(t.Name))
-            mat = _element_material(el)
-            if mat:
+            for mat in _element_materials(el):
                 sec["products"].add(mat)
             # Part 3 — execution: installation instructions attached as documents
             for a in (getattr(el, "HasAssociations", None) or []):
