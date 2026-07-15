@@ -969,7 +969,7 @@ def asbuilt_summary(model: ifcopenshell.file) -> dict:
             verified += 1
             m = str(ps.get("Method") or "unspecified").lower()
             by_method[m] = by_method.get(m, 0) + 1
-    with_mfr = with_serial = 0
+    with_mfr = with_serial = with_dims = out_of_tol = 0
     for el in model.by_type("IfcElement"):
         tp = ue.get_pset(el, "Pset_ManufacturerTypeInformation") or {}
         oc = ue.get_pset(el, "Pset_ManufacturerOccurrence") or {}
@@ -981,11 +981,46 @@ def asbuilt_summary(model: ifcopenshell.file) -> dict:
             with_mfr += 1
         if str(oc.get("SerialNumber") or "").strip():
             with_serial += 1
+        dm = ue.get_pset(el, "Massing_AsBuiltDim") or {}
+        if any(str(k).endswith("_Measured") for k in dm):
+            with_dims += 1
+            if str(dm.get("WithinTolerance") or "").lower() == "false":
+                out_of_tol += 1
     return {"total": total, "verified": verified, "unverified": total - verified,
             "readiness_pct": round(100.0 * verified / total, 1) if total else 0.0,
             "by_method": by_method, "prop": "Massing_AsBuilt.Status",
             "with_manufacturer": with_mfr, "with_serial": with_serial,
+            "with_dimensions": with_dims, "dimensions_out_of_tolerance": out_of_tol,
             "methods": sorted(_VERIFY_METHODS)}
+
+
+def record_asbuilt_dimension(model: ifcopenshell.file, guids, dimension: str, measured: float,
+                             design: float | None = None, tolerance: float = 0.01) -> dict:
+    """G2: record a **field-verified as-built dimension** on element(s) — the measured value, the design
+    value (if given), the variance (measured − design), and whether it's within `tolerance` (metres).
+    Writes `Massing_AsBuiltDim` (`{Dimension}_Measured` / `_Design` / `_Variance` + `WithinTolerance`), the
+    dimensional half of the LOD-500 reliability layer. GUID-stable; a bad GUID never aborts the batch.
+    Returns {stamped, variance, within_tolerance}."""
+    dim = (dimension or "Length").strip().replace(" ", "")[:32] or "Length"
+    try:
+        meas = float(measured)
+    except (TypeError, ValueError) as e:
+        raise ValueError("measured must be a number") from e
+    variance = None if design is None else round(meas - float(design), 4)
+    within = None if variance is None else (abs(variance) <= float(tolerance))
+    n = 0
+    for g in guids or []:
+        try:
+            set_element_pset(model, g, "Massing_AsBuiltDim", f"{dim}_Measured", meas, "float")
+            if design is not None:
+                set_element_pset(model, g, "Massing_AsBuiltDim", f"{dim}_Design", float(design), "float")
+                set_element_pset(model, g, "Massing_AsBuiltDim", f"{dim}_Variance", variance, "float")
+                set_element_pset(model, g, "Massing_AsBuiltDim", "WithinTolerance", "true" if within else "false", "str")
+            n += 1
+        except Exception:  # noqa: BLE001 — skip stale/unknown GUIDs
+            pass
+    return {"stamped": n, "dimension": dim, "measured": meas, "design": design,
+            "variance": variance, "within_tolerance": within}
 
 
 def set_manufacturer_info(model: ifcopenshell.file, guids, manufacturer: str = "", model_label: str = "",
@@ -1243,6 +1278,10 @@ RECIPES = {
     "set_manufacturer_info": lambda m, p: set_manufacturer_info(
         m, p["guids"], p.get("manufacturer", ""), p.get("model_label", ""),
         p.get("production_year", ""), p.get("serial", ""), p.get("barcode", "")),
+    # W11 G2 — field-verified as-built dimension + variance
+    "record_asbuilt_dimension": lambda m, p: record_asbuilt_dimension(
+        m, p["guids"], p.get("dimension", "Length"), p["measured"], p.get("design"),
+        float(p.get("tolerance", 0.01))),
     # W11 F0 — the representation/context spine + LOD stage
     "ensure_contexts": lambda m, p: _rep().ensure_contexts(m),
     "set_lod": lambda m, p: _rep().set_lod(m, p["guids"], p.get("stage", "300")),

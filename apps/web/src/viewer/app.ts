@@ -1909,7 +1909,9 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           body.appendChild(resultNote(`<b>LOD 500</b> is a field-verified as-built reliability attribute — BIMForum sets no `
             + `geometric requirement for it. Model readiness: <b>${s!.readiness_pct}%</b> `
             + `(${s!.verified} of ${s!.total} elements verified). O&M data: <b>${s!.with_manufacturer}</b> with manufacturer · `
-            + `<b>${s!.with_serial}</b> with serial.`, s!.readiness_pct >= 100 ? "ok" : ""));
+            + `<b>${s!.with_serial}</b> with serial · <b>${s!.with_dimensions}</b> dimensioned`
+            + (s!.dimensions_out_of_tolerance ? ` (<b>${s!.dimensions_out_of_tolerance}</b> out of tolerance)` : "")
+            + `.`, s!.readiness_pct >= 100 ? "ok" : ""));
           if (Object.keys(s!.by_method).length) {
             body.appendChild(kvTable(Object.entries(s!.by_method).map(([k, v]) => ({ k, v: `${v} element(s)` }))));
           }
@@ -1957,6 +1959,31 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             });
           });
           body.appendChild(doMfr);
+
+          // W11 G2: field-verified as-built dimension + variance on the selection
+          body.appendChild(resultNote("<b>Field-verified dimension</b> — record a measured value (+ optional "
+            + "design value) → variance vs design, the dimensional half of LOD 500.", ""));
+          const df = document.createElement("div"); df.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin:4px 0";
+          const dimName = document.createElement("input"); dimName.className = "portal-filter"; dimName.placeholder = "dimension (Length)"; dimName.value = "Length"; dimName.style.cssText = "flex:1 1 90px;min-width:0;font-size:12px";
+          const measIn = mkIn("measured (m)"); const desIn = mkIn("design (m, opt)");
+          df.append(dimName, measIn, desIn); body.appendChild(df);
+          const doDim = toolBtn2("📏 Record measured dimension on selection", async () => {
+            const guid = selectedGuid;
+            if (!guid) { notify("select the element(s) first", "error"); return; }
+            const meas = parseFloat(measIn.value);
+            if (!isFinite(meas)) { notify("enter a measured value", "error"); return; }
+            const des = parseFloat(desIn.value);
+            await withLoading(container, "recording as-built dimension + republishing", async () => {
+              try {
+                await api.recordAsbuiltDimension(pid, [guid], dimName.value.trim() || "Length", meas, isFinite(des) ? des : undefined, true);
+                const state = await waitForPublish(projectId!);
+                if (state === "done") { await loadProjectModel(); notify("dimension recorded", "success"); }
+                else notify(`recorded — publish ${state}`, state === "error" ? "error" : "info");
+                await reloadModelPins();
+              } catch (e) { notify(`record failed: ${(e as Error).message}`, "error"); }
+            });
+          });
+          body.appendChild(doDim);
         });
       };
       const asBuiltBtn = toolBtn2("✅ As-built verify (LOD 500)", openAsBuiltPanel);

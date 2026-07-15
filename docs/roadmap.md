@@ -27,10 +27,11 @@ sections / elevations / schedules → SVG·PDF·DXF + the 3-part project manual)
 engine), **authoring guardrails + progressive disclosure**, and the **LOD-500 turnover layer**. What's left
 deepens each track:
 
-1. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
-2. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
+1. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
+2. **A2/A4** — RAG index over ifcopenshell docs to ground code-gen; LLM scene-digest over the semantic graph.
+3. **CODE-4/5/6, VIZ-2, COLLAB-1, SITE-1, PROFORMA-LIVE** — the remaining Future / frontier items.
 
-*(CODE-2 ✅ v0.3.295; D5 ✅ v0.3.296; W10-4 ✅ v0.3.297; S4 undo/redo ✅ v0.3.298; E1 inference ✅ v0.3.299; A1 sandbox ✅ v0.3.300.)*
+*(CODE-2 ✅ v0.3.295; D5 ✅ v0.3.296; W10-4 ✅ v0.3.297; S4 ✅ v0.3.298; E1 ✅ v0.3.299; A1 ✅ v0.3.300 (RCE-hardened v0.3.301); G2 ✅ v0.3.302.)*
 
 ---
 
@@ -89,7 +90,9 @@ slice) + E9 selector DSL ship (see the archive); these remain:*
 
 **LOD-500 verified-as-built data + content library** — *G1 as-built verify + G3 manufacturer/serial ship
 (see the archive); these remain:*
-- **G2** — field-verified dimensions / variances.
+- ✅ **G2 SHIPPED v0.3.302** — field-verified as-built **dimensions + variance** (`record_asbuilt_dimension`
+  → `Massing_AsBuiltDim` measured/design/variance/within-tolerance; `asbuilt_summary` counts
+  with_dimensions + out-of-tolerance; measure form in the as-built tool).
 - **G3 follow-up** — warranty / O&M **document** refs via `IfcRelAssociatesDocument` (`attach_document` exists — wire an O&M-doc UI).
 - **H1** — seed **CC0 furniture families + PBR materials** (CC0/CC-BY only — ambientCG, Poly Haven, Poly Pizza, Quaternius, Kenney, AMD MaterialX), attribution + license stored per asset.
 

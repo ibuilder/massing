@@ -72,6 +72,22 @@ assert edit.set_manufacturer_info(m, [walls[3]]) == 0
 s3 = edit.asbuilt_summary(m)
 assert s3["with_manufacturer"] == 3 and s3["with_serial"] == 2, s3   # mfr: walls 0,1 + wall 2 (Beta); serial: walls 0,1 (same batch)
 
+# --- G2: field-verified as-built dimensions + variance --------------------------------------------
+assert s3["with_dimensions"] == 0 and s3["dimensions_out_of_tolerance"] == 0, s3
+# a within-tolerance measurement (design 6.00, measured 6.005, tol 0.01)
+r_in = edit.record_asbuilt_dimension(m, [walls[0]], "Length", 6.005, design=6.0, tolerance=0.01)
+assert r_in["stamped"] == 1 and abs(r_in["variance"] - 0.005) < 1e-6 and r_in["within_tolerance"] is True, r_in
+# an out-of-tolerance measurement (design 6.00, measured 6.05)
+r_out = edit.record_asbuilt_dimension(m, [walls[1]], "Length", 6.05, design=6.0, tolerance=0.01)
+assert r_out["within_tolerance"] is False and abs(r_out["variance"] - 0.05) < 1e-6, r_out
+# measured-only (no design) records the value with no variance; a bad GUID doesn't abort
+assert edit.record_asbuilt_dimension(m, ["nope", walls[2]], "Height", 3.01)["stamped"] == 1
+w0dim = ue.get_pset(m.by_guid(walls[0]), "Massing_AsBuiltDim") or {}
+assert abs(float(w0dim["Length_Measured"]) - 6.005) < 1e-6 and w0dim["WithinTolerance"] == "true", w0dim
+
+s4 = edit.asbuilt_summary(m)
+assert s4["with_dimensions"] == 3 and s4["dimensions_out_of_tolerance"] == 1, s4   # walls 0,1,2 dim'd; wall 1 out
+
 # G3 via the recipe registry (apply path through the guards gate — guids required)
 from aec_data import guards  # noqa: E402
 assert guards.precheck("set_manufacturer_info", {"guids": [], "manufacturer": "X"})["errors"], "empty selection blocked"

@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.302 — Field-verified as-built dimensions + variance (G2)
+
+Completes the LOD-500 data layer. New `record_asbuilt_dimension` recipe stamps a **field-measured**
+dimension on the selection, the **design** value (if given), the **variance** (measured − design), and
+whether it's **within tolerance** — into `Massing_AsBuilt​Dim` (`{Dimension}_Measured/_Design/_Variance` +
+`WithinTolerance`). `asbuilt_summary` now also reports `with_dimensions` and
+`dimensions_out_of_tolerance`, surfaced in the ✅ As-built (LOD 500) tool alongside a measure form. With
+G1 (verify) and G3 (manufacturer/serial), the model can carry the full field-verified as-built record for
+turnover. `test_lod500.py` extended.
+
 ## v0.3.301 — SECURITY: close an RCE escape in the A1 sandbox
 
 An adversarial review of v0.3.300 proved the AST sandbox was escapable to full RCE **when the flag is on**:

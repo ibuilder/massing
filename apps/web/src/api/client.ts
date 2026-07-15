@@ -1062,7 +1062,11 @@ export class ApiClient extends HttpCore {
   lod500(pid: string) {
     return this.json<{ total: number; verified: number; unverified: number; readiness_pct: number;
       by_method: Record<string, number>; methods: string[]; prop: string;
-      with_manufacturer: number; with_serial: number }>(`/projects/${pid}/lod500`);
+      with_manufacturer: number; with_serial: number; with_dimensions: number; dimensions_out_of_tolerance: number }>(`/projects/${pid}/lod500`);
+  }
+  /** W11 G2: record a field-verified as-built dimension (+ variance vs design) on the selection. */
+  recordAsbuiltDimension(pid: string, guids: string[], dimension: string, measured: number, design?: number, publish = true) {
+    return this.editIfc(pid, "record_asbuilt_dimension", { guids, dimension, measured, ...(design != null ? { design } : {}) }, publish);
   }
   /** W11 G1: stamp elements as field-verified as-built (Massing_AsBuilt) — the LOD-500 reliability layer. */
   verifyAsbuilt(pid: string, guids: string[], opts: { verified_by?: string; method?: string; note?: string } = {}, publish = true) {
