@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.306 — Site content library: logistics / furniture / landscaping, auto-classified (CONTENT-1)
+
+Place real-world parts into the **right** IFC place, not as random shapes. New `content.py` catalog maps ~20
+categories — **site logistics** (tower/mobile crane, hoist, fencing, sanitary unit, site office, laydown,
+gate, dumpster), **furniture** (desk/chair/sofa/table/bed/cabinet), and **landscaping** (tree/shrub/planter/
+bollard) — each to its correct IFC class + project phase + classification. New `place_content` recipe authors
+an item at an [E,N] point from a supplied detailed mesh **or** a category-sized placeholder box, then sets
+the phase (logistics = **temporary**, so it time-phases on the 4D logistics slider) and the classification
+(Uniclass/OmniClass). Logistics land as proxies, furniture as `IfcFurniture`, landscaping as
+`IfcGeographicElement` (proxy fallback on older schemas). New `GET /content/catalog` + a **🏗 Site content
+library** palette tool. Builds on the B4 mesh hatch; content is imported/authored per-asset with license
+vetting (the catalog records the intended license tier; geometry is supplied, never bundled unvetted).
+`test_content.py`.
+
 ## v0.3.305 — Procedural-mesh escape hatch (B4)
 
 Author an element from a **raw triangle mesh** for geometry the parametric recipes can't express. New

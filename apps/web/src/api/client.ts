@@ -1061,6 +1061,15 @@ export class ApiClient extends HttpCore {
   addMesh(pid: string, verts: number[][], faces: number[][], name = "Mesh", publish = true) {
     return this.editIfc(pid, "add_mesh_representation", { verts, faces, name }, publish);
   }
+  /** CONTENT-1: the curated content catalog (logistics / furniture / landscaping → IFC class + phase). */
+  contentCatalog() {
+    return this.json<{ count: number; note: string; groups: Record<string, { key: string; ifc_class: string;
+      phase: string | null; classification: string; default_dims_m: number[] }[]> }>(`/content/catalog`);
+  }
+  /** CONTENT-1: place a catalogued content item at an [E,N] point (optionally with a supplied mesh). */
+  placeContent(pid: string, category: string, point: [number, number], name?: string, publish = true) {
+    return this.editIfc(pid, "place_content", { category, point, ...(name ? { name } : {}) }, publish);
+  }
   /** W11 E8: validate an edit's params against the authoring guardrails without applying it. */
   editPrecheck(pid: string, recipe: string, params: Record<string, unknown>) {
     return this.json<{ ok: boolean; errors: string[]; warnings: string[] }>(

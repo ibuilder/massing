@@ -250,6 +250,54 @@ def set_storey_elevation(model: ifcopenshell.file, guid: str, elevation: float =
     return guid
 
 
+def _box_mesh(cx: float, cy: float, w: float, d: float, h: float):
+    """verts/faces (0-based) for an axis-aligned box centred at (cx,cy) in plan, base at z=0, size w×d×h."""
+    hw, hd = w / 2.0, d / 2.0
+    v = [[cx - hw, cy - hd, 0], [cx + hw, cy - hd, 0], [cx + hw, cy + hd, 0], [cx - hw, cy + hd, 0],
+         [cx - hw, cy - hd, h], [cx + hw, cy - hd, h], [cx + hw, cy + hd, h], [cx - hw, cy + hd, h]]
+    f = [[0, 2, 1], [0, 3, 2],            # base
+         [4, 5, 6], [4, 6, 7],            # top
+         [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5],   # sides
+         [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]]
+    return v, f
+
+
+def place_content(model: ifcopenshell.file, category: str, point, verts=None, faces=None,
+                  name: str | None = None, storey: str | None = None) -> dict:
+    """CONTENT-1: place a catalogued content item — a crane, porta-john, tree, desk… — as the **right IFC**
+    (class + phase + classification), from a supplied detailed mesh (`verts`/`faces`, an imported/vetted
+    asset) or a category-sized placeholder box at `point` [E,N] metres. GUID-stable. Returns the placement
+    metadata. Unknown categories raise; unsupported IFC classes fall back to a proxy."""
+    from . import content
+
+    spec = content.spec(category)
+    if spec is None:
+        raise ValueError(f"unknown content category {category!r}; see the content catalog")
+    px, py = float(point[0]), float(point[1])
+    if verts and faces:
+        v, f = verts, faces
+    else:
+        w, d, h = spec["dims"]
+        v, f = _box_mesh(px, py, float(w), float(d), float(h))
+    nm = name or category.replace("_", " ").title()
+    try:
+        guid = add_mesh_representation(model, v, f, nm, spec["ifc_class"], storey)
+    except Exception:  # noqa: BLE001 — class absent from the schema (e.g. IFC2x3) → proxy
+        guid = add_mesh_representation(model, v, f, nm, "IfcBuildingElementProxy", storey)
+    if spec["phase"]:
+        try:
+            set_phase(model, [guid], spec["phase"])
+        except Exception:  # noqa: BLE001
+            pass
+    csys, ccode, ctitle = spec["classification"]
+    try:
+        set_classification(model, guid, csys, ccode, ctitle)
+    except Exception:  # noqa: BLE001 — classification is best-effort
+        pass
+    return {"guid": guid, "category": category, "ifc_class": model.by_guid(guid).is_a(),
+            "phase": spec["phase"], "group": spec["group"], "classification": f"{ccode} {ctitle}"}
+
+
 def add_mesh_representation(model: ifcopenshell.file, verts, faces, name: str = "Mesh",
                             ifc_class: str = "IfcBuildingElementProxy", storey: str | None = None) -> str:
     """B4: the **procedural-mesh escape hatch** — author an element from a raw triangle mesh
@@ -1344,6 +1392,9 @@ RECIPES = {
     "add_mesh_representation": lambda m, p: add_mesh_representation(
         m, p["verts"], p["faces"], p.get("name", "Mesh"),
         p.get("ifc_class", "IfcBuildingElementProxy"), p.get("storey")),
+    # CONTENT-1 — place a catalogued content item (logistics / furniture / landscaping) as the right IFC
+    "place_content": lambda m, p: place_content(
+        m, p["category"], p["point"], p.get("verts"), p.get("faces"), p.get("name"), p.get("storey")),
     "add_covering": lambda m, p: add_covering(m, p["points"], p.get("predefined", "CEILING"),
                                               float(p.get("thickness", 0.02)), p.get("material"), p.get("storey")),
     "add_railing": lambda m, p: add_railing(m, p["start"], p["end"], float(p.get("height", 1.1)),

@@ -212,7 +212,12 @@ ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
   "information delivery" mission.
 
 ### 🪑 Content library — curated, auto-classified IFC parts (builds on B4)
-- **CONTENT-1 — mesh→IFC content pipeline + curated library** *(L · high)* — import a **well-detailed mesh**
+- ✅ **CONTENT-1 (first slice) SHIPPED v0.3.306** — `content.py` catalog (~20 categories: site logistics /
+  furniture / landscaping) + `place_content` recipe (authors an item at [E,N] from a supplied mesh or a sized
+  placeholder → correct IFC class + phase (logistics = temporary, 4D-phased) + Uniclass/OmniClass); `GET
+  /content/catalog` + a 🏗 Site content library palette. *Next: glTF/OBJ/SketchUp asset import → auto-detect
+  category, click-to-place, and a license-vetted CC0 seed of detailed meshes.*
+- **CONTENT-1 (remaining) — mesh→IFC asset import** *(L · high)* — import a **well-detailed mesh**
   (glTF/OBJ, or a SketchUp model via glTF, or a public 3D-content-warehouse asset) and **auto-classify + place
   it as the *right* IFC**: furniture → `IfcFurnishingElement`; **site-logistics** (crane, hoist, fence,
   sanitary unit, laydown, trailer) → a proxy on the **Site-Logistics storey + Temporary phase** (feeding the

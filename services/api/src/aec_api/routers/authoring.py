@@ -675,6 +675,16 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
     return result
 
 
+@router.get("/content/catalog")
+def content_catalog(_: str = Depends(current_user)):
+    """CONTENT-1: the curated content catalog — logistics / furniture / landscaping parts, each mapped to the
+    right IFC class + phase + classification. Place an item via `POST /projects/{pid}/edit` with the
+    `place_content` recipe ({category, point, verts?, faces?})."""
+    from aec_data import content  # type: ignore
+
+    return content.catalog()
+
+
 @router.get("/projects/{pid}/authoring/capabilities")
 def authoring_capabilities(pid: str, _: str = Depends(require_role("viewer"))):
     """Which optional/gated authoring capabilities are enabled on this server (so the UI can hide what's
