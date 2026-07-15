@@ -658,6 +658,8 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
     base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
     out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
     result = ed.apply_recipe(p.source_ifc, recipe, params, out)
+    from .. import edit_history  # S4 — record the pre-edit version so this edit can be undone
+    edit_history.push(pid, p.source_ifc)
     p.source_ifc = out  # new version becomes the source of truth
     audit.record(db, action="ifc.edit", actor=actor, method="POST",
                  path=f"/projects/{pid}/edit", detail=result)
@@ -666,6 +668,54 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
         _publish_bg(pid)
         result["publish"] = "running"
     return result
+
+
+@router.get("/projects/{pid}/edit/history")
+def edit_history_state(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """S4: whether the project's model can be undone / redone, and the stack depths."""
+    from .. import edit_history
+
+    _project(db, pid)
+    return edit_history.state(pid)
+
+
+def _restore_version(pid: str, db: Session, actor: str, publish: bool, redo: bool) -> dict:
+    """Shared undo/redo: swap `source_ifc` to the popped version (verified to exist + stay in the project's
+    IFC directory) and republish. The stored paths were written by the server, but we re-validate."""
+    from .. import edit_history
+
+    p = _project(db, pid)
+    target = edit_history.redo(pid, p.source_ifc) if redo else edit_history.undo(pid, p.source_ifc)
+    if target is None:
+        raise HTTPException(409, "nothing to redo" if redo else "nothing to undo")
+    tp = Path(target)
+    # containment: the restored version must sit beside the current source IFC (defence-in-depth)
+    if not tp.exists() or tp.parent.resolve() != Path(p.source_ifc).parent.resolve():
+        raise HTTPException(409, "that version is no longer available")
+    p.source_ifc = str(tp)
+    audit.record(db, action="ifc.redo" if redo else "ifc.undo", actor=actor, method="POST",
+                 path=f"/projects/{pid}/edit/{'redo' if redo else 'undo'}", detail={"restored": p.source_ifc})
+    db.commit()
+    out: dict = {"restored": p.source_ifc, "state": edit_history.state(pid)}
+    if publish:
+        _publish_bg(pid)
+        out["publish"] = "running"
+    return out
+
+
+@router.post("/projects/{pid}/edit/undo")
+def edit_undo(pid: str, publish: bool = Body(default=True, embed=True), db: Session = Depends(get_db),
+              actor: str = Depends(require_role("editor"))):
+    """S4: **undo** the last authoring edit — restore the prior model version + republish. GUID-stable
+    (pins/RFIs/clashes keyed by GlobalId survive)."""
+    return _restore_version(pid, db, actor, publish, redo=False)
+
+
+@router.post("/projects/{pid}/edit/redo")
+def edit_redo(pid: str, publish: bool = Body(default=True, embed=True), db: Session = Depends(get_db),
+              actor: str = Depends(require_role("editor"))):
+    """S4: **redo** an undone edit — restore the next model version + republish."""
+    return _restore_version(pid, db, actor, publish, redo=True)
 
 
 @router.post("/projects/{pid}/edit-preview")

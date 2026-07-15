@@ -1038,6 +1038,21 @@ export class ApiClient extends HttpCore {
         element_count: number; part1_general: string; part2_products: string[]; part3_execution: string[] }[] }[] }>(
       `/projects/${pid}/spec/manual`);
   }
+  /** S4: whether the model can be undone / redone + stack depths. */
+  editHistory(pid: string) {
+    return this.json<{ can_undo: boolean; can_redo: boolean; undo_depth: number; redo_depth: number }>(
+      `/projects/${pid}/edit/history`);
+  }
+  /** S4: undo the last authoring edit (restore the prior model version + republish). */
+  editUndo(pid: string, publish = true) {
+    return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean } }>(
+      `/projects/${pid}/edit/undo`, { method: "POST", body: JSON.stringify({ publish }) });
+  }
+  /** S4: redo an undone edit. */
+  editRedo(pid: string, publish = true) {
+    return this.json<{ restored: string; state: { can_undo: boolean; can_redo: boolean } }>(
+      `/projects/${pid}/edit/redo`, { method: "POST", body: JSON.stringify({ publish }) });
+  }
   /** W11 E8: validate an edit's params against the authoring guardrails without applying it. */
   editPrecheck(pid: string, recipe: string, params: Record<string, unknown>) {
     return this.json<{ ok: boolean; errors: string[]; warnings: string[] }>(

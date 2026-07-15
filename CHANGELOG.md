@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.298 — Model undo / redo (S4)
+
+Authoring now has a real undo stack. Every `/edit` already wrote a new versioned source IFC and left the
+prior versions on disk, so undo is just restoring a prior version + republishing — GUID-stable, so
+pins/RFIs/clashes survive. New `edit_history` sidecar stack (no schema change), `POST /edit/undo`,
+`POST /edit/redo`, and `GET /edit/history`; the restored path is verified to exist and stay inside the
+project's IFC directory. **↶ Undo / ↷ Redo** buttons in the Model tools rail reflect the server-side history
+depth and republish on click. A fresh edit invalidates the redo stack. `test_edit_undo.py`. (The
+`/edit-preview` ghosting half of S4 already ships.)
+
 ## v0.3.297 — MEP port-to-port connectivity + validation (W10-4)
 
 Turns a pile of MEP segments/fittings into a connected logical network. New `connect_mep` recipe wires two

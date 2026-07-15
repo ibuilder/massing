@@ -27,13 +27,12 @@ sections / elevations / schedules → SVG·PDF·DXF + the 3-part project manual)
 engine), **authoring guardrails + progressive disclosure**, and the **LOD-500 turnover layer**. What's left
 deepens each track:
 
-1. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for the NL command bar.
-2. **E1 — SketchUp-style inference snapping** (endpoint/mid/face/parallel/perp) — the biggest barrier-to-entry win for drawing.
-3. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring (AST-whitelisted).
-4. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
-5. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
+1. **E1 — SketchUp-style inference snapping** (endpoint/mid/face/parallel/perp) — the biggest barrier-to-entry win for drawing.
+2. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring (AST-whitelisted).
+3. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
+4. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
 
-*(CODE-2 edition-scoped occupant-load factors ✅ v0.3.295; D5 detail callouts ✅ v0.3.296; W10-4 MEP connectivity ✅ v0.3.297.)*
+*(CODE-2 ✅ v0.3.295; D5 detail callouts ✅ v0.3.296; W10-4 MEP connectivity ✅ v0.3.297; S4 undo/redo ✅ v0.3.298.)*
 
 ---
 
@@ -98,7 +97,9 @@ Reimplement drawing/annotation *techniques*, never vendor GPL code. SVG→PDF/DX
 ### 🤖 AI-MCP / NL authoring (remaining)
 
 S1–S3 ship (deterministic baseline → multi-step LLM interpretation, confirm-before-apply). Remaining:
-- **S4** — confirm-UX + `/edit-preview` **ghosting** + **revert-to-version** undo.
+- ✅ **S4 SHIPPED v0.3.298** — model **undo / redo** (`edit_history` sidecar stack + `POST /edit/{undo,redo}`
+  + `GET /edit/history` + ↶/↷ toolbar buttons; GUID-stable version restore). The `/edit-preview` ghosting
+  half already ships. *Next: multi-step undo grouping (one apply-all = one undo).*
 - **S5** — multi-turn **clarifying questions**.
 - Then **read tools** (quantities / schedules / clashes / violations) + an actual **MCP server surface**.
 

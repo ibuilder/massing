@@ -2271,7 +2271,30 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       advWrap.hidden = !advOpen;
       advToggle.textContent = `🔧 Advanced fabrication tools ${advOpen ? "▴" : "▾"}`;
 
-      glBody.append(status, levelSel, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
+      // S4 — model-level undo / redo: every authoring edit versions the source IFC, so undo restores the
+      // prior version (GUID-stable). Buttons reflect the server-side history depth.
+      const undoRow = document.createElement("div"); undoRow.style.cssText = "display:flex;gap:6px";
+      const undoBtn = document.createElement("button"); undoBtn.className = "mini-btn"; undoBtn.textContent = "↶ Undo"; undoBtn.style.flex = "1";
+      const redoBtn = document.createElement("button"); redoBtn.className = "mini-btn"; redoBtn.textContent = "↷ Redo"; redoBtn.style.flex = "1";
+      undoRow.append(undoBtn, redoBtn);
+      const refreshUndo = async () => {
+        try { const st = await api.editHistory(projectId!); undoBtn.disabled = !st.can_undo; redoBtn.disabled = !st.can_redo; }
+        catch { undoBtn.disabled = redoBtn.disabled = true; }
+      };
+      const doUndoRedo = (redo: boolean) => withLoading(container, redo ? "redoing + republishing" : "undoing + republishing", async () => {
+        try {
+          await (redo ? api.editRedo(projectId!) : api.editUndo(projectId!));
+          const state = await waitForPublish(projectId!);
+          if (state === "done") { await loadProjectModel(); notify(redo ? "redone" : "undone", "success"); }
+          else notify(`${redo ? "redone" : "undone"} — publish ${state}`, state === "error" ? "error" : "info");
+          await reloadModelPins(); await refreshUndo();
+        } catch (e) { notify(`${redo ? "redo" : "undo"} failed: ${(e as Error).message}`, "error"); }
+      });
+      undoBtn.onclick = () => void doUndoRedo(false);
+      redoBtn.onclick = () => void doUndoRedo(true);
+      void refreshUndo();
+
+      glBody.append(status, levelSel, undoRow, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
         phaseBtn, queryBtn, lodBtn, asBuiltBtn, planBtn, sheetBtn, pdfBtn, schedBtn, schedPdfBtn, manualBtn, sectBtn,
         advToggle, advWrap, manage, levelsMgr);
     }
