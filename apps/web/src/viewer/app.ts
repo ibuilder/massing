@@ -2567,6 +2567,28 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           });
         });
         b.appendChild(toolBtn2("🏛 Code analysis (G-series summary)", () => { void runCodeAnalysis(""); }));
+        // W11 D8: plan-reviewer approvability pre-flight
+        b.appendChild(toolBtn2("✅ Approvability pre-flight (permit-readiness)", () => withLoading(container, "Running the plan-reviewer pre-flight", async () => {
+          let a;
+          try { a = await api.approvability(projectId!); }
+          catch { toast("Needs a source IFC", "error"); return; }
+          const s = a.summary;
+          out.textContent = `${s.passed}/${s.gating} checks · ${s.ready ? "ready" : `${s.failed} to fix`}`;
+          showResult("Approvability pre-flight — permit-readiness", (body) => {
+            body.appendChild(resultNote(s.ready
+              ? `<b>Ready for review</b> — all ${s.gating} gating check(s) pass${s.score_pct !== null ? ` (${s.score_pct}%)` : ""}.`
+              : `<b>${s.failed} check(s) need attention</b> before review${s.score_pct !== null ? ` — ${s.score_pct}% passing` : ""}.`,
+              s.ready ? "ok" : "bad"));
+            const icon = (st: string) => st === "pass" ? "✅" : st === "fail" ? "❌" : st === "info" ? "ℹ️" : "—";
+            body.appendChild(kvTable(a!.checks.map((c) => ({ k: `${icon(c.status)} ${c.check}`, v: `${c.detail} · ${c.citation}` }))));
+            const failing = a!.checks.filter((c) => c.status === "fail" && c.guids && c.guids.length);
+            if (failing.length) {
+              const iso = toolBtn2("◎ Isolate flagged elements in 3D", () => { void layerMgr.isolateGuids(failing.flatMap((c) => c.guids || [])); });
+              body.appendChild(iso);
+            }
+            body.appendChild(resultNote(a!.disclaimer, ""));
+          });
+        })));
         b.appendChild(toolBtn2("🔧 Normalize properties (IDS-ready)", async () => {
           if (!projectId) { notify("connect a project first", "error"); return; }
           let det;

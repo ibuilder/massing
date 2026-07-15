@@ -86,6 +86,21 @@ def code_analysis(pid: str, occupancy_group: str = "", construction_type: str = 
                                    sprinklered, jurisdiction)
 
 
+@router.get("/projects/{pid}/codecheck/approvability")
+def approvability(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W11 D8: a **plan-reviewer pre-flight checklist** — egress traced, doors at clear width, occupancy
+    classified, fire-rated assemblies substantiated — with a readiness score. Pre-check assist; NOT a
+    certified review. Needs a source IFC."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — the approvability check needs a model")
+    return codecheck.approvability(open_model(p.source_ifc))
+
+
 @router.post("/projects/{pid}/codecheck/egress/bcf")
 def egress_to_bcf(pid: str, db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
     """W9-2b: promote the computed egress/code findings to **BCF topics** — so a below-min door or an

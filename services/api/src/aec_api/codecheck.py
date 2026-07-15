@@ -337,6 +337,93 @@ def code_analysis(model, occupancy_group: str = "", construction_type: str = "",
     }
 
 
+def _fire_rating(el, ue) -> str | None:
+    """A fire-resistance rating from the standard psets (Pset_*Common.FireRating), if any."""
+    for pset in (f"Pset_{el.is_a()[3:]}Common", "Pset_WallCommon", "Pset_SlabCommon"):
+        p = ue.get_pset(el, pset) or {}
+        fr = p.get("FireRating")
+        if fr and str(fr).strip() not in ("", "0"):
+            return str(fr)
+    return None
+
+
+def _has_assembly_ref(el) -> bool:
+    """Whether a rated element carries a tested-assembly reference — a classification (UL/GA/etc.) or an
+    attached document (the assembly listing / detail). The reviewer signal that a rating is substantiated."""
+    for rel in (getattr(el, "HasAssociations", None) or []):
+        if rel.is_a() in ("IfcRelAssociatesClassification", "IfcRelAssociatesDocument"):
+            return True
+    return False
+
+
+def approvability(model) -> dict[str, Any]:
+    """D8 — a **plan-reviewer pre-flight checklist** over the model: is it permit-ready? Each check reports
+    pass/fail with counts + the governing citation. Reuses the computed egress; scans rated assemblies for
+    a substantiating reference. A pre-check assist that mirrors what a reviewer looks for first — NOT a
+    certified review or a guarantee of approval."""
+    import ifcopenshell.util.element as ue
+
+    checks: list[dict[str, Any]] = []
+    eg = egress_from_model(model)
+
+    # 1. egress capacity (IBC 1005)
+    adeq = eg["egress"]["adequate"]
+    checks.append({"check": "Egress capacity", "citation": "IBC 1005.3",
+                   "status": "na" if adeq is None else ("pass" if adeq else "fail"),
+                   "detail": (f"{eg['egress']['provided_width_in']} in provided vs "
+                              f"{eg['egress']['required_width_in']} in required for "
+                              f"{eg['building']['occupant_load']} occupants")
+                   if adeq is not None else "no occupiable spaces with area — add IfcSpaces"})
+
+    # 2. egress door clear width (IBC 1010.1.1 / A117.1 404)
+    below = eg["doors"]["below_min_32in"]
+    checks.append({"check": "Egress door clear width (≥32 in)", "citation": "IBC 1010.1.1 / A117.1 404",
+                   "status": "na" if eg["doors"]["checked"] == 0 else ("pass" if below == 0 else "fail"),
+                   "detail": f"{below} of {eg['doors']['checked']} door(s) below the 32 in minimum"})
+
+    # 3. two exits where required (IBC 1006.2)
+    needs2 = [s for s in eg["spaces"] if s.get("needs_2_exits")]
+    checks.append({"check": "Two exits where occupant load > 49", "citation": "IBC 1006.2",
+                   "status": "info" if needs2 else "pass",
+                   "detail": (f"{len(needs2)} space(s) exceed 49 occupants — verify each has 2 exits/exit "
+                              "accesses (exit count isn't modeled)") if needs2 else "no space exceeds 49 occupants"})
+
+    # 4. occupancy classification present (spaces carry an occupancy → the code analysis is valid)
+    spaces = model.by_type("IfcSpace")
+    classified = [s for s in spaces if (ue.get_pset(s, "Pset_SpaceOccupancyRequirements") or {}).get("OccupancyType")
+                  or getattr(s, "LongName", None)]
+    checks.append({"check": "Occupancy classification on spaces", "citation": "IBC Ch. 3",
+                   "status": "na" if not spaces else ("pass" if len(classified) == len(spaces) else "fail"),
+                   "detail": f"{len(classified)} of {len(spaces)} space(s) carry an occupancy/use"})
+
+    # 5. fire-rated assemblies substantiated (a rated wall/slab carries a UL/GA/detail reference)
+    rated, undocumented = [], []
+    for el in (*model.by_type("IfcWall"), *model.by_type("IfcSlab")):
+        if el.is_a("IfcElementType"):
+            continue
+        if _fire_rating(el, ue):
+            rated.append(el)
+            if not _has_assembly_ref(el):
+                undocumented.append(el.GlobalId)
+    checks.append({"check": "Fire-rated assemblies substantiated (UL/GA or detail)", "citation": "IBC Table 721 / 703.2",
+                   "status": "na" if not rated else ("pass" if not undocumented else "fail"),
+                   "detail": (f"{len(rated) - len(undocumented)} of {len(rated)} rated assembly(ies) carry a "
+                              "tested-assembly reference (classification or attached detail)")
+                   if rated else "no fire-rated walls/slabs found (set FireRating to track)",
+                   "guids": undocumented[:20]})
+
+    passed = sum(1 for c in checks if c["status"] == "pass")
+    failed = sum(1 for c in checks if c["status"] == "fail")
+    gating = sum(1 for c in checks if c["status"] in ("pass", "fail"))
+    return {
+        "checks": checks,
+        "summary": {"passed": passed, "failed": failed, "gating": gating,
+                    "ready": failed == 0, "score_pct": round(100 * passed / gating) if gating else None},
+        "disclaimer": "Plan-reviewer pre-flight computed from the IFC — mirrors first-pass review checks but "
+                      "is NOT a certified review or a guarantee of permit approval. Confirm with the AHJ.",
+    }
+
+
 def egress_from_model(model) -> dict[str, Any]:
     """Extract IfcSpace + IfcDoor (with their psets/qtos) straight from the source IFC and run the
     egress analysis. Spaces are read from the model — the property index holds only *physical*

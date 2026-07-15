@@ -65,7 +65,10 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
 - ✅ **D6 SHIPPED v0.3.289** — **3-part MasterFormat project manual** (`specmanual.py`: elements grouped
   into CSI divisions → sections, SectionFormat Part 1/2/3, Part 3 Execution from attached install docs;
   `GET /spec/manual{,.txt}` + a 📖 Project manual tool). Seeded from the model, spec-writer-edited.
-- **D8** — **approvability pre-flight** (reviewer checklist: UL/GA numbers on rated walls, egress traced, COMcheck attached, A117.1 clearances) — extends the IDS→BCF pipeline.
+- ✅ **D8 SHIPPED v0.3.290** — **approvability pre-flight** (`codecheck.approvability`: egress capacity,
+  door clear width, two-exits, occupancy classification, fire-rated-assembly substantiation — each cited,
+  with a readiness score; `GET /codecheck/approvability` + a ✅ pre-flight tool that isolates flags). *Next:
+  wire COMcheck/energy-doc + A117.1 clearance checks and round findings to BCF.*
 - **`Pset_Massing_SpecLink` breadcrumb** — the remaining Track-D carrier.
 
 **Open-ended authoring (the moat)**

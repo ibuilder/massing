@@ -1187,6 +1187,12 @@ export class ApiClient extends HttpCore {
       primary: { IBC: number | null; IECC: number | null; "A117.1": number | null }; verify: string }>(
       `/codes/adoptions?jurisdiction=${encodeURIComponent(jurisdiction)}`);
   }
+  /** W11 D8: plan-reviewer approvability pre-flight (egress, door widths, occupancy, rated assemblies). */
+  approvability(pid: string) {
+    return this.json<{ checks: { check: string; citation: string; status: string; detail: string; guids?: string[] }[];
+      summary: { passed: number; failed: number; gating: number; ready: boolean; score_pct: number | null };
+      disclaimer: string }>(`/projects/${pid}/codecheck/approvability`);
+  }
   codecheckEgressBcf(pid: string) {
     return this.json<{ created: number; topics: string[] }>(`/projects/${pid}/codecheck/egress/bcf`, { method: "POST", body: "{}" });
   }

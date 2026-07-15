@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.290 — Approvability pre-flight: is the model permit-ready? (D8)
+
+A plan-reviewer pre-flight checklist over the model, mirroring what a reviewer checks first. New
+`codecheck.approvability` runs five cited checks — egress capacity (IBC 1005.3), egress door clear width
+≥32 in (IBC 1010.1.1 / A117.1), two-exits-where-load>49 (IBC 1006.2), occupancy classification on spaces
+(IBC Ch.3), and fire-rated assemblies substantiated by a UL/GA classification or attached detail (IBC Table
+721) — returning pass/fail/na/info per check plus a readiness score. New
+`GET /projects/{pid}/codecheck/approvability` and a **✅ Approvability pre-flight** viewer tool that lists
+the checks and isolates flagged elements in 3D. A pre-check assist — not a certified review or a guarantee
+of approval. `test_approvability.py`.
+
 ## v0.3.289 — 3-part MasterFormat project manual — the spec book (D6)
 
 Closes the loop from "classify an element + attach its detail" to "a spec section writes itself." New
