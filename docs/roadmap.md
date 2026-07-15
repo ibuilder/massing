@@ -282,6 +282,22 @@ ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
 above is the one gap), the design→turnover lifecycle spine, ISO 19650 BIM-management, Lean pull-planning, and
 multi-project portfolio PMO all already ship.
 
+### 🔒 Security backlog (Dependabot triage, 2026-07-15)
+
+Surfaced on push at v0.3.309; **not runtime/CI-exposed**, so triaged rather than hot-patched:
+
+- **SEC-DEP-1 — Capacitor 6 → 7 upgrade** *(M · low-risk)* — 7 `tar` advisories (6 high / 1 medium,
+  GHSA-9ppj-…/qffp-…/83g3-… etc., all extraction-time symlink/hardlink path-traversal) enter **only** via
+  `@capacitor/cli@6`'s transitive `tar@6.2.1`. The fix is `tar ≥ 7.5.16`, but `tar@7` is ESM-only and
+  Capacitor 6's CLI is CJS (`require('tar')` → `ERR_REQUIRE_ESM`), so a bare npm `override` breaks the mobile
+  build. Real exploit path is nil — the CLI extracts only its own trusted platform templates during a
+  developer-run `cap sync`, never untrusted input, never in CI or at runtime. Proper fix: bump the four
+  `@capacitor/*` deps 6→7 (needs a `capacitor.config` + Android-project migration). Until then the alerts are
+  accepted-risk, not ignored.
+- **SEC-DEP-2 — `glib` 0.20 (Tauri)** *(S · low-risk)* — one medium (GHSA-wrw7-89jp-8q8g): an *unsoundness*
+  in `glib::VariantStrIter`'s `Iterator` impls, pulled transitively by the Tauri desktop shell (`< 0.20.0`).
+  Forcing `glib 0.20` conflicts with Tauri's pinned gtk stack; revisit when the Tauri/gtk baseline moves.
+
 ---
 
 ## 🔮 Future — 2026-07 research inbox (building codes · Unity/Unreal viz)
