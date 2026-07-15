@@ -1,4 +1,4 @@
-# Massing — BIM modeling · GC portal · proforma
+# Massing — in-browser BIM authoring · construction docs · GC portal · proforma
 
 ![Massing — one IFC model from acquisition to turnover](docs/img/og-image.png)
 
@@ -10,16 +10,32 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Live demo](https://img.shields.io/badge/demo-in%20browser-33d17a)](https://massing.build/app/)
 
-> **Open, self-hosted, IFC-native AEC platform.** A genuine **in-browser BIM modeling tool** (author a
-> model from scratch — blank or a template — draw and drag-edit real IFC by GUID, then coordinate), a
-> **near-100-module GC portal** (RFIs, pay apps, CPM schedule, TRIR), and a **development proforma** —
-> **one model, from land acquisition through operations.** Generate a building from a zoning envelope, or
-> model it by hand; then coordinate, schedule, underwrite & operate it. Built on **That Open +
-> IfcOpenShell**. **$0 to run.**
+> **Open, self-hosted, IFC-native AEC platform.** A genuine **in-browser BIM authoring tool** — model
+> from scratch (blank or a template) and draw/drag-edit real IFC by GUID across architecture · structure ·
+> MEP, **generate a permit-ready construction-document set** (plans, sections, elevations, schedules →
+> SVG/PDF/DXF, issuable ARCH-D sheets, a 3-part MasterFormat spec manual), **pre-check code** (IBC
+> occupancy/egress, jurisdiction-adopted editions, an approvability pre-flight), and **hand over
+> field-verified as-built data** (LOD-500 + manufacturer/serial, COBie-ready). Plus a **near-100-module GC
+> portal** (RFIs, pay apps, CPM schedule, TRIR) and a **development proforma** — **one model, from land
+> acquisition through operations.** Generate a building from a zoning envelope, or model it by hand; then
+> coordinate, schedule, underwrite & operate it. Built on **That Open + IfcOpenShell**. **$0 to run.**
 
 **What it is** — three pillars on one IFC-keyed model, switched by a Model / Construction / Finance bar:
 
-- 🧊 **BIM platform** — stream + author IFC in the browser (That Open Fragments), QA, IDS, BCF, 2D drawings + **PDF takeoff** (calibrated measure / area / count); **layer & align multiple models** (Navisworks-style) with **federated cross-discipline clash**; **raise 2D → BIM** (DXF floor plan → IFC walls + spaces) and check the built result with **scan-to-BIM deviation** (as-built point cloud vs the model surface, % within tolerance + heatmap); also opens **meshes & point clouds** (OBJ/STL/PLY/glTF · PCD/XYZ/**LAS/LAZ**) and **GIS / topography** (**GeoJSON** vectors · **GeoTIFF** DEM terrain) as georeferenced reference overlays, with **QR sharing**
+- 🧊 **BIM platform** — a genuine **in-browser authoring tool** on That Open Fragments, from a blank model
+  to a permit-ready set: draw/edit walls, columns, slabs, doors/windows, **curtain walls, steel connections,
+  rebar cages and MEP** by **GUID-stable server-side recipe**, with **drag-to-move edit-in-place**, a
+  family/type system, groups/arrays, **phasing**, **LOD dialing (100→500)**, **authoring guardrails** that
+  reject broken IFC, and an **AI command bar** (type what to build); **generate the construction-document
+  set** — plans/sections/elevations/schedules → **SVG · PDF · DXF**, issuable ARCH-D sheets with titleblocks,
+  and a **3-part MasterFormat project manual**; **code intelligence** — IBC code-analysis (G-series) summary,
+  occupancy-load + egress pre-check, jurisdiction-adopted code editions, an **approvability pre-flight**, and
+  a **detail-rule engine**; plus QA, IDS, BCF, **PDF takeoff** (calibrated measure / area / count); **layer &
+  align multiple models** with **federated cross-discipline clash**; **raise 2D → BIM** (DXF floor plan → IFC
+  walls + spaces) and check the built result with **scan-to-BIM deviation** (as-built point cloud vs the model
+  surface, % within tolerance + heatmap); also opens **meshes & point clouds** (OBJ/STL/PLY/glTF ·
+  PCD/XYZ/**LAS/LAZ**) and **GIS / topography** (**GeoJSON** vectors · **GeoTIFF** DEM terrain) as
+  georeferenced reference overlays, with **QR sharing**
 - 🏗 **GC portal** — config-driven modules: RFIs, submittals, change orders, pay apps (G702/G703), CPM schedule, safety/TRIR, closeout (COBie); **specification register → spec-driven submittal log** (AI/rules extraction of typed submittals from the spec book, with missing-submittal coverage); **contract & change-order documents** (AIA-style generate · Exhibit A scope · redline · per-party + **PAdES digital** e-sign); **Report Center** (executive / cost / EVM / logs → PDF + Excel)
 - 💵 **Development proforma** — sources & uses, S-curve draws, XIRR/NPV, JV waterfall — seeded straight from the model
 
@@ -92,7 +108,7 @@ Highlights, all **built and verified** in this repo unless noted:
 - **Coordination** — model federation; **clash detection** (AABB broad phase + mesh
   boolean narrow phase, exact penetration volume) → BCF clash topics.
 - **Issues** — BCF-modeled topics/RFIs/punch/clash, viewpoints, comments, attachments,
-  pins; `.bcfzip` import/export (round-trips with Solibri/ACC/BIMcollab).
+  pins; `.bcfzip` import/export (round-trips with any BCF-compatible openBIM tool).
 - **QA** — **IDS validation** (ifctester) with failing-element highlighting.
 - **4D / 5D** — schedule↔element mapping; quantity takeoff + cost mapping (geometry fallback).
 - **Data export** — QTO, COBie, space schedules → XLSX.
@@ -102,13 +118,52 @@ Highlights, all **built and verified** in this repo unless noted:
   server-side `ifcopenshell` recipe → background republish (reconvert + reindex). GUID-stable,
   so pins/RFIs/clashes survive. **Start:** a blank model (levels + ground datum) or a starter
   template (office bay / residential floor / warehouse). **Create:** walls, slabs, columns, beams,
-  roofs, rooms/spaces (sketch on the model/grid). **Openings:** doors/windows void the host wall +
-  fill it. **Edit:** **drag-to-move edit-in-place** (transform gizmo + ghost preview), plus typed
-  delete / move / rotate / copy / per-element Pset edit. **Levels:** rename + set-elevation.
-  **Browse:** model tree grouped by level / discipline / class / type with search; named selection
-  sets you can isolate. **Drafting aids:** grid + corner snap, a 6-face section box, a storey-levels
-  overlay. Verified live end-to-end (new model → draw → edit-in-place → clash → export). Desktop GUI
-  authoring is the Blender + Bonsai bridge.
+  roofs, rooms/spaces (sketch on the model/grid); **parametric doors/windows** (real lining/frame/panel)
+  that void the host wall + fill it. **Fabrication / LOD 350-400 (behind an "Advanced" toggle):**
+  **curtain-wall systems** (mullions/transoms + glazing), **structural steel connections** (base plates,
+  shear tabs + bolts as `IfcElementAssembly`), **rebar cages** (longitudinal bars + stirrups), and **MEP
+  fittings** (elbows/tees/transitions with ports + distribution systems). **Edit:** **drag-to-move
+  edit-in-place** (transform gizmo + ghost preview), plus typed delete / move / rotate / copy / per-element
+  Pset edit, **groups & arrays**, and **phasing** (new / existing / demolish / temporary). **Organize:**
+  a **power-selection query** (the IfcOpenShell selector DSL — by class, material, pset value) saved as
+  reusable selection sets; **LOD dialing** (tag elements 100→500 on a view-keyed representation spine).
+  **Levels:** rename + set-elevation. **Browse:** model tree grouped by level / discipline / class / type
+  with search. **Drafting aids:** grid + corner snap, a 6-face section box, a storey-levels overlay.
+  **Reliability:** **authoring guardrails** (`guards.py::precheck`) reject broken edits (zero-length walls,
+  non-finite coordinates, bad dimensions) *before* they touch the model. **AI command bar:** type an
+  instruction ("a 5×4 m room at 0,0", "steel column W14×30 at 6,6") — a deterministic keyword baseline
+  works with zero setup, and an optional Claude multi-step planner turns one instruction into a validated,
+  confirm-before-apply plan (it never invents GUIDs; every step re-validates through the same guardrail).
+  Verified live end-to-end (new model → draw → edit-in-place → clash → export). Desktop GUI authoring is
+  the optional Blender + Bonsai bridge.
+- **Construction-document set (author → issuable sheet)** — generate a permit set straight from the
+  authored geometry (deterministic, from extruded-profile footprints — no geometry kernel): **plans**
+  (class-styled poché, dimensions, keynote bubbles + legend from the model's spec codes), auto-centred
+  **sections** (X-X / Y-Y) and projected **elevations** (N/S/E/W), and computed **door / window / room
+  schedules** — each as **SVG**, laid out on an **issuable ARCH-D (36×24″) sheet** with a border +
+  titleblock, and exported to **PDF** (via reportlab) and **DXF** (a dependency-free R12 writer for CAD
+  interchange). Plus a **3-part MasterFormat project manual** — the model's elements grouped into CSI
+  divisions → sections in SectionFormat shape (Part 1 General / Part 2 Products / Part 3 Execution) from
+  their work-result classifications + attached detail documents. A **detail-rule engine** (IDS-shaped
+  condition → content) auto-attaches keynotes, spec codes and installation details — e.g. a window in an
+  exterior wall gets the IBC/ASTM/AAMA flashing detail + MasterFormat/UniFormat codes — and validates as
+  author-time QA.
+- **Code intelligence (pre-check, cites sections)** — a permit set's **G-series IBC code-analysis
+  summary** computed from the model (occupancy classification, construction type, area + story count, the
+  computed occupant load + egress, governing allowable-area/height + fire-rating sections); an
+  **occupancy-load + egress pre-check** (per-space load, required vs provided egress width, 32-in door +
+  two-exits-over-49 checks); a **jurisdiction-adopted-edition catalog** (`codes.py` — the I-Code families +
+  their 3-year editions, resolved per US state) so citations name the edition in force ("IBC 2021 Table
+  506.2 …"); and an **approvability pre-flight** — a plan-reviewer readiness checklist (egress capacity,
+  door clear width, two-exits, occupancy classification on spaces, substantiated rated assemblies) scored
+  for permit-readiness. A pre-check assist that cites sections — not a certified review; verify with the AHJ.
+- **LOD-500 / turnover (field-verified as-built)** — stamp elements **field-verified as-built**
+  (`Massing_AsBuilt`: Status + VerifiedBy/Date/Method/Note provenance) with a **readiness** rollup by
+  method (field-measure / laser-scan / total-station / photo / submittal / inspection); stamp
+  **manufacturer/serial** data (`Pset_ManufacturerTypeInformation` + `Pset_ManufacturerOccurrence`) that
+  round-trips to COBie and CMMS/asset systems; and a composite **Model Health scorecard** across five
+  lenses — integrity, ISO-19650 information, clash coordination, verified-as-built, and **Code &
+  permit-readiness** (from the approvability pre-flight).
 - **Generative design — zoning → a fully-developed IFC building + proforma** — enter a municipal
   zoning envelope (lot, FAR, coverage, setbacks, height
   limit, floor-to-floor) and the platform computes the buildable program (footprint, floors, GFA,
@@ -201,7 +256,23 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **Since v0.3.113 — the platform filled out end to end (→ v0.3.228, current).** The complete
+- **Wave 11 — LOD-400/500 authoring + the construction-document set (v0.3.255–v0.3.293, current).** The
+  Model workspace became a genuine authoring-to-issue tool. A **view-keyed representation + LOD spine**
+  (tag elements 100→500); a **power-selection** query over the IfcOpenShell selector DSL; **parametric
+  door/window** generators (real lining/frame/panel); a **domain-geometry catalog** behind an "Advanced
+  fabrication" toggle — **steel connections** (base plates, shear tabs), **rebar cages**, **MEP fittings**,
+  and **curtain-wall systems**; **classification + detail-document carriers** and an **IDS-shaped
+  detail-rule engine** (exterior-window → IBC/ASTM flashing detail + spec/keynote codes). On top: the whole
+  **construction-document set** — plan/section/elevation SVG → **PDF + DXF**, **issuable ARCH-D sheets**
+  with titleblocks, computed **door/window/room schedules**, and a **3-part MasterFormat project manual**.
+  **Code intelligence** — a **G-series IBC code-analysis** summary, a **jurisdiction-adopted-edition**
+  catalog, and an **approvability pre-flight** (permit-readiness). **LOD-500 turnover** — field-verified
+  **as-built** stamping + **manufacturer/serial** (COBie-ready), rolled into a five-lens **Model Health
+  scorecard**. And the **AI authoring command bar** — natural language → a validated recipe plan
+  (deterministic baseline + optional Claude multi-step planning), guarded by an **authoring guardrail**
+  that rejects broken IFC before it writes. See the changelog for each release.
+
+- **Since v0.3.113 — the platform filled out end to end (→ v0.3.228).** The complete
   **acquisition → design → build → turnover → operate** lifecycle (RIBA/AIA phase gates, soft-cost
   itemization, ASI/bulletins/SK, G704 turnover, FCA/FCI + reserves operations); **openBIM standards depth**
   (IDS→BCF, bSDD, COBie Contact/Zone/System, IFC4.3 infra, ISO 19650 CDE); **AI over the model**, the
@@ -481,7 +552,7 @@ Deliverables** — with a sticky live-solved returns bar.
   **project risk digest** (cost + schedule + open items + safety), a **Report Center** (every report →
   PDF **and** Excel), **PDF digital signatures (PAdES)** + AIA-style contract / exhibit / change-order
   documents, **GIS/topography** (GeoJSON + GeoTIFF DEM) · **PDF takeoff** · **GAEB X83** · **AI text→BOQ**,
-  Navisworks-style **model federation** (per-model transforms + **federated clash**), **mesh + point-cloud
+  cross-discipline **model federation** (per-model transforms + **federated clash**), **mesh + point-cloud
   (LAS/LAZ) reference overlays** with **QR share**, and reliability hardening — **Sources & Uses now
   reconciles to the dollar**, **BCF pins round-trip with their GUID tie + anchor**, and the backend suite
   grew to **47**. See the [CHANGELOG](CHANGELOG.md).
@@ -511,10 +582,10 @@ Deliverables** — with a sticky live-solved returns bar.
   seeds all three pillars. See the [CHANGELOG](CHANGELOG.md) (v0.1.53→v0.2.7).
 - **Rendering, families & computational design (M-theme)** — a viewer **render mode** (directional
   sun + soft shadows, ACES/PBR, IBL), a NOAA **sun-&-shadow study** (date · time · lat/long), and a
-  Matterport-style first-person **walkthrough**; Revit-style **`IfcMaterialLayerSet` assemblies** on
+  a first-person **walkthrough**; **`IfcMaterialLayerSet` assemblies** on
   walls/slabs/roofs; the family library grown to **37 parametric types** (Lighting/MEP/Structural/
   Transport added) with **type-variant sizing** and **import of external/manufacturer IFC families**
-  (`project.append_asset`); and **Studio**, a visual **computational node graph** (Dynamo/Hypar-style)
+  (`project.append_asset`); and **Studio**, a visual **computational node graph**
   that runs the server compute engine — wire zoning → structure → schedule → cost → yield with no code.
 - **Hardening & ops** — distributed **Redis-backed rate limiting** (multi-worker, fail-open), a
   faster **dashboard** (GROUP-BY counts, JSON parsed only for active records), an **accessibility**
@@ -603,7 +674,7 @@ Deliverables** — with a sticky live-solved returns bar.
 - **Free single-project desktop app (.exe)** — the whole platform in **one process** (FastAPI
   serving the API + SPA, SQLite + local files, single-operator local mode, no login), packaged
   self-contained with PyInstaller (`services/api/desktop.py`, `build-desktop.ps1`) — a
-  Bluebeam-style local app; data lives under `%LOCALAPPDATA%\AEC-BIM`, uninstall = delete the
+  single-project local app; data lives under `%LOCALAPPDATA%\AEC-BIM`, uninstall = delete the
   folder. Projects are portable **`.mmproj` bundles** (geometry + all data + attachments) via the
   Open/Save menu. The Tauri 2 shell spawns this backend as a sidecar for a **native window**;
   mobile (Capacitor/Tauri-mobile) is next.
@@ -764,9 +835,19 @@ GET/POST /projects/{id}/bcf/export|import     .bcfzip round-trip
 GET    /projects/{id}/exports/{qto,cobie,spaces,schedule}.xlsx
 POST   /projects/{id}/clash                   clash detection (→ BCF clash topics)
 POST   /projects/{id}/validate                IDS validation
-GET    /projects/{id}/drawings/{plan,section,elevation}.svg
-GET    /projects/{id}/drawings/sheet.{svg,pdf}
+GET    /projects/{id}/drawings/{plan,section,elevation}.{svg,dxf}   2D views → SVG + CAD (R12 DXF)
+GET    /projects/{id}/drawings/sheet.{svg,pdf}   issuable ARCH-D sheet (border + titleblock)
+GET    /projects/{id}/drawings/schedules · /drawings/schedule.{svg,pdf}   computed door/window/room schedules
+GET    /projects/{id}/spec/manual[.txt]        3-part MasterFormat project manual (spec book)
+GET    /projects/{id}/query                    power selection (IfcOpenShell selector DSL)
+GET    /projects/{id}/lod                       LOD-stage distribution (representation/LOD spine)
+GET    /projects/{id}/lod500                     LOD-500 field-verified as-built readiness
+GET    /projects/{id}/codecheck/{analysis,occupancy,approvability}   IBC code-analysis · egress · permit-readiness
+GET    /projects/{id}/detailing/{guid} · /detailing/rules/validate   element codes/docs · detail-rule QA
+GET    /codes/{families,adoptions,seeded}       jurisdiction-adopted code editions (facts only)
 POST   /projects/{id}/edit | /publish         authoring round-trip (recipes incl. add_family)
+POST   /projects/{id}/edit/precheck            authoring guardrail (reject broken IFC before writing)
+POST   /projects/{id}/ai/author                natural-language authoring command bar (validated plan)
 POST   /projects/{id}/generate/massing        zoning → IFC massing model + acquisition proforma
 POST   /generate/massing/preview              stateless zoning → program + proforma (no model written)
 GET    /families/catalog                      starter IFC family library (furnish & equip)

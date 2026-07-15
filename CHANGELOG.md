@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.294 — Docs, landing page & demo refreshed to the current product
+
+Housekeeping so the outward-facing surfaces match what shipped. The **README**, the **in-app guide**
+(`docs/guide.html`), and the **Pages landing** (`docs/index.html`) are reframed around the current
+end-to-end capability — model from scratch → generate a permit-ready construction-document set → pre-check
+code → hand over field-verified as-built data — with new sections/tutorials for the CD set, code &
+permit-readiness, and LOD-500 turnover. Pre-existing competitor comparisons were removed (capabilities are
+described directly); interop/connector/standard names kept. The **Pages demo snapshot** (`demoData.json`)
+was regenerated against the current API (932 fixtures). The **roadmap** was re-archived: this session's
+shipments moved to `roadmap-completed.md`, active roadmap re-prioritized (CODE-2 → D5 → W10-4 → …).
+
 ## v0.3.293 — Model Health scorecard gains a Code & permit-readiness lens
 
 The composite **Model Health** scorecard now includes a fifth lens — **Code & permit readiness** — sourced

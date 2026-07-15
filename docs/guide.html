@@ -70,6 +70,8 @@
     <a href="#start">Getting started</a>
     <a href="#explore">1 · Explore a model</a>
     <a href="#draft">✏️ Draft &amp; author</a>
+    <a href="#docs">📐 Construction documents</a>
+    <a href="#code">🏛 Code &amp; permit-readiness</a>
     <a href="#generate">2 · Generate from zoning</a>
     <a href="#underwrite">3 · Underwrite a deal</a>
     <a href="#run">4 · Run a project</a>
@@ -77,7 +79,7 @@
     <a href="#evm">📊 Earned Value</a>
     <a href="#wip">📄 WIP schedule</a>
     <a href="#trace">🔗 Cost traceability</a>
-    <a href="#turnover">5 · Hand it over</a>
+    <a href="#turnover">5 · Hand it over (LOD-500)</a>
     <a href="#dispose">6 · List &amp; value it</a>
     <a href="#operate">7 · Operate it</a>
     <a href="#field-reality">🛰️ Field &amp; reality</a>
@@ -112,7 +114,7 @@
     <li>Need other formats? <b>Open ▾ → Open mesh / point cloud / GIS…</b> loads <b>OBJ/STL/PLY/glTF</b> meshes,
       <b>PCD/XYZ/LAS/LAZ</b> point clouds, and <b>GIS / topography</b> (<b>GeoJSON</b> site vectors, <b>GeoTIFF</b>
       DEM terrain) as georeferenced overlays. Tap <b>📱 Share via QR</b> to open the project on a phone or tablet.</li>
-    <li><b>Layer &amp; coordinate models</b> (Navisworks-style): each reference model has a <b>⛭</b> align
+    <li><b>Layer &amp; coordinate models</b> (federated coordination): each reference model has a <b>⛭</b> align
       panel (offset / Z-up flip / scale / move-to-point). Add discipline IFCs in the <b>Coordination &amp; QA</b>
       panel (<b>＋ Add discipline IFC</b>), then <b>🔗 Federated clash</b> finds cross-discipline conflicts and
       files them as issues on the model.</li>
@@ -144,18 +146,38 @@
       model. Points snap to grid intersections; hold <b>Shift</b> for ortho; for slabs/ceilings click the corners
       and <b>double-click</b> to close; <b>Esc</b> cancels. An <b>amber proxy</b> shows instantly, then real
       geometry appears as the server authors it. <b>➕ Add rooms / spaces</b> grids IfcSpace rooms over each floor.</li>
-    <li>The library spans <b>walls, slabs, roofs, coverings</b> (ceilings, floor tile, wood flooring,
-      cladding) and <b>railings</b>; <b>steel W-shapes, rebar, columns, beams and footings</b>; and full
-      <b>MEP</b> — duct/pipe/cable-tray/cable runs (with connection ports + distribution systems), fittings
-      (elbows/tees), electrical panels, outlets, lights, diffusers, floor drains, plumbing fixtures, fire
-      alarms, smoke detectors and telecom outlets.</li>
+    <li>The everyday library spans <b>walls, slabs, roofs, coverings</b> (ceilings, floor tile, wood
+      flooring, cladding) and <b>railings</b>; <b>steel W-shapes, rebar, columns, beams and footings</b>;
+      <b>parametric doors/windows</b> (real lining/frame/panel that void the host + fill the opening); and
+      full <b>MEP</b> — duct/pipe/cable-tray/cable runs (with connection ports + distribution systems),
+      electrical panels, outlets, lights, diffusers, floor drains, plumbing fixtures, fire alarms, smoke
+      detectors and telecom outlets.</li>
+    <li><b>Fabrication tools (LOD 350-400).</b> Flip on <b>🔧 Advanced fabrication tools</b> for shop-level
+      detailing: <b>curtain-wall systems</b> (a real mullion/transom grid bounding glazing panels),
+      <b>steel connections</b> (base plates + anchor bolts on a column, shear tabs + bolts on a beam, each
+      grouped into an <b>IfcElementAssembly</b>), <b>rebar cages</b> (longitudinal bars + stirrups in a
+      concrete column), and <b>MEP fittings</b> (elbows / tees / transitions with the right ports, joined to
+      a named distribution system). First-time modellers see a simple toolset; the toggle persists.</li>
     <li><b>Edit in place.</b> Select an element and turn on <b>◈ Edit in place</b> — a drag <b>gizmo</b> appears
       with X/Y/Z handles and a live ΔE/ΔN/ΔZ readout; drag to move it (grid-snap applies) and it re-authors on
-      release. Or use the toolbar for typed <b>move / rotate / copy / add door or window</b>. Every edit rewrites
-      the IFC by <b>stable GUID</b>, so every linked record (RFIs, issues, verifications) survives.</li>
+      release. Or use the toolbar for typed <b>move / rotate / copy / add door or window</b>, plus <b>groups &amp;
+      arrays</b> and <b>🕐 Phasing</b> (tag elements new / existing / demolish / temporary for renovation
+      sequencing). Every edit rewrites the IFC by <b>stable GUID</b>, so every linked record (RFIs, issues,
+      verifications) survives.</li>
     <li><b>Find and organize.</b> The <b>model browser</b> (Tree) groups the model by <b>level / discipline /
-      IFC class / type-family</b> and <b>searches</b> across name, GUID, class, type and discipline. Save any
-      search as a named <b>selection set</b> (Layers panel) and <b>isolate</b> it in one click — “Show all” clears it.</li>
+      IFC class / type-family</b> and <b>searches</b> across name, GUID, class, type and discipline. For
+      power selection, the <b>🔎 Query</b> tool runs the IfcOpenShell <b>selector language</b>
+      (<code>IfcWall, Pset_WallCommon.FireRating=2HR</code> · <code>IfcElement, material=concrete</code>) —
+      isolate the matches in 3D or save them as a reusable <b>selection set</b>. Use <b>📶 Level of
+      Development</b> to tag the selection <b>LOD 100→500</b> as its geometry and data mature.</li>
+    <li><b>Type what to build (AI command bar).</b> The <b>✨ command bar</b> atop the Author panel turns
+      plain English into modelling — "add a 3 m wall from 0,0 to 5,0", "put a window in the selected wall",
+      "steel column W14×30 at 6,6", "set LOD 350 on the selection". It maps the instruction to a <b>validated
+      plan</b> shown for confirmation — nothing writes until you click Apply. A deterministic keyword baseline
+      works with zero setup; with an API key set, Claude plans multi-step ("a 5×4 m room at 0,0" → four
+      walls, one-click <b>Apply all</b>). It never invents GUIDs, and every step re-runs the same
+      <b>guardrail</b> that rejects broken IFC (zero-length walls, bad coordinates/dimensions) before it
+      touches the model.</li>
     <li>Select any element to open its docked <b>📋 Properties</b> panel (Type/Instance header), then expand
       <b>✎ Edit / Classify</b> to set a typed <b>Pset property</b> (string / number / boolean) or attach a
       <b>classification reference</b> — <b>Uniclass 2015, OmniClass, Uniformat II</b> or MasterFormat. It writes
@@ -165,7 +187,60 @@
   </ol>
   <div class="note">IFC stays the source of truth: the browser captures your intent, the server authors
     the geometry and re-streams it. Everything round-trips with any other openBIM tool. Heavy parametric
-    authoring can also be driven on the desktop via Blender + Bonsai over the same operations.</div>
+    authoring can also be driven on the desktop via the optional Blender + Bonsai bridge over the same operations.</div>
+
+  <h2 id="docs">Tutorial 📐 · Generate the construction-document set</h2>
+  <p class="sub">Turn the model you authored into an issuable permit set — drawings, schedules, sheets and
+    the spec book — straight from the geometry, offline, GUID-stable. Everything derives from the authored
+    extruded profiles, so it stays true to the model.</p>
+  <ol class="steps">
+    <li>In <b>Grid &amp; Levels</b>, pick the active level and open <b>🖨 Generate plan (SVG)</b>. You get a
+      scaled plan of that level — walls/columns/slabs/rooms as class-styled <b>poché</b>, with overall
+      <b>dimensions</b> and numbered <b>keynote bubbles + a legend</b> (the keynotes come from the spec codes
+      the detail engine attaches — see below).</li>
+    <li>Open <b>📐 Sections &amp; elevations</b> for true linework: cut <b>sections</b> (X-X / Y-Y, auto-centred
+      through the building) and projected <b>elevations</b> (N/S/E/W). Each view has a <b>⤓ DXF</b> button so
+      the linework opens in any CAD tool (a dependency-free R12 writer).</li>
+    <li>Open <b>📋 Schedules</b> for computed <b>door / window / room</b> schedules — marks, widths/heights,
+      types, levels and areas pulled directly from the elements. They lay out as tables you can issue.</li>
+    <li>Compose an <b>issuable sheet</b>: <b>📄 Issue sheet (A-101)</b> places the plan in a scaled viewport
+      on an <b>ARCH-D (36×24″)</b> border with a <b>titleblock</b> (project, sheet title/number, scale, north
+      arrow). Then <b>⤓ Sheet PDF</b> and <b>⤓ Schedules sheet (PDF)</b> render submittable PDFs — a permit
+      set you can hand to the AHJ, produced in the browser with no desktop CAD tool.</li>
+    <li>Attach detail intelligence with <b>🏷 Detailing</b> (on a selected element): classification codes
+      (<b>UniFormat / MasterFormat / OmniClass / Uniclass</b>) and <b>detail drawings + installation
+      instructions</b>, IFC-natively. Or run <b>✨ Auto-detail (rules)</b> — a rule library that, e.g., gives a
+      window in an <i>exterior</i> wall its <b>IBC / ASTM / AAMA flashing detail</b> + spec/keynote codes
+      automatically, and validates the same rules as author-time QA (which elements are missing a required keynote).</li>
+    <li>Write the spec book: <b>📖 Project manual</b> groups the model's elements by their MasterFormat
+      work-result classification into CSI <b>divisions → sections</b>, each framed <b>3-part</b> (Part 1
+      General · Part 2 Products · Part 3 Execution) — a starting outline the spec writer finishes. Download it
+      as a text outline.</li>
+  </ol>
+  <div class="note tip">💡 It's one loop: place a wall → it earns a spec code → the plan shows its keynote and
+    legends it → the same code writes a project-manual section. Author once, and the documents follow.</div>
+
+  <h2 id="code">Tutorial 🏛 · Check code &amp; permit-readiness</h2>
+  <p class="sub">Pre-check the model against the building code the way a plan reviewer would — occupancy,
+    egress and a permit-readiness checklist, every result <b>citing the section</b>. A design-stage assist,
+    not a certified review: always verify with the Authority Having Jurisdiction (AHJ).</p>
+  <ol class="steps">
+    <li>Open <b>🏛 Code analysis</b> (QA rail) for the <b>G-series code summary</b> a permit set carries:
+      occupancy classification (inferred from the space mix or set explicitly), construction type, gross area
+      + story count, the computed <b>occupant load + egress</b>, and the governing sections for allowable
+      area/height and element fire ratings.</li>
+    <li>Set the <b>Jurisdiction</b> (US state) field and it resolves the <b>adopted IBC edition</b> and names
+      it throughout — the badge reads "IBC 2021", citations become "IBC 2021 Table 506.2 …". (The seed is a
+      dated starting point; adoptions change by cycle and local amendment — confirm the edition in force with
+      the AHJ.)</li>
+    <li>Run <b>🏛 Occupancy &amp; egress (IBC pre-check)</b> for per-space occupant load (IBC 1004.5), required
+      vs provided egress-door width, a 32-in min-door check and a two-exits-when-load&gt;49 flag.</li>
+    <li>Open <b>✅ Approvability pre-flight</b> — a plan-reviewer readiness checklist that runs five cited
+      checks (egress capacity, egress door clear width ≥32 in, two exits where the load demands them,
+      occupancy classification on spaces, and fire-rated assemblies substantiated by a UL/GA number or an
+      attached detail), returns pass/fail/na per check plus a <b>readiness score</b>, and isolates any flagged
+      elements in 3D. It's the same signal that feeds the Model Health scorecard.</li>
+  </ol>
 
   <h2 id="generate">Tutorial 2 · Generate a building from zoning ⭐</h2>
   <p class="sub">The headline feature: turn a lot + zoning rules into a real building and a first-cut deal.</p>
@@ -346,12 +421,21 @@
       element, totalled and broken out by kind (budget / commitment / direct cost / sub-invoice).</li>
   </ol>
 
-  <h2 id="turnover">Tutorial 5 · Hand it over (turnover)</h2>
-  <p class="sub">Close the project out and produce the handover package.</p>
+  <h2 id="turnover">Tutorial 5 · Hand it over (turnover + LOD-500)</h2>
+  <p class="sub">Close the project out, verify the as-built, and produce the handover package.</p>
   <ol class="steps">
     <li>Work the <b>Punchlist</b>: open an item, mark it <b>ready</b>, attach a photo, then <b>verify</b>
       (verification requires the photo — an evidence gate).</li>
+    <li><b>Verify the as-built (LOD 500).</b> Open <b>✅ As-built verify (LOD 500)</b>, select what's been
+      confirmed in the field, and stamp it <b>field-verified</b> — recording the <b>method</b> (field-measure /
+      laser-scan / total-station / photo / submittal / inspection) and who/when. The tool tracks
+      <b>readiness</b> (the share of elements verified) climbing as you go. Then stamp <b>manufacturer /
+      serial</b> data (manufacturer, model, production year, serial number, barcode) — the exact fields that
+      round-trip to <b>COBie</b> and asset/CMMS systems for O&amp;M.</li>
     <li>Record <b>commissioning</b>, <b>as-builts</b>, <b>warranties</b>, and the <b>completion certificate</b>.</li>
+    <li>Check the <b>Model Health scorecard</b> — one number across five lenses (integrity, ISO-19650
+      information, clash coordination, verified-as-built, and code &amp; permit-readiness) — so you can see
+      the model is turnover-ready before you sign off.</li>
     <li>Export <b>COBie</b> (the standard facilities-handover spreadsheet), the <b>QTO</b>, and a one-click
       <b>turnover package</b> (as-built IFC + COBie + closeout docs).</li>
   </ol>
@@ -571,6 +655,12 @@
     (uses the API, so it needs a Commercial licence); (2) Revit's built-in <i>File ▸ Export ▸ IFC</i> then
     <b>Open IFC…</b> (free on any plan); or (3) the paid Autodesk bridge to drop a raw <code>.rvt</code>
     directly. IFC and Fragments load free and offline.</p>
+    <h3>Can I actually author a model, not just view one?</h3>
+    <p class="muted">Yes — that's the point. Start from a blank IFC (or a template) and draw/edit real IFC across architecture, structure and MEP by GUID-stable server-side recipe, with drag-to-move edit-in-place, a family/type system, LOD dialing, fabrication-grade detailing, and an AI command bar. Guardrails reject broken IFC before it writes. See the <a href="#draft">Draft &amp; author</a> tutorial.</p>
+    <h3>Can it produce drawings / a permit set?</h3>
+    <p class="muted">Yes. Generate plans, sections, elevations and door/window/room schedules straight from the model, lay them on issuable ARCH-D sheets with titleblocks, and export to PDF and DXF — plus a 3-part MasterFormat project manual (spec book). See <a href="#docs">Construction documents</a>. It's a pre-check/authoring aid; a stamped permit set is still finished and sealed by the responsible professional.</p>
+    <h3>Does it check building code?</h3>
+    <p class="muted">It pre-checks. You get a G-series IBC code-analysis summary, an occupancy-load + egress check, jurisdiction-adopted code editions in the citations, and an approvability (permit-readiness) pre-flight — every result citing the section. It's a design-stage assist, not a certified review: always verify with the AHJ. See <a href="#code">Code &amp; permit-readiness</a>.</p>
     <h3>Is my data private?</h3>
     <p class="muted">On the desktop app, everything stays on your machine. The server stack is self-hosted — you run it.</p>
     <h3>Can I use just one part — say, only the proforma or only the GC portal?</h3>

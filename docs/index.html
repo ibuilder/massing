@@ -3,21 +3,21 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Massing — acquisition → turnover on one IFC model</title>
-<meta name="description" content="Open, self-hosted AEC platform spanning the whole lifecycle on one IFC model: BIM viewer, generative design + Test Fit, development proforma, GC portal, 4D construction and turnover. No per-seat license." />
+<title>Massing — author, draw & check a building on one IFC model</title>
+<meta name="description" content="Open, self-hosted, IFC-native BIM authoring tool + data platform: model from scratch in the browser, generate a permit-ready construction-document set, pre-check code, and hand over verified as-built data — plus generative design, a development proforma, and a GC portal. Offline-capable, no per-seat license." />
 <link rel="canonical" href="https://massing.build/" />
 <!-- Open Graph / Twitter social cards -->
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Massing" />
 <meta property="og:title" content="Massing — the whole lifecycle, on one model" />
-<meta property="og:description" content="Generate a building from zoning, underwrite it, build it, hand it over — on one IFC model. Open, self-hosted, no per-seat license." />
+<meta property="og:description" content="Author real IFC in the browser, generate a permit-ready drawing set, pre-check code, underwrite the deal and hand it over — on one IFC model. Open, self-hosted, no per-seat license." />
 <meta property="og:url" content="https://massing.build/" />
 <meta property="og:image" content="https://massing.build/img/og-image.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Massing — the whole lifecycle, on one model" />
-<meta name="twitter:description" content="Generate a building from zoning, underwrite it, build it, hand it over — on one IFC model. Open, self-hosted." />
+<meta name="twitter:description" content="Author real IFC in the browser, generate a permit-ready drawing set, pre-check code, underwrite the deal and hand it over — on one IFC model. Open, self-hosted." />
 <meta name="twitter:image" content="https://massing.build/img/og-image.png" />
 <style>
   :root{
@@ -80,9 +80,10 @@
     <img src="img/massing-logo.svg" alt="Massing" style="height:46px;display:block;margin:0 0 18px" />
     <span class="badge">Open · self-hosted · IFC-native</span>
     <h1>The whole building lifecycle,<br><span class="accent">on one model.</span></h1>
-    <p class="tag">Generate a building from zoning, underwrite the deal, build it, and hand it over —
-      BIM viewer, development proforma, and a general-contracting portal on a single IFC model.
-      The rest of the market is a patchwork of point tools. <b>No proprietary format, no per-seat license.</b></p>
+    <p class="tag">A genuine in-browser BIM authoring tool + data platform: <b>model from scratch</b>,
+      <b>generate a permit-ready construction-document set</b>, <b>pre-check code</b>, and <b>hand over
+      verified as-built data</b> — plus generative design, a development proforma, and a general-contracting
+      portal, all on a single IFC model. <b>No proprietary format, no per-seat license.</b></p>
     <div class="cta">
       <a class="btn primary" href="#download">Download the app ↓</a>
       <a class="btn ghost" href="app/">Try the live demo →</a>
@@ -97,11 +98,16 @@
       <span class="pill"><b>Web</b> · Vite + Three.js + Fragments</span>
       <span class="pill"><b>API</b> · FastAPI + Postgres + MinIO</span>
       <span class="pill"><b>Geometry</b> · IfcOpenShell</span>
+      <span class="pill"><b>Author</b> · blank IFC → walls/steel/rebar/MEP by GUID</span>
+      <span class="pill"><b>Drawings</b> · plans/sections/schedules → PDF · DXF</span>
+      <span class="pill"><b>Spec book</b> · 3-part MasterFormat manual</span>
+      <span class="pill"><b>Code</b> · IBC analysis + approvability pre-flight</span>
+      <span class="pill"><b>Turnover</b> · LOD-500 as-built + manufacturer/serial</span>
       <span class="pill"><b>Sign in</b> · Google / Microsoft / Procore SSO</span>
       <span class="pill"><b>Interop</b> · Procore + ACC + QuickBooks/Sage + SQL</span>
       <span class="pill"><b>Generative</b> · zoning → frame + units + envelope + core</span>
       <span class="pill"><b>Test Fit</b> · unit-mix + parking + yield optimize</span>
-      <span class="pill"><b>AI</b> · ask your project anything</span>
+      <span class="pill"><b>AI</b> · natural-language authoring + ask your project</span>
       <span class="pill"><b>Financials</b> · budgets + S&amp;U + underwriting guardrails + memo</span>
       <span class="pill"><b>Disposition</b> · listing kit + signed link + tri-approach appraisal</span>
       <span class="pill"><b>Desktop</b> · free single-project .exe</span>
@@ -140,8 +146,8 @@
     <p class="sub">Switch via the Model / Construction / Finance workspace bar. Everything keys off the IFC GlobalId, so geometry, issues, and records stay in sync.</p>
     <div class="grid">
       <div class="card">
-        <h3><span class="ic">🧊</span> BIM viewer + modeling</h3>
-        <p>Streams large models offline (local WASM), with a streaming-progress loader + ETag revalidation. Model federation, tree, layers, isolate/ghost, section box, measure, set-origin. A <b>photoreal render mode</b> (sun + soft shadows, PBR, a date/time/location <b>sun-&amp;-shadow study</b>, and a first-person <b>walkthrough</b>). Clash + IDS validation + BCF issues (round-trip with Solibri/ACC/BIMcollab); 2D plans/sections/elevations with room tags + element callouts + PDF sheets. In-viewer authoring — walls, slabs, columns, beams, roofs, doors/windows, move/rotate/copy — written back to IFC server-side. <b>Generative massing</b> from a zoning envelope; a <b>37-family</b> parametric library with Revit-style <b>material layer-set assemblies</b> and <b>import of external IFC families</b>; and a <b>Studio</b> visual computational graph (Dynamo-style nodes you wire and run). <b>5D</b>: click an element → its schedule activity + cost-code budget; colour the whole model by <b>%-complete</b> or <b>cost variance</b>; scrub the <b>4D timeline</b> while the building lights up green with a live cost burn. IFC is the source of truth, with an optional <b>paid Revit (.rvt)→IFC bridge</b> (Autodesk APS, feature-flagged behind a cost gate).</p>
+        <h3><span class="ic">🧊</span> BIM authoring + viewer</h3>
+        <p>A genuine <b>in-browser authoring tool</b>, not just a viewer: start from a <b>blank model</b> (or a template) and draw/edit walls, slabs, columns, beams, roofs, doors/windows, <b>curtain walls, steel connections, rebar cages and MEP</b> — each a <b>GUID-stable server-side recipe</b>, with <b>drag-to-move edit-in-place</b>, a family/type system, groups/arrays, <b>phasing</b>, <b>LOD dialing (100→500)</b>, an <b>AI command bar</b> (type what to build), and <b>guardrails</b> that reject broken IFC before it writes. Streams large models offline (local WASM) with a progress loader + ETag revalidation; model federation, tree, layers, isolate/ghost, section box, measure, set-origin; a <b>photoreal render mode</b> (sun + soft shadows, PBR, a date/time/location <b>sun-&amp;-shadow study</b>, first-person <b>walkthrough</b>). Clash + IDS validation + BCF issues (round-trip with any openBIM tool). A <b>37-family</b> parametric library with <b>material layer-set assemblies</b> and <b>import of external IFC families</b>; <b>generative massing</b> from a zoning envelope; and a <b>Studio</b> visual computational graph (nodes you wire and run). <b>5D</b>: click an element → its schedule activity + cost-code budget; colour the whole model by <b>%-complete</b> or <b>cost variance</b>; scrub the <b>4D timeline</b> with a live cost burn. IFC is the source of truth, with an optional <b>paid Revit (.rvt)→IFC bridge</b> (Autodesk APS, feature-flagged behind a cost gate).</p>
       </div>
       <div class="card">
         <h3><span class="ic">🏗️</span> GC portal</h3>
@@ -157,9 +163,54 @@
 
 <section>
   <div class="wrap">
+    <h2>Model it, draw it, check it, hand it over</h2>
+    <p class="sub">A blank IFC becomes a permit-ready set — entirely in the browser, offline, GUID-stable,
+      IFC-native. Four steps, one model, no round-trip to a desktop tool.</p>
+    <div class="grid">
+      <div class="card">
+        <h3><span class="ic">✏️</span> Author from scratch</h3>
+        <p>Start blank (levels + ground datum) or from a template, then draw and edit real IFC across
+          <b>architecture · structure · MEP</b> — walls, slabs, columns, beams, doors/windows, plus
+          fabrication-grade <b>curtain walls, steel connections (base plates / shear tabs), rebar cages</b>
+          and <b>MEP fittings</b>. Every op is a <b>GUID-stable server-side recipe</b> with drag-to-move
+          <b>edit-in-place</b>, a family/type system, groups/arrays, <b>phasing</b>, and <b>LOD dialing
+          100→500</b>. An <b>AI command bar</b> turns "steel column W14×30 at 6,6" into a validated,
+          confirm-before-apply plan; <b>guardrails</b> reject broken IFC before it writes.</p>
+      </div>
+      <div class="card">
+        <h3><span class="ic">📐</span> Generate the drawing set</h3>
+        <p>Produce the <b>construction-document set</b> straight from the authored geometry: <b>plans</b>
+          (poché, dimensions, keynote bubbles + legend), auto-centred <b>sections</b> and projected
+          <b>elevations</b>, and computed <b>door / window / room schedules</b> — each on an <b>issuable
+          ARCH-D sheet</b> with a titleblock, exported to <b>SVG · PDF · DXF</b>. A <b>detail-rule engine</b>
+          auto-attaches keynotes, spec codes and installation details (an exterior window gets its
+          IBC/ASTM flashing detail), and a <b>3-part MasterFormat project manual</b> writes the spec book.</p>
+      </div>
+      <div class="card">
+        <h3><span class="ic">🏛️</span> Pre-check the code</h3>
+        <p>A permit set's <b>G-series IBC code-analysis</b> summary computed from the model (occupancy,
+          construction type, area/stories, occupant load + egress, governing sections); an <b>occupancy-load
+          + egress</b> check; a <b>jurisdiction-adopted-edition</b> catalog so citations name the edition in
+          force ("IBC 2021"); and an <b>approvability pre-flight</b> — a plan-reviewer readiness checklist
+          scored for permit-readiness. A pre-check assist that cites sections — verify with the AHJ.</p>
+      </div>
+      <div class="card">
+        <h3><span class="ic">✅</span> Hand over verified data</h3>
+        <p>Stamp elements <b>field-verified as-built</b> (LOD-500: method + who/when provenance) with a
+          readiness rollup, and <b>manufacturer / serial</b> data that round-trips to <b>COBie</b> and
+          CMMS/asset systems. A five-lens <b>Model Health scorecard</b> — integrity, ISO-19650 information,
+          clash coordination, verified-as-built, and <b>code &amp; permit-readiness</b> — answers "is my
+          project healthy?" in one number.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <h2>The whole lifecycle, on one model</h2>
-    <p class="sub">The market is a patchwork of point tools — feasibility in one, BIM in another,
-      construction management in a third, none of them talking. This spans <b>acquisition → turnover</b>
+    <p class="sub">Feasibility, BIM, and construction management usually live in separate, disconnected
+      tools. This spans <b>acquisition → turnover</b>
       on a single IFC-keyed model, open and self-hosted, with no per-seat license.</p>
     <img src="img/lifecycle.svg" alt="Lifecycle coverage: one IFC model spans acquisition, feasibility, design, preconstruction, construction and turnover" style="width:100%;border:1px solid var(--line);border-radius:12px;display:block" />
   </div>
@@ -277,7 +328,7 @@
       </div>
       <div class="card">
         <h3><span class="ic">💾</span> Free desktop app (.exe)</h3>
-        <p>The whole platform in one process — API + UI + SQLite, no login, fully offline — packaged as a self-contained Windows <b>.exe</b> (a Bluebeam-style single-project app). Projects save/open as portable <b>.mmproj</b> bundles. A paid cloud tier (connect + private storage) is planned; the local app stays free.</p>
+        <p>The whole platform in one process — API + UI + SQLite, no login, fully offline — packaged as a self-contained Windows <b>.exe</b> (a single-project local app). Projects save/open as portable <b>.mmproj</b> bundles. A paid cloud tier (connect + private storage) is planned; the local app stays free.</p>
       </div>
     </div>
   </div>
