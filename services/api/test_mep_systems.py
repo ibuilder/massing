@@ -121,6 +121,22 @@ fp2 = next(x for x in sfe["systems"] if x["name"] == "Fire Protection")
 assert fp2["discipline"] == "fire" and fp2["members"] >= 6, fp2   # pipe + 2 sprinklers + hose reel + fdc + pump
 assert "add_fire_equipment" in edit.RECIPES
 
+# sprinkler coverage: 2 SPRINKLER heads over authored spaces; required = ceil(area / max-coverage)
+import math  # noqa: E402
+edit.add_spaces(m, rooms_per_storey=2, ceiling_height=3.0)       # gives measurable NetFloorArea
+cov = mep.sprinkler_coverage(m, "light")
+assert cov["sprinkler_heads"] == 2, cov                          # hose reel/fdc/pump are NOT counted
+assert cov["protected_area_m2"] > 0 and cov["max_coverage_m2_per_head"] == 18.58, cov
+assert cov["required_heads"] == math.ceil(cov["protected_area_m2"] / 18.58), cov
+assert cov["adequate"] == (cov["sprinkler_heads"] >= cov["required_heads"]), cov
+# ordinary hazard requires MORE heads than light (smaller coverage per head)
+cov_o = mep.sprinkler_coverage(m, "ordinary")
+assert cov_o["required_heads"] >= cov["required_heads"], (cov_o["required_heads"], cov["required_heads"])
+# no spaces → area unknown → adequate None (a fresh empty model)
+import ifcopenshell as _ios  # noqa: E402
+covn = mep.sprinkler_coverage(_ios.file(schema="IFC4"), "light")
+assert covn["protected_area_m2"] == 0 and covn["sprinkler_heads"] == 0 and covn["adequate"] is None, covn
+
 # set_system_predefined retags an existing plain system's discipline
 edit.set_system_predefined(m, "Domestic Water", "plumbing")
 dw = next(x for x in mep.mep_summary(m)["systems"] if x["name"] == "Domestic Water")

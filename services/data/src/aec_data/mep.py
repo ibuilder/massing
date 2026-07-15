@@ -53,6 +53,56 @@ def _is_terminal(m) -> bool:
     return any(m.is_a(t) for t in _TERM)
 
 
+# NFPA 13 maximum protection area per sprinkler by hazard (standard spray, unobstructed construction),
+# in m² — facts of the standard (200 / 130 / 100 ft² → m²). Copyright-safe like the code-context engine;
+# the requirement text lives in NFPA 13 (deep-link, don't reproduce).
+_SPRINKLER_COVERAGE_M2 = {"light": 18.58, "ordinary": 12.08, "extra": 9.29}
+
+
+def sprinkler_coverage(model: ifcopenshell.file, hazard: str = "light") -> dict:
+    """MEP-FP: a coverage pre-check for a sprinkler system — count the SPRINKLER heads and compare against
+    the number NFPA 13 would require for the model's protected floor area at the given hazard class
+    (max protection-area-per-sprinkler). Area comes from the IfcSpace `Qto_SpaceBaseQuantities.NetFloorArea`
+    (m²). A planning assist, not a hydraulic design; verify with a fire-protection engineer."""
+    import ifcopenshell.util.element as ue
+
+    hz = (hazard or "light").strip().lower()
+    max_cov = _SPRINKLER_COVERAGE_M2.get(hz, _SPRINKLER_COVERAGE_M2["light"])
+
+    heads = 0
+    for t in _by_type(model, "IfcFireSuppressionTerminal"):
+        if str(getattr(t, "PredefinedType", "") or "").upper() == "SPRINKLER":
+            heads += 1
+
+    area = 0.0
+    spaces = 0
+    for sp in _by_type(model, "IfcSpace"):
+        q = ue.get_pset(sp, "Qto_SpaceBaseQuantities") or {}
+        a = q.get("NetFloorArea") or q.get("GrossFloorArea")
+        if isinstance(a, (int, float)) and a > 0:
+            area += float(a)
+            spaces += 1
+
+    import math
+    required = math.ceil(area / max_cov) if area > 0 else 0
+    adequate = (heads >= required) if area > 0 else None
+    return {
+        "hazard": hz,
+        "sprinkler_heads": heads,
+        "protected_area_m2": round(area, 1),
+        "spaces_measured": spaces,
+        "max_coverage_m2_per_head": max_cov,
+        "required_heads": required,
+        "adequate": adequate,
+        "shortfall": max(0, required - heads) if area > 0 else None,
+        "citation": "NFPA 13 — maximum protection area per sprinkler (standard spray, unobstructed)",
+        "note": ("Coverage pre-check only (head count vs area ÷ max coverage) — not a hydraulic calculation, "
+                 "spacing check, or obstruction/beam-rule review." if area > 0 else
+                 "No measured IfcSpace areas (Qto_SpaceBaseQuantities) — author spaces to get a coverage check."),
+        "verify": "Confirm hazard classification, spacing and hydraulics with a fire-protection engineer.",
+    }
+
+
 def _ports(el):
     """Connection ports on an element (IfcRelNests → IfcDistributionPort), across IFC2x3/IFC4 shapes."""
     ports = []

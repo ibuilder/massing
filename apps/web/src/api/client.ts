@@ -1113,6 +1113,13 @@ export class ApiClient extends HttpCore {
       connections: number; dangling_count: number; connected_pct: number;
       dangling: { guid: string; class: string; name: string | null }[] }>(`/projects/${pid}/mep/connectivity`);
   }
+  /** MEP-FP: NFPA-13-informed sprinkler coverage pre-check (head count vs area ÷ max coverage per hazard). */
+  sprinklerCoverage(pid: string, hazard = "light") {
+    return this.json<{ hazard: string; sprinkler_heads: number; protected_area_m2: number; spaces_measured: number;
+      max_coverage_m2_per_head: number; required_heads: number; adequate: boolean | null; shortfall: number | null;
+      citation: string; note: string; verify: string }>(
+      `/projects/${pid}/mep/sprinkler-coverage?hazard=${encodeURIComponent(hazard)}`);
+  }
   /** W10-4: connect two MEP elements port-to-port (IfcRelConnectsPorts). */
   connectMep(pid: string, guidA: string, guidB: string, publish = true) {
     return this.editIfc(pid, "connect_mep", { guid_a: guidA, guid_b: guidB }, publish);

@@ -2280,6 +2280,22 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               .map(([d, v]) => `${discIcon[d] || "🔀"} ${d} (${v.systems})`).join(" · ");
             body.appendChild(resultNote(`<b>Disciplines</b> — ${roll}.`
               + (s.has_fire_protection ? "" : " <i>No fire-protection system yet.</i>"), s.has_fire_protection ? "ok" : ""));
+            if (s.has_fire_protection) {
+              const covBtn = toolBtn2("🧯 Sprinkler coverage (NFPA 13)", async () => {
+                let cov;
+                try { cov = await api.sprinklerCoverage(pid, "light"); }
+                catch (e) { notify((e as Error).message, "error"); return; }
+                const ok = cov.adequate;
+                body.appendChild(resultNote(`<b>Sprinkler coverage</b> (${cov.hazard} hazard) — `
+                  + `${cov.sprinkler_heads} head(s) vs <b>${cov.required_heads}</b> required for `
+                  + `${cov.protected_area_m2.toLocaleString()} m² (≤${cov.max_coverage_m2_per_head} m²/head): `
+                  + `<b>${ok == null ? "n/a" : ok ? "adequate" : `short ${cov.shortfall}`}</b>. `
+                  + `<span class="meta">${cov.citation}. ${cov.verify}</span>`,
+                  ok == null ? "" : ok ? "ok" : "bad"));
+              });
+              covBtn.title = "NFPA-13-informed head-count vs protected-area coverage pre-check (not a hydraulic design)";
+              body.appendChild(covBtn);
+            }
           }
           for (const sy of s.systems) {
             const di = discIcon[sy.discipline || "other"] || "🔀";

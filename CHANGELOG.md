@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.316 — Sprinkler coverage pre-check (NFPA-13-informed)
+
+New `mep.sprinkler_coverage(model, hazard)` counts the SPRINKLER heads and compares against the number
+NFPA 13 would require for the model's protected floor area (summed IfcSpace `Qto_SpaceBaseQuantities.
+NetFloorArea`) at the hazard class — max protection-area-per-sprinkler is **200 / 130 / 100 ft²**
+(light / ordinary / extra), a fact of the standard (copyright-safe; the text stays in NFPA 13). Returns head
+count vs required, adequacy + shortfall, and area unknown → `adequate: null` when no spaces are measured. New
+`GET /projects/{pid}/mep/sprinkler-coverage?hazard=` + a **🧯 Sprinkler coverage** button in the MEP tool
+(shown when a fire-protection system exists). A planning assist — not a hydraulic calc, spacing check, or
+obstruction review. `test_mep_systems.py` extended (2 heads / 400 m² → 22 required at light hazard; ordinary
+requires more; empty model → n/a).
+
 ## v0.3.315 — Fire-protection equipment: hose reel / FDC / hydrant / fire pump (MEP-FP next slice)
 
 Fleshes out the fire-protection system with real devices, not just piping. New `add_fire_equipment`

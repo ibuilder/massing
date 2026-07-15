@@ -251,6 +251,19 @@ def mep_connectivity(pid: str, db: Session = Depends(get_db), _: str = Depends(r
     return mep.connectivity(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/mep/sprinkler-coverage")
+def sprinkler_coverage(pid: str, hazard: str = "light", db: Session = Depends(get_db),
+                       _: str = Depends(require_role("viewer"))):
+    """MEP-FP: a sprinkler coverage pre-check — SPRINKLER head count vs the number NFPA 13 would require for
+    the model's protected floor area (IfcSpace `NetFloorArea`) at the given hazard class (`light` /
+    `ordinary` / `extra`). A planning assist, not a hydraulic design."""
+    from aec_data import mep  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return mep.sprinkler_coverage(open_model(p.source_ifc), hazard)
+
+
 @router.get("/projects/{pid}/lod")
 def lod_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). Advance elements with the

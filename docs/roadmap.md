@@ -291,8 +291,10 @@ ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
   `has_fire_protection`. Fire terminals are connectable (W10-4 covers sprinkler runs).
 - ✅ **MEP-FP equipment SHIPPED v0.3.315** — `add_fire_equipment` authors sprinkler / hose-reel / FDC /
   hydrant (`IfcFireSuppressionTerminal` subtypes) + fire pump (`IfcPump`) onto the fire system; 🧯
-  Fire-protection equipment tool places at the last-clicked point. *Next: sprinkler coverage/spacing check +
-  standpipe risers + tie to the fire-alarm sheet layer.*
+  Fire-protection equipment tool places at the last-clicked point.
+- ✅ **MEP-FP sprinkler coverage SHIPPED v0.3.316** — `mep.sprinkler_coverage` (NFPA-13 max area-per-head by
+  hazard) head-count vs protected-area (IfcSpace NetFloorArea) pre-check; `GET /mep/sprinkler-coverage` + a 🧯
+  coverage button. *Next: standpipe risers + spacing/obstruction rules + tie to the fire-alarm sheet layer.*
 
 **Not-new (confirmed existing depth):** the MEP 4-discipline model (HVAC/electrical/plumbing/fire — MEP-FP
 above is the one gap), the design→turnover lifecycle spine, ISO 19650 BIM-management, Lean pull-planning, and
