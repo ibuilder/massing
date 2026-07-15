@@ -41,17 +41,61 @@ LOADING: dict[str, float] = {
     "congested": 1.15, "nightshift": 1.10,
 }
 
+# activity -> installed **material** cost per unit ($). Benchmark averages, editable per project; an absent
+# key means negligible material (e.g. excavation). Same unit as the RATES entry.
+MATERIALS: dict[str, float] = {
+    "backfill_compact": 5.0, "blinding_concrete": 110.0, "rc_formwork": 25.0, "rc_rebar_fixing": 900.0,
+    "rc_casting": 130.0, "concrete_finish": 2.0, "block_masonry": 30.0, "brick_masonry": 45.0,
+    "internal_plaster": 8.0, "external_plaster": 10.0, "painting": 3.0, "steel_erection": 2000.0,
+    "duct_install": 45.0, "pipe_install": 20.0, "conduit_install": 6.0, "cable_pulling": 4.0,
+    "floor_tile": 35.0, "false_ceiling": 25.0, "waterproofing": 12.0,
+}
+
+# activity -> **equipment / plant** cost per unit ($) — major plant (excavators, cranes, pumps). An absent
+# key means hand-tools only (folded into overhead, not itemised here).
+EQUIPMENT: dict[str, float] = {
+    "excavation_soil": 8.0, "backfill_compact": 6.0, "blinding_concrete": 6.0, "rc_casting": 15.0,
+    "rc_rebar_fixing": 20.0, "steel_erection": 80.0,
+}
+
 
 def catalog() -> dict[str, Any]:
     """The productivity-rate catalog grouped by trade + the loading factors (for an estimating UI)."""
     groups: dict[str, list[dict]] = {}
     for key, r in RATES.items():
         groups.setdefault(r["group"], []).append(
-            {"activity": key, "unit": r["unit"], "man_hours_per_unit": r["mh"], "crew": r["crew"]})
+            {"activity": key, "unit": r["unit"], "man_hours_per_unit": r["mh"], "crew": r["crew"],
+             "material_cost_per_unit": MATERIALS.get(key, 0.0),
+             "equipment_cost_per_unit": EQUIPMENT.get(key, 0.0)})
     return {"groups": {g: sorted(v, key=lambda x: x["activity"]) for g, v in sorted(groups.items())},
             "loading_factors": LOADING,
-            "note": "Man-hours/unit are industry-benchmark averages — adjust per project. Loading factors "
-                    "inflate hours for real-world conditions."}
+            "note": "Man-hours/unit + material/equipment $/unit are industry-benchmark averages — adjust per "
+                    "project. Loading factors inflate labour hours for real-world conditions."}
+
+
+def full_estimate(items, hourly_rate: float = 25.0, loading: str = "standard",
+                  crew_day_hours: float = 8.0) -> dict[str, Any]:
+    """A fuller 5D cost: labour (via `labor_estimate`) **plus material and equipment** unit costs per line.
+    Returns the labour breakdown augmented with `material_cost` / `equipment_cost` / `line_total` per line
+    and `total_material_cost` / `total_equipment_cost` / `total_cost`. Still excludes overhead/profit."""
+    base = labor_estimate(items, hourly_rate, loading, crew_day_hours)
+    lines: list[dict] = []
+    tmat = teqp = 0.0
+    for ln in base["lines"]:
+        qty = ln["quantity"]
+        mat = round(qty * MATERIALS.get(ln["activity"], 0.0), 2)
+        eqp = round(qty * EQUIPMENT.get(ln["activity"], 0.0), 2)
+        tmat += mat
+        teqp += eqp
+        lines.append({**ln, "material_cost": mat, "equipment_cost": eqp,
+                      "line_total": round(ln["labor_cost"] + mat + eqp, 2)})
+    lines.sort(key=lambda x: -x["line_total"])
+    total = round(base["total_labor_cost"] + tmat + teqp, 2)
+    return {**base, "lines": lines,
+            "total_material_cost": round(tmat, 2), "total_equipment_cost": round(teqp, 2),
+            "total_cost": total, "has_material_equipment": True,
+            "note": "Labour + material + equipment (benchmark unit costs; excludes overhead / profit / "
+                    "markup). Rates are editable benchmarks; verify against local suppliers + crews."}
 
 
 def labor_estimate(items, hourly_rate: float = 25.0, loading: str = "standard",
@@ -90,10 +134,11 @@ def labor_estimate(items, hourly_rate: float = 25.0, loading: str = "standard",
 
 
 # IFC-class -> (activity, how to get the quantity from an element) for a rough model-driven takeoff
-def from_model(model, hourly_rate: float = 25.0, loading: str = "standard") -> dict[str, Any]:
-    """Derive a rough labour estimate straight from the model — walls → masonry area (length×height),
+def from_model(model, hourly_rate: float = 25.0, loading: str = "standard",
+               full: bool = False) -> dict[str, Any]:
+    """Derive a rough estimate straight from the model — walls → masonry area (length×height),
     slabs → concrete volume + finish area, columns → concrete. Approximate (uses element dimensions, not a
-    full QTO); a starting point the estimator refines."""
+    full QTO); a starting point the estimator refines. `full=True` adds material + equipment cost lines."""
     import ifcopenshell.util.unit as uu
 
     scale = uu.calculate_unit_scale(model)
@@ -134,7 +179,7 @@ def from_model(model, hourly_rate: float = 25.0, loading: str = "standard") -> d
                 pass
 
     items = [{"activity": a, "quantity": q} for a, q in agg.items()]
-    out = labor_estimate(items, hourly_rate, loading)
+    out = full_estimate(items, hourly_rate, loading) if full else labor_estimate(items, hourly_rate, loading)
     out["derived_from_model"] = True
     out["note"] = "Rough model-driven takeoff (element dimensions, not a full QTO). " + out["note"]
     return out

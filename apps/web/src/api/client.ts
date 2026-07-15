@@ -1269,13 +1269,16 @@ export class ApiClient extends HttpCore {
       classifications: { key: string; label: string; class_cite: string; req_cite: string; gist: string }[];
       work_area_threshold_pct: number; verify: string; disclaimer: string }>(`/codes/ebc/pathways`);
   }
-  /** EST-1: rough labour cost + duration estimate from the model's quantities (productivity rates). */
-  laborEstimate(pid: string, loading = "commercial", rate = 25) {
+  /** EST-1: rough cost + duration estimate from the model's quantities (productivity rates). With
+   * `full`, adds material + equipment cost lines (labour + material + equipment total). */
+  laborEstimate(pid: string, loading = "commercial", rate = 25, full = false) {
     return this.json<{ loading: string; loading_factor: number; hourly_rate: number; line_count: number;
       total_man_hours: number; total_labor_cost: number; note: string; derived_from_model?: boolean;
+      has_material_equipment?: boolean; total_material_cost?: number; total_equipment_cost?: number; total_cost?: number;
       lines: { activity: string; group: string; unit: string; quantity: number; man_hours: number;
-        crew: number; crew_days: number; labor_cost: number }[] }>(
-      `/projects/${pid}/estimate/labor?loading=${encodeURIComponent(loading)}&rate=${rate}`);
+        crew: number; crew_days: number; labor_cost: number;
+        material_cost?: number; equipment_cost?: number; line_total?: number }[] }>(
+      `/projects/${pid}/estimate/labor?loading=${encodeURIComponent(loading)}&rate=${rate}${full ? "&full=true" : ""}`);
   }
   /** RFI-0: decision-readiness audit — the information gaps a builder would ask about, ranked. */
   rfiReadiness(pid: string) {

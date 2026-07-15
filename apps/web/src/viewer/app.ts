@@ -2863,21 +2863,30 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         });
         b.appendChild(toolBtn2("🏚 Existing-building code (IEBC scope)", () => { void runEbc(""); }));
         // EST-1 — rough labour cost + duration from the model's quantities (productivity rates)
-        b.appendChild(toolBtn2("💰 Labour estimate (man-hours · duration)", () => withLoading(container, "Estimating labour from the model", async () => {
+        b.appendChild(toolBtn2("💰 Cost estimate (labour · material · equipment)", () => withLoading(container, "Estimating cost from the model", async () => {
           let e;
-          try { e = await api.laborEstimate(projectId!, "commercial", 25); }
+          try { e = await api.laborEstimate(projectId!, "commercial", 25, true); }
           catch { toast("Needs a source IFC", "error"); return; }
-          out.textContent = `${e.total_man_hours.toLocaleString()} mh · $${Math.round(e.total_labor_cost).toLocaleString()}`;
-          showResult("Labour estimate — productivity rates", (body) => {
-            body.appendChild(resultNote(`Rough <b>labour</b> takeoff from the model (${e!.line_count} activity(ies), `
-              + `${e!.loading} loading ×${e!.loading_factor}, $${e!.hourly_rate}/hr): `
-              + `<b>${e!.total_man_hours.toLocaleString()} man-hours</b> · `
-              + `<b>$${Math.round(e!.total_labor_cost).toLocaleString()}</b>.`, e!.line_count ? "ok" : ""));
+          const grand = e.total_cost ?? e.total_labor_cost;
+          out.textContent = `${e.total_man_hours.toLocaleString()} mh · $${Math.round(grand).toLocaleString()}`;
+          showResult("Cost estimate — productivity rates", (body) => {
+            body.appendChild(resultNote(`Rough <b>cost</b> takeoff from the model (${e!.line_count} activity(ies), `
+              + `${e!.loading} loading ×${e!.loading_factor}, $${e!.hourly_rate}/hr labour): `
+              + `<b>${e!.total_man_hours.toLocaleString()} man-hours</b>.`, e!.line_count ? "ok" : ""));
             if (!e!.line_count) body.appendChild(resultNote("No estimable quantities yet — author walls / slabs / columns.", ""));
+            if (e!.has_material_equipment) {
+              body.appendChild(kvTable([
+                { k: "Labour", v: `$${Math.round(e!.total_labor_cost).toLocaleString()}` },
+                { k: "Material", v: `$${Math.round(e!.total_material_cost ?? 0).toLocaleString()}` },
+                { k: "Equipment", v: `$${Math.round(e!.total_equipment_cost ?? 0).toLocaleString()}` },
+                { k: "Total (excl. overhead/profit)", v: `$${Math.round(e!.total_cost ?? 0).toLocaleString()}`, strong: true },
+              ]));
+            }
             if (e!.lines.length) {
               body.appendChild(kvTable(e!.lines.map((l) => ({
                 k: `${l.activity.replace(/_/g, " ")} (${l.group})`,
-                v: `${l.quantity} ${l.unit} → ${l.man_hours} mh · ${l.crew_days} crew-day(s) · $${Math.round(l.labor_cost).toLocaleString()}` }))));
+                v: `${l.quantity} ${l.unit} → ${l.man_hours} mh · ${l.crew_days} cd`
+                  + (l.line_total != null ? ` · $${Math.round(l.line_total).toLocaleString()}` : ` · $${Math.round(l.labor_cost).toLocaleString()}`) }))));
             }
             body.appendChild(resultNote(e!.note, ""));
           });

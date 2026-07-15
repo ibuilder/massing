@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.314 — Full cost estimate: labour + material + equipment (EST-1 next slice)
+
+The model-driven estimate goes from labour-only to a fuller **5D cost**. `productivity.py` gains a
+**material $/unit** (`MATERIALS`) and **equipment/plant $/unit** (`EQUIPMENT`) benchmark layer beside the
+man-hours rates, and a new `full_estimate` augments each line with `material_cost` / `equipment_cost` /
+`line_total` plus `total_material_cost` / `total_equipment_cost` / `total_cost`. `from_model(..., full=True)`
+and `GET /projects/{pid}/estimate/labor?full=true` return it; the catalog now carries the unit material +
+equipment costs too. The 💰 tool (renamed **Cost estimate — labour · material · equipment**) shows the
+labour / material / equipment / total breakdown and a per-line total. Still excludes overhead / profit /
+markup; all rates are editable benchmarks. `test_productivity.py` extended (concrete: $130/m³ material +
+$15/m³ equipment; masonry $30/m² material, no equipment; totals reconcile).
+
 ## v0.3.313 — Decision-readiness gaps → BCF (RFI-0 next slice)
 
 The decision-readiness audit (v0.3.307) now **rounds its gaps to trackable BCF issues**. New
