@@ -293,7 +293,7 @@ archive. These extend them:)*
 - **CODE-6** *(L · med, flagged/paid)* — licensed **prose** integration behind a feature flag + cost warning,
   mirroring the paid Autodesk RVT-bridge pattern. Only after CODE-1–3 prove demand — a contract/cost commitment, not code risk.
 
-### 🎮 Unreal Engine — one-way viz export only (never core)
+### 🎮 Unity (Not Unreal?) Engine — one-way viz export only (never core)
 Honest verdict: Unreal **breaks offline, doesn't author, and carries royalty/seat licensing** — categorically
 incompatible with our permissive/offline core. Datasmith **does** preserve GlobalId + metadata as runtime
 tags, but strictly **one-way (viz only)**.
