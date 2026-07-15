@@ -6,7 +6,7 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.293**.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.306**.
 
 > **This file holds only what is still OPEN.** Everything shipped — every wave, track, and release —
 > lives in [roadmap-completed.md](roadmap-completed.md), so *what's left* is never buried under *what's
@@ -27,13 +27,15 @@ sections / elevations / schedules → SVG·PDF·DXF + the 3-part project manual)
 engine), **authoring guardrails + progressive disclosure**, and the **LOD-500 turnover layer**. What's left
 deepens each track:
 
-**The "next ~8" order of attack is cleared.** What remains is deeper-authoring + frontier work:
-1. **A2/A4** — RAG index over ifcopenshell docs to ground code-gen; LLM scene-digest over the semantic graph.
-2. **B4/B5, F0b** — procedural-mesh escape hatch, connections/fasteners + `IfcRelConnects*`, derive Box/Axis/FootPrint from Body.
-3. **CODE-4/5/6, VIZ-2** — local-amendment overlay, IDS emit, licensed prose (flagged); three.js PBR presentation mode.
-4. **Frontier (own planning pass):** COLLAB-1 real-time multiplayer, SITE-1 parcel/zoning ingestion, PROFORMA-LIVE, COST-AGENT, BOARDS, NL-QA.
+**The "next ~8" order of attack is cleared** (CODE-2 · D5 · W10-4 · S4 · E1 · A1 · G2 · B3 · B4). The current
+front, drawn from the 2026-07 research round 2 + remaining depth:
+1. **RFI-0 — decision-readiness audit** *(★★★★★)* — compose approvability + detail-rule validate + model-hygiene + clash into one "what's missing?" report → BCF.
+2. **EST-1 — productivity-rate cost/duration library** — man-hours/unit → labour cost + duration from quantities (5D).
+3. **CONTENT-1 (remaining)** — glTF/OBJ/SketchUp asset import → auto-detect category, click-to-place, license-vetted CC0 seed. *(catalog + placement ✅ v0.3.306.)*
+4. **A2/A4** — RAG-grounded code-gen; LLM scene-digest. **B5/F0b** — connections + `IfcRelConnects*`; derive Box/Axis/FootPrint.
+5. **Frontier (own planning pass):** COLLAB-1 multiplayer · SITE-1/BIM-GIS · VIZ-U1 (Unity/WebGL) · CODE-EBC · PROFORMA-LIVE · ENV-1.
 
-*(CODE-2 ✅ v0.3.295; D5 ✅ v0.3.296; W10-4 ✅ v0.3.297; S4 ✅ v0.3.298; E1 ✅ v0.3.299; A1 ✅ v0.3.300 (RCE-hardened v0.3.301); G2 ✅ v0.3.302; B3 sloped tops ✅ v0.3.304.)*
+*(CODE-2 ✅ v0.3.295; D5 ✅ 296; W10-4 ✅ 297; S4 ✅ 298; E1 ✅ 299; A1 ✅ 300 (RCE-hardened 301); G2 ✅ 302; B3 ✅ 304; B4 ✅ 305; CONTENT-1 ✅ 306.)*
 
 ---
 
@@ -203,7 +205,11 @@ ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
   user-adjustable per project.
 
 ### 🚫 RFI-prevention (the openBIM information-delivery moat)
-- **RFI-0 — decision-readiness audit** *(M · ★★★★★)* — the proactive inverse of the RFI: scan the model +
+- ✅ **RFI-0 (first slice) SHIPPED v0.3.307** — **decision-readiness audit** (`rfi_prevention.decision_readiness`
+  composes approvability + detail-rule validate + model-hygiene + clash → one ranked gap list, each with a
+  fix; `GET /rfi/readiness` + a 🚫 Decision-readiness tool). *Next: missing-dimension detection, round findings
+  to BCF, and the NL-QA natural-language layer over it.*
+- **RFI-0 (original spec)** *(M · ★★★★★)* — the proactive inverse of the RFI: scan the model +
   drawings + specs for the **information gaps a builder would otherwise have to ask about** — missing
   dimensions, unresolved details, undefined finishes/specs, un-substantiated ratings, missing keynotes,
   open clashes — and surface them as a ranked *resolve-before-IFC* list that round-trips to BCF. Composes the

@@ -2819,6 +2819,32 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         });
         b.appendChild(toolBtn2("🏛 Code analysis (G-series summary)", () => { void runCodeAnalysis(""); }));
         // W11 D8: plan-reviewer approvability pre-flight
+        // RFI-0 — decision-readiness audit: the information gaps a builder would ask about, ranked
+        b.appendChild(toolBtn2("🚫 Decision-readiness (RFI-prevention)", () => withLoading(container, "Auditing decision-readiness", async () => {
+          let r;
+          try { r = await api.rfiReadiness(projectId!); }
+          catch { toast("Needs a source IFC", "error"); return; }
+          out.textContent = r.ready ? "decision-ready" : `${r.total_gaps} gap(s) · ${r.high_severity} high`;
+          showResult("Decision-readiness — RFI prevention", (body) => {
+            body.appendChild(resultNote(r!.ready
+              ? "<b>Decision-ready</b> — no obvious information gaps a builder would have to ask about."
+              : `<b>${r!.total_gaps} information gap(s)</b> a builder would have to ask about `
+                + `(<b>${r!.high_severity}</b> high-severity). Resolve before issuing to cut RFIs.`,
+              r!.ready ? "ok" : "bad"));
+            const icon = (s: string) => s === "high" ? "🔴" : s === "medium" ? "🟠" : "🟡";
+            for (const g of r!.gaps) {
+              body.appendChild(kvTable([
+                { k: `${icon(g.severity)} ${g.title}`, v: `${g.detail}${g.citation ? " · " + g.citation : ""}`, strong: true },
+                { k: "  fix", v: g.fix },
+              ]));
+              if (g.guids && g.guids.length) {
+                const iso = toolBtn2(`◎ Isolate ${g.guids.length} element(s)`, () => { void layerMgr.isolateGuids(g.guids!); });
+                body.appendChild(iso);
+              }
+            }
+            body.appendChild(resultNote(r!.disclaimer, ""));
+          });
+        })));
         b.appendChild(toolBtn2("✅ Approvability pre-flight (permit-readiness)", () => withLoading(container, "Running the plan-reviewer pre-flight", async () => {
           let a;
           try { a = await api.approvability(projectId!); }

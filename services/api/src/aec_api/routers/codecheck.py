@@ -101,6 +101,23 @@ def approvability(pid: str, db: Session = Depends(get_db), _: str = Depends(requ
     return codecheck.approvability(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/rfi/readiness")
+def rfi_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """RFI-0: the **decision-readiness audit** — the proactive inverse of the RFI. Scans the model for the
+    information gaps a builder would have to ask about (failed code checks, missing details/keynotes,
+    model-data gaps, open clashes), ranked, as one resolve-before-issue list. Composes the approvability
+    pre-flight + detail-rule validator + model-hygiene + clash coordination. Needs a source IFC."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import rfi_prevention
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — the readiness audit needs a model")
+    return rfi_prevention.decision_readiness(db, pid, open_model(p.source_ifc))
+
+
 @router.post("/projects/{pid}/codecheck/egress/bcf")
 def egress_to_bcf(pid: str, db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
     """W9-2b: promote the computed egress/code findings to **BCF topics** — so a below-min door or an

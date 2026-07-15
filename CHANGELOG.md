@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.307 — Decision-readiness audit: RFI-prevention (RFI-0)
+
+The proactive inverse of the RFI — every RFI is a decision made without the needed information, so this
+surfaces the **information gaps a builder would otherwise have to ask about** *before* the set goes out. New
+`rfi_prevention.decision_readiness` composes the checks that already ship — the approvability pre-flight
+(failed code checks), the Track-D detail-rule validator (elements missing their detail/keynote),
+model-hygiene (`model_qa`: orphaned / unenclosed / unnamed / duplicate), and clash coordination (open
+clashes) — into one **ranked resolve-before-issue list**, each gap with a category, severity, and a concrete
+fix. New `GET /projects/{pid}/rfi/readiness` and a **🚫 Decision-readiness (RFI-prevention)** tool that lists
+the gaps and isolates the flagged elements in 3D. A pre-check assist — not a promise of zero RFIs.
+`test_rfi_readiness.py`.
+
 ## v0.3.306 — Site content library: logistics / furniture / landscaping, auto-classified (CONTENT-1)
 
 Place real-world parts into the **right** IFC place, not as random shapes. New `content.py` catalog maps ~20

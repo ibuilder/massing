@@ -1238,6 +1238,13 @@ export class ApiClient extends HttpCore {
       primary: { IBC: number | null; IECC: number | null; "A117.1": number | null }; verify: string }>(
       `/codes/adoptions?jurisdiction=${encodeURIComponent(jurisdiction)}`);
   }
+  /** RFI-0: decision-readiness audit — the information gaps a builder would ask about, ranked. */
+  rfiReadiness(pid: string) {
+    return this.json<{ ready: boolean; total_gaps: number; high_severity: number; summary: string; disclaimer: string;
+      by_category: Record<string, number>;
+      gaps: { category: string; severity: string; title: string; detail: string; fix: string; citation?: string;
+        count?: number | null; guids?: string[] }[] }>(`/projects/${pid}/rfi/readiness`);
+  }
   /** W11 D8: plan-reviewer approvability pre-flight (egress, door widths, occupancy, rated assemblies). */
   approvability(pid: string) {
     return this.json<{ checks: { check: string; citation: string; status: string; detail: string; guids?: string[] }[];
