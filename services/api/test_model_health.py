@@ -40,10 +40,12 @@ try:
     # a clean model → hygiene lens scores 100; the other lenses have no inputs → 'na'
     sc = model_health.scorecard(db, pid, model=_clean_model(), elements=[])
     lenses = {ln["key"]: ln for ln in sc["lenses"]}
-    assert set(lenses) == {"hygiene", "information", "coordination", "verified"}, list(lenses)
+    assert set(lenses) == {"hygiene", "information", "coordination", "verified", "readiness"}, list(lenses)
     assert lenses["hygiene"]["score"] == 100.0 and lenses["hygiene"]["status"] == "good", lenses["hygiene"]
     # information lens present (may be na or scored depending on records); coordination/verified na here
     assert lenses["coordination"]["status"] == "na" and lenses["verified"]["status"] == "na", sc
+    # code/permit-readiness lens runs the pre-flight; present with a valid status + tool link
+    assert lenses["readiness"]["tool"] == "approvability" and lenses["readiness"]["status"] in ("good", "warn", "poor", "na"), lenses["readiness"]
     # composite is the weighted mean over scored lenses (hygiene 100 at least)
     assert sc["overall_score"] is not None and 0 <= sc["overall_score"] <= 100, sc
     assert sc["band"] in ("healthy", "watch", "at risk"), sc["band"]
@@ -51,7 +53,7 @@ try:
 
     # with no model, hygiene degrades to 'na' but the scorecard still returns
     sc2 = model_health.scorecard(db, pid, model=None, elements=[])
-    assert {ln["key"] for ln in sc2["lenses"]} == {"hygiene", "information", "coordination", "verified"}
+    assert {ln["key"] for ln in sc2["lenses"]} == {"hygiene", "information", "coordination", "verified", "readiness"}
     assert next(ln for ln in sc2["lenses"] if ln["key"] == "hygiene")["status"] == "na", sc2
     assert sc2["model_available"] is False
 finally:
@@ -62,9 +64,9 @@ with TestClient(app) as tc:
     r = tc.get(f"/projects/{pid}/models/health")
     assert r.status_code == 200, r.text[:200]
     b = r.json()
-    assert "overall_score" in b and "lenses" in b and "band" in b and len(b["lenses"]) == 4, b
+    assert "overall_score" in b and "lenses" in b and "band" in b and len(b["lenses"]) == 5, b
 
-print("MODEL-HEALTH OK - composite scorecard unifies 4 lenses (integrity/hygiene, ISO 19650 KPIs, clash "
-      "coordination, verified-as-built); a clean model scores hygiene 100/good; lenses with no inputs "
+print("MODEL-HEALTH OK - composite scorecard unifies 5 lenses (integrity/hygiene, ISO 19650 KPIs, clash "
+      "coordination, verified-as-built, code/permit readiness); a clean model scores hygiene 100/good; lenses with no inputs "
       "degrade to 'na' and are excluded from the weighted mean; works with or without a parsed model; "
       "HTTP GET /models/health returns the scorecard. One launcher for every model-quality check.")

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-_WEIGHTS = {"hygiene": 0.30, "information": 0.30, "coordination": 0.20, "verified": 0.20}
+_WEIGHTS = {"hygiene": 0.25, "information": 0.25, "coordination": 0.20, "verified": 0.15, "readiness": 0.15}
 
 
 def _status(score: float | None) -> str:
@@ -101,6 +101,27 @@ def scorecard(db, pid: str, model=None, elements: list[dict] | None = None) -> d
         pass
     lenses.append(ve)
 
+    # 5. Code & permit readiness — the plan-reviewer pre-flight pass rate (D8)
+    rd: dict[str, Any] = {"key": "readiness", "label": "Code & permit readiness", "tool": "approvability",
+                          "score": None, "status": "na", "headline": "load a model to check"}
+    if model is not None:
+        try:
+            from . import codecheck
+            ap = codecheck.approvability(model)
+            sm = ap["summary"]
+            if sm["gating"]:
+                score = float(sm["score_pct"]) if sm["score_pct"] is not None else None
+                fails = [c["check"] for c in ap["checks"] if c["status"] == "fail"]
+                rd.update({"score": score, "status": _status(score),
+                           "headline": ("permit-ready — all pre-flight checks pass" if sm["ready"]
+                                        else f"{sm['failed']} check(s) to fix: " + ", ".join(fails[:2])),
+                           "detail": {c["check"]: c["status"] for c in ap["checks"]}})
+            else:
+                rd["headline"] = "no gating checks apply yet (add spaces/doors/rated assemblies)"
+        except Exception:        # noqa: BLE001 — a code-check failure shouldn't sink the scorecard
+            rd["headline"] = "couldn't run the pre-flight"
+    lenses.append(rd)
+
     # composite — weighted mean over the lenses that produced a score
     num = den = 0.0
     for ln in lenses:
@@ -115,7 +136,7 @@ def scorecard(db, pid: str, model=None, elements: list[dict] | None = None) -> d
         "lenses": lenses,
         "scored_lenses": sum(1 for ln in lenses if ln["score"] is not None),
         "model_available": model is not None,
-        "note": "A composite of the existing model-quality checks (hygiene, ISO 19650 KPIs, clash "
-                "coordination, verified-as-built). Each lens links to the tool that acts on it; lenses "
-                "with no inputs show 'n/a' and are excluded from the score rather than guessed.",
+        "note": "A composite of the model-quality checks (hygiene, ISO 19650 KPIs, clash coordination, "
+                "verified-as-built, and code/permit readiness). Each lens links to the tool that acts on it; "
+                "lenses with no inputs show 'n/a' and are excluded from the score rather than guessed.",
     }

@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.293 — Model Health scorecard gains a Code & permit-readiness lens
+
+The composite **Model Health** scorecard now includes a fifth lens — **Code & permit readiness** — sourced
+from the D8 approvability pre-flight (egress, door widths, occupancy classification, substantiated rated
+assemblies). It scores by the pre-flight pass rate and headlines the checks still to fix, so the single
+"is my project healthy?" number now reflects permit-readiness alongside integrity, ISO-19650 information,
+clash coordination, and verified-as-built. Weights rebalanced to include it; the lens shows n/a (excluded
+from the mean) when no gating checks apply. `test_model_health.py` updated.
+
 ## v0.3.292 — Fix two debug-audit findings in the D6 manual + D8 pre-flight
 
 A post-release debug audit caught two wrong-result bugs (no crashes), now fixed with regression tests:
