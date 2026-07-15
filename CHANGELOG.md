@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.297 — MEP port-to-port connectivity + validation (W10-4)
+
+Turns a pile of MEP segments/fittings into a connected logical network. New `connect_mep` recipe wires two
+elements **port-to-port** (`IfcRelConnectsPorts`, using the first free port on each; raises when none is
+free). New `mep.connectivity` validation report — ports connected vs open, port-to-port link count, and the
+**dangling** (floating) elements whose ports are all unconnected — served at `GET /projects/{pid}/mep/
+connectivity`. The 🔀 MEP systems tool now shows the connectivity summary, a two-step **Connect** flow (pick
+one element → connect to a second), and isolates floating elements in 3D. `test_mep_systems.py` extended.
+*Next: flow/sizing psets + coincident-port auto-connect.*
+
 ## v0.3.296 — Detail callouts on the plan (D5)
 
 Closes the attach-a-detail → callout-on-the-drawing loop. The plan generator now draws an **NCS-style detail

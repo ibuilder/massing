@@ -27,14 +27,13 @@ sections / elevations / schedules → SVG·PDF·DXF + the 3-part project manual)
 engine), **authoring guardrails + progressive disclosure**, and the **LOD-500 turnover layer**. What's left
 deepens each track:
 
-1. **W10-4 — MEP systems connectivity & sizing depth** — fully-connected logical systems (`IfcRelConnectsPorts`/`IfcRelNests`) + validation.
-2. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for the NL command bar.
-3. **E1 — SketchUp-style inference snapping** (endpoint/mid/face/parallel/perp) — the biggest barrier-to-entry win for drawing.
-4. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring (AST-whitelisted).
-5. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
-6. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
+1. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for the NL command bar.
+2. **E1 — SketchUp-style inference snapping** (endpoint/mid/face/parallel/perp) — the biggest barrier-to-entry win for drawing.
+3. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring (AST-whitelisted).
+4. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
+5. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
 
-*(CODE-2 edition-scoped occupant-load factors ✅ v0.3.295; D5 detail callouts ✅ v0.3.296.)*
+*(CODE-2 edition-scoped occupant-load factors ✅ v0.3.295; D5 detail callouts ✅ v0.3.296; W10-4 MEP connectivity ✅ v0.3.297.)*
 
 ---
 
@@ -109,8 +108,10 @@ S1–S3 ship (deterministic baseline → multi-step LLM interpretation, confirm-
   library I/L/T/U/C/rect/circle + swept/boolean primitives so doors/windows/columns/casework are *generated*,
   not boxes). Freeform families via an optional **build123d (Apache-2.0) / OCP (LGPL)** track through
   `ifcopenshell.geom`. *Pure ifcopenshell for the core.*
-- **W10-4** — **MEP systems connectivity & sizing depth** (`IfcDistributionSystem`, `IfcRelConnectsPorts`,
-  `IfcRelNests`, flow/sizing Psets, system browser + connectivity validation).
+- ✅ **W10-4 (first slice) SHIPPED v0.3.297** — **MEP port-to-port connectivity** (`connect_mep` recipe →
+  `IfcRelConnectsPorts`) + `mep.connectivity` validation (ports connected/open, links, dangling elements;
+  `GET /mep/connectivity`) + a two-step Connect flow in the 🔀 MEP tool. *Remaining: flow/sizing psets +
+  coincident-port auto-connect.*
 - **W10-5** — **annotation & tagging layer** (`IfcAnnotation` tags/dimensions/text/keynotes on the plan/section/elevation views).
 - **W10-6** — **schedules & QTO** (`IfcElementQuantity` — *partly shipped via C4*; finish computed schedule/keynote-legend views into the export pipeline).
 - **W10-7** — **structural analytical model** (`IfcStructuralAnalysisModel`, curve/surface members, point connections, load cases) — net-new domain alongside the physical model.

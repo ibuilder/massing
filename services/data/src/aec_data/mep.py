@@ -75,3 +75,44 @@ def mep_summary(model: ifcopenshell.file) -> dict:
     return {"total_systems": len(systems),
             "systems": sorted(systems, key=lambda s: s["name"]),
             "unassigned": {"segments": _unassigned(_SEG), "fittings": _unassigned(_FIT)}}
+
+
+def connectivity(model: ifcopenshell.file) -> dict:
+    """W10-4 connectivity validation: over every MEP segment/fitting/terminal, count ports connected vs
+    open (`IfcRelConnectsPorts`), the number of port-to-port connections, and the **dangling** elements —
+    those whose ports are ALL unconnected (floating, not wired into any run). The openBIM 'unconnected MEP'
+    review. Returns {elements, ports_total, ports_connected, ports_open, connections, dangling:[…]}."""
+    classes = (*_SEG, *_FIT, "IfcFlowTerminal", "IfcAirTerminal", "IfcSanitaryTerminal")
+    seen: set[int] = set()
+    els = []
+    for cls in classes:
+        for el in _by_type(model, cls):
+            if el.id() not in seen:
+                seen.add(el.id())
+                els.append(el)
+
+    ports_total = ports_conn = 0
+    dangling: list[dict] = []
+    connected_ports: set[int] = set()
+    for el in els:
+        ps = _ports(el)
+        conn = [p for p in ps if _port_connected(p)]
+        ports_total += len(ps)
+        ports_conn += len(conn)
+        for p in conn:
+            connected_ports.add(p.id())
+        if ps and not conn:                       # every port open → floating element
+            dangling.append({"guid": el.GlobalId, "class": el.is_a(), "name": getattr(el, "Name", None)})
+
+    return {
+        "elements": len(els),
+        "ports_total": ports_total,
+        "ports_connected": ports_conn,
+        "ports_open": ports_total - ports_conn,
+        # one logical port-to-port link joins two ports (ifcopenshell may store the reciprocal rel too, so
+        # count linked port-pairs, not raw IfcRelConnectsPorts entities)
+        "connections": ports_conn // 2,
+        "dangling_count": len(dangling),
+        "dangling": dangling[:50],
+        "connected_pct": round(100.0 * ports_conn / ports_total, 1) if ports_total else 0.0,
+    }

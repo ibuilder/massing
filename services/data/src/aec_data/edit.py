@@ -610,6 +610,35 @@ def add_mep_terminal(model: ifcopenshell.file, ifc_class: str, point, width: flo
     return el.GlobalId
 
 
+def connect_mep(model: ifcopenshell.file, guid_a: str, guid_b: str) -> dict:
+    """W10-4: connect two MEP elements **port-to-port** (`IfcRelConnectsPorts`) — the logical-network edge
+    that turns a pile of segments/fittings into a connected distribution system. Uses the first free
+    (unconnected) port on each element. GUID-stable; raises if either has no free port."""
+    from . import mep
+
+    a = _mep_element(model, guid_a)
+    b = _mep_element(model, guid_b)
+    pa = next((p for p in mep._ports(a) if not mep._port_connected(p)), None)
+    pb = next((p for p in mep._ports(b) if not mep._port_connected(p)), None)
+    if pa is None:
+        raise ValueError(f"{a.is_a()} {guid_a} has no free connection port")
+    if pb is None:
+        raise ValueError(f"{b.is_a()} {guid_b} has no free connection port")
+    try:
+        ifcopenshell.api.run("system.connect_port", model, port1=pa, port2=pb)
+    except Exception as e:  # noqa: BLE001 — older ifcopenshell shape
+        raise ValueError(f"could not connect ports: {e}") from e
+    return {"connected": [guid_a, guid_b]}
+
+
+def _mep_element(model: ifcopenshell.file, guid: str):
+    """Resolve an MEP element by GUID (distribution elements are IfcElement subtypes, but be lenient)."""
+    el = model.by_guid(guid)
+    if el is None:
+        raise ValueError(f"element {guid} not found")
+    return el
+
+
 # --- architectural finishes: coverings (ceiling/tile/cladding) + railings (P3) ----------------
 def add_covering(model: ifcopenshell.file, points, predefined: str = "CEILING",
                  thickness: float = 0.02, material: str | None = None,
@@ -1176,6 +1205,7 @@ RECIPES = {
                                                       float(p.get("width", 0.4)), float(p.get("depth", 0.4)),
                                                       float(p.get("height", 0.4)), p.get("predefined"),
                                                       p.get("storey")),
+    "connect_mep": lambda m, p: connect_mep(m, p["guid_a"], p["guid_b"]),
     "add_covering": lambda m, p: add_covering(m, p["points"], p.get("predefined", "CEILING"),
                                               float(p.get("thickness", 0.02)), p.get("material"), p.get("storey")),
     "add_railing": lambda m, p: add_railing(m, p["start"], p["end"], float(p.get("height", 1.1)),

@@ -1068,6 +1068,16 @@ export class ApiClient extends HttpCore {
       systems: { guid: string; name: string; members: number; segments: number; fittings: number;
         terminals: number; other: number; elements_with_open_ports: number }[] }>(`/projects/${pid}/mep`);
   }
+  /** W10-4: MEP connectivity validation — ports connected/open, links, dangling (floating) elements. */
+  mepConnectivity(pid: string) {
+    return this.json<{ elements: number; ports_total: number; ports_connected: number; ports_open: number;
+      connections: number; dangling_count: number; connected_pct: number;
+      dangling: { guid: string; class: string; name: string | null }[] }>(`/projects/${pid}/mep/connectivity`);
+  }
+  /** W10-4: connect two MEP elements port-to-port (IfcRelConnectsPorts). */
+  connectMep(pid: string, guidA: string, guidB: string, publish = true) {
+    return this.editIfc(pid, "connect_mep", { guid_a: guidA, guid_b: guidB }, publish);
+  }
   /** W11 B6: author a MEP fitting (elbow BEND / tee JUNCTION / TRANSITION) at a point, on a system. */
   addMepFitting(pid: string, ifcClass: string, point: [number, number],
                 opts: { predefined?: string; size?: number; system?: string } = {}, publish = true) {

@@ -2184,11 +2184,41 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       });
       mepFittingBtn.title = "Author a MEP fitting (elbow/tee/transition, with ports) at the last-clicked point "
         + "and assign it to a distribution system — the LOD 350/400 detailing that joins loose runs. GUID-stable.";
+      let mepConnectFrom: string | null = null;   // W10-4: first element of a port-to-port connect
       const mepSysBtn = toolBtn2("🔀 MEP systems", async () => {
-        let s;
-        try { s = await api.mepSummary(pid); }
+        let s, c;
+        try { [s, c] = await Promise.all([api.mepSummary(pid), api.mepConnectivity(pid)]); }
         catch (e) { notify(`MEP failed: ${(e as Error).message}`, "error"); return; }
-        showResult("MEP systems", (body) => {
+        showResult("MEP systems & connectivity", (body) => {
+          // W10-4 connectivity validation
+          body.appendChild(resultNote(`<b>Connectivity</b> — ${c!.connections} port-to-port link(s) · `
+            + `${c!.ports_connected}/${c!.ports_total} ports connected (${c!.connected_pct}%) · `
+            + `<b>${c!.dangling_count}</b> floating element(s).`, c!.dangling_count ? "" : "ok"));
+          // two-step connect: pick one element, then connect it to another
+          const cw = document.createElement("div"); cw.style.cssText = "display:flex;gap:6px;margin:4px 0;flex-wrap:wrap";
+          const pick = toolBtn2(mepConnectFrom ? "① picked — select the 2nd element" : "🔗 Connect: pick first element", () => {
+            if (!selectedGuid) { notify("select an MEP element first", "error"); return; }
+            mepConnectFrom = selectedGuid; notify("first element picked — select the second, then Connect", "info");
+          });
+          const doConn = toolBtn2("🔗 Connect to second element", async () => {
+            if (!mepConnectFrom) { notify("pick the first element first", "error"); return; }
+            if (!selectedGuid || selectedGuid === mepConnectFrom) { notify("select a different second element", "error"); return; }
+            const a = mepConnectFrom, b = selectedGuid;
+            await withLoading(container, "connecting MEP ports + republishing", async () => {
+              try {
+                await api.connectMep(pid, a, b, true);
+                const state = await waitForPublish(projectId!);
+                if (state === "done") { await loadProjectModel(); notify("connected port-to-port", "success"); }
+                else notify(`connected — publish ${state}`, state === "error" ? "error" : "info");
+                mepConnectFrom = null; await reloadModelPins();
+              } catch (e) { notify(`connect failed: ${(e as Error).message}`, "error"); }
+            });
+          });
+          cw.append(pick, doConn); body.appendChild(cw);
+          if (c!.dangling.length) {
+            const iso = toolBtn2("◎ Isolate floating elements in 3D", () => { void layerMgr.isolateGuids(c!.dangling.map((d) => d.guid)); });
+            body.appendChild(iso);
+          }
           if (!s.systems.length) { body.appendChild(resultNote("No distribution systems yet — add duct/pipe runs + fittings.", "")); return; }
           for (const sy of s.systems) {
             body.appendChild(kvTable([
