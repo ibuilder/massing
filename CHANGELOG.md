@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.291 — Manufacturer / serial for the O&M / turnover layer (G3)
+
+Completes the LOD-500 data layer. New `set_manufacturer_info` recipe stamps the standard IFC
+`Pset_ManufacturerTypeInformation` (Manufacturer / ModelLabel / ProductionYear) and
+`Pset_ManufacturerOccurrence` (SerialNumber / BarCode) on the selection — the data that round-trips to
+COBie and asset/CMMS systems for O&M and turnover. Only non-empty fields are written; GUID-stable; a bad
+GUID never aborts the batch. `asbuilt_summary` now also reports `with_manufacturer` / `with_serial` counts,
+and the ✅ As-built (LOD 500) tool gains a manufacturer/serial stamp form. `test_lod500.py` extended.
+
 ## v0.3.290 — Approvability pre-flight: is the model permit-ready? (D8)
 
 A plan-reviewer pre-flight checklist over the model, mirroring what a reviewer checks first. New

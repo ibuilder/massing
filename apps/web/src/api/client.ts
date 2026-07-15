@@ -1046,11 +1046,16 @@ export class ApiClient extends HttpCore {
   /** W11 G1: LOD-500 readiness — share of the model field-verified as-built, by method. */
   lod500(pid: string) {
     return this.json<{ total: number; verified: number; unverified: number; readiness_pct: number;
-      by_method: Record<string, number>; methods: string[]; prop: string }>(`/projects/${pid}/lod500`);
+      by_method: Record<string, number>; methods: string[]; prop: string;
+      with_manufacturer: number; with_serial: number }>(`/projects/${pid}/lod500`);
   }
   /** W11 G1: stamp elements as field-verified as-built (Massing_AsBuilt) — the LOD-500 reliability layer. */
   verifyAsbuilt(pid: string, guids: string[], opts: { verified_by?: string; method?: string; note?: string } = {}, publish = true) {
     return this.editIfc(pid, "verify_asbuilt", { guids, ...opts }, publish);
+  }
+  /** W11 G3: stamp manufacturer / serial info (Pset_Manufacturer*) — the LOD-500 / O&M / turnover layer. */
+  setManufacturerInfo(pid: string, guids: string[], opts: { manufacturer?: string; model_label?: string; production_year?: string; serial?: string; barcode?: string } = {}, publish = true) {
+    return this.editIfc(pid, "set_manufacturer_info", { guids, ...opts }, publish);
   }
   /** W11 B6: author an IfcCurtainWall (mullions + transoms + glazing panels) along a line. */
   addCurtainWall(pid: string, start: [number, number], end: [number, number],

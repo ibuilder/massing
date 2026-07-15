@@ -1897,7 +1897,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         showResult("As-built verification (LOD 500)", (body) => {
           body.appendChild(resultNote(`<b>LOD 500</b> is a field-verified as-built reliability attribute — BIMForum sets no `
             + `geometric requirement for it. Model readiness: <b>${s!.readiness_pct}%</b> `
-            + `(${s!.verified} of ${s!.total} elements verified).`, s!.readiness_pct >= 100 ? "ok" : ""));
+            + `(${s!.verified} of ${s!.total} elements verified). O&M data: <b>${s!.with_manufacturer}</b> with manufacturer · `
+            + `<b>${s!.with_serial}</b> with serial.`, s!.readiness_pct >= 100 ? "ok" : ""));
           if (Object.keys(s!.by_method).length) {
             body.appendChild(kvTable(Object.entries(s!.by_method).map(([k, v]) => ({ k, v: `${v} element(s)` }))));
           }
@@ -1922,6 +1923,29 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           doVerify.title = "Stamp the selected element(s) with Massing_AsBuilt (VERIFIED + who/when/method) — the "
             + "field-verified reliability layer that makes it a genuine LOD-500 record.";
           body.appendChild(doVerify);
+
+          // W11 G3: manufacturer / serial info (O&M / turnover) on the selection
+          body.appendChild(resultNote("<b>Manufacturer / serial</b> (O&M · turnover) — stamps the standard "
+            + "Pset_Manufacturer* on the selection; round-trips to COBie / asset systems.", ""));
+          const mf = document.createElement("div"); mf.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin:4px 0";
+          const mkIn = (ph: string) => { const i = document.createElement("input"); i.className = "portal-filter"; i.placeholder = ph; i.style.cssText = "flex:1 1 90px;min-width:0;font-size:12px"; return i; };
+          const manIn = mkIn("manufacturer"); const modIn = mkIn("model"); const serIn = mkIn("serial"); const yrIn = mkIn("year");
+          mf.append(manIn, modIn, serIn, yrIn); body.appendChild(mf);
+          const doMfr = toolBtn2("🏷 Stamp manufacturer/serial on selection", async () => {
+            const guid = selectedGuid;
+            if (!guid) { notify("select the element(s) first", "error"); return; }
+            if (![manIn, modIn, serIn, yrIn].some((i) => i.value.trim())) { notify("fill at least one field", "error"); return; }
+            await withLoading(container, "stamping manufacturer/serial + republishing", async () => {
+              try {
+                await api.setManufacturerInfo(pid, [guid], { manufacturer: manIn.value.trim(), model_label: modIn.value.trim(), serial: serIn.value.trim(), production_year: yrIn.value.trim() }, true);
+                const state = await waitForPublish(projectId!);
+                if (state === "done") { await loadProjectModel(); notify("manufacturer/serial stamped", "success"); }
+                else notify(`stamped — publish ${state}`, state === "error" ? "error" : "info");
+                await reloadModelPins();
+              } catch (e) { notify(`stamp failed: ${(e as Error).message}`, "error"); }
+            });
+          });
+          body.appendChild(doMfr);
         });
       };
       const asBuiltBtn = toolBtn2("✅ As-built verify (LOD 500)", openAsBuiltPanel);

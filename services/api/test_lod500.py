@@ -55,8 +55,32 @@ assert ps3.get("Method") == "inspection" and ps3.get("VerifiedDate") == "2026-07
 s2 = edit.asbuilt_summary(m)
 assert s2["verified"] == 4, s2  # 2 laser + 1 field-measure + 1 inspection
 
+# --- G3: manufacturer / serial info for the O&M / turnover layer ------------------------------------
+assert s2["with_manufacturer"] == 0 and s2["with_serial"] == 0, s2   # nothing stamped yet
+n = edit.set_manufacturer_info(m, [walls[0], walls[1]], manufacturer="Acme Walls",
+                               model_label="AW-200", production_year="2026", serial="SN-0001")
+assert n == 2, n
+# only non-empty fields get written; a bad GUID doesn't abort the batch
+assert edit.set_manufacturer_info(m, ["not-a-guid", walls[2]], manufacturer="Beta Co") == 1
+w0 = ue.get_pset(m.by_guid(walls[0]), "Pset_ManufacturerTypeInformation") or {}
+assert w0.get("Manufacturer") == "Acme Walls" and w0.get("ModelLabel") == "AW-200", w0
+occ = ue.get_pset(m.by_guid(walls[0]), "Pset_ManufacturerOccurrence") or {}
+assert occ.get("SerialNumber") == "SN-0001", occ
+# a call with no non-empty fields stamps nothing
+assert edit.set_manufacturer_info(m, [walls[3]]) == 0
+
+s3 = edit.asbuilt_summary(m)
+assert s3["with_manufacturer"] == 3 and s3["with_serial"] == 2, s3   # mfr: walls 0,1 + wall 2 (Beta); serial: walls 0,1 (same batch)
+
+# G3 via the recipe registry (apply path through the guards gate — guids required)
+from aec_data import guards  # noqa: E402
+assert guards.precheck("set_manufacturer_info", {"guids": [], "manufacturer": "X"})["errors"], "empty selection blocked"
+assert guards.precheck("set_manufacturer_info", {"guids": [walls[0]], "manufacturer": "X"})["ok"]
+
 if os.path.exists(TMP):
     os.remove(TMP)
 
 print("LOD500 OK - verify_asbuilt stamps Massing_AsBuilt (Status/VerifiedBy/Date/Method/Note), bad method "
-      "falls back and bad GUIDs are skipped, and asbuilt_summary reports readiness % + by-method counts.")
+      "falls back and bad GUIDs are skipped, asbuilt_summary reports readiness % + by-method counts; G3 "
+      "set_manufacturer_info stamps Pset_ManufacturerTypeInformation/Occurrence (non-empty fields only, "
+      "bad GUID skipped), and the summary counts with_manufacturer / with_serial.")

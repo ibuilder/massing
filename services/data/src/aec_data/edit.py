@@ -940,10 +940,52 @@ def asbuilt_summary(model: ifcopenshell.file) -> dict:
             verified += 1
             m = str(ps.get("Method") or "unspecified").lower()
             by_method[m] = by_method.get(m, 0) + 1
+    with_mfr = with_serial = 0
+    for el in model.by_type("IfcElement"):
+        tp = ue.get_pset(el, "Pset_ManufacturerTypeInformation") or {}
+        oc = ue.get_pset(el, "Pset_ManufacturerOccurrence") or {}
+        # a type may carry the manufacturer info — fall through to the element's type psets
+        t = ue.get_type(el)
+        if not tp and t is not None:
+            tp = ue.get_pset(t, "Pset_ManufacturerTypeInformation") or {}
+        if str(tp.get("Manufacturer") or "").strip():
+            with_mfr += 1
+        if str(oc.get("SerialNumber") or "").strip():
+            with_serial += 1
     return {"total": total, "verified": verified, "unverified": total - verified,
             "readiness_pct": round(100.0 * verified / total, 1) if total else 0.0,
             "by_method": by_method, "prop": "Massing_AsBuilt.Status",
+            "with_manufacturer": with_mfr, "with_serial": with_serial,
             "methods": sorted(_VERIFY_METHODS)}
+
+
+def set_manufacturer_info(model: ifcopenshell.file, guids, manufacturer: str = "", model_label: str = "",
+                          production_year: str = "", serial: str = "", barcode: str = "") -> int:
+    """G3: stamp the standard IFC **manufacturer / serial** psets for the LOD-500 / O&M / turnover layer —
+    `Pset_ManufacturerTypeInformation` (Manufacturer / ModelLabel / ProductionYear) and
+    `Pset_ManufacturerOccurrence` (SerialNumber / BarCode) on each element. These round-trip to COBie and
+    asset/CMMS systems. Only non-empty fields are written; GUID-stable; a bad GUID never aborts the batch.
+    Returns the count stamped. (Warranty/O&M documents attach separately via attach_document.)"""
+    fields_type = [("Manufacturer", manufacturer), ("ModelLabel", model_label),
+                   ("ProductionYear", production_year)]
+    fields_occ = [("SerialNumber", serial), ("BarCode", barcode)]
+    n = 0
+    for g in guids or []:
+        try:
+            wrote = False
+            for prop, val in fields_type:
+                if str(val or "").strip():
+                    set_element_pset(model, g, "Pset_ManufacturerTypeInformation", prop, str(val), "str")
+                    wrote = True
+            for prop, val in fields_occ:
+                if str(val or "").strip():
+                    set_element_pset(model, g, "Pset_ManufacturerOccurrence", prop, str(val), "str")
+                    wrote = True
+            if wrote:
+                n += 1
+        except Exception:  # noqa: BLE001 — skip stale/unknown GUIDs, keep going
+            pass
+    return n
 
 
 def set_classification(model: ifcopenshell.file, guid: str, system: str, code: str,
@@ -1165,6 +1207,10 @@ RECIPES = {
     "verify_asbuilt": lambda m, p: verify_asbuilt(m, p["guids"], p.get("verified_by", ""),
                                                   p.get("method", "field-measure"), p.get("note", ""),
                                                   p.get("date")),
+    # W11 G3 — manufacturer / serial info for the LOD-500 / O&M / turnover layer
+    "set_manufacturer_info": lambda m, p: set_manufacturer_info(
+        m, p["guids"], p.get("manufacturer", ""), p.get("model_label", ""),
+        p.get("production_year", ""), p.get("serial", ""), p.get("barcode", "")),
     # W11 F0 — the representation/context spine + LOD stage
     "ensure_contexts": lambda m, p: _rep().ensure_contexts(m),
     "set_lod": lambda m, p: _rep().set_lod(m, p["guids"], p.get("stage", "300")),

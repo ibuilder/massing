@@ -91,7 +91,10 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
 
 **LOD-500 verified-as-built data + content library**
 - **G2** — field-verified dimensions / variances.
-- **G3** — external-doc refs (warranties/O&M/serials) + Manufacturer/Serial psets (`Pset_ManufacturerTypeInformation`/`Pset_ManufacturerOccurrence`) via `IfcRelAssociatesDocument`.
+- ✅ **G3 (Manufacturer/Serial) SHIPPED v0.3.291** — `set_manufacturer_info` stamps the standard
+  `Pset_ManufacturerTypeInformation`/`Pset_ManufacturerOccurrence`; `asbuilt_summary` counts
+  with_manufacturer/with_serial; stamp form in the as-built tool. *Remaining: warranty/O&M **document** refs
+  via `IfcRelAssociatesDocument` (attach_document exists — wire an O&M-doc UI).*
 - **H1** — seed **CC0 furniture families + PBR materials** (CC0/CC-BY only — ambientCG, Poly Haven, Poly Pizza, Quaternius, Kenney, AMD MaterialX), attribution + license stored per asset.
 
 **License guardrails (firm):** `ifcopenshell` + its geom serializers are **LGPL** — safe to depend on.
