@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.312 — Security: Capacitor 6 → 7, clears the transitive `tar` advisories (SEC-DEP-1)
+
+Dependency-hygiene release. The mobile shell's `@capacitor/*` packages (`android`, `cli`, `core`, `ios`)
+move from `^6.2.1` to `^7`, pulling `@capacitor/cli@7.6.8` and its transitive `tar@7.5.20` (was `tar@6.2.1`).
+That clears **7 Dependabot alerts** (6 high / 1 medium) — all node-tar extraction-time symlink/hardlink
+path-traversal advisories (GHSA-9ppj-qmqm-q256, GHSA-qffp-2rhf-9h96, GHSA-83g3-92jg-28cx, GHSA-34x7-hfp2-rc4v,
+GHSA-r6q2-hw4h-h46w, GHSA-8qq5-rm4j-mr97, GHSA-vmf3-w455-68vh) that entered **only** through `@capacitor/cli@6`.
+The fix needs `tar ≥ 7.5.16`, but `tar@7` is ESM-only and Capacitor 6's CLI is CJS, so a bare npm override would
+break `cap` (`ERR_REQUIRE_ESM`) — hence the full Capacitor 7 bump. Real exploit risk was nil (the CLI extracts
+only its own trusted platform templates during a developer-run `cap sync`, never untrusted input, never in CI or
+at runtime); this is security-tab hygiene, not an urgent patch. `capacitor.config.ts` needed no v7 changes; no
+native `android/`/`ios/` projects are checked in, so there was no Gradle migration. Verified: `npm ls tar` resolves
+`tar@7.5.20`, `npm run build` (Node 20) passes, and `cap sync` succeeds.
+
 ## v0.3.311 — Fire protection as a first-class distribution system (MEP-FP)
 
 MEP systems now carry a **discipline**, so fire protection stands beside HVAC / plumbing / electrical
