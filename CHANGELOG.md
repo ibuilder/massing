@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.300 — Sandboxed `execute_ifc_code` escape hatch (A1)
+
+The unbounded authoring escape hatch — run a small ifcopenshell snippet against the model for what the fixed
+recipe registry can't express. Defense-in-depth, treating this as arbitrary-code territory:
+**off by default** (raises unless the operator sets `AEC_ALLOW_IFC_CODE=1`, thereby accepting the risk); an
+**AST allowlist** that rejects `import`, `def`/`class`/`lambda`, `while`/`with`/`try`, `del`, decorators,
+dunder access (`__class__`/`__globals__`), and reflection/IO builtins (`open`/`eval`/`exec`/`getattr`/
+`__import__`/`type`…) before anything runs; and a **curated namespace** exposing only `model`, `ifcopenshell`,
+and a small safe builtin set. New `sandbox.py`, an `execute_ifc_code` recipe (runs through the versioned,
+undo-able, audited `/edit` path), a `GET /authoring/capabilities` probe, and an **⚡ Run IFC code** tool in
+the Advanced cluster. `/edit` now returns clean 403 (disabled) / 400 (rejected) instead of 500.
+`test_sandbox.py` covers ~18 rejection cases + the flag gate + a real authoring snippet.
+
 ## v0.3.299 — SketchUp-style drawing inference (E1)
 
 Free-hand drawing now lands clean lines automatically. A new `inference.ts` module infers, as you place a

@@ -657,7 +657,12 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
     # produces "<base>_<stamp>.ifc" off the ORIGINAL stem, not the previous versioned name.
     base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
     out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
-    result = ed.apply_recipe(p.source_ifc, recipe, params, out)
+    try:
+        result = ed.apply_recipe(p.source_ifc, recipe, params, out)
+    except PermissionError as e:                       # A1 sandbox disabled
+        raise HTTPException(403, str(e)) from e
+    except (ValueError, KeyError) as e:                # E8 guard rejection / sandbox reject / missing param
+        raise HTTPException(400, str(e)) from e
     from .. import edit_history  # S4 — record the pre-edit version so this edit can be undone
     edit_history.push(pid, p.source_ifc)
     p.source_ifc = out  # new version becomes the source of truth
@@ -668,6 +673,15 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
         _publish_bg(pid)
         result["publish"] = "running"
     return result
+
+
+@router.get("/projects/{pid}/authoring/capabilities")
+def authoring_capabilities(pid: str, _: str = Depends(require_role("viewer"))):
+    """Which optional/gated authoring capabilities are enabled on this server (so the UI can hide what's
+    off). `execute_ifc_code` (A1) is the sandboxed Python escape hatch — off unless `AEC_ALLOW_IFC_CODE=1`."""
+    from aec_data import sandbox  # type: ignore
+
+    return {"execute_ifc_code": sandbox.enabled()}
 
 
 @router.get("/projects/{pid}/edit/history")

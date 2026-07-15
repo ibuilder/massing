@@ -1206,6 +1206,8 @@ RECIPES = {
                                                       float(p.get("height", 0.4)), p.get("predefined"),
                                                       p.get("storey")),
     "connect_mep": lambda m, p: connect_mep(m, p["guid_a"], p["guid_b"]),
+    # A1 — sandboxed ifcopenshell escape hatch (gated by AEC_ALLOW_IFC_CODE; AST-whitelisted)
+    "execute_ifc_code": lambda m, p: _sandbox().execute_ifc_code(m, p["code"]),
     "add_covering": lambda m, p: add_covering(m, p["points"], p.get("predefined", "CEILING"),
                                               float(p.get("thickness", 0.02)), p.get("material"), p.get("storey")),
     "add_railing": lambda m, p: add_railing(m, p["start"], p["end"], float(p.get("height", 1.1)),
@@ -1291,6 +1293,12 @@ def _rules():
     """Lazy handle to the detailing rule engine."""
     from . import rules
     return rules
+
+
+def _sandbox():
+    """Lazy handle to the A1 sandboxed code executor."""
+    from . import sandbox
+    return sandbox
 
 
 def _rep():

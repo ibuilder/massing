@@ -2265,9 +2265,40 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       // E4 — progressive disclosure: everyday authoring + drawings stay visible; LOD-350/400 fabrication
       // and detailing tools tuck behind an "Advanced" toggle so a first-time modeler isn't overwhelmed.
       // The choice persists, so power users keep their fabrication tools open.
+      // A1 — sandboxed ifcopenshell escape hatch (server-gated by AEC_ALLOW_IFC_CODE; returns a clear 403
+      // when disabled, so no pre-check is needed). GUID-stable, versioned + undo-able like any edit.
+      const ifcCodeBtn = toolBtn2("⚡ Run IFC code (sandboxed)", () => {
+        showResult("Run IFC code — sandboxed ifcopenshell", (body) => {
+          body.appendChild(resultNote("Author what the recipes can't express with a small ifcopenshell "
+            + "snippet — <code>model</code> and <code>ifcopenshell</code> are in scope (e.g. "
+            + "<code>ifcopenshell.api.run('root.create_entity', model, ifc_class='IfcWall')</code>). "
+            + "AST-sandboxed (no imports / IO / reflection). <b>Disabled unless the operator sets "
+            + "<code>AEC_ALLOW_IFC_CODE=1</code></b>. Versioned — undo restores the prior model.", ""));
+          const ta = document.createElement("textarea"); ta.className = "portal-filter";
+          ta.style.cssText = "width:100%;min-height:120px;font-family:monospace;font-size:12px";
+          ta.placeholder = "for i in range(3):\n    ifcopenshell.api.run('root.create_entity', model, ifc_class='IfcWall', name='w'+str(i))";
+          body.appendChild(ta);
+          const run = toolBtn2("⚡ Run + republish", async () => {
+            if (!ta.value.trim()) { notify("enter some code first", "error"); return; }
+            await withLoading(container, "running IFC code + republishing", async () => {
+              try {
+                const r = await api.editIfc(projectId!, "execute_ifc_code", { code: ta.value }, true) as { changed?: { message?: string } };
+                const state = await waitForPublish(projectId!);
+                if (state === "done") { await loadProjectModel(); notify(r?.changed?.message || "ran ok", "success"); }
+                else notify(`ran — publish ${state}`, state === "error" ? "error" : "info");
+                await reloadModelPins();
+              } catch (e) { notify(`code failed: ${(e as Error).message}`, "error"); }
+            });
+          });
+          body.appendChild(run);
+        });
+      });
+      ifcCodeBtn.title = "Run a sandboxed ifcopenshell snippet against the model — the unbounded escape hatch "
+        + "for authoring the recipes can't express. Disabled unless the server sets AEC_ALLOW_IFC_CODE=1.";
+
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, ifcCodeBtn);
       const advKey = "massing.viewer.advancedTools";
       let advOpen = false;
       try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }

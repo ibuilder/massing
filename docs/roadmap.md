@@ -27,11 +27,10 @@ sections / elevations / schedules → SVG·PDF·DXF + the 3-part project manual)
 engine), **authoring guardrails + progressive disclosure**, and the **LOD-500 turnover layer**. What's left
 deepens each track:
 
-1. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring (AST-whitelisted).
-2. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
-3. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
+1. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
+2. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
 
-*(CODE-2 ✅ v0.3.295; D5 ✅ v0.3.296; W10-4 ✅ v0.3.297; S4 undo/redo ✅ v0.3.298; E1 inference ✅ v0.3.299.)*
+*(CODE-2 ✅ v0.3.295; D5 ✅ v0.3.296; W10-4 ✅ v0.3.297; S4 undo/redo ✅ v0.3.298; E1 inference ✅ v0.3.299; A1 sandbox ✅ v0.3.300.)*
 
 ---
 
@@ -69,7 +68,10 @@ carriers, D6 project manual, D8 approvability pre-flight all ship (see the archi
 - **`Pset_Massing_SpecLink` breadcrumb** — the remaining Track-D carrier.
 
 **Open-ended authoring (the moat)**
-- **A1** — **sandboxed `execute_ifc_code` recipe** (AST-whitelisted, ifcopenshell-only, no fs/Blender) — turns the fixed recipe registry into unbounded authoring.
+- ✅ **A1 SHIPPED v0.3.300** — **sandboxed `execute_ifc_code`** (`sandbox.py`: AST allowlist, no
+  imports/IO/reflection/dunder, curated namespace; off unless `AEC_ALLOW_IFC_CODE=1`; runs through the
+  versioned/undo-able `/edit` path; ⚡ Run IFC code tool). *Next: A2 RAG index over ifcopenshell docs to
+  ground code-gen, A3 AI emits recipes, A4 scene-digest.*
 - **A2** — **RAG index** over ifcopenshell / IFC docs to ground code-gen.
 - **A4** — LLM **scene-digest** tool over the semantic graph.
 
