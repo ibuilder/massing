@@ -27,12 +27,11 @@ sections / elevations / schedules → SVG·PDF·DXF + the 3-part project manual)
 engine), **authoring guardrails + progressive disclosure**, and the **LOD-500 turnover layer**. What's left
 deepens each track:
 
-1. **E1 — SketchUp-style inference snapping** (endpoint/mid/face/parallel/perp) — the biggest barrier-to-entry win for drawing.
-2. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring (AST-whitelisted).
-3. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
-4. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
+1. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring (AST-whitelisted).
+2. **G2 — field-verified dimensions / variances** — completes the LOD-500 data layer beside G1/G3.
+3. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (geometry depth; needs live-3D verification).
 
-*(CODE-2 ✅ v0.3.295; D5 detail callouts ✅ v0.3.296; W10-4 MEP connectivity ✅ v0.3.297; S4 undo/redo ✅ v0.3.298.)*
+*(CODE-2 ✅ v0.3.295; D5 ✅ v0.3.296; W10-4 ✅ v0.3.297; S4 undo/redo ✅ v0.3.298; E1 inference ✅ v0.3.299.)*
 
 ---
 
@@ -77,7 +76,9 @@ carriers, D6 project manual, D8 approvability pre-flight all ship (see the archi
 **Master-builder UX (low barrier)** — *E4 progressive-disclosure toolbar + E8 authoring-guardrails (first
 slice) + E9 selector DSL ship (see the archive); these remain:*
 - **E8 (deepen)** — extend the guardrails to nested `dims`, model-aware checks (host is a wall, storey exists), and the fuller "don't make broken IFC" rule set.
-- **E1** — **inference snapping** (endpoint/mid/face/parallel/perp) + Shift-lock.
+- ✅ **E1 SHIPPED v0.3.299** — **drawing inference** (`inference.ts`): automatic on-axis / parallel /
+  perpendicular snapping from the previous point + edge, within ~6°, without holding Shift; hard
+  geometry-vertex snap still wins; unit-tested. *Next: live inference guide-lines + a midpoint hover target.*
 - **E2** — **type-a-dimension-while-drawing** (VCB).
 - **E3** — **sketch-to-BIM push/pull** (2D profile → extrude).
 - **E5** — **direct-manipulation parametric handles**.

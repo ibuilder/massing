@@ -5,6 +5,7 @@ import * as THREE from "three";
 import CameraControls from "camera-controls";
 import { createViewer, renderMode, positionSun } from "./world";
 import { sunAltAz, sunSceneDir } from "./solar";
+import { inferDirection } from "./inference";
 import { ModelLoader } from "./loader";
 import { loadReferenceModel } from "./referenceLoader";
 import { buildElementProps, buildRawProps } from "./propsView";
@@ -872,11 +873,21 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const spec = armed;
     if (!spec) return;
     const raw = hit?.point ?? screenToGround(e);
-    let p = raw ? (await snapToGeometry(raw, hit)) ?? snapPoint(raw) : null;
+    const geoSnap = raw ? await snapToGeometry(raw, hit) : null;   // hard endpoint/edge/vertex snap
+    let p = raw ? (geoSnap ?? snapPoint(raw)) : null;
     if (p && e.shiftKey && armPts.length >= 1) {          // ortho lock from the previous point
       const a = armPts[armPts.length - 1]!; // safe: armPts.length >= 1 checked above
       if (Math.abs(p.x - a.x) >= Math.abs(p.z - a.z)) p = new THREE.Vector3(p.x, p.y, a.z);
       else p = new THREE.Vector3(a.x, p.y, p.z);
+    } else if (p && !geoSnap && armPts.length >= 1) {
+      // E1 — automatic on-axis / parallel inference (SketchUp-style): snap the point onto a world axis
+      // or the previous edge's direction/perpendicular when the cursor is within ~6° of it. A hard
+      // geometry-vertex snap (above) always wins; Shift is the manual hard ortho-lock.
+      const a = armPts[armPts.length - 1]!;
+      const ref = armPts.length >= 2
+        ? { x: a.x - armPts[armPts.length - 2]!.x, z: a.z - armPts[armPts.length - 2]!.z } : undefined;
+      const inf = inferDirection({ x: a.x, z: a.z }, { x: p.x, z: p.z }, { tolDeg: 6, ref });
+      if (inf) { p = new THREE.Vector3(inf.x, p.y, inf.z); showCoords(p); }
     }
     if (!p) { notify("couldn't pick a point — click the floor or grid", "error"); return; }
     // snap to the nearest grid intersection when the grid overlay is loaded (plan E=x, N=-z)

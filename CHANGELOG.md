@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.299 — SketchUp-style drawing inference (E1)
+
+Free-hand drawing now lands clean lines automatically. A new `inference.ts` module infers, as you place a
+point, an on-axis (±X / ±Z), **parallel**, or **perpendicular** direction from the previous point (and the
+previous edge) and snaps the point onto that inference line when the cursor is within ~6° — no need to hold
+Shift. A hard geometry-vertex snap always wins, and Shift stays the manual hard ortho-lock. Pure,
+unit-tested math (`inference.test.ts`, 7 cases). Builds on the existing endpoint/edge and grid snapping.
+
 ## v0.3.298 — Model undo / redo (S4)
 
 Authoring now has a real undo stack. Every `/edit` already wrote a new versioned source IFC and left the
