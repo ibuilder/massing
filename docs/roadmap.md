@@ -185,7 +185,89 @@ consent; SSO buttons stay config-gated so self-hosters don't advertise providers
 
 ---
 
-## 🔮 Future — 2026-07 research inbox (building codes · Unreal viz)
+## 🔮 Future — 2026-07 research round 2 (productivity-5D · existing-building code · RFI-prevention · Unity viz · content library · BIM-GIS)
+
+Vetted from a 9-image field scan + 4 platform sources (an AI owner's-rep "eliminate-the-RFI" platform, a
+game engine's AEC/IFC path, an open-source BIM+GIS digital-twin, and a 3D content warehouse). License/legal
+flags are firm; **competitor product names kept out — capabilities described directly** (per the standing
+directive). Interop targets / content platforms / open standards are named where they're integrations, not
+rivalries. Ranked most-actionable first. Most confirm existing depth (MEP, the design→turnover spine,
+ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
+
+### 📊 Estimating → 5D depth
+- **EST-1 — productivity-rate cost/duration library** *(M · high · buildable now)* — a **man-hours-per-unit**
+  productivity-rate table (earthworks / concrete / masonry / structural steel / MEP / finishes) keyed by work
+  activity + typical crew. From the model's computed quantities → labour hours → crew → **duration + labour
+  cost**, with regional/condition loading factors (weather, congestion, night shift). Ties quantities →
+  schedule + 5D cost; extends the estimating / EVM / resource-loading stack. Industry-benchmark facts,
+  user-adjustable per project.
+
+### 🚫 RFI-prevention (the openBIM information-delivery moat)
+- **RFI-0 — decision-readiness audit** *(M · ★★★★★)* — the proactive inverse of the RFI: scan the model +
+  drawings + specs for the **information gaps a builder would otherwise have to ask about** — missing
+  dimensions, unresolved details, undefined finishes/specs, un-substantiated ratings, missing keynotes,
+  open clashes — and surface them as a ranked *resolve-before-IFC* list that round-trips to BCF. Composes the
+  shipped approvability pre-flight + detail-rule `validate_rules` + model-hygiene (`model_qa`) + clash-intel
+  into one "what's missing?" report. The natural-language QA layer (**NL-QA**) plugs in here. Directly on the
+  "information delivery" mission.
+
+### 🪑 Content library — curated, auto-classified IFC parts (builds on B4)
+- **CONTENT-1 — mesh→IFC content pipeline + curated library** *(L · high)* — import a **well-detailed mesh**
+  (glTF/OBJ, or a SketchUp model via glTF, or a public 3D-content-warehouse asset) and **auto-classify + place
+  it as the *right* IFC**: furniture → `IfcFurnishingElement`; **site-logistics** (crane, hoist, fence,
+  sanitary unit, laydown, trailer) → a proxy on the **Site-Logistics storey + Temporary phase** (feeding the
+  W9-5 4D logistics overlay); landscaping (tree/planting) → `IfcGeographicElement`; equipment → the
+  MEP/equipment class. A curated seed of **logistics / furniture / landscaping** parts — *well-detailed, not
+  random shapes* — each with classification + placement + **per-asset license vetting** (CC0/CC-BY preferred;
+  other sources only where the license permits redistribution; SketchUp models carry the SketchUp General
+  Model License — vet each). Extends the shipped `add_mesh_representation` (B4) + H1 CC0 content.
+
+### 🎮 Visualization — Unity as the optional bridge (supersedes the Unreal framing)
+- **VIZ-U1 — Unity/Pixyz IFC → WebGL presentation build** *(L · optional/paid-license/flagged)* — Unity's
+  Pixyz / Asset-Transformer imports **IFC natively** (preserving GlobalId + metadata), and Unity exports a
+  **WebGL build that runs in a browser** — no cloud-GPU pixel-stream. So a high-fidelity presentation mode can
+  ship as a *browser build*, materially closer to our web-first/offline core than the earlier engine's
+  pixel-streaming path. Still a proprietary seat-licensed engine → optional, feature-flagged, **one-way (viz
+  only), never the default viewer**. **This supersedes the earlier VIZ-3/VIZ-4 (Unreal) framing for the paid
+  bridge tier.** The primary on-mission viz path stays VIZ-1 (glTF export, already ships) + VIZ-2 (three.js
+  PBR presentation mode, offline + license-free).
+
+### 🏛 Existing-building code intelligence
+- **CODE-EBC — renovation alteration-level classifier** *(M · high)* — an **existing-building-code** decision
+  tree: classify a project's scope of work → **Alteration Level 1/2/3 · Change of Occupancy · Addition ·
+  Repair** (IEBC pathways), driving which chapters/provisions apply. Ties to our phasing (new/existing/
+  demolish) + the CODE track + approvability. Facts of law (thresholds/pathways) — copyright-safe like
+  CODE-1/2/3. Unlocks renovation/adaptive-reuse projects.
+
+### 🌍 BIM-GIS digital twin (reinforces the SITE-1 frontier item)
+- **SITE-1 (reinforced) — multi-scale BIM ↔ GIS view** *(M · ★★★★)* — a browser view composing the **building
+  IFC** with its **regional GIS context** (parcel, zoning envelope, terrain, neighbours) from open geodata
+  (GeoJSON / parcel APIs) — the "digital-twin readiness" layer. Validated by an **open-source (AGPL) BIM+GIS
+  digital-twin peer** using IFC/GeoJSON/BCF/IDS — *reimplement the techniques, never vendor the AGPL code.*
+  Feeds authoring + the code/zoning engine.
+
+### 🌦 Early-design environmental performance
+- **ENV-1 — wind-comfort / microclimate at massing** *(M · med)* — beside the shipped solar-access analysis,
+  a simplified **pedestrian wind-comfort** pass over the massing (prevailing-wind exposure, wind-shadow) for
+  early-design "is this a wind tunnel?" feedback. Offline + approximate (not CFD); a CFD-grade version stays a
+  flagged bridge.
+
+### 🧩 Authoring surface (parity) + MEP completeness
+- **AUTH-VS — visual node-based authoring** *(L · parity)* — a visual **node-graph scripting** canvas over the
+  edit-recipe engine (chain recipes as nodes; the recipe log already *is* a graph) for repetitive parametric
+  authoring without code. Complements the shipped AI command bar + sandboxed `execute_ifc_code` — the visual,
+  no-code sibling. (The studio node-editor is the seed.)
+- **MEP-FP — fire-protection as a first-class distribution system** *(S · med)* — sprinkler / standpipe /
+  fire-pump / fire-hose-cabinet as a distinct **fire-protection system** beside HVAC/plumbing/electrical, with
+  the fire-alarm layer we already sheet. Extends the MEP system browser + connectivity (W10-4).
+
+**Not-new (confirmed existing depth):** the MEP 4-discipline model (HVAC/electrical/plumbing/fire — MEP-FP
+above is the one gap), the design→turnover lifecycle spine, ISO 19650 BIM-management, Lean pull-planning, and
+multi-project portfolio PMO all already ship.
+
+---
+
+## 🔮 Future — 2026-07 research inbox (building codes · Unity/Unreal viz)
 
 Parked as **future** items — not scheduled; picked up after the current Wave 11 tracks. Each notes size +
 value; license/legal flags are firm.
