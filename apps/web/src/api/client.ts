@@ -1238,6 +1238,14 @@ export class ApiClient extends HttpCore {
       primary: { IBC: number | null; IECC: number | null; "A117.1": number | null }; verify: string }>(
       `/codes/adoptions?jurisdiction=${encodeURIComponent(jurisdiction)}`);
   }
+  /** EST-1: rough labour cost + duration estimate from the model's quantities (productivity rates). */
+  laborEstimate(pid: string, loading = "commercial", rate = 25) {
+    return this.json<{ loading: string; loading_factor: number; hourly_rate: number; line_count: number;
+      total_man_hours: number; total_labor_cost: number; note: string; derived_from_model?: boolean;
+      lines: { activity: string; group: string; unit: string; quantity: number; man_hours: number;
+        crew: number; crew_days: number; labor_cost: number }[] }>(
+      `/projects/${pid}/estimate/labor?loading=${encodeURIComponent(loading)}&rate=${rate}`);
+  }
   /** RFI-0: decision-readiness audit — the information gaps a builder would ask about, ranked. */
   rfiReadiness(pid: string) {
     return this.json<{ ready: boolean; total_gaps: number; high_severity: number; summary: string; disclaimer: string;

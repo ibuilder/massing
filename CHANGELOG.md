@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.308 — Productivity-rate labour cost + duration estimate (EST-1)
+
+The estimating link from *quantities* to *schedule + 5D cost*. New `productivity.py` holds a
+**man-hours-per-unit** rate library (earthworks / concrete / masonry / steel / MEP / finishes) with typical
+crew sizes + condition **loading factors** (highrise / remote / summer / congested / night-shift).
+`labor_estimate` turns a quantity of work into **man-hours → crew-days → labour cost**; `from_model` derives
+a rough takeoff straight from the model (walls → masonry face area, slabs/columns → concrete volume) and runs
+it. New `GET /estimate/labor/rates` (catalog) + `GET /projects/{pid}/estimate/labor?loading=&rate=` and a
+**💰 Labour estimate** tool showing man-hours / crew-days / cost per activity. Editable benchmarks, labour
+only (add materials/equipment/overhead for a full cost). `test_productivity.py`.
+
 ## v0.3.307 — Decision-readiness audit: RFI-prevention (RFI-0)
 
 The proactive inverse of the RFI — every RFI is a decision made without the needed information, so this

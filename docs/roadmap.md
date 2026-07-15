@@ -197,7 +197,11 @@ rivalries. Ranked most-actionable first. Most confirm existing depth (MEP, the d
 ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
 
 ### 📊 Estimating → 5D depth
-- **EST-1 — productivity-rate cost/duration library** *(M · high · buildable now)* — a **man-hours-per-unit**
+- ✅ **EST-1 (first slice) SHIPPED v0.3.308** — `productivity.py` man-hours/unit rate library + loading
+  factors; `labor_estimate` (quantity → man-hours → crew-days → cost) + `from_model` rough takeoff; `GET
+  /estimate/labor{,/rates}` + a 💰 Labour estimate tool. *Next: full QTO integration, tie crew-days to the
+  schedule (durations), and material/equipment cost lines.*
+- **EST-1 (original spec)** *(M · high · buildable now)* — a **man-hours-per-unit**
   productivity-rate table (earthworks / concrete / masonry / structural steel / MEP / finishes) keyed by work
   activity + typical crew. From the model's computed quantities → labour hours → crew → **duration + labour
   cost**, with regional/condition loading factors (weather, congestion, night shift). Ties quantities →

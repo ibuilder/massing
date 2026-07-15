@@ -2818,6 +2818,26 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           });
         });
         b.appendChild(toolBtn2("🏛 Code analysis (G-series summary)", () => { void runCodeAnalysis(""); }));
+        // EST-1 — rough labour cost + duration from the model's quantities (productivity rates)
+        b.appendChild(toolBtn2("💰 Labour estimate (man-hours · duration)", () => withLoading(container, "Estimating labour from the model", async () => {
+          let e;
+          try { e = await api.laborEstimate(projectId!, "commercial", 25); }
+          catch { toast("Needs a source IFC", "error"); return; }
+          out.textContent = `${e.total_man_hours.toLocaleString()} mh · $${Math.round(e.total_labor_cost).toLocaleString()}`;
+          showResult("Labour estimate — productivity rates", (body) => {
+            body.appendChild(resultNote(`Rough <b>labour</b> takeoff from the model (${e!.line_count} activity(ies), `
+              + `${e!.loading} loading ×${e!.loading_factor}, $${e!.hourly_rate}/hr): `
+              + `<b>${e!.total_man_hours.toLocaleString()} man-hours</b> · `
+              + `<b>$${Math.round(e!.total_labor_cost).toLocaleString()}</b>.`, e!.line_count ? "ok" : ""));
+            if (!e!.line_count) body.appendChild(resultNote("No estimable quantities yet — author walls / slabs / columns.", ""));
+            if (e!.lines.length) {
+              body.appendChild(kvTable(e!.lines.map((l) => ({
+                k: `${l.activity.replace(/_/g, " ")} (${l.group})`,
+                v: `${l.quantity} ${l.unit} → ${l.man_hours} mh · ${l.crew_days} crew-day(s) · $${Math.round(l.labor_cost).toLocaleString()}` }))));
+            }
+            body.appendChild(resultNote(e!.note, ""));
+          });
+        })));
         // W11 D8: plan-reviewer approvability pre-flight
         // RFI-0 — decision-readiness audit: the information gaps a builder would ask about, ranked
         b.appendChild(toolBtn2("🚫 Decision-readiness (RFI-prevention)", () => withLoading(container, "Auditing decision-readiness", async () => {
