@@ -108,6 +108,19 @@ assert next(x for x in sfp["systems"] if x["name"] == "HVAC Supply")["discipline
 fire_heads = list(m.by_type("IfcFireSuppressionTerminal"))
 assert fire_heads and mep._ports(fire_heads[0]), "sprinkler head should have a connection port"
 
+# MEP-FP equipment: hose reel + fire-department connection (IfcFireSuppressionTerminal subtypes) + fire pump
+hr = edit.add_fire_equipment(m, "hose_reel", [1, 13], st)
+fdc = edit.add_fire_equipment(m, "fdc", [0, 13], st)
+pump = edit.add_fire_equipment(m, "fire_pump", [5, 13], st)
+assert m.by_guid(hr).is_a() == "IfcFireSuppressionTerminal" and m.by_guid(hr).PredefinedType == "HOSEREEL", m.by_guid(hr)
+assert m.by_guid(fdc).PredefinedType == "BREECHINGINLET", m.by_guid(fdc).PredefinedType
+assert m.by_guid(pump).is_a() == "IfcPump", m.by_guid(pump).is_a()
+# all landed on the Fire Protection system (still discipline=fire)
+sfe = mep.mep_summary(m)
+fp2 = next(x for x in sfe["systems"] if x["name"] == "Fire Protection")
+assert fp2["discipline"] == "fire" and fp2["members"] >= 6, fp2   # pipe + 2 sprinklers + hose reel + fdc + pump
+assert "add_fire_equipment" in edit.RECIPES
+
 # set_system_predefined retags an existing plain system's discipline
 edit.set_system_predefined(m, "Domestic Water", "plumbing")
 dw = next(x for x in mep.mep_summary(m)["systems"] if x["name"] == "Domestic Water")

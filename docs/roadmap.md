@@ -288,8 +288,11 @@ ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
   beside HVAC/plumbing/electrical: IfcDistributionSystems carry a **discipline** via `PredefinedType`
   (FIREPROTECTION/…); `add_mep_*` take a `discipline`, `set_system_predefined` retypes a system, `add_sprinkler`
   authors an `IfcFireSuppressionTerminal` head, and `mep_summary` reports discipline + a by-discipline rollup +
-  `has_fire_protection`. Fire terminals are connectable (W10-4 covers sprinkler runs). *Next: sprinkler
-  coverage/spacing + standpipe / fire-pump / hose-cabinet equipment + tie to the fire-alarm sheet layer.*
+  `has_fire_protection`. Fire terminals are connectable (W10-4 covers sprinkler runs).
+- ✅ **MEP-FP equipment SHIPPED v0.3.315** — `add_fire_equipment` authors sprinkler / hose-reel / FDC /
+  hydrant (`IfcFireSuppressionTerminal` subtypes) + fire pump (`IfcPump`) onto the fire system; 🧯
+  Fire-protection equipment tool places at the last-clicked point. *Next: sprinkler coverage/spacing check +
+  standpipe risers + tie to the fire-alarm sheet layer.*
 
 **Not-new (confirmed existing depth):** the MEP 4-discipline model (HVAC/electrical/plumbing/fire — MEP-FP
 above is the one gap), the design→turnover lifecycle spine, ISO 19650 BIM-management, Lean pull-planning, and

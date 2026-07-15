@@ -2222,6 +2222,21 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       });
       mepFittingBtn.title = "Author a MEP fitting (elbow/tee/transition, with ports) at the last-clicked point "
         + "and assign it to a distribution system — the LOD 350/400 detailing that joins loose runs. GUID-stable.";
+
+      // MEP-FP: place fire-protection equipment at the last-clicked point (onto the Fire Protection system).
+      const fireBtn = toolBtn2("🧯 Fire-protection equipment", async () => {
+        if (!lastPoint) { notify("click a point in the model first, then place the device", "error"); return; }
+        const kind = await askText("Fire protection", {
+          label: "Device: sprinkler · hose_reel · fdc (fire-dept connection) · hydrant · fire_pump", value: "sprinkler" });
+        if (!kind) return;
+        const k = kind.trim().toLowerCase().replace(/[ -]/g, "_");
+        const known = ["sprinkler", "hose_reel", "fdc", "hydrant", "fire_pump"];
+        await authorAndReload("add_fire_equipment",
+          { kind: known.includes(k) ? k : "sprinkler", point: [lastPoint.x, -lastPoint.z] },
+          `fire ${k}`);
+      });
+      fireBtn.title = "Author a fire-protection device (sprinkler head, hose reel, fire-department/siamese "
+        + "connection, hydrant, or fire pump) as the right IFC class on the Fire Protection distribution system.";
       let mepConnectFrom: string | null = null;   // W10-4: first element of a port-to-port connect
       const mepSysBtn = toolBtn2("🔀 MEP systems", async () => {
         let s, c;
@@ -2439,7 +2454,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, contentBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, contentBtn, ifcCodeBtn);
       const advKey = "massing.viewer.advancedTools";
       let advOpen = false;
       try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }

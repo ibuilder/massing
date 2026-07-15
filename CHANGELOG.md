@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.315 — Fire-protection equipment: hose reel / FDC / hydrant / fire pump (MEP-FP next slice)
+
+Fleshes out the fire-protection system with real devices, not just piping. New `add_fire_equipment`
+recipe authors a **sprinkler head**, **hose reel**, **fire-department (siamese) connection**, **hydrant**
+(all `IfcFireSuppressionTerminal` subtypes with the right `PredefinedType` — HOSEREEL / BREECHINGINLET /
+FIREHYDRANT / SPRINKLER) or a **fire pump** (`IfcPump`), each placed on the `Fire Protection` distribution
+system (discipline = fire, so it rolls up in the MEP browser). New **🧯 Fire-protection equipment** tool
+places the chosen device at the last-clicked point (mirrors the door/window place flow). `test_mep_systems.py`
+extended (hose reel + FDC + fire pump land as the right IFC classes on the fire system). *Next: sprinkler
+coverage/spacing check + standpipe risers.*
+
 ## v0.3.314 — Full cost estimate: labour + material + equipment (EST-1 next slice)
 
 The model-driven estimate goes from labour-only to a fuller **5D cost**. `productivity.py` gains a

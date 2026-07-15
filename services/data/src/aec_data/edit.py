@@ -685,6 +685,29 @@ def set_system_predefined(model: ifcopenshell.file, system: str, discipline: str
     return {"system": name, "predefined_type": pt}
 
 
+# MEP-FP: fire-protection equipment kind -> (IFC class, PredefinedType). Sprinkler heads, hose reels, the
+# fire-department (siamese) connection, hydrants (all IfcFireSuppressionTerminal subtypes), and the fire
+# pump (IfcPump). Authored onto the fire-protection distribution system.
+_FIRE_EQUIPMENT = {
+    "sprinkler": ("IfcFireSuppressionTerminal", "SPRINKLER"),
+    "hose_reel": ("IfcFireSuppressionTerminal", "HOSEREEL"),
+    "fdc":       ("IfcFireSuppressionTerminal", "BREECHINGINLET"),   # fire-department (siamese) connection
+    "hydrant":   ("IfcFireSuppressionTerminal", "FIREHYDRANT"),
+    "fire_pump": ("IfcPump", None),                                  # pump type enum has no "fire pump"
+}
+
+
+def add_fire_equipment(model: ifcopenshell.file, kind: str = "sprinkler", point=(0.0, 0.0),
+                       storey: str | None = None, system: str = "Fire Protection") -> str:
+    """MEP-FP: author a fire-protection device — sprinkler head / hose reel / fire-department (siamese)
+    connection / hydrant / fire pump — as the right IFC class + PredefinedType, enrolled on the
+    fire-protection distribution system (discipline=fire). Returns the new element's GUID."""
+    k = (kind or "sprinkler").strip().lower()
+    ifc_class, predef = _FIRE_EQUIPMENT.get(k, _FIRE_EQUIPMENT["sprinkler"])
+    size = 0.4 if k == "fire_pump" else 0.15
+    return add_mep_terminal(model, ifc_class, point, size, size, size, predef, storey, system, "fire")
+
+
 def add_mep_run(model: ifcopenshell.file, ifc_class: str, start, end, shape: str = "round",
                 size: float = 0.3, storey: str | None = None, system: str = "MEP",
                 discipline: str | None = None) -> str:
@@ -1456,6 +1479,8 @@ RECIPES = {
                                                     float(p.get("width", 0.15)), float(p.get("depth", 0.15)),
                                                     float(p.get("height", 0.1)), p.get("predefined", "SPRINKLER"),
                                                     p.get("storey"), p.get("system", "Fire Protection"), "fire"),
+    "add_fire_equipment": lambda m, p: add_fire_equipment(m, p.get("kind", "sprinkler"), p["point"],
+                                                          p.get("storey"), p.get("system", "Fire Protection")),
     "set_system_predefined": lambda m, p: set_system_predefined(m, p["system"], p["discipline"]),
     "connect_mep": lambda m, p: connect_mep(m, p["guid_a"], p["guid_b"]),
     # A1 — sandboxed ifcopenshell escape hatch (gated by AEC_ALLOW_IFC_CODE; AST-whitelisted)
