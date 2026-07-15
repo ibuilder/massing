@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.303 — Fix: `test_edit_undo` CI failure (read-only `/app`)
+
+The S4 undo test (v0.3.298) failed the CI API gate with `PermissionError: /app` — it drives `/model/blank`,
+which writes the source IFC under `IFC_DIR` (defaults to `/app/ifc`, read-only in the container). The test
+now points `IFC_DIR` at a writable scratch dir (and cleans it up), per the container-readonly-`/app` gotcha.
+Test-only change; no product code affected.
+
 ## v0.3.302 — Field-verified as-built dimensions + variance (G2)
 
 Completes the LOD-500 data layer. New `record_asbuilt_dimension` recipe stamps a **field-measured**

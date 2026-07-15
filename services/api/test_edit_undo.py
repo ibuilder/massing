@@ -7,6 +7,9 @@ import sys
 os.environ.setdefault("DATABASE_URL", "sqlite:///./_undo_test.db")
 os.environ.setdefault("STORAGE_DIR", "./_storage_undo")
 os.environ.setdefault("AEC_TRUST_XUSER", "1")
+# /model/blank writes the source IFC under IFC_DIR (defaults to /app/ifc, which is read-only in the CI
+# container). Point it at a writable scratch dir. See the container-readonly-/app gotcha.
+os.environ.setdefault("IFC_DIR", os.path.join(os.path.dirname(__file__), "_ifc_undo"))
 
 _DATA_SRC = os.path.join(os.path.dirname(__file__), "..", "data", "src")
 if _DATA_SRC not in sys.path:
@@ -69,12 +72,14 @@ with TestClient(app) as c:
     again = c.post(f"/projects/{p}/edit/undo", json={"publish": False}, headers=h)
     assert again.status_code == 409, again.text[:200]
 
+import shutil  # noqa: E402
 for f in ("./_undo_test.db",):
     if os.path.exists(f):
         try:
             os.remove(f)
         except OSError:
             pass
+shutil.rmtree(os.environ["IFC_DIR"], ignore_errors=True)
 
 print("EDIT-UNDO OK - the sidecar stack pushes pre-edit versions, undo restores the prior version + pushes "
       "current to redo, redo re-applies, a fresh edit clears redo; over a real project an edit sets can_undo, "
