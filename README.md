@@ -23,14 +23,20 @@
 **What it is** — three pillars on one IFC-keyed model, switched by a Model / Construction / Finance bar:
 
 - 🧊 **BIM platform** — a genuine **in-browser authoring tool** on That Open Fragments, from a blank model
-  to a permit-ready set: draw/edit walls, columns, slabs, doors/windows, **curtain walls, steel connections,
-  rebar cages and MEP** by **GUID-stable server-side recipe**, with **drag-to-move edit-in-place**, a
-  family/type system, groups/arrays, **phasing**, **LOD dialing (100→500)**, **authoring guardrails** that
-  reject broken IFC, and an **AI command bar** (type what to build); **generate the construction-document
+  to a permit-ready set: draw/edit walls (incl. **sloped-top parapet/shed/gable**), columns, slabs,
+  doors/windows, **curtain walls, steel connections, rebar cages and MEP** (with **port-to-port
+  connectivity**) by **GUID-stable server-side recipe**, with **drag-to-move edit-in-place**, **model
+  undo/redo**, SketchUp-style **drawing inference** (auto on-axis/parallel/perpendicular snap), a
+  family/type system, groups/arrays, **phasing**, **LOD dialing (100→500)**, a **site content library**
+  (logistics/furniture/landscaping, auto-classified), a **procedural-mesh** and an AST-**sandboxed
+  ifcopenshell** escape hatch (feature-flagged), **authoring guardrails** that reject broken IFC, and an
+  **AI command bar** (type what to build); **generate the construction-document
   set** — plans/sections/elevations/schedules → **SVG · PDF · DXF**, issuable ARCH-D sheets with titleblocks,
   and a **3-part MasterFormat project manual**; **code intelligence** — IBC code-analysis (G-series) summary,
-  occupancy-load + egress pre-check, jurisdiction-adopted code editions, an **approvability pre-flight**, and
-  a **detail-rule engine**; plus QA, IDS, BCF, **PDF takeoff** (calibrated measure / area / count); **layer &
+  **edition-aware** occupancy-load + egress pre-check, jurisdiction-adopted code editions, an
+  **approvability pre-flight**, a **detail-rule engine**, and a **decision-readiness (RFI-prevention) audit**;
+  plus a **productivity-rate labour estimate**, QA, IDS, BCF, **PDF takeoff** (calibrated measure / area /
+  count); **layer &
   align multiple models** with **federated cross-discipline clash**; **raise 2D → BIM** (DXF floor plan → IFC
   walls + spaces) and check the built result with **scan-to-BIM deviation** (as-built point cloud vs the model
   surface, % within tolerance + heatmap); also opens **meshes & point clouds** (OBJ/STL/PLY/glTF ·
@@ -117,13 +123,21 @@ Highlights, all **built and verified** in this repo unless noted:
 - **Authoring round-trip (in-browser modeling)** — a full toolkit of authoring ops, each a
   server-side `ifcopenshell` recipe → background republish (reconvert + reindex). GUID-stable,
   so pins/RFIs/clashes survive. **Start:** a blank model (levels + ground datum) or a starter
-  template (office bay / residential floor / warehouse). **Create:** walls, slabs, columns, beams,
-  roofs, rooms/spaces (sketch on the model/grid); **parametric doors/windows** (real lining/frame/panel)
-  that void the host wall + fill it. **Fabrication / LOD 350-400 (behind an "Advanced" toggle):**
-  **curtain-wall systems** (mullions/transoms + glazing), **structural steel connections** (base plates,
-  shear tabs + bolts as `IfcElementAssembly`), **rebar cages** (longitudinal bars + stirrups), and **MEP
-  fittings** (elbows/tees/transitions with ports + distribution systems). **Edit:** **drag-to-move
-  edit-in-place** (transform gizmo + ghost preview), plus typed delete / move / rotate / copy / per-element
+  template (office bay / residential floor / warehouse). **Create:** walls (incl. **sloped-top** —
+  parapet-slope / shed / gable), slabs, columns, beams, roofs, rooms/spaces (sketch on the model/grid);
+  **parametric doors/windows** (real lining/frame/panel) that void the host wall + fill it. Free-hand
+  drawing lands clean lines automatically via **SketchUp-style inference** (auto on-axis / parallel /
+  perpendicular snap within ~6°, no Shift needed). **Fabrication / LOD 350-400 (behind an "Advanced"
+  toggle):** **curtain-wall systems** (mullions/transoms + glazing), **structural steel connections** (base
+  plates, shear tabs + bolts as `IfcElementAssembly`), **rebar cages** (longitudinal bars + stirrups), **MEP
+  fittings** (elbows/tees/transitions with ports + distribution systems) with **port-to-port connectivity**
+  (`IfcRelConnectsPorts` + a dangling-element report), a **procedural mesh** (author an element from a raw
+  triangle mesh → `IfcTriangulatedFaceSet`), and an AST-**sandboxed `ifcopenshell` escape hatch** (off by
+  default, feature-flagged) for geometry the recipes can't express. **Site content:** a **content library**
+  places logistics (cranes / hoists / fencing / sanitary units / laydown), furniture and landscaping, each
+  auto-classified into the right IFC class + phase (logistics time-phase on the 4D slider) + Uniclass/OmniClass.
+  **Edit:** **drag-to-move edit-in-place** (transform gizmo + ghost preview) with full **model undo/redo**
+  (every edit is versioned, GUID-stable), plus typed delete / move / rotate / copy / per-element
   Pset edit, **groups & arrays**, and **phasing** (new / existing / demolish / temporary). **Organize:**
   a **power-selection query** (the IfcOpenShell selector DSL — by class, material, pset value) saved as
   reusable selection sets; **LOD dialing** (tag elements 100→500 on a view-keyed representation spine).
@@ -138,7 +152,9 @@ Highlights, all **built and verified** in this repo unless noted:
   the optional Blender + Bonsai bridge.
 - **Construction-document set (author → issuable sheet)** — generate a permit set straight from the
   authored geometry (deterministic, from extruded-profile footprints — no geometry kernel): **plans**
-  (class-styled poché, dimensions, keynote bubbles + legend from the model's spec codes), auto-centred
+  (class-styled poché, dimensions, keynote bubbles + legend from the model's spec codes, and **NCS-style
+  detail callouts** — a divided circle + leader on every element carrying an attached detail, with a keyed
+  DETAILS legend), auto-centred
   **sections** (X-X / Y-Y) and projected **elevations** (N/S/E/W), and computed **door / window / room
   schedules** — each as **SVG**, laid out on an **issuable ARCH-D (36×24″) sheet** with a border +
   titleblock, and exported to **PDF** (via reportlab) and **DXF** (a dependency-free R12 writer for CAD
@@ -152,16 +168,24 @@ Highlights, all **built and verified** in this repo unless noted:
   summary** computed from the model (occupancy classification, construction type, area + story count, the
   computed occupant load + egress, governing allowable-area/height + fire-rating sections); an
   **occupancy-load + egress pre-check** (per-space load, required vs provided egress width, 32-in door +
-  two-exits-over-49 checks); a **jurisdiction-adopted-edition catalog** (`codes.py` — the I-Code families +
-  their 3-year editions, resolved per US state) so citations name the edition in force ("IBC 2021 Table
-  506.2 …"); and an **approvability pre-flight** — a plan-reviewer readiness checklist (egress capacity,
-  door clear width, two-exits, occupancy classification on spaces, substantiated rated assemblies) scored
-  for permit-readiness. A pre-check assist that cites sections — not a certified review; verify with the AHJ.
+  two-exits-over-49 checks) whose **occupant-load factors are edition-aware** — a jurisdiction on an older
+  IBC cycle (e.g. Business at 100 gross ft²/occ in 2012/2015 vs 150 in 2018+) computes a higher load and
+  egress width than the current baseline; a **jurisdiction-adopted-edition catalog** (`codes.py` — the
+  I-Code families + their 3-year editions, resolved per US state) so citations name the edition in force
+  ("IBC 2021 Table 506.2 …"); an **approvability pre-flight** — a plan-reviewer readiness checklist (egress
+  capacity, door clear width, two-exits, occupancy classification on spaces, substantiated rated assemblies)
+  scored for permit-readiness; and a **decision-readiness (RFI-prevention) audit** — the proactive inverse
+  of the RFI, composing failed code checks, elements missing a required detail/keynote, model-hygiene gaps
+  (orphaned / unenclosed / unnamed / duplicate) and open clashes into one **ranked resolve-before-issue
+  list** (category + severity + fix), isolating each flagged element in 3D. A pre-check assist that cites
+  sections — not a certified review; verify with the AHJ.
 - **LOD-500 / turnover (field-verified as-built)** — stamp elements **field-verified as-built**
   (`Massing_AsBuilt`: Status + VerifiedBy/Date/Method/Note provenance) with a **readiness** rollup by
   method (field-measure / laser-scan / total-station / photo / submittal / inspection); stamp
-  **manufacturer/serial** data (`Pset_ManufacturerTypeInformation` + `Pset_ManufacturerOccurrence`) that
-  round-trips to COBie and CMMS/asset systems; and a composite **Model Health scorecard** across five
+  **field-verified as-built dimensions** (`Massing_AsBuiltDim`: measured value, design value, the
+  **variance**, and a within-tolerance flag — measured-vs-design capture, with an out-of-tolerance count);
+  stamp **manufacturer/serial** data (`Pset_ManufacturerTypeInformation` + `Pset_ManufacturerOccurrence`)
+  that round-trips to COBie and CMMS/asset systems; and a composite **Model Health scorecard** across five
   lenses — integrity, ISO-19650 information, clash coordination, verified-as-built, and **Code &
   permit-readiness** (from the approvability pre-flight).
 - **Generative design — zoning → a fully-developed IFC building + proforma** — enter a municipal
@@ -256,7 +280,7 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **Wave 11 — LOD-400/500 authoring + the construction-document set (v0.3.255–v0.3.293, current).** The
+- **Wave 11 — LOD-400/500 authoring + the construction-document set (v0.3.255–v0.3.308, current).** The
   Model workspace became a genuine authoring-to-issue tool. A **view-keyed representation + LOD spine**
   (tag elements 100→500); a **power-selection** query over the IfcOpenShell selector DSL; **parametric
   door/window** generators (real lining/frame/panel); a **domain-geometry catalog** behind an "Advanced
@@ -270,7 +294,15 @@ Deliverables** — with a sticky live-solved returns bar.
   **as-built** stamping + **manufacturer/serial** (COBie-ready), rolled into a five-lens **Model Health
   scorecard**. And the **AI authoring command bar** — natural language → a validated recipe plan
   (deterministic baseline + optional Claude multi-step planning), guarded by an **authoring guardrail**
-  that rejects broken IFC before it writes. See the changelog for each release.
+  that rejects broken IFC before it writes. The **Master-Builder** close-out (v0.3.294–v0.3.308) then made
+  the tool complete: **model undo/redo** (versioned, GUID-stable), SketchUp-style **drawing inference**,
+  **sloped-top walls** (parapet/shed/gable), a **procedural-mesh** and an AST-**sandboxed `ifcopenshell`**
+  escape hatch (feature-flagged; a proven RCE escape closed on review), a **site content library**
+  (logistics / furniture / landscaping, auto-classified + logistics time-phased on the 4D slider), **MEP
+  port-to-port connectivity** + a dangling-element report, **NCS detail callouts** on the plan,
+  **edition-aware** occupant-load factors, a **decision-readiness (RFI-prevention) audit**, a
+  **productivity-rate labour estimate** (man-hours/unit → cost + crew-days + duration), and **field-verified
+  as-built dimensions + variance** for the LOD-500 turnover layer. See the changelog for each release.
 
 - **Since v0.3.113 — the platform filled out end to end (→ v0.3.228).** The complete
   **acquisition → design → build → turnover → operate** lifecycle (RIBA/AIA phase gates, soft-cost
@@ -842,11 +874,17 @@ GET    /projects/{id}/spec/manual[.txt]        3-part MasterFormat project manua
 GET    /projects/{id}/query                    power selection (IfcOpenShell selector DSL)
 GET    /projects/{id}/lod                       LOD-stage distribution (representation/LOD spine)
 GET    /projects/{id}/lod500                     LOD-500 field-verified as-built readiness
-GET    /projects/{id}/codecheck/{analysis,occupancy,approvability}   IBC code-analysis · egress · permit-readiness
+GET    /projects/{id}/codecheck/{analysis,occupancy,approvability}   IBC code-analysis · edition-aware egress · permit-readiness
+GET    /projects/{id}/rfi/readiness            decision-readiness (RFI-prevention) audit — ranked gaps
+GET    /projects/{id}/mep/connectivity         MEP port connectivity + dangling-element report
 GET    /projects/{id}/detailing/{guid} · /detailing/rules/validate   element codes/docs · detail-rule QA
 GET    /codes/{families,adoptions,seeded}       jurisdiction-adopted code editions (facts only)
-POST   /projects/{id}/edit | /publish         authoring round-trip (recipes incl. add_family)
+GET    /estimate/labor/rates · /projects/{id}/estimate/labor   productivity-rate man-hours → labour cost + crew-days
+GET    /content/catalog                        site content library (logistics/furniture/landscaping)
+POST   /projects/{id}/edit | /publish         authoring round-trip (recipes incl. add_family, set_wall_slope, add_mesh_representation, place_content, connect_mep)
+POST   /projects/{id}/edit/{undo,redo} · GET /edit/history   model undo / redo (versioned, GUID-stable)
 POST   /projects/{id}/edit/precheck            authoring guardrail (reject broken IFC before writing)
+GET    /authoring/capabilities                 sandboxed execute_ifc_code probe (off unless flagged)
 POST   /projects/{id}/ai/author                natural-language authoring command bar (validated plan)
 POST   /projects/{id}/generate/massing        zoning → IFC massing model + acquisition proforma
 POST   /generate/massing/preview              stateless zoning → program + proforma (no model written)

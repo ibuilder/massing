@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Massing — current status</title>
+<meta name="description" content="What Massing is and what's shipped: an IFC-native BIM authoring tool and AEC lifecycle platform. Status snapshot at v0.3.308." />
+<meta property="og:title" content="Massing — current status" />
+<meta property="og:description" content="IFC-native BIM authoring + the whole building lifecycle on one model. Status snapshot at v0.3.308." />
+<meta property="og:image" content="./img/og-image.png" />
+<style>
+  :root{
+    --navy-900:#070A18; --navy-800:#0B1126; --navy-700:#0E1430; --navy-600:#141B3A;
+    --navy-500:#1B2450; --line:#243066; --line-soft:#1a2350;
+    --ink:#EAEEFF; --ink-2:#AEB8E0; --ink-3:#7E8BB0;
+    --cyan:#2DE2E6; --cyan-dim:#1BC9E8; --violet:#B14CFF; --blue:#5B8CFF;
+    --good:#2DE2E6;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; font-family:var(--sans); color:var(--ink); line-height:1.6;
+    background:
+      radial-gradient(1200px 600px at 75% -10%, rgba(177,76,255,.10), transparent 60%),
+      radial-gradient(1000px 500px at 10% 0%, rgba(45,226,230,.08), transparent 55%),
+      linear-gradient(180deg,var(--navy-800),var(--navy-900));
+  }
+  .grid-bg{
+    position:absolute; inset:0; height:1400px; z-index:0; pointer-events:none; opacity:.5;
+    background-image:linear-gradient(var(--line-soft) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line-soft) 1px,transparent 1px);
+    background-size:44px 44px;
+    -webkit-mask-image:radial-gradient(circle at 50% 0%,#000,transparent 75%);
+    mask-image:radial-gradient(circle at 50% 0%,#000,transparent 75%);
+  }
+  .wrap{position:relative; z-index:1; max-width:1080px; margin:0 auto; padding:0 24px}
+  a{color:var(--cyan); text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* header */
+  header{display:flex; align-items:center; justify-content:space-between; padding:26px 24px; max-width:1080px; margin:0 auto; position:relative; z-index:1}
+  .brand{display:flex; align-items:center; gap:12px; font-weight:600; letter-spacing:.2px}
+  .brand svg{display:block}
+  .brand b{font-size:19px}
+  .ver{font-family:var(--mono); font-size:12px; color:var(--cyan); border:1px solid var(--line);
+    background:rgba(45,226,230,.06); padding:5px 10px; border-radius:999px}
+
+  /* hero */
+  .hero{padding:56px 0 40px; text-align:center}
+  .eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--ink-3)}
+  h1{font-size:clamp(30px,5vw,52px); line-height:1.08; margin:16px auto 0; max-width:16ch; text-wrap:balance; font-weight:650; letter-spacing:-.5px}
+  h1 .g{background:linear-gradient(100deg,var(--cyan),var(--blue) 55%,var(--violet)); -webkit-background-clip:text; background-clip:text; color:transparent}
+  .sub{max-width:60ch; margin:22px auto 0; color:var(--ink-2); font-size:18px}
+  .flow{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:30px auto 0; max-width:820px}
+  .flow span{font-family:var(--mono); font-size:12.5px; color:var(--ink); border:1px solid var(--line);
+    background:var(--navy-600); padding:7px 13px; border-radius:8px}
+  .flow span i{color:var(--ink-3); font-style:normal; padding:0 6px}
+
+  /* stat strip */
+  .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:44px 0}
+  .stat{background:var(--navy-700); border:1px solid var(--line); border-radius:14px; padding:20px}
+  .stat .n{font-family:var(--mono); font-size:30px; font-weight:600; color:var(--ink); line-height:1}
+  .stat .n b{color:var(--cyan); font-weight:600}
+  .stat .l{margin-top:8px; font-size:13px; color:var(--ink-3)}
+
+  /* sections */
+  section{padding:30px 0}
+  .h2{font-family:var(--mono); font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--cyan-dim); margin:0 0 4px}
+  h2{font-size:26px; margin:2px 0 6px; font-weight:600; letter-spacing:-.3px}
+  .lead{color:var(--ink-2); max-width:66ch; margin:0 0 24px}
+
+  .cards{display:grid; grid-template-columns:repeat(3,1fr); gap:16px}
+  .card{background:var(--navy-700); border:1px solid var(--line); border-radius:14px; padding:20px; position:relative; overflow:hidden}
+  .card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent,var(--cyan))}
+  .card .k{font-family:var(--mono); font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--ink-3)}
+  .card h3{margin:9px 0 7px; font-size:16.5px; font-weight:600}
+  .card p{margin:0; font-size:14px; color:var(--ink-2); line-height:1.55}
+  .tag{display:inline-block; font-family:var(--mono); font-size:10.5px; color:var(--navy-900); background:var(--cyan); padding:2px 7px; border-radius:5px; margin-top:12px; font-weight:600}
+  .tag.v{background:var(--violet); color:#fff}
+  .tag.b{background:var(--blue); color:var(--navy-900)}
+
+  /* pillars */
+  .pillars{display:grid; grid-template-columns:repeat(2,1fr); gap:16px}
+  .pillar{background:linear-gradient(180deg,var(--navy-600),var(--navy-700)); border:1px solid var(--line); border-radius:14px; padding:22px 24px}
+  .pillar h3{margin:0 0 10px; font-size:17px; display:flex; align-items:center; gap:10px}
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--cyan); box-shadow:0 0 12px var(--cyan)}
+  .pillar ul{margin:0; padding-left:18px; color:var(--ink-2); font-size:14px}
+  .pillar li{margin:6px 0}
+
+  .note{background:rgba(45,226,230,.05); border:1px solid var(--line); border-radius:12px; padding:16px 18px; color:var(--ink-2); font-size:14px}
+  .note b{color:var(--ink)}
+
+  footer{border-top:1px solid var(--line); margin-top:40px; padding:30px 0 60px; text-align:center; color:var(--ink-3); font-size:13px; position:relative; z-index:1}
+  footer .f-tags{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:14px}
+  footer .f-tags span{font-family:var(--mono); font-size:12px; color:var(--ink-2); border:1px solid var(--line); padding:6px 11px; border-radius:999px}
+
+  @media(max-width:820px){
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .cards{grid-template-columns:1fr}
+    .pillars{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="grid-bg" aria-hidden="true"></div>
+
+<header>
+  <div class="brand">
+    <svg width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <rect x="1" y="1" width="30" height="30" rx="7" fill="#0E1430" stroke="#243066"/>
+      <path d="M7 23V11l5 5 4-6 4 6 5-5v12" stroke="#2DE2E6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+      <circle cx="16" cy="10" r="2" fill="#B14CFF"/>
+    </svg>
+    <b>Massing</b>
+  </div>
+  <span class="ver">v0.3.308</span>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <div class="eyebrow">Status snapshot</div>
+    <h1>Author the model. <span class="g">Carry the whole job on it.</span></h1>
+    <p class="sub">An IFC-native BIM <b style="color:var(--ink)">authoring tool</b> and AEC lifecycle platform — model a building from scratch, take it to a permit-ready construction set, check it against the adopted code, and hand it over field-verified. One model, keyed by GlobalId. Open, self-hosted, no per-seat license.</p>
+    <div class="flow" aria-label="Lifecycle stages">
+      <span>Feasibility<i>→</i></span>
+      <span>Author<i>→</i></span>
+      <span>Coordinate<i>→</i></span>
+      <span>Document<i>→</i></span>
+      <span>Build<i>→</i></span>
+      <span>Turnover<i>→</i></span>
+      <span>Operate</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="n">308</div><div class="l">signed releases shipped</div></div>
+    <div class="stat"><div class="n"><b>1</b></div><div class="l">IFC model, GUID-keyed end to end</div></div>
+    <div class="stat"><div class="n">3</div><div class="l">desktop platforms, auto-updating</div></div>
+    <div class="stat"><div class="n"><b>$0</b></div><div class="l">per-seat license</div></div>
+  </div>
+
+  <section>
+    <p class="h2">Recently shipped</p>
+    <h2>In-browser authoring came of age</h2>
+    <p class="lead">The last stretch turned the web app from a strong reviewer into a genuine modeling tool — draw, slope, mesh, and undo real geometry, then stock the site with properly-classified content.</p>
+    <div class="cards">
+      <div class="card" style="--accent:var(--cyan)">
+        <div class="k">Draw</div>
+        <h3>SketchUp-style inference</h3>
+        <p>As you place a point it snaps on-axis, parallel, or perpendicular to the last edge — clean lines without holding Shift.</p>
+        <span class="tag">v0.3.299</span>
+      </div>
+      <div class="card" style="--accent:var(--cyan)">
+        <div class="k">Edit</div>
+        <h3>Model undo / redo</h3>
+        <p>Every edit is a new versioned IFC; undo restores a prior version and republishes — GUID-stable, so pins, RFIs and clashes survive.</p>
+        <span class="tag">v0.3.298</span>
+      </div>
+      <div class="card" style="--accent:var(--blue)">
+        <div class="k">Shape</div>
+        <h3>Sloped-top walls</h3>
+        <p>Parapet-slope, shed and gable walls — a trapezoidal profile extruded across the thickness, so every geometry engine renders it.</p>
+        <span class="tag b">v0.3.304</span>
+      </div>
+      <div class="card" style="--accent:var(--blue)">
+        <div class="k">Shape</div>
+        <h3>Procedural mesh</h3>
+        <p>Author an element straight from a raw triangle mesh for geometry the parametric recipes can't express — verts + faces in, valid fragment out.</p>
+        <span class="tag b">v0.3.305</span>
+      </div>
+      <div class="card" style="--accent:var(--violet)">
+        <div class="k">Populate</div>
+        <h3>Site content library</h3>
+        <p>Drop cranes, hoists, fencing, sanitary units, furniture and planting — each auto-classified into the right IFC class + phase; logistics time-phase on the 4D slider.</p>
+        <span class="tag v">v0.3.306</span>
+      </div>
+      <div class="card" style="--accent:var(--violet)">
+        <div class="k">Extend</div>
+        <h3>Sandboxed code hatch</h3>
+        <p>An AST-sandboxed ifcopenshell escape hatch (off by default, red-teamed hard) for the one-off geometry the fixed recipes don't cover.</p>
+        <span class="tag v">v0.3.300</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="h2">Recently shipped</p>
+    <h2>Intelligence that reads the model, not a spreadsheet</h2>
+    <div class="cards">
+      <div class="card" style="--accent:var(--cyan)">
+        <div class="k">Pre-flight</div>
+        <h3>Decision-readiness audit</h3>
+        <p>The inverse of an RFI: it surfaces the information gaps a builder would otherwise ask about — failed code checks, missing details, model-data holes, open clashes — as one ranked resolve-before-you-issue list.</p>
+        <span class="tag">v0.3.307</span>
+      </div>
+      <div class="card" style="--accent:var(--blue)">
+        <div class="k">Estimate</div>
+        <h3>Labour from the model</h3>
+        <p>Productivity rates turn the model's real quantities into man-hours, crew-days, and a duration estimate — the link from takeoff to 5D.</p>
+        <span class="tag b">v0.3.308</span>
+      </div>
+      <div class="card" style="--accent:var(--violet)">
+        <div class="k">Comply</div>
+        <h3>Edition-aware code checks</h3>
+        <p>Occupant loads and citations follow the IBC edition your jurisdiction actually adopted — and round-trip flagged items to BCF.</p>
+        <span class="tag v">v0.3.295</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="h2">The platform</p>
+    <h2>What it already does, end to end</h2>
+    <div class="pillars">
+      <div class="pillar">
+        <h3><span class="dot"></span>Design &amp; feasibility</h3>
+        <ul>
+          <li>Generate a real IFC building from a zoning envelope</li>
+          <li>Test Fit — unit-mix, parking solver, yield-on-cost optimize</li>
+          <li>Development proforma with underwriting guardrails</li>
+        </ul>
+      </div>
+      <div class="pillar">
+        <h3><span class="dot" style="background:var(--violet);box-shadow:0 0 12px var(--violet)"></span>Author &amp; document</h3>
+        <ul>
+          <li>Model from a blank IFC → grids, levels, walls, families, MEP</li>
+          <li>Full per-discipline NCS drawing set — plans, sections, details, schedules</li>
+          <li>Dated AIA issuances (SD → DD → CD → Permit → Bid → Construction → Record)</li>
+        </ul>
+      </div>
+      <div class="pillar">
+        <h3><span class="dot" style="background:var(--blue);box-shadow:0 0 12px var(--blue)"></span>Coordinate &amp; build</h3>
+        <ul>
+          <li>Clash intelligence, code compliance, model-health scorecard</li>
+          <li>Config-driven GC portal — RFIs, change orders, pay apps, closeout</li>
+          <li>CPM + takt + 4D, lean pull-planning, model-based Earned Value</li>
+        </ul>
+      </div>
+      <div class="pillar">
+        <h3><span class="dot" style="background:var(--cyan-dim);box-shadow:0 0 12px var(--cyan-dim)"></span>Turnover &amp; operate</h3>
+        <ul>
+          <li>Field-verified as-built dimensions, variance &amp; manufacturer record (LOD 500)</li>
+          <li>COBie turnover, facility-condition index, reserve &amp; capital planning</li>
+          <li>Disposition — listing kit, tri-approach appraisal, RESO-aligned</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="h2">Foundations</p>
+    <div class="note">
+      <b>openBIM to the core.</b> IFC is the source of truth; elements are referenced by GlobalId, never a transient viewer id. Geometry is pre-converted to Fragments on the server and streams to a viewer that runs fully offline (local WASM, self-hosted tiles). Pins, RFIs and issues follow BCF so they round-trip with other BIM tools. Standards run deep — IDS, bSDD, COBie, Uniclass / OmniClass / Uniformat, IBC. Interop with Blender/Bonsai, pyRevit and Autodesk APS is optional, never required.
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="f-tags">
+    <span>IFC-native</span><span>Open &amp; self-hosted</span><span>Offline viewer</span><span>No per-seat license</span>
+  </div>
+  Massing — the whole building lifecycle, on one model. &nbsp;·&nbsp; <a href="./index.html">Overview</a> &nbsp;·&nbsp; <a href="./guide.html">Guide</a> &nbsp;·&nbsp; <a href="https://massing.build">massing.build</a>
+</footer>
+
+</body>
+</html>

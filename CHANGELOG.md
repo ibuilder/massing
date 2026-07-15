@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.309 — Docs + marketing refresh: catch the user-facing surface up to the authoring wave
+
+Non-code release. The README, in-app guide, and GitHub Pages landing had drifted ~14 releases behind
+(last refreshed at v0.3.294) and named none of the authoring wave. All three now cover **model undo/redo**,
+**SketchUp-style drawing inference**, **sloped-top walls**, **procedural mesh**, the **sandboxed
+`execute_ifc_code`** escape hatch, the **site content library** (logistics/furniture/landscaping,
+auto-classified), **MEP port-to-port connectivity**, **edition-aware code checks**, **detail callouts**,
+the **decision-readiness (RFI-prevention)** audit, the **productivity-rate labour estimate**, and
+**field-verified as-built dimensions** — with the new API surface (`/rfi/readiness`, `/mep/connectivity`,
+`/estimate/labor*`, `/content/catalog`, `/edit/{undo,redo,history}`, `/authoring/capabilities`). Added a
+shareable **current-status page** (`docs/status.html`) that snapshots what the platform does end to end,
+and refreshed `docs/marketing-copy.md` with the authoring-stack feature lines. Regenerated the viewer demo
+snapshot (`demoData.json`). Competitor-name-free throughout, per the standing directive.
+
 ## v0.3.308 — Productivity-rate labour cost + duration estimate (EST-1)
 
 The estimating link from *quantities* to *schedule + 5D cost*. New `productivity.py` holds a

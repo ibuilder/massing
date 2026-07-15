@@ -99,7 +99,9 @@
       <span class="pill"><b>API</b> · FastAPI + Postgres + MinIO</span>
       <span class="pill"><b>Geometry</b> · IfcOpenShell</span>
       <span class="pill"><b>Author</b> · blank IFC → walls/steel/rebar/MEP by GUID</span>
-      <span class="pill"><b>Drawings</b> · plans/sections/schedules → PDF · DXF</span>
+      <span class="pill"><b>Undo/redo</b> · versioned edits + drawing inference</span>
+      <span class="pill"><b>Site content</b> · logistics/furniture/landscape, auto-classified</span>
+      <span class="pill"><b>Drawings</b> · plans/sections/schedules + detail callouts → PDF · DXF</span>
       <span class="pill"><b>Spec book</b> · 3-part MasterFormat manual</span>
       <span class="pill"><b>Code</b> · IBC analysis + approvability pre-flight</span>
       <span class="pill"><b>Turnover</b> · LOD-500 as-built + manufacturer/serial</span>
@@ -147,7 +149,7 @@
     <div class="grid">
       <div class="card">
         <h3><span class="ic">🧊</span> BIM authoring + viewer</h3>
-        <p>A genuine <b>in-browser authoring tool</b>, not just a viewer: start from a <b>blank model</b> (or a template) and draw/edit walls, slabs, columns, beams, roofs, doors/windows, <b>curtain walls, steel connections, rebar cages and MEP</b> — each a <b>GUID-stable server-side recipe</b>, with <b>drag-to-move edit-in-place</b>, a family/type system, groups/arrays, <b>phasing</b>, <b>LOD dialing (100→500)</b>, an <b>AI command bar</b> (type what to build), and <b>guardrails</b> that reject broken IFC before it writes. Streams large models offline (local WASM) with a progress loader + ETag revalidation; model federation, tree, layers, isolate/ghost, section box, measure, set-origin; a <b>photoreal render mode</b> (sun + soft shadows, PBR, a date/time/location <b>sun-&amp;-shadow study</b>, first-person <b>walkthrough</b>). Clash + IDS validation + BCF issues (round-trip with any openBIM tool). A <b>37-family</b> parametric library with <b>material layer-set assemblies</b> and <b>import of external IFC families</b>; <b>generative massing</b> from a zoning envelope; and a <b>Studio</b> visual computational graph (nodes you wire and run). <b>5D</b>: click an element → its schedule activity + cost-code budget; colour the whole model by <b>%-complete</b> or <b>cost variance</b>; scrub the <b>4D timeline</b> with a live cost burn. IFC is the source of truth, with an optional <b>paid Revit (.rvt)→IFC bridge</b> (Autodesk APS, feature-flagged behind a cost gate).</p>
+        <p>A genuine <b>in-browser authoring tool</b>, not just a viewer: start from a <b>blank model</b> (or a template) and draw/edit walls (incl. <b>sloped-top</b> parapet/shed/gable), slabs, columns, beams, roofs, doors/windows, <b>curtain walls, steel connections, rebar cages and MEP</b> (with <b>port-to-port connectivity</b>) — each a <b>GUID-stable server-side recipe</b>, with <b>drag-to-move edit-in-place</b>, <b>model undo/redo</b>, SketchUp-style <b>drawing inference</b>, a family/type system, groups/arrays, <b>phasing</b>, <b>LOD dialing (100→500)</b>, a <b>site content library</b> (logistics/furniture/landscaping, auto-classified), a <b>procedural-mesh</b> and a feature-flagged <b>sandboxed ifcopenshell</b> escape hatch, an <b>AI command bar</b> (type what to build), and <b>guardrails</b> that reject broken IFC before it writes. Streams large models offline (local WASM) with a progress loader + ETag revalidation; model federation, tree, layers, isolate/ghost, section box, measure, set-origin; a <b>photoreal render mode</b> (sun + soft shadows, PBR, a date/time/location <b>sun-&amp;-shadow study</b>, first-person <b>walkthrough</b>). Clash + IDS validation + BCF issues (round-trip with any openBIM tool). A <b>37-family</b> parametric library with <b>material layer-set assemblies</b> and <b>import of external IFC families</b>; <b>generative massing</b> from a zoning envelope; and a <b>Studio</b> visual computational graph (nodes you wire and run). <b>5D</b>: click an element → its schedule activity + cost-code budget; colour the whole model by <b>%-complete</b> or <b>cost variance</b>; scrub the <b>4D timeline</b> with a live cost burn. IFC is the source of truth, with an optional <b>paid Revit (.rvt)→IFC bridge</b> (Autodesk APS, feature-flagged behind a cost gate).</p>
       </div>
       <div class="card">
         <h3><span class="ic">🏗️</span> GC portal</h3>
@@ -170,34 +172,41 @@
       <div class="card">
         <h3><span class="ic">✏️</span> Author from scratch</h3>
         <p>Start blank (levels + ground datum) or from a template, then draw and edit real IFC across
-          <b>architecture · structure · MEP</b> — walls, slabs, columns, beams, doors/windows, plus
-          fabrication-grade <b>curtain walls, steel connections (base plates / shear tabs), rebar cages</b>
-          and <b>MEP fittings</b>. Every op is a <b>GUID-stable server-side recipe</b> with drag-to-move
-          <b>edit-in-place</b>, a family/type system, groups/arrays, <b>phasing</b>, and <b>LOD dialing
-          100→500</b>. An <b>AI command bar</b> turns "steel column W14×30 at 6,6" into a validated,
-          confirm-before-apply plan; <b>guardrails</b> reject broken IFC before it writes.</p>
+          <b>architecture · structure · MEP</b> — walls (incl. <b>sloped-top</b>), slabs, columns, beams,
+          doors/windows, plus fabrication-grade <b>curtain walls, steel connections (base plates / shear
+          tabs), rebar cages</b> and <b>MEP fittings</b> (with <b>port-to-port connectivity</b>), a
+          <b>raw-mesh</b> and a sandboxed-code escape hatch. Free-hand lines land clean via SketchUp-style
+          <b>drawing inference</b>. Every op is a <b>GUID-stable server-side recipe</b> with drag-to-move
+          <b>edit-in-place</b> and full <b>undo/redo</b>, a family/type system, groups/arrays, <b>phasing</b>,
+          and <b>LOD dialing 100→500</b>. An <b>AI command bar</b> turns "steel column W14×30 at 6,6" into a
+          validated, confirm-before-apply plan; <b>guardrails</b> reject broken IFC before it writes.</p>
       </div>
       <div class="card">
         <h3><span class="ic">📐</span> Generate the drawing set</h3>
         <p>Produce the <b>construction-document set</b> straight from the authored geometry: <b>plans</b>
-          (poché, dimensions, keynote bubbles + legend), auto-centred <b>sections</b> and projected
-          <b>elevations</b>, and computed <b>door / window / room schedules</b> — each on an <b>issuable
-          ARCH-D sheet</b> with a titleblock, exported to <b>SVG · PDF · DXF</b>. A <b>detail-rule engine</b>
-          auto-attaches keynotes, spec codes and installation details (an exterior window gets its
-          IBC/ASTM flashing detail), and a <b>3-part MasterFormat project manual</b> writes the spec book.</p>
+          (poché, dimensions, keynote bubbles + legend, and <b>NCS-style detail callouts</b> keyed to attached
+          details), auto-centred <b>sections</b> and projected <b>elevations</b>, and computed <b>door / window
+          / room schedules</b> — each on an <b>issuable ARCH-D sheet</b> with a titleblock, exported to <b>SVG ·
+          PDF · DXF</b>. A <b>detail-rule engine</b> auto-attaches keynotes, spec codes and installation details
+          (an exterior window gets its IBC/ASTM flashing detail), and a <b>3-part MasterFormat project
+          manual</b> writes the spec book.</p>
       </div>
       <div class="card">
         <h3><span class="ic">🏛️</span> Pre-check the code</h3>
         <p>A permit set's <b>G-series IBC code-analysis</b> summary computed from the model (occupancy,
-          construction type, area/stories, occupant load + egress, governing sections); an <b>occupancy-load
-          + egress</b> check; a <b>jurisdiction-adopted-edition</b> catalog so citations name the edition in
-          force ("IBC 2021"); and an <b>approvability pre-flight</b> — a plan-reviewer readiness checklist
-          scored for permit-readiness. A pre-check assist that cites sections — verify with the AHJ.</p>
+          construction type, area/stories, occupant load + egress, governing sections); an <b>edition-aware
+          occupancy-load + egress</b> check (the adopted edition drives the occupant-load factors, not just the
+          citations); a <b>jurisdiction-adopted-edition</b> catalog so citations name the edition in force
+          ("IBC 2021"); an <b>approvability pre-flight</b> scored for permit-readiness; and a
+          <b>decision-readiness (RFI-prevention) audit</b> that ranks the information gaps — failed checks,
+          missing details, model-data gaps, open clashes — to resolve before you issue. A pre-check assist that
+          cites sections — verify with the AHJ.</p>
       </div>
       <div class="card">
         <h3><span class="ic">✅</span> Hand over verified data</h3>
         <p>Stamp elements <b>field-verified as-built</b> (LOD-500: method + who/when provenance) with a
-          readiness rollup, and <b>manufacturer / serial</b> data that round-trips to <b>COBie</b> and
+          readiness rollup, <b>field-measured dimensions</b> (measured vs design + variance + within-tolerance
+          flag), and <b>manufacturer / serial</b> data that round-trips to <b>COBie</b> and
           CMMS/asset systems. A five-lens <b>Model Health scorecard</b> — integrity, ISO-19650 information,
           clash coordination, verified-as-built, and <b>code &amp; permit-readiness</b> — answers "is my
           project healthy?" in one number.</p>

@@ -143,27 +143,42 @@
       <b>✎ Manage levels</b> to rename a level or set its elevation — edits are re-authored by storey GUID.</li>
     <li>Open the <b>Draft</b> panel — the single authoring surface. Choose a discipline tab — <b>Architectural ·
       Structural · MEP · Site</b> — pick an element or family, set its <b>named parameters</b>, then click in the
-      model. Points snap to grid intersections; hold <b>Shift</b> for ortho; for slabs/ceilings click the corners
-      and <b>double-click</b> to close; <b>Esc</b> cancels. An <b>amber proxy</b> shows instantly, then real
-      geometry appears as the server authors it. <b>➕ Add rooms / spaces</b> grids IfcSpace rooms over each floor.</li>
-    <li>The everyday library spans <b>walls, slabs, roofs, coverings</b> (ceilings, floor tile, wood
+      model. Points snap to grid intersections and, as you draw, <b>SketchUp-style inference</b> auto-snaps the
+      cursor onto an <b>on-axis / parallel / perpendicular</b> line off the previous point and edge (within ~6°,
+      no key held) so free-hand lines land clean; hold <b>Shift</b> for a manual ortho lock; for slabs/ceilings
+      click the corners and <b>double-click</b> to close; <b>Esc</b> cancels. An <b>amber proxy</b> shows
+      instantly, then real geometry appears as the server authors it. <b>➕ Add rooms / spaces</b> grids IfcSpace
+      rooms over each floor.</li>
+    <li>The everyday library spans <b>walls</b> (including a <b>⟋ Slope wall top</b> tool for parapet-slope /
+      shed / gable walls with a rising top edge), <b>slabs, roofs, coverings</b> (ceilings, floor tile, wood
       flooring, cladding) and <b>railings</b>; <b>steel W-shapes, rebar, columns, beams and footings</b>;
       <b>parametric doors/windows</b> (real lining/frame/panel that void the host + fill the opening); and
       full <b>MEP</b> — duct/pipe/cable-tray/cable runs (with connection ports + distribution systems),
       electrical panels, outlets, lights, diffusers, floor drains, plumbing fixtures, fire alarms, smoke
-      detectors and telecom outlets.</li>
+      detectors and telecom outlets. In the <b>🔀 MEP systems</b> tool, <b>Connect</b> wires two elements
+      <b>port-to-port</b> and the connectivity report lists ports connected vs open and any <b>floating
+      (dangling)</b> elements, isolating them in 3D.</li>
     <li><b>Fabrication tools (LOD 350-400).</b> Flip on <b>🔧 Advanced fabrication tools</b> for shop-level
       detailing: <b>curtain-wall systems</b> (a real mullion/transom grid bounding glazing panels),
       <b>steel connections</b> (base plates + anchor bolts on a column, shear tabs + bolts on a beam, each
       grouped into an <b>IfcElementAssembly</b>), <b>rebar cages</b> (longitudinal bars + stirrups in a
       concrete column), and <b>MEP fittings</b> (elbows / tees / transitions with the right ports, joined to
       a named distribution system). First-time modellers see a simple toolset; the toggle persists.</li>
+    <li><b>Escape hatches for anything the recipes can't express.</b> Two more Advanced-cluster tools cover the
+      long tail: <b>△ Add mesh</b> authors an element from a <b>raw triangle mesh</b> (vertices + faces →
+      <b>IfcTriangulatedFaceSet</b>) for geometry no parametric recipe fits; and <b>⚡ Run IFC code</b> runs a
+      small <b>ifcopenshell</b> snippet against the model — an AST-<b>sandboxed</b> authoring escape hatch that's
+      <b>off by default</b> (an operator must set an environment flag to enable it, accepting the risk), with an
+      allowlist that rejects imports, reflection and I/O before anything runs. Both go through the same
+      versioned, undo-able, guardrailed edit path.</li>
     <li><b>Edit in place.</b> Select an element and turn on <b>◈ Edit in place</b> — a drag <b>gizmo</b> appears
       with X/Y/Z handles and a live ΔE/ΔN/ΔZ readout; drag to move it (grid-snap applies) and it re-authors on
       release. Or use the toolbar for typed <b>move / rotate / copy / add door or window</b>, plus <b>groups &amp;
       arrays</b> and <b>🕐 Phasing</b> (tag elements new / existing / demolish / temporary for renovation
       sequencing). Every edit rewrites the IFC by <b>stable GUID</b>, so every linked record (RFIs, issues,
-      verifications) survives.</li>
+      verifications) survives. Made a mistake? <b>↶ Undo</b> and <b>↷ Redo</b> in the Model tools rail restore
+      prior versions of the whole model — every authoring edit is versioned, and undo stays GUID-stable so pins
+      and issues ride along; a fresh edit clears the redo stack.</li>
     <li><b>Find and organize.</b> The <b>model browser</b> (Tree) groups the model by <b>level / discipline /
       IFC class / type-family</b> and <b>searches</b> across name, GUID, class, type and discipline. For
       power selection, the <b>🔎 Query</b> tool runs the IfcOpenShell <b>selector language</b>
@@ -197,7 +212,10 @@
     <li>In <b>Grid &amp; Levels</b>, pick the active level and open <b>🖨 Generate plan (SVG)</b>. You get a
       scaled plan of that level — walls/columns/slabs/rooms as class-styled <b>poché</b>, with overall
       <b>dimensions</b> and numbered <b>keynote bubbles + a legend</b> (the keynotes come from the spec codes
-      the detail engine attaches — see below).</li>
+      the detail engine attaches — see below). Any element carrying an attached detail also gets an
+      <b>NCS-style detail callout</b> (a divided circle with a leader) plus a keyed <b>DETAILS legend</b>,
+      distinct from the keynote bubbles — so attach a detail in <b>🏷 Detailing</b>, regenerate, and the
+      referencing callout appears and flows through to the issued sheet.</li>
     <li>Open <b>📐 Sections &amp; elevations</b> for true linework: cut <b>sections</b> (X-X / Y-Y, auto-centred
       through the building) and projected <b>elevations</b> (N/S/E/W). Each view has a <b>⤓ DXF</b> button so
       the linework opens in any CAD tool (a dependency-free R12 writer).</li>
@@ -230,9 +248,12 @@
       + story count, the computed <b>occupant load + egress</b>, and the governing sections for allowable
       area/height and element fire ratings.</li>
     <li>Set the <b>Jurisdiction</b> (US state) field and it resolves the <b>adopted IBC edition</b> and names
-      it throughout — the badge reads "IBC 2021", citations become "IBC 2021 Table 506.2 …". (The seed is a
-      dated starting point; adoptions change by cycle and local amendment — confirm the edition in force with
-      the AHJ.)</li>
+      it throughout — the badge reads "IBC 2021", citations become "IBC 2021 Table 506.2 …". The edition also
+      drives the actual computation: occupant-load factors are <b>edition-scoped</b>, so a jurisdiction on an
+      older cycle (e.g. Business areas at 100 gross ft²/occ in IBC 2012/2015 vs 150 in 2018+) computes a
+      <b>higher</b> occupant load and required egress width than the current baseline. (The seed is a dated
+      starting point; adoptions change by cycle and local amendment — confirm the edition in force with the
+      AHJ.)</li>
     <li>Run <b>🏛 Occupancy &amp; egress (IBC pre-check)</b> for per-space occupant load (IBC 1004.5), required
       vs provided egress-door width, a 32-in min-door check and a two-exits-when-load&gt;49 flag.</li>
     <li>Open <b>✅ Approvability pre-flight</b> — a plan-reviewer readiness checklist that runs five cited
@@ -240,6 +261,12 @@
       occupancy classification on spaces, and fire-rated assemblies substantiated by a UL/GA number or an
       attached detail), returns pass/fail/na per check plus a <b>readiness score</b>, and isolates any flagged
       elements in 3D. It's the same signal that feeds the Model Health scorecard.</li>
+    <li>Before you issue the set, run <b>🚫 Decision-readiness (RFI-prevention)</b> — the proactive inverse of
+      the RFI. Every RFI is a decision made without the information needed, so this surfaces the <b>information
+      gaps a builder would otherwise have to ask about</b>: failed code checks, elements missing a required
+      detail or keynote, model-data gaps (orphaned / unenclosed / unnamed / duplicate) and open clashes — all
+      composed into one <b>ranked resolve-before-issue list</b>, each gap with a category, severity and a
+      concrete fix, isolating the flagged elements in 3D. A pre-check assist, not a promise of zero RFIs.</li>
   </ol>
 
   <h2 id="generate">Tutorial 2 · Generate a building from zoning ⭐</h2>
@@ -329,6 +356,12 @@
       codes, committed subcontracts (buyout) and GC/GR staffing, plus overhead / fee / contingency. Each
       line carries <b>budget → committed → actual → forecast (EAC)</b> and the variance, and reconciles to
       the prime contract. A <b>cash-flow S-curve</b> spreads it across the schedule.</li>
+    <li>Estimate the labour: <b>💰 Labour estimate</b> turns the model's quantities into man-hours using a
+      <b>man-hours-per-unit</b> rate library (earthworks / concrete / masonry / steel / MEP / finishes) with
+      typical crew sizes and condition <b>loading factors</b> (highrise / remote / summer / congested /
+      night-shift). It reads a rough takeoff straight off the model (walls → masonry face area, slabs/columns
+      → concrete volume) and reports <b>man-hours → crew-days → labour cost → duration</b> per activity. The
+      rates are editable benchmarks; it's labour only (add materials/equipment/overhead for a full cost).</li>
     <li>See cost <b>on the model (5D)</b>: click any element for its <b>5D</b> readout (cost code, budget,
       progress), or open the <b>cost / progress heatmap</b> to color the whole model by spend or % complete.</li>
     <li>Bill the owner: generate the <b>pay application (G702/G703)</b> PDF from the Schedule of Values —
@@ -429,9 +462,12 @@
     <li><b>Verify the as-built (LOD 500).</b> Open <b>✅ As-built verify (LOD 500)</b>, select what's been
       confirmed in the field, and stamp it <b>field-verified</b> — recording the <b>method</b> (field-measure /
       laser-scan / total-station / photo / submittal / inspection) and who/when. The tool tracks
-      <b>readiness</b> (the share of elements verified) climbing as you go. Then stamp <b>manufacturer /
-      serial</b> data (manufacturer, model, production year, serial number, barcode) — the exact fields that
-      round-trip to <b>COBie</b> and asset/CMMS systems for O&amp;M.</li>
+      <b>readiness</b> (the share of elements verified) climbing as you go. Record <b>field-measured
+      dimensions</b> too — the tool stamps the measured value against the design value and computes the
+      <b>variance</b> and whether it's <b>within tolerance</b>, so the summary shows how many elements carry a
+      verified dimension and how many are out of tolerance. Then stamp <b>manufacturer / serial</b> data
+      (manufacturer, model, production year, serial number, barcode) — the exact fields that round-trip to
+      <b>COBie</b> and asset/CMMS systems for O&amp;M.</li>
     <li>Record <b>commissioning</b>, <b>as-builts</b>, <b>warranties</b>, and the <b>completion certificate</b>.</li>
     <li>Check the <b>Model Health scorecard</b> — one number across five lenses (integrity, ISO-19650
       information, clash coordination, verified-as-built, and code &amp; permit-readiness) — so you can see
@@ -600,7 +636,12 @@
     <li><b>🏗 Site logistics (4D timeline)</b> — place temporary construction resources (crane with a reach
       ring, hoist, laydown, gate, fence, haul route) in project coordinates with a <b>schedule window</b>.
       They render as 3D glyphs and <b>time-phase by date</b>: pick a date and only what's active then is
-      shown — a constructability + site-safety rehearsal on the model.</li>
+      shown — a constructability + site-safety rehearsal on the model. The broader <b>🏗 Site content
+      library</b> extends this to <b>logistics, furniture and landscaping</b> (tower/mobile cranes, hoists,
+      fencing, sanitary units, site offices, laydown, gates, dumpsters; desks/chairs/tables/beds; trees,
+      shrubs, planters, bollards) — each placed at an [E,N] point and <b>auto-classified</b> into the correct
+      IFC class + project phase (logistics land as <b>temporary</b>, so they ride the 4D slider) +
+      Uniclass/OmniClass code, from a supplied mesh or a category-sized placeholder box.</li>
   </ol>
   <div class="note">All six keep IFC the source of truth (permissive licenses, offline), and each is a
     thin, honest slice — code-checking is a pre-check, the graph is the model half (spec/code ingestion is
@@ -656,7 +697,7 @@
     <b>Open IFC…</b> (free on any plan); or (3) the paid Autodesk bridge to drop a raw <code>.rvt</code>
     directly. IFC and Fragments load free and offline.</p>
     <h3>Can I actually author a model, not just view one?</h3>
-    <p class="muted">Yes — that's the point. Start from a blank IFC (or a template) and draw/edit real IFC across architecture, structure and MEP by GUID-stable server-side recipe, with drag-to-move edit-in-place, a family/type system, LOD dialing, fabrication-grade detailing, and an AI command bar. Guardrails reject broken IFC before it writes. See the <a href="#draft">Draft &amp; author</a> tutorial.</p>
+    <p class="muted">Yes — that's the point. Start from a blank IFC (or a template) and draw/edit real IFC across architecture, structure and MEP by GUID-stable server-side recipe, with drag-to-move edit-in-place, full model undo/redo, SketchUp-style drawing inference, a family/type system, LOD dialing, fabrication-grade detailing (down to sloped-top walls, raw meshes and a sandboxed code escape hatch), and an AI command bar. Guardrails reject broken IFC before it writes. See the <a href="#draft">Draft &amp; author</a> tutorial.</p>
     <h3>Can it produce drawings / a permit set?</h3>
     <p class="muted">Yes. Generate plans, sections, elevations and door/window/room schedules straight from the model, lay them on issuable ARCH-D sheets with titleblocks, and export to PDF and DXF — plus a 3-part MasterFormat project manual (spec book). See <a href="#docs">Construction documents</a>. It's a pre-check/authoring aid; a stamped permit set is still finished and sealed by the responsible professional.</p>
     <h3>Does it check building code?</h3>
