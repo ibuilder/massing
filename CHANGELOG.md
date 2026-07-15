@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.287 — Harden download filenames (defense-in-depth)
+
+A security pass over this session's new endpoints came back clean; this applies its one hardening note.
+The DXF/PDF drawing endpoints interpolate user-supplied `axis`/`direction`/`number`/`sheet` into the
+`Content-Disposition` filename. Those are now whitelisted to `[A-Za-z0-9._-]` (`_safe_name`/`_safe_filename`)
+so a crafted value can't break out of the filename quoting. Self-reflected only (no cross-user/stored
+vector) and the response bodies are inert data files — this is precautionary, not a fix for an exploit.
+
 ## v0.3.286 — Edition-aware code analysis: cite the jurisdiction's adopted IBC (CODE-3)
 
 The code-analysis summary now uses CODE-1: pass a `jurisdiction` (US state) and it resolves the adopted

@@ -299,9 +299,17 @@ def _svg(svg: str) -> Response:
     return Response(svg.encode("utf-8"), media_type="image/svg+xml")
 
 
+def _safe_name(name: str, fallback: str = "drawing") -> str:
+    """Whitelist a download filename segment ([A-Za-z0-9._-]) so a crafted axis/direction/number can't
+    break out of the Content-Disposition quoting (defence-in-depth; the value is self-reflected only)."""
+    import re as _re
+    cleaned = _re.sub(r"[^A-Za-z0-9._-]", "", name or "")[:80]
+    return cleaned or fallback
+
+
 def _dxf(dxf_text: str, name: str) -> Response:
     return Response(dxf_text.encode("utf-8"), media_type="image/vnd.dxf",
-                    headers={"Content-Disposition": f'attachment; filename="{name}.dxf"'})
+                    headers={"Content-Disposition": f'attachment; filename="{_safe_name(name)}.dxf"'})
 
 
 @router.get("/projects/{pid}/drawings/storeys")
@@ -439,4 +447,4 @@ def sheet_pdf(pid: str, sheet: str = "A-101", page: str = "A3", purpose: str = "
     pdf = drawings.default_sheet(open_model(_source_ifc(db, pid)),
                                  _sheet_meta(db, pid, sheet, purpose, rev), page=page, fmt="pdf")
     return Response(pdf, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="{sheet}.pdf"'})
+                    headers={"Content-Disposition": f'inline; filename="{_safe_name(sheet)}.pdf"'})

@@ -152,7 +152,7 @@ def schedule_pdf(pid: str, kinds: str = "doors,windows,rooms", number: str = "A-
     pdf = drawing.schedule_pdf(open_model(p.source_ifc), kinds=want or None,
                                project=p.name or "Project", number=number, title=title)
     return Response(content=pdf, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="{number}.pdf"'})
+                    headers={"Content-Disposition": f'inline; filename="{_safe_filename(number)}.pdf"'})
 
 
 @router.get("/projects/{pid}/drawings/sheet.pdf")
@@ -170,7 +170,7 @@ def sheet_pdf(pid: str, storey: str | None = None, scale: int = 100, number: str
     data = drawing.sheet_pdf(open_model(p.source_ifc), storey=storey, scale=int(scale),
                              project=p.name or "Project", number=number, title=title)
     return Response(content=data, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="{number}.pdf"'})
+                    headers={"Content-Disposition": f'inline; filename="{_safe_filename(number)}.pdf"'})
 
 
 @router.get("/projects/{pid}/detailing/rules/validate")
@@ -569,6 +569,13 @@ def place_family(pid: str, family: str = Body(..., embed=True),
 
 
 _ai_author_throttle = rate_limited("draft", 30)          # the paid LLM path when a key is set
+
+
+def _safe_filename(name: str, fallback: str = "sheet") -> str:
+    """Whitelist a download filename segment so a crafted `number` can't break out of the
+    Content-Disposition quoting (defence-in-depth; the value is self-reflected only)."""
+    cleaned = re.sub(r"[^A-Za-z0-9._-]", "", name or "")[:80]
+    return cleaned or fallback
 
 
 @router.post("/projects/{pid}/ai/author")
