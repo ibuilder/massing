@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.285 — Jurisdiction code context: adopted-edition catalog (CODE-1)
+
+The substrate for edition-aware code checking. New `codes.py` encodes only facts of law + published-edition
+metadata: the model-code **families** (IBC/IRC/IECC/IFC/IPC/IMC/IEBC/IgCC/A117.1) and their editions (the
+I-Codes publish on a fixed 3-year cycle), plus `resolve(jurisdiction)` → the adopted editions for a US
+state, falling back to a documented national baseline when not seeded. Every result carries a mandatory
+**"verify with the AHJ"** note and an as-of year — the shipped seed is a dated starting point to extend from
+authoritative sources, never an authority (adoptions change each cycle and by local amendment). New
+`GET /codes/families`, `/codes/adoptions?jurisdiction=…`, `/codes/seeded`, and an **Adopted codes** lookup
+in the 🏛 Code-analysis tool. Copyright-safe by design: facts and section numbers only, no code prose. This
+unlocks the later edition-aware citation work (thread `code_ctx` through the checks).
+
 ## v0.3.284 — Authoring guardrails: reject broken edits before they touch the model (E8)
 
 The reliability edge — a novice can't produce invalid IFC. New `guards.py::precheck` runs params-level,

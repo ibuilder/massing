@@ -9,11 +9,38 @@ from starlette.concurrency import run_in_threadpool
 from .. import audit, codecheck
 from ..db import get_db
 from ..models import Project, Topic
-from ..rbac import require_role
+from ..rbac import current_user, require_role
 from ..throttle import rate_limited
 
 router = APIRouter()
 _throttle = rate_limited("draft", 30)          # LLM call when a key is set
+
+
+@router.get("/codes/families")
+def code_families(_: str = Depends(current_user)):
+    """CODE-1: the model-code family + edition catalog (IBC/IRC/IECC/… on their 3-year cycle) plus the
+    documented national baseline. Reference facts — not jurisdiction-specific."""
+    from aec_data import codes  # type: ignore
+
+    return codes.families()
+
+
+@router.get("/codes/adoptions")
+def code_adoptions(jurisdiction: str = "", _: str = Depends(current_user)):
+    """CODE-1: resolve a jurisdiction (USPS state code, e.g. `CA`) to its adopted code editions — falls
+    back to the national baseline when not seeded. Always carries a 'verify with the AHJ' note; adoption
+    facts change each cycle. Pass no jurisdiction for the baseline; the seed list is at `/codes/seeded`."""
+    from aec_data import codes  # type: ignore
+
+    return codes.resolve(jurisdiction)
+
+
+@router.get("/codes/seeded")
+def code_seeded(_: str = Depends(current_user)):
+    """CODE-1: the USPS state codes that have a specific adoption seed (everything else → baseline)."""
+    from aec_data import codes  # type: ignore
+
+    return {"jurisdictions": codes.seeded_jurisdictions()}
 
 
 @router.post("/projects/{pid}/codecheck")

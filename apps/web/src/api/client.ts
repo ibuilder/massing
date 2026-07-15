@@ -1171,6 +1171,13 @@ export class ApiClient extends HttpCore {
       allowable: { note: string; sections: string[]; sprinkler_increase: string };
       citations: string[]; disclaimer: string }>(`/projects/${pid}/codecheck/analysis?${q.toString()}`);
   }
+  /** CODE-1: resolve a jurisdiction (USPS state code) to its adopted code editions (baseline fallback). */
+  codeAdoptions(jurisdiction: string) {
+    return this.json<{ jurisdiction: string | null; resolved: boolean; as_of: number | null;
+      codes: { family: string; edition: number; name: string; source: string }[];
+      primary: { IBC: number | null; IECC: number | null; "A117.1": number | null }; verify: string }>(
+      `/codes/adoptions?jurisdiction=${encodeURIComponent(jurisdiction)}`);
+  }
   codecheckEgressBcf(pid: string) {
     return this.json<{ created: number; topics: string[] }>(`/projects/${pid}/codecheck/egress/bcf`, { method: "POST", body: "{}" });
   }

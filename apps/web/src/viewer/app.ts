@@ -2518,6 +2518,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             if (r!.occupant_load_by_occupancy.length) body.appendChild(kvTable(r!.occupant_load_by_occupancy.map((o) => ({ k: o.occupancy, v: `${o.load} occ · ${o.area_ft2.toLocaleString()} ft²` }))));
             body.appendChild(resultNote(`<b>Allowable area & height</b> — ${r!.allowable.note} Sprinkler increase: <b>${r!.allowable.sprinkler_increase}</b>. `
               + `Governing sections: ${r!.allowable.sections.join("; ")}.`, ""));
+            // CODE-1: which code editions does the project's jurisdiction adopt?
+            const jur = document.createElement("div"); jur.style.cssText = "display:flex;gap:6px;align-items:center;margin:6px 0";
+            const jurIn = document.createElement("input"); jurIn.className = "portal-filter"; jurIn.placeholder = "state (e.g. CA)"; jurIn.maxLength = 2; jurIn.style.cssText = "width:120px;font-size:12px";
+            const jurBtn = document.createElement("button"); jurBtn.className = "mini-btn"; jurBtn.textContent = "Adopted codes";
+            const jurOut = document.createElement("div"); jurOut.className = "meta"; jurOut.style.marginTop = "4px";
+            jurBtn.onclick = async () => {
+              try {
+                const a = await api.codeAdoptions(jurIn.value.trim());
+                const ed = a.codes.map((cc) => `${cc.family} ${cc.edition}`).join(", ");
+                jurOut.innerHTML = `<b>${a.jurisdiction || "baseline"}</b> ${a.resolved ? `(seed, as-of ${a.as_of})` : "(national baseline — not seeded)"}: ${ed}. <i>${a.verify}</i>`;
+              } catch (e) { jurOut.textContent = (e as Error).message; }
+            };
+            jur.append(jurIn, jurBtn); body.append(jur, jurOut);
             body.appendChild(resultNote(r!.disclaimer, ""));
           });
         })));

@@ -24,7 +24,7 @@ Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-dr
 *(CD set finished: DXF export ✅ v0.3.281, schedules-on-a-PDF-sheet ✅ v0.3.282.)*
 
 1. **B3 — wall Axis rep + clippings/booleans** — sloped tops / gable walls (unblocks real geometry depth).
-2. **CODE-1 — jurisdiction adoption-facts catalog** — zero copyright risk; unlocks the whole code library.
+2. **CODE-2 — externalize codecheck thresholds → edition-scoped `CodeRule`** — makes the checker edition-aware (CODE-1 catalog ✅ v0.3.285).
 3. **D5 — keynotes & detail callouts from classification** — closes the attach-code → keynote-on-plan loop.
 4. **S4 — authoring confirm-UX** — `/edit-preview` ghosting + revert-to-version undo for NL authoring.
 5. **A1 — sandboxed `execute_ifc_code` recipe** — turns the fixed recipe registry into unbounded authoring.
@@ -180,8 +180,12 @@ facts**, numeric thresholds/formulas (facts of law — exactly what `codecheck.p
 own paraphrased** rule content. **RED (never):** scraping/redistributing ICC/ASTM verbatim **prose** — the
 relevant fair-use rulings are preliminary/unresolved and a commercial SaaS reproducing code text is the exact
 market-harm scenario in active litigation.
-- **CODE-1** *(S · high)* — jurisdiction + adoption **facts** catalog (CodeFamily/Edition/Jurisdiction/Adoption,
-  seeded from the ICC Code-Adoptions DB + DOE energy-code status, all 50 states + DC). Zero copyright risk; unlocks the rest.
+- ✅ **CODE-1 SHIPPED v0.3.285** — jurisdiction + adoption **facts** catalog (`codes.py`: code families +
+  editions on the 3-year cycle, `resolve(jurisdiction)` → adopted editions with a national-baseline fallback,
+  mandatory verify-with-AHJ note + as-of year; `GET /codes/{families,adoptions,seeded}` + an Adopted-codes
+  lookup in the code-analysis tool). Copyright-safe (facts only). *Seed is a dated starting point — extend
+  the per-state adoptions from authoritative sources (ICC adoptions DB + DOE energy-code status); add
+  per-project jurisdiction storage next.* Unlocks CODE-2/3.
 - **CODE-2** *(M · high)* — externalize `codecheck.py` thresholds (`_RULES`/`_OCC_FACTORS`/egress constants)
   into **edition-scoped `CodeRule` rows** + `resolve_code_context(location, date)`; thread `code_ctx` through
   `egress_analysis`. Edition-aware (2015/2018/2021/2024) vs "generic latest," with an IBC-2021 fallback seed.
