@@ -11,6 +11,46 @@ import ifcopenshell
 
 _SEG = ("IfcDuctSegment", "IfcPipeSegment", "IfcCableCarrierSegment", "IfcCableSegment")
 _FIT = ("IfcDuctFitting", "IfcPipeFitting", "IfcCableCarrierFitting", "IfcCableFitting")
+# terminal classes counted as system endpoints (MEP-FP adds fire-suppression: sprinkler heads, etc.)
+_TERM = ("IfcFlowTerminal", "IfcAirTerminal", "IfcSanitaryTerminal", "IfcFireSuppressionTerminal")
+
+# MEP-FP: an IfcDistributionSystem PredefinedType → the discipline it belongs to. Fire protection is a
+# first-class discipline beside HVAC / plumbing / electrical, not folded into a generic "MEP" bucket.
+_DISCIPLINE_BY_PREDEF = {
+    "VENTILATION": "hvac", "AIRCONDITIONING": "hvac", "EXHAUST": "hvac", "HEATING": "hvac",
+    "REFRIGERATION": "hvac", "CHILLEDWATER": "hvac", "CONDENSERWATER": "hvac",
+    "DOMESTICCOLDWATER": "plumbing", "DOMESTICHOTWATER": "plumbing", "DRAINAGE": "plumbing",
+    "SEWAGE": "plumbing", "WATERSUPPLY": "plumbing", "RAINWATER": "plumbing", "STORMWATER": "plumbing",
+    "WASTEWATER": "plumbing", "GAS": "plumbing", "FUEL": "plumbing",
+    "ELECTRICAL": "electrical", "LIGHTING": "electrical", "POWERGENERATION": "electrical",
+    "EARTHING": "electrical",
+    "FIREPROTECTION": "fire",
+    "COMMUNICATION": "comms", "DATA": "comms", "TELEPHONE": "comms", "SIGNAL": "comms", "TV": "comms",
+    "SECURITY": "comms", "CONTROL": "comms",
+}
+
+
+def _discipline(sysobj, members) -> str:
+    """The discipline of a distribution system: from its PredefinedType when set, otherwise inferred from
+    the member element classes (fire-suppression terminal → fire; duct → hvac; cable → electrical;
+    pipe → plumbing)."""
+    pt = str(getattr(sysobj, "PredefinedType", None) or "").upper()
+    if pt in _DISCIPLINE_BY_PREDEF:
+        return _DISCIPLINE_BY_PREDEF[pt]
+    cls = {m.is_a() for m in members}
+    if any(c == "IfcFireSuppressionTerminal" for c in cls):
+        return "fire"
+    if any(c.startswith("IfcDuct") for c in cls):
+        return "hvac"
+    if any(c.startswith("IfcCable") for c in cls):
+        return "electrical"
+    if any(c.startswith("IfcPipe") for c in cls):
+        return "plumbing"
+    return "other"
+
+
+def _is_terminal(m) -> bool:
+    return any(m.is_a(t) for t in _TERM)
 
 
 def _ports(el):
@@ -44,23 +84,29 @@ def mep_summary(model: ifcopenshell.file) -> dict:
     and a connectivity signal: how many member elements have at least one *unconnected* port. Returns
     {systems:[…], total_systems, unassigned:{segments,fittings}}."""
     systems: list[dict] = []
+    by_discipline: dict[str, dict[str, int]] = {}
     for sysobj in _by_type(model, "IfcDistributionSystem"):
         members = [o for rel in (getattr(sysobj, "IsGroupedBy", None) or []) for o in rel.RelatedObjects]
         segs = sum(1 for m in members if m.is_a() in _SEG)
         fits = sum(1 for m in members if m.is_a() in _FIT)
-        terms = sum(1 for m in members if m.is_a("IfcFlowTerminal")
-                    or m.is_a("IfcAirTerminal") or m.is_a("IfcSanitaryTerminal"))
+        terms = sum(1 for m in members if _is_terminal(m))
         open_ports = 0
         for m in members:
             ps = _ports(m)
             if ps and any(not _port_connected(p) for p in ps):
                 open_ports += 1
+        disc = _discipline(sysobj, members)
+        pt = getattr(sysobj, "PredefinedType", None)
         systems.append({
             "guid": sysobj.GlobalId, "name": sysobj.Name or "System",
+            "discipline": disc, "predefined_type": (str(pt) if pt else None),
             "members": len(members), "segments": segs, "fittings": fits, "terminals": terms,
             "other": len(members) - segs - fits - terms,
             "elements_with_open_ports": open_ports,
         })
+        agg = by_discipline.setdefault(disc, {"systems": 0, "members": 0})
+        agg["systems"] += 1
+        agg["members"] += len(members)
     # segments/fittings not assigned to any system (a coordination gap)
     def _unassigned(classes):
         n = 0
@@ -73,7 +119,9 @@ def mep_summary(model: ifcopenshell.file) -> dict:
         return n
 
     return {"total_systems": len(systems),
-            "systems": sorted(systems, key=lambda s: s["name"]),
+            "systems": sorted(systems, key=lambda s: (s["discipline"], s["name"])),
+            "by_discipline": by_discipline,
+            "has_fire_protection": "fire" in by_discipline,
             "unassigned": {"segments": _unassigned(_SEG), "fittings": _unassigned(_FIT)}}
 
 
@@ -82,7 +130,7 @@ def connectivity(model: ifcopenshell.file) -> dict:
     open (`IfcRelConnectsPorts`), the number of port-to-port connections, and the **dangling** elements —
     those whose ports are ALL unconnected (floating, not wired into any run). The openBIM 'unconnected MEP'
     review. Returns {elements, ports_total, ports_connected, ports_open, connections, dangling:[…]}."""
-    classes = (*_SEG, *_FIT, "IfcFlowTerminal", "IfcAirTerminal", "IfcSanitaryTerminal")
+    classes = (*_SEG, *_FIT, *_TERM)
     seen: set[int] = set()
     els = []
     for cls in classes:

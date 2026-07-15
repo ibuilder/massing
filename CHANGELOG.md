@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.311 — Fire protection as a first-class distribution system (MEP-FP)
+
+MEP systems now carry a **discipline**, so fire protection stands beside HVAC / plumbing / electrical
+instead of being folded into a generic "MEP" group. `IfcDistributionSystem`s are stamped with a
+`PredefinedType` (`FIREPROTECTION` / `VENTILATION` / `DOMESTICCOLDWATER` / `ELECTRICAL`…): `add_mep_run` /
+`add_mep_fitting` / `add_mep_terminal` take a `discipline` (the segment/fitting/terminal recipes default to
+their natural discipline), a new `set_system_predefined` recipe (re)types an existing system, and a new
+**`add_sprinkler`** recipe authors an `IfcFireSuppressionTerminal` sprinkler head on the `Fire Protection`
+system. The system browser (`mep.mep_summary`) now reports each system's **discipline** + PredefinedType, a
+**by-discipline rollup**, and a `has_fire_protection` flag; fire-suppression terminals are counted and are
+port-connectable, so the W10-4 connectivity check covers sprinkler runs too. The 🔀 MEP systems tool shows a
+discipline rollup (with a "no fire-protection system yet" nudge) and a per-system discipline label. The
+discipline is inferred from member classes when a system carries no explicit type, so existing models
+classify correctly. `test_mep_systems.py` extended (fire-protection system + sprinkler heads +
+`set_system_predefined` retag). *Next: sprinkler coverage/spacing + standpipe/fire-pump equipment.*
+
 ## v0.3.310 — Existing-building code: IEBC scope-of-work classifier (CODE-EBC)
 
 Unlocks renovation / adaptive-reuse projects, which are governed by the **International Existing Building

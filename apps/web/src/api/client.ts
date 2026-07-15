@@ -1098,10 +1098,13 @@ export class ApiClient extends HttpCore {
                  opts: { height?: number; cols?: number; rows?: number } = {}, publish = true) {
     return this.editIfc(pid, "add_curtain_wall", { start, end, ...opts }, publish);
   }
-  /** W11 B6: MEP system browser — systems with segment/fitting/terminal counts + connectivity signal. */
+  /** W11 B6 + MEP-FP: MEP system browser — systems (with discipline: hvac/plumbing/electrical/fire/comms)
+   * with segment/fitting/terminal counts + connectivity signal, and a by-discipline rollup. */
   mepSummary(pid: string) {
     return this.json<{ total_systems: number; unassigned: { segments: number; fittings: number };
-      systems: { guid: string; name: string; members: number; segments: number; fittings: number;
+      has_fire_protection?: boolean; by_discipline?: Record<string, { systems: number; members: number }>;
+      systems: { guid: string; name: string; discipline?: string; predefined_type?: string | null;
+        members: number; segments: number; fittings: number;
         terminals: number; other: number; elements_with_open_ports: number }[] }>(`/projects/${pid}/mep`);
   }
   /** W10-4: MEP connectivity validation — ports connected/open, links, dangling (floating) elements. */

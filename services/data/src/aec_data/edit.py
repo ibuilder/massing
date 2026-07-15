@@ -620,8 +620,74 @@ def add_footing(model: ifcopenshell.file, point, width: float = 1.5, length: flo
 
 
 # --- MEP: distribution runs (duct/pipe/cable) + point equipment (P5) --------------------------
+# MEP-FP: a discipline word (or a raw IfcDistributionSystemEnum value) → the system PredefinedType, so a
+# distribution system carries its discipline and **fire protection is a first-class system** beside
+# HVAC / plumbing / electrical (not just an unlabelled "MEP" group).
+_MEP_DISCIPLINE_PREDEF = {
+    "hvac": "VENTILATION", "ventilation": "VENTILATION", "airconditioning": "AIRCONDITIONING",
+    "exhaust": "EXHAUST", "heating": "HEATING", "refrigeration": "REFRIGERATION",
+    "plumbing": "DOMESTICCOLDWATER", "domesticcoldwater": "DOMESTICCOLDWATER",
+    "domestichotwater": "DOMESTICHOTWATER", "drainage": "DRAINAGE", "sewage": "SEWAGE",
+    "watersupply": "WATERSUPPLY", "rainwater": "RAINWATER", "stormwater": "STORMWATER",
+    "electrical": "ELECTRICAL", "lighting": "LIGHTING", "power": "ELECTRICAL", "earthing": "EARTHING",
+    "fire": "FIREPROTECTION", "fireprotection": "FIREPROTECTION", "sprinkler": "FIREPROTECTION",
+    "standpipe": "FIREPROTECTION", "firesuppression": "FIREPROTECTION",
+    "communication": "COMMUNICATION", "comms": "COMMUNICATION", "data": "DATA", "signal": "SIGNAL",
+}
+
+
+def _resolve_system_predef(discipline: str | None) -> str | None:
+    """Map a discipline word (e.g. 'fire') or a raw IfcDistributionSystemEnum value to a PredefinedType."""
+    if not discipline:
+        return None
+    key = str(discipline).strip().lower()
+    if key in _MEP_DISCIPLINE_PREDEF:
+        return _MEP_DISCIPLINE_PREDEF[key]
+    return str(discipline).strip().upper() or None   # allow a raw enum value to pass through
+
+
+def _assign_to_system(model: ifcopenshell.file, element, name: str | None,
+                      predefined_type: str | None = None) -> None:
+    """Find-or-create a named IfcDistributionSystem, stamp its discipline PredefinedType (first author
+    wins; retag via set_system_predefined), and assign the element to it. Best-effort — never aborts an
+    authoring recipe on an older ifcopenshell or a schema without the enum."""
+    try:
+        name = name or "MEP"
+        sysobj = next((s for s in model.by_type("IfcDistributionSystem") if s.Name == name), None) \
+            or ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcDistributionSystem", name=name)
+        pt = _resolve_system_predef(predefined_type)
+        if pt and hasattr(sysobj, "PredefinedType") and not getattr(sysobj, "PredefinedType", None):
+            try:
+                sysobj.PredefinedType = pt
+            except Exception:                             # noqa: BLE001 — enum invalid for this schema
+                pass
+        ifcopenshell.api.run("system.assign_system", model, products=[element], system=sysobj)
+    except Exception:                                     # noqa: BLE001 — system assignment best-effort
+        pass
+
+
+def set_system_predefined(model: ifcopenshell.file, system: str, discipline: str) -> dict:
+    """MEP-FP: (re)stamp a named IfcDistributionSystem's **discipline** via its PredefinedType — so an
+    existing 'MEP' group can be typed as FIREPROTECTION / VENTILATION / ELECTRICAL / DOMESTICCOLDWATER…
+    Returns {system, predefined_type}. Raises if the named system doesn't exist."""
+    name = (system or "").strip()
+    sysobj = next((s for s in model.by_type("IfcDistributionSystem") if (s.Name or "") == name), None)
+    if sysobj is None:
+        raise ValueError(f"no IfcDistributionSystem named {name!r}")
+    pt = _resolve_system_predef(discipline)
+    if not pt:
+        raise ValueError("a discipline is required (e.g. 'fire', 'hvac', 'electrical', 'plumbing')")
+    if hasattr(sysobj, "PredefinedType"):
+        try:
+            sysobj.PredefinedType = pt
+        except Exception as e:                            # noqa: BLE001
+            raise ValueError(f"{pt} is not a valid system type for this IFC schema") from e
+    return {"system": name, "predefined_type": pt}
+
+
 def add_mep_run(model: ifcopenshell.file, ifc_class: str, start, end, shape: str = "round",
-                size: float = 0.3, storey: str | None = None, system: str = "MEP") -> str:
+                size: float = 0.3, storey: str | None = None, system: str = "MEP",
+                discipline: str | None = None) -> str:
     """A straight MEP segment (IfcDuctSegment / IfcPipeSegment / IfcCableCarrierSegment /
     IfcCableSegment) swept along start→end: a round (size=diameter) or rectangular (tray) section.
     Adds two connection ports and assigns it to a named IfcDistributionSystem."""
@@ -662,13 +728,7 @@ def add_mep_run(model: ifcopenshell.file, ifc_class: str, start, end, shape: str
         ifcopenshell.api.run("system.add_port", model, element=seg)
     except Exception:                                 # noqa: BLE001 — older ifcopenshell w/o system.add_port
         pass
-    try:
-        name = system or "MEP"
-        sysobj = next((s for s in model.by_type("IfcDistributionSystem") if s.Name == name), None) \
-            or ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcDistributionSystem", name=name)
-        ifcopenshell.api.run("system.assign_system", model, products=[seg], system=sysobj)
-    except Exception:                                 # noqa: BLE001 — system assignment best-effort
-        pass
+    _assign_to_system(model, seg, system, discipline)
     return seg.GlobalId
 
 
@@ -678,7 +738,8 @@ _MEP_FITTING_PORTS = {"BEND": 2, "TRANSITION": 2, "CONNECTOR": 2, "OBSTRUCTION":
 
 
 def add_mep_fitting(model: ifcopenshell.file, ifc_class: str, point, size: float = 0.3,
-                    predefined: str = "BEND", storey: str | None = None, system: str = "MEP") -> str:
+                    predefined: str = "BEND", storey: str | None = None, system: str = "MEP",
+                    discipline: str | None = None) -> str:
     """A MEP **fitting** (IfcDuctFitting / IfcPipeFitting / IfcCableCarrierFitting) at an XY point — an
     elbow (BEND), tee/cross (JUNCTION), or size change (TRANSITION) that joins runs. A sized box body,
     the right number of connection **ports** for the fitting type, and assignment to the named
@@ -712,21 +773,18 @@ def add_mep_fitting(model: ifcopenshell.file, ifc_class: str, point, size: float
             ifcopenshell.api.run("system.add_port", model, element=fit)
         except Exception:                             # noqa: BLE001 — older ifcopenshell w/o system.add_port
             pass
-    try:
-        name = system or "MEP"
-        sysobj = next((sy for sy in model.by_type("IfcDistributionSystem") if sy.Name == name), None) \
-            or ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcDistributionSystem", name=name)
-        ifcopenshell.api.run("system.assign_system", model, products=[fit], system=sysobj)
-    except Exception:                                 # noqa: BLE001 — system assignment best-effort
-        pass
+    _assign_to_system(model, fit, system, discipline)
     return fit.GlobalId
 
 
 def add_mep_terminal(model: ifcopenshell.file, ifc_class: str, point, width: float = 0.4,
                      depth: float = 0.4, height: float = 0.4, predefined: str | None = None,
-                     storey: str | None = None) -> str:
+                     storey: str | None = None, system: str | None = None,
+                     discipline: str | None = None) -> str:
     """Point MEP equipment (electrical panel, outlet, light, air terminal, sanitary/waste terminal,
-    fire alarm, sensor, comms appliance) as a sized box of `ifc_class` at an XY point."""
+    fire-suppression sprinkler head, fire alarm, sensor, comms appliance) as a sized box of `ifc_class`
+    at an XY point. Pass `system` to add a port and enrol it in a named IfcDistributionSystem (with an
+    optional `discipline` — e.g. 'fire' for a sprinkler head on a fire-protection system)."""
     import ifcopenshell.util.unit as uunit
     import numpy as np
 
@@ -750,6 +808,12 @@ def add_mep_terminal(model: ifcopenshell.file, ifc_class: str, point, width: flo
     ifcopenshell.api.run("geometry.assign_representation", model, product=el, representation=rep)
     if st:
         ifcopenshell.api.run("spatial.assign_container", model, products=[el], relating_structure=st)
+    if system:                                        # enrol the terminal in a distribution system (+ a port)
+        try:
+            ifcopenshell.api.run("system.add_port", model, element=el)
+        except Exception:                             # noqa: BLE001 — older ifcopenshell w/o system.add_port
+            pass
+        _assign_to_system(model, el, system, discipline)
     return el.GlobalId
 
 
@@ -1369,20 +1433,30 @@ RECIPES = {
                                             float(p.get("length", 1.5)), float(p.get("thickness", 0.4)),
                                             p.get("storey")),
     "add_duct": lambda m, p: add_mep_run(m, "IfcDuctSegment", p["start"], p["end"], "round",
-                                         float(p.get("size", 0.3)), p.get("storey"), p.get("system", "HVAC Supply")),
+                                         float(p.get("size", 0.3)), p.get("storey"), p.get("system", "HVAC Supply"),
+                                         p.get("discipline", "hvac")),
     "add_pipe": lambda m, p: add_mep_run(m, "IfcPipeSegment", p["start"], p["end"], "round",
-                                         float(p.get("size", 0.05)), p.get("storey"), p.get("system", "Domestic Water")),
+                                         float(p.get("size", 0.05)), p.get("storey"), p.get("system", "Domestic Water"),
+                                         p.get("discipline", "plumbing")),
     "add_cable_tray": lambda m, p: add_mep_run(m, "IfcCableCarrierSegment", p["start"], p["end"], "rect",
-                                               float(p.get("size", 0.3)), p.get("storey"), p.get("system", "Power")),
+                                               float(p.get("size", 0.3)), p.get("storey"), p.get("system", "Power"),
+                                               p.get("discipline", "electrical")),
     "add_wire": lambda m, p: add_mep_run(m, "IfcCableSegment", p["start"], p["end"], "round",
-                                         float(p.get("size", 0.02)), p.get("storey"), p.get("system", "Power")),
+                                         float(p.get("size", 0.02)), p.get("storey"), p.get("system", "Power"),
+                                         p.get("discipline", "electrical")),
     "add_mep_fitting": lambda m, p: add_mep_fitting(m, p["ifc_class"], p["point"], float(p.get("size", 0.3)),
                                                     p.get("predefined", "BEND"), p.get("storey"),
-                                                    p.get("system", "MEP")),
+                                                    p.get("system", "MEP"), p.get("discipline")),
     "add_mep_terminal": lambda m, p: add_mep_terminal(m, p["ifc_class"], p["point"],
                                                       float(p.get("width", 0.4)), float(p.get("depth", 0.4)),
                                                       float(p.get("height", 0.4)), p.get("predefined"),
-                                                      p.get("storey")),
+                                                      p.get("storey"), p.get("system"), p.get("discipline")),
+    # MEP-FP — fire protection as a first-class distribution system
+    "add_sprinkler": lambda m, p: add_mep_terminal(m, "IfcFireSuppressionTerminal", p["point"],
+                                                    float(p.get("width", 0.15)), float(p.get("depth", 0.15)),
+                                                    float(p.get("height", 0.1)), p.get("predefined", "SPRINKLER"),
+                                                    p.get("storey"), p.get("system", "Fire Protection"), "fire"),
+    "set_system_predefined": lambda m, p: set_system_predefined(m, p["system"], p["discipline"]),
     "connect_mep": lambda m, p: connect_mep(m, p["guid_a"], p["guid_b"]),
     # A1 — sandboxed ifcopenshell escape hatch (gated by AEC_ALLOW_IFC_CODE; AST-whitelisted)
     "execute_ifc_code": lambda m, p: _sandbox().execute_ifc_code(m, p["code"]),

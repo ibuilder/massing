@@ -2258,9 +2258,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             body.appendChild(iso);
           }
           if (!s.systems.length) { body.appendChild(resultNote("No distribution systems yet — add duct/pipe runs + fittings.", "")); return; }
+          // MEP-FP: by-discipline rollup (fire protection is a first-class discipline beside HVAC/plumbing/electrical)
+          const discIcon: Record<string, string> = { hvac: "💨", plumbing: "🚰", electrical: "⚡", fire: "🧯", comms: "📶", other: "🔀" };
+          if (s.by_discipline && Object.keys(s.by_discipline).length) {
+            const roll = Object.entries(s.by_discipline)
+              .map(([d, v]) => `${discIcon[d] || "🔀"} ${d} (${v.systems})`).join(" · ");
+            body.appendChild(resultNote(`<b>Disciplines</b> — ${roll}.`
+              + (s.has_fire_protection ? "" : " <i>No fire-protection system yet.</i>"), s.has_fire_protection ? "ok" : ""));
+          }
           for (const sy of s.systems) {
+            const di = discIcon[sy.discipline || "other"] || "🔀";
             body.appendChild(kvTable([
-              { k: sy.name, v: `${sy.members} elements`, strong: true },
+              { k: `${di} ${sy.name}`, v: `${sy.members} elements${sy.discipline ? ` · ${sy.discipline}` : ""}`, strong: true },
               { k: "  segments · fittings · terminals", v: `${sy.segments} · ${sy.fittings} · ${sy.terminals}` },
               { k: "  elements with open ports", v: String(sy.elements_with_open_ports) },
             ]));

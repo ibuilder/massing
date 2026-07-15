@@ -86,6 +86,40 @@ assert r["changed"], r
 mo = open_model(OUT)
 assert any(x["name"] == "HVAC Return" for x in mep.mep_summary(mo)["systems"])
 
+# --- MEP-FP: fire protection as a first-class distribution system ---------------------------------
+# a sprinkler branch pipe (discipline='fire') + two sprinkler heads on a "Fire Protection" system
+edit.add_mep_run(m, "IfcPipeSegment", [0, 12], [6, 12], "round", 0.05, st,
+                 system="Fire Protection", discipline="fire")
+edit.add_mep_terminal(m, "IfcFireSuppressionTerminal", [2, 12], 0.15, 0.15, 0.1, "SPRINKLER", st,
+                      system="Fire Protection", discipline="fire")
+edit.add_mep_terminal(m, "IfcFireSuppressionTerminal", [4, 12], 0.15, 0.15, 0.1, "SPRINKLER", st,
+                      system="Fire Protection", discipline="fire")
+sfp = mep.mep_summary(m)
+fp = next((x for x in sfp["systems"] if x["name"] == "Fire Protection"), None)
+assert fp is not None, sfp["systems"]
+assert fp["discipline"] == "fire" and fp["predefined_type"] == "FIREPROTECTION", fp
+assert fp["segments"] == 1 and fp["terminals"] == 2 and fp["members"] == 3, fp
+# fire protection is now a recognised discipline in the rollup
+assert sfp["has_fire_protection"] is True, sfp
+assert sfp["by_discipline"]["fire"]["systems"] == 1 and sfp["by_discipline"]["fire"]["members"] == 3, sfp["by_discipline"]
+# the HVAC system is classified by its duct members (no explicit PredefinedType from the direct calls)
+assert next(x for x in sfp["systems"] if x["name"] == "HVAC Supply")["discipline"] == "hvac", sfp["systems"]
+# a fire-suppression terminal is connectable (it got a port because a system was given)
+fire_heads = list(m.by_type("IfcFireSuppressionTerminal"))
+assert fire_heads and mep._ports(fire_heads[0]), "sprinkler head should have a connection port"
+
+# set_system_predefined retags an existing plain system's discipline
+edit.set_system_predefined(m, "Domestic Water", "plumbing")
+dw = next(x for x in mep.mep_summary(m)["systems"] if x["name"] == "Domestic Water")
+assert dw["predefined_type"] == "DOMESTICCOLDWATER" and dw["discipline"] == "plumbing", dw
+# set_system_predefined + add_sprinkler are registered recipes
+assert "set_system_predefined" in edit.RECIPES and "add_sprinkler" in edit.RECIPES
+try:
+    edit.set_system_predefined(m, "No Such System", "fire")
+    raise AssertionError("should raise for an unknown system")
+except ValueError:
+    pass
+
 # --- IFC2x3 models must not crash the browser (IfcDistributionSystem is IFC4+) --------------------
 import ifcopenshell  # noqa: E402
 

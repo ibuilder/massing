@@ -277,9 +277,12 @@ ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
   edit-recipe engine (chain recipes as nodes; the recipe log already *is* a graph) for repetitive parametric
   authoring without code. Complements the shipped AI command bar + sandboxed `execute_ifc_code` — the visual,
   no-code sibling. (The studio node-editor is the seed.)
-- **MEP-FP — fire-protection as a first-class distribution system** *(S · med)* — sprinkler / standpipe /
-  fire-pump / fire-hose-cabinet as a distinct **fire-protection system** beside HVAC/plumbing/electrical, with
-  the fire-alarm layer we already sheet. Extends the MEP system browser + connectivity (W10-4).
+- ✅ **MEP-FP (first slice) SHIPPED v0.3.311** — fire protection is now a **first-class distribution system**
+  beside HVAC/plumbing/electrical: IfcDistributionSystems carry a **discipline** via `PredefinedType`
+  (FIREPROTECTION/…); `add_mep_*` take a `discipline`, `set_system_predefined` retypes a system, `add_sprinkler`
+  authors an `IfcFireSuppressionTerminal` head, and `mep_summary` reports discipline + a by-discipline rollup +
+  `has_fire_protection`. Fire terminals are connectable (W10-4 covers sprinkler runs). *Next: sprinkler
+  coverage/spacing + standpipe / fire-pump / hose-cabinet equipment + tie to the fire-alarm sheet layer.*
 
 **Not-new (confirmed existing depth):** the MEP 4-discipline model (HVAC/electrical/plumbing/fire — MEP-FP
 above is the one gap), the design→turnover lifecycle spine, ISO 19650 BIM-management, Lean pull-planning, and
