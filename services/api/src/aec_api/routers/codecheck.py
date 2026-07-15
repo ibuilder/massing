@@ -118,6 +118,61 @@ def rfi_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(requ
     return rfi_prevention.decision_readiness(db, pid, open_model(p.source_ifc))
 
 
+@router.get("/codes/ebc/pathways")
+def ebc_pathways(_: str = Depends(current_user)):
+    """CODE-EBC: the IEBC existing-building reference catalog — the three compliance methods and the
+    Work-Area classifications (Repair · Alteration 1/2/3 · Change of Occupancy · Addition) with citations.
+    Facts of law; verify the edition + classification with the AHJ."""
+    from aec_data import ebc  # type: ignore
+
+    return ebc.pathways()
+
+
+@router.get("/projects/{pid}/codecheck/ebc")
+def codecheck_ebc(
+    pid: str,
+    jurisdiction: str = "",
+    infer: bool = False,
+    adds_area: bool | None = None,
+    changes_occupancy: bool | None = None,
+    reconfigures_space: bool | None = None,
+    alters_openings: bool | None = None,
+    alters_systems: bool | None = None,
+    adds_equipment: bool | None = None,
+    replaces_same_purpose: bool | None = None,
+    repair_only: bool | None = None,
+    work_area_pct: float | None = None,
+    db: Session = Depends(get_db),
+    _: str = Depends(require_role("viewer")),
+):
+    """CODE-EBC: classify an existing-building scope under the IEBC Work Area Compliance Method →
+    Repair · Alteration Level 1/2/3 · Change of Occupancy · Addition, with the driving citations and the
+    jurisdiction's adopted IEBC edition. Pass explicit scope flags; with `infer=true` the scope is
+    first-guessed from the model's phasing (existing vs new/demolish) and any flags you pass override the
+    guess. Preliminary classification — the AHJ makes the determination."""
+    from aec_data import ebc  # type: ignore
+
+    scope = {k: v for k, v in {
+        "adds_area": adds_area, "changes_occupancy": changes_occupancy,
+        "reconfigures_space": reconfigures_space, "alters_openings": alters_openings,
+        "alters_systems": alters_systems, "adds_equipment": adds_equipment,
+        "replaces_same_purpose": replaces_same_purpose, "repair_only": repair_only,
+        "work_area_pct": work_area_pct,
+    }.items() if v is not None}
+
+    if infer:
+        from aec_data.ifc_loader import open_model  # type: ignore
+
+        p = db.get(Project, pid)
+        if not p:
+            raise HTTPException(404, "project not found")
+        if not p.source_ifc:
+            raise HTTPException(409, "no source IFC — phasing inference needs a model (or pass infer=false)")
+        return ebc.from_model(open_model(p.source_ifc), jurisdiction=(jurisdiction or None), **scope)
+
+    return ebc.classify(jurisdiction=(jurisdiction or None), **scope)
+
+
 @router.post("/projects/{pid}/codecheck/egress/bcf")
 def egress_to_bcf(pid: str, db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
     """W9-2b: promote the computed egress/code findings to **BCF topics** — so a below-min door or an

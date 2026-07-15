@@ -250,11 +250,14 @@ ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
   PBR presentation mode, offline + license-free).
 
 ### 🏛 Existing-building code intelligence
-- **CODE-EBC — renovation alteration-level classifier** *(M · high)* — an **existing-building-code** decision
-  tree: classify a project's scope of work → **Alteration Level 1/2/3 · Change of Occupancy · Addition ·
-  Repair** (IEBC pathways), driving which chapters/provisions apply. Ties to our phasing (new/existing/
-  demolish) + the CODE track + approvability. Facts of law (thresholds/pathways) — copyright-safe like
-  CODE-1/2/3. Unlocks renovation/adaptive-reuse projects.
+- ✅ **CODE-EBC SHIPPED v0.3.310** — IEBC **Work Area Method** scope classifier (`ebc.py`): `classify(...)`
+  decision tree → **Repair · Alteration Level 1/2/3 · Change of Occupancy · Addition** with the driving
+  citations (§502–§507 + requirements chapter), the nested applicable levels, and the jurisdiction's adopted
+  IEBC edition; the >50%-work-area rule (§505) splits Level 2 from Level 3. `from_model(...)` infers a
+  first-guess scope from phasing (existing vs new/demolish), overridable. `GET /codes/ebc/pathways` +
+  `GET /projects/{pid}/codecheck/ebc?infer=` + a 🏚 Existing-building code tool. Facts of law (copyright-safe
+  like CODE-1/2/3); AHJ makes the determination. `test_ebc.py` (16 scenarios). *Next: tie the classification
+  to which approvability checks apply, and a change-of-occupancy occupant-load delta.*
 
 ### 🌍 BIM-GIS digital twin (reinforces the SITE-1 frontier item)
 - **SITE-1 (reinforced) — multi-scale BIM ↔ GIS view** *(M · ★★★★)* — a browser view composing the **building

@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.310 — Existing-building code: IEBC scope-of-work classifier (CODE-EBC)
+
+Unlocks renovation / adaptive-reuse projects, which are governed by the **International Existing Building
+Code**, not the new-construction path. New `ebc.py` (data side, facts-of-law like the CODE-1/2/3 engine —
+owns the classification decision tree + published section/chapter numbers, never the copyrighted prose)
+classifies a scope of work under the **Work Area Compliance Method**: **Repair · Alteration Level 1 / 2 / 3
+· Change of Occupancy · Addition**. `classify(...)` is a pure, deterministic decision tree — a Level-2
+trigger (space reconfiguration, adding/removing a door or window, reconfiguring/extending a system, added
+equipment) becomes **Level 3** when the work area exceeds 50% of the building (IEBC §505), an addition or
+change of occupancy governs as primary while co-occurring alterations still apply, and each result carries
+the driving citations (§502–§507 + the requirements chapter), the applicable nested levels, and the
+jurisdiction's adopted IEBC edition. `from_model(...)` first-guesses the scope from the model's **phasing**
+(existing vs new/demolish → an alteration with a rough work-area estimate) which explicit flags override.
+New `GET /codes/ebc/pathways` (reference catalog) + `GET /projects/{pid}/codecheck/ebc` (with `infer=true`
+for the phasing-derived guess), an `ebcClassify`/`ebcPathways` client, and a **🏚 Existing-building code
+(IEBC scope)** tool in the code-intelligence cluster. Preliminary classification — the AHJ makes the
+determination. `test_ebc.py` (16 hand-worked IEBC scenarios + the phasing inference).
+
 ## v0.3.309 — Docs + marketing refresh: catch the user-facing surface up to the authoring wave
 
 Non-code release. The README, in-app guide, and GitHub Pages landing had drifted ~14 releases behind

@@ -2818,6 +2818,41 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           });
         });
         b.appendChild(toolBtn2("🏛 Code analysis (G-series summary)", () => { void runCodeAnalysis(""); }));
+        // CODE-EBC — existing-building scope classifier (IEBC Work Area Method), inferred from phasing
+        const runEbc = (jur: string) => withLoading(container, "Classifying the existing-building scope (IEBC)", async () => {
+          let r;
+          try { r = await api.ebcClassify(pid, { infer: true, ...(jur ? { jurisdiction: jur } : {}) }); }
+          catch { toast("Needs a source IFC to infer scope from phasing", "error"); return; }
+          out.textContent = r.classification ? `${r.classification}${r.code.edition ? ` · IEBC ${r.code.edition}` : ""}` : "no scope";
+          showResult("Existing-building scope — IEBC Work Area Method", (body) => {
+            body.appendChild(resultNote(`Inferred from the model's <b>phasing</b> (existing vs new/demolish). `
+              + `The IEBC governs renovation/adaptive-reuse; this classifies the <b>scope of work</b> → which provisions apply.`, ""));
+            if (!r!.ok) {
+              body.appendChild(resultNote(r!.reason || "No scope classified.", "bad"));
+            } else {
+              body.appendChild(resultNote(`Classification: <b>${r!.classification}</b>`
+                + (r!.work_area_pct != null ? ` · work area ≈ <b>${Math.round(r!.work_area_pct)}%</b>` : "")
+                + `. <span class="meta">${r!.gist || ""}</span>`, "ok"));
+              body.appendChild(resultNote(`Compliance method: <b>${r!.method}</b> (${r!.method_cite}). `
+                + `Code edition: <b>IEBC ${r!.code.edition ?? "—"}</b> `
+                + (r!.code.adoption_resolved ? `(${r!.code.jurisdiction} adoption)` : "(national baseline — set your state below)")
+                + `.`, r!.code.adoption_resolved ? "ok" : ""));
+              if (r!.applies?.length) body.appendChild(kvTable(r!.applies.map((a) => ({ k: a.classification, v: `${a.section} · ${a.requirements}` }))));
+              if (r!.basis?.length) body.appendChild(resultNote(`<b>How this was inferred:</b> ${r!.basis.join(" ")}`, ""));
+              if (r!.notes?.length) body.appendChild(resultNote(r!.notes.join(" "), ""));
+            }
+            // jurisdiction re-check (edition-aware) — mirror the code-analysis flow
+            const jurWrap = document.createElement("div"); jurWrap.style.cssText = "display:flex;gap:6px;align-items:center;margin:6px 0";
+            const jurLbl = document.createElement("span"); jurLbl.className = "meta"; jurLbl.textContent = "Jurisdiction (US state):";
+            const jurIn = document.createElement("input"); jurIn.className = "portal-filter"; jurIn.placeholder = "e.g. CA"; jurIn.maxLength = 2; jurIn.value = r!.code.jurisdiction || ""; jurIn.style.cssText = "width:80px;font-size:12px";
+            const jurBtn = document.createElement("button"); jurBtn.className = "mini-btn"; jurBtn.textContent = "↻ Re-check for this state";
+            jurBtn.onclick = () => { void runEbc(jurIn.value.trim().toUpperCase()); };
+            jurIn.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); void runEbc(jurIn.value.trim().toUpperCase()); } };
+            jurWrap.append(jurLbl, jurIn, jurBtn); body.appendChild(jurWrap);
+            body.appendChild(resultNote(r!.disclaimer, ""));
+          });
+        });
+        b.appendChild(toolBtn2("🏚 Existing-building code (IEBC scope)", () => { void runEbc(""); }));
         // EST-1 — rough labour cost + duration from the model's quantities (productivity rates)
         b.appendChild(toolBtn2("💰 Labour estimate (man-hours · duration)", () => withLoading(container, "Estimating labour from the model", async () => {
           let e;

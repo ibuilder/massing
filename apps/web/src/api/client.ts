@@ -1238,6 +1238,34 @@ export class ApiClient extends HttpCore {
       primary: { IBC: number | null; IECC: number | null; "A117.1": number | null }; verify: string }>(
       `/codes/adoptions?jurisdiction=${encodeURIComponent(jurisdiction)}`);
   }
+  /** CODE-EBC: classify an existing-building scope under the IEBC Work Area Method. `infer` first-guesses
+   * the scope from the model's phasing (existing vs new/demolish); explicit flags override the guess. */
+  ebcClassify(pid: string, opts: { jurisdiction?: string; infer?: boolean; adds_area?: boolean;
+    changes_occupancy?: boolean; reconfigures_space?: boolean; alters_openings?: boolean;
+    alters_systems?: boolean; adds_equipment?: boolean; replaces_same_purpose?: boolean;
+    repair_only?: boolean; work_area_pct?: number } = {}) {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts)) {
+      if (v !== undefined && v !== "") q.set(k, String(v));
+    }
+    return this.json<{ ok: boolean; classification: string | null; classification_key?: string;
+      method?: string; method_cite?: string; gist?: string; reason?: string;
+      work_area_pct?: number | null; triggers?: string[];
+      code: { family: string; edition: number | null; name?: string; jurisdiction: string | null; adoption_resolved?: boolean };
+      applies?: { classification: string; section: string; requirements: string }[];
+      citations?: { classification: string; section: string; requirements: string }[];
+      methods: { key: string; name: string; cite: string; gist: string }[];
+      notes?: string[]; inferred?: Record<string, unknown>; basis?: string[];
+      phase_counts?: Record<string, number>; verify: string; disclaimer: string }>(
+      `/projects/${pid}/codecheck/ebc?${q.toString()}`);
+  }
+  /** CODE-EBC: the IEBC reference catalog — compliance methods + Work-Area classifications with citations. */
+  ebcPathways() {
+    return this.json<{ code: { family: string; name: string };
+      methods: { key: string; name: string; cite: string; gist: string }[];
+      classifications: { key: string; label: string; class_cite: string; req_cite: string; gist: string }[];
+      work_area_threshold_pct: number; verify: string; disclaimer: string }>(`/codes/ebc/pathways`);
+  }
   /** EST-1: rough labour cost + duration estimate from the model's quantities (productivity rates). */
   laborEstimate(pid: string, loading = "commercial", rate = 25) {
     return this.json<{ loading: string; loading_factor: number; hourly_rate: number; line_count: number;
