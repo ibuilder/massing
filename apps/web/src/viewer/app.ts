@@ -2700,7 +2700,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, annotBtn, dimBtn, cloudBtn, tagBtn, contentBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, ifcCodeBtn);
+
+      // UX-1b: surface the interactive annotation tools + the content library as their own labelled groups
+      // (the Annotate + Library ribbon groups), instead of burying them in the Advanced-fabrication fold.
+      const annotateHead = document.createElement("div"); annotateHead.className = "section-title";
+      annotateHead.style.marginTop = "8px"; annotateHead.textContent = "✍ Annotate";
+      const annotateWrap = document.createElement("div"); annotateWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
+      annotateWrap.append(annotBtn, dimBtn, cloudBtn, tagBtn);
+      const libHead = document.createElement("div"); libHead.className = "section-title";
+      libHead.style.marginTop = "8px"; libHead.textContent = "📚 Library";
+      const libWrap = document.createElement("div"); libWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
+      libWrap.append(contentBtn);
       const advKey = "massing.viewer.advancedTools";
       let advOpen = false;
       try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }
@@ -2740,6 +2751,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       glBody.append(status, levelSel, undoRow, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
         phaseBtn, queryBtn, lodBtn, asBuiltBtn, planBtn, sheetBtn, pdfBtn, schedBtn, schedPdfBtn, manualBtn, sectBtn,
+        annotateHead, annotateWrap, libHead, libWrap,
         advToggle, advWrap, manage, levelsMgr);
     }
 
