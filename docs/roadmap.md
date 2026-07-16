@@ -337,10 +337,14 @@ palette and a mislabeled `estimate.by_discipline`.)
   `IfcSensor`; pull-station/horn-strobe/bell/FACP `IfcAlarm`) on a **Fire Alarm** system; `add_comms_device`
   (MDF/IDF/switch/WAP `IfcCommunicationsAppliance`, data outlet `IfcOutlet`) on a **Telecommunications**
   system — both first-class recipes classified distinctly by the tree.
-- **DISC-4b — tower model upgrades** *(L)* — regenerate the demo tower with a proper facade as
-  **`IfcCurtainWall`** (not thin `IfcWall`); **fire-rated** demising/shaft walls (`Pset_WallCommon.FireRating`);
-  a **roof assembly** (`IfcRoof` + drains/parapet); fire-alarm + telecom devices via the DISC-4a recipes;
-  UI tool buttons for them. Verify color-by-discipline shows all disciplines distinctly.
+- ✅ **DISC-4b tower upgrades + tool buttons SHIPPED v0.3.333** — 🔔 Fire-alarm + 📶 Telecom tool buttons;
+  demo tower regenerated with a unitized **`IfcCurtainWall`** facade (replacing thin walls + windows),
+  **286 fire-rated walls** (2-hr core / 1-hr demising via `Pset_WallCommon.FireRating`), an **`IfcRoof`**
+  assembly, **90 detectors + 61 alarm devices** (Fire Alarm system), **37 telecom devices**
+  (Telecommunications system). Verified live: reindex sees all new classes; each discipline colors
+  distinctly (curtain wall→A, comms→T, alarm→E, roof→A).
+  *Remaining nuance: curtain-wall `IfcMember`/`IfcPlate` still classify to Structural (05) — context-aware
+  (aggregated-under-curtain-wall → Architectural) classification is a future refinement.*
 
 ### 🔒 Security backlog (Dependabot triage, 2026-07-15)
 
