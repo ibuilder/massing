@@ -16,9 +16,9 @@ import ifcopenshell.util.element as ue
 from .ifc_loader import open_model, physical_elements, storey_name
 
 try:
-    import numpy as _np
     import ifcopenshell.geom as _geom
     import ifcopenshell.util.shape as _shape
+    import numpy as _np
     _GEOM_OK = True
 except Exception:  # pragma: no cover - geom backend optional
     _GEOM_OK = False
