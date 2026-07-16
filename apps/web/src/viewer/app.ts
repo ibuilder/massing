@@ -2526,6 +2526,24 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       cloudBtn.title = "Draw a revision cloud around a region as an IfcAnnotation (a scalloped outline + an "
         + "optional revision tag). Press once for the first corner, again for the opposite corner. Renders on the plan.";
 
+      // UX-2 — element-aware tag: label auto-read from the SELECTED element (its Name / mark / type)
+      const tagBtn = toolBtn2("🏷 Tag selected element", async () => {
+        const host = selectedGuid;
+        if (!host) { notify("select an element first, then tag it", "error"); return; }
+        const override = (prompt("Tag label — leave blank to auto-read the element's name/mark/type:", "") || "").trim();
+        await withLoading(container, "placing tag + republishing", async () => {
+          try {
+            const r = await api.addTag(projectId!, host, override ? { text: override } : {}, true);
+            const state = await waitForPublish(projectId!);
+            if (state === "done") { await loadProjectModel(); notify(`tagged "${(r as { label?: string }).label ?? ""}"`, "success"); }
+            else notify(`placed — publish ${state}`, state === "error" ? "error" : "info");
+            await reloadModelPins();
+          } catch (e) { notify(`tag failed: ${(e as Error).message}`, "error"); }
+        });
+      });
+      tagBtn.title = "Tag the selected element with an IfcAnnotation whose label is auto-read from the element "
+        + "(its Name, Pset mark, or type) and assigned to it — so the tag tracks the element. Renders on the plan.";
+
       // CONTENT-1 — site content library: place logistics / furniture / landscaping, each classified into
       // the right IFC class + phase (logistics = temporary, time-phases on the 4D slider).
       const contentBtn = toolBtn2("🏗 Site content library", () => withLoading(container, "Loading the content catalog", async () => {
@@ -2591,7 +2609,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, annotBtn, dimBtn, cloudBtn, contentBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, annotBtn, dimBtn, cloudBtn, tagBtn, contentBtn, ifcCodeBtn);
       const advKey = "massing.viewer.advancedTools";
       let advOpen = false;
       try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }

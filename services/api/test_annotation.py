@@ -88,14 +88,40 @@ assert raised, "a single-point cloud region should raise"
 assert "add_revision_cloud" in edit.RECIPES
 assert guards.precheck("add_revision_cloud", {"points": [[0, 0], [4, 4]]})["ok"]
 
+# --- UX-2 element-aware tag: label auto-read from the host, assigned to the product ---------------
+wtag = edit.add_wall(m, [0, 0], [8, 0], 3.0, 0.3, st)
+m.by_guid(wtag).Name = "EW-1"
+tg = edit.add_tag(m, wtag, storey=st)
+assert tg["label"] == "EW-1" and tg["host"] == wtag, tg      # reads the host's Name
+tag_ann = m.by_guid(tg["guid"])
+assert tag_ann.is_a() == "IfcAnnotation" and tag_ann.ObjectType == "tag", tag_ann
+assert next(i for i in tag_ann.Representation.Representations[0].Items
+            if i.is_a() == "IfcTextLiteral").Literal == "EW-1"
+# element-aware: assigned to the product it labels, so it tracks that element
+assert any(tag_ann in (r.RelatedObjects or []) and r.RelatingProduct == m.by_guid(wtag)
+           for r in m.by_type("IfcRelAssignsToProduct")), "tag assigned to its host element"
+# no Name/mark → auto-read from the type/class
+col = edit.add_column(m, [5, 5], 3.0, 0.4, 0.4, st)
+assert edit.add_tag(m, col, storey=st)["label"] == "Column", "auto-reads the class short-name"
+# a custom label overrides the auto-read
+assert edit.add_tag(m, wtag, text="TYP", storey=st)["label"] == "TYP"
+# unknown host rejected
+raised = False
+try:
+    edit.add_tag(m, "notaguid", storey=st)
+except ValueError:
+    raised = True
+assert raised, "an unknown host GUID should raise"
+assert "add_tag" in edit.RECIPES
+
 # --- view-placed annotations render on the generated plan (UX-2 loop-closer) ----------------------
 from aec_data import drawing  # noqa: E402
 
-edit.add_wall(m, [0, 0], [8, 0], 3.0, 0.3, st)   # give the plan footprint geometry + bounds
 plan = drawing.plan_svg(m, storey=st, scale=100)
 assert plan["annotations"] >= 4, plan["annotations"]     # note + 2 dims + cloud(s) placed above
 svg = plan["svg"]
 assert "ann-cloud" in svg and "ann-revtag" in svg and "ann-note" in svg, "annotation classes on the plan"
+assert "ann-tag" in svg and "EW-1" in svg, "the element-aware tag renders on the plan"
 assert "5.00 m" in svg, "the dimension label carries onto the plan"
 
 # --- registered recipe + reachable via apply_recipe -----------------------------------------------

@@ -487,6 +487,97 @@ def add_revision_cloud(model: ifcopenshell.file, points, tag: str | None = None,
     return {"guid": ann.GlobalId, "bumps": bumps}
 
 
+def _element_mark(el) -> str:
+    """A short tag label for an element: its Name, else a Pset 'Reference'/'Tag' mark, else its type name,
+    else the IFC class short-name (IfcWall → Wall). Element-aware — the tag reflects the element."""
+    import ifcopenshell.util.element as ue
+
+    name = (getattr(el, "Name", None) or "").strip()
+    if name:
+        return name
+    try:
+        psets = ue.get_psets(el) or {}
+        for props in psets.values():
+            for key in ("Reference", "Tag", "Mark"):
+                v = props.get(key)
+                if v:
+                    return str(v)
+    except Exception:                                  # noqa: BLE001 — psets best-effort
+        pass
+    tag = (getattr(el, "Tag", None) or "").strip() if hasattr(el, "Tag") else ""
+    if tag:
+        return tag
+    try:
+        t = ue.get_type(el)
+        if t is not None and getattr(t, "Name", None):
+            return str(t.Name)
+    except Exception:                                  # noqa: BLE001
+        pass
+    return el.is_a()[3:] if el.is_a().startswith("Ifc") else el.is_a()
+
+
+def add_tag(model: ifcopenshell.file, host_guid: str, text: str | None = None,
+            storey: str | None = None, z: float | None = None) -> dict:
+    """UX-2: place an **element-aware tag** — an `IfcAnnotation` (ObjectType "tag") whose label is read from
+    the host element (its Name / Pset mark / type name), placed at the host's plan centroid and **assigned to
+    it** (`IfcRelAssignsToProduct`), so the tag tracks the element it describes. `text` overrides the
+    auto-read label. Renders on the generated plan. GUID-stable. Returns {guid, host, label}."""
+    import ifcopenshell.util.placement as up
+    import numpy as np
+
+    try:
+        host = model.by_guid(host_guid)
+    except (RuntimeError, Exception):                  # noqa: BLE001 — by_guid raises on unknown GUID
+        host = None
+    if host is None:
+        raise ValueError(f"unknown host element {host_guid}")
+    label = (text or "").strip() or _element_mark(host)
+
+    # tag point: the host's plan centroid (footprint if extruded, else its placement translation)
+    fp = None
+    try:
+        from .drawing import _footprint
+        fp = _footprint(host)
+    except Exception:                                  # noqa: BLE001 — footprint best-effort
+        fp = None
+    if fp:
+        px = sum(p[0] for p in fp) / len(fp)
+        py = sum(p[1] for p in fp) / len(fp)
+        pz = 0.0
+    else:
+        m = up.get_local_placement(host.ObjectPlacement) if host.ObjectPlacement is not None else np.eye(4)
+        px, py, pz = float(m[0][3]), float(m[1][3]), float(m[2][3])
+    zz = float(z) if z is not None else pz
+
+    ctx = _annotation_context(model)
+    ann = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcAnnotation", name=label[:64])
+    if hasattr(ann, "ObjectType"):
+        ann.ObjectType = "tag"
+    mtx = np.eye(4); mtx[0, 3], mtx[1, 3], mtx[2, 3] = px, py, zz
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=ann, matrix=mtx)
+    place = model.create_entity("IfcAxis2Placement2D",
+                                Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0)))
+    lit = model.create_entity("IfcTextLiteral", Literal=label, Placement=place, Path="RIGHT")
+    rep = model.create_entity("IfcShapeRepresentation", ContextOfItems=ctx,
+                              RepresentationIdentifier="Annotation", RepresentationType="Annotation2D",
+                              Items=[lit])
+    ifcopenshell.api.run("geometry.assign_representation", model, product=ann, representation=rep)
+    # element-aware: assign the tag to the product it labels, so it tracks that element
+    try:
+        ifcopenshell.api.run("group.assign_product", model, products=[ann], relating_product=host)
+    except Exception:                                  # noqa: BLE001 — fall back to a direct rel
+        try:
+            model.create_entity("IfcRelAssignsToProduct",
+                                GlobalId=ifcopenshell.guid.new(),
+                                RelatedObjects=[ann], RelatingProduct=host)
+        except Exception:                              # noqa: BLE001 — assignment best-effort
+            pass
+    st = _first_storey(model, storey)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[ann], relating_structure=st)
+    return {"guid": ann.GlobalId, "host": host_guid, "label": label}
+
+
 def set_wall_slope(model: ifcopenshell.file, guid: str, start_height: float, end_height: float) -> dict:
     """B3: give a wall a **sloped top** — the top goes from `start_height` (at the wall's start end) to
     `end_height` (at the end), for parapet slopes / shed / gable walls. Rebuilds the wall's Body as a
@@ -1762,6 +1853,9 @@ RECIPES = {
     # UX-2 — revision cloud around a region (>=3 points, or 2 opposite corners) + optional delta/number tag
     "add_revision_cloud": lambda m, p: add_revision_cloud(m, p["points"], p.get("tag"),
                                                           p.get("storey"), float(p.get("z", 0.0))),
+    # UX-2 — element-aware tag: label auto-read from the host element (Name / mark / type), assigned to it
+    "add_tag": lambda m, p: add_tag(m, p["host_guid"], p.get("text"), p.get("storey"),
+                                    None if p.get("z") is None else float(p["z"])),
     # CONTENT-1 — place a catalogued content item (logistics / furniture / landscaping) as the right IFC
     "place_content": lambda m, p: place_content(
         m, p["category"], p["point"], p.get("verts"), p.get("faces"), p.get("name"), p.get("storey")),
