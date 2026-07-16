@@ -134,6 +134,24 @@ DISCIPLINES: list[dict[str, Any]] = [
     {"code": "Q", "name": "Equipment", "divisions": ["11", "14"], "uniformat": ["D10", "E"]},
 ]
 
+# One canonical display color per discipline (hex) so the viewer's color-by-discipline mode, the plan/PDF
+# poché, the model browser, and any legend all render a discipline the same way. Chosen for perceptual
+# separation and to follow common AEC coordination conventions: fire = red, plumbing = green,
+# mechanical = amber, electrical = yellow, telecom = purple, structural = blue, civil = earth.
+DISCIPLINE_COLORS: dict[str, str] = {
+    "G": "#8A8F98", "C": "#A9744F", "L": "#5BA150", "S": "#2E5A88", "A": "#4B5563",
+    "F": "#D64545", "P": "#2FA36B", "M": "#E07B2B", "E": "#EAC43A", "T": "#7C5CBF", "Q": "#C05CA0",
+}
+# Distinct sheet-series that warrant their own swatch (Fire Alarm reads apart from Fire Protection red).
+SERIES_COLORS: dict[str, str] = {"FA": "#E8663C", "FP": "#D64545"}
+
+
+def discipline_color(code: str | None) -> str:
+    """Canonical hex color for a discipline code or distinct sheet series (FA/FP). Falls back to the
+    General grey so an unknown/unmapped code still renders."""
+    c = (code or "").strip().upper()
+    return SERIES_COLORS.get(c) or DISCIPLINE_COLORS.get(c[:1] if c else "", "#8A8F98")
+
 # Uniformat II element -> (title, typical MasterFormat divisions) — the concept↔procurement crosswalk.
 UNIFORMAT: dict[str, tuple[str, list[str]]] = {
     "A": ("Substructure", ["03", "31"]), "B10": ("Superstructure", ["03", "05"]),
@@ -180,12 +198,47 @@ def is_infra_class(ifc_class: str | None) -> bool:
     return (ifc_class or "").strip() in INFRA_IFC_CLASSES
 
 
+# IFC classes whose discipline isn't cleanly derivable from the MasterFormat section map — mostly the
+# MEP / fire / electrical / telecom distribution entities (which the estimate map doesn't enumerate).
+# Pin them so color-by-discipline, the model browser, and property rollups classify every element.
+_IFC_DISCIPLINE: dict[str, str] = {
+    # fire protection (F)
+    "IfcSprinkler": "F", "IfcFireSuppressionTerminal": "F",
+    # fire alarm / life safety + electronic safety (fold to Electrical discipline; distinct FA sheet series)
+    "IfcAlarm": "E", "IfcSensor": "E", "IfcActuator": "E",
+    # telecommunications (T)
+    "IfcCommunicationsAppliance": "T", "IfcAudioVisualAppliance": "T",
+    # electrical distribution (E)
+    "IfcTransformer": "E", "IfcElectricDistributionBoard": "E", "IfcElectricGenerator": "E",
+    "IfcElectricMotor": "E", "IfcElectricAppliance": "E", "IfcProtectiveDevice": "E",
+    "IfcSwitchingDevice": "E", "IfcOutlet": "E", "IfcLightFixture": "E", "IfcJunctionBox": "E",
+    "IfcCableSegment": "E", "IfcCableCarrierSegment": "E", "IfcCableCarrierFitting": "E",
+    "IfcCableFitting": "E",
+    # plumbing (P)
+    "IfcPump": "P", "IfcTank": "P", "IfcSanitaryTerminal": "P", "IfcWasteTerminal": "P",
+    "IfcValve": "P", "IfcPipeFitting": "P", "IfcInterceptor": "P",
+    # mechanical / HVAC (M)
+    "IfcBoiler": "M", "IfcChiller": "M", "IfcCoolingTower": "M", "IfcFan": "M", "IfcCoil": "M",
+    "IfcAirTerminal": "M", "IfcAirTerminalBox": "M", "IfcDuctFitting": "M", "IfcUnitaryEquipment": "M",
+    "IfcAirToAirHeatRecovery": "M", "IfcDamper": "M", "IfcCompressor": "M", "IfcCondenser": "M",
+    "IfcEvaporator": "M", "IfcHeatExchanger": "M", "IfcSpaceHeater": "M", "IfcHumidifier": "M",
+    "IfcTubeBundle": "M", "IfcFlowMeter": "M",
+    # conveying / vertical transport (Q)
+    "IfcTransportElement": "Q",
+    # architectural (A) — roof reads as an assembly, not through masonry default
+    "IfcRoof": "A", "IfcRamp": "A", "IfcShadingDevice": "A",
+}
+
+
 def discipline_of_ifc_class(ifc_class: str) -> str | None:
-    """The NCS discipline for an IFC class. IFC4.3 infrastructure entities are Civil (C); everything
-    else is derived through its MasterFormat section."""
-    if is_infra_class(ifc_class):
+    """The NCS discipline for an IFC class. Explicit MEP/fire/telecom pins win; IFC4.3 infrastructure
+    entities are Civil (C); everything else is derived through its MasterFormat section."""
+    cl = (ifc_class or "").strip()
+    if cl in _IFC_DISCIPLINE:
+        return _IFC_DISCIPLINE[cl]
+    if is_infra_class(cl):
         return "C"
-    code, _ = classify(ifc_class, "masterformat")
+    code, _ = classify(cl, "masterformat")
     return discipline_of_division(division_of(code))
 
 
@@ -224,9 +277,38 @@ def discipline_code(name_or_code: str | None) -> str | None:
 
 
 def disciplines() -> list[dict[str, Any]]:
-    """Catalog for the UI + module selects: code, name, divisions (with titles), uniformat groups."""
-    return [{**d, "division_titles": {v: MF_DIVISIONS.get(v, v) for v in d["divisions"]}}
+    """Catalog for the UI + module selects: code, name, color, divisions (with titles), uniformat groups."""
+    return [{**d, "color": discipline_color(d["code"]),
+             "division_titles": {v: MF_DIVISIONS.get(v, v) for v in d["divisions"]}}
             for d in DISCIPLINES]
+
+
+def discipline_tree() -> dict[str, Any]:
+    """The single unified discipline spine for the whole app — one source of truth that the viewer
+    (color-by-discipline), plan/PDF poché, sheet generator, model browser, and module selects all
+    consume instead of each re-encoding their own list. For every NCS discipline it carries: display
+    color, CSI MasterFormat divisions (+titles), UniFormat II groups (+titles), NCS sheet series, and
+    the representative IFC classes that roll up to it (so a client can color/group by discipline with
+    no local mapping table)."""
+    by_disc: dict[str, list[str]] = {d["code"]: [] for d in DISCIPLINES}
+    known = sorted(set(_IFC_DISCIPLINE) | set(CLASSIFICATIONS["masterformat"]["map"]) | INFRA_IFC_CLASSES)
+    for cl in known:
+        dc = discipline_of_ifc_class(cl)
+        if dc in by_disc:
+            by_disc[dc].append(cl)
+    return {
+        "disciplines": [
+            {"code": d["code"], "name": d["name"], "color": discipline_color(d["code"]),
+             "divisions": [{"code": v, "title": MF_DIVISIONS.get(v, v)} for v in d["divisions"]],
+             "uniformat": [{"code": u, "title": UNIFORMAT.get(u, (u, []))[0]} for u in d["uniformat"]],
+             "sheet_series": [d["code"], *[s for s in SHEET_SERIES if s[:1] == d["code"]]],
+             "ifc_classes": by_disc.get(d["code"], [])}
+            for d in DISCIPLINES
+        ],
+        "series": [{"code": k, "name": v, "color": discipline_color(k)} for k, v in SHEET_SERIES.items()],
+        "ifc_class_discipline": {cl: discipline_of_ifc_class(cl) for cl in known},
+        "colors": {d["code"]: discipline_color(d["code"]) for d in DISCIPLINES},
+    }
 
 
 def discipline_names() -> list[str]:

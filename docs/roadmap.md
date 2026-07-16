@@ -310,6 +310,32 @@ ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
 above is the one gap), the design→turnover lifecycle spine, ISO 19650 BIM-management, Lean pull-planning, and
 multi-project portfolio PMO all already ship.
 
+### 🗂 DISC — Unified discipline tree (one spine across every module + engine)
+
+**Goal:** one canonical **CSI MasterFormat + UniFormat II + NCS-discipline** vocabulary — with a color per
+discipline — that the viewer, plan/PDF poché, sheet generator, model browser, estimate, and ~33 module
+selects all consume, instead of each re-encoding its own list. The spine already exists
+(`classification.py`: `DISCIPLINES`, `MF_DIVISIONS`, `UNIFORMAT`, `CLASSIFICATIONS`, `SHEET_SERIES`); the work
+is **coverage + color + de-duplication**. (Audit found parallel discipline tables in `sheetgen.py`,
+`aec_data/mep.py`/`edit.py`, `specmanual.py`, `drawing.py`, and `apps/web/.../tree.ts`, plus no shared color
+palette and a mislabeled `estimate.by_discipline`.)
+
+- ✅ **DISC-1 backbone SHIPPED v0.3.330** — canonical **per-discipline color palette** (`DISCIPLINE_COLORS` +
+  `discipline_color()`; Fire Alarm swatch distinct from Fire Protection); **full IFC-class → discipline
+  coverage** (`_IFC_DISCIPLINE`) for MEP/fire/electrical/telecom entities the MasterFormat map never listed;
+  and `discipline_tree()` (color + divisions + uniformat + sheet series + rolled-up IFC classes +
+  `ifc_class_discipline` lookup), served on `GET /reference/disciplines`.
+- **DISC-2 — color-by-discipline/system in the viewer** *(M)* — a color-by mode on the IFC-classes panel using
+  the served tree; `tree.ts` `discipline()` consumes the served `ifc_class_discipline` map (kills the client
+  regex duplicate).
+- **DISC-3 — consolidate the engines** *(M)* — make the canonical source reachable from `aec_data`; derive
+  `drawing.py` poché colors, `specmanual` divisions, and the `mep.py`/`edit.py` discipline maps from it; fix
+  `estimate.by_discipline` to roll up by real discipline (it currently groups by raw IFC class).
+- **DISC-4 — model upgrades from a building-element audit** *(L)* — a proper facade as **`IfcCurtainWall`**
+  (not thin `IfcWall`); **fire-rated** demising/shaft walls (`Pset_WallCommon.FireRating`); a **roof
+  assembly** (`IfcRoof` + drains/parapet); a distinct **Fire Alarm** discipline (`IfcAlarm`/`IfcSensor` FACP +
+  devices) and **Telecom** (`IfcCommunicationsAppliance` MDF/IDF) — colored distinctly by the tree.
+
 ### 🔒 Security backlog (Dependabot triage, 2026-07-15)
 
 Surfaced on push at v0.3.309; **not runtime/CI-exposed**, so triaged rather than hot-patched:
