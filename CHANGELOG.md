@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.345 — Plan fix: per-level room tags + titleblock / scale / notes
+
+Two fixes to the drawing-set plans. **(1) Room labels no longer stack across levels.** The plan cut its
+*geometry* at the level elevation but tagged **every** `IfcSpace` (and door/window callout) in the model —
+so a Level 4 plan drew the cellar, lobby, apartment, and amenity room names all on top of each other (every
+floor shares the footprint). `space_tags`/`element_callouts` now take the cut plane and label **only the
+elements that level's cut passes through**. **(2) Plans now carry a real sheet frame** — a titleblock band
+with the sheet title, a compact titleblock box (title · scale · cut-plane AFF · grid), a true **graphic
+scale bar** (correct at any zoom), a **north arrow**, and a **general-notes** block. Room names are XML-
+escaped so a name with `&`/`<` can't break the SVG.
+
 ## v0.3.344 — CODE-3: detail-rule citations follow the resolved edition
 
 The Track-D detail-rule engine seeds its flashing/keynote citations against **IBC 2021**. `apply_rules` now
