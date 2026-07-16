@@ -7,6 +7,49 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## ★ Recent releases — v0.3.313–335 (discipline tree · UX-2 annotation · MEP-FP · CODE-EBC)
+
+Moved out of the working roadmap so it holds only open items.
+
+**🗂 DISC — unified discipline tree (v0.3.330–335).** One CSI-MasterFormat/UniFormat/NCS vocabulary + colour
+palette across the viewer, model browser, estimate, and both packages.
+- **DISC-1 (v0.3.330)** — canonical `DISCIPLINE_COLORS` + `discipline_color()` (fire=red…telecom=purple; FA
+  swatch distinct from FP); full IFC-class→discipline coverage (`_IFC_DISCIPLINE`) for MEP/fire/electrical/
+  telecom entities the MasterFormat map missed; `discipline_tree()` (colour + divisions + uniformat + sheet
+  series + rolled-up IFC classes + `ifc_class_discipline`), served on `GET /reference/disciplines`.
+- **DISC-2 (v0.3.331)** — a **Color by** toggle (IFC class ↔ Discipline) on the IFC-classes panel + a legend
+  of disciplines present + a **Paint model** button; `tree.ts` consumes the served map (`setDisciplineLookup`)
+  instead of its regex; rebar/mesh/tendon → Structural.
+- **DISC-3a (v0.3.334)** — `estimate.by_discipline` (really per-IFC-class) now tags each priced line with its
+  discipline + adds a true `by_discipline_rollup`; per-class detail kept as `by_class`.
+- **DISC-3b (v0.3.335)** — new `aec_data/disciplines.py` holds the canonical `MF_DIVISIONS` + colour palette;
+  `classification.py` imports them (drops copies) and `specmanual` drops its duplicate `_DIVISIONS` — one
+  source across both packages (aec_api can import aec_data, not vice-versa).
+- **DISC-4a (v0.3.332)** — `add_fa_device` (smoke/heat detector `IfcSensor`; pull-station/horn-strobe/bell/FACP
+  `IfcAlarm`) on a **Fire Alarm** system; `add_comms_device` (MDF/IDF/switch/WAP `IfcCommunicationsAppliance`,
+  data outlet `IfcOutlet`) on a **Telecommunications** system.
+- **DISC-4b (v0.3.333)** — 🔔 Fire-alarm + 📶 Telecom tool buttons; demo tower rebuilt with a unitized
+  `IfcCurtainWall` facade, 286 fire-rated walls (2-hr core / 1-hr demising), an `IfcRoof` assembly, 90
+  detectors + 61 alarm devices, 37 telecom devices — all 8 disciplines colored distinctly.
+
+**🏷 UX-2 — interactive annotation (v0.3.323–328).** `add_annotation` text notes (v0.3.323) · `add_dimension`
+two-click dimensions (v0.3.324) · `add_revision_cloud` + **plan rendering of view-placed annotations**
+(v0.3.327) · `add_tag` element-aware tags auto-read from the host, assigned via `IfcRelAssignsToProduct`
+(v0.3.328). Closed the author→sheet loop the baked-SVG path couldn't.
+
+**🧯 MEP-FP — fire protection as a first-class system (v0.3.311–319).** Discipline via `PredefinedType` +
+`add_mep_*` discipline arg + `set_system_predefined` (v0.3.311) · `add_fire_equipment` sprinkler/hose-reel/FDC/
+hydrant/pump (v0.3.315) · NFPA-13 `sprinkler_coverage` pre-check (v0.3.316) · `add_riser` vertical standpipes/
+stacks/vents (v0.3.319).
+
+**Other v0.3.313–329.** CODE-EBC IEBC Work-Area classifier (v0.3.310) · RFI-0→BCF decision-readiness promotion
+(v0.3.313) · EST-1 material/equipment `full_estimate` (v0.3.314) · CONTENT-1 mesh import + auto-classify
+(v0.3.321) · A4 LLM scene-digest (v0.3.322) · G3 O&M/warranty doc refs (v0.3.318) · the `open_model` stale-cache
+fix keyed by (path, mtime, size) (v0.3.325) · QTO length derivation so linear MEP/railing prices non-zero
+(v0.3.329) · Capacitor 6→7 clearing the tar CVEs (v0.3.312).
+
+---
+
 ## ★ Current initiative — Code quality & hardening (2026-07)
 
 From a four-domain, file-grounded audit (Python architecture · Python performance/correctness ·
