@@ -335,8 +335,13 @@ palette and a mislabeled `estimate.by_discipline`.)
   - ✅ **DISC-3a estimate rollup SHIPPED v0.3.334** — `estimate.by_discipline` (which really grouped by raw
     IFC class) now tags each priced line with its discipline (name/code/color) and adds a true
     `by_discipline_rollup` summing by NCS discipline; per-class detail kept as `by_class`.
-  - Remaining: `drawing.py` poché colors + `specmanual` divisions + `mep.py`/`edit.py` maps derive from the
-    spine (needs a shared artifact `aec_data` can read, since it can't import `aec_api`).
+  - ✅ **DISC-3b shared source SHIPPED v0.3.335** — new `aec_data/disciplines.py` holds the canonical
+    `MF_DIVISIONS` + discipline colour palette; `aec_api.classification` imports them (drops its copies) and
+    `aec_data.specmanual` drops its duplicate `_DIVISIONS` — one source across both packages.
+  - Remaining (optional): `drawing.py` `_STYLE`/`_PDF_FILL` are deliberate per-class plan poché (standard
+    architectural convention, not discipline duplication) — could gain an opt-in colour-by-discipline mode;
+    the `mep.py`/`edit.py` PredefinedType↔discipline maps are IfcDistributionSystem-enum concerns, largely
+    orthogonal to the NCS tree.
 - ✅ **DISC-4a Fire Alarm + Telecom recipes SHIPPED v0.3.332** — `add_fa_device` (smoke/heat detector
   `IfcSensor`; pull-station/horn-strobe/bell/FACP `IfcAlarm`) on a **Fire Alarm** system; `add_comms_device`
   (MDF/IDF/switch/WAP `IfcCommunicationsAppliance`, data outlet `IfcOutlet`) on a **Telecommunications**

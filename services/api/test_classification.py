@@ -29,9 +29,10 @@ assert cls.classify("IfcSlab", "masterformat")[0].startswith("03")
 assert cls.classify("IfcMadeUp", "din276") == cls.CLASSIFICATIONS["din276"]["default"]   # fallback
 
 # --- unit: the unified discipline tree (colors + IFC-class coverage) ---------
-assert cls.discipline_color("F") == cls.DISCIPLINE_COLORS["F"]          # fire = red family
-assert cls.discipline_color("FA") == cls.SERIES_COLORS["FA"]            # fire alarm reads apart
-assert cls.discipline_color("Ad") == cls.DISCIPLINE_COLORS["A"]         # 2-letter designator folds to level-1
+from aec_data import disciplines as _disc                               # noqa: E402  (canonical color source)
+assert cls.discipline_color("F") == _disc.DISCIPLINE_COLORS["F"]        # fire = red family
+assert cls.discipline_color("FA") == _disc.SERIES_COLORS["FA"]          # fire alarm reads apart
+assert cls.discipline_color("Ad") == _disc.DISCIPLINE_COLORS["A"]       # 2-letter designator folds to level-1
 assert cls.discipline_color("zz") == "#8A8F98"                          # unknown -> General grey
 # MEP/fire/telecom classes the MasterFormat map doesn't enumerate must still classify to a discipline
 assert cls.discipline_of_ifc_class("IfcSprinkler") == "F"

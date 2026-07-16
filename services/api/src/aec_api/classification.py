@@ -105,17 +105,14 @@ def systems() -> list[dict[str, Any]]:
 # the division master, the discipline vocabulary (with each discipline's default divisions), and the
 # Uniformat II ↔ MasterFormat crosswalk that migrates a concept budget into the procurement budget.
 
-MF_DIVISIONS: dict[str, str] = {
-    "00": "Procurement & Contracting Requirements", "01": "General Requirements",
-    "02": "Existing Conditions", "03": "Concrete", "04": "Masonry", "05": "Metals",
-    "06": "Wood, Plastics & Composites", "07": "Thermal & Moisture Protection", "08": "Openings",
-    "09": "Finishes", "10": "Specialties", "11": "Equipment", "12": "Furnishings",
-    "13": "Special Construction", "14": "Conveying Equipment", "21": "Fire Suppression",
-    "22": "Plumbing", "23": "Heating, Ventilating & Air Conditioning (HVAC)",
-    "25": "Integrated Automation", "26": "Electrical", "27": "Communications",
-    "28": "Electronic Safety & Security", "31": "Earthwork", "32": "Exterior Improvements",
-    "33": "Utilities",
-}
+# The MasterFormat division master + the discipline colour palette are the shared low-level data — they
+# live in aec_data.disciplines (reachable by both the geometry engine and this API layer) and are imported
+# here so there is exactly one source. This module builds the richer discipline spine on top.
+from aec_data.disciplines import (  # noqa: E402
+    MF_DIVISIONS,
+    discipline_color,
+    division_of,
+)
 
 # NCS discipline designator -> canonical name + its default MasterFormat divisions + Uniformat groups.
 # Ordered per the National CAD Standard sheet sequence (general/site/structure → arch → systems).
@@ -134,23 +131,7 @@ DISCIPLINES: list[dict[str, Any]] = [
     {"code": "Q", "name": "Equipment", "divisions": ["11", "14"], "uniformat": ["D10", "E"]},
 ]
 
-# One canonical display color per discipline (hex) so the viewer's color-by-discipline mode, the plan/PDF
-# poché, the model browser, and any legend all render a discipline the same way. Chosen for perceptual
-# separation and to follow common AEC coordination conventions: fire = red, plumbing = green,
-# mechanical = amber, electrical = yellow, telecom = purple, structural = blue, civil = earth.
-DISCIPLINE_COLORS: dict[str, str] = {
-    "G": "#8A8F98", "C": "#A9744F", "L": "#5BA150", "S": "#2E5A88", "A": "#4B5563",
-    "F": "#D64545", "P": "#2FA36B", "M": "#E07B2B", "E": "#EAC43A", "T": "#7C5CBF", "Q": "#C05CA0",
-}
-# Distinct sheet-series that warrant their own swatch (Fire Alarm reads apart from Fire Protection red).
-SERIES_COLORS: dict[str, str] = {"FA": "#E8663C", "FP": "#D64545"}
-
-
-def discipline_color(code: str | None) -> str:
-    """Canonical hex color for a discipline code or distinct sheet series (FA/FP). Falls back to the
-    General grey so an unknown/unmapped code still renders."""
-    c = (code or "").strip().upper()
-    return SERIES_COLORS.get(c) or DISCIPLINE_COLORS.get(c[:1] if c else "", "#8A8F98")
+# DISCIPLINE_COLORS / SERIES_COLORS / discipline_color() are imported from aec_data.disciplines (above).
 
 # Uniformat II element -> (title, typical MasterFormat divisions) — the concept↔procurement crosswalk.
 UNIFORMAT: dict[str, tuple[str, list[str]]] = {
@@ -170,12 +151,6 @@ _CODE_SET = {d["code"] for d in DISCIPLINES}
 _ALIASES = {"mep": "M", "geotechnical": "C", "geotech": "C", "low voltage": "T", "lv": "T",
             "arch": "A", "struct": "S", "structure": "S", "elec": "E", "mech": "M", "plumb": "P",
             "hvac": "M", "fire": "F", "civil/site": "C", "site": "C"}
-
-
-def division_of(section: str) -> str | None:
-    """First two digits of a MasterFormat section number/code -> division code (e.g. '03 30 00' -> '03')."""
-    digits = "".join(ch for ch in str(section or "") if ch.isdigit())
-    return digits[:2] if len(digits) >= 2 else None
 
 
 def discipline_of_division(div: str | None) -> str | None:
