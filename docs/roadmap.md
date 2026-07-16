@@ -177,9 +177,12 @@ interop targets / content platforms / open standards named where they're integra
 - ✅ **COST-DB backbone SHIPPED v0.3.337** — `cost_datasets` + `cost_items` schema, project `cost_dataset_id`
   pin, an offline `PublicDataImporter` (`cost_db.py`) building a `public_local` vintage from the shipped
   benchmark rates, a vintage resolver (latest/exact/nearest-fallback/strict) + `is_latest` management, and the
-  `/cost/datasets` + `/projects/{pid}/cost-vintage` endpoints. **Remaining build-order steps:** wire the pinned
-  vintage's rates into the estimate (step 8), the `massing.cloud` CloudDatasetImporter (signed bundle), real
-  public-source ingest (BLS/FRED/DoD/Census), location factors, delta sync, Ed25519 signatures, escalation-forward.
+  `/cost/datasets` + `/projects/{pid}/cost-vintage` endpoints.
+- ✅ **COST-DB estimate integration SHIPPED v0.3.338** — the model estimate (`/estimate/from-model` +
+  `/qto/by-floor`) prices the takeoff **through the project's pinned vintage** (its rate map as overrides) and
+  returns the `cost_vintage` it priced with — reproducible estimates. **Remaining build-order steps:** the
+  `massing.cloud` CloudDatasetImporter (signed bundle), real public-source ingest (BLS/FRED/DoD/Census),
+  location factors, delta sync, Ed25519 signatures, escalation-forward.
 - **COST-DB — vintage-versioned cost database + import** *(L · high)* — a local, **vintage-versioned (by year)**
   cost database populated from **either free public sources (BLS/FRED/DoD-UFC/Census — offline-first) or the
   `massing.cloud` subscription API**, behind one `DatasetImporter` interface. Projects **pin** to a specific

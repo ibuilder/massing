@@ -516,7 +516,23 @@ def estimate_from_model(pid: str, db: Session = Depends(get_db), _: str = Depend
         gfa_sf = net_m2 * est.M2_TO_SF
     except Exception:                                 # noqa: BLE001 — benchmark is best-effort
         gfa_sf = None
-    return est.estimate_from_takeoff(rows, gfa_sf=gfa_sf)
+    # COST-DB: price through the project's pinned cost vintage (reproducibility); falls back to the
+    # shipped benchmark when no vintage is installed.
+    from .. import cost_db
+    overrides, ds = _vintage_overrides(db, pid)
+    out = est.estimate_from_takeoff(rows, overrides=overrides, gfa_sf=gfa_sf)
+    if ds:
+        out["cost_vintage"] = cost_db.dataset_dict(ds)
+    return out
+
+
+def _vintage_overrides(db: Session, pid: str):
+    """The `{ifc_class: rate}` overrides + the dataset for a project's pinned cost vintage (or the latest
+    installed). Returns (None, None) when no vintage is installed → the shipped benchmark rates apply."""
+    from .. import cost_db
+    p = db.get(Project, pid)
+    ds = cost_db.dataset_for_project(db, p) if p else None
+    return (cost_db.rates_for(db, ds.id) if ds else None), ds
 
 
 @router.get("/estimate/resources/catalog")
@@ -671,7 +687,12 @@ def qto_by_floor(pid: str, db: Session = Depends(get_db), _: str = Depends(requi
     from .. import estimate as est
     from ..deps import source_ifc_path
     rows = takeoff_file(source_ifc_path(db, pid), force_geometry=True)
-    return est.estimate_by_storey(rows)
+    from .. import cost_db
+    overrides, ds = _vintage_overrides(db, pid)
+    out = est.estimate_by_storey(rows, overrides)
+    if ds:
+        out["cost_vintage"] = cost_db.dataset_dict(ds)
+    return out
 
 
 @router.post("/projects/{pid}/cost/tm")

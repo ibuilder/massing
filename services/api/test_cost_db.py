@@ -79,6 +79,21 @@ with TestClient(app) as c:
     # pinning a bogus dataset 404s
     assert c.post(f"/projects/{pid}/cost-vintage", json={"dataset_id": "nope"}).status_code == 404
 
+    # the model estimate PRICES THROUGH the pinned vintage (carries cost_vintage in the response)
+    import tempfile
+
+    from aec_data import massing                              # noqa: E402
+    c.post(f"/projects/{pid}/cost-vintage", json={"dataset_id": ds24_id})
+    metrics = massing.compute_massing({"lot_width": 20, "lot_depth": 14, "far": 1.5,
+                                       "floor_to_floor": 3.5, "height_limit": 10})
+    ifc = Path(tempfile.gettempdir()) / "costdb_model.ifc"
+    massing.generate_ifc(metrics, str(ifc), name="CostDB")
+    up = c.post(f"/projects/{pid}/source-ifc?publish=false",
+                files={"file": ("m.ifc", ifc.read_bytes(), "application/octet-stream")})
+    assert up.status_code == 200, up.text[:160]
+    est = c.get(f"/projects/{pid}/qto/by-floor").json()
+    assert est.get("cost_vintage", {}).get("vintage_year") == 2024, est.get("cost_vintage")
+
 print("COST-DB OK - offline public importer builds vintage-versioned datasets (one priced item per shipped "
       "benchmark, MasterFormat-coded); importing a newer vintage flips is_latest; re-import is idempotent "
       "(no dup rows); resolve handles latest/exact/nearest-fallback/strict; a project pins a vintage for "
