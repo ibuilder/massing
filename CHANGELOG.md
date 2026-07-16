@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.338 — COST-DB: the model estimate prices through the pinned vintage
+
+Closes the reproducibility loop (build-order step 8). The model estimate endpoints —
+`GET /projects/{pid}/estimate/from-model` and `GET /projects/{pid}/qto/by-floor` — now price the
+takeoff **through the project's pinned cost vintage** (its `cost_dataset_id`, else the latest installed),
+applying that vintage's `{ifc_class: rate}` map as the rate overrides and returning the `cost_vintage` it
+priced with. So a 2024-pinned project's estimate stays on 2024 rates after newer vintages land — defensible
+and reproducible. Falls back to the shipped benchmark rates when no vintage is installed.
+
 ## v0.3.337 — COST-DB: vintage-versioned cost database (offline first slice)
 
 First slice of the cost-database plan ([cost-db-import-plan.md](docs/cost-db-import-plan.md)) — the
