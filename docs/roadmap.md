@@ -171,9 +171,12 @@ Ranked most-actionable first. Competitor names kept out — capabilities describ
 interop targets / content platforms / open standards named where they're integrations.
 
 ### 📊 Estimating → 5D depth
-- **EST-1 (deepen)** *(M · high)* — full **QTO integration** into the productivity/labour library + **tie
-  crew-days to schedule durations** (quantities → man-hours → crew → duration + labour cost, regional loading
-  factors). The material/equipment $/unit layer + labour estimate already ship; this closes the 5D loop.
+- ✅ **EST-1 crew-days→duration SHIPPED v0.3.339** — the labour estimate now rolls per-line crew-days up by
+  trade group into a **working/calendar-day schedule duration** (`crews` = parallel crews per trade shortens
+  it; trades sequential = conservative critical path). Flows through `labor_estimate`/`full_estimate`/
+  `from_model`; `?crews=N` on `/estimate/labor`.
+- **EST-1 (remaining)** *(M)* — full **QTO integration** (drive the activity quantities from the real
+  `aec_data.qto` takeoff, not just element dimensions) + wire the duration into the CPM/Gantt schedule.
 - ✅ **COST-DB backbone SHIPPED v0.3.337** — `cost_datasets` + `cost_items` schema, project `cost_dataset_id`
   pin, an offline `PublicDataImporter` (`cost_db.py`) building a `public_local` vintage from the shipped
   benchmark rates, a vintage resolver (latest/exact/nearest-fallback/strict) + `is_latest` management, and the
