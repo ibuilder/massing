@@ -18,6 +18,25 @@ DEFAULT_RATES: dict[str, tuple[str, float]] = {
     "IfcFooting": ("volume", 280.0), "IfcPile": ("count", 1500.0),
     "IfcPlate": ("area", 95.0), "IfcRamp": ("area", 180.0),
     "IfcTransportElement": ("count", 85000.0),    # elevator
+    # ---- MEP distribution (installed, incl. fittings/hangers) ----
+    "IfcPipeSegment": ("length", 180.0), "IfcDuctSegment": ("length", 150.0),
+    "IfcCableCarrierSegment": ("length", 220.0),  # bus riser / cable tray
+    "IfcPipeFitting": ("count", 120.0), "IfcDuctFitting": ("count", 140.0),
+    # ---- MEP / fire terminals & fixtures ----
+    "IfcFireSuppressionTerminal": ("count", 95.0),   # sprinkler head installed
+    "IfcAirTerminal": ("count", 180.0), "IfcSanitaryTerminal": ("count", 650.0),
+    "IfcLightFixture": ("count", 220.0), "IfcOutlet": ("count", 45.0),
+    "IfcSwitchingDevice": ("count", 60.0),
+    # ---- MEP plant / equipment ----
+    "IfcPump": ("count", 18000.0), "IfcBoiler": ("count", 85000.0),
+    "IfcTank": ("count", 22000.0), "IfcTransformer": ("count", 45000.0),
+    "IfcCoolingTower": ("count", 120000.0), "IfcChiller": ("count", 150000.0),
+    "IfcElectricDistributionBoard": ("count", 35000.0),   # switchgear / distribution
+    "IfcUnitaryEquipment": ("count", 12000.0), "IfcFan": ("count", 8000.0),
+    "IfcElementAssembly": ("count", 850.0),   # steel connection assembly
+    # NOTE: IfcReinforcingBar is intentionally NOT priced here — the concrete volume
+    # rates (IfcColumn/IfcBeam/IfcFooting) are quoted "in place, incl. rebar", so pricing
+    # reinforcement again would double-count. LOD-400 rebar remains a takeoff-only detail.
 }
 _UNIT_LABEL = {"area": "m²", "length": "m", "volume": "m³", "count": "ea"}
 

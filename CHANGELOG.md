@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.326 — Estimate: price MEP, fire-protection & plant equipment
+
+The model estimator's `DEFAULT_RATES` covered structure + architecture only, so a fully-serviced
+building's mechanical/electrical/plumbing scope fell through to *unpriced* — understating the
+conceptual total. Added unit rates for MEP distribution (pipe/duct/cable-carrier per metre, fittings
+per count), terminals & fixtures (sprinkler heads, air/sanitary terminals, light fixtures, outlets,
+switches), and plant equipment (pumps, boilers, tanks, transformers, cooling towers, chillers,
+switchgear, unitary equipment, fans) plus steel-connection assemblies. `IfcReinforcingBar` is
+intentionally *not* priced separately — the concrete volume rates are quoted in-place incl. rebar, so
+pricing it again would double-count; LOD-400 rebar stays a takeoff-only detail. Surfaced on a
+2,750-element authored tower whose 232 sprinkler heads, risers and cellar plant returned $0.
+
 ## v0.3.325 — Fix: whole-model re-upload served stale from the IFC cache
 
 `ifc_loader.open_model` cached opened models by **path alone** (`@lru_cache`), so re-publishing a
