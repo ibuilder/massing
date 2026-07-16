@@ -20,6 +20,22 @@ assert r["lines"][0]["ifc_class"] == "IfcWall"                   # sorted by amo
 assert r["element_count"] == 6 and r["source"] == "model"
 assert any(u["ifc_class"] == "IfcFurniture" for u in r["unpriced"]), r["unpriced"]
 
+# MEP / fire / equipment now priced (previously fell through to unpriced, understating a
+# fully-serviced building). Terminals + plant billed per-count, distribution per-length.
+mep = est.estimate_from_takeoff([
+    {"ifc_class": "IfcPipeSegment", "length": 10.0},              # 10 m @180 = 1800
+    {"ifc_class": "IfcFireSuppressionTerminal"},                  # 1 @95 = 95 (sprinkler head)
+    {"ifc_class": "IfcTransformer"},                              # 1 @45000
+    {"ifc_class": "IfcBoiler"},                                   # 1 @85000
+])
+mby = {l["ifc_class"]: l for l in mep["lines"]}
+assert mby["IfcPipeSegment"]["amount"] == 1800.0, mby["IfcPipeSegment"]
+assert mby["IfcFireSuppressionTerminal"]["amount"] == 95.0, mby["IfcFireSuppressionTerminal"]
+assert mby["IfcTransformer"]["amount"] == 45000.0 and mby["IfcBoiler"]["amount"] == 85000.0, mby
+assert mep["unpriced"] == [], mep["unpriced"]                    # nothing MEP falls through now
+# rebar stays a takeoff-only detail (already in the concrete volume rate) — must NOT be priced
+assert "IfcReinforcingBar" not in est.DEFAULT_RATES
+
 # per-class rate override
 r2 = est.estimate_from_takeoff(rows, overrides={"IfcWall": 200.0})
 assert {l["ifc_class"]: l for l in r2["lines"]}["IfcWall"]["amount"] == 16000.0
