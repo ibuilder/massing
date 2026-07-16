@@ -1076,6 +1076,18 @@ export class ApiClient extends HttpCore {
   placeContent(pid: string, category: string, point: [number, number], name?: string, publish = true) {
     return this.editIfc(pid, "place_content", { category, point, ...(name ? { name } : {}) }, publish);
   }
+  /** CONTENT-1 (import): upload a detailed mesh (glTF/GLB/OBJ/STL/PLY) → auto-classified + placed as the
+   *  right IFC via place_content. Category auto-detected from the filename unless given. */
+  async importContent(pid: string, file: File, opts: { category?: string; e?: number; n?: number;
+      scale?: number; name?: string; storey?: string } = {}) {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(opts)) if (v !== undefined && v !== "") q.set(k, String(v));
+    const fd = new FormData(); fd.append("file", file);
+    const r = await fetch(this.url(`/projects/${pid}/content/import?${q.toString()}`),
+      { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    return r.json() as Promise<{ guid: string; ifc_class: string; category: string; faces: number; publish?: string }>;
+  }
   /** W11 E8: validate an edit's params against the authoring guardrails without applying it. */
   editPrecheck(pid: string, recipe: string, params: Record<string, unknown>) {
     return this.json<{ ok: boolean; errors: string[]; warnings: string[] }>(

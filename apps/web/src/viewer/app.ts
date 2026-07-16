@@ -2475,6 +2475,26 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           body.appendChild(resultNote(`<b>${cat!.count}</b> catalogued parts. ${cat!.note} Placed at an E,N `
             + `point as the correct IFC class + phase + classification (a sized placeholder box; swap in a `
             + `detailed mesh via Add mesh / an imported asset).`, ""));
+          // CONTENT-1 (import): upload a detailed mesh → auto-detect category → placed as the right IFC
+          const imp = document.createElement("div"); imp.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px";
+          const impLbl = document.createElement("span"); impLbl.className = "meta"; impLbl.textContent = "⬆ Import a detailed mesh (glTF/OBJ/STL) — auto-classified:";
+          const catIn = document.createElement("input"); catIn.className = "portal-filter"; catIn.placeholder = "category (auto)"; catIn.style.cssText = "width:110px;font-size:11px";
+          const fileIn = document.createElement("input"); fileIn.type = "file"; fileIn.accept = ".glb,.gltf,.obj,.stl,.ply"; fileIn.style.fontSize = "11px";
+          fileIn.onchange = async () => {
+            const f = fileIn.files?.[0]; if (!f) return;
+            const eN = lastPoint ? lastPoint.x : 0, nN = lastPoint ? -lastPoint.z : 0;
+            await withLoading(container, `importing ${f.name} + republishing`, async () => {
+              try {
+                const res = await api.importContent(projectId!, f, { category: catIn.value.trim() || undefined, e: eN, n: nN });
+                const state = await waitForPublish(projectId!);
+                if (state === "done") { await loadProjectModel(); notify(`imported as ${res.category} (${res.ifc_class}, ${res.faces} faces)`, "success"); }
+                else notify(`imported — publish ${state}`, state === "error" ? "error" : "info");
+                await reloadModelPins();
+              } catch (err) { notify(`import failed: ${(err as Error).message}`, "error"); }
+              finally { fileIn.value = ""; }
+            });
+          };
+          imp.append(impLbl, catIn, fileIn); body.appendChild(imp);
           for (const [group, items] of Object.entries(cat!.groups)) {
             const h = document.createElement("div"); h.className = "meta"; h.style.cssText = "font-weight:600;margin:8px 0 2px";
             h.textContent = group;

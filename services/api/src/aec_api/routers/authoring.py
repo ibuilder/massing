@@ -709,6 +709,54 @@ def content_catalog(_: str = Depends(current_user)):
     return content.catalog()
 
 
+@router.post("/projects/{pid}/content/import")
+async def content_import(pid: str, file: UploadFile = File(...), category: str = "", e: float = 0.0,
+                         n: float = 0.0, scale: float = 1.0, name: str = "", storey: str = "",
+                         publish: bool = True, db: Session = Depends(get_db),
+                         actor: str = Depends(require_role("editor"))):
+    """CONTENT-1 (import): import a detailed mesh (glTF / GLB / OBJ / STL / PLY) and place it as the **right
+    IFC** — auto-detect the catalog category from the filename (or pass `category=`), parse the mesh
+    (recentred, glTF Y-up → IFC Z-up), and author it via `place_content` (correct IFC class + phase +
+    classification). License-vet the source asset before importing. Versioned + undo-able + republished."""
+    from aec_data import content  # type: ignore
+    from aec_data import edit as ed
+
+    p = _project(db, pid)
+    data = await file.read()
+    ext = Path(file.filename or "asset.glb").suffix.lower() or ".glb"
+    cat = (category or "").strip().lower() or (content.detect_category(file.filename or "") or "")
+    if not cat:
+        raise HTTPException(400, "could not detect a content category from the filename — pass category=")
+    if content.spec(cat) is None:
+        raise HTTPException(400, f"unknown content category {cat!r}; see /content/catalog")
+    try:
+        verts, faces = content.parse_mesh(data, ext, float(scale))
+    except Exception as ex:                            # noqa: BLE001 — surface any parse failure as a 400
+        raise HTTPException(400, f"could not parse mesh: {ex}") from ex
+
+    params = {"category": cat, "point": [float(e), float(n)], "verts": verts, "faces": faces,
+              "name": (name or None), "storey": (storey or None)}
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+    out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+    try:
+        result = ed.apply_recipe(p.source_ifc, "place_content", params, out)
+    except (ValueError, KeyError) as ex:
+        raise HTTPException(400, str(ex)) from ex
+    from .. import edit_history
+    edit_history.push(pid, p.source_ifc)
+    p.source_ifc = out
+    audit.record(db, action="content.import", actor=actor, method="POST",
+                 path=f"/projects/{pid}/content/import", detail={"category": cat, "faces": len(faces)})
+    db.commit()
+    result["category"] = cat
+    result["faces"] = len(faces)
+    if publish:
+        _publish_bg(pid)
+        result["publish"] = "running"
+    return result
+
+
 @router.get("/projects/{pid}/authoring/capabilities")
 def authoring_capabilities(pid: str, _: str = Depends(require_role("viewer"))):
     """Which optional/gated authoring capabilities are enabled on this server (so the UI can hide what's

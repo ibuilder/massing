@@ -81,3 +81,62 @@ def catalog() -> dict[str, Any]:
 
 def spec(category: str) -> dict[str, Any] | None:
     return _C.get((category or "").strip().lower())
+
+
+# CONTENT-1 (import): filename/name keyword → catalog category, so an imported "office-chair.glb" auto-files
+# as `chair` (IfcFurniture). Longer/more-specific synonyms first so "mobile crane" beats "crane".
+_SYNONYMS: list[tuple[str, str]] = [
+    ("mobile crane", "mobile_crane"), ("mobile_crane", "mobile_crane"), ("crawler crane", "mobile_crane"),
+    ("tower crane", "tower_crane"), ("tower_crane", "tower_crane"), ("crane", "tower_crane"),
+    ("material hoist", "hoist"), ("man hoist", "hoist"), ("hoist", "hoist"), ("elevator hoist", "hoist"),
+    ("porta john", "sanitary_unit"), ("porta-john", "sanitary_unit"), ("portajohn", "sanitary_unit"),
+    ("porta potty", "sanitary_unit"), ("portable toilet", "sanitary_unit"), ("toilet", "sanitary_unit"),
+    ("restroom", "sanitary_unit"), ("sanitary", "sanitary_unit"), ("wc", "sanitary_unit"),
+    ("site fence", "site_fence"), ("hoarding", "site_fence"), ("fence", "site_fence"), ("barrier", "site_fence"),
+    ("site office", "site_office"), ("site trailer", "site_office"), ("job trailer", "site_office"),
+    ("trailer", "site_office"), ("container office", "site_office"), ("office", "site_office"),
+    ("laydown", "laydown"), ("lay down", "laydown"), ("storage area", "laydown"),
+    ("gate", "gate"), ("dumpster", "dumpster"), ("skip", "dumpster"), ("waste bin", "dumpster"),
+    ("office chair", "chair"), ("chair", "chair"), ("stool", "chair"),
+    ("desk", "desk"), ("workstation", "desk"), ("sofa", "sofa"), ("couch", "sofa"),
+    ("dining table", "table"), ("table", "table"), ("bed", "bed"), ("cabinet", "cabinet"), ("wardrobe", "cabinet"),
+    ("shrub", "shrub"), ("bush", "shrub"), ("hedge", "shrub"), ("tree", "tree"), ("planter", "planter"),
+    ("plant pot", "planter"), ("bollard", "bollard"),
+]
+
+
+def detect_category(name: str) -> str | None:
+    """Guess a catalog category from a filename / asset name by keyword (longest synonym wins). Returns the
+    category key or None if nothing matches — the import then asks for an explicit category."""
+    s = (name or "").lower().replace("_", " ").replace("-", " ")
+    best: tuple[int, str] | None = None
+    for kw, cat in _SYNONYMS:
+        if kw in s and (best is None or len(kw) > best[0]):
+            best = (len(kw), cat)
+    return best[1] if best else None
+
+
+def parse_mesh(data: bytes, ext: str = ".glb", scale: float = 1.0, max_faces: int = 200_000) -> tuple:
+    """CONTENT-1 (import): parse an uploaded mesh (glTF/GLB/OBJ/STL/PLY) into `(verts, faces)` ready for
+    `add_mesh_representation` — verts in **metres** as `[[x,y,z]…]`, faces 0-based `[[i,j,k]…]`. The mesh is
+    recentred so its min-corner sits at the origin (it then places at the [E,N] point, base at z=0); glTF's
+    Y-up is rotated to IFC's Z-up. `scale` multiplies the size. Raises on an unparseable or over-large mesh."""
+    import io
+
+    import numpy as np
+    import trimesh
+
+    ft = (ext or ".glb").lstrip(".").lower()
+    mesh = trimesh.load(io.BytesIO(data), file_type=ft, force="mesh")   # concatenate a Scene into one mesh
+    if mesh is None or not hasattr(mesh, "vertices") or len(mesh.vertices) == 0:
+        raise ValueError("no mesh geometry found in the file")
+    v = np.asarray(mesh.vertices, dtype=float)
+    f = np.asarray(mesh.faces, dtype=int)
+    if len(f) == 0:
+        raise ValueError("mesh has no faces")
+    if len(f) > max_faces:
+        raise ValueError(f"mesh has {len(f)} faces (> {max_faces}); decimate it before importing")
+    if ft in ("gltf", "glb"):                      # glTF is Y-up; IFC is Z-up → rotate +90° about X
+        v = v[:, [0, 2, 1]] * np.array([1.0, -1.0, 1.0])
+    v = (v - v.min(axis=0)) * float(scale)          # min-corner to origin, then scale
+    return v.tolist(), f.tolist()

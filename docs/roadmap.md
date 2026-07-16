@@ -34,7 +34,7 @@ deepens each track:
 front, drawn from the 2026-07 research round 2 + remaining depth:
 1. **RFI-0 — decision-readiness audit** *(★★★★★)* — compose approvability + detail-rule validate + model-hygiene + clash into one "what's missing?" report → BCF.
 2. **EST-1 — productivity-rate cost/duration library** — man-hours/unit → labour cost + duration from quantities (5D).
-3. **CONTENT-1 (remaining)** — glTF/OBJ/SketchUp asset import → auto-detect category, click-to-place, license-vetted CC0 seed. *(catalog + placement ✅ v0.3.306.)*
+3. ✅ **CONTENT-1 (import) SHIPPED v0.3.321** — `parse_mesh` (glTF/OBJ/STL/PLY → recentred metre verts/faces, Y-up→Z-up) + `detect_category` (filename → catalog key) + `POST /content/import` (auto-classified place via `place_content`) + a ⬆ Import-mesh picker. *(catalog + placement ✅ v0.3.306.) Remaining: a curated CC0 seed + thumbnail palette → folds into UX-3.*
 4. **A2/A4** — RAG-grounded code-gen; LLM scene-digest. **B5/F0b** — connections + `IfcRelConnects*`; derive Box/Axis/FootPrint.
 5. **Frontier (own planning pass):** COLLAB-1 multiplayer · SITE-1/BIM-GIS · VIZ-U1 (Unity/WebGL) · CODE-EBC · PROFORMA-LIVE · ENV-1.
 
@@ -243,15 +243,13 @@ ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
   placeholder → correct IFC class + phase (logistics = temporary, 4D-phased) + Uniclass/OmniClass); `GET
   /content/catalog` + a 🏗 Site content library palette. *Next: glTF/OBJ/SketchUp asset import → auto-detect
   category, click-to-place, and a license-vetted CC0 seed of detailed meshes.*
-- **CONTENT-1 (remaining) — mesh→IFC asset import** *(L · high)* — import a **well-detailed mesh**
-  (glTF/OBJ, or a SketchUp model via glTF, or a public 3D-content-warehouse asset) and **auto-classify + place
-  it as the *right* IFC**: furniture → `IfcFurnishingElement`; **site-logistics** (crane, hoist, fence,
-  sanitary unit, laydown, trailer) → a proxy on the **Site-Logistics storey + Temporary phase** (feeding the
-  W9-5 4D logistics overlay); landscaping (tree/planting) → `IfcGeographicElement`; equipment → the
-  MEP/equipment class. A curated seed of **logistics / furniture / landscaping** parts — *well-detailed, not
-  random shapes* — each with classification + placement + **per-asset license vetting** (CC0/CC-BY preferred;
-  other sources only where the license permits redistribution; SketchUp models carry the SketchUp General
-  Model License — vet each). Extends the shipped `add_mesh_representation` (B4) + H1 CC0 content.
+- ✅ **CONTENT-1 (import) SHIPPED v0.3.321** — import a **well-detailed mesh** (glTF/GLB/OBJ/STL/PLY — incl. a
+  SketchUp model via glTF) and **auto-classify + place it as the *right* IFC**: `content.parse_mesh` (recentred
+  metre verts/faces, Y-up→Z-up, face cap), `content.detect_category` (filename → catalog key), `POST
+  /content/import` authors via `place_content` (furniture → `IfcFurniture`; site-logistics → proxy on the
+  Temporary phase; landscaping → `IfcGeographicElement`) + a ⬆ Import-mesh picker. Per-asset **license vetting**
+  is the operator's responsibility (CC0/CC-BY preferred; SketchUp models carry the SketchUp General Model
+  License — vet each). *Remaining: a curated CC0 seed library + a browsable thumbnail palette → UX-3.*
 
 ### 🎮 Visualization — Unity as the optional bridge (supersedes the Unreal framing)
 - **VIZ-U1 — Unity/Pixyz IFC → WebGL presentation build** *(L · optional/paid-license/flagged)* — Unity's

@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.321 — Mesh→IFC asset import: bring in detailed parts, auto-classified (CONTENT-1 remaining)
+
+The other half of the content library: **import a well-detailed mesh and place it as the *right* IFC**, not
+a random shape. New `content.parse_mesh` loads a glTF / GLB / OBJ / STL / PLY (trimesh) into recentred,
+metre-scaled verts + faces (glTF Y-up → IFC Z-up; a face-count cap; `scale`), and `content.detect_category`
+guesses the catalog category from the filename (`office-chair.glb` → `chair`; `Porta-John.stl` →
+`sanitary_unit`; longest synonym wins). New `POST /projects/{pid}/content/import` (multipart) parses the file,
+auto-detects (or takes `category=`), and authors it via the `place_content` recipe — correct IFC class +
+phase + Uniclass/OmniClass classification — versioned, undo-able, republished. The 🏗 Site content library
+tool gains an **⬆ Import mesh** picker (drops the asset at the last-clicked point). License-vet the source
+before import. `importContent` client + `test_content_import.py`. Builds on the B4 mesh hatch + the CONTENT-1
+catalog. *Next: a curated CC0 seed library + a browsable thumbnail palette (folds into the UX-3 Library pass).*
+
 ## v0.3.320 — Element-to-element connections (B5)
 
 The LOD-350 coordination primitive: which elements are physically connected. New `connect_elements` recipe
