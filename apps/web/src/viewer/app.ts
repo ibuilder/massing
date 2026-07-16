@@ -2322,6 +2322,37 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       fireBtn.title = "Author a fire-protection device (sprinkler head, hose reel, fire-department/siamese "
         + "connection, hydrant, or fire pump) as the right IFC class on the Fire Protection distribution system.";
 
+      // DISC-4a: fire-alarm / life-safety device (distinct from fire protection) at the last-clicked point.
+      const faBtn = toolBtn2("🔔 Fire-alarm device", async () => {
+        if (!lastPoint) { notify("click a point in the model first, then place the device", "error"); return; }
+        const kind = await askText("Fire alarm / life safety", {
+          label: "Device: smoke_detector · heat_detector · pull_station · horn_strobe · strobe · bell · facp",
+          value: "smoke_detector" });
+        if (!kind) return;
+        const k = kind.trim().toLowerCase().replace(/[ -]/g, "_");
+        const known = ["smoke_detector", "heat_detector", "duct_detector", "pull_station", "horn_strobe", "strobe", "bell", "facp"];
+        await authorAndReload("add_fa_device",
+          { kind: known.includes(k) ? k : "smoke_detector", point: [lastPoint.x, -lastPoint.z] },
+          `fire-alarm ${k}`);
+      });
+      faBtn.title = "Author a fire-alarm / life-safety device (smoke/heat detector, manual pull station, "
+        + "horn-strobe, bell, or FACP) on the Fire Alarm system — its own discipline, apart from fire protection.";
+
+      // DISC-4a: telecom / low-voltage device at the last-clicked point.
+      const commsBtn = toolBtn2("📶 Telecom device", async () => {
+        if (!lastPoint) { notify("click a point in the model first, then place the device", "error"); return; }
+        const kind = await askText("Telecom / low-voltage", {
+          label: "Device: idf · mdf · rack · switch · wap (wireless AP) · data_outlet", value: "idf" });
+        if (!kind) return;
+        const k = kind.trim().toLowerCase().replace(/[ -]/g, "_");
+        const known = ["mdf", "idf", "rack", "switch", "wap", "data_outlet"];
+        await authorAndReload("add_comms_device",
+          { kind: known.includes(k) ? k : "idf", point: [lastPoint.x, -lastPoint.z] },
+          `telecom ${k}`);
+      });
+      commsBtn.title = "Author a telecom / low-voltage device (MDF/IDF rack, network switch, wireless access "
+        + "point, or data outlet) on the Telecommunications system (discipline T).";
+
       // MEP-FP / MEP: a vertical riser (standpipe / stack / vent) at the last-clicked point.
       const riserBtn = toolBtn2("⭱ Vertical riser (standpipe / stack)", async () => {
         if (!lastPoint) { notify("click a point in the model first, then add the riser", "error"); return; }
@@ -2668,7 +2699,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, annotBtn, dimBtn, cloudBtn, tagBtn, contentBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, annotBtn, dimBtn, cloudBtn, tagBtn, contentBtn, ifcCodeBtn);
       const advKey = "massing.viewer.advancedTools";
       let advOpen = false;
       try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }

@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.333 — Tool buttons for Fire Alarm + Telecom; upgraded demo tower
+
+- **🔔 Fire-alarm device** and **📶 Telecom device** tool buttons in the modeling rail (next to
+  🧯 Fire-protection), so the DISC-4a recipes are one click at the last-picked point — pick the device kind
+  (smoke/heat detector, pull station, horn-strobe, bell, FACP · MDF/IDF/switch/WAP/data outlet) and it's
+  authored on the Fire Alarm / Telecommunications system.
+- The demo **30-storey tower** is regenerated with a proper building-element breakdown so every discipline
+  is represented: a **unitized `IfcCurtainWall`** facade (4 full-height assemblies — 152 mullions/transoms +
+  720 glazing panels — replacing the old thin glazed walls + punched windows); **fire-rated construction**
+  (286 walls: 2-hr core/shaft enclosure + 1-hr dwelling-unit demising, via `Pset_WallCommon.FireRating`);
+  a **roof assembly** (`IfcRoof` over the structural deck); **90 smoke/heat detectors + 61 alarm devices**
+  (pull stations / horn-strobes / FACP) on a **Fire Alarm** system; and **37 telecom devices** (MDF/IDF/WAP)
+  on a **Telecommunications** system. The model now spans Structural / Architectural / Mechanical / Plumbing /
+  Electrical / Fire Protection / Fire Alarm / Telecom — each colored distinctly by the discipline tree.
+
 ## v0.3.332 — Fire Alarm + Telecom as first-class authorable systems
 
 Two building disciplines that were previously only reachable as raw IFC classes are now first-class
