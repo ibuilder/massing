@@ -2485,6 +2485,26 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       annotBtn.title = "Place a 2D text note / tag / callout as an IfcAnnotation at the last-clicked point — "
         + "round-trips as real IFC and feeds the drawing generator.";
 
+      // UX-2 — dimension: two-click flow (pick first point, then second → measured dimension annotation)
+      let dimFrom: THREE.Vector3 | null = null;
+      const dimBtn = toolBtn2("📐 Dimension (2 points)", async () => {
+        if (!lastPoint) { notify("click a point in the model first", "error"); return; }
+        if (!dimFrom) { dimFrom = lastPoint.clone(); notify("first point set — click the second point, then press Dimension again", "info"); return; }
+        const a: [number, number] = [dimFrom.x, -dimFrom.z], b: [number, number] = [lastPoint.x, -lastPoint.z];
+        dimFrom = null;
+        await withLoading(container, "placing dimension + republishing", async () => {
+          try {
+            const r = await api.addDimension(projectId!, a, b, { z: lastPoint!.y }, true);
+            const state = await waitForPublish(projectId!);
+            if (state === "done") { await loadProjectModel(); notify(`dimension ${(r as { distance_m?: number }).distance_m ?? ""} m placed`, "success"); }
+            else notify(`placed — publish ${state}`, state === "error" ? "error" : "info");
+            await reloadModelPins();
+          } catch (e) { notify(`dimension failed: ${(e as Error).message}`, "error"); }
+        });
+      });
+      dimBtn.title = "Measure + annotate a dimension between two clicked points — a dimension line + the "
+        + "distance label as an IfcAnnotation. Press once to set the first point, again for the second.";
+
       // CONTENT-1 — site content library: place logistics / furniture / landscaping, each classified into
       // the right IFC class + phase (logistics = temporary, time-phases on the 4D slider).
       const contentBtn = toolBtn2("🏗 Site content library", () => withLoading(container, "Loading the content catalog", async () => {
@@ -2550,7 +2570,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, annotBtn, contentBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, annotBtn, dimBtn, contentBtn, ifcCodeBtn);
       const advKey = "massing.viewer.advancedTools";
       let advOpen = false;
       try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }

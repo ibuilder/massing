@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.324 — Interactive dimensions (UX-2, next slice)
+
+Extends the in-view annotation tool with **dimensions**. New `add_dimension` recipe authors an
+`IfcAnnotation` between two [E,N] points — a dimension line (`IfcPolyline`) plus the **measured distance**
+as an `IfcTextLiteral` at the midpoint (auto-labelled `5.00 m`, or a custom label), in the Annotation
+context; round-trips as real IFC and feeds the drawing generator. New **📐 Dimension** tool with a two-click
+flow (first point → second point → measured dimension). The E8 guardrails already validate the two points
+(finite + distinct → zero-length rejected). `addDimension` client + `test_annotation.py` extended (a 3-4-5
+span → `5.00 m`, custom label, zero-length rejection). *Next: inference-snapped dimension placement + tags
+that read a live IFC property.*
+
 ## v0.3.323 — Interactive annotation: place notes/tags as IfcAnnotation (UX-2, first slice)
 
 The first slice of the UI/UX Master Pass's annotation gap: annotation existed **only** baked into generated

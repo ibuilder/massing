@@ -381,6 +381,47 @@ def add_annotation(model: ifcopenshell.file, point, text: str, kind: str = "note
     return ann.GlobalId
 
 
+def add_dimension(model: ifcopenshell.file, start, end, text: str | None = None,
+                  storey: str | None = None, z: float = 0.0) -> dict:
+    """UX-2: place a **dimension** annotation between two [E, N] points as an `IfcAnnotation` — a dimension
+    line (`IfcPolyline` start→end) plus the measured distance as an `IfcTextLiteral` at the midpoint, in the
+    Annotation context. `text` overrides the auto-computed distance label. Round-trips as real IFC and feeds
+    the drawing generator. GUID-stable. Returns {guid, distance_m}."""
+    import math
+
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    scale = uunit.calculate_unit_scale(model)
+    x1, y1 = float(start[0]), float(start[1])
+    x2, y2 = float(end[0]), float(end[1])
+    dist = math.hypot(x2 - x1, y2 - y1)
+    if dist < 1e-6:
+        raise ValueError("a dimension needs two distinct points")
+    label = (text or f"{dist:.2f} m").strip()
+    ctx = _annotation_context(model)
+    ann = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcAnnotation", name=label)
+    if hasattr(ann, "ObjectType"):
+        ann.ObjectType = "dimension"
+    mtx = np.eye(4); mtx[2, 3] = float(z)
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=ann, matrix=mtx)
+    pts = [model.create_entity("IfcCartesianPoint", (x1 / scale, y1 / scale)),
+           model.create_entity("IfcCartesianPoint", (x2 / scale, y2 / scale))]
+    line = model.create_entity("IfcPolyline", Points=pts)
+    place = model.create_entity("IfcAxis2Placement2D",
+                                Location=model.create_entity("IfcCartesianPoint",
+                                                             ((x1 + x2) / 2 / scale, (y1 + y2) / 2 / scale)))
+    lit = model.create_entity("IfcTextLiteral", Literal=label, Placement=place, Path="RIGHT")
+    rep = model.create_entity("IfcShapeRepresentation", ContextOfItems=ctx,
+                              RepresentationIdentifier="Annotation", RepresentationType="Annotation2D",
+                              Items=[line, lit])
+    ifcopenshell.api.run("geometry.assign_representation", model, product=ann, representation=rep)
+    st = _first_storey(model, storey)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[ann], relating_structure=st)
+    return {"guid": ann.GlobalId, "distance_m": round(dist, 3)}
+
+
 def set_wall_slope(model: ifcopenshell.file, guid: str, start_height: float, end_height: float) -> dict:
     """B3: give a wall a **sloped top** — the top goes from `start_height` (at the wall's start end) to
     `end_height` (at the end), for parapet slopes / shed / gable walls. Rebuilds the wall's Body as a
@@ -1650,6 +1691,9 @@ RECIPES = {
     # UX-2 — 2D text annotation as an IfcAnnotation (note / tag / callout)
     "add_annotation": lambda m, p: add_annotation(m, p["point"], p["text"], p.get("kind", "note"),
                                                   p.get("storey"), float(p.get("z", 0.0))),
+    # UX-2 — dimension annotation between two points (start/end guarded for finiteness + distinctness)
+    "add_dimension": lambda m, p: add_dimension(m, p["start"], p["end"], p.get("text"),
+                                                p.get("storey"), float(p.get("z", 0.0))),
     # CONTENT-1 — place a catalogued content item (logistics / furniture / landscaping) as the right IFC
     "place_content": lambda m, p: place_content(
         m, p["category"], p["point"], p.get("verts"), p.get("faces"), p.get("name"), p.get("storey")),

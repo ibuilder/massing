@@ -8,7 +8,7 @@ _DATA_SRC = os.path.join(os.path.dirname(__file__), "..", "data", "src")
 if _DATA_SRC not in sys.path:
     sys.path.insert(0, _DATA_SRC)
 
-from aec_data import edit, massing  # noqa: E402
+from aec_data import edit, guards, massing  # noqa: E402
 from aec_data.ifc_loader import open_model  # noqa: E402
 
 TMP = os.path.join(os.path.dirname(__file__), "_annot_test.ifc")
@@ -39,6 +39,31 @@ try:
 except ValueError:
     raised = True
 assert raised, "empty annotation text should raise"
+
+# --- UX-2 dimension annotation: line + measured-distance text -------------------------------------
+dr = edit.add_dimension(m, [0, 0], [3, 4], storey=st)      # 3-4-5 triangle → 5.00 m
+assert abs(dr["distance_m"] - 5.0) < 1e-3, dr
+dim = m.by_guid(dr["guid"])
+assert dim.is_a() == "IfcAnnotation" and dim.ObjectType == "dimension", dim
+drep = dim.Representation.Representations[0]
+items = {i.is_a() for i in drep.Items}
+assert "IfcPolyline" in items and "IfcTextLiteral" in items, items    # dimension line + label
+dtext = next(i for i in drep.Items if i.is_a() == "IfcTextLiteral")
+assert dtext.Literal == "5.00 m", dtext.Literal
+# a custom label overrides the auto-distance
+dr2 = edit.add_dimension(m, [0, 0], [2, 0], text="CLR 2.0 m", storey=st)
+assert next(i for i in m.by_guid(dr2["guid"]).Representation.Representations[0].Items
+            if i.is_a() == "IfcTextLiteral").Literal == "CLR 2.0 m"
+# coincident points rejected (and the E8 guard catches it too)
+raised = False
+try:
+    edit.add_dimension(m, [1, 1], [1, 1])
+except ValueError:
+    raised = True
+assert raised, "a zero-length dimension should raise"
+assert guards.precheck("add_dimension", {"start": [0, 0], "end": [0, 0]})["errors"], "guard blocks zero-length dim"
+assert guards.precheck("add_dimension", {"start": [0, 0], "end": [3, 4]})["ok"]
+assert "add_dimension" in edit.RECIPES
 
 # --- registered recipe + reachable via apply_recipe -----------------------------------------------
 assert "add_annotation" in edit.RECIPES

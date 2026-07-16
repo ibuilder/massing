@@ -1072,6 +1072,11 @@ export class ApiClient extends HttpCore {
                 opts: { kind?: "note" | "tag" | "callout"; storey?: string; z?: number } = {}, publish = true) {
     return this.editIfc(pid, "add_annotation", { point, text, ...opts }, publish);
   }
+  /** UX-2: place a dimension annotation (line + measured distance) between two [E,N] points. */
+  addDimension(pid: string, start: [number, number], end: [number, number],
+               opts: { text?: string; storey?: string; z?: number } = {}, publish = true) {
+    return this.editIfc(pid, "add_dimension", { start, end, ...opts }, publish);
+  }
   /** A4: a compact scene digest of the model (counts by class, storeys, spaces, MEP, phasing, LOD, hygiene
    * + a one-paragraph prose overview) — grounds the AI command bar and gives a one-glance summary. */
   sceneDigest(pid: string) {
