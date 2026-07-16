@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.323 — Interactive annotation: place notes/tags as IfcAnnotation (UX-2, first slice)
+
+The first slice of the UI/UX Master Pass's annotation gap: annotation existed **only** baked into generated
+plan SVGs — now you can place it *in the model*. New `add_annotation` recipe authors an **`IfcAnnotation`**
+with an `IfcTextLiteral` (an `Annotation2D` representation in the Annotation context) at an [E,N,z] point —
+a note / tag / callout that round-trips as real IFC (and can feed the drawing generator, unlike the baked
+SVG path). New **🏷 Add note / annotation** tool places one at the last-clicked point (text + kind prompt);
+`addAnnotation` client. Empty text rejected. `test_annotation.py` (authors + round-trips through a written
+IFC). *Next (UX-2): dimensions snapped by the E1 inference engine, element-aware tags, revision clouds; and
+the UX-1 ribbon consolidation + UX-3 Library palette (best built with a live 3D session to verify the look).*
+
 ## v0.3.322 — Scene digest: an LLM-grounding model summary (A4)
 
 A compact, one-glance summary of *what's in the model* — and the grounding the AI command bar was missing.

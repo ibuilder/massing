@@ -2465,6 +2465,26 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       meshBtn.title = "Author an element from a raw triangle mesh (IfcTriangulatedFaceSet) — the escape "
         + "hatch for geometry the parametric recipes can't express.";
 
+      // UX-2 — interactive annotation: place a 2D text note/tag/callout as an IfcAnnotation at the last point
+      const annotBtn = toolBtn2("🏷 Add note / annotation", async () => {
+        if (!lastPoint) { notify("click a point in the model first, then add the note", "error"); return; }
+        const text = await askText("Annotation", { label: "Note text:", value: "" });
+        if (!text || !text.trim()) return;
+        const kind = await askText("Annotation", { label: "Kind: note · tag · callout", value: "note" });
+        const k = (["note", "tag", "callout"].includes((kind || "").trim().toLowerCase()) ? kind!.trim().toLowerCase() : "note") as "note" | "tag" | "callout";
+        await withLoading(container, "placing annotation + republishing", async () => {
+          try {
+            await api.addAnnotation(projectId!, [lastPoint!.x, -lastPoint!.z], text.trim(), { kind: k, z: lastPoint!.y }, true);
+            const state = await waitForPublish(projectId!);
+            if (state === "done") { await loadProjectModel(); notify("annotation placed", "success"); }
+            else notify(`placed — publish ${state}`, state === "error" ? "error" : "info");
+            await reloadModelPins();
+          } catch (e) { notify(`annotate failed: ${(e as Error).message}`, "error"); }
+        });
+      });
+      annotBtn.title = "Place a 2D text note / tag / callout as an IfcAnnotation at the last-clicked point — "
+        + "round-trips as real IFC and feeds the drawing generator.";
+
       // CONTENT-1 — site content library: place logistics / furniture / landscaping, each classified into
       // the right IFC class + phase (logistics = temporary, time-phases on the 4D slider).
       const contentBtn = toolBtn2("🏗 Site content library", () => withLoading(container, "Loading the content catalog", async () => {
@@ -2530,7 +2550,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, contentBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, annotBtn, contentBtn, ifcCodeBtn);
       const advKey = "massing.viewer.advancedTools";
       let advOpen = false;
       try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }

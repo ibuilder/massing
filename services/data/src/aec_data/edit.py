@@ -336,6 +336,51 @@ def add_mesh_representation(model: ifcopenshell.file, verts, faces, name: str = 
     return el.GlobalId
 
 
+def _annotation_context(model):
+    """The 2D Annotation representation subcontext (from representations.ensure_contexts), root as fallback."""
+    ctx = next((c for c in model.by_type("IfcGeometricRepresentationSubContext")
+                if c.ContextIdentifier == "Annotation"), None)
+    if ctx is None:
+        try:
+            from . import representations as reps
+            reps.ensure_contexts(model)
+            ctx = next((c for c in model.by_type("IfcGeometricRepresentationSubContext")
+                        if c.ContextIdentifier == "Annotation"), None)
+        except Exception:                              # noqa: BLE001
+            pass
+    return ctx or (model.by_type("IfcGeometricRepresentationContext") or [None])[0]
+
+
+def add_annotation(model: ifcopenshell.file, point, text: str, kind: str = "note",
+                   storey: str | None = None, z: float = 0.0) -> str:
+    """UX-2: place a 2D **text annotation** as an `IfcAnnotation` (an `IfcTextLiteral` in the Annotation
+    context) at an [E, N] point — a model note / tag / callout that round-trips as real IFC and can feed the
+    drawing generator. `kind` tags the ObjectType (note / tag / callout). GUID-stable. Returns the GUID."""
+    import numpy as np
+
+    txt = str(text or "").strip()
+    if not txt:
+        raise ValueError("annotation text is required")
+    ctx = _annotation_context(model)
+    ann = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcAnnotation", name=txt[:64])
+    if hasattr(ann, "ObjectType"):
+        ann.ObjectType = (kind or "note").strip().lower()
+    m = np.eye(4)
+    m[0, 3], m[1, 3], m[2, 3] = float(point[0]), float(point[1]), float(z)
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=ann, matrix=m)
+    place = model.create_entity("IfcAxis2Placement2D",
+                                Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0)))
+    lit = model.create_entity("IfcTextLiteral", Literal=txt, Placement=place, Path="RIGHT")
+    rep = model.create_entity("IfcShapeRepresentation", ContextOfItems=ctx,
+                              RepresentationIdentifier="Annotation", RepresentationType="Annotation2D",
+                              Items=[lit])
+    ifcopenshell.api.run("geometry.assign_representation", model, product=ann, representation=rep)
+    st = _first_storey(model, storey)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[ann], relating_structure=st)
+    return ann.GlobalId
+
+
 def set_wall_slope(model: ifcopenshell.file, guid: str, start_height: float, end_height: float) -> dict:
     """B3: give a wall a **sloped top** — the top goes from `start_height` (at the wall's start end) to
     `end_height` (at the end), for parapet slopes / shed / gable walls. Rebuilds the wall's Body as a
@@ -1602,6 +1647,9 @@ RECIPES = {
     "add_mesh_representation": lambda m, p: add_mesh_representation(
         m, p["verts"], p["faces"], p.get("name", "Mesh"),
         p.get("ifc_class", "IfcBuildingElementProxy"), p.get("storey")),
+    # UX-2 — 2D text annotation as an IfcAnnotation (note / tag / callout)
+    "add_annotation": lambda m, p: add_annotation(m, p["point"], p["text"], p.get("kind", "note"),
+                                                  p.get("storey"), float(p.get("z", 0.0))),
     # CONTENT-1 — place a catalogued content item (logistics / furniture / landscaping) as the right IFC
     "place_content": lambda m, p: place_content(
         m, p["category"], p["point"], p.get("verts"), p.get("faces"), p.get("name"), p.get("storey")),

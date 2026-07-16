@@ -358,12 +358,12 @@ contextual settings strip (ArchiCAD); **UI as a thin wrapper over scriptable GUI
   **Data** (properties · classifications · exports · connections). Keep the persona-primary/"More tools"
   collapse (already built) but re-key it to these groups. Reuses the `section()` helper in `viewer/app.ts`.
 - **UX-2 — Interactive annotation tool** *(L · high · net-new)* — place **`IfcAnnotation`** in the 3D/plan
-  view: dimensions (aligned/linear, snapped via the E1 inference engine), text/leader notes, element-aware
-  **tags** (read a live IFC property), symbols, and **revision clouds**. Persisted as real IFC (round-trips
-  via BCF/openBIM) and **feeds the drawing generator** (`drawings.py`) so a view-placed dimension appears on
-  the sheet — closing the loop the baked-SVG path can't. New `annotate.py` recipes + an **Annotate** rail
-  group. *Note: Bonsai's own annotation is Inkscape-dependent + early-stage — treat this as a substantial
-  greenfield build, our SVG drawing stack is an advantage.*
+  view: dimensions, text/leader notes, element-aware tags, symbols, revision clouds — real IFC that feeds the
+  drawing generator, closing the loop the baked-SVG path can't.
+  - ✅ **UX-2 text notes SHIPPED v0.3.323** — `add_annotation` authors an `IfcAnnotation` + `IfcTextLiteral`
+    (Annotation2D rep) as a note/tag/callout at an [E,N,z] point; 🏷 Add-note tool + `addAnnotation` client;
+    round-trips through a written IFC. *Remaining: dimensions snapped via the E1 inference engine, live
+    element-aware tags, revision clouds — and wiring view-placed annotations into `drawings.py` sheets.*
 - **UX-3 — Unified Library palette** *(L · high)* — one browsable **content panel** unifying the W10-1
   type/family system + the CONTENT-1 catalog (logistics/furniture/landscaping) + external IFC/glTF import
   (CONTENT-1-remaining): a **thumbnail grid**, case-insensitive search with `tag:`/`type:`/`discipline:`

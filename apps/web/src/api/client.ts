@@ -1067,6 +1067,11 @@ export class ApiClient extends HttpCore {
   addMesh(pid: string, verts: number[][], faces: number[][], name = "Mesh", publish = true) {
     return this.editIfc(pid, "add_mesh_representation", { verts, faces, name }, publish);
   }
+  /** UX-2: place a 2D text annotation (note / tag / callout) as an IfcAnnotation at an [E,N] point. */
+  addAnnotation(pid: string, point: [number, number], text: string,
+                opts: { kind?: "note" | "tag" | "callout"; storey?: string; z?: number } = {}, publish = true) {
+    return this.editIfc(pid, "add_annotation", { point, text, ...opts }, publish);
+  }
   /** A4: a compact scene digest of the model (counts by class, storeys, spaces, MEP, phasing, LOD, hygiene
    * + a one-paragraph prose overview) — grounds the AI command bar and gives a one-glance summary. */
   sceneDigest(pid: string) {
