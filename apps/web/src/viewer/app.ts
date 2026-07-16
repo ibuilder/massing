@@ -2637,17 +2637,59 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       // CONTENT-1 — site content library: place logistics / furniture / landscaping, each classified into
       // the right IFC class + phase (logistics = temporary, time-phases on the 4D slider).
-      const contentBtn = toolBtn2("🏗 Site content library", () => withLoading(container, "Loading the content catalog", async () => {
-        let cat;
-        try { cat = await api.contentCatalog(); }
-        catch (e) { notify(`catalog failed: ${(e as Error).message}`, "error"); return; }
-        showResult("Site content library", (body) => {
-          body.appendChild(resultNote(`<b>${cat!.count}</b> catalogued parts. ${cat!.note} Placed at an E,N `
-            + `point as the correct IFC class + phase + classification (a sized placeholder box; swap in a `
-            + `detailed mesh via Add mesh / an imported asset).`, ""));
-          // CONTENT-1 (import): upload a detailed mesh → auto-detect category → placed as the right IFC
+      // UX-3: one unified, searchable Library palette — content parts (CONTENT-1) + family types (W10-1)
+      // in a single filterable list; click an item to place it at an E,N point; import detailed meshes.
+      const contentBtn = toolBtn2("📚 Content & family library", () => withLoading(container, "Loading the library", async () => {
+        let cat, fams;
+        try {
+          [cat, fams] = await Promise.all([
+            api.contentCatalog(),
+            api.familyCatalog().catch(() => ({ count: 0, categories: {} as Record<string, FamilyDef[]> })),
+          ]);
+        } catch (e) { notify(`library failed: ${(e as Error).message}`, "error"); return; }
+
+        const placeAt = (label: string, fn: (e: number, n: number) => Promise<unknown>) => async () => {
+          const dflt = lastPoint ? `${lastPoint.x.toFixed(1)}, ${(-lastPoint.z).toFixed(1)}` : "0, 0";
+          const v = await askText(`Place ${label}`, { label: "Location E, N (metres):", value: dflt });
+          if (!v) return;
+          const parts = v.split(",").map((s) => parseFloat(s.trim()));
+          if (parts.length < 2 || parts.some((n) => !isFinite(n))) { notify("enter E, N", "error"); return; }
+          await withLoading(container, `placing ${label} + republishing`, async () => {
+            try {
+              await fn(parts[0]!, parts[1]!);
+              const state = await waitForPublish(projectId!);
+              if (state === "done") { await loadProjectModel(); notify(`placed ${label}`, "success"); }
+              else notify(`placed — publish ${state}`, state === "error" ? "error" : "info");
+              await reloadModelPins();
+            } catch (e) { notify(`place failed: ${(e as Error).message}`, "error"); }
+          });
+        };
+
+        type LibItem = { label: string; sub: string; search: string; onPlace: () => Promise<void> };
+        const items: LibItem[] = [];
+        for (const [group, gitems] of Object.entries(cat!.groups)) {
+          for (const it of gitems) {
+            const nm = it.key.replace(/_/g, " ");
+            items.push({ label: nm + (it.phase === "temporary" ? " ⏱" : ""),
+              sub: `${it.ifc_class.replace("Ifc", "")} · ${group}${it.phase ? ` · ${it.phase}` : ""}`,
+              search: `${nm} ${it.ifc_class} ${it.classification} ${it.phase || ""} ${group} content`.toLowerCase(),
+              onPlace: placeAt(nm, (e, n) => api.placeContent(projectId!, it.key, [e, n], undefined, true)) });
+          }
+        }
+        for (const f of Object.values(fams!.categories).flat() as FamilyDef[]) {
+          items.push({ label: f.label,
+            sub: `${f.ifc_class.replace("Ifc", "")} · ${f.category} · type`,
+            search: `${f.label} ${f.key} ${f.ifc_class} ${f.category} family type`.toLowerCase(),
+            onPlace: placeAt(f.label, (e, n) => api.placeFamily(projectId!, f.key, [e, n])) });
+        }
+
+        showResult("📚 Library", (body) => {
+          body.appendChild(resultNote(`<b>${items.length}</b> library items — content parts + family types. `
+            + `Search, then click to place at an E,N point (defaults to the last picked point). Import a `
+            + `detailed mesh (glTF/OBJ/STL) below to place it auto-classified as the right IFC.`, ""));
+          // import a detailed mesh → auto-detect category → placed as the right IFC
           const imp = document.createElement("div"); imp.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px";
-          const impLbl = document.createElement("span"); impLbl.className = "meta"; impLbl.textContent = "⬆ Import a detailed mesh (glTF/OBJ/STL) — auto-classified:";
+          const impLbl = document.createElement("span"); impLbl.className = "meta"; impLbl.textContent = "⬆ Import mesh (auto-classified):";
           const catIn = document.createElement("input"); catIn.className = "portal-filter"; catIn.placeholder = "category (auto)"; catIn.style.cssText = "width:110px;font-size:11px";
           const fileIn = document.createElement("input"); fileIn.type = "file"; fileIn.accept = ".glb,.gltf,.obj,.stl,.ply"; fileIn.style.fontSize = "11px";
           fileIn.onchange = async () => {
@@ -2665,38 +2707,33 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             });
           };
           imp.append(impLbl, catIn, fileIn); body.appendChild(imp);
-          for (const [group, items] of Object.entries(cat!.groups)) {
-            const h = document.createElement("div"); h.className = "meta"; h.style.cssText = "font-weight:600;margin:8px 0 2px";
-            h.textContent = group;
-            body.appendChild(h);
-            const row = document.createElement("div"); row.style.cssText = "display:flex;flex-wrap:wrap;gap:4px";
-            for (const it of items) {
+
+          // searchable unified list
+          const search = document.createElement("input"); search.className = "portal-filter";
+          search.placeholder = "Search library — name / IFC class / category…";
+          search.style.cssText = "width:100%;margin:2px 0 6px;font-size:12px";
+          const list = document.createElement("div"); list.style.cssText = "display:flex;flex-direction:column;gap:3px;max-height:340px;overflow:auto";
+          const draw = (q: string) => {
+            list.innerHTML = "";
+            const ql = q.trim().toLowerCase();
+            const shown = items.filter((it) => !ql || it.search.includes(ql));
+            for (const it of shown) {
               const b2 = document.createElement("button"); b2.className = "mini-btn";
-              b2.textContent = it.key.replace(/_/g, " ") + (it.phase === "temporary" ? " ⏱" : "");
-              b2.title = `${it.ifc_class} · ${it.classification}${it.phase ? ` · ${it.phase}` : ""} · ~${it.default_dims_m.join("×")} m`;
-              b2.onclick = async () => {
-                const v = await askText(`Place ${it.key.replace(/_/g, " ")}`, { label: "Location E, N (metres):", value: "0, 0" });
-                if (!v) return;
-                const parts = v.split(",").map((s) => parseFloat(s.trim()));
-                if (parts.length < 2 || parts.some((n) => !isFinite(n))) { notify("enter E, N", "error"); return; }
-                await withLoading(container, `placing ${it.key} + republishing`, async () => {
-                  try {
-                    await api.placeContent(projectId!, it.key, [parts[0]!, parts[1]!], undefined, true);
-                    const state = await waitForPublish(projectId!);
-                    if (state === "done") { await loadProjectModel(); notify(`placed ${it.key}`, "success"); }
-                    else notify(`placed — publish ${state}`, state === "error" ? "error" : "info");
-                    await reloadModelPins();
-                  } catch (e) { notify(`place failed: ${(e as Error).message}`, "error"); }
-                });
-              };
-              row.appendChild(b2);
+              b2.style.cssText = "text-align:left;width:100%";
+              b2.innerHTML = `${it.label} <span class="meta" style="font-size:10px">— ${it.sub}</span>`;
+              b2.onclick = it.onPlace;
+              list.appendChild(b2);
             }
-            body.appendChild(row);
-          }
+            if (!shown.length) { const n = document.createElement("div"); n.className = "meta"; n.textContent = "No items match."; list.appendChild(n); }
+          };
+          search.oninput = () => draw(search.value);
+          body.append(search, list);
+          draw("");
         });
       }));
-      contentBtn.title = "Place site logistics (cranes, hoists, fencing, sanitary units, laydown), furniture, "
-        + "and landscaping — each classified into the right IFC class + phase (logistics time-phases on the 4D slider).";
+      contentBtn.title = "Browse + place the unified library — content parts (site logistics / furniture / "
+        + "landscaping) and family types — search by name, IFC class, or category, then click to place at an "
+        + "E,N point. Logistics time-phase on the 4D slider.";
 
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
