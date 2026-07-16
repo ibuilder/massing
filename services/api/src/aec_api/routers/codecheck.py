@@ -43,6 +43,20 @@ def code_seeded(_: str = Depends(current_user)):
     return {"jurisdictions": codes.seeded_jurisdictions()}
 
 
+@router.get("/codes/ids")
+def codes_ids(description: str = "", edition: str = "", title: str = "", download: bool = False,
+              _: str = Depends(current_user)):
+    """CODE-5: the applicable code requirements as a buildingSMART **IDS 1.0** file (the machine-checkable
+    subset) from a project description — validate an IFC against it in any IDS checker. `download=true`
+    returns the `.ids` XML attachment; otherwise JSON with the fired code topics + `ids_xml`."""
+    out = codecheck.code_ids(description, edition or None, title)
+    if download:
+        from fastapi import Response
+        return Response(out["ids_xml"], media_type="application/xml",
+                        headers={"Content-Disposition": 'attachment; filename="code-requirements.ids"'})
+    return out
+
+
 @router.post("/projects/{pid}/codecheck")
 async def code_check(pid: str, description: str = Body("", embed=True),
                      context: str | None = Body(None, embed=True),
