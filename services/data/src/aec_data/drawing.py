@@ -40,6 +40,13 @@ _STYLE = """
 .dcx{stroke:#06c;stroke-width:0.4}
 .dct{font:2px sans-serif;fill:#06c;text-anchor:middle;dominant-baseline:middle}
 .lead{stroke:#06c;stroke-width:0.25}
+.ann-note{font:2.4px sans-serif;fill:#137a2b}
+.ann-tag{font:bold 2.4px sans-serif;fill:#137a2b}
+.ann-dim line{stroke:#137a2b;stroke-width:0.25}
+.ann-dimt{font:2.2px sans-serif;fill:#137a2b;text-anchor:middle}
+.ann-cloud{fill:none;stroke:#b00;stroke-width:0.45}
+.ann-revtag{font:bold 2.6px sans-serif;fill:#fff}
+.ann-revtag-box{fill:#b00;stroke:#800}
 """.strip()
 
 
@@ -182,9 +189,51 @@ _KEYNOTE_SYS = ("MasterFormat", "UniFormat", "OmniClass", "Uniclass")
 _PLAN_CLASSES = ["IfcSlab", "IfcRoof", "IfcSpace", "IfcWall", "IfcColumn", "IfcFooting"]
 
 
+def _annotations(model, storey):
+    """View-placed `IfcAnnotation`s (from add_annotation / add_dimension / add_revision_cloud) as world-coord
+    render items, so annotations authored in the model appear on the generated plan (UX-2 loop-closer). Each
+    item is a dict: {kind, text?, point?:(x,y), polys?:[[(x,y)…]]} — kind is note/tag/callout/dimension/
+    revision. Coordinates are file units in world space (same space as `_footprint`)."""
+    import ifcopenshell.util.element as ue
+    import numpy as np
+
+    out = []
+    for ann in model.by_type("IfcAnnotation"):
+        if storey:
+            st = ue.get_container(ann) or ue.get_aggregate(ann)
+            if st is None or (getattr(st, "Name", None) or "") != storey:
+                continue
+        world = _placement_matrix(ann)                 # ann ObjectPlacement → world (file units)
+        rep = getattr(ann, "Representation", None)
+        if rep is None:
+            continue
+        kind = (getattr(ann, "ObjectType", None) or "note").strip().lower()
+        text, polys, tpt = None, [], None
+        for r in rep.Representations:
+            for it in (r.Items or []):
+                if it.is_a("IfcTextLiteral"):
+                    text = getattr(it, "Literal", None)
+                    loc = getattr(getattr(it, "Placement", None), "Location", None)
+                    lx, ly = (list(loc.Coordinates) + [0.0])[:2] if loc is not None else (0.0, 0.0)
+                    v = world @ np.array([float(lx), float(ly), 0.0, 1.0])
+                    tpt = (float(v[0]), float(v[1]))
+                elif it.is_a("IfcPolyline"):
+                    line = []
+                    for p in it.Points:
+                        c = list(p.Coordinates) + [0.0]
+                        v = world @ np.array([float(c[0]), float(c[1]), 0.0, 1.0])
+                        line.append((float(v[0]), float(v[1])))
+                    if len(line) >= 2:
+                        polys.append(line)
+        if text is None and not polys:
+            continue
+        out.append({"kind": kind, "text": text, "point": tpt, "polys": polys})
+    return out
+
+
 def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 100,
              margin_mm: float = 18.0, dimensions: bool = True, keynotes: bool = True,
-             details: bool = True) -> dict:
+             details: bool = True, annotations: bool = True) -> dict:
     """Generate a schematic **plan SVG** from element footprints. `storey` limits to one level (by name);
     `scale` is the drawing scale (1:`scale`). With `dimensions`, overall width/height dimension strings are
     drawn; with `keynotes`, elements carrying a Track-D classification code get numbered keynote bubbles + a
@@ -287,6 +336,35 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
         x0 = round(tx(minx) - 8, 2)                            # left of the plan
         dims.append(_vdim(x0, ty(maxy), ty(miny), (maxy - miny) * unit_scale))
 
+    # ── view-placed annotations: notes / tags / callouts / dimensions / revision clouds (UX-2) ──
+    ann_svg: list[str] = []
+    ann_count = 0
+    if annotations:
+        for a in _annotations(model, storey):
+            kind, txt, pt, apolys = a["kind"], a.get("text"), a.get("point"), a.get("polys") or []
+            drew = False
+            for line in apolys:                                # dimension line / revision cloud outline
+                pts = " ".join(f"{tx(x)},{ty(y)}" for x, y in line)
+                cls = "ann-cloud" if kind in ("revision", "cloud") else "ann-dim"
+                if kind in ("revision", "cloud"):
+                    ann_svg.append(f'<polyline class="ann-cloud" points="{pts}"/>')
+                else:
+                    ann_svg.append(f'<g class="ann-dim"><polyline fill="none" points="{pts}"/></g>')
+                drew = True
+            if txt:
+                px, py = (tx(pt[0]), ty(pt[1])) if pt else (margin_mm + 2, margin_mm + 2)
+                if kind == "revision":
+                    bw = min(max(len(txt) * 1.5 + 2, 5), 30)
+                    ann_svg.append(f'<rect class="ann-revtag-box" x="{round(px - 1, 2)}" '
+                                   f'y="{round(py - 3, 2)}" width="{round(bw, 2)}" height="4" rx="0.6"/>'
+                                   f'<text class="ann-revtag" x="{round(px + 0.5, 2)}" y="{round(py, 2)}">{_esc(txt)[:24]}</text>')
+                else:
+                    cls = "ann-dimt" if kind == "dimension" else ("ann-tag" if kind == "tag" else "ann-note")
+                    ann_svg.append(f'<text class="{cls}" x="{px}" y="{py}">{_esc(txt)[:48]}</text>')
+                drew = True
+            if drew:
+                ann_count += 1
+
     legend_svg = ""
     lx = round(w - legend_mm + 4, 2)
     ry_next = margin_mm
@@ -311,7 +389,8 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
     inner = (
         f"<style>{_STYLE}</style>"
         f'<rect class="sheet" x="0" y="0" width="{round(w, 2)}" height="{round(h, 2)}"/>'
-        + "".join(polys) + "".join(dims) + "".join(bubbles) + "".join(callouts) + legend_svg
+        + "".join(polys) + "".join(dims) + "".join(bubbles) + "".join(callouts)
+        + "".join(ann_svg) + legend_svg
         + f'<text class="label" x="{margin_mm}" y="{round(h - 4, 2)}">PLAN 1:{scale}'
         + (f" - {_esc(storey)}" if storey else "") + "</text>"
     )
@@ -319,6 +398,7 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
            f'viewBox="0 0 {round(w, 2)} {round(h, 2)}">{inner}</svg>')
     return {"svg": svg, "inner": inner, "paper": [round(w, 2), round(h, 2)],
             "elements": len(shapes), "keynotes": len(legend_rows), "details": len(detail_rows),
+            "annotations": ann_count,
             "scale": scale, "bounds": {"min": [minx, miny], "max": [maxx, maxy]}}
 
 

@@ -27,6 +27,7 @@ lit = rep.Items[0]
 assert lit.is_a() == "IfcTextLiteral" and lit.Literal == "See detail A-541/3", lit
 # placed at the point (metres → SI) — x=4
 import ifcopenshell.util.placement as up  # noqa: E402
+
 mtx = up.get_local_placement(ann.ObjectPlacement)
 assert abs(float(mtx[0][3]) - 4.0) < 1e-6, mtx
 # it's in the Annotation representation subcontext
@@ -65,6 +66,38 @@ assert guards.precheck("add_dimension", {"start": [0, 0], "end": [0, 0]})["error
 assert guards.precheck("add_dimension", {"start": [0, 0], "end": [3, 4]})["ok"]
 assert "add_dimension" in edit.RECIPES
 
+# --- UX-2 revision cloud: scalloped closed polyline around a region + optional tag ----------------
+rc = edit.add_revision_cloud(m, [[2, 2], [6, 5]], tag="3", storey=st)   # two corners → rectangle region
+assert rc["bumps"] > 0, rc
+cloud = m.by_guid(rc["guid"])
+assert cloud.is_a() == "IfcAnnotation" and cloud.ObjectType == "revision", cloud
+crep = cloud.Representation.Representations[0]
+citems = {i.is_a() for i in crep.Items}
+assert "IfcPolyline" in citems and "IfcTextLiteral" in citems, citems   # cloud outline + rev tag
+cpoly = next(i for i in crep.Items if i.is_a() == "IfcPolyline")
+assert len(cpoly.Points) > 8, "a scalloped cloud has many vertices"     # bumps, not a plain rectangle
+assert next(i for i in crep.Items if i.is_a() == "IfcTextLiteral").Literal == "3"
+# >=3 points also accepted; <3 (and not a 2-corner pair) rejected
+assert edit.add_revision_cloud(m, [[0, 0], [4, 0], [4, 4]], storey=st)["bumps"] > 0
+raised = False
+try:
+    edit.add_revision_cloud(m, [[1, 1]], storey=st)
+except ValueError:
+    raised = True
+assert raised, "a single-point cloud region should raise"
+assert "add_revision_cloud" in edit.RECIPES
+assert guards.precheck("add_revision_cloud", {"points": [[0, 0], [4, 4]]})["ok"]
+
+# --- view-placed annotations render on the generated plan (UX-2 loop-closer) ----------------------
+from aec_data import drawing  # noqa: E402
+
+edit.add_wall(m, [0, 0], [8, 0], 3.0, 0.3, st)   # give the plan footprint geometry + bounds
+plan = drawing.plan_svg(m, storey=st, scale=100)
+assert plan["annotations"] >= 4, plan["annotations"]     # note + 2 dims + cloud(s) placed above
+svg = plan["svg"]
+assert "ann-cloud" in svg and "ann-revtag" in svg and "ann-note" in svg, "annotation classes on the plan"
+assert "5.00 m" in svg, "the dimension label carries onto the plan"
+
 # --- registered recipe + reachable via apply_recipe -----------------------------------------------
 assert "add_annotation" in edit.RECIPES
 OUT = os.path.join(os.path.dirname(__file__), "_annot_out.ifc")
@@ -78,6 +111,7 @@ for f in (TMP, OUT):
     if os.path.exists(f):
         os.remove(f)
 
-print("ANNOTATION OK - add_annotation authors an IfcAnnotation (ObjectType=kind) with an IfcTextLiteral "
-      "(the note text) in an Annotation2D representation, placed at the [E,N,z] point; empty text rejected; "
-      "registered recipe reachable via apply_recipe, round-trips through a written IFC.")
+print("ANNOTATION OK - add_annotation/add_dimension/add_revision_cloud author IfcAnnotations (text / "
+      "dimension line+label / scalloped cloud+rev-tag) in an Annotation2D representation; empty/degenerate "
+      "inputs rejected; registered recipes reachable via apply_recipe; and view-placed annotations now "
+      "render on drawing.plan_svg (notes, tags, dimensions, revision clouds) - closing the author-to-sheet loop.")

@@ -422,6 +422,71 @@ def add_dimension(model: ifcopenshell.file, start, end, text: str | None = None,
     return {"guid": ann.GlobalId, "distance_m": round(dist, 3)}
 
 
+def add_revision_cloud(model: ifcopenshell.file, points, tag: str | None = None,
+                       storey: str | None = None, z: float = 0.0) -> dict:
+    """UX-2: place a **revision cloud** as an `IfcAnnotation` (ObjectType "revision") — a scalloped closed
+    `IfcPolyline` around the [E, N] region `points` (a rectangle if two corner points are given), plus an
+    optional revision `tag` (delta/number) as an `IfcTextLiteral`. Round-trips as real IFC and renders on the
+    generated plan (drawing.plan_svg). GUID-stable. Returns {guid, bumps}."""
+    import math
+
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    pts_in = [[float(p[0]), float(p[1])] for p in (points or [])]
+    if len(pts_in) == 2:                                       # two corners → rectangle loop
+        (ax, ay), (bx, by) = pts_in
+        pts_in = [[ax, ay], [bx, ay], [bx, by], [ax, by]]
+    if len(pts_in) < 3:
+        raise ValueError("a revision cloud needs a region: >=3 points, or 2 opposite corners")
+
+    scale = uunit.calculate_unit_scale(model)
+    # scalloped outline: walk each edge, emitting outward arcs (bumps) as short chords
+    bump = 0.6 / scale                                         # ~0.6 m bump radius in file units
+    loop = pts_in + [pts_in[0]]
+    verts: list[tuple[float, float]] = []
+    bumps = 0
+    for (x1, y1), (x2, y2) in zip(loop, loop[1:]):
+        seg = math.hypot(x2 - x1, y2 - y1) / scale
+        n = max(2, int(seg / 1.2))                            # a bump roughly every ~1.2 m
+        nx, ny = (y2 - y1), -(x2 - x1)                        # outward normal (CW loop → outward)
+        nrm = math.hypot(nx, ny) or 1.0
+        nx, ny = nx / nrm, ny / nrm
+        for i in range(n):
+            t0, tm = i / n, (i + 0.5) / n
+            verts.append(((x1 + (x2 - x1) * t0) / scale, (y1 + (y2 - y1) * t0) / scale))
+            verts.append(((x1 + (x2 - x1) * tm) / scale + nx * bump,
+                          (y1 + (y2 - y1) * tm) / scale + ny * bump))
+            bumps += 1
+    verts.append((pts_in[0][0] / scale, pts_in[0][1] / scale))
+
+    ctx = _annotation_context(model)
+    label = (tag or "").strip()
+    ann = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcAnnotation",
+                               name=(f"Revision {label}".strip() or "Revision"))
+    if hasattr(ann, "ObjectType"):
+        ann.ObjectType = "revision"
+    mtx = np.eye(4); mtx[2, 3] = float(z)
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=ann, matrix=mtx)
+    poly = model.create_entity("IfcPolyline",
+                               Points=[model.create_entity("IfcCartesianPoint", (float(x), float(y)))
+                                       for x, y in verts])
+    items = [poly]
+    if label:
+        place = model.create_entity("IfcAxis2Placement2D",
+                                    Location=model.create_entity("IfcCartesianPoint",
+                                                                 (pts_in[0][0] / scale, pts_in[0][1] / scale)))
+        items.append(model.create_entity("IfcTextLiteral", Literal=label, Placement=place, Path="RIGHT"))
+    rep = model.create_entity("IfcShapeRepresentation", ContextOfItems=ctx,
+                              RepresentationIdentifier="Annotation", RepresentationType="Annotation2D",
+                              Items=items)
+    ifcopenshell.api.run("geometry.assign_representation", model, product=ann, representation=rep)
+    st = _first_storey(model, storey)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[ann], relating_structure=st)
+    return {"guid": ann.GlobalId, "bumps": bumps}
+
+
 def set_wall_slope(model: ifcopenshell.file, guid: str, start_height: float, end_height: float) -> dict:
     """B3: give a wall a **sloped top** — the top goes from `start_height` (at the wall's start end) to
     `end_height` (at the end), for parapet slopes / shed / gable walls. Rebuilds the wall's Body as a
@@ -1694,6 +1759,9 @@ RECIPES = {
     # UX-2 — dimension annotation between two points (start/end guarded for finiteness + distinctness)
     "add_dimension": lambda m, p: add_dimension(m, p["start"], p["end"], p.get("text"),
                                                 p.get("storey"), float(p.get("z", 0.0))),
+    # UX-2 — revision cloud around a region (>=3 points, or 2 opposite corners) + optional delta/number tag
+    "add_revision_cloud": lambda m, p: add_revision_cloud(m, p["points"], p.get("tag"),
+                                                          p.get("storey"), float(p.get("z", 0.0))),
     # CONTENT-1 — place a catalogued content item (logistics / furniture / landscaping) as the right IFC
     "place_content": lambda m, p: place_content(
         m, p["category"], p["point"], p.get("verts"), p.get("faces"), p.get("name"), p.get("storey")),

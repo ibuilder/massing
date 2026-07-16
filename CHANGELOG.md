@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.327 — UX-2: revision clouds + view-placed annotations on the plan
+
+Closes the annotation author→sheet loop. Two parts:
+- **`add_revision_cloud` recipe** — authors an `IfcAnnotation` (ObjectType "revision") as a **scalloped
+  closed polyline** around a region (two opposite [E,N] corners, or ≥3 boundary points) + an optional
+  revision tag (`IfcTextLiteral`). GUID-stable, guarded, reachable via `POST /edit`. New **☁ Revision
+  cloud** two-corner tool + `addRevisionCloud` client method.
+- **Annotations now render on the generated plan** — `drawing.plan_svg` reads view-placed
+  `IfcAnnotation`s (from `add_annotation` / `add_dimension` / `add_revision_cloud`) and draws them:
+  text notes, element tags, dimension lines + labels, and revision clouds + rev-tags. Previously
+  annotations round-tripped as IFC but never appeared on the drawing — the baked-SVG path couldn't
+  show model-authored markup. The count is returned as `annotations` and flows through the sheet
+  composer, so issued sheets carry them too.
+
 ## v0.3.326 — Estimate: price MEP, fire-protection & plant equipment
 
 The model estimator's `DEFAULT_RATES` covered structure + architecture only, so a fully-serviced

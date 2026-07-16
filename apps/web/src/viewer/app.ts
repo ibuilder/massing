@@ -2505,6 +2505,27 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       dimBtn.title = "Measure + annotate a dimension between two clicked points — a dimension line + the "
         + "distance label as an IfcAnnotation. Press once to set the first point, again for the second.";
 
+      // UX-2 — revision cloud: two-corner flow (pick one corner, then the opposite → scalloped cloud + rev tag)
+      let cloudFrom: THREE.Vector3 | null = null;
+      const cloudBtn = toolBtn2("☁ Revision cloud (2 corners)", async () => {
+        if (!lastPoint) { notify("click a corner of the region in the model first", "error"); return; }
+        if (!cloudFrom) { cloudFrom = lastPoint.clone(); notify("first corner set — click the opposite corner, then press Revision cloud again", "info"); return; }
+        const a: [number, number] = [cloudFrom.x, -cloudFrom.z], b: [number, number] = [lastPoint.x, -lastPoint.z];
+        cloudFrom = null;
+        const tag = (prompt("Revision tag (e.g. a delta number) — leave blank for none:", "") || "").trim();
+        await withLoading(container, "placing revision cloud + republishing", async () => {
+          try {
+            await api.addRevisionCloud(projectId!, [a, b], { tag: tag || undefined, z: lastPoint!.y }, true);
+            const state = await waitForPublish(projectId!);
+            if (state === "done") { await loadProjectModel(); notify("revision cloud placed", "success"); }
+            else notify(`placed — publish ${state}`, state === "error" ? "error" : "info");
+            await reloadModelPins();
+          } catch (e) { notify(`revision cloud failed: ${(e as Error).message}`, "error"); }
+        });
+      });
+      cloudBtn.title = "Draw a revision cloud around a region as an IfcAnnotation (a scalloped outline + an "
+        + "optional revision tag). Press once for the first corner, again for the opposite corner. Renders on the plan.";
+
       // CONTENT-1 — site content library: place logistics / furniture / landscaping, each classified into
       // the right IFC class + phase (logistics = temporary, time-phases on the 4D slider).
       const contentBtn = toolBtn2("🏗 Site content library", () => withLoading(container, "Loading the content catalog", async () => {
@@ -2570,7 +2591,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, annotBtn, dimBtn, contentBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, annotBtn, dimBtn, cloudBtn, contentBtn, ifcCodeBtn);
       const advKey = "massing.viewer.advancedTools";
       let advOpen = false;
       try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }
