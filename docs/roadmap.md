@@ -57,6 +57,10 @@ Recent, thumbnails, editable tags; a **pick content → pick host → auto-build
 **inference/snap engine + typed dimensions** (builds on shipped E1 inference); an **Info-Box** contextual strip;
 **UI as a thin wrapper over scriptable GUID-safe recipes**; an **appendable IFC-as-library** model.
 
+- 🟡 **UX-1 (first slice) SHIPPED v0.3.341** — the tool sections are labelled + ordered by the modeling
+  lifecycle (Data · Build · Analyze & Coordinate · Document), with the "More tools" group flowing Build →
+  Analyze → Document. **UX-1b remaining:** split the combined authoring section into dedicated **Annotate**
+  (the UX-2 note/dim/tag/cloud tools) and **Library** (UX-3) groups — best done with live verification.
 - **UX-1 — Ribbon consolidation** *(M · high)* — regroup the ~97 tools into a lifecycle task ribbon replacing
   the 7 accreted sections: **Build/Author** (grids·levels → walls·columns·slabs·roofs·families·MEP; sloped/
   mesh/sandbox under an "advanced" fold) · **Annotate** (UX-2) · **Library** (UX-3) · **Analyze** (code/EBC ·

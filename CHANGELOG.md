@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.341 — UX-1: model tools grouped by lifecycle (ribbon, first slice)
+
+The model rail's tool sections are now labelled and ordered by the **modeling lifecycle** instead of the
+seven accreted names — the first slice of the UX-1 task ribbon. Sections read **Data ·** Models / Working
+origin · **Build ·** Draw elements / Grids & levels / Advanced authoring, annotate & library · **Analyze &
+Coordinate ·** clash / QA · **Document ·** Exports & issue, and the "More tools" group now flows Build →
+Analyze/Coordinate → Document. A one-line intro names the lifecycle. (Follow-up UX-1b: split the combined
+authoring section into dedicated **Annotate** and **Library** groups.)
+
 ## v0.3.340 — CODE-5: applicable code requirements as buildingSMART IDS
 
 The code-analysis engine can now **emit the machine-checkable subset of the applicable code requirements as
