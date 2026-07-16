@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.332 — Fire Alarm + Telecom as first-class authorable systems
+
+Two building disciplines that were previously only reachable as raw IFC classes are now first-class
+authoring recipes, mirroring how fire *protection* became first-class (v0.3.311):
+
+- **`add_fa_device`** — a fire-alarm / life-safety device: smoke/heat/duct **detector** (`IfcSensor` with
+  `SMOKESENSOR`/`HEATSENSOR`), **manual pull station** / **horn-strobe** / **strobe** / **bell** / **FACP**
+  (`IfcAlarm`), enrolled on a named **Fire Alarm** distribution system. Fire alarm is its own discipline
+  (the FA sheet series), distinct from fire protection (sprinklers/standpipes).
+- **`add_comms_device`** — a telecom / low-voltage device: **MDF/IDF rack**, **network switch**, **wireless
+  access point** (`IfcCommunicationsAppliance`) or **data outlet** (`IfcOutlet`), on a **Telecommunications**
+  system (discipline **T**).
+
+Both classify correctly under the unified discipline tree — comms → Telecommunications (purple), fire-alarm
+devices → Electrical/FA — so they color and group distinctly in the viewer + model browser. Invokable via
+`POST /edit` and the AI authoring command bar.
+
 ## v0.3.331 — Color-by-discipline in the viewer
 
 The IFC-classes panel gains a **Color by** toggle (IFC class ↔ Discipline). In discipline mode every

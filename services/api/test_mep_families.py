@@ -70,6 +70,23 @@ for cls, _pre in terminals:
     assert m.by_type(cls), f"missing {cls}"
 assert getattr(m.by_type("IfcOutlet")[0], "PredefinedType", None) == "POWEROUTLET"
 
+# --- Fire Alarm (life-safety, distinct from fire protection) + Telecom as first-class devices -----
+edit.apply_recipe(OUT, "add_fa_device", {"kind": "smoke_detector", "point": [2, 2], "storey": "L1"}, OUT)
+edit.apply_recipe(OUT, "add_fa_device", {"kind": "pull_station", "point": [3, 2], "storey": "L1"}, OUT)
+edit.apply_recipe(OUT, "add_fa_device", {"kind": "facp", "point": [4, 2], "storey": "L1"}, OUT)
+edit.apply_recipe(OUT, "add_comms_device", {"kind": "idf", "point": [5, 2], "storey": "L1"}, OUT)
+edit.apply_recipe(OUT, "add_comms_device", {"kind": "wap", "point": [6, 2], "storey": "L1"}, OUT)
+m = open_model(OUT)
+sysnames = {s.Name for s in m.by_type("IfcDistributionSystem")}
+assert "Fire Alarm" in sysnames, sysnames                 # FA is its own system, apart from Fire Protection
+assert "Telecommunications" in sysnames, sysnames
+# smoke detector authored as a sensor with the right PredefinedType
+assert any(getattr(s, "PredefinedType", None) == "SMOKESENSOR" for s in m.by_type("IfcSensor"))
+# a comms appliance carries the IDF/WAP; discipline classification puts it in Telecommunications
+from aec_api import classification as _cls                 # noqa: E402
+assert _cls.discipline_of_ifc_class("IfcCommunicationsAppliance") == "T"
+assert _cls.discipline_of_ifc_class("IfcAlarm") == "E"     # fire alarm folds to Electrical discipline (FA series)
+
 for f in (TMP, OUT):
     if os.path.exists(f):
         os.remove(f)
