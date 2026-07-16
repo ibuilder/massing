@@ -41,6 +41,7 @@ assert cls.discipline_of_ifc_class("IfcTransformer") == "E"
 assert cls.discipline_of_ifc_class("IfcPump") == "P"
 assert cls.discipline_of_ifc_class("IfcCoolingTower") == "M"
 assert cls.discipline_of_ifc_class("IfcTransportElement") == "Q"
+assert cls.discipline_of_ifc_class("IfcReinforcingBar") == "S"        # rebar rolls up to Structural
 tree = cls.discipline_tree()
 codes = {d["code"] for d in tree["disciplines"]}
 assert codes == {d["code"] for d in cls.DISCIPLINES}, codes

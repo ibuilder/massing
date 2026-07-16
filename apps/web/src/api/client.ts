@@ -8,7 +8,7 @@ import { HttpCore } from "./httpCore";
 export * from "./types";
 import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
-  DocFolderNode, DrawingMarkupItem, DueFeed, ElementProps, EnergyResult, FinancialStatements,
+  DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, ElementProps, EnergyResult, FinancialStatements,
   IntegrationGroup, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   RecordAttachmentMeta, RelatedRecords, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, StampTemplate, SyncScheduleItem,
@@ -914,6 +914,13 @@ export class ApiClient extends HttpCore {
     return this.json<{ schema: string; counts: Record<string, number>; facets: { classes: string[]; storeys: string[] } }>(
       `/projects/${pid}/properties/meta`,
     );
+  }
+
+  /** The unified discipline tree (colors + IFC-class→discipline map). Project-independent, so cached
+   * for the session — the viewer, model browser, and any legend share one served vocabulary. */
+  private _discTree?: Promise<DisciplineTree>;
+  disciplineTree(): Promise<DisciplineTree> {
+    return (this._discTree ??= this.json<{ tree: DisciplineTree }>(`/reference/disciplines`).then((r) => r.tree));
   }
 
   // properties index (Phase 1 data)

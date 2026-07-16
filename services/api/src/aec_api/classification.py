@@ -223,6 +223,9 @@ _IFC_DISCIPLINE: dict[str, str] = {
     "IfcAirToAirHeatRecovery": "M", "IfcDamper": "M", "IfcCompressor": "M", "IfcCondenser": "M",
     "IfcEvaporator": "M", "IfcHeatExchanger": "M", "IfcSpaceHeater": "M", "IfcHumidifier": "M",
     "IfcTubeBundle": "M", "IfcFlowMeter": "M",
+    # structural reinforcement / assemblies (S) — swept solids the MasterFormat map doesn't list
+    "IfcReinforcingBar": "S", "IfcReinforcingMesh": "S", "IfcTendon": "S", "IfcTendonAnchor": "S",
+    "IfcReinforcingElement": "S",
     # conveying / vertical transport (Q)
     "IfcTransportElement": "Q",
     # architectural (A) — roof reads as an assembly, not through masonry default

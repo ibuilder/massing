@@ -325,9 +325,11 @@ palette and a mislabeled `estimate.by_discipline`.)
   coverage** (`_IFC_DISCIPLINE`) for MEP/fire/electrical/telecom entities the MasterFormat map never listed;
   and `discipline_tree()` (color + divisions + uniformat + sheet series + rolled-up IFC classes +
   `ifc_class_discipline` lookup), served on `GET /reference/disciplines`.
-- **DISC-2 — color-by-discipline/system in the viewer** *(M)* — a color-by mode on the IFC-classes panel using
-  the served tree; `tree.ts` `discipline()` consumes the served `ifc_class_discipline` map (kills the client
-  regex duplicate).
+- ✅ **DISC-2 color-by-discipline SHIPPED v0.3.331** — a **Color by** toggle (IFC class ↔ Discipline) on the
+  IFC-classes panel: discipline mode recolors swatches by the served tree's discipline color + shows a
+  **legend** of the disciplines present + a **Paint model** button that applies the scheme to the 3D view.
+  `tree.ts` now consumes the served `ifc_class_discipline` map (`setDisciplineLookup`) instead of its regex,
+  so browser grouping and viewer colors agree. Rebar/mesh/tendon now classify to Structural.
 - **DISC-3 — consolidate the engines** *(M)* — make the canonical source reachable from `aec_data`; derive
   `drawing.py` poché colors, `specmanual` divisions, and the `mep.py`/`edit.py` discipline maps from it; fix
   `estimate.by_discipline` to roll up by real discipline (it currently groups by raw IFC class).

@@ -14,6 +14,24 @@ export interface ElementProps {
   qtos: Record<string, Record<string, unknown>>;
 }
 
+/** The unified discipline tree (served on `GET /reference/disciplines`, `tree` key) — the single
+ *  vocabulary the viewer, model browser, plan poché, and sheet generator all color/group by. */
+export interface DisciplineNode {
+  code: string; name: string; color: string;
+  divisions: { code: string; title: string }[];
+  uniformat: { code: string; title: string }[];
+  sheet_series: string[];
+  ifc_classes: string[];
+}
+export interface DisciplineTree {
+  disciplines: DisciplineNode[];
+  series: { code: string; name: string; color: string }[];
+  /** IFC class → NCS discipline code (e.g. "IfcSprinkler" → "F"). */
+  ifc_class_discipline: Record<string, string>;
+  /** discipline code → hex color. */
+  colors: Record<string, string>;
+}
+
 /** A property-normalization rule (W9-1): remap a source pset/prop onto a target structure. */
 export interface PropMapRule {
   from_pset: string; from_prop: string;

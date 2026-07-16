@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.331 — Color-by-discipline in the viewer
+
+The IFC-classes panel gains a **Color by** toggle (IFC class ↔ Discipline). In discipline mode every
+class swatch takes its **discipline's canonical color** from the served tree (v0.3.330) — fire = red,
+plumbing = green, mechanical = amber, electrical = yellow, structural = blue, architectural = grey — and
+a **discipline color legend** appears showing exactly which disciplines are in the model. A **Paint model**
+button pushes the current scheme onto every element in the 3D view, the way Navisworks/Revit color a
+federated model by discipline. Unmapped classes keep their stable hashed hue.
+
+The model browser now **consumes the same served IFC-class → discipline map** (`setDisciplineLookup`)
+instead of its own regex — one shared vocabulary, so "By discipline" grouping and the viewer colors always
+agree. `IfcReinforcingBar`/mesh/tendon now classify to Structural (were falling to the default).
+
 ## v0.3.330 — Unified discipline tree: colors + full IFC coverage
 
 The Discipline Spine (`classification.py`) gains the two things it was missing to be the app's single
