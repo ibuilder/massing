@@ -68,13 +68,36 @@ def _matches(el, applies: dict) -> bool:
     return True
 
 
-def apply_rules(model: ifcopenshell.file, rules: list[dict] | None = None) -> dict:
+def _reworded_for_edition(rules: list[dict], ibc_edition: str | None) -> list[dict]:
+    """CODE-3: reword the seed's `IBC 20xx` detail citations to the project's **resolved** adopted IBC
+    edition, so an exterior window cites the *actually-adopted* section rather than the seed's 2021. Only
+    the edition year in a document `description`/instruction changes — facts of law, not the seed content."""
+    if not ibc_edition:
+        return rules
+    import re
+    ed = str(ibc_edition).strip()
+    out: list[dict] = []
+    for r in rules:
+        docs = (r.get("attach") or {}).get("document")
+        if not docs:
+            out.append(r)
+            continue
+        r2 = {**r, "attach": {**r["attach"], "document": [
+            ({**d, "description": re.sub(r"IBC 20\d\d", f"IBC {ed}", d["description"])} if d.get("description")
+             else d) for d in docs]}}
+        out.append(r2)
+    return out
+
+
+def apply_rules(model: ifcopenshell.file, rules: list[dict] | None = None,
+                ibc_edition: str | None = None) -> dict:
     """D3: evaluate the rule set over every element and write each matched rule's content bundle
     (classification codes + detail/instruction documents) via the Track-D carriers. Idempotent-ish —
-    classify/attach_document dedupe, so re-running doesn't pile up. Returns a summary of what fired."""
+    classify/attach_document dedupe, so re-running doesn't pile up. `ibc_edition` (CODE-3) rewords the
+    citations to the project's resolved adopted IBC edition. Returns a summary of what fired."""
     from . import detailing
 
-    rules = rules if rules is not None else SEED_RULES
+    rules = _reworded_for_edition(rules if rules is not None else SEED_RULES, ibc_edition)
     applied: list[dict] = []
     codes_written = docs_written = 0
     for el in model.by_type("IfcElement"):
@@ -91,7 +114,7 @@ def apply_rules(model: ifcopenshell.file, rules: list[dict] | None = None) -> di
                     d.get("identification"), d.get("purpose"))
             applied.append({"rule": rule["name"], "guid": el.GlobalId,
                             "ifc_class": el.is_a(), "name": getattr(el, "Name", None) or el.is_a()})
-    return {"rules_evaluated": len(rules), "matches": len(applied),
+    return {"rules_evaluated": len(rules), "matches": len(applied), "ibc_edition": ibc_edition,
             "codes_written": codes_written, "documents_written": docs_written, "applied": applied}
 
 

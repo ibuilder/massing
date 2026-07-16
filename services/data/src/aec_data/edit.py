@@ -1966,7 +1966,7 @@ RECIPES = {
         m, p["guids"], p["name"], p.get("location"), p.get("description"), p.get("identification"),
         "WARRANTY" if str(p.get("kind", "om")).strip().lower().startswith("warr") else "OPERATION_MAINTENANCE"),
     # W11 D3 — auto-detail: evaluate the condition→content rule set, write matched code/detail bundles
-    "apply_detailing_rules": lambda m, p: _rules().apply_rules(m, p.get("rules")),
+    "apply_detailing_rules": lambda m, p: _rules().apply_rules(m, p.get("rules"), p.get("ibc_edition")),
     # W11 B6 — structural steel connections (fabrication LOD 350/400)
     "add_base_plate": lambda m, p: _conn().add_base_plate(m, p["column_guid"], float(p.get("width", 0.4)),
                                                           float(p.get("depth", 0.4)), float(p.get("thickness", 0.025)),
