@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.340 — CODE-5: applicable code requirements as buildingSMART IDS
+
+The code-analysis engine can now **emit the machine-checkable subset of the applicable code requirements as
+a buildingSMART IDS 1.0 file** — so the same jurisdiction-resolved rules validate an IFC in *any* IDS
+checker (extends the IDS→BCF pipeline). `codecheck.code_ids(description, edition)` composes the fired code
+rules (which requirements apply for this occupancy / size) with the standard IFC common-property IDS specs:
+a fire-resistance-rated occupancy (R/A/H/I, or ≥4 stories) pulls in the rated-element groups (wall / door /
+slab / column / beam `FireRating`), plus space area/reference (occupant load) and envelope U-value (IECC).
+`GET /codes/ids?description=…&edition=…` returns the fired topics + `ids_xml`; `&download=true` returns the
+`.ids` attachment. Property requirements (facts of law), never code prose; the AHJ makes the determination.
+
 ## v0.3.339 — EST-1 5D: crew-days → schedule duration
 
 The productivity/labour estimate already turned quantities into man-hours → crew-days → cost; now it turns

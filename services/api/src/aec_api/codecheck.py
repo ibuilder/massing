@@ -102,6 +102,33 @@ def _rules_check(text: str) -> dict[str, Any]:
                         "key in Settings for a fuller, reasoned answer. Always confirm with the AHJ.")}
 
 
+def code_ids(description: str, edition: str | None = None, title: str = "") -> dict[str, Any]:
+    """CODE-5: emit the **machine-checkable subset** of the applicable code requirements as a buildingSMART
+    **IDS 1.0** file — so the same jurisdiction-resolved rules validate an IFC in any IDS checker (extends
+    the IDS→BCF pipeline). Composes the fired code rules (which requirements apply for this occupancy /
+    size / edition) with the standard IFC common-property IDS specs. Facts of law (property requirements),
+    never ICC prose; the AHJ makes the determination."""
+    from . import ids_authoring
+    rc = _rules_check(description)
+    feat = rc["detected"]
+    occ = (feat.get("occupancy") or {}).get("group")
+    groups: list[str] = []
+    for g in ((["walls", "doors", "slabs", "columns", "beams"]                 # fire-resistance-rated
+               if (occ in ("R", "A", "H", "I") or (feat.get("stories") or 0) >= 4) else [])
+              + ["spaces"]                                                       # occupant load / egress
+              + ["walls", "windows"]):                                          # IECC envelope U-value
+        if g not in groups:
+            groups.append(g)
+    specs = ids_authoring._specs_for(groups)
+    ttl = title or ("Code data requirements" + (f" — {edition}" if edition else ""))
+    xml = ids_authoring.build_ids(ttl, specs, purpose="Code-compliance data requirements (facts of law).")
+    return {"edition": edition, "detected": feat, "topics": rc["topics"], "groups": groups,
+            "spec_count": len(specs), "ids_xml": xml,
+            "note": "The machine-checkable subset of the applicable code requirements as buildingSMART "
+                    "IDS 1.0 — validate an IFC against it in any IDS checker. Property requirements (facts "
+                    "of law), not code prose; the AHJ makes the final determination."}
+
+
 _SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["topics"],
     "properties": {"topics": {"type": "array", "items": {

@@ -293,7 +293,9 @@ CODE-EBC ship — see the archive.)*
   project jurisdiction storage.
 - **CODE-3 (deepen)** — thread the resolved edition into the Track-D detail-rule citations.
 - **CODE-4** *(S)* — local-amendment overlay + manual-entry UI (store *our summary* + a link).
-- **CODE-5** *(M)* — emit `CodeRule`s as buildingSMART **IDS** XML (extends the IDS→BCF pipeline).
+- ✅ **CODE-5 SHIPPED v0.3.340** — `codecheck.code_ids` emits the machine-checkable subset of the applicable
+  code requirements as buildingSMART **IDS 1.0** (rated-element `FireRating` + space area + envelope U-value,
+  driven by the fired code rules); `GET /codes/ids` (+ `.ids` download). Validates an IFC in any IDS checker.
 - **CODE-6** *(L, flagged/paid)* — licensed prose integration behind a flag + cost warning; only after CODE-1–3
   prove demand.
 

@@ -52,6 +52,22 @@ r = c.get("/codes/adoptions?jurisdiction=FL", headers=h).json()
 assert r["resolved"] and r["primary"]["IBC"] == 2021 and r["verify"], r
 assert "CA" in c.get("/codes/seeded", headers=h).json()["jurisdictions"]
 
+# --- CODE-5: applicable code requirements → buildingSMART IDS -----------------
+import xml.etree.ElementTree as ET  # noqa: E402
+ids = c.get("/codes/ids", params={"description": "5-story R-2 apartment building, 40,000 sf",
+                                  "edition": "IBC 2021"}, headers=h).json()
+assert ids["spec_count"] > 0 and "<ids" in ids["ids_xml"], ids.get("spec_count")
+# a fire-resistance-rated occupancy pulls in the rated-element groups
+assert "walls" in ids["groups"] and "slabs" in ids["groups"], ids["groups"]
+root = ET.fromstring(ids["ids_xml"])                       # schema-valid, well-formed IDS
+assert root.tag.endswith("ids"), root.tag
+assert any(t["code"] == "IBC" for t in ids["topics"]), ids["topics"]
+# the download variant returns the .ids attachment
+dl = c.get("/codes/ids", params={"description": "office, 8000 sf", "download": "true"}, headers=h)
+assert dl.status_code == 200 and dl.headers["content-type"].startswith("application/xml")
+assert "code-requirements.ids" in dl.headers.get("content-disposition", "")
+
 print("CODES OK - CODE-1 catalog lists the I-Code families + editions and the baseline; resolve() maps a "
       "jurisdiction to adopted editions (seed vs baseline per family), falls back to the baseline when "
-      "unseeded, always carries a verify-with-AHJ note; /codes/families, /codes/adoptions, /codes/seeded serve it.")
+      "unseeded, always carries a verify-with-AHJ note; /codes/families, /codes/adoptions, /codes/seeded serve it; "
+      "CODE-5 /codes/ids emits the applicable requirements as well-formed buildingSMART IDS (+ .ids download).")
