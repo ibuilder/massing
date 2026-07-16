@@ -9,6 +9,7 @@ from __future__ import annotations
 import multiprocessing
 import warnings
 from typing import Any
+from xml.sax.saxutils import escape as _xesc
 
 import ifcopenshell
 import ifcopenshell.geom as geom
@@ -207,7 +208,7 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
     draw_w = width - 2 * pad - gutter
     scale = draw_w / span[0]
     draw_h = span[1] * scale
-    height = int(draw_h + 2 * pad + gutter + 60)
+    height = int(draw_h + 2 * pad + gutter + 150)   # extra band for the titleblock + scale bar + notes
     ox = pad + gutter
     oy = pad + gutter
 
@@ -244,9 +245,9 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
     for tag in (tags or []):
         if not (mn[0] <= tag["x"] <= mx[0] and mn[1] <= tag["y"] <= mx[1]):
             continue
-        tx, tyy = T(tag["x"], tag["y"])
+        tx, tyy = T(tag["x"], tag["y"])                   # room names are user data — escape &/<
         out.append(f'<text x="{tx:.1f}" y="{tyy:.1f}" text-anchor="middle" font-family="sans-serif" '
-                   f'font-size="12" font-weight="700" fill="#333">{tag["name"]}</text>')
+                   f'font-size="12" font-weight="700" fill="#333">{_xesc(str(tag["name"]))}</text>')
         if tag.get("area"):
             out.append(f'<text x="{tx:.1f}" y="{tyy+13:.1f}" text-anchor="middle" '
                        f'font-family="sans-serif" font-size="10" fill="#777">{tag["area"]:.1f} m²</text>')
@@ -279,14 +280,60 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
             mm = round((y1 - y0) * 1000)
             out.append(_dim_v(dx, ay, byy, mm))
 
-    sub = f"cut @ {elevation + cut_height:.2f} m" + (f"  ·  grid {len(grid['x'])}×{len(grid['y'])}" if (grid["x"] or grid["y"]) else "")
-    ty = height - 24
-    out.append(f'<line x1="{pad}" y1="{ty-12}" x2="{width-pad}" y2="{ty-12}" stroke="#111" stroke-width="1"/>'
-               f'<text x="{pad}" y="{ty+8}" font-family="sans-serif" font-size="16" font-weight="700">{title}</text>'
-               f'<text x="{width-pad}" y="{ty+8}" text-anchor="end" font-family="sans-serif" '
-               f'font-size="12" fill="#555">{sub}</text>')
+    out.append(_titleblock_band(width, height, pad, title, elevation + cut_height, scale, grid))
     out.append("</svg>")
     return "".join(out)
+
+
+# General notes shown on every plan sheet (standard-of-care boilerplate; NOT project-specific claims).
+_PLAN_NOTES = (
+    "1. Do not scale drawings — use figured dimensions.",
+    "2. Verify all dimensions and conditions in the field before construction.",
+    "3. Dimensions are to face of structure / grid unless noted otherwise.",
+    "4. Refer to the full drawing set + specifications for scope.",
+)
+
+
+def _titleblock_band(width: int, height: int, pad: int, title: str, cut_z: float,
+                     px_per_m: float, grid: dict) -> str:
+    """A drawing-sheet bottom band: a bordered rule, the sheet title, a **general-notes** block, a
+    **graphic scale bar** (px_per_m keeps it true at any zoom), a north arrow, and a compact **titleblock**
+    (title · scale · cut). Composed inline so the standalone plan.svg reads like a real sheet."""
+    title = _xesc(str(title))                              # storey name is user data
+    top = height - 132
+    tb_w = 250                                             # titleblock box width (right)
+    tb_x = width - pad - tb_w
+    o: list[str] = [f'<line x1="{pad}" y1="{top}" x2="{width-pad}" y2="{top}" stroke="#111" stroke-width="1.4"/>']
+    # sheet title (left)
+    o.append(f'<text x="{pad}" y="{top+26}" font-family="sans-serif" font-size="18" font-weight="800">{title}</text>')
+    # general notes
+    o.append(f'<text x="{pad}" y="{top+50}" font-family="sans-serif" font-size="11" font-weight="700" fill="#333">GENERAL NOTES</text>')
+    for i, n in enumerate(_PLAN_NOTES):
+        o.append(f'<text x="{pad}" y="{top+66+i*14}" font-family="sans-serif" font-size="10" fill="#555">{n}</text>')
+    # graphic scale bar (0 / 5 / 10 m) — alternating filled segments; true regardless of on-screen zoom
+    sb_x, sb_y, seg = pad + 300, top + 40, 5.0 * px_per_m  # 5 m per segment
+    o.append(f'<text x="{sb_x}" y="{sb_y-6}" font-family="sans-serif" font-size="10" font-weight="700" fill="#333">GRAPHIC SCALE (m)</text>')
+    for i in range(4):
+        x0 = sb_x + i * seg
+        o.append(f'<rect x="{x0:.1f}" y="{sb_y:.1f}" width="{seg:.1f}" height="7" fill="{"#111" if i % 2 else "#fff"}" stroke="#111" stroke-width="0.8"/>')
+        o.append(f'<text x="{x0:.1f}" y="{sb_y+22:.1f}" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#555">{i*5}</text>')
+    o.append(f'<text x="{sb_x+4*seg:.1f}" y="{sb_y+22:.1f}" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#555">20</text>')
+    # north arrow
+    nax = sb_x + 4 * seg + 40
+    o.append(f'<g transform="translate({nax:.1f},{sb_y+2:.1f})"><polygon points="0,-14 5,6 0,1 -5,6" fill="#111"/>'
+             f'<text x="0" y="20" text-anchor="middle" font-family="sans-serif" font-size="10" font-weight="700">N</text></g>')
+    # titleblock box (right)
+    o.append(f'<rect x="{tb_x}" y="{top+10}" width="{tb_w}" height="104" fill="none" stroke="#111" stroke-width="1"/>')
+    o.append(f'<line x1="{tb_x}" y1="{top+44}" x2="{tb_x+tb_w}" y2="{top+44}" stroke="#111" stroke-width="0.6"/>')
+    o.append(f'<line x1="{tb_x}" y1="{top+80}" x2="{tb_x+tb_w}" y2="{top+80}" stroke="#111" stroke-width="0.6"/>')
+    o.append(f'<text x="{tb_x+10}" y="{top+32}" font-family="sans-serif" font-size="14" font-weight="800">{title}</text>')
+    o.append(f'<text x="{tb_x+10}" y="{top+60}" font-family="sans-serif" font-size="9" fill="#777">SCALE</text>'
+             f'<text x="{tb_x+10}" y="{top+73}" font-family="sans-serif" font-size="12" font-weight="700">As shown (see bar)</text>')
+    o.append(f'<text x="{tb_x+10}" y="{top+96}" font-family="sans-serif" font-size="9" fill="#777">CUT PLANE</text>'
+             f'<text x="{tb_x+120}" y="{top+96}" font-family="sans-serif" font-size="9" fill="#777">GRID</text>'
+             f'<text x="{tb_x+10}" y="{top+109}" font-family="sans-serif" font-size="11" font-weight="700">{cut_z:.2f} m AFF</text>'
+             f'<text x="{tb_x+120}" y="{top+109}" font-family="sans-serif" font-size="11" font-weight="700">{len(grid["x"])}×{len(grid["y"])}</text>')
+    return "".join(o)
 
 
 def _dim_h(x0, x1, y, mm):
@@ -305,8 +352,10 @@ def _dim_v(x, y0, y1, mm):
             f'font-size="10" fill="#0a6" transform="rotate(-90 {x-6:.1f} {(y0+y1)/2:.1f})">{mm}</text>')
 
 
-def space_tags(model: ifcopenshell.file) -> list[dict]:
-    """Room tags from IfcSpace: name + net floor area + plan centroid (for plan annotation)."""
+def space_tags(model: ifcopenshell.file, cut_z: float | None = None) -> list[dict]:
+    """Room tags from IfcSpace: name + net floor area + plan centroid (for plan annotation). When `cut_z`
+    (metres) is given, only spaces the horizontal cut plane passes through are tagged — so a level's plan
+    shows *its* rooms, not every floor's rooms stacked on the shared footprint."""
     import ifcopenshell.geom as _geom
     import ifcopenshell.util.element as _ue
 
@@ -320,6 +369,8 @@ def space_tags(model: ifcopenshell.file) -> list[dict]:
         try:
             shape = _geom.create_shape(settings, sp)
             v = np.asarray(shape.geometry.verts, dtype=float).reshape(-1, 3)
+            if cut_z is not None and not (v[:, 2].min() - 0.05 <= cut_z <= v[:, 2].max() + 0.05):
+                continue                            # this room isn't on the cut level — skip its tag
             cx, cy = float(v[:, 0].mean()), float(v[:, 1].mean())
             if area is None:  # footprint area fallback (convex hull of plan projection)
                 from shapely.geometry import MultiPoint
@@ -330,9 +381,11 @@ def space_tags(model: ifcopenshell.file) -> list[dict]:
     return tags
 
 
-def element_callouts(model: ifcopenshell.file, classes=("IfcDoor", "IfcWindow")) -> list[dict]:
+def element_callouts(model: ifcopenshell.file, classes=("IfcDoor", "IfcWindow"),
+                     cut_z: float | None = None) -> list[dict]:
     """Plan callouts for taggable elements: a label (Tag → Name → class) at the element's plan
-    centroid. Rendered with a leader line pointing from the label to the element."""
+    centroid. When `cut_z` (metres) is given, only elements the cut plane passes through are labelled
+    (so a level's plan tags its own doors/windows, not every floor's)."""
     import ifcopenshell.geom as _geom
 
     settings = _world_settings(_geom)   # world coords → callout centroids align with the linework
@@ -343,6 +396,8 @@ def element_callouts(model: ifcopenshell.file, classes=("IfcDoor", "IfcWindow"))
             try:
                 shape = _geom.create_shape(settings, el)
                 v = np.asarray(shape.geometry.verts, dtype=float).reshape(-1, 3)
+                if cut_z is not None and not (v[:, 2].min() - 0.05 <= cut_z <= v[:, 2].max() + 0.05):
+                    continue
                 out.append({"label": str(label), "x": float(v[:, 0].mean()),
                             "y": float(v[:, 1].mean()), "kind": cls})
             except Exception:
@@ -354,12 +409,13 @@ def plan_svg(model: ifcopenshell.file, elevation: float, cut_height: float = 1.2
              title: str = "PLAN", grid: bool = True, dims: bool = True,
              rooms: bool = True, callouts: bool | list[str] = False) -> str:
     meshes = bake(model)
+    cut_z = elevation + cut_height                 # the horizontal cut plane — tags/callouts filter to it
     g = grid_from_meshes(meshes) if grid else {"x": [], "y": []}
-    tags = space_tags(model) if rooms else []
+    tags = space_tags(model, cut_z=cut_z) if rooms else []
     co = None
     if callouts:
         classes = callouts if isinstance(callouts, list) else ["IfcDoor", "IfcWindow"]
-        co = element_callouts(model, tuple(classes))
+        co = element_callouts(model, tuple(classes), cut_z=cut_z)
     return plan_drawing_svg(meshes, elevation, cut_height, title, g, dims, tags=tags, callouts=co)
 
 

@@ -103,6 +103,9 @@ The architectural spine, guardrails, and drawing generator ship; these deepen ge
 code-intelligence.
 
 **Construction documents**
+- ✅ **Plan-render fix SHIPPED v0.3.345** — `drawings.plan_svg` room tags + door/window callouts filter to
+  the cut level (no more cross-level label stacking), and plans carry a titleblock band (title box · graphic
+  scale bar · north arrow · general notes; cut-plane AFF + grid). Room names XML-escaped.
 - **C6 (remaining)** — reference-line datums (`IfcReferent`/`IfcVirtualElement`) + **"drawn detail follows
   LOD"** poché (representation selection + `IfcMaterialLayerSet` poché + annotation density → schematic
   single-line ↔ CD layered poché). Permissive libs only (no AGPL).

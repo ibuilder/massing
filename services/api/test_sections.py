@@ -58,6 +58,29 @@ assert all(lo_x - 1 <= t["x"] <= hi_x + 1 for t in tags), "tags must fall within
 cos = drawings.element_callouts(mt, ("IfcDoor",))
 assert cos and cos[0]["x"] > 5.0, f"door callout should be near the world-placed wall (~x=11), got {cos}"
 
+# a plan cut at a level tags ONLY that level's rooms (no cross-level stacking) + carries a titleblock.
+TMP2 = os.path.join(os.path.dirname(__file__), "_sec_plan.ifc")
+massing.generate_blank_ifc(TMP2, name="Plan Levels", storeys=3, storey_height=3.0, ground_size=20.0)
+ml = open_model(TMP2)
+levels = ml.by_type("IfcBuildingStorey")
+for i, lv in enumerate(sorted(levels, key=lambda s: float(getattr(s, "Elevation", 0) or 0))):
+    edit.add_space(ml, 1, 1, 6, 5, f"RoomOnFloor{i}", lv.Name, 3.0) if hasattr(edit, "add_space") else \
+        edit.add_spaces(ml, rooms_per_storey=1, ceiling_height=3.0)
+elevs = drawings.storey_elevations(ml)
+mid = next(s for s in elevs if abs(s["elevation"] - 3.0) < 0.6)      # the 2nd storey (~3 m)
+cut_z = mid["elevation"] + 1.2
+tags_here = drawings.space_tags(ml, cut_z=cut_z)
+tags_all = drawings.space_tags(ml)                                    # unfiltered = every floor's rooms
+assert 0 < len(tags_here) < len(tags_all), (len(tags_here), len(tags_all))   # the cut isolates one level
+# every tag returned for the cut actually straddles the cut plane
+svg = drawings.plan_svg(ml, elevation=mid["elevation"], cut_height=1.2, title=f"PLAN - {mid['name']}", rooms=True)
+assert "GENERAL NOTES" in svg and "GRAPHIC SCALE" in svg and "AFF" in svg, "plan must carry a titleblock + scale + notes"
+import xml.dom.minidom as _md  # noqa: E402
+_md.parseString(svg)                                                  # well-formed even with room names
+for f in (TMP2,):
+    if os.path.exists(f):
+        os.remove(f)
+
 if os.path.exists(TMP):
     os.remove(TMP)
 
