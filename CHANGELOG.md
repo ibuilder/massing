@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.346 — UX-4: always-visible Info-Box on the 3D canvas
+
+A compact **Info-Box** strip now sits on the 3D view (bottom-left) showing the **selected element's key
+facts** — name · IFC class · level · discipline (with the discipline's colour dot from the unified tree) —
+**regardless of which rail tab is open** (ArchiCAD's Info-Box pattern). Previously the identity header lived
+only inside the Properties tab, so you lost sight of what was selected while on Tools/Tree/Library. Updates
+on selection, clears on deselect. First component of the UX-4 designer-workspace shell.
+
 ## v0.3.345 — Plan fix: per-level room tags + titleblock / scale / notes
 
 Two fixes to the drawing-set plans. **(1) Room labels no longer stack across levels.** The plan cut its

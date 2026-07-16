@@ -85,6 +85,10 @@ Recent, thumbnails, editable tags; a **pick content → pick host → auto-build
   (a door picks its wall; a steel connection picks its beams). **Appendable IFC libraries** — load types
   (+ profiles/materials) from any IFC file. New `library` client + a **Library** rail group. Folds in the
   CONTENT-1 remaining (curated CC0 seed + thumbnail palette) and H1 (CC0 furniture families + PBR materials).
+- 🟡 **UX-4 (Info-Box) SHIPPED v0.3.346** — an always-visible **Info-Box** strip on the 3D canvas showing the
+  selected element's name · class · level · discipline (with the tree colour dot), regardless of the active
+  rail tab. **UX-4 remaining:** the Project-Browser spine, the "Script this" affordance, and assembling the
+  full shell.
 - **UX-4 — Designer workspace layout** *(M · high)* — assemble the four resources into one shell: a
   **Project-Browser spine** (spatial tree + views/sheets/schedules + the type library — extends the model
   browser), the docked **Properties** palette with the **instance-vs-type split** (extends P6d), the **Library**

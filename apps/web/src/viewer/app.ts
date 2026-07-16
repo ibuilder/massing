@@ -87,6 +87,29 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const propsBody = $("props-body");
   const propsHint = () => { propsBody.innerHTML = `<div class="meta">Select an element in the model to see its type, parameters, and property sets.</div>`; };
 
+  // UX-4: an always-visible **Info-Box** — a compact strip on the 3D canvas showing the selected element's
+  // key facts (name · class · level · discipline) regardless of which rail tab is open (ArchiCAD pattern).
+  let discColorByName: Record<string, string> = {};
+  void api.disciplineTree?.().then((t) => {
+    discColorByName = Object.fromEntries(t.disciplines.map((d) => [d.name, d.color]));
+  }).catch(() => { /* offline — Info-Box just omits the colour dot */ });
+  const infoBox = document.createElement("div");
+  infoBox.className = "info-box"; infoBox.hidden = true;
+  infoBox.setAttribute("aria-live", "polite");
+  container.appendChild(infoBox);
+  const updateInfoBox = (el: ElementProps | null) => {
+    if (!el) { infoBox.hidden = true; infoBox.innerHTML = ""; return; }
+    const cls = el.ifc_class.replace("Ifc", "");
+    const disc = el.discipline || "";
+    const dot = disc && discColorByName[disc]
+      ? `<span class="info-dot" style="background:${discColorByName[disc]}"></span>` : "";
+    infoBox.innerHTML = `<b>${escapeHtml(el.name || cls)}</b>`
+      + `<span class="info-sep">·</span><span>${escapeHtml(cls)}</span>`
+      + (el.storey ? `<span class="info-sep">·</span><span>${escapeHtml(el.storey)}</span>` : "")
+      + (disc ? `<span class="info-sep">·</span>${dot}<span>${escapeHtml(disc)}</span>` : "");
+    infoBox.hidden = false;
+  };
+
   const viewer = createViewer(container);
   const loader = new ModelLoader(viewer);
   // keep the federation list in sync whenever a model registers (fires after load completes)
@@ -125,7 +148,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   async function selectMap(map: ModelIdMap | null, opts: { guid?: string; fit?: boolean } = {}) {
     if (selection) await loader.fragments.resetHighlight(selection);
     selection = map;
-    if (!map) { gizmo?.hide(); propsHint(); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); return; }
+    if (!map) { gizmo?.hide(); propsHint(); updateInfoBox(null); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); return; }
     await loader.fragments.highlight(SELECT_MAT(), map);
     await loader.fragments.core.update(true);
     if (opts.fit) await fitToItems(map);
@@ -264,6 +287,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const wrap = document.createElement("div");
     wrap.append(head, buildElementProps(el, hooks));
     propsBody.replaceChildren(wrap);
+    updateInfoBox(el);
   }
 
   async function selectByGuid(guid: string, fit = false) {
