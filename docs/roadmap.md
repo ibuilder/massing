@@ -322,9 +322,15 @@ Surfaced on push at v0.3.309; **not runtime/CI-exposed**, so triaged rather than
   developer-run `cap sync`, never untrusted input, never in CI or at runtime. Resolved by bumping the four
   `@capacitor/*` deps 6→7 (`@capacitor/cli@7.6.8` → `tar@7.5.20`); `capacitor.config.ts` needed no v7 changes and
   no native projects are checked in, so no Gradle migration was required.
-- **SEC-DEP-2 — `glib` 0.20 (Tauri)** *(S · low-risk)* — one medium (GHSA-wrw7-89jp-8q8g): an *unsoundness*
-  in `glib::VariantStrIter`'s `Iterator` impls, pulled transitively by the Tauri desktop shell (`< 0.20.0`).
-  Forcing `glib 0.20` conflicts with Tauri's pinned gtk stack; revisit when the Tauri/gtk baseline moves.
+- ✅ **SEC-DEP-2 — `glib` 0.20 (Tauri)** *(RESOLVED — dismissed `not_used`, 2026-07-16)* — the medium
+  unsoundness (RUSTSEC-2024-0429 / GHSA-wrw7-89jp-8q8g) in `glib::VariantStrIter`'s `Iterator` impls (NULL-deref
+  UB, not an exploit) is a **Linux-desktop-only** transitive dep of Tauri 2's **gtk3** webview stack
+  (webkit2gtk 0.19 → gtk/gdk/gio/glib **0.18**); Windows uses WebView2 and macOS uses WKWebView, neither pulls
+  glib. The **only** patched version is glib **≥ 0.20**, which is the **gtk4** generation and is incompatible
+  with Tauri 2's gtk3 stack (`gtk 0.18` requires `glib ^0.18`; a `[patch]` override breaks the desktop build).
+  Our code never calls `VariantStrIter`. **No gtk3-compatible fix exists**, so the Dependabot alert (#5) was
+  dismissed as `not_used` with this rationale; the real fix arrives when Tauri moves to a gtk4/glib-0.20
+  baseline (Tauri 3 / a future gtk4 `wry`). **Security tab is now clean: 0 CodeQL + 0 Dependabot alerts.**
 
 ---
 
