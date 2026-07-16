@@ -331,8 +331,12 @@ palette and a mislabeled `estimate.by_discipline`.)
   `tree.ts` now consumes the served `ifc_class_discipline` map (`setDisciplineLookup`) instead of its regex,
   so browser grouping and viewer colors agree. Rebar/mesh/tendon now classify to Structural.
 - **DISC-3 — consolidate the engines** *(M)* — make the canonical source reachable from `aec_data`; derive
-  `drawing.py` poché colors, `specmanual` divisions, and the `mep.py`/`edit.py` discipline maps from it; fix
-  `estimate.by_discipline` to roll up by real discipline (it currently groups by raw IFC class).
+  `drawing.py` poché colors, `specmanual` divisions, and the `mep.py`/`edit.py` discipline maps from it.
+  - ✅ **DISC-3a estimate rollup SHIPPED v0.3.334** — `estimate.by_discipline` (which really grouped by raw
+    IFC class) now tags each priced line with its discipline (name/code/color) and adds a true
+    `by_discipline_rollup` summing by NCS discipline; per-class detail kept as `by_class`.
+  - Remaining: `drawing.py` poché colors + `specmanual` divisions + `mep.py`/`edit.py` maps derive from the
+    spine (needs a shared artifact `aec_data` can read, since it can't import `aec_api`).
 - ✅ **DISC-4a Fire Alarm + Telecom recipes SHIPPED v0.3.332** — `add_fa_device` (smoke/heat detector
   `IfcSensor`; pull-station/horn-strobe/bell/FACP `IfcAlarm`) on a **Fire Alarm** system; `add_comms_device`
   (MDF/IDF/switch/WAP `IfcCommunicationsAppliance`, data outlet `IfcOutlet`) on a **Telecommunications**

@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.334 — Estimate rolls up by real discipline (not IFC class)
+
+The model estimate's `by_discipline` was a misnomer — it grouped by raw **IFC class**, so a "discipline"
+breakdown listed `IfcColumn`, `IfcSlab`, `IfcPipeSegment` … rather than Structural / Plumbing / …. Now each
+priced class line carries its **discipline** (name + code + color from the unified tree), and a genuine
+**`by_discipline_rollup`** sums the lines into NCS disciplines — so the estimate reads as
+Structural $X · Architectural $Y · Mechanical $Z · …, colored to match the viewer. The per-class detail is
+kept as `by_class` (and `by_discipline` stays as an alias for backward compatibility). First slice of
+folding the data engines onto the one spine (DISC-3).
+
 ## v0.3.333 — Tool buttons for Fire Alarm + Telecom; upgraded demo tower
 
 - **🔔 Fire-alarm device** and **📶 Telecom device** tool buttons in the modeling rail (next to
