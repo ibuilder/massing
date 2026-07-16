@@ -587,6 +587,61 @@ def reference_disciplines(_: str = Depends(current_user)):
             "tree": cls.discipline_tree()}
 
 
+# --- COST-DB: vintage-versioned cost database (offline public importer) -----------------------------
+@router.get("/cost/datasets")
+def cost_datasets(db: Session = Depends(get_db), _: str = Depends(current_user)):
+    """Installed cost-database vintages + what the offline public importer can build (COST-DB)."""
+    from .. import cost_db
+    return {"datasets": cost_db.list_datasets(db), "available_public": cost_db.list_available_public()}
+
+
+@router.post("/cost/datasets/import")
+def cost_import(body: dict = Body(default={}), db: Session = Depends(get_db),
+                _: str = Depends(current_user)):
+    """Build (import) a cost vintage. `{"vintage": 2025 | "latest", "quarter": null, "source": "public"}`.
+    Offline **public** importer only for now — a `"source": "cloud"` request warns and falls back to the
+    public build (the massing.cloud importer is a later build-order step). Idempotent; sets it as latest."""
+    from datetime import date
+
+    from .. import cost_db
+    v = body.get("vintage", "latest")
+    year = date.today().year if v in (None, "latest") else int(v)
+    quarter = body.get("quarter")
+    warning = ("no cloud subscription configured — built the offline public vintage instead"
+               if body.get("source") == "cloud" else None)
+    ds = cost_db.import_public_vintage(db, year, quarter)
+    return {**cost_db.dataset_dict(ds), "warning": warning}
+
+
+@router.get("/projects/{pid}/cost-vintage")
+def get_cost_vintage(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The cost vintage a project's estimate resolves through — its pinned dataset, else the latest."""
+    from .. import cost_db
+    p = db.get(Project, pid)
+    if p is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    ds = cost_db.dataset_for_project(db, p)
+    return {"pinned_id": p.cost_dataset_id, "resolved": cost_db.dataset_dict(ds) if ds else None}
+
+
+@router.post("/projects/{pid}/cost-vintage")
+def set_cost_vintage(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                     _: str = Depends(require_role("editor"))):
+    """Pin a project's estimate to a cost vintage. `{"dataset_id": "…"}` — null/absent = follow the latest
+    installed vintage. Reproducibility: the estimate always prices through the pinned vintage."""
+    from .. import cost_db
+    from ..models import CostDataset
+    p = db.get(Project, pid)
+    if p is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    dataset_id = body.get("dataset_id")
+    if dataset_id and db.get(CostDataset, dataset_id) is None:
+        raise HTTPException(status_code=404, detail="cost dataset not found")
+    cost_db.pin_project(db, p, dataset_id)
+    ds = cost_db.dataset_for_project(db, p)
+    return {"pinned_id": p.cost_dataset_id, "resolved": cost_db.dataset_dict(ds) if ds else None}
+
+
 @router.get("/projects/{pid}/estimate/gaeb.x83")
 def estimate_gaeb(pid: str, system: str = "din276", db: Session = Depends(get_db),
                   _: str = Depends(require_role("viewer"))):

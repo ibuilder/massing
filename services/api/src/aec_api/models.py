@@ -39,9 +39,52 @@ class Project(Base):
     # W9-5: site-logistics resources {"resources": [...]} — temporary cranes/laydown/gates with a
     # schedule window, time-phased on the 4D timeline. See logistics.py.
     site_logistics: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # COST-DB: the cost-database vintage this project's estimate is pinned to (reproducibility).
+    # NULL = use the latest installed vintage. See cost_db.py + docs/cost-db-import-plan.md.
+    cost_dataset_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     topics: Mapped[list[Topic]] = relationship(back_populates="project", cascade="all, delete-orphan")
+
+
+class CostDataset(Base):
+    """COST-DB versioning backbone — one row per installed cost-database **vintage**. Every priced row
+    (`CostItem`) hangs off a dataset, so a 2024 estimate stays reproducible after newer data lands and a
+    project pins exactly one vintage. Populated offline from public benchmarks (`origin=public_local`) or,
+    later, from the massing.cloud subscription API (`origin=cloud_api`). See docs/cost-db-import-plan.md."""
+    __tablename__ = "cost_datasets"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    vintage_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    quarter: Mapped[int | None] = mapped_column(Integer, nullable=True)         # 1-4, NULL = annual
+    source_set: Mapped[str] = mapped_column(String, default="public")           # public | public+1build | enterprise
+    tier: Mapped[str] = mapped_column(String, default="free")
+    origin: Mapped[str] = mapped_column(String, default="public_local")         # public_local | cloud_api
+    release_uuid: Mapped[str | None] = mapped_column(String, nullable=True)     # cloud release id
+    checksum_sha256: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_latest: Mapped[bool] = mapped_column(Boolean, default=False)
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    __table_args__ = (Index("ix_cost_dataset_vintage", "vintage_year", "quarter", "source_set", "origin",
+                            unique=True),)
+
+
+class CostItem(Base):
+    """A priced line item within a cost-database vintage (MasterFormat/Uniformat keyed). Value fields are
+    inlined here for the offline vintage; the plan's separate `cost_value` normalization + `location_factor`
+    / `escalation_index` arrive with the location engine + cloud importer."""
+    __tablename__ = "cost_items"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    dataset_id: Mapped[str] = mapped_column(ForeignKey("cost_datasets.id", ondelete="CASCADE"), index=True)
+    masterformat_code: Mapped[str] = mapped_column(String, nullable=False)
+    uniformat_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    description: Mapped[str] = mapped_column(String, nullable=False)
+    uom: Mapped[str] = mapped_column(String, nullable=False)
+    ifc_class: Mapped[str | None] = mapped_column(String, nullable=True)        # link to the model takeoff
+    material_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    labor_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    equipment_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    total_cost: Mapped[float] = mapped_column(Float, nullable=False)
+    __table_args__ = (Index("ix_cost_item_ds_mf", "dataset_id", "masterformat_code"),)
 
 
 class ProjectModel(Base):

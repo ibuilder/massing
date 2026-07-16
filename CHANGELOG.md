@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.337 — COST-DB: vintage-versioned cost database (offline first slice)
+
+First slice of the cost-database plan ([cost-db-import-plan.md](docs/cost-db-import-plan.md)) — the
+**versioning backbone** so a project's estimate is reproducible against the exact cost vintage it was built
+on. New `cost_datasets` + `cost_items` tables (every priced row hangs off a dataset); a **`cost_dataset_id`**
+pin on the project; and an **offline `PublicDataImporter`** (`cost_db.py`) that builds a `public_local`
+vintage from the app's shipped benchmark rates (one MasterFormat-coded `CostItem` per rate, linked to its IFC
+class so the model takeoff prices straight through) — **no network, no subscription**. A vintage **resolver**
+(latest · exact year · `nearest`/`strict` fallback) and `is_latest` management round it out.
+
+Endpoints: `GET /cost/datasets` (installed vintages + what the public importer offers), `POST
+/cost/datasets/import` (`{vintage, quarter, source}`; a `source:"cloud"` request with no subscription warns +
+falls back to the public build), and `GET`/`POST /projects/{pid}/cost-vintage` (pin a project to a vintage;
+null = follow latest). The `massing.cloud` subscription importer (signed-bundle download), real public-source
+ingest (BLS/FRED/DoD/Census), location factors, and PPI escalation-forward are later build-order steps.
+
 ## v0.3.336 — RFI-0: missing-dimension detection in the decision-readiness audit
 
 The decision-readiness / RFI-prevention audit gains a fifth gap source — **missing dimensions**, the
