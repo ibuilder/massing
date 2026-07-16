@@ -301,7 +301,10 @@ scraping/redistributing ICC/ASTM verbatim prose. *(CODE-1 catalog, CODE-2 occupa
 CODE-EBC ship — see the archive.)*
 - **CODE-1 follow-ups** — extend the per-state adoption seed (ICC adoptions DB + DOE energy-code status) + per-
   project jurisdiction storage.
-- **CODE-3 (deepen)** — thread the resolved edition into the Track-D detail-rule citations.
+- ✅ **CODE-3 SHIPPED v0.3.344** — `apply_rules(ibc_edition=…)` rewords the Track-D detail-rule citations to
+  the project's resolved adopted IBC edition (an exterior window cites the actually-adopted §1404.4 edition);
+  threaded through the `apply_detailing_rules` recipe. *Remaining: auto-resolve the edition from the project
+  jurisdiction at the /edit call site.*
 - **CODE-4** *(S)* — local-amendment overlay + manual-entry UI (store *our summary* + a link).
 - ✅ **CODE-5 SHIPPED v0.3.340** — `codecheck.code_ids` emits the machine-checkable subset of the applicable
   code requirements as buildingSMART **IDS 1.0** (rated-element `FireRating` + space area + envelope U-value,

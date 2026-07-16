@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.344 — CODE-3: detail-rule citations follow the resolved edition
+
+The Track-D detail-rule engine seeds its flashing/keynote citations against **IBC 2021**. `apply_rules` now
+takes an **`ibc_edition`** so those citations reword to the project's **resolved adopted edition** — an
+exterior window in a 2024-adopting jurisdiction cites *IBC 2024 §1404.4* rather than the seed's 2021. Only
+the edition year in a citation changes (facts of law); the seed content is untouched. Threaded through the
+`apply_detailing_rules` recipe (`ibc_edition` param).
+
 ## v0.3.343 — UX-3: unified, searchable Library palette
 
 The 📚 Library now opens **one browsable palette** that unifies the **content catalog** (CONTENT-1 — site
