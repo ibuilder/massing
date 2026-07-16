@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.325 — Fix: whole-model re-upload served stale from the IFC cache
+
+`ifc_loader.open_model` cached opened models by **path alone** (`@lru_cache`), so re-publishing a
+**replacement** model to the same `source.ifc` path returned the *previous* model — reindex, the
+scene digest, drawings, schedules and every analysis kept reading the old geometry until the process
+restarted. Now keyed by `(path, mtime_ns, size)`: an unchanged path still hits the cache (fast), but a
+file **re-written in place** reloads fresh. The `/edit` path was never affected (it writes a new
+timestamped file); whole-model replacement to a fixed path was. Regression test `test_ifc_cache.py`
+added to the gate. Surfaced while validating a 2,750-element authored tower whose newly-added
+architectural finishes (ceilings, floor finishes, unit doors, railings) were invisible until the fix.
+
 ## v0.3.324 — Interactive dimensions (UX-2, next slice)
 
 Extends the in-view annotation tool with **dimensions**. New `add_dimension` recipe authors an
