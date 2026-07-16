@@ -1356,7 +1356,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // fold under a "More tools" divider, collapsed. `all` (no entry) keeps everything primary.
   // The model rail keeps only model-native tools. Cost / schedule / drawings / energy were removed —
   // they duplicate the Construction, Drawings, and Design workspaces (deep-linked below instead).
-  const ALL_TOOLS = ["exports", "qa", "authoring"];
+  // Ordered by the modeler's lifecycle (Build → Analyze/Coordinate → Document) — the UX-1 task ribbon.
+  const ALL_TOOLS = ["authoring", "qa", "exports"];
   const TOOLS_BY_PERSONA: Record<string, string[]> = {
     gc: ["qa", "exports"],
     developer: ["exports"],
@@ -1376,7 +1377,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     panel.innerHTML = "";
     const intro = document.createElement("div");
     intro.className = "meta"; intro.style.cssText = "margin:2px 2px 6px;font-size:11px;line-height:1.4";
-    intro.textContent = "Model authoring, coordination & exports.";
+    intro.textContent = "Tools grouped by the modeling lifecycle — Build · Analyze & Coordinate · Document · Data.";
     panel.appendChild(intro);
     const goWorkspace = (key: string) => window.dispatchEvent(new CustomEvent("aec:workspace", { detail: key }));
     // Cost / schedule / drawings / energy moved OUT of the model rail — they own their workspaces.
@@ -1434,7 +1435,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     }
 
     // --- always-on: model setup ----------------------------------------------
-    const fedBody = section("models", "Models (federation)");
+    const fedBody = section("models", "Data · Models (federation)");
     if (fedBody) {
       const l = document.createElement("div"); l.id = "fed-models"; fedBody.appendChild(l); refreshFederation();
       if (projectId) fedBody.appendChild(toolBtn2("🕔 Version history", async () => {
@@ -1452,7 +1453,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       }));
     }
 
-    const ob = section("origin", "Working origin (E / N / Z)");
+    const ob = section("origin", "Data · Working origin (E / N / Z)");
     if (ob) {
       const inputs: Record<string, HTMLInputElement> = {};
       const cur = origin.getOrigin();
@@ -1482,7 +1483,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     }
 
     // --- Draft: parameter-driven family/element authoring (editors) ----------
-    const draftBody = section("draft", "Draft — author elements", { requires: "sourceIfc" });
+    const draftBody = section("draft", "Build · Draw elements", { requires: "sourceIfc" });
     if (draftBody) {
       draftHandle = installDraftPanel({
         body: draftBody,
@@ -1497,7 +1498,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     }
 
     // --- Grid & Levels: drafting reference frame (grid snap + active work-plane) ----------
-    const glBody = section("gridlevels", "Grid & Levels", { requires: "sourceIfc" });
+    const glBody = section("gridlevels", "Build · Grids & levels", { requires: "sourceIfc" });
     if (glBody) {
       // Natural-language command bar — the low-barrier "type what you want" authoring surface.
       const cmdWrap = document.createElement("div"); cmdWrap.className = "nl-cmd";
@@ -2745,7 +2746,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // --- persona-ordered tool sections ---------------------------------------
     const builders: Record<string, () => void> = {
       exports: () => {
-        const b = section("exports", "Exports", { requires: "sourceIfc", tool: true });
+        const b = section("exports", "Document · Exports & issue", { requires: "sourceIfc", tool: true });
         if (!b) return;
         for (const [label, file] of [["Quantity takeoff (QTO/5D)", "qto"], ["COBie", "cobie"], ["Space schedule", "spaces"], ["4D schedule", "schedule"]] as const)
           b.appendChild(toolBtn2(`↓ ${label}`, () => window.open(api.url(`/projects/${projectId}/exports/${file}.xlsx`), "_blank")));
@@ -2776,7 +2777,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         b.appendChild(pkg);
       },
       qa: () => {
-        const b = section("qa", "Coordination & QA", { requires: "sourceIfc", tool: true });
+        const b = section("qa", "Analyze & Coordinate · clash / QA", { requires: "sourceIfc", tool: true });
         if (!b) return;
         const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "4px";
         b.appendChild(toolBtn2("⚡ Run clash (struct)", () => withLoading(container, "Running clash detection", async () => {
@@ -3390,7 +3391,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         b.appendChild(out);
       },
       authoring: () => {
-        const b = section("authoring", "Authoring (round-trip)", { requires: "sourceIfc", tool: true });
+        const b = section("authoring", "Build · Advanced authoring, annotate & library", { requires: "sourceIfc", tool: true });
         const group = panel.querySelector('.tool-group[data-tool="authoring"]') as HTMLElement | null;
         if (group) group.dataset.cap = "edit";   // whole section hidden for non-editors
         if (!b) return;
