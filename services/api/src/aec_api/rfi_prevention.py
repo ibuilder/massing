@@ -80,6 +80,27 @@ def decision_readiness(db, pid: str, model) -> dict[str, Any]:
     except Exception:  # noqa: BLE001
         pass
 
+    # 5. missing dimensions — elements a builder / estimator can't size, order, or take off without a
+    # dimension the drawings should carry. The proactive inverse of the classic "what size is this?" RFI.
+    try:
+        import ifcopenshell.util.element as _ue
+        dim_gaps: dict[str, list[str]] = {}
+        for d in list(model.by_type("IfcDoor")) + list(model.by_type("IfcWindow")):
+            if not getattr(d, "OverallWidth", None) or not getattr(d, "OverallHeight", None):
+                dim_gaps.setdefault(f"{d.is_a()[3:].lower()}s with no overall width/height", []).append(d.GlobalId)
+        for sp in model.by_type("IfcSpace"):
+            q = _ue.get_psets(sp).get("Qto_SpaceBaseQuantities") or {}
+            if not (q.get("NetFloorArea") or q.get("GrossFloorArea")):
+                dim_gaps.setdefault("rooms with no floor area (no finishes/occupancy takeoff)", []).append(sp.GlobalId)
+        for title, gs in dim_gaps.items():
+            gaps.append({"category": "dimensions", "severity": "medium",
+                         "title": f"Missing dimension: {title}",
+                         "detail": f"{len(gs)} element(s) can't be sized / ordered / taken off without it",
+                         "count": len(gs), "guids": gs[:20],
+                         "fix": "add the missing dimension (size attribute / base quantity) before issuing"})
+    except Exception:  # noqa: BLE001
+        pass
+
     gaps.sort(key=lambda g: (_SEV_ORDER.get(g["severity"], 3), -(g.get("count") or 0)))
     by_cat: dict[str, int] = {}
     for g in gaps:

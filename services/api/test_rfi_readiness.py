@@ -22,6 +22,9 @@ edit.add_opening(m, w, width=0.7, height=2.1, kind="door")     # 0.7 m < 32 in �
 # a rated wall with no substantiating reference → approvability fail
 rw = edit.add_wall(m, [0, 0], [6, 0], 3.0, 0.2, st)
 edit.set_element_pset(m, rw, "Pset_WallCommon", "FireRating", "2HR")
+# a door authored with no overall width/height → missing-dimension gap (a builder can't order it)
+import ifcopenshell.api  # noqa: E402
+ifcopenshell.api.run("root.create_entity", m, ifc_class="IfcDoor", name="Bare door")
 
 r = rfi_prevention.decision_readiness(None, "no-project", m)   # db=None → clash lens just skips
 assert not r["ready"] and r["total_gaps"] >= 1, r
@@ -34,8 +37,11 @@ assert all({"category", "severity", "title", "detail", "fix"} <= set(g) for g in
 # the categories present include code (egress/occupancy/rated-assembly fails)
 cats = {g["category"] for g in r["gaps"]}
 assert "code" in cats, cats
+# RFI-0 depth: the bare door surfaces as a missing-dimension gap
+assert "dimensions" in cats, cats
 titles = " ".join(g["title"] for g in r["gaps"])
 assert ("Egress" in titles or "Occupancy" in titles or "Fire-rated" in titles), titles
+assert "Missing dimension" in titles and "width/height" in titles, titles
 assert r["disclaimer"] and "not a guarantee" in r["disclaimer"].lower(), r["disclaimer"]
 
 # a clean-ish model → fewer gaps; a model with everything resolved would be ready
