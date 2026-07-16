@@ -28,6 +28,34 @@ assert cls.classify("IfcColumn", "nrm1")[0] == "2.1"
 assert cls.classify("IfcSlab", "masterformat")[0].startswith("03")
 assert cls.classify("IfcMadeUp", "din276") == cls.CLASSIFICATIONS["din276"]["default"]   # fallback
 
+# --- unit: the unified discipline tree (colors + IFC-class coverage) ---------
+assert cls.discipline_color("F") == cls.DISCIPLINE_COLORS["F"]          # fire = red family
+assert cls.discipline_color("FA") == cls.SERIES_COLORS["FA"]            # fire alarm reads apart
+assert cls.discipline_color("Ad") == cls.DISCIPLINE_COLORS["A"]         # 2-letter designator folds to level-1
+assert cls.discipline_color("zz") == "#8A8F98"                          # unknown -> General grey
+# MEP/fire/telecom classes the MasterFormat map doesn't enumerate must still classify to a discipline
+assert cls.discipline_of_ifc_class("IfcSprinkler") == "F"
+assert cls.discipline_of_ifc_class("IfcAlarm") == "E"                   # electronic safety -> Electrical
+assert cls.discipline_of_ifc_class("IfcCommunicationsAppliance") == "T"
+assert cls.discipline_of_ifc_class("IfcTransformer") == "E"
+assert cls.discipline_of_ifc_class("IfcPump") == "P"
+assert cls.discipline_of_ifc_class("IfcCoolingTower") == "M"
+assert cls.discipline_of_ifc_class("IfcTransportElement") == "Q"
+tree = cls.discipline_tree()
+codes = {d["code"] for d in tree["disciplines"]}
+assert codes == {d["code"] for d in cls.DISCIPLINES}, codes
+assert all(d["color"].startswith("#") for d in tree["disciplines"])
+assert tree["colors"]["P"] == cls.discipline_color("P")
+# every discipline's ifc_classes actually roll up to it (no cross-contamination)
+for d in tree["disciplines"]:
+    for icl in d["ifc_classes"]:
+        assert cls.discipline_of_ifc_class(icl) == d["code"], (icl, d["code"])
+fire = next(d for d in tree["disciplines"] if d["code"] == "F")
+assert "IfcSprinkler" in fire["ifc_classes"]
+assert tree["ifc_class_discipline"]["IfcBoiler"] == "M"
+# the FA series is carried distinctly (fire alarm documented apart from the E series)
+assert any(s["code"] == "FA" for s in tree["series"])
+
 sample = [{"ifc_class": "IfcWall", "unit": "m²", "quantity": 120.5, "rate": 85.0},
           {"ifc_class": "IfcColumn", "unit": "ea", "count": 8, "quantity": 8, "rate": 1200.0}]
 xml = cls.gaeb_x83("Demo Tower", sample, system="din276")
@@ -43,6 +71,11 @@ assert "331" in "".join(items[0].itertext())               # DIN code in the sho
 # --- integration: endpoints --------------------------------------------------
 with TestClient(app) as c:
     assert {s["id"] for s in c.get("/classifications").json()["systems"]} == {"masterformat", "din276", "nrm1"}
+
+    ref = c.get("/reference/disciplines").json()
+    assert all("color" in d for d in ref["disciplines"]), "disciplines must carry a color"
+    assert "tree" in ref and ref["tree"]["colors"]["F"] == cls.discipline_color("F")
+    assert ref["tree"]["ifc_class_discipline"]["IfcSprinkler"] == "F"
 
     pid = c.post("/projects", json={"name": "Classif Tower"}).json()["id"]
     # no source IFC yet → GAEB export should 4xx, not 500

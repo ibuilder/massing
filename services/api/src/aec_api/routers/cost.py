@@ -583,7 +583,8 @@ def reference_disciplines(_: str = Depends(current_user)):
     from .. import classification as cls
     return {"disciplines": cls.disciplines(),
             "masterformat_divisions": cls.masterformat_divisions(),
-            "uniformat_crosswalk": cls.uniformat_crosswalk()}
+            "uniformat_crosswalk": cls.uniformat_crosswalk(),
+            "tree": cls.discipline_tree()}
 
 
 @router.get("/projects/{pid}/estimate/gaeb.x83")

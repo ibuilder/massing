@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.330 — Unified discipline tree: colors + full IFC coverage
+
+The Discipline Spine (`classification.py`) gains the two things it was missing to be the app's single
+source of truth for *how a discipline looks and what rolls up to it*:
+
+- **A canonical per-discipline color palette** (`DISCIPLINE_COLORS` + `discipline_color()`) — one hex per
+  NCS discipline, chosen for perceptual separation and common coordination conventions (fire = red,
+  plumbing = green, mechanical = amber, electrical = yellow, telecom = purple, structural = blue,
+  civil = earth). Fire Alarm carries its own swatch so it reads apart from Fire Protection red. This is
+  net-new — the viewer previously hashed class names to arbitrary colors and no shared palette existed.
+- **Full IFC-class → discipline coverage** (`_IFC_DISCIPLINE`) for the MEP / fire / electrical / telecom
+  distribution entities the MasterFormat estimate map never enumerated (`IfcSprinkler`→Fire,
+  `IfcAlarm`/`IfcSensor`→Electrical, `IfcCommunicationsAppliance`→Telecom, `IfcTransformer`/switchgear→
+  Electrical, `IfcPump`/`IfcTank`→Plumbing, `IfcBoiler`/`IfcCoolingTower`/`IfcFan`→Mechanical, …), so
+  every element in a real model classifies to a discipline instead of falling to the default.
+
+New `discipline_tree()` composes it all — per discipline: color, MasterFormat divisions (+titles),
+UniFormat II groups (+titles), NCS sheet series, and the IFC classes that roll up to it — plus an
+`ifc_class_discipline` lookup and a `colors` map. Served on `GET /reference/disciplines` (`tree` key) so
+the viewer, plan/PDF poché, sheet generator, and model browser can all color/group by one shared
+vocabulary rather than each re-encoding its own. First step of unifying the discipline tree across every
+module and engine.
+
 ## v0.3.329 — QTO: derive length for linear elements so they price non-zero
 
 Fixes a $0 in the model estimate. Linear elements (`IfcPipeSegment` / `IfcDuctSegment` /
