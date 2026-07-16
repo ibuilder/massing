@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.319 — Vertical MEP risers (standpipes / stacks / vents)
+
+MEP runs could only be drawn horizontally (`add_mep_run` sweeps in plan); a multi-story **riser** was
+impossible. New `add_riser` recipe sweeps an `IfcPipeSegment` **vertically** (world +Z) from `bottom_z` to
+`top_z` at an [E,N] point, with a port at each end, enrolled on a distribution system — the vertical
+complement to `add_mep_run`, for **fire standpipes**, plumbing **stacks**, and **vents**. New **⭱ Vertical
+riser** tool places one at the last-clicked point over a bottom→top elevation range. Verified
+deterministically (ExtrudedDirection = +Z, Depth, base elevation) and by standalone tessellation (a real
+cylinder spanning the height). `test_mep_systems.py` extended; zero/negative height is rejected.
+
 ## v0.3.318 — O&M / warranty document refs on the as-built model (G3 follow-up)
 
 Completes the LOD-500 turnover trio (verify · dimensions · manufacturer) with **operation & maintenance /

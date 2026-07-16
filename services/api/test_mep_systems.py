@@ -137,6 +137,27 @@ import ifcopenshell as _ios  # noqa: E402
 covn = mep.sprinkler_coverage(_ios.file(schema="IFC4"), "light")
 assert covn["protected_area_m2"] == 0 and covn["sprinkler_heads"] == 0 and covn["adequate"] is None, covn
 
+# add_riser: a vertical standpipe from z=0 to z=9. Verify the vertical extrusion deterministically from the
+# solid (ExtrudedDirection +Z, Depth 9, base at z=0) — a real +Z-swept cylinder, no dependence on the geom
+# engine's state. (Its tessellation is exercised standalone; add_spaces above leaves the geom engine unusable
+# for a later create_shape in the same process.)
+import ifcopenshell.util.placement as _upl  # noqa: E402
+riser_g = edit.add_riser(m, [8, 8], bottom_z=0.0, top_z=9.0, size=0.15, system="Fire Protection", discipline="fire")
+riser = m.by_guid(riser_g)
+assert riser.is_a() == "IfcPipeSegment", riser
+_solid = riser.Representation.Representations[0].Items[0]
+assert _solid.is_a() == "IfcExtrudedAreaSolid" and _solid.SweptArea.is_a() == "IfcCircleProfileDef", _solid
+assert tuple(_solid.ExtrudedDirection.DirectionRatios) == (0.0, 0.0, 1.0), "riser extrudes vertically (+Z)"
+assert abs(float(_solid.Depth) - 9.0) < 1e-6, _solid.Depth         # 9 m tall
+assert abs(float(_upl.get_local_placement(riser.ObjectPlacement)[2][3]) - 0.0) < 1e-6, "riser base at z=0"
+assert mep._ports(riser) and len(mep._ports(riser)) == 2, "a riser has a port at each end"
+assert any(x["name"] == "Fire Protection" for x in mep.mep_summary(m)["systems"]) and "add_riser" in edit.RECIPES
+try:
+    edit.add_riser(m, [8, 8], bottom_z=3.0, top_z=3.0)
+    raise AssertionError("zero-height riser should raise")
+except ValueError:
+    pass
+
 # set_system_predefined retags an existing plain system's discipline
 edit.set_system_predefined(m, "Domestic Water", "plumbing")
 dw = next(x for x in mep.mep_summary(m)["systems"] if x["name"] == "Domestic Water")

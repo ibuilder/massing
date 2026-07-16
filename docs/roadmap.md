@@ -299,7 +299,10 @@ ISO 19650, pull-planning, portfolio PMO); the genuinely net-new items:
   Fire-protection equipment tool places at the last-clicked point.
 - ✅ **MEP-FP sprinkler coverage SHIPPED v0.3.316** — `mep.sprinkler_coverage` (NFPA-13 max area-per-head by
   hazard) head-count vs protected-area (IfcSpace NetFloorArea) pre-check; `GET /mep/sprinkler-coverage` + a 🧯
-  coverage button. *Next: standpipe risers + spacing/obstruction rules + tie to the fire-alarm sheet layer.*
+  coverage button.
+- ✅ **Vertical risers SHIPPED v0.3.319** — `add_riser` sweeps an IfcPipeSegment vertically (+Z, bottom→top)
+  with end ports on a system — fire standpipes / plumbing stacks / vents; ⭱ Vertical riser tool. The vertical
+  complement to `add_mep_run`. *Next: sprinkler spacing/obstruction rules + tie to the fire-alarm sheet layer.*
 
 **Not-new (confirmed existing depth):** the MEP 4-discipline model (HVAC/electrical/plumbing/fire — MEP-FP
 above is the one gap), the design→turnover lifecycle spine, ISO 19650 BIM-management, Lean pull-planning, and

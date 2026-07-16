@@ -697,6 +697,40 @@ _FIRE_EQUIPMENT = {
 }
 
 
+def add_riser(model: ifcopenshell.file, point=(0.0, 0.0), bottom_z: float = 0.0, top_z: float = 3.0,
+              size: float = 0.1, ifc_class: str = "IfcPipeSegment", storey: str | None = None,
+              system: str = "Fire Protection", discipline: str | None = "fire") -> str:
+    """A **vertical** MEP riser (fire standpipe · plumbing stack · vent) — an IfcPipeSegment swept along
+    world +Z from `bottom_z` to `top_z` (metres) at an [E, N] point, with a port at each end, enrolled on
+    the named distribution system. The vertical complement to the (horizontal) `add_mep_run`. GUID-stable."""
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    scale = uunit.calculate_unit_scale(model)
+    body = _body_context(model)
+    height = float(top_z) - float(bottom_z)
+    if height <= 1e-9:
+        raise ValueError("top_z must be above bottom_z (a riser needs a positive height)")
+    seg = ifcopenshell.api.run("root.create_entity", model, ifc_class=ifc_class, name="Riser")
+    m = np.eye(4)                                          # identity → local +Z is world +Z (vertical)
+    m[0, 3], m[1, 3], m[2, 3] = float(point[0]), float(point[1]), float(bottom_z)
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=seg, matrix=m)
+    profile = model.create_entity("IfcCircleProfileDef", ProfileType="AREA", Radius=float(size) / 2.0 / scale)
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                               profile=profile, depth=height)
+    ifcopenshell.api.run("geometry.assign_representation", model, product=seg, representation=rep)
+    st = _first_storey(model, storey)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[seg], relating_structure=st)
+    try:
+        ifcopenshell.api.run("system.add_port", model, element=seg)
+        ifcopenshell.api.run("system.add_port", model, element=seg)
+    except Exception:                                     # noqa: BLE001 — older ifcopenshell w/o system.add_port
+        pass
+    _assign_to_system(model, seg, system, discipline)
+    return seg.GlobalId
+
+
 def add_fire_equipment(model: ifcopenshell.file, kind: str = "sprinkler", point=(0.0, 0.0),
                        storey: str | None = None, system: str = "Fire Protection") -> str:
     """MEP-FP: author a fire-protection device — sprinkler head / hose reel / fire-department (siamese)
@@ -1502,6 +1536,9 @@ RECIPES = {
                                                     p.get("storey"), p.get("system", "Fire Protection"), "fire"),
     "add_fire_equipment": lambda m, p: add_fire_equipment(m, p.get("kind", "sprinkler"), p["point"],
                                                           p.get("storey"), p.get("system", "Fire Protection")),
+    "add_riser": lambda m, p: add_riser(m, p["point"], float(p.get("bottom_z", 0.0)), float(p.get("top_z", 3.0)),
+                                        float(p.get("size", 0.1)), p.get("ifc_class", "IfcPipeSegment"),
+                                        p.get("storey"), p.get("system", "Fire Protection"), p.get("discipline", "fire")),
     "set_system_predefined": lambda m, p: set_system_predefined(m, p["system"], p["discipline"]),
     "connect_mep": lambda m, p: connect_mep(m, p["guid_a"], p["guid_b"]),
     # A1 — sandboxed ifcopenshell escape hatch (gated by AEC_ALLOW_IFC_CODE; AST-whitelisted)

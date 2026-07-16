@@ -2262,6 +2262,21 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       });
       fireBtn.title = "Author a fire-protection device (sprinkler head, hose reel, fire-department/siamese "
         + "connection, hydrant, or fire pump) as the right IFC class on the Fire Protection distribution system.";
+
+      // MEP-FP / MEP: a vertical riser (standpipe / stack / vent) at the last-clicked point.
+      const riserBtn = toolBtn2("⭱ Vertical riser (standpipe / stack)", async () => {
+        if (!lastPoint) { notify("click a point in the model first, then add the riser", "error"); return; }
+        const range = await askText("Vertical riser", { label: "Bottom, top elevation (m) — [E,N] is the last click", value: "0, 9" });
+        if (!range) return;
+        const parts = range.split(",").map((x) => parseFloat(x.trim()));
+        const b = parts[0] ?? NaN, t = parts[1] ?? NaN;
+        if (!isFinite(b) || !isFinite(t) || t <= b) { notify("enter bottom, top with top above bottom", "error"); return; }
+        await authorAndReload("add_riser",
+          { point: [lastPoint.x, -lastPoint.z], bottom_z: b, top_z: t, size: 0.1, system: "Fire Protection", discipline: "fire" },
+          "riser");
+      });
+      riserBtn.title = "Author a vertical MEP riser (fire standpipe / plumbing stack / vent) from a bottom to "
+        + "top elevation at the last-clicked point — the vertical complement to horizontal MEP runs.";
       let mepConnectFrom: string | null = null;   // W10-4: first element of a port-to-port connect
       const mepSysBtn = toolBtn2("🔀 MEP systems", async () => {
         let s, c;
@@ -2495,7 +2510,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, contentBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, contentBtn, ifcCodeBtn);
       const advKey = "massing.viewer.advancedTools";
       let advOpen = false;
       try { advOpen = localStorage.getItem(advKey) === "1"; } catch { /* storage blocked */ }
