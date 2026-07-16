@@ -26,6 +26,16 @@ assert abs(masonry["man_hours"] - 130.0) < 0.1, masonry
 assert abs(masonry["labor_cost"] - 130.0 * 30.0) < 0.1, masonry
 assert masonry["crew_days"] > 0, masonry
 assert abs(e["total_man_hours"] - 230.0) < 0.1 and abs(e["total_labor_cost"] - 230.0 * 30.0) < 0.1, e
+
+# --- EST-1 schedule: crew-days roll up by trade → working/calendar days -----------------------------
+sch = e["schedule"]
+assert sch["by_group"] and sch["duration_working_days"] > 0, sch
+# groups sequential → total working days == sum of per-group durations
+assert abs(sch["duration_working_days"] - sum(g["duration_days"] for g in sch["by_group"])) < 0.1, sch
+assert sch["duration_calendar_days"] >= sch["duration_working_days"], sch          # 7/5 calendar stretch
+# 2 crews per trade halve each trade's duration → shorter overall
+e2 = productivity.labor_estimate(items, hourly_rate=30.0, loading="standard", crews_parallel=2)
+assert e2["schedule"]["duration_working_days"] < sch["duration_working_days"], (e2["schedule"], sch)
 # highrise loading inflates the hours
 eh = productivity.labor_estimate(items, hourly_rate=30.0, loading="highrise")
 assert eh["total_man_hours"] > e["total_man_hours"], (eh["total_man_hours"], e["total_man_hours"])
@@ -67,6 +77,8 @@ assert fm["derived_from_model"] and fm["total_man_hours"] > 0, fm
 mas = next((x for x in fm["lines"] if x["activity"] == "block_masonry"), None)
 assert mas is not None and mas["quantity"] > 40, mas   # ~45 m² of wall face, × commercial loading
 assert any(x["activity"] == "rc_casting" for x in fm["lines"]), "slab → concrete casting"
+# the model-driven estimate carries the schedule duration too
+assert fm["schedule"]["duration_working_days"] > 0 and fm["schedule"]["by_group"], fm["schedule"]
 # full model estimate adds material + equipment on top of the same labour
 fmf = productivity.from_model(m, hourly_rate=25.0, loading="commercial", full=True)
 assert fmf["has_material_equipment"] and fmf["total_cost"] > fmf["total_labor_cost"], fmf

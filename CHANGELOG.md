@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.339 — EST-1 5D: crew-days → schedule duration
+
+The productivity/labour estimate already turned quantities into man-hours → crew-days → cost; now it turns
+the crew-days into a **schedule duration** (the 5D loop). Per-line crew-days roll up by **trade group**
+(Earthworks · Concrete · Masonry · Structural Steel · MEP · Finishes) into a **working-day** and
+**calendar-day** duration — each trade's duration = its crew-days ÷ the number of **parallel crews** of that
+trade (a new `crews` control that shortens the trade), and the project duration assumes trades run
+sequentially (a conservative critical path; overlap only shortens it). Flows through `labor_estimate` →
+`full_estimate` → `from_model`; `GET /projects/{pid}/estimate/labor?crews=N` returns the `schedule` block
+(per-group breakdown + working/calendar days) alongside the cost.
+
 ## v0.3.338 — COST-DB: the model estimate prices through the pinned vintage
 
 Closes the reproducibility loop (build-order step 8). The model estimate endpoints —

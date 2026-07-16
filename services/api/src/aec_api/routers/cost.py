@@ -27,11 +27,12 @@ def labor_rates(_: str = Depends(current_user)):
 
 @router.get("/projects/{pid}/estimate/labor")
 def labor_estimate(pid: str, loading: str = "commercial", rate: float = 25.0, full: bool = False,
-                   db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+                   crews: int = 1, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """EST-1: a rough **cost + duration** estimate derived from the model's quantities via the
-    productivity-rate library — man-hours → crew-days → cost per activity, condition-loaded. With
-    `full=true` it adds **material + equipment** cost lines (labour + material + equipment total); otherwise
-    labour only. A starting point the estimator refines; excludes overhead/profit. Needs a source IFC."""
+    productivity-rate library — man-hours → crew-days → cost per activity, condition-loaded, plus a
+    **schedule duration** (crew-days roll up by trade → working/calendar days; `crews` = crews per trade
+    running in parallel, which shortens each trade). With `full=true` it adds **material + equipment** cost
+    lines. A starting point the estimator refines; excludes overhead/profit. Needs a source IFC."""
     from aec_data import productivity  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
@@ -40,7 +41,8 @@ def labor_estimate(pid: str, loading: str = "commercial", rate: float = 25.0, fu
         raise HTTPException(404, "project not found")
     if not p.source_ifc:
         raise HTTPException(409, "no source IFC — the estimate needs a model")
-    return productivity.from_model(open_model(p.source_ifc), float(rate), loading, full=bool(full))
+    return productivity.from_model(open_model(p.source_ifc), float(rate), loading, full=bool(full),
+                                   crews_parallel=max(1, int(crews)))
 
 
 @router.get("/projects/{pid}/cost/g703")

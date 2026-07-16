@@ -74,11 +74,12 @@ def catalog() -> dict[str, Any]:
 
 
 def full_estimate(items, hourly_rate: float = 25.0, loading: str = "standard",
-                  crew_day_hours: float = 8.0) -> dict[str, Any]:
+                  crew_day_hours: float = 8.0, crews_parallel: int = 1) -> dict[str, Any]:
     """A fuller 5D cost: labour (via `labor_estimate`) **plus material and equipment** unit costs per line.
-    Returns the labour breakdown augmented with `material_cost` / `equipment_cost` / `line_total` per line
-    and `total_material_cost` / `total_equipment_cost` / `total_cost`. Still excludes overhead/profit."""
-    base = labor_estimate(items, hourly_rate, loading, crew_day_hours)
+    Returns the labour breakdown (incl. the `schedule` duration) augmented with `material_cost` /
+    `equipment_cost` / `line_total` per line and `total_material_cost` / `total_equipment_cost` /
+    `total_cost`. Still excludes overhead/profit."""
+    base = labor_estimate(items, hourly_rate, loading, crew_day_hours, crews_parallel)
     lines: list[dict] = []
     tmat = teqp = 0.0
     for ln in base["lines"]:
@@ -99,9 +100,12 @@ def full_estimate(items, hourly_rate: float = 25.0, loading: str = "standard",
 
 
 def labor_estimate(items, hourly_rate: float = 25.0, loading: str = "standard",
-                   crew_day_hours: float = 8.0) -> dict[str, Any]:
-    """Given `items` [{activity, quantity}], compute labour hours, crew-days, and cost per line + total.
-    `loading` inflates the hours for site conditions; `hourly_rate` is the blended labour rate ($/hr)."""
+                   crew_day_hours: float = 8.0, crews_parallel: int = 1,
+                   work_days_per_week: float = 5.0) -> dict[str, Any]:
+    """Given `items` [{activity, quantity}], compute labour hours, crew-days, and cost per line + total,
+    **plus a schedule duration** (EST-1 5D): the per-line crew-days roll up by trade group into a working-
+    and calendar-day duration. `crews_parallel` = how many crews of a trade run at once (shortens that
+    trade); `loading` inflates the hours for site conditions; `hourly_rate` is the blended labour rate."""
     lf = LOADING.get((loading or "standard").strip().lower(), 1.0)
     rate = float(hourly_rate)
     lines: list[dict] = []
@@ -129,13 +133,35 @@ def labor_estimate(items, hourly_rate: float = 25.0, loading: str = "standard",
             "lines": lines, "line_count": len(lines),
             "total_man_hours": round(total_hours, 1),
             "total_labor_cost": round(total_cost, 2),
+            "schedule": _schedule_from_lines(lines, crews_parallel, work_days_per_week),
             "note": "Labour only (man-hours × rate) — add materials/equipment/overhead for a full cost. "
                     "Rates are editable benchmarks; verify against local crews."}
 
 
+def _schedule_from_lines(lines: list[dict], crews_parallel: int = 1,
+                         work_days_per_week: float = 5.0) -> dict[str, Any]:
+    """Tie the per-line crew-days to a **schedule duration** (EST-1 5D). Crew-days roll up by trade group;
+    each group's duration = its crew-days ÷ `crews_parallel` (crews of that trade working at once). The
+    project working-day duration assumes groups run **sequentially** (a conservative critical path — real
+    trades overlap, which only shortens it); calendar days convert via the work-week."""
+    parallel = max(1, int(crews_parallel or 1))
+    wdw = float(work_days_per_week) if work_days_per_week else 5.0
+    by_group: dict[str, float] = {}
+    for ln in lines:
+        by_group[ln["group"]] = by_group.get(ln["group"], 0.0) + float(ln.get("crew_days") or 0.0)
+    groups = [{"group": g, "crew_days": round(cd, 1), "duration_days": round(cd / parallel, 1)}
+              for g, cd in sorted(by_group.items(), key=lambda x: -x[1])]
+    seq_working_days = round(sum(gp["duration_days"] for gp in groups), 1)
+    return {"crews_parallel": parallel, "work_days_per_week": wdw, "by_group": groups,
+            "duration_working_days": seq_working_days,
+            "duration_calendar_days": round(seq_working_days * 7.0 / wdw, 1) if wdw else seq_working_days,
+            "note": "Trade groups assumed sequential (conservative critical path); overlapping trades "
+                    "shortens the real schedule. Duration = crew-days ÷ parallel crews."}
+
+
 # IFC-class -> (activity, how to get the quantity from an element) for a rough model-driven takeoff
 def from_model(model, hourly_rate: float = 25.0, loading: str = "standard",
-               full: bool = False) -> dict[str, Any]:
+               full: bool = False, crews_parallel: int = 1) -> dict[str, Any]:
     """Derive a rough estimate straight from the model — walls → masonry area (length×height),
     slabs → concrete volume + finish area, columns → concrete. Approximate (uses element dimensions, not a
     full QTO); a starting point the estimator refines. `full=True` adds material + equipment cost lines."""
@@ -179,7 +205,8 @@ def from_model(model, hourly_rate: float = 25.0, loading: str = "standard",
                 pass
 
     items = [{"activity": a, "quantity": q} for a, q in agg.items()]
-    out = full_estimate(items, hourly_rate, loading) if full else labor_estimate(items, hourly_rate, loading)
+    out = (full_estimate(items, hourly_rate, loading, crews_parallel=crews_parallel) if full
+           else labor_estimate(items, hourly_rate, loading, crews_parallel=crews_parallel))
     out["derived_from_model"] = True
     out["note"] = "Rough model-driven takeoff (element dimensions, not a full QTO). " + out["note"]
     return out
