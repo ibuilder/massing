@@ -176,9 +176,11 @@ interop targets / content platforms / open standards named where they're integra
   factors). The material/equipment $/unit layer + labour estimate already ship; this closes the 5D loop.
 
 ### 🚫 RFI-prevention (the openBIM information-delivery moat)
-- **RFI-0 (deepen)** *(M · ★★★★★)* — **missing-dimension detection** + the **NL-QA natural-language QA layer**
-  over the shipped decision-readiness audit (which composes approvability + detail-rule validate + model-hygiene
-  + clash → a ranked resolve-before-IFC list that round-trips to BCF).
+- ✅ **RFI-0 missing-dimension detection SHIPPED v0.3.336** — a 5th gap source in `decision_readiness`:
+  doors/windows with no `OverallWidth`/`OverallHeight` + rooms with no floor area → ranked `dimensions`
+  gaps that ride the existing BCF promotion.
+- **RFI-0 (remaining)** *(M · ★★★★★)* — the **NL-QA natural-language QA layer** over the audit (needs the
+  W9-4 spec/drawing graph nodes for cited-source answers).
 
 ### 🎮 Visualization — Unity as the optional bridge
 - **VIZ-U1 — Unity/Pixyz IFC → WebGL presentation build** *(L · optional/paid/flagged)* — Pixyz imports **IFC

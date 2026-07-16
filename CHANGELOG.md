@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.336 — RFI-0: missing-dimension detection in the decision-readiness audit
+
+The decision-readiness / RFI-prevention audit gains a fifth gap source — **missing dimensions**, the
+proactive inverse of the classic "what size is this?" RFI. It scans the model for elements a builder or
+estimator **can't size, order, or take off** because a dimension the drawings should carry is absent:
+doors/windows with no `OverallWidth`/`OverallHeight`, and rooms with no floor area
+(`Qto_SpaceBaseQuantities`). Each surfaces as a ranked, GUID-anchored gap (category `dimensions`) with a fix,
+alongside the existing code / detail / data / coordination gaps — and rides the same
+`POST /rfi/readiness/bcf` promotion to BCF.
+
 ## v0.3.335 — One canonical discipline source across both engines
 
 New low-level module **`aec_data/disciplines.py`** holds the shared discipline data — the CSI MasterFormat
