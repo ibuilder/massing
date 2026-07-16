@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.343 — UX-3: unified, searchable Library palette
+
+The 📚 Library now opens **one browsable palette** that unifies the **content catalog** (CONTENT-1 — site
+logistics / furniture / landscaping) and the **family types** (W10-1) in a single filterable list —
+previously the content parts and the type/family system were separate surfaces. A **search box** filters
+across name / IFC class / category / phase as you type; each row shows its class + category; clicking places
+the item at an **E,N** point (defaulting to the last picked point). Mesh import (glTF/OBJ/STL → auto-
+classified) stays inline. First slice of UX-3 — thumbnails, `tag:`/`type:`/`discipline:` operators, a Recent
+bucket, drag-to-place, and appendable IFC libraries follow.
+
 ## v0.3.342 — UX-1b: dedicated Annotate + Library tool groups
 
 The interactive **annotation** tools (Add note · Dimension · Revision cloud · Tag) and the **content
