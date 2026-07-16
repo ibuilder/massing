@@ -1911,6 +1911,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             + `(${s!.verified} of ${s!.total} elements verified). O&M data: <b>${s!.with_manufacturer}</b> with manufacturer · `
             + `<b>${s!.with_serial}</b> with serial · <b>${s!.with_dimensions}</b> dimensioned`
             + (s!.dimensions_out_of_tolerance ? ` (<b>${s!.dimensions_out_of_tolerance}</b> out of tolerance)` : "")
+            + (s!.with_om_docs ? ` · <b>${s!.with_om_docs}</b> with O&M/warranty docs` : "")
             + `.`, s!.readiness_pct >= 100 ? "ok" : ""));
           if (Object.keys(s!.by_method).length) {
             body.appendChild(kvTable(Object.entries(s!.by_method).map(([k, v]) => ({ k, v: `${v} element(s)` }))));
@@ -1984,6 +1985,30 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             });
           });
           body.appendChild(doDim);
+
+          // G3: O&M / warranty document reference (turnover paperwork bound to the asset)
+          body.appendChild(resultNote("<b>O&M / warranty document</b> — attach a manual/warranty reference "
+            + "(name + link) to the selection via IfcRelAssociatesDocument; counts toward turnover readiness.", ""));
+          const of = document.createElement("div"); of.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin:4px 0";
+          const docName = mkIn("document name"); const docUrl = mkIn("link / URI (opt)");
+          const docKind = document.createElement("select"); docKind.className = "portal-filter"; docKind.style.fontSize = "12px";
+          for (const [v, l] of [["om", "O&M manual"], ["warranty", "warranty"]] as const) { const o = document.createElement("option"); o.value = v; o.textContent = l; docKind.appendChild(o); }
+          of.append(docName, docUrl, docKind); body.appendChild(of);
+          const doDoc = toolBtn2("📄 Attach O&M / warranty doc to selection", async () => {
+            const guid = selectedGuid;
+            if (!guid) { notify("select the element(s) first", "error"); return; }
+            if (!docName.value.trim()) { notify("enter a document name", "error"); return; }
+            await withLoading(container, "attaching document + republishing", async () => {
+              try {
+                await api.attachOmDocument(pid, [guid], docName.value.trim(), { location: docUrl.value.trim() || undefined, kind: docKind.value as "om" | "warranty" }, true);
+                const state = await waitForPublish(projectId!);
+                if (state === "done") { await loadProjectModel(); notify("document attached", "success"); }
+                else notify(`attached — publish ${state}`, state === "error" ? "error" : "info");
+                await reloadModelPins();
+              } catch (e) { notify(`attach failed: ${(e as Error).message}`, "error"); }
+            });
+          });
+          body.appendChild(doDoc);
         });
       };
       const asBuiltBtn = toolBtn2("✅ As-built verify (LOD 500)", openAsBuiltPanel);

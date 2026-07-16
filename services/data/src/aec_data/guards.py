@@ -159,5 +159,6 @@ _NEEDS = {
     "guid_a": ("connect_mep",),
     "guid_b": ("connect_mep",),
     "system": ("set_system_predefined",),
-    "guids": ("set_lod", "set_phase", "verify_asbuilt", "set_manufacturer_info", "record_asbuilt_dimension"),   # map_properties works over all elements (rules), no selection
+    "guids": ("set_lod", "set_phase", "verify_asbuilt", "set_manufacturer_info", "record_asbuilt_dimension",
+              "attach_document", "attach_om_document"),   # map_properties works over all elements (rules), no selection
 }

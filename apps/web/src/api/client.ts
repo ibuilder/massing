@@ -1011,6 +1011,12 @@ export class ApiClient extends HttpCore {
                  opts: { location?: string; identification?: string; description?: string; purpose?: string } = {}, publish = true) {
     return this.editIfc(pid, "attach_document", { guids, name, ...opts }, publish);
   }
+  /** G3: attach an O&M / warranty document reference (purpose-tagged) to elements — turnover paperwork
+   *  bound to the physical asset; surfaced in the as-built summary's `with_om_docs`. */
+  attachOmDocument(pid: string, guids: string[], name: string,
+                   opts: { location?: string; kind?: "om" | "warranty" } = {}, publish = true) {
+    return this.editIfc(pid, "attach_om_document", { guids, name, ...opts }, publish);
+  }
   /** W11 B6: author a base plate + anchor bolts under a steel column (fabrication assembly). */
   addBasePlate(pid: string, columnGuid: string, opts: { bolts?: number; width?: number; depth?: number } = {}, publish = true) {
     return this.editIfc(pid, "add_base_plate", { column_guid: columnGuid, ...opts }, publish);
@@ -1079,7 +1085,8 @@ export class ApiClient extends HttpCore {
   lod500(pid: string) {
     return this.json<{ total: number; verified: number; unverified: number; readiness_pct: number;
       by_method: Record<string, number>; methods: string[]; prop: string;
-      with_manufacturer: number; with_serial: number; with_dimensions: number; dimensions_out_of_tolerance: number }>(`/projects/${pid}/lod500`);
+      with_manufacturer: number; with_serial: number; with_dimensions: number; dimensions_out_of_tolerance: number;
+      with_om_docs?: number; om_documents?: string[] }>(`/projects/${pid}/lod500`);
   }
   /** W11 G2: record a field-verified as-built dimension (+ variance vs design) on the selection. */
   recordAsbuiltDimension(pid: string, guids: string[], dimension: string, measured: number, design?: number, publish = true) {

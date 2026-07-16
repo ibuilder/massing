@@ -1216,11 +1216,32 @@ def asbuilt_summary(model: ifcopenshell.file) -> dict:
             with_dims += 1
             if str(dm.get("WithinTolerance") or "").lower() == "false":
                 out_of_tol += 1
+
+    # G3: elements carrying an O&M / warranty document reference (IfcRelAssociatesDocument, purpose-tagged)
+    om_els: set[int] = set()
+    om_doc_names: set[str] = set()
+    _OM_KEYS = ("OPERATION", "MAINTENANCE", "O&M", "WARRANTY", "MANUAL", "GUARANTEE")
+    try:
+        rels = model.by_type("IfcRelAssociatesDocument")
+    except RuntimeError:
+        rels = []
+    for rel in rels:
+        info = getattr(rel, "RelatingDocument", None)
+        if info is not None and info.is_a("IfcDocumentReference"):
+            info = getattr(info, "ReferencedDocument", None) or info
+        purpose = str(getattr(info, "Purpose", "") or "").upper()
+        if any(k in purpose for k in _OM_KEYS):
+            om_doc_names.add(str(getattr(info, "Name", "") or "").strip())
+            for el in (getattr(rel, "RelatedObjects", None) or []):
+                if el.is_a("IfcElement"):
+                    om_els.add(el.id())
+
     return {"total": total, "verified": verified, "unverified": total - verified,
             "readiness_pct": round(100.0 * verified / total, 1) if total else 0.0,
             "by_method": by_method, "prop": "Massing_AsBuilt.Status",
             "with_manufacturer": with_mfr, "with_serial": with_serial,
             "with_dimensions": with_dims, "dimensions_out_of_tolerance": out_of_tol,
+            "with_om_docs": len(om_els), "om_documents": sorted(n for n in om_doc_names if n)[:20],
             "methods": sorted(_VERIFY_METHODS)}
 
 
@@ -1542,6 +1563,11 @@ RECIPES = {
     "attach_document": lambda m, p: _det().attach_document(m, p["guids"], p["name"], p.get("location"),
                                                           p.get("description"), p.get("identification"),
                                                           p.get("purpose")),
+    # G3: O&M / warranty document reference (a purpose-tagged attach_document) — turnover paperwork bound
+    # to the physical asset; surfaced in asbuilt_summary.with_om_docs
+    "attach_om_document": lambda m, p: _det().attach_document(
+        m, p["guids"], p["name"], p.get("location"), p.get("description"), p.get("identification"),
+        "WARRANTY" if str(p.get("kind", "om")).strip().lower().startswith("warr") else "OPERATION_MAINTENANCE"),
     # W11 D3 — auto-detail: evaluate the condition→content rule set, write matched code/detail bundles
     "apply_detailing_rules": lambda m, p: _rules().apply_rules(m, p.get("rules")),
     # W11 B6 — structural steel connections (fabrication LOD 350/400)

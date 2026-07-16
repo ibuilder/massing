@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.318 — O&M / warranty document refs on the as-built model (G3 follow-up)
+
+Completes the LOD-500 turnover trio (verify · dimensions · manufacturer) with **operation & maintenance /
+warranty documents** bound to the physical asset. New `attach_om_document` recipe (a purpose-tagged
+`attach_document` — `OPERATION_MAINTENANCE` or `WARRANTY`) associates a manual/warranty reference (name +
+link) with the selection via `IfcRelAssociatesDocument`; `asbuilt_summary` now reports `with_om_docs`
+(elements carrying an O&M/warranty document, detected by the document's `Purpose`) + the distinct document
+names. The ✅ As-built (LOD 500) tool gains an **📄 Attach O&M / warranty doc** control and shows the O&M-doc
+count in the readiness line. Guarded (needs a selection) + an `attachOmDocument` client. `test_lod500.py`
+extended (2 O&M + 1 warranty doc → `with_om_docs` = 3).
+
 ## v0.3.317 — Deeper authoring guardrails (E8)
 
 The pre-apply guardrails now catch more classes of broken edit before they touch the model. `guards.precheck`

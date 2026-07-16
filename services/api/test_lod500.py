@@ -93,6 +93,18 @@ from aec_data import guards  # noqa: E402
 assert guards.precheck("set_manufacturer_info", {"guids": [], "manufacturer": "X"})["errors"], "empty selection blocked"
 assert guards.precheck("set_manufacturer_info", {"guids": [walls[0]], "manufacturer": "X"})["ok"]
 
+# G3: O&M / warranty document references → surfaced in with_om_docs
+assert s4.get("with_om_docs", 0) == 0, s4
+edit.RECIPES["attach_om_document"](m, {"guids": [walls[0], walls[1]], "name": "Curtain wall O&M manual",
+                                       "location": "https://example.com/om/cw.pdf", "kind": "om"})
+edit.RECIPES["attach_om_document"](m, {"guids": [walls[2]], "name": "Sealant warranty", "kind": "warranty"})
+s5 = edit.asbuilt_summary(m)
+assert s5["with_om_docs"] == 3, s5                                   # walls 0,1,2 carry an O&M/warranty doc
+assert "Curtain wall O&M manual" in s5["om_documents"] and "Sealant warranty" in s5["om_documents"], s5["om_documents"]
+# the recipe requires a selection at the guard, and is registered
+assert guards.precheck("attach_om_document", {"name": "x"})["errors"], "no guids blocked"
+assert guards.precheck("attach_om_document", {"guids": [walls[0]], "name": "x"})["ok"]
+
 if os.path.exists(TMP):
     os.remove(TMP)
 

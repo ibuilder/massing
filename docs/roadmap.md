@@ -107,7 +107,9 @@ slice) + E9 selector DSL ship (see the archive); these remain:*
 - ✅ **G2 SHIPPED v0.3.302** — field-verified as-built **dimensions + variance** (`record_asbuilt_dimension`
   → `Massing_AsBuiltDim` measured/design/variance/within-tolerance; `asbuilt_summary` counts
   with_dimensions + out-of-tolerance; measure form in the as-built tool).
-- **G3 follow-up** — warranty / O&M **document** refs via `IfcRelAssociatesDocument` (`attach_document` exists — wire an O&M-doc UI).
+- ✅ **G3 follow-up SHIPPED v0.3.318** — warranty / O&M **document** refs via `IfcRelAssociatesDocument`:
+  `attach_om_document` recipe (purpose-tagged) + `asbuilt_summary.with_om_docs` + a 📄 Attach O&M/warranty doc
+  control in the ✅ As-built tool.
 - **H1** — seed **CC0 furniture families + PBR materials** (CC0/CC-BY only — ambientCG, Poly Haven, Poly Pizza, Quaternius, Kenney, AMD MaterialX), attribution + license stored per asset.
 
 **License guardrails (firm):** `ifcopenshell` + its geom serializers are **LGPL** — safe to depend on.
