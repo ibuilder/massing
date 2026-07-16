@@ -104,3 +104,16 @@ services/api/_sg_storage/
 
 # local dev-server storage backends (filesystem object store when running the API locally)
 services/api/dev_*_storage/
+
+# COST/demo: generated artifacts under services/api/_models (regenerable from generate_quay_tower.py)
+services/api/_models/*.svg
+services/api/_models/*.json
+services/api/_models/*.ifc
+services/api/_models/*.frag
+services/api/_models/*.pdf
+
+# dev-run artifacts (local API against sqlite/minio)
+services/api/_oapi.json
+services/api/_store_dev/
+services/api/_ifc_dev/
+services/api/aec_dev.db
