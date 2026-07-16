@@ -984,6 +984,55 @@ def add_fire_equipment(model: ifcopenshell.file, kind: str = "sprinkler", point=
     return add_mep_terminal(model, ifc_class, point, size, size, size, predef, storey, system, "fire")
 
 
+# Fire Alarm / life-safety devices — a discipline distinct from fire *protection* (documented on its own
+# FA sheet series). Detectors are IfcSensor; manual/notification devices + the control panel are IfcAlarm.
+_FA_DEVICE = {
+    "smoke_detector": ("IfcSensor", "SMOKESENSOR"),
+    "heat_detector":  ("IfcSensor", "HEATSENSOR"),
+    "duct_detector":  ("IfcSensor", "SMOKESENSOR"),
+    "pull_station":   ("IfcAlarm", "MANUALPULLBOX"),
+    "horn_strobe":    ("IfcAlarm", "SIREN"),
+    "strobe":         ("IfcAlarm", "LIGHT"),
+    "bell":           ("IfcAlarm", "BELL"),
+    "facp":           ("IfcAlarm", "BREAKGLASSBUTTON"),   # Fire Alarm Control Panel (no dedicated enum)
+}
+
+
+def add_fa_device(model: ifcopenshell.file, kind: str = "smoke_detector", point=(0.0, 0.0),
+                  storey: str | None = None, system: str = "Fire Alarm") -> str:
+    """Author a **fire-alarm / life-safety** device — smoke/heat/duct detector (IfcSensor), manual pull
+    station / horn-strobe / strobe / bell / FACP (IfcAlarm) — enrolled on a named Fire-Alarm system.
+    Fire alarm is its own discipline (FA sheet series), separate from fire *protection* (sprinklers).
+    Returns the new element's GUID."""
+    k = (kind or "smoke_detector").strip().lower()
+    ifc_class, predef = _FA_DEVICE.get(k, _FA_DEVICE["smoke_detector"])
+    size = 0.5 if k == "facp" else 0.15
+    return add_mep_terminal(model, ifc_class, point, size, size, size, predef, storey, system, "electrical")
+
+
+# Telecommunications / low-voltage / data devices (discipline T). MDF/IDF racks + WAPs are comms
+# appliances; data jacks are outlets.
+_COMMS_DEVICE = {
+    "mdf":         ("IfcCommunicationsAppliance", "NETWORKHUB"),   # main distribution frame / head-end rack
+    "idf":         ("IfcCommunicationsAppliance", "NETWORKHUB"),   # intermediate distribution frame / floor rack
+    "rack":        ("IfcCommunicationsAppliance", "NETWORKAPPLIANCE"),
+    "switch":      ("IfcCommunicationsAppliance", "SWITCH"),
+    "wap":         ("IfcCommunicationsAppliance", "ANTENNA"),      # wireless access point
+    "data_outlet": ("IfcOutlet", "DATAOUTLET"),
+}
+
+
+def add_comms_device(model: ifcopenshell.file, kind: str = "idf", point=(0.0, 0.0),
+                     storey: str | None = None, system: str = "Telecommunications") -> str:
+    """Author a **telecom / low-voltage** device — MDF/IDF rack, network switch, wireless access point
+    (IfcCommunicationsAppliance) or data outlet (IfcOutlet) — enrolled on a named Telecommunications
+    system (discipline T). Returns the new element's GUID."""
+    k = (kind or "idf").strip().lower()
+    ifc_class, predef = _COMMS_DEVICE.get(k, _COMMS_DEVICE["idf"])
+    size = 0.9 if k in ("mdf", "idf", "rack") else 0.15
+    return add_mep_terminal(model, ifc_class, point, size, size, size, predef, storey, system, "communication")
+
+
 def add_mep_run(model: ifcopenshell.file, ifc_class: str, start, end, shape: str = "round",
                 size: float = 0.3, storey: str | None = None, system: str = "MEP",
                 discipline: str | None = None) -> str:
@@ -1829,6 +1878,10 @@ RECIPES = {
                                                     p.get("storey"), p.get("system", "Fire Protection"), "fire"),
     "add_fire_equipment": lambda m, p: add_fire_equipment(m, p.get("kind", "sprinkler"), p["point"],
                                                           p.get("storey"), p.get("system", "Fire Protection")),
+    "add_fa_device": lambda m, p: add_fa_device(m, p.get("kind", "smoke_detector"), p["point"],
+                                                p.get("storey"), p.get("system", "Fire Alarm")),
+    "add_comms_device": lambda m, p: add_comms_device(m, p.get("kind", "idf"), p["point"],
+                                                      p.get("storey"), p.get("system", "Telecommunications")),
     "add_riser": lambda m, p: add_riser(m, p["point"], float(p.get("bottom_z", 0.0)), float(p.get("top_z", 3.0)),
                                         float(p.get("size", 0.1)), p.get("ifc_class", "IfcPipeSegment"),
                                         p.get("storey"), p.get("system", "Fire Protection"), p.get("discipline", "fire")),

@@ -333,10 +333,14 @@ palette and a mislabeled `estimate.by_discipline`.)
 - **DISC-3 — consolidate the engines** *(M)* — make the canonical source reachable from `aec_data`; derive
   `drawing.py` poché colors, `specmanual` divisions, and the `mep.py`/`edit.py` discipline maps from it; fix
   `estimate.by_discipline` to roll up by real discipline (it currently groups by raw IFC class).
-- **DISC-4 — model upgrades from a building-element audit** *(L)* — a proper facade as **`IfcCurtainWall`**
-  (not thin `IfcWall`); **fire-rated** demising/shaft walls (`Pset_WallCommon.FireRating`); a **roof
-  assembly** (`IfcRoof` + drains/parapet); a distinct **Fire Alarm** discipline (`IfcAlarm`/`IfcSensor` FACP +
-  devices) and **Telecom** (`IfcCommunicationsAppliance` MDF/IDF) — colored distinctly by the tree.
+- ✅ **DISC-4a Fire Alarm + Telecom recipes SHIPPED v0.3.332** — `add_fa_device` (smoke/heat detector
+  `IfcSensor`; pull-station/horn-strobe/bell/FACP `IfcAlarm`) on a **Fire Alarm** system; `add_comms_device`
+  (MDF/IDF/switch/WAP `IfcCommunicationsAppliance`, data outlet `IfcOutlet`) on a **Telecommunications**
+  system — both first-class recipes classified distinctly by the tree.
+- **DISC-4b — tower model upgrades** *(L)* — regenerate the demo tower with a proper facade as
+  **`IfcCurtainWall`** (not thin `IfcWall`); **fire-rated** demising/shaft walls (`Pset_WallCommon.FireRating`);
+  a **roof assembly** (`IfcRoof` + drains/parapet); fire-alarm + telecom devices via the DISC-4a recipes;
+  UI tool buttons for them. Verify color-by-discipline shows all disciplines distinctly.
 
 ### 🔒 Security backlog (Dependabot triage, 2026-07-15)
 
