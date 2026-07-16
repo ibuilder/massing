@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.335 — One canonical discipline source across both engines
+
+New low-level module **`aec_data/disciplines.py`** holds the shared discipline data — the CSI MasterFormat
+division master (`MF_DIVISIONS`) and the discipline colour palette (`DISCIPLINE_COLORS` / `SERIES_COLORS` /
+`discipline_color()`). It lives in the geometry engine on purpose: `aec_api` can import `aec_data` but not
+the reverse, so anything both need has to sit there. `aec_api.classification` now **imports** these instead
+of defining its own copies, and `aec_data.specmanual` drops its duplicate `_DIVISIONS` map — so the project
+manual's CSI divisions and the estimate/sheet/viewer vocabularies are literally the same objects. One source
+of truth for the division titles and discipline colours across the API and the IFC engine (DISC-3b).
+
 ## v0.3.334 — Estimate rolls up by real discipline (not IFC class)
 
 The model estimate's `by_discipline` was a misnomer — it grouped by raw **IFC class**, so a "discipline"

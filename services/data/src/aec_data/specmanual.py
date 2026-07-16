@@ -16,18 +16,9 @@ from typing import Any
 
 import ifcopenshell.util.element as ue
 
-# CSI MasterFormat division numbers → titles (the 2-digit prefix of a work-result code).
-_DIVISIONS = {
-    "00": "Procurement and Contracting Requirements", "01": "General Requirements",
-    "02": "Existing Conditions", "03": "Concrete", "04": "Masonry", "05": "Metals",
-    "06": "Wood, Plastics, and Composites", "07": "Thermal and Moisture Protection", "08": "Openings",
-    "09": "Finishes", "10": "Specialties", "11": "Equipment", "12": "Furnishings",
-    "13": "Special Construction", "14": "Conveying Equipment", "21": "Fire Suppression",
-    "22": "Plumbing", "23": "Heating, Ventilating, and Air Conditioning (HVAC)",
-    "25": "Integrated Automation", "26": "Electrical", "27": "Communications",
-    "28": "Electronic Safety and Security", "31": "Earthwork", "32": "Exterior Improvements",
-    "33": "Utilities",
-}
+# CSI MasterFormat division numbers → titles — the one canonical table (shared with aec_api via the
+# low-level discipline data), the 2-digit prefix of a work-result code.
+from .disciplines import MF_DIVISIONS as _DIVISIONS  # noqa: E402
 
 
 def _division(code: str) -> str:
