@@ -65,8 +65,19 @@ assert [s["storey"] for s in bs["storeys"]] == ["Level 1", "Level 2"], bs["store
 assert floors["Level 1"]["total"] == 6150.0, floors["Level 1"]         # 5500 slab + 650 column
 assert floors["Level 2"]["total"] == 21500.0, floors["Level 2"]        # 5500 slab + 16000 wall
 assert bs["grand_total"] == 27650.0 and bs["element_count"] == 4, bs
-disc = {d["ifc_class"]: d for d in bs["by_discipline"]}
+disc = {d["ifc_class"]: d for d in bs["by_class"]}
 assert disc["IfcSlab"]["quantity"] == 20.0 and disc["IfcSlab"]["amount"] == 11000.0, disc["IfcSlab"]  # both floors
+# each class line now carries its real discipline (the previous "by_discipline" was really per-IFC-class)
+assert disc["IfcSlab"]["discipline"] == "Structural", disc["IfcSlab"]
+
+# TRUE discipline roll-up: add a plumbing element so two disciplines aggregate distinctly
+mrows = [*srows, {"ifc_class": "IfcPipeSegment", "length": 100.0, "storey": "Level 1"}]
+bm = est.estimate_by_storey(mrows)
+roll = {d["code"]: d for d in bm["by_discipline_rollup"]}
+assert roll["S"]["amount"] == 27650.0, roll                    # all four S rows summed by discipline
+assert "P" in roll and roll["P"]["discipline"] == "Plumbing"    # pipe rolls up to Plumbing, not lumped in
+assert roll["S"]["color"].startswith("#")                       # each bucket carries the discipline color
+assert round(sum(d["amount"] for d in bm["by_discipline_rollup"]), 2) == round(sum(x["amount"] for x in bm["by_class"]), 2)
 
 print("ESTIMATE OK - concrete by volume (cols $1,300 / beams $1,400), walls $12,800; "
       "GFA benchmark + recommended source (sparse->gfa, in-band->model); overrides; "

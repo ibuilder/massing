@@ -48,11 +48,15 @@ def _price(c: str, a: dict, overrides: dict[str, float]) -> dict | None:
     spec = DEFAULT_RATES.get(c)
     if not spec:
         return None
+    from . import classification as cls
     unit, default_rate = spec
     rate = float(overrides.get(c, default_rate))
     qty = round(a["count"] if unit == "count" else a.get(unit, 0.0), 2)
+    dcode = cls.discipline_of_ifc_class(c)
     return {"ifc_class": c, "count": int(a["count"]), "unit": _UNIT_LABEL.get(unit, unit),
-            "quantity": qty, "rate": rate, "amount": round(qty * rate, 2)}
+            "quantity": qty, "rate": rate, "amount": round(qty * rate, 2),
+            "discipline": cls.discipline_name(dcode) or "General",
+            "discipline_code": dcode or "G", "discipline_color": cls.discipline_color(dcode)}
 
 
 def _agg_add(bucket: dict, r: dict) -> None:
@@ -87,9 +91,19 @@ def estimate_by_storey(rows: list[dict], overrides: dict[str, float] | None = No
         lines.sort(key=lambda x: -x["amount"])
         storeys.append({"storey": st, "total": round(sum(x["amount"] for x in lines), 2),
                         "element_count": int(sum(a["count"] for a in by_storey[st].values())), "lines": lines})
-    disc = [p for c, a in sorted(by_class.items()) if (p := _price(c, a, overrides))]
-    disc.sort(key=lambda x: -x["amount"])
-    return {"storeys": storeys, "by_discipline": disc,
+    class_lines = [p for c, a in sorted(by_class.items()) if (p := _price(c, a, overrides))]
+    class_lines.sort(key=lambda x: -x["amount"])
+    # a TRUE discipline roll-up: sum the priced class lines into their NCS discipline (the previous
+    # "by_discipline" was really per-IFC-class — now each class line also carries its discipline, and
+    # this aggregates them so the estimate rolls up by Structural / Architectural / MEP / … as intended).
+    roll: dict[str, dict] = {}
+    for ln in class_lines:
+        d = roll.setdefault(ln["discipline_code"], {"discipline": ln["discipline"], "code": ln["discipline_code"],
+                                                    "color": ln["discipline_color"], "amount": 0.0, "count": 0})
+        d["amount"] += ln["amount"]; d["count"] += ln["count"]
+    by_disc = sorted(({**d, "amount": round(d["amount"], 2)} for d in roll.values()), key=lambda x: -x["amount"])
+    return {"storeys": storeys, "by_class": class_lines, "by_discipline_rollup": by_disc,
+            "by_discipline": class_lines,  # kept for backward compatibility (per-IFC-class lines)
             "grand_total": round(sum(s["total"] for s in storeys), 2),
             "element_count": int(sum(a["count"] for a in by_class.values()))}
 
