@@ -21,7 +21,7 @@ import { ColorizeTool } from "../tools/colorize";
 import { LayerManager } from "../tools/layers";
 import { type SelSet, loadSelSets, saveSelSets, resolveGuids } from "../tools/selectionSetsStore";
 import { OriginTool } from "../tools/origin";
-import { buildTree } from "../tree/tree";
+import { buildTree, setDisciplineLookup } from "../tree/tree";
 import { installDraftPanel, type ArmedDraft, type DraftPanelHandle } from "./draft/draftPanel";
 import { type FamilyDef } from "./draft/draftCatalog";
 import { GridOverlay } from "./draft/gridOverlay";
@@ -30,7 +30,7 @@ import { type LogisticsResource } from "../api/client";
 import { DraftProxyLayer } from "./draft/draftProxy";
 import { TransformGizmo } from "./draft/transformGizmo";
 import { PinOverlay, restoreCamera } from "../pins/pins";
-import { type ApiClient, type ElementProps, type PropLayer, type PropMapRule, type Topic } from "../api/client";
+import { type ApiClient, type DisciplineTree, type ElementProps, type PropLayer, type PropMapRule, type Topic } from "../api/client";
 import { escapeHtml, fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
 import { showResult, kvTable, resultNote } from "../ui/result";
 
@@ -1077,6 +1077,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
 
   // ---- rail panels ---------------------------------------------------------
+  // The unified discipline tree (colors + IFC-class→discipline map), fetched once. `colorMode` drives
+  // whether the IFC-classes panel + model paint by raw class (hashed hue) or by discipline (tree color).
+  let discTree: DisciplineTree | null = null;
+  let colorMode: "class" | "discipline" = "class";
+
+  /** Discipline code for an IFC class via the served tree (falls back to the class itself). */
+  function disciplineOfClass(cls: string): string | null {
+    return discTree?.ifc_class_discipline[cls] ?? null;
+  }
+
   async function buildPanels() {
     if (!projectId) return;
     const elements: ElementProps[] = await api.elements(projectId, { limit: 5000 });
@@ -1085,8 +1095,56 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     treePanel.appendChild(buildTree(elements, (guid) => selectByGuid(guid, false)));
 
     const meta = await api.meta(projectId);
+    discTree ??= await api.disciplineTree().catch(() => null);
+    // hand the served IFC-class→discipline map to the model browser so it stops re-deriving disciplines
+    // from its own regex (one shared vocabulary).
+    if (discTree) setDisciplineLookup(discTree.ifc_class_discipline,
+      Object.fromEntries(discTree.disciplines.map((d) => [d.code, d.name])));
     const layersPanel = $("panel-layers");
     layersPanel.innerHTML = `<div class="section-title">IFC classes</div>`;
+
+    // Color-by toggle (Class ↔ Discipline) + a one-click "paint the model" so a coordinator can flip the
+    // whole model to discipline colors (fire=red, plumbing=green, …) the way Navisworks/Revit do.
+    const swatchRows: { cls: string; swatch: HTMLElement; ensure: () => Promise<string> }[] = [];
+    const paintAll = async () => {
+      for (const r of swatchRows) { r.swatch.style.background = colorFor(r.cls); await layerMgr.setColor(await r.ensure(), colorFor(r.cls)); }
+    };
+    if (discTree) {
+      const bar = document.createElement("div"); bar.className = "layer-row"; bar.style.cssText = "gap:6px;margin-bottom:4px";
+      const lbl = document.createElement("span"); lbl.className = "name"; lbl.textContent = "Color by"; lbl.style.flex = "0 0 auto";
+      const sel = document.createElement("select"); sel.className = "mini-select";
+      sel.innerHTML = `<option value="class">IFC class</option><option value="discipline">Discipline</option>`;
+      sel.value = colorMode;
+      const paint = document.createElement("button"); paint.className = "mini-btn"; paint.textContent = "Paint model";
+      paint.title = "Apply the current color scheme to every element in the 3D view";
+      paint.onclick = paintAll;
+      sel.onchange = () => {
+        colorMode = sel.value === "discipline" ? "discipline" : "class";
+        for (const r of swatchRows) r.swatch.style.background = colorFor(r.cls);
+        legend.style.display = colorMode === "discipline" ? "" : "none";
+        buildLegend();
+      };
+      bar.append(lbl, sel, paint);
+      layersPanel.appendChild(bar);
+    }
+    // discipline color legend (shown in discipline mode) — the palette, so the colors read as a system.
+    const legend = document.createElement("div"); legend.className = "disc-legend";
+    legend.style.display = colorMode === "discipline" ? "" : "none";
+    const buildLegend = () => {
+      legend.innerHTML = "";
+      if (colorMode !== "discipline" || !discTree) return;
+      const present = new Set(meta.facets.classes.map((c) => disciplineOfClass(c)).filter(Boolean));
+      for (const d of discTree.disciplines) {
+        if (!present.has(d.code)) continue;
+        const chip = document.createElement("span"); chip.className = "disc-chip";
+        const sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = d.color;
+        const nm = document.createElement("span"); nm.textContent = d.name;
+        chip.append(sw, nm); legend.appendChild(chip);
+      }
+    };
+    buildLegend();
+    layersPanel.appendChild(legend);
+
     for (const cls of meta.facets.classes) {
       const row = document.createElement("div"); row.className = "layer-row";
       const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = true;
@@ -1094,6 +1152,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       const swatch = document.createElement("span"); swatch.className = "swatch"; swatch.style.background = colorFor(cls);
       let layerId: string | null = null;
       const ensure = async () => (layerId ??= (await layerMgr.addClassLayer(cls, cls)).id);
+      swatchRows.push({ cls, swatch, ensure });
       cb.onchange = async () => { await ensure(); await layerMgr.setVisible(layerId!, cb.checked); };
       swatch.onclick = async () => { await ensure(); await layerMgr.setColor(layerId!, colorFor(cls)); };
       name.onclick = async () => {
@@ -3381,9 +3440,20 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     for (const key of order) builders[key]?.();
   }
 
-  function colorFor(s: string): string {
+  /** Hashed hue for an IFC class — the stable per-class fallback color. */
+  function classHue(s: string): string {
     let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360;
     return `hsl(${h} 65% 55%)`;
+  }
+
+  /** The swatch/paint color for an IFC class under the current color mode: the discipline's canonical
+   * color when coloring by discipline (unmapped classes fall back to the hashed hue), else the hue. */
+  function colorFor(cls: string): string {
+    if (colorMode === "discipline" && discTree) {
+      const code = disciplineOfClass(cls);
+      if (code && discTree.colors[code]) return discTree.colors[code];
+    }
+    return classHue(cls);
   }
 
   // ---- issues / pins -------------------------------------------------------

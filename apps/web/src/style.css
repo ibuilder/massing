@@ -252,6 +252,11 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 /* levels manager (Grid & Levels) */
 .mini-btn { font: inherit; font-size: 12px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel2); color: var(--text); cursor: pointer; }
 .mini-btn:hover { background: var(--control-hover); }
+.mini-select { font: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel2); color: var(--text); cursor: pointer; }
+/* discipline color legend (IFC-classes panel, color-by-discipline mode) */
+.disc-legend { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 2px 0 8px; }
+.disc-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+.disc-chip .swatch { width: 11px; height: 11px; cursor: default; }
 .levels-mgr { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 2px; }
 .level-row { display: flex; align-items: center; gap: 4px; }
 .level-row .level-name { flex: 1 1 auto; min-width: 0; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel2); color: var(--text); font-size: 12px; }

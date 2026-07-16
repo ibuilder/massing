@@ -208,12 +208,26 @@ function node(label: string, childrenFactory: () => HTMLElement, startExpanded =
   return li;
 }
 
+// Served IFC-class→discipline vocabulary (from the unified discipline tree, `GET /reference/disciplines`).
+// When present it is authoritative and replaces the local regex below — the viewer injects it once so the
+// browser and the model share one discipline mapping instead of drifting apart.
+let _servedClassDisc: Record<string, string> | null = null;   // ifc class → discipline CODE (e.g. "M")
+let _servedCodeName: Record<string, string> | null = null;    // discipline code → name (e.g. "Mechanical")
+
+/** Inject the served discipline vocabulary so `discipline()` stops guessing from a regex. */
+export function setDisciplineLookup(classToCode: Record<string, string>, codeToName: Record<string, string>): void {
+  _servedClassDisc = classToCode;
+  _servedCodeName = codeToName;
+}
+
 /**
- * Best-effort discipline bucket from the IFC class — the standard A/S/M/P/E/FP split used by
- * coordination tools. Ambiguous shared elements (slabs, plates) land in a reasonable default;
- * this is a browser grouping, not an authoritative discipline assignment.
+ * Best-effort discipline bucket from the IFC class. Prefers the served discipline tree (authoritative);
+ * otherwise falls back to the standard A/S/M/P/E/FP regex split used by coordination tools. Ambiguous
+ * shared elements (slabs, plates) land in a reasonable default.
  */
 function discipline(ifcClass: string): string {
+  const code = _servedClassDisc?.[ifcClass];
+  if (code) return _servedCodeName?.[code] ?? code;
   const c = ifcClass.replace(/^Ifc/, "");
   if (/Duct|AirTerminal|Fan|Boiler|Chiller|Coil|HeatExchanger|HeatRecovery|UnitaryEquipment|CompressedAir|Damper|AirToAir/i.test(c)) return "Mechanical (HVAC)";
   if (/Pipe|SanitaryTerminal|WasteTerminal|Valve|Pump|Tank|Interceptor|StackTerminal|MedicalDevice/i.test(c)) return "Plumbing";
