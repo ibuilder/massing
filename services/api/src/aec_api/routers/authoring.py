@@ -652,7 +652,29 @@ def ai_author(pid: str, text: str = Body(..., embed=True),
     Anthropic API key is set; otherwise a deterministic keyword baseline — no key required."""
     from .. import nl_ai
 
+    # A4: ground the planner with a compact scene digest (what's already in the model), best-effort
+    p = db.get(Project, pid)
+    if p and p.source_ifc and Path(p.source_ifc).exists() and not (context or {}).get("scene"):
+        try:
+            from aec_data.ifc_loader import open_model  # type: ignore
+
+            from .. import scene
+            context = {**(context or {}), "scene": scene.digest(open_model(p.source_ifc))["prose"]}
+        except Exception:                              # noqa: BLE001 — grounding is optional, never block
+            pass
     return nl_ai.plan(text, context)
+
+
+@router.get("/projects/{pid}/scene-digest")
+def scene_digest(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """A4: a compact, LLM-friendly digest of the model — element counts by class, storeys, spaces, MEP
+    systems + disciplines, phasing, LOD, and hygiene, plus a one-paragraph `prose` overview. Grounds the
+    AI command bar and gives a one-glance model summary."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import scene
+    p = _project(db, pid)
+    return scene.digest(open_model(p.source_ifc))
 
 
 @router.post("/projects/{pid}/edit/precheck")

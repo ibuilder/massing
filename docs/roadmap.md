@@ -35,7 +35,7 @@ front, drawn from the 2026-07 research round 2 + remaining depth:
 1. **RFI-0 — decision-readiness audit** *(★★★★★)* — compose approvability + detail-rule validate + model-hygiene + clash into one "what's missing?" report → BCF.
 2. **EST-1 — productivity-rate cost/duration library** — man-hours/unit → labour cost + duration from quantities (5D).
 3. ✅ **CONTENT-1 (import) SHIPPED v0.3.321** — `parse_mesh` (glTF/OBJ/STL/PLY → recentred metre verts/faces, Y-up→Z-up) + `detect_category` (filename → catalog key) + `POST /content/import` (auto-classified place via `place_content`) + a ⬆ Import-mesh picker. *(catalog + placement ✅ v0.3.306.) Remaining: a curated CC0 seed + thumbnail palette → folds into UX-3.*
-4. **A2/A4** — RAG-grounded code-gen; LLM scene-digest. **B5/F0b** — connections + `IfcRelConnects*`; derive Box/Axis/FootPrint.
+4. **A2** — RAG-grounded code-gen. **F0b** — derive Box/Axis/FootPrint. *(A4 scene-digest ✅ v0.3.322; B5 connections ✅ v0.3.320.)*
 5. **Frontier (own planning pass):** COLLAB-1 multiplayer · SITE-1/BIM-GIS · VIZ-U1 (Unity/WebGL) · CODE-EBC · PROFORMA-LIVE · ENV-1.
 
 *(CODE-2 ✅ v0.3.295; D5 ✅ 296; W10-4 ✅ 297; S4 ✅ 298; E1 ✅ 299; A1 ✅ 300 (RCE-hardened 301); G2 ✅ 302; B3 ✅ 304; B4 ✅ 305; CONTENT-1 ✅ 306.)*
@@ -87,7 +87,9 @@ carriers, D6 project manual, D8 approvability pre-flight all ship (see the archi
   versioned/undo-able `/edit` path; ⚡ Run IFC code tool). *Next: A2 RAG index over ifcopenshell docs to
   ground code-gen, A3 AI emits recipes, A4 scene-digest.*
 - **A2** — **RAG index** over ifcopenshell / IFC docs to ground code-gen.
-- **A4** — LLM **scene-digest** tool over the semantic graph.
+- ✅ **A4 SHIPPED v0.3.322** — LLM **scene-digest** (`scene.digest`): composes element counts / storeys /
+  spaces / MEP disciplines / phasing / LOD / hygiene into a compact dict + prose; `GET /scene-digest` + a 🔎
+  Model digest tool; injected into the `/ai/author` planner prompt so authoring is grounded in the model.
 
 **Master-builder UX (low barrier)** — *E4 progressive-disclosure toolbar + E8 authoring-guardrails (first
 slice) + E9 selector DSL ship (see the archive); these remain:*

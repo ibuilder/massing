@@ -134,7 +134,8 @@ def _system(ctx: dict) -> str:
         "add_wall steps). Do NOT output GUIDs, the `storey`, or any host/target element id — the app fills "
         "those from the current selection and active level. For door/window/LOD/phase, the target IS the "
         f"current selection ({len(sel)} element(s) selected). Active level: {storey or 'none set'}. "
-        "If the instruction is too vague to place geometry, return an empty steps list and put a short "
+        + (f"Current model — {ctx['scene']} " if ctx.get("scene") else "")
+        + "If the instruction is too vague to place geometry, return an empty steps list and put a short "
         "question in `clarification`. Never delete anything.")
 
 

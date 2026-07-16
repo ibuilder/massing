@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.322 — Scene digest: an LLM-grounding model summary (A4)
+
+A compact, one-glance summary of *what's in the model* — and the grounding the AI command bar was missing.
+New `scene.digest(model)` composes the shipped summaries (element counts by class, storeys, spaces, MEP
+systems + disciplines, phasing, LOD, model hygiene) into a small dict plus a one-paragraph `prose` overview,
+degrading gracefully on a bare model. New `GET /projects/{pid}/scene-digest` + a **🔎 Model digest** tool
+(counts, MEP disciplines, phasing, hygiene at a glance). Crucially, `POST /ai/author` now injects the digest
+prose into the planner's system prompt, so Claude authoring is **grounded in the current model** ("N walls,
+2 storeys, a fire-protection system…") instead of planning blind. `sceneDigest` client + `test_scene.py`.
+
 ## v0.3.321 — Mesh→IFC asset import: bring in detailed parts, auto-classified (CONTENT-1 remaining)
 
 The other half of the content library: **import a well-detailed mesh and place it as the *right* IFC**, not

@@ -2620,6 +2620,24 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             body.appendChild(toolBtn2("Open Issues panel", () => (document.querySelector('.rail-btn[data-rail="issues"]') as HTMLElement)?.click()));
           });
         })));
+        // A4: a compact scene digest — what's in the model, one glance (also grounds the AI command bar)
+        b.appendChild(toolBtn2("🔎 Model digest (what's in the model)", () => withLoading(container, "Summarising the model", async () => {
+          let d;
+          try { d = await api.sceneDigest(pid); }
+          catch { toast("Needs a source IFC", "error"); return; }
+          out.textContent = `${d.totals.elements} elts · ${d.totals.storeys} storey(s)`;
+          showResult("Model digest", (body) => {
+            body.appendChild(resultNote(d!.prose, ""));
+            const top = Object.entries(d!.by_class).slice(0, 10);
+            if (top.length) body.appendChild(kvTable(top.map(([c, n]) => ({ k: c.replace(/^Ifc/, ""), v: String(n) }))));
+            if (d!.mep.systems) body.appendChild(resultNote(`<b>MEP</b> — ${d!.mep.systems} system(s); `
+              + Object.entries(d!.mep.by_discipline).map(([k, v]) => `${k} (${v.systems})`).join(", ")
+              + (d!.mep.has_fire_protection ? " · fire-protection present" : ""), ""));
+            const phased = Object.entries(d!.phasing).filter(([k, v]) => v && k !== "UNSET");
+            if (phased.length) body.appendChild(resultNote(`<b>Phasing</b> — ` + phased.map(([k, v]) => `${v} ${k.toLowerCase()}`).join(", "), ""));
+            if (d!.hygiene.issues) body.appendChild(resultNote(`<b>${d!.hygiene.issues}</b> model-hygiene issue(s) — see Model Health.`, "bad"));
+          });
+        })));
         b.appendChild(toolBtn2("🩺 Model Health (all checks, one score)", () => withLoading(container, "Scoring model health", async () => {
           let r;
           try { r = await api.modelHealth(pid); }

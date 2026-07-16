@@ -1067,6 +1067,15 @@ export class ApiClient extends HttpCore {
   addMesh(pid: string, verts: number[][], faces: number[][], name = "Mesh", publish = true) {
     return this.editIfc(pid, "add_mesh_representation", { verts, faces, name }, publish);
   }
+  /** A4: a compact scene digest of the model (counts by class, storeys, spaces, MEP, phasing, LOD, hygiene
+   * + a one-paragraph prose overview) — grounds the AI command bar and gives a one-glance summary. */
+  sceneDigest(pid: string) {
+    return this.json<{ totals: { elements: number; storeys: number; spaces: number };
+      by_class: Record<string, number>; storeys: string[]; prose: string;
+      mep: { systems: number; has_fire_protection: boolean; by_discipline: Record<string, { systems: number; members: number }> };
+      phasing: Record<string, number>; lod: Record<string, number>;
+      hygiene: { issues: number | null; clean: boolean | null } }>(`/projects/${pid}/scene-digest`);
+  }
   /** CONTENT-1: the curated content catalog (logistics / furniture / landscaping → IFC class + phase). */
   contentCatalog() {
     return this.json<{ count: number; note: string; groups: Record<string, { key: string; ifc_class: string;
