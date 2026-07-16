@@ -2,6 +2,7 @@
 so results reconcile against model updates (CLAUDE.md non-negotiable)."""
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable
 from functools import lru_cache
 
@@ -9,8 +10,21 @@ import ifcopenshell
 import ifcopenshell.util.element as ue
 
 
-@lru_cache(maxsize=8)
 def open_model(path: str) -> ifcopenshell.file:
+    """Open an IFC file, cached by (path, mtime, size). Keying on the file's stat — not the path alone —
+    means a **re-written** file (a re-upload or republish to the *same* `source.ifc` path) is reloaded
+    fresh instead of served stale from the cache. (The /edit path already writes a new timestamped file,
+    so it was never affected; whole-model replacement to a fixed path was.)"""
+    try:
+        st = os.stat(path)
+        key = (st.st_mtime_ns, st.st_size)
+    except OSError:
+        key = None
+    return _open_cached(path, key)
+
+
+@lru_cache(maxsize=8)
+def _open_cached(path: str, _key) -> ifcopenshell.file:
     return ifcopenshell.open(path)
 
 
