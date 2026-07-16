@@ -66,7 +66,9 @@ generator already ship; these deepen geometry, drawings, code-intelligence, and 
 - ✅ **B4 SHIPPED v0.3.305** — **procedural-mesh escape hatch** (`add_mesh_representation` →
   `IfcTriangulatedFaceSet` from verts/faces; △ Add mesh tool + AI/code-callable). Verified by tessellation +
   converter round-trip.
-- **B5** — **connections / fasteners / hangers** + `IfcRelConnects*` (LOD-350 coordination).
+- ✅ **B5 (first slice) SHIPPED v0.3.320** — `connect_elements` records an `IfcRelConnectsElements` between
+  two elements (idempotent, rejects self/missing) + `element_connections` read-back (pairs + per-element
+  degree); `GET /element-connections`. *Next: fasteners/hangers as real assemblies + connection geometry.*
 - **F0b** — derive **Box / Axis / FootPrint** geometry on demand from `Body` (consumed by the C drawing generator).
 
 **Code + spec + detail intelligence (IBC / MasterFormat)** — *D1 code-analysis, D3/D7 detail rules, D4

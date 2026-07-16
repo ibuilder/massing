@@ -264,6 +264,17 @@ def sprinkler_coverage(pid: str, hazard: str = "light", db: Session = Depends(ge
     return mep.sprinkler_coverage(open_model(p.source_ifc), hazard)
 
 
+@router.get("/projects/{pid}/element-connections")
+def element_connections(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """B5: the element-to-element connection graph (`IfcRelConnectsElements`) — connected pairs + per-element
+    degree. Author edges with the `connect_elements` recipe (`POST /edit` with `{guid_a, guid_b}`)."""
+    from aec_data import edit as ed  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return ed.element_connections(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/lod")
 def lod_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). Advance elements with the

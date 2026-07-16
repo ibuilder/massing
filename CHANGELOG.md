@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.320 — Element-to-element connections (B5)
+
+The LOD-350 coordination primitive: which elements are physically connected. New `connect_elements` recipe
+records an `IfcRelConnectsElements` between two building elements (a beam framing into a column, a brace to a
+gusset, a hanger to a slab) — distinct from the MEP port link (`connect_mep`). Idempotent per ordered pair,
+rejects self/missing. New `element_connections` read-back reports the connected pairs (with class +
+description) and each element's connection **degree**, served at `GET /projects/{pid}/element-connections`;
+`connectElements` / `elementConnections` clients. Guarded (needs both GUIDs). Reachable via the AI command
+bar; authored edges export for structural-analysis / coordination tools. `test_element_connections.py`.
+
 ## v0.3.319 — Vertical MEP risers (standpipes / stacks / vents)
 
 MEP runs could only be drawn horizontally (`add_mep_run` sweeps in plan); a multi-story **riser** was

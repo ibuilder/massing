@@ -1131,6 +1131,16 @@ export class ApiClient extends HttpCore {
   connectMep(pid: string, guidA: string, guidB: string, publish = true) {
     return this.editIfc(pid, "connect_mep", { guid_a: guidA, guid_b: guidB }, publish);
   }
+  /** B5: record a physical connection between two elements (IfcRelConnectsElements, LOD-350 coordination). */
+  connectElements(pid: string, guidA: string, guidB: string, description?: string, publish = true) {
+    return this.editIfc(pid, "connect_elements", { guid_a: guidA, guid_b: guidB, ...(description ? { description } : {}) }, publish);
+  }
+  /** B5: the element-to-element connection graph (IfcRelConnectsElements) — pairs + per-element degree. */
+  elementConnections(pid: string) {
+    return this.json<{ count: number; elements_connected: number; max_degree: number;
+      connections: { a: string; a_class: string; b: string; b_class: string; description: string | null }[] }>(
+      `/projects/${pid}/element-connections`);
+  }
   /** W11 B6: author a MEP fitting (elbow BEND / tee JUNCTION / TRANSITION) at a point, on a system. */
   addMepFitting(pid: string, ifcClass: string, point: [number, number],
                 opts: { predefined?: string; size?: number; system?: string } = {}, publish = true) {

@@ -903,6 +903,57 @@ def _mep_element(model: ifcopenshell.file, guid: str):
     return el
 
 
+def connect_elements(model: ifcopenshell.file, guid_a: str, guid_b: str, description: str | None = None) -> dict:
+    """B5: record a physical **connection** between two building elements (`IfcRelConnectsElements`) — the
+    LOD-350 coordination primitive (a beam framing into a column, a brace to a gusset plate, a hanger to a
+    slab). Distinct from the MEP port link (`connect_mep`). GUID-stable + idempotent per ordered pair;
+    raises if either element is missing or they're the same. Returns {connected, created}."""
+    def _by_guid(g):
+        try:
+            return model.by_guid(g)
+        except (RuntimeError, Exception):          # noqa: BLE001 — malformed/absent GUID → treat as missing
+            return None
+
+    a = _by_guid(guid_a)
+    b = _by_guid(guid_b)
+    if a is None or b is None:
+        raise ValueError("both elements must exist")
+    if a.id() == b.id():
+        raise ValueError("cannot connect an element to itself")
+    for rel in model.by_type("IfcRelConnectsElements"):
+        if rel.RelatingElement == a and rel.RelatedElement == b:
+            return {"connected": [guid_a, guid_b], "created": False}
+    rel = model.create_entity("IfcRelConnectsElements", GlobalId=ifcopenshell.guid.new(),
+                              RelatingElement=a, RelatedElement=b)
+    if description:
+        rel.Description = str(description)
+    return {"connected": [guid_a, guid_b], "created": True}
+
+
+def element_connections(model: ifcopenshell.file) -> dict:
+    """B5: the element-to-element **connection graph** (`IfcRelConnectsElements`) — the connected pairs
+    (each with class + optional description) and the per-element connection degree. The coordination
+    read-back over `connect_elements`."""
+    try:
+        rels = model.by_type("IfcRelConnectsElements")
+    except RuntimeError:
+        rels = []
+    pairs: list[dict] = []
+    degree: dict[str, int] = {}
+    for rel in rels:
+        a = getattr(rel, "RelatingElement", None)
+        b = getattr(rel, "RelatedElement", None)
+        if a is None or b is None:
+            continue
+        pairs.append({"a": a.GlobalId, "a_class": a.is_a(), "b": b.GlobalId, "b_class": b.is_a(),
+                      "description": getattr(rel, "Description", None)})
+        for g in (a.GlobalId, b.GlobalId):
+            degree[g] = degree.get(g, 0) + 1
+    return {"count": len(pairs), "connections": pairs[:200],
+            "elements_connected": len(degree),
+            "max_degree": max(degree.values()) if degree else 0}
+
+
 # --- architectural finishes: coverings (ceiling/tile/cladding) + railings (P3) ----------------
 def add_covering(model: ifcopenshell.file, points, predefined: str = "CEILING",
                  thickness: float = 0.02, material: str | None = None,
@@ -1541,6 +1592,8 @@ RECIPES = {
                                         p.get("storey"), p.get("system", "Fire Protection"), p.get("discipline", "fire")),
     "set_system_predefined": lambda m, p: set_system_predefined(m, p["system"], p["discipline"]),
     "connect_mep": lambda m, p: connect_mep(m, p["guid_a"], p["guid_b"]),
+    # B5 — generic element-to-element connection (IfcRelConnectsElements, LOD-350 coordination)
+    "connect_elements": lambda m, p: connect_elements(m, p["guid_a"], p["guid_b"], p.get("description")),
     # A1 — sandboxed ifcopenshell escape hatch (gated by AEC_ALLOW_IFC_CODE; AST-whitelisted)
     "execute_ifc_code": lambda m, p: _sandbox().execute_ifc_code(m, p["code"]),
     # B3 — sloped-top wall (parapet slope / shed / gable)
