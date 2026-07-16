@@ -280,7 +280,21 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **Wave 11 — LOD-400/500 authoring + the construction-document set (v0.3.255–v0.3.308, current).** The
+- **Unified discipline tree · interactive annotation · 5D cost + vintages (v0.3.309–v0.3.340, current).** One
+  canonical **CSI-MasterFormat / UniFormat / NCS discipline** vocabulary with a **colour palette** across the
+  viewer, model browser, estimate, and both engines — **colour-by-discipline** in the 3D view (legend + paint
+  model) and a MasterFormat-coded rollup. **Fire protection, fire alarm, and telecom** became first-class
+  systems (`add_fire_equipment` / `add_fa_device` / `add_comms_device`), and the demo tower was rebuilt with a
+  unitized **curtain-wall facade**, **fire-rated** construction, a **roof assembly**, and all eight disciplines.
+  **Interactive annotation** — place `IfcAnnotation` notes, dimensions, element-aware **tags**, and **revision
+  clouds** in the view, rendered onto the plans. **Cost + schedule depth** — a **vintage-versioned cost
+  database** (COST-DB) so a project pins the exact cost vintage its estimate was built on (reproducible;
+  offline public importer + a subscription-cloud path), the estimate prices **through** the pinned vintage, and
+  the labour estimate rolls crew-days into a **schedule duration**. **Code depth** — an **existing-building**
+  (IEBC) work-area classifier, **missing-dimension** detection in the RFI-prevention audit, and the applicable
+  code requirements emitted as a validatable **buildingSMART IDS**. See the changelog for each release.
+
+- **Wave 11 — LOD-400/500 authoring + the construction-document set (v0.3.255–v0.3.308).** The
   Model workspace became a genuine authoring-to-issue tool. A **view-keyed representation + LOD spine**
   (tag elements 100→500); a **power-selection** query over the IfcOpenShell selector DSL; **parametric
   door/window** generators (real lining/frame/panel); a **domain-geometry catalog** behind an "Advanced
