@@ -174,6 +174,19 @@ interop targets / content platforms / open standards named where they're integra
 - **EST-1 (deepen)** *(M · high)* — full **QTO integration** into the productivity/labour library + **tie
   crew-days to schedule durations** (quantities → man-hours → crew → duration + labour cost, regional loading
   factors). The material/equipment $/unit layer + labour estimate already ship; this closes the 5D loop.
+- **COST-DB — vintage-versioned cost database + import** *(L · high)* — a local, **vintage-versioned (by year)**
+  cost database populated from **either free public sources (BLS/FRED/DoD-UFC/Census — offline-first) or the
+  `massing.cloud` subscription API**, behind one `DatasetImporter` interface. Projects **pin** to a specific
+  vintage so every estimate is reproducible; import `latest` or a specific historical year with a configurable
+  fallback (`strict`/`nearest`); cloud bundles are **checksum-/signature-verified** before a transactional
+  upsert; older vintages **escalate forward** via stored PPI series. Feeds 5D cost / estimating / GC-portal
+  budget / FCA / Last Planner through the pinned vintage. Open-source ships the **public importer + adapters
+  only** — proprietary data (1build/RSMeans) arrives solely via the subscriber's authenticated cloud pull,
+  never committed to the repo. Full spec + schema + build order: **[cost-db-import-plan.md](cost-db-import-plan.md)**
+  (server side: `massing_cloud_plugin_plan.md`; location engine: `massing_location_cost_import_plan.md`).
+  *Build order: schema → PublicDataImporter (offline spine) → vintage resolver + project pinning →
+  CloudDatasetImporter (manifest/bundle/verify/upsert) → subscription detection + public fallback → delta sync →
+  Ed25519 signatures → escalation-forward.*
 
 ### 🚫 RFI-prevention (the openBIM information-delivery moat)
 - ✅ **RFI-0 missing-dimension detection SHIPPED v0.3.336** — a 5th gap source in `decision_readiness`:
