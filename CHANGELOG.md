@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.329 — QTO: derive length for linear elements so they price non-zero
+
+Fixes a $0 in the model estimate. Linear elements (`IfcPipeSegment` / `IfcDuctSegment` /
+`IfcCableCarrierSegment` / `IfcRailing`) are modelled as swept solids with **no Qto length**, so the
+geometry takeoff returned `length = 0` and the per-metre MEP/railing rates (added v0.3.326) totalled them
+at **$0**. `aec_data.qto` now derives a `length` in its geometry fallback as the **longest bounding-box
+dimension** of the meshed solid — robust whether the run is the extrusion depth (vertical pipe/cable riser)
+or lies in the profile plane (a railing extruded to rail height). On `quay_tower.ifc` the 36 pipe segments
+now take off 1,153 m ($207,540), the cable riser 100.5 m ($22,110), and railings 112 m ($13,440) — all
+previously $0. `test_massing.py` extended (cored-model pipe/duct risers assert metre-scale, non-zero length).
+
 ## v0.3.328 — UX-2: element-aware tags
 
 New `add_tag` recipe places an **element-aware tag** — an `IfcAnnotation` (ObjectType "tag") whose label

@@ -294,6 +294,21 @@ if _have_ifc:
             assert len(cm.by_type("IfcPipeSegment")) == 2 * m["floors"], "plumbing riser + water main per floor"
             assert len(cm.by_type("IfcWall")) == 4 * m["floors"], "core walls"
             print(f"CORE OK - elevator + 2 egress stairs (code-separated) + duct/pipe risers+mains + core walls across {m['floors']} floors")
+
+            # QTO length: MEP risers/mains are swept solids with no Qto length, so geometry
+            # must derive one (longest bbox dimension) — else they price at $0 on a per-length rate.
+            from aec_data import qto as _qto
+            _qto._TAKEOFF_CACHE.clear()
+            _lens: dict[str, list[float]] = {}
+            for r in _qto.takeoff_file(cpath, force_geometry=True):
+                if r["ifc_class"] in ("IfcPipeSegment", "IfcDuctSegment"):
+                    _lens.setdefault(r["ifc_class"], []).append(r.get("length") or 0.0)
+            assert set(_lens) == {"IfcPipeSegment", "IfcDuctSegment"}, _lens
+            for _c, _ls in _lens.items():
+                assert all(l > 0 for l in _ls), f"{_c} length not derived from geometry: {_ls}"
+                assert max(_ls) > 2.0, f"{_c} riser length not metre-scale: {max(_ls)}"
+            print(f"QTO LENGTH OK - pipe/duct segments carry non-zero geometry length "
+                  f"(pipe max {max(_lens['IfcPipeSegment']):.1f} m, duct max {max(_lens['IfcDuctSegment']):.1f} m)")
         finally:
             os.remove(cpath)
 
