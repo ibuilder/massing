@@ -370,8 +370,11 @@ contextual settings strip (ArchiCAD); **UI as a thin wrapper over scriptable GUI
     (Annotation2D rep) as a note/tag/callout at an [E,N,z] point; 🏷 Add-note tool + `addAnnotation` client.
   - ✅ **UX-2 dimensions SHIPPED v0.3.324** — `add_dimension` authors a dimension `IfcAnnotation` (dimension
     line + measured-distance text) between two points; 📐 Dimension tool (two-click) + `addDimension` client.
-    *Remaining: inference-snapped placement, live element-aware tags, revision clouds — and wiring view-placed
-    annotations into `drawings.py` sheets.*
+  - ✅ **UX-2 revision clouds + plan rendering SHIPPED v0.3.327** — `add_revision_cloud` authors a scalloped
+    `IfcAnnotation` (+ optional rev tag) around a region (2 corners or ≥3 points); ☁ Revision-cloud tool +
+    `addRevisionCloud` client. **`drawing.plan_svg` now renders view-placed annotations** (notes / tags /
+    dimensions / revision clouds), closing the author→sheet loop the baked-SVG path couldn't.
+    *Remaining: inference-snapped placement + live element-aware tags (auto-read a host element's mark/type).*
 - **UX-3 — Unified Library palette** *(L · high)* — one browsable **content panel** unifying the W10-1
   type/family system + the CONTENT-1 catalog (logistics/furniture/landscaping) + external IFC/glTF import
   (CONTENT-1-remaining): a **thumbnail grid**, case-insensitive search with `tag:`/`type:`/`discipline:`

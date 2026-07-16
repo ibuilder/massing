@@ -1077,6 +1077,12 @@ export class ApiClient extends HttpCore {
                opts: { text?: string; storey?: string; z?: number } = {}, publish = true) {
     return this.editIfc(pid, "add_dimension", { start, end, ...opts }, publish);
   }
+  /** UX-2: place a revision cloud (scalloped outline + optional delta/number tag) around a region —
+   *  two opposite [E,N] corners, or >=3 boundary points. Renders on the generated plan. */
+  addRevisionCloud(pid: string, points: [number, number][],
+                   opts: { tag?: string; storey?: string; z?: number } = {}, publish = true) {
+    return this.editIfc(pid, "add_revision_cloud", { points, ...opts }, publish);
+  }
   /** A4: a compact scene digest of the model (counts by class, storeys, spaces, MEP, phasing, LOD, hygiene
    * + a one-paragraph prose overview) — grounds the AI command bar and gives a one-glance summary. */
   sceneDigest(pid: string) {
