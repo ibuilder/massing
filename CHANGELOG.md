@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.342 — UX-1b: dedicated Annotate + Library tool groups
+
+The interactive **annotation** tools (Add note · Dimension · Revision cloud · Tag) and the **content
+library** were buried inside the "Advanced fabrication tools" fold. They're now surfaced as their own
+labelled **✍ Annotate** and **📚 Library** groups in the model rail — the two capabilities the UX-1 research
+flagged as under-exposed. The Advanced fold keeps the LOD-350/400 fabrication/detailing tools.
+
 ## v0.3.341 — UX-1: model tools grouped by lifecycle (ribbon, first slice)
 
 The model rail's tool sections are now labelled and ordered by the **modeling lifecycle** instead of the
