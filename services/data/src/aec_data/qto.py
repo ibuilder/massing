@@ -16,6 +16,7 @@ import ifcopenshell.util.element as ue
 from .ifc_loader import open_model, physical_elements, storey_name
 
 try:
+    import numpy as _np
     import ifcopenshell.geom as _geom
     import ifcopenshell.util.shape as _shape
     _GEOM_OK = True
@@ -55,17 +56,43 @@ def _quantities(el) -> dict[str, float]:
     return out
 
 
+def _bbox_longest(geo) -> float | None:
+    """Longest bounding-box dimension of a meshed geometry — a robust length proxy for
+    linear elements (a swept solid's run is its dominant extent). Works whether the run is
+    the extrusion depth (vertical pipe/cable riser) or lies in the profile plane (a railing
+    extruded to its rail height). Returns None if the mesh has no vertices.
+
+    NOTE: `geo.verts` is only valid while the owning shape is alive, so callers must keep the
+    shape referenced until this returns (see `_geom_quantities`)."""
+    try:
+        verts = _np.asarray(geo.verts, dtype=float).reshape(-1, 3)
+        if verts.size == 0:
+            return None
+        extents = verts.max(axis=0) - verts.min(axis=0)
+        return float(extents.max())
+    except Exception:
+        return None
+
+
 def _geom_quantities(element, settings) -> dict[str, float]:
-    """Geometry-derived fallback when IfcElementQuantity is missing (guide §8)."""
+    """Geometry-derived fallback when IfcElementQuantity is missing (guide §8).
+
+    Also derives a `length` from the meshed solid's longest bounding-box dimension. Linear
+    elements (IfcPipeSegment / IfcDuctSegment / IfcCableCarrierSegment / IfcRailing) are modelled
+    as swept solids with no Qto length, so without this they price at $0 on a per-length rate."""
     if not _GEOM_OK:
         return {}
     try:
         shape = _geom.create_shape(settings, element)
-        geo = shape.geometry
-        return {
+        geo = shape.geometry  # keep `shape` alive: geo.verts is a view into it
+        out = {
             "volume": float(_shape.get_volume(geo)),
             "area": float(_shape.get_area(geo)),
         }
+        length = _bbox_longest(geo)
+        if length is not None:
+            out["length"] = length
+        return out
     except Exception:
         return {}
 
