@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.328 — UX-2: element-aware tags
+
+New `add_tag` recipe places an **element-aware tag** — an `IfcAnnotation` (ObjectType "tag") whose label
+is **auto-read from the host element** (its Name → a Pset `Reference`/`Tag`/`Mark` → its type name → the
+IFC class short-name), positioned at the host's plan centroid and **assigned to it**
+(`IfcRelAssignsToProduct`), so the tag tracks the element it describes. `text` overrides the auto-read
+label. Renders on the generated plan (via the v0.3.327 annotation pass). New **🏷 Tag selected element**
+tool (uses the current selection) + `addTag` client method. This is the "live element-aware tags" slice of
+UX-2; only inference-snapped placement remains.
+
 ## v0.3.327 — UX-2: revision clouds + view-placed annotations on the plan
 
 Closes the annotation author→sheet loop. Two parts:

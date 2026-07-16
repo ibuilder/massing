@@ -374,7 +374,10 @@ contextual settings strip (ArchiCAD); **UI as a thin wrapper over scriptable GUI
     `IfcAnnotation` (+ optional rev tag) around a region (2 corners or ≥3 points); ☁ Revision-cloud tool +
     `addRevisionCloud` client. **`drawing.plan_svg` now renders view-placed annotations** (notes / tags /
     dimensions / revision clouds), closing the author→sheet loop the baked-SVG path couldn't.
-    *Remaining: inference-snapped placement + live element-aware tags (auto-read a host element's mark/type).*
+  - ✅ **UX-2 element-aware tags SHIPPED v0.3.328** — `add_tag` authors a tag `IfcAnnotation` whose label is
+    auto-read from the host element (Name / Pset mark / type / class), placed at its centroid and assigned to
+    it (`IfcRelAssignsToProduct`); 🏷 Tag-selected-element tool + `addTag` client. Renders on the plan.
+    *Remaining: inference-snapped placement (SketchUp-style snap to endpoints/edges as you draw).*
 - **UX-3 — Unified Library palette** *(L · high)* — one browsable **content panel** unifying the W10-1
   type/family system + the CONTENT-1 catalog (logistics/furniture/landscaping) + external IFC/glTF import
   (CONTENT-1-remaining): a **thumbnail grid**, case-insensitive search with `tag:`/`type:`/`discipline:`
