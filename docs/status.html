@@ -4,9 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Massing — current status</title>
-<meta name="description" content="What Massing is and what's shipped: an IFC-native BIM authoring tool and AEC lifecycle platform. Status snapshot at v0.3.308." />
+<meta name="description" content="What Massing is and what's shipped: an IFC-native BIM authoring tool and AEC lifecycle platform. Status snapshot at v0.3.371." />
 <meta property="og:title" content="Massing — current status" />
-<meta property="og:description" content="IFC-native BIM authoring + the whole building lifecycle on one model. Status snapshot at v0.3.308." />
+<meta property="og:description" content="IFC-native BIM authoring + the whole building lifecycle on one model. Status snapshot at v0.3.371." />
 <meta property="og:image" content="./img/og-image.png" />
 <style>
   :root{
@@ -191,22 +191,22 @@
     <h2>Intelligence that reads the model, not a spreadsheet</h2>
     <div class="cards">
       <div class="card" style="--accent:var(--cyan)">
-        <div class="k">Pre-flight</div>
-        <h3>Decision-readiness audit</h3>
-        <p>The inverse of an RFI: it surfaces the information gaps a builder would otherwise ask about — failed code checks, missing details, model-data holes, open clashes — as one ranked resolve-before-you-issue list.</p>
-        <span class="tag">v0.3.307</span>
+        <div class="k">Ask</div>
+        <h3>NL-QA with cited sources</h3>
+        <p>Ask the model in plain language — "what governs this element?", "what's blocking approval?" — and get an answer whose every claim carries its source: a spec section, a detail sheet, a readiness gap. No spreadsheet, no RFI.</p>
+        <span class="tag">v0.3.360</span>
       </div>
       <div class="card" style="--accent:var(--blue)">
-        <div class="k">Estimate</div>
-        <h3>Labour from the model</h3>
-        <p>Productivity rates turn the model's real quantities into man-hours, crew-days, and a duration estimate — the link from takeoff to 5D.</p>
-        <span class="tag b">v0.3.308</span>
+        <div class="k">Analyze</div>
+        <h3>Structural analytical model</h3>
+        <p>Derive an IfcStructuralAnalysisModel straight from the physical frame — columns and beams become curve members tied at shared nodes, slabs become surface members — with a self-weight load case, all GUID-stable.</p>
+        <span class="tag b">v0.3.358</span>
       </div>
       <div class="card" style="--accent:var(--violet)">
-        <div class="k">Comply</div>
-        <h3>Edition-aware code checks</h3>
-        <p>Occupant loads and citations follow the IBC edition your jurisdiction actually adopted — and round-trip flagged items to BCF.</p>
-        <span class="tag v">v0.3.295</span>
+        <div class="k">Collaborate</div>
+        <h3>Real-time co-editing</h3>
+        <p>See who else is in the model, live-reload after a collaborator publishes, and never silently overwrite their work (a stale edit is rejected with "reload"). Plus a visual node-authoring canvas to chain edit recipes into a graph.</p>
+        <span class="tag v">v0.3.367</span>
       </div>
     </div>
   </section>

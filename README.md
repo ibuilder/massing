@@ -280,7 +280,20 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **Unified discipline tree · interactive annotation · 5D cost + vintages (v0.3.309–v0.3.340, current).** One
+- **Frontier tracks + designer-workspace UX + hardening (v0.3.341–v0.3.371, current).** Five large tracks
+  landed end to end. A **structural analytical model** — `derive_analytical` idealises the physical frame into an
+  `IfcStructuralAnalysisModel` (columns/beams → curve members, slabs → surface members, shared nodes, a
+  self-weight load case). An **RFI-0 NL-QA** layer answers plain-language questions ("what governs this element?",
+  "what's blocking approval?") with **cited sources** off a new **document/specification graph**. **Real-time
+  co-editing** — a model-edit SSE stream + presence roster live-reloads a second viewer after a collaborator
+  publishes, with an **optimistic edit-lock** (stale write → 409). A **visual node-authoring canvas** wires
+  recipe nodes into a graph (output→input auto-injects the reference) and runs it as one GUID-stable pass. The
+  **designer workspace** finished — a lifecycle **ribbon** over the tool rail, `type:`/`class:`/`discipline:`
+  Library search + Recent, and a **Project-Browser spine** (views · sheets · schedules). Plus a **security
+  hardening pass** — XXE-safe schedule-import parsing, dependency pins, and a clean audit (npm 0 vulns · bandit
+  HIGH → 0 · secret-scan clean). See the changelog for each release.
+
+- **Unified discipline tree · interactive annotation · 5D cost + vintages (v0.3.309–v0.3.340).** One
   canonical **CSI-MasterFormat / UniFormat / NCS discipline** vocabulary with a **colour palette** across the
   viewer, model browser, estimate, and both engines — **colour-by-discipline** in the 3D view (legend + paint
   model) and a MasterFormat-coded rollup. **Fire protection, fire alarm, and telecom** became first-class

@@ -6,12 +6,12 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.335**. Recent waves: the
-**unified discipline tree** (DISC-1…4b — one CSI-MasterFormat/UniFormat vocabulary + colour palette across
-the viewer, model browser, estimate, and both engines; fire-alarm + telecom as first-class systems; the demo
-tower rebuilt with curtain-wall facade / fire-rated walls / roof / all 8 disciplines), the **UX-2 interactive
-annotation** track (notes · dimensions · tags · revision clouds, rendered onto plans), **MEP-FP**
-fire-protection systems, and **CODE-EBC** existing-building classification.
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.371**. Recent waves
+(v0.3.352–371): the **five frontier tracks** all landed backend + frontend — **W10-7** structural
+analytical model (`IfcStructuralAnalysisModel`), **W9-4/RFI-0** doc-graph + NL-QA cited answers, **COLLAB-1**
+real-time co-editing (presence + model-edit stream + edit-lock), **AUTH-VS** visual node-authoring canvas,
+and the **UX-1/3/4** finishing passes (lifecycle ribbon tabs · Library search operators + Recent ·
+Project-Browser spine); plus a **security hardening pass** (XXE-safe P6 parser, dependency pins, audit).
 
 > **This file holds only what is still OPEN.** Everything shipped — every wave, track, and release — lives in
 > [roadmap-completed.md](roadmap-completed.md), so *what's left* is never buried under *what's done*. The
@@ -22,23 +22,32 @@ fire-protection systems, and **CODE-EBC** existing-building classification.
 
 ---
 
-## ⚡ Order of attack — highest value first
+## 🗓 Weekend worklist — prioritized (2026-07-18/19)
 
-The authoring/coordination/discipline "big rocks" have shipped. The front now is the **UI/UX Master Pass** —
-consolidating ~97 accreted tools into a designer's workspace and surfacing the two under-exposed capabilities
-(interactive annotation, unified library) — then the remaining depth tracks.
+The authoring/coordination/discipline/UX "big rocks" and all five frontier tracks have shipped. This
+weekend's focus, in order — **reliability first, then the highest-value research upgrades**:
 
-1. **UX-1 — Ribbon consolidation** *(★★★★★)* — regroup the ~97 tools into a lifecycle task ribbon
-   (Build · Annotate · Library · Analyze · Coordinate · Document · Data). Low-risk, immediate legibility win.
-2. **UX-3 — Unified Library palette** *(★★★★★)* — one browsable content panel (types + CONTENT-1 catalog +
-   import) with thumbnails, `tag:`/`type:`/`discipline:` search, Recent, and pick-item→pick-host→auto-build.
-3. **UX-4 — Designer workspace layout** *(★★★★)* — assemble the Project-Browser spine + docked Properties
-   (instance/type split) + Library + ribbon + Info-Box into one coherent shell.
-4. **RFI-0 depth** *(★★★★★)* — missing-dimension detection + the NL-QA natural-language layer over the
-   decision-readiness audit (the shipped audit composes approvability + detail-rules + hygiene + clash).
-5. **EST-1 depth** *(★★★★)* — full QTO integration + tie crew-days to schedule durations (5D loop).
-6. **Frontier (own planning pass each):** COLLAB-1 multiplayer · SITE-1 BIM-GIS · VIZ-U1 (Unity/WebGL) ·
-   PROFORMA-LIVE · ENV-1 · AUTH-VS visual node authoring.
+1. **REL-1/2 — break the 2 import cycles** *(reliability · L)* — web portal (`panelContext→portal`) + API
+   (`db.py`) cycles. Confirm-then-cut; keep the suite green. *Security phase already shipped v0.3.371.*
+2. **KEYS — Revit-style authoring shortcuts** *(★★★★★ · S/M)* — 2-letter keyboard shortcuts (WA=wall,
+   CL=column, DR=door, CS=section…) over the recipe/tool actions; makes Revit users instantly productive.
+   *(from research image IMG_0259.)*
+3. **PREFLIGHT — one-click model-health / QA issuance gate** *(★★★★ · S/M)* — consolidated audit (orphaned
+   GUIDs · missing classifications · unplaced elements · open BCF · param completeness) before issuing.
+   Builds on the shipped RFI-0 + model-hygiene. *(pyRevit research.)*
+4. **VIEW-RANGE — plan view-range model** *(★★★★ · M)* — top/cut/bottom/**view-depth** planes so plans show
+   foundations/footings below the cut and control visibility properly (not just a single cut_z).
+   *(research image IMG_0247.)*
+5. **TAKEOFF-2D — PDF/scan quantity takeoff** *(★★★★ · M)* — browser flood-fill "one-click area" on uploaded
+   drawings feeding the existing 5D estimate (Apache-2.0 OpenTakeoff technique). Covers the drawings-only
+   estimating case the model-derived takeoff misses.
+6. **REL-3/4 — modularize the worst hotspots** *(tech-debt · L, one PR each, TESTED)* — `viewer/app.ts`,
+   `main.ts`, `portal.ts` (fix O(n·m) `openModule` → `Set`), `modules.py`, `main.py`. Façade re-exports;
+   suite green after each.
+7. **Then:** SITE-1 open-geodata slice · MEP-SIZE · STRUCT-LOADS · COST-DB · the rest of the frontier depth.
+
+Full detail for the new items is in **[🔎 Research-2 additions](#-research-2-additions-2026-07)** and the
+reliability plan in **[🔧 Reliability & hardening](#-reliability--hardening-rel)** below.
 
 ---
 
@@ -398,3 +407,87 @@ CODE-EBC ship — see the archive.)*
 - **Out-of-scope-by-design operations integrations** — live ENERGY STAR / BAS / BMS (flagged stubs only), full
   institutional reporting packs, space/move management (CAFM), 1031 tooling, JWT-revocation blacklist + Redis-
   backed presence (known limits, tracked in PRODUCTION_CHECKLIST).
+
+---
+
+## 🔎 Research-2 additions (2026-07)
+
+From the 2026-07 research round (pics12 images + 9 web sources: DDS-CAD, OpenTakeoff, Geopogo, Fieldwire,
+BuildPass, pyRevit patterns, the BIM+GIS infographic). Only genuinely on-mission, feasible items kept;
+license notes inline. Skips: AutoCAD-LISP repos (DWG-bound, low value), weld-symbols (unlicensed niche),
+Geopogo-as-product (closed Unreal — its *context-ingest* idea folds into SITE-1), full mobile field app.
+
+**Authoring & drawings (highest value):**
+- **KEYS — Revit-style keyboard shortcuts** *(S/M · ★★★★★)* — 2-letter authoring shortcuts (WA/CL/DR/CS/…)
+  over the recipe+tool actions so Revit-trained users are instantly fast. *(IMG_0259 shortcut cheat-sheet.)*
+- **VIEW-RANGE — plan view-range model** *(M · ★★★★)* — top/cut/bottom/**view-depth** planes: show
+  foundations/footings via view-depth, control per-plane visibility (vs. today's single cut_z). *(IMG_0247.)*
+- **PREFLIGHT — model-health / QA issuance gate** *(S/M · ★★★★)* — one-click audit (orphaned GUIDs · missing
+  classifications · unplaced elements · open BCF · param completeness) as an issue-the-set gate. *(pyRevit.)*
+- **SHEET-LINK — hyperlinked callouts across the sheet set** *(S · ★★★)* — clickable detail/section bubbles
+  cross-link sheets in the PDF/SVG viewer. In-house on sheetgen + markup. *(Fieldwire plan-hyperlinking.)*
+
+**Estimating & engineering:**
+- **TAKEOFF-2D — PDF/scan quantity takeoff** *(M · ★★★★)* — browser flood-fill "one-click area" tracer on
+  uploaded drawings → feeds the existing 5D estimate; covers the drawings-only case model-takeoff misses.
+  *License: OpenTakeoff is Apache-2.0 — vendor or reimplement freely (same Vite/pdf.js/pdf-lib stack).*
+- **MEP-SIZE — MEP engineering checks** *(M · ★★★★)* — server-side hydraulic/thermal duct-pipe sizing +
+  cable-tray fill-degree/load calcs over already-authored MEP, surfaced pass/fail like the IBC checks;
+  elevates MEP from *modeled* to *engineered*. Physics formulas — no license issue. *(DDS-CAD technique.)*
+- **STRUCT-LOADS — load cases + static analysis** *(L · ★★★★)* — extend W10-7 with dead/live/wind/seismic
+  `IfcStructuralLoadCase`s + per-member load activities, and lightweight beam/column static
+  (shear/moment/deflection) diagrams. *(IMG_0250 structural-analysis primer.)*
+
+**Site / GIS (folds Geopogo + the BIM+GIS infographic into SITE-1):**
+- **SITE-1 first slice — open-geodata site context** *(M · ★★★★)* — use the existing georeference to drop the
+  model onto a real basemap with **OSM footprints + parcels + terrain DEM + neighbouring-building extrusions**
+  as a separate context layer; GeoJSON→extruded blocks. *License: OSM=ODbL (attribution, keep it a separate
+  layer), CityJSON/OGC open, Cesium/Google 3D-tiles optional online-only enhancement (viewer stays offline
+  per the non-negotiable). No GPL/AGPL/paid-SDK lock-in.* Later: CityGML/CityJSON LoD1–2 read; a full IFC↔
+  CityGML *semantic* harmonization is L and deferred.
+
+**Lower-priority / conceptual:**
+- **READY-AGENT** *(M · ★★★)* — extend RFI-0 into a proactive agent that surfaces missing approvals /
+  unresolved clashes / handover-blockers with cited evidence. *(BuildPass agent pattern.)*
+- **RISK-BOARD** *(S/M · ★★★)* — a project-risk register unifying the "hidden" risks (data-quality gaps,
+  coordination debt, schedule compression, cost escalation) already computed by hygiene/clash/estimate/schedule
+  into one dashboard. *(IMG_0251 construction-iceberg framing.)*
+- Market note *(IMG_0258 "Top 20 BIM firms")*: the target audience is infrastructure-heavy (AECOM/Jacobs/WSP/
+  Arup…) → reinforces **IFC4.3 infrastructure** depth + **SITE-1** as strategically important, not net-new.
+
+## 🔧 Reliability & hardening (REL)
+
+From a static-analysis pass (blast-radius / churn / coupling). Findings are **leads to verify, not commands** —
+ground each in the real code before editing. Ship phases in order; each an independent PR; keep the suite green.
+Refactor rule: **no public-API/behavior change** except the (shipped) security phase. Prefer structural fixes
+(extract leaf module / invert dependency / DI) over deferred function-local imports.
+
+- **REL-1 — break the web portal import cycle** *(L, safest)* — cut `apps/web/src/portal/panelContext.ts →
+  portal.ts` (spans ~18 files). Confirm the real edge first; fix by `import type` (if type-only) → extract a
+  leaf `portalContract.ts` → DI. Re-verify `portal/panels/*.ts` + `portal.ts`; `tsc`+`eslint`+`vitest` green.
+- **REL-2 — break the API cycle around `db.py`** *(L)* — likely `db.py→modules.py` + `models.py→db.py`
+  (`distribution.py→modules.py` is a *suspected false edge* — only touch if proven). Move shared types out of
+  `modules.py` to a leaf; invert `models.py→db.py` via protocol/DI. Regression-test any public surface touched.
+- **REL-3 — modularize oversized API/data modules** *(L–XL, one PR each, façade at old path)* — `main.py`→~4,
+  `modules.py`→~6 (relieves REL-2), `codecheck.py`→~3, `connectors.py`→~6, `auth.py`→~5, `data/drawing.py`→~4,
+  `data/massing.py`→~3, `data/drawings.py`→~5, `bcf_io.py`→~3, `routers/generate.py`→~5. **`ruff`+`pytest`
+  green after each.**
+- **REL-4 — decompose web hotspots** *(L–XL, one PR each)* — `viewer/app.ts` (worst file) split by
+  responsibility (render setup / event wiring / data load / UI glue); `main.ts` extract large methods + flatten
+  nesting; `portal.ts` split + **fix O(n·m) `openModule` → `Set`**; `api/client.ts` — if generated, fix the
+  generator/config not the output. **Must be tested + debugged after each** (perf-sensitive; the geometry
+  preview stall means verify via typecheck/lint/vitest + tools-panel technique).
+- **REL-5 — error handling & I/O-in-loop** *(behavior-affecting)* — handle unhandled promise rejections in
+  `main.ts`; `errorReporting.ts::installErrorReporting` must not throw during install; batch FS calls out of
+  loops in `vite.config.ts::writeBundle` + `scripts/bundle-budget.mjs`; `bridge.py::execute` → dataclass; dedupe
+  DRY in `recipes.py`/`vite.config.ts`.
+- ✅ **REL-6 — security hardening — SHIPPED v0.3.371** — XXE-safe P6 parser (defusedxml), non-crypto SHA-1
+  flags cleared, pillow≥12.3 pin; audit run (npm 0 vulns · bandit HIGH→0 · secret-scan clean). *Remaining:
+  optional private-IP/metadata blocking on admin webhook URLs; `cargo audit` (tauri) + `gitleaks` full-history
+  scan in CI when those tools are available.*
+- **REL-7 — verified dead-code cleanup** *(LAST, small batches)* — ~139 findings / ~1,075 lines. Prove
+  unreferenced across the repo **and** out-of-band entry points (pyproject/package.json scripts, CI,
+  Dockerfiles, pyRevit `.pushbutton` manifests, dynamic imports) before deleting. Start with unused
+  exports/internals; be skeptical of `e2e_*.py`, `loadtest.py`, `routers/{scim,saml}.py`, converter/pyrevit.
+- **REL-8 — lock in gains** *(ci)* — CI cycle check (`import-linter` / `eslint-plugin-import` no-cycle); upload
+  coverage from CI; module-header docs on refactored hotspots (bus factor 1).
