@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.361 — COLLAB-1: live co-editing awareness (model stream)
+
+- First slice of **real-time multiplayer co-editing**. A project's *model signature* bumps on every
+  authoring publish; `GET /projects/{pid}/collab` bundles it with the live presence roster, and
+  `GET /projects/{pid}/model/stream` (SSE) re-emits that snapshot whenever the model version **or** the
+  set of present users (and where each is looking) changes — so a second open viewer live-reloads the
+  geometry after another user's edit and shows who's in the session. Reuses the existing presence + SSE
+  primitives; in-model comments already ride the GUID-anchored Topic/Comment model.
+- *Next: per-user cursors/selection overlays and optimistic edit-locks (409 on a stale write).*
+
 ## v0.3.360 — RFI-0: NL-QA with cited sources
 
 - **Natural-language QA** over the model, grounded in citations — the read/QA sibling of the AI authoring

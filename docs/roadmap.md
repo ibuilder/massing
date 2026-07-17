@@ -272,8 +272,11 @@ interop targets / content platforms / open standards named where they're integra
   shipped AI command bar + sandboxed `execute_ifc_code`.
 
 ### 🚀 Model-authoring & collaboration frontier
-- **COLLAB-1** *(L · ★★★★★)* — **real-time multiplayer co-editing** (presence, cursors, live-streamed edits) +
-  lightweight **in-model comments** — the biggest gap for a browser-based modeling tool.
+- 🟡 **COLLAB-1** *(L · ★★★★★)* — **real-time multiplayer co-editing**. **Awareness slice SHIPPED v0.3.361**:
+  a model-edit SSE stream (`GET .../model/stream`) + collab snapshot (`GET .../collab`) that live-reloads a
+  second viewer after another user publishes and shows the presence roster; in-model comments already ride
+  the GUID-anchored Topic/Comment model. *Remaining: per-user cursor/selection overlays, optimistic
+  edit-locks (stale-write 409), and the client-side viewer wiring.*
 - **PROFORMA-LIVE** *(M · ★★★★)* — tighten the **model↔proforma live loop**: yields/unit-mix/parking/efficiency
   + cost recompute **inline as you model**, not only in the portal.
 - **COST-AGENT** *(M · ★★★★)* — an estimating agent that re-estimates on each geometry change + learns from

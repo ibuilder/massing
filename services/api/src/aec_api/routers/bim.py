@@ -79,6 +79,50 @@ def presence_roster(pid: str, user: str = Depends(require_role("viewer"))):
     return {"active": presence.active(pid, exclude=user)}
 
 
+@router.get("/projects/{pid}/collab")
+def collab_snapshot(pid: str, user: str = Depends(require_role("viewer")),
+                    db: Session = Depends(get_db)):
+    """COLLAB-1: the live co-editing picture — the current model signature (bumps on every publish) plus
+    the roster of other users present. A second client polls/streams this to know when to reload the
+    model and who else is in the session."""
+    from .. import collab
+    snap = collab.snapshot(db, pid, user)
+    if snap is None:
+        raise HTTPException(404, "project not found")
+    return snap
+
+
+@router.get("/projects/{pid}/model/stream")
+async def model_stream(pid: str, request: Request, user: str = Depends(require_role("viewer"))):
+    """COLLAB-1: server-sent events that re-emit the collab snapshot whenever the model version OR the
+    presence roster changes — so an open viewer live-reloads the geometry after another user publishes an
+    edit, and shows who's in the session. Polls a change signature server-side; fresh DB session per poll
+    (the generator outlives the request)."""
+    import asyncio
+    import json as _json
+
+    from fastapi.responses import StreamingResponse
+
+    from .. import collab
+    from ..db import SessionLocal
+
+    async def gen():
+        last = None
+        while not await request.is_disconnected():
+            with SessionLocal() as db:
+                snap = collab.snapshot(db, pid, user)
+            if snap is None:
+                break
+            sig = collab.stream_signature(snap)
+            if sig != last:
+                last = sig
+                yield f"data: {_json.dumps(snap)}\n\n"
+            await asyncio.sleep(4)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 # --- drawing markup (2D sheet pins/redlines + takeoff markups; promotable to RFIs) ------
 class MarkupIn(BaseModel):
     sheet_id: str
