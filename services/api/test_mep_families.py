@@ -39,7 +39,7 @@ def _build() -> str:
 path = _build()
 
 # --- HVAC duct run: segment + a named IfcDistributionSystem ----------------------------------
-edit.apply_recipe(path, "add_duct", {"start": [0, 0], "end": [6, 0], "size": 0.4}, OUT)
+edit.apply_recipe(path, "add_duct", {"start": [0, 0], "end": [6, 0], "size": 0.4, "flow": 1200}, OUT)
 m = open_model(OUT)
 assert len(m.by_type("IfcDuctSegment")) == 1, m.by_type("IfcDuctSegment")
 assert "HVAC Supply" in {s.Name for s in m.by_type("IfcDistributionSystem")}
@@ -48,6 +48,8 @@ assert m.by_type("IfcCircleProfileDef"), "round duct section"
 import ifcopenshell.util.element as _ue  # noqa: E402
 duct_ps = _ue.get_psets(m.by_type("IfcDuctSegment")[0]).get("Pset_Massing_MEPSizing") or {}
 assert abs((duct_ps.get("NominalSize_mm") or 0) - 400.0) < 0.1 and duct_ps.get("Length_m"), duct_ps
+# W10-4 (remaining): a design flow rate rides the same pset; a duct's default flow unit is CFM
+assert abs((duct_ps.get("FlowRate") or 0) - 1200.0) < 0.1 and duct_ps.get("FlowUnit") == "CFM", duct_ps
 
 # --- pipe (own system) + cable tray (rect) + wire --------------------------------------------
 edit.apply_recipe(OUT, "add_pipe", {"start": [0, 1], "end": [6, 1], "size": 0.05}, OUT)

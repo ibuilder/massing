@@ -164,9 +164,10 @@ S1–S4 ship (deterministic baseline → multi-step LLM interpretation → confi
 - **W10-2** — **parametric family generators** (code-defined; typed params + optional formulas; profile library
   I/L/T/U/C/rect/circle + swept/boolean primitives so doors/windows/columns/casework are *generated*, not
   boxes). Freeform via an optional **build123d (Apache-2.0) / OCP (LGPL)** track. *Pure ifcopenshell for the core.*
-- 🟡 **W10-4 sizing psets SHIPPED v0.3.349** — `add_mep_run`/`add_riser` write `Pset_Massing_MEPSizing`
-  (NominalSize_mm · Shape · Length_m) so schedules/QTO/sizing read size without geometry. *Remaining:
-  flow-rate props + coincident-port auto-connect.*
+- 🟡 **W10-4 sizing psets SHIPPED v0.3.349, flow SHIPPED v0.3.355** — `add_mep_run`/`add_riser` write
+  `Pset_Massing_MEPSizing` (NominalSize_mm · Shape · Length_m · optional FlowRate/FlowUnit — default unit
+  CFM/GPM/A by system) so schedules/QTO/sizing read size + design flow without geometry. *Remaining:
+  coincident-port auto-connect.*
 - **W10-5** — **annotation & tagging layer** — *largely delivered by UX-2 (notes/dims/tags/clouds on plans);*
   finish section/elevation annotation views.
 - 🟡 **W10-6 schedule CSV SHIPPED v0.3.351** — door/window/room schedules export to CSV (`schedule.csv?kind=`).

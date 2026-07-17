@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.355 — W10-4: MEP design flow rate on segments
+
+- `add_mep_run` (duct/pipe/cable) and `add_riser` accept an optional **design flow rate** (`flow` +
+  `flow_unit`), written to `Pset_Massing_MEPSizing` alongside the nominal size. The flow unit defaults by
+  system when omitted — CFM for ducts, GPM for pipes, A for cable — so schedules, QTO, and sizing
+  pre-checks read design flow without a geometry parse. Exposed on the `add_duct`/`add_pipe`/
+  `add_cable_tray`/`add_wire`/`add_riser` recipes.
+
 ## v0.3.354 — D5: detail callouts on the PDF sheet + real sheet refs
 
 - Detail callouts now render on the **PDF** sheet path (`sheet_pdf`), not just SVG — an NCS divided-circle

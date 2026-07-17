@@ -939,15 +939,30 @@ _FIRE_EQUIPMENT = {
 }
 
 
+def _default_flow_unit(element) -> str:
+    """The conventional design-flow unit for a segment's system: airflow for ducts (CFM), liquid flow for
+    pipes (GPM), electrical current for cable (A). Used when a flow is given without an explicit unit."""
+    cls = element.is_a()
+    if "Duct" in cls:
+        return "CFM"
+    if "Cable" in cls:
+        return "A"
+    return "GPM"
+
+
 def _set_mep_sizing(model: ifcopenshell.file, element, size: float, shape: str = "round",
-                    length: float | None = None) -> None:
-    """W10-4: record the **nominal size** (+ shape/length) on an MEP segment so schedules, QTO, and sizing
-    pre-checks can read it directly instead of re-deriving from geometry. A pragmatic occurrence pset
-    (`Pset_Massing_MEPSizing`) — nominal sizing normally lives on the IfcType/profile, which our on-the-fly
-    segments don't carry."""
+                    length: float | None = None, flow: float | None = None,
+                    flow_unit: str | None = None) -> None:
+    """W10-4: record the **nominal size** (+ shape/length + optional design **flow rate**) on an MEP segment
+    so schedules, QTO, and sizing pre-checks can read it directly instead of re-deriving from geometry. A
+    pragmatic occurrence pset (`Pset_Massing_MEPSizing`) — nominal sizing normally lives on the IfcType/
+    profile, which our on-the-fly segments don't carry."""
     props: dict[str, Any] = {"NominalSize_mm": round(float(size) * 1000.0, 1), "Shape": str(shape)}
     if length is not None:
         props["Length_m"] = round(float(length), 3)
+    if flow is not None:
+        props["FlowRate"] = round(float(flow), 3)
+        props["FlowUnit"] = str(flow_unit) if flow_unit else _default_flow_unit(element)
     try:
         ps = ifcopenshell.api.run("pset.add_pset", model, product=element, name="Pset_Massing_MEPSizing")
         ifcopenshell.api.run("pset.edit_pset", model, pset=ps, properties=props)
@@ -957,7 +972,8 @@ def _set_mep_sizing(model: ifcopenshell.file, element, size: float, shape: str =
 
 def add_riser(model: ifcopenshell.file, point=(0.0, 0.0), bottom_z: float = 0.0, top_z: float = 3.0,
               size: float = 0.1, ifc_class: str = "IfcPipeSegment", storey: str | None = None,
-              system: str = "Fire Protection", discipline: str | None = "fire") -> str:
+              system: str = "Fire Protection", discipline: str | None = "fire",
+              flow: float | None = None, flow_unit: str | None = None) -> str:
     """A **vertical** MEP riser (fire standpipe · plumbing stack · vent) — an IfcPipeSegment swept along
     world +Z from `bottom_z` to `top_z` (metres) at an [E, N] point, with a port at each end, enrolled on
     the named distribution system. The vertical complement to the (horizontal) `add_mep_run`. GUID-stable."""
@@ -986,7 +1002,7 @@ def add_riser(model: ifcopenshell.file, point=(0.0, 0.0), bottom_z: float = 0.0,
     except Exception:                                     # noqa: BLE001 — older ifcopenshell w/o system.add_port
         pass
     _assign_to_system(model, seg, system, discipline)
-    _set_mep_sizing(model, seg, size, "round", height)         # vertical riser length = height
+    _set_mep_sizing(model, seg, size, "round", height, flow, flow_unit)   # vertical riser length = height
     return seg.GlobalId
 
 
@@ -1052,7 +1068,8 @@ def add_comms_device(model: ifcopenshell.file, kind: str = "idf", point=(0.0, 0.
 
 def add_mep_run(model: ifcopenshell.file, ifc_class: str, start, end, shape: str = "round",
                 size: float = 0.3, storey: str | None = None, system: str = "MEP",
-                discipline: str | None = None) -> str:
+                discipline: str | None = None, flow: float | None = None,
+                flow_unit: str | None = None) -> str:
     """A straight MEP segment (IfcDuctSegment / IfcPipeSegment / IfcCableCarrierSegment /
     IfcCableSegment) swept along start→end: a round (size=diameter) or rectangular (tray) section.
     Adds two connection ports and assigns it to a named IfcDistributionSystem."""
@@ -1094,7 +1111,7 @@ def add_mep_run(model: ifcopenshell.file, ifc_class: str, start, end, shape: str
     except Exception:                                 # noqa: BLE001 — older ifcopenshell w/o system.add_port
         pass
     _assign_to_system(model, seg, system, discipline)
-    _set_mep_sizing(model, seg, size, shape, length)
+    _set_mep_sizing(model, seg, size, shape, length, flow, flow_unit)
     return seg.GlobalId
 
 
@@ -1872,16 +1889,16 @@ RECIPES = {
                                             p.get("storey")),
     "add_duct": lambda m, p: add_mep_run(m, "IfcDuctSegment", p["start"], p["end"], "round",
                                          float(p.get("size", 0.3)), p.get("storey"), p.get("system", "HVAC Supply"),
-                                         p.get("discipline", "hvac")),
+                                         p.get("discipline", "hvac"), p.get("flow"), p.get("flow_unit")),
     "add_pipe": lambda m, p: add_mep_run(m, "IfcPipeSegment", p["start"], p["end"], "round",
                                          float(p.get("size", 0.05)), p.get("storey"), p.get("system", "Domestic Water"),
-                                         p.get("discipline", "plumbing")),
+                                         p.get("discipline", "plumbing"), p.get("flow"), p.get("flow_unit")),
     "add_cable_tray": lambda m, p: add_mep_run(m, "IfcCableCarrierSegment", p["start"], p["end"], "rect",
                                                float(p.get("size", 0.3)), p.get("storey"), p.get("system", "Power"),
-                                               p.get("discipline", "electrical")),
+                                               p.get("discipline", "electrical"), p.get("flow"), p.get("flow_unit")),
     "add_wire": lambda m, p: add_mep_run(m, "IfcCableSegment", p["start"], p["end"], "round",
                                          float(p.get("size", 0.02)), p.get("storey"), p.get("system", "Power"),
-                                         p.get("discipline", "electrical")),
+                                         p.get("discipline", "electrical"), p.get("flow"), p.get("flow_unit")),
     "add_mep_fitting": lambda m, p: add_mep_fitting(m, p["ifc_class"], p["point"], float(p.get("size", 0.3)),
                                                     p.get("predefined", "BEND"), p.get("storey"),
                                                     p.get("system", "MEP"), p.get("discipline")),
@@ -1902,7 +1919,8 @@ RECIPES = {
                                                       p.get("storey"), p.get("system", "Telecommunications")),
     "add_riser": lambda m, p: add_riser(m, p["point"], float(p.get("bottom_z", 0.0)), float(p.get("top_z", 3.0)),
                                         float(p.get("size", 0.1)), p.get("ifc_class", "IfcPipeSegment"),
-                                        p.get("storey"), p.get("system", "Fire Protection"), p.get("discipline", "fire")),
+                                        p.get("storey"), p.get("system", "Fire Protection"), p.get("discipline", "fire"),
+                                        p.get("flow"), p.get("flow_unit")),
     "set_system_predefined": lambda m, p: set_system_predefined(m, p["system"], p["discipline"]),
     "connect_mep": lambda m, p: connect_mep(m, p["guid_a"], p["guid_b"]),
     # B5 — generic element-to-element connection (IfcRelConnectsElements, LOD-350 coordination)
