@@ -78,9 +78,10 @@ codebase gap sweep + web scan). All backend, fully testable, on-mission, NOT stu
 2. **DRIFT — inter-story drift + torsional-irregularity flag** *(★★★★)* — `lateral.py` explicitly omits ASCE
    7 §12.12 drift (a *limit-state*, not a refinement). Add approximate story drift Δ = story-shear/​stiffness
    vs the allowable (h/50…h/200 by risk category) + a plan-torsion flag. Extends the shipped STRUCT-LATERAL.
-3. **FIN-TEST — test the untested finance math** *(★★★ · quality)* — `leasemgmt.py` (rent escalation /
-   CAM recovery) + `changeorders.py` (CO value / schedule-day exposure) have **no dedicated test** asserting
-   the math; silent compounding/rounding bugs are consequential. Add `test_leasemgmt.py` / `test_changeorders.py`.
+3. ✅ **FIN-TEST — test the untested finance math — SHIPPED v0.3.399** — `test_leasemgmt.py` (escalation
+   compounding · CAM recovery ratio + over/under · renewal at-risk) + `test_changeorders.py` (CO pipeline by
+   state · schedule-days excl. rejected · ball-in-court · ROM exposure), hand-computed. Math was already
+   correct — regression protection, no product change.
 4. **IFC-QA — export/delivery fidelity check** *(★★★★ · openBIM moat)* — the industry's #1 openBIM complaint
    is IFC export quality (lost Psets, broken spatial structure). Add a **round-trip check**: export the
    authored IFC → re-read → confirm element counts, spatial containment, Pset population, classification,

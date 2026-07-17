@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.399 — FIN-TEST: lock in the untested lease + change-order money math
+
+- Quality / debug pass from the codebase gap sweep. Two read-side money-computation engines had **no
+  dedicated test** asserting their math — where a silent compounding/rounding/recovery bug is consequential.
+  Now covered with hand-computed expectations:
+  - **`test_leasemgmt.py`** — rent **escalation compounding** (`base·(1+esc)^y`, verified to 5-year), the
+    portfolio-by-year sum (active-only), **CAM/expense recovery** (`psf×sf`, recovery ratio, over/under-
+    recovery vs the opex pool, zero-pool guard), and **renewal at-risk rent** (expiry bucketing, holdover);
+    plus empty/malformed-input robustness.
+  - **`test_changeorders.py`** — the CO value pipeline by state (pending / approved / executed / rejected),
+    **schedule-day exposure excluding rejected**, ball-in-court mapping, reason mix, and open-only
+    change-event ROM exposure.
+- The math was **already correct** — no product change; this is regression protection for the developer-
+  finance surface. Both wired into the test gate.
+
 ## v0.3.398 — MODEL-DIFF: element-level revision diff (what actually changed)
 
 - New capability from a codebase gap sweep. Model version diff previously compared only the GUID **set**
