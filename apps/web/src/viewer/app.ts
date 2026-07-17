@@ -2775,23 +2775,34 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           });
         };
 
-        type LibItem = { label: string; sub: string; search: string; onPlace: () => Promise<void> };
+        type LibItem = { key: string; label: string; sub: string; cls: string; cat: string;
+                         kind: "content" | "type"; search: string; onPlace: () => Promise<void> };
         const items: LibItem[] = [];
         for (const [group, gitems] of Object.entries(cat!.groups)) {
           for (const it of gitems) {
             const nm = it.key.replace(/_/g, " ");
-            items.push({ label: nm + (it.phase === "temporary" ? " ⏱" : ""),
+            items.push({ key: `content:${it.key}`, label: nm + (it.phase === "temporary" ? " ⏱" : ""),
               sub: `${it.ifc_class.replace("Ifc", "")} · ${group}${it.phase ? ` · ${it.phase}` : ""}`,
+              cls: it.ifc_class.toLowerCase(), cat: group.toLowerCase(), kind: "content",
               search: `${nm} ${it.ifc_class} ${it.classification} ${it.phase || ""} ${group} content`.toLowerCase(),
               onPlace: placeAt(nm, (e, n) => api.placeContent(projectId!, it.key, [e, n], undefined, true)) });
           }
         }
         for (const f of Object.values(fams!.categories).flat() as FamilyDef[]) {
-          items.push({ label: f.label,
+          items.push({ key: `type:${f.key}`, label: f.label,
             sub: `${f.ifc_class.replace("Ifc", "")} · ${f.category} · type`,
+            cls: f.ifc_class.toLowerCase(), cat: f.category.toLowerCase(), kind: "type",
             search: `${f.label} ${f.key} ${f.ifc_class} ${f.category} family type`.toLowerCase(),
             onPlace: placeAt(f.label, (e, n) => api.placeFamily(projectId!, f.key, [e, n])) });
         }
+        // UX-3: a Recent bucket — the last handful of placed items, most-recent first (per-project)
+        const RECENT_KEY = `lib-recent:${projectId}`;
+        const readRecent = (): string[] => { try { return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"); } catch { return []; } };
+        const pushRecent = (k: string) => {
+          const r = [k, ...readRecent().filter((x) => x !== k)].slice(0, 6);
+          try { localStorage.setItem(RECENT_KEY, JSON.stringify(r)); } catch { /* quota */ }
+        };
+        for (const it of items) { const orig = it.onPlace; it.onPlace = async () => { pushRecent(it.key); await orig(); }; }
 
         showResult("📚 Library", (body) => {
           body.appendChild(resultNote(`<b>${items.length}</b> library items — content parts + family types. `
@@ -2818,22 +2829,50 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           };
           imp.append(impLbl, catIn, fileIn); body.appendChild(imp);
 
-          // searchable unified list
+          // searchable unified list — supports `type:` / `class:` / `category:` / `discipline:` operators
           const search = document.createElement("input"); search.className = "portal-filter";
-          search.placeholder = "Search library — name / IFC class / category…";
+          search.placeholder = "Search — or type:wall · class:ifccolumn · category:furniture · discipline:…";
           search.style.cssText = "width:100%;margin:2px 0 6px;font-size:12px";
           const list = document.createElement("div"); list.style.cssText = "display:flex;flex-direction:column;gap:3px;max-height:340px;overflow:auto";
+          const mkBtn = (it: LibItem) => {
+            const b2 = document.createElement("button"); b2.className = "mini-btn";
+            b2.style.cssText = "text-align:left;width:100%";
+            b2.innerHTML = `${it.label} <span class="meta" style="font-size:10px">— ${it.sub}</span>`;
+            b2.onclick = () => { void it.onPlace().then(() => draw(search.value)); };
+            return b2;
+          };
+          // parse a query into free terms + field:value operators (type→label/key, class→ifc class,
+          // category→group, discipline→best-effort over the full search string)
+          const matches = (it: LibItem, q: string): boolean => {
+            for (const tok of q.trim().toLowerCase().split(/\s+/).filter(Boolean)) {
+              const m = /^(type|class|category|cat|discipline|disc|tag):(.+)$/.exec(tok);
+              if (m) {
+                const [, op, val] = m;
+                const ok = op === "type" ? (it.label.toLowerCase().includes(val!) || it.key.includes(val!))
+                  : op === "class" ? it.cls.includes(val!)
+                  : (op === "category" || op === "cat") ? it.cat.includes(val!)
+                  : it.search.includes(val!);            // discipline/tag → full-text fallback
+                if (!ok) return false;
+              } else if (!it.search.includes(tok)) return false;
+            }
+            return true;
+          };
           const draw = (q: string) => {
             list.innerHTML = "";
-            const ql = q.trim().toLowerCase();
-            const shown = items.filter((it) => !ql || it.search.includes(ql));
-            for (const it of shown) {
-              const b2 = document.createElement("button"); b2.className = "mini-btn";
-              b2.style.cssText = "text-align:left;width:100%";
-              b2.innerHTML = `${it.label} <span class="meta" style="font-size:10px">— ${it.sub}</span>`;
-              b2.onclick = it.onPlace;
-              list.appendChild(b2);
+            const ql = q.trim();
+            if (!ql) {
+              const recentKeys = readRecent();
+              const recent = recentKeys.map((k) => items.find((it) => it.key === k)).filter(Boolean) as LibItem[];
+              if (recent.length) {
+                const h = document.createElement("div"); h.className = "meta"; h.style.cssText = "font-size:10px;opacity:.7;margin-top:2px";
+                h.textContent = "RECENT"; list.appendChild(h);
+                for (const it of recent) list.appendChild(mkBtn(it));
+                const sep = document.createElement("div"); sep.className = "meta"; sep.style.cssText = "font-size:10px;opacity:.7;margin-top:4px";
+                sep.textContent = "ALL"; list.appendChild(sep);
+              }
             }
+            const shown = items.filter((it) => !ql || matches(it, ql));
+            for (const it of shown) list.appendChild(mkBtn(it));
             if (!shown.length) { const n = document.createElement("div"); n.className = "meta"; n.textContent = "No items match."; list.appendChild(n); }
           };
           search.oninput = () => draw(search.value);

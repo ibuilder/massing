@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.368 — UX-3: Library filter operators + Recent bucket
+
+- The unified **Library** palette gains scoped search operators — `type:` (name/key), `class:` (IFC
+  class), `category:`/`cat:`, and `discipline:`/`tag:` (full-text) — combinable with free terms
+  (e.g. `class:ifccolumn`, `category:furniture`). And a **Recent** bucket: the last six placed items
+  surface at the top of the list (per-project, in localStorage) for quick re-placement.
+
 ## v0.3.367 — AUTH-VS: visual node-authoring canvas
 
 - A **visual node-graph editor** (Build → Advanced authoring → *Visual node authoring*) over the

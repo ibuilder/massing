@@ -75,9 +75,9 @@ Recent, thumbnails, editable tags; a **pick content → pick host → auto-build
   inference engine) + live guide-lines.
 - 🟡 **UX-3 (first slice) SHIPPED v0.3.343** — the 📚 Library opens one **searchable unified palette** merging
   the CONTENT-1 content catalog + the W10-1 family types in a single filterable list (search across name /
-  class / category / phase; click-to-place at E,N; inline mesh import). **Remaining:** thumbnails,
-  `tag:`/`type:`/`discipline:` operators, a Recent bucket, drag-to-place, pick-host→auto-build, appendable
-  IFC libraries.
+  class / category / phase; click-to-place at E,N; inline mesh import). **Operators + Recent SHIPPED
+  v0.3.368** — `type:`/`class:`/`category:`/`discipline:`/`tag:` scoped search + a per-project Recent
+  bucket. **Remaining:** thumbnails, drag-to-place, pick-host→auto-build, appendable IFC libraries.
 - **UX-3 — Unified Library palette** *(L · high)* — one browsable **content panel** unifying the W10-1
   type/family system + the CONTENT-1 catalog (logistics/furniture/landscaping) + external IFC/glTF import: a
   **thumbnail grid**, case-insensitive search with `tag:`/`type:`/`discipline:` filters, a **Recent** bucket,
