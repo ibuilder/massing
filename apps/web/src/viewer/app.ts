@@ -34,6 +34,7 @@ import { type ApiClient, type DisciplineTree, type ElementProps, type PropLayer,
 import { escapeHtml, fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
 import { showResult, kvTable, resultNote } from "../ui/result";
 import { openNodeCanvas } from "./nodeCanvas";
+import { openTakeoff2d } from "./takeoff2d";
 
 /** View options the settings bar owns (in main) and the viewer applies. */
 export type Settings = {
@@ -3110,6 +3111,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         const gltf = toolBtn2("⬇ Export 3D (.gltf)", () => window.open(api.modelGltfUrl(projectId!), "_blank"));
         gltf.title = "Self-contained glTF 2.0 JSON (interchange)";
         b.appendChild(gltf);
+        // TAKEOFF-2D — quantify from an uploaded drawing (no model needed), feeds the 5D estimate
+        const to2d = toolBtn2("📐 2D takeoff (from a drawing)", () => {
+          if (!projectId) { notify("connect a project first", "error"); return; }
+          openTakeoff2d({
+            quantify: (regions, sc, unit) => api.takeoff2d(projectId!, regions, sc, unit),
+            notify,
+          });
+        });
+        to2d.title = "Upload a PDF-page image / scan, calibrate the scale, trace or flood-fill regions → priced quantities into the 5D estimate";
+        b.appendChild(to2d);
       },
       qa: () => {
         const b = section("qa", "Analyze & Coordinate · clash / QA", { requires: "sourceIfc", tool: true });

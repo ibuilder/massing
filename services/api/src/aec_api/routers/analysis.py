@@ -297,6 +297,26 @@ def loads_takedown(pid: str, body: dict = Body(default={}), db: Session = Depend
                           column_count=int(col or 12))
 
 
+@router.post("/projects/{pid}/takeoff/2d")
+def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+               _sec: str = Depends(require_role("viewer"))):
+    """TAKEOFF-2D: quantify + price regions traced on a 2D drawing (PDF page / scan) — the drawings-only
+    case the model takeoff misses. Body: `{scale_units_per_px, unit?, regions:[{category, points, label?}],
+    overrides?}` (or supply `calibration:{p1,p2,real_distance}` to derive the scale). Returns per-region +
+    per-assembly quantities and cost, feeding the same 5D estimate. **Preliminary — trace/scale dependent.**"""
+    from .. import takeoff2d
+    scale = body.get("scale_units_per_px")
+    cal = body.get("calibration") or {}
+    if scale is None and cal:
+        scale = takeoff2d.calibration_scale(cal.get("p1", [0, 0]), cal.get("p2", [1, 0]),
+                                            float(cal.get("real_distance", 1.0)))
+    if not scale or float(scale) <= 0:
+        raise HTTPException(422, "a positive scale_units_per_px (or a valid calibration) is required")
+    return takeoff2d.quantify(body.get("regions") or [], float(scale),
+                              unit=str(body.get("unit") or "m"),
+                              overrides=body.get("overrides") or {})
+
+
 @router.get("/projects/{pid}/models/georeferencing")
 def model_georeferencing(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Shared-coordinates / setout basis for the project's source model — full IfcMapConversion

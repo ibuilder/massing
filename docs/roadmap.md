@@ -54,8 +54,11 @@ drawings + cost + proforma (377), and the **model estimate → proforma** hard-c
    a title block (project · subtitle · issue date · sheet count) + a **key-plan footprint thumbnail rendered
    from the model** + a **discipline-grouped, paginated drawing index** (no more silent truncation past the
    first page). `drawingset._cover_pdf`. *(audit gap #4.)*
-6. **TAKEOFF-2D — PDF/scan quantity takeoff** *(★★★★ · M)* — browser flood-fill "one-click area" on uploaded
-   drawings feeding the existing 5D estimate (Apache-2.0 OpenTakeoff technique).
+6. ✅ **TAKEOFF-2D — PDF/scan quantity takeoff — SHIPPED v0.3.388** — a 📐 2D Takeoff overlay (upload a
+   drawing image · calibrate scale · trace polygons or one-click flood-fill · quantify) + `POST /takeoff/2d`
+   measuring shoelace area / polyline length × the calibration → priced per-assembly quantities into the 5D
+   estimate. Measurement/pricing core unit-tested; canvas tracer build-verified. *(OpenTakeoff technique.)*
+   *Remaining: PDF.js page rasterization in-app + a finer flood-fill contour trace.*
 7. ✅ **DISC-SSOT — single discipline/class source — SHIPPED v0.3.385** — sheet-series is now a **derived
    view** of the canonical discipline map (`classification.series_of_ifc_class`), and `sheetgen.detect_series`
    + the drawing-set cover both derive from it (their private tables removed) — discipline↔sheet-series can

@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.388 — TAKEOFF-2D: quantity takeoff from a drawing → the 5D estimate
+
+- The **drawings-only takeoff** the model takeoff misses. Upload a PDF-page image / scan, **calibrate the
+  scale** (click two points at a known real distance), then trace regions — click polygon vertices or
+  **one-click flood-fill** inside an enclosed area — and each region is measured + priced by assembly.
+- **`POST /projects/{pid}/takeoff/2d`** — the deterministic measurement + pricing core: shoelace area /
+  polyline length in pixels × the calibration → real m² / m, priced at per-assembly benchmark rates
+  (floor slab · roofing · partitions · curtain wall · paving · linear walls/footings …), overridable per
+  project vintage; returns per-region rows + per-assembly rollups + total, feeding the same 5D estimate.
+- Viewer: a **📐 2D Takeoff** overlay (upload · calibrate · trace/flood-fill · quantify) in the turnover
+  group. Preliminary — accuracy is trace/scale dependent; verify against the model takeoff where a model
+  exists. (The measurement/pricing core is unit-tested; the canvas tracer is build-verified.)
+
 ## v0.3.387 — EXPORT: binary glTF (.glb) + first-class IFC re-export
 
 - **`GET …/model/export.glb`** — the model geometry now exports as a **binary glTF (.glb)** — the compact

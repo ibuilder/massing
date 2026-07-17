@@ -2256,6 +2256,21 @@ export class ApiClient extends HttpCore {
   modelIfcUrl(pid: string) {
     return this.url(`/projects/${pid}/model/export.ifc`);
   }
+  /** TAKEOFF-2D: measure + price regions traced on a 2D drawing at a calibrated scale (units/px). */
+  takeoff2d(pid: string, regions: { category: string; points: [number, number][]; label?: string }[],
+            scaleUnitsPerPx: number, unit = "m") {
+    return this.json<{
+      region_count: number; total_cost: number; unit: string;
+      regions: { index: number; category: string; assembly: string; measure: string; quantity: number;
+                 unit: string; rate: number; cost: number }[];
+      by_assembly: { category: string; assembly: string; unit: string; quantity: number; cost: number; count: number }[];
+      assemblies: { category: string; measure: string; rate: number; label: string; unit: string | null }[];
+      disclaimer: string;
+    }>(`/projects/${pid}/takeoff/2d`, {
+      method: "POST",
+      body: JSON.stringify({ scale_units_per_px: scaleUnitsPerPx, unit, regions }),
+    });
+  }
   /** Interning/columnar efficiency stats (dedup ratio + estimated RAM saved) — G1. */
   modelColumnarStats(pid: string) {
     return this.json<{ model_loaded: boolean; elements?: number; param_rows?: number;
