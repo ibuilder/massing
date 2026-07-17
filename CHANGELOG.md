@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.370 — UX-1: lifecycle ribbon tabs over the tool rail
+
+- A **ribbon tab-strip** (All · Build · Analyze · Coordinate · Document · Data) at the top of the model
+  tool rail filters the accreted tool sections to one lifecycle phase at a time — so the ~7-section,
+  ~90-tool rail reads like a Revit-style task ribbon. A thin nav layer over the existing `section()`s
+  (matched off each group's title); the active tab persists. Verified live: Build → only the 3 Build
+  sections show, the rest hide.
+
 ## v0.3.369 — UX-4: Project-Browser spine (views/sheets/schedules)
 
 - The model-browser panel now opens with a **Project browser** nav strip — quick links to *Plans & views*,

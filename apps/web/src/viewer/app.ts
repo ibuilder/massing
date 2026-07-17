@@ -1525,6 +1525,38 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     }
     panel.appendChild(links);
 
+    // UX-1: a lifecycle ribbon tab-strip — filter the accreted tool sections to one phase at a time
+    // (Build · Analyze · Coordinate · Document · Data), matched off each group's title prefix. A thin
+    // navigation layer over the existing section()s; the choice persists per session.
+    const RIBBON_KEY = "tools-ribbon";
+    const PHASES: [string, (t: string) => boolean][] = [
+      ["All", () => true],
+      ["Build", (t) => t.startsWith("build ")],
+      ["Analyze", (t) => t.includes("analyze")],
+      ["Coordinate", (t) => t.includes("coordinate") || t.includes("clash")],
+      ["Document", (t) => t.startsWith("document")],
+      ["Data", (t) => t.startsWith("data ")],
+    ];
+    const ribbon = document.createElement("div");
+    ribbon.className = "tools-ribbon";
+    ribbon.style.cssText = "display:flex;flex-wrap:wrap;gap:3px;margin:0 2px 8px";
+    const applyPhase = (name: string) => {
+      const match = PHASES.find(([n]) => n === name)?.[1] ?? (() => true);
+      for (const g of panel.querySelectorAll<HTMLElement>(".tool-group")) {
+        const title = (g.querySelector(".tool-group-head .t")?.textContent || "").toLowerCase();
+        g.style.display = name === "All" || match(title) ? "" : "none";
+      }
+      for (const b of ribbon.querySelectorAll<HTMLElement>("button")) b.classList.toggle("on", b.dataset.phase === name);
+      for (const sep of panel.querySelectorAll<HTMLElement>(".tools-more")) sep.style.display = name === "All" ? "" : "none";
+    };
+    for (const [name] of PHASES) {
+      const b = document.createElement("button"); b.className = "tool-btn"; b.textContent = name; b.dataset.phase = name;
+      b.style.cssText = "font-size:10.5px;padding:2px 9px";
+      b.onclick = () => { localStorage.setItem(RIBBON_KEY, name); applyPhase(name); };
+      ribbon.appendChild(b);
+    }
+    panel.appendChild(ribbon);
+
     // model metadata gates IFC-only tools (drawings, QA, energy, authoring, exports)
     let hasIfc = false;
     if (projectId) { try { hasIfc = !!(await api.project(projectId)).has_source_ifc; } catch { /* offline */ } }
@@ -3765,6 +3797,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       },
     };
     for (const key of order) builders[key]?.();
+    applyPhase(localStorage.getItem(RIBBON_KEY) || "All");   // UX-1: restore the active lifecycle tab
   }
 
   /** Hashed hue for an IFC class — the stable per-class fallback color. */

@@ -60,8 +60,9 @@ Recent, thumbnails, editable tags; a **pick content → pick host → auto-build
 - 🟡 **UX-1 (first slices) SHIPPED v0.3.341–342** — (a) tool sections labelled + ordered by the modeling
   lifecycle (Data · Build · Analyze & Coordinate · Document), "More tools" flowing Build → Analyze → Document;
   (b) the interactive annotation tools + content library surfaced as their own **✍ Annotate** and **📚
-  Library** groups (out of the Advanced-fabrication fold). **UX-1 remaining:** a true single task ribbon
-  (merge the separate Build sections; Analyze/Coordinate/Document as first-class ribbon tabs).
+  Library** groups (out of the Advanced-fabrication fold). **Ribbon tabs SHIPPED v0.3.370** — a lifecycle
+  tab-strip (All · Build · Analyze · Coordinate · Document · Data) filters the sections to one phase.
+  **UX-1 remaining:** physically merging the Build sub-sections into one Build tab (vs. tab-filtering).
 - **UX-1 — Ribbon consolidation** *(M · high)* — regroup the ~97 tools into a lifecycle task ribbon replacing
   the 7 accreted sections: **Build/Author** (grids·levels → walls·columns·slabs·roofs·families·MEP; sloped/
   mesh/sandbox under an "advanced" fold) · **Annotate** (UX-2) · **Library** (UX-3) · **Analyze** (code/EBC ·
