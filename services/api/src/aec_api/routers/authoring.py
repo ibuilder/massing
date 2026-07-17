@@ -780,6 +780,43 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
     return result
 
 
+@router.post("/projects/{pid}/edit/graph")
+def edit_graph(pid: str, graph: dict = Body(...), publish: bool = Body(default=False),
+               base_source: str | None = Body(default=None), db: Session = Depends(get_db),
+               actor: str = Depends(require_role("editor"))):
+    """AUTH-VS: execute a **recipe graph** — a set of authoring-recipe nodes wired by data dependencies
+    (one node's created GUID feeds the next) — as a single GUID-stable authoring pass, saving one new
+    version. Body: {graph:{nodes,edges}, publish?, base_source?}. Honors the COLLAB-1 optimistic lock."""
+    from aec_data import nodegraph  # type: ignore
+
+    p = _project(db, pid)
+    if base_source is not None and p.source_ifc and Path(base_source).name != Path(p.source_ifc).name:
+        raise HTTPException(409, "the model changed since you loaded it (another user published) — "
+                                 "reload before editing")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+    out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+    try:
+        result = nodegraph.execute_graph(p.source_ifc, graph, out)
+    except (ValueError, KeyError) as e:               # bad graph: unknown recipe/id, cycle, dangling ref
+        raise HTTPException(400, str(e)) from e
+    from .. import edit_history
+    edit_history.push(pid, p.source_ifc)
+    p.source_ifc = out
+    audit.record(db, action="ifc.edit_graph", actor=actor, method="POST",
+                 path=f"/projects/{pid}/edit/graph", detail={"nodes": result["node_count"]})
+    db.commit()
+    if publish:
+        _publish_bg(pid)
+        result["publish"] = "running"
+    # the raw recipe outputs can be large / non-serialisable dicts — return the run shape, not every field
+    return {"node_count": result["node_count"], "order": result["order"],
+            "outputs": {k: (v if isinstance(v, (str, int, float)) else
+                            (v.get("guid") if isinstance(v, dict) else str(v)))
+                        for k, v in result["outputs"].items()},
+            **({"publish": result["publish"]} if "publish" in result else {})}
+
+
 @router.get("/content/catalog")
 def content_catalog(_: str = Depends(current_user)):
     """CONTENT-1: the curated content catalog — logistics / furniture / landscaping parts, each mapped to the

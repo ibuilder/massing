@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.363 — AUTH-VS: recipe-graph execution engine
+
+- New **visual node authoring** backend. A *recipe graph* — authoring-recipe nodes wired by data
+  dependencies — runs as one GUID-stable pass: `nodegraph.execute_graph` topologically orders the nodes
+  (Kahn sort over the edges; array order when unwired) and threads each node's output into downstream
+  params via `{"$from": "<node id>", "key"?: "<field>"}` references (a column node's GUID feeds the base
+  plate that sits on it). Over the same `RECIPES` registry as the AI command bar — the no-code sibling.
+- Served at `POST /projects/{pid}/edit/graph` (body `{graph, publish?, base_source?}`), versioning the IFC
+  like `/edit` and honoring the COLLAB-1 optimistic lock. Bad graphs (unknown recipe/id, cycle, dangling
+  ref, duplicate id) are rejected 400.
+
 ## v0.3.362 — COLLAB-1: optimistic edit-lock (no silent overwrite)
 
 - `POST /projects/{pid}/edit` accepts an optional **`base_source`** — the model signature the client last
