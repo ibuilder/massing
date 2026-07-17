@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.369 — UX-4: Project-Browser spine (views/sheets/schedules)
+
+- The model-browser panel now opens with a **Project browser** nav strip — quick links to *Plans & views*,
+  *Sheets*, and *Schedules* (deep-linking the Drawings workspace) above a labelled *Model* element tree —
+  so the browser reads as a full project index (à la a Revit Project Browser), not just a class list.
+
 ## v0.3.368 — UX-3: Library filter operators + Recent bucket
 
 - The unified **Library** palette gains scoped search operators — `type:` (name/key), `class:` (IFC

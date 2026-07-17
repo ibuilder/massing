@@ -90,8 +90,9 @@ Recent, thumbnails, editable tags; a **pick content → pick host → auto-build
   rail tab.
 - 🟡 **UX-4 ("Script this") SHIPPED v0.3.348** — a ⌨ toolbar button that reveals the GUID-safe **recipe plan**
   behind a plain-English command (the verbs the AI bar + sandbox share) and applies it — the code interface
-  made discoverable. **UX-4 remaining:** enrich the Project-Browser spine (views/sheets/schedules + type
-  library) and assemble the full shell.
+  made discoverable. **Project-Browser spine SHIPPED v0.3.369** — the model browser opens with a Views ·
+  Sheets · Schedules nav strip above a labelled Model tree. **UX-4 remaining:** the type-library branch in
+  the browser + assembling the full one-shell layout.
 - **UX-4 — Designer workspace layout** *(M · high)* — assemble the four resources into one shell: a
   **Project-Browser spine** (spatial tree + views/sheets/schedules + the type library — extends the model
   browser), the docked **Properties** palette with the **instance-vs-type split** (extends P6d), the **Library**

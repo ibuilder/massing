@@ -1202,6 +1202,29 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const elements: ElementProps[] = await api.elements(projectId, { limit: 5000 });
     const treePanel = $("panel-tree");
     treePanel.innerHTML = "";
+    // UX-4 Project-Browser spine: a Views · Sheets · Schedules nav strip above the spatial/element tree,
+    // so the model browser is a full project index (à la Revit's Project Browser), not just elements.
+    const spine = document.createElement("div");
+    spine.className = "browser-spine";
+    spine.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;padding:4px 6px 6px;border-bottom:1px solid var(--border,#334155);margin-bottom:4px";
+    const spineTitle = document.createElement("div");
+    spineTitle.className = "section-title"; spineTitle.textContent = "Project browser"; spineTitle.style.width = "100%";
+    spine.appendChild(spineTitle);
+    const goWs = (key: string) => window.dispatchEvent(new CustomEvent("aec:workspace", { detail: key }));
+    for (const [label, ws, title] of [
+      ["📐 Plans & views", "drawings", "Open the Drawings workspace — plans, sections, elevations"],
+      ["📄 Sheets", "drawings", "Composed sheets (titleblock + viewports) in the Drawings workspace"],
+      ["📋 Schedules", "drawings", "Door / window / room schedules in the Drawings workspace"],
+    ] as const) {
+      const btn = document.createElement("button"); btn.className = "mini-btn"; btn.textContent = label;
+      btn.style.cssText = "font-size:10.5px;padding:2px 7px"; btn.title = title;
+      btn.onclick = () => goWs(ws);
+      spine.appendChild(btn);
+    }
+    const treeHead = document.createElement("div");
+    treeHead.className = "section-title"; treeHead.textContent = "Model";
+    treeHead.style.cssText = "padding:0 6px";
+    treePanel.append(spine, treeHead);
     treePanel.appendChild(buildTree(elements, (guid) => selectByGuid(guid, false)));
 
     const meta = await api.meta(projectId);
