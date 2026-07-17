@@ -11,14 +11,13 @@ from __future__ import annotations
 import csv
 import xml.etree.ElementTree as ET
 from collections.abc import Iterable
-
-import defusedxml.ElementTree as _DET  # XXE-safe parser for untrusted P6 XML uploads
-from defusedxml.common import DefusedXmlException
 from typing import Any
 
+import defusedxml.ElementTree as _DET  # XXE-safe parser for untrusted P6 XML uploads
 import ifcopenshell
 import ifcopenshell.util.element as ue
 import ifcopenshell.util.sequence as seq
+from defusedxml.common import DefusedXmlException
 
 from .ifc_loader import open_model, physical_elements, storey_name
 
