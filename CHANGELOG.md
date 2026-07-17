@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.380 — KEYS: Revit-style keyboard shortcuts for drawing
+
+- Type a **2-letter code** (no modifier) in the viewer to arm a draw tool, Revit-style, then click to
+  place — **WA** wall · **CL** column · **BM** beam · **SL** slab · **RF** roof · **RA** railing · **SC**
+  steel column · **SB** steel beam · **RB** rebar · **FT** footing · **DU** duct · **PI** pipe · **CT**
+  cable tray · **WR** wire. **Esc** disarms; **?** shows the shortcut list. A small HUD echoes the code as
+  you type. Shortcuts are suppressed while typing in any input/textarea, so text fields are unaffected.
+  Makes Revit-trained users productive without hunting the tool rail.
+
 ## v0.3.379 — fix 3 CodeQL ReDoS alerts (codecheck free-text parser)
 
 - Cleared the 3 open **`py/polynomial-redos` (HIGH)** CodeQL alerts in `codecheck._detect` — the free-text

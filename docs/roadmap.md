@@ -31,9 +31,9 @@ drawings + cost + proforma (377), and the **model estimate → proforma** hard-c
 
 **Do next, highest value first:**
 
-1. **KEYS — Revit-style authoring shortcuts** *(★★★★★ · S/M)* — 2-letter keyboard shortcuts (WA=wall,
-   CL=column, DR=door, CS=section…) over the recipe/tool actions; makes Revit users instantly productive.
-   *(research image IMG_0259.)*
+1. ✅ **KEYS — Revit-style authoring shortcuts — SHIPPED v0.3.380** — 2-letter codes arm a draw tool
+   (WA/CL/BM/SL/RF/RA/SC/SB/RB/FT/DU/PI/CT/WR), Esc disarms, `?` shows help, HUD echoes the buffer,
+   suppressed in inputs. *Remaining: type-a-dimension-while-drawing (VCB) + more non-draw actions.*
 2. **PREFLIGHT — one-click model-health / QA issuance gate** *(★★★★ · S/M)* — consolidated audit (orphaned
    GUIDs · missing classifications · unplaced elements · open BCF · param completeness) before issuing.
    Builds on the shipped RFI-0 + model-hygiene. *(pyRevit research.)*

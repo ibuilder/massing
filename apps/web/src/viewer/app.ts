@@ -875,6 +875,59 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const armPts: THREE.Vector3[] = [];
   let draftHandle: DraftPanelHandle | null = null;
   function disarmDraft() { armed = null; armPts.length = 0; draftHandle?.onArmCleared(); }
+
+  // KEYS — Revit-style 2-letter keyboard shortcuts that arm a draw tool (WA=wall, CL=column, …), so
+  // Revit-trained users are instantly fast. Type two letters (no modifier); Esc disarms; ? shows help.
+  const KEY_SHORTCUTS: [string, string, string][] = [   // [code, draft-element key, label]
+    ["WA", "wall", "Wall"], ["SL", "slab", "Slab / floor"], ["RF", "roof", "Roof"],
+    ["RA", "railing", "Railing"], ["CL", "column", "Column"], ["BM", "beam", "Beam"],
+    ["SC", "steel_column", "Steel column"], ["SB", "steel_beam", "Steel beam"],
+    ["RB", "rebar", "Rebar"], ["FT", "footing", "Footing"],
+    ["DU", "duct", "Duct"], ["PI", "pipe", "Pipe"], ["CT", "cable_tray", "Cable tray"],
+    ["WR", "wire", "Wire"],
+  ];
+  const KEY_MAP: Record<string, string> = Object.fromEntries(KEY_SHORTCUTS.map(([c, k]) => [c, k]));
+  function showKeysHelp() {
+    showResult("⌨ Keyboard shortcuts", (body) => {
+      body.appendChild(resultNote("Type a 2-letter code (no modifier) to arm a draw tool, then click in "
+        + "the model to place. <b>Esc</b> disarms · <b>?</b> shows this.", ""));
+      body.appendChild(kvTable(KEY_SHORTCUTS.map(([c, , label]) => ({ k: c, v: label }))));
+    });
+  }
+  function installKeyboardShortcuts() {
+    let buf = "";
+    let bufTimer = 0;
+    const hud = document.createElement("div");
+    hud.className = "keys-hud";
+    hud.style.cssText = "position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:38;"
+      + "display:none;background:var(--panel,#0f172a);color:var(--fg,#e2e8f0);border:1px solid "
+      + "var(--border,#334155);border-radius:6px;padding:3px 10px;font-size:13px;"
+      + "font-family:ui-monospace,monospace;letter-spacing:2px";
+    container.appendChild(hud);
+    const clearBuf = () => { buf = ""; hud.style.display = "none"; };
+    window.addEventListener("keydown", (e) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "Escape") { disarmDraft(); clearBuf(); return; }
+      if (e.key === "?") { e.preventDefault(); showKeysHelp(); return; }
+      if (!/^[a-zA-Z]$/.test(e.key)) return;
+      buf = (buf + e.key.toUpperCase()).slice(-2);
+      window.clearTimeout(bufTimer);
+      bufTimer = window.setTimeout(clearBuf, 900);
+      hud.textContent = buf; hud.style.display = "block";
+      if (buf.length === 2) {
+        const key = KEY_MAP[buf];
+        if (key) {
+          const label = draftHandle?.armByKey(key);
+          if (label) notify(`${label} armed — click in the model to place`, "info");
+          else if (draftHandle) notify(`“${buf}” → ${key}: not available (needs a source IFC)`, "info");
+        }
+        clearBuf();
+      }
+    });
+  }
+  installKeyboardShortcuts();
   // P1 grid/level drafting refs: the grid overlay + snap, and the active storey/work-plane.
   const gridOverlay = new GridOverlay(viewer.world.scene.three);
   const logisticsOverlay = new LogisticsOverlay(viewer.world.scene.three);

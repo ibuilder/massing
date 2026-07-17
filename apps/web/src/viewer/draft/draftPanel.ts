@@ -33,6 +33,9 @@ export interface DraftPanelDeps {
 export interface DraftPanelHandle {
   /** app.ts calls this when a placement completes / is cancelled, to clear the armed highlight. */
   onArmCleared: () => void;
+  /** Keyboard shortcut (KEYS): select + arm a draft element by its catalog key, using default params.
+   *  Returns the element label if armed, or null when the key is unknown / authoring isn't available. */
+  armByKey: (key: string) => string | null;
 }
 
 export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
@@ -167,5 +170,19 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
 
   return {
     onArmCleared() { if (armedKey) { armedKey = null; renderForm(); } },
+    armByKey(key: string): string | null {
+      const s = allElements().find((e) => e.key === key);
+      if (!s) return null;
+      discipline = s.discipline;      // switch to its discipline so the list/form reflect the pick
+      selected = s;
+      renderList();
+      renderForm();
+      if (!deps.canAuthor()) { deps.notify("connect a project with a source IFC to draft", "error"); return null; }
+      const vals: ParamValues = {};
+      for (const p of s.params) vals[p.key] = p.default;   // arm straight with defaults (keyboard flow)
+      arm({ key: s.key, label: s.label, recipe: s.recipe, points: s.points, ifcClass: s.ifcClass,
+            hint: s.hint, build: (pts) => s.build(pts, vals) });
+      return s.label;
+    },
   };
 }
