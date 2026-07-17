@@ -27,8 +27,9 @@ Project-Browser spine); plus a **security hardening pass** (XXE-safe P6 parser, 
 The authoring/coordination/discipline/UX "big rocks" and all five frontier tracks have shipped. This
 weekend's focus, in order — **reliability first, then the highest-value research upgrades**:
 
-1. **REL-1/2 — break the 2 import cycles** *(reliability · L)* — web portal (`panelContext→portal`) + API
-   (`db.py`) cycles. Confirm-then-cut; keep the suite green. *Security phase already shipped v0.3.371.*
+1. ✅ **REL-1/2 import cycles — verified FALSE POSITIVES (2026-07)** — both are `import type` / deferred-import
+   artifacts, no runtime cycle; no change needed. Security phase shipped v0.3.371; `openModule` O(n·m) → Map
+   shipped v0.3.373. **Next reliability work = REL-3/4 hotspot decomposition (tested).**
 2. **KEYS — Revit-style authoring shortcuts** *(★★★★★ · S/M)* — 2-letter keyboard shortcuts (WA=wall,
    CL=column, DR=door, CS=section…) over the recipe/tool actions; makes Revit users instantly productive.
    *(from research image IMG_0259.)*
@@ -462,21 +463,23 @@ ground each in the real code before editing. Ship phases in order; each an indep
 Refactor rule: **no public-API/behavior change** except the (shipped) security phase. Prefer structural fixes
 (extract leaf module / invert dependency / DI) over deferred function-local imports.
 
-- **REL-1 — break the web portal import cycle** *(L, safest)* — cut `apps/web/src/portal/panelContext.ts →
-  portal.ts` (spans ~18 files). Confirm the real edge first; fix by `import type` (if type-only) → extract a
-  leaf `portalContract.ts` → DI. Re-verify `portal/panels/*.ts` + `portal.ts`; `tsc`+`eslint`+`vitest` green.
-- **REL-2 — break the API cycle around `db.py`** *(L)* — likely `db.py→modules.py` + `models.py→db.py`
-  (`distribution.py→modules.py` is a *suspected false edge* — only touch if proven). Move shared types out of
-  `modules.py` to a leaf; invert `models.py→db.py` via protocol/DI. Regression-test any public surface touched.
+- ✅ **REL-1 — web portal "cycle" = FALSE POSITIVE (verified 2026-07)** — both legs are `import type`
+  (`panelContext.ts:2` imports `PortalHost`, `portal.ts:7` imports `PanelContext`) — stripped at build, so
+  there is **no runtime cycle**. The recommended fix (type-only import) is already in place. No change needed.
+- ✅ **REL-2 — API `db.py` "cycle" = FALSE POSITIVE (verified 2026-07)** — `db.py` imports neither `modules`
+  nor `models`, so it has **no back-edge**; `models.py→db.py` is a clean one-way dep (needs `Base`); and
+  `distribution.py→modules.py` is a **deferred function-local import** (the suspected false edge, confirmed —
+  it's a lazy import, not a load-time cycle). No module-load cycle exists. No change needed.
 - **REL-3 — modularize oversized API/data modules** *(L–XL, one PR each, façade at old path)* — `main.py`→~4,
   `modules.py`→~6 (relieves REL-2), `codecheck.py`→~3, `connectors.py`→~6, `auth.py`→~5, `data/drawing.py`→~4,
   `data/massing.py`→~3, `data/drawings.py`→~5, `bcf_io.py`→~3, `routers/generate.py`→~5. **`ruff`+`pytest`
   green after each.**
-- **REL-4 — decompose web hotspots** *(L–XL, one PR each)* — `viewer/app.ts` (worst file) split by
+- 🟡 **REL-4 — decompose web hotspots** *(L–XL, one PR each)* — `viewer/app.ts` (worst file) split by
   responsibility (render setup / event wiring / data load / UI glue); `main.ts` extract large methods + flatten
-  nesting; `portal.ts` split + **fix O(n·m) `openModule` → `Set`**; `api/client.ts` — if generated, fix the
-  generator/config not the output. **Must be tested + debugged after each** (perf-sensitive; the geometry
-  preview stall means verify via typecheck/lint/vitest + tools-panel technique).
+  nesting; `portal.ts` split; `api/client.ts` — if generated, fix the generator/config not the output. **Must
+  be tested + debugged after each** (perf-sensitive; the geometry preview stall means verify via typecheck/
+  lint/vitest + tools-panel technique). **`openModule` O(n·m) fix SHIPPED v0.3.373** — the per-column
+  `m.fields.find` linear scan is now an O(1) `Map` lookup.
 - **REL-5 — error handling & I/O-in-loop** *(behavior-affecting)* — handle unhandled promise rejections in
   `main.ts`; `errorReporting.ts::installErrorReporting` must not throw during install; batch FS calls out of
   loops in `vite.config.ts::writeBundle` + `scripts/bundle-budget.mjs`; `bridge.py::execute` → dataclass; dedupe

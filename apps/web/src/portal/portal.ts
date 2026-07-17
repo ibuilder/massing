@@ -1300,8 +1300,10 @@ export class PortalUI {
     const inputFields = m.fields.filter((f) => f.type !== "rollup" && f.type !== "signature");
     const defaultColNames = (m.list_columns ?? inputFields.slice(0, 2).map((f) => f.name));
     const colNames = this.readColPrefs(m.key) ?? defaultColNames;
+    // O(1) field lookup by name (was O(colNames × fields) via .find per column) — REL-4 hotspot fix
+    const fieldByName = new Map(m.fields.map((f) => [f.name, f]));
     const cols = colNames
-      .map((name) => m.fields.find((f) => f.name === name)).filter(Boolean) as ModuleDef["fields"];
+      .map((name) => fieldByName.get(name)).filter(Boolean) as ModuleDef["fields"];
 
     // sort
     const sort = this.sort[m.key];

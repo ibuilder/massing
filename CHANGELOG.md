@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.373 — reliability: openModule O(n·m) fix + import-cycle verification
+
+- **Perf (REL-4):** the portal's `openModule` built its visible columns with a per-column
+  `m.fields.find(...)` linear scan — O(colNames × fields). Now an O(1) `Map` lookup built once per open.
+- **Import cycles (REL-1/2) verified false positives** — the flagged web-portal cycle
+  (`panelContext ↔ portal`) is entirely `import type` (stripped at build, no runtime cycle), and the API
+  `db.py` cycle isn't real (`db.py` has no back-edge; `models.py→db.py` is one-way; `distribution.py→
+  modules.py` is a deferred function-local import). Documented in the roadmap; no refactor needed.
+
 ## v0.3.371 — security hardening pass (audit + fixes)
 
 - **XXE fix (HIGH):** the Primavera P6 XML (PMXML) schedule-import parser now uses **defusedxml**, so a
