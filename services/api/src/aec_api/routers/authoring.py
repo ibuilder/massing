@@ -155,6 +155,29 @@ def structure_solve(pid: str,
                               gross_area_sf=gross_area_sf, e_ksi=e_ksi, i_in4=i_in4)
 
 
+@router.get("/projects/{pid}/structure/lateral")
+def structure_lateral(pid: str,
+                      sds: float = Query(1.0, gt=0), sd1: float = Query(0.6, gt=0),
+                      r: float = Query(8.0, gt=0), ie: float = Query(1.0, gt=0),
+                      system: str = Query("other"),
+                      wind_speed_mph: float = Query(115.0, gt=0), exposure: str = Query("C"),
+                      dead_psf: float = Query(90.0, gt=0), area_sf: float | None = Query(None, gt=0),
+                      db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """STRUCT-LATERAL: ASCE 7 lateral analysis — seismic Equivalent Lateral Force (§12.8) + simplified
+    directional MWFRS wind — base shear distributed to per-story forces / shears / overturning, with the
+    governing case flagged. Story weights estimated from floor area × `dead_psf`. **Preliminary — not a
+    substitute for a licensed structural engineer** (no torsion, modal, drift, or P-delta)."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import lateral
+
+    p = _project(db, pid)
+    return lateral.lateral_from_model(
+        open_model(p.source_ifc), dead_psf=dead_psf, area_sf=area_sf,
+        seismic={"sds": sds, "sd1": sd1, "r": r, "ie": ie, "system": system},
+        wind={"speed_mph": wind_speed_mph, "exposure": exposure})
+
+
 @router.get("/projects/{pid}/doc-graph")
 def doc_graph(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W9-4 (harder half): the document / specification graph — spec sections (classification codes) and

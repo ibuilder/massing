@@ -3652,6 +3652,28 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               solve.title = "Apply an ASCE 7 gravity load case to the analytical members and solve determinate statics (reactions, shear/moment/deflection)";
               body.appendChild(solve);
             }
+            const lat = toolBtn2("🌪 Lateral (wind + seismic base shear)", () => withLoading(container, "Running ASCE 7 lateral analysis", async () => {
+              let lr;
+              try { lr = await api.structureLateral(pid, {}); }
+              catch (e) { notify((e as Error).message, "error"); return; }
+              showResult("Structural lateral — ASCE 7 wind + seismic", (sb) => {
+                const g = lr!.governing, se = lr!.seismic, wi = lr!.wind;
+                sb.appendChild(resultNote(`<b>Governing: ${g.system}</b> — base shear <b>${g.base_shear_kip} kip</b>`
+                  + ` over ${lr!.story_count} stor${lr!.story_count === 1 ? "y" : "ies"} (est. weight ${se.seismic_weight_kip} kip).`, "ok"));
+                sb.appendChild(kvTable([
+                  { k: "🌎 Seismic (ELF §12.8)", v: `V = ${se.base_shear_kip} kip · Cs ${se.Cs} · T ${se.period_s}s · OTM ${se.overturning_kipft.toLocaleString()} k·ft`, strong: true },
+                  { k: "🌬 Wind (MWFRS)", v: `V = ${wi.base_shear_kip} kip · qh ${wi.qh_psf} psf · OTM ${wi.overturning_kipft.toLocaleString()} k·ft`, strong: true },
+                ]));
+                const govStories = g.system === "seismic" ? se.stories : wi.stories;
+                sb.appendChild(resultNote(`Story forces (${g.system}):`, ""));
+                sb.appendChild(kvTable(govStories.slice().reverse().map((s) => ({
+                  k: `Level ${s.level} @ ${s.height_ft} ft`, v: `F = ${s.force_kip} kip · V = ${s.shear_kip} kip`,
+                }))));
+                sb.appendChild(resultNote(lr!.disclaimer, ""));
+              });
+            }));
+            lat.title = "ASCE 7 Equivalent Lateral Force (seismic) + simplified MWFRS (wind) → base shear + story forces; preliminary, not a stamped design";
+            body.appendChild(lat);
           });
         })));
         b.appendChild(toolBtn2("✅ Approvability pre-flight (permit-readiness)", () => withLoading(container, "Running the plan-reviewer pre-flight", async () => {

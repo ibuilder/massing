@@ -42,9 +42,11 @@ drawings + cost + proforma (377), and the **model estimate → proforma** hard-c
    the W10-7 analytical curve members and runs a **determinate member-by-member statics solve** —
    reactions (`wL/2`), max shear/moment (`wL²/8`), indicative deflection vs L/360, and shear/moment/
    deflection diagrams; vertical members carry a tributary column axial; factored forces via the governing
-   LRFD combo. Viewer surfaces it in the analytical panel with inline diagrams. *Remaining: lateral
-   (wind/seismic) member solve · per-member `IfcStructuralLinearAction` load activities written back to the
-   IFC · continuous-beam / coupled-frame (FEM) solve · section properties read from the physical member.*
+   LRFD combo. Viewer surfaces it in the analytical panel with inline diagrams. **Lateral SHIPPED v0.3.389**
+   — `GET /structure/lateral`: ASCE 7 seismic ELF (§12.8) + simplified wind MWFRS → base shear + story
+   forces/shears/overturning, governing case flagged. *Remaining: per-member `IfcStructuralLinearAction`
+   load activities written back to the IFC · continuous-beam / coupled-frame (FEM) solve · section
+   properties read from the physical member · drift/P-delta.*
 4. ✅ **VIEW-RANGE — plan view-depth — SHIPPED v0.3.383** — `plan.svg?view_depth=<m>` draws the footprint
    of elements below the cut but within the view depth (foundations/footings) as dashed hidden lines with a
    legend — the Revit Top/Cut/Bottom/View-Depth model, not a single `cut_z`. `below_footprint_baked` sections

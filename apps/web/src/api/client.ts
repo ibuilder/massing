@@ -1497,6 +1497,31 @@ export class ApiClient extends HttpCore {
     }>(`/projects/${pid}/structure/solve${qs ? `?${qs}` : ""}`);
   }
 
+  // STRUCT-LATERAL: ASCE 7 wind + seismic lateral analysis (base shear → story forces)
+  structureLateral(pid: string, opts?: {
+    sds?: number; sd1?: number; r?: number; ie?: number; system?: string;
+    windSpeedMph?: number; exposure?: string; deadPsf?: number; areaSf?: number;
+  }) {
+    const q = new URLSearchParams();
+    const map: Record<string, number | string | undefined> = {
+      sds: opts?.sds, sd1: opts?.sd1, r: opts?.r, ie: opts?.ie, system: opts?.system,
+      wind_speed_mph: opts?.windSpeedMph, exposure: opts?.exposure,
+      dead_psf: opts?.deadPsf, area_sf: opts?.areaSf,
+    };
+    for (const [k, v] of Object.entries(map)) if (v != null) q.set(k, String(v));
+    const qs = q.toString();
+    type Story = { level: number; height_ft: number; force_kip: number; shear_kip: number };
+    return this.json<{
+      story_count: number; area_sf: number | null; dead_psf: number; story_weight_kip: number;
+      seismic: { method: string; period_s: number; k: number; Cs: number; seismic_weight_kip: number;
+                 base_shear_kip: number; overturning_kipft: number; stories: (Story & { cvx: number; weight_kip: number })[] };
+      wind: { method: string; qh_psf: number; base_shear_kip: number; overturning_kipft: number;
+              stories: (Story & { trib_ft: number; pressure_psf: number })[] };
+      governing: { system: string; base_shear_kip: number };
+      disclaimer: string;
+    }>(`/projects/${pid}/structure/lateral${qs ? `?${qs}` : ""}`);
+  }
+
   // COLLAB-1: live co-editing snapshot (model signature + presence roster)
   collabSnapshot(pid: string) {
     return this.json<{

@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.389 — STRUCT-LATERAL: ASCE 7 wind + seismic base shear → story forces
+
+- The lateral complement to the gravity solve. **`GET /projects/{pid}/structure/lateral`** runs the two
+  hand analyses an engineer does before sizing a lateral system:
+  - **Seismic — Equivalent Lateral Force (ASCE 7-22 §12.8):** `Cs = SDS/(R/Ie)` with the §12.8-3 upper
+    bound + §12.8-5 floor, base shear `V = Cs·W`, vertical distribution `Fx = Cvx·V` (k from the
+    approximate period `Ta = Ct·hn^x`), story shears + overturning.
+  - **Wind — simplified directional MWFRS (Ch. 26–27):** velocity pressure `qz = 0.00256·Kz·Kzt·Kd·Ke·V²`
+    (Kz by the exposure power law), net windward+leeward pressure → story forces, base shear + overturning.
+  - The **governing** case is flagged; story weights estimated from floor area × a dead-load psf.
+- **Viewer** — the Structural analytical panel gains a **"Lateral (wind + seismic base shear)"** action:
+  governing case, both base shears, and the per-story force/shear table.
+- Pure ASCE 7 arithmetic (hand-verified in tests). **Preliminary — not a full lateral design (no torsion,
+  modal/response-spectrum, drift, or P-delta); must be stamped by a licensed professional engineer.**
+
 ## v0.3.388 — TAKEOFF-2D: quantity takeoff from a drawing → the 5D estimate
 
 - The **drawings-only takeoff** the model takeoff misses. Upload a PDF-page image / scan, **calibrate the
