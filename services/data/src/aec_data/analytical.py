@@ -135,6 +135,53 @@ def _slab_polygon(el):
     return world, float(solid.Depth)
 
 
+def _is_load_bearing(el) -> bool:
+    """True if the wall is structural (a shear/bearing wall) — only those idealise to an analytical surface
+    member; partitions do not. Reads Pset_WallCommon.LoadBearing (default False)."""
+    try:
+        return bool(_ue.get_psets(el).get("Pset_WallCommon", {}).get("LoadBearing"))
+    except Exception:  # noqa: BLE001 — a wall with no readable pset is treated as non-bearing
+        return False
+
+
+def _wall_midplane(el):
+    """The vertical mid-plane of a wall as a file-unit world-coordinate ring (4 corners) + the wall
+    thickness — the analytical idealisation of a shear wall. From the rectangular profile (XDim = length,
+    YDim = thickness) extruded vertically by Depth = height. None if not a simple rectangular vertical
+    extrusion."""
+    import numpy as np
+
+    rep = getattr(el, "Representation", None)
+    if rep is None:
+        return None
+    body = next((r for r in rep.Representations if r.RepresentationIdentifier == "Body"), None)
+    if body is None or not body.Items:
+        return None
+    solid = body.Items[0]
+    if not solid.is_a("IfcExtrudedAreaSolid"):
+        return None
+    prof = solid.SweptArea
+    if not prof.is_a("IfcRectangleProfileDef"):
+        return None
+    # the wall must extrude vertically (+Z) for its mid-plane to be a vertical shear-wall panel
+    d = solid.ExtrudedDirection.DirectionRatios
+    if abs(float(d[2])) < 0.99:
+        return None
+    length = float(prof.XDim)
+    thickness = float(prof.YDim)
+    depth = float(solid.Depth)
+    ox, oy = 0.0, 0.0
+    pos = getattr(prof, "Position", None)
+    if pos is not None and getattr(pos, "Location", None) is not None:
+        ox, oy = (float(c) for c in pos.Location.Coordinates[:2])
+    # mid-plane (local Y = profile centre): the length×height rectangle at the wall centreline
+    hx = length / 2.0
+    local = [(ox - hx, oy, 0.0), (ox + hx, oy, 0.0), (ox + hx, oy, depth), (ox - hx, oy, depth)]
+    M = np.array(_pl.get_local_placement(el.ObjectPlacement), dtype=float)
+    world = [tuple(round(float(v), 4) for v in (M @ [x, y, z, 1.0])[:3]) for (x, y, z) in local]
+    return world, thickness
+
+
 def _perp_axis(a, b):
     """A reference axis (local z, IfcDirection ratios) perpendicular-ish to the member a→b: for a mostly
     vertical member use global X, otherwise global Z. Enough to orient the section for a v1 model."""
@@ -252,6 +299,22 @@ def derive_analytical(model: ifcopenshell.file, name: str = "Analytical model") 
             surfaces.append(sm)
             assigned.append(sm)
 
+    # load-bearing walls → vertical shear-wall surface members (partitions are skipped)
+    walls = 0
+    for cls in ("IfcWall", "IfcWallStandardCase"):
+        for el in model.by_type(cls):
+            if el.is_a("IfcElementType") or not _is_load_bearing(el):
+                continue
+            mp = _wall_midplane(el)
+            if mp is None:
+                continue
+            ring, thickness = mp
+            sm = _surface_member(model, ctx, api, ring, thickness, getattr(el, "Name", None) or el.is_a())
+            api("structural.assign_product", model, relating_product=el, related_object=sm)
+            surfaces.append(sm)
+            assigned.append(sm)
+            walls += 1
+
     if assigned:
         api("structural.assign_structural_analysis_model", model, products=assigned,
             structural_analysis_model=amodel)
@@ -268,7 +331,7 @@ def derive_analytical(model: ifcopenshell.file, name: str = "Analytical model") 
         pass
 
     return {"analysis_model": amodel.GlobalId, "curve_members": len(members),
-            "surface_members": len(surfaces), "nodes": len(nodes),
+            "surface_members": len(surfaces), "wall_surface_members": walls, "nodes": len(nodes),
             "load_case": getattr(lcase, "Name", None), "load_group": getattr(lgroup, "Name", None)}
 
 

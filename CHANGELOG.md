@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.391 — Analytical shear walls: load-bearing walls → vertical surface members
+
+- Completes the W10-7 analytical geometry. `derive_analytical` now idealises each **load-bearing (shear)
+  wall** into a vertical `IfcStructuralSurfaceMember` at its mid-plane (a length×height `IfcFaceSurface`
+  spanning the wall height), alongside the existing slab surface members. Non-bearing **partitions are
+  skipped** (read from `Pset_WallCommon.LoadBearing`), so the analytical model carries the real lateral-
+  force-resisting elements, not every wall.
+- Idempotent (the `wall_surface_members` count is stable across a re-derive) and cleaned by the analytical
+  purge; the derive result + `summary()` report the counts. Pure ifcopenshell topology — no geometry kernel.
+
 ## v0.3.390 — STRUCT-LOADS-IFC: write member load actions → a solver-ready analytical model
 
 - The analytical model carried only a self-weight load *case*. The new **`apply_structural_loads`** recipe
