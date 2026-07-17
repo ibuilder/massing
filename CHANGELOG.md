@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.348 — UX-4: "Script this" — the recipe interface, made discoverable
+
+A new **⌨ Script this** toolbar button surfaces the app's **scriptable, GUID-safe recipe interface** as a
+first-class resource (UX-4 goal). Type a command in plain English and it shows the **exact recipe plan** it
+maps to — e.g. *add a 3m wall from 0,0 to 5,0* → `add_wall({"start":[0,0],"end":[5,0],"height":3,
+"thickness":0.2})` — the same verbs the AI command bar and the sandboxed `ifcopenshell` runner drive, then
+**applies** it (non-destructive plans). Makes the code/authoring layer visible instead of a hidden
+power-user path.
+
 ## v0.3.347 — Composed sheet: cap plans + per-level sheets (fixes tower timeout)
 
 The composed **key-plan sheet** (`sheet.svg`/`sheet.pdf`, S-101) rendered a plan panel for **every** storey
