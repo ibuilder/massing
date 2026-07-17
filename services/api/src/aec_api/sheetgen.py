@@ -83,16 +83,6 @@ DEFAULT_CODES = ["G", "S", "A", "FP", "FA", "P", "M", "E", "T"]
 # IFC classes → which discipline series their presence implies (drives auto-detection). Structural
 # and architectural are assumed for any building; MEP/FA/FP series only appear when the model carries
 # the corresponding elements (so a shell model doesn't get empty mechanical sheets unless asked).
-_CLASS_SERIES = {
-    "IfcDuctSegment": "M", "IfcDuctFitting": "M", "IfcAirTerminal": "M", "IfcUnitaryEquipment": "M",
-    "IfcPipeSegment": "P", "IfcPipeFitting": "P", "IfcSanitaryTerminal": "P",
-    "IfcCableSegment": "E", "IfcCableCarrierSegment": "E", "IfcElectricAppliance": "E",
-    "IfcOutlet": "E", "IfcLightFixture": "E", "IfcElectricDistributionBoard": "E",
-    "IfcFireSuppressionTerminal": "FP", "IfcAlarm": "FA", "IfcSensor": "FA",
-    "IfcCommunicationsAppliance": "T",
-}
-
-
 _NAME_TO_CODE = {s["name"].lower(): s["code"] for s in SERIES}
 
 
@@ -111,9 +101,10 @@ def normalize_codes(items: list[str] | None) -> list[str]:
 def detect_series(ifc_classes: set[str]) -> list[str]:
     """Which sheet series a model warrants: always G/S/A, plus any discipline whose elements are
     present. Preserves NCS binding order."""
+    from . import classification as _cls
     codes = {"G", "S", "A"}
     for c in ifc_classes:
-        s = _CLASS_SERIES.get(c)
+        s = _cls.series_of_ifc_class(c)   # DISC-SSOT: derived from the canonical discipline map
         if s:
             codes.add(s)
     return [s["code"] for s in SERIES if s["code"] in codes]

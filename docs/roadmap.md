@@ -56,9 +56,11 @@ drawings + cost + proforma (377), and the **model estimate → proforma** hard-c
    first page). `drawingset._cover_pdf`. *(audit gap #4.)*
 6. **TAKEOFF-2D — PDF/scan quantity takeoff** *(★★★★ · M)* — browser flood-fill "one-click area" on uploaded
    drawings feeding the existing 5D estimate (Apache-2.0 OpenTakeoff technique).
-7. **DISC-SSOT — single discipline/class source** *(★★★ · S)* — collapse the three parallel IFC-class maps
-   (`classification._IFC_DISCIPLINE`, `sheetgen._CLASS_SERIES`, `fourd.TRADE_FOR_CLASS`) to one with derived
-   views, so discipline/sheet-series/trade never drift. *(audit gap #7.)*
+7. ✅ **DISC-SSOT — single discipline/class source — SHIPPED v0.3.385** — sheet-series is now a **derived
+   view** of the canonical discipline map (`classification.series_of_ifc_class`), and `sheetgen.detect_series`
+   + the drawing-set cover both derive from it (their private tables removed) — discipline↔sheet-series can
+   no longer drift (reproduces the old map exactly). Takt *trade* (`fourd.TRADE_FOR_CLASS`) is documented as
+   a deliberately separate build-sequence axis, not folded in. *(audit gap #7.)*
 8. **REL-3/4 — modularize the worst hotspots** *(tech-debt · L, one PR each, TESTED)* — `viewer/app.ts`,
    `main.ts`, `modules.py`, `main.py`; façade re-exports; suite green after each. *(`openModule` O(n·m) fixed
    v0.3.373; import cycles verified false positives.)*
@@ -532,7 +534,8 @@ closed this session marked:
   case applied to the analytical members + a determinate member-by-member statics solve (reactions, shear/
   moment/deflection diagrams, column axial). *Remaining: lateral solve · load activities written to the IFC ·
   coupled-frame FEM.*
-- **Single discipline/class source of truth** *(★3 · S)* — see DISC-SSOT. Three parallel IFC-class maps.
+- ✅ **Single discipline/class source of truth** — SHIPPED v0.3.385: sheet-series derives from the one
+  discipline map (`classification.series_of_ifc_class`); trade stays a separate build-sequence axis.
 - **Broader CAD/geometry export** *(★3 · M)* — only DXF R12 + glTF today; **missing DWG, glb/USD, and a
   first-class IFC re-export** (source IFC only leaves via the bundle/closeout zip). Touch `dxf.py`,
   `gltf_export.py`, `standards.py`, `routers/drawings.py`.

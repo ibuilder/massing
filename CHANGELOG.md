@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.385 — DISC-SSOT: sheet-series derives from the one discipline map
+
+- Internal consolidation. Sheet-series (which drawing series a class belongs to — S/A/M/E/P/FP/FA/T…) was
+  hand-maintained in **two** places (`sheetgen._CLASS_SERIES`, plus the cover's own series→name table)
+  that could silently drift from the canonical discipline map. Series is now a **derived view** of the
+  discipline map: `classification.series_of_ifc_class()` refines `discipline_of_ifc_class` only where a
+  *distinct* series exists (fire-suppression → FP, fire-alarm → FA), and `sheetgen.detect_series` + the
+  drawing-set cover both derive from it. Verified to reproduce the former hand-kept map **exactly** — no
+  behaviour change, one source of truth.
+- **Takt trade** (`fourd.TRADE_FOR_CLASS`) is documented as a deliberately separate build-sequence axis
+  (a wall's trade is *Envelope*, its discipline *Architectural*), not folded into discipline/series.
+
 ## v0.3.384 — COVER-SHEET: rendered cover + discipline-grouped drawing index
 
 - The compiled drawing set's cover was a flat text list. It is now a proper **cover sheet**: a title block

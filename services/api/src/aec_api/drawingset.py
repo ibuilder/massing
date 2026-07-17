@@ -184,23 +184,26 @@ def revisions(db, pid: str) -> dict[str, Any]:
             "revisions": out}
 
 
-# NCS drawing-series letter → discipline name (presentation only; DISC-SSOT will unify class maps later)
-_DISCIPLINE_SERIES = {
-    "G": "General", "C": "Civil", "L": "Landscape", "S": "Structural", "A": "Architectural",
-    "I": "Interiors", "Q": "Equipment", "F": "Fire Protection", "FP": "Fire Protection",
-    "FA": "Fire Alarm", "P": "Plumbing", "M": "Mechanical", "E": "Electrical", "T": "Telecom",
-}
-# order the index the way a set is bound (matches the sheet_index registry ordering)
+# order the index the way a set is bound (NCS binding order); names come from classification (DISC-SSOT)
 _SERIES_ORDER = ["G", "C", "L", "S", "A", "I", "Q", "F", "FP", "FA", "P", "M", "E", "T"]
 
 
+def _series_name(series: str) -> str:
+    """Display name for a sheet-series prefix, from the classification SSOT (FA/FP honoured)."""
+    from . import classification as _cls
+    return _cls.sheet_series(series) or series
+
+
 def _series_of(number: str) -> str:
-    """The NCS discipline-series prefix of a sheet number (e.g. 'A-101' → 'A', 'FP-201' → 'FP')."""
+    """The NCS discipline-series prefix of a sheet number (e.g. 'A-101' → 'A', 'FP-201' → 'FP'). A distinct
+    2-letter series (FA/FP, per the classification SSOT) is kept; any other 2-letter designator folds to
+    its level-1 discipline letter."""
+    from . import classification as _cls
     m = re.match(r"^([A-Z]{1,2})", str(number or "").strip().upper())
     if not m:
         return "G"
     pre = m.group(1)
-    return pre if pre in _DISCIPLINE_SERIES else pre[:1]
+    return pre if (len(pre) == 1 or pre in _cls.SHEET_SERIES) else pre[:1]
 
 
 def _footprint_polylines(model, cut_z: float = 1.2):
@@ -307,7 +310,7 @@ def _cover_pdf(project_name: str, sheet_index: list[dict], subtitle: str = "Draw
             _header_row(y)
             y -= 8
         c.setFont("Helvetica-Bold", 10)
-        c.drawString(col_x * mm, y * mm, _DISCIPLINE_SERIES.get(series, series))
+        c.drawString(col_x * mm, y * mm, _series_name(series))
         y -= 6.5
         c.setFont("Helvetica", 10)
         for sh in rows:

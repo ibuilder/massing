@@ -252,6 +252,26 @@ def sheet_series(prefix: str | None) -> str | None:
     return SHEET_SERIES.get(p) or discipline_name(p[:1])
 
 
+# DISC-SSOT: sheet-series is a *derived view* of the discipline map, not a parallel table. These classes
+# are documented on the Fire Alarm (FA) series even though their design discipline folds to Electrical (E);
+# fire-suppression classes fold to discipline F, which is the Fire Protection (FP) series.
+_FA_SERIES_CLASSES = frozenset({"IfcAlarm", "IfcSensor", "IfcActuator"})
+
+
+def series_of_ifc_class(ifc_class: str, host_class: str | None = None) -> str | None:
+    """The NCS drawing-sheet **series** designator for an IFC class — the single source both sheet
+    generation (`sheetgen.detect_series`) and the drawing-set cover derive from, so sheet series can never
+    drift from discipline. It refines `discipline_of_ifc_class` only where a *distinct* sheet series
+    exists: fire-alarm classes -> 'FA', fire-suppression (discipline 'F') -> 'FP'; everything else uses
+    its discipline code (S/A/M/E/P/T/C/…). Verified to reproduce the former hand-kept sheetgen map exactly.
+    (Takt *trade* — `fourd.TRADE_FOR_CLASS` — is intentionally a separate build-sequence axis, not this.)"""
+    cl = (ifc_class or "").strip()
+    if cl in _FA_SERIES_CLASSES:
+        return "FA"
+    disc = discipline_of_ifc_class(cl, host_class)
+    return "FP" if disc == "F" else disc
+
+
 def discipline_code(name_or_code: str | None) -> str | None:
     """Normalize a free-text discipline name/code (incl. legacy aliases) to a canonical NCS code."""
     v = (name_or_code or "").strip()

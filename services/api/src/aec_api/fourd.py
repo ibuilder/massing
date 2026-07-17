@@ -7,7 +7,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
-# which takt trade installs each IFC class (drives when the element appears)
+# Which takt *trade* installs each IFC class (drives when the element appears in the 4D sequence). This is
+# a build-sequence axis, deliberately SEPARATE from the design discipline / sheet series (which live in the
+# `classification` SSOT — `discipline_of_ifc_class` / `series_of_ifc_class`): a wall's discipline is
+# Architectural but its trade is Envelope, a column is Structural discipline AND Structure trade. Keep this
+# keyed to construction sequence, not discipline. (DISC-SSOT: discipline↔series unified; trade is its own.)
 TRADE_FOR_CLASS = {
     "IfcFooting": "Structure", "IfcPile": "Structure", "IfcColumn": "Structure",
     "IfcBeam": "Structure", "IfcSlab": "Structure", "IfcStair": "Structure", "IfcMember": "Structure",
