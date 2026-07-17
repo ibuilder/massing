@@ -275,8 +275,9 @@ interop targets / content platforms / open standards named where they're integra
 - 🟡 **COLLAB-1** *(L · ★★★★★)* — **real-time multiplayer co-editing**. **Awareness slice SHIPPED v0.3.361**:
   a model-edit SSE stream (`GET .../model/stream`) + collab snapshot (`GET .../collab`) that live-reloads a
   second viewer after another user publishes and shows the presence roster; in-model comments already ride
-  the GUID-anchored Topic/Comment model. *Remaining: per-user cursor/selection overlays, optimistic
-  edit-locks (stale-write 409), and the client-side viewer wiring.*
+  the GUID-anchored Topic/Comment model. **Edit-lock SHIPPED v0.3.362** — `/edit` takes an optional
+  `base_source`; a stale write (another user published since) is rejected 409 instead of silently
+  overwriting. *Remaining: per-user cursor/selection overlays and the client-side viewer wiring.*
 - **PROFORMA-LIVE** *(M · ★★★★)* — tighten the **model↔proforma live loop**: yields/unit-mix/parking/efficiency
   + cost recompute **inline as you model**, not only in the portal.
 - **COST-AGENT** *(M · ★★★★)* — an estimating agent that re-estimates on each geometry change + learns from

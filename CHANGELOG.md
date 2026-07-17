@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.362 — COLLAB-1: optimistic edit-lock (no silent overwrite)
+
+- `POST /projects/{pid}/edit` accepts an optional **`base_source`** — the model signature the client last
+  loaded (from `GET .../collab`). If another user has published since, the edit is rejected **409** ("the
+  model changed — reload") instead of silently overwriting their work. Backward-compatible: omitting
+  `base_source` keeps the prior fire-and-forget behavior.
+
 ## v0.3.361 — COLLAB-1: live co-editing awareness (model stream)
 
 - First slice of **real-time multiplayer co-editing**. A project's *model signature* bumps on every

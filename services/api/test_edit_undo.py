@@ -72,6 +72,18 @@ with TestClient(app) as c:
     again = c.post(f"/projects/{p}/edit/undo", json={"publish": False}, headers=h)
     assert again.status_code == 409, again.text[:200]
 
+    # COLLAB-1 optimistic edit-lock: an edit carrying a STALE base_source (another user published since)
+    # is rejected 409; the current signature (from /collab) is accepted
+    cur = c.get(f"/projects/{p}/collab", headers=h).json()["model"]["source"]
+    stale = c.post(f"/projects/{p}/edit", json={"recipe": "add_wall",
+                   "params": {"start": [0, 0], "end": [4, 0], "height": 3, "thickness": 0.2},
+                   "base_source": "some_old_version_99999999999999.ifc"}, headers=h)
+    assert stale.status_code == 409, stale.text[:200]
+    fresh = c.post(f"/projects/{p}/edit", json={"recipe": "add_wall",
+                   "params": {"start": [0, 0], "end": [4, 0], "height": 3, "thickness": 0.2},
+                   "base_source": cur}, headers=h)
+    assert fresh.status_code == 200, fresh.text[:200]
+
 import shutil  # noqa: E402
 for f in ("./_undo_test.db",):
     if os.path.exists(f):

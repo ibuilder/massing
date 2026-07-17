@@ -742,13 +742,20 @@ def edit_precheck(pid: str, recipe: str = Body(..., embed=True), params: dict = 
 
 @router.post("/projects/{pid}/edit")
 def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
-         publish: bool = Body(default=False), db: Session = Depends(get_db),
-         actor: str = Depends(require_role("editor"))):
+         publish: bool = Body(default=False), base_source: str | None = Body(default=None),
+         db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
     """Apply an authoring recipe (set_pset | batch_tag | place_type) to the source IFC,
-    saving a new version. GUIDs of existing elements are preserved."""
+    saving a new version. GUIDs of existing elements are preserved.
+
+    COLLAB-1 optimistic lock: pass `base_source` (the model signature the client last loaded, from
+    `GET .../collab`) and the edit is rejected **409** if another user has published since — so a
+    concurrent edit surfaces a 'model changed — reload' instead of silently overwriting their work."""
     from aec_data import edit as ed  # type: ignore
 
     p = _project(db, pid)
+    if base_source is not None and p.source_ifc and Path(base_source).name != Path(p.source_ifc).name:
+        raise HTTPException(409, "the model changed since you loaded it (another user published) — "
+                                 "reload before editing")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
     # Strip any prior version timestamp(s) so chained edits don't compound the filename into an
     # ever-growing path (which blew past Windows' 260-char limit and failed the write). Each edit
