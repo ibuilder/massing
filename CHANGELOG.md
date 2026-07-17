@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.358 — W10-7: analytical surface members (slabs)
+
+- `derive_analytical` now idealises **slabs / roof decks** into `IfcStructuralSurfaceMember`s (SHELL): a
+  planar `IfcFaceSurface` bounded by an `IfcEdgeLoop` at the deck footprint, thickness carried, linked
+  back to the physical slab. Handles both arbitrary-polygon and rectangle slab profiles. The analytical
+  model now spans the frame **and** the floor/roof plates; `GET .../analytical` reports `surface_members`.
+
 ## v0.3.357 — W10-7: structural analytical model (frame)
 
 - New **structural analytical model** layer alongside the physical (LOD 300) model. `derive_analytical`

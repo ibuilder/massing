@@ -177,7 +177,8 @@ S1–S4 ship (deterministic baseline → multi-step LLM interpretation → confi
   `derive_analytical` recipe idealises the physical frame (columns/beams) into `IfcStructuralCurveMember`s
   (IfcEdge topology) tied at shared `IfcStructuralPointConnection` nodes, linked back to the physical
   elements, with a permanent-G self-weight load case; idempotent; served at `GET .../analytical`.
-  *Remaining: surface members (slabs/walls → `IfcStructuralSurfaceMember`), per-member load activities,
+  **Surface members SHIPPED v0.3.358** — slabs/roof decks → `IfcStructuralSurfaceMember` (planar
+  `IfcFaceSurface`). *Remaining: wall surface members (vertical mid-plane), per-member load activities,
   boundary conditions/supports, and a solver hand-off (analytical export).*
 - **W10-9** — **parametric constraints & dimensional locks (the hard one)** — no IFC representation; store in a
   sidecar, solve, bake to IFC. Start with 1D/alignment locks. **License:** FreeCAD's **planegcs (LGPL,

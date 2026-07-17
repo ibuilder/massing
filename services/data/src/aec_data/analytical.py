@@ -23,6 +23,8 @@ import ifcopenshell.util.unit as _uu
 
 # physical classes that idealise to a 1-D analytical curve member (the frame)
 _CURVE_CLASSES = ("IfcColumn", "IfcBeam", "IfcMember")
+# physical classes that idealise to a 2-D analytical surface member (planar slabs / roof decks)
+_SURFACE_CLASSES = ("IfcSlab",)
 
 # top-level analytical entities purged (deep) once every referencing rel is gone, so derive is idempotent
 _ANALYTICAL_ITEMS = ("IfcStructuralCurveMember", "IfcStructuralSurfaceMember",
@@ -91,12 +93,79 @@ def _axis_endpoints(el, scale: float):
     return tuple(round(float(v), 4) for v in origin), tuple(round(float(v), 4) for v in end)
 
 
+def _slab_polygon(el):
+    """The slab/roof-deck footprint as file-unit world coordinates (a planar ring, not closed), plus the
+    deck thickness in file units — from the extruded arbitrary-closed profile. None if not a simple
+    polygonal extrusion."""
+    import numpy as np
+
+    rep = getattr(el, "Representation", None)
+    if rep is None:
+        return None
+    body = next((r for r in rep.Representations if r.RepresentationIdentifier == "Body"), None)
+    if body is None or not body.Items:
+        return None
+    solid = body.Items[0]
+    if not solid.is_a("IfcExtrudedAreaSolid"):
+        return None
+    prof = solid.SweptArea
+    if prof.is_a("IfcArbitraryClosedProfileDef") and prof.OuterCurve.is_a("IfcPolyline"):
+        pts2d = [tuple(p.Coordinates) for p in prof.OuterCurve.Points]
+        if len(pts2d) >= 2 and pts2d[0] == pts2d[-1]:
+            pts2d = pts2d[:-1]                                 # drop the closing duplicate
+    elif prof.is_a("IfcRectangleProfileDef"):                 # centred rectangle (e.g. the ground deck)
+        hx, hy = float(prof.XDim) / 2.0, float(prof.YDim) / 2.0
+        ox, oy = 0.0, 0.0
+        pos = getattr(prof, "Position", None)
+        if pos is not None and getattr(pos, "Location", None) is not None:
+            ox, oy = (float(c) for c in pos.Location.Coordinates[:2])
+        pts2d = [(ox - hx, oy - hy), (ox + hx, oy - hy), (ox + hx, oy + hy), (ox - hx, oy + hy)]
+    else:
+        return None
+    if len(pts2d) < 3:
+        return None
+    M = np.array(_pl.get_local_placement(el.ObjectPlacement), dtype=float)
+    world = [tuple(round(float(v), 4) for v in (M @ [x, y, 0.0, 1.0])[:3]) for (x, y) in pts2d]
+    return world, float(solid.Depth)
+
+
 def _perp_axis(a, b):
     """A reference axis (local z, IfcDirection ratios) perpendicular-ish to the member a→b: for a mostly
     vertical member use global X, otherwise global Z. Enough to orient the section for a v1 model."""
     dz = abs(b[2] - a[2])
     horiz = ((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) ** 0.5
     return (1.0, 0.0, 0.0) if dz > horiz else (0.0, 0.0, 1.0)
+
+
+def _surface_member(model, ctx, api, ring, thickness_file, name):
+    """A planar `IfcStructuralSurfaceMember` (SHELL) over a footprint ring (file-unit world coords): a
+    single `IfcFaceSurface` bounded by an `IfcEdgeLoop` on an `IfcPlane` at the ring centroid. Pure
+    topology — the analytical idealisation of a slab/roof deck."""
+    verts = [model.create_entity("IfcVertexPoint",
+                                 VertexGeometry=model.create_entity("IfcCartesianPoint",
+                                                                    Coordinates=tuple(float(c) for c in p)))
+             for p in ring]
+    n = len(verts)
+    oriented = []
+    for i in range(n):
+        e = model.create_entity("IfcEdge", EdgeStart=verts[i], EdgeEnd=verts[(i + 1) % n])
+        oriented.append(model.create_entity("IfcOrientedEdge", EdgeElement=e, Orientation=True))
+    loop = model.create_entity("IfcEdgeLoop", EdgeList=oriented)
+    bound = model.create_entity("IfcFaceOuterBound", Bound=loop, Orientation=True)
+    cx = sum(p[0] for p in ring) / n
+    cy = sum(p[1] for p in ring) / n
+    cz = ring[0][2]
+    axis = model.create_entity("IfcAxis2Placement3D",
+                               Location=model.create_entity("IfcCartesianPoint", Coordinates=(cx, cy, cz)))
+    plane = model.create_entity("IfcPlane", Position=axis)
+    face = model.create_entity("IfcFaceSurface", Bounds=[bound], FaceSurface=plane, SameSense=True)
+    topo = model.create_entity("IfcTopologyRepresentation", ContextOfItems=ctx,
+                               RepresentationIdentifier="Reference", RepresentationType="Face", Items=[face])
+    sm = api("root.create_entity", model, ifc_class="IfcStructuralSurfaceMember", name=name)
+    sm.PredefinedType = "SHELL"
+    sm.Thickness = float(thickness_file)
+    sm.Representation = model.create_entity("IfcProductDefinitionShape", Representations=[topo])
+    return sm
 
 
 def derive_analytical(model: ifcopenshell.file, name: str = "Analytical model") -> dict:
@@ -163,6 +232,20 @@ def derive_analytical(model: ifcopenshell.file, name: str = "Analytical model") 
             members.append(cm)
             assigned.append(cm)
 
+    surfaces: list[object] = []
+    for cls in _SURFACE_CLASSES:
+        for el in model.by_type(cls):
+            if el.is_a("IfcElementType"):
+                continue
+            poly = _slab_polygon(el)
+            if poly is None:
+                continue
+            ring, thickness = poly
+            sm = _surface_member(model, ctx, api, ring, thickness, getattr(el, "Name", None) or el.is_a())
+            api("structural.assign_product", model, relating_product=el, related_object=sm)
+            surfaces.append(sm)
+            assigned.append(sm)
+
     if assigned:
         api("structural.assign_structural_analysis_model", model, products=assigned,
             structural_analysis_model=amodel)
@@ -178,7 +261,8 @@ def derive_analytical(model: ifcopenshell.file, name: str = "Analytical model") 
     except Exception:  # noqa: BLE001 — LoadedBy wiring is best-effort
         pass
 
-    return {"analysis_model": amodel.GlobalId, "curve_members": len(members), "nodes": len(nodes),
+    return {"analysis_model": amodel.GlobalId, "curve_members": len(members),
+            "surface_members": len(surfaces), "nodes": len(nodes),
             "load_case": getattr(lcase, "Name", None), "load_group": getattr(lgroup, "Name", None)}
 
 

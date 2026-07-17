@@ -18,37 +18,49 @@ m = open_model(TMP)
 st = m.by_type("IfcBuildingStorey")[0].Name
 
 # a portal frame: two columns + a beam tying their bases (beam 0,0->6,0 shares the two column base nodes)
+# plus a suspended slab (a surface member); the blank model already carries a ground slab (2 slabs total)
 edit.add_column(m, [0, 0], 4.0, 0.4, 0.4, st)
 edit.add_column(m, [6, 0], 4.0, 0.4, 0.4, st)
 edit.add_beam(m, [0, 0], [6, 0], 0.3, 0.5, st)
+edit.add_slab(m, [[0, 0], [6, 0], [6, 4], [0, 4]], 0.2, st)
 
 # --- derive the analytical model ---------------------------------------------------------------------
 r = analytical.derive_analytical(m)
 # 3 physical frame members -> 3 curve members; 4 distinct endpoints -> 4 shared point-connection nodes
 assert r["curve_members"] == 3 and r["nodes"] == 4, r
+# 2 slabs (ground + suspended) -> 2 IfcStructuralSurfaceMember (planar faces)
+assert r["surface_members"] == 2, r
+assert len(m.by_type("IfcStructuralSurfaceMember")) == 2, m.by_type("IfcStructuralSurfaceMember")
+assert len(m.by_type("IfcFaceSurface")) == 2 and len(m.by_type("IfcEdgeLoop")) == 2, "one face/loop per slab"
 assert r["load_case"] and r["load_group"], r
 assert len(m.by_type("IfcStructuralAnalysisModel")) == 1, "one analysis model"
 assert len(m.by_type("IfcStructuralCurveMember")) == 3, m.by_type("IfcStructuralCurveMember")
 assert len(m.by_type("IfcStructuralPointConnection")) == 4, "column bases/tops + beam ends dedupe to 4"
 # each curve member connects to two nodes -> 3 members x 2 = 6 member-connection rels
 assert len(m.by_type("IfcRelConnectsStructuralMember")) == 6, m.by_type("IfcRelConnectsStructuralMember")
-# analytical members link back to the physical elements they idealise (IfcRelAssignsToProduct)
-assert len(m.by_type("IfcRelAssignsToProduct")) == 3, "analytical<->physical product links"
-# no orphaned topology: one edge per curve member, one vertex per node
-assert len(m.by_type("IfcEdge")) == 3 and len(m.by_type("IfcVertexPoint")) == 4, "clean topology"
+# analytical members link back to the physical elements they idealise (IfcRelAssignsToProduct):
+# 3 curve + 2 surface = 5 product links
+assert len(m.by_type("IfcRelAssignsToProduct")) == 5, "analytical<->physical product links"
+
+# capture the full topology footprint after the first derive — the idempotency invariant is that a
+# second derive leaves every one of these counts identical (no accumulation, no orphaned sub-entities)
+_TOPO = ("IfcStructuralAnalysisModel", "IfcStructuralCurveMember", "IfcStructuralSurfaceMember",
+         "IfcStructuralPointConnection", "IfcRelConnectsStructuralMember", "IfcRelAssignsToProduct",
+         "IfcEdge", "IfcVertexPoint", "IfcFaceSurface", "IfcEdgeLoop", "IfcStructuralLoadCase")
+before = {t: len(m.by_type(t)) for t in _TOPO}
+assert before["IfcStructuralAnalysisModel"] == 1 and before["IfcStructuralLoadCase"] == 1, before
 
 # --- idempotent re-derive: a rebuild refreshes, it does not accumulate --------------------------------
 analytical.derive_analytical(m)
-assert len(m.by_type("IfcStructuralAnalysisModel")) == 1, "re-derive must not stack analysis models"
-assert len(m.by_type("IfcStructuralCurveMember")) == 3, "re-derive must not stack curve members"
-assert len(m.by_type("IfcStructuralPointConnection")) == 4, "re-derive must not stack nodes"
-assert len(m.by_type("IfcEdge")) == 3, "re-derive must not orphan topology"
+after = {t: len(m.by_type(t)) for t in _TOPO}
+assert after == before, {"before": before, "after": after}   # every count unchanged -> clean rebuild
 
 # --- summary reads it back (survives a serialize round-trip) ------------------------------------------
 OUT = os.path.join(tempfile.gettempdir(), "_analytical_out.ifc")
 m.write(OUT)
 s = analytical.summary(open_model(OUT))
 assert s["has_model"] and s["curve_members"] == 3 and s["point_connections"] == 4, s
+assert s["surface_members"] == 2, s
 assert s["analysis_models"][0]["predefined_type"] == "LOADING_3D", s["analysis_models"]
 assert "Dead load (self weight)" in s["load_cases"], s["load_cases"]
 
@@ -75,9 +87,10 @@ for f in (TMP, OUT):
     if os.path.exists(f):
         os.remove(f)
 
-print("ANALYTICAL OK - derive_analytical builds an IfcStructuralAnalysisModel from the physical frame: "
+print("ANALYTICAL OK - derive_analytical builds an IfcStructuralAnalysisModel from the physical model: "
       "columns/beams -> 3 IfcStructuralCurveMember (IfcEdge topology) tied at 4 shared "
-      "IfcStructuralPointConnection nodes (6 member-connection rels), each linked back to its physical "
-      "element (IfcRelAssignsToProduct), plus a permanent-G self-weight load case/group; re-derive is "
-      "idempotent (no accumulation, no orphan topology); summary reads it back through a serialize "
-      "round-trip; the derive_analytical recipe publishes it; an empty frame yields an empty-but-valid model.")
+      "IfcStructuralPointConnection nodes (6 member-connection rels); slabs -> IfcStructuralSurfaceMember "
+      "(planar IfcFaceSurface on an IfcEdgeLoop); each linked back to its physical element "
+      "(IfcRelAssignsToProduct), plus a permanent-G self-weight load case/group; re-derive is idempotent "
+      "(no accumulation, no orphan topology); summary reads it back through a serialize round-trip; the "
+      "derive_analytical recipe publishes it; an empty model yields an empty-but-valid analysis model.")
