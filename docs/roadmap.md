@@ -537,9 +537,9 @@ closed this session marked:
   coupled-frame FEM.*
 - ✅ **Single discipline/class source of truth** — SHIPPED v0.3.385: sheet-series derives from the one
   discipline map (`classification.series_of_ifc_class`); trade stays a separate build-sequence axis.
-- **Broader CAD/geometry export** *(★3 · M)* — only DXF R12 + glTF today; **missing DWG, glb/USD, and a
-  first-class IFC re-export** (source IFC only leaves via the bundle/closeout zip). Touch `dxf.py`,
-  `gltf_export.py`, `standards.py`, `routers/drawings.py`.
+- 🟡 **Broader CAD/geometry export** — **binary glTF (.glb) + first-class IFC re-export SHIPPED v0.3.387**
+  (`/model/export.glb`, `/model/export.ifc`) beside DXF R12 + `.gltf`; viewer has Export IFC/.glb/.gltf.
+  *Remaining (deferred — proprietary/heavy deps): DWG (ODA/Teigha), USD (pxr).*
 - **Durable background-job queue** *(★3 · M)* — geometry export, PAdES sealing, and large set generation run
   **inline** (`run_in_threadpool`); no durable queue/worker. Fine for demos, fragile under real load. Touch
   `main.py` + a worker/queue; migrate `generate.py`/`drawings.py`/`exports.py` heavy paths.

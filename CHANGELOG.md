@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.387 — EXPORT: binary glTF (.glb) + first-class IFC re-export
+
+- **`GET …/model/export.glb`** — the model geometry now exports as a **binary glTF (.glb)** — the compact
+  single-file form Blender / three.js / game engines import directly — alongside the existing JSON `.gltf`.
+  Same per-class meshes + colours; proper glTF-2.0 container (`glTF`/v2 header · 4-byte-padded JSON chunk ·
+  `BIN` chunk). Tessellation runs off the event loop.
+- **`GET …/model/export.ifc`** — a **first-class IFC re-export**: stream the project's current authored
+  source IFC (edits republish it in place, so this is the live GUID-stable model) directly, not only inside
+  the closeout bundle zip — the openBIM source of truth a coordinator can round-trip through any tool.
+- **Viewer** — the Document/turnover group gains **Export IFC**, **Export 3D (.glb)**, and **Export 3D
+  (.gltf)** actions beside the closeout package. (DWG + USD remain deferred — proprietary/heavy-dependency;
+  the on-mission interchange path is IFC + glTF.)
+
 ## v0.3.386 — MEP-SIZE: velocity size checks elevate MEP from modeled to engineered
 
 - **`GET /projects/{pid}/mep/sizing`** — over every authored MEP run carrying a design size + flow

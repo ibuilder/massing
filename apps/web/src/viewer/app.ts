@@ -3100,6 +3100,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         const pkg = toolBtn2("📦 Closeout package (.zip)", () => window.open(api.url(`/projects/${projectId}/closeout/package.zip`), "_blank"));
         pkg.title = "Everything for handover in one ZIP: as-built model, data workbooks, status report, closeout records";
         b.appendChild(pkg);
+        // geometry / model interchange exports (EXPORT)
+        const ifcOut = toolBtn2("⬇ Export IFC (source of truth)", () => window.open(api.modelIfcUrl(projectId!), "_blank"));
+        ifcOut.title = "First-class IFC re-export — the current authored source IFC, GUID-stable, round-trips through any openBIM tool";
+        b.appendChild(ifcOut);
+        const glb = toolBtn2("⬇ Export 3D (.glb)", () => window.open(api.modelGlbUrl(projectId!), "_blank"));
+        glb.title = "Binary glTF — the compact single-file 3D form Blender / three.js / game engines import directly";
+        b.appendChild(glb);
+        const gltf = toolBtn2("⬇ Export 3D (.gltf)", () => window.open(api.modelGltfUrl(projectId!), "_blank"));
+        gltf.title = "Self-contained glTF 2.0 JSON (interchange)";
+        b.appendChild(gltf);
       },
       qa: () => {
         const b = section("qa", "Analyze & Coordinate · clash / QA", { requires: "sourceIfc", tool: true });

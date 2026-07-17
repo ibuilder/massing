@@ -2248,6 +2248,14 @@ export class ApiClient extends HttpCore {
   modelGltfUrl(pid: string) {
     return this.url(`/projects/${pid}/model/export.gltf`);
   }
+  /** Download URL for the model geometry as a binary glTF (.glb) — the compact single-file interchange. */
+  modelGlbUrl(pid: string) {
+    return this.url(`/projects/${pid}/model/export.glb`);
+  }
+  /** Download URL for a first-class IFC re-export — the current authored source IFC (GUID-stable). */
+  modelIfcUrl(pid: string) {
+    return this.url(`/projects/${pid}/model/export.ifc`);
+  }
   /** Interning/columnar efficiency stats (dedup ratio + estimated RAM saved) — G1. */
   modelColumnarStats(pid: string) {
     return this.json<{ model_loaded: boolean; elements?: number; param_rows?: number;

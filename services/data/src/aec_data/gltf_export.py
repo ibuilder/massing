@@ -68,8 +68,9 @@ def _pad4(buf: bytearray) -> None:
         buf.append(0)
 
 
-def export_gltf(model: ifcopenshell.file, name: str = "model") -> dict[str, Any]:
-    """Build a self-contained glTF 2.0 document (dict) for the whole model, one node per IFC class."""
+def _build_gltf_doc(model: ifcopenshell.file, name: str) -> tuple[dict[str, Any], bytes]:
+    """Build the glTF 2.0 document (one node per IFC class) plus the raw binary buffer, WITHOUT a buffer
+    URI. The `.gltf` path adds an embedded data URI; the `.glb` path packs the buffer as a binary chunk."""
     merged = _baked_by_class(model)
     blob = bytearray()
     buffer_views: list[dict] = []
@@ -110,8 +111,7 @@ def export_gltf(model: ifcopenshell.file, name: str = "model") -> dict[str, Any]
         node_list.append({"name": cls, "mesh": len(meshes) - 1})
         nodes.append(len(node_list) - 1)
 
-    uri = "data:application/octet-stream;base64," + base64.b64encode(bytes(blob)).decode("ascii")
-    return {
+    doc = {
         "asset": {"version": "2.0", "generator": "Massing glTF export (ifcopenshell)"},
         "scene": 0,
         "scenes": [{"name": name, "nodes": nodes}],
@@ -120,8 +120,17 @@ def export_gltf(model: ifcopenshell.file, name: str = "model") -> dict[str, Any]
         "materials": materials,
         "accessors": accessors,
         "bufferViews": buffer_views,
-        "buffers": [{"byteLength": len(blob), "uri": uri}],
+        "buffers": [{"byteLength": len(blob)}],       # no uri yet — the .gltf/.glb path fills it in
     }
+    return doc, bytes(blob)
+
+
+def export_gltf(model: ifcopenshell.file, name: str = "model") -> dict[str, Any]:
+    """A self-contained glTF 2.0 document (dict) for the whole model — the binary buffer embedded as a
+    base64 data URI, so the JSON is standalone."""
+    doc, blob = _build_gltf_doc(model, name)
+    doc["buffers"][0]["uri"] = "data:application/octet-stream;base64," + base64.b64encode(blob).decode("ascii")
+    return doc
 
 
 def export_gltf_bytes(ifc_path: str, name: str = "model") -> bytes:
@@ -129,3 +138,30 @@ def export_gltf_bytes(ifc_path: str, name: str = "model") -> bytes:
     from .ifc_loader import open_model
     doc = export_gltf(open_model(ifc_path), name)
     return json.dumps(doc, separators=(",", ":")).encode("utf-8")
+
+
+def _pack_glb(doc: dict[str, Any], blob: bytes) -> bytes:
+    """Pack a glTF document + its binary buffer into a single binary ``.glb`` container (glTF 2.0): a
+    12-byte header, a JSON chunk (space-padded to 4), and a BIN chunk (zero-padded to 4). The buffer must
+    carry NO uri (the BIN chunk is the buffer)."""
+    import struct
+
+    json_bytes = json.dumps(doc, separators=(",", ":")).encode("utf-8")
+    json_bytes += b" " * ((4 - len(json_bytes) % 4) % 4)
+    bin_blob = blob + b"\x00" * ((4 - len(blob) % 4) % 4)
+    total = 12 + 8 + len(json_bytes) + 8 + len(bin_blob)
+    out = bytearray()
+    out += struct.pack("<III", 0x46546C67, 2, total)          # magic 'glTF', version 2, total length
+    out += struct.pack("<II", len(json_bytes), 0x4E4F534A)    # JSON chunk header (length, 'JSON')
+    out += json_bytes
+    out += struct.pack("<II", len(bin_blob), 0x004E4942)      # BIN chunk header (length, 'BIN\0')
+    out += bin_blob
+    return bytes(out)
+
+
+def export_glb_bytes(ifc_path: str, name: str = "model") -> bytes:
+    """Open an IFC file and return a binary ``.glb`` (glTF 2.0 container) of its geometry — the compact,
+    single-file form most 3D tools (Blender, three.js, game engines) import directly."""
+    from .ifc_loader import open_model
+    doc, blob = _build_gltf_doc(open_model(ifc_path), name)
+    return _pack_glb(doc, blob)

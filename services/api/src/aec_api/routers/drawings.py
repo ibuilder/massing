@@ -456,6 +456,35 @@ async def export_gltf(pid: str, db: Session = Depends(get_db), _sec: str = Depen
                     headers={"Content-Disposition": f'attachment; filename="model-{pid}.gltf"'})
 
 
+@router.get("/projects/{pid}/model/export.glb")
+async def export_glb(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer")),
+                     __: None = Depends(_export_throttle)):
+    """Export the model geometry as a binary **glTF (.glb)** — the compact single-file form Blender /
+    three.js / game engines import directly (vs. the JSON `.gltf`). Same per-class meshes + colours;
+    tessellation runs off the event loop."""
+    from starlette.concurrency import run_in_threadpool
+
+    from aec_data import gltf_export  # type: ignore
+    path = _source_ifc(db, pid)
+    p = db.get(Project, pid)
+    data = await run_in_threadpool(gltf_export.export_glb_bytes, path, (p.name if p else pid))
+    return Response(data, media_type="model/gltf-binary",
+                    headers={"Content-Disposition": f'attachment; filename="model-{pid}.glb"'})
+
+
+@router.get("/projects/{pid}/model/export.ifc")
+def export_ifc(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """First-class **IFC re-export** — stream the project's current authored source IFC (edits republish
+    it in place, so this is the live model), not only inside the closeout bundle zip. The GUID-stable
+    source of truth a coordinator can round-trip through any openBIM tool."""
+    from pathlib import Path as _P
+
+    path = _source_ifc(db, pid)     # 409 if the project has no accessible source IFC
+    data = _P(path).read_bytes()
+    return Response(data, media_type="application/x-step",
+                    headers={"Content-Disposition": f'attachment; filename="model-{pid}.ifc"'})
+
+
 @router.get("/projects/{pid}/model/step-summary")
 def model_step_summary(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Fast model summary — header + entity-type histogram from a streaming STEP scan, without a full
