@@ -77,6 +77,21 @@ svg = drawings.plan_svg(ml, elevation=mid["elevation"], cut_height=1.2, title=f"
 assert "GENERAL NOTES" in svg and "GRAPHIC SCALE" in svg and "AFF" in svg, "plan must carry a titleblock + scale + notes"
 import xml.dom.minidom as _md  # noqa: E402
 _md.parseString(svg)                                                  # well-formed even with room names
+
+# composed key-plan sheet: a tall model must NOT render a plan panel per storey (slow + illegible) —
+# it caps to a few representative levels; `storey` renders exactly one.
+TMP3 = os.path.join(os.path.dirname(__file__), "_sec_sheet.ifc")
+massing.generate_blank_ifc(TMP3, name="Tall", storeys=9, storey_height=3.0, ground_size=16.0)
+mtall = open_model(TMP3)
+meta = {"number": "A-101", "title": "PLANS", "project": "Tall"}
+full = drawings.default_sheet(mtall, meta, page="A3", fmt="svg")     # sampled, capped at 4
+assert 0 < full.count('class="cell-label"') or "PLAN " in full        # sheet rendered
+assert full.count("PLAN ") <= 5, f"key-plan sheet must cap plans, got {full.count('PLAN ')}"
+_md.parseString(full)
+one_lvl = drawings.default_sheet(mtall, meta, page="A3", fmt="svg", storey="Level 3")
+assert one_lvl.count("PLAN Level") == 1, one_lvl.count("PLAN Level")   # a single-level sheet
+if os.path.exists(TMP3):
+    os.remove(TMP3)
 for f in (TMP2,):
     if os.path.exists(f):
         os.remove(f)

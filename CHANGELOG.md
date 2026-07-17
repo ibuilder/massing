@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.347 — Composed sheet: cap plans + per-level sheets (fixes tower timeout)
+
+The composed **key-plan sheet** (`sheet.svg`/`sheet.pdf`, S-101) rendered a plan panel for **every** storey
+— on the 30-storey tower that **timed out** (30+ full-model geometry cuts) and crammed 30 illegible plans on
+one A3. It now **caps to a few representative levels** (sampled evenly across the building) and takes an
+optional **`storey`** to render exactly one level's sheet. On the tower: the key-plan sheet now renders in
+~20 s (was ∞) and a single-level sheet in ~12 s, each with the titleblock + per-panel scale + section +
+elevation. `GET /projects/{pid}/drawings/sheet.{svg,pdf}?storey=Level%204`.
+
 ## v0.3.346 — UX-4: always-visible Info-Box on the 3D canvas
 
 A compact **Info-Box** strip now sits on the 3D view (bottom-left) showing the **selected element's key

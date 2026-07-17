@@ -857,18 +857,28 @@ def sheet_file(ifc_path: str, specs: list[dict], meta: dict, page="A3", cols=2, 
     return sheet(open_model(ifc_path), specs, meta, page, cols, fmt)
 
 
-def default_sheet(model: ifcopenshell.file, meta: dict, page: str = "A3", fmt: str = "svg"):
-    """One-call sheet: a plan per storey (below the roof) + a section through the model
-    centre. Bakes geometry once. Returns SVG string or PDF bytes."""
+def default_sheet(model: ifcopenshell.file, meta: dict, page: str = "A3", fmt: str = "svg",
+                  storey: str | None = None, max_plans: int = 4):
+    """One-call **key-plan** sheet: representative plans + a section + an elevation, all on one page. Bakes
+    geometry once. `storey` renders just that level's plan; otherwise up to `max_plans` levels are sampled
+    evenly across the building (a tall tower has one sheet per level in the full set — cramming 30 plans on
+    one page is neither fast nor legible). Returns SVG string or PDF bytes."""
     meshes = bake(model)
-    # model X bounds for the section line
     xs = [m.bounds for _, m in meshes if m.bounds is not None]
     mid_x = float(np.mean([b[:, 0].mean() for b in xs])) if xs else 0.0
 
     storeys = storey_elevations(model)
     top = max((s["elevation"] for s in storeys), default=0.0)
-    specs = [{"kind": "plan", "elevation": s["elevation"], "title": f"PLAN {s['name']}"}
-             for s in storeys if s["elevation"] < top - 0.01]
+    below_roof = [s for s in storeys if s["elevation"] < top - 0.01]
+    if storey:                                            # a single named level
+        chosen = [s for s in below_roof if (s["name"] or "") == storey] or below_roof[:1]
+    elif len(below_roof) <= max_plans:
+        chosen = below_roof
+    else:                                                 # sample evenly (keep first + last + spread)
+        step = (len(below_roof) - 1) / (max_plans - 1)
+        idx = sorted({round(i * step) for i in range(max_plans)})
+        chosen = [below_roof[i] for i in idx]
+    specs = [{"kind": "plan", "elevation": s["elevation"], "title": f"PLAN {s['name']}"} for s in chosen]
     specs.append({"kind": "section", "axis": "x", "offset": mid_x, "title": "SECTION A-A"})
     specs.append({"kind": "elevation", "direction": "north", "title": "NORTH ELEVATION"})
 
