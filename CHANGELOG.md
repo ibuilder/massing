@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.359 — W9-4: document / specification graph (cited sources)
+
+- New **doc-graph** layer — the cited-source half W9-4 left open. `docgraph.build` folds two node kinds
+  onto the model graph: **spec sections** (an element's classification code → the governing MasterFormat/
+  UniFormat section) and **documents** (attached detail/cut-sheets with their derived sheet reference),
+  each linked to the elements they govern (`specified_by` / `documented_by`). Served at
+  `GET /projects/{pid}/doc-graph`.
+- `element_sources(guid)` returns one element's **cited provenance** — its spec sections, attached
+  documents (with sheet refs), and spatial container, every fact tagged with its source. Served at
+  `GET /projects/{pid}/elements/{guid}/sources`. The substrate the RFI-0 NL-QA layer answers from.
+
 ## v0.3.358 — W10-7: analytical surface members (slabs)
 
 - `derive_analytical` now idealises **slabs / roof decks** into `IfcStructuralSurfaceMember`s (SHELL): a

@@ -239,8 +239,12 @@ interop targets / content platforms / open standards named where they're integra
 - ✅ **RFI-0 missing-dimension detection SHIPPED v0.3.336** — a 5th gap source in `decision_readiness`:
   doors/windows with no `OverallWidth`/`OverallHeight` + rooms with no floor area → ranked `dimensions`
   gaps that ride the existing BCF promotion.
-- **RFI-0 (remaining)** *(M · ★★★★★)* — the **NL-QA natural-language QA layer** over the audit (needs the
-  W9-4 spec/drawing graph nodes for cited-source answers).
+- 🟡 **W9-4 doc-graph SHIPPED v0.3.359** — the cited-source substrate: `docgraph.build` folds spec-section
+  (classification code) + document (sheet-ref'd) nodes onto the model graph (`specified_by`/`documented_by`);
+  `element_sources(guid)` returns one element's cited provenance (spec sections · documents · location).
+  Served at `GET .../doc-graph` and `GET .../elements/{guid}/sources`.
+- **RFI-0 (remaining)** *(M · ★★★★★)* — the **NL-QA natural-language QA layer** that routes a question to the
+  doc-graph / decision-readiness and answers with those citations (next slice).
 
 ### 🎮 Visualization — Unity as the optional bridge
 - **VIZ-U1 — Unity/Pixyz IFC → WebGL presentation build** *(L · optional/paid/flagged)* — Pixyz imports **IFC

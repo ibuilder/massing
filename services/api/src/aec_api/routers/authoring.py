@@ -130,6 +130,29 @@ def analytical_summary(pid: str, db: Session = Depends(get_db), _: str = Depends
     return analytical.summary(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/doc-graph")
+def doc_graph(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W9-4 (harder half): the document / specification graph — spec sections (classification codes) and
+    attached documents (with sheet refs) linked to the elements they govern. The cited-source layer."""
+    from aec_data import docgraph  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return docgraph.build(open_model(p.source_ifc))
+
+
+@router.get("/projects/{pid}/elements/{guid}/sources")
+def element_sources(pid: str, guid: str, db: Session = Depends(get_db),
+                    _: str = Depends(require_role("viewer"))):
+    """The cited provenance of one element — its governing spec sections, attached documents (with sheet
+    refs), and spatial container. Every fact tagged with its source; the substrate for RFI-0 NL-QA."""
+    from aec_data import docgraph  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return docgraph.element_sources(open_model(p.source_ifc), guid)
+
+
 @router.get("/projects/{pid}/drawings/schedule.svg")
 def schedule_svg(pid: str, kind: str = "doors", db: Session = Depends(get_db),
                  _: str = Depends(require_role("viewer"))):
