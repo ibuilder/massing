@@ -83,11 +83,10 @@ codebase gap sweep + web scan). All backend, fully testable, on-mission, NOT stu
    compounding · CAM recovery ratio + over/under · renewal at-risk) + `test_changeorders.py` (CO pipeline by
    state · schedule-days excl. rejected · ball-in-court · ROM exposure), hand-computed. Math was already
    correct — regression protection, no product change.
-4. **IFC-QA — export/delivery fidelity check** *(★★★★ · openBIM moat)* — the industry's #1 openBIM complaint
-   is IFC export quality (lost Psets, broken spatial structure). Add a **round-trip check**: export the
-   authored IFC → re-read → confirm element counts, spatial containment, Pset population, classification,
-   and georeferencing survive; scorecard + PASS/WARN. Distinct from PREFLIGHT (permit-readiness) — this is
-   *interchange* readiness. *(Web: [BIM 2026 buyer's guide](https://www.demystifyingplm.com/best-bim-software-2026).)*
+4. ✅ **IFC-QA — export/delivery fidelity check — SHIPPED v0.3.401** — `roundtrip_qa`: `fingerprint`
+   (schema/units/by-class counts/GUID set/storeys/property payload) + `compare` (two verdicts: `identical`
+   / `lossless`, with per-dimension deltas + offender GUIDs) + `roundtrip` (write→reopen serialization
+   check). Endpoint `GET …/models/export-qa`. Interchange-readiness, distinct from PREFLIGHT.
 5. **COBie/parse robustness** *(★★ · data integrity)* — `cobie.py` `_email_of`/`_grouped_names` (and
    `drawings.py:70,92,509`) `except Exception: pass` silently drop a Contact/zone from a *compliance*
    deliverable. Log + count skips instead of swallowing. *(Bundle into a small hardening PR.)*

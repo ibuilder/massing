@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.401 — IFC-QA: export round-trip fidelity check (does the export drop anything?)
+
+- The #1 openBIM complaint is **silent loss on export** — entities dropped, GlobalIds churned, property
+  sets lost when a model is serialized or pushed through a bridge. New `roundtrip_qa` engine catches it:
+  - **`fingerprint(model)`** — a comparable summary of the invariants that must survive an exchange: IFC
+    schema, project units, entity counts by class, the full GlobalId set, storey list, and the element
+    property/quantity payload size.
+  - **`compare(before, after)`** — diffs two opened models and returns two verdicts: **`identical`** (exact
+    match — the target for a plain re-serialization) and **`lossless`** (nothing *dropped*: after ⊇ before,
+    the bar a legitimate transform must clear), with per-dimension deltas and offender GUID samples.
+  - **`roundtrip(model)`** — writes the model out to a temp IFC and reopens it, then compares — a pure
+    serialization-fidelity check of the write path the edit recipes use to republish.
+  - Exposed at `GET /projects/{pid}/models/export-qa` (409 without a source IFC). Pure + guarded; a
+    write/reopen failure is itself reported as a fidelity failure rather than a 500.
+- Test coverage: clean write→reopen is `identical`; a dropped wall is caught as EXPORT LOSS (GUID removed
+  + IfcWall delta −1); a superset target reads lossless-but-not-identical.
+
 ## v0.3.400 — DRIFT: preliminary story-drift screen + torsional-irregularity flag (ASCE 7 §12.12 / §12.3.2.1)
 
 - The lateral engine computed seismic ELF + wind base shear distributed to story forces, but had **no

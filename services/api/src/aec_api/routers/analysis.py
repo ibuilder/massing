@@ -372,6 +372,15 @@ def model_qa_report(pid: str, db: Session = Depends(get_db), _sec: str = Depends
     return model_qa.model_qa(open_source_ifc(db, pid))
 
 
+@router.get("/projects/{pid}/models/export-qa")
+def model_export_qa(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """IFC-QA · **export round-trip fidelity** — writes the source IFC out and reopens it, then compares
+    schema / units / entity counts / GlobalId set / storeys / property payload. Proves the re-export is
+    lossless (the #1 openBIM complaint is silent loss on export). 409 if the project has no source IFC."""
+    from aec_data import roundtrip_qa  # type: ignore
+    return roundtrip_qa.roundtrip(open_source_ifc(db, pid))
+
+
 @router.get("/projects/{pid}/models/health")
 def model_health_scorecard(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Composite **Model Health** scorecard — one 0–100 score over the model-quality checks (integrity/
