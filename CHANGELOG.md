@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.365 — viewer: Ask-the-model box + structural analytical panel
+
+- The **Analyze & Coordinate** rail section gains two tools that surface the frontier backends:
+  - an **Ask the model** box (RFI-0 NL-QA) — type a plain-language question ("what governs this element?",
+    "what's blocking approval?") and get a cited answer, with a one-click *isolate the cited elements*.
+  - a **Structural analytical model** tool (W10-7) — shows the derived analysis-model summary (curve /
+    surface members · nodes · load case) and a *derive/refresh from the physical model* action.
+
 ## v0.3.364 — web client: typed bridge to the new engines
 
 - Typed client methods for the frontier backends shipped this cycle, so the app (and future UI) can reach

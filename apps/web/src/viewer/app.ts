@@ -3322,6 +3322,65 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             body.appendChild(resultNote(r!.disclaimer, ""));
           });
         })));
+        // RFI-0 NL-QA — ask a plain-language question, get a cited answer from the model's own data
+        const qaWrap = document.createElement("div");
+        qaWrap.style.cssText = "display:flex;gap:4px;margin:4px 2px";
+        const qaInput = document.createElement("input");
+        qaInput.type = "text";
+        qaInput.placeholder = "Ask: what governs <element>? · what's blocking approval?";
+        qaInput.style.cssText = "flex:1;min-width:0;font-size:11px;padding:3px 6px";
+        qaInput.setAttribute("aria-label", "Ask a question about the model");
+        const qaBtn = document.createElement("button");
+        qaBtn.className = "tool-btn"; qaBtn.textContent = "Ask"; qaBtn.style.cssText = "font-size:11px;padding:3px 10px";
+        const askQa = () => {
+          const q = qaInput.value.trim();
+          if (!q) return;
+          void withLoading(container, "Asking the model", async () => {
+            let r;
+            try { r = await api.rfiQa(pid, q); }
+            catch { toast("Needs a source IFC", "error"); return; }
+            out.textContent = r.answer.slice(0, 60);
+            showResult("Ask the model — cited answer", (body) => {
+              body.appendChild(resultNote(r!.answer, r!.ready === false ? "bad" : "ok"));
+              if (r!.citations.length) {
+                body.appendChild(kvTable(r!.citations.map((c) => ({ k: c.kind, v: c.ref }))));
+                const guids = r!.citations.flatMap((c) => c.guids || []);
+                if (guids.length) body.appendChild(toolBtn2(`◎ Isolate ${guids.length} cited element(s)`, () => { void layerMgr.isolateGuids(guids); }));
+              }
+              body.appendChild(resultNote(r!.disclaimer, ""));
+            });
+          });
+        };
+        qaBtn.onclick = askQa;
+        qaInput.onkeydown = (e) => { if (e.key === "Enter") askQa(); };
+        qaWrap.append(qaInput, qaBtn);
+        b.appendChild(qaWrap);
+        // W10-7 structural analytical model — derived from the physical frame
+        b.appendChild(toolBtn2("🏗 Structural analytical model", () => withLoading(container, "Reading the analytical model", async () => {
+          let s;
+          try { s = await api.analyticalSummary(pid); }
+          catch { toast("Needs a source IFC", "error"); return; }
+          out.textContent = s.has_model ? `${s.curve_members} members · ${s.point_connections} nodes` : "not derived";
+          showResult("Structural analytical model", (body) => {
+            if (!s!.has_model) {
+              body.appendChild(resultNote("No analytical model yet. Derive one to idealise the physical frame — "
+                + "columns/beams → curve members, slabs → surface members, tied at shared nodes with a self-weight load case.", ""));
+            } else {
+              body.appendChild(resultNote(`<b>${s!.curve_members}</b> curve members · <b>${s!.surface_members}</b> surface members`
+                + ` · <b>${s!.point_connections}</b> nodes · load case: ${s!.load_cases.filter(Boolean).join(", ") || "—"}`, "ok"));
+            }
+            const derive = toolBtn2(s!.has_model ? "↻ Re-derive from the physical model" : "⚙ Derive from the physical model",
+              () => withLoading(container, "Deriving the analytical model", async () => {
+                try {
+                  await api.editIfc(pid, "derive_analytical", {}, false);
+                  const s2 = await api.analyticalSummary(pid);
+                  notify(`Analytical model derived — ${s2.curve_members} curve, ${s2.surface_members} surface members, ${s2.point_connections} nodes`, "success");
+                } catch (e) { notify((e as Error).message, "error"); }
+              }));
+            derive.title = "Build/refresh the IfcStructuralAnalysisModel alongside the physical model (GUID-stable, idempotent)";
+            body.appendChild(derive);
+          });
+        })));
         b.appendChild(toolBtn2("✅ Approvability pre-flight (permit-readiness)", () => withLoading(container, "Running the plan-reviewer pre-flight", async () => {
           let a;
           try { a = await api.approvability(projectId!); }
