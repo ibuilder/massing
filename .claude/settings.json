@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/ruff_fix.py"
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/ruff_fix.py\""
           }
         ]
       }
