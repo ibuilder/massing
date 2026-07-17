@@ -278,8 +278,9 @@ buttons, tower rebuilt with all 8 disciplines). Optional remnants:
   a completeness lens over the property index, no geometry parse.
 - **DISC-poché** — an opt-in **colour-by-discipline mode** for the 2D plan/PDF poché (today the poché is
   deliberate per-class architectural convention).
-- **DISC-cw** — **context-aware curtain-wall member classification** (an `IfcMember`/`IfcPlate` aggregated under
-  an `IfcCurtainWall` → Architectural, not Structural).
+- ✅ **DISC-cw SHIPPED v0.3.353** — context-aware curtain-wall member classification: an `IfcMember`/`IfcPlate`
+  aggregated under an `IfcCurtainWall` (or `IfcRoof`) now reads Architectural, not Structural. The property
+  index records each element's aggregating `host` class; `discipline_of_ifc_class(cls, host)` consults it.
 
 ---
 

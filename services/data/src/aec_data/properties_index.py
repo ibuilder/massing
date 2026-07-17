@@ -22,18 +22,21 @@ class ElementRecord:
     name: str | None
     type_name: str | None
     storey: str | None
+    host: str | None = None   # IFC class of the aggregating parent (e.g. an IfcMember's IfcCurtainWall)
     psets: dict[str, dict[str, Any]] = field(default_factory=dict)
     qtos: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def _element_record(el) -> ElementRecord:
     el_type = ue.get_type(el)
+    parent = ue.get_aggregate(el)     # the decomposing parent (IfcRelAggregates), not the spatial container
     return ElementRecord(
         guid=el.GlobalId,
         ifc_class=el.is_a(),
         name=getattr(el, "Name", None),
         type_name=getattr(el_type, "Name", None) if el_type else None,
         storey=storey_name(el),
+        host=parent.is_a() if parent is not None else None,
         psets=ue.get_psets(el, psets_only=True),
         qtos=ue.get_psets(el, qtos_only=True),
     )

@@ -17,8 +17,10 @@ router = APIRouter()
 def _discipline_name(e: dict) -> str:
     """The NCS discipline for an element, derived from its IFC class via the MasterFormat map
     (Discipline Spine D2). Elements whose class isn't mapped fall into 'General'. Pure function of the
-    already-indexed ifc_class — no republish, no extra scan."""
-    return classification.discipline_name(classification.discipline_of_ifc_class(e.get("ifc_class") or "")) or "General"
+    already-indexed ifc_class — no republish, no extra scan. The aggregating host (when indexed) refines
+    context-dependent parts: a curtain-wall mullion (IfcMember under IfcCurtainWall) reads Architectural."""
+    return classification.discipline_name(
+        classification.discipline_of_ifc_class(e.get("ifc_class") or "", e.get("host"))) or "General"
 
 # The model property index (pid -> {guid -> record}) and the scan-result cache live in the
 # `aec_api.model_index` engine — engines (bim_kpi/energy/evm/mcp_tools/reports) consume them too, so

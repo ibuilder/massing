@@ -208,10 +208,21 @@ _IFC_DISCIPLINE: dict[str, str] = {
 }
 
 
-def discipline_of_ifc_class(ifc_class: str) -> str | None:
-    """The NCS discipline for an IFC class. Explicit MEP/fire/telecom pins win; IFC4.3 infrastructure
+# Framing/glazing parts (IfcMember/IfcPlate) default to Structural steel, but when they are aggregated
+# under an architectural host — a curtain wall or a roof — they belong to that host's discipline
+# (a mullion is façade, not frame). DISC-cw: context wins over the bare-class default.
+_CW_PART_CLASSES = frozenset({"IfcMember", "IfcPlate"})
+_ARCH_HOST_CLASSES = frozenset({"IfcCurtainWall", "IfcRoof"})
+
+
+def discipline_of_ifc_class(ifc_class: str, host_class: str | None = None) -> str | None:
+    """The NCS discipline for an IFC class. Explicit MEP/fire/telecom pins win; a framing/glazing part
+    aggregated under a curtain wall or roof follows that host (Architectural); IFC4.3 infrastructure
     entities are Civil (C); everything else is derived through its MasterFormat section."""
     cl = (ifc_class or "").strip()
+    host = (host_class or "").strip()
+    if cl in _CW_PART_CLASSES and host in _ARCH_HOST_CLASSES:
+        return "A"
     if cl in _IFC_DISCIPLINE:
         return _IFC_DISCIPLINE[cl]
     if is_infra_class(cl):

@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.353 — DISC-cw: curtain-wall parts read Architectural
+
+- Framing/glazing parts (`IfcMember` mullions/transoms, `IfcPlate` glazing) aggregated under an
+  `IfcCurtainWall` or `IfcRoof` now classify as **Architectural**, not Structural — context wins over the
+  bare-class default (a façade mullion is enclosure, not frame). The properties index records each
+  element's aggregating **host** class, and `discipline_of_ifc_class` consults it. Without a host, parts
+  stay Structural.
+
 ## v0.3.352 — discipline coverage report
 
 - `GET /projects/{pid}/elements/by-discipline` now returns a **coverage** view over the discipline

@@ -33,6 +33,13 @@ assert c.discipline_code("MEP") == "M" and c.discipline_code("Geotechnical") == 
 assert c.discipline_code("Low Voltage") == "T" and c.discipline_code("Structural") == "S"
 assert c.discipline_code("S") == "S" and c.discipline_code("") is None
 
+# --- DISC-cw: framing/glazing parts follow an architectural host (curtain wall / roof) over their
+# bare-class Structural default; without a host they stay Structural ---
+assert c.discipline_of_ifc_class("IfcMember") == "S" and c.discipline_of_ifc_class("IfcPlate") == "S"
+assert c.discipline_of_ifc_class("IfcMember", "IfcCurtainWall") == "A"
+assert c.discipline_of_ifc_class("IfcPlate", "IfcRoof") == "A"
+assert c.discipline_of_ifc_class("IfcColumn", "IfcCurtainWall") == "S"   # a column host doesn't hijack it
+
 # --- catalogs ---
 disc = c.disciplines()
 assert len(disc) == 11 and disc[0]["code"] == "G", len(disc)
