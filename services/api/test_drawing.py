@@ -112,6 +112,9 @@ assert len(sch["doors"]["rows"]) >= 1 and len(sch["windows"]["rows"]) >= 1, sch
 # the door's width was captured from OverallWidth (0.90 m)
 assert any(row[1] == "0.90" for row in sch["doors"]["rows"]), sch["doors"]["rows"]
 assert any(row[1] == "1.50" for row in sch["windows"]["rows"]), sch["windows"]["rows"]
+# W10-6: room schedule carries IfcElementQuantity depth (perimeter + volume columns from Qto)
+assert sch["rooms"]["columns"] == ["No.", "Name", "Area (m²)", "Perimeter (m)", "Volume (m³)", "Level"], \
+    sch["rooms"]["columns"]
 # W10-6: the schedule exports to CSV (one kind + all-three)
 dcsv = drawing.schedule_csv(m, "doors")
 lines = [ln for ln in dcsv.splitlines() if ln]

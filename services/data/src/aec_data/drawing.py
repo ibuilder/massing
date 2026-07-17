@@ -837,19 +837,27 @@ def schedules(model: ifcopenshell.file) -> dict:
               _type(d), _lvl(d)] for d in model.by_type("IfcDoor")]
     windows = [[_opening(w), _m(getattr(w, "OverallWidth", None)), _m(getattr(w, "OverallHeight", None)),
                 _type(w), _lvl(w)] for w in model.by_type("IfcWindow")]
+    def _q(v):                                                # a numeric quantity → 2dp text, else blank
+        try:
+            return f"{float(v):.2f}" if v is not None else ""
+        except (TypeError, ValueError):
+            return ""
+
     rooms = []
     for s in model.by_type("IfcSpace"):
-        q = ue.get_pset(s, "Qto_SpaceBaseQuantities") or {}
+        q = ue.get_pset(s, "Qto_SpaceBaseQuantities") or {}    # W10-6: IfcElementQuantity depth
         area = q.get("NetFloorArea") or q.get("GrossFloorArea")
+        perim = q.get("NetPerimeter") or q.get("GrossPerimeter")
+        vol = q.get("NetVolume") or q.get("GrossVolume")
         rooms.append([getattr(s, "Name", None) or "", getattr(s, "LongName", None) or "",
-                      f"{float(area):.2f}" if area else "", _lvl(s)])
+                      f"{float(area):.2f}" if area else "", _q(perim), _q(vol), _lvl(s)])
 
     return {
         "doors": {"columns": ["Mark", "Width (m)", "Height (m)", "Type", "Level"],
                   "rows": sorted(doors, key=lambda r: r[0])},
         "windows": {"columns": ["Mark", "Width (m)", "Height (m)", "Type", "Level"],
                     "rows": sorted(windows, key=lambda r: r[0])},
-        "rooms": {"columns": ["No.", "Name", "Area (m²)", "Level"],
+        "rooms": {"columns": ["No.", "Name", "Area (m²)", "Perimeter (m)", "Volume (m³)", "Level"],
                   "rows": sorted(rooms, key=lambda r: r[0])},
     }
 

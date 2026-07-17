@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.356 — W10-6: room schedule quantity depth
+
+- The computed **room schedule** now carries `IfcElementQuantity` depth — **Perimeter (m)** and
+  **Volume (m³)** columns read from `Qto_SpaceBaseQuantities` alongside floor area. Flows through every
+  schedule surface (CSV / SVG / PDF) since they render generically by column.
+
 ## v0.3.355 — W10-4: MEP design flow rate on segments
 
 - `add_mep_run` (duct/pipe/cable) and `add_riser` accept an optional **design flow rate** (`flow` +
