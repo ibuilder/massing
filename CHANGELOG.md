@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.402 — DEV-2: import-cycle guard (lock in the REL-3 façade layering)
+
+- The REL-3 modularization repeatedly stalled on *false-positive* circular-import reports (imports that are
+  actually function-local / deferred). New **`test_import_cycles.py`** locks in the real invariant: **no
+  circular imports at module top level** across the first-party packages (`aec_api` + `aec_data`) —
+  the kind that breaks at import time and blocks a clean façade extraction.
+- Pure stdlib `ast` (no third-party linter added), runs inside the fast parallel gate. Builds the
+  top-level import graph over all 327 first-party modules and fails loudly on any strongly-connected
+  component (Tarjan SCC) — function-local/deferred imports are correctly ignored since they don't cycle at
+  import time. Today: **0 cycles across 704 intra-package edges**; a regression now fails CI with the exact
+  cycle path.
+
 ## v0.3.401 — IFC-QA: export round-trip fidelity check (does the export drop anything?)
 
 - The #1 openBIM complaint is **silent loss on export** — entities dropped, GlobalIds churned, property
