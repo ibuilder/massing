@@ -3,19 +3,28 @@ the collab snapshot endpoint, and the change signature that drives the SSE model
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_collab.py"""
 import os
 
-os.environ["DATABASE_URL"] = "sqlite:///./test_collab.db"
-os.environ["STORAGE_DIR"] = "./test_storage_collab"
-os.environ["IFC_DIR"] = "./test_ifc_collab"
+# setdefault so the parallel test runner's unique per-test db/storage (which it cleans each run) wins;
+# fall back to fixed names for a standalone run.
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test_collab.db")
+os.environ.setdefault("STORAGE_DIR", "./test_storage_collab")
+os.environ.setdefault("IFC_DIR", "./test_ifc_collab")
 os.environ.pop("AEC_RBAC", None)
-for f in ("./test_collab.db",):
-    if os.path.exists(f):
-        os.remove(f)
+# best-effort clean of a stale standalone db (a lingering Windows file lock must not crash import)
+_dburl = os.environ["DATABASE_URL"]
+if _dburl.startswith("sqlite:///./"):
+    try:
+        _f = _dburl[len("sqlite:///./"):]
+        if os.path.exists(_f):
+            os.remove(_f)
+    except OSError:
+        pass
 
-from fastapi.testclient import TestClient                    # noqa: E402
-from aec_api import collab, presence                         # noqa: E402
-from aec_api.db import SessionLocal                          # noqa: E402
-from aec_api.main import app                                 # noqa: E402
-from aec_api.models import ModelVersion                      # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import collab, presence  # noqa: E402
+from aec_api.db import SessionLocal  # noqa: E402
+from aec_api.main import app  # noqa: E402
+from aec_api.models import ModelVersion  # noqa: E402
 
 H = lambda u: {"X-User": u}
 

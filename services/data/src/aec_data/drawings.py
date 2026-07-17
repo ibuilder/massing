@@ -6,7 +6,6 @@ plain SVG so it embeds in the viewer, prints, or drops onto a sheet with a title
 """
 from __future__ import annotations
 
-import multiprocessing
 import warnings
 from typing import Any
 from xml.sax.saxutils import escape as _xesc
@@ -17,6 +16,7 @@ import ifcopenshell.util.unit as uunit
 import numpy as np
 import trimesh
 
+from .geomconf import geom_workers
 from .ifc_loader import open_model
 
 warnings.filterwarnings("ignore")
@@ -54,7 +54,7 @@ def _world_settings(geom_mod):
 
 def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
     """Bake every element's world-space mesh ONCE so many views can section the same set."""
-    it = geom.iterator(_world_settings(geom), model, max(1, multiprocessing.cpu_count() - 1))
+    it = geom.iterator(_world_settings(geom), model, geom_workers())
     meshes: list[tuple[str, trimesh.Trimesh]] = []
     if not it.initialize():
         return meshes

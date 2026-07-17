@@ -15,6 +15,7 @@ import ifcopenshell
 import ifcopenshell.api
 import ifcopenshell.util.element as ue
 
+from .geomconf import geom_workers
 from .ifc_loader import open_model
 
 _DTYPE = {"bool": "IfcBoolean", "str": "IfcLabel", "float": "IfcReal", "int": "IfcInteger"}
@@ -118,7 +119,6 @@ def add_spaces(model: ifcopenshell.file, rooms_per_storey: int = 4,
     extruded geometry, base quantities and Pset_SpaceCommon — so the model gains a usable
     space/room schedule. Returns the number of spaces created."""
     import math
-    import multiprocessing
 
     import ifcopenshell.geom as geom
     import numpy as np
@@ -127,7 +127,7 @@ def add_spaces(model: ifcopenshell.file, rooms_per_storey: int = 4,
     building = {"ifcwall", "ifcwallstandardcase", "ifcslab", "ifcroof", "ifcwindow",
                 "ifcdoor", "ifccolumn", "ifcbeam", "ifcstair", "ifccovering"}
     settings = geom.settings()
-    it = geom.iterator(settings, model, max(1, multiprocessing.cpu_count() - 1))
+    it = geom.iterator(settings, model, geom_workers())
     mn = np.array([1e18, 1e18, 1e18]); mx = -mn
     if it.initialize():
         while True:
@@ -1783,7 +1783,6 @@ def furnish_spaces(model: ifcopenshell.file, item: str = "desk", per_room: int =
     (IfcFurnishingElement) inside each room's real footprint with aisle clearance. Templates by `item`
     (metres, w×d×h). `per_room=0` fits as many as the footprint allows; otherwise caps per room.
     Returns the number of furniture items placed. Mirrors add_spaces' geometry/placement handling."""
-    import multiprocessing
 
     import ifcopenshell.geom as geom
     import ifcopenshell.util.element as ue
@@ -1796,7 +1795,7 @@ def furnish_spaces(model: ifcopenshell.file, item: str = "desk", per_room: int =
 
     # per-space footprint bbox from the baked geometry (SI metres, as add_spaces reads it)
     settings = geom.settings()
-    it = geom.iterator(settings, model, max(1, multiprocessing.cpu_count() - 1))
+    it = geom.iterator(settings, model, geom_workers())
     boxes: dict[str, tuple] = {}
     if it.initialize():
         while True:

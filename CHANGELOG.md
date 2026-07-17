@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.393 — DEV-1: parallel test gate (~30 min → ~11 min) + geometry worker cap
+
+- **Dev-velocity, not a product change.** The API test gate (`run_tests.py`) ran ~180 self-contained
+  `test_*.py` **sequentially** (~30 min) — the release bottleneck. It now runs them through a bounded
+  `ThreadPoolExecutor` (each test is already an isolated subprocess with its own SQLite db + storage dir).
+  `TEST_JOBS` overrides the worker count; `TEST_JOBS=1` restores sequential for debugging.
+- **Geometry worker cap** — each geometry pass (`bake`/clash/export/edit) ran ifcopenshell's iterator across
+  `cpu_count()-1` processes; under the parallel gate that oversubscribed the CPU (cpu × cpu). A new
+  `aec_data.geomconf.geom_workers()` reads **`AEC_GEOM_WORKERS`** (the runner sets `=1`) so each test is
+  single-threaded and the outer parallelism owns the cores. **Production default is unchanged** (`cpu-1`).
+- Net: the full suite drops from **~30 min to ~11 min (2.7×)**, 250/250 green. Also fixed the runner's
+  cp1252 output-capture (now `PYTHONUTF8=1` + utf-8 decode — no more spurious unicode-encode failures) and
+  made `test_collab` tolerant of a stale locked db so the parallel run is deterministic.
+
 ## v0.3.392 — Analytical supports: fix the base nodes → a solvable model
 
 - Completes the analytical model: the **`apply_structural_supports`** recipe fixes the **base**

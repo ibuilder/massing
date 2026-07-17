@@ -34,11 +34,11 @@ they're archived in **[roadmap-completed.md](roadmap-completed.md)**.
 
 **Do now — velocity & quality (small, safe, one PR each, suite green after each):**
 
-1. **DEV-1 — parallelize the test gate** *(★★★★★ · the biggest cycle-time win)* — `run_tests.py` runs ~180
-   `test_*.py` **sequentially** (~30 min); each is an isolated subprocess with its own SQLite db + storage
-   dir, so they're embarrassingly parallel. Run them through a bounded `ThreadPoolExecutor` (cpu-2) and set
-   `PYTHONUTF8=1`/`encoding="utf-8"` on the subprocess so the cp1252 capture artifact disappears. Target: the
-   gate drops from ~30 min to a few. Keep the manifest guard + per-test env; preserve deterministic output.
+1. ✅ **DEV-1 — parallelize the test gate — SHIPPED v0.3.393** — `run_tests.py` now runs the ~180 isolated
+   `test_*.py` through a bounded `ThreadPoolExecutor` (`TEST_JOBS` overrides) + a geometry worker cap
+   (`AEC_GEOM_WORKERS=1` via `aec_data.geomconf`, so each test is single-threaded and the outer parallelism
+   owns the cores — no cpu×cpu oversubscription) + `PYTHONUTF8=1`/utf-8 capture. **~30 min → ~11 min (2.7×)**,
+   250/250 green. Production geometry default unchanged (`cpu-1`).
 2. **DEV-2 — lock in gains (REL-8)** *(ci)* — add an **import-cycle check** (`import-linter` for Python,
    `eslint-plugin-import/no-cycle` for web) so the false-positive-prone cycles can't regress; upload coverage
    from CI; module-header docstrings on the refactored hotspots (bus factor 1).

@@ -9,7 +9,6 @@ This is an engineering estimate (not a full dynamic simulation like EnergyPlus),
 fully offline on the model with no proprietary tools."""
 from __future__ import annotations
 
-import multiprocessing
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -17,6 +16,7 @@ import ifcopenshell
 import ifcopenshell.geom as geom
 import numpy as np
 
+from .geomconf import geom_workers
 from .ifc_loader import open_model
 
 # default constructions (SI, W/m²K) + climate — all overridable
@@ -54,7 +54,7 @@ def envelope_areas(model: ifcopenshell.file) -> _Areas:
     a = _Areas()
     counts: dict[str, int] = {}
     settings = geom.settings()
-    it = geom.iterator(settings, model, max(1, multiprocessing.cpu_count() - 1))
+    it = geom.iterator(settings, model, geom_workers())
     if not it.initialize():
         return a
     while True:

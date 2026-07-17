@@ -14,12 +14,13 @@ from __future__ import annotations
 
 import base64
 import json
-import multiprocessing
 from typing import Any
 
 import ifcopenshell
 import ifcopenshell.geom as geom
 import numpy as np
+
+from .geomconf import geom_workers
 
 # Z-up (IFC) -> Y-up (glTF): rotate -90° about X, i.e. (x, y, z) -> (x, z, -y).
 _ZUP_TO_YUP = np.array([[1, 0, 0], [0, 0, 1], [0, -1, 0]], dtype=np.float64)
@@ -37,7 +38,7 @@ def _class_colour(cls: str) -> list[float]:
 def _baked_by_class(model: ifcopenshell.file) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """Triangulate every element; merge vertices+faces per IFC class into (verts Nx3, faces Mx3)."""
     settings = geom.settings()
-    it = geom.iterator(settings, model, max(1, multiprocessing.cpu_count() - 1))
+    it = geom.iterator(settings, model, geom_workers())
     acc: dict[str, list[tuple[np.ndarray, np.ndarray]]] = {}
     if not it.initialize():
         return {}

@@ -10,6 +10,7 @@ if any fail — suitable for CI.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import os
 import shutil
 import subprocess
@@ -61,6 +62,24 @@ def _manifest_guard() -> list[str]:
     return sorted(on_disk - set(TESTS))
 
 
+def _run_one(t: str, base: dict) -> tuple[str, bool, float, str]:
+    """Run a single test_*.py as an isolated subprocess (own SQLite db + storage dir) and return
+    (name, ok, seconds, captured-output). Safe to run concurrently — each test's db/storage is unique."""
+    env = {**base,
+           "DATABASE_URL": f"sqlite:///./_{t}.db",
+           "STORAGE_DIR": f"./_storage_{t}",
+           "AEC_RBAC": "1" if t in ("test_rbac", "test_modules") else os.environ.get("AEC_RBAC", "0")}
+    (HERE / f"_{t}.db").unlink(missing_ok=True)
+    # also clear the per-test object-storage dir so sidecar state (e.g. docmanager's
+    # {pid}/docs/_index.json) can't leak across runs and break count assertions
+    shutil.rmtree(HERE / f"_storage_{t}", ignore_errors=True)
+    t0 = time.time()
+    # -X utf8 + utf-8 capture so a test's unicode output (→, ², °) never crashes on a cp1252 console
+    proc = subprocess.run([sys.executable, "-X", "utf8", f"{t}.py"], cwd=HERE, env=env,
+                          capture_output=True, encoding="utf-8", errors="replace")
+    return t, proc.returncode == 0, time.time() - t0, (proc.stdout or "") + (proc.stderr or "")
+
+
 def main() -> int:
     unregistered = _manifest_guard()
     if unregistered:
@@ -69,31 +88,26 @@ def main() -> int:
         return 1
     # api src + the data service src (analysis/export bridge), mirroring the runtime image
     pp = os.pathsep.join([str(HERE / "src"), str(HERE.parent / "data" / "src")])
-    base = {**os.environ, "PYTHONPATH": pp, "AEC_TRUST_XUSER": "1"}
+    # AEC_GEOM_WORKERS=1: each test's ifcopenshell geometry pass runs single-threaded so the outer
+    # test-level parallelism owns the cores (no cpu-1 × cpu-1 oversubscription).
+    base = {**os.environ, "PYTHONPATH": pp, "AEC_TRUST_XUSER": "1", "PYTHONUTF8": "1",
+            "AEC_GEOM_WORKERS": os.environ.get("AEC_GEOM_WORKERS", "1")}
+    tests = [t for t in TESTS if (HERE / f"{t}.py").exists()]
+    # each test is an isolated subprocess → embarrassingly parallel. TEST_JOBS overrides the worker count
+    # (TEST_JOBS=1 forces the old sequential behaviour for debugging a flaky/order-sensitive test).
+    jobs = int(os.environ.get("TEST_JOBS") or 0) or max(1, (os.cpu_count() or 2) - 1)
+    jobs = max(1, min(jobs, len(tests)))
     results: list[tuple[str, bool, float]] = []
-    for t in TESTS:
-        if not (HERE / f"{t}.py").exists():
-            continue
-        env = {**base,
-               "DATABASE_URL": f"sqlite:///./_{t}.db",
-               "STORAGE_DIR": f"./_storage_{t}",
-               "AEC_RBAC": "1" if t in ("test_rbac", "test_modules") else os.environ.get("AEC_RBAC", "0")}
-        for stale in (HERE / f"_{t}.db",):
-            stale.unlink(missing_ok=True)
-        # also clear the per-test object-storage dir so sidecar state (e.g. docmanager's
-        # {pid}/docs/_index.json) can't leak across runs and break count assertions
-        shutil.rmtree(HERE / f"_storage_{t}", ignore_errors=True)
-        t0 = time.time()
-        proc = subprocess.run([sys.executable, f"{t}.py"], cwd=HERE, env=env,
-                              capture_output=True, text=True)
-        ok = proc.returncode == 0
-        results.append((t, ok, time.time() - t0))
-        print(f"{'PASS' if ok else 'FAIL'}  {t}  ({time.time() - t0:.1f}s)")
-        if not ok:
-            print((proc.stdout + proc.stderr).strip()[-1200:])
+    t_start = time.time()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
+        for t, ok, dt, out in ex.map(lambda t: _run_one(t, base), tests):
+            results.append((t, ok, dt))
+            print(f"{'PASS' if ok else 'FAIL'}  {t}  ({dt:.1f}s)", flush=True)
+            if not ok:
+                print(out.strip()[-1200:], flush=True)
 
     passed = sum(1 for _, ok, _ in results if ok)
-    print(f"\n{passed}/{len(results)} suites passed")
+    print(f"\n{passed}/{len(results)} suites passed  ({jobs} parallel, {time.time() - t_start:.0f}s wall)")
     return 0 if passed == len(results) else 1
 
 
