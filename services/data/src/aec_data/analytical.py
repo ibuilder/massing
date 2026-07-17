@@ -26,10 +26,14 @@ _CURVE_CLASSES = ("IfcColumn", "IfcBeam", "IfcMember")
 # physical classes that idealise to a 2-D analytical surface member (planar slabs / roof decks)
 _SURFACE_CLASSES = ("IfcSlab",)
 
+# load actions + their applied-load values (removed first, before the members they reference)
+_ACTION_ITEMS = ("IfcStructuralLinearAction", "IfcStructuralPointAction", "IfcStructuralCurveAction",
+                 "IfcStructuralLoadLinearForce", "IfcStructuralLoadSingleForce")
 # top-level analytical entities purged (deep) once every referencing rel is gone, so derive is idempotent
-_ANALYTICAL_ITEMS = ("IfcStructuralCurveMember", "IfcStructuralSurfaceMember",
-                     "IfcStructuralPointConnection", "IfcStructuralCurveConnection",
-                     "IfcStructuralAnalysisModel", "IfcStructuralLoadGroup", "IfcStructuralLoadCase")
+_ANALYTICAL_ITEMS = _ACTION_ITEMS + (
+    "IfcStructuralCurveMember", "IfcStructuralSurfaceMember",
+    "IfcStructuralPointConnection", "IfcStructuralCurveConnection",
+    "IfcStructuralAnalysisModel", "IfcStructuralLoadGroup", "IfcStructuralLoadCase")
 
 
 def _purge_analytical(model: ifcopenshell.file) -> None:
@@ -45,7 +49,9 @@ def _purge_analytical(model: ifcopenshell.file) -> None:
     for rel in list(model.by_type("IfcRelConnectsStructuralActivity")):
         model.remove(rel)
     for rel in list(model.by_type("IfcRelAssignsToGroup")):
-        if getattr(rel, "RelatingGroup", None) and rel.RelatingGroup.is_a("IfcStructuralAnalysisModel"):
+        grp = getattr(rel, "RelatingGroup", None)
+        # analysis-model membership + load-action → load-group assignments both reference analytical items
+        if grp and (grp.is_a("IfcStructuralAnalysisModel") or grp.is_a("IfcStructuralLoadGroup")):
             model.remove(rel)
     for rel in list(model.by_type("IfcRelAssignsToProduct")):
         if any(_is_struct(o) for o in (rel.RelatedObjects or [])):
@@ -266,6 +272,59 @@ def derive_analytical(model: ifcopenshell.file, name: str = "Analytical model") 
             "load_case": getattr(lcase, "Name", None), "load_group": getattr(lgroup, "Name", None)}
 
 
+_KIPFT_TO_NPM = 4448.2216 / 0.3048     # 1 kip/ft = 14593.9 N/m
+
+
+def _purge_actions(model: ifcopenshell.file) -> None:
+    """Drop every load action + its applied load + the rels that reference them, so re-applying loads
+    refreshes rather than accumulates (self-contained idempotency for the standalone recipe)."""
+    for rel in list(model.by_type("IfcRelConnectsStructuralActivity")):
+        model.remove(rel)
+    for rel in list(model.by_type("IfcRelAssignsToGroup")):
+        grp = getattr(rel, "RelatingGroup", None)
+        if grp is not None and grp.is_a("IfcStructuralLoadGroup"):
+            model.remove(rel)
+    for tname in _ACTION_ITEMS:
+        for ent in list(model.by_type(tname)):
+            try:
+                _ue.remove_deep2(model, ent)
+            except Exception:  # noqa: BLE001 — already freed as a shared child of a prior deep-remove
+                pass
+
+
+def apply_member_loads(model: ifcopenshell.file, dead_klf: float = 1.0,
+                       live_klf: float = 0.5) -> dict:
+    """Write a uniform gravity line load onto every analytical curve member as an
+    `IfcStructuralLinearAction` (applied `IfcStructuralLoadLinearForce`, global −Z), grouped under the
+    analysis model's load group. This turns the analytical model from self-weight-only into a **loaded,
+    solver-ready** model (SAP2000 / RISA / Robot import the actions with the geometry). Idempotent: prior
+    actions are purged first. `dead_klf`/`live_klf` are the service line loads (kip/ft); stored SI (N/m)."""
+    api = ifcopenshell.api.run
+    members = model.by_type("IfcStructuralCurveMember")
+    if not members:
+        return {"applied": 0, "message": "No analytical members — run the derive_analytical recipe first."}
+
+    _purge_actions(model)
+    group = next((g for g in model.by_type("IfcStructuralLoadGroup")), None)
+    if group is None:
+        group = api("structural.add_structural_load_group", model, name="Dead + Live",
+                    action_type="PERMANENT_G", action_source="DEAD_LOAD_G")
+
+    w_npm = (float(dead_klf) + float(live_klf)) * _KIPFT_TO_NPM
+    applied = 0
+    for cm in members:
+        load = api("structural.add_structural_load", model, name="w (D+L)",
+                   ifc_class="IfcStructuralLoadLinearForce")
+        load.LinearForceZ = -float(w_npm)                       # gravity acts in global −Z
+        act = api("structural.add_structural_activity", model, applied_load=load,
+                  structural_member=cm, ifc_class="IfcStructuralLinearAction")
+        api("group.assign_group", model, products=[act], group=group)
+        applied += 1
+    return {"applied": applied, "members": len(members),
+            "dead_klf": float(dead_klf), "live_klf": float(live_klf),
+            "line_load_N_per_m": round(w_npm, 1), "load_group": getattr(group, "Name", None)}
+
+
 def summary(model: ifcopenshell.file) -> dict:
     """Read back the analytical model(s): counts of analysis models, curve/surface members, point
     connections, and load cases/groups — feeds an analytical-model overview + the 'derive' workflow."""
@@ -283,5 +342,6 @@ def summary(model: ifcopenshell.file) -> dict:
         "point_connections": len(nodes),
         "load_cases": [getattr(c, "Name", None) for c in cases],
         "load_groups": [getattr(g, "Name", None) for g in groups],
+        "load_actions": len(model.by_type("IfcStructuralLinearAction")),
         "has_model": len(amodels) > 0,
     }

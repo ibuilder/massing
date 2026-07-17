@@ -3596,7 +3596,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
                 + "columns/beams → curve members, slabs → surface members, tied at shared nodes with a self-weight load case.", ""));
             } else {
               body.appendChild(resultNote(`<b>${s!.curve_members}</b> curve members · <b>${s!.surface_members}</b> surface members`
-                + ` · <b>${s!.point_connections}</b> nodes · load case: ${s!.load_cases.filter(Boolean).join(", ") || "—"}`, "ok"));
+                + ` · <b>${s!.point_connections}</b> nodes · load case: ${s!.load_cases.filter(Boolean).join(", ") || "—"}`
+                + (s!.load_actions ? ` · <b>${s!.load_actions}</b> member load action(s) — solver-ready` : ""), "ok"));
             }
             const derive = toolBtn2(s!.has_model ? "↻ Re-derive from the physical model" : "⚙ Derive from the physical model",
               () => withLoading(container, "Deriving the analytical model", async () => {
@@ -3608,6 +3609,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               }));
             derive.title = "Build/refresh the IfcStructuralAnalysisModel alongside the physical model (GUID-stable, idempotent)";
             body.appendChild(derive);
+            if (s!.has_model && s!.curve_members > 0) {
+              const loads = toolBtn2("⬇ Write member loads (solver-ready IFC)",
+                () => withLoading(container, "Writing structural load actions", async () => {
+                  try {
+                    const res = await api.editIfc(pid, "apply_structural_loads", { dead_klf: 1.0, live_klf: 0.5 }, false);
+                    const applied = (res as { changed?: { applied?: number } })?.changed?.applied ?? 0;
+                    notify(`Wrote ${applied} member load action(s) — the analytical IFC is now loaded (D+L) and solver-ready`, "success");
+                  } catch (e) { notify((e as Error).message, "error"); }
+                }));
+              loads.title = "Write IfcStructuralLinearAction (D+L) onto every analytical member so a solver (SAP2000/RISA/Robot) imports the loads with the geometry";
+              body.appendChild(loads);
+            }
             if (s!.has_model && s!.curve_members > 0) {
               const solve = toolBtn2("📐 Apply loads + solve statics", () => withLoading(container, "Applying gravity loads + solving statics", async () => {
                 let r;

@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.390 — STRUCT-LOADS-IFC: write member load actions → a solver-ready analytical model
+
+- The analytical model carried only a self-weight load *case*. The new **`apply_structural_loads`** recipe
+  writes a real gravity line load onto **every analytical curve member** as an `IfcStructuralLinearAction`
+  (applied `IfcStructuralLoadLinearForce`, global −Z at `(D+L) × 14593.9 N/m`), grouped under the analysis
+  model's load group — so the analytical IFC is now **loaded and solver-ready**: SAP2000 / RISA / Robot
+  import the actions with the geometry, not just bare members.
+- Idempotent (re-applying refreshes the value; counts never accumulate) and cleaned by a re-derive (the
+  analytical purge now removes load actions + applied loads with no orphans). `summary()` reports
+  `load_actions`; the viewer analytical panel shows the solver-ready count + a **"Write member loads"**
+  action. **Preliminary — service D+L only; final loads/combos are the engineer's.**
+
 ## v0.3.389 — STRUCT-LATERAL: ASCE 7 wind + seismic base shear → story forces
 
 - The lateral complement to the gravity solve. **`GET /projects/{pid}/structure/lateral`** runs the two

@@ -44,9 +44,11 @@ drawings + cost + proforma (377), and the **model estimate → proforma** hard-c
    deflection diagrams; vertical members carry a tributary column axial; factored forces via the governing
    LRFD combo. Viewer surfaces it in the analytical panel with inline diagrams. **Lateral SHIPPED v0.3.389**
    — `GET /structure/lateral`: ASCE 7 seismic ELF (§12.8) + simplified wind MWFRS → base shear + story
-   forces/shears/overturning, governing case flagged. *Remaining: per-member `IfcStructuralLinearAction`
-   load activities written back to the IFC · continuous-beam / coupled-frame (FEM) solve · section
-   properties read from the physical member · drift/P-delta.*
+   forces/shears/overturning, governing case flagged. **Member load activities SHIPPED v0.3.390** — the
+   `apply_structural_loads` recipe writes an `IfcStructuralLinearAction` (D+L, global −Z) onto every
+   analytical member, grouped under the load group → a loaded, solver-ready analytical IFC (idempotent,
+   purged on re-derive). *Remaining: continuous-beam / coupled-frame (FEM) solve · section properties read
+   from the physical member · drift/P-delta.*
 4. ✅ **VIEW-RANGE — plan view-depth — SHIPPED v0.3.383** — `plan.svg?view_depth=<m>` draws the footprint
    of elements below the cut but within the view depth (foundations/footings) as dashed hidden lines with a
    legend — the Revit Top/Cut/Bottom/View-Depth model, not a single `cut_z`. `below_footprint_baked` sections

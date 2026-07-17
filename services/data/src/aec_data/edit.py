@@ -2014,6 +2014,8 @@ RECIPES = {
                                                           p.get("tie_size", "#3"), float(p.get("cover", 0.04)),
                                                           float(p.get("tie_spacing", 0.25)), p.get("storey")),
     "derive_analytical": lambda m, p: _analytical().derive_analytical(m, p.get("name", "Analytical model")),
+    "apply_structural_loads": lambda m, p: _analytical().apply_member_loads(
+        m, float(p.get("dead_klf", 1.0)), float(p.get("live_klf", 0.5))),
     "add_curtain_wall": lambda m, p: _cw().add_curtain_wall(m, p["start"], p["end"], float(p.get("height", 3.5)),
                                                            int(p.get("cols", 3)), int(p.get("rows", 2)),
                                                            float(p.get("mullion", 0.06)),

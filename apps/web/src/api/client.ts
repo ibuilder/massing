@@ -1452,7 +1452,7 @@ export class ApiClient extends HttpCore {
     return this.json<{
       analysis_models: { guid: string; name: string | null; predefined_type: string | null }[];
       curve_members: number; surface_members: number; point_connections: number;
-      load_cases: (string | null)[]; load_groups: (string | null)[]; has_model: boolean;
+      load_cases: (string | null)[]; load_groups: (string | null)[]; load_actions?: number; has_model: boolean;
     }>(`/projects/${pid}/analytical`);
   }
 
