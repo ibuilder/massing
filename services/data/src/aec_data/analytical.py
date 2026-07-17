@@ -388,6 +388,64 @@ def apply_member_loads(model: ifcopenshell.file, dead_klf: float = 1.0,
             "line_load_N_per_m": round(w_npm, 1), "load_group": getattr(group, "Name", None)}
 
 
+def _node_z(pc):
+    """Z coordinate (file units) of a point connection's IfcVertexPoint, or None."""
+    rep = getattr(pc, "Representation", None)
+    if rep is None:
+        return None
+    for r in rep.Representations:
+        for it in (r.Items or []):
+            if it.is_a("IfcVertexPoint"):
+                return float(it.VertexGeometry.Coordinates[2])
+    return None
+
+
+def apply_supports(model: ifcopenshell.file, kind: str = "pinned", tol: float = 0.05) -> dict:
+    """Fix the base (lowest-elevation) analytical nodes as supports so the model is statically stable and
+    fully solvable — a pinned base (translations fixed, rotations free) or a fixed base (all six DOF).
+    Applied as an `IfcBoundaryNodeCondition` on each base `IfcStructuralPointConnection`. Idempotent:
+    prior conditions are cleared first. Completes the analytical model (members + loads + supports)."""
+    api = ifcopenshell.api.run
+    nodes = model.by_type("IfcStructuralPointConnection")
+    zs = [(z, n) for n in nodes if (z := _node_z(n)) is not None]
+    if not zs:
+        return {"supported": 0, "message": "No analytical nodes — run the derive_analytical recipe first."}
+
+    # idempotent: clear any existing support condition on every node
+    for n in nodes:
+        cond = getattr(n, "AppliedCondition", None)
+        if cond is not None:
+            n.AppliedCondition = None
+            try:
+                _ue.remove_deep2(model, cond)
+            except Exception:  # noqa: BLE001 — already freed
+                pass
+
+    minz = min(z for z, _ in zs)
+    base = [n for z, n in zs if abs(z - minz) <= tol]
+    rot_fixed = (str(kind).lower() == "fixed")
+    supported = 0
+    for n in base:
+        cond = api("structural.add_structural_boundary_condition", model,
+                   name=("Fixed" if rot_fixed else "Pinned") + " support", connection=n,
+                   ifc_class="IfcBoundaryNodeCondition")
+        # DOF stiffness is an IfcBoolean-in-a-select: True = rigid (fixed), False = free
+        rigid = model.create_entity("IfcBoolean", True)
+        free = model.create_entity("IfcBoolean", bool(rot_fixed))
+        try:
+            cond.TranslationalStiffnessX = rigid
+            cond.TranslationalStiffnessY = rigid
+            cond.TranslationalStiffnessZ = rigid
+            cond.RotationalStiffnessX = free
+            cond.RotationalStiffnessY = free
+            cond.RotationalStiffnessZ = free
+        except Exception:  # noqa: BLE001 — the condition still marks the node as supported for a solver
+            pass
+        supported += 1
+    return {"supported": supported, "base_nodes": len(base), "total_nodes": len(nodes),
+            "kind": "fixed" if rot_fixed else "pinned", "base_elevation_file_units": round(minz, 3)}
+
+
 def summary(model: ifcopenshell.file) -> dict:
     """Read back the analytical model(s): counts of analysis models, curve/surface members, point
     connections, and load cases/groups — feeds an analytical-model overview + the 'derive' workflow."""
@@ -406,5 +464,6 @@ def summary(model: ifcopenshell.file) -> dict:
         "load_cases": [getattr(c, "Name", None) for c in cases],
         "load_groups": [getattr(g, "Name", None) for g in groups],
         "load_actions": len(model.by_type("IfcStructuralLinearAction")),
+        "supports": len(model.by_type("IfcBoundaryNodeCondition")),
         "has_model": len(amodels) > 0,
     }

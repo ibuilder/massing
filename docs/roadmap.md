@@ -220,8 +220,9 @@ S1–S4 ship (deterministic baseline → multi-step LLM interpretation → confi
   **Surface members SHIPPED v0.3.358** — slabs/roof decks → `IfcStructuralSurfaceMember` (planar
   `IfcFaceSurface`). **Wall surface members SHIPPED v0.3.391** — load-bearing (shear) walls → vertical
   mid-plane surface members (partitions skipped via `Pset_WallCommon.LoadBearing`). **Load activities
-  SHIPPED v0.3.390** (`apply_structural_loads`). *Remaining: boundary conditions/supports, coupled-frame
-  (FEM) solve.*
+  SHIPPED v0.3.390** (`apply_structural_loads`). **Supports SHIPPED v0.3.392** (`apply_structural_supports`
+  — pinned/fixed base `IfcBoundaryNodeCondition`). Members + loads + supports = a complete, solvable
+  analytical model. *Remaining: coupled-frame (FEM) solve.*
 - **W10-9** — **parametric constraints & dimensional locks (the hard one)** — no IFC representation; store in a
   sidecar, solve, bake to IFC. Start with 1D/alignment locks. **License:** FreeCAD's **planegcs (LGPL,
   extractable)**; avoid python-solvespace (GPL) and OpenSCAD (GPL).

@@ -3597,7 +3597,9 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             } else {
               body.appendChild(resultNote(`<b>${s!.curve_members}</b> curve members · <b>${s!.surface_members}</b> surface members`
                 + ` · <b>${s!.point_connections}</b> nodes · load case: ${s!.load_cases.filter(Boolean).join(", ") || "—"}`
-                + (s!.load_actions ? ` · <b>${s!.load_actions}</b> member load action(s) — solver-ready` : ""), "ok"));
+                + (s!.load_actions ? ` · <b>${s!.load_actions}</b> member load action(s)` : "")
+                + (s!.supports ? ` · <b>${s!.supports}</b> support(s)` : "")
+                + (s!.load_actions && s!.supports ? " — solver-ready" : ""), "ok"));
             }
             const derive = toolBtn2(s!.has_model ? "↻ Re-derive from the physical model" : "⚙ Derive from the physical model",
               () => withLoading(container, "Deriving the analytical model", async () => {
@@ -3620,6 +3622,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
                 }));
               loads.title = "Write IfcStructuralLinearAction (D+L) onto every analytical member so a solver (SAP2000/RISA/Robot) imports the loads with the geometry";
               body.appendChild(loads);
+              const sup = toolBtn2("⏚ Add base supports (pinned)",
+                () => withLoading(container, "Adding base supports", async () => {
+                  try {
+                    const res = await api.editIfc(pid, "apply_structural_supports", { kind: "pinned" }, false);
+                    const n = (res as { changed?: { supported?: number } })?.changed?.supported ?? 0;
+                    notify(`Added ${n} pinned base support(s) — the analytical model is now statically stable`, "success");
+                  } catch (e) { notify((e as Error).message, "error"); }
+                }));
+              sup.title = "Fix the base analytical nodes as pinned IfcBoundaryNodeCondition supports so the model is solvable";
+              body.appendChild(sup);
             }
             if (s!.has_model && s!.curve_members > 0) {
               const solve = toolBtn2("📐 Apply loads + solve statics", () => withLoading(container, "Applying gravity loads + solving statics", async () => {

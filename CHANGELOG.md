@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.392 — Analytical supports: fix the base nodes → a solvable model
+
+- Completes the analytical model: the **`apply_structural_supports`** recipe fixes the **base**
+  (lowest-elevation) analytical nodes as `IfcBoundaryNodeCondition` supports — **pinned** (translations
+  fixed, rotations free) or **fixed** (all six DOF) — so the model is **statically stable and fully
+  solvable** (members + loads + supports = a complete analytical model a solver can run).
+- Idempotent (re-applying doesn't accumulate conditions), cleared by a re-derive, reported by `summary()`
+  as `supports`. The viewer analytical panel gains an **"Add base supports (pinned)"** action and shows the
+  support count; the analytical model reads **"solver-ready"** once it has both member loads and supports.
+
 ## v0.3.391 — Analytical shear walls: load-bearing walls → vertical surface members
 
 - Completes the W10-7 analytical geometry. `derive_analytical` now idealises each **load-bearing (shear)
