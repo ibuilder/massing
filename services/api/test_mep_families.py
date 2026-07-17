@@ -44,6 +44,10 @@ m = open_model(OUT)
 assert len(m.by_type("IfcDuctSegment")) == 1, m.by_type("IfcDuctSegment")
 assert "HVAC Supply" in {s.Name for s in m.by_type("IfcDistributionSystem")}
 assert m.by_type("IfcCircleProfileDef"), "round duct section"
+# W10-4: the segment carries a nominal-size pset (schedules/QTO/sizing read it without geometry)
+import ifcopenshell.util.element as _ue  # noqa: E402
+duct_ps = _ue.get_psets(m.by_type("IfcDuctSegment")[0]).get("Pset_Massing_MEPSizing") or {}
+assert abs((duct_ps.get("NominalSize_mm") or 0) - 400.0) < 0.1 and duct_ps.get("Length_m"), duct_ps
 
 # --- pipe (own system) + cable tray (rect) + wire --------------------------------------------
 edit.apply_recipe(OUT, "add_pipe", {"start": [0, 1], "end": [6, 1], "size": 0.05}, OUT)
