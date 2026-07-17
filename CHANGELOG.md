@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.394 — REL-3: modularize codecheck (egress engine → its own module, façade)
+
+- First modularization slice. `codecheck.py` (502 lines) mixed two fully-decoupled domains — the free-text
+  code-check assistant and the **computed occupancy-load + egress-capacity analysis** (W9-2). The egress
+  half (~330 lines) moves to **`codecheck_egress.py`**; `codecheck.py` (now 184 lines) **re-exports** its
+  public functions (`egress_analysis`/`code_analysis`/`approvability`/`egress_from_model`) as a façade, so
+  every caller (`codecheck.approvability`, …) is **unchanged**. Zero behaviour change — pure structure.
+- Verified: all codecheck-dependent tests green (codecheck / code_analysis / codes / approvability /
+  rfi-readiness / readiness-bcf / ebc / model-health), ruff clean, all consumers import.
+
 ## v0.3.393 — DEV-1: parallel test gate (~30 min → ~11 min) + geometry worker cap
 
 - **Dev-velocity, not a product change.** The API test gate (`run_tests.py`) ran ~180 self-contained

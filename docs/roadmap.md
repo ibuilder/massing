@@ -43,10 +43,11 @@ they're archived in **[roadmap-completed.md](roadmap-completed.md)**.
    `eslint-plugin-import/no-cycle` for web) so the false-positive-prone cycles can't regress; upload coverage
    from CI; module-header docstrings on the refactored hotspots (bus factor 1).
 3. **REL-3 — modularize the worst *backend* hotspots** *(one PR each, TESTED)* — extract leaf modules behind a
-   **façade at the old import path** (zero public-API change): `modules.py`→~6, `main.py`→~4, `codecheck.py`
-   →~3, `connectors.py`→~6, `auth.py`→~5, `data/drawing.py`/`data/drawings.py`. `ruff`+suite green after each.
-   Start with the safest self-contained extractions. *(`openModule` O(n·m) already fixed v0.3.373; REL-1/2
-   import cycles verified false positives — see below.)*
+   **façade at the old import path** (zero public-API change). 🟡 **codecheck SHIPPED v0.3.394** — the egress
+   engine → `codecheck_egress.py`, `codecheck.py` 502→184 (façade). *Remaining:* `modules.py`→~6 (1009 lines,
+   the biggest), `main.py`→~4, `connectors.py`→~6, `data/drawing.py`/`data/drawings.py` (941 each). `ruff`+
+   suite green after each; start with the safest self-contained extractions. *(`openModule` O(n·m) already
+   fixed v0.3.373; REL-1/2 import cycles verified false positives — see below.)*
 4. **REL-4 — decompose the *web* hotspots** *(one PR each, TESTED via typecheck/lint/vitest/build)* —
    `viewer/app.ts` (worst file) split by responsibility (render setup / event wiring / data load / UI glue);
    `main.ts` extract large methods + flatten nesting; `portal.ts`. Verify via the tools-panel technique

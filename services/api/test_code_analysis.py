@@ -9,6 +9,7 @@ if _DATA_SRC not in sys.path:
     sys.path.insert(0, _DATA_SRC)
 
 from aec_api import codecheck as cc  # noqa: E402
+from aec_api.codecheck_egress import _occ_group  # noqa: E402  (white-box: occupancy-group helper)
 from aec_data import edit, massing  # noqa: E402
 from aec_data.ifc_loader import open_model  # noqa: E402
 
@@ -64,8 +65,8 @@ assert all("occupancy" in o and "load" in o for o in a["occupant_load_by_occupan
 for lbl, g in [("Assembly (unconcentrated)", "A"), ("Educational (classroom)", "E"),
                ("Industrial", "F"), ("Parking", "S"), ("Business (assumed)", "B"),
                ("Commercial kitchen", "B"), ("Mercantile", "M")]:
-    assert cc._occ_group(lbl) == g, f"{lbl!r} -> {cc._occ_group(lbl)!r}, expected {g}"
-assert cc._occ_group("Accessory") == "", "accessory has no standalone group"
+    assert _occ_group(lbl) == g, f"{lbl!r} -> {_occ_group(lbl)!r}, expected {g}"
+assert _occ_group("Accessory") == "", "accessory has no standalone group"
 
 if os.path.exists(TMP):
     os.remove(TMP)
