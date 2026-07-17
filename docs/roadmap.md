@@ -110,6 +110,9 @@ code-intelligence.
 - ✅ **Plan-render fix SHIPPED v0.3.345** — `drawings.plan_svg` room tags + door/window callouts filter to
   the cut level (no more cross-level label stacking), and plans carry a titleblock band (title box · graphic
   scale bar · north arrow · general notes; cut-plane AFF + grid). Room names XML-escaped.
+- ✅ **Composed-sheet cap SHIPPED v0.3.347** — `default_sheet` no longer renders a plan per storey (30-storey
+  tower timed out); caps to ~4 sampled levels + takes an optional `storey` for a single-level sheet.
+  `sheet.{svg,pdf}?storey=…`.
 - **C6 (remaining)** — reference-line datums (`IfcReferent`/`IfcVirtualElement`) + **"drawn detail follows
   LOD"** poché (representation selection + `IfcMaterialLayerSet` poché + annotation density → schematic
   single-line ↔ CD layered poché). Permissive libs only (no AGPL).

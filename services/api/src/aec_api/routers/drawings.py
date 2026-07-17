@@ -429,22 +429,25 @@ def _sheet_meta(db: Session, pid: str, sheet: str, purpose: str = "", rev: str =
 
 @router.get("/projects/{pid}/drawings/sheet.svg")
 def sheet_svg(pid: str, sheet: str = "A-101", page: str = "A3", purpose: str = "", rev: str = "",
-              db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+              storey: str | None = None, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """A composed **key-plan sheet** (representative plans + section + elevation in a titleblock). `storey`
+    renders one named level's sheet; omitted, it samples up to a few levels (a tall tower gets one sheet per
+    level in the full set — cramming every plan on a page is neither fast nor legible)."""
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
     svg = drawings.default_sheet(open_model(_source_ifc(db, pid)),
-                                 _sheet_meta(db, pid, sheet, purpose, rev), page=page, fmt="svg")
+                                 _sheet_meta(db, pid, sheet, purpose, rev), page=page, fmt="svg", storey=storey)
     return _svg(svg)
 
 
 @router.get("/projects/{pid}/drawings/sheet.pdf")
 def sheet_pdf(pid: str, sheet: str = "A-101", page: str = "A3", purpose: str = "", rev: str = "",
-              db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+              storey: str | None = None, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
     pdf = drawings.default_sheet(open_model(_source_ifc(db, pid)),
-                                 _sheet_meta(db, pid, sheet, purpose, rev), page=page, fmt="pdf")
+                                 _sheet_meta(db, pid, sheet, purpose, rev), page=page, fmt="pdf", storey=storey)
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{_safe_name(sheet)}.pdf"'})
