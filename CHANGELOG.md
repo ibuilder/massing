@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.354 — D5: detail callouts on the PDF sheet + real sheet refs
+
+- Detail callouts now render on the **PDF** sheet path (`sheet_pdf`), not just SVG — an NCS divided-circle
+  bubble (detail number over sheet ref) with a leader to the element, plus a **DETAILS** legend below the
+  keynotes.
+- The divided-circle bubble carries a **real sheet reference** (bottom half) instead of a placeholder "—":
+  the attached document's `Identification` (e.g. `A-541/3`), else the sheet number derived from its
+  `Location` basename (`details/S-501.pdf` → `S-501`). `attach_document` no longer leaves the placeholder
+  `Identification` that shadowed the derived ref.
+
 ## v0.3.353 — DISC-cw: curtain-wall parts read Architectural
 
 - Framing/glazing parts (`IfcMember` mullions/transoms, `IfcPlate` glazing) aggregated under an

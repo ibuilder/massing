@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from typing import Any
+from xml.sax.saxutils import escape as _xesc
 
 import ifcopenshell
 
@@ -164,9 +165,26 @@ def _element_codes(el):
     return out
 
 
+def _doc_sheet_ref(doc) -> str:
+    """The NCS bottom-of-bubble sheet reference for a detail callout: the document's Identification
+    (a stable detail/sheet key like 'A-541/3'), else the sheet number derived from the Location URI's
+    basename (`details/S-501.pdf` → `S-501`), else '—'. Real sheet-number refs on the callout (D5)."""
+    ident = getattr(doc, "Identification", None)
+    if ident and str(ident).strip():
+        return str(ident).strip()
+    loc = getattr(doc, "Location", None)
+    if loc and str(loc).strip():
+        base = str(loc).strip().replace("\\", "/").rsplit("/", 1)[-1]
+        stem = base.rsplit(".", 1)[0] if "." in base else base
+        if stem:
+            return stem[:12]
+    return "—"
+
+
 def _element_docs(el):
-    """Attached detail-drawing / instruction names from an element's IfcRelAssociatesDocument — the
-    Track-D document carriers that drive **detail callouts** on the drawing (D5)."""
+    """Attached detail drawings from an element's IfcRelAssociatesDocument as `(name, sheet_ref)` — the
+    Track-D document carriers that drive **detail callouts** (name → DETAILS legend, sheet_ref → the
+    bottom of the divided-circle bubble) on the drawing (D5)."""
     out = []
     for rel in (getattr(el, "HasAssociations", None) or []):
         if not rel.is_a("IfcRelAssociatesDocument"):
@@ -174,7 +192,7 @@ def _element_docs(el):
         doc = rel.RelatingDocument
         name = getattr(doc, "Name", None) or getattr(doc, "Identification", None)
         if name:
-            out.append(str(name))
+            out.append((str(name), _doc_sheet_ref(doc)))
     return out
 
 
@@ -312,7 +330,7 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
             docs = _element_docs(el)
             if not docs:
                 continue
-            name = docs[0]
+            name, sheet_ref = docs[0]
             if name not in dorder:
                 dorder[name] = len(dorder) + 1
                 detail_rows.append((dorder[name], name))
@@ -320,13 +338,13 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
             cx, cy = _centroid(fp)
             # offset up-left of the centroid so the callout doesn't sit on the keynote bubble
             bx, by = round(tx(cx) - 4, 2), round(ty(cy) - 4, 2)
-            # NCS-style divided circle: detail number (top) over sheet ref (bottom, "—" here) + a short leader
+            # NCS-style divided circle: detail number (top) over the real sheet ref (bottom) + a short leader
             callouts.append(
                 f'<line class="lead" x1="{bx}" y1="{by}" x2="{round(tx(cx), 2)}" y2="{round(ty(cy), 2)}"/>'
                 f'<circle class="dc" cx="{bx}" cy="{by}" r="3.2"/>'
                 f'<line class="dcx" x1="{bx - 3.2}" y1="{by}" x2="{bx + 3.2}" y2="{by}"/>'
                 f'<text class="dct" x="{bx}" y="{round(by - 0.6, 2)}">{dn}</text>'
-                f'<text class="dct" x="{bx}" y="{round(by + 2.6, 2)}">—</text>')
+                f'<text class="dct" x="{bx}" y="{round(by + 2.6, 2)}">{_xesc(sheet_ref)}</text>')
 
     # ── dimensions: overall width (below) + overall height (left) ──
     dims: list[str] = []
@@ -635,6 +653,51 @@ def sheet_pdf(model: ifcopenshell.file, storey: str | None = None, scale: int = 
                 c.drawCentredString((lx + 2) * mm, by - 1, str(num))
                 c.setFillColorRGB(0.13, 0.13, 0.13)
                 c.drawString((lx + 7) * mm, by, f"{code} - {ttl[:30]}")
+
+        # detail callouts: elements with an attached detail → an NCS divided-circle bubble (detail
+        # number over the real sheet ref) + a DETAILS legend, below the keynotes (D5, PDF path)
+        dorder: dict[str, int] = {}
+        detail_rows: list[tuple[int, str]] = []
+        for el, _cls, fp in shapes:
+            docs = _element_docs(el)
+            if not docs:
+                continue
+            name, sheet_ref = docs[0]
+            if name not in dorder:
+                dorder[name] = len(dorder) + 1
+                detail_rows.append((dorder[name], name))
+            dn = dorder[name]
+            cx, cy = _centroid(fp)
+            bx, by = PT(cx, cy)
+            bx, by = bx - 4 * mm, by + 4 * mm          # offset up-left of the centroid (PDF y is up)
+            rr = 3.2 * mm
+            c.setFillColorRGB(1, 1, 1)
+            c.setStrokeColorRGB(0.1, 0.1, 0.1)
+            c.setLineWidth(0.3)
+            c.line(bx + 1.5 * mm, by - 1.5 * mm, *PT(cx, cy))   # short leader to the element
+            c.circle(bx, by, rr, fill=1, stroke=1)
+            c.line(bx - rr, by, bx + rr, by)                    # NCS divider
+            c.setFillColorRGB(0.1, 0.1, 0.1)
+            c.setFont("Helvetica", 5)
+            c.drawCentredString(bx, by + 1, str(dn))            # detail number (top)
+            c.drawCentredString(bx, by - 4, sheet_ref[:8])      # sheet ref (bottom)
+        if detail_rows:
+            lx = (_SHEET_W - _TB_W - inset - legend_mm + 4)
+            hy = margin_mm + 6 + (len(legend_rows) + 1) * 5     # sit below the keynote legend
+            c.setFillColorRGB(0, 0, 0)
+            c.setFont("Helvetica-Bold", 7)
+            c.drawString(lx * mm, (_SHEET_H - hy) * mm, "DETAILS")
+            c.setFont("Helvetica", 6)
+            for k, (num, dname) in enumerate(detail_rows[:12]):
+                ry = hy + 5 + k * 5
+                by2 = (_SHEET_H - ry) * mm
+                c.setFillColorRGB(1, 1, 1)
+                c.setStrokeColorRGB(0.1, 0.1, 0.1)
+                c.circle((lx + 2) * mm, by2 + 1, 2.2 * mm, fill=1, stroke=1)
+                c.setFillColorRGB(0.1, 0.1, 0.1)
+                c.drawCentredString((lx + 2) * mm, by2 - 1, str(num))
+                c.setFillColorRGB(0.13, 0.13, 0.13)
+                c.drawString((lx + 7) * mm, by2, dname[:32])
 
     _titleblock_pdf(c, mm, inset, project, number, title, f"SCALE 1:{scale}", date, drawn_by, north=True)
 

@@ -72,15 +72,14 @@ def attach_document(model: ifcopenshell.file, guids, name: str, location: str | 
         ifcopenshell.api.run("document.edit_information", model, information=info, attributes=attrs)
 
     ref = ifcopenshell.api.run("document.add_reference", model, information=info)
-    ref_attrs: dict = {}
+    # add_reference seeds a placeholder Identification ("X"); blank it unless the caller gives a real one
+    # so a derived sheet ref (from Location) isn't shadowed by the default.
+    ref_attrs: dict = {"Identification": identification or None}
     if location:
         ref_attrs["Location"] = location
-    if identification:
-        ref_attrs["Identification"] = identification
     if name:
         ref_attrs["Name"] = name
-    if ref_attrs:
-        ifcopenshell.api.run("document.edit_reference", model, reference=ref, attributes=ref_attrs)
+    ifcopenshell.api.run("document.edit_reference", model, reference=ref, attributes=ref_attrs)
 
     n = 0
     for g in guids or []:

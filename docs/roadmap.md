@@ -120,7 +120,9 @@ code-intelligence.
   LOD"** poché (representation selection + `IfcMaterialLayerSet` poché + annotation density → schematic
   single-line ↔ CD layered poché). Permissive libs only (no AGPL).
 - **D2** — **routed egress / life-safety plans** (path-trace over the W9-4 semantic graph, not just tabulated).
-- **D5 (next)** — detail callouts on the **PDF** sheet path + real sheet-number refs.
+- ✅ **D5 SHIPPED v0.3.354** — detail callouts render on the **PDF** sheet path (NCS divided-circle bubble +
+  leader + DETAILS legend), and the bubble carries a **real sheet ref** (doc `Identification`, else the
+  sheet number derived from the `Location` basename) instead of a placeholder.
 - **D8 follow-ups** — wire COMcheck/energy-doc + A117.1 clearance checks into the approvability pre-flight and
   round its findings to BCF.
 - **`Pset_Massing_SpecLink` breadcrumb** — the remaining Track-D carrier.

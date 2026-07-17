@@ -57,6 +57,16 @@ assert rd["details"] == 1, rd
 svgd = rd["svg"]
 assert "DETAILS" in svgd and "Column base detail" in svgd, "detail legend missing"
 assert svgd.count('class="dc"') >= 2, "detail callout symbol(s) missing (plan + legend)"
+# D5: the divided-circle bubble carries a REAL sheet ref (from the doc Location basename, not "—")
+assert ">S-501<" in svgd, "callout should show the derived sheet number S-501"
+# an explicit Identification (detail/sheet key) wins over the location basename (attach to a wall so it
+# owns its own callout — a second doc on the column would be secondary and not drawn)
+detailing.attach_document(m, [w1], "Anchor bolt detail", identification="A-541/3")
+sref = drawing.plan_svg(m, scale=100)["svg"]
+assert "A-541/3" in sref, "explicit detail identification should reach the bubble"
+# D5 PDF path: a sheet with an attached detail renders the callouts + DETAILS legend without error
+pdf_det = drawing.sheet_pdf(m, project="Drawing Test", number="A-101")
+assert pdf_det[:5] == b"%PDF-" and len(pdf_det) > 800, "detail-bearing sheet PDF should render"
 # a plan with no attached details reports zero and omits the DETAILS legend
 assert "DETAILS" not in svg and r["details"] == 0, "unattached plan should have no details"
 # details can be turned off
