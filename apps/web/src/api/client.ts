@@ -1170,6 +1170,25 @@ export class ApiClient extends HttpCore {
       connections: number; dangling_count: number; connected_pct: number;
       dangling: { guid: string; class: string; name: string | null }[] }>(`/projects/${pid}/mep/connectivity`);
   }
+  /** MEP-SIZE: velocity/fill size checks over authored MEP (air/water velocity vs limits), pass/fail. */
+  mepSizing(pid: string, opts?: { ductMaxFpm?: number; pipeMaxFps?: number }) {
+    const q = new URLSearchParams();
+    if (opts?.ductMaxFpm != null) q.set("duct_max_fpm", String(opts.ductMaxFpm));
+    if (opts?.pipeMaxFps != null) q.set("pipe_max_fps", String(opts.pipeMaxFps));
+    const qs = q.toString();
+    return this.json<{
+      checked: number; passed: number; failed: number; info: number; all_pass: boolean;
+      limits: { duct_max_fpm: number; pipe_max_fps: number; tray_max_fill: number };
+      checks: {
+        guid: string; class: string; system: string | null; size_mm: number; shape: string;
+        flow: number | null; flow_unit: string | null; parameter: string;
+        value_fpm?: number; value_fps?: number; value?: number | null;
+        limit_fpm?: number; limit_fps?: number; limit?: number;
+        status: "pass" | "fail" | "info"; note: string;
+      }[];
+      disclaimer: string;
+    }>(`/projects/${pid}/mep/sizing${qs ? `?${qs}` : ""}`);
+  }
   /** MEP-FP: NFPA-13-informed sprinkler coverage pre-check (head count vs area ÷ max coverage per hazard). */
   sprinklerCoverage(pid: string, hazard = "light") {
     return this.json<{ hazard: string; sprinkler_heads: number; protected_area_m2: number; spaces_measured: number;

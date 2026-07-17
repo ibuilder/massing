@@ -454,9 +454,10 @@ Geopogo-as-product (closed Unreal — its *context-ingest* idea folds into SITE-
 - **TAKEOFF-2D — PDF/scan quantity takeoff** *(M · ★★★★)* — browser flood-fill "one-click area" tracer on
   uploaded drawings → feeds the existing 5D estimate; covers the drawings-only case model-takeoff misses.
   *License: OpenTakeoff is Apache-2.0 — vendor or reimplement freely (same Vite/pdf.js/pdf-lib stack).*
-- **MEP-SIZE — MEP engineering checks** *(M · ★★★★)* — server-side hydraulic/thermal duct-pipe sizing +
-  cable-tray fill-degree/load calcs over already-authored MEP, surfaced pass/fail like the IBC checks;
-  elevates MEP from *modeled* to *engineered*. Physics formulas — no license issue. *(DDS-CAD technique.)*
+- ✅ **MEP-SIZE — MEP engineering checks — SHIPPED v0.3.386** — `GET /mep/sizing` computes flow velocity in
+  each authored duct/pipe from size + design flow (`Pset_Massing_MEPSizing`) and checks it pass/fail vs
+  accepted limits (ASHRAE ~2500 fpm air, ~8 ft/s water, NEC 392 tray fill); viewer surfaces it with isolate-
+  in-3D. *(DDS-CAD technique.)* *Remaining: pressure-loss balancing, thermal load, per-conductor tray fill.*
 - **STRUCT-LOADS — load cases + static analysis** *(L · ★★★★)* — extend W10-7 with dead/live/wind/seismic
   `IfcStructuralLoadCase`s + per-member load activities, and lightweight beam/column static
   (shear/moment/deflection) diagrams. *(IMG_0250 structural-analysis primer.)*

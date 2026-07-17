@@ -2629,6 +2629,25 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               .map(([d, v]) => `${discIcon[d] || "🔀"} ${d} (${v.systems})`).join(" · ");
             body.appendChild(resultNote(`<b>Disciplines</b> — ${roll}.`
               + (s.has_fire_protection ? "" : " <i>No fire-protection system yet.</i>"), s.has_fire_protection ? "ok" : ""));
+            const sizeBtn = toolBtn2("📐 MEP size check (velocity)", async () => {
+              let mz;
+              try { mz = await api.mepSizing(pid); }
+              catch (e) { notify((e as Error).message, "error"); return; }
+              if (!mz.checked) { body.appendChild(resultNote("No sized MEP runs to check — author ducts/pipes with a design size + flow first.", "")); return; }
+              body.appendChild(resultNote(`<b>MEP size check</b> — ${mz.passed} pass · <b>${mz.failed} fail</b> · ${mz.info} info`
+                + ` of ${mz.checked} run(s). Limits: air ≤ ${mz.limits.duct_max_fpm} fpm · water ≤ ${mz.limits.pipe_max_fps} ft/s.`,
+                mz.failed ? "bad" : "ok"));
+              const icon = (st: string) => st === "pass" ? "✅" : st === "fail" ? "❌" : "ℹ️";
+              body.appendChild(kvTable(mz.checks.slice(0, 20).map((c) => ({
+                k: `${icon(c.status)} ${c.class.replace("Ifc", "")}${c.system ? ` · ${c.system}` : ""}`,
+                v: `${c.size_mm}mm ${c.flow != null ? `@ ${c.flow} ${c.flow_unit ?? ""}` : ""} — ${c.note}`,
+              }))));
+              const bad = mz.checks.filter((c) => c.status === "fail").map((c) => c.guid);
+              if (bad.length) body.appendChild(toolBtn2("◎ Isolate undersized runs in 3D", () => { void layerMgr.isolateGuids(bad); }));
+              body.appendChild(resultNote(mz.disclaimer, ""));
+            });
+            sizeBtn.title = "Velocity/fill size check over authored MEP (ASHRAE air, erosion-limit water) — preliminary, not a stamped design";
+            body.appendChild(sizeBtn);
             if (s.has_fire_protection) {
               const covBtn = toolBtn2("🧯 Sprinkler coverage (NFPA 13)", async () => {
                 let cov;

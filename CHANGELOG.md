@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.386 — MEP-SIZE: velocity size checks elevate MEP from modeled to engineered
+
+- **`GET /projects/{pid}/mep/sizing`** — over every authored MEP run carrying a design size + flow
+  (`Pset_Massing_MEPSizing`), computes the **flow velocity** and checks it against accepted limits, pass/
+  fail like the IBC checks: **air** `V = Q/A` vs the ASHRAE low-velocity commercial limit (~2500 fpm),
+  **water** `V = 0.408·Q/d²` vs the erosion/noise limit (~8 ft/s), and **cable-tray** NEC 392 fill (≤ 50%,
+  reported when a fill ratio is supplied). Undersized/over-driven runs are flagged with the fix ("increase
+  the duct/pipe"); runs with no design flow return info. Limits are overridable per call.
+- **Viewer** — the MEP system browser gains a **"MEP size check (velocity)"** action: pass/fail counts, a
+  per-run table, an "isolate undersized runs in 3D" control, and the not-a-PE disclaimer.
+- Physics only (velocity relations + limit values are facts — no license issue). **Preliminary — not a
+  full hydraulic/thermal design (no pressure-loss balancing, diversity, or acoustics); all final MEP sizing
+  must be stamped by a licensed professional engineer.**
+
 ## v0.3.385 — DISC-SSOT: sheet-series derives from the one discipline map
 
 - Internal consolidation. Sheet-series (which drawing series a class belongs to — S/A/M/E/P/FP/FA/T…) was

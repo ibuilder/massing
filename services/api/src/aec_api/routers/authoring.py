@@ -316,6 +316,22 @@ def mep_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(requir
     return mep.mep_summary(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/mep/sizing")
+def mep_sizing(pid: str,
+               duct_max_fpm: float = Query(2500.0, gt=0),
+               pipe_max_fps: float = Query(8.0, gt=0),
+               db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """MEP-SIZE: engineering size checks over authored MEP — computes flow velocity in each duct/pipe from
+    the design size + flow (`Pset_Massing_MEPSizing`) and checks it against accepted limits (ASHRAE
+    low-velocity air, erosion-limit water, NEC 392 tray fill), pass/fail like the IBC checks. Elevates MEP
+    from *modeled* to *engineered*. **Preliminary — not a substitute for a licensed MEP engineer.**"""
+    from aec_data import mep_sizing as _ms  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return _ms.sizing_check(open_model(p.source_ifc), duct_max_fpm=duct_max_fpm, pipe_max_fps=pipe_max_fps)
+
+
 @router.get("/projects/{pid}/mep/connectivity")
 def mep_connectivity(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W10-4: MEP connectivity validation — ports connected vs open, port-to-port connection count, and the
