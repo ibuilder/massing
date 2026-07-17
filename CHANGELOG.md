@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.403 — DEV-2 (web): runtime import-cycle guard for the viewer/portal
+
+- Completes the DEV-2 import-cycle guard on the **web** side, mirroring the backend one — as a vitest test
+  (`src/no-import-cycles.test.ts`), so it runs in the existing web CI job with **no new dependency** (no
+  eslint-plugin-import, avoiding the pinned-eslint/Node-20 fragility).
+- Asserts **no *runtime* circular imports** among the app's own modules via Tarjan SCC over the top-level
+  import graph. `import type` / `export type` are excluded because tsc erases them — the portal's only
+  "cycle" is exactly that PanelContext ⇄ PortalHost *type* seam, which emits no runtime import. Today:
+  **0 runtime cycles across 92 modules / 162 runtime edges**; a genuine load-time cycle now fails the build
+  with the exact path. Includes a self-test asserting the SCC detector catches a synthetic cycle.
+
 ## v0.3.402 — DEV-2: import-cycle guard (lock in the REL-3 façade layering)
 
 - The REL-3 modularization repeatedly stalled on *false-positive* circular-import reports (imports that are

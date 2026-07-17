@@ -39,10 +39,11 @@ they're archived in **[roadmap-completed.md](roadmap-completed.md)**.
    (`AEC_GEOM_WORKERS=1` via `aec_data.geomconf`, so each test is single-threaded and the outer parallelism
    owns the cores — no cpu×cpu oversubscription) + `PYTHONUTF8=1`/utf-8 capture. **~30 min → ~11 min (2.7×)**,
    250/250 green. Production geometry default unchanged (`cpu-1`).
-2. 🟡 **DEV-2 — lock in gains (REL-8)** *(ci)* — **import-cycle check SHIPPED v0.3.402** — `test_import_cycles.py`
-   (pure stdlib `ast` + Tarjan SCC over `aec_api`+`aec_data` top-level imports; 0 cycles / 704 edges; runs
-   in the fast gate, no new dep). *Remaining:* `eslint-plugin-import/no-cycle` for web; upload coverage from
-   CI; module-header docstrings on the refactored hotspots (bus factor 1).
+2. 🟡 **DEV-2 — lock in gains (REL-8)** *(ci)* — **import-cycle check SHIPPED v0.3.402 (backend) + v0.3.403
+   (web)** — `test_import_cycles.py` (stdlib `ast` + Tarjan over `aec_api`+`aec_data`; 0/704 edges) and
+   `apps/web/src/no-import-cycles.test.ts` (vitest, Tarjan over the runtime import graph excluding `import
+   type`; 0 cycles / 162 edges). No new deps; both run in the existing gates. *Remaining:* upload coverage
+   from CI; module-header docstrings on the refactored hotspots (bus factor 1).
 3. **REL-3 — modularize the worst *backend* hotspots** *(one PR each, TESTED)* — extract leaf modules behind a
    **façade at the old import path** (zero public-API change). 🟡 **codecheck SHIPPED v0.3.394** — the egress
    engine → `codecheck_egress.py`, `codecheck.py` 502→184 (façade). **modules FTS SHIPPED v0.3.395** — the full-text-search infra → `modules_search.py` as a **pure
