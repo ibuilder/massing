@@ -5,6 +5,7 @@ import os
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_costdb.db"
 os.environ["STORAGE_DIR"] = "./test_storage_costdb"
+os.environ["IFC_DIR"] = "./test_ifc_costdb"   # writable; default /app/ifc is read-only in the CI container
 os.environ.pop("AEC_RBAC", None)
 for f in ("./test_costdb.db",):
     if os.path.exists(f):
