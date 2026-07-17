@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.366 — viewer: live co-editing (presence + reload banner)
+
+- The viewer now subscribes to the **COLLAB-1 model-edit stream**: the live-presence roster refreshes
+  instantly (not just the 20 s poll), and when **another user publishes a new model version** a "a
+  collaborator updated the model — Reload" banner appears. Your own publishes never nag (the loaded
+  version re-syncs on every model load). The `EventSource` closes on unload.
+
 ## v0.3.365 — viewer: Ask-the-model box + structural analytical panel
 
 - The **Analyze & Coordinate** rail section gains two tools that surface the frontier backends:

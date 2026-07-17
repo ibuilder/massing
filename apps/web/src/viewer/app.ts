@@ -615,6 +615,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // ---- live presence + shared viewpoints ----------------------------------
   type Peer = { user: string; seconds_ago: number; viewpoint: { position: THREE.Vector3Like; target: THREE.Vector3Like; projection?: string; fov?: number } | null };
   let peers: Peer[] = [];
+  // COLLAB-1: the model version this client currently has loaded, and the "a collaborator published"
+  // banner. loadProjectModel() re-syncs the version (so our own publish never nags us).
+  let collabKnownVersion = -1;
+  let collabBannerEl: HTMLElement | null = null;
   function captureViewpoint() {
     const p = new THREE.Vector3(), t = new THREE.Vector3();
     viewer.world.camera.controls.getPosition(p); viewer.world.camera.controls.getTarget(t);
@@ -658,6 +662,39 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const beat = async () => { try { updatePresence((await api.presence(projectId!)).active); } catch { /* offline */ } };
     void beat();
     window.setInterval(beat, 20000);   // heartbeat keeps presence live while the tab is open
+
+    // COLLAB-1: a reload banner shown when another user publishes a new model version
+    const banner = document.createElement("div");
+    banner.className = "collab-reload-banner";
+    banner.style.cssText = "position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:40;"
+      + "display:none;gap:8px;align-items:center;background:var(--panel,#1e293b);color:var(--fg,#e2e8f0);"
+      + "border:1px solid var(--border,#334155);border-radius:8px;padding:6px 12px;font-size:12px;"
+      + "box-shadow:0 2px 12px rgba(0,0,0,.35)";
+    const bMsg = document.createElement("span"); bMsg.textContent = "👥 A collaborator updated the model.";
+    const bReload = document.createElement("button"); bReload.className = "tool-btn"; bReload.textContent = "Reload";
+    bReload.style.cssText = "font-size:11px;padding:2px 10px";
+    bReload.onclick = () => { banner.style.display = "none"; void loadProjectModel(); };
+    const bDismiss = document.createElement("button"); bDismiss.className = "tool-btn"; bDismiss.textContent = "✕";
+    bDismiss.style.cssText = "font-size:11px;padding:2px 6px"; bDismiss.title = "Dismiss";
+    bDismiss.onclick = () => { banner.style.display = "none"; };
+    banner.append(bMsg, bReload, bDismiss);
+    container.appendChild(banner);
+    collabBannerEl = banner;
+
+    // subscribe to the model-edit SSE stream: refresh presence instantly + raise the banner when the
+    // published version climbs past what we have loaded (a collaborator's edit, not our own)
+    try {
+      const es = api.modelStream(projectId, (raw) => {
+        const snap = raw as { model?: { version?: number }; editors?: Peer[] };
+        if (snap.editors) updatePresence(snap.editors);
+        const v = snap.model?.version;
+        if (typeof v === "number") {
+          if (collabKnownVersion < 0) collabKnownVersion = v;
+          else if (v > collabKnownVersion) { collabKnownVersion = v; banner.style.display = "flex"; }
+        }
+      });
+      window.addEventListener("beforeunload", () => es.close());
+    } catch { /* EventSource unsupported / offline — presence still polls */ }
   }
   toolDivider();   // ── collaboration ──┊── view aids ──
 
@@ -1036,6 +1073,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       } catch { modelLabels.delete(id); return false; }   // corrupt / non-.frag bytes — fall through
       refreshFederation();
       await fitToModels();
+      // COLLAB-1: we now hold the latest published model — sync the known version + clear any reload
+      // banner, so this client's own publish never re-nags us to reload.
+      if (collabBannerEl) collabBannerEl.style.display = "none";
+      try { collabKnownVersion = (await api.collabSnapshot(projectId)).model.version; } catch { /* offline */ }
       return true;
     })) ?? false;
   }
