@@ -243,8 +243,11 @@ interop targets / content platforms / open standards named where they're integra
   (classification code) + document (sheet-ref'd) nodes onto the model graph (`specified_by`/`documented_by`);
   `element_sources(guid)` returns one element's cited provenance (spec sections · documents · location).
   Served at `GET .../doc-graph` and `GET .../elements/{guid}/sources`.
-- **RFI-0 (remaining)** *(M · ★★★★★)* — the **NL-QA natural-language QA layer** that routes a question to the
-  doc-graph / decision-readiness and answers with those citations (next slice).
+- ✅ **RFI-0 NL-QA SHIPPED v0.3.360** — `POST /projects/{pid}/rfi/qa` routes a plain-language question to the
+  doc-graph / decision-readiness and answers with cited sources ("what governs \<element\>?" → spec + detail
+  + level; "what's blocking approval?" → ranked gaps + fixes; "what is spec section 05 12 00?" → governed
+  elements). Deterministic (no API key needed); every claim carries its source.
+  *Remaining depth: external spec/code-document text ingestion (page-level citations) + LLM rephrasing.*
 
 ### 🎮 Visualization — Unity as the optional bridge
 - **VIZ-U1 — Unity/Pixyz IFC → WebGL presentation build** *(L · optional/paid/flagged)* — Pixyz imports **IFC

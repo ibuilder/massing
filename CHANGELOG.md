@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.360 — RFI-0: NL-QA with cited sources
+
+- **Natural-language QA** over the model, grounded in citations — the read/QA sibling of the AI authoring
+  command bar, and the payoff of the doc-graph. `POST /projects/{pid}/rfi/qa` with `{question}` routes to
+  the right substrate and answers with sourced facts:
+  - *"what governs \<element/GUID\>?"* → element provenance (spec section · detail sheet · level),
+  - *"what's blocking approval?"* → ranked decision-readiness gaps + fixes,
+  - *"what is spec section 05 12 00?"* → the elements it governs,
+  - anything else → a model overview pointing at how to ask a sourced question.
+- Fully **deterministic** — the cited facts are the answer, so it works with no API key. Every claim
+  carries its source (GUID · spec section · document sheet · readiness check).
+
 ## v0.3.359 — W9-4: document / specification graph (cited sources)
 
 - New **doc-graph** layer — the cited-source half W9-4 left open. `docgraph.build` folds two node kinds

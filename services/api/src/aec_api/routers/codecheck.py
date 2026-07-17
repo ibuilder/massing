@@ -132,6 +132,27 @@ def rfi_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(requ
     return rfi_prevention.decision_readiness(db, pid, open_model(p.source_ifc))
 
 
+@router.post("/projects/{pid}/rfi/qa")
+def rfi_qa_ask(pid: str, body: dict, db: Session = Depends(get_db),
+               _: str = Depends(require_role("viewer"))):
+    """RFI-0 NL-QA: ask a plain-language question and get a **cited** answer from the model's own data —
+    'what governs <element>?', 'what's blocking approval?', 'what is spec section 05 12 00?'. Routes to
+    the doc-graph / decision-readiness; every claim carries a citation (GUID · spec section · document
+    sheet). Body: {question}. Needs a source IFC."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import rfi_qa
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — NL-QA needs a model")
+    question = (body or {}).get("question", "")
+    if not str(question).strip():
+        raise HTTPException(400, "a 'question' is required")
+    return rfi_qa.ask(db, pid, open_model(p.source_ifc), str(question))
+
+
 @router.get("/codes/ebc/pathways")
 def ebc_pathways(_: str = Depends(current_user)):
     """CODE-EBC: the IEBC existing-building reference catalog — the three compliance methods and the
