@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.396 — REL-3: extract computed schedules into a pure leaf (drawing_schedules.py)
+
+- Third modularization slice. `data/drawing.py` (941 lines — footprint plans / sheets / PDF / schedules)
+  had the **computed door/window/room schedules** (`schedules` / `schedule_csv` / `schedule_svg`) inline.
+  They move to **`drawing_schedules.py`** as a **pure leaf** — they read values straight off the model
+  elements with no dependency on the plan/section geometry helpers, so it imports nothing from `drawing.py`
+  (no cycle). `drawing.py` imports `schedules` for its PDF path and re-exports the three public functions,
+  so `drawing.schedules` / `.schedule_csv` / `.schedule_svg` are unchanged. `drawing.py` 941→821.
+- Zero behaviour change. Verified: drawing / sections / sheetgen / drawing-set / project-package tests green,
+  ruff clean, all consumers import.
+
 ## v0.3.395 — REL-3: extract module full-text search into a pure leaf (modules_search.py)
 
 - Second modularization slice, on the biggest backend file. `modules.py` (1009 lines, the config-module
