@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.357 — W10-7: structural analytical model (frame)
+
+- New **structural analytical model** layer alongside the physical (LOD 300) model. `derive_analytical`
+  builds an `IfcStructuralAnalysisModel` from the physical frame: each column/beam → an
+  `IfcStructuralCurveMember` (an `IfcEdge` topology) tied at shared `IfcStructuralPointConnection` nodes,
+  each analytical member linked back to its physical element (`IfcRelAssignsToProduct`), plus a
+  permanent-G self-weight `IfcStructuralLoadCase` + load group. Pure topology — no geometry kernel.
+- Re-derive is **idempotent** (purges prior analytical entities via `remove_deep2`, no accumulation, no
+  orphan topology). Exposed as the `derive_analytical` edit recipe; read the model back at
+  `GET /projects/{pid}/analytical` (analysis models, curve/surface members, nodes, load cases).
+- *Slice 1 = the frame. Surface members (slabs/walls → `IfcStructuralSurfaceMember`) and per-member load
+  activities are next.*
+
 ## v0.3.356 — W10-6: room schedule quantity depth
 
 - The computed **room schedule** now carries `IfcElementQuantity` depth — **Perimeter (m)** and

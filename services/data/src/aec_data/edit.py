@@ -2013,6 +2013,7 @@ RECIPES = {
     "add_rebar_cage": lambda m, p: _rebar().add_rebar_cage(m, p["column_guid"], p.get("bar_size", "#8"),
                                                           p.get("tie_size", "#3"), float(p.get("cover", 0.04)),
                                                           float(p.get("tie_spacing", 0.25)), p.get("storey")),
+    "derive_analytical": lambda m, p: _analytical().derive_analytical(m, p.get("name", "Analytical model")),
     "add_curtain_wall": lambda m, p: _cw().add_curtain_wall(m, p["start"], p["end"], float(p.get("height", 3.5)),
                                                            int(p.get("cols", 3)), int(p.get("rows", 2)),
                                                            float(p.get("mullion", 0.06)),
@@ -2036,6 +2037,12 @@ def _conn():
     """Lazy handle to the connections module (it imports edit helpers → avoid a cycle)."""
     from . import connections
     return connections
+
+
+def _analytical():
+    """Lazy handle to the structural analytical-model engine (W10-7)."""
+    from . import analytical
+    return analytical
 
 
 def _rules():

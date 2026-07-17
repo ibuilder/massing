@@ -173,8 +173,12 @@ S1–S4 ship (deterministic baseline → multi-step LLM interpretation → confi
 - 🟡 **W10-6 schedule CSV SHIPPED v0.3.351, Qto depth v0.3.356** — door/window/room schedules export to CSV
   (`schedule.csv?kind=`); the room schedule now carries `IfcElementQuantity` depth (Perimeter + Volume from
   `Qto_SpaceBaseQuantities`). *Remaining: keynote-legend schedule view.*
-- **W10-7** — **structural analytical model** (`IfcStructuralAnalysisModel`, curve/surface members, point
-  connections, load cases) — net-new domain alongside the physical model.
+- 🟡 **W10-7 frame SHIPPED v0.3.357** — **structural analytical model** (`IfcStructuralAnalysisModel`): the
+  `derive_analytical` recipe idealises the physical frame (columns/beams) into `IfcStructuralCurveMember`s
+  (IfcEdge topology) tied at shared `IfcStructuralPointConnection` nodes, linked back to the physical
+  elements, with a permanent-G self-weight load case; idempotent; served at `GET .../analytical`.
+  *Remaining: surface members (slabs/walls → `IfcStructuralSurfaceMember`), per-member load activities,
+  boundary conditions/supports, and a solver hand-off (analytical export).*
 - **W10-9** — **parametric constraints & dimensional locks (the hard one)** — no IFC representation; store in a
   sidecar, solve, bake to IFC. Start with 1D/alignment locks. **License:** FreeCAD's **planegcs (LGPL,
   extractable)**; avoid python-solvespace (GPL) and OpenSCAD (GPL).

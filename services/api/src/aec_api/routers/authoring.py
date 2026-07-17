@@ -118,6 +118,18 @@ def drawing_schedules(pid: str, db: Session = Depends(get_db), _: str = Depends(
     return drawing.schedules(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/analytical")
+def analytical_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W10-7: the structural analytical model (analysis models, curve/surface members, point connections,
+    load cases) derived alongside the physical frame. Build/refresh it with the `derive_analytical`
+    recipe via POST /edit."""
+    from aec_data import analytical  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return analytical.summary(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/drawings/schedule.svg")
 def schedule_svg(pid: str, kind: str = "doors", db: Session = Depends(get_db),
                  _: str = Depends(require_role("viewer"))):
