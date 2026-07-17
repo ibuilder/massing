@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,7 +28,6 @@ from sqlalchemy import (
     cast,
     func,
     insert,
-    literal_column,
     or_,
     select,
     update,
@@ -39,6 +37,11 @@ from sqlalchemy.orm import Session
 from . import rbac
 from .db import Base
 from .models import EnumOption, RecordActivity, RecordComment
+
+# full-text search is a pure leaf (functions take the Table as an arg); this module injects TABLES.
+from .modules_search import _is_postgres, _pg_document, _pg_tsquery
+from .modules_search import index_ddl as _index_ddl
+from .modules_search import search_filter as _search_filter
 
 # repo layout: services/api/modules; the frozen desktop build sets AEC_MODULES_DIR to the
 # bundled copy (PyInstaller _MEIPASS/modules) since __file__ no longer resolves there.
@@ -258,44 +261,16 @@ def revise(db: Session, key: str, project_id: str, rid: str, actor: str, party: 
     return get_record(db, key, project_id, new_id)
 
 
-def _is_postgres(db: Session) -> bool:
-    try:
-        return bool(db.bind) and db.bind.dialect.name == "postgresql"
-    except Exception:
-        return False
-
-
-def _pg_tsquery(q: str) -> str | None:
-    """A safe prefix tsquery from arbitrary user input: alnum words AND-ed, each prefix-matched
-    (`conc & beam` -> `conc:* & beam:*`) so 'conc' finds 'concrete' and multi-word narrows."""
-    words = re.findall(r"[A-Za-z0-9]+", q.lower())
-    return " & ".join(f"{w}:*" for w in words) if words else None
-
-
-def _pg_document(t: Table):
-    """to_tsvector over ref + title + the whole field map (JSON cast to text). The regconfig is a
-    `literal_column` (not a bind) so this exact expression can also be inlined into the GIN index DDL
-    (`fts_index`) — a bare "english" string renders as a bind param, which a CREATE INDEX can't use."""
-    return func.to_tsvector(literal_column("'english'"), func.concat_ws(
-        " ", func.coalesce(t.c.ref, ""), func.coalesce(t.c.title, ""), cast(t.c.data, String)))
-
-
 def fts_index_ddl(key: str) -> str:
-    """The `CREATE INDEX ... USING gin` DDL behind module full-text search, built from the *same*
-    `_pg_document` the query's `@@` matches — so the indexed expression can't drift from the search
-    expression. The regconfig is a literal_column and the coalesce defaults inline via literal_binds,
-    so the whole to_tsvector(...) expression is safe to embed in a CREATE INDEX (no bind params)."""
-    from sqlalchemy.dialects import postgresql
-    expr = _pg_document(TABLES[key]).compile(
-        dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
-    return f'CREATE INDEX IF NOT EXISTS "ix_mod_{key}_fts" ON "mod_{key}" USING gin (({expr}))'
+    """CREATE INDEX DDL for a module's FTS GIN index — injects the `TABLES` registry into the pure
+    `modules_search.index_ddl`, preserving the old `fts_index_ddl(key)` signature its callers/tests use."""
+    return _index_ddl(key, TABLES[key])
 
 
 def ensure_fts_indexes(engine) -> None:
-    """Postgres-only: create the GIN index on to_tsvector(ref+title+data) behind list_records()'s
-    `@@` search — so full-text search is index-backed instead of a per-row seq scan that recomputes
-    to_tsvector for every row (brutal at 100k+ records). No-op on SQLite (dev/CI use the LIKE
-    fallback, which needs no index). Idempotent (CREATE INDEX IF NOT EXISTS)."""
+    """Postgres-only: create the GIN index behind list_records()'s `@@` search for every module — so
+    full-text search is index-backed instead of a per-row seq scan recomputing to_tsvector (brutal at
+    100k+ records). No-op on SQLite (dev/CI use the LIKE fallback). Idempotent (CREATE INDEX IF NOT EXISTS)."""
     if engine.dialect.name != "postgresql":
         return
     import logging
@@ -308,21 +283,6 @@ def ensure_fts_indexes(engine) -> None:
                 conn.execute(text(fts_index_ddl(key)))
         except Exception:            # noqa: BLE001 — an index backfill must never block startup
             log.warning("FTS GIN index for module %r could not be created", key)
-
-
-def _search_filter(db: Session, t: Table, q: str):
-    """Portable search predicate: Postgres full-text (stemmed, prefix, ranked) when available; a
-    substring LIKE over ref/title/data everywhere else (SQLite dev)."""
-    if _is_postgres(db):
-        tsq = _pg_tsquery(q)
-        if tsq:
-            return _pg_document(t).op("@@")(func.to_tsquery("english", tsq))
-    like = f"%{q.lower()}%"
-    return or_(
-        func.lower(func.coalesce(t.c.ref, "")).like(like),
-        func.lower(func.coalesce(t.c.title, "")).like(like),
-        func.lower(cast(t.c.data, String)).like(like),
-    )
 
 
 def list_records(db: Session, key: str, project_id: str, state: str | None = None,

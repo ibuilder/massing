@@ -3,18 +3,25 @@ emails ride the transition webhook. Run: PYTHONPATH=src ./.venv/Scripts/python.e
 import json
 import os
 
-os.environ["DATABASE_URL"] = "sqlite:///./test_dist.db"
-os.environ["STORAGE_DIR"] = "./test_storage_dist"
+# setdefault so the parallel runner's unique per-test db (cleaned each run) wins; fixed names standalone
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test_dist.db")
+os.environ.setdefault("STORAGE_DIR", "./test_storage_dist")
 os.environ.pop("AEC_RBAC", None)
 os.environ["AEC_WEBHOOK_URLS"] = "http://hook.example/x"
 os.environ["AEC_WEBHOOK_SYNC"] = "1"
-for _f in ("./test_dist.db",):
-    if os.path.exists(_f):
-        os.remove(_f)
+_dburl = os.environ["DATABASE_URL"]
+if _dburl.startswith("sqlite:///./"):
+    try:                                     # a lingering Windows file lock must not crash import
+        _f = _dburl[len("sqlite:///./"):]
+        if os.path.exists(_f):
+            os.remove(_f)
+    except OSError:
+        pass
 
-from fastapi.testclient import TestClient   # noqa: E402
-from aec_api import webhooks                # noqa: E402
-from aec_api.main import app               # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import webhooks  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 SENT: list = []
 webhooks._send = lambda url, body: SENT.append(json.loads(body))   # type: ignore

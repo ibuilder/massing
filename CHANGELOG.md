@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.395 — REL-3: extract module full-text search into a pure leaf (modules_search.py)
+
+- Second modularization slice, on the biggest backend file. `modules.py` (1009 lines, the config-module
+  engine) had its Postgres full-text-search infrastructure (`_is_postgres` / `_pg_tsquery` / `_pg_document` /
+  the `LIKE`↔`to_tsvector` search predicate / the GIN-index DDL) inline. It moves to **`modules_search.py`**
+  as a **pure leaf** — every function takes the SQLAlchemy `Table` as an argument (dependency injection), so
+  it imports nothing from `modules.py` (no cycle). `modules.py` keeps the `fts_index_ddl(key)` /
+  `ensure_fts_indexes(engine)` orchestration (which knows the `TABLES` registry) as thin injecting wrappers,
+  and re-exports the query helpers so `modules._pg_document` / `modules._pg_tsquery` keep working.
+- Zero behaviour change (search + index DDL identical). Verified: search/module tests green
+  (fts-index / search-alerts / modules / module-schema / module-config / imports / distribution), full suite
+  green, ruff clean, all consumers import. Also made `test_distribution` parallel-safe (stale-lock-tolerant).
+
 ## v0.3.394 — REL-3: modularize codecheck (egress engine → its own module, façade)
 
 - First modularization slice. `codecheck.py` (502 lines) mixed two fully-decoupled domains — the free-text
