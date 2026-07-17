@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.381 — PREFLIGHT: one-click "ready to issue?" gate
+
+- **`GET /projects/{pid}/preflight`** — a single **PASS / HOLD** verdict + a pre-issue checklist, the
+  pyRevit "run the pre-flight before you publish" moment. Composes the shipped model-health lenses
+  (hygiene · clash coordination · code/permit readiness · verified-as-built), adds the one missing lens —
+  **discipline-classification completeness** (elements that don't map to the tree can't be scheduled /
+  priced / drawn by discipline) — and folds in **open high-priority issues** as a hard blocker. Checklist
+  is ordered blockers → warnings → passes; each item carries a status, detail, and (where relevant) the
+  offending GUIDs. Reuses the existing engines — no duplicate logic.
+
 ## v0.3.380 — KEYS: Revit-style keyboard shortcuts for drawing
 
 - Type a **2-letter code** (no modifier) in the viewer to arm a draw tool, Revit-style, then click to

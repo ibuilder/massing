@@ -34,9 +34,9 @@ drawings + cost + proforma (377), and the **model estimate → proforma** hard-c
 1. ✅ **KEYS — Revit-style authoring shortcuts — SHIPPED v0.3.380** — 2-letter codes arm a draw tool
    (WA/CL/BM/SL/RF/RA/SC/SB/RB/FT/DU/PI/CT/WR), Esc disarms, `?` shows help, HUD echoes the buffer,
    suppressed in inputs. *Remaining: type-a-dimension-while-drawing (VCB) + more non-draw actions.*
-2. **PREFLIGHT — one-click model-health / QA issuance gate** *(★★★★ · S/M)* — consolidated audit (orphaned
-   GUIDs · missing classifications · unplaced elements · open BCF · param completeness) before issuing.
-   Builds on the shipped RFI-0 + model-hygiene. *(pyRevit research.)*
+2. ✅ **PREFLIGHT — issuance gate — SHIPPED v0.3.381** — `GET /projects/{pid}/preflight`: one PASS/HOLD
+   verdict + checklist composing the model-health lenses (hygiene · clash · code-readiness · verified) +
+   **classification completeness** + open high-priority issues (hard blocker). *(pyRevit research.)*
 3. **STRUCT-LOADS+SOLVE — loads → analytical → reactions** *(★★★★ · L)* — apply `loads.py` ASCE 7 cases
    (dead/live/wind/seismic) to the W10-7 analytical members + a lightweight statics solve (reactions,
    member forces, shear/moment/deflection diagrams). Today the analytical model carries only self-weight and

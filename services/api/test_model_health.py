@@ -56,6 +56,22 @@ try:
     assert {ln["key"] for ln in sc2["lenses"]} == {"hygiene", "information", "coordination", "verified", "readiness"}
     assert next(ln for ln in sc2["lenses"] if ln["key"] == "hygiene")["status"] == "na", sc2
     assert sc2["model_available"] is False
+
+    # --- pre-flight issuance gate: composes the health lenses + classification + open-issues ----------
+    from aec_api import preflight  # noqa: E402
+    gate = preflight.issuance_gate(db, pid, model=_clean_model(), elements=[])
+    assert gate["ready"] is True and gate["verdict"] == "READY TO ISSUE", gate
+    assert gate["blocking"] == 0, gate
+    assert any(c["key"] == "hygiene" for c in gate["checks"]), gate            # health lens folded in
+    assert any(c["key"] == "open_issues" and c["status"] == "pass" for c in gate["checks"]), gate
+    # classification completeness: all-wall index → every element maps to the discipline tree (100%)
+    gate2 = preflight.issuance_gate(db, pid, model=_clean_model(),
+                                    elements=[{"guid": f"g{i}", "ifc_class": "IfcWall"} for i in range(4)])
+    cl = next(c for c in gate2["checks"] if c["key"] == "classification")
+    assert cl["score"] == 100.0 and cl["status"] == "pass", cl
+    # checklist is ordered blockers → warnings → passes
+    order = [{"fail": 0, "warn": 1, "pass": 2}[c["status"]] for c in gate2["checks"]]
+    assert order == sorted(order), order
 finally:
     db.close()
 
@@ -65,6 +81,11 @@ with TestClient(app) as tc:
     assert r.status_code == 200, r.text[:200]
     b = r.json()
     assert "overall_score" in b and "lenses" in b and "band" in b and len(b["lenses"]) == 5, b
+    # the pre-flight issuance gate endpoint returns a verdict + checklist
+    rp = tc.get(f"/projects/{pid}/preflight")
+    assert rp.status_code == 200, rp.text[:200]
+    pb = rp.json()
+    assert "ready" in pb and "verdict" in pb and isinstance(pb["checks"], list) and pb["checks"], pb
 
 print("MODEL-HEALTH OK - composite scorecard unifies 5 lenses (integrity/hygiene, ISO 19650 KPIs, clash "
       "coordination, verified-as-built, code/permit readiness); a clean model scores hygiene 100/good; lenses with no inputs "

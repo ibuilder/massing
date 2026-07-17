@@ -367,6 +367,20 @@ def model_health_scorecard(pid: str, db: Session = Depends(get_db), _sec: str = 
     return model_health.scorecard(db, pid, model=model, elements=_index_elements(pid))
 
 
+@router.get("/projects/{pid}/preflight")
+def preflight_gate(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Pre-flight **issuance gate** — one PASS/HOLD verdict + a pre-issue checklist composing model health
+    (hygiene · clash · code-readiness · verified-as-built), **discipline-classification completeness**, and
+    **open high-priority issues** (a hard blocker). Run it before publishing/issuing a set."""
+    from .. import preflight
+    model = None
+    try:
+        model = open_source_ifc(db, pid)             # enables the hygiene lens; other lenses don't need it
+    except Exception:                                # noqa: BLE001 — score the DB/index-based lenses only
+        pass
+    return preflight.issuance_gate(db, pid, model, _index_elements(pid))
+
+
 @router.get("/projects/{pid}/models/alignment")
 def model_alignment(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Federation alignment report — do the project's discipline models share the same storey scheme
