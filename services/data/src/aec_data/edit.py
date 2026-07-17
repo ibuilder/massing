@@ -939,6 +939,22 @@ _FIRE_EQUIPMENT = {
 }
 
 
+def _set_mep_sizing(model: ifcopenshell.file, element, size: float, shape: str = "round",
+                    length: float | None = None) -> None:
+    """W10-4: record the **nominal size** (+ shape/length) on an MEP segment so schedules, QTO, and sizing
+    pre-checks can read it directly instead of re-deriving from geometry. A pragmatic occurrence pset
+    (`Pset_Massing_MEPSizing`) — nominal sizing normally lives on the IfcType/profile, which our on-the-fly
+    segments don't carry."""
+    props: dict[str, Any] = {"NominalSize_mm": round(float(size) * 1000.0, 1), "Shape": str(shape)}
+    if length is not None:
+        props["Length_m"] = round(float(length), 3)
+    try:
+        ps = ifcopenshell.api.run("pset.add_pset", model, product=element, name="Pset_Massing_MEPSizing")
+        ifcopenshell.api.run("pset.edit_pset", model, pset=ps, properties=props)
+    except Exception:  # noqa: BLE001 — sizing metadata is best-effort, never blocks authoring
+        pass
+
+
 def add_riser(model: ifcopenshell.file, point=(0.0, 0.0), bottom_z: float = 0.0, top_z: float = 3.0,
               size: float = 0.1, ifc_class: str = "IfcPipeSegment", storey: str | None = None,
               system: str = "Fire Protection", discipline: str | None = "fire") -> str:
@@ -970,6 +986,7 @@ def add_riser(model: ifcopenshell.file, point=(0.0, 0.0), bottom_z: float = 0.0,
     except Exception:                                     # noqa: BLE001 — older ifcopenshell w/o system.add_port
         pass
     _assign_to_system(model, seg, system, discipline)
+    _set_mep_sizing(model, seg, size, "round", height)         # vertical riser length = height
     return seg.GlobalId
 
 
@@ -1077,6 +1094,7 @@ def add_mep_run(model: ifcopenshell.file, ifc_class: str, start, end, shape: str
     except Exception:                                 # noqa: BLE001 — older ifcopenshell w/o system.add_port
         pass
     _assign_to_system(model, seg, system, discipline)
+    _set_mep_sizing(model, seg, size, shape, length)
     return seg.GlobalId
 
 

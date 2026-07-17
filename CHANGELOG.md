@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.349 — W10-4: nominal-size psets on MEP segments
+
+Authored MEP segments (`add_mep_run` / `add_riser`) now carry a **`Pset_Massing_MEPSizing`** with the
+**nominal size (mm)**, shape, and length — so schedules, QTO, and sizing pre-checks can read the size
+directly instead of re-deriving it from geometry (nominal sizing normally lives on the IfcType/profile,
+which our on-the-fly segments don't carry). Best-effort; never blocks authoring.
+
 ## v0.3.348 — UX-4: "Script this" — the recipe interface, made discoverable
 
 A new **⌨ Script this** toolbar button surfaces the app's **scriptable, GUID-safe recipe interface** as a
