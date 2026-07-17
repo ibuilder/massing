@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.397 — REL-3: extract the module registry foundation (modules_registry.py)
+
+- Fourth modularization slice — the **foundation** extraction that unblocks all further `modules.py` splits.
+  The registry + table base (the `module.json` REGISTRY, the per-module SQLAlchemy TABLES, the reverse-
+  reference index, the field-type selectors, and the `_table` factory / `load_registry` / `get_module`)
+  moves to **`modules_registry.py`** — a leaf that imports only `db.Base` + stdlib/sqlalchemy, nothing from
+  `modules.py`. Now `modules.py`, `modules_search.py`, and any future `modules_*` layer can share the base
+  without a cycle. The mutable globals are mutated in place (never reassigned), so every importer shares the
+  one dict object; `modules.py` re-exports the names so `modules.get_module` / `.TABLES` / `.load_registry`
+  are unchanged. `modules.py` 969→882.
+- Zero behaviour change. Verified: module/schema/config/FTS/traceability/dashboard/imports tests green + the
+  **full suite** (this is the app-wide-core engine), ruff clean, all consumers import.
+
 ## v0.3.396 — REL-3: extract computed schedules into a pure leaf (drawing_schedules.py)
 
 - Third modularization slice. `data/drawing.py` (941 lines — footprint plans / sheets / PDF / schedules)

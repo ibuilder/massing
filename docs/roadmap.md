@@ -46,9 +46,12 @@ they're archived in **[roadmap-completed.md](roadmap-completed.md)**.
    **façade at the old import path** (zero public-API change). 🟡 **codecheck SHIPPED v0.3.394** — the egress
    engine → `codecheck_egress.py`, `codecheck.py` 502→184 (façade). **modules FTS SHIPPED v0.3.395** — the full-text-search infra → `modules_search.py` as a **pure
    leaf** (functions take the `Table` as an arg / DI; `modules.py` injects `TABLES`), 1009→969. **drawing schedules SHIPPED
-   v0.3.396** — computed door/window/room schedules → `drawing_schedules.py` (pure leaf), `drawing.py`
-   941→821. *Remaining:* more `modules.py` slices (registry vs CRUD vs feeds), `main.py`, `connectors.py`,
-   `data/drawings.py` (mesh-section), the rest of `data/drawing.py`. `ruff`+suite green after each. *(`openModule` O(n·m) already
+   v0.3.396** — computed schedules → `drawing_schedules.py` (pure leaf), `drawing.py` 941→821. **modules
+   registry SHIPPED v0.3.397** — the registry+table foundation → `modules_registry.py` (leaf, imports only
+   `db.Base`), `modules.py` 969→882 — this unblocks the CRUD/feeds splits (they can now share the base
+   without a cycle). *Remaining:* `modules.py` CRUD + feed builders (`my_work`/`due_feed`/`notifications`)
+   on top of the registry base, `main.py`, `connectors.py`, `data/drawings.py`, the rest of `drawing.py`.
+   `ruff`+suite green after each. *(`openModule` O(n·m) already
    fixed v0.3.373; REL-1/2 import cycles verified false positives — see below.)*
 4. **REL-4 — decompose the *web* hotspots** *(one PR each, TESTED via typecheck/lint/vitest/build)* —
    `viewer/app.ts` (worst file) split by responsibility (render setup / event wiring / data load / UI glue);
