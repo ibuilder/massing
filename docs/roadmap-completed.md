@@ -7,6 +7,38 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## 🗓 Session v0.3.380–392 (2026-07-17) — analysis engines, deliverables, dev-tooling
+
+The **complete W10-7 analytical model** + preliminary analyses, the top enterprise deliverable/cleanup gaps,
+and the ruff-autofix dev hook. All direct-to-main, each CI-green + 0 CodeQL alerts. Detail in memory
+[[weekend-push-2026-07-17]].
+
+**Authoring UX** — **KEYS** Revit-style 2-letter draw shortcuts (380). **PREFLIGHT** one-click PASS/HOLD
+issuance gate composing the model-health lenses + classification completeness + open blockers (381).
+
+**Structural analysis (the analytical model is now complete + solver-ready):**
+- **STRUCT-SOLVE** (382) — gravity load case → determinate member statics (reactions, shear/moment/deflection
+  diagrams); `aec_api/struct_solve.py`, `GET /structure/solve`.
+- **STRUCT-LATERAL** (389) — ASCE 7 §12.8 seismic ELF + simplified MWFRS wind → base shear + story
+  forces/shears/overturning, governing flagged; `aec_api/lateral.py`.
+- **STRUCT-LOADS-IFC** (390) — `apply_structural_loads` writes `IfcStructuralLinearAction` (D+L) onto every
+  analytical member → loaded IFC.
+- **Analytical shear walls** (391) — load-bearing walls → vertical mid-plane `IfcStructuralSurfaceMember`s.
+- **Analytical supports** (392) — `apply_structural_supports` fixes base nodes (pinned/fixed
+  `IfcBoundaryNodeCondition`) → a complete, solvable analytical IFC handed off to SAP2000/RISA/Robot.
+
+**MEP** — **MEP-SIZE** (386) air/water velocity checks vs ASHRAE/erosion limits + NEC tray fill,
+`aec_data/mep_sizing.py`, `GET /mep/sizing`.
+
+**Construction docs / deliverables** — **VIEW-RANGE** (383) plan view-depth (foundations below the cut as
+dashed lines); **COVER-SHEET** (384) rendered cover + key-plan thumbnail + discipline-grouped paginated
+index; **EXPORT** (387) binary glTF `.glb` + first-class IFC re-export; **TAKEOFF-2D** (388) drawing-based
+quantity takeoff → the 5D estimate.
+
+**Code health** — **DISC-SSOT** (385) sheet-series is now a derived view of the one discipline map
+(`classification.series_of_ifc_class`; `sheetgen`/cover private tables removed). Self-authored **ruff-autofix
+PostToolUse hook** (`.claude/hooks/ruff_fix.py`, `$CLAUDE_PROJECT_DIR`).
+
 ## 🗓 Session v0.3.352–377 (2026-07-16/17) — frontier tracks, UX, hardening, deliverables
 
 **Discipline / classification depth** — DISC-coverage report (`/elements/by-discipline` completeness view,

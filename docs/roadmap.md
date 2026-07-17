@@ -6,12 +6,12 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.377**. Recent waves
-(v0.3.352–377): the **five frontier tracks** (W10-7 structural analytical · W9-4/RFI-0 doc-graph + NL-QA ·
-COLLAB-1 real-time co-editing · AUTH-VS node authoring · UX-1/3/4 designer workspace); a **security
-hardening pass**; and the top **enterprise deliverable/relationship gaps** — the **compiled drawing-set
-PDF**, the **shareable project package** (overview + drawings + cost + proforma in one file), and the
-**model estimate → developer proforma** hard-cost sync. Full record in [roadmap-completed.md](roadmap-completed.md).
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.392**. Recent waves
+(v0.3.380–392): the **complete W10-7 analytical model** (gravity + lateral solve, member loads, shear-wall/
+slab surfaces, base supports → solver-ready IFC), **MEP-SIZE** velocity checks, plan **VIEW-RANGE**, the
+rendered **COVER-SHEET** + drawing index, **EXPORT** (.glb + IFC re-export), **TAKEOFF-2D**, and **DISC-SSOT**
+code consolidation. **Focus now pivots to dev-velocity & modularization** (below) — the codebase is heavy and
+the release cycle is the bottleneck. Full record in [roadmap-completed.md](roadmap-completed.md).
 
 > **This file holds only what is still OPEN.** Everything shipped — every wave, track, and release — lives in
 > [roadmap-completed.md](roadmap-completed.md), so *what's left* is never buried under *what's done*. The
@@ -22,61 +22,51 @@ PDF**, the **shareable project package** (overview + drawings + cost + proforma 
 
 ---
 
-## 🗓 Weekend worklist — prioritized (2026-07-18/19)
+## 🚀 Current focus — dev-velocity & modularization (2026-07-17)
 
-Everything shipped is in **[roadmap-completed.md](roadmap-completed.md)**. This is what's LEFT, in order.
-The frontier tracks, UX, security, and the top enterprise **deliverable/relationship gaps** all landed
-(v0.3.352–377): the **compiled drawing-set PDF** (375), the **shareable project package** — overview +
-drawings + cost + proforma (377), and the **model estimate → proforma** hard-cost sync (376) are done.
+The feature backlog is deep and **shipping is the bottleneck**: the codebase is heavy, the ~30-min
+sequential test gate + per-release cycle slow every change. So the priority pivots from *more features* to
+**making development faster and the product more maintainable** — small, safe, TESTED slices now; the large
+feature/infra bets are tracked below to attack once we're nimbler (a few are worktree-forkable in parallel).
 
-**Do next, highest value first:**
+The KEYS/PREFLIGHT/analysis/deliverable items that filled the earlier worklist all shipped (v0.3.380–392);
+they're archived in **[roadmap-completed.md](roadmap-completed.md)**.
 
-1. ✅ **KEYS — Revit-style authoring shortcuts — SHIPPED v0.3.380** — 2-letter codes arm a draw tool
-   (WA/CL/BM/SL/RF/RA/SC/SB/RB/FT/DU/PI/CT/WR), Esc disarms, `?` shows help, HUD echoes the buffer,
-   suppressed in inputs. *Remaining: type-a-dimension-while-drawing (VCB) + more non-draw actions.*
-2. ✅ **PREFLIGHT — issuance gate — SHIPPED v0.3.381** — `GET /projects/{pid}/preflight`: one PASS/HOLD
-   verdict + checklist composing the model-health lenses (hygiene · clash · code-readiness · verified) +
-   **classification completeness** + open high-priority issues (hard blocker). *(pyRevit research.)*
-3. ✅ **STRUCT-SOLVE — apply gravity loads + solve statics — SHIPPED v0.3.382** —
-   `GET /projects/{pid}/structure/solve` applies an ASCE 7 gravity load case (dead + live by occupancy) to
-   the W10-7 analytical curve members and runs a **determinate member-by-member statics solve** —
-   reactions (`wL/2`), max shear/moment (`wL²/8`), indicative deflection vs L/360, and shear/moment/
-   deflection diagrams; vertical members carry a tributary column axial; factored forces via the governing
-   LRFD combo. Viewer surfaces it in the analytical panel with inline diagrams. **Lateral SHIPPED v0.3.389**
-   — `GET /structure/lateral`: ASCE 7 seismic ELF (§12.8) + simplified wind MWFRS → base shear + story
-   forces/shears/overturning, governing case flagged. **Member load activities SHIPPED v0.3.390** — the
-   `apply_structural_loads` recipe writes an `IfcStructuralLinearAction` (D+L, global −Z) onto every
-   analytical member, grouped under the load group → a loaded, solver-ready analytical IFC (idempotent,
-   purged on re-derive). *Remaining: continuous-beam / coupled-frame (FEM) solve · section properties read
-   from the physical member · drift/P-delta.*
-4. ✅ **VIEW-RANGE — plan view-depth — SHIPPED v0.3.383** — `plan.svg?view_depth=<m>` draws the footprint
-   of elements below the cut but within the view depth (foundations/footings) as dashed hidden lines with a
-   legend — the Revit Top/Cut/Bottom/View-Depth model, not a single `cut_z`. `below_footprint_baked` sections
-   each below-cut element through its mid-height; class-filterable; backward-compatible. *(IMG_0247.)*
-   *Remaining: per-plane element-visibility control + wiring view_depth into the footprint sheet/PDF path.*
-5. ✅ **COVER-SHEET — rendered cover + drawing index — SHIPPED v0.3.384** — the compiled set's cover is now
-   a title block (project · subtitle · issue date · sheet count) + a **key-plan footprint thumbnail rendered
-   from the model** + a **discipline-grouped, paginated drawing index** (no more silent truncation past the
-   first page). `drawingset._cover_pdf`. *(audit gap #4.)*
-6. ✅ **TAKEOFF-2D — PDF/scan quantity takeoff — SHIPPED v0.3.388** — a 📐 2D Takeoff overlay (upload a
-   drawing image · calibrate scale · trace polygons or one-click flood-fill · quantify) + `POST /takeoff/2d`
-   measuring shoelace area / polyline length × the calibration → priced per-assembly quantities into the 5D
-   estimate. Measurement/pricing core unit-tested; canvas tracer build-verified. *(OpenTakeoff technique.)*
-   *Remaining: PDF.js page rasterization in-app + a finer flood-fill contour trace.*
-7. ✅ **DISC-SSOT — single discipline/class source — SHIPPED v0.3.385** — sheet-series is now a **derived
-   view** of the canonical discipline map (`classification.series_of_ifc_class`), and `sheetgen.detect_series`
-   + the drawing-set cover both derive from it (their private tables removed) — discipline↔sheet-series can
-   no longer drift (reproduces the old map exactly). Takt *trade* (`fourd.TRADE_FOR_CLASS`) is documented as
-   a deliberately separate build-sequence axis, not folded in. *(audit gap #7.)*
-8. **REL-3/4 — modularize the worst hotspots** *(tech-debt · L, one PR each, TESTED)* — `viewer/app.ts`,
-   `main.ts`, `modules.py`, `main.py`; façade re-exports; suite green after each. *(`openModule` O(n·m) fixed
-   v0.3.373; import cycles verified false positives.)*
-9. **Then:** SITE-1 open-geodata slice · MEP-SIZE · EXPORT (DWG/glb/USD + first-class IFC re-export) ·
-   durable background-job queue · COST-DB · SHEET-LINK · MEP-SIZE · the rest of the frontier depth.
+**Do now — velocity & quality (small, safe, one PR each, suite green after each):**
 
-Full detail: **[🔎 Research-2 additions](#-research-2-additions-2026-07)** (KEYS/VIEW-RANGE/TAKEOFF-2D/…),
-**[🏗 Enterprise gaps](#-enterprise-gaps-audit-2026-07)** (from the codebase audit), and
-**[🔧 Reliability & hardening](#-reliability--hardening-rel)**.
+1. **DEV-1 — parallelize the test gate** *(★★★★★ · the biggest cycle-time win)* — `run_tests.py` runs ~180
+   `test_*.py` **sequentially** (~30 min); each is an isolated subprocess with its own SQLite db + storage
+   dir, so they're embarrassingly parallel. Run them through a bounded `ThreadPoolExecutor` (cpu-2) and set
+   `PYTHONUTF8=1`/`encoding="utf-8"` on the subprocess so the cp1252 capture artifact disappears. Target: the
+   gate drops from ~30 min to a few. Keep the manifest guard + per-test env; preserve deterministic output.
+2. **DEV-2 — lock in gains (REL-8)** *(ci)* — add an **import-cycle check** (`import-linter` for Python,
+   `eslint-plugin-import/no-cycle` for web) so the false-positive-prone cycles can't regress; upload coverage
+   from CI; module-header docstrings on the refactored hotspots (bus factor 1).
+3. **REL-3 — modularize the worst *backend* hotspots** *(one PR each, TESTED)* — extract leaf modules behind a
+   **façade at the old import path** (zero public-API change): `modules.py`→~6, `main.py`→~4, `codecheck.py`
+   →~3, `connectors.py`→~6, `auth.py`→~5, `data/drawing.py`/`data/drawings.py`. `ruff`+suite green after each.
+   Start with the safest self-contained extractions. *(`openModule` O(n·m) already fixed v0.3.373; REL-1/2
+   import cycles verified false positives — see below.)*
+4. **REL-4 — decompose the *web* hotspots** *(one PR each, TESTED via typecheck/lint/vitest/build)* —
+   `viewer/app.ts` (worst file) split by responsibility (render setup / event wiring / data load / UI glue);
+   `main.ts` extract large methods + flatten nesting; `portal.ts`. Verify via the tools-panel technique
+   (geometry-preview stall). *(perf-sensitive — measure, don't guess.)*
+5. **REL-5 / REL-7 — error handling + verified dead-code** *(small batches)* — unhandled promise rejections in
+   `main.ts`; `installErrorReporting` must not throw during install; batch FS calls out of loops in
+   `vite.config.ts::writeBundle` + `scripts/bundle-budget.mjs`; then prove-then-delete the ~1,075 dead lines
+   (out-of-band entry points checked first).
+6. **DEV-3 — build & typecheck speed** *(★★★ · quick wins)* — profile the ~1-min web build + tsc; check for a
+   `tsc --incremental`/project-references win and lazy-chunk boundaries; keep the bundle-budget gate honest.
+
+**Full REL detail:** [🔧 Reliability & hardening (REL)](#-reliability--hardening-rel).
+
+**📦 Tracked for later — large / needs nimbleness (attack once the cycle is fast; some worktree-forkable):**
+SITE-1 open-geodata BIM↔GIS view · durable **background-job queue** (heavy exports/PAdES/gen run inline
+today) · **server-rendered 3D hero** for the package · **COST-DB cloud ingest** (public-source + signed
+bundles) · **coupled-frame FEM solve** (the analytical model is complete + solver-ready, so this is a big
+optional build) · VIZ-U1 Unity bridge · IFC5 geometry write (upstream-blocked) · the frontier bets below
+(PROFORMA-LIVE, COST-AGENT, BOARDS, ENV-1, READY-AGENT, RISK-BOARD). Detail in
+[🔮 Frontier](#-frontier--2026-07-research-round-2--net-new-bets) + [🏗 Enterprise gaps](#-enterprise-gaps-audit-2026-07).
 
 ---
 
