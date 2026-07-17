@@ -102,6 +102,13 @@ assert len(sch["doors"]["rows"]) >= 1 and len(sch["windows"]["rows"]) >= 1, sch
 # the door's width was captured from OverallWidth (0.90 m)
 assert any(row[1] == "0.90" for row in sch["doors"]["rows"]), sch["doors"]["rows"]
 assert any(row[1] == "1.50" for row in sch["windows"]["rows"]), sch["windows"]["rows"]
+# W10-6: the schedule exports to CSV (one kind + all-three)
+dcsv = drawing.schedule_csv(m, "doors")
+lines = [ln for ln in dcsv.splitlines() if ln]
+assert lines[0] == "DOOR SCHEDULE" and lines[1].startswith("Mark,"), lines[:2]
+assert any(",0.90," in ln for ln in lines), "door width in CSV"
+allcsv = drawing.schedule_csv(m)
+assert all(t in allcsv for t in ("DOOR SCHEDULE", "WINDOW SCHEDULE", "ROOM SCHEDULE")), "all three sections"
 # render a schedule table SVG
 dsvg = drawing.schedule_svg(m, "doors")
 assert dsvg["svg"].startswith("<svg") and "DOOR SCHEDULE" in dsvg["svg"] and dsvg["rows"] >= 1

@@ -167,8 +167,8 @@ S1–S4 ship (deterministic baseline → multi-step LLM interpretation → confi
   flow-rate props + coincident-port auto-connect.*
 - **W10-5** — **annotation & tagging layer** — *largely delivered by UX-2 (notes/dims/tags/clouds on plans);*
   finish section/elevation annotation views.
-- **W10-6** — **schedules & QTO** (`IfcElementQuantity` — partly via C4; finish computed schedule / keynote-
-  legend views into the export pipeline).
+- 🟡 **W10-6 schedule CSV SHIPPED v0.3.351** — door/window/room schedules export to CSV (`schedule.csv?kind=`).
+  *Remaining: keynote-legend view + IfcElementQuantity depth.*
 - **W10-7** — **structural analytical model** (`IfcStructuralAnalysisModel`, curve/surface members, point
   connections, load cases) — net-new domain alongside the physical model.
 - **W10-9** — **parametric constraints & dimensional locks (the hard one)** — no IFC representation; store in a

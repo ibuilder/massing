@@ -136,6 +136,23 @@ def schedule_svg(pid: str, kind: str = "doors", db: Session = Depends(get_db),
                     headers={"X-Schedule-Rows": str(result["rows"])})
 
 
+@router.get("/projects/{pid}/drawings/schedule.csv")
+def schedule_csv(pid: str, kind: str = "", db: Session = Depends(get_db),
+                 _: str = Depends(require_role("viewer"))):
+    """W10-6: the computed schedule(s) as a CSV download — `kind` (doors|windows|rooms) for one, or omit
+    for all three. For spreadsheets / procurement / submittals."""
+    from fastapi.responses import Response  # local import
+
+    from aec_data import drawing  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    csv_text = drawing.schedule_csv(open_model(p.source_ifc), kind=kind or None)
+    fn = f"schedule-{kind or 'all'}.csv"
+    return Response(content=csv_text, media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="{fn}"'})
+
+
 @router.get("/projects/{pid}/drawings/schedule.pdf")
 def schedule_pdf(pid: str, kinds: str = "doors,windows,rooms", number: str = "A-601",
                  title: str = "SCHEDULES", db: Session = Depends(get_db),

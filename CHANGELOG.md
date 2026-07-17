@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.351 — W10-6: schedule CSV export
+
+The computed door/window/room schedules now export to **CSV** (`GET /projects/{pid}/drawings/schedule.csv?kind=`
+for one, or omit for all three) for spreadsheets / procurement / submittals — finishing the schedule views
+into the export pipeline alongside the existing SVG/PDF. `drawing.schedule_csv`.
+
 ## v0.3.350 — W9-6b: FF&E bill of materials
 
 A new **FF&E / furnishings bill of materials** from the model's placed furniture — `content.furniture_bom`

@@ -794,6 +794,27 @@ def schedules(model: ifcopenshell.file) -> dict:
 _SCHED_TITLE = {"doors": "DOOR SCHEDULE", "windows": "WINDOW SCHEDULE", "rooms": "ROOM SCHEDULE"}
 
 
+def schedule_csv(model: ifcopenshell.file, kind: str | None = None) -> str:
+    """W10-6: the computed door/window/room schedule(s) as **CSV** for spreadsheets / procurement /
+    submittals. `kind` = doors|windows|rooms for one; omit for all three (a title row + blank line between).
+    Finishes the schedule views into the export pipeline alongside the SVG/PDF."""
+    import csv
+    import io
+
+    data = schedules(model)
+    kinds = [kind] if kind in data else list(data)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    for i, k in enumerate(kinds):
+        if i:
+            w.writerow([])
+        w.writerow([_SCHED_TITLE.get(k, k.upper())])
+        w.writerow(data[k]["columns"])
+        for row in data[k]["rows"]:
+            w.writerow(row)
+    return buf.getvalue()
+
+
 def schedule_svg(model: ifcopenshell.file, kind: str = "doors") -> dict:
     """Render one schedule (doors|windows|rooms) as a standalone SVG table. Returns {svg, kind, rows}."""
     data = schedules(model).get(kind)
