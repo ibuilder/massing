@@ -12,7 +12,8 @@ two hand analyses an engineer does before a lateral system is sized:
 
 Pure arithmetic — every coefficient is a fact from ASCE 7. Story weights/heights read off the model (weight
 estimated from floor area × a dead-load psf). **PRELIMINARY — not a substitute for a licensed structural
-engineer;** no torsion, no dynamic/modal analysis, no drift check, simplified wind only.
+engineer;** preliminary §12.12 story-drift screen + §12.3.2.1 torsional-irregularity flag (when stiffness /
+end displacements are supplied), no dynamic/modal analysis, no P-delta, simplified wind only.
 
 Units: forces kips, heights ft, weights kips, pressures psf, wind speed mph.
 """
@@ -86,6 +87,86 @@ def seismic_elf(weights_kip: list[float], heights_ft: list[float], *, sds: float
     }
 
 
+# ASCE 7-22 Table 12.12-1 allowable story drift Δa as a fraction of the story height hsx —
+# the "all other structures" row, by Risk Category (masonry-shear-wall rows omitted; preliminary screen).
+_DRIFT_ALLOW = {"I": 0.020, "II": 0.020, "III": 0.015, "IV": 0.010}
+
+# Common R → Cd pairing (ASCE 7-22 Table 12.2-1) for a default deflection-amplification factor when the
+# caller doesn't supply Cd (special MF R8/Cd5.5, IMF R4.5/Cd4, special shear wall R6/Cd5, OMF R3.5/Cd3…).
+_CD_FOR_R = {8.0: 5.5, 6.0: 5.0, 5.0: 4.5, 4.5: 4.0, 3.5: 3.0, 3.0: 2.5}
+
+
+def drift_check(seismic_result: dict[str, Any], *, story_heights_ft: list[float] | None = None,
+                story_stiffness_kip_in: list[float] | None = None, cd: float = 5.5, ie: float = 1.0,
+                risk_category: str = "II", target_elastic_drift_ratio: float | None = None) -> dict[str, Any]:
+    """ASCE 7-22 §12.8.6 + §12.12 story-drift screen against the ELF story shears in `seismic_result`.
+
+    For each story the allowable drift is `Δa = coeff·hsx` (Table 12.12-1, by Risk Category). Demand — when
+    a story stiffness (kip/in) or a target *elastic* drift ratio is supplied — is the amplified design drift
+    `Δ = Cd·δxe / Ie`, where the elastic story drift `δxe = story_shear ÷ stiffness` (or `ratio·hsx`). Δ is
+    compared to Δa. PRELIMINARY: real drift needs a member-stiffness model; with no stiffness input only the
+    Δa envelope is reported (no pass/fail)."""
+    stories = seismic_result.get("stories", [])
+    elevs = [float(s.get("height_ft", 0.0)) for s in stories]
+    coeff = _DRIFT_ALLOW.get(str(risk_category).upper(), 0.020)
+    rows: list[dict[str, Any]] = []
+    worst_ratio = 0.0
+    ok = True
+    for i, s in enumerate(stories):
+        if story_heights_ft and i < len(story_heights_ft):
+            hsx = float(story_heights_ft[i])
+        else:
+            hsx = elevs[i] - (elevs[i - 1] if i > 0 else 0.0)   # inter-story height from cumulative elevations
+        hsx_in = hsx * 12.0
+        allow_in = coeff * hsx_in
+        row: dict[str, Any] = {"level": s.get("level", i + 1), "story_height_ft": round(hsx, 2),
+                               "allowable_in": round(allow_in, 3)}
+        de: float | None = None
+        if story_stiffness_kip_in and i < len(story_stiffness_kip_in) and float(story_stiffness_kip_in[i]) > 0:
+            de = float(s.get("shear_kip", 0.0)) / float(story_stiffness_kip_in[i])
+        elif target_elastic_drift_ratio:
+            de = float(target_elastic_drift_ratio) * hsx_in
+        if de is not None and hsx_in > 0:
+            delta = cd * de / ie
+            ratio = delta / hsx_in
+            row["design_drift_in"] = round(delta, 3)
+            row["drift_ratio"] = round(ratio, 4)
+            row["pass"] = bool(delta <= allow_in + 1e-9)
+            worst_ratio = max(worst_ratio, ratio)
+            ok = ok and row["pass"]
+        rows.append(row)
+    demand = any("design_drift_in" in r for r in rows)
+    return {
+        "method": "ASCE 7-22 §12.8.6 design story drift vs §12.12.1 allowable (Table 12.12-1)",
+        "risk_category": str(risk_category).upper(), "Cd": cd, "Ie": ie, "allowable_ratio": coeff,
+        "demand_evaluated": demand, "max_drift_ratio": round(worst_ratio, 4) if demand else None,
+        "passes": ok if demand else None, "stories": rows,
+        "note": ("Δ = Cd·δxe/Ie compared to Δa = coeff·hsx" if demand else
+                 "allowable Δa only — supply story_stiffness_kip_in or target_elastic_drift_ratio for a demand check"),
+    }
+
+
+def torsional_check(delta_max: float, delta_avg: float) -> dict[str, Any]:
+    """ASCE 7-22 §12.3.2.1 horizontal torsional irregularity. Given the maximum and average story
+    displacements at the two ends of a diaphragm (including accidental eccentricity), the ratio
+    `δmax/δavg` classifies Type 1a (>1.2) or Type 1b extreme (>1.4); the accidental-torsion amplification
+    `Ax = (δmax / 1.2·δavg)²` (capped at 3.0, §12.8.4.3) applies when irregular."""
+    da = float(delta_avg)
+    if da <= 0:
+        return {"ratio": None, "irregularity": None, "amplification_Ax": None,
+                "note": "average displacement must be > 0"}
+    ratio = float(delta_max) / da
+    if ratio > 1.4:
+        kind = "Type 1b (extreme torsional irregularity)"
+    elif ratio > 1.2:
+        kind = "Type 1a (torsional irregularity)"
+    else:
+        kind = None
+    ax = round(min(3.0, (ratio / 1.2) ** 2), 3) if ratio > 1.2 else 1.0
+    return {"ratio": round(ratio, 3), "irregularity": kind, "amplification_Ax": ax,
+            "note": "δmax/δavg ≤ 1.2 → regular; >1.2 Type 1a; >1.4 Type 1b (ASCE 7-22 §12.3.2.1)"}
+
+
 def _kz(height_ft: float, exposure: str = "C") -> float:
     """ASCE 7 velocity-pressure exposure coefficient Kz via the power law (min z = 15 ft)."""
     alpha, zg = _EXPOSURE.get(exposure.upper(), _EXPOSURE["C"])
@@ -131,12 +212,15 @@ def wind_mwfrs(heights_ft: list[float], *, speed_mph: float = 115.0, width_ft: f
 _DISCLAIMER = ("PRELIMINARY lateral analysis for early coordination — ASCE 7 Equivalent Lateral Force "
                "(seismic) + simplified directional MWFRS (wind), distributed to story forces. NOT a full "
                "lateral design: no torsion / accidental eccentricity, no modal/response-spectrum analysis, "
-               "no drift or P-delta check, no soil-structure interaction. All lateral system design must be "
-               "performed and stamped by a licensed professional engineer.")
+               "with a preliminary §12.12 story-drift screen and a §12.3.2.1 torsional-irregularity flag "
+               "(only when story stiffness / end displacements are supplied). No P-delta, no modal/response-"
+               "spectrum analysis, no soil-structure interaction. All lateral system design must be performed "
+               "and stamped by a licensed professional engineer.")
 
 
 def lateral_from_model(model, *, dead_psf: float = 90.0, area_sf: float | None = None,
-                       seismic: dict | None = None, wind: dict | None = None) -> dict[str, Any]:
+                       seismic: dict | None = None, wind: dict | None = None,
+                       drift: dict | None = None) -> dict[str, Any]:
     """Read story elevations off the model and run both analyses. Seismic weight per story is estimated as
     floor area × `dead_psf` (a superimposed-dead + structure allowance); pass `area_sf` or it is taken from
     the plan bounding box. `seismic`/`wind` override the code parameters."""
@@ -169,6 +253,16 @@ def lateral_from_model(model, *, dead_psf: float = 90.0, area_sf: float | None =
                            width_ft=float(width_ft), exposure=str(wind.get("exposure", "C"))),
         "disclaimer": _DISCLAIMER,
     }
+    # §12.12 story-drift screen off the ELF story shears (Δa envelope always; demand when stiffness/ratio given)
+    drift = drift or {}
+    result["drift"] = drift_check(
+        result["seismic"], story_stiffness_kip_in=drift.get("story_stiffness_kip_in"),
+        cd=float(drift.get("cd", _CD_FOR_R.get(float(seismic.get("r", 8.0)), 5.5))),
+        ie=float(seismic.get("ie", 1.0)), risk_category=str(drift.get("risk_category", "II")),
+        target_elastic_drift_ratio=drift.get("target_elastic_drift_ratio"))
+    if drift.get("delta_max") is not None and drift.get("delta_avg") is not None:
+        result["torsion"] = torsional_check(drift["delta_max"], drift["delta_avg"])
+
     sv = result["seismic"]["base_shear_kip"]
     wv = result["wind"]["base_shear_kip"]
     result["governing"] = {"system": "seismic" if sv >= wv else "wind",

@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.400 — DRIFT: preliminary story-drift screen + torsional-irregularity flag (ASCE 7 §12.12 / §12.3.2.1)
+
+- The lateral engine computed seismic ELF + wind base shear distributed to story forces, but had **no
+  drift or torsion check** — the two limit states that most often govern a lateral system. Added, as an
+  honest preliminary screen on top of the existing ELF story shears:
+  - **`drift_check`** — the ASCE 7-22 §12.12.1 **allowable story drift** `Δa = coeff·hsx` per story (Table
+    12.12-1, by Risk Category: 0.020 / 0.015 / 0.010 for I–II / III / IV). When a **story stiffness**
+    (kip/in) or a **target elastic drift ratio** is supplied, it also computes the amplified **design
+    drift** `Δ = Cd·δxe / Ie` (§12.8.6) and returns pass/fail per story plus the worst drift ratio.
+  - **`torsional_check`** — the §12.3.2.1 horizontal-irregularity classifier from the two-end diaphragm
+    displacements: `δmax/δavg` → **Type 1a** (> 1.2) / **Type 1b extreme** (> 1.4), with the §12.8.4.3
+    accidental-torsion amplification `Ax = (δmax / 1.2·δavg)²` (capped at 3.0).
+  - Wired into `lateral_from_model` (the Δa envelope is always emitted; demand + torsion when inputs are
+    given) and the `GET …/structure/lateral` endpoint (`risk_category`, `cd`, `elastic_drift_ratio`).
+- Still preliminary — real drift needs a member-stiffness model; every result carries the not-a-PE
+  disclaimer. Hand-computed test coverage in `test_lateral.py`.
+
 ## v0.3.399 — FIN-TEST: lock in the untested lease + change-order money math
 
 - Quality / debug pass from the codebase gap sweep. Two read-side money-computation engines had **no

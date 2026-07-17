@@ -75,9 +75,10 @@ codebase gap sweep + web scan). All backend, fully testable, on-mission, NOT stu
    quantities), served on `/versions/diff` (`modified[]` + counts) and surfaced in the viewer's Version
    history with click-to-select-in-3D. *(Pure rigid moves out — geometry is Fragments, not the index — but
    resizes show via the Qto delta.)* *Remaining: a geometry-delta lane if placement is ever indexed.*
-2. **DRIFT — inter-story drift + torsional-irregularity flag** *(★★★★)* — `lateral.py` explicitly omits ASCE
-   7 §12.12 drift (a *limit-state*, not a refinement). Add approximate story drift Δ = story-shear/​stiffness
-   vs the allowable (h/50…h/200 by risk category) + a plan-torsion flag. Extends the shipped STRUCT-LATERAL.
+2. ✅ **DRIFT — inter-story drift + torsional-irregularity flag — SHIPPED v0.3.400** — `lateral.drift_check`
+   (§12.12.1 allowable Δa = coeff·hsx by Risk Category; §12.8.6 design drift Δ = Cd·δxe/Ie when story
+   stiffness / target elastic ratio supplied → per-story pass/fail) + `torsional_check` (§12.3.2.1
+   δmax/δavg → Type 1a/1b + Ax). Wired into `lateral_from_model` + the `structure/lateral` endpoint.
 3. ✅ **FIN-TEST — test the untested finance math — SHIPPED v0.3.399** — `test_leasemgmt.py` (escalation
    compounding · CAM recovery ratio + over/under · renewal at-risk) + `test_changeorders.py` (CO pipeline by
    state · schedule-days excl. rejected · ball-in-court · ROM exposure), hand-computed. Math was already

@@ -162,20 +162,28 @@ def structure_lateral(pid: str,
                       system: str = Query("other"),
                       wind_speed_mph: float = Query(115.0, gt=0), exposure: str = Query("C"),
                       dead_psf: float = Query(90.0, gt=0), area_sf: float | None = Query(None, gt=0),
+                      risk_category: str = Query("II"), cd: float | None = Query(None, gt=0),
+                      elastic_drift_ratio: float | None = Query(None, gt=0),
                       db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """STRUCT-LATERAL: ASCE 7 lateral analysis — seismic Equivalent Lateral Force (§12.8) + simplified
     directional MWFRS wind — base shear distributed to per-story forces / shears / overturning, with the
-    governing case flagged. Story weights estimated from floor area × `dead_psf`. **Preliminary — not a
-    substitute for a licensed structural engineer** (no torsion, modal, drift, or P-delta)."""
+    governing case flagged, plus a preliminary §12.12 story-drift screen (allowable Δa always; pass/fail
+    when `elastic_drift_ratio` is supplied). Story weights estimated from floor area × `dead_psf`.
+    **Preliminary — not a substitute for a licensed structural engineer** (no modal or P-delta)."""
     from aec_data.ifc_loader import open_model  # type: ignore
 
     from .. import lateral
 
     p = _project(db, pid)
+    drift: dict[str, float | str] = {"risk_category": risk_category}
+    if cd is not None:
+        drift["cd"] = cd
+    if elastic_drift_ratio is not None:
+        drift["target_elastic_drift_ratio"] = elastic_drift_ratio
     return lateral.lateral_from_model(
         open_model(p.source_ifc), dead_psf=dead_psf, area_sf=area_sf,
         seismic={"sds": sds, "sd1": sd1, "r": r, "ie": ie, "system": system},
-        wind={"speed_mph": wind_speed_mph, "exposure": exposure})
+        wind={"speed_mph": wind_speed_mph, "exposure": exposure}, drift=drift)
 
 
 @router.get("/projects/{pid}/doc-graph")
