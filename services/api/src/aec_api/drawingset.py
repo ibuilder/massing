@@ -182,3 +182,79 @@ def revisions(db, pid: str) -> dict[str, Any]:
     out.sort(key=lambda r: (str(r["date"]), str(r["sheet_number"])), reverse=True)
     return {"delta_count": len(out), "by_instrument": dict(sorted(by_instrument.items())),
             "revisions": out}
+
+
+def _cover_pdf(project_name: str, sheet_index: list[dict], subtitle: str = "Drawing Set") -> bytes:
+    """A cover / sheet-index page (ARCH-D, matching the sheets) for the compiled set."""
+    from io import BytesIO
+
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+
+    w, h = 914.0, 610.0
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=(w * mm, h * mm))
+    c.setLineWidth(1)
+    c.rect(8 * mm, 8 * mm, (w - 16) * mm, (h - 16) * mm)
+    c.setFont("Helvetica-Bold", 30)
+    c.drawString(28 * mm, (h - 55) * mm, (project_name or "Project")[:60])
+    c.setFont("Helvetica", 15)
+    c.drawString(28 * mm, (h - 72) * mm, subtitle)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(28 * mm, (h - 96) * mm, "SHEET")
+    c.drawString(70 * mm, (h - 96) * mm, "TITLE")
+    c.setFont("Helvetica", 10)
+    y = h - 106
+    for s in sheet_index:
+        c.drawString(28 * mm, y * mm, str(s.get("number", "")))
+        c.drawString(70 * mm, y * mm, str(s.get("title", ""))[:80])
+        y -= 6.5
+        if y < 24:
+            break
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def compiled_set_pdf(source_ifc: str, project_name: str, scale: int = 200, max_sheets: int = 16,
+                     include_schedules: bool = True) -> bytes:
+    """Compile the WHOLE drawing set into ONE multi-page PDF — a cover / sheet-index, a floor plan per
+    storey (A-1xx), and the door/window/room schedules (A-601) — by rendering each single sheet with the
+    proven `drawing.sheet_pdf`/`schedule_pdf` and merging with pypdf. The handover deliverable a GC or
+    architect issues. Tall towers sample storeys evenly to keep the set a reasonable size."""
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    from . import pdfops
+
+    _ds = _Path(__file__).resolve().parents[3] / "data" / "src"
+    if str(_ds) not in _sys.path:
+        _sys.path.insert(0, str(_ds))
+    from aec_data import drawing  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    model = open_model(source_ifc)
+    storeys = [s.Name for s in model.by_type("IfcBuildingStorey") if getattr(s, "Name", None)]
+    if max_sheets and len(storeys) > max_sheets:                 # sample evenly on a tall tower
+        step = len(storeys) / max_sheets
+        storeys = [storeys[min(len(storeys) - 1, int(i * step))] for i in range(max_sheets)]
+
+    specs = [{"storey": lvl, "number": f"A-1{i + 1:02d}", "title": f"{lvl} — FLOOR PLAN"}
+             for i, lvl in enumerate(storeys)]
+    index = list(specs)
+    if include_schedules:
+        index.append({"number": "A-601", "title": "SCHEDULES — DOOR / WINDOW / ROOM"})
+
+    parts: list[bytes] = [_cover_pdf(project_name, index)]
+    for sp in specs:
+        try:
+            parts.append(drawing.sheet_pdf(model, storey=sp["storey"], scale=scale,
+                                           project=project_name, number=sp["number"], title=sp["title"]))
+        except Exception:  # noqa: BLE001 — one bad storey never aborts the whole set
+            pass
+    if include_schedules:
+        try:
+            parts.append(drawing.schedule_pdf(model, project=project_name, number="A-601"))
+        except Exception:  # noqa: BLE001 — a model with no doors/windows/rooms simply omits schedules
+            pass
+    return pdfops.merge(parts)

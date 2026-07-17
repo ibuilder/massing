@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.375 — compiled drawing-set PDF (the whole set, one file)
+
+- **`GET /projects/{pid}/drawing-set/compiled.pdf`** — the whole drawing set bound into **one multi-page
+  PDF**: a cover / sheet-index, a floor plan per storey (A-1xx), and the door/window/room schedules
+  (A-601). Reuses the proven single-sheet renderers and merges with pypdf. A tall tower samples storeys
+  evenly (capped by `max_sheets`) so the set stays a reasonable size; schedules toggle off. The single-file
+  handover deliverable a GC or architect issues — closes the gap where the platform could render one sheet
+  at a time and a transmittal *cover*, but never the bound set. (Verified on the 30-storey Quay tower.)
+
 ## v0.3.373 — reliability: openModule O(n·m) fix + import-cycle verification
 
 - **Perf (REL-4):** the portal's `openModule` built its visible columns with a per-column

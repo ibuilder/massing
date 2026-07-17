@@ -44,6 +44,22 @@ def drawing_set_transmittal(pid: str, to: str = "", note: str = "", db: Session 
                     headers={"Content-Disposition": 'inline; filename="drawing-transmittal.pdf"'})
 
 
+@router.get("/projects/{pid}/drawing-set/compiled.pdf")
+def drawing_set_compiled(pid: str, scale: int = 200, max_sheets: int = 16, schedules: bool = True,
+                         db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The **whole drawing set compiled into one multi-page PDF** — a cover / sheet-index, a floor plan per
+    storey (tall towers sample evenly, capped by `max_sheets`), and the door/window/room schedules. The
+    single-file handover deliverable. Needs a source IFC."""
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    src = _source_ifc(db, pid)                       # raises 409 if no accessible source IFC
+    pdf = drawingset.compiled_set_pdf(src, p.name or pid, scale=int(scale),
+                                      max_sheets=int(max_sheets), include_schedules=bool(schedules))
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{(p.name or pid)}-drawing-set.pdf"'})
+
+
 # --- drawing issuance register (AIA/CD: what went out, when, for what purpose) -------------------
 @router.get("/projects/{pid}/drawing-set/issuance-purposes")
 def issuance_purposes(_: str = Depends(require_role("viewer"))):
