@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.384 — COVER-SHEET: rendered cover + discipline-grouped drawing index
+
+- The compiled drawing set's cover was a flat text list. It is now a proper **cover sheet**: a title block
+  with the project name, subtitle, **issue date**, and sheet count; a **key-plan thumbnail rendered from
+  the model** (the ground-plan footprint, real linework — not text); and a **drawing index grouped by NCS
+  discipline** (General · Civil · Structural · Architectural · Fire Protection · Fire Alarm · Plumbing ·
+  Mechanical · Electrical · Telecom …) with section headers, bound in the same order a set is issued.
+- The index **paginates** — a large multi-discipline set flows onto continuation pages instead of
+  truncating at the page bottom (the old cover silently dropped sheets past the first ~90). Backward-
+  compatible: short sets still produce a single cover page, so `/drawing-set/compiled.pdf`,
+  `/project-package.pdf`, and the issuance flow are unchanged in page count for typical models.
+
 ## v0.3.383 — VIEW-RANGE: plan view-depth so foundations show below the cut
 
 - **`GET /projects/{pid}/drawings/plan.svg?view_depth=<m>`** — a plan is no longer a single horizontal

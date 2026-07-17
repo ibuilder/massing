@@ -50,8 +50,10 @@ drawings + cost + proforma (377), and the **model estimate → proforma** hard-c
    legend — the Revit Top/Cut/Bottom/View-Depth model, not a single `cut_z`. `below_footprint_baked` sections
    each below-cut element through its mid-height; class-filterable; backward-compatible. *(IMG_0247.)*
    *Remaining: per-plane element-visibility control + wiring view_depth into the footprint sheet/PDF path.*
-5. **COVER-SHEET — rendered cover + sheet index** *(★★★★ · S)* — the compiled set's cover is text-only;
-   render a real graphical cover + a proper drawing index. *(audit gap #4.)*
+5. ✅ **COVER-SHEET — rendered cover + drawing index — SHIPPED v0.3.384** — the compiled set's cover is now
+   a title block (project · subtitle · issue date · sheet count) + a **key-plan footprint thumbnail rendered
+   from the model** + a **discipline-grouped, paginated drawing index** (no more silent truncation past the
+   first page). `drawingset._cover_pdf`. *(audit gap #4.)*
 6. **TAKEOFF-2D — PDF/scan quantity takeoff** *(★★★★ · M)* — browser flood-fill "one-click area" on uploaded
    drawings feeding the existing 5D estimate (Apache-2.0 OpenTakeoff technique).
 7. **DISC-SSOT — single discipline/class source** *(★★★ · S)* — collapse the three parallel IFC-class maps
@@ -524,8 +526,8 @@ closed this session marked:
 - ✅ **Compiled drawing-set PDF** — SHIPPED v0.3.375 (`/drawing-set/compiled.pdf`).
 - ✅ **Model-estimate → proforma link** — SHIPPED v0.3.376 (`/dev-budget/sync-from-model`).
 - ✅ **Client project package** — SHIPPED v0.3.377 (`/project-package.pdf`).
-- **Rendered cover sheet / index** *(★4 · S)* — see COVER-SHEET in the worklist. Touch `sheetgen.py`,
-  `drawing.py`, `drawingset.py`.
+- ✅ **Rendered cover sheet / index** — SHIPPED v0.3.384 (`drawingset._cover_pdf`): title block + key-plan
+  footprint thumbnail + discipline-grouped, paginated drawing index.
 - ✅ **Structural analysis: apply loads + solve** — SHIPPED v0.3.382 (`/structure/solve`): gravity load
   case applied to the analytical members + a determinate member-by-member statics solve (reactions, shear/
   moment/deflection diagrams, column axial). *Remaining: lateral solve · load activities written to the IFC ·

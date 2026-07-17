@@ -184,8 +184,41 @@ def revisions(db, pid: str) -> dict[str, Any]:
             "revisions": out}
 
 
-def _cover_pdf(project_name: str, sheet_index: list[dict], subtitle: str = "Drawing Set") -> bytes:
-    """A cover / sheet-index page (ARCH-D, matching the sheets) for the compiled set."""
+# NCS drawing-series letter → discipline name (presentation only; DISC-SSOT will unify class maps later)
+_DISCIPLINE_SERIES = {
+    "G": "General", "C": "Civil", "L": "Landscape", "S": "Structural", "A": "Architectural",
+    "I": "Interiors", "Q": "Equipment", "F": "Fire Protection", "FP": "Fire Protection",
+    "FA": "Fire Alarm", "P": "Plumbing", "M": "Mechanical", "E": "Electrical", "T": "Telecom",
+}
+# order the index the way a set is bound (matches the sheet_index registry ordering)
+_SERIES_ORDER = ["G", "C", "L", "S", "A", "I", "Q", "F", "FP", "FA", "P", "M", "E", "T"]
+
+
+def _series_of(number: str) -> str:
+    """The NCS discipline-series prefix of a sheet number (e.g. 'A-101' → 'A', 'FP-201' → 'FP')."""
+    m = re.match(r"^([A-Z]{1,2})", str(number or "").strip().upper())
+    if not m:
+        return "G"
+    pre = m.group(1)
+    return pre if pre in _DISCIPLINE_SERIES else pre[:1]
+
+
+def _footprint_polylines(model, cut_z: float = 1.2):
+    """Ground-plan cut polylines (list of (n,2) arrays, world XY) for a small key-plan on the cover —
+    a genuinely *rendered* thumbnail, not text. Best-effort: any failure yields no thumbnail."""
+    try:
+        from aec_data import drawings as _dwg  # type: ignore
+        meshes = _dwg.bake(model)
+        return _dwg.cut_baked(meshes, "plan", cut_z)
+    except Exception:  # noqa: BLE001 — the thumbnail is optional; the index is the essential content
+        return []
+
+
+def _cover_pdf(project_name: str, sheet_index: list[dict], subtitle: str = "Drawing Set",
+               footprint=None, issue_date: str | None = None) -> bytes:
+    """A rendered cover + drawing-index sheet (ARCH-D, matching the sheets) for the compiled set: a
+    title block with issue metadata, a key-plan footprint thumbnail rendered from the model, and the
+    drawing index grouped by NCS discipline with section headers. The index paginates onto extra pages."""
     from io import BytesIO
 
     from reportlab.lib.units import mm
@@ -194,23 +227,103 @@ def _cover_pdf(project_name: str, sheet_index: list[dict], subtitle: str = "Draw
     w, h = 914.0, 610.0
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=(w * mm, h * mm))
-    c.setLineWidth(1)
-    c.rect(8 * mm, 8 * mm, (w - 16) * mm, (h - 16) * mm)
-    c.setFont("Helvetica-Bold", 30)
-    c.drawString(28 * mm, (h - 55) * mm, (project_name or "Project")[:60])
+
+    def _border():
+        c.setLineWidth(1.4)
+        c.rect(8 * mm, 8 * mm, (w - 16) * mm, (h - 16) * mm)
+        c.setLineWidth(0.6)
+        c.rect(12 * mm, 12 * mm, (w - 24) * mm, (h - 24) * mm)
+
+    # ---- page 1: title block + key plan + the first slice of the index ----
+    _border()
+    c.setFont("Helvetica-Bold", 34)
+    c.drawString(28 * mm, (h - 52) * mm, (project_name or "Project")[:52])
     c.setFont("Helvetica", 15)
-    c.drawString(28 * mm, (h - 72) * mm, subtitle)
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(28 * mm, (h - 96) * mm, "SHEET")
-    c.drawString(70 * mm, (h - 96) * mm, "TITLE")
+    c.drawString(28 * mm, (h - 68) * mm, subtitle)
+    c.setLineWidth(0.8)
+    c.line(28 * mm, (h - 74) * mm, (w - 28) * mm, (h - 74) * mm)
     c.setFont("Helvetica", 10)
-    y = h - 106
-    for s in sheet_index:
-        c.drawString(28 * mm, y * mm, str(s.get("number", "")))
-        c.drawString(70 * mm, y * mm, str(s.get("title", ""))[:80])
+    meta = f"{len(sheet_index)} sheet(s)"
+    if issue_date:
+        meta += f"   ·   Issued {issue_date}"
+    c.drawString(28 * mm, (h - 82) * mm, meta)
+
+    # key-plan thumbnail (rendered footprint), boxed at the lower-left
+    kp_x, kp_y, kp_w, kp_h = 28.0, 28.0, 180.0, 150.0
+    c.setLineWidth(0.6)
+    c.rect(kp_x * mm, kp_y * mm, kp_w * mm, kp_h * mm)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(kp_x * mm, (kp_y + kp_h + 3) * mm, "KEY PLAN")
+    polys = [p for p in (footprint or []) if len(p) >= 2]
+    if polys:
+        import numpy as _np
+        allpts = _np.vstack(polys)
+        mn, mx = allpts.min(axis=0), allpts.max(axis=0)
+        span = _np.maximum(mx - mn, 1e-6)
+        pad = 14.0
+        s = min((kp_w - 2 * pad) / span[0], (kp_h - 2 * pad) / span[1])
+        ox = kp_x + (kp_w - span[0] * s) / 2.0
+        oy = kp_y + (kp_h - span[1] * s) / 2.0
+        c.setLineWidth(0.5)
+        for poly in polys:
+            pts = [((ox + (p[0] - mn[0]) * s) * mm, (oy + (p[1] - mn[1]) * s) * mm) for p in poly]
+            c.lines([(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]) for i in range(len(pts) - 1)])
+    else:
+        c.setFont("Helvetica-Oblique", 9)
+        c.drawCentredString((kp_x + kp_w / 2) * mm, (kp_y + kp_h / 2) * mm, "(no plan geometry)")
+
+    # ---- drawing index, grouped by discipline, paginated ----
+    def _grouped(index):
+        buckets: dict[str, list[dict]] = {}
+        for sh in index:
+            buckets.setdefault(_series_of(sh.get("number", "")), []).append(sh)
+        ordered = [k for k in _SERIES_ORDER if k in buckets] + [k for k in buckets if k not in _SERIES_ORDER]
+        return [(k, buckets[k]) for k in ordered]
+
+    col_x, title_x = 232.0, 300.0          # index sits to the right of the key plan on page 1
+    top_y, bot_y = h - 96.0, 30.0
+    y = top_y
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(col_x * mm, (y + 6) * mm, "DRAWING INDEX")
+
+    def _header_row(yy):
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(col_x * mm, yy * mm, "SHEET")
+        c.drawString(title_x * mm, yy * mm, "TITLE")
+        c.setLineWidth(0.4)
+        c.line(col_x * mm, (yy - 2) * mm, (w - 28) * mm, (yy - 2) * mm)
+
+    _header_row(y)
+    y -= 8
+    for series, rows in _grouped(sheet_index):
+        if y < bot_y + 12:                 # overflow → a fresh full-width index page
+            c.showPage()
+            _border()
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(28 * mm, (h - 24) * mm, "DRAWING INDEX (cont.)")
+            col_x, title_x = 28.0, 96.0
+            top_y = h - 36.0
+            y = top_y
+            _header_row(y)
+            y -= 8
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(col_x * mm, y * mm, _DISCIPLINE_SERIES.get(series, series))
         y -= 6.5
-        if y < 24:
-            break
+        c.setFont("Helvetica", 10)
+        for sh in rows:
+            c.drawString((col_x + 4) * mm, y * mm, str(sh.get("number", "")))
+            c.drawString(title_x * mm, y * mm, str(sh.get("title", ""))[:70])
+            y -= 6.2
+            if y < bot_y:
+                c.showPage()
+                _border()
+                c.setFont("Helvetica-Bold", 12)
+                c.drawString(28 * mm, (h - 24) * mm, "DRAWING INDEX (cont.)")
+                col_x, title_x = 28.0, 96.0
+                y = h - 36.0
+                _header_row(y)
+                y -= 8
+                c.setFont("Helvetica", 10)
     c.showPage()
     c.save()
     return buf.getvalue()
@@ -245,7 +358,10 @@ def compiled_set_pdf(source_ifc: str, project_name: str, scale: int = 200, max_s
     if include_schedules:
         index.append({"number": "A-601", "title": "SCHEDULES — DOOR / WINDOW / ROOM"})
 
-    parts: list[bytes] = [_cover_pdf(project_name, index)]
+    from datetime import date as _date
+    footprint = _footprint_polylines(model)
+    parts: list[bytes] = [_cover_pdf(project_name, index, footprint=footprint,
+                                     issue_date=_date.today().isoformat())]
     for sp in specs:
         try:
             parts.append(drawing.sheet_pdf(model, storey=sp["storey"], scale=scale,

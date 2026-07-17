@@ -10,10 +10,11 @@ _DATA_SRC = os.path.join(os.path.dirname(__file__), "..", "data", "src")
 if _DATA_SRC not in sys.path:
     sys.path.insert(0, _DATA_SRC)
 
+from pypdf import PdfReader  # noqa: E402
+
 from aec_api import drawingset  # noqa: E402
 from aec_data import edit, massing  # noqa: E402
 from aec_data.ifc_loader import open_model  # noqa: E402
-from pypdf import PdfReader  # noqa: E402
 
 TMP = os.path.join(tempfile.gettempdir(), "_drawing_set_test.ifc")
 # a 3-storey model with walls + a door/window (so the schedules page has rows)
@@ -45,6 +46,27 @@ assert tall_pages == 9, f"expected 9 pages (cover + 8 sampled plans), got {tall_
 massing.generate_blank_ifc(TMP, name="Two", storeys=2, storey_height=3.0, ground_size=15.0)
 no_sched = drawingset.compiled_set_pdf(TMP, "Two", scale=200, max_sheets=16, include_schedules=False)
 assert len(PdfReader(io.BytesIO(no_sched)).pages) == 3, "cover + 2 plans, no schedules"
+
+# --- COVER-SHEET: discipline-series parsing, rendered footprint, grouped + paginated index -----------
+assert drawingset._series_of("A-101") == "A" and drawingset._series_of("FP-201") == "FP", "series prefix"
+assert drawingset._series_of("S-100") == "S" and drawingset._series_of("") == "G", "default General"
+
+# the key-plan footprint is rendered from real geometry (walls above give cut linework)
+massing.generate_blank_ifc(TMP, name="FP", storeys=1, storey_height=3.0, ground_size=20.0)
+mf = open_model(TMP)
+stf = mf.by_type("IfcBuildingStorey")[0].Name
+edit.add_wall(mf, [0, 0], [8, 0], 3.0, 0.2, stf)
+edit.add_wall(mf, [8, 0], [8, 6], 3.0, 0.2, stf)
+fp = drawingset._footprint_polylines(mf, cut_z=1.2)
+assert len(fp) >= 1, "walls yield a ground-plan footprint for the key plan"
+
+# a single-page (short) index → the cover is exactly 1 page; a long multi-discipline index paginates
+short = drawingset._cover_pdf("Proj", [{"number": "A-101", "title": "PLAN"}], footprint=fp)
+assert len(PdfReader(io.BytesIO(short)).pages) == 1, "short index fits on one cover page"
+big_index = [{"number": f"{ser}-{100 + i}", "title": f"{ser} sheet {i}"}
+             for ser in ("G", "C", "S", "A", "M", "E", "P", "FP", "FA", "T") for i in range(14)]
+big = drawingset._cover_pdf("Proj", big_index, footprint=[])
+assert len(PdfReader(io.BytesIO(big)).pages) >= 2, "a 140-sheet index paginates onto continuation pages"
 
 if os.path.exists(TMP):
     os.remove(TMP)
