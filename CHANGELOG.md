@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.367 — AUTH-VS: visual node-authoring canvas
+
+- A **visual node-graph editor** (Build → Advanced authoring → *Visual node authoring*) over the
+  recipe-graph engine. Drop recipe nodes from a palette (wall / column / beam / slab / base plate /
+  curtain wall / derive-analytical), **drag** them around, and **wire** one node's output ● into another's
+  input ○ — the wire auto-injects the `{"$from": "<node id>"}` reference into the target's params so the
+  upstream GUID threads through. **Run graph** executes the whole thing as one GUID-stable pass
+  (`POST /edit/graph`), republishes, and reloads. Plain DOM + one SVG edge layer; no new deps.
+
 ## v0.3.366 — viewer: live co-editing (presence + reload banner)
 
 - The viewer now subscribes to the **COLLAB-1 model-edit stream**: the live-presence roster refreshes

@@ -267,11 +267,11 @@ interop targets / content platforms / open standards named where they're integra
   tunnel?" feedback. Offline + approximate (not CFD); a CFD-grade version stays a flagged bridge.
 
 ### 🧩 Authoring surface parity
-- 🟡 **AUTH-VS — visual node-based authoring** *(L · parity)*. **Engine SHIPPED v0.3.363** —
-  `nodegraph.execute_graph` runs a recipe graph (recipe nodes wired by data-dependency edges) as one
-  GUID-stable pass: Kahn topological order + `{"$from": id, key?}` upstream-output references; served at
-  `POST /projects/{pid}/edit/graph`. *Remaining: the visual node-graph canvas (frontend, needs live
-  verification) + a palette of node types mapping to recipes.*
+- ✅ **AUTH-VS — visual node-based authoring** *(L · parity)*. **Engine SHIPPED v0.3.363** +
+  **canvas SHIPPED v0.3.367** — `nodegraph.execute_graph` runs a recipe graph (Kahn order + `{"$from": id,
+  key?}` refs; `POST /edit/graph`), and the viewer ships a draggable node-graph editor (`nodeCanvas.ts`):
+  palette → drop nodes, wire output●→input○ (auto-injects the `$from` ref), Run graph → one GUID-stable
+  publish. Verified live: launcher, palette (7 recipes), add/drag/wire/ref-injection.
 
 ### 🚀 Model-authoring & collaboration frontier
 - 🟡 **COLLAB-1** *(L · ★★★★★)* — **real-time multiplayer co-editing**. **Awareness slice SHIPPED v0.3.361**:

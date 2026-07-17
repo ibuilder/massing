@@ -33,6 +33,7 @@ import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type DisciplineTree, type ElementProps, type PropLayer, type PropMapRule, type Topic } from "../api/client";
 import { escapeHtml, fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
 import { showResult, kvTable, resultNote } from "../ui/result";
+import { openNodeCanvas } from "./nodeCanvas";
 
 /** View options the settings bar owns (in main) and the viewer applies. */
 export type Settings = {
@@ -3683,7 +3684,22 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           impInput.value = "";
         });
         furnish.append(hint, sel, place, imp, impInput);
-        b.append(fix, pub, furnish, out);
+        // AUTH-VS: open the visual node-authoring canvas (chain recipes as a graph, run in one pass)
+        const nodeBtn = toolBtn2("🕸 Visual node authoring", () => {
+          openNodeCanvas({
+            recipes: ["add_wall", "add_column", "add_beam", "add_slab", "add_base_plate", "add_curtain_wall", "derive_analytical"],
+            runGraph: async (graph) => {
+              const r = await api.editGraph(pid, graph, { publish: true });
+              const state = await waitForPublish(pid);
+              if (state === "done") await loadProjectModel();
+              return r;
+            },
+            notify,
+          });
+        });
+        nodeBtn.dataset.cap = "edit";
+        nodeBtn.title = "Drag recipe nodes, wire outputs → inputs, and run the graph as one GUID-stable authoring pass";
+        b.append(fix, pub, furnish, nodeBtn, out);
       },
     };
     for (const key of order) builders[key]?.();
