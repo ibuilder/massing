@@ -7,6 +7,37 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## 🗓 Session v0.3.352–377 (2026-07-16/17) — frontier tracks, UX, hardening, deliverables
+
+**Discipline / classification depth** — DISC-coverage report (`/elements/by-discipline` completeness view,
+v0.3.352); DISC-cw context-aware curtain-wall/roof member classification via the index `host` field (353).
+
+**Construction documents** — D5 PDF detail callouts + real sheet refs (354); W10-6 room-schedule
+`IfcElementQuantity` depth (356); **compiled drawing-set PDF** — the whole set in one file (375);
+**shareable project package** PDF — overview + drawings + cost + proforma (377).
+
+**MEP / structural** — W10-4 MEP design flow-rate psets (355); **W10-7 structural analytical model** —
+`IfcStructuralAnalysisModel` from the frame (curve members, 357) + surface members from slabs (358).
+
+**RFI-0 / W9-4** — the **document/specification graph** + cited element provenance (359) and the
+**NL-QA** cited-answer layer (360).
+
+**COLLAB-1 real-time co-editing** — model-edit SSE stream + presence snapshot (361), optimistic edit-lock
+(362), the viewer presence + reload-banner wiring (366).
+
+**AUTH-VS visual node authoring** — the recipe-graph execution engine (363) + the draggable node canvas
+(367).
+
+**Web client + designer-workspace UX** — typed client bridge to the new engines (364); the Ask-the-model
+box + structural-analytical panel (365); UX-3 Library search operators + Recent (368); UX-4
+Project-Browser spine (369); UX-1 lifecycle ribbon tabs (370).
+
+**Reliability / security / relationships** — security hardening pass (XXE-safe P6 parser, non-crypto hash
+flags, pillow pin, clean audit — 371); openModule O(n·m)→Map + import-cycle false-positive verification
+(373); **model estimate → developer proforma** hard-cost sync (376). Docs refreshed to v0.3.372.
+
+---
+
 ## ★ Recent releases — v0.3.313–335 (discipline tree · UX-2 annotation · MEP-FP · CODE-EBC)
 
 Moved out of the working roadmap so it holds only open items.

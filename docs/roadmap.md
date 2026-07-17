@@ -6,12 +6,12 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.371**. Recent waves
-(v0.3.352–371): the **five frontier tracks** all landed backend + frontend — **W10-7** structural
-analytical model (`IfcStructuralAnalysisModel`), **W9-4/RFI-0** doc-graph + NL-QA cited answers, **COLLAB-1**
-real-time co-editing (presence + model-edit stream + edit-lock), **AUTH-VS** visual node-authoring canvas,
-and the **UX-1/3/4** finishing passes (lifecycle ribbon tabs · Library search operators + Recent ·
-Project-Browser spine); plus a **security hardening pass** (XXE-safe P6 parser, dependency pins, audit).
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.377**. Recent waves
+(v0.3.352–377): the **five frontier tracks** (W10-7 structural analytical · W9-4/RFI-0 doc-graph + NL-QA ·
+COLLAB-1 real-time co-editing · AUTH-VS node authoring · UX-1/3/4 designer workspace); a **security
+hardening pass**; and the top **enterprise deliverable/relationship gaps** — the **compiled drawing-set
+PDF**, the **shareable project package** (overview + drawings + cost + proforma in one file), and the
+**model estimate → developer proforma** hard-cost sync. Full record in [roadmap-completed.md](roadmap-completed.md).
 
 > **This file holds only what is still OPEN.** Everything shipped — every wave, track, and release — lives in
 > [roadmap-completed.md](roadmap-completed.md), so *what's left* is never buried under *what's done*. The
@@ -24,31 +24,41 @@ Project-Browser spine); plus a **security hardening pass** (XXE-safe P6 parser, 
 
 ## 🗓 Weekend worklist — prioritized (2026-07-18/19)
 
-The authoring/coordination/discipline/UX "big rocks" and all five frontier tracks have shipped. This
-weekend's focus, in order — **reliability first, then the highest-value research upgrades**:
+Everything shipped is in **[roadmap-completed.md](roadmap-completed.md)**. This is what's LEFT, in order.
+The frontier tracks, UX, security, and the top enterprise **deliverable/relationship gaps** all landed
+(v0.3.352–377): the **compiled drawing-set PDF** (375), the **shareable project package** — overview +
+drawings + cost + proforma (377), and the **model estimate → proforma** hard-cost sync (376) are done.
 
-1. ✅ **REL-1/2 import cycles — verified FALSE POSITIVES (2026-07)** — both are `import type` / deferred-import
-   artifacts, no runtime cycle; no change needed. Security phase shipped v0.3.371; `openModule` O(n·m) → Map
-   shipped v0.3.373. **Next reliability work = REL-3/4 hotspot decomposition (tested).**
-2. **KEYS — Revit-style authoring shortcuts** *(★★★★★ · S/M)* — 2-letter keyboard shortcuts (WA=wall,
+**Do next, highest value first:**
+
+1. **KEYS — Revit-style authoring shortcuts** *(★★★★★ · S/M)* — 2-letter keyboard shortcuts (WA=wall,
    CL=column, DR=door, CS=section…) over the recipe/tool actions; makes Revit users instantly productive.
-   *(from research image IMG_0259.)*
-3. **PREFLIGHT — one-click model-health / QA issuance gate** *(★★★★ · S/M)* — consolidated audit (orphaned
+   *(research image IMG_0259.)*
+2. **PREFLIGHT — one-click model-health / QA issuance gate** *(★★★★ · S/M)* — consolidated audit (orphaned
    GUIDs · missing classifications · unplaced elements · open BCF · param completeness) before issuing.
    Builds on the shipped RFI-0 + model-hygiene. *(pyRevit research.)*
+3. **STRUCT-LOADS+SOLVE — loads → analytical → reactions** *(★★★★ · L)* — apply `loads.py` ASCE 7 cases
+   (dead/live/wind/seismic) to the W10-7 analytical members + a lightweight statics solve (reactions,
+   member forces, shear/moment/deflection diagrams). Today the analytical model carries only self-weight and
+   `loads.py` is isolated — wiring them is the single biggest analysis gap. *(audit + IMG_0250.)*
 4. **VIEW-RANGE — plan view-range model** *(★★★★ · M)* — top/cut/bottom/**view-depth** planes so plans show
-   foundations/footings below the cut and control visibility properly (not just a single cut_z).
-   *(research image IMG_0247.)*
-5. **TAKEOFF-2D — PDF/scan quantity takeoff** *(★★★★ · M)* — browser flood-fill "one-click area" on uploaded
-   drawings feeding the existing 5D estimate (Apache-2.0 OpenTakeoff technique). Covers the drawings-only
-   estimating case the model-derived takeoff misses.
-6. **REL-3/4 — modularize the worst hotspots** *(tech-debt · L, one PR each, TESTED)* — `viewer/app.ts`,
-   `main.ts`, `portal.ts` (fix O(n·m) `openModule` → `Set`), `modules.py`, `main.py`. Façade re-exports;
-   suite green after each.
-7. **Then:** SITE-1 open-geodata slice · MEP-SIZE · STRUCT-LOADS · COST-DB · the rest of the frontier depth.
+   foundations/footings below the cut and control visibility properly (not just a single cut_z). *(IMG_0247.)*
+5. **COVER-SHEET — rendered cover + sheet index** *(★★★★ · S)* — the compiled set's cover is text-only;
+   render a real graphical cover + a proper drawing index. *(audit gap #4.)*
+6. **TAKEOFF-2D — PDF/scan quantity takeoff** *(★★★★ · M)* — browser flood-fill "one-click area" on uploaded
+   drawings feeding the existing 5D estimate (Apache-2.0 OpenTakeoff technique).
+7. **DISC-SSOT — single discipline/class source** *(★★★ · S)* — collapse the three parallel IFC-class maps
+   (`classification._IFC_DISCIPLINE`, `sheetgen._CLASS_SERIES`, `fourd.TRADE_FOR_CLASS`) to one with derived
+   views, so discipline/sheet-series/trade never drift. *(audit gap #7.)*
+8. **REL-3/4 — modularize the worst hotspots** *(tech-debt · L, one PR each, TESTED)* — `viewer/app.ts`,
+   `main.ts`, `modules.py`, `main.py`; façade re-exports; suite green after each. *(`openModule` O(n·m) fixed
+   v0.3.373; import cycles verified false positives.)*
+9. **Then:** SITE-1 open-geodata slice · MEP-SIZE · EXPORT (DWG/glb/USD + first-class IFC re-export) ·
+   durable background-job queue · COST-DB · SHEET-LINK · MEP-SIZE · the rest of the frontier depth.
 
-Full detail for the new items is in **[🔎 Research-2 additions](#-research-2-additions-2026-07)** and the
-reliability plan in **[🔧 Reliability & hardening](#-reliability--hardening-rel)** below.
+Full detail: **[🔎 Research-2 additions](#-research-2-additions-2026-07)** (KEYS/VIEW-RANGE/TAKEOFF-2D/…),
+**[🏗 Enterprise gaps](#-enterprise-gaps-audit-2026-07)** (from the codebase audit), and
+**[🔧 Reliability & hardening](#-reliability--hardening-rel)**.
 
 ---
 
@@ -494,3 +504,30 @@ Refactor rule: **no public-API/behavior change** except the (shipped) security p
   exports/internals; be skeptical of `e2e_*.py`, `loadtest.py`, `routers/{scim,saml}.py`, converter/pyrevit.
 - **REL-8 — lock in gains** *(ci)* — CI cycle check (`import-linter` / `eslint-plugin-import` no-cycle); upload
   coverage from CI; module-header docs on refactored hotspots (bus factor 1).
+
+## 🏗 Enterprise gaps (audit 2026-07)
+
+From a codebase audit for enterprise-grade CAD + analysis readiness. **What's already strong** (don't
+rebuild): model versioning/diff, audit trail, RBAC + SAML/SCIM, portfolio rollups, and a strong 5D
+cost↔GUID linkage (`cost.element_5d`, `estimate.estimate_from_model`). The enterprise gap is concentrated
+in **deliverables, engine relationships, and analysis depth** — the top items, with the ones already
+closed this session marked:
+
+- ✅ **Compiled drawing-set PDF** — SHIPPED v0.3.375 (`/drawing-set/compiled.pdf`).
+- ✅ **Model-estimate → proforma link** — SHIPPED v0.3.376 (`/dev-budget/sync-from-model`).
+- ✅ **Client project package** — SHIPPED v0.3.377 (`/project-package.pdf`).
+- **Rendered cover sheet / index** *(★4 · S)* — see COVER-SHEET in the worklist. Touch `sheetgen.py`,
+  `drawing.py`, `drawingset.py`.
+- **Structural analysis: apply loads + solve** *(★4 · L)* — see STRUCT-LOADS+SOLVE. `analytical.py` carries
+  only self-weight; `loads.py` (ASCE 7 takedowns) is isolated; no solver (no reactions/member forces). Wire
+  loads → members + a statics solve.
+- **Single discipline/class source of truth** *(★3 · S)* — see DISC-SSOT. Three parallel IFC-class maps.
+- **Broader CAD/geometry export** *(★3 · M)* — only DXF R12 + glTF today; **missing DWG, glb/USD, and a
+  first-class IFC re-export** (source IFC only leaves via the bundle/closeout zip). Touch `dxf.py`,
+  `gltf_export.py`, `standards.py`, `routers/drawings.py`.
+- **Durable background-job queue** *(★3 · M)* — geometry export, PAdES sealing, and large set generation run
+  **inline** (`run_in_threadpool`); no durable queue/worker. Fine for demos, fragile under real load. Touch
+  `main.py` + a worker/queue; migrate `generate.py`/`drawings.py`/`exports.py` heavy paths.
+- **Server-rendered 3D hero** *(★3 · M)* — geometry streams client-side, so the project package has no 3D
+  render (only a composed plan/section/elevation overview). Add a client screenshot-capture → upload path,
+  or a headless render, to drop a hero image into the package.
