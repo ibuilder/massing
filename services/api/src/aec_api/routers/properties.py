@@ -239,7 +239,15 @@ def elements_by_discipline(pid: str, _: str = Depends(require_role("viewer"))):
         for d in out:
             d["classes"] = sorted(({"ifc_class": k, "count": v} for k, v in d["classes"].items()),
                                   key=lambda x: -x["count"])
-        return {"total": len(idx), "disciplines": out}
+        # coverage: every STANDARD discipline marked present/absent (a completeness view over the tree)
+        present = {d["discipline"]: d["count"] for d in out}
+        coverage = [{"discipline": d["name"], "code": d["code"], "color": d["color"],
+                     "present": present.get(d["name"], 0) > 0, "count": present.get(d["name"], 0)}
+                    for d in classification.disciplines()]
+        covered = sum(1 for c in coverage if c["present"])
+        return {"total": len(idx), "disciplines": out, "coverage": coverage,
+                "disciplines_covered": covered, "disciplines_total": len(coverage),
+                "missing": [c["discipline"] for c in coverage if not c["present"]]}
     return _scan_cached(pid, "by-discipline", _compute)
 
 

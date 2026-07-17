@@ -79,6 +79,14 @@ with TestClient(app) as cl:
     struct = next(d for d in comp["disciplines"] if d["discipline"] == "Structural")
     assert struct["count"] == 2 and struct["code"] == "S", struct
 
+    # D2b coverage: a completeness view over the tree — every standard discipline present/absent
+    assert comp["disciplines_total"] == 11 and len(comp["coverage"]) == 11, comp
+    assert comp["disciplines_covered"] == 4, comp["disciplines_covered"]   # S + A + M + P present in this model
+    cov = {c["discipline"]: c for c in comp["coverage"]}
+    assert cov["Structural"]["present"] and cov["Structural"]["count"] == 2, cov["Structural"]
+    assert not cov["Electrical"]["present"] and cov["Electrical"]["count"] == 0, cov["Electrical"]
+    assert "Electrical" in comp["missing"] and "Structural" not in comp["missing"], comp["missing"]
+
     # discipline is a colour-by facet + bucketing
     facets = cl.get(f"/projects/{pid}/elements/facets-list").json()
     assert any(a["prop"] == "discipline" for a in facets["attributes"]), facets["attributes"]

@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.352 — discipline coverage report
+
+- `GET /projects/{pid}/elements/by-discipline` now returns a **coverage** view over the discipline
+  tree: every standard NCS discipline is marked present/absent with its element count, plus
+  `disciplines_covered` / `disciplines_total` and a `missing` list. A completeness lens for the model
+  — which disciplines are actually populated vs. still empty — computed from the property index with no
+  geometry parse.
+
 ## v0.3.351 — W10-6: schedule CSV export
 
 The computed door/window/room schedules now export to **CSV** (`GET /projects/{pid}/drawings/schedule.csv?kind=`

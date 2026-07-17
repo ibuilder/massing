@@ -273,6 +273,9 @@ interop targets / content platforms / open standards named where they're integra
 DISC-1…4b shipped (colour palette, full IFC coverage, `discipline_tree()` served, color-by-discipline viewer,
 estimate discipline rollup, one canonical `aec_data/disciplines.py` source, fire-alarm + telecom recipes + tool
 buttons, tower rebuilt with all 8 disciplines). Optional remnants:
+- ✅ **DISC-coverage SHIPPED v0.3.352** — `/elements/by-discipline` returns a **coverage** view over the
+  tree (every standard discipline present/absent + count, `disciplines_covered`/`_total`, `missing` list) —
+  a completeness lens over the property index, no geometry parse.
 - **DISC-poché** — an opt-in **colour-by-discipline mode** for the 2D plan/PDF poché (today the poché is
   deliberate per-class architectural convention).
 - **DISC-cw** — **context-aware curtain-wall member classification** (an `IfcMember`/`IfcPlate` aggregated under
