@@ -83,6 +83,36 @@ def spec(category: str) -> dict[str, Any] | None:
     return _C.get((category or "").strip().lower())
 
 
+def furniture_bom(model) -> dict[str, Any]:
+    """W9-6b: an **FF&E / furnishings bill of materials** from the placed content — count each furniture /
+    furnishing item (by Name), with its IFC class and the storeys it appears on, into a schedule an owner or
+    FF&E vendor can order from. Composes `IfcFurniture` / `IfcFurnishingElement` /
+    `IfcSystemFurnitureElement` (the classes `place_content` + `furnish` author)."""
+    from .ifc_loader import storey_name
+
+    rows: dict[str, dict[str, Any]] = {}
+    total = 0
+    for cls in ("IfcFurniture", "IfcFurnishingElement", "IfcSystemFurnitureElement"):
+        try:
+            elements = model.by_type(cls)
+        except RuntimeError:                                 # class not in this schema
+            continue
+        for el in elements:
+            nm = (getattr(el, "Name", None) or cls.replace("Ifc", "")).strip() or cls.replace("Ifc", "")
+            r = rows.setdefault(nm, {"item": nm, "ifc_class": el.is_a(), "count": 0, "storeys": set()})
+            r["count"] += 1
+            total += 1
+            st = storey_name(el)
+            if st:
+                r["storeys"].add(st)
+    items = sorted(({"item": r["item"], "ifc_class": r["ifc_class"], "count": r["count"],
+                     "storeys": sorted(r["storeys"])} for r in rows.values()),
+                   key=lambda x: (-x["count"], x["item"]))
+    return {"total": total, "line_count": len(items), "items": items,
+            "note": "FF&E bill of materials from the model's placed furnishings — counts by item + the "
+                    "levels each appears on. An order/procurement starting point; verify finishes/specs."}
+
+
 # CONTENT-1 (import): filename/name keyword → catalog category, so an imported "office-chair.glb" auto-files
 # as `chair` (IfcFurniture). Longer/more-specific synonyms first so "mobile crane" beats "crane".
 _SYNONYMS: list[tuple[str, str]] = [

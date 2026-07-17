@@ -182,8 +182,9 @@ S1–S4 ship (deterministic baseline → multi-step LLM interpretation → confi
   the RFI-0 NL-QA layer.
 - **W9-5 (L part)** — smooth **equipment motion along paths** as the 4D slider advances + swept crane-reach
   clash.
-- **W9-6b** — a procedural **office space-planning generator** (headcount program → `IfcSpace` zones + furniture
-  + auto BOM).
+- 🟡 **W9-6b FF&E BOM SHIPPED v0.3.350** — `content.furniture_bom` counts placed furnishings by item + level
+  (`GET /projects/{pid}/ffe-bom`) — the auto-BOM half. *Remaining: the procedural headcount-program →
+  `IfcSpace` zones + auto-furnish generator.*
 - **W9-7 — AI 2D-PDF auto-takeoff** *(optional / paid, flagged bridge)* — manual calibrated PDF takeoff ships;
   AI auto-extraction is a flagged bridge like the paid RVT path, never core.
 - **W9-8 — NL imperative authoring** — folds into the AI-MCP track.

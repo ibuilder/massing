@@ -48,6 +48,16 @@ te = m.by_guid(rt["guid"])
 assert te.is_a() in ("IfcGeographicElement", "IfcBuildingElementProxy"), te.is_a()
 assert rt["group"] == "Landscape", rt
 
+# --- W9-6b: the FF&E bill of materials counts the placed furniture by item + level ----------------
+edit.place_content(m, "desk", [4, 4], storey=st)         # a 2nd desk → count 2
+edit.place_content(m, "chair", [5, 5], storey=st)
+bom = content.furniture_bom(m)
+assert bom["total"] >= 3 and bom["line_count"] >= 2, bom
+by_item = {r["item"]: r for r in bom["items"]}
+desk_row = next((r for k, r in by_item.items() if "desk" in k.lower()), None)
+assert desk_row and desk_row["count"] >= 2 and st in desk_row["storeys"], desk_row
+assert all(r["ifc_class"] == "IfcFurniture" for r in bom["items"]), bom["items"]
+
 # --- a supplied detailed mesh is used instead of the placeholder box -------------------------------
 verts = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0.5, 0.5, 1.5]]
 faces = [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4], [0, 2, 1], [0, 3, 2]]

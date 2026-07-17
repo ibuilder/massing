@@ -731,6 +731,18 @@ def content_catalog(_: str = Depends(current_user)):
     return content.catalog()
 
 
+@router.get("/projects/{pid}/ffe-bom")
+def ffe_bom(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W9-6b: the **FF&E / furnishings bill of materials** from the model's placed furniture — count each
+    item (by name) with its IFC class and the levels it appears on. An owner/vendor order starting point.
+    409 without a source IFC."""
+    from aec_data import content  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return content.furniture_bom(open_model(p.source_ifc))
+
+
 @router.post("/projects/{pid}/content/import")
 async def content_import(pid: str, file: UploadFile = File(...), category: str = "", e: float = 0.0,
                          n: float = 0.0, scale: float = 1.0, name: str = "", storey: str = "",

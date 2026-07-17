@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.350 — W9-6b: FF&E bill of materials
+
+A new **FF&E / furnishings bill of materials** from the model's placed furniture — `content.furniture_bom`
+counts each item (by name) with its IFC class and the levels it appears on, composing `IfcFurniture` /
+`IfcFurnishingElement` / `IfcSystemFurnitureElement` (the classes `place_content` + `furnish` author). An
+owner/vendor order + procurement starting point. Served on `GET /projects/{pid}/ffe-bom`.
+
 ## v0.3.349 — W10-4: nominal-size psets on MEP segments
 
 Authored MEP segments (`add_mep_run` / `add_riser`) now carry a **`Pset_Massing_MEPSizing`** with the
