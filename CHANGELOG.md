@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.398 — MODEL-DIFF: element-level revision diff (what actually changed)
+
+- New capability from a codebase gap sweep. Model version diff previously compared only the GUID **set**
+  (added / removed); a moved, resized, re-typed, re-leveled, or re-priced element on a GUID present in both
+  revisions read as *"unchanged."* Now each version snapshot stores a per-element **fingerprint** (name ·
+  IFC class · type · level · Pset-hash · Qto-hash), so `versions.diff` reports **modified** elements *and
+  what changed* — `renamed` · `reclassified` · `retyped` · `moved to another level` · `properties changed`
+  · `quantities changed`. The "what changed between Rev C and Rev D" coordination answer, made real by the
+  GUID-stable model.
+- `GET …/versions/diff` gains `modified[]` (guid · class · name · change labels), `modified_count`, and
+  `modified_available` (older versions without fingerprints degrade to added/removed only). The viewer's
+  **Version history** shows `+added / −removed / ~modified` and a click-to-select-in-3D list of the modified
+  elements with their change labels. `ModelVersion.fingerprints` auto-migrates via `_ensure_columns`.
+- Scope: pure rigid geometry *moves* aren't caught (geometry streams as Fragments, not the property index) —
+  but a **resize surfaces via its Qto delta**, and all property/type/level/name/cost changes are detected.
+
 ## v0.3.397 — REL-3: extract the module registry foundation (modules_registry.py)
 
 - Fourth modularization slice — the **foundation** extraction that unblocks all further `modules.py` splits.

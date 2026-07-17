@@ -66,6 +66,32 @@ they're archived in **[roadmap-completed.md](roadmap-completed.md)**.
 
 **Full REL detail:** [🔧 Reliability & hardening (REL)](#-reliability--hardening-rel).
 
+**⚠ If modularization stalls (cycle constraints), pull from these — code-gap findings (2026-07-17, from a
+codebase gap sweep + web scan). All backend, fully testable, on-mission, NOT stuck:**
+
+1. ✅ **MODEL-DIFF — element-level revision diff — SHIPPED v0.3.398** — each version snapshot now stores a
+   per-element **fingerprint** (name · class · type · level · Pset-hash · Qto-hash); `versions.diff` reports
+   **modified** elements + *what* changed (renamed / reclassified / retyped / re-leveled / properties /
+   quantities), served on `/versions/diff` (`modified[]` + counts) and surfaced in the viewer's Version
+   history with click-to-select-in-3D. *(Pure rigid moves out — geometry is Fragments, not the index — but
+   resizes show via the Qto delta.)* *Remaining: a geometry-delta lane if placement is ever indexed.*
+2. **DRIFT — inter-story drift + torsional-irregularity flag** *(★★★★)* — `lateral.py` explicitly omits ASCE
+   7 §12.12 drift (a *limit-state*, not a refinement). Add approximate story drift Δ = story-shear/​stiffness
+   vs the allowable (h/50…h/200 by risk category) + a plan-torsion flag. Extends the shipped STRUCT-LATERAL.
+3. **FIN-TEST — test the untested finance math** *(★★★ · quality)* — `leasemgmt.py` (rent escalation /
+   CAM recovery) + `changeorders.py` (CO value / schedule-day exposure) have **no dedicated test** asserting
+   the math; silent compounding/rounding bugs are consequential. Add `test_leasemgmt.py` / `test_changeorders.py`.
+4. **IFC-QA — export/delivery fidelity check** *(★★★★ · openBIM moat)* — the industry's #1 openBIM complaint
+   is IFC export quality (lost Psets, broken spatial structure). Add a **round-trip check**: export the
+   authored IFC → re-read → confirm element counts, spatial containment, Pset population, classification,
+   and georeferencing survive; scorecard + PASS/WARN. Distinct from PREFLIGHT (permit-readiness) — this is
+   *interchange* readiness. *(Web: [BIM 2026 buyer's guide](https://www.demystifyingplm.com/best-bim-software-2026).)*
+5. **COBie/parse robustness** *(★★ · data integrity)* — `cobie.py` `_email_of`/`_grouped_names` (and
+   `drawings.py:70,92,509`) `except Exception: pass` silently drop a Contact/zone from a *compliance*
+   deliverable. Log + count skips instead of swallowing. *(Bundle into a small hardening PR.)*
+
+Deferred bridges (deliberate 501s — money movement / KYC / paid APS) are a defensible pattern, not gaps.
+
 **📦 Tracked for later — large / needs nimbleness (attack once the cycle is fast; some worktree-forkable):**
 SITE-1 open-geodata BIM↔GIS view · durable **background-job queue** (heavy exports/PAdES/gen run inline
 today) · **server-rendered 3D hero** for the package · **COST-DB cloud ingest** (public-source + signed

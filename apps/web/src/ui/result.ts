@@ -60,7 +60,7 @@ export function showResult(title: string, render: (body: HTMLElement) => void): 
 }
 
 /** Key/value table — e.g. a cost roll-up. `bar` (0..1) draws a proportional fill behind the value. */
-export function kvTable(rows: { k: string; v: string; bar?: number; strong?: boolean }[]): HTMLElement {
+export function kvTable(rows: { k: string; v: string; bar?: number; strong?: boolean; onClick?: () => void }[]): HTMLElement {
   const t = document.createElement("table");
   t.className = "result-table";
   for (const r of rows) {
@@ -72,6 +72,7 @@ export function kvTable(rows: { k: string; v: string; bar?: number; strong?: boo
       const pct = Math.max(0, Math.min(1, r.bar)) * 100;
       v.style.background = `linear-gradient(to right, rgba(74,140,255,.22) ${pct}%, transparent ${pct}%)`;
     }
+    if (r.onClick) { tr.style.cursor = "pointer"; tr.onclick = r.onClick; }
     tr.append(k, v); t.appendChild(tr);
   }
   return t;

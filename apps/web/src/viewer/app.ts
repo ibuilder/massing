@@ -1663,7 +1663,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           if (!h.length) { body.appendChild(resultNote("No versions yet — publish the model (Authoring) to snapshot one.")); return; }
           if (h.length >= 2) {
             const d = await api.versionDiff(pid, h[1]!.version, h[0]!.version); // safe: h.length >= 2 checked above
-            body.appendChild(resultNote(`v${h[1]!.version} → v${h[0]!.version}: <b>+${d.added_count}</b> / <b>−${d.removed_count}</b> elements · ${d.unchanged_count} unchanged`, "ok"));
+            body.appendChild(resultNote(`v${h[1]!.version} → v${h[0]!.version}: <b>+${d.added_count}</b> added / <b>−${d.removed_count}</b> removed`
+              + (d.modified_available ? ` / <b>~${d.modified_count}</b> modified` : "") + ` · ${d.unchanged_count} unchanged`, "ok"));
+            if (d.modified_count) {
+              body.appendChild(resultNote("Modified elements (click to select in 3D):", ""));
+              body.appendChild(kvTable(d.modified.slice(0, 40).map((m) => ({
+                k: `${(m.ifc_class || "").replace("Ifc", "")} · ${m.name || m.guid.slice(0, 8)}`,
+                v: m.changes.join(", "),
+                onClick: () => selectByGuid(m.guid, false),
+              }))));
+            }
           }
           body.appendChild(kvTable(h.map((v) => ({
             k: `v${v.version}${v.note ? " (" + v.note + ")" : ""}`,

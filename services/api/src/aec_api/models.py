@@ -368,6 +368,10 @@ class ModelVersion(Base):
     version: Mapped[int] = mapped_column(default=1)
     element_count: Mapped[int] = mapped_column(default=0)
     guids: Mapped[list] = mapped_column(JSON, default=list)
+    # MODEL-DIFF: per-element fingerprint {guid: [name, ifc_class, type, storey, pset_hash, qto_hash]} so a
+    # diff can detect *modified* elements (not just added/removed). Nullable — versions before this stay
+    # added/removed-only. (_ensure_columns backfills the column on existing DBs.)
+    fingerprints: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
     note: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

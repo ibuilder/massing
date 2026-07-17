@@ -7,6 +7,23 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## 🗓 Session v0.3.393–397 (2026-07-17) — dev-velocity & modularization
+
+The pivot from features to **making development faster + the codebase more maintainable** (the release cycle
+was the bottleneck). Detail in memory [[weekend-push-2026-07-17]].
+
+- **DEV-1 — parallel test gate (393):** `run_tests.py` runs the ~180 isolated `test_*.py` through a bounded
+  `ThreadPoolExecutor` + a geometry worker cap (`AEC_GEOM_WORKERS=1` via new `aec_data/geomconf.py`, so each
+  test is single-threaded and the outer parallelism owns the cores — no cpu×cpu oversubscription) +
+  `PYTHONUTF8=1`/utf-8 capture. **~30 min → ~11 min (2.7×)**, 250/250 green, prod geom default unchanged.
+- **REL-3 modularization — 4 clean slices**, each a leaf + façade re-export at the old path (zero caller
+  change): codecheck egress → `codecheck_egress.py` (394, 502→184); module full-text search →
+  `modules_search.py` DI leaf (395); computed schedules → `drawing_schedules.py` (396, `drawing.py` 941→821);
+  **the registry+table foundation → `modules_registry.py`** (397, `modules.py` 969→882) — the enabling
+  extraction that lets the CRUD/feed layers split without a cycle.
+- Roadmap reorganized: dev-velocity/modularization made the top focus; large feature/infra bets tracked for
+  later. The ruff-autofix hook fixed to use `$CLAUDE_PROJECT_DIR`.
+
 ## 🗓 Session v0.3.380–392 (2026-07-17) — analysis engines, deliverables, dev-tooling
 
 The **complete W10-7 analytical model** + preliminary analyses, the top enterprise deliverable/cleanup gaps,

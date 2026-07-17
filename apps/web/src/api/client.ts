@@ -2786,9 +2786,14 @@ export class ApiClient extends HttpCore {
   modelVersions(pid: string) {
     return this.json<{ version: number; element_count: number; note: string | null; created_at: string | null }[]>(`/projects/${pid}/versions`);
   }
-  /** Diff two model versions — added/removed element GUIDs + unchanged count. */
+  /** Diff two model versions — added/removed/modified elements (with change labels) + unchanged count. */
   versionDiff(pid: string, a: number, b: number) {
-    return this.json<{ from: number; to: number; added_count: number; removed_count: number; unchanged_count: number }>(`/projects/${pid}/versions/diff?a=${a}&b=${b}`);
+    return this.json<{
+      from: number; to: number; added: string[]; removed: string[];
+      modified: { guid: string; name: string | null; ifc_class: string | null; changes: string[] }[];
+      modified_available: boolean;
+      added_count: number; removed_count: number; modified_count: number; unchanged_count: number;
+    }>(`/projects/${pid}/versions/diff?a=${a}&b=${b}`);
   }
   /** Reusable templates for a module (save a project's records → apply to another project). */
   templates(module: string) {
