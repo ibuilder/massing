@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.377 — shareable project package (show someone the whole project)
+
+- **`GET /projects/{pid}/project-package.pdf`** — one bound PDF a GC or architect hands to a client: a
+  **cover / contents**, a **visual overview** (plan · section · elevation composed on one sheet), the
+  **compiled drawing set**, and a **cost & feasibility** summary (the model-takeoff estimate by discipline
+  + the developer budget's capital stack — hard / soft / debt / equity). `…/project-package/contents`
+  pre-flights what's available. Composes the existing drawing, estimate, and proforma engines — the
+  "show someone the design, drawings, cost, and proforma" deliverable that had no single home before.
+
 ## v0.3.376 — model estimate → developer proforma (5D→underwriting)
 
 - **`POST /projects/{pid}/dev-budget/sync-from-model`** ties the developer underwriting to the **real

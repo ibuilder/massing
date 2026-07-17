@@ -44,6 +44,32 @@ def drawing_set_transmittal(pid: str, to: str = "", note: str = "", db: Session 
                     headers={"Content-Disposition": 'inline; filename="drawing-transmittal.pdf"'})
 
 
+@router.get("/projects/{pid}/project-package/contents")
+def project_package_contents(pid: str, db: Session = Depends(get_db),
+                             _: str = Depends(require_role("viewer"))):
+    """What the shareable project package will contain for this project (model / budget availability)."""
+    from .. import package
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return package.package_contents(db, pid)
+
+
+@router.get("/projects/{pid}/project-package.pdf")
+def project_package(pid: str, max_sheets: int = 8, db: Session = Depends(get_db),
+                    _: str = Depends(require_role("viewer"))):
+    """The **shareable project package** — one PDF a GC or architect hands to a client: a cover, a visual
+    overview (plan · section · elevation), the drawing set, and a cost & feasibility summary (model-takeoff
+    estimate by discipline + the developer budget's capital stack). Needs a source IFC."""
+    from .. import package
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    src = _source_ifc(db, pid)                       # 409 if no accessible source IFC
+    pdf = package.project_package_pdf(db, pid, p.name or pid, src, max_sheets=int(max_sheets))
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{(p.name or pid)}-package.pdf"'})
+
+
 @router.get("/projects/{pid}/drawing-set/compiled.pdf")
 def drawing_set_compiled(pid: str, scale: int = 200, max_sheets: int = 16, schedules: bool = True,
                          db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
