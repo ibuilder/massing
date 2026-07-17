@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.364 — web client: typed bridge to the new engines
+
+- Typed client methods for the frontier backends shipped this cycle, so the app (and future UI) can reach
+  them: `docGraph` / `elementSources` (W9-4 cited sources), `rfiQa` (RFI-0 NL-QA), `analyticalSummary`
+  (W10-7), `collabSnapshot` + `modelStream` (COLLAB-1 live co-editing, an `EventSource` wrapper), and
+  `editGraph` (AUTH-VS recipe-graph). Typecheck + production build green.
+
 ## v0.3.363 — AUTH-VS: recipe-graph execution engine
 
 - New **visual node authoring** backend. A *recipe graph* — authoring-recipe nodes wired by data

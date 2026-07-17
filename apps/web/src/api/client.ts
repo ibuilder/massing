@@ -1400,6 +1400,64 @@ export class ApiClient extends HttpCore {
     }>(`/projects/${pid}/graph/neighbors?guid=${encodeURIComponent(guid)}&depth=${depth}`);
   }
 
+  // W9-4 (harder half) doc-graph: spec-section + document nodes linked to the elements they govern
+  docGraph(pid: string) {
+    return this.json<{
+      spec_sections: { system: string | null; code: string; title: string; elements: string[] }[];
+      documents: { name: string; sheet: string; elements: string[] }[];
+      counts: { spec_sections: number; documents: number; edges: number };
+      by_rel: Record<string, number>;
+    }>(`/projects/${pid}/doc-graph`);
+  }
+  // the cited provenance of one element (spec sections · documents · location)
+  elementSources(pid: string, guid: string) {
+    return this.json<{
+      guid: string; found: boolean; name?: string | null; class?: string;
+      spec_sections?: { system: string | null; code: string; title: string }[];
+      documents?: { name: string; sheet: string }[];
+      container?: { guid: string | null; name: string | null; class: string } | null;
+      citations: { kind: string; ref: string; title?: string; sheet?: string; source: string }[];
+    }>(`/projects/${pid}/elements/${encodeURIComponent(guid)}/sources`);
+  }
+  // RFI-0 NL-QA: a plain-language question -> a cited answer from the model's own data
+  rfiQa(pid: string, question: string) {
+    return this.json<{
+      question: string; intent: string; answer: string;
+      citations: { kind: string; ref: string; source?: string; guids?: string[] }[];
+      disclaimer: string; found?: boolean; ready?: boolean;
+    }>(`/projects/${pid}/rfi/qa`, { method: "POST", body: JSON.stringify({ question }) });
+  }
+
+  // W10-7 structural analytical model (IfcStructuralAnalysisModel derived from the physical frame)
+  analyticalSummary(pid: string) {
+    return this.json<{
+      analysis_models: { guid: string; name: string | null; predefined_type: string | null }[];
+      curve_members: number; surface_members: number; point_connections: number;
+      load_cases: (string | null)[]; load_groups: (string | null)[]; has_model: boolean;
+    }>(`/projects/${pid}/analytical`);
+  }
+
+  // COLLAB-1: live co-editing snapshot (model signature + presence roster)
+  collabSnapshot(pid: string) {
+    return this.json<{
+      model: { source: string | null; version: number; element_count: number; has_model: boolean };
+      editors: { user: string; seconds_ago: number; viewpoint: unknown }[]; editor_count: number;
+    }>(`/projects/${pid}/collab`);
+  }
+  /** Subscribe to the model-edit SSE stream; onMessage fires with the collab snapshot on each change. */
+  modelStream(pid: string, onMessage: (snap: unknown) => void): EventSource {
+    const es = new EventSource(this.url(`/projects/${pid}/model/stream`));
+    es.onmessage = (e) => { try { onMessage(JSON.parse(e.data)); } catch { /* ignore */ } };
+    return es;
+  }
+
+  // AUTH-VS: execute a recipe graph (visual node authoring) as one GUID-stable pass
+  editGraph(pid: string, graph: unknown, opts?: { publish?: boolean; baseSource?: string }) {
+    return this.json<{ node_count: number; order: string[]; outputs: Record<string, unknown>; publish?: string }>(
+      `/projects/${pid}/edit/graph`,
+      { method: "POST", body: JSON.stringify({ graph, publish: opts?.publish ?? false, base_source: opts?.baseSource ?? null }) });
+  }
+
   // W9-3 IFC5-style property-override layers (non-destructive composition over the model)
   getLayers(pid: string) {
     return this.json<{ layers: PropLayer[] }>(`/projects/${pid}/layers`);
