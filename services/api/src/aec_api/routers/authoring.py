@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import audit, storage
@@ -128,6 +128,31 @@ def analytical_summary(pid: str, db: Session = Depends(get_db), _: str = Depends
 
     p = _project(db, pid)
     return analytical.summary(open_model(p.source_ifc))
+
+
+@router.get("/projects/{pid}/structure/solve")
+def structure_solve(pid: str,
+                    live_occupancy: str = Query("office"),
+                    sdl_psf: float = Query(20.0, ge=0),
+                    slab_thickness_in: float = Query(8.0, gt=0),
+                    tributary_ft: float | None = Query(None, gt=0),
+                    gross_area_sf: float | None = Query(None, gt=0),
+                    e_ksi: float = Query(29000.0, gt=0),
+                    i_in4: float = Query(800.0, gt=0),
+                    db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """STRUCT-SOLVE: apply an ASCE 7 gravity load case (dead + live by occupancy) to the W10-7 analytical
+    curve members and run a determinate member-by-member statics solve — per-beam reactions, max shear/
+    moment, indicative deflection + shear/moment/deflection diagrams, plus per-column tributary axial.
+    **Preliminary only — not a substitute for a licensed structural engineer.** Requires an analytical
+    model (run the `derive_analytical` recipe first)."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import struct_solve
+
+    p = _project(db, pid)
+    return struct_solve.solve(open_model(p.source_ifc), live_occupancy=live_occupancy, sdl_psf=sdl_psf,
+                              slab_thickness_in=slab_thickness_in, tributary_ft=tributary_ft,
+                              gross_area_sf=gross_area_sf, e_ksi=e_ksi, i_in4=i_in4)
 
 
 @router.get("/projects/{pid}/doc-graph")

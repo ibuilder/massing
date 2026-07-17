@@ -3568,6 +3568,50 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               }));
             derive.title = "Build/refresh the IfcStructuralAnalysisModel alongside the physical model (GUID-stable, idempotent)";
             body.appendChild(derive);
+            if (s!.has_model && s!.curve_members > 0) {
+              const solve = toolBtn2("📐 Apply loads + solve statics", () => withLoading(container, "Applying gravity loads + solving statics", async () => {
+                let r;
+                try { r = await api.structureSolve(pid, { liveOccupancy: "office" }); }
+                catch (e) { notify((e as Error).message, "error"); return; }
+                showResult("Structural statics — gravity load solve", (sb) => {
+                  if (!r!.has_analytical) { sb.appendChild(resultNote(r!.message || "No analytical model.", "bad")); return; }
+                  const lc = r!.load_case!, c = r!.counts!;
+                  sb.appendChild(resultNote(`Load case <b>${lc.name}</b> — dead <b>${lc.dead_klf}</b> + live <b>${lc.live_klf}</b> = <b>${lc.service_klf} klf</b> service`
+                    + ` · factored <b>${lc.factored_lrfd_klf} klf</b> (${lc.governing_combo}). Solved <b>${c.beams}</b> beam(s) + <b>${c.columns}</b> column(s) as determinate members.`, "ok"));
+                  const gb = r!.governing_beam;
+                  if (gb) {
+                    const sv = gb.service;
+                    sb.appendChild(resultNote(`<b>Governing beam</b> — ${gb.length_ft} ft span · reaction <b>${sv.reaction_kip} kip</b> · Vmax <b>${sv.shear_max_kip} kip</b> · Mmax <b>${sv.moment_max_kipft} kip·ft</b>`
+                      + ` · deflection <b>${sv.deflection_in}"</b> vs L/360 limit ${sv.deflection_limit_in}" (${sv.deflection_ok ? "✅ OK" : "⚠ exceeds"})`, sv.deflection_ok ? "ok" : "bad"));
+                    // mini shear (blue) + moment (orange) diagrams over the span
+                    const W = 260, H = 60;
+                    const dg = sv.diagram;
+                    const maxX = Math.max(1, ...dg.map((d) => d.x_ft));
+                    const px = (x: number) => 4 + (x / maxX) * (W - 8);
+                    const band = (val: (d: typeof dg[number]) => number, color: string, label: string) => {
+                      const mx = Math.max(1, ...dg.map((d) => Math.abs(val(d))));
+                      const mid = H / 2;
+                      const pts = dg.map((d) => `${px(d.x_ft).toFixed(1)},${(mid - (val(d) / mx) * (mid - 6)).toFixed(1)}`).join(" ");
+                      return `<div class="meta" style="margin-top:6px">${label}</div>`
+                        + `<svg width="${W}" height="${H}" style="background:var(--panel);border:1px solid var(--line);border-radius:4px">`
+                        + `<line x1="4" y1="${mid}" x2="${W - 4}" y2="${mid}" stroke="var(--line)"/>`
+                        + `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5"/></svg>`;
+                    };
+                    const svg = document.createElement("div");
+                    svg.innerHTML = band((d) => d.shear_kip, "#4c8bf5", "Shear (kip)")
+                      + band((d) => d.moment_kipft, "#f5a24c", "Moment (kip·ft)");
+                    sb.appendChild(svg);
+                  }
+                  if (r!.columns_axial) {
+                    const ca = r!.columns_axial;
+                    sb.appendChild(resultNote(`<b>Column axial</b> (tributary takedown) — service <b>${ca.service_total_kip} kip</b> · factored <b>${ca.factored_lrfd_kip} kip</b> over ${ca.storeys} storey(s). <span class="meta">${ca.note}</span>`, ""));
+                  }
+                  sb.appendChild(resultNote(r!.disclaimer || "", ""));
+                });
+              }));
+              solve.title = "Apply an ASCE 7 gravity load case to the analytical members and solve determinate statics (reactions, shear/moment/deflection)";
+              body.appendChild(solve);
+            }
           });
         })));
         b.appendChild(toolBtn2("✅ Approvability pre-flight (permit-readiness)", () => withLoading(container, "Running the plan-reviewer pre-flight", async () => {

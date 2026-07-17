@@ -37,10 +37,14 @@ drawings + cost + proforma (377), and the **model estimate → proforma** hard-c
 2. ✅ **PREFLIGHT — issuance gate — SHIPPED v0.3.381** — `GET /projects/{pid}/preflight`: one PASS/HOLD
    verdict + checklist composing the model-health lenses (hygiene · clash · code-readiness · verified) +
    **classification completeness** + open high-priority issues (hard blocker). *(pyRevit research.)*
-3. **STRUCT-LOADS+SOLVE — loads → analytical → reactions** *(★★★★ · L)* — apply `loads.py` ASCE 7 cases
-   (dead/live/wind/seismic) to the W10-7 analytical members + a lightweight statics solve (reactions,
-   member forces, shear/moment/deflection diagrams). Today the analytical model carries only self-weight and
-   `loads.py` is isolated — wiring them is the single biggest analysis gap. *(audit + IMG_0250.)*
+3. ✅ **STRUCT-SOLVE — apply gravity loads + solve statics — SHIPPED v0.3.382** —
+   `GET /projects/{pid}/structure/solve` applies an ASCE 7 gravity load case (dead + live by occupancy) to
+   the W10-7 analytical curve members and runs a **determinate member-by-member statics solve** —
+   reactions (`wL/2`), max shear/moment (`wL²/8`), indicative deflection vs L/360, and shear/moment/
+   deflection diagrams; vertical members carry a tributary column axial; factored forces via the governing
+   LRFD combo. Viewer surfaces it in the analytical panel with inline diagrams. *Remaining: lateral
+   (wind/seismic) member solve · per-member `IfcStructuralLinearAction` load activities written back to the
+   IFC · continuous-beam / coupled-frame (FEM) solve · section properties read from the physical member.*
 4. **VIEW-RANGE — plan view-range model** *(★★★★ · M)* — top/cut/bottom/**view-depth** planes so plans show
    foundations/footings below the cut and control visibility properly (not just a single cut_z). *(IMG_0247.)*
 5. **COVER-SHEET — rendered cover + sheet index** *(★★★★ · S)* — the compiled set's cover is text-only;
@@ -518,9 +522,10 @@ closed this session marked:
 - ✅ **Client project package** — SHIPPED v0.3.377 (`/project-package.pdf`).
 - **Rendered cover sheet / index** *(★4 · S)* — see COVER-SHEET in the worklist. Touch `sheetgen.py`,
   `drawing.py`, `drawingset.py`.
-- **Structural analysis: apply loads + solve** *(★4 · L)* — see STRUCT-LOADS+SOLVE. `analytical.py` carries
-  only self-weight; `loads.py` (ASCE 7 takedowns) is isolated; no solver (no reactions/member forces). Wire
-  loads → members + a statics solve.
+- ✅ **Structural analysis: apply loads + solve** — SHIPPED v0.3.382 (`/structure/solve`): gravity load
+  case applied to the analytical members + a determinate member-by-member statics solve (reactions, shear/
+  moment/deflection diagrams, column axial). *Remaining: lateral solve · load activities written to the IFC ·
+  coupled-frame FEM.*
 - **Single discipline/class source of truth** *(★3 · S)* — see DISC-SSOT. Three parallel IFC-class maps.
 - **Broader CAD/geometry export** *(★3 · M)* — only DXF R12 + glTF today; **missing DWG, glb/USD, and a
   first-class IFC re-export** (source IFC only leaves via the bundle/closeout zip). Touch `dxf.py`,

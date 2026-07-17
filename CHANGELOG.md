@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.382 — STRUCT-SOLVE: apply gravity loads + solve statics on the analytical frame
+
+- **`GET /projects/{pid}/structure/solve`** — closes the biggest analysis gap: the W10-7 analytical model
+  carried only self-weight and the ASCE 7 load engine sat isolated. This **applies a gravity load case**
+  (dead + live by occupancy) to the analytical curve members and runs a **determinate, member-by-member
+  statics solve** — each horizontal member as a simply-supported beam under a uniform line load:
+  end **reactions** (`wL/2`), max **shear** (`wL/2`), max **moment** (`wL²/8`), an indicative
+  **deflection** vs the L/360 limit, and sampled **shear / moment / deflection diagrams**; vertical
+  members carry a tributary **column axial** (from the gravity takedown). Factored member forces use the
+  governing ASCE 7 LRFD combination. The beam line load is taken directly (kip/ft) or derived from floor
+  pressures over a tributary strip; occupancy live loads come from the ASCE 7 table.
+- **Viewer** — the Structural analytical panel gains an **"Apply loads + solve statics"** action: the
+  load case, the governing beam (reaction · Vmax · Mmax · deflection check), inline shear + moment
+  diagrams, and the column axial, each with the not-a-PE disclaimer.
+- **Honest scope:** every member is solved in isolation as a determinate element (the hand-check before
+  sizing) — **not** a coupled stiffness (FEM) frame analysis, no lateral (wind/seismic) member solve,
+  deflection indicative (assumed E·I). Read-only; nothing is written back to the IFC. Preliminary only —
+  all sizing and final design must be performed and stamped by a licensed professional engineer.
+
 ## v0.3.381 — PREFLIGHT: one-click "ready to issue?" gate
 
 - **`GET /projects/{pid}/preflight`** — a single **PASS / HOLD** verdict + a pre-issue checklist, the

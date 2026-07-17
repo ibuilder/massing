@@ -1437,6 +1437,47 @@ export class ApiClient extends HttpCore {
     }>(`/projects/${pid}/analytical`);
   }
 
+  // STRUCT-SOLVE: apply a gravity load case to the analytical members + a determinate statics solve
+  structureSolve(pid: string, opts?: {
+    liveOccupancy?: string; sdlPsf?: number; slabThicknessIn?: number;
+    tributaryFt?: number; grossAreaSf?: number; eKsi?: number; iIn4?: number;
+  }) {
+    const q = new URLSearchParams();
+    if (opts?.liveOccupancy) q.set("live_occupancy", opts.liveOccupancy);
+    if (opts?.sdlPsf != null) q.set("sdl_psf", String(opts.sdlPsf));
+    if (opts?.slabThicknessIn != null) q.set("slab_thickness_in", String(opts.slabThicknessIn));
+    if (opts?.tributaryFt != null) q.set("tributary_ft", String(opts.tributaryFt));
+    if (opts?.grossAreaSf != null) q.set("gross_area_sf", String(opts.grossAreaSf));
+    if (opts?.eKsi != null) q.set("e_ksi", String(opts.eKsi));
+    if (opts?.iIn4 != null) q.set("i_in4", String(opts.iIn4));
+    const qs = q.toString();
+    type Diagram = { x_ft: number; shear_kip: number; moment_kipft: number; deflection_in: number };
+    type Beam = {
+      name: string; guid: string; length_ft: number;
+      service: {
+        reaction_kip: number; shear_max_kip: number; moment_max_kipft: number;
+        deflection_in: number; deflection_limit_in: number; deflection_ok: boolean; diagram: Diagram[];
+      };
+      factored: Beam["service"];
+    };
+    return this.json<{
+      has_analytical: boolean; message?: string;
+      load_case?: {
+        name: string; dead_klf: number; live_klf: number; service_klf: number;
+        factored_lrfd_klf: number; dead_psf: number; live_psf: number; tributary_ft: number;
+        governing_combo: string;
+      };
+      counts?: { beams: number; columns: number; total_beam_length_ft: number };
+      governing_beam?: Beam | null; beams?: Beam[];
+      columns_axial?: {
+        service_total_kip: number; factored_lrfd_kip: number; storeys: number;
+        column_count: number; note: string;
+      } | null;
+      reactions?: { sum_beam_service_kip: number };
+      assumptions?: Record<string, unknown>; disclaimer?: string;
+    }>(`/projects/${pid}/structure/solve${qs ? `?${qs}` : ""}`);
+  }
+
   // COLLAB-1: live co-editing snapshot (model signature + presence roster)
   collabSnapshot(pid: string) {
     return this.json<{
