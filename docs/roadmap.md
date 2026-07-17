@@ -45,8 +45,11 @@ drawings + cost + proforma (377), and the **model estimate → proforma** hard-c
    LRFD combo. Viewer surfaces it in the analytical panel with inline diagrams. *Remaining: lateral
    (wind/seismic) member solve · per-member `IfcStructuralLinearAction` load activities written back to the
    IFC · continuous-beam / coupled-frame (FEM) solve · section properties read from the physical member.*
-4. **VIEW-RANGE — plan view-range model** *(★★★★ · M)* — top/cut/bottom/**view-depth** planes so plans show
-   foundations/footings below the cut and control visibility properly (not just a single cut_z). *(IMG_0247.)*
+4. ✅ **VIEW-RANGE — plan view-depth — SHIPPED v0.3.383** — `plan.svg?view_depth=<m>` draws the footprint
+   of elements below the cut but within the view depth (foundations/footings) as dashed hidden lines with a
+   legend — the Revit Top/Cut/Bottom/View-Depth model, not a single `cut_z`. `below_footprint_baked` sections
+   each below-cut element through its mid-height; class-filterable; backward-compatible. *(IMG_0247.)*
+   *Remaining: per-plane element-visibility control + wiring view_depth into the footprint sheet/PDF path.*
 5. **COVER-SHEET — rendered cover + sheet index** *(★★★★ · S)* — the compiled set's cover is text-only;
    render a real graphical cover + a proper drawing index. *(audit gap #4.)*
 6. **TAKEOFF-2D — PDF/scan quantity takeoff** *(★★★★ · M)* — browser flood-fill "one-click area" on uploaded
@@ -435,8 +438,9 @@ Geopogo-as-product (closed Unreal — its *context-ingest* idea folds into SITE-
 **Authoring & drawings (highest value):**
 - **KEYS — Revit-style keyboard shortcuts** *(S/M · ★★★★★)* — 2-letter authoring shortcuts (WA/CL/DR/CS/…)
   over the recipe+tool actions so Revit-trained users are instantly fast. *(IMG_0259 shortcut cheat-sheet.)*
-- **VIEW-RANGE — plan view-range model** *(M · ★★★★)* — top/cut/bottom/**view-depth** planes: show
-  foundations/footings via view-depth, control per-plane visibility (vs. today's single cut_z). *(IMG_0247.)*
+- ✅ **VIEW-RANGE — plan view-depth — SHIPPED v0.3.383** — `plan.svg?view_depth=<m>` shows foundations/
+  footings below the cut as dashed hidden lines (`below_footprint_baked`); the Top/Cut/Bottom/View-Depth
+  model vs. one cut_z. *Remaining: per-plane visibility control + the footprint sheet/PDF path.* *(IMG_0247.)*
 - **PREFLIGHT — model-health / QA issuance gate** *(S/M · ★★★★)* — one-click audit (orphaned GUIDs · missing
   classifications · unplaced elements · open BCF · param completeness) as an issue-the-set gate. *(pyRevit.)*
 - **SHEET-LINK — hyperlinked callouts across the sheet set** *(S · ★★★)* — clickable detail/section bubbles

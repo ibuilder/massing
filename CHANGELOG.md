@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.383 — VIEW-RANGE: plan view-depth so foundations show below the cut
+
+- **`GET /projects/{pid}/drawings/plan.svg?view_depth=<m>`** — a plan is no longer a single horizontal
+  cut plane. Pass a **view depth** (metres below the cut) and the plan additionally draws the **footprint
+  of anything under the cut but within that depth** — foundations / footings / pile caps that a single
+  cut plane never intersects — as **dashed light hidden lines**, with a "below cut (view depth)" legend.
+  This is the Revit **Top / Cut / Bottom / View-Depth** model rather than one `cut_z`.
+- Each below-cut element is sectioned through its own mid-height for a representative outline; the below
+  linework shares the plan extent (so it is never clipped) and the class filter scopes it. The cut
+  linework, dimensions, room tags, callouts, and titleblock cut-AFF are unchanged when `view_depth` is
+  omitted — fully backward-compatible.
+
 ## v0.3.382 — STRUCT-SOLVE: apply gravity loads + solve statics on the analytical frame
 
 - **`GET /projects/{pid}/structure/solve`** — closes the biggest analysis gap: the W10-7 analytical model

@@ -374,12 +374,16 @@ def model_grid(pid: str, db: Session = Depends(get_db), _sec: str = Depends(requ
 
 @router.get("/projects/{pid}/drawings/plan.svg")
 def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str = "PLAN",
-         rooms: bool = True, callouts: bool = False, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+         rooms: bool = True, callouts: bool = False, view_depth: float | None = None,
+         db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """Schematic plan (SVG) cut at `elevation + cut_height`. VIEW-RANGE: pass `view_depth` (metres below
+    the cut) to also draw the footprint of anything under the cut but within that depth — foundations/
+    footings show as dashed hidden lines, the Revit Top/Cut/Bottom/View-Depth model rather than one cut_z."""
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
     svg = drawings.plan_svg(open_model(_source_ifc(db, pid)), elevation, cut_height, title,
-                            rooms=rooms, callouts=callouts)
+                            rooms=rooms, callouts=callouts, view_depth=view_depth)
     return _svg(svg)
 
 

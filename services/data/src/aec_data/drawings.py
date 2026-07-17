@@ -100,6 +100,38 @@ def cut(model: ifcopenshell.file, view: str, offset: float,
     return cut_baked(bake(model), view, offset, classes)
 
 
+def below_footprint_baked(meshes: list[tuple[str, trimesh.Trimesh]], cut_z: float, depth_z: float,
+                          classes: list[str] | None = None) -> list[np.ndarray]:
+    """VIEW-RANGE 'below' linework: the plan footprint of elements whose body lies **below** the cut plane
+    but no deeper than the view-depth plane (`depth_z`) — e.g. footings/foundations under the slab that a
+    single cut plane never intersects. Each qualifying mesh is sectioned through its own mid-height (a
+    representative outline for a prismatic footing/pile cap) and returned as (n,2) XY polylines. This is
+    the Revit view-range model: Top / Cut / Bottom + **View Depth**, so a plan can show what's below the
+    cut without dropping the cut plane itself."""
+    normal, axes = _VIEWS["plan"]
+    want = {c.lower() for c in classes} if classes else None
+    out: list[np.ndarray] = []
+    for cls, mesh in meshes:
+        if want and cls.lower() not in want:
+            continue
+        try:
+            zmin, zmax = float(mesh.bounds[0][2]), float(mesh.bounds[1][2])
+        except Exception:  # noqa: BLE001 — degenerate mesh with no bounds
+            continue
+        # entirely below the cut plane (top under the cut) and reaching no deeper than the view-depth plane
+        if zmax > cut_z or zmax < depth_z:
+            continue
+        mid = (zmin + zmax) / 2.0
+        try:
+            sec = mesh.section(plane_origin=normal * mid, plane_normal=normal)
+            if sec is not None:
+                for poly in sec.discrete:
+                    out.append(np.asarray(poly)[:, axes])
+        except Exception:  # noqa: BLE001 — section can fail on thin/degenerate geometry
+            pass
+    return out
+
+
 def to_svg(polylines: list[np.ndarray], title: str = "", subtitle: str = "",
            width: int = 1100, pad: int = 40) -> str:
     if not polylines:
@@ -189,13 +221,16 @@ def _leader_callout(sx: float, sy: float, lx: float, ly: float, text: str, color
 
 def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
                      grid: dict | None = None, dims: bool = True, width: int = 1200,
-                     tags: list[dict] | None = None, callouts: list[dict] | None = None) -> str:
+                     tags: list[dict] | None = None, callouts: list[dict] | None = None,
+                     below: list[np.ndarray] | None = None) -> str:
     polys = cut_baked(meshes, "plan", elevation + cut_height)
+    below = below or []
     grid = grid or {"x": [], "y": []}
-    if not polys and not (grid["x"] or grid["y"]):
+    if not polys and not below and not (grid["x"] or grid["y"]):
         return to_svg([], title=title, subtitle="no geometry")
 
-    pts = [np.vstack(polys)] if polys else []
+    # 'below' (view-depth) linework shares the plan extent so footings/foundations aren't clipped
+    pts = ([np.vstack(polys)] if polys else []) + ([np.vstack(below)] if below else [])
     gx = [c for c, _ in grid["x"]]; gy = [c for c, _ in grid["y"]]
     xs = ([p[:, 0] for p in pts] or [np.array(gx)]) + ([np.array(gx)] if gx else [])
     ys = ([p[:, 1] for p in pts] or [np.array(gy)]) + ([np.array(gy)] if gy else [])
@@ -235,6 +270,13 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
         out.append(f'<circle cx="{ox-40:.1f}" cy="{sy:.1f}" r="{bub}" fill="#fff" stroke="#111"/>'
                    f'<text x="{ox-40:.1f}" y="{sy+4:.1f}" text-anchor="middle" '
                    f'font-family="sans-serif" font-size="13" font-weight="700">{label}</text>')
+
+    # 'below cut' linework (view depth) — drawn first, dashed + light, so foundations/footings under the
+    # cut plane read as beyond-the-cut per drawing convention (thin hidden line)
+    for poly in below:
+        pp = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
+        out.append(f'<polyline points="{pp}" fill="none" stroke="#999" stroke-width="0.5" '
+                   f'stroke-dasharray="5 3"/>')
 
     # cut geometry
     for poly in polys:
@@ -280,6 +322,12 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
             mm = round((y1 - y0) * 1000)
             out.append(_dim_v(dx, ay, byy, mm))
 
+    if below:
+        ly = pad + 8
+        out.append(f'<line x1="{pad}" y1="{ly-4:.0f}" x2="{pad+22}" y2="{ly-4:.0f}" stroke="#999" '
+                   f'stroke-width="0.8" stroke-dasharray="5 3"/>'
+                   f'<text x="{pad+28}" y="{ly:.0f}" font-family="sans-serif" font-size="10" '
+                   f'fill="#777">below cut (view depth)</text>')
     out.append(_titleblock_band(width, height, pad, title, elevation + cut_height, scale, grid))
     out.append("</svg>")
     return "".join(out)
@@ -407,7 +455,8 @@ def element_callouts(model: ifcopenshell.file, classes=("IfcDoor", "IfcWindow"),
 
 def plan_svg(model: ifcopenshell.file, elevation: float, cut_height: float = 1.2,
              title: str = "PLAN", grid: bool = True, dims: bool = True,
-             rooms: bool = True, callouts: bool | list[str] = False) -> str:
+             rooms: bool = True, callouts: bool | list[str] = False,
+             view_depth: float | None = None) -> str:
     meshes = bake(model)
     cut_z = elevation + cut_height                 # the horizontal cut plane — tags/callouts filter to it
     g = grid_from_meshes(meshes) if grid else {"x": [], "y": []}
@@ -416,7 +465,13 @@ def plan_svg(model: ifcopenshell.file, elevation: float, cut_height: float = 1.2
     if callouts:
         classes = callouts if isinstance(callouts, list) else ["IfcDoor", "IfcWindow"]
         co = element_callouts(model, tuple(classes), cut_z=cut_z)
-    return plan_drawing_svg(meshes, elevation, cut_height, title, g, dims, tags=tags, callouts=co)
+    # VIEW-RANGE: when a view depth (metres below the cut) is given, add the 'below' footprint of anything
+    # under the cut but within that depth — foundations/footings show as dashed hidden lines on the plan.
+    below = None
+    if view_depth and view_depth > 0:
+        below = below_footprint_baked(meshes, cut_z, cut_z - float(view_depth))
+    return plan_drawing_svg(meshes, elevation, cut_height, title, g, dims,
+                            tags=tags, callouts=co, below=below)
 
 
 # --- elevations (orthographic outline projections) --------------------------
