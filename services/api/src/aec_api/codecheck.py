@@ -34,18 +34,20 @@ _OCCUPANCY = [
 
 
 def _detect(text: str) -> dict[str, Any]:
-    low = text.lower()
+    # Bounded quantifiers ({1,n} not +/*) + a capped input keep these free-text scans linear — an
+    # unbounded `\d+`/`[\d,]+`/`\s*` under re.search re-scans and is polynomial-ReDoS on a crafted string.
+    low = (text or "")[:20_000].lower()
     occ = next(({"group": g, "label": lbl} for pat, g, lbl in _OCCUPANCY if re.search(pat, low)), None)
     area = None
-    m = re.search(r"([\d,]+)\s*(?:sf|sq\.?\s*ft|square feet)", low)
+    m = re.search(r"([\d,]{1,20})\s{0,4}(?:sf|sq\.?\s{0,4}ft|square feet)", low)
     if m:
         area = int(m.group(1).replace(",", ""))
     stories = None
-    m = re.search(r"(\d+)[\s-]*(?:stor(?:y|ies)|floors?)", low)
+    m = re.search(r"(\d{1,4})[\s-]{0,4}(?:stor(?:y|ies)|floors?)", low)
     if m:
         stories = int(m.group(1))
     occ_load = None
-    m = re.search(r"(\d+)\s*(?:occupant|people|person|seat)", low)
+    m = re.search(r"(\d{1,7})\s{0,4}(?:occupant|people|person|seat)", low)
     if m:
         occ_load = int(m.group(1))
     return {"occupancy": occ, "area_sf": area, "stories": stories, "occupant_load": occ_load}

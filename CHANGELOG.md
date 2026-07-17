@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.379 — fix 3 CodeQL ReDoS alerts (codecheck free-text parser)
+
+- Cleared the 3 open **`py/polynomial-redos` (HIGH)** CodeQL alerts in `codecheck._detect` — the free-text
+  code-description scanner used unbounded quantifiers (`[\d,]+`, `\d+`, `\s*`) under `re.search`, which
+  re-scans and is polynomial-time on a crafted long string. Bounded the quantifiers (`{1,n}`) and capped
+  the input to 20 000 chars; a 100 k-digit crafted input now parses in ~40 ms (was the ReDoS vector).
+  Detection of area / stories / occupant-load on real inputs is unchanged.
+
 ## v0.3.377 — shareable project package (show someone the whole project)
 
 - **`GET /projects/{pid}/project-package.pdf`** — one bound PDF a GC or architect hands to a client: a
