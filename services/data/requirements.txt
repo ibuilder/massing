@@ -9,5 +9,7 @@ scipy>=1.11           # trimesh path assembly (section drawings)
 networkx>=3.0         # trimesh path traversal (section drawings)
 shapely>=2.0          # trimesh planar paths
 reportlab>=4.0        # PDF sheet composition
+pillow>=12.3.0        # reportlab's image dep — floor over 8 CVEs in 12.2.x (PYSEC-2026-2253..3453)
+defusedxml>=0.7       # XXE-safe parser for untrusted P6 (PMXML) schedule uploads — schedule.py
 # svglib (SVG→PNG for docs gallery) is a dev-only tool — it pulls pycairo/cairo and is not
 # needed at runtime (the API serves SVG directly). Install ad hoc when regenerating docs/img.

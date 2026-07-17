@@ -61,7 +61,7 @@ def model_signature(idx: dict[str, dict] | None) -> dict[str, Any]:
         return {"model_loaded": False, "elements": 0, "signature": None,
                 "note": "No model loaded. 2D regenerates on demand from the live model when one is."}
     keys = sorted(idx.keys())
-    digest = hashlib.sha1("|".join(keys).encode("utf-8")).hexdigest()[:16]  # noqa: S324 — non-crypto fingerprint
+    digest = hashlib.sha1("|".join(keys).encode("utf-8"), usedforsecurity=False).hexdigest()[:16]  # non-crypto fingerprint
     return {"model_loaded": True, "elements": len(keys), "signature": f"{len(keys)}-{digest}",
             "note": "Compare this signature across renders; a change means the 2D drawings are stale and "
                     "should be regenerated (they render live from the model on request)."}

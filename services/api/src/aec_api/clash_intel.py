@@ -56,13 +56,13 @@ def clash_hash(guid_a: str, guid_b: str, point: dict) -> str:
     """Stable identity for a single raw clash — order-independent GUID pair + snapped point."""
     a, b = sorted([guid_a or "", guid_b or ""])
     px, py, pz = (round(float(point.get(k, 0.0)) / _SNAP_M) for k in ("x", "y", "z"))
-    return hashlib.sha1(f"{a}|{b}|{px}|{py}|{pz}".encode()).hexdigest()[:16]
+    return hashlib.sha1(f"{a}|{b}|{px}|{py}|{pz}".encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 def _group_hash(key_guid: str, other_disc: str) -> str:
     """Identity for a coordination ISSUE — the dominant element + the discipline it conflicts with.
     Survives re-runs even as individual clash points shift, so reappearance is detectable."""
-    return hashlib.sha1(f"{key_guid}|{other_disc}".encode()).hexdigest()[:16]
+    return hashlib.sha1(f"{key_guid}|{other_disc}".encode(), usedforsecurity=False).hexdigest()[:16]
 
 
 def _severity(disc_pair_structural: bool, max_volume: float, count: int) -> tuple[str, int]:

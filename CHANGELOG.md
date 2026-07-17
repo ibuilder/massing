@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.371 — security hardening pass (audit + fixes)
+
+- **XXE fix (HIGH):** the Primavera P6 XML (PMXML) schedule-import parser now uses **defusedxml**, so a
+  malicious upload can't trigger XML external-entity / entity-expansion attacks (verified: a `file://`
+  XXE payload is rejected, valid P6 XML still parses).
+- **Weak-hash flags cleared (HIGH×3):** the SHA-1 calls in `clash_intel` (clash identity) and
+  `model_capabilities` (model signature) are non-crypto fingerprints — marked `usedforsecurity=False`.
+- **Dependency CVEs:** pinned `pillow>=12.3.0` (reportlab's transitive image dep — floors over 8 CVEs in
+  12.2.x) and added `defusedxml>=0.7` to the data requirements.
+- Audit run across ecosystems: `npm audit` 0 vulns (web), `bandit` HIGH findings now **0**, `pip-audit`
+  reviewed (remaining setuptools advisories are build-time only), secret scan of the source tree clean.
+  Outbound `urlopen` sites are fixed/configured hosts (Procore) or scheme-validated admin webhooks.
+
 ## v0.3.370 — UX-1: lifecycle ribbon tabs over the tool rail
 
 - A **ribbon tab-strip** (All · Build · Analyze · Coordinate · Document · Data) at the top of the model

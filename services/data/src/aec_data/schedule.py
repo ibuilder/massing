@@ -11,6 +11,9 @@ from __future__ import annotations
 import csv
 import xml.etree.ElementTree as ET
 from collections.abc import Iterable
+
+import defusedxml.ElementTree as _DET  # XXE-safe parser for untrusted P6 XML uploads
+from defusedxml.common import DefusedXmlException
 from typing import Any
 
 import ifcopenshell
@@ -87,7 +90,8 @@ def parse_xer(text: str) -> list[dict[str, str]]:
             continue
         tag, _, rest = line.partition("\t")
         if tag == "%T":
-            table = rest.strip(); fields = []
+            table = rest.strip()
+            fields = []
         elif tag == "%F":
             fields = rest.split("\t")
         elif tag == "%R" and table == "TASK" and fields:
@@ -114,8 +118,8 @@ def parse_pmxml(text: str) -> list[dict[str, str]]:
     by version, so we match on local tag names). Prefers planned dates, falls back to actual dates.
     Returns [] for non-XML or XML without <Activity> elements."""
     try:
-        root = ET.fromstring(text)
-    except ET.ParseError:
+        root = _DET.fromstring(text)                # defused: blocks XXE / entity-expansion attacks
+    except (ET.ParseError, DefusedXmlException):
         return []
     rows: list[dict[str, str]] = []
     for act in (e for e in root.iter() if _local(e.tag) == "Activity"):
