@@ -4,14 +4,24 @@ import os
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_devbudget.db"
 os.environ["STORAGE_DIR"] = "./test_storage_devbudget"
+os.environ["IFC_DIR"] = "./test_ifc_devbudget"
 os.environ.pop("AEC_RBAC", None)
 for f in ("./test_devbudget.db",):
     if os.path.exists(f):
         os.remove(f)
 
+import sys  # noqa: E402
+import tempfile  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "src"))
+
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api import dev_budget as dvb  # noqa: E402
 from aec_api.main import app  # noqa: E402
+from aec_data import edit, massing  # noqa: E402
+from aec_data.ifc_loader import open_model  # noqa: E402
 
 # --- pure engine: line totals, contingency, category rollups -----------------
 budget = {
@@ -100,6 +110,34 @@ with TestClient(app) as c:
     assert dk.status_code == 200 and dk.content[:4] == b"%PDF" and len(dk.content) > 1500, (dk.status_code, len(dk.content))
     pages = dk.content.count(b"/Type /Page") - dk.content.count(b"/Type /Pages")
     assert pages == 9, f"deck should have 9 slides (title/exec/numbers/market/S&U/stack/timeline/plan/returns), got {pages}"
+
+    # --- sync hard cost FROM THE MODEL takeoff (closes the model↔proforma disconnect) ----------------
+    # no source IFC yet → 409
+    assert c.post(f"/projects/{pid}/dev-budget/sync-from-model").status_code == 409
+    # build a small priced model (walls + a slab + spaces so the takeoff has real quantities)
+    _ifc = Path(tempfile.gettempdir()) / "devbudget_model.ifc"
+    massing.generate_blank_ifc(str(_ifc), name="Budget Model", storeys=2, storey_height=3.0, ground_size=20.0)
+    mm = open_model(str(_ifc))
+    st = mm.by_type("IfcBuildingStorey")[0].Name
+    edit.add_wall(mm, [0, 0], [10, 0], 3.0, 0.2, st)
+    edit.add_wall(mm, [10, 0], [10, 8], 3.0, 0.2, st)
+    edit.add_column(mm, [5, 4], 3.0, 0.4, 0.4, st)
+    edit.add_spaces(mm, rooms_per_storey=2, ceiling_height=3.0)
+    mm.write(str(_ifc))
+    up = c.post(f"/projects/{pid}/source-ifc?publish=false",
+                files={"file": ("source.ifc", _ifc.read_bytes(), "application/octet-stream")})
+    assert up.status_code == 200, up.text[:160]
+    sr = c.post(f"/projects/{pid}/dev-budget/sync-from-model")
+    assert sr.status_code == 200, sr.text[:200]
+    body = sr.json()
+    assert body["synced"] and body["source"] == "model_estimate" and body["hard_cost"] > 0, body
+    # the hard lines are now model-derived (per-discipline "model takeoff" lines), soft/acq untouched
+    hard_lines = [ln for ln in body["budget"]["lines"] if ln["category"] == "hard"]
+    assert hard_lines and all("model takeoff" in ln["description"].lower() for ln in hard_lines), hard_lines
+    assert any(ln["category"] == "soft" for ln in body["budget"]["lines"]), "soft lines preserved"
+    # the hard subtotal reconciles to the estimate total it reported
+    hard_subtotal = round(sum(ln["unit_cost"] * ln.get("quantity", 1) for ln in hard_lines), 2)
+    assert abs(hard_subtotal - body["hard_cost"]) <= max(1.0, body["hard_cost"] * 0.02), (hard_subtotal, body["hard_cost"])
 
 print(f"DEV-BUDGET OK - line totals + per-category contingency + grand ${s['grand_total']:,.0f}; "
       f"hard {s['hard_pct']*100:.0f}% / soft {s['soft_pct']*100:.0f}%; cost_lines reconcile; "

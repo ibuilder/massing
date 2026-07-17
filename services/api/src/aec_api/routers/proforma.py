@@ -322,6 +322,67 @@ def sync_gmp_to_hard(pid: str, db: Session = Depends(get_db), _sec: str = Depend
     return {"synced": True, "hard_cost": gc_gmp, "budget": budget, "summary": dvb.summarize(budget)}
 
 
+@router.post("/projects/{pid}/dev-budget/sync-from-model")
+def sync_model_to_hard(pid: str, db: Session = Depends(get_db),
+                       _sec: str = Depends(rbac.require_role("editor"))):
+    """Set the developer budget's construction hard cost from the **model takeoff estimate** — one click
+    ties the underwriting to the real IFC quantities × unit rates (priced through the project's pinned
+    cost vintage), instead of a flat GFA×$/sf assumption. Replaces the hard lines with **per-discipline**
+    model lines (S/A/M/E/P/…); soft / acquisition / contingency are untouched. 409 if no source IFC.
+    Returns the recomputed budget + the estimate total it used. Closes the model↔proforma disconnect."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+    from aec_data.qto import takeoff_file  # type: ignore
+
+    from .. import classification
+    from .. import dev_budget as dvb
+    from .. import estimate as est
+    from ..deps import source_ifc_path
+    from ..models import Project as _P
+    from .cost import _vintage_overrides
+
+    p = db.get(_P, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    path = source_ifc_path(db, pid)                # raises 409 if no accessible source IFC
+    rows = takeoff_file(path, force_geometry=True)
+    try:
+        from aec_data import spaces as _sp  # type: ignore
+        net_m2 = sum(r.get("net_area") or 0 for r in _sp.space_schedule(open_model(path)))
+        gfa_sf = net_m2 * est.M2_TO_SF
+    except Exception:                             # noqa: BLE001 — the GFA benchmark is best-effort
+        gfa_sf = None
+    overrides, ds = _vintage_overrides(db, pid)
+    out = est.estimate_from_takeoff(rows, overrides=overrides, gfa_sf=gfa_sf)
+    total = round(out.get("recommended_total") or out.get("total") or 0.0, 2)
+
+    by_disc: dict[str, float] = {}
+    for ln in out.get("lines", []):
+        disc = classification.discipline_name(
+            classification.discipline_of_ifc_class(ln.get("ifc_class", ""))) or "General"
+        by_disc[disc] = round(by_disc.get(disc, 0.0) + float(ln.get("amount") or 0.0), 2)
+
+    budget = dict(p.dev_budget or dvb.starter_budget())
+    lines = [dict(ln) for ln in (budget.get("lines") or []) if ln.get("category") != "hard"]
+    priced = round(sum(by_disc.values()), 2)
+    if by_disc and abs(priced - total) <= max(1.0, total * 0.02):   # priced lines reconcile to the total
+        for disc, amt in sorted(by_disc.items(), key=lambda x: -x[1]):
+            lines.append({"category": "hard", "description": f"Construction — {disc} (model takeoff)",
+                          "unit_cost": amt, "quantity": 1, "cost_code": ""})
+    else:                                                            # GFA-benchmark won → one lump line
+        lines.append({"category": "hard", "description": "Construction — model takeoff (synced)",
+                      "unit_cost": total, "quantity": 1, "cost_code": ""})
+    budget["lines"] = lines
+    p.dev_budget = budget
+    from .. import audit as _audit
+    _audit.record(db, action="dev_budget.sync_from_model", actor=_sec, method="POST",
+                  path=f"/projects/{pid}/dev-budget/sync-from-model", detail={"hard_cost": total})
+    db.commit()
+    from .. import cost_db as _cdb
+    return {"synced": True, "source": "model_estimate", "hard_cost": total, "by_discipline": by_disc,
+            "cost_vintage": (_cdb.dataset_dict(ds) if ds else None),
+            "budget": budget, "summary": dvb.summarize(budget)}
+
+
 @router.get("/projects/{pid}/loan-draws")
 def loan_draws(pid: str, ltc: float = 0.65, rate: float = 0.075, construction_months: int = 18,
                db: Session = Depends(get_db), _sec: str = Depends(rbac.require_role("viewer"))):

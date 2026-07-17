@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.376 — model estimate → developer proforma (5D→underwriting)
+
+- **`POST /projects/{pid}/dev-budget/sync-from-model`** ties the developer underwriting to the **real
+  model takeoff** instead of a flat `GFA × $/sf` assumption. One click runs the IFC quantity estimate
+  (priced through the project's pinned cost vintage) and replaces the budget's **hard** cost with
+  **per-discipline** "model takeoff" lines (S/A/M/E/P/…) that reconcile to the estimate total; soft /
+  acquisition / contingency are untouched. Closes the ★5 gap where the proforma and the model quantities
+  were two disconnected worlds — the deal number now flows from the design.
+
 ## v0.3.375 — compiled drawing-set PDF (the whole set, one file)
 
 - **`GET /projects/{pid}/drawing-set/compiled.pdf`** — the whole drawing set bound into **one multi-page
