@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.461 — UX-2: snap-as-you-place annotation + live guide lines (P1 #4)
+
+- **Every placed annotation now lands exactly on geometry.** A plain model click snaps the picked
+  point to the hit element's nearest **vertex / bounding-edge midpoint / corner / center** (the
+  classic osnap set, 0.4 m tolerance) with the ◻ snap glyph — so notes, 2-point dimensions, revision
+  clouds, tags, MEP fittings and every other `lastPoint` consumer anchors on the element, not on the
+  raw raycast point. `snapToGeometry` grew the midpoint/center candidates.
+- **Live guide line for two-click flows.** Arming a dimension or revision cloud drops an **anchor dot**
+  at the first (snapped) point and stretches a **dashed rubber line to the cursor** until the second
+  click — you see exactly what will be measured before committing. Cleans up on completion.
+- Live-verified: an exact-corner click flashed ◻ snap (the point snapped to the wall corner); arming
+  Dimension created the `annot-guide` group (dot + dashed line) and the rubber end tracked the
+  pointer across the ground plane. Typecheck / eslint / vitest (121) / build green.
+
 ## v0.3.460 — SITE-1: open-geodata site context — drop the model onto its real surroundings (P1 #3)
 
 - **One click adds the neighborhood.** Open ▾ → *Add site context (OSM buildings)…* fetches the

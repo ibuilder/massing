@@ -327,7 +327,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     ]);
     if (armed) { await captureDraftPoint(e, hit ?? null); return; }
     if (!hit) { await selectMap(null); return; }
-    lastPoint = hit.point.clone();
+    // UX-2 snap-as-you-place: the picked point snaps to the element's nearest vertex / edge midpoint /
+    // corner, so every lastPoint consumer (notes · dimensions · revision clouds · tags · fittings)
+    // anchors exactly on geometry instead of the raw raycast point.
+    const snapped = await snapToGeometry(hit.point, hit);
+    lastPoint = (snapped ?? hit.point).clone();
+    if (snapped) flashSnapGlyph(e, "◻ snap");
     showCoords(lastPoint);
     const [guid] = await hit.fragments.getGuidsByLocalIds([hit.localId]);
     selectedGuid = guid ?? null;
@@ -755,8 +760,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
 
   type Hit = { point: THREE.Vector3; fragments: { modelId: string }; localId: number };
-  /** Snap to the hit element's nearest mesh vertex within ~0.4 m (true endpoint/edge snap),
-   *  falling back to its bounding-box corners, then to grid snap. */
+  /** Snap to the hit element's nearest mesh vertex within ~0.4 m (true endpoint snap), then to its
+   *  bounding-box corners / edge midpoints / center (the classic osnap set), then to grid snap. */
   async function snapToGeometry(raw: THREE.Vector3, hit: Hit | null): Promise<THREE.Vector3 | null> {
     if (!hit) return null;
     const nearest = (pts: THREE.Vector3[]) => {
@@ -768,13 +773,23 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       const model = loader.fragments.list.get(hit.fragments.modelId);
       const verts = model ? await model.getPositions([hit.localId]) : null;
       if (verts?.length) { const v = nearest(verts); if (v) return v; }
-    } catch { /* fall back to bbox corners */ }
+    } catch { /* fall back to bbox candidates */ }
     try {
       const boxes = await loader.fragments.getBBoxes({ [hit.fragments.modelId]: new Set([hit.localId]) });
       if (!boxes.length) return null;
       const bx = boxes[0]!; // safe: boxes.length checked above
-      return nearest([bx.min.x, bx.max.x].flatMap((x) =>
-        [bx.min.y, bx.max.y].flatMap((y) => [bx.min.z, bx.max.z].map((z) => new THREE.Vector3(x, y, z)))));
+      const xs = [bx.min.x, bx.max.x], ys = [bx.min.y, bx.max.y], zs = [bx.min.z, bx.max.z];
+      const corners = xs.flatMap((x) => ys.flatMap((y) => zs.map((z) => new THREE.Vector3(x, y, z))));
+      // UX-2: edge midpoints (each axis at its midpoint × the other two axes' extremes) + the center —
+      // the midpoint/center osnaps annotation placement expects.
+      const mx = (bx.min.x + bx.max.x) / 2, my = (bx.min.y + bx.max.y) / 2, mz = (bx.min.z + bx.max.z) / 2;
+      const mids = [
+        ...ys.flatMap((y) => zs.map((z) => new THREE.Vector3(mx, y, z))),
+        ...xs.flatMap((x) => zs.map((z) => new THREE.Vector3(x, my, z))),
+        ...xs.flatMap((x) => ys.map((y) => new THREE.Vector3(x, y, mz))),
+        new THREE.Vector3(mx, my, mz),
+      ];
+      return nearest([...corners, ...mids]);
     } catch { return null; }
   }
 
@@ -2647,13 +2662,49 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       annotBtn.title = "Place a 2D text note / tag / callout as an IfcAnnotation at the last-clicked point — "
         + "round-trips as real IFC and feeds the drawing generator.";
 
+      // UX-2 — live guide line: a dashed rubber line + anchor dot from a pending first point to the
+      // cursor while a two-click annotation flow (dimension / revision cloud) waits for its second
+      // click — the drafter sees exactly what's being measured before committing.
+      let guide: { grp: THREE.Group; line: THREE.Line } | null = null;
+      const setGuideAnchor = (from: THREE.Vector3 | null) => {
+        if (guide) {
+          viewer.world.scene.three.remove(guide.grp);
+          guide.grp.traverse((o) => {
+            const m = o as THREE.Mesh;
+            if (m.geometry) m.geometry.dispose();
+            if (m.material) (m.material as THREE.Material).dispose();
+          });
+          guide = null;
+        }
+        if (!from) return;
+        const grp = new THREE.Group(); grp.name = "annot-guide";
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 10),
+          new THREE.MeshBasicMaterial({ color: 0xffd479, depthTest: false }));
+        dot.position.copy(from);
+        const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), from.clone()]);
+        const line = new THREE.Line(geo, new THREE.LineDashedMaterial({
+          color: 0xffd479, dashSize: 0.4, gapSize: 0.25, depthTest: false }));
+        line.computeLineDistances();
+        grp.add(dot, line);
+        viewer.world.scene.three.add(grp);
+        guide = { grp, line };
+      };
+      container.addEventListener("pointermove", (e) => {
+        if (!guide) return;
+        const p = screenToGround(e);
+        if (!p) return;
+        const pos = guide.line.geometry.attributes.position as THREE.BufferAttribute;
+        pos.setXYZ(1, p.x, p.y, p.z); pos.needsUpdate = true;
+        guide.line.computeLineDistances();
+      });
+
       // UX-2 — dimension: two-click flow (pick first point, then second → measured dimension annotation)
       let dimFrom: THREE.Vector3 | null = null;
       const dimBtn = toolBtn2("📐 Dimension (2 points)", async () => {
         if (!lastPoint) { notify("click a point in the model first", "error"); return; }
-        if (!dimFrom) { dimFrom = lastPoint.clone(); notify("first point set — click the second point, then press Dimension again", "info"); return; }
+        if (!dimFrom) { dimFrom = lastPoint.clone(); setGuideAnchor(dimFrom); notify("first point set — click the second point, then press Dimension again", "info"); return; }
         const a: [number, number] = [dimFrom.x, -dimFrom.z], b: [number, number] = [lastPoint.x, -lastPoint.z];
-        dimFrom = null;
+        dimFrom = null; setGuideAnchor(null);
         await withLoading(container, "placing dimension + republishing", async () => {
           try {
             const r = await api.addDimension(projectId!, a, b, { z: lastPoint!.y }, true);
@@ -2671,9 +2722,9 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       let cloudFrom: THREE.Vector3 | null = null;
       const cloudBtn = toolBtn2("☁ Revision cloud (2 corners)", async () => {
         if (!lastPoint) { notify("click a corner of the region in the model first", "error"); return; }
-        if (!cloudFrom) { cloudFrom = lastPoint.clone(); notify("first corner set — click the opposite corner, then press Revision cloud again", "info"); return; }
+        if (!cloudFrom) { cloudFrom = lastPoint.clone(); setGuideAnchor(cloudFrom); notify("first corner set — click the opposite corner, then press Revision cloud again", "info"); return; }
         const a: [number, number] = [cloudFrom.x, -cloudFrom.z], b: [number, number] = [lastPoint.x, -lastPoint.z];
-        cloudFrom = null;
+        cloudFrom = null; setGuideAnchor(null);
         const tag = (prompt("Revision tag (e.g. a delta number) — leave blank for none:", "") || "").trim();
         await withLoading(container, "placing revision cloud + republishing", async () => {
           try {

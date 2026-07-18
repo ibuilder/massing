@@ -27,9 +27,9 @@ priorities below favor what that unblocked.
    cached (offline after), ODbL attribution shown. Live-verified: Empire State roof at exactly 443.2 m.
    *(Remaining slices: terrain DEM auto-fetch and parcel overlays — user-supplied GeoTIFF DEMs
    already load via `gis.ts`.)*
-4. **UX-2 remaining — snap-as-you-place annotation** *(M)* — SketchUp-style endpoint/midpoint/edge
-   snapping + live guide lines while placing notes/dims/tags, extending the shipped `snapEngine`
-   (`resolveSnap`/`segmentSnaps` are built and tested; this is the placement-flow wiring).
+4. ✅ **UX-2 remaining — SHIPPED v0.3.461** — every annotation click snaps to the element's
+   vertex/midpoint/corner/center (◻ glyph); two-click dimension/cloud flows show an anchor dot +
+   dashed rubber guide line to the cursor. Live-verified (corner snap + tracking guide).
 5. **EST-1 remaining — QTO → durations → CPM** *(M)* — drive labour-estimate activity quantities from
    the real `aec_data.qto` takeoff and write the crew-day durations into the CPM/Gantt schedule.
 6. **REL-4 slices 3+ — continue the viewer decomposition** *(M each)* — next leaves out of `app.ts`
