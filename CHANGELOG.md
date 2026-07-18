@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.408 — REL-3: split the as-built / phase record writers out of edit.py (façade)
+
+- First recipe-group split enabled by the `edit_core` foundation (v0.3.406). The element **record**
+  writers — W10-8 phasing (`set_phase` / `phase_summary`), G1 field-verified as-built (`verify_asbuilt` /
+  `asbuilt_summary`), G2 as-built dimensions (`record_asbuilt_dimension`), G3 manufacturer/serial
+  (`set_manufacturer_info`), plus `set_element_pset` / `set_classification` / `_coerce` — move to a new
+  leaf **`edit_asbuilt.py`**: no geometry, no placement, just GUID-keyed Pset/classification stamps (the
+  LOD-500 reliability layer). Depends only on `edit_core._element` + ifcopenshell.api.
+- `edit.py` re-exports every name, so the importers that reach these via `edit` (scene, ebc, detailing,
+  the RECIPES registry) are unchanged. `edit.py` 2005 → 1781 (from the original 2127).
+- Verified across 8 suites (phasing / lod500 / detailing / content / scene / ebc / verified-progress +
+  the cycle guard: **0 cycles**, 332 modules), `ruff` clean.
+
 ## v0.3.407 — REL-3: split the raw vendor HTTP clients out of connectors.py (façade)
 
 - Completes the `connectors.py` decomposition. The **outbound I/O half** — the raw Procore / Autodesk

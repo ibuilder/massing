@@ -59,9 +59,11 @@ they're archived in **[roadmap-completed.md](roadmap-completed.md)**.
    foundation leaf, `data/edit.py` 2127→2005 (façade); unblocks splitting the recipe groups (they import
    primitives from `edit_core`, not the whole engine). **connectors vendor I/O SHIPPED v0.3.407** — the raw
    Procore/ACC/QuickBooks/ERP HTTP clients → `connectors_vendors.py` (pure leaf); test seams stay on
-   `connectors.py` (patchability contract unchanged), 411→325. *Remaining:* `edit.py` recipe groups (MEP /
-   structural / as-built — now unblocked via `edit_core`), `modules.py` CRUD + feed builders (blocked —
-   dense back-calls would cycle; needs DI), `main.py`, the rest of `data/drawings.py`, the rest of `drawing.py`.
+   `connectors.py` (patchability contract unchanged), 411→325. **as-built/phase writers SHIPPED v0.3.408**
+   — the record-stamping recipe group → `edit_asbuilt.py` (leaf on `edit_core`), `edit.py` 2127→1781 total.
+   *Remaining:* `edit.py` recipe groups (MEP / structural — via `edit_core`), `modules.py` CRUD + feed
+   builders (blocked — dense back-calls would cycle; needs DI), `main.py`, the rest of `data/drawings.py`,
+   the rest of `drawing.py`.
    `ruff`+suite green after each. *(`openModule` O(n·m) already
    fixed v0.3.373; REL-1/2 import cycles verified false positives — see below.)*
 4. **REL-4 — decompose the *web* hotspots** *(one PR each, TESTED via typecheck/lint/vitest/build)* —
