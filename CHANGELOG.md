@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.419 — DOC-RACE: per-project locks on the sidecar indexes (P1 №7)
+
+- **Bug fix** (upgrade-plan P1 №7): the document manager and the edit-history stack are
+  read-modify-write cycles over a single JSON sidecar in object storage. FastAPI runs sync endpoints in
+  a threadpool, so two concurrent uploads to the same project could interleave load→save — the second
+  writer clobbered the first (its file's bytes orphaned in storage, invisible in the UI) and both could
+  be allocated the same `f{seq}` id.
+- New `pid_lock.mutating(pid)` serializes sidecar mutations per project; `docmanager.upload/move/delete`
+  and `edit_history.push/undo/redo` now run under it (`@_locked`, zero body changes). Cross-worker
+  serialization (`--workers >1`) is documented as the remaining shape needing storage CAS.
+- Proven by a new concurrency test: **12 simultaneous uploads → 12 index entries, 12 unique ids**
+  (pre-fix this loses entries); docmanager / edit-undo / cycle-guard suites green.
+
 ## v0.3.418 — WEB-LIVE + WEB-LEAKS: resilient live streams, no leaked listeners/geometry (P1 №5–6)
 
 - **SSE resilience** (P1 №5): a new `liveStream` core behind `modelStream` / `notificationStream` /

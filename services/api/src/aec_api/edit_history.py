@@ -10,9 +10,20 @@ from __future__ import annotations
 
 import json
 
-from . import storage
+from . import pid_lock, storage
 
 _MAX = 50
+
+
+def _locked(fn):
+    """Serialize load→mutate→save per project (DOC-RACE) — same rationale as docmanager._locked."""
+    import functools
+
+    @functools.wraps(fn)
+    def wrap(pid, *a, **k):
+        with pid_lock.mutating(pid):
+            return fn(pid, *a, **k)
+    return wrap
 
 
 def _key(pid: str) -> str:
@@ -31,6 +42,7 @@ def _save(pid: str, d: dict) -> None:
     storage.put(_key(pid), json.dumps(d).encode("utf-8"))
 
 
+@_locked
 def push(pid: str, prev_path: str) -> None:
     """Record the pre-edit source path before a new edit advances it. A fresh edit invalidates redo."""
     if not prev_path:
@@ -41,6 +53,7 @@ def push(pid: str, prev_path: str) -> None:
     _save(pid, d)
 
 
+@_locked
 def undo(pid: str, current_path: str) -> str | None:
     """Pop the last pre-edit path (the version to restore); push `current_path` onto redo. None if empty."""
     d = _load(pid)
@@ -53,6 +66,7 @@ def undo(pid: str, current_path: str) -> str | None:
     return prev
 
 
+@_locked
 def redo(pid: str, current_path: str) -> str | None:
     """Pop the last undone path (re-apply); push `current_path` onto undo. None if empty."""
     d = _load(pid)

@@ -83,7 +83,7 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
    "live updates disconnected" surface; close the notification stream on `pagehide`.
 6. ✅ **WEB-LEAKS — SHIPPED v0.3.418 — listener & GPU leaks** — `nodeCanvas.makeDraggable` adds 2 permanent window listeners per
    node (never removed); failed draft publishes orphan preview Fragments geometry (dispose in the catch).
-7. **DOC-RACE — sidecar index lost-update** — `docmanager.py`/`edit_history.py` read-modify-write a whole
+7. ✅ **DOC-RACE — SHIPPED v0.3.419 — sidecar index lost-update** — `docmanager.py`/`edit_history.py` read-modify-write a whole
    JSON index with no lock: concurrent uploads lose entries / duplicate ids. Per-project serialization
    (Postgres advisory lock; in-process lock fallback).
 8. **TZ-UTC — overdue/aging math on UTC** — `date.today()`/`datetime.now()` local-time comparisons in

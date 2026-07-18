@@ -102,6 +102,36 @@ with TestClient(app) as c:
     assert c.get(f"/projects/{pid}/documents/health").json()["total_files"] == 1
     assert c.get(f"/projects/{pid}/documents/phase-gaps", params={"phase": "CLOSEOUT"}).json()["phase"] == "CLOSEOUT"
 
+# --- DOC-RACE: concurrent uploads must not lose index entries or duplicate ids ---------------------
+import threading  # noqa: E402
+
+from aec_api import docmanager  # noqa: E402
+
+_race_pid = "race-project"
+N = 12
+errs: list[Exception] = []
+
+
+def _up(i: int) -> None:
+    try:
+        docmanager.upload(_race_pid, "02_Drawings/Architectural", f"race-{i}.pdf", b"%PDF race", "tester",
+                          title=f"Race Doc {i}")
+    except Exception as e:  # noqa: BLE001
+        errs.append(e)
+
+
+threads = [threading.Thread(target=_up, args=(i,)) for i in range(N)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+assert not errs, errs
+_idx = docmanager._load(_race_pid)
+_ids = [f["id"] for f in _idx["files"]]
+assert len(_idx["files"]) == N, f"lost update: {len(_idx['files'])}/{N} index entries survived"
+assert len(set(_ids)) == N, f"duplicate ids allocated: {sorted(_ids)}"
+print(f"DOC-RACE OK - {N} concurrent uploads -> {N} index entries, {N} unique ids (per-project lock)")
+
 print("DOCMANAGER OK - F1 standard tree (owner roles: Super=field, PM=business, A/E=design) + AIA phase "
       "checklists; F2 upload auto-names to Type_Disc_Desc_Rev_Date, revision supersede keeps audit "
       "(P01->P02, only latest shows); counts roll up + required gaps flagged; F3 by-role view; F5 health; "

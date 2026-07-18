@@ -18,10 +18,23 @@ import re
 from datetime import datetime
 from typing import Any
 
-from . import classification, folder_template, naming, storage
+from . import classification, folder_template, naming, pid_lock, storage
 
 _INDEX = "{pid}/docs/_index.json"
 _MAX_NAME = 120
+
+
+def _locked(fn):
+    """Serialize a load→mutate→save cycle per project (DOC-RACE): without this, two concurrent
+    mutations (FastAPI threadpool) could interleave and silently lose the first writer's index entry
+    or double-allocate `seq` ids. First positional arg must be `pid`."""
+    import functools
+
+    @functools.wraps(fn)
+    def wrap(pid, *a, **k):
+        with pid_lock.mutating(pid):
+            return fn(pid, *a, **k)
+    return wrap
 
 
 def _key(pid: str) -> str:
@@ -120,6 +133,7 @@ def get_file(pid: str, fid: str) -> tuple[bytes, str, str] | None:
 
 
 # --- upload (with auto-naming + revision supersede) -----------------------------------------------
+@_locked
 def upload(pid: str, folder: str, filename: str, data: bytes, actor: str, *, title: str | None = None,
            discipline: str | None = None, doc_type: str | None = None, cde_state: str | None = None,
            revision: str | None = None, when: datetime | None = None) -> dict[str, Any]:
@@ -167,6 +181,7 @@ def upload(pid: str, folder: str, filename: str, data: bytes, actor: str, *, tit
             "superseded": prior["id"] if prior else None}
 
 
+@_locked
 def move(pid: str, fid: str, new_folder: str, actor: str) -> dict[str, Any]:
     """Move a file to another standard folder (rewrites the storage key; index updated)."""
     if not folder_template.is_valid(new_folder):
@@ -187,6 +202,7 @@ def move(pid: str, fid: str, new_folder: str, actor: str) -> dict[str, Any]:
     return f
 
 
+@_locked
 def delete(pid: str, fid: str, hard: bool = False) -> bool:
     """Soft-delete (default) or hard-delete a file. Soft keeps the audit trail; hard removes the blob."""
     idx = _load(pid)
