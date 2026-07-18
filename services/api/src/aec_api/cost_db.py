@@ -24,6 +24,86 @@ from .models import CostDataset, CostItem, Project
 _UOM = {"area": "m2", "volume": "m3", "length": "m", "count": "ea"}
 SOURCE_SET = "public"
 ORIGIN_LOCAL = "public_local"
+SOURCE_CUSTOM = "custom"
+ORIGIN_CUSTOM = "custom"
+
+
+def parse_cost_rows(payload: Any) -> list[dict[str, Any]]:
+    """Normalize a firm's cost book into `[{ifc_class, total_cost, description?, uom?, masterformat_code?}]`.
+
+    Accepts either a flat `{ifc_class: rate}` map (the quickest form) or a list of row dicts (each with
+    `ifc_class` + a rate under `total_cost`/`rate`/`cost`, and optional `description`/`uom`/
+    `masterformat_code`/`uniformat_code`). Rows without an `ifc_class` or a finite positive rate are
+    dropped. Pure — no DB — so it's unit-tested and reused by the CSV/JSON/endpoint paths."""
+    def _rate(d: dict) -> float | None:
+        for k in ("total_cost", "rate", "cost", "unit_cost"):
+            v = d.get(k)
+            if v is not None:
+                try:
+                    f = float(v)
+                except (TypeError, ValueError):
+                    return None
+                return f if f > 0 else None
+        return None
+
+    raw: list[dict[str, Any]]
+    if isinstance(payload, dict):
+        raw = [{"ifc_class": k, "total_cost": v} for k, v in payload.items()]
+    elif isinstance(payload, list):
+        raw = [d for d in payload if isinstance(d, dict)]
+    else:
+        return []
+    out: list[dict[str, Any]] = []
+    for d in raw:
+        ic = (d.get("ifc_class") or "").strip()
+        rate = _rate(d)
+        if not ic or rate is None:
+            continue
+        row: dict[str, Any] = {"ifc_class": ic, "total_cost": rate}
+        for k in ("description", "uom", "masterformat_code", "uniformat_code"):
+            if d.get(k):
+                row[k] = d[k]
+        out.append(row)
+    return out
+
+
+def import_custom_vintage(db: Session, rows: list[dict[str, Any]], vintage: int,
+                          quarter: int | None = None, name: str | None = None) -> CostDataset:
+    """Install a firm's own cost book as a `custom`-origin vintage for `vintage` year. Re-importing the
+    same (year, quarter) **replaces** that custom vintage's items in place (a firm re-uploading a corrected
+    book), so there's never a duplicate. Sets it latest. `rows` are as `parse_cost_rows` returns.
+    Missing MasterFormat codes are filled from the classification spine off the IFC class."""
+    if not rows:
+        raise ValueError("no priced rows to import (need at least one {ifc_class, rate})")
+    ds = db.scalar(select(CostDataset).where(
+        CostDataset.vintage_year == vintage, CostDataset.quarter == quarter,
+        CostDataset.source_set == SOURCE_CUSTOM, CostDataset.origin == ORIGIN_CUSTOM))
+    if ds is None:
+        ds = CostDataset(vintage_year=vintage, quarter=quarter, source_set=SOURCE_CUSTOM,
+                         tier="enterprise", origin=ORIGIN_CUSTOM)
+        db.add(ds)
+        db.flush()
+    else:                                           # replace the items of the existing custom vintage
+        for it in db.scalars(select(CostItem).where(CostItem.dataset_id == ds.id)):
+            db.delete(it)
+        db.flush()
+    ds.notes = (name or f"custom cost book, vintage {vintage}") + f" ({len(rows)} items)"
+    items = []
+    for r in rows:
+        code = r.get("masterformat_code")
+        title = r.get("description")
+        if not code or not title:
+            c, t = cls.classify(r["ifc_class"], "masterformat")
+            code = code or c
+            title = title or t
+        items.append(CostItem(dataset_id=ds.id, masterformat_code=code, description=title,
+                              uniformat_code=r.get("uniformat_code"), uom=r.get("uom") or "ea",
+                              ifc_class=r["ifc_class"], total_cost=float(r["total_cost"])))
+    db.add_all(items)
+    _set_latest(db, ds)
+    db.commit()
+    db.refresh(ds)
+    return ds
 
 
 def _build_public_items(dataset_id: str) -> list[CostItem]:

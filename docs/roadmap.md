@@ -319,6 +319,12 @@ interop targets / content platforms / open standards named where they're integra
   & timeline come from the project's `market_assumption`. **Remaining build-order steps:** the `massing.cloud`
   CloudDatasetImporter (signed bundle), real public-source ingest (BLS/FRED/DoD/Census), per-county
   location-factor / PPI-index DB tables, delta sync, Ed25519 signatures.
+- ✅ **COST-DB custom cost-book import SHIPPED v0.3.440** — a firm installs its **own** rates as a
+  `custom`-origin vintage (`cost_db.import_custom_vintage` + `parse_cost_rows`): `POST
+  /cost/datasets/import-custom` takes a flat `{ifc_class: rate}` map or `rows: [...]`, MasterFormat-codes
+  any gaps off the classification spine, replaces the same (year, quarter) in place on re-upload, and sets
+  it latest — so a project prices through the firm's negotiated/historical costs (localized + escalated
+  like any vintage). Offline. This is the "+ import" the task title always implied.
 - **COST-DB — vintage-versioned cost database + import** *(L · high)* — a local, **vintage-versioned (by year)**
   cost database populated from **either free public sources (BLS/FRED/DoD-UFC/Census — offline-first) or the
   `massing.cloud` subscription API**, behind one `DatasetImporter` interface. Projects **pin** to a specific

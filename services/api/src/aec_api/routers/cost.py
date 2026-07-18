@@ -696,6 +696,26 @@ def cost_import(body: dict = Body(default={}), db: Session = Depends(get_db),
     return {**cost_db.dataset_dict(ds), "warning": warning}
 
 
+@router.post("/cost/datasets/import-custom")
+def cost_import_custom(body: dict = Body(default={}), db: Session = Depends(get_db),
+                       _: str = Depends(current_user)):
+    """Import a firm's **own** cost book as a `custom`-origin vintage — so a project prices through the
+    firm's historical/negotiated rates, not the shipped benchmark. Body:
+    `{"vintage": 2025, "quarter": null, "name": "…", "rates": {"IfcWall": 180, …}}` (a flat class→rate map)
+    or `{"rows": [{"ifc_class": "IfcWall", "total_cost": 180, "description": "…", "uom": "m2"}, …]}`.
+    Re-importing the same (year, quarter) replaces that custom vintage in place. Sets it latest."""
+    from datetime import date
+
+    from .. import cost_db
+    v = body.get("vintage")
+    year = int(v) if v not in (None, "", "latest") else date.today().year
+    rows = cost_db.parse_cost_rows(body.get("rows") if body.get("rows") is not None else body.get("rates"))
+    if not rows:
+        raise HTTPException(400, "no valid priced rows — supply `rates` {ifc_class: rate} or `rows` [...]")
+    ds = cost_db.import_custom_vintage(db, rows, year, body.get("quarter"), name=body.get("name"))
+    return {**cost_db.dataset_dict(ds, item_count=len(rows)), "imported": len(rows)}
+
+
 @router.get("/projects/{pid}/cost-vintage")
 def get_cost_vintage(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The cost vintage a project's estimate resolves through — its pinned dataset, else the latest."""

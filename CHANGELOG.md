@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.440 — COST-DB: import your own cost book (custom vintage)
+
+- **A firm can now price through its OWN rates**, not just the shipped benchmark. `POST
+  /cost/datasets/import-custom` installs a cost book as a `custom`-origin vintage:
+  - body is a flat `{"rates": {"IfcWall": 180, "IfcColumn": 240}}` map (quickest) **or**
+    `{"rows": [{"ifc_class": "IfcWall", "total_cost": 180, "description": "…", "uom": "m2"}, …]}`;
+  - missing MasterFormat codes are filled from the classification spine off the IFC class;
+  - re-importing the same (year, quarter) **replaces that custom vintage in place** (a corrected upload
+    never duplicates); it's set latest and a project prices through it, localized + escalated like any
+    vintage.
+- New `cost_db.import_custom_vintage` + a pure, tolerant `parse_cost_rows` (accepts `total_cost`/`rate`/
+  `cost`/`unit_cost`, drops rows without an ifc_class or a positive rate). Offline — this is the "+ import"
+  the COST-DB task always implied. `test_cost_db` extended (both body forms, in-place replace, empty→400,
+  the parser edge cases). 261/261 suites green; ruff clean.
+
 ## v0.3.439 — CAD command line: AutoCAD relative + polar coordinates
 
 - **The command line now speaks the coordinate grammar every drafter already knows.** Point tokens in

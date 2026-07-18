@@ -71,6 +71,17 @@ with SessionLocal() as db:
     neutral, nmeta = cost_db.rates_for_project(db, proj)
     assert neutral["IfcWall"] == rates["IfcWall"] and nmeta["combined_factor"] == 1.0, nmeta
 
+    # parse_cost_rows: flat map + rows, tolerant rate keys, drops junk (no ifc_class / non-positive rate)
+    assert cost_db.parse_cost_rows({"IfcWall": 180}) == [{"ifc_class": "IfcWall", "total_cost": 180.0}]
+    rows = cost_db.parse_cost_rows([
+        {"ifc_class": "IfcSlab", "rate": 55, "uom": "m2"},        # alt rate key + uom kept
+        {"ifc_class": "IfcColumn", "cost": 0},                    # non-positive → dropped
+        {"total_cost": 99},                                       # no ifc_class → dropped
+        {"ifc_class": "IfcBeam", "unit_cost": "42", "description": "W-shape"}])
+    got = {r["ifc_class"]: r for r in rows}
+    assert set(got) == {"IfcSlab", "IfcBeam"}, got
+    assert got["IfcSlab"]["uom"] == "m2" and got["IfcBeam"]["total_cost"] == 42.0, got
+
 # --- integration: endpoints + project pinning --------------------------------
 with TestClient(app) as c:
     got = c.get("/cost/datasets").json()
@@ -112,6 +123,26 @@ with TestClient(app) as c:
     up = c.post(f"/projects/{pid}/source-ifc?publish=false",
                 files={"file": ("m.ifc", ifc.read_bytes(), "application/octet-stream")})
     assert up.status_code == 200, up.text[:160]
+    # --- custom cost book import (a firm's own rates) --------------------------------------------
+    def cost_db_rates(_c, dsid):                       # read a vintage's {class: rate} map via the engine
+        with SessionLocal() as _db:
+            return cost_db.rates_for(_db, dsid)
+    # flat {ifc_class: rate} map form
+    ci = c.post("/cost/datasets/import-custom",
+                json={"vintage": 2026, "name": "Acme rates", "rates": {"IfcWall": 999.0, "IfcColumn": 1234.0}})
+    assert ci.status_code == 200, ci.text[:200]
+    cbody = ci.json()
+    assert cbody["origin"] == "custom" and cbody["is_latest"] and cbody["imported"] == 2, cbody
+    cust_id = cbody["id"]
+    assert cost_db_rates(c, cust_id)["IfcWall"] == 999.0, "custom rate installed"
+    # re-import same (year) REPLACES in place (no duplicate vintage), and updates the rate
+    ci2 = c.post("/cost/datasets/import-custom",
+                 json={"vintage": 2026, "rows": [{"ifc_class": "IfcWall", "total_cost": 888.0, "uom": "m2"}]})
+    assert ci2.json()["id"] == cust_id, "re-import replaces the same custom vintage"
+    assert cost_db_rates(c, cust_id)["IfcWall"] == 888.0 and "IfcColumn" not in cost_db_rates(c, cust_id)
+    # empty/invalid book is a 400, not a crash
+    assert c.post("/cost/datasets/import-custom", json={"vintage": 2026, "rates": {}}).status_code == 400
+
     est = c.get(f"/projects/{pid}/qto/by-floor").json()
     assert est.get("cost_vintage", {}).get("vintage_year") == 2024, est.get("cost_vintage")
     # the takeoff also carries the localization/escalation adjustment (neutral here — no market assumption)
@@ -125,4 +156,6 @@ print("COST-DB OK - offline public importer builds vintage-versioned datasets (o
       "(no dup rows); resolve handles latest/exact/nearest-fallback/strict; a project pins a vintage for "
       "reproducibility and resolves to latest when unpinned; rates localize by the region cost index and "
       "escalate from the vintage year (neutral 1.0 with no assumption); the takeoff + cost-vintage endpoint "
-      "both carry the adjustment; cloud request without a subscription falls back to public with a warning.")
+      "both carry the adjustment; a firm imports its OWN cost book as a custom vintage (flat map or rows, "
+      "re-import replaces in place, empty book 400s); cloud request without a subscription falls back to "
+      "public with a warning.")
