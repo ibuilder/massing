@@ -79,6 +79,15 @@ assert "DETAILS" not in svg and r["details"] == 0, "unattached plan should have 
 nod = drawing.plan_svg(m, scale=100, details=False)
 assert nod["details"] == 0 and "DETAILS" not in nod["svg"]
 
+# DISC-poché: by_discipline tints the fills with the canonical discipline colors + a legend
+dp = drawing.plan_svg(m, scale=100, by_discipline=True)
+assert dp["by_discipline"] is True and "DISCIPLINES" in dp["svg"], "discipline legend missing"
+assert '.disc .IfcWall{fill:#4B5563' in dp["svg"], "architectural tint missing"      # A grey-blue
+assert '.disc .IfcColumn{fill:#2E5A88' in dp["svg"], "structural tint missing"       # S blue
+assert '<g class="disc">' in dp["svg"], "poché group missing"
+# off by default — the classic monochrome poché is untouched
+assert drawing.plan_svg(m, scale=100)["by_discipline"] is False
+
 # keynotes/dimensions can be turned off
 plain = drawing.plan_svg(m, scale=100, dimensions=False, keynotes=False)
 assert plain["keynotes"] == 0 and '<g class="dim">' not in plain["svg"] and "KEYNOTES" not in plain["svg"]

@@ -39,6 +39,26 @@ def discipline_color(code: str | None) -> str:
     return SERIES_COLORS.get(c) or DISCIPLINE_COLORS.get(c[:1] if c else "", "#8A8F98")
 
 
+# DISC-poché — the data-layer mini-spine: common IFC classes → discipline code. Mirrors the canonical
+# aec_api.classification map (which this layer must not import); drawing renderers color by it.
+_CLASS_DISC: dict[str, str] = {
+    "IfcWall": "A", "IfcWallStandardCase": "A", "IfcRoof": "A", "IfcSpace": "A", "IfcCovering": "A",
+    "IfcDoor": "A", "IfcWindow": "A", "IfcStair": "A", "IfcStairFlight": "A", "IfcRailing": "A",
+    "IfcCurtainWall": "A", "IfcPlate": "A", "IfcFurnishingElement": "A",
+    "IfcSlab": "S", "IfcColumn": "S", "IfcBeam": "S", "IfcMember": "S", "IfcFooting": "S",
+    "IfcPile": "S", "IfcReinforcingBar": "S",
+    "IfcDuctSegment": "M", "IfcDuctFitting": "M", "IfcAirTerminal": "M", "IfcUnitaryEquipment": "M",
+    "IfcPipeSegment": "P", "IfcPipeFitting": "P", "IfcSanitaryTerminal": "P", "IfcValve": "P",
+    "IfcCableCarrierSegment": "E", "IfcCableSegment": "E", "IfcLightFixture": "E",
+    "IfcElectricAppliance": "E", "IfcOutlet": "E", "IfcSwitchingDevice": "E",
+}
+
+
+def discipline_of_class(ifc_class: str | None) -> str:
+    """Discipline code for an IFC class (General grey when unmapped) — the renderer-side lookup."""
+    return _CLASS_DISC.get(str(ifc_class or ""), "G")
+
+
 def division_of(section: str) -> str | None:
     """First two digits of a MasterFormat section number/code -> division code ('03 30 00' -> '03')."""
     digits = "".join(ch for ch in str(section or "") if ch.isdigit())

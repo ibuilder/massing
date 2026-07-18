@@ -16,16 +16,18 @@ router = APIRouter()
 
 
 @router.get("/projects/{pid}/drawings/plan.svg")
-def plan_svg(pid: str, storey: str | None = None, scale: int = 100, db: Session = Depends(get_db),
-             _: str = Depends(require_role("viewer"))):
+def plan_svg(pid: str, storey: str | None = None, scale: int = 100, by_discipline: bool = False,
+             db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W11 C1: a schematic **plan drawing** (SVG) generated from element footprints — the first slice of
     the construction-document set. `storey` limits to one level; `scale` is the drawing scale (1:scale).
-    Class-styled poché so a stylesheet controls linework."""
+    Class-styled poché so a stylesheet controls linework. `by_discipline=true` (DISC-poché) tints the
+    fills with the canonical discipline colors + a DISCIPLINES legend — the plan reads by trade."""
     from aec_data import drawing  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
     p = _project(db, pid)
-    result = drawing.plan_svg(open_model(p.source_ifc), storey=storey, scale=int(scale))
+    result = drawing.plan_svg(open_model(p.source_ifc), storey=storey, scale=int(scale),
+                              by_discipline=bool(by_discipline))
     return Response(content=result["svg"], media_type="image/svg+xml",
                     headers={"X-Plan-Elements": str(result["elements"])})
 

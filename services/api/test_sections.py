@@ -76,7 +76,19 @@ assert 0 < len(tags_here) < len(tags_all), (len(tags_here), len(tags_all))   # t
 svg = drawings.plan_svg(ml, elevation=mid["elevation"], cut_height=1.2, title=f"PLAN - {mid['name']}", rooms=True)
 assert "GENERAL NOTES" in svg and "GRAPHIC SCALE" in svg and "AFF" in svg, "plan must carry a titleblock + scale + notes"
 import xml.dom.minidom as _md  # noqa: E402
+
 _md.parseString(svg)                                                  # well-formed even with room names
+
+# DISC-poché: by_discipline strokes the cut linework with discipline colors + a DISCIPLINES legend
+dsvg = drawings.plan_svg(ml, elevation=mid["elevation"], cut_height=1.2, by_discipline=True)
+assert "DISCIPLINES" in dsvg, "discipline legend missing"
+assert 'stroke="#4B5563"' in dsvg or 'stroke="#2E5A88"' in dsvg, "discipline-colored strokes missing"
+_md.parseString(dsvg)                                                 # still well-formed
+# and the discipline_of_class spine maps the common families
+from aec_data import disciplines as _dsc  # noqa: E402
+
+assert _dsc.discipline_of_class("IfcWall") == "A" and _dsc.discipline_of_class("IfcColumn") == "S"
+assert _dsc.discipline_of_class("IfcDuctSegment") == "M" and _dsc.discipline_of_class("IfcMysteryThing") == "G"
 
 # composed key-plan sheet: a tall model must NOT render a plan panel per storey (slow + illegible) —
 # it caps to a few representative levels; `storey` renders exactly one.

@@ -107,6 +107,24 @@ def cut_baked(meshes: list[tuple[str, trimesh.Trimesh]], view: str, offset: floa
     return polylines
 
 
+def cut_baked_classed(meshes: list[tuple[str, trimesh.Trimesh]], view: str,
+                      offset: float) -> list[tuple[str, np.ndarray]]:
+    """DISC-poché variant of `cut_baked`: each polyline keeps its element's IFC class, so the plan can
+    stroke by discipline."""
+    normal, axes = _VIEWS[view]
+    origin = normal * offset
+    out: list[tuple[str, np.ndarray]] = []
+    for cls, mesh in meshes:
+        try:
+            sec = mesh.section(plane_origin=origin, plane_normal=normal)
+            if sec is not None:
+                for poly in sec.discrete:
+                    out.append((cls, np.asarray(poly)[:, axes]))
+        except Exception:                    # noqa: BLE001 — mirror cut_baked's per-mesh tolerance
+            continue
+    return out
+
+
 def cut(model: ifcopenshell.file, view: str, offset: float,
         classes: list[str] | None = None) -> list[np.ndarray]:
     """Return cut polylines as a list of (n,2) arrays in the view's drawing plane."""
@@ -235,8 +253,10 @@ def _leader_callout(sx: float, sy: float, lx: float, ly: float, text: str, color
 def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
                      grid: dict | None = None, dims: bool = True, width: int = 1200,
                      tags: list[dict] | None = None, callouts: list[dict] | None = None,
-                     below: list[np.ndarray] | None = None) -> str:
-    polys = cut_baked(meshes, "plan", elevation + cut_height)
+                     below: list[np.ndarray] | None = None, by_discipline: bool = False) -> str:
+    classed = cut_baked_classed(meshes, "plan", elevation + cut_height) if by_discipline else None
+    polys = [p for _, p in classed] if classed is not None \
+        else cut_baked(meshes, "plan", elevation + cut_height)
     below = below or []
     grid = grid or {"x": [], "y": []}
     if not polys and not below and not (grid["x"] or grid["y"]):
@@ -291,10 +311,29 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
         out.append(f'<polyline points="{pp}" fill="none" stroke="#999" stroke-width="0.5" '
                    f'stroke-dasharray="5 3"/>')
 
-    # cut geometry
-    for poly in polys:
-        pp = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
-        out.append(f'<polyline points="{pp}" fill="none" stroke="#111" stroke-width="0.8"/>')
+    # cut geometry — DISC-poché strokes each element's linework with its discipline color + a legend
+    if classed is not None:
+        from . import disciplines as _disc
+
+        used: dict[str, str] = {}
+        for cls, poly in classed:
+            code = _disc.discipline_of_class(cls)
+            col = _disc.discipline_color(code)
+            used[code] = col
+            pp = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
+            out.append(f'<polyline points="{pp}" fill="none" stroke="{col}" stroke-width="1.1"/>')
+        for i, (code, col) in enumerate(sorted(used.items())):
+            ly = 20 + i * 16
+            out.append(f'<rect x="{width - 150}" y="{ly}" width="12" height="10" fill="{col}"/>'
+                       f'<text x="{width - 132}" y="{ly + 9}" font-size="11" '
+                       f'font-family="sans-serif">{code}</text>')
+        if used:
+            out.append(f'<text x="{width - 150}" y="12" font-size="11" font-weight="bold" '
+                       f'font-family="sans-serif">DISCIPLINES</text>')
+    else:
+        for poly in polys:
+            pp = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
+            out.append(f'<polyline points="{pp}" fill="none" stroke="#111" stroke-width="0.8"/>')
 
     # room tags (IfcSpace): name + net floor area at the space centroid
     for tag in (tags or []):
@@ -465,7 +504,7 @@ def element_callouts(model: ifcopenshell.file, classes=("IfcDoor", "IfcWindow"),
 def plan_svg(model: ifcopenshell.file, elevation: float, cut_height: float = 1.2,
              title: str = "PLAN", grid: bool = True, dims: bool = True,
              rooms: bool = True, callouts: bool | list[str] = False,
-             view_depth: float | None = None) -> str:
+             view_depth: float | None = None, by_discipline: bool = False) -> str:
     meshes = bake(model)
     cut_z = elevation + cut_height                 # the horizontal cut plane — tags/callouts filter to it
     g = grid_from_meshes(meshes) if grid else {"x": [], "y": []}
@@ -480,7 +519,7 @@ def plan_svg(model: ifcopenshell.file, elevation: float, cut_height: float = 1.2
     if view_depth and view_depth > 0:
         below = below_footprint_baked(meshes, cut_z, cut_z - float(view_depth))
     return plan_drawing_svg(meshes, elevation, cut_height, title, g, dims,
-                            tags=tags, callouts=co, below=below)
+                            tags=tags, callouts=co, below=below, by_discipline=by_discipline)
 
 
 # --- elevations (orthographic outline projections) --------------------------

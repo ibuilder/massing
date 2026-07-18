@@ -77,7 +77,8 @@ design-option decks as first-class artifacts) · ENV-1 wind-comfort at massing (
 GEN-SCORE depth (per-option 5D takeoffs + EPD carbon once options carry models).
 
 **Estimating/engineering:** MEP pressure-loss balancing + thermal loads + per-conductor tray fill ·
-DISC-poché (color-by-discipline 2D) · VIZ-2 three.js PBR presentation mode · VIZ-1 parity confirm.
+✅ DISC-poché (v0.3.469 — `by_discipline` on both plan renderers) · VIZ-2 three.js PBR presentation
+mode · VIZ-1 parity confirm.
 
 **Onboarding & codes:** B1 sign-in-first welcome panel (never a wall) · B2 sign-in→tour · A1/A2/C1
 provider prominence · B3/B4/C2 fast-follows · CODE-1 adoption-seed depth + per-project jurisdiction ·

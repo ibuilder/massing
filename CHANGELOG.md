@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.469 — DISC-poché: 2D plans read by trade (P2 · estimating/engineering)
+
+- **`by_discipline=true` on both plan renderers.** The **cut-plane plan** (`/drawings/plan.svg`)
+  strokes every element's linework with its canonical discipline color and adds a DISCIPLINES legend
+  (`drawings.cut_baked_classed` keeps each polyline's IFC class through the section). The
+  **footprint/sheet renderer** (`drawing.plan_svg`, feeding sheet SVG/PDF) tints its poché fills the
+  same way with its own legend. Off by default — the classic monochrome poché is untouched.
+- The data layer gains its renderer-side mini-spine: `disciplines.discipline_of_class` (walls/roofs/
+  coverings/doors → A · slabs/columns/beams/footings → S · duct → M · pipe → P · cable/electrical → E,
+  General-grey fallback), mirroring the canonical `aec_api.classification` map without a cross-layer
+  import.
+- Live-verified on the dev project: the plan cut rendered the DISCIPLINES legend with
+  architectural-grey (#4B5563) wall strokes. `test_sections` + `test_drawing` extended (exact hex
+  asserts + spine mapping + well-formedness); backend suite green.
+
 ## v0.3.468 — REL-4 slice 5: the Report Center becomes its own module
 
 - `reportCenter.ts` (new, 469 lines) now owns the whole Report Center modal — every exportable

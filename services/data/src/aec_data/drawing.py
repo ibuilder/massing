@@ -258,9 +258,37 @@ def _annotations(model, storey):
     return out
 
 
+# DISC-poché — plan-class → discipline code (matches the canonical spine in aec_data.disciplines /
+# aec_api.classification: MasterFormat div 03 → Structural, 04/07/space-planning → Architectural).
+_PLAN_DISC: dict[str, tuple[str, str]] = {
+    "IfcWall": ("A", "Architectural"), "IfcRoof": ("A", "Architectural"), "IfcSpace": ("A", "Architectural"),
+    "IfcSlab": ("S", "Structural"), "IfcColumn": ("S", "Structural"), "IfcFooting": ("S", "Structural"),
+}
+
+
+def _discipline_css_legend(tx_right: float, ty_top: float) -> tuple[str, str]:
+    """DISC-poché: per-class fill overrides tinted by discipline + a DISCIPLINES legend block.
+    Returns (extra_css, legend_svg)."""
+    from . import disciplines
+
+    css_parts, seen = [], {}
+    for cls, (code, label) in _PLAN_DISC.items():
+        col = disciplines.discipline_color(code)
+        css_parts.append(f".disc .{cls}{{fill:{col};fill-opacity:.55}}")
+        seen[code] = (label, col)
+    rows = []
+    for i, (code, (label, col)) in enumerate(sorted(seen.items())):
+        y = round(ty_top + 5 + i * 5, 2)
+        rows.append(f'<rect x="{tx_right}" y="{y - 3}" width="4" height="3.4" fill="{col}" fill-opacity=".55" stroke="#333" stroke-width="0.2"/>'
+                    f'<text class="label" x="{tx_right + 5.5}" y="{y}">{code} — {label}</text>')
+    legend = (f'<text class="label" style="font-weight:bold" x="{tx_right}" y="{ty_top}">DISCIPLINES</text>'
+              + "".join(rows))
+    return "".join(css_parts), legend
+
+
 def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 100,
              margin_mm: float = 18.0, dimensions: bool = True, keynotes: bool = True,
-             details: bool = True, annotations: bool = True) -> dict:
+             details: bool = True, annotations: bool = True, by_discipline: bool = False) -> dict:
     """Generate a schematic **plan SVG** from element footprints. `storey` limits to one level (by name);
     `scale` is the drawing scale (1:`scale`). With `dimensions`, overall width/height dimension strings are
     drawn; with `keynotes`, elements carrying a Track-D classification code get numbered keynote bubbles + a
@@ -416,11 +444,18 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
                         f'<text class="lgd" x="{lx + 7}" y="{ry}">{_esc(name)[:32]}</text>')
         legend_svg += "".join(rows)
 
+    # DISC-poché: discipline-tinted fills + a DISCIPLINES legend (the plan reads by trade at a glance)
+    disc_css = disc_legend = ""
+    if by_discipline:
+        disc_css, disc_legend = _discipline_css_legend(round(w - margin_mm - 42, 2), margin_mm + 4)
     inner = (
-        f"<style>{_STYLE}</style>"
+        f"<style>{_STYLE}{disc_css}</style>"
         f'<rect class="sheet" x="0" y="0" width="{round(w, 2)}" height="{round(h, 2)}"/>'
-        + "".join(polys) + "".join(dims) + "".join(bubbles) + "".join(callouts)
-        + "".join(ann_svg) + legend_svg
+        + ('<g class="disc">' if by_discipline else "")
+        + "".join(polys)
+        + ("</g>" if by_discipline else "")
+        + "".join(dims) + "".join(bubbles) + "".join(callouts)
+        + "".join(ann_svg) + legend_svg + disc_legend
         + f'<text class="label" x="{margin_mm}" y="{round(h - 4, 2)}">PLAN 1:{scale}'
         + (f" - {_esc(storey)}" if storey else "") + "</text>"
     )
@@ -428,7 +463,7 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
            f'viewBox="0 0 {round(w, 2)} {round(h, 2)}">{inner}</svg>')
     return {"svg": svg, "inner": inner, "paper": [round(w, 2), round(h, 2)],
             "elements": len(shapes), "keynotes": len(legend_rows), "details": len(detail_rows),
-            "annotations": ann_count,
+            "annotations": ann_count, "by_discipline": bool(by_discipline),
             "scale": scale, "bounds": {"min": [minx, miny], "max": [maxx, maxy]}}
 
 
