@@ -4,13 +4,13 @@
 import * as THREE from "three";
 import CameraControls from "camera-controls";
 import { createViewer, renderMode } from "./world";
+import { installFileIO } from "./fileIO";
 import { installEnvTools } from "./envTools";
 import { inferDirection } from "./inference";
 import { applyDynamicInput, polarConstrain } from "./snapEngine";
 import { dynKeystroke, isDynKey, parseDynConstraint } from "./dynInput";
 import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
-import { loadReferenceModel } from "./referenceLoader";
 import { buildElementProps, buildRawProps } from "./propsView";
 import { type ModelIdMap } from "./modelIds";
 import { showQrModal } from "../ui/qr";
@@ -137,7 +137,6 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const modelLabels = new Map<string, string>();
   // view-only reference overlays (meshes / point clouds) added alongside the fragment models
   const referenceModels = new Map<string, { object: THREE.Object3D; label: string; dispose?: () => void }>();
-  let refCount = 0;
   const nextId = (label?: string) => {
     const id = `model-${++modelCount}`;
     if (label) modelLabels.set(id, label);
@@ -342,185 +341,15 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (section.enabled) void section.createPlane();
   });
 
-  // ---- file loading --------------------------------------------------------
-  // The hidden file <input>s live in index.html and are opened + wired by main.ts, so the native
-  // file dialog can appear instantly on click without waiting for this (heavy) module to finish
-  // loading. main hands the chosen File straight to openFile() once the viewer is ready.
-  async function openFile(kind: "ifc" | "frag" | "convert" | "ref", file: File) {
-    if (kind === "frag") await loadFile(file, (b, id) => loader.loadFragments(b, id), "loading");
-    else if (kind === "convert") await convertAndLoad(file);
-    else if (kind === "ref") await openReference(file);
-    else await openIfc(file);
-  }
-  // Register a pre-built THREE object (e.g. a basemap tile group) as a reference overlay.
-  function addReferenceObject(object: THREE.Object3D, label: string) {
-    const id = `ref-${++refCount}`;
-    viewer.world.scene.three.add(object);
-    referenceModels.set(id, { object, label });
-    refreshFederation();
-    void fitToModels();
-    void loader.fragments.core.update(true);
-    return id;
-  }
-  // Load a mesh / point cloud as a view-only reference overlay (IFC stays the source of truth).
-  async function openReference(file: File) {
-    try {
-      const res = await withLoading(container, `loading ${file.name}`, () => loadReferenceModel(file));
-      if (!res) return;
-      const id = `ref-${++refCount}`;
-      viewer.world.scene.three.add(res.object);
-      referenceModels.set(id, { object: res.object, label: file.name, dispose: res.dispose });
-      refreshFederation();
-      await fitToModels();
-      void loader.fragments.core.update(true);
-      notify(`loaded ${file.name}${res.info ? ` — ${res.info}` : ""}`, "success");
-    } catch (e) { notify(`couldn't load ${file.name}: ${(e as Error).message}`, "error"); }
-  }
-  // Above this, parsing the IFC in the browser (web-ifc WASM) is too slow / memory-heavy. When a
-  // project + backend are available we skip the in-browser parse entirely and let the server convert
-  // the IFC to Fragments off-thread, then stream the optimized result — the production large-model
-  // path (CLAUDE.md: never parse a full IFC in the browser at runtime).
-  const CLIENT_IFC_MAX = 60 * 1024 * 1024;   // ~60 MB
-  const mb = (n: number) => (n / 1048576).toFixed(0);
-
-  // Open an IFC: small files parse in-browser for an instant view (and, with a project open, also
-  // upload so drawings / clash / IDS / energy / exports / authoring regenerate server-side). Large
-  // files route straight to the server pipeline and stream back the published fragments.
-  async function openIfc(file: File) {
-    const pid = projectId;
-    const big = file.size > CLIENT_IFC_MAX;
-
-    // Large model + backend: server converts → we stream the published .frag. No in-browser parse.
-    if (big && connected && pid) {
-      let replace = true;
-      try { if ((await api.project(pid)).has_source_ifc) replace = await confirmModal(`Replace this project's model with ${file.name} (${mb(file.size)} MB)? Drawings & analysis will regenerate.`, ""); }
-      catch { /* offline check — proceed */ }
-      if (!replace) { notify(`kept the current project model`, "info"); return; }
-      notify(`${file.name} is large (${mb(file.size)} MB) — converting on the server for smooth streaming…`, "info");
-      try {
-        await api.uploadSourceIfc(pid, file);          // saves + sets source_ifc + publishes off-thread
-        const state = await waitForPublish(pid, (s) => setStatus(`processing model: ${s}…`));
-        if (state === "done") {
-          await loadProjectModel();                    // stream the optimized fragments with progress
-          void buildToolsPanel();
-          notify(`${file.name} loaded — drawings, QA, energy & authoring are ready`, "success");
-        } else {
-          notify(`model uploaded; server processing: ${state}`, "info");
-        }
-      } catch (e) { notify(`couldn't process on the server: ${(e as Error).message}`, "error"); }
-      return;
-    }
-
-    // Small file (or no backend): parse in-browser for an instant view.
-    if (big) notify(`${file.name} is large (${mb(file.size)} MB) — in-browser parsing may be slow; open a project for server-side conversion.`, "info");
-    await withLoading(container, `loading ${file.name}`, async () => {
-      await loader.loadIfc(new Uint8Array(await file.arrayBuffer()), nextId(file.name));
-      await fitToModels();
-    });
-    if (!connected || !pid) { notify(`loaded ${file.name} (no project — view only)`, "success"); return; }
-    let replace = true;
-    try { if ((await api.project(pid)).has_source_ifc) replace = await confirmModal(`Replace this project's model with ${file.name}? Drawings & analysis will regenerate.`, ""); }
-    catch { /* offline check — proceed */ }
-    if (!replace) { notify(`loaded ${file.name} (project model unchanged)`, "info"); return; }
-    notify(`Adding ${file.name} to the project — generating drawings & analysis…`, "info");
-    try {
-      await api.uploadSourceIfc(pid, file);            // saves + sets source_ifc + publishes off-thread
-      const state = await waitForPublish(pid, (s) => setStatus(`processing model: ${s}…`));
-      void buildToolsPanel();                          // re-checks has_source_ifc → un-gates the tools
-      void buildClashPanel();
-      notify(state === "done"
-        ? `${file.name} is the project model — drawings, QA, energy & authoring are ready`
-        : `model added; server processing: ${state}`, state === "done" ? "success" : "info");
-    } catch (e) { notify(`couldn't add to project: ${(e as Error).message}`, "error"); }
-  }
-  async function loadFile(file: File, load: (b: Uint8Array, id: string) => Promise<unknown>, verb: string) {
-    await withLoading(container, `${verb} ${file.name}`, async () => {
-      await load(new Uint8Array(await file.arrayBuffer()), nextId(file.name));
-      await fitToModels();
-      notify(`loaded ${file.name}`, "success");
-    });
-  }
-  async function loadSample(file: string, label: string) {
-    await withLoading(container, `loading ${label}`, async () => {
-      const mb = (n: number) => (n / 1048576).toFixed(1);
-      const buffer = await fetchArrayBufferWithProgress(
-        import.meta.env.BASE_URL + file.replace(/^\//, ""), {},   // respect the deploy base
-        (loaded, total) => setLoadingLabel(container,
-          `downloading ${label} ${Math.round(loaded / total * 100)}% (${mb(loaded)}/${mb(total)} MB)`));
-      setLoadingLabel(container, "preparing geometry…");
-      await loader.loadFragments(buffer, nextId(label));
-      await fitToModels();
-      notify(`loaded ${label}`, "success");
-    });
-  }
-  async function convertAndLoad(file: File) {
-    await withLoading(container, `converting ${file.name} (Autodesk bridge)`, async () => {
-      const fd = new FormData(); fd.append("file", file);
-      const res = await fetch(api.url("/convert"), { method: "POST", body: fd, headers: api.authHeaders() });
-      if (!res.ok) { const msg = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(msg.detail || "conversion unavailable"); }
-      await loader.loadFragments(await res.arrayBuffer(), nextId(file.name));
-      await fitToModels();
-      notify(`converted + loaded ${file.name}`, "success");
-    });
-  }
-  function download(blob: Blob, name: string) {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob); a.download = name; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  }
-  // running inside the Tauri desktop shell? then use native file dialogs + fs
-  const isTauri = () => "__TAURI_INTERNALS__" in window;
-
-  async function tauriOpen(kind: "ifc" | "frag" | "convert") {
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const { readFile } = await import("@tauri-apps/plugin-fs");
-    const exts = kind === "ifc" ? ["ifc"] : kind === "frag" ? ["frag"] : ["rvt", "dwg", "nwc"];
-    const path = await open({ multiple: false, filters: [{ name: kind.toUpperCase(), extensions: exts }] });
-    if (!path || typeof path !== "string") return;
-    const bytes = await readFile(path);
-    const name = path.split(/[\\/]/).pop() || "model";
-    await withLoading(container, `loading ${name}`, async () => {
-      if (kind === "frag") await loader.loadFragments(bytes, nextId(name));
-      else if (kind === "ifc") await loader.loadIfc(bytes, nextId(name));
-      else {
-        const fd = new FormData(); fd.append("file", new Blob([bytes as BlobPart]), name);
-        const res = await fetch(api.url("/convert"), { method: "POST", body: fd, headers: api.authHeaders() });
-        if (!res.ok) { const m = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(m.detail || "conversion unavailable"); }
-        await loader.loadFragments(await res.arrayBuffer(), nextId(name));
-      }
-      await fitToModels();
-      notify(`loaded ${name}`, "success");
-    });
-  }
-  function triggerOpen(kind: "ifc" | "frag" | "convert") {
-    if (isTauri()) void tauriOpen(kind); else $(`${kind}-input`).click();
-  }
-
-  async function tauriSave(defaultName: string, ext: string, bytes: Uint8Array): Promise<boolean> {
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    const { writeFile } = await import("@tauri-apps/plugin-fs");
-    const path = await save({ defaultPath: defaultName, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
-    if (!path) return false;
-    await writeFile(path, bytes); notify(`saved ${path}`, "success"); return true;
-  }
-  async function exportFrag() {
-    const id = [...loader.fragments.list.keys()][0];
-    if (!id) { notify("no model loaded", "error"); return; }
-    const buf = new Uint8Array(await loader.fragments.list.get(id)!.getBuffer(false));
-    if (isTauri()) { await tauriSave(`${id}.frag`, "frag", buf); return; }
-    download(new Blob([buf]), `${id}.frag`);
-    notify(`exported ${id}.frag`, "success");
-  }
-  async function exportIfc() {
-    if (!projectId) { notify("connect a project to export its IFC", "error"); return; }
-    if (isTauri()) {
-      const res = await fetch(api.url(`/projects/${projectId}/source.ifc`), { headers: api.authHeaders() });
-      if (!res.ok) { notify("no source IFC to export", "error"); return; }
-      await tauriSave("model.ifc", "ifc", new Uint8Array(await res.arrayBuffer()));
-      return;
-    }
-    window.open(api.url(`/projects/${projectId}/source.ifc`), "_blank");
-  }
+  // REL-4 leaf: all file open/import/export paths live in fileIO.ts
+  const fileIO = installFileIO({
+    viewer, loader, api, container, projectId: () => projectId, connected: () => connected,
+    notify, setStatus, nextId, referenceModels,
+    refreshFederation: () => refreshFederation(), fitToModels: () => fitToModels(),
+    waitForPublish: (pid, cb) => waitForPublish(pid, cb), loadProjectModel: () => loadProjectModel(),
+    buildToolsPanel: () => buildToolsPanel(), buildClashPanel: () => buildClashPanel(),
+  });
+  const { openFile, addReferenceObject, loadSample, exportFrag, exportIfc, triggerOpen } = fileIO;
 
   // ---- floating toolbar ----------------------------------------------------
   const viewerTools = $("viewer-tools");

@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.456 — REL-4 slice 2: the file-IO leaf out of the viewer god-file
+
+- **`viewer/app.ts` 4,215 → 4,044 lines**: every file open / import / export path — IFC (small
+  in-browser parse, large via the server pipeline with replace-confirm + publish + reload), Fragments,
+  the paid convert bridge, reference overlays (mesh/point-cloud/basemap), sample models, and the
+  Tauri-native open/save dialogs — extracted into `viewer/fileIO.ts` (218 lines) behind an explicit
+  17-field deps seam. Pure extraction; `refCount` ownership moves into the leaf.
+- Verified: typecheck + eslint + vitest (121) + build green, and live in the running viewer the
+  `openFile("ifc", …)` dispatch reaches the legacy small-file branch with the correct loading overlay
+  (the in-pane WASM import worker itself is a documented headless-pane limitation, identical
+  before/after; the Fragments load path is proven by every boot). Cumulative REL-4: app.ts
+  **4,361 → 4,044** across two live-verified slices.
+
 ## v0.3.455 — REL-4 begins: the first live-verified leaf out of the viewer god-file
 
 - **`viewer/app.ts` 4,361 → 4,215 lines**: the environment & navigation tool set — render mode
