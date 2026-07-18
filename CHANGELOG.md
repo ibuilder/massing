@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.418 — WEB-LIVE + WEB-LEAKS: resilient live streams, no leaked listeners/geometry (P1 №5–6)
+
+- **SSE resilience** (P1 №5): a new `liveStream` core behind `modelStream` / `notificationStream` /
+  `pullPlanStream`. EventSource only auto-retries transient drops — a backend restart/deploy answered
+  with an HTTP error killed the stream **permanently and silently** (stale notification badge, frozen
+  pull-plan board, dead collab banner until a full reload). Streams now re-subscribe with bounded
+  backoff (5s→60s) and surface status; the workspace tab dims its badge + explains "live notifications
+  disconnected — reconnecting…"; the notification stream closes on `pagehide`.
+- **Listener leak** (P1 №6): `nodeCanvas.makeDraggable` added two **permanent** window listeners per
+  node (2×N handlers, all running on every pointer move, never removed). Listeners now attach only for
+  the duration of a drag and detach on mouseup.
+- **GPU leak** (P1 №6): a failed/errored draft publish orphaned the one-element preview Fragments model
+  (unique id per attempt → repeated failures accumulated geometry). The preview is now disposed
+  explicitly on every non-success outcome (`loader.disposeOne`).
+- Verified: typecheck + eslint + full vitest (88) + production build green.
+
 ## v0.3.417 — SEC-MCP: membership authorization in the MCP tool dispatch (P0 №4 — P0 complete)
 
 - **Security hardening** (upgrade-plan P0 №4, the last P0): `mcp_tools.dispatch` executed any tool

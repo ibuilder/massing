@@ -187,18 +187,25 @@ export function openNodeCanvas(opts: NodeCanvasOpts): void {
   }
 
   function makeDraggable(node: CanvasNode, handle: HTMLElement) {
-    let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false;
+    // window listeners attach only for the duration of a drag (mousedown → mouseup) — the old
+    // per-node permanent listeners leaked 2×N handlers and ran every one on each pointer move.
+    let sx = 0, sy = 0, ox = 0, oy = 0;
     handle.addEventListener("mousedown", (e) => {
-      dragging = true; sx = e.clientX; sy = e.clientY; ox = node.x; oy = node.y;
+      sx = e.clientX; sy = e.clientY; ox = node.x; oy = node.y;
       handle.style.cursor = "grabbing"; e.preventDefault();
+      const onMove = (ev: MouseEvent) => {
+        node.x = Math.max(0, ox + (ev.clientX - sx)); node.y = Math.max(0, oy + (ev.clientY - sy));
+        node.el.style.left = node.x + "px"; node.el.style.top = node.y + "px";
+        redrawEdges();
+      };
+      const onUp = () => {
+        handle.style.cursor = "grab";
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
     });
-    window.addEventListener("mousemove", (e) => {
-      if (!dragging) return;
-      node.x = Math.max(0, ox + (e.clientX - sx)); node.y = Math.max(0, oy + (e.clientY - sy));
-      node.el.style.left = node.x + "px"; node.el.style.top = node.y + "px";
-      redrawEdges();
-    });
-    window.addEventListener("mouseup", () => { if (dragging) { dragging = false; handle.style.cursor = "grab"; } });
   }
 
   runBtn.onclick = async () => {

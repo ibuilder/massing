@@ -53,4 +53,11 @@ export class ModelLoader {
     }
     await this.fragments.core.update(true);
   }
+
+  /** Remove one loaded model by id (no-op if absent) — e.g. an orphaned draft preview. */
+  async disposeOne(modelId: string) {
+    if (!this.fragments.list.has(modelId)) return;
+    await this.fragments.core.disposeModel(modelId);
+    await this.fragments.core.update(true);
+  }
 }

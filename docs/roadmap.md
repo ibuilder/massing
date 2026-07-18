@@ -78,10 +78,10 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
 
 ### 🟠 P1 — reliability & performance
 
-5. **WEB-LIVE — SSE resilience** — `modelStream`/`notificationStream`/`pullPlanStream` have no `onerror`/
+5. ✅ **WEB-LIVE — SHIPPED v0.3.418 — SSE resilience** — `modelStream`/`notificationStream`/`pullPlanStream` have no `onerror`/
    re-subscribe: a backend restart silently kills live updates until reload. Add bounded reconnect + a
    "live updates disconnected" surface; close the notification stream on `pagehide`.
-6. **WEB-LEAKS — listener & GPU leaks** — `nodeCanvas.makeDraggable` adds 2 permanent window listeners per
+6. ✅ **WEB-LEAKS — SHIPPED v0.3.418 — listener & GPU leaks** — `nodeCanvas.makeDraggable` adds 2 permanent window listeners per
    node (never removed); failed draft publishes orphan preview Fragments geometry (dispose in the catch).
 7. **DOC-RACE — sidecar index lost-update** — `docmanager.py`/`edit_history.py` read-modify-write a whole
    JSON index with no lock: concurrent uploads lose entries / duplicate ids. Per-project serialization

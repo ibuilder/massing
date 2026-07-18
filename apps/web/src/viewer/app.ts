@@ -1069,23 +1069,32 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     disarmDraft();
     draftProxies.fromParams(params, activeStoreyZ);                                   // instant optimistic proxy
     // incremental preview: real one-element geometry immediately (fail-open — keep the proxy on error)
+    let previewId: string | null = null;
     try {
       const pv = await api.editPreview(projectId, a.recipe, params);
-      if (pv?.frag) { await loader.loadFragments(pv.frag, `preview-${pv.guid || Date.now()}`); draftProxies.clear(); }
+      if (pv?.frag) {
+        previewId = `preview-${pv.guid || Date.now()}`;
+        await loader.loadFragments(pv.frag, previewId);
+        draftProxies.clear();
+      }
     } catch { /* preview unavailable — the optimistic proxy stands until the full reload */ }
-    await authorAndReload(a.recipe, params, a.label);
+    await authorAndReload(a.recipe, params, a.label, previewId);
   }
 
-  async function authorAndReload(recipe: string, params: Record<string, unknown>, label: string) {
+  async function authorAndReload(recipe: string, params: Record<string, unknown>, label: string,
+                                 previewId: string | null = null) {
+    // the preview model is normally reclaimed by loadProjectModel()'s disposeAll; on any non-done
+    // outcome it would otherwise orphan GPU geometry (unique id per attempt) — dispose it explicitly.
+    const dropPreview = async () => { if (previewId) { await loader.disposeOne(previewId).catch(() => {}); } };
     await withLoading(container, `authoring ${label} + republishing`, async () => {
       try {
         await api.editIfc(projectId!, recipe, params, true);
         notify(`${label} authored — converting…`, "info");
         const state = await waitForPublish(projectId!);
         if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); notify(`${label} applied${shown ? " — shown" : ""}`, "success"); }
-        else notify(`${label} authored — publish ${state}`, state === "error" ? "error" : "info");
+        else { await dropPreview(); notify(`${label} authored — publish ${state}`, state === "error" ? "error" : "info"); }
         await reloadModelPins();
-      } catch (err) { draftProxies.clear(); notify(`${label} failed: ${(err as Error).message}`, "error"); }
+      } catch (err) { draftProxies.clear(); await dropPreview(); notify(`${label} failed: ${(err as Error).message}`, "error"); }
     });
   }
 

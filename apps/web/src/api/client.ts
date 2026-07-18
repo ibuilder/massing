@@ -15,6 +15,9 @@ import type {
   Topic, Vec3, Viewpoint, WorkItem,
 } from "./types";
 
+/** Handle for a resilient SSE subscription (see ApiClient.liveStream). */
+export interface LiveStream { readonly connected: boolean; close(): void }
+
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
 export class ApiClient extends HttpCore {
@@ -1530,11 +1533,44 @@ export class ApiClient extends HttpCore {
       editors: { user: string; seconds_ago: number; viewpoint: unknown }[]; editor_count: number;
     }>(`/projects/${pid}/collab`);
   }
+  /** Resilient SSE subscription. EventSource auto-retries transient network drops on its own, but a
+   *  fatal close (the server answered with an HTTP error — deploy, restart, auth expiry) kills the
+   *  stream permanently and silently. This helper re-subscribes with bounded backoff (5s → 60s) and
+   *  surfaces status transitions so a UI can say "live updates disconnected" instead of going quiet. */
+  private liveStream(path: string, onMessage: (data: unknown) => void,
+                     onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+    let es: EventSource | null = null;
+    let closed = false;
+    let retryMs = 5000;
+    let timer: number | undefined;
+    let connected = false;
+    const open = () => {
+      if (closed) return;
+      es = new EventSource(this.url(path));
+      es.onmessage = (e) => {
+        if (!connected) { connected = true; retryMs = 5000; onStatus?.("connected"); }
+        try { onMessage(JSON.parse(e.data)); } catch { /* malformed frame — skip it, keep the stream */ }
+      };
+      es.onerror = () => {
+        if (connected) { connected = false; onStatus?.("reconnecting"); }
+        // CLOSED = fatal response → schedule our own re-subscribe; CONNECTING = browser is retrying.
+        if (es && es.readyState === EventSource.CLOSED && !closed) {
+          timer = window.setTimeout(open, retryMs);
+          retryMs = Math.min(retryMs * 2, 60000);
+        }
+      };
+    };
+    open();
+    return {
+      get connected() { return connected; },
+      close() { closed = true; if (timer !== undefined) clearTimeout(timer); es?.close(); },
+    };
+  }
+
   /** Subscribe to the model-edit SSE stream; onMessage fires with the collab snapshot on each change. */
-  modelStream(pid: string, onMessage: (snap: unknown) => void): EventSource {
-    const es = new EventSource(this.url(`/projects/${pid}/model/stream`));
-    es.onmessage = (e) => { try { onMessage(JSON.parse(e.data)); } catch { /* ignore */ } };
-    return es;
+  modelStream(pid: string, onMessage: (snap: unknown) => void,
+              onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+    return this.liveStream(`/projects/${pid}/model/stream`, onMessage, onStatus);
   }
 
   // AUTH-VS: execute a recipe graph (visual node authoring) as one GUID-stable pass
@@ -2689,18 +2725,18 @@ export class ApiClient extends HttpCore {
     return this.json<{ ok: boolean; last_seen_at: string }>(
       `/projects/${pid}/modules/${key}/views/${vid}/seen`, { method: "POST" });
   }
-  /** SSE stream of the notification feed; returns the EventSource so callers can close it. */
-  notificationStream(pid: string, onMessage: (d: { count: number; items: NotifItem[] }) => void): EventSource {
-    const es = new EventSource(this.url(`/projects/${pid}/notifications/stream`));
-    es.onmessage = (e) => { try { onMessage(JSON.parse(e.data)); } catch { /* ignore */ } };
-    return es;
+  /** SSE stream of the notification feed; returns a resilient handle so callers can close it. */
+  notificationStream(pid: string, onMessage: (d: { count: number; items: NotifItem[] }) => void,
+                     onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+    return this.liveStream(`/projects/${pid}/notifications/stream`,
+                           onMessage as (d: unknown) => void, onStatus);
   }
   /** SSE stream of the pull-board change-signature; fires whenever any trade edits a sticky note so
-   *  the board can live-refresh. Returns the EventSource so callers can close it on teardown. */
-  pullPlanStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void): EventSource {
-    const es = new EventSource(this.url(`/projects/${pid}/pull-plan/stream`));
-    es.onmessage = (e) => { try { onMessage(JSON.parse(e.data)); } catch { /* ignore */ } };
-    return es;
+   *  the board can live-refresh. Returns a resilient handle so callers can close it on teardown. */
+  pullPlanStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void,
+                 onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+    return this.liveStream(`/projects/${pid}/pull-plan/stream`,
+                           onMessage as (d: unknown) => void, onStatus);
   }
   searchAll(pid: string, q: string, limit = 50) {
     return this.json<WorkItem[]>(`/projects/${pid}/search?q=${encodeURIComponent(q)}&limit=${limit}`);

@@ -1414,10 +1414,15 @@ function connectNotifications() {
   let badge = ws.querySelector<HTMLElement>(".ws-badge");
   if (!badge) { badge = document.createElement("span"); badge.className = "ws-badge"; ws.appendChild(badge); }
   try {
-    api.notificationStream(projectId, ({ count }) => {
+    const stream = api.notificationStream(projectId, ({ count }) => {
       badge!.textContent = count > 0 ? String(count) : "";
       badge!.style.display = count > 0 ? "" : "none";
+    }, (s) => {
+      // surface a silent disconnect instead of the badge just going stale
+      ws.title = s === "reconnecting" ? "Live notifications disconnected — reconnecting…" : "";
+      badge!.style.opacity = s === "reconnecting" ? "0.5" : "";
     });
+    window.addEventListener("pagehide", () => stream.close(), { once: true });
   } catch { /* SSE unsupported / offline */ }
 }
 
