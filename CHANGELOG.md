@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.425 — PERMIT-CHECK: permit-submission readiness in one report (P3 №14)
+
+- **New capability** (upgrade-plan P3 №14; cities are rolling out AI plan review in 2026 — applicants
+  who arrive pre-checked win the queue). `permit_check.readiness` composes what the platform already
+  computes into the intake report a permit tech would produce:
+  - the **computed egress check** (IBC 1004/1005 from the model's spaces + doors — a shortfall is a
+    plan-review *rejection*, ranked critical), the **approvability pre-flight** (≥80% bar), and the
+    **code-analysis summary** (occupancy group + construction type declared, jurisdiction-adopted
+    edition resolved);
+  - the **drawing register's required sheet series** (G code analysis · A · S · M · E · P) — each
+    present/missing with counts.
+- Output: an intake **checklist** (requirement · satisfied · evidence), the **deficiency list** ranked
+  critical → major → minor with concrete actions, readiness %, and a READY / NOT-READY verdict — with
+  the not-a-certified-review disclaimer. `GET /projects/{pid}/permit/readiness`.
+- Verified end-to-end: 409 without a model; a seeded 2-storey model + spaces produces the composed
+  report; registering the six sheet series + declaring occupancy/type/jurisdiction flips the rows and
+  raises readiness. Fixed en route: the engine takes an edition *year*, not a jurisdiction string (the
+  test caught the misuse live). codecheck/approvability/code-analysis suites green.
+
 ## v0.3.424 — CARBON-EC3: compliance-grade embodied carbon off the model itself (P3 №13)
 
 - **New capability** (upgrade-plan P3 №13; LEED v5 makes an embodied-carbon inventory **mandatory for

@@ -115,6 +115,28 @@ def approvability(pid: str, db: Session = Depends(get_db), _: str = Depends(requ
     return codecheck.approvability(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/permit/readiness")
+def permit_readiness(pid: str, occupancy_group: str = "", construction_type: str = "",
+                     sprinklered: bool = False, jurisdiction: str = "",
+                     db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """PERMIT-CHECK: permit-submission readiness — the intake report a permit tech would produce.
+    Composes the computed egress check (rejection-grade), the approvability pre-flight, the code-analysis
+    summary (jurisdiction edition), and the drawing register's required sheet series into one checklist +
+    ranked deficiency list with a READY / NOT-READY verdict. Pre-check assist; the AHJ rules."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import permit_check
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — permit readiness needs a model")
+    return permit_check.readiness(db, pid, open_model(p.source_ifc),
+                                  occupancy_group=occupancy_group,
+                                  construction_type=construction_type,
+                                  sprinklered=sprinklered, jurisdiction=jurisdiction)
+
+
 @router.get("/projects/{pid}/rfi/readiness")
 def rfi_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """RFI-0: the **decision-readiness audit** — the proactive inverse of the RFI. Scans the model for the
