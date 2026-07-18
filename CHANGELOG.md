@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.429 — UI-SURFACE: schedule acceleration levers on the Schedule panel (P2 №11)
+
+- Surfaced the **schedule-optimization advisory** (`/schedule/optimize`) — it was API-only. The Schedule
+  panel now shows a "🚀 Acceleration levers" card directly under the Monte Carlo risk card: the crash
+  candidates (longest critical activities) and fast-track candidates (consecutive critical activities to
+  overlap) with the days each saves, the best-single-lever headline, and the optional AI narrative. The
+  pairing is the point — the risk card says *how late you might be*, this card says *how to pull it back*.
+- Advisory only (it never rewrites the schedule), and it degrades to a hint when the network has no
+  critical path. Verified: typecheck + eslint + vitest + build green.
+- *(№11 note: the earlier "~70 unused client methods" over-counted — most flagged names are authoring
+  recipes dispatched by string, or methods surfaced under a variant name like `bidLevelingDetail`; the
+  genuinely-dark high-value read endpoints are being surfaced, not deleted.)*
+
 ## v0.3.428 — 5D-BIND: every GlobalId carries its live cost (+carbon) row (P3 №17)
 
 - **New capability** (upgrade-plan P3 №17 — the last buildable P3 item; №16 LAYOUT-EXPORT was found

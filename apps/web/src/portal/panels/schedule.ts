@@ -68,6 +68,34 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       riskBody.append(t);
     }
   }).catch((e) => { riskBody.innerHTML = `<div class="meta">risk simulation failed: ${(e as Error).message}</div>`; });
+
+  // --- Schedule acceleration (advisory): crash + fast-track levers off the critical path ----------
+  const accCard = document.createElement("div"); accCard.className = "dash-card"; accCard.style.marginBottom = "10px";
+  accCard.innerHTML = `<div class="section-title">🚀 Acceleration levers (advisory)</div>`;
+  const accBody = document.createElement("div"); accBody.innerHTML = `<div class="meta">analyzing the critical path…</div>`;
+  accCard.appendChild(accBody); ctx.root.appendChild(accCard);
+  ctx.host.api.scheduleOptimize(pid).then((r) => {
+    if (r.has_cycle || !r.critical_count) { accBody.innerHTML = `<div class="meta">${r.headline || "Add a schedule with predecessors to find acceleration levers."}</div>`; return; }
+    accBody.innerHTML = `<div>${r.headline} <span class="meta">· best single lever saves ~<b>${r.best_single_lever_days}d</b></span></div>`;
+    const levers = [
+      ...r.crash.slice(0, 3).map((x) => ({ kind: "crash", name: x.name, ref: x.ref, days: x.days_potential, detail: x.detail })),
+      ...r.fast_track.slice(0, 3).map((x) => ({ kind: "fast-track", name: x.name, ref: x.ref, days: x.days_potential, detail: x.detail })),
+    ];
+    if (levers.length) {
+      const t = document.createElement("table"); t.className = "portal-table"; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
+      t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Lever</th><th scope="col" style="text-align:left">Activity</th>`
+        + `<th scope="col">Saves</th></tr></thead><tbody>`
+        + levers.map((l) => `<tr><td><span class="meta">${l.kind}</span></td>`
+          + `<td>${l.name || l.ref || ""} <span class="meta">— ${l.detail}</span></td>`
+          + `<td style="text-align:center;color:var(--status-good)">${l.days}d</td></tr>`).join("") + `</tbody>`;
+      accBody.append(t);
+    }
+    if (r.ai_enabled && r.narrative) {
+      const n = document.createElement("div"); n.className = "meta"; n.style.marginTop = "4px"; n.textContent = r.narrative;
+      accBody.append(n);
+    }
+    accBody.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:3px">Advisory only — the platform never rewrites your schedule.</div>`);
+  }).catch((e) => { accBody.innerHTML = `<div class="meta">acceleration analysis failed: ${(e as Error).message}</div>`; });
   const ppState = (s: string) => s === "done" ? "var(--status-good)" : s === "not_done" ? "var(--status-crit)"
     : s === "committed" ? "var(--accent)" : s === "made_ready" ? "var(--status-warn)" : "var(--muted)";
   const loadPull = (milestone: string) => {
