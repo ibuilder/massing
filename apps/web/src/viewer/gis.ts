@@ -197,6 +197,92 @@ export async function loadGisFile(file: File): Promise<GisResult> {
   return loadGeoJson(await file.text(), file.name);    // geojson / json
 }
 
+// --- SITE-1: open-geodata site context (OSM buildings/roads/landuse) --------
+interface SiteFeature { properties: Record<string, unknown>; geometry: { type: string; coordinates: unknown } }
+
+/**
+ * Build the extruded site-context layer from the server's normalized GeoJSON (see /site-context):
+ * buildings become height-extruded prisms (tagged height, else levels×3 m, else 6 m), roads become
+ * ground-level lines, land-use parcels a translucent fill. Projection is centred on the FETCH
+ * anchor (`centerLat/centerLon`) — the same point the model is georeferenced to — so the context
+ * lands in the model's frame, not the data centroid's. OSM data is ODbL; show `attribution`.
+ */
+export function buildSiteContext(gj: { features: SiteFeature[] }, centerLat: number, centerLon: number): GisResult {
+  const c: Center = { x: centerLon, y: centerLat, ll: true };
+  const group = new THREE.Group(); group.name = "site-context";
+  const wallPts: number[] = [], roofPts: number[] = [], roadPts: number[] = [], usePts: number[] = [];
+  let nB = 0, nR = 0, nU = 0;
+
+  const prism = (ring: Pos[], h: number) => {
+    const flat: number[] = []; const pts: [number, number][] = [];
+    for (const p of ring) { const [x, y] = project(p, c); flat.push(x, y); pts.push([x, y]); }
+    const tris = earcut(flat, [], 2);
+    for (const idx of tris) {
+      const fx = flat[idx * 2], fy = flat[idx * 2 + 1];
+      if (fx === undefined || fy === undefined) continue;
+      roofPts.push(fx, h, -fy);                                  // roof cap at height
+    }
+    for (let i = 0; i < pts.length - 1; i++) {                   // side walls (two tris per edge)
+      const a = pts[i], b = pts[i + 1];
+      if (!a || !b) continue;
+      wallPts.push(a[0], 0, -a[1], b[0], 0, -b[1], b[0], h, -b[1]);
+      wallPts.push(a[0], 0, -a[1], b[0], h, -b[1], a[0], h, -a[1]);
+    }
+  };
+
+  for (const f of gj.features || []) {
+    const kind = f.properties?.kind;
+    if (kind === "building" && f.geometry.type === "Polygon") {
+      const rings = f.geometry.coordinates as Pos[][];
+      const ring = rings[0];
+      if (!ring || ring.length < 4) continue;
+      const h = Number(f.properties.height) || 6.0;
+      prism(ring, h); nB++;
+    } else if (kind === "road" && f.geometry.type === "LineString") {
+      const cs = f.geometry.coordinates as Pos[];
+      for (let i = 0; i < cs.length - 1; i++) {
+        const p0 = cs[i], p1 = cs[i + 1];
+        if (!p0 || !p1) continue;
+        const [x0, y0] = project(p0, c), [x1, y1] = project(p1, c);
+        roadPts.push(x0, 0.05, -y0, x1, 0.05, -y1);
+      }
+      nR++;
+    } else if (kind === "landuse" && f.geometry.type === "Polygon") {
+      const rings = f.geometry.coordinates as Pos[][];
+      const ring = rings[0];
+      if (!ring || ring.length < 4) continue;
+      const flat: number[] = [];
+      for (const p of ring) { const [x, y] = project(p, c); flat.push(x, y); }
+      for (const idx of earcut(flat, [], 2)) {
+        const fx = flat[idx * 2], fy = flat[idx * 2 + 1];
+        if (fx === undefined || fy === undefined) continue;
+        usePts.push(fx, 0.01, -fy);
+      }
+      nU++;
+    }
+  }
+
+  const mesh = (pts: number[], mat: THREE.Material) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+    geo.computeVertexNormals();
+    return new THREE.Mesh(geo, mat);
+  };
+  if (usePts.length) group.add(mesh(usePts, new THREE.MeshStandardMaterial({
+    color: 0x4a6b4f, transparent: true, opacity: 0.30, side: THREE.DoubleSide, roughness: 1 })));
+  if (wallPts.length) group.add(mesh(wallPts, new THREE.MeshStandardMaterial({
+    color: 0x9aa3ad, transparent: true, opacity: 0.85, side: THREE.DoubleSide, roughness: 0.95 })));
+  if (roofPts.length) group.add(mesh(roofPts, new THREE.MeshStandardMaterial({
+    color: 0xb8bfc7, transparent: true, opacity: 0.9, side: THREE.DoubleSide, roughness: 1 })));
+  if (roadPts.length) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(roadPts, 3));
+    group.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x5c6570 })));
+  }
+  if (!group.children.length) throw new Error("no site features in range — try a larger radius");
+  return { object: group, info: `${nB} buildings · ${nR} roads · ${nU} parcels` };
+}
+
 // --- slippy-map basemap (opt-in, self-hosted tiles) -------------------------
 export interface BasemapOpts { template: string; lat: number; lon: number; zoom?: number; radius?: number; }
 

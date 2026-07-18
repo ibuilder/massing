@@ -22,10 +22,11 @@ priorities below favor what that unblocked.
    health · classification · keynotes · drawing-set QA · pinned IDS · open BCF), deep-links each one,
    and gates `POST /drawing-set/issue` (verdict stamped on the record; `enforce` → 409 on HOLD; UI
    🚦 button + ⛔ one-shot override). Also fixed the latent `table()` `innerHTML +=` handler-killer.
-3. **SITE-1 first slice — open-geodata site context** *(M · ★★★★)* — drop the georeferenced model onto
-   real context: OSM building footprints + parcels as extruded GeoJSON blocks + terrain DEM, as a
-   separate reference layer (`gis.ts` loaders ship; this adds the fetch/compose UX). OSM = ODbL
-   attribution, separate layer; viewer stays offline-capable (context is opt-in).
+3. ✅ **SITE-1 first slice — SHIPPED v0.3.460** *(★★★★)* — Open ▾ → Add site context: OSM buildings
+   (height-extruded) + roads + land-use around the georeferenced site, fetched once server-side and
+   cached (offline after), ODbL attribution shown. Live-verified: Empire State roof at exactly 443.2 m.
+   *(Remaining slices: terrain DEM auto-fetch and parcel overlays — user-supplied GeoTIFF DEMs
+   already load via `gis.ts`.)*
 4. **UX-2 remaining — snap-as-you-place annotation** *(M)* — SketchUp-style endpoint/midpoint/edge
    snapping + live guide lines while placing notes/dims/tags, extending the shipped `snapEngine`
    (`resolveSnap`/`segmentSnaps` are built and tested; this is the placement-flow wiring).

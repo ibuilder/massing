@@ -152,6 +152,40 @@ async function addBasemapFlow() {
   }
 }
 
+/**
+ * SITE-1: opt-in open-geodata site context — OSM building footprints (height-extruded), roads and
+ * land-use parcels around the project, as a separate reference layer. The server fetches Overpass
+ * ONCE and caches the GeoJSON, so the viewer stays offline-capable afterwards. OSM data is ODbL —
+ * the attribution is shown with the layer.
+ */
+async function addSiteContextFlow() {
+  const { toast } = await import("./ui/feedback");
+  if (!projectId) { toast("Open a project first", "info"); return; }
+  const ll = await askText("Site Context (OSM)", {
+    label: "Site latitude, longitude — leave blank to use the model's georeference (IfcSite)",
+    value: "",
+  });
+  if (ll === null) return;                                    // cancelled
+  let lat: number | undefined, lon: number | undefined;
+  if (ll.trim()) {
+    const parts = ll.split(",").map((s) => parseFloat(s.trim()));
+    if (parts.length !== 2 || parts.some((v) => v === undefined || !isFinite(v))) { toast("invalid lat/lon", "error"); return; }
+    [lat, lon] = parts as [number, number];
+  }
+  const radius = parseFloat((await askText("Site Context Radius", { label: "Radius in metres (50–2000)", value: "300" })) || "300");
+  try {
+    toast("Fetching site context (OSM)…", "info");
+    const res = await api.siteContext(projectId, { lat, lon, radius });
+    const gis = await import("./viewer/gis");
+    const built = gis.buildSiteContext(res.geojson, res.lat, res.lon);
+    const v = await ensureViewer();
+    v.addReferenceObject(built.object, `site context — ${built.info}`);
+    toast(`Site context added — ${built.info} · ${res.attribution}`, "success");
+  } catch (e) {
+    toast(`site context failed: ${(e as Error).message}`, "error");
+  }
+}
+
 // ---- Open / Save dropdown menus (extracted to ./ui/menus) -------------------
 const dismissMenusIfOutside = (e: Event) => { if (!(e.target as HTMLElement).closest(".menu")) closeMenus(); };
 document.addEventListener("pointerdown", dismissMenusIfOutside, true);
@@ -166,6 +200,7 @@ buildMenu("open-menu", "Open ▾", [
   { label: "Open Fragments (.frag)…", onClick: () => openModelFile("frag") },
   { label: "Open mesh / point cloud / GIS / reality capture…", onClick: () => openModelFile("ref") },
   { label: "Add basemap (self-hosted tiles)…", onClick: () => void addBasemapFlow() },
+  { label: "Add site context (OSM buildings)…", onClick: () => void addSiteContextFlow() },
   { label: "Sample models", sep: true },
   { label: "School — Structural", onClick: () => withViewer((v) => void v.loadSample("/school_str.frag", "School (Structural)")) },
   { label: "School — Architectural", onClick: () => withViewer((v) => void v.loadSample("/school_arq.frag", "School (Architectural)")) },

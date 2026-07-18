@@ -419,6 +419,20 @@ export class ApiClient extends HttpCore {
   preflight(pid: string) {
     return this.json<PreflightGate>(`/projects/${pid}/preflight`);
   }
+  /** SITE-1: OSM site context (buildings/roads/land-use) as GeoJSON — fetched once server-side,
+   *  cached for offline use afterwards. Omit lat/lon to use the model's IfcSite georeference. */
+  siteContext(pid: string, opts: { lat?: number; lon?: number; radius?: number; refresh?: boolean } = {}) {
+    const q = new URLSearchParams();
+    if (opts.lat !== undefined) q.set("lat", String(opts.lat));
+    if (opts.lon !== undefined) q.set("lon", String(opts.lon));
+    if (opts.radius !== undefined) q.set("radius", String(opts.radius));
+    if (opts.refresh) q.set("refresh", "true");
+    const qs = q.toString();
+    return this.json<{ lat: number; lon: number; radius: number; attribution: string;
+      counts: Record<string, number>; geojson: { features: { properties: Record<string, unknown>;
+      geometry: { type: string; coordinates: unknown } }[] } }>(
+      `/projects/${pid}/site-context${qs ? "?" + qs : ""}`);
+  }
   /** The issuance history (every release, purpose, date, sheet count, recipients). */
   drawingIssuances(pid: string) {
     return this.json<{ issuance_count: number; by_purpose: Record<string, number>;

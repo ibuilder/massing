@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.460 — SITE-1: open-geodata site context — drop the model onto its real surroundings (P1 #3)
+
+- **One click adds the neighborhood.** Open ▾ → *Add site context (OSM buildings)…* fetches the
+  OpenStreetMap **building footprints (height-extruded), roads, and land-use parcels** around the
+  site and renders them as a separate reference layer under the model. Coordinates come from the
+  model's georeference (IfcSite lat/long, DMS→decimal) or typed lat/lon; radius 50–2000 m.
+- **Fetch-once, offline-after.** The server (`site_context.py` + `GET /projects/{pid}/site-context`)
+  queries Overpass once and caches the normalized GeoJSON in object storage — afterwards the layer
+  loads fully offline (live: first fetch 4.7 s, cache hit 59 ms). `refresh=true` re-queries; DELETE
+  clears. OSM data is **ODbL** — the attribution ships in every payload and shows with the layer.
+- **Real heights.** Buildings extrude to their tagged `height` (else `building:levels` × 3 m, else
+  6 m). Live-verified in Midtown Manhattan: 210 buildings / 249 roads; the Empire State Building's
+  roof lands at exactly **443.2 m** in the scene; projection is centred on the fetch anchor so the
+  context sits in the model's frame.
+- Engine follows the injectable-transport client pattern — the test suite runs fully offline against
+  a MockTransport (`test_site_context.py`: DMS georef, Overpass→GeoJSON normalization, cache/409/
+  DELETE paths). Viewer code extends `gis.ts` (`buildSiteContext`: earcut roof caps + wall quads).
+- Typecheck / eslint / vitest (121) / build green; backend suite green.
+
 ## v0.3.459 — PREFLIGHT: the issuance gate now covers keynotes · drawing-set QA · pinned IDS, deep-links every check, and gates the Issue action (P1 #2)
 
 - **The pre-flight gate is now the full pre-issuance audit.** Three new lenses join model health /
