@@ -41,8 +41,9 @@ priorities below favor what that unblocked.
 7. **JOB-QUEUE migration** *(S/M)* — ✅ the artifact-job pattern + the heaviest path shipped
    v0.3.464 (`compiled_set_pdf` kind + `GET /jobs/{id}/artifact` streaming). Remaining paths to
    migrate onto it: PAdES sealing · large exports (.glb/IFC) · generative runs.
-8. **3D-HERO — package hero image** *(M)* — client screenshot-capture → upload → the project-package
-   PDF gets a real 3D hero render (the capture path; headless render stays out of scope).
+8. ✅ **3D-HERO — SHIPPED v0.3.465** — 📸 in the viewer captures the live canvas → `PUT /hero` →
+   the project package opens with a full-bleed 3D hero page. Live-verified (1.27 MB capture,
+   package grew to 10 pages with the image embedded).
 9. **SHEET-LINK — hyperlinked callouts** *(S · ★★★)* — clickable detail/section bubbles cross-link
    sheets in the SVG/PDF set (sheetgen + the markup layer).
 

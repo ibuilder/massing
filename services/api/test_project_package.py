@@ -61,6 +61,24 @@ with TestClient(app) as c:
     # cover + overview + drawing set (cover + 2 plans + schedules) + cost&feasibility = 7 pages
     assert pages >= 5, f"package should bundle several pages, got {pages}"
 
+    # --- 3D-HERO: pin a captured screenshot → it becomes a page of the package -------------------
+    assert c.get(f"/projects/{pid}/hero").status_code == 404                     # none yet
+    assert c.put(f"/projects/{pid}/hero",
+                 files={"file": ("h.png", b"not an image", "image/png")}).status_code == 400
+    # a small REAL PNG (Pillow-generated — reportlab decodes it into the hero page)
+    from PIL import Image
+    _pngbuf = io.BytesIO()
+    Image.new("RGB", (64, 40), (30, 60, 120)).save(_pngbuf, "PNG")
+    ok = c.put(f"/projects/{pid}/hero", files={"file": ("h.png", _pngbuf.getvalue(), "image/png")})
+    assert ok.status_code == 200 and ok.json()["stored"] is True, ok.text[:160]
+    g = c.get(f"/projects/{pid}/hero")
+    assert g.status_code == 200 and g.headers["content-type"].startswith("image/png"), g.status_code
+    r2 = c.get(f"/projects/{pid}/project-package.pdf?max_sheets=4")
+    pages2 = len(PdfReader(io.BytesIO(r2.content)).pages)
+    assert pages2 == pages + 1, f"hero page should join the package ({pages} → {pages2})"
+    assert c.delete(f"/projects/{pid}/hero").json()["deleted"] is True
+    assert c.get(f"/projects/{pid}/hero").status_code == 404
+
 print("PROJECT-PACKAGE OK - /projects/{pid}/project-package.pdf bundles ONE shareable client deliverable: "
       "a cover/contents, a visual overview (plan · section · elevation composed sheet), the compiled "
       "drawing set, and a cost & feasibility summary (model-takeoff estimate by discipline + the developer "

@@ -492,6 +492,24 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     setStatus("section box on (toggle to clear)");
   });
 
+  // 3D-HERO: capture the current 3D view → the project's hero image (page 2 of the package PDF).
+  // Render one fresh frame synchronously before reading the canvas — WebGL buffers don't persist
+  // between frames (preserveDrawingBuffer is off), so a stale read gives a black image.
+  toolBtn("📸", "Capture hero image — this view becomes page 2 of the client project package (PDF)", (b) => {
+    if (!projectId) { notify("connect a project first", "error"); return; }
+    const r = viewer.world.renderer!.three;
+    r.render(viewer.world.scene.three, viewer.world.camera.three);
+    r.domElement.toBlob(async (blob) => {
+      if (!blob) { notify("couldn't capture the canvas", "error"); return; }
+      b.disabled = true;
+      try {
+        const res = await api.uploadHero(projectId!, blob);
+        notify(`hero captured (${Math.round(res.bytes / 1024)} KB) — it now leads the project package`, "success");
+      } catch (e) { notify(`hero upload failed: ${(e as Error).message}`, "error"); }
+      b.disabled = false;
+    }, "image/png");
+  });
+
   // REL-4 leaf: render mode + sun study + walk mode + levels overlay live in envTools.ts
   const envTools = installEnvTools({
     viewer, loader, api, projectId: () => projectId, toolBtn, notify, setStatus,

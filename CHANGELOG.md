@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.465 — 3D-HERO: capture the live 3D view as the project package's hero page (P1 #8)
+
+- **📸 one click in the viewer** renders a fresh frame, captures the WebGL canvas as a PNG, and pins
+  it as the project's **hero image** (`PUT /projects/{pid}/hero` — magic-byte checked, 10 MB cap;
+  GET streams it back, DELETE clears). The client project-package PDF now opens with it: a
+  full-bleed, aspect-preserved **3D hero page** right after the cover (`package.py::_hero_page`).
+  Headless server rendering stays out of scope — the capture path is the deliberate design.
+- Live-verified end-to-end: the 📸 button captured a real **1.27 MB PNG** of the live model view,
+  the server stored + streamed it back, and the package PDF grew to 10 pages with a 779 KB embedded
+  image on page 2.
+- `test_project_package` extended (404 → magic-byte 400 → PNG round-trip → package gains exactly one
+  page → DELETE); backend suite green; web typecheck / eslint / vitest (121) / build green.
+
 ## v0.3.464 — JOB-QUEUE: the compiled drawing-set PDF runs on the durable queue with a downloadable artifact (P1 #7 begins)
 
 - **Artifact jobs.** The durable queue gains its first binary-artifact kind: `compiled_set_pdf`

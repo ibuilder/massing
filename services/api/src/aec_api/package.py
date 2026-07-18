@@ -55,6 +55,33 @@ def _text_page(title: str, subtitle: str, blocks: list[tuple[str, list[tuple[str
     return buf.getvalue()
 
 
+def _hero_page(img_bytes: bytes, project_name: str) -> bytes:
+    """3D-HERO: a full-bleed page carrying the captured viewer screenshot, scaled to fit inside the
+    sheet border with its aspect ratio preserved."""
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=(_W_MM * mm, _H_MM * mm))
+    c.setLineWidth(1)
+    c.rect(8 * mm, 8 * mm, (_W_MM - 16) * mm, (_H_MM - 16) * mm)
+    img = ImageReader(BytesIO(img_bytes))
+    iw, ih = img.getSize()
+    # fit inside the frame (leave room for the caption strip at the bottom)
+    box_w, box_h = (_W_MM - 40), (_H_MM - 60)
+    scale = min(box_w / iw, box_h / ih)
+    dw, dh = iw * scale, ih * scale
+    x = (_W_MM - dw) / 2
+    y = 36 + (box_h - dh) / 2
+    c.drawImage(img, x * mm, y * mm, dw * mm, dh * mm, preserveAspectRatio=True, anchor="c")
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(28 * mm, 20 * mm, f"{project_name[:70]} — 3D view")
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def _money(n: float) -> str:
     try:
         return f"${float(n):,.0f}"
@@ -85,6 +112,15 @@ def project_package_pdf(db, pid: str, project_name: str, source_ifc: str,
         ("Contents", [("1", "Visual overview — plan · section · elevation"),
                       ("2", "Drawing set — cover, floor plans, schedules"),
                       ("3", "Cost & feasibility — model estimate + capital stack")])]))
+
+    # --- 1b) 3D hero — the captured viewer screenshot, when one is pinned (PUT /projects/{pid}/hero)
+    try:
+        from . import storage
+        hero_key = f"{pid}/hero.png"
+        if storage.exists(hero_key):
+            parts.append(_hero_page(storage.get(hero_key), project_name))
+    except Exception:  # noqa: BLE001 — the hero is best-effort
+        pass
 
     # --- 2) visual overview (composed multi-view sheet) ---------------------------------------------
     try:

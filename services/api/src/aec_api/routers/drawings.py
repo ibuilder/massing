@@ -61,6 +61,49 @@ def drawing_set_transmittal(pid: str, to: str = "", note: str = "", db: Session 
                     headers={"Content-Disposition": 'inline; filename="drawing-transmittal.pdf"'})
 
 
+def _hero_key(pid: str) -> str:
+    return f"{pid}/hero.png"
+
+
+@router.put("/projects/{pid}/hero")
+async def put_hero(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
+                   _: str = Depends(require_role("editor"))):
+    """3D-HERO: pin a captured viewer screenshot (PNG/JPEG) as the project's hero image — it becomes
+    page 2 of the client project package. 10 MB cap; magic-byte checked."""
+    from .. import storage
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    data = await file.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(413, "hero image too large (10 MB cap)")
+    if not (data[:8] == b"\x89PNG\r\n\x1a\n" or data[:2] == b"\xff\xd8"):
+        raise HTTPException(400, "expected a PNG or JPEG image")
+    storage.put(_hero_key(pid), data)
+    return {"stored": True, "bytes": len(data)}
+
+
+@router.get("/projects/{pid}/hero")
+def get_hero(pid: str, _: str = Depends(require_role("viewer"))):
+    """The project's hero image (404 when none captured)."""
+    from .. import storage
+    key = _hero_key(pid)
+    if not storage.exists(key):
+        raise HTTPException(404, "no hero image captured")
+    data = storage.get(key)
+    media = "image/png" if data[:8] == b"\x89PNG\r\n\x1a\n" else "image/jpeg"
+    return Response(data, media_type=media)
+
+
+@router.delete("/projects/{pid}/hero")
+def delete_hero(pid: str, _: str = Depends(require_role("editor"))):
+    from .. import storage
+    key = _hero_key(pid)
+    existed = storage.exists(key)
+    if existed:
+        storage.delete(key)
+    return {"deleted": existed}
+
+
 @router.get("/projects/{pid}/project-package/contents")
 def project_package_contents(pid: str, db: Session = Depends(get_db),
                              _: str = Depends(require_role("viewer"))):

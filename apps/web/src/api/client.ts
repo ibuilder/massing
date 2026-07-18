@@ -458,6 +458,13 @@ export class ApiClient extends HttpCore {
     const q = name ? "?name=" + encodeURIComponent(name) : "";
     return this.url(`/projects/${pid}/drawing-set/issuances/${iid}/sealed.pdf${q}`);
   }
+  /** 3D-HERO: pin a captured viewer screenshot as the project's hero image (page 2 of the package PDF). */
+  async uploadHero(pid: string, image: Blob) {
+    const fd = new FormData(); fd.append("file", image, "hero.png");
+    const r = await fetch(this.url(`/projects/${pid}/hero`), { method: "PUT", body: fd, headers: this.authHeaders() });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    return r.json() as Promise<{ stored: boolean; bytes: number }>;
+  }
   // --- PDF manipulation (server pypdf): merge / split / rotate / extract uploaded PDFs -----------
   /** Page count + flags for an uploaded PDF. */
   async pdfInfo(file: File) {
