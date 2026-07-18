@@ -37,9 +37,10 @@ upgrade plan** (v0.3.413–428 — P0 security → P1 reliability → P2 docs/de
 **What's still open** is consolidated in the two sections below — the 🎯 upgrade-plan remainder and the
 🧭 CAD-UX lessons — plus the standing engineering backlog:
 
-- **REL-4 — decompose the *web* hotspots** *(one PR each; typecheck/lint/vitest/build + tools-panel
-  verify)* — `viewer/app.ts` (worst file, and it just grew with CADCMD) split by responsibility; `main.ts`;
-  `portal.ts`. *(perf-sensitive — measure, don't guess.)*
+- **REL-4 — decompose the *web* hotspots** *(now live-verifiable — Gate A open)* — `viewer/app.ts` split
+  by responsibility, leaf-by-leaf with live proof; `main.ts`; `portal.ts`.
+  ✅ Slice 1 SHIPPED v0.3.455: envTools.ts (render/sun/walk/levels, 4,361→4,215) — all four tools
+  exercised in the running viewer post-extraction.
 - **REL-3 remainder** — `modules.py` CRUD/feeds (needs a DI pass, would cycle otherwise) · `main.py` ·
   rest of `data/drawings.py` / `drawing.py`. *(Diminishing returns — attack opportunistically.)*
 - ✅ DEV-3 (partial, v0.3.450): **incremental tsc** — local `npm run typecheck` 67s cold → **9.4s warm**

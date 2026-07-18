@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.455 — REL-4 begins: the first live-verified leaf out of the viewer god-file
+
+- **`viewer/app.ts` 4,361 → 4,215 lines**: the environment & navigation tool set — render mode
+  (sun + soft shadows), the **sun/shadow study** panel, the **first-person walkthrough**, and the
+  **storey levels overlay** — extracted into `viewer/envTools.ts` (180 lines) behind an explicit deps
+  seam (viewer, loader, toolbar factory, viewpoint capture, settings). Pure extraction; the sun study
+  now flips the render button via a direct reference instead of scanning the toolbar by title.
+- **Why this is the first app.ts split that could ship safely**: the newly-unblocked live loop proved
+  behaviour unchanged in the running viewer — render mode toggles, the sun panel opens and computes
+  (altitude 71° · azimuth 179° S for July noon at 40.7°N), walk mode engages, and the levels overlay
+  adds exactly one grid per storey (4). Typecheck + eslint + vitest (121) + build green.
+- REL-4 continues leaf-by-leaf with the same prove-it-live discipline.
+
 ## v0.3.454 — SHEET-VIEWPORTS complete: the interactive paper-space editor (lesson #8 done)
 
 - **Drawings ▸ ⊞ Paper space** — the client half of the v0.3.449 layout engine, live-verified:
