@@ -6,8 +6,10 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.438** (OpenAEC-study §🧭
-lessons 430–435 + the COST-DB localization/escalation arc 436–438). Recent waves
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.450** (the audit-remediation + roadmap-completion arc
+v0.3.441–450: audit fixes, GEN-SCORE, PLUGIN-REGISTRY, VIEWER-FUNNEL, perf, the authoring split,
+JOB-QUEUE, SHEET-VIEWPORTS server slice — every buildable open item shipped; the remainder is
+explicitly gated in the ⛔ section below). Recent waves
 (v0.3.393–431): the **dev-velocity & modularization program** — test gate parallelized ~30→~11 min,
 backend + web **import-cycle guards** in CI, and the worst hotspots decomposed behind façades (`edit.py`
 2127→761 via a foundation + five recipe leaves; `connectors.py` and the sheet renderers split the same
@@ -40,7 +42,11 @@ upgrade plan** (v0.3.413–428 — P0 security → P1 reliability → P2 docs/de
   `portal.ts`. *(perf-sensitive — measure, don't guess.)*
 - **REL-3 remainder** — `modules.py` CRUD/feeds (needs a DI pass, would cycle otherwise) · `main.py` ·
   rest of `data/drawings.py` / `drawing.py`. *(Diminishing returns — attack opportunistically.)*
-- **DEV-2 tail** (CI coverage upload · hotspot docstrings) · **DEV-3** (build/tsc speed) ·
+- ✅ DEV-3 (partial, v0.3.450): **incremental tsc** — local `npm run typecheck` 67s cold → **9.4s warm**
+  (buildinfo in `node_modules/.cache`, never committed; CI runs cold, unchanged there).
+  DEV-2 evaluated & closed: coverage-upload deferred with rationale (the gate runs 265 suites as parallel
+  subprocesses; cross-process coverage instrumentation costs ~30-50% wall on a ~10-min gate for a number
+  nobody acts on) · hotspot docstrings — the split modules carry full module/endpoint docs. ·
   ✅ REL-5/7 — CLOSED by evidence (v0.3.441 audit): `errorReporting.ts` already wires window.onerror +
   unhandledrejection to the O1 error log, panel promises carry near-universal `.catch` coverage, and the
   caller scan found no zero-caller client methods — the "~1,075 dead lines" claim didn't survive proof,
@@ -82,6 +88,34 @@ remainder (`modules.py` CRUD/feeds — needs a DI pass · `main.py` · rest of `
 verify) · REL-5/7 (error handling + verified dead-code) · DEV-3 (build/tsc speed) · COBie/parse robustness.
 
 ---
+
+## ⛔ Blocked / gated — what remains and exactly what unblocks it (2026-07-18)
+
+Every item still open after the v0.3.413–450 arcs carries a concrete gate. Nothing below is vague
+backlog; each entry names the unblocking event.
+
+**Gate A — live-viewer verification** *(the dev-preview geometry loader stalls at "preparing geometry",
+so interactive viewer flows can't be honestly verified in this environment; unblocked by a session with
+the viewer running against a live backend):*
+- SNAP-KIT phase 2 (osnap glyphs + dynamic-input overlay on the cursor — the tested engine is ready)
+- REL-4 (decompose `viewer/app.ts` 4,290 lines / `main.ts` / `portal.ts` — a blind refactor of the
+  viewer entry is imprudent without runtime proof; pure-leaf extractions continue opportunistically)
+- SHEET-VIEWPORTS interactive paper-space editor (drag viewports — the server endpoints are live)
+- SITE-1 multi-scale composed BIM↔GIS UX (the overlay loaders ship) · viewer tile-streaming upgrade ·
+  multiplayer cursors · AR field overlay
+
+**Gate B — upstream dependencies:** IFC5/IFCX geometry **write** (web-ifc/Fragments write-path) ·
+bSI Validation Service in CI (external service account).
+
+**Gate C — paid/networked services:** COST-DB cloud ingest (massing.cloud subscription + signed
+bundles; the custom + public importers ship) · APS RVT bridge beyond the shipped flag (paid Autodesk) ·
+SOC 2 feature set (KMS/retention/residency — cloud infra) · BMS/IoT telemetry (needs a
+Brick/Haystack-speaking building source).
+
+**Gate D — large optional builds** *(complete prerequisites ship today; each is a deliberate,
+multi-session build to start when wanted):* coupled-frame FEM solve (the analytical model is
+solver-ready) · server-rendered 3D hero · VIZ-U1 Unity bridge · reality-capture progress quantification ·
+the 🔮 frontier bets (PROFORMA-LIVE, COST-AGENT, BOARDS, ENV-1, READY-AGENT, RISK-BOARD).
 
 ## 🧭 CAD-UX lessons (2026-07-17, from the OpenAEC / Open CAD Studio study)
 
@@ -140,7 +174,9 @@ without fidelity gates (our per-release suite + IFC-QA roundtrip is exactly the 
 IFCX-as-foundation (IFC stays our source of truth; IFCX is a future *export*, tracked in №18).
 
 **📦 Tracked for later — large / needs nimbleness (attack once the cycle is fast; some worktree-forkable):**
-SITE-1 open-geodata BIM↔GIS view · ✅ **durable background-job queue SHIPPED v0.3.448** (`jobs.py`: DB-backed
+SITE-1 open-geodata BIM↔GIS view (🟡 the overlay half ships today — `viewer/gis.ts` loads GeoJSON
+vector / GeoTIFF DEM / self-hosted XYZ basemap as georeferenced reference objects; the multi-scale
+composed UX is viewer-gated, see ⛔) · ✅ **durable background-job queue SHIPPED v0.3.448** (`jobs.py`: DB-backed
 queued→running→done|error rows, per-process worker with crash recovery — orphaned `running` re-queues,
 idempotent-handler contract — a `register_kind` registry plugins can extend, `echo` + real `cobie_export`
 kinds, enqueue/poll/list endpoints with cross-project 404s; heavy inline paths migrate onto it

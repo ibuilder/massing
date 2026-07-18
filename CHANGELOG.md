@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.450 — roadmap completion: DEV-3 incremental typecheck + the ⛔ gated ledger
+
+- **DEV-3 (measured, not guessed)**: `tsc` incremental mode with the buildinfo in `node_modules/.cache`
+  (never committed) — local `npm run typecheck` **67s cold → 9.4s warm (7×)**; CI runs cold and is
+  unchanged. Typecheck + eslint + vitest (118) + build verified with the change.
+- **The roadmap reaches its honest completion point.** Every item that could be built and verified in
+  this environment has shipped across v0.3.413–450 (the audit remediation, GEN-SCORE, PLUGIN-REGISTRY,
+  VIEWER-FUNNEL, the zero-row portfolio roll-up, the authoring-router split, JOB-QUEUE, the
+  SHEET-VIEWPORTS server slice, and the CAD-UX lesson arc). What remains is now a **⛔ Blocked / gated
+  ledger** in the roadmap where every entry names its concrete unblocking event:
+  - **Gate A** live-viewer verification (SNAP-KIT phase 2, REL-4, the paper-space editor, SITE-1 UX,
+    tile-streaming, multiplayer cursors, AR);
+  - **Gate B** upstream dependencies (IFC5/IFCX write, bSI Validation Service);
+  - **Gate C** paid/networked services (cloud cost ingest, paid APS, SOC 2 infra, BMS/IoT telemetry);
+  - **Gate D** large optional builds with complete prerequisites (coupled-frame FEM, 3D hero, Unity,
+    reality capture, the frontier bets).
+- DEV-2 closed with rationale (cross-process coverage on a 265-suite parallel gate costs ~30-50% wall
+  for an unactioned number); SITE-1's overlay half noted as already shipping (`gis.ts` GeoJSON / DEM /
+  basemap loaders).
+
 ## v0.3.449 — SHEET-VIEWPORTS: true paper-space viewport composition (CAD-UX lesson #8, server slice)
 
 - **Sheets stop being fit-to-cell grids and become real paper space.** `sheet_layout.py`: a sheet is a
