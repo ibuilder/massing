@@ -7,6 +7,31 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## 🗓 Session v0.3.413–425 (2026-07-17) — the four-lane audit → prioritized upgrade cycle
+
+A full-platform evaluation (four parallel audit lanes: backend bugs, web frontend, docs/repo surface,
+2026 industry research) produced the **🎯 Upgrade plan** in [roadmap.md](roadmap.md), then executed it
+in priority order — every item its own verified CI-green release, CodeQL 0 throughout.
+
+- **413 — docs/repo surface**: README de-staled + neutral wording; status pages live-badged; roadmap
+  coherence; issue/PR templates; the plan itself.
+- **P0 security (414–417)**: **SEC-TENANT** (portfolio/benchmark roll-ups membership-scoped — was a
+  cross-tenant P&L/WIP leak; + search limit clamp + attachment predicate; `test_tenant_scoping.py`),
+  **WEB-BOOT** (corrupted `aec-settings` no longer bricks the app), **SEC-GUARD** (production guard on
+  any non-SQLite DB or `AEC_ENV=production`), **SEC-MCP** (membership authz in MCP dispatch).
+- **P1 reliability (418–420)**: **WEB-LIVE** (SSE re-subscribe + disconnected surface) + **WEB-LEAKS**
+  (drag-listener + preview-GPU leaks), **DOC-RACE** (per-project sidecar locks, 12-thread proof),
+  **TZ-UTC** (one UTC clock across 7 aging engines — the fix tripped its own drift live in tests).
+- **P2 docs/demo (421–422)**: **DEMO-REGEN** (Pages snapshot recaptured, 952 fixtures — was ~110
+  releases stale), **README-TRIM** (983→560) + June-audit supersede banners.
+- **P3 2026 capabilities (423–425)**: **SCHED-RISK** (Monte Carlo P10/50/80/90 over the CPM network,
+  criticality index, delay drivers, PPC-calibrated tail), **CARBON-EC3** (per-element A1–A3 off the
+  model, Buy Clean limit check, LEED-style inventory — LEED v5 mandate effective 2026-07-01),
+  **PERMIT-CHECK** (submission-readiness report over the code engines + drawing register).
+
+*Remaining plan items live in roadmap.md §🎯: UI-SURFACE (№11), QA-AGENT (№15), LAYOUT-EXPORT (№16),
+5D-BIND (№17), and the №18 later-bucket.*
+
 ## 🗓 Session v0.3.398–412 (2026-07-17) — code-gap closeouts + the REL-3 leaf marathon
 
 Two arcs in one session: the **code-gap sweep** (verifiable analysis/QA wins pulled forward while
