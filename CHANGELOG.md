@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.457 — roadmap reorganized: completed work archived, open items re-prioritized
+
+- **`docs/roadmap.md` 679 → ~130 lines, open items only.** The full pre-reprioritization snapshot —
+  every ✅/🟡-shipped entry across the UI/UX pass, Waves 9–11, the frontier bets, CAD-UX lessons,
+  REL/enterprise tracks — is preserved verbatim in `roadmap-completed.md` as a dated archive section.
+- The live roadmap is now three rings: **P1** (9 buildable, live-verifiable items, led by multiplayer
+  cursors · the PREFLIGHT issuance gate · SITE-1 site context · snap-as-you-place annotation ·
+  QTO→CPM durations · continued REL-4 slices · JOB-QUEUE migration · the package 3D hero · sheet
+  hyperlinks), **P2** (the designer-workspace, CD-depth, authoring, AI-agent, finance, reliability and
+  onboarding rings), and **P3 gated** (each entry names its concrete unblocking event), plus documented
+  non-goals + license guardrails.
+
 ## v0.3.456 — REL-4 slice 2: the file-IO leaf out of the viewer god-file
 
 - **`viewer/app.ts` 4,215 → 4,044 lines**: every file open / import / export path — IFC (small
