@@ -6,7 +6,8 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.431**. Recent waves
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.438** (OpenAEC-study §🧭
+lessons 430–435 + the COST-DB localization/escalation arc 436–438). Recent waves
 (v0.3.393–431): the **dev-velocity & modularization program** — test gate parallelized ~30→~11 min,
 backend + web **import-cycle guards** in CI, and the worst hotspots decomposed behind façades (`edit.py`
 2127→761 via a foundation + five recipe leaves; `connectors.py` and the sheet renderers split the same
