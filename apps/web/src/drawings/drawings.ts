@@ -52,6 +52,20 @@ export class DrawingsUI {
     takeoff.style.cssText = "margin-bottom:8px;width:100%";
     takeoff.onclick = () => void import("./pdfTakeoff").then((m) => m.openPdfTakeoff());
     side.appendChild(takeoff);
+    // SHEET-VIEWPORTS: the interactive paper-space editor over the server layout endpoints
+    const layoutBtn = document.createElement("button");
+    layoutBtn.className = "file-btn"; layoutBtn.textContent = "⊞ Paper space";
+    layoutBtn.title = "Compose viewports on a sheet — drag rectangles, fixed scales, class freeze, PDF";
+    layoutBtn.style.cssText = "margin-bottom:8px;width:100%";
+    layoutBtn.onclick = () => {
+      const pid = this.host_.projectId();
+      if (!pid) { this.host_.setStatus("connect a project first"); return; }
+      const vp = this.root.querySelector<HTMLElement>(".dwg-viewport")!;
+      const bar = this.root.querySelector<HTMLElement>("#dwg-toolbar")!;
+      bar.innerHTML = `<span class="meta">⊞ Paper space — viewport composition (server-rendered)</span>`;
+      void import("./layoutEditor").then((m) => m.openLayoutEditor(this.host_.api, pid, vp));
+    };
+    side.appendChild(layoutBtn);
     const list = document.createElement("div"); list.id = "dwg-list"; side.appendChild(list);
 
     const main = document.createElement("div"); main.className = "dwg-main";

@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.454 — SHEET-VIEWPORTS complete: the interactive paper-space editor (lesson #8 done)
+
+- **Drawings ▸ ⊞ Paper space** — the client half of the v0.3.449 layout engine, live-verified:
+  - preset picker (`key` / `quad` / `plan-pair`, fetched from the server) + page (A1/A3/A4) + sheet
+    number/title;
+  - per-viewport controls: view kind (plan storey elevation · section axis@offset · elevation
+    direction), fixed **1:N scale** (blank = fit), **class freeze**, add/remove;
+  - a live server-composed **SVG preview** with **drag-to-move viewport overlays** — drag a dashed
+    rectangle on the sheet; its fraction rect updates and the sheet recomposes (500 ms debounce);
+  - **⬇ PDF** downloads the submittable sheet through the real endpoint.
+- Composition stays entirely server-side and deterministic — the editor only edits the viewport spec.
+- **Live-verified in the running app**: preset composed in ~0.5 s with 3 draggable overlays; a
+  pointer-drag moved a viewport from rect (0, 0) to (0.12, 0.12) — exactly the drag delta — the sheet
+  recomposed, and the PDF downloaded. Typecheck + eslint + vitest (121) + build green.
+- With this, OpenAEC-study lesson #8 is **complete** (server slice v0.3.449 + this editor).
+
 ## v0.3.453 — SNAP-KIT phase 2: dynamic input + snap glyphs, live-verified to the IFC (lesson #2 complete)
 
 - **Type the constraint mid-draw.** With a draw tool armed and a first point placed, typing `6`, `<30`
