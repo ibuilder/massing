@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.463 — REL-4 slice 3: the collab/presence block becomes its own viewer leaf
+
+- `viewer/collabPresence.ts` (new, ~150 lines) now owns the whole COLLAB-1 surface: the 👥 presence /
+  ⤴ share-view / 📱 QR rail buttons, the 20 s heartbeat that shares this client's live viewpoint, the
+  per-user 3D peer cursors, and the publish-reload banner fed by the model SSE stream. `app.ts` keeps a
+  single `installCollabPresence(deps)` call; the handle exposes `captureViewpoint`/`jumpToViewpoint`
+  (env tools · BCF viewpoints · share flows) and `resync()` for `loadProjectModel` (your own publish
+  never nags you to reload). `app.ts` 4,107 → ~4,010 lines.
+- Live-verified after the extraction: the reloaded client's heartbeat appeared in the server roster
+  (through the leaf), a seeded peer rendered its view-cone cursor at exactly (20, 10, 15) with cone +
+  dot + name sprite, the presence button read 👥 1, and the ⤴ share flow round-tripped.
+- Typecheck / eslint / vitest (121) / build green.
+
 ## v0.3.462 — EST-1: QTO → crew-day durations → CPM (P1 #5)
 
 - **The labour estimate now prices the real takeoff.** `productivity.from_takeoff` routes each
