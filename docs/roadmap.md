@@ -82,7 +82,7 @@ into micro-apps, but the **CAD authoring UX** and a few dev practices are worth 
    grammar (`WALL`, `COLUMN`, `SLAB`, `GRID`, `DIM`…) + single-letter aliases (L/C/M/Z) + spacebar-repeat
    + up-arrow history + prompt-driven flows ("Specify first point"). Every drafter already knows this;
    it's scriptable for free. Builds on the shipped AI command bar (reuse its input + recipe dispatch).
-2. **SNAP-KIT — snap / tracking / dynamic-input as a first-class stack** *(★★★★)* — extend the shipped
+2. 🟡 **SNAP-KIT — phase 1 (engine + polar tracking) SHIPPED v0.3.434** *(★★★★)* — extend the shipped
    E1 inference: osnap glyphs (endpoint/mid/center/intersection/perp/nearest), polar tracking with angle
    increments + guide lines, and a **dynamic-input overlay** (type a distance/angle mid-draw to constrain
    the rubber-band; Esc steps back one prompt, Enter repeats). Pure client-side in the three.js layer —

@@ -6,6 +6,7 @@ import CameraControls from "camera-controls";
 import { createViewer, renderMode, positionSun } from "./world";
 import { sunAltAz, sunSceneDir } from "./solar";
 import { inferDirection } from "./inference";
+import { polarConstrain } from "./snapEngine";
 import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
 import { loadReferenceModel } from "./referenceLoader";
@@ -1049,6 +1050,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         ? { x: a.x - armPts[armPts.length - 2]!.x, z: a.z - armPts[armPts.length - 2]!.z } : undefined;
       const inf = inferDirection({ x: a.x, z: a.z }, { x: p.x, z: p.z }, { tolDeg: 6, ref });
       if (inf) { p = new THREE.Vector3(inf.x, p.y, inf.z); showCoords(p); }
+      else {
+        // SNAP-KIT — polar tracking: when axis/parallel inference didn't lock, snap the bearing from
+        // the previous point to the nearest 45° increment (catches the diagonals the axis-only
+        // inference misses). Distance preserved; a hard geometry snap above still always wins.
+        const pol = polarConstrain({ x: a.x, z: a.z }, { x: p.x, z: p.z }, 45, 4);
+        if (pol.locked) { p = new THREE.Vector3(pol.x, p.y, pol.z); showCoords(p); }
+      }
     }
     if (!p) { notify("couldn't pick a point — click the floor or grid", "error"); return; }
     // snap to the nearest grid intersection when the grid overlay is loaded (plan E=x, N=-z)

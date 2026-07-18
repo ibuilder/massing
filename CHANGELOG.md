@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.434 — SNAP-KIT (phase 1): the precision engine + polar tracking in draft mode (CAD-UX lesson #2)
+
+- **New authoring precision** (from the OpenAEC study — object-snap / polar / dynamic-input is the other
+  half of "friendly CAD"). A pure, unit-tested geometry engine `snapEngine.ts` (sibling to `inference.ts`):
+  - **`resolveSnap`** — nearest object-snap among candidates within tolerance, priority-ordered
+    (endpoint › intersection › center › perpendicular › midpoint › grid › nearest); **`segmentSnaps`**
+    emits endpoint + midpoint candidates for a polyline (the viewer feeds it what it raycasts);
+  - **`polarConstrain`** — AutoCAD polar tracking: snap the bearing from an origin to the nearest N°
+    increment (distance preserved), with a lock flag + the locked angle;
+  - **`applyDynamicInput`** — constrain the rubber-band by a typed distance and/or angle (the
+    "5 <Tab> 90 <Enter>" flow) — distance-only keeps bearing, angle-only keeps length, both give an
+    exact point.
+- **Wired into draft drawing now**: when the axis/parallel inference doesn't lock, the click snaps to the
+  nearest **45° increment** from the previous point — catching the diagonals the axis-only inference
+  missed. Additive + guarded (a hard geometry-vertex snap always wins).
+- 14 exhaustive vitest cases + verified live in the browser runtime (polar ~46°→45° with distance
+  preserved, dynamic-input distance/angle exact, endpoint-beats-midpoint). Typecheck + eslint + full
+  vitest (113) + build green. *(Phase 2 — osnap glyphs + a live dynamic-input overlay in the cursor — is
+  tracked in roadmap §🧭; the tested engine is ready for it.)*
+
 ## v0.3.433 — docs: client-vs-server architecture doc (OpenAEC-study lesson #4)
 
 - New [`docs/client-vs-server.md`](docs/client-vs-server.md): where work runs and why — the thin-client /
