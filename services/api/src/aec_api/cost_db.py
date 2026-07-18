@@ -164,7 +164,8 @@ def resolve(db: Session, vintage: int | Literal["latest"] = "latest", quarter: i
             policy: Literal["strict", "nearest"] = "nearest") -> CostDataset | None:
     """Resolve a vintage request to an installed dataset. `latest` → the flagged latest; a specific year →
     that (year, quarter), else the fallback policy: `strict` returns None; `nearest` returns the newest
-    installed vintage ≤ the requested year (or the newest overall if none is older)."""
+    installed vintage ≤ the requested year (or, when none is older, the OLDEST installed vintage — the
+    nearest one above the request)."""
     installed = list(db.scalars(select(CostDataset).order_by(
         CostDataset.vintage_year.desc(), CostDataset.quarter.desc())))
     if not installed:

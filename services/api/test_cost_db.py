@@ -143,6 +143,18 @@ with TestClient(app) as c:
     # empty/invalid book is a 400, not a crash
     assert c.post("/cost/datasets/import-custom", json={"vintage": 2026, "rates": {}}).status_code == 400
 
+    # SEC: with RBAC ON, importing a vintage requires a PLATFORM ADMIN — is_latest is a global flag, so
+    # a lone project member must not be able to silently reprice every unpinned project's estimate.
+    from aec_api import rbac as _rbac
+    _saved = _rbac.RBAC_ON
+    _rbac.RBAC_ON = True
+    try:
+        assert c.post("/cost/datasets/import", json={"vintage": 2028}).status_code == 403
+        assert c.post("/cost/datasets/import-custom",
+                      json={"vintage": 2028, "rates": {"IfcWall": 1.0}}).status_code == 403
+    finally:
+        _rbac.RBAC_ON = _saved
+
     est = c.get(f"/projects/{pid}/qto/by-floor").json()
     assert est.get("cost_vintage", {}).get("vintage_year") == 2024, est.get("cost_vintage")
     # the takeoff also carries the localization/escalation adjustment (neutral here — no market assumption)

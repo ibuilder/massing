@@ -541,14 +541,16 @@ def estimate_from_model(pid: str, db: Session = Depends(get_db), _: str = Depend
     # misleadingly tiny number; the response flags which source to trust.
     try:
         net_m2 = sum(r.get("net_area") or 0 for r in sp.space_schedule(open_model(path)))
-        gfa_sf = net_m2 * est.M2_TO_SF
+        gfa_sf = net_m2 * est.M2_TO_SF * est.NET_TO_GROSS   # spaces are NET; the $/sf benchmark is GROSS
     except Exception:                                 # noqa: BLE001 — benchmark is best-effort
         gfa_sf = None
     # COST-DB: price through the project's pinned cost vintage (reproducibility); falls back to the
-    # shipped benchmark when no vintage is installed.
+    # shipped benchmark when no vintage is installed. The benchmark carries the same localization/
+    # escalation factor as the model total so the trust comparison is same-dollars, not dollar-year skew.
     from .. import cost_db
     overrides, ds, adjustment = _vintage_overrides(db, pid)
-    out = est.estimate_from_takeoff(rows, overrides=overrides, gfa_sf=gfa_sf)
+    out = est.estimate_from_takeoff(rows, overrides=overrides, gfa_sf=gfa_sf,
+                                    benchmark_factor=(adjustment or {}).get("combined_factor", 1.0))
     if ds:
         out["cost_vintage"] = cost_db.dataset_dict(ds)
     if adjustment:
@@ -671,6 +673,19 @@ def reference_disciplines(_: str = Depends(current_user)):
 
 
 # --- COST-DB: vintage-versioned cost database (offline public importer) -----------------------------
+def _require_platform_admin(db: Session = Depends(get_db), user: str = Depends(current_user)) -> str:
+    """Importing a vintage flips the GLOBAL `is_latest` flag → every unpinned project reprices. That is
+    a platform operation, not a project edit: with RBAC off (dev / single-operator) it stays open like
+    everything else; with RBAC on it requires a platform admin — a lone viewer-role member must never
+    be able to silently reprice all projects' estimates (the audit's pricing-corruption scenario)."""
+    from .. import rbac as _rbac
+    if not _rbac.RBAC_ON or _rbac.LOCAL_MODE or user == "api-key":
+        return user
+    from .auth import require_admin_user
+    require_admin_user(db=db, user=user)               # raises 403 unless AEC_ADMIN_EMAILS / legacy admin
+    return user
+
+
 @router.get("/cost/datasets")
 def cost_datasets(db: Session = Depends(get_db), _: str = Depends(current_user)):
     """Installed cost-database vintages + what the offline public importer can build (COST-DB)."""
@@ -680,10 +695,11 @@ def cost_datasets(db: Session = Depends(get_db), _: str = Depends(current_user))
 
 @router.post("/cost/datasets/import")
 def cost_import(body: dict = Body(default={}), db: Session = Depends(get_db),
-                _: str = Depends(current_user)):
+                _admin=Depends(_require_platform_admin)):
     """Build (import) a cost vintage. `{"vintage": 2025 | "latest", "quarter": null, "source": "public"}`.
     Offline **public** importer only for now — a `"source": "cloud"` request warns and falls back to the
-    public build (the massing.cloud importer is a later build-order step). Idempotent; sets it as latest."""
+    public build (the massing.cloud importer is a later build-order step). Idempotent; sets it as latest.
+    **Platform-admin only**: importing flips the global `is_latest`, repricing every unpinned project."""
     from datetime import date
 
     from .. import cost_db
@@ -698,12 +714,14 @@ def cost_import(body: dict = Body(default={}), db: Session = Depends(get_db),
 
 @router.post("/cost/datasets/import-custom")
 def cost_import_custom(body: dict = Body(default={}), db: Session = Depends(get_db),
-                       _: str = Depends(current_user)):
+                       _admin=Depends(_require_platform_admin)):
     """Import a firm's **own** cost book as a `custom`-origin vintage — so a project prices through the
     firm's historical/negotiated rates, not the shipped benchmark. Body:
     `{"vintage": 2025, "quarter": null, "name": "…", "rates": {"IfcWall": 180, …}}` (a flat class→rate map)
     or `{"rows": [{"ifc_class": "IfcWall", "total_cost": 180, "description": "…", "uom": "m2"}, …]}`.
-    Re-importing the same (year, quarter) replaces that custom vintage in place. Sets it latest."""
+    Re-importing the same (year, quarter) replaces that custom vintage in place. Sets it latest.
+    **Platform-admin only**: a lone viewer must not be able to reprice every unpinned project's estimate
+    (`is_latest` is a global flag — the audit's cross-project pricing-corruption scenario)."""
     from datetime import date
 
     from .. import cost_db

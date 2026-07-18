@@ -31,9 +31,12 @@ def open_source_ifc(db: Session, pid: str):
     a corrupt/unparseable file is a 4xx not a 500. Returns an `ifcopenshell.file`.
     """
     path = source_ifc_path(db, pid)  # raises 409 if unset/missing
-    import ifcopenshell  # type: ignore  # deferred — heavy native import, keep out of module load
+    # Route through the shared (path, mtime, size)-keyed LRU — a raw ifcopenshell.open() here made
+    # every hit on the QA/health/georef endpoints reparse the FULL model (seconds + hundreds of MB)
+    # while the authoring endpoints served the same file from cache. Same invalidation on re-upload.
+    from aec_data.ifc_loader import open_model  # type: ignore  # deferred — heavy native import
 
     try:
-        return ifcopenshell.open(path)
+        return open_model(path)
     except Exception as e:  # noqa: BLE001 — a bad file is a 4xx, not a 500
         raise HTTPException(400, f"could not read the IFC: {e}") from e

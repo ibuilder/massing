@@ -824,28 +824,36 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
     concurrent edit surfaces a 'model changed — reload' instead of silently overwriting their work."""
     from aec_data import edit as ed  # type: ignore
 
-    p = _project(db, pid)
-    if base_source is not None and p.source_ifc and Path(base_source).name != Path(p.source_ifc).name:
-        raise HTTPException(409, "the model changed since you loaded it (another user published) — "
-                                 "reload before editing")
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-    # Strip any prior version timestamp(s) so chained edits don't compound the filename into an
-    # ever-growing path (which blew past Windows' 260-char limit and failed the write). Each edit
-    # produces "<base>_<stamp>.ifc" off the ORIGINAL stem, not the previous versioned name.
-    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
-    out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
-    try:
-        result = ed.apply_recipe(p.source_ifc, recipe, params, out)
-    except PermissionError as e:                       # A1 sandbox disabled
-        raise HTTPException(403, str(e)) from e
-    except (ValueError, KeyError) as e:                # E8 guard rejection / sandbox reject / missing param
-        raise HTTPException(400, str(e)) from e
-    from .. import edit_history  # S4 — record the pre-edit version so this edit can be undone
-    edit_history.push(pid, p.source_ifc)
-    p.source_ifc = out  # new version becomes the source of truth
-    audit.record(db, action="ifc.edit", actor=actor, method="POST",
-                 path=f"/projects/{pid}/edit", detail=result)
-    db.commit()
+    from .. import pid_lock
+
+    # Serialize the whole read→apply→pointer-swap per project: two concurrent edits (or an /edit + an
+    # MCP run_recipe) both reading the same source_ifc would each write their own version and the last
+    # commit would silently orphan the other user's edit. The optimistic base_source check catches a
+    # STALE client; only the lock closes the in-flight race between two fresh ones.
+    with pid_lock.mutating(pid):
+        p = _project(db, pid)
+        db.refresh(p)                                  # the pointer may have moved while we waited
+        if base_source is not None and p.source_ifc and Path(base_source).name != Path(p.source_ifc).name:
+            raise HTTPException(409, "the model changed since you loaded it (another user published) — "
+                                     "reload before editing")
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+        # Strip any prior version timestamp(s) so chained edits don't compound the filename into an
+        # ever-growing path (which blew past Windows' 260-char limit and failed the write). Each edit
+        # produces "<base>_<stamp>.ifc" off the ORIGINAL stem, not the previous versioned name.
+        base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+        out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+        try:
+            result = ed.apply_recipe(p.source_ifc, recipe, params, out)
+        except PermissionError as e:                   # A1 sandbox disabled
+            raise HTTPException(403, str(e)) from e
+        except (ValueError, KeyError) as e:            # E8 guard rejection / sandbox reject / missing param
+            raise HTTPException(400, str(e)) from e
+        from .. import edit_history  # S4 — record the pre-edit version so this edit can be undone
+        edit_history.push(pid, p.source_ifc)
+        p.source_ifc = out  # new version becomes the source of truth
+        audit.record(db, action="ifc.edit", actor=actor, method="POST",
+                     path=f"/projects/{pid}/edit", detail=result)
+        db.commit()
     if publish:                       # reconvert off-thread; client polls publish/status
         _publish_bg(pid)
         result["publish"] = "running"
@@ -861,23 +869,27 @@ def edit_graph(pid: str, graph: dict = Body(...), publish: bool = Body(default=F
     version. Body: {graph:{nodes,edges}, publish?, base_source?}. Honors the COLLAB-1 optimistic lock."""
     from aec_data import nodegraph  # type: ignore
 
-    p = _project(db, pid)
-    if base_source is not None and p.source_ifc and Path(base_source).name != Path(p.source_ifc).name:
-        raise HTTPException(409, "the model changed since you loaded it (another user published) — "
-                                 "reload before editing")
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
-    out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
-    try:
-        result = nodegraph.execute_graph(p.source_ifc, graph, out)
-    except (ValueError, KeyError) as e:               # bad graph: unknown recipe/id, cycle, dangling ref
-        raise HTTPException(400, str(e)) from e
-    from .. import edit_history
-    edit_history.push(pid, p.source_ifc)
-    p.source_ifc = out
-    audit.record(db, action="ifc.edit_graph", actor=actor, method="POST",
-                 path=f"/projects/{pid}/edit/graph", detail={"nodes": result["node_count"]})
-    db.commit()
+    from .. import pid_lock
+
+    with pid_lock.mutating(pid):                       # same RMW race as /edit — serialize per project
+        p = _project(db, pid)
+        db.refresh(p)
+        if base_source is not None and p.source_ifc and Path(base_source).name != Path(p.source_ifc).name:
+            raise HTTPException(409, "the model changed since you loaded it (another user published) — "
+                                     "reload before editing")
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+        base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+        out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+        try:
+            result = nodegraph.execute_graph(p.source_ifc, graph, out)
+        except (ValueError, KeyError) as e:           # bad graph: unknown recipe/id, cycle, dangling ref
+            raise HTTPException(400, str(e)) from e
+        from .. import edit_history
+        edit_history.push(pid, p.source_ifc)
+        p.source_ifc = out
+        audit.record(db, action="ifc.edit_graph", actor=actor, method="POST",
+                     path=f"/projects/{pid}/edit/graph", detail={"nodes": result["node_count"]})
+        db.commit()
     if publish:
         _publish_bg(pid)
         result["publish"] = "running"

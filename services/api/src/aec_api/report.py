@@ -681,7 +681,6 @@ def investment_memo_pdf(db: Session, pid: str, project_name: str) -> bytes:
 
     # Construction status — the on-cost half: is the GC's live GMP tracking the underwriting?
     try:
-        from . import modules as _me
         from . import project_budget as _pb
         gmp_res = _pb.gmp_budget(db, pid)
         gc_gmp = gmp_res["gmp"].get("revised") or gmp_res["gmp"]["computed"]
@@ -689,8 +688,8 @@ def investment_memo_pdf(db: Session, pid: str, project_name: str) -> bytes:
             dev_hard = bs["categories"]["hard"]["total"]
             delta = round(gc_gmp - dev_hard, 2)
             in_sync = abs(delta) < max(1.0, dev_hard * 0.005)
-            invs = _me.list_records(db, "owner_invoice", pid, limit=1_000_000) if "owner_invoice" in _me.TABLES else []
-            billed = round(sum(float((r.get("data") or {}).get("amount") or 0) for r in invs), 2)
+            from . import project_budget as _pb
+            billed = _pb.billed_to_date(db, pid)       # shared SQL SUM — no full-table load
             heading("Construction Status")
             para(f"The general contractor is carrying a live GMP of {_money(gc_gmp)} against the "
                  f"{_money(dev_hard)} of construction hard cost underwritten here — "

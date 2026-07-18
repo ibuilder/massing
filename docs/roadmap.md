@@ -41,8 +41,8 @@ upgrade plan** (v0.3.413–428 — P0 security → P1 reliability → P2 docs/de
 - **REL-3 remainder** — `modules.py` CRUD/feeds (needs a DI pass, would cycle otherwise) · `main.py` ·
   rest of `data/drawings.py` / `drawing.py`. *(Diminishing returns — attack opportunistically.)*
 - **DEV-2 tail** (CI coverage upload · hotspot docstrings) · **DEV-3** (build/tsc speed) ·
-  **REL-5/7** (unhandled-rejection sweep + prove-then-delete the ~1,075 dead lines) ·
-  **COBie/parse robustness** (`cobie.py`/`drawings.py` `except: pass` → logged, counted skips).
+  **REL-5/7** (unhandled-rejection sweep + prove-then-delete the ~1,075 dead lines).
+  ✅ COBie/parse robustness SHIPPED v0.3.442 (all 8 swallow sites → counted, logged skips).
 
 Deferred bridges (deliberate 501s — money movement / KYC / paid APS) are a defensible pattern, not gaps.
 

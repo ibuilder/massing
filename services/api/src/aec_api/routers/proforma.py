@@ -348,11 +348,12 @@ def sync_model_to_hard(pid: str, db: Session = Depends(get_db),
     try:
         from aec_data import spaces as _sp  # type: ignore
         net_m2 = sum(r.get("net_area") or 0 for r in _sp.space_schedule(open_model(path)))
-        gfa_sf = net_m2 * est.M2_TO_SF
+        gfa_sf = net_m2 * est.M2_TO_SF * est.NET_TO_GROSS   # spaces are NET; the benchmark is GROSS $/sf
     except Exception:                             # noqa: BLE001 — the GFA benchmark is best-effort
         gfa_sf = None
     overrides, ds, adjustment = _vintage_overrides(db, pid)
-    out = est.estimate_from_takeoff(rows, overrides=overrides, gfa_sf=gfa_sf)
+    out = est.estimate_from_takeoff(rows, overrides=overrides, gfa_sf=gfa_sf,
+                                    benchmark_factor=(adjustment or {}).get("combined_factor", 1.0))
     total = round(out.get("recommended_total") or out.get("total") or 0.0, 2)
 
     by_disc: dict[str, float] = {}
@@ -391,7 +392,6 @@ def loan_draws(pid: str, ltc: float = 0.65, rate: float = 0.075, construction_mo
     Uses) vs drawn-to-date, the equity/loan split, and remaining loan availability — so the developer
     tracks the capital stack against what the contractor has actually billed."""
     from .. import dev_budget as dvb
-    from .. import modules as _me
     from .. import sources_uses as su
     from ..models import Project as _P
     p = db.get(_P, pid)
@@ -399,12 +399,15 @@ def loan_draws(pid: str, ltc: float = 0.65, rate: float = 0.075, construction_mo
         raise HTTPException(404, "project not found")
     from datetime import date as _date
 
+    from .. import modules as _me
     from .. import project_budget as _pb
     sumry = dvb.summarize(p.dev_budget or dvb.starter_budget())
     cap = su.build(sumry, {"ltc": ltc, "rate": rate, "construction_months": construction_months})
     debt, equity = float(cap["debt"]), float(cap["equity"])
     budgeted_interest = round(sum(float(u["amount"]) for u in cap.get("uses", [])
                                   if "interest" in str(u.get("label", "")).lower()), 2)
+    # (this endpoint walks every invoice for per-tranche interest anyway, so the full load is needed;
+    # the sum matches _pb.billed_to_date — the shared definition of 'billed')
     invs = _me.list_records(db, "owner_invoice", pid, limit=1_000_000) if "owner_invoice" in _me.TABLES else []
     drawn = round(sum(float((r.get("data") or {}).get("amount") or 0) for r in invs), 2)
     equity_drawn = round(min(drawn, equity), 2)        # equity-first funding
@@ -487,8 +490,8 @@ def construction_draws(pid: str, db: Session = Depends(get_db), _sec: str = Depe
     if db.get(_P, pid) is None:
         raise HTTPException(404, "project not found")
     cf = pb.cashflow(db, pid)
-    invs = _me.list_records(db, "owner_invoice", pid, limit=1_000_000) if "owner_invoice" in _me.TABLES else []
-    billed = round(sum(pb._n((r.get("data") or {}).get("amount")) for r in invs), 2)
+    billed = pb.billed_to_date(db, pid)                # shared SQL SUM — no full-table load
+    invoice_count = _me.count_records(db, "owner_invoice", pid) if "owner_invoice" in _me.TABLES else 0
 
     # per-cost-code draw composition — what the construction draw is *for*, from the SOV's
     # completed-to-date grouped by cost code (the draw rides the same budget-seeded SOV lines)
@@ -509,7 +512,7 @@ def construction_draws(pid: str, db: Session = Depends(get_db), _sec: str = Depe
     cost_code_draws = sorted(by_cc.values(), key=lambda x: -x["billed"])
 
     return {"projected_total": cf["total"], "months": cf["months"], "peak_month_cost": cf["peak_month_cost"],
-            "series": cf["series"], "actual_billed": billed, "invoice_count": len(invs),
+            "series": cf["series"], "actual_billed": billed, "invoice_count": invoice_count,
             "pct_billed": round(billed / cf["total"] * 100, 1) if cf["total"] else 0.0,
             "by_cost_code": cost_code_draws}
 

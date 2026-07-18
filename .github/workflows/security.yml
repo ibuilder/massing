@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
-        with: { python-version: "3.11" }
+        with: { python-version: "3.12" }   # match ci.yml — audit the interpreter that actually ships
       - run: pip install pip-audit bandit
       - name: pip-audit (api + data)
         continue-on-error: true        # report-only

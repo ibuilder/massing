@@ -37,6 +37,28 @@ for (const df of DOCKERFILES) {
   }
 }
 
+// B1b — the wider @thatopen suite + three must move TOGETHER, deliberately. The pins below are the
+// verified-working tuple (exact versions, no ^): bumping any one package without re-verifying the set
+// is exactly the coupling landmine CLAUDE.md warns about, so CI fails until this record is updated in
+// the same commit as the bump — a conscious act, not an accident. (The suite is intentionally at mixed
+// patch levels; equality between packages is NOT the invariant, the recorded tuple is.)
+const KNOWN_GOOD = {
+  "@thatopen/components": "3.4.6",
+  "@thatopen/components-front": "3.4.3",
+  "@thatopen/ui": "3.4.3",
+  "@thatopen/fragments": "3.4.5",
+  "three": "0.184.0",
+  "web-ifc": "0.0.77",
+};
+for (const [dep, want] of Object.entries(KNOWN_GOOD)) {
+  const got = pkg.dependencies[dep];
+  if (got !== want) {
+    problems.push(`apps/web/package.json: ${dep}@${got} != recorded known-good ${want} — if this bump is `
+      + "deliberate, re-verify the viewer (load a model, author, section) and update KNOWN_GOOD in "
+      + "scripts/check-fragments-version.mjs in the same commit");
+  }
+}
+
 void ROOT;
 if (problems.length) {
   console.error("✗ @thatopen/fragments · web-ifc version drift:\n  " + problems.join("\n  "));

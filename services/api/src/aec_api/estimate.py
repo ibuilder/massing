@@ -42,6 +42,11 @@ _UNIT_LABEL = {"area": "m²", "length": "m", "volume": "m³", "count": "ea"}
 
 M2_TO_SF = 10.7639
 DEFAULT_PSF = 220.0          # conceptual all-in $/sf benchmark (residential concrete) for the GFA floor
+# The space schedule sums NET floor areas (program area); the $/sf benchmark is a GROSS-area rate.
+# Standard net-to-gross efficiency ~85-87% → gross ≈ net × 1.15. Callers deriving gfa_sf from the
+# space schedule multiply by this so the benchmark isn't systematically understated (walls/cores/
+# circulation excluded), which biased the model-vs-benchmark trust test toward the model.
+NET_TO_GROSS = 1.15
 
 
 def _price(c: str, a: dict, overrides: dict[str, float]) -> dict | None:
@@ -109,14 +114,20 @@ def estimate_by_storey(rows: list[dict], overrides: dict[str, float] | None = No
 
 
 def estimate_from_takeoff(rows: list[dict], overrides: dict[str, float] | None = None,
-                          gfa_sf: float | None = None, psf: float = DEFAULT_PSF) -> dict[str, Any]:
+                          gfa_sf: float | None = None, psf: float = DEFAULT_PSF,
+                          benchmark_factor: float = 1.0) -> dict[str, Any]:
     """rows: aec_data.qto.takeoff output (per-element: ifc_class, area, length, volume...).
     Returns priced line items grouped by class + a grand total + any unpriced classes.
 
     When `gfa_sf` is given, also returns a GFA-based benchmark (gfa_sf × $/sf) and a `recommended`
     source: the model takeoff is only trustworthy once it has real structure, so if the model total
     is implausibly low vs. the benchmark (or the model is sparse) we recommend the GFA figure and
-    flag it — surfacing *which* number to feed the budget/proforma rather than a misleading $0."""
+    flag it — surfacing *which* number to feed the budget/proforma rather than a misleading $0.
+
+    `benchmark_factor` puts the benchmark in the SAME dollars as the model total: when `overrides`
+    are localized/escalated vintage rates (construction-midpoint dollars), the caller passes the same
+    combined factor here — otherwise the trust comparison mixes dollar-years and can flip
+    `recommended` purely on escalation, not model completeness."""
     overrides = overrides or {}
     agg: dict[str, dict[str, float]] = {}
     for r in rows:
@@ -145,8 +156,9 @@ def estimate_from_takeoff(rows: list[dict], overrides: dict[str, float] | None =
     out: dict[str, Any] = {"lines": lines, "total": total, "unpriced": unpriced,
                            "element_count": element_count, "source": "model"}
     if gfa_sf and gfa_sf > 0:
-        benchmark = round(gfa_sf * psf)
-        out["gfa_benchmark"] = {"gfa_sf": round(gfa_sf), "psf": psf, "amount": benchmark}
+        benchmark = round(gfa_sf * psf * benchmark_factor)
+        out["gfa_benchmark"] = {"gfa_sf": round(gfa_sf), "psf": psf, "amount": benchmark,
+                                **({"factor": round(benchmark_factor, 4)} if benchmark_factor != 1.0 else {})}
         # trust the model takeoff only if it has structure AND lands within a sane band of the
         # GFA benchmark; otherwise the GFA figure is the honest number to underwrite against.
         trustworthy = element_count >= 10 and total >= 0.4 * benchmark

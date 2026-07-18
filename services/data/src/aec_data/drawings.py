@@ -6,6 +6,7 @@ plain SVG so it embeds in the viewer, prints, or drops onto a sheet with a title
 """
 from __future__ import annotations
 
+import logging
 import warnings
 from typing import Any
 from xml.sax.saxutils import escape as _xesc
@@ -21,6 +22,7 @@ from .geomconf import geom_workers
 from .ifc_loader import open_model
 
 warnings.filterwarnings("ignore")
+log = logging.getLogger(__name__)
 
 # (normal, kept-axes) for each view kind
 _VIEWS = {
@@ -59,6 +61,7 @@ def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
     meshes: list[tuple[str, trimesh.Trimesh]] = []
     if not it.initialize():
         return meshes
+    skipped = 0                              # parse-robustness: count + log, never silently thin the set
     while True:
         shape = it.get()
         verts = np.asarray(shape.geometry.verts, dtype=float).reshape(-1, 3)
@@ -68,10 +71,14 @@ def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
             cls = el.is_a() if el else shape.type
             try:
                 meshes.append((cls, trimesh.Trimesh(vertices=verts, faces=faces, process=False)))
-            except Exception:
-                pass
+            except Exception as exc:         # noqa: BLE001 — one bad mesh must not kill the whole bake
+                skipped += 1
+                log.debug("drawings.bake: unbuildable mesh %s (%s): %s", shape.guid, cls, exc)
         if not it.next():
             break
+    if skipped:
+        log.warning("drawings.bake: %d element mesh(es) skipped — those elements are missing from "
+                    "every plan/section cut of this model", skipped)
     return meshes
 
 
@@ -82,6 +89,7 @@ def cut_baked(meshes: list[tuple[str, trimesh.Trimesh]], view: str, offset: floa
     origin = normal * offset
     want = {c.lower() for c in classes} if classes else None
     polylines: list[np.ndarray] = []
+    skipped = 0
     for cls, mesh in meshes:
         if want and cls.lower() not in want:
             continue
@@ -90,8 +98,12 @@ def cut_baked(meshes: list[tuple[str, trimesh.Trimesh]], view: str, offset: floa
             if sec is not None:
                 for poly in sec.discrete:
                     polylines.append(np.asarray(poly)[:, axes])
-        except Exception:
-            pass
+        except Exception as exc:             # noqa: BLE001 — one unsectionable mesh must not kill the cut
+            skipped += 1
+            log.debug("drawings.cut_baked: %s mesh failed to section: %s", cls, exc)
+    if skipped:
+        log.warning("drawings.cut_baked(%s@%.2f): %d mesh(es) failed to section — linework may be "
+                    "incomplete for those elements", view, offset, skipped)
     return polylines
 
 
@@ -394,6 +406,7 @@ def space_tags(model: ifcopenshell.file, cut_z: float | None = None) -> list[dic
 
     settings = _world_settings(_geom)   # world coords → tag centroids align with the world-placed linework
     tags = []
+    skipped = 0
     for sp in model.by_type("IfcSpace"):
         name = getattr(sp, "LongName", None) or getattr(sp, "Name", None) or "Room"
         area = None
@@ -408,9 +421,14 @@ def space_tags(model: ifcopenshell.file, cut_z: float | None = None) -> list[dic
             if area is None:  # footprint area fallback (convex hull of plan projection)
                 from shapely.geometry import MultiPoint
                 area = MultiPoint(v[:, :2]).convex_hull.area
-        except Exception:
+        except Exception as exc:                 # noqa: BLE001 — a room with broken geometry loses its tag only
+            skipped += 1
+            log.debug("drawings.space_tags: geometry failed on %s (%s)", getattr(sp, "GlobalId", "?"), exc)
             continue
         tags.append({"name": name, "area": float(area) if area else None, "x": cx, "y": cy})
+    if skipped:
+        log.warning("drawings.space_tags: %d room(s) untagged (geometry failed) — the plan shows their "
+                    "linework without a room tag", skipped)
     return tags
 
 
@@ -423,6 +441,7 @@ def element_callouts(model: ifcopenshell.file, classes=("IfcDoor", "IfcWindow"),
 
     settings = _world_settings(_geom)   # world coords → callout centroids align with the linework
     out: list[dict] = []
+    skipped = 0
     for cls in classes:
         for el in model.by_type(cls):
             label = getattr(el, "Tag", None) or getattr(el, "Name", None) or cls.replace("Ifc", "")
@@ -433,8 +452,13 @@ def element_callouts(model: ifcopenshell.file, classes=("IfcDoor", "IfcWindow"),
                     continue
                 out.append({"label": str(label), "x": float(v[:, 0].mean()),
                             "y": float(v[:, 1].mean()), "kind": cls})
-            except Exception:
+            except Exception as exc:             # noqa: BLE001 — a broken element loses its callout only
+                skipped += 1
+                log.debug("drawings.element_callouts: geometry failed on %s %s (%s)",
+                          cls, getattr(el, "GlobalId", "?"), exc)
                 continue
+    if skipped:
+        log.warning("drawings.element_callouts: %d element(s) uncalled-out (geometry failed)", skipped)
     return out
 
 
@@ -474,6 +498,7 @@ def elevation_outlines(meshes, direction: str, with_depth: bool = False):
 
     axes, flip, depth_axis, near = _DIRS.get(direction, _DIRS["north"])
     outs = []
+    skipped = 0
     for _cls, mesh in meshes:
         pts = mesh.vertices[:, axes]
         if len(pts) < 3:
@@ -491,8 +516,12 @@ def elevation_outlines(meshes, direction: str, with_depth: bool = False):
                 outs.append((coords, depth))
             else:
                 outs.append(coords)
-        except Exception:
-            pass
+        except Exception as exc:                 # noqa: BLE001 — a degenerate hull loses its silhouette only
+            skipped += 1
+            log.debug("drawings.elevation_outlines: hull failed on a %s mesh (%s)", _cls, exc)
+    if skipped:
+        log.warning("drawings.elevation_outlines(%s): %d silhouette(s) skipped (hull failed) — the "
+                    "elevation may be missing those elements", direction, skipped)
     return outs
 
 

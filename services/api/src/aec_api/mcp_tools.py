@@ -224,20 +224,25 @@ def _run_recipe(db: Session, pid: str, recipe: str, params: dict[str, Any], user
 
     from aec_data import edit as ed  # type: ignore
 
-    from . import audit, edit_history
+    from . import audit, edit_history, pid_lock
     from .models import Project
-    p = db.get(Project, pid)
-    if not p or not p.source_ifc:
-        raise ValueError("project has no source IFC to author against")
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
-    out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
-    result = ed.apply_recipe(p.source_ifc, recipe, params, out)   # raises ValueError/KeyError on bad input
-    edit_history.push(pid, p.source_ifc)
-    p.source_ifc = out
-    audit.record(db, action="ifc.edit", actor=user or "mcp", method="MCP",
-                 path=f"/projects/{pid}/edit", detail=result)
-    db.commit()
+    # Same per-project serialization as POST /edit: without it an MCP edit racing a UI edit would both
+    # read the same source_ifc and the last pointer-swap commit silently orphans the other's version.
+    with pid_lock.mutating(pid):
+        p = db.get(Project, pid)
+        if p is not None:
+            db.refresh(p)                              # the pointer may have moved while we waited
+        if not p or not p.source_ifc:
+            raise ValueError("project has no source IFC to author against")
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+        base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+        out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+        result = ed.apply_recipe(p.source_ifc, recipe, params, out)  # raises ValueError/KeyError on bad input
+        edit_history.push(pid, p.source_ifc)
+        p.source_ifc = out
+        audit.record(db, action="ifc.edit", actor=user or "mcp", method="MCP",
+                     path=f"/projects/{pid}/edit", detail=result)
+        db.commit()
     return result
 
 

@@ -25,8 +25,11 @@ REGION_INDEX: dict[str, float] = {
     "seattle": 1.18, "los_angeles": 1.24, "denver": 1.02, "austin": 0.98, "atlanta": 0.92,
     "dallas": 0.94, "phoenix": 0.95, "miami": 1.03,
 }
-_BASE_YEAR = 2025
-_ESCALATION = 0.045                                      # ~4.5%/yr construction cost escalation
+# One escalation baseline for the whole platform: the market table's. A private 2025/4.5% pair here
+# made the headline `total_cost` and the `total_at_construction_midpoint` in the SAME response escalate
+# from different base years at different rates — a developer comparing them saw an unaccounted gap.
+_BASE_YEAR = _mi.BASE_YEAR
+_ESCALATION = _mi.REGIONS["global_average"]["escalation_pct"] / 100.0
 
 
 def _num(v) -> float:

@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.442 — full-codebase audit: backend fixes, parse robustness, infra hygiene
+
+The backend + cross-cutting lanes of the same audit as v0.3.441 (three parallel deep passes over the
+whole tree), every finding fixed and verified:
+
+- **IFC cache bypass (P1 perf)** — `deps.open_source_ifc` called raw `ifcopenshell.open()` per request,
+  so every hit on the QA / health / georeferencing endpoints (which dashboards poll) reparsed the full
+  model from disk while authoring endpoints served the same file from the LRU. Now routed through the
+  shared `(path, mtime, size)`-keyed cache — same invalidation on re-upload.
+- **Cost-vintage import gating (P1)** — importing a vintage flips the global `is_latest`, silently
+  repricing every unpinned project's estimate — yet the routes were auth-only. Now: open with RBAC off
+  (dev/single-operator parity), **platform-admin** (`AEC_ADMIN_EMAILS`) with RBAC on. +403 test.
+- **Authoring race (P1)** — two concurrent edits (or an `/edit` racing an MCP `run_recipe`) both read the
+  same `source_ifc` and the last pointer-swap commit silently orphaned the other user's authored version.
+  All three read-modify-write paths (`/edit`, `/edit/graph`, MCP `_run_recipe`) now hold the per-project
+  `pid_lock` for the whole load→apply→swap→commit cycle, re-reading the pointer under the lock.
+- **One escalation baseline (P2)** — the conceptual estimate escalated its headline from a private
+  2025/4.5% pair while `total_at_construction_midpoint` in the same response used the market table's
+  2026/region rates. Now both derive from `market_intelligence` — no unaccounted gap.
+- **Honest GFA benchmark (P2)** — the model-vs-benchmark trust test compared escalated model dollars
+  against a base-year benchmark computed from NET area. The benchmark now grosses up net→gross (×1.15)
+  and carries the same localization/escalation factor as the model total — `recommended` flips on model
+  completeness, not on dollar-year or area-basis skew.
+- **Parse robustness (COBie + drawings)** — all 8 silent `except: pass` swallow sites (psets, contact
+  emails, zone/system members; mesh bake, section cuts, room tags, element callouts, elevation
+  silhouettes) now **count what they skip and log it** (debug per element + one summary warning per
+  operation). A half-parsed model is visible in the export log, never silently thin. Shapes unchanged.
+- **One billed-to-date** — `project_budget.billed_to_date` (SQL SUM) replaces three hand-rolled
+  owner-invoice sums (loan-draws keeps its row-walk — it needs per-tranche dates for interest accrual).
+- **Infra** — security scan pinned to Python 3.12 (audit the interpreter that ships); the version guard
+  now locks the whole @thatopen suite + three as a recorded known-good tuple (bumping one package alone
+  fails CI until the tuple is deliberately updated; negative-tested); inert CodeQL template step removed;
+  `cost_db.resolve` docstring corrected (nearest-above fallback).
+
+Audit non-findings worth recording: caches are bounded (LRU + eviction), temp files clean up in
+`finally`, the test-manifest guard structurally prevents orphan suites. 261/261 suites green; ruff clean.
+
 ## v0.3.441 — web audit fixes: live streams that actually live, honest sorting, strict polar
 
 From the full-codebase audit (frontend lane) — five defects the toolchain can't see:

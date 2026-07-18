@@ -8,6 +8,8 @@ on Components — plus the **Attribute** sheet that flattens every remaining pro
 model data is lost in handover (C2 field-enrichment)."""
 from __future__ import annotations
 
+import logging
+from collections import Counter
 from typing import Any
 
 import ifcopenshell
@@ -15,11 +17,17 @@ import ifcopenshell.util.element as ue
 
 from .ifc_loader import open_model, physical_elements, storey_name
 
+log = logging.getLogger(__name__)
 
-def _psets(el) -> dict[str, dict[str, Any]]:
+
+def _psets(el, skips: Counter | None = None) -> dict[str, dict[str, Any]]:
     try:
         return ue.get_psets(el)
-    except Exception:                        # noqa: BLE001 — defensive: never let one element break export
+    except Exception as exc:                 # noqa: BLE001 — defensive: never let one element break export
+        # Counted + logged (not silent): a half-parsed model must be visible in the export log.
+        if skips is not None:
+            skips["psets"] += 1
+        log.debug("COBie: psets unreadable on %s (%s)", getattr(el, "GlobalId", el), exc)
         return {}
 
 
@@ -56,7 +64,7 @@ _COMPONENT_FIELDS = {
 }
 
 
-def _email_of(actor) -> str | None:
+def _email_of(actor, skips: Counter | None = None) -> str | None:
     """Best-effort email for an IfcPerson/IfcOrganization from its telecom addresses (COBie keys a
     Contact by email). Returns None when the model carries no email for that party."""
     try:
@@ -65,24 +73,28 @@ def _email_of(actor) -> str | None:
                 emails = getattr(addr, "ElectronicMailAddresses", None) or []
                 if emails and emails[0]:
                     return emails[0]
-    except Exception:
-        pass
+    except Exception as exc:                 # noqa: BLE001 — malformed address graph on this party
+        if skips is not None:
+            skips["contact_email"] += 1
+        log.debug("COBie: unreadable telecom addresses on %s (%s)", actor, exc)
     return None
 
 
-def _grouped_names(group) -> list[str]:
+def _grouped_names(group, skips: Counter | None = None) -> list[str]:
     """Names of the objects a group (IfcZone/IfcSystem) assigns, via IfcRelAssignsToGroup."""
     out: list[str] = []
     try:
         for rel in getattr(group, "IsGroupedBy", None) or []:
             for obj in getattr(rel, "RelatedObjects", None) or []:
                 out.append(getattr(obj, "Name", None) or getattr(obj, "GlobalId", ""))
-    except Exception:
-        pass
+    except Exception as exc:                 # noqa: BLE001 — malformed grouping graph on this zone/system
+        if skips is not None:
+            skips["group_members"] += 1
+        log.debug("COBie: unreadable group members on %s (%s)", getattr(group, "GlobalId", group), exc)
     return [n for n in out if n]
 
 
-def _contact_sheet(model: ifcopenshell.file) -> list[dict[str, Any]]:
+def _contact_sheet(model: ifcopenshell.file, skips: Counter | None = None) -> list[dict[str, Any]]:
     """COBie Contact sheet — the people/organizations behind the model (keyed by email), pulled from
     IfcPersonAndOrganization / IfcPerson / IfcOrganization. Deduped by email (or name when no email)."""
     rows: dict[str, dict[str, Any]] = {}
@@ -95,19 +107,20 @@ def _contact_sheet(model: ifcopenshell.file) -> list[dict[str, Any]]:
 
     for po in model.by_type("IfcPersonAndOrganization"):
         person, org = getattr(po, "ThePerson", None), getattr(po, "TheOrganization", None)
-        add(_email_of(person) or _email_of(org),
+        add(_email_of(person, skips) or _email_of(org, skips),
             getattr(org, "Name", None) if org else None,
             getattr(person, "GivenName", None) if person else None,
             getattr(person, "FamilyName", None) if person else None, "Person")
     for person in model.by_type("IfcPerson"):
-        add(_email_of(person), None, getattr(person, "GivenName", None),
+        add(_email_of(person, skips), None, getattr(person, "GivenName", None),
             getattr(person, "FamilyName", None), "Person")
     for org in model.by_type("IfcOrganization"):
-        add(_email_of(org), getattr(org, "Name", None), None, None, "Organization")
+        add(_email_of(org, skips), getattr(org, "Name", None), None, None, "Organization")
     return list(rows.values())
 
 
 def cobie_sheets(model: ifcopenshell.file) -> dict[str, list[dict[str, Any]]]:
+    skips: Counter = Counter()               # parse-robustness: count what we skip, log a summary
     project = (model.by_type("IfcProject") or [None])[0]
     sites = model.by_type("IfcSite")
     buildings = model.by_type("IfcBuilding")
@@ -129,7 +142,7 @@ def cobie_sheets(model: ifcopenshell.file) -> dict[str, list[dict[str, Any]]]:
     attribute: list[dict[str, Any]] = []
     space: list[dict[str, Any]] = []
     for sp in model.by_type("IfcSpace"):
-        ps = _psets(sp)
+        ps = _psets(sp, skips)
         row_name = getattr(sp, "Name", None) or sp.GlobalId
         space.append({
             "Name": getattr(sp, "Name", None),
@@ -151,13 +164,13 @@ def cobie_sheets(model: ifcopenshell.file) -> dict[str, list[dict[str, Any]]]:
         el_type = ue.get_type(el)
         type_name = getattr(el_type, "Name", None) if el_type else None
         if el_type and type_name and type_name not in types:
-            tps = _psets(el_type)
+            tps = _psets(el_type, skips)
             row = {"Name": type_name, "Category": el_type.is_a(), "AssetType": "Fixed"}
             for field, cands in _TYPE_FIELDS.items():
                 row[field] = _first(tps, cands)
             types[type_name] = row
             _flatten_attributes(attribute, tps, "Type", type_name)
-        cps = _psets(el)
+        cps = _psets(el, skips)
         crow = {
             "Name": getattr(el, "Name", None),
             "TypeName": type_name,
@@ -176,16 +189,20 @@ def cobie_sheets(model: ifcopenshell.file) -> dict[str, list[dict[str, Any]]]:
     zone = [{
         "Name": getattr(z, "Name", None) or z.GlobalId,
         "Category": getattr(z, "LongName", None) or "Zone",
-        "SpaceNames": ", ".join(_grouped_names(z)),
+        "SpaceNames": ", ".join(_grouped_names(z, skips)),
     } for z in model.by_type("IfcZone")]
     system = [{
         "Name": getattr(sy, "Name", None) or sy.GlobalId,
         "Category": (getattr(sy, "PredefinedType", None) or getattr(sy, "LongName", None) or "System"),
-        "ComponentNames": ", ".join(_grouped_names(sy)),
+        "ComponentNames": ", ".join(_grouped_names(sy, skips)),
     } for sy in model.by_type("IfcSystem")]
 
+    if skips:
+        log.warning("COBie export skipped unreadable data: %s — the deliverable is complete for "
+                    "everything else; fix the source model to recover these",
+                    ", ".join(f"{k}×{v}" for k, v in sorted(skips.items())))
     return {
-        "Contact": _contact_sheet(model),
+        "Contact": _contact_sheet(model, skips),
         "Facility": facility,
         "Floor": floor,
         "Space": space,

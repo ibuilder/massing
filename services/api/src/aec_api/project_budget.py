@@ -47,6 +47,13 @@ def _records(db: Session, key: str, pid: str) -> list[dict]:
     return me.list_records(db, key, pid, limit=1_000_000)
 
 
+def billed_to_date(db: Session, pid: str) -> float:
+    """Owner-invoice total billed to date — THE single 'billed' number the proforma loan-draws, the
+    draw-composition view, and the investment memo all quote (was three hand-rolled copies drifting
+    apart). SQL SUM, no full-table load."""
+    return round(me.sum_field(db, "owner_invoice", pid, "amount"), 2)
+
+
 def staffing_cost(data: dict) -> float:
     """Projected cost of a staffing line = headcount × rate × periods(on-site → off-site)."""
     count = _n(data.get("count")) or 1
