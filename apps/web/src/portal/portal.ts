@@ -1309,7 +1309,22 @@ export class PortalUI {
     const sort = this.sort[m.key];
     const val = (r: ModuleRecord, col: string) => col === "ref" ? r.ref : col === "status" ? r.workflow_state
       : col === "assignee" ? (r.assignee ?? "") : col === "title" ? (r.title ?? "") : (r.data[col] ?? "");
-    if (sort) records.sort((a, b) => { const x = val(a, sort.col), y = val(b, sort.col); return (x < y ? -1 : x > y ? 1 : 0) * sort.dir; });
+    // Type-aware comparator: numeric fields compare as numbers ("10" after "9", not before), blanks
+    // group at the end regardless of direction. `5 < ""` and `5 > ""` are both false, so the old raw
+    // </>` compare scattered blank-valued rows randomly through a numeric sort.
+    const cmp = (x: unknown, y: unknown): number => {
+      const xe = x === "" || x == null, ye = y === "" || y == null;
+      if (xe || ye) return xe && ye ? 0 : xe ? 1 : -1;             // blanks last (direction-independent)
+      const xn = Number(x), yn = Number(y);
+      if (Number.isFinite(xn) && Number.isFinite(yn)) return xn - yn;
+      return String(x).localeCompare(String(y), undefined, { numeric: true, sensitivity: "base" });
+    };
+    if (sort) records.sort((a, b) => {
+      const x = val(a, sort.col), y = val(b, sort.col);
+      const xe = x === "" || x == null, ye = y === "" || y == null;
+      if (xe || ye) return xe && ye ? 0 : xe ? 1 : -1;             // blanks stay last even when descending
+      return cmp(x, y) * sort.dir;
+    });
 
     // bulk action bar
     const selected = new Set<string>();

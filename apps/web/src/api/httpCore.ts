@@ -12,10 +12,20 @@ export class HttpCore {
   private token = localStorage.getItem("aec-token") || "";
   constructor(protected baseUrl = DEFAULT_API) {}
 
-  /** Bearer token for authenticated requests (persisted). Empty string clears it. */
+  /** Bearer token for authenticated requests (persisted). Empty string clears it.
+   *  Also mirrored into the `aec_token` cookie the backend accepts for **SSE** — EventSource cannot
+   *  send an Authorization header, so without the cookie every live stream (model/notifications/
+   *  pull-plan) resolves anonymous under RBAC and dies in a reconnect loop. Same-origin only (the
+   *  nginx prod layout); in cross-origin dev RBAC is off and streams work without it. */
   setToken(t: string) {
     this.token = t;
     if (t) localStorage.setItem("aec-token", t); else localStorage.removeItem("aec-token");
+    try {
+      const secure = location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = t
+        ? `aec_token=${encodeURIComponent(t)}; Path=/; SameSite=Lax; Max-Age=604800${secure}`
+        : `aec_token=; Path=/; SameSite=Lax; Max-Age=0${secure}`;
+    } catch { /* non-browser context (tests) — Bearer auth still works */ }
   }
   get authed() { return !!this.token; }
   /** Auth header to merge into any raw fetch (uploads, etc.). */

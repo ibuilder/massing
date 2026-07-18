@@ -78,6 +78,13 @@ describe("CADCMD grammar", () => {
     expect(r.steps[0]!.params.thickness).toBe(0.3);
   });
 
+  it("rejects malformed polar tokens instead of guessing", () => {
+    expect(parseCadCommand("WALL 0,0 5<").kind).toBe("error");        // angle omitted
+    expect(parseCadCommand("WALL 0,0 <45").kind).toBe("error");       // distance omitted
+    expect(parseCadCommand("WALL 0,0 @5<45<90").kind).toBe("error");  // double '<'
+    expect(parseCadCommand("WALL 0,0 @x<45").kind).toBe("error");     // non-numeric distance
+  });
+
   it("LEVEL adds a storey at an elevation", () => {
     const r = parseCadCommand("LEVEL L3 7.0");
     if (r.kind !== "recipe") throw new Error(r.kind);

@@ -1571,6 +1571,10 @@ export class ApiClient extends HttpCore {
    *  surfaces status transitions so a UI can say "live updates disconnected" instead of going quiet. */
   private liveStream(path: string, onMessage: (data: unknown) => void,
                      onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+    // Demo/Pages build has no backend: opening an EventSource there dies CLOSED and our backoff would
+    // retry it forever (console-error spam in the public demo). Serve an inert stream instead — the
+    // same guard every fetch method has via demoJson.
+    if (IS_DEMO) return { get connected() { return false; }, close() { /* nothing to close */ } };
     let es: EventSource | null = null;
     let closed = false;
     let retryMs = 5000;

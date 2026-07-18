@@ -9,8 +9,16 @@ import type { PanelContext } from "../panelContext";
  * board (make-ready, PPC, live collaboration + presence), lookahead, milestones, CPM critical path,
  * earned value, baseline/variance, and the Gantt + Line-of-Balance SVGs. Extracted from portal.ts.
  */
+// M3 live-board resources of the CURRENT render. The panel has no dispose hook, so each re-render
+// closes its predecessor's SSE stream + presence timer synchronously — rapid Schedule↔Home toggling
+// must replace the live subscription, never stack them (the 20s heartbeat probe alone left a window).
+let livePull: { close(): void } | null = null;
+let livePullTimer = 0;
+
 export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   const pid = ctx.host.projectId()!;
+  livePull?.close(); livePull = null;
+  if (livePullTimer) { window.clearInterval(livePullTimer); livePullTimer = 0; }
   ctx.root.innerHTML = "";
   ctx.root.appendChild(ctx.bar("Schedule", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
   const intro = document.createElement("div"); intro.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 8px";
@@ -201,12 +209,14 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   ppRight.insertBefore(liveEl, msSel);
   let lastSig = "";
   const es = ctx.host.api.pullPlanStream(pid, (d) => {
+    if (!document.body.contains(ppCard)) { es.close(); return; }   // view left → immediate teardown
     const sig = `${d.count}|${d.latest ?? ""}`;
     const first = lastSig === "";
     if (sig === lastSig) return;
     lastSig = sig;
     if (!first) { loadPull(msSel.value); if (anShown) loadAnalytics(msSel.value); }   // someone edited → refresh
   });
+  livePull = es;
   const renderPeers = (active: { user: string; viewpoint: unknown }[]) => {
     const peers = active.filter((a) => a.viewpoint && (a.viewpoint as { board?: string }).board === "pull-plan");
     [...ppRight.querySelectorAll(".pp-peer")].forEach((n) => n.remove());
@@ -223,6 +233,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     void ctx.host.api.presence(pid, { board: "pull-plan" }).then((r) => renderPeers(r.active)).catch(() => { /* offline */ });
   };
   hbTimer = window.setInterval(heartbeat, 20000);
+  livePullTimer = hbTimer;
   heartbeat();
 
   const statusColor = (s: string) =>

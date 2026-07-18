@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.441 — web audit fixes: live streams that actually live, honest sorting, strict polar
+
+From the full-codebase audit (frontend lane) — five defects the toolchain can't see:
+
+- **SSE auth (P1)** — the backend accepts an `aec_token` cookie precisely because EventSource cannot send
+  an Authorization header, but the client never set it: under production RBAC every live stream
+  (model collab, notifications, pull-plan board) resolved anonymous → 403 → silent infinite reconnect.
+  `setToken` now mirrors the bearer token into the cookie (Path=/, SameSite=Lax, Secure on https;
+  cleared on logout), so the "real-time" features are real in production, not just in dev.
+- **SSE demo guard (P1)** — `liveStream` now short-circuits in the Pages/demo build (no backend there):
+  previously opening the viewer or Schedule panel in the public demo spawned an EventSource that died
+  CLOSED and retried forever (5s→60s), spamming console errors. Same `IS_DEMO` guard every fetch has.
+- **Live-board teardown (P2)** — the pull-plan SSE stream + presence timer now close synchronously when
+  the Schedule panel re-renders (module-level replacement) and on the first event after the view is
+  left — rapid Schedule↔Home toggling used to stack concurrent streams for up to 20 s.
+- **Record-list sorting (P2)** — the module-table comparator is now type-aware: numeric fields compare as
+  numbers ("10" after "9"), blanks group at the end in both directions ("5 < ''" and "5 > ''" are both
+  false, so blank rows used to scatter randomly through a numeric sort).
+- **CAD polar strictness (P2)** — malformed polar tokens now error instead of guessing: `5<` (angle
+  dropped) drew a wall due east, `<45` a zero-length wall, `@5<45<90` silently ignored the tail —
+  `Number("")` is 0. Exactly one `<` with a number on each side is required. +1 vitest case (4 forms).
+
+Typecheck + eslint + vitest (118) + build green.
+
 ## v0.3.440 — COST-DB: import your own cost book (custom vintage)
 
 - **A firm can now price through its OWN rates**, not just the shipped benchmark. `POST

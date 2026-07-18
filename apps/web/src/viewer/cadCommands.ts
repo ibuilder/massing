@@ -35,8 +35,12 @@ function point(tok: string | undefined, prev?: [number, number]): [number, numbe
   const body = rel ? tok.slice(1) : tok;
   const base: [number, number] = rel ? (prev ?? [0, 0]) : [0, 0];
   if (body.includes("<")) {                                   // polar: distance<angle°
-    const [ds, as] = body.split("<");
-    const d = Number(ds), ang = Number(as);
+    // Strict: exactly one `<` with a number on each side. `Number("")` is 0, so a sloppy split would
+    // silently draw a wrong wall from `5<` (angle dropped) or `<45` (zero length) — a drafter would
+    // never notice. Malformed polar must be an error, not a guess.
+    const parts = body.split("<");
+    if (parts.length !== 2 || parts[0]!.trim() === "" || parts[1]!.trim() === "") return null;
+    const d = Number(parts[0]), ang = Number(parts[1]);
     if (!Number.isFinite(d) || !Number.isFinite(ang)) return null;
     const r = (ang * Math.PI) / 180;
     return [base[0] + d * Math.cos(r), base[1] + d * Math.sin(r)];
