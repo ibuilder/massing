@@ -141,7 +141,7 @@ into micro-apps, but the **CAD authoring UX** and a few dev practices are worth 
    increments + guide lines, and a **dynamic-input overlay** (type a distance/angle mid-draw to constrain
    the rubber-band; Esc steps back one prompt, Enter repeats). Pure client-side in the three.js layer —
    this is the "friendly CAD" feel. *(Pairs with CADCMD.)*
-3. **AUTHOR-MATRIX — a public authoring-coverage matrix** *(★★ · like OCS's COMMANDS.md)* — one markdown
+3. ✅ **AUTHOR-MATRIX — SHIPPED v0.3.431 — a public authoring-coverage matrix** *(★★ · like OCS's COMMANDS.md)* — one markdown
    table (IFC classes × create/edit/delete/parametrize, implemented/partial/missing) in the repo + docs.
    Honest maturity signal for users, work-picker for contributors. Cheap; generate from `edit.RECIPES`.
 4. **CLIENT-LIMITS — a `docs/client-vs-server.md`** *(★★)* — what runs in the browser vs the Python

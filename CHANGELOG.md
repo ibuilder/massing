@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.431 — AUTHOR-MATRIX: a live authoring-coverage matrix (OpenAEC-study lesson #3)
+
+- **New reference surface** (from the OpenAEC study — their COMMANDS.md capability tracker is a cheap,
+  brutally-honest maturity signal). `authoring_matrix` derives an authoring-coverage table **live from
+  the `edit.RECIPES` registry** + a curated category/output map: **76 recipes across 14 categories**
+  (create-structure / -enclosure / -opening / -space / -mep / -content · annotate · edit · type · group ·
+  data · lifecycle · analysis), each with the IFC element it produces.
+- Served at `GET /reference/authoring-matrix`, rendered to the committed `docs/authoring-matrix.md`, and
+  guarded by a **completeness test** — a newly-added recipe with no category fails the gate, so the
+  coverage doc can't silently drift from what's actually built (the honest tracker only works if it stays
+  honest). It also documents that every recipe is one GUID-stable pass, dispatchable from the CAD command
+  line, the AI command bar, the node canvas, or the panels.
+- Verified: the matrix covers every registry entry exactly once, create-* rows all name an IFC output,
+  the markdown renders clean, and the endpoint serves it; `ruff` clean.
+
 ## v0.3.430 — CADCMD: a CAD command line over the viewer (OpenAEC-study lesson #1)
 
 - **New authoring surface** (from the OpenAEC / Open CAD Studio study — their single biggest UX win is

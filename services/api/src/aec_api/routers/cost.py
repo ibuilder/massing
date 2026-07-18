@@ -611,6 +611,15 @@ def list_classifications(_: str = Depends(current_user)):
     return {"systems": cls.systems()}
 
 
+@router.get("/reference/authoring-matrix")
+def reference_authoring_matrix(_: str = Depends(current_user)):
+    """AUTHOR-MATRIX: the live authoring-coverage matrix — every GUID-stable edit recipe categorized by
+    concern (create-structure / -enclosure / -mep / annotate / edit / type / group / data / lifecycle /
+    analysis) with its IFC output. Derived from `edit.RECIPES`, so it never drifts from what's built."""
+    from .. import authoring_matrix
+    return authoring_matrix.matrix()
+
+
 @router.get("/reference/disciplines")
 def reference_disciplines(_: str = Depends(current_user)):
     """The Discipline Spine vocabularies: NCS disciplines (with their default MasterFormat divisions +
