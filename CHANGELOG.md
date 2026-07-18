@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.430 — CADCMD: a CAD command line over the viewer (OpenAEC-study lesson #1)
+
+- **New authoring surface** (from the OpenAEC / Open CAD Studio study — their single biggest UX win is
+  importing AutoCAD muscle memory). A **deterministic CAD command line** in the viewer's authoring tools,
+  instant and offline (no LLM roundtrip), driving the same GUID-stable edit recipes as the panels:
+  - AutoCAD-style grammar + single-letter aliases — `WALL`/`W`, `COLUMN`/`C`, `BEAM`/`B`, `SLAB`/`S`,
+    `LEVEL`/`LVL`, `SPACE`/`SP` — e.g. `WALL 0,0 5,0 3`, `C 2,2 3.2 0.4`, `SLAB 0,0 5,0 5,5 0,5 0.25`;
+  - **↑/↓ history**, **spacebar repeats the last command** on an empty line, `Esc` clears, `HELP` lists
+    the grammar and `HELP WALL` shows one usage; every parse error carries the usage string.
+  - The parser is a **pure module** (`cadCommands.ts`) — no DOM, no network — so it's exhaustively unit
+    tested (11 cases: each verb + aliases, defaults, z-coordinate ignore, trailing-thickness detection,
+    and the error paths); the viewer supplies only the input + apply/reload.
+- Complements (doesn't replace) the AI "type what you want" bar: the CAD line is exact and instant for
+  drafters who already know the grammar; the AI bar is forgiving for everyone else.
+- Verified: typecheck + eslint + full vitest (99, +11) + production build green. The OpenAEC study's other
+  lessons (snap/dynamic-input kit, authoring-coverage matrix, client-vs-server doc, plugin registry, MCP
+  pack, sheet viewports) are captured in `docs/roadmap.md` §🧭.
+
 ## v0.3.429 — UI-SURFACE: schedule acceleration levers on the Schedule panel (P2 №11)
 
 - Surfaced the **schedule-optimization advisory** (`/schedule/optimize`) — it was API-only. The Schedule

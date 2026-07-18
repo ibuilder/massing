@@ -6,6 +6,7 @@ import CameraControls from "camera-controls";
 import { createViewer, renderMode, positionSun } from "./world";
 import { sunAltAz, sunSceneDir } from "./solar";
 import { inferDirection } from "./inference";
+import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
 import { loadReferenceModel } from "./referenceLoader";
 import { buildElementProps, buildRawProps } from "./propsView";
@@ -1737,6 +1738,46 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // --- Grid & Levels: drafting reference frame (grid snap + active work-plane) ----------
     const glBody = section("gridlevels", "Build · Grids & levels", { requires: "sourceIfc" });
     if (glBody) {
+      // CADCMD — a deterministic CAD command line (instant, offline) over the same recipes. AutoCAD
+      // grammar + aliases; up-arrow history; spacebar on an empty line repeats the last command.
+      const cadWrap = document.createElement("div"); cadWrap.style.cssText = "display:flex;gap:4px;margin-bottom:4px";
+      const cadIn = document.createElement("input");
+      cadIn.type = "text"; cadIn.className = "portal-filter"; cadIn.style.cssText = "flex:1;font-family:ui-monospace,monospace";
+      cadIn.placeholder = "⌨ CAD command — e.g. WALL 0,0 5,0 3  ·  type HELP";
+      cadIn.setAttribute("aria-label", "CAD command line");
+      const cadStatus = document.createElement("div"); cadStatus.className = "meta"; cadStatus.style.cssText = "min-height:14px;margin:-2px 0 6px 2px";
+      const cadHistory: string[] = []; let cadHistIdx = -1; let cadLast = "";
+      const runCad = async () => {
+        const line = cadIn.value.trim();
+        if (!line) { if (cadLast) { cadIn.value = cadLast; } return; }   // empty Enter = recall last (space handled below)
+        const parsed = parseCadCommand(line);
+        if (parsed.kind === "info") { cadStatus.textContent = parsed.text; return; }
+        if (parsed.kind === "error") { cadStatus.innerHTML = `<span style="color:var(--status-warn)">${escapeHtml(parsed.text)}</span>`; return; }
+        cadHistory.push(line); cadHistIdx = cadHistory.length; cadLast = line;
+        cadIn.value = ""; cadStatus.textContent = `applying ${parsed.echo}…`;
+        await withLoading(container, `authoring ${parsed.echo} + republishing`, async () => {
+          try {
+            for (let i = 0; i < parsed.steps.length; i++) {
+              const s = parsed.steps[i]!;
+              await api.editIfc(projectId!, s.recipe, s.params, i === parsed.steps.length - 1);
+            }
+            const state = await waitForPublish(projectId!);
+            if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); await reloadModelPins(); cadStatus.textContent = `✓ ${parsed.echo}${shown ? " — shown" : ""}`; notify(`${parsed.echo} applied`, "success"); }
+            else { cadStatus.textContent = `authored — publish ${state}`; notify(`authored — publish ${state}`, state === "error" ? "error" : "info"); }
+          } catch (err) { cadStatus.innerHTML = `<span style="color:var(--status-crit)">${escapeHtml((err as Error).message)}</span>`; notify(`${parsed.echo} failed: ${(err as Error).message}`, "error"); }
+        });
+      };
+      cadIn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); void runCad(); }
+        else if (e.key === " " && cadIn.value === "" && cadLast) { e.preventDefault(); cadIn.value = cadLast; }  // spacebar repeats last
+        else if (e.key === "ArrowUp") { e.preventDefault(); if (cadHistory.length) { cadHistIdx = Math.max(0, cadHistIdx - 1); cadIn.value = cadHistory[cadHistIdx] || ""; } }
+        else if (e.key === "ArrowDown") { e.preventDefault(); if (cadHistIdx < cadHistory.length - 1) { cadHistIdx++; cadIn.value = cadHistory[cadHistIdx] || ""; } else { cadHistIdx = cadHistory.length; cadIn.value = ""; } }
+        else if (e.key === "Escape") { cadIn.value = ""; cadStatus.textContent = ""; }
+      });
+      const cadGo = document.createElement("button"); cadGo.className = "mini-btn"; cadGo.textContent = "↵"; cadGo.title = "Run CAD command"; cadGo.onclick = () => void runCad();
+      cadWrap.append(cadIn, cadGo);
+      glBody.appendChild(cadWrap); glBody.appendChild(cadStatus);
+
       // Natural-language command bar — the low-barrier "type what you want" authoring surface.
       const cmdWrap = document.createElement("div"); cmdWrap.className = "nl-cmd";
       cmdWrap.style.cssText = "display:flex;gap:4px;margin-bottom:6px";

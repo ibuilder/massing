@@ -123,6 +123,53 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
     quantification · generative option scoring · viewer tile-streaming upgrade (version-coupled) ·
     multiplayer cursors · AR field overlay · subcontractor prequal module.
 
+---
+
+## 🧭 CAD-UX lessons (2026-07-17, from the OpenAEC / Open CAD Studio study)
+
+Open CAD Studio (Hakan Seven; native-DWG AutoCAD-workalike, Rust+iced+wgpu) and the OpenAEC Foundation
+(~60 repos, Rust-core→WASM, Tauri, IFCX bet) are on adjacent paths. We're an all-in-one so we won't split
+into micro-apps, but the **CAD authoring UX** and a few dev practices are worth adopting. Feasibility-ordered:
+
+1. ✅ **CADCMD — a CAD command line over the viewer — SHIPPED v0.3.430** *(★★★★ · the user's top ask)* —
+   a typed command bar in authoring mode driving the existing GUID-stable edit recipes: AutoCAD-style
+   grammar (`WALL`, `COLUMN`, `SLAB`, `GRID`, `DIM`…) + single-letter aliases (L/C/M/Z) + spacebar-repeat
+   + up-arrow history + prompt-driven flows ("Specify first point"). Every drafter already knows this;
+   it's scriptable for free. Builds on the shipped AI command bar (reuse its input + recipe dispatch).
+2. **SNAP-KIT — snap / tracking / dynamic-input as a first-class stack** *(★★★★)* — extend the shipped
+   E1 inference: osnap glyphs (endpoint/mid/center/intersection/perp/nearest), polar tracking with angle
+   increments + guide lines, and a **dynamic-input overlay** (type a distance/angle mid-draw to constrain
+   the rubber-band; Esc steps back one prompt, Enter repeats). Pure client-side in the three.js layer —
+   this is the "friendly CAD" feel. *(Pairs with CADCMD.)*
+3. **AUTHOR-MATRIX — a public authoring-coverage matrix** *(★★ · like OCS's COMMANDS.md)* — one markdown
+   table (IFC classes × create/edit/delete/parametrize, implemented/partial/missing) in the repo + docs.
+   Honest maturity signal for users, work-picker for contributors. Cheap; generate from `edit.RECIPES`.
+4. **CLIENT-LIMITS — a `docs/client-vs-server.md`** *(★★)* — what runs in the browser vs the Python
+   service and why. Bank OCS's two transferable landmines: **WebGL2 has no vertex-stage storage buffers**
+   (custom hatch/linetype must use triangulation/textures or gate on WebGPU) and **wasm is single-threaded
+   without SharedArrayBuffer** (already why the viewer needs coi-serviceworker). Doubles as arch docs.
+5. **VIEWER-FUNNEL — name + promote the Pages demo as a standalone free IFC viewer/checker** *(★ · positioning)*
+   — OCS markets its WASM build separately as a free DWG viewer that funnels to the editor. We already ship
+   the demo; give it a viewer identity (drop-an-IFC, model-QA/IFC-QA read-only) with an obvious upgrade path.
+6. **PLUGIN-REGISTRY — a versioned, manifest+registry plugin model** *(★★★ · larger)* — OCS's best design:
+   `plugin.toml` manifest + a semver'd API crate with a hard `api_version` gate + process isolation +
+   a curated `registry.json` + a template repo. Our analog: server-side recipe/analysis plugins (Python)
+   with a manifest, a pinned API version checked at load, and a scaffold — so the first third-party
+   extension isn't archaeology. *(Depends on a stable recipe-API surface — do after REL-3/4 settle.)*
+7. **MCP-PACK — publish a Massing MCP server + skill/docs pack** *(★★ · we already have `mcp_tools`)* —
+   OpenAEC treats AI agents as a first-class user (MCP is one of their four extension layers). Package the
+   existing MCP dispatch as a documented server + a Claude skill pack (draft RFI / run takeoff / drive a
+   recipe). Builds on SEC-MCP (v0.3.417 added the authz).
+8. **SHEET-VIEWPORTS — editable paper-space viewports** *(★★★ · larger; the mature endpoint for sheetgen)*
+   — OCS's layout model: paper-space tabs, viewport rectangles with per-layout camera, preset arrangements,
+   per-viewport layer freeze, double-click-to-edit-model-space. Turns our static-SVG sheets into editable
+   viewport compositions. *(Big; sequence after the drawing-set engine stabilizes.)*
+
+**Not adopting** (from the same study): the 25-micro-apps split (our all-in-one is stronger); a public
+"everything production-ready by <date>" promise (ship dated releases, not dated promises); AI-velocity
+without fidelity gates (our per-release suite + IFC-QA roundtrip is exactly the gate they lack); and
+IFCX-as-foundation (IFC stays our source of truth; IFCX is a future *export*, tracked in №18).
+
 **📦 Tracked for later — large / needs nimbleness (attack once the cycle is fast; some worktree-forkable):**
 SITE-1 open-geodata BIM↔GIS view · durable **background-job queue** (heavy exports/PAdES/gen run inline
 today) · **server-rendered 3D hero** for the package · **COST-DB cloud ingest** (public-source + signed
