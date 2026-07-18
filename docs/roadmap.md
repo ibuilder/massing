@@ -111,7 +111,7 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
 14. ✅ **PERMIT-CHECK — SHIPPED v0.3.425 — permit-readiness pre-review** — package the existing IBC/IEBC/egress engines into a
     jurisdiction-checklist deficiency report + e-permitting export (cities now run AI plan review; LA/
     Seattle/Austin live 2026).
-15. **QA-AGENT — agentic drawing-set review** — an agent pass over the self-generated sheet/model data
+15. ✅ **QA-AGENT — SHIPPED v0.3.427 — drawing-set QA review** (deterministic sheet-cited core; AI narration layer = follow-up) — an agent pass over the self-generated sheet/model data
     (structured source, not raster) returning cited markups via the existing PDF markup stack.
 16. **LAYOUT-EXPORT — robotic layout / total-station points** — export the field-layout engine's points as
     robot/instrument-consumable files (DXF layers + point CSV with survey control), riding the georef

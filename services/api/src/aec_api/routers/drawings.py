@@ -25,6 +25,23 @@ router = APIRouter()
 _export_throttle = rate_limited("model_export", 10)
 
 
+@router.get("/projects/{pid}/drawing-set/qa")
+def drawing_set_qa(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """QA-AGENT: the drawing-set QA review — set integrity (duplicates/gaps/titleblock), issuance
+    hygiene, and model cross-checks (plans-per-storey, schedule-vs-model counts, discipline coverage),
+    every finding cited to its sheet. Computed from the structured register + model source — no raster
+    interpretation. Runs without a model (register checks only) and adds the cross-checks when one exists."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import drawing_qa
+    model = None
+    try:
+        model = open_model(_source_ifc(db, pid))
+    except Exception:  # noqa: BLE001 — no model → register-only review (the report says so)
+        model = None
+    return drawing_qa.review(db, pid, model)
+
+
 @router.get("/projects/{pid}/drawing-set")
 def get_drawing_set(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Controlled drawing-set register from the `drawing` records: current set (latest revision per

@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.427 — QA-AGENT: drawing-set QA review, every finding sheet-cited (P3 №15)
+
+- **New capability** (upgrade-plan P3 №15; agentic drawing review is the 2026 benchmark — but most
+  tools review raster PDFs; this platform generates its sheets, so QA checks the **structured source**
+  directly — no OCR, no hallucination). New `drawing_qa.review`:
+  - **Set integrity** — duplicate sheet numbers (critical → HOLD), numbering gaps that name the missing
+    sheets, empty titleblock fields (title/discipline);
+  - **Issuance hygiene** — issued sheets with no issue date, unparseable revision tokens;
+  - **Model cross-checks** — plans-per-storey (an N-storey model needs N plan sheets), a door schedule
+    when doors are modeled, S/M/P-series coverage when structural/MEP elements exist;
+  - findings ranked critical → major → minor, each **cited to its sheet**, with a HOLD / REVIEW / CLEAN
+    verdict. Runs register-only without a model and adds the cross-checks when one loads.
+- `GET /projects/{pid}/drawing-set/qa`. Deterministic + offline (the honest core an AI reviewer can
+  later narrate). Verified on a deliberately-defective register (dup A-101, missing A-103, issued-no-date,
+  bad revision, blank title) + a 5-storey model; drawing-set/sheetgen/issuance suites green.
+
 ## v0.3.426 — UI-SURFACE: the new engines are now visible in the portal (P2 №11, first slice)
 
 - The three capabilities shipped in v0.3.423–425 now have a UI (they were API-only):
