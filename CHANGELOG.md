@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.406 — REL-3: extract the edit.py authoring primitives into a foundation leaf
+
+- Foundation-first slice on the biggest file in the tree — `data/edit.py` (2127 lines), the GUID-stable IFC
+  authoring engine. The nine low-level primitives every recipe builds on — context/profile/mesh/lookup
+  helpers (`_body_context`, `_rect_profile`, `_first_storey`, `_box_mesh`, `_annotation_context`,
+  `_element_mark`, `_wall_thickness`, `_fill_representation`, `_element`) — move to a new pure leaf
+  **`edit_core.py`** that depends only on ifcopenshell, never on a recipe.
+- `edit.py` re-exports every name, so the sibling authoring modules that already reach in for these
+  (`connections`, `curtainwall`, `families` do `from .edit import _body_context …`) are unchanged.
+  `edit.py` 2127 → 2005. The leaf imports nothing back, so no cycle (guard confirms 0 across 330 modules).
+- This unblocks splitting the recipe *groups* (MEP, structural, as-built) off later — they can import the
+  primitives from `edit_core` instead of dragging in the whole engine. Verified across 10 authoring tests
+  (annotation / openings / mesh / content / curtain-wall / family-library / connections / detailing /
+  edit-undo), `ruff` clean.
+
 ## v0.3.405 — REL-3: split the sheet renderers out of data/drawings.py (façade)
 
 - Next façade extraction. The **paper-output half** of `data/drawings.py` — `render_sheet_svg` /

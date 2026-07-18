@@ -55,9 +55,12 @@ they're archived in **[roadmap-completed.md](roadmap-completed.md)**.
    `connectors_mappings.py` (pure leaf), `connectors.py` 495→411 (façade); first extraction since the cycle
    guards, verified 0 new cycles. **drawings renderers SHIPPED v0.3.405** — the sheet SVG/PDF renderers +
    dim primitives → `data/drawings_render.py` (pure leaf), `data/drawings.py` 941→788 (façade), 0 new
-   cycles. *Remaining:* `modules.py` CRUD + feed builders (`my_work`/`due_feed`/`notifications`) on top of
-   the registry base (blocked — dense back-calls would cycle; needs DI), `main.py`, the rest of
-   `connectors.py` (per-vendor I/O), the rest of `data/drawings.py`, the rest of `drawing.py`.
+   cycles. **edit primitives SHIPPED v0.3.406** — the 9 pure IFC authoring primitives → `edit_core.py`
+   foundation leaf, `data/edit.py` 2127→2005 (façade); unblocks splitting the recipe groups (they import
+   primitives from `edit_core`, not the whole engine). *Remaining:* `edit.py` recipe groups (MEP /
+   structural / as-built — now unblocked via `edit_core`), `modules.py` CRUD + feed builders (blocked —
+   dense back-calls would cycle; needs DI), `main.py`, the rest of `connectors.py` (per-vendor I/O),
+   the rest of `data/drawings.py`, the rest of `drawing.py`.
    `ruff`+suite green after each. *(`openModule` O(n·m) already
    fixed v0.3.373; REL-1/2 import cycles verified false positives — see below.)*
 4. **REL-4 — decompose the *web* hotspots** *(one PR each, TESTED via typecheck/lint/vitest/build)* —
