@@ -883,7 +883,11 @@ const SETTINGS_DEFAULTS: Settings = {
   theme: "dark", grid: true, projection: "Perspective", background: "dark",
   zoomCursor: true, nav: "orbit", units: "m", section: false, snap: 0,
 };
-const settings: Settings = { ...SETTINGS_DEFAULTS, ...JSON.parse(localStorage.getItem("aec-settings") || "{}") };
+// A corrupted stored value must never brick the app at boot (this runs at module top level) —
+// fall back to defaults instead of throwing during module evaluation.
+let savedSettings: Partial<Settings> = {};
+try { savedSettings = JSON.parse(localStorage.getItem("aec-settings") || "{}"); } catch { savedSettings = {}; }
+const settings: Settings = { ...SETTINGS_DEFAULTS, ...savedSettings };
 let savedTimer: number | undefined;
 function flashSaved() {
   const el = document.getElementById("sb-saved"); if (!el) return;

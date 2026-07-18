@@ -67,7 +67,7 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
    `member_project_ids` filter (the sibling `fca_portfolio` does it right). Cross-tenant P&L/WIP leak in
    shared deployments. Also: clamp the unbounded `limit` in `/modules/search`; add the `project_id`
    predicate to `list_attachments`/`get_attachment` (defense-in-depth).
-2. **WEB-BOOT — un-brick corrupted settings** — `main.ts` top-level `JSON.parse(localStorage…)` is the one
+2. ✅ **WEB-BOOT — SHIPPED v0.3.415 — un-brick corrupted settings** — `main.ts` top-level `JSON.parse(localStorage…)` is the one
    unwrapped parse in the app; any invalid `aec-settings` value = permanent blank screen. Wrap it; also
    guard the GeoJSON file-input parse and add the missing `.catch` on `responsibilityTemplates`.
 3. **SEC-GUARD — production guard beyond Postgres** — `_production_guard` only enforces

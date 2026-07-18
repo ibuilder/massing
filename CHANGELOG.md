@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.415 — WEB-BOOT: a corrupted stored setting can no longer brick the app (P0 №2)
+
+- **Bug fix** (upgrade-plan P0 №2): `main.ts` parsed `localStorage["aec-settings"]` at module top level
+  with no guard — the single unwrapped `JSON.parse` in the app. Any invalid stored value (quota-truncated
+  write, old-version value, extension tampering) threw during module evaluation → permanent blank screen
+  until the user manually cleared storage. Now falls back to defaults.
+- Also: the GeoJSON reference-file parse throws a friendly "not valid JSON" (was a raw SyntaxError
+  bubbling from the drop handler), and the Responsibility panel's template loader gains its missing
+  `.catch` (dropdown now says "Templates unavailable" instead of silently staying empty).
+- Verified: typecheck + eslint + full vitest (88) + production build all green.
+
 ## v0.3.414 — SEC-TENANT: portfolio roll-ups scoped to the caller's projects (P0 №1)
 
 - **Security fix** (upgrade-plan P0 №1): the cross-project roll-ups — `/benchmarks/costs`,

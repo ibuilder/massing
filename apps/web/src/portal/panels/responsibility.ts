@@ -120,6 +120,9 @@ export async function renderResponsibility(ctx: PanelContext) {
         const o = document.createElement("option"); o.value = tp.key;
         o.textContent = `${tp.name} (${tp.rows} rows)`; tsel.append(o);
       }
+    }).catch(() => {
+      // surface the failure instead of a silently-empty dropdown
+      tsel.innerHTML = `<option value="">Templates unavailable — retry later</option>`;
     });
     tsel.onchange = async () => {
       if (!tsel.value) return;

@@ -64,7 +64,12 @@ function eachCoord(geom: { type: string; coordinates: unknown }, fn: (p: Pos) =>
 }
 
 function loadGeoJson(text: string, name: string): GisResult {
-  const gj = JSON.parse(text);
+  let gj: any;  // JSON.parse's natural type — the shape checks below do the narrowing
+  try {
+    gj = JSON.parse(text);
+  } catch {
+    throw new Error(`${name}: not valid JSON — expected a GeoJSON FeatureCollection/Feature/geometry`);
+  }
   const features: { geometry: { type: string; coordinates: unknown } | null }[] =
     gj.type === "FeatureCollection" ? gj.features
       : gj.type === "Feature" ? [gj]
