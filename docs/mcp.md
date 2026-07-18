@@ -26,7 +26,17 @@ server is `services/api/mcp_server.py`. Tools available:
 | `bim_kpi_scorecard` | the 10-category BIM KPI scorecard |
 | `openbim_quality` | LOIN / IDS / export-health / bSDD (needs a loaded model) |
 | `standards_check` | run a standards-compliance check |
-| `create_rfi` | create an RFI (a write tool) |
+| `list_recipes` | the authoring-coverage matrix — every recipe `run_recipe` can drive |
+| `schedule_risk` | Monte Carlo P10/P50/P80/P90 completion + delay drivers |
+| `carbon_report` | A1–A3 embodied carbon + Buy Clean + LEED inventory (needs a model) |
+| `permit_readiness` | submission-readiness over egress + code + sheet coverage (needs a model) |
+| `drawing_qa` | drawing-set QA — duplicate/gap numbers, titleblock, model cross-checks |
+| `create_rfi` | create an RFI (a **write** tool) |
+| `run_recipe` | drive a GUID-stable authoring recipe (add_wall, set_pset, …) (a **write** tool) |
+
+The two write tools carry the same **editor**-role gate as their HTTP routes when `AEC_RBAC=1`, so an
+agent can never author or create records the acting identity couldn't through the UI. `run_recipe` saves a
+new audited, undoable IFC version but leaves reconvert/publish to the normal flow.
 
 The MCP SDK is an **optional** dependency (the platform is offline-first and doesn't force it). To
 enable the server:
@@ -57,3 +67,12 @@ Claude Desktop (`claude_desktop_config.json`):
 The tool logic lives in `aec_api.mcp_tools` and reuses the same engines the HTTP API does, so an
 agent's reads and writes go through the exact same validation and workflow gates as the UI — nothing
 is duplicated, and the MCP surface can never do something a normal API caller can't.
+
+## 3. Skill pack (agent playbooks)
+
+A drop-in Claude **skill pack** ships at [`docs/mcp-skills/`](mcp-skills/SKILL.md): a `SKILL.md` plus three
+copy-ready workflow playbooks — [draft an RFI](mcp-skills/draft-rfi.md), [run a takeoff](mcp-skills/run-takeoff.md)
+(quantities/cost/carbon), and [drive a recipe](mcp-skills/drive-a-recipe.md) (safe GUID-stable authoring:
+discover → precheck → apply → publish → verify). Point a Claude environment at it so an agent knows *how* to
+use the tools above, not just *that* they exist — read before writing, ground every action in the project's
+real state, and respect the compliance boundary.

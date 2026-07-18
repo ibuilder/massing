@@ -37,6 +37,9 @@ with TestClient(app) as c:
     names = {t["name"] for t in cat["tools"]}
     assert {"project_snapshot", "cde_status", "bim_kpi_scorecard", "standards_check",
             "create_rfi"} <= names, names
+    # MCP-PACK: the authoring + analysis engines are exposed too
+    assert {"list_recipes", "run_recipe", "schedule_risk", "carbon_report", "permit_readiness",
+            "drawing_qa"} <= names, names
 
     # --- MCP dispatch (the pure surface an external agent drives) ----------------------------------
     db = SessionLocal()
@@ -60,6 +63,24 @@ with TestClient(app) as c:
         except ValueError:
             pass
 
+        # --- MCP-PACK: authoring + analysis engines over MCP -----------------------------------------
+        recipes = mcp_tools.dispatch(db, "list_recipes", {})
+        assert recipes["recipe_count"] > 0 and "add_wall" in {
+            r["recipe"] for rows in recipes["by_category"].values() for r in rows["recipes"]}, recipes
+        risk = mcp_tools.dispatch(db, "schedule_risk", {"project_id": pid})
+        assert isinstance(risk, dict), risk        # no activities → a well-formed (empty) forecast
+        dqa = mcp_tools.dispatch(db, "drawing_qa", {"project_id": pid})
+        assert "findings" in dqa, dqa              # register-only review (no model in this suite)
+        # the model-index engines return a clean "no model" signal rather than raising
+        assert mcp_tools.dispatch(db, "carbon_report", {"project_id": pid}).get("error"), "carbon"
+        assert mcp_tools.dispatch(db, "permit_readiness", {"project_id": pid}).get("error"), "permit"
+        # run_recipe with no source IFC is a clean ValueError (not a crash)
+        try:
+            mcp_tools.dispatch(db, "run_recipe", {"project_id": pid, "recipe": "add_wall", "params": {}})
+            raise AssertionError("expected ValueError (project has no source IFC)")
+        except ValueError:
+            pass
+
         # --- SEC-MCP: membership scoping (defense-in-depth if the server is ever non-local) --------
         # RBAC is off in this suite, so member_project_ids is None → unrestricted; simulate RBAC by
         # patching the rbac module the way dispatch resolves it.
@@ -76,6 +97,16 @@ with TestClient(app) as c:
                 pass
             # the admin api-key identity (the stdio default) stays unrestricted
             assert any(p["id"] == pid for p in mcp_tools.dispatch(db, "list_projects", {}, user="api-key"))
+            # MCP-PACK: a write tool needs editor role, not just membership. Grant 'viewer' a viewer
+            # role and confirm run_recipe is refused (the editor gate fires before touching the model).
+            from aec_api import rbac as _r2
+            _r2.grant(db, pid, "viewer_user", "viewer"); db.commit()
+            try:
+                mcp_tools.dispatch(db, "run_recipe",
+                                   {"project_id": pid, "recipe": "add_wall", "params": {}}, user="viewer_user")
+                raise AssertionError("expected PermissionError (viewer cannot run_recipe)")
+            except PermissionError:
+                pass
         finally:
             _rbac.RBAC_ON = _saved_on
     finally:
@@ -97,6 +128,7 @@ with TestClient(app) as c:
     bad = c.get(f"/projects/{pid}/standards/check", params={"standard": "nope"}).json()
     assert "error" in bad, bad
 
-print("MCP + STANDARDS OK - catalog exposes 8 tools; dispatch runs snapshot/records/cde and creates a "
-      "real RFI (write tool); unknown tool raises; standards experts return clause-referenced findings "
-      "(iso19650 flags missing AIR/BEP as gaps; ids notes no model)")
+print("MCP + STANDARDS OK - catalog exposes 14 tools (MCP-PACK adds the authoring + analysis engines); "
+      "dispatch runs snapshot/records/cde, list_recipes/schedule_risk/drawing_qa, creates a real RFI, "
+      "gates run_recipe behind editor role, and refuses non-member identities; standards experts return "
+      "clause-referenced findings (iso19650 flags missing AIR/BEP as gaps; ids notes no model)")

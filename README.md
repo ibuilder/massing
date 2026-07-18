@@ -89,8 +89,10 @@ pay app, COBie, work order, meter reading) tied to the same GlobalIds.
   (multi-hop, cited IFC-relationship queries); **computed code pre-check** (occupancy load + egress
   capacity, IBC-cited); **generative fit-out** (auto-furnish spaces); and **site logistics on the 4D
   timeline** (schedule-windowed cranes/laydown/gates).
-- **AI over the model** — an MCP server so external agents (Claude Desktop) can drive the project,
-  drawing-sheet extraction, and grounded standards experts. Offline-first; nothing fabricated.
+- **AI over the model** — an MCP server so external agents (Claude Desktop) can drive the project: read
+  status/records, run schedule-risk, carbon, permit-readiness, drawing-QA and standards checks, and
+  **author the model with GUID-stable recipes** — all through the same gated engines the UI uses, with a
+  drop-in Claude skill pack (`docs/mcp-skills/`). Offline-first; nothing fabricated.
 - **Construction management** — RFIs, submittals, change orders, pay apps, 4D/5D.
 - **Turnover** — COBie, as-built, closeout, certified substantial completion (G704).
 - **Operations** — CMMS work orders + preventive maintenance, utility meters → EUI, reserve

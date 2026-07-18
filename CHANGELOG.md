@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.435 — MCP-PACK: the MCP surface becomes a first-class authoring + analysis agent (CAD-UX lesson #7)
+
+- **The MCP tool catalog grew 8 → 14.** External AI agents (Claude Desktop, an agent) can now drive the
+  authoring + analysis engines, not just read status — through the *same* gated engines the UI and HTTP API
+  use, so nothing is duplicated and the surface can never exceed a normal caller:
+  - `list_recipes` — the authoring-coverage matrix (every recipe drivable, by category + IFC output);
+  - `run_recipe` — apply a **GUID-stable authoring recipe** (add_wall, add_column, set_pset, …), saving a
+    new audited, undoable IFC version (reconvert/publish stays on the normal flow);
+  - `schedule_risk` — Monte Carlo P10/P50/P80/P90 completion + delay drivers;
+  - `carbon_report` — A1–A3 embodied carbon + Buy Clean limits + LEED inventory;
+  - `permit_readiness` — submission-readiness over egress + code + sheet coverage;
+  - `drawing_qa` — drawing-set QA (duplicate/gap numbers, titleblock, model cross-checks).
+- **Same authorization as the UI.** The two write tools (`create_rfi`, `run_recipe`) carry the identical
+  **editor**-role gate their HTTP routes use when RBAC is on — membership alone isn't enough; a viewer-role
+  member is refused. Read tools stay membership-scoped (a non-member identity is refused per SEC-MCP).
+- **A drop-in Claude skill pack** at `docs/mcp-skills/` — `SKILL.md` plus three copy-ready playbooks
+  (draft-an-RFI, run-a-takeoff, drive-a-recipe) so an agent knows *how* to use the tools: read before
+  writing, ground every action in the project's real state, publish after a batch of edits.
+- `docs/mcp.md` + README refreshed; `test_mcp_standards` extended (catalog, the new engine tools, the
+  editor gate on `run_recipe`, the no-model error signals). 261/261 suites green; ruff clean.
+
 ## v0.3.434 — SNAP-KIT (phase 1): the precision engine + polar tracking in draft mode (CAD-UX lesson #2)
 
 - **New authoring precision** (from the OpenAEC study — object-snap / polar / dynamic-input is the other

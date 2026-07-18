@@ -102,10 +102,12 @@ into micro-apps, but the **CAD authoring UX** and a few dev practices are worth 
    a curated `registry.json` + a template repo. Our analog: server-side recipe/analysis plugins (Python)
    with a manifest, a pinned API version checked at load, and a scaffold — so the first third-party
    extension isn't archaeology. *(Depends on a stable recipe-API surface — do after REL-3/4 settle.)*
-7. **MCP-PACK — publish a Massing MCP server + skill/docs pack** *(★★ · we already have `mcp_tools`)* —
-   OpenAEC treats AI agents as a first-class user (MCP is one of their four extension layers). Package the
-   existing MCP dispatch as a documented server + a Claude skill pack (draft RFI / run takeoff / drive a
-   recipe). Builds on SEC-MCP (v0.3.417 added the authz).
+7. ✅ **MCP-PACK — SHIPPED v0.3.435 — Massing MCP server + skill/docs pack** *(★★)* — the MCP catalog grew
+   8→14: the authoring + analysis engines are now agent-drivable (`list_recipes`, `run_recipe`,
+   `schedule_risk`, `carbon_report`, `permit_readiness`, `drawing_qa`), so an agent is a first-class
+   *author*, not just a reader. The two write tools (`create_rfi`, `run_recipe`) carry the same editor-role
+   gate as their HTTP routes. A drop-in Claude skill pack lives at `docs/mcp-skills/` (SKILL.md + draft-RFI /
+   run-takeoff / drive-a-recipe playbooks). Builds on SEC-MCP (v0.3.417 authz).
 8. **SHEET-VIEWPORTS — editable paper-space viewports** *(★★★ · larger; the mature endpoint for sheetgen)*
    — OCS's layout model: paper-space tabs, viewport rectangles with per-layout camera, preset arrangements,
    per-viewport layer freeze, double-click-to-edit-model-space. Turns our static-SVG sheets into editable
