@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.416 — SEC-GUARD: production safety guard beyond Postgres (P0 №3)
+
+- **Security fix** (upgrade-plan P0 №3): `_production_guard` only enforced its boot checks (RBAC on,
+  real `AEC_AUTH_SECRET`, no trusted X-User, non-default MinIO keys) when the database was Postgres. A
+  real deployment on MySQL — or a small SQLite self-host — booted straight onto the public dev signing
+  secret, making every auth token and signed download URL forgeable.
+- The guard now triggers on **any non-SQLite DATABASE_URL or an explicit `AEC_ENV=production`** (so a
+  SQLite self-host can opt into the same protection); dev/test SQLite is unchanged and
+  `AEC_ALLOW_OPEN=1` remains the deliberate escape hatch.
+- `test_prod_hardening` extended: Postgres AND MySQL both refuse without RBAC; `AEC_ENV=production` on
+  SQLite refuses; the escape hatch and plain-SQLite dev still boot. api/security/localmode suites green.
+
 ## v0.3.415 — WEB-BOOT: a corrupted stored setting can no longer brick the app (P0 №2)
 
 - **Bug fix** (upgrade-plan P0 №2): `main.ts` parsed `localStorage["aec-settings"]` at module top level

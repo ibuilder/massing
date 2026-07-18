@@ -113,14 +113,17 @@ async def _autosync_loop() -> None:
 def _production_guard() -> None:
     """Fail-fast on the misconfigurations that silently ship an open platform.
 
-    "Production" is detected by the database: a Postgres DATABASE_URL means real deployment (dev and
-    the test gate run SQLite). On Postgres we refuse to start unless RBAC is on and the auth secret
-    is set — a forgotten env var must be a loud crash at boot, not an open API discovered later.
+    "Production" is detected as **not obviously dev**: any non-SQLite DATABASE_URL (Postgres, MySQL,
+    MSSQL — dev and the test gate run SQLite) or an explicit `AEC_ENV=production`. On a production
+    deployment we refuse to start unless RBAC is on and the auth secret is set — a forgotten env var
+    must be a loud crash at boot, not an open API discovered later. A SQLite prod (e.g. a small
+    self-host) opts in via `AEC_ENV=production` to get the same protection.
     `AEC_ALLOW_OPEN=1` is the explicit escape hatch for intentionally-open internal deployments."""
     log = logging.getLogger("aec")
     db_url = os.environ.get("DATABASE_URL", "")
-    is_postgres = db_url.startswith(("postgres://", "postgresql://", "postgresql+"))
-    if is_postgres and os.environ.get("AEC_ALLOW_OPEN") != "1":
+    is_server_db = bool(db_url) and not db_url.startswith("sqlite")
+    declared_prod = os.environ.get("AEC_ENV", "").strip().lower() in ("production", "prod")
+    if (is_server_db or declared_prod) and os.environ.get("AEC_ALLOW_OPEN") != "1":
         from . import auth, rbac
         problems = []
         if not rbac.RBAC_ON:
@@ -138,7 +141,7 @@ def _production_guard() -> None:
                             "'minioadmin' — object storage would be world-accessible")
         if problems:
             raise RuntimeError(
-                "refusing to start on Postgres with an unsafe configuration:\n  - "
+                "refusing to start a production deployment with an unsafe configuration:\n  - "
                 + "\n  - ".join(problems)
                 + "\nSet the required env vars, or AEC_ALLOW_OPEN=1 to accept an open deployment.")
     # multi-worker + rate limit without Redis: each worker counts independently → limit is per-worker
@@ -159,7 +162,7 @@ async def lifespan(_app: FastAPI):
     # Production safety: tokens signed with the public dev secret are forgeable. Warn loudly when
     # RBAC is on, and hard-fail when AEC_REQUIRE_SECRET=1 (set this in real deployments).
     from . import auth, rbac
-    _production_guard()                          # Postgres ⇒ RBAC + real secret, or refuse to boot
+    _production_guard()                          # non-SQLite or AEC_ENV=production ⇒ RBAC + real secret, or refuse to boot
     if auth.secret_is_default():
         msg = ("AEC_AUTH_SECRET is not set — auth tokens are signed with a public dev secret and "
                "are forgeable. Set AEC_AUTH_SECRET to a strong random value.")

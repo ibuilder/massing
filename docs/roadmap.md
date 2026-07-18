@@ -70,7 +70,7 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
 2. ✅ **WEB-BOOT — SHIPPED v0.3.415 — un-brick corrupted settings** — `main.ts` top-level `JSON.parse(localStorage…)` is the one
    unwrapped parse in the app; any invalid `aec-settings` value = permanent blank screen. Wrap it; also
    guard the GeoJSON file-input parse and add the missing `.catch` on `responsibilityTemplates`.
-3. **SEC-GUARD — production guard beyond Postgres** — `_production_guard` only enforces
+3. ✅ **SEC-GUARD — SHIPPED v0.3.416 — production guard beyond Postgres** — `_production_guard` only enforces
    secret/RBAC/S3 checks when the DB is Postgres; a SQLite/MySQL prod boots on the public dev secret
    (forgeable tokens/signed URLs). Trigger on "not obviously dev" instead.
 4. **SEC-MCP — per-project authz in `mcp_tools.dispatch`** — currently trusts any caller for any

@@ -10,31 +10,44 @@ for _f in ("./test_prod_hardening.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient           # noqa: E402
-from aec_api import storage                          # noqa: E402
-from aec_api.main import _production_guard, app      # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
-# --- prod startup guard: Postgres without RBAC/secret refuses to boot -------------------------
-_saved = {k: os.environ.get(k) for k in ("DATABASE_URL", "AEC_RBAC", "AEC_ALLOW_OPEN")}
+from aec_api import storage  # noqa: E402
+from aec_api.main import _production_guard, app  # noqa: E402
+
+# --- prod startup guard: any non-SQLite DB (or AEC_ENV=production) without RBAC/secret refuses ---
+_saved = {k: os.environ.get(k) for k in ("DATABASE_URL", "AEC_RBAC", "AEC_ALLOW_OPEN", "AEC_ENV")}
 try:
-    os.environ["DATABASE_URL"] = "postgresql://u:p@host/db"
-    os.environ.pop("AEC_RBAC", None)
-    os.environ.pop("AEC_ALLOW_OPEN", None)
+    for prod_url in ("postgresql://u:p@host/db", "mysql+pymysql://u:p@host/db"):
+        os.environ["DATABASE_URL"] = prod_url
+        os.environ.pop("AEC_RBAC", None)
+        os.environ.pop("AEC_ALLOW_OPEN", None)
+        os.environ.pop("AEC_ENV", None)
+        try:
+            _production_guard()
+        except RuntimeError as e:
+            assert "AEC_RBAC" in str(e), e
+        else:
+            raise AssertionError(f"guard must refuse {prod_url.split(':')[0]} without RBAC")
+        os.environ["AEC_ALLOW_OPEN"] = "1"           # explicit escape hatch passes
+        _production_guard()
+        os.environ.pop("AEC_ALLOW_OPEN", None)
+    # a SQLite deployment that DECLARES production gets the same protection
+    os.environ["DATABASE_URL"] = "sqlite:///./prod.db"
+    os.environ["AEC_ENV"] = "production"
     try:
         _production_guard()
     except RuntimeError as e:
         assert "AEC_RBAC" in str(e), e
     else:
-        raise AssertionError("guard must refuse Postgres without RBAC")
-    os.environ["AEC_ALLOW_OPEN"] = "1"               # explicit escape hatch passes
-    _production_guard()
+        raise AssertionError("guard must refuse AEC_ENV=production without RBAC (even on SQLite)")
 finally:
     for k, v in _saved.items():
         if v is None:
             os.environ.pop(k, None)
         else:
             os.environ[k] = v
-# SQLite (dev/test) never trips the guard
+# SQLite without AEC_ENV (dev/test) never trips the guard
 _production_guard()
 
 with TestClient(app) as c:
@@ -88,9 +101,9 @@ with TestClient(app) as c:
         c.get(f"/projects/{pid}/modules/rfi").json() == [], "records gone with the project"
 
 # --- sync id-extraction pulls only procore_id (and normalizes types) ---------------------------
-from aec_api import sync as sync_mod                  # noqa: E402
-from aec_api.db import SessionLocal                   # noqa: E402
-from aec_api import modules as me                     # noqa: E402
+from aec_api import modules as me  # noqa: E402
+from aec_api import sync as sync_mod  # noqa: E402
+from aec_api.db import SessionLocal  # noqa: E402
 
 with TestClient(app) as c:
     pid2 = c.post("/projects", json={"name": "P2"}).json()["id"]
