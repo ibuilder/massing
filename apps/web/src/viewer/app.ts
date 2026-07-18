@@ -1216,7 +1216,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       await viewer.world.camera.controls.setLookAt(12, 8, 12, 0, 0, 0, false);
     }
     if (renderOn) renderMode(viewer.world, true);   // newly loaded meshes need cast/receive flags set
-    await viewer.world.camera.controls.fitToSphere(box.getBoundingSphere(new THREE.Sphere()), true);
+    // Animate only when the tab is VISIBLE: camera-controls resolves an animated transition from the
+    // rAF-driven update loop, and a hidden tab throttles rAF to zero — the fit promise then never
+    // settles and the "preparing geometry…" loading overlay hangs forever (hit by any user who switches
+    // tabs mid-load, and by headless/embedded panes). Hidden → instant fit, no rAF needed.
+    await viewer.world.camera.controls.fitToSphere(box.getBoundingSphere(new THREE.Sphere()), !document.hidden);
     await loader.fragments.core.update(true);
   }
   async function fitToItems(map: ModelIdMap) {
@@ -1224,7 +1228,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const box = new THREE.Box3();
     for (const b of boxes) box.union(b);
     if (box.isEmpty()) return;
-    await viewer.world.camera.controls.fitToSphere(box.getBoundingSphere(new THREE.Sphere()), true);
+    await viewer.world.camera.controls.fitToSphere(box.getBoundingSphere(new THREE.Sphere()), !document.hidden);
     await loader.fragments.core.update(true);
   }
 

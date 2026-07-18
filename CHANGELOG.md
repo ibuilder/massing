@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.452 — the "preparing geometry…" hang, root-caused and fixed (Gate A unblocked)
+
+- **The bug**: after a model loads, `fitToModels`/`fitToItems` awaited an **animated** camera-controls
+  transition. That promise resolves from the rAF-driven update loop — and a **hidden tab throttles rAF
+  to zero**, so the fit never settled and the "preparing geometry…" loading overlay hung forever. Any
+  user who switched tabs mid-load hit it; embedded/headless panes hit it every time (which is why the
+  dev-preview "geometry loader stall" haunted every prior session — the geometry was actually loaded
+  and rendering behind the stuck overlay the whole time).
+- **The fix**: animate the fit only when the tab is visible (`!document.hidden`) — a hidden tab gets an
+  instant fit, which needs no rAF. One line in each fit path.
+- **Verified live, end-to-end, for the first time in this environment**: full stack up (API :8093 +
+  Vite), model published (real Fragments conversion), viewer boots past the overlay, the Project
+  Browser builds (levels/disciplines/classes/types), and — the capstone — a **polar-coordinate wall**
+  (`WALL 0,0 @6<30 3`, the v0.3.439 grammar) typed into the live CAD command bar authored → published →
+  reconverted → reloaded (3→4 meshes), with the source IFC confirming the wall axis at **exactly
+  30.0°**, midpoint (2.598, 1.5). Undo depth 1.
+- This clears the roadmap's **Gate A** (live-viewer verification): SNAP-KIT phase 2, REL-4, the
+  paper-space editor, and the SITE-1 composed view are now verifiable in-environment.
+- Typecheck + eslint + vitest (118) + build green.
+
 ## v0.3.451 — CI fix: the two new suites write IFC uploads to a writable dir
 
 - `test_jobs` and `test_sheet_layout` (new in v0.3.448/449) upload a source IFC, and the default
