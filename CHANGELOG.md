@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.424 — CARBON-EC3: compliance-grade embodied carbon off the model itself (P3 №13)
+
+- **New capability** (upgrade-plan P3 №13; LEED v5 makes an embodied-carbon inventory **mandatory for
+  projects registering after July 1, 2026**, and Buy Clean programs set procurement GWP limits). New
+  `carbon_compliance` layer on the existing factor table:
+  - **Per-element A1–A3** (`GET …/carbon/elements`) — material category matched from each element's
+    name/type/material psets, quantity from its **own Qto sets** (volume→m³ else area→m²), carbon keyed
+    by **GlobalId** so hotspots click through to 3D. Honest coverage %: a unit-family mismatch or an
+    unmatched material is excluded and reported, never guessed. Storey + category rollups, intensity
+    per m² GFA.
+  - **Buy Clean check** — achieved factor vs representative program GWP limits per category; a fail on
+    a default factor reads "obtain a product EPD below the limit" — exactly the procurement action the
+    program forces.
+  - **LEED-style A1–A3 inventory** (`GET …/carbon/compliance`) — category rows (quantity · factor ·
+    source · share), intensity, coverage and a plain-language disclosure. Offline + deterministic;
+    factors are labeled representative until a deployment supplies product EPDs.
+- Hand-computed test (930 kg over a 6-element fixture with deliberate mismatch/unmatched cases, 60%
+  coverage honesty, Buy Clean pass + fail directions, inventory shares = 100%); existing carbon suite green.
+
 ## v0.3.423 — SCHED-RISK: Monte Carlo schedule risk over the CPM network (P3 №12)
 
 - **New capability** (upgrade-plan P3 №12; probabilistic forecasting is table-stakes in 2026 CM tools).
