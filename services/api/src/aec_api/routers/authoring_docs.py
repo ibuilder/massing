@@ -3,7 +3,7 @@
 URLs are unchanged — `authoring.py` includes this router, so callers and tests see the same paths."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -194,3 +194,46 @@ def element_sources(pid: str, guid: str, db: Session = Depends(get_db),
 
     p = _project(db, pid)
     return docgraph.element_sources(open_model(p.source_ifc), guid)
+
+
+@router.get("/projects/{pid}/drawings/layout/presets")
+def layout_presets(_: str = Depends(require_role("viewer"))):
+    """SHEET-VIEWPORTS: the named paper-space viewport arrangements (fraction rects) a client can start
+    from — override any field per viewport before posting to layout.svg/.pdf."""
+    from aec_data import sheet_layout  # type: ignore
+
+    return {name: sheet_layout.presets(name) for name in ("key", "quad", "plan-pair")}
+
+
+@router.post("/projects/{pid}/drawings/layout.svg")
+def layout_svg(pid: str, viewports: list[dict] = Body(..., embed=True),
+               meta: dict | None = Body(default=None, embed=True),
+               page: str = Body(default="A1", embed=True),
+               db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """SHEET-VIEWPORTS: compose paper-space viewports — each with its view (plan/section/elevation), an
+    optional FIXED drawing scale (true 1:N on paper, geometry clipped to the viewport rect — crop, not
+    shrink), and an optional per-viewport class freeze — rendered through the shared titleblock."""
+    from aec_data import sheet_layout  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    m = {"project": p.name or "Project", "number": "A-100", "title": "LAYOUT", **(meta or {})}
+    svg = sheet_layout.layout_sheet(open_model(p.source_ifc), viewports, m, page=page, fmt="svg")
+    return Response(content=svg, media_type="image/svg+xml")
+
+
+@router.post("/projects/{pid}/drawings/layout.pdf")
+def layout_pdf(pid: str, viewports: list[dict] = Body(..., embed=True),
+               meta: dict | None = Body(default=None, embed=True),
+               page: str = Body(default="A1", embed=True),
+               db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """SHEET-VIEWPORTS: the paper-space viewport sheet as a submittable PDF."""
+    from aec_data import sheet_layout  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    m = {"project": p.name or "Project", "number": "A-100", "title": "LAYOUT", **(meta or {})}
+    pdf = sheet_layout.layout_sheet(open_model(p.source_ifc), viewports, m, page=page, fmt="pdf")
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition":
+                             f'inline; filename="{_safe_filename(str(m.get("number") or "layout"))}.pdf"'})

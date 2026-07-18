@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.449 — SHEET-VIEWPORTS: true paper-space viewport composition (CAD-UX lesson #8, server slice)
+
+- **Sheets stop being fit-to-cell grids and become real paper space.** `sheet_layout.py`: a sheet is a
+  set of **viewport rectangles** (fractions of the drawable area), each with:
+  - its own view — plan storey / section / elevation;
+  - an optional **fixed drawing scale** — the view is placed at true 1:N on paper and **geometrically
+    clipped** to its rectangle (Liang-Barsky segment clipping, split runs on re-entry) — a fixed-scale
+    viewport crops like a real one instead of shrinking to fit;
+  - an optional **per-viewport class freeze** (a structure-only or MEP-only viewport of the same model);
+  - fit-to-rect fallback when no scale is given (the legacy behaviour).
+- Preset arrangements (`key` / `quad` / `plan-pair`) as starting points; rendered through the shared
+  titleblock pipeline (SVG + PDF). `POST /projects/{pid}/drawings/layout.svg|.pdf` +
+  `GET /drawings/layout/presets` (in the authoring-docs leaf).
+- The interactive paper-space editor (drag viewports in the web app) builds directly on these endpoints —
+  tracked as the viewer-gated remainder in the roadmap.
+- `test_sheet_layout`: hand-computed clipping (corner-crossing kept, exit/re-enter splits, outside
+  dropped), exact 1:50 scale text + clipped-inside-rect proof, class-freeze filtering, SVG/PDF render,
+  endpoints incl. the 409-without-a-model path. 265/265 suites green; ruff clean.
+
 ## v0.3.448 — JOB-QUEUE: durable background jobs (then-bucket)
 
 - **Heavy work stops hanging HTTP requests and stops dying with the process.** `jobs.py` is the smallest

@@ -125,10 +125,14 @@ into micro-apps, but the **CAD authoring UX** and a few dev practices are worth 
    *author*, not just a reader. The two write tools (`create_rfi`, `run_recipe`) carry the same editor-role
    gate as their HTTP routes. A drop-in Claude skill pack lives at `docs/mcp-skills/` (SKILL.md + draft-RFI /
    run-takeoff / drive-a-recipe playbooks). Builds on SEC-MCP (v0.3.417 authz).
-8. **SHEET-VIEWPORTS — editable paper-space viewports** *(★★★ · larger; the mature endpoint for sheetgen)*
-   — OCS's layout model: paper-space tabs, viewport rectangles with per-layout camera, preset arrangements,
-   per-viewport layer freeze, double-click-to-edit-model-space. Turns our static-SVG sheets into editable
-   viewport compositions. *(Big; sequence after the drawing-set engine stabilizes.)*
+8. 🟡 **SHEET-VIEWPORTS — server slice SHIPPED v0.3.449** *(★★★)* — true paper-space composition,
+   server-side: `sheet_layout.py` — viewport rectangles (fraction rects of the drawable area), each with
+   its view (plan storey / section / elevation), an optional **fixed 1:N drawing scale** (placed at true
+   paper scale and **geometrically clipped** to its rect via Liang-Barsky — crop, not shrink), an optional
+   **per-viewport class freeze**, preset arrangements (`key`/`quad`/`plan-pair`), rendered through the
+   shared titleblock pipeline. `POST /drawings/layout.svg|.pdf` + `GET /drawings/layout/presets`.
+   *(Remaining: the interactive paper-space editor in the web app — drag viewports, double-click-to-edit —
+   which needs the live viewer and builds directly on these endpoints.)*
 
 **Not adopting** (from the same study): the 25-micro-apps split (our all-in-one is stronger); a public
 "everything production-ready by <date>" promise (ship dated releases, not dated promises); AI-velocity
