@@ -49,6 +49,27 @@ def cpm(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("
     return schedule_cpm.compute(acts)
 
 
+@router.get("/projects/{pid}/schedule/risk")
+def schedule_risk_endpoint(pid: str, iterations: int = 1000, seed: int | None = None,
+                           ppc: float | None = None,
+                           db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """SCHED-RISK: Monte Carlo over the CPM network — P10/P50/P80/P90 completion, per-activity
+    criticality index, delay-driver ranking, and the P80 buffer vs the deterministic date.
+    `ppc` overrides the calibration; by default the team's own pull-plan PPC (when it exists)
+    calibrates the pessimistic tail — an unreliable plan honestly slips more."""
+    from .. import schedule_risk
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    ppc_val = ppc
+    if ppc_val is None:
+        try:                                         # the team's own Last Planner reliability
+            from .. import pull_plan
+            board = pull_plan.board(db, pid)
+            ppc_val = (board.get("metrics") or {}).get("ppc_pct")
+        except Exception:  # noqa: BLE001 — no pull-plan data → uncalibrated defaults
+            ppc_val = None
+    return schedule_risk.simulate(acts, iterations=iterations, seed=seed, ppc_pct=ppc_val)
+
+
 @router.get("/projects/{pid}/schedule/resource-loading")
 def resource_loading_endpoint(pid: str, cap: float | None = None, db: Session = Depends(get_db),
                               _: str = Depends(require_role("viewer"))):

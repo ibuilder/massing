@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.423 — SCHED-RISK: Monte Carlo schedule risk over the CPM network (P3 №12)
+
+- **New capability** (upgrade-plan P3 №12; probabilistic forecasting is table-stakes in 2026 CM tools).
+  `schedule_risk.simulate` runs a Monte Carlo over the existing FS network: per-activity
+  **triangular(optimistic, most-likely, pessimistic)** durations — explicit `duration_optimistic` /
+  `duration_pessimistic` fields honored, sensible fat-right-tail defaults otherwise — and reports
+  **P10/P50/P80/P90** project duration (+ calendar finishes when the schedule carries a start date),
+  the **P80 buffer** over the deterministic CPM date, an on-time probability, a duration histogram,
+  the per-activity **criticality index** (share of iterations on the critical path — the near-critical
+  work a single CPM pass hides), and a **delay-driver ranking**.
+- **PPC calibration** — the team's own Last Planner reliability calibrates the default pessimistic
+  tail (auto-pulled from the pull-plan board; 80% PPC = neutral, below widens, above narrows —
+  explicit per-activity fields are never overridden). The calibration signal PPC theory says it carries.
+- `GET /projects/{pid}/schedule/risk?iterations=&seed=&ppc=` — seeded runs reproduce exactly.
+- Verified on a hand-checked diamond network (deterministic CP 40d; percentile ordering; A1/A4 100%
+  criticality, long branch ≫ short branch; PPC-50 P80 > PPC-95 P80; degenerate triangle = deterministic;
+  cycle + empty guards) + endpoint smoke; cpm/alerts/optimize/pull-plan suites green.
+
 ## v0.3.422 — README-TRIM: the README reads like a README again (P2 №10 — P2 docs complete)
 
 - **README** 983 → 560 lines: the "Recent platform work" section keeps the five newest narrative arcs

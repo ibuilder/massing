@@ -102,7 +102,7 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
 
 ### 🟢 P3 — 2026 capability gaps (research-backed, feasibility-ordered)
 
-12. **SCHED-RISK — Monte Carlo over CPM** *(days of work; pure Python over existing CPM + PPC history)* —
+12. ✅ **SCHED-RISK — SHIPPED v0.3.423 — Monte Carlo over CPM** *(days of work; pure Python over existing CPM + PPC history)* —
     P50/P80 completion, delay-driver ranking. Probabilistic forecasting is table-stakes in 2026 CM tools.
 13. **CARBON-EC3 — compliance-grade embodied carbon** — LEED v5 makes embodied-carbon inventory mandatory
     for projects registering after **July 1, 2026**; Buy Clean GWP limits spread. Upgrade the carbon
