@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import audit, storage
@@ -35,14 +35,16 @@ if str(_DATA_SRC) not in sys.path:
 
 router = APIRouter()
 
+# REL-3 leaf split: documentation/provenance + structural/MEP analysis endpoints live in their own
+# modules; including them here keeps every URL and main.py unchanged.
+from . import authoring_analysis, authoring_docs  # noqa: E402
 
-def _project(db: Session, pid: str) -> Project:
-    p = db.get(Project, pid)
-    if not p:
-        raise HTTPException(404, "project not found")
-    if not p.source_ifc or not Path(p.source_ifc).exists():
-        raise HTTPException(409, "project has no accessible source IFC")
-    return p
+router.include_router(authoring_docs.router)
+router.include_router(authoring_analysis.router)
+
+
+# REL-3: shared with the authoring_docs / authoring_analysis leaf routers
+from .authoring_shared import project_with_source as _project  # noqa: E402
 
 
 @router.get("/projects/{pid}/types")
@@ -70,333 +72,6 @@ def type_detail(pid: str, type_guid: str, db: Session = Depends(get_db),
         return families.type_detail(open_model(p.source_ifc), type_guid)
     except ValueError as e:
         raise HTTPException(404, str(e)) from e
-
-
-@router.get("/projects/{pid}/drawings/plan.svg")
-def plan_svg(pid: str, storey: str | None = None, scale: int = 100, db: Session = Depends(get_db),
-             _: str = Depends(require_role("viewer"))):
-    """W11 C1: a schematic **plan drawing** (SVG) generated from element footprints — the first slice of
-    the construction-document set. `storey` limits to one level; `scale` is the drawing scale (1:scale).
-    Class-styled poché so a stylesheet controls linework."""
-    from fastapi.responses import Response  # local import
-
-    from aec_data import drawing  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    result = drawing.plan_svg(open_model(p.source_ifc), storey=storey, scale=int(scale))
-    return Response(content=result["svg"], media_type="image/svg+xml",
-                    headers={"X-Plan-Elements": str(result["elements"])})
-
-
-@router.get("/projects/{pid}/drawings/sheet.svg")
-def sheet_svg(pid: str, storey: str | None = None, scale: int = 100, number: str = "A-101",
-              title: str = "FLOOR PLAN", db: Session = Depends(get_db),
-              _: str = Depends(require_role("viewer"))):
-    """W11 C3: an issuable **sheet** — ARCH-D border + titleblock (project name, sheet number, scale,
-    north arrow) with the plan placed in a scaled viewport. The construction-document deliverable."""
-    from fastapi.responses import Response  # local import
-
-    from aec_data import drawing  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    result = drawing.sheet_svg(open_model(p.source_ifc), storey=storey, scale=int(scale),
-                               project=p.name or "Project", number=number, title=title)
-    return Response(content=result["svg"], media_type="image/svg+xml",
-                    headers={"X-Sheet-Number": result["number"]})
-
-
-@router.get("/projects/{pid}/drawings/schedules")
-def drawing_schedules(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """W11 C4: computed door / window / room schedules from the model (marks, sizes, types, levels, areas)
-    — the tabular half of a CD set."""
-    from aec_data import drawing  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    return drawing.schedules(open_model(p.source_ifc))
-
-
-@router.get("/projects/{pid}/analytical")
-def analytical_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """W10-7: the structural analytical model (analysis models, curve/surface members, point connections,
-    load cases) derived alongside the physical frame. Build/refresh it with the `derive_analytical`
-    recipe via POST /edit."""
-    from aec_data import analytical  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    return analytical.summary(open_model(p.source_ifc))
-
-
-@router.get("/projects/{pid}/structure/solve")
-def structure_solve(pid: str,
-                    live_occupancy: str = Query("office"),
-                    sdl_psf: float = Query(20.0, ge=0),
-                    slab_thickness_in: float = Query(8.0, gt=0),
-                    tributary_ft: float | None = Query(None, gt=0),
-                    gross_area_sf: float | None = Query(None, gt=0),
-                    e_ksi: float = Query(29000.0, gt=0),
-                    i_in4: float = Query(800.0, gt=0),
-                    db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """STRUCT-SOLVE: apply an ASCE 7 gravity load case (dead + live by occupancy) to the W10-7 analytical
-    curve members and run a determinate member-by-member statics solve — per-beam reactions, max shear/
-    moment, indicative deflection + shear/moment/deflection diagrams, plus per-column tributary axial.
-    **Preliminary only — not a substitute for a licensed structural engineer.** Requires an analytical
-    model (run the `derive_analytical` recipe first)."""
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    from .. import struct_solve
-
-    p = _project(db, pid)
-    return struct_solve.solve(open_model(p.source_ifc), live_occupancy=live_occupancy, sdl_psf=sdl_psf,
-                              slab_thickness_in=slab_thickness_in, tributary_ft=tributary_ft,
-                              gross_area_sf=gross_area_sf, e_ksi=e_ksi, i_in4=i_in4)
-
-
-@router.get("/projects/{pid}/structure/lateral")
-def structure_lateral(pid: str,
-                      sds: float = Query(1.0, gt=0), sd1: float = Query(0.6, gt=0),
-                      r: float = Query(8.0, gt=0), ie: float = Query(1.0, gt=0),
-                      system: str = Query("other"),
-                      wind_speed_mph: float = Query(115.0, gt=0), exposure: str = Query("C"),
-                      dead_psf: float = Query(90.0, gt=0), area_sf: float | None = Query(None, gt=0),
-                      risk_category: str = Query("II"), cd: float | None = Query(None, gt=0),
-                      elastic_drift_ratio: float | None = Query(None, gt=0),
-                      db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """STRUCT-LATERAL: ASCE 7 lateral analysis — seismic Equivalent Lateral Force (§12.8) + simplified
-    directional MWFRS wind — base shear distributed to per-story forces / shears / overturning, with the
-    governing case flagged, plus a preliminary §12.12 story-drift screen (allowable Δa always; pass/fail
-    when `elastic_drift_ratio` is supplied). Story weights estimated from floor area × `dead_psf`.
-    **Preliminary — not a substitute for a licensed structural engineer** (no modal or P-delta)."""
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    from .. import lateral
-
-    p = _project(db, pid)
-    drift: dict[str, float | str] = {"risk_category": risk_category}
-    if cd is not None:
-        drift["cd"] = cd
-    if elastic_drift_ratio is not None:
-        drift["target_elastic_drift_ratio"] = elastic_drift_ratio
-    return lateral.lateral_from_model(
-        open_model(p.source_ifc), dead_psf=dead_psf, area_sf=area_sf,
-        seismic={"sds": sds, "sd1": sd1, "r": r, "ie": ie, "system": system},
-        wind={"speed_mph": wind_speed_mph, "exposure": exposure}, drift=drift)
-
-
-@router.get("/projects/{pid}/doc-graph")
-def doc_graph(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """W9-4 (harder half): the document / specification graph — spec sections (classification codes) and
-    attached documents (with sheet refs) linked to the elements they govern. The cited-source layer."""
-    from aec_data import docgraph  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    return docgraph.build(open_model(p.source_ifc))
-
-
-@router.get("/projects/{pid}/elements/{guid}/sources")
-def element_sources(pid: str, guid: str, db: Session = Depends(get_db),
-                    _: str = Depends(require_role("viewer"))):
-    """The cited provenance of one element — its governing spec sections, attached documents (with sheet
-    refs), and spatial container. Every fact tagged with its source; the substrate for RFI-0 NL-QA."""
-    from aec_data import docgraph  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    return docgraph.element_sources(open_model(p.source_ifc), guid)
-
-
-@router.get("/projects/{pid}/drawings/schedule.svg")
-def schedule_svg(pid: str, kind: str = "doors", db: Session = Depends(get_db),
-                 _: str = Depends(require_role("viewer"))):
-    """W11 C4: one schedule (doors|windows|rooms) rendered as an SVG table."""
-    from fastapi.responses import Response  # local import
-
-    from aec_data import drawing  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    try:
-        result = drawing.schedule_svg(open_model(p.source_ifc), kind=kind)
-    except ValueError as e:
-        raise HTTPException(400, str(e)) from e
-    return Response(content=result["svg"], media_type="image/svg+xml",
-                    headers={"X-Schedule-Rows": str(result["rows"])})
-
-
-@router.get("/projects/{pid}/drawings/schedule.csv")
-def schedule_csv(pid: str, kind: str = "", db: Session = Depends(get_db),
-                 _: str = Depends(require_role("viewer"))):
-    """W10-6: the computed schedule(s) as a CSV download — `kind` (doors|windows|rooms) for one, or omit
-    for all three. For spreadsheets / procurement / submittals."""
-    from fastapi.responses import Response  # local import
-
-    from aec_data import drawing  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    csv_text = drawing.schedule_csv(open_model(p.source_ifc), kind=kind or None)
-    fn = f"schedule-{kind or 'all'}.csv"
-    return Response(content=csv_text, media_type="text/csv",
-                    headers={"Content-Disposition": f'attachment; filename="{fn}"'})
-
-
-@router.get("/projects/{pid}/drawings/schedule.pdf")
-def schedule_pdf(pid: str, kinds: str = "doors,windows,rooms", number: str = "A-601",
-                 title: str = "SCHEDULES", db: Session = Depends(get_db),
-                 _: str = Depends(require_role("viewer"))):
-    """W11 C6: the computed schedules laid out on an issuable ARCH-D **sheet** (border + titleblock) as a
-    submittable PDF. `kinds` is a comma list of doors|windows|rooms."""
-    from fastapi.responses import Response  # local import
-
-    from aec_data import drawing  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    want = [k.strip() for k in kinds.split(",") if k.strip() in ("doors", "windows", "rooms")]
-    pdf = drawing.schedule_pdf(open_model(p.source_ifc), kinds=want or None,
-                               project=p.name or "Project", number=number, title=title)
-    return Response(content=pdf, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="{_safe_filename(number)}.pdf"'})
-
-
-@router.get("/projects/{pid}/spec/manual")
-def spec_manual(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """W11 D6: the 3-part MasterFormat **project manual** seeded from the model — elements grouped into CSI
-    divisions → sections, each in SectionFormat Part 1/2/3 (Products from element types+materials, Execution
-    from attached install docs). The spec book that accompanies the drawings."""
-    from aec_data import specmanual  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    return specmanual.project_manual(open_model(p.source_ifc))
-
-
-@router.get("/projects/{pid}/spec/manual.txt")
-def spec_manual_text(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """W11 D6: the project manual rendered as a downloadable plain-text spec outline."""
-    from fastapi.responses import Response  # local import
-
-    from aec_data import specmanual  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    text = specmanual.manual_text(open_model(p.source_ifc), project=p.name or "Project")
-    return Response(content=text, media_type="text/plain",
-                    headers={"Content-Disposition": f'attachment; filename="{_safe_filename(pid, "manual")}-manual.txt"'})
-
-
-@router.get("/projects/{pid}/drawings/sheet.pdf")
-def sheet_pdf(pid: str, storey: str | None = None, scale: int = 100, number: str = "A-101",
-              title: str = "FLOOR PLAN", db: Session = Depends(get_db),
-              _: str = Depends(require_role("viewer"))):
-    """W11 C3b: the issuable sheet rendered to **PDF** (reportlab) — the submittable construction-document
-    deliverable. ARCH-D border + titleblock + plan poché + dimensions + keynote legend."""
-    from fastapi.responses import Response  # local import
-
-    from aec_data import drawing  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    data = drawing.sheet_pdf(open_model(p.source_ifc), storey=storey, scale=int(scale),
-                             project=p.name or "Project", number=number, title=title)
-    return Response(content=data, media_type="application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="{_safe_filename(number)}.pdf"'})
-
-
-@router.get("/projects/{pid}/detailing/rules/validate")
-def validate_detailing(pid: str, db: Session = Depends(get_db),
-                       _: str = Depends(require_role("viewer"))):
-    """W11 D3: IDS-style QA — for every element a seed rule applies to, report the ones missing their
-    required keynote/spec code (the 'components missing a keynote' pre-flight). Read-only."""
-    from aec_data import rules  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    return rules.validate_rules(open_model(p.source_ifc))
-
-
-@router.get("/projects/{pid}/detailing/{guid}")
-def element_detailing(pid: str, guid: str, db: Session = Depends(get_db),
-                      _: str = Depends(require_role("viewer"))):
-    """W11 Track D: one element's attached carriers — classification codes (UniFormat/MasterFormat/
-    OmniClass keynote+spec codes) and documents (details/installation instructions). Written by the
-    `classify` and `attach_document` recipes; consumed by keynote/schedule/spec/drawing generation."""
-    from aec_data import detailing  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    try:
-        return detailing.element_detailing(open_model(p.source_ifc), guid)
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(404, f"element {guid} not found") from e
-
-
-@router.get("/projects/{pid}/mep")
-def mep_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """W11 B6: MEP system browser — each IfcDistributionSystem with its segment/fitting/terminal
-    breakdown + a connectivity signal (elements with unconnected ports), plus segments/fittings not
-    yet assigned to any system. Add fittings with the `add_mep_fitting` recipe."""
-    from aec_data import mep  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    return mep.mep_summary(open_model(p.source_ifc))
-
-
-@router.get("/projects/{pid}/mep/sizing")
-def mep_sizing(pid: str,
-               duct_max_fpm: float = Query(2500.0, gt=0),
-               pipe_max_fps: float = Query(8.0, gt=0),
-               db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """MEP-SIZE: engineering size checks over authored MEP — computes flow velocity in each duct/pipe from
-    the design size + flow (`Pset_Massing_MEPSizing`) and checks it against accepted limits (ASHRAE
-    low-velocity air, erosion-limit water, NEC 392 tray fill), pass/fail like the IBC checks. Elevates MEP
-    from *modeled* to *engineered*. **Preliminary — not a substitute for a licensed MEP engineer.**"""
-    from aec_data import mep_sizing as _ms  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    return _ms.sizing_check(open_model(p.source_ifc), duct_max_fpm=duct_max_fpm, pipe_max_fps=pipe_max_fps)
-
-
-@router.get("/projects/{pid}/mep/connectivity")
-def mep_connectivity(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """W10-4: MEP connectivity validation — ports connected vs open, port-to-port connection count, and the
-    **dangling** (floating) elements whose ports are all unconnected. Wire elements with the `connect_mep`
-    recipe (`POST /edit` with `{guid_a, guid_b}`)."""
-    from aec_data import mep  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    return mep.connectivity(open_model(p.source_ifc))
-
-
-@router.get("/projects/{pid}/mep/sprinkler-coverage")
-def sprinkler_coverage(pid: str, hazard: str = "light", db: Session = Depends(get_db),
-                       _: str = Depends(require_role("viewer"))):
-    """MEP-FP: a sprinkler coverage pre-check — SPRINKLER head count vs the number NFPA 13 would require for
-    the model's protected floor area (IfcSpace `NetFloorArea`) at the given hazard class (`light` /
-    `ordinary` / `extra`). A planning assist, not a hydraulic design."""
-    from aec_data import mep  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    return mep.sprinkler_coverage(open_model(p.source_ifc), hazard)
-
-
-@router.get("/projects/{pid}/element-connections")
-def element_connections(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """B5: the element-to-element connection graph (`IfcRelConnectsElements`) — connected pairs + per-element
-    degree. Author edges with the `connect_elements` recipe (`POST /edit` with `{guid_a, guid_b}`)."""
-    from aec_data import edit as ed  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    p = _project(db, pid)
-    return ed.element_connections(open_model(p.source_ifc))
 
 
 @router.get("/projects/{pid}/lod")
@@ -755,13 +430,6 @@ def place_family(pid: str, family: str = Body(..., embed=True),
 
 
 _ai_author_throttle = rate_limited("draft", 30)          # the paid LLM path when a key is set
-
-
-def _safe_filename(name: str, fallback: str = "sheet") -> str:
-    """Whitelist a download filename segment so a crafted `number` can't break out of the
-    Content-Disposition quoting (defence-in-depth; the value is self-reflected only)."""
-    cleaned = re.sub(r"[^A-Za-z0-9._-]", "", name or "")[:80]
-    return cleaned or fallback
 
 
 @router.post("/projects/{pid}/ai/author")

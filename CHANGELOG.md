@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.447 — REL-3: the authoring god-router splits into leaves
+
+- **`routers/authoring.py` 1,350 → 1,030 lines**, with 21 read-only endpoints extracted into two
+  responsibility-named leaves included by the parent (so **every URL and main.py are unchanged** —
+  zero caller/test churn):
+  - `authoring_docs.py` — the documentation & provenance set: plan/sheet/schedule SVG · CSV · PDF, the
+    spec manual, detailing/keynote QA, the document graph + element sources;
+  - `authoring_analysis.py` — structural (analytical model, gravity solve, ASCE 7 lateral) + MEP
+    (system browser, sizing, connectivity, sprinkler coverage) + the element-connection graph;
+  - `authoring_shared.py` — the shared project-with-source precondition + safe-filename helper.
+- `authoring.py` keeps what it is actually about: the edit/recipe surface (apply, graph, preview,
+  history/undo, AI author, publish). Behaviorally smoked: all 12 moved URL families live at unchanged
+  paths (409-not-404 on a sourceless project). 263/263 suites green; ruff clean.
+
 ## v0.3.446 — PERF: the owner portfolio roll-up goes zero-row
 
 - **`/portfolio/summary` no longer materializes any module rows into Python.** The audit's N+1 finding:

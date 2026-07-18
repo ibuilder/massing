@@ -76,7 +76,8 @@ LAYOUT-EXPORT (found already shipped) · 5D-BIND (P3).
     options carry real models.
 
 **Still open from the velocity program:** DEV-2 tail (CI coverage upload · hotspot docstrings) · REL-3
-remainder (`modules.py` CRUD/feeds — needs a DI pass · `main.py` · rest of `data/drawings.py`/`drawing.py`)
+remainder (`modules.py` CRUD/feeds — needs a DI pass · `main.py` · rest of `data/drawings.py`/`drawing.py`;
+✅ `routers/authoring.py` split SHIPPED v0.3.447 — 1350→1030 + docs/analysis/shared leaves, URLs unchanged)
 · **REL-4** (decompose the web hotspots — `viewer/app.ts` worst, `main.ts`, `portal.ts`; tools-panel
 verify) · REL-5/7 (error handling + verified dead-code) · DEV-3 (build/tsc speed) · COBie/parse robustness.
 
