@@ -20,12 +20,30 @@ interface CadCommand {
   build(args: string[]): CadParse;
 }
 
-/** Parse "x,y" or "x,y,z" (meters) into a [x,y] tuple (z ignored — recipes place on the active storey). */
-function point(tok: string | undefined): [number, number] | null {
+/**
+ * Parse a point token into an absolute [x,y] tuple (meters). Supports the AutoCAD coordinate grammar:
+ *  · `x,y` (or `x,y,z`, z ignored) — absolute cartesian;
+ *  · `d<a`  — absolute **polar**: distance d at angle a° (CCW from +X/east), measured from the origin;
+ *  · `@dx,dy` — **relative** cartesian: offset from `prev` (the previous point in the command);
+ *  · `@d<a`  — relative polar: distance d at angle a° from `prev`.
+ * `prev` is the previously-resolved point in the same command (walls/beams/slabs chain), defaulting to the
+ * origin — so `WALL 0,0 @5<0` draws 5 m east and `SLAB 0,0 @4<0 @4<90 @4<180` walks a square.
+ */
+function point(tok: string | undefined, prev?: [number, number]): [number, number] | null {
   if (!tok) return null;
-  const parts = tok.split(",").map((s) => Number(s.trim()));
+  const rel = tok.startsWith("@");
+  const body = rel ? tok.slice(1) : tok;
+  const base: [number, number] = rel ? (prev ?? [0, 0]) : [0, 0];
+  if (body.includes("<")) {                                   // polar: distance<angle°
+    const [ds, as] = body.split("<");
+    const d = Number(ds), ang = Number(as);
+    if (!Number.isFinite(d) || !Number.isFinite(ang)) return null;
+    const r = (ang * Math.PI) / 180;
+    return [base[0] + d * Math.cos(r), base[1] + d * Math.sin(r)];
+  }
+  const parts = body.split(",").map((s) => Number(s.trim()));
   if (parts.length < 2 || parts.some((n) => !Number.isFinite(n))) return null;
-  return [parts[0]!, parts[1]!];
+  return [base[0] + parts[0]!, base[1] + parts[1]!];
 }
 
 function num(tok: string | undefined, fallback: number): number {
@@ -41,8 +59,8 @@ const COMMANDS: CadCommand[] = [
     name: "WALL", aliases: ["W"], usage: "WALL x1,y1 x2,y2 [height]",
     summary: "draw a wall between two XY points (m); optional height (default 3)",
     build(a) {
-      const s = point(a[0]); const e = point(a[1]);
-      if (!s || !e) return err(this.usage, "need two points, e.g. WALL 0,0 5,0");
+      const s = point(a[0]); const e = point(a[1], s ?? undefined);
+      if (!s || !e) return err(this.usage, "need two points, e.g. WALL 0,0 5,0 (or WALL 0,0 @5<0)");
       const h = num(a[2], 3);
       if (!Number.isFinite(h) || h <= 0) return err(this.usage, "height must be a positive number");
       return { kind: "recipe", steps: [{ recipe: "add_wall", params: { start: s, end: e, height: h } }],
@@ -65,7 +83,7 @@ const COMMANDS: CadCommand[] = [
     name: "BEAM", aliases: ["B"], usage: "BEAM x1,y1 x2,y2 [width] [depth]",
     summary: "draw a beam between two XY points (m); optional width (0.3) and depth (0.5)",
     build(a) {
-      const s = point(a[0]); const e = point(a[1]);
+      const s = point(a[0]); const e = point(a[1], s ?? undefined);
       if (!s || !e) return err(this.usage, "need two points, e.g. BEAM 0,0 6,0");
       const w = num(a[2], 0.3); const d = num(a[3], 0.5);
       if (!Number.isFinite(w) || !Number.isFinite(d)) return err(this.usage, "width/depth must be numbers");
@@ -77,17 +95,22 @@ const COMMANDS: CadCommand[] = [
     name: "SLAB", aliases: ["S"], usage: "SLAB x1,y1 x2,y2 x3,y3 [… xn,yn] [thickness]",
     summary: "draw a slab from ≥3 boundary points (m); a trailing bare number is the thickness (0.2)",
     build(a) {
-      // a trailing non-comma token is the thickness; everything with a comma is a point
+      // a trailing bare number (no comma, not a polar d<a) is the thickness; the rest are points
       let thickness = 0.2;
       let toks = a;
       const last = a[a.length - 1];
-      if (last !== undefined && !last.includes(",")) {
+      if (last !== undefined && !last.includes(",") && !last.includes("<")) {
         const t = Number(last);
         if (!Number.isFinite(t) || t <= 0) return err(this.usage, "thickness must be a positive number");
         thickness = t; toks = a.slice(0, -1);
       }
-      const pts = toks.map(point);
-      if (pts.length < 3 || pts.some((p) => p === null)) return err(this.usage, "need ≥3 XY points");
+      const pts: [number, number][] = [];
+      for (const tok of toks) {                         // walk points, chaining relative/polar to the previous
+        const p = point(tok, pts[pts.length - 1]);
+        if (p === null) return err(this.usage, "need ≥3 XY points");
+        pts.push(p);
+      }
+      if (pts.length < 3) return err(this.usage, "need ≥3 XY points");
       return { kind: "recipe", steps: [{ recipe: "add_slab", params: { points: pts, thickness } }],
         echo: `slab ${pts.length} pts t=${thickness}` };
     },
@@ -128,7 +151,8 @@ export function cadCommandList(): { name: string; aliases: string[]; usage: stri
 
 function helpText(): string {
   return "Commands (aliases): " + COMMANDS.map((c) => `${c.name}${c.aliases.length ? " (" + c.aliases.join("/") + ")" : ""}`).join(", ")
-    + ". Type HELP <cmd> for usage. Space repeats the last command.";
+    + ". Points: x,y absolute · @dx,dy relative · d<a or @d<a polar (angle° CCW from east). "
+    + "Type HELP <cmd> for usage. Space repeats the last command.";
 }
 
 /**

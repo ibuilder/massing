@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.439 — CAD command line: AutoCAD relative + polar coordinates
+
+- **The command line now speaks the coordinate grammar every drafter already knows.** Point tokens in
+  `WALL`/`BEAM`/`SLAB` accept, in addition to `x,y` absolute:
+  - `@dx,dy` — **relative** cartesian (offset from the previous point in the command);
+  - `d<a` / `@d<a` — **polar** (distance `d` at angle `a`° CCW from east), absolute-from-origin or relative.
+  So `WALL 0,0 @5<0` draws 5 m east, `WALL 0,0 @5<90` 5 m north, and `SLAB 0,0 @4<0 @4<90 @4<180 0.3`
+  walks a 4 m square slab — no mental cartesian arithmetic. Absolute `x,y` is unchanged.
+- Pure-parser change (`cadCommands.ts`), so it's exhaustively unit-tested and flows through the existing
+  command-bar dispatch with no viewer wiring. 4 new vitest cases (relative, relative-polar, absolute-polar,
+  the polar square). Typecheck + eslint + full vitest (117) + build all green.
+
 ## v0.3.438 — the developer proforma carries the cost provenance too
 
 - **One cost basis, visible everywhere.** The dev-budget **sync-from-model** now returns the same

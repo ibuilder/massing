@@ -78,7 +78,7 @@ Open CAD Studio (Hakan Seven; native-DWG AutoCAD-workalike, Rust+iced+wgpu) and 
 (~60 repos, Rust-core→WASM, Tauri, IFCX bet) are on adjacent paths. We're an all-in-one so we won't split
 into micro-apps, but the **CAD authoring UX** and a few dev practices are worth adopting. Feasibility-ordered:
 
-1. ✅ **CADCMD — a CAD command line over the viewer — SHIPPED v0.3.430** *(★★★★ · the user's top ask)* —
+1. ✅ **CADCMD — a CAD command line over the viewer — SHIPPED v0.3.430; polar/relative coords v0.3.439** *(★★★★ · the user's top ask)* —
    a typed command bar in authoring mode driving the existing GUID-stable edit recipes: AutoCAD-style
    grammar (`WALL`, `COLUMN`, `SLAB`, `GRID`, `DIM`…) + single-letter aliases (L/C/M/Z) + spacebar-repeat
    + up-arrow history + prompt-driven flows ("Specify first point"). Every drafter already knows this;

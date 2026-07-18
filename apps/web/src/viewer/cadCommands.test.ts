@@ -45,6 +45,39 @@ describe("CADCMD grammar", () => {
     expect((r.steps[0]!.params.points as unknown[]).length).toBe(3);
   });
 
+  it("WALL accepts a relative @dx,dy second point (offset from the first)", () => {
+    const r = parseCadCommand("WALL 2,3 @5,0");
+    if (r.kind !== "recipe") throw new Error(r.kind);
+    expect(r.steps[0]!.params).toEqual({ start: [2, 3], end: [7, 3], height: 3 });
+  });
+
+  it("WALL accepts a relative polar @d<a second point (angle° CCW from east)", () => {
+    const r = parseCadCommand("WALL 0,0 @5<90");            // 5 m due north (+y)
+    if (r.kind !== "recipe") throw new Error(r.kind);
+    const p = r.steps[0]!.params as { end: [number, number] };
+    expect(p.end[0]).toBeCloseTo(0, 6);
+    expect(p.end[1]).toBeCloseTo(5, 6);
+  });
+
+  it("absolute polar d<a is measured from the origin", () => {
+    const r = parseCadCommand("WALL 0,0 10<0");            // 10 m due east
+    if (r.kind !== "recipe") throw new Error(r.kind);
+    const p = r.steps[0]!.params as { end: [number, number] };
+    expect(p.end[0]).toBeCloseTo(10, 6);
+    expect(p.end[1]).toBeCloseTo(0, 6);
+  });
+
+  it("SLAB walks a square from relative-polar legs off the first point", () => {
+    const r = parseCadCommand("SLAB 0,0 @4<0 @4<90 @4<180 0.3");
+    if (r.kind !== "recipe") throw new Error(r.kind);
+    const pts = r.steps[0]!.params.points as [number, number][];
+    expect(pts.length).toBe(4);
+    expect(pts[1]![0]).toBeCloseTo(4, 6); expect(pts[1]![1]).toBeCloseTo(0, 6);   // east
+    expect(pts[2]![0]).toBeCloseTo(4, 6); expect(pts[2]![1]).toBeCloseTo(4, 6);   // +north
+    expect(pts[3]![0]).toBeCloseTo(0, 6); expect(pts[3]![1]).toBeCloseTo(4, 6);   // west
+    expect(r.steps[0]!.params.thickness).toBe(0.3);
+  });
+
   it("LEVEL adds a storey at an elevation", () => {
     const r = parseCadCommand("LEVEL L3 7.0");
     if (r.kind !== "recipe") throw new Error(r.kind);
