@@ -30,7 +30,8 @@
   family/type system, groups/arrays, **phasing**, **LOD dialing (100→500)**, a **site content library**
   (logistics/furniture/landscaping, auto-classified), a **procedural-mesh** and an AST-**sandboxed
   ifcopenshell** escape hatch (feature-flagged), **authoring guardrails** that reject broken IFC, and an
-  **AI command bar** (type what to build); **generate the construction-document
+  a **CAD command line** (AutoCAD-style `WALL 0,0 5,0 3` / `COLUMN 2,2` with aliases, history and
+  spacebar-repeat) alongside an **AI command bar** (type what to build in plain English); **generate the construction-document
   set** — plans/sections/elevations/schedules → **SVG · PDF · DXF**, issuable ARCH-D sheets with titleblocks,
   and a **3-part MasterFormat project manual**; **code intelligence** — IBC code-analysis (G-series) summary,
   **edition-aware** occupancy-load + egress pre-check, jurisdiction-adopted code editions, an
