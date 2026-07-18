@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.404 — REL-3: split the pure Procore field-mapping out of connectors.py (façade)
+
+- First façade extraction since the cycle guards landed (which now catch any regression). The **pure
+  data-transform half** of `connectors.py` — the dotted-path reader, default/override field maps, and the
+  Procore payload↔record mappers — moves to a new pure leaf **`connectors_mappings.py`** (no network, no
+  DB, no app imports). `connectors.py` re-exports every name, so callers of `connectors.map_procore` /
+  `connectors.DEFAULT_MAPPINGS` are unchanged (zero public-API change). `connectors.py` 495 → 411.
+- Verified: `test_connections` green (Procore→rfi/submittal/change_event sync through the façade), the
+  import-cycle guard confirms **no new cycle** (328 modules, still 0), `ruff` clean.
+
 ## v0.3.403 — DEV-2 (web): runtime import-cycle guard for the viewer/portal
 
 - Completes the DEV-2 import-cycle guard on the **web** side, mirroring the backend one — as a vitest test
