@@ -2,10 +2,12 @@
 
 Every priced row hangs off a `CostDataset` vintage, so a project can **pin** the exact vintage its estimate
 was built on and stay reproducible after newer data lands. This module ships the **offline public importer**
-(builds a `public_local` vintage from the app's shipped benchmark rates — no network, no subscription) plus
-the vintage resolver, `is_latest` management, and project pinning. The `cloud_api` importer (manifest +
-signed bundle download from massing.cloud), real public-source ingest (BLS/FRED/DoD/Census), location factors,
-and PPI escalation-forward are later build-order steps — see docs/cost-db-import-plan.md.
+(builds a `public_local` vintage from the app's shipped benchmark rates — no network, no subscription), the
+vintage resolver, `is_latest` management, project pinning, and **project localization + escalation**
+(`rates_for_project`): a vintage's national-average rates multiplied by the project region's cost index and
+escalated from the vintage year to the construction midpoint, off the shipped market table — still offline.
+The `cloud_api` importer (manifest + signed bundle download from massing.cloud) and real public-source ingest
+(BLS/FRED/DoD/Census) are later build-order steps — see docs/cost-db-import-plan.md.
 """
 from __future__ import annotations
 
@@ -137,3 +139,33 @@ def rates_for(db: Session, dataset_id: str) -> dict[str, float]:
     return {it.ifc_class: it.total_cost
             for it in db.scalars(select(CostItem).where(CostItem.dataset_id == dataset_id))
             if it.ifc_class}
+
+
+def rates_for_project(db: Session, project: Project, *, region: str | None = None,
+                      start_year: int | None = None, duration_months: int | None = None,
+                      to_year: int | None = None, rate_pct: float | None = None
+                      ) -> tuple[dict[str, float] | None, dict[str, Any] | None]:
+    """The project's per-class rate map **localized and escalated**, plus the adjustment metadata.
+
+    A vintage stores national-average rates for its year. Two offline reference adjustments make them
+    project-real: the region's **location cost index** (a metro/region multiplier) and **escalation** from
+    the vintage year to the construction midpoint (or `to_year`). Both come from the shipped market table —
+    no network. Returns `(None, None)` when no vintage is installed, so the caller falls back to the shipped
+    benchmark rates exactly as before. `region`/timeline are resolved by the caller (from the project's
+    market assumption); passing none yields the neutral global-average index (1.00) and no escalation."""
+    from . import market_intelligence as mi
+    ds = dataset_for_project(db, project)
+    if ds is None:
+        return None, None
+    base = rates_for(db, ds.id)
+    loc = float(mi.region_data(region).get("location_index") or 1.0)
+    ef = mi.escalation_factor(region, from_year=ds.vintage_year, start_year=start_year,
+                              duration_months=duration_months, to_year=to_year, rate_pct=rate_pct)
+    combined = loc * ef["factor"]
+    adjusted = {c: round(rate * combined, 2) for c, rate in base.items()}
+    meta = {"dataset_id": ds.id, "vintage_year": ds.vintage_year,
+            "location_index": round(loc, 4), "escalation": {**ef, "factor": round(ef["factor"], 4)},
+            "combined_factor": round(combined, 4),
+            "note": "National-average vintage rates localized by the region cost index and escalated from "
+                    "the vintage year to the construction midpoint (shipped market table; offline)."}
+    return adjusted, meta

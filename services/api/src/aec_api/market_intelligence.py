@@ -67,15 +67,19 @@ def sector_temp(sector: str | None) -> dict[str, Any]:
     return {"sector": key or "(unspecified)", "temperature": temp, "note": _TEMP_NOTE[temp]}
 
 
-def escalate(amount: float, region: str | None = None, *, start_year: int | None = None,
-             duration_months: int | None = None, to_year: int | None = None,
-             rate_pct: float | None = None) -> dict[str, Any]:
-    """Escalate `amount` from BASE_YEAR to the **midpoint of construction**.
+def escalation_factor(region: str | None = None, *, from_year: int | None = None,
+                      start_year: int | None = None, duration_months: int | None = None,
+                      to_year: int | None = None, rate_pct: float | None = None) -> dict[str, Any]:
+    """The compound escalation **factor** from `from_year` (default BASE_YEAR) to a target year, using the
+    region's annual rate.
 
-    Provide either `start_year` (+ optional `duration_months`, default 18) to escalate to the schedule
-    midpoint, or `to_year` for a fixed target year. `rate_pct` overrides the region's annual rate.
+    The target is a fixed `to_year`, else the **midpoint** of a build starting `start_year` (+ optional
+    `duration_months`, default 18), else `from_year` (no escalation). `rate_pct` overrides the region rate.
+    Reused by `escalate` (a dollar amount) and by the cost-DB rate resolver (a vintage's per-class rates,
+    with `from_year` = the vintage year), so a cost is only ever escalated over the years it actually spans.
     """
     rd = region_data(region)
+    base = float(from_year if from_year is not None else BASE_YEAR)
     rate = (rate_pct if rate_pct is not None else rd["escalation_pct"]) / 100.0
     if to_year is not None:
         target = float(to_year)
@@ -85,13 +89,30 @@ def escalate(amount: float, region: str | None = None, *, start_year: int | None
         target = start_year + (months / 12.0) / 2.0        # midpoint of construction
         basis = f"midpoint of a {months}-month build starting {start_year}"
     else:
-        target = float(BASE_YEAR)
+        target = base
         basis = "no timeline given — no escalation"
-    years = target - BASE_YEAR
-    factor = (1 + rate) ** years
+    years = target - base
     return {
-        "base_year": BASE_YEAR, "region": rd["region"], "annual_rate_pct": round(rate * 100, 2),
-        "escalation_basis": basis, "midpoint_year": round(target, 2), "years": round(years, 2),
+        "region": rd["region"], "from_year": round(base, 2), "target_year": round(target, 2),
+        "years": round(years, 2), "annual_rate_pct": round(rate * 100, 2),
+        "factor": (1 + rate) ** years, "basis": basis,   # full precision; callers round for display
+    }
+
+
+def escalate(amount: float, region: str | None = None, *, start_year: int | None = None,
+             duration_months: int | None = None, to_year: int | None = None,
+             rate_pct: float | None = None) -> dict[str, Any]:
+    """Escalate `amount` from BASE_YEAR to the **midpoint of construction**.
+
+    Provide either `start_year` (+ optional `duration_months`, default 18) to escalate to the schedule
+    midpoint, or `to_year` for a fixed target year. `rate_pct` overrides the region's annual rate.
+    """
+    ef = escalation_factor(region, from_year=BASE_YEAR, start_year=start_year,
+                           duration_months=duration_months, to_year=to_year, rate_pct=rate_pct)
+    factor = ef["factor"]
+    return {
+        "base_year": BASE_YEAR, "region": ef["region"], "annual_rate_pct": ef["annual_rate_pct"],
+        "escalation_basis": ef["basis"], "midpoint_year": ef["target_year"], "years": ef["years"],
         "escalation_factor": round(factor, 4), "base_amount": round(amount, 2),
         "escalated_amount": round(amount * factor, 2),
         "note": "Escalated to the construction midpoint using the regional annual rate. " + SOURCE,

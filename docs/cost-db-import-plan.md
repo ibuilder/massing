@@ -8,6 +8,13 @@ importing the latest or a specific historical year.
 Companion doc: `massing_cloud_plugin_plan.md` (the server side) · location engine:
 `massing_location_cost_import_plan.md`.
 
+> **Shipped (offline first slice, v0.3.436):** the vintage backbone (`cost_db.py`), the offline public
+> importer, resolve/pin — **plus** project **localization + escalation** via `cost_db.rates_for_project`:
+> a vintage's national-average rates × the project region's cost index, escalated from the vintage year to
+> the construction midpoint, using the shipped market table (`market_intelligence.py`) — no network. The
+> per-vintage `location_factor` / `escalation_index` DB tables below (BLS/FRED/RSMeans-grade, per-county)
+> are the fuller successor and remain a later build-order step.
+
 ## 1. Requirements
 
 - **Two ingest paths, one interface** — local public-domain build, or cloud API pull (subscription).

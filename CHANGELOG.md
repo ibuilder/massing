@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.436 — COST-DB: localized + escalated cost vintages (offline)
+
+- **Element-level estimates are now project-real, still offline.** A cost vintage stores national-average
+  rates for its year; `cost_db.rates_for_project` makes them specific to *this* project by multiplying by
+  the project region's **location cost index** and **escalating** from the vintage year to the construction
+  midpoint — reusing the shipped market table (`market_intelligence.escalation_factor`), no network.
+- **Wired into the estimate path.** `/qto/by-floor` and `/estimate/from-model` price the takeoff through the
+  localized + escalated rates and return a `cost_adjustment` block (location index · escalation factor ·
+  combined factor); `GET /projects/{pid}/cost-vintage` previews the same adjustment without running a
+  takeoff. Region + timeline come from the project's `market_assumption` (adopted, else latest) — the same
+  source the market panel reads, so the numbers agree.
+- **Refactor:** `escalation_factor(region, from_year=…, to_year|start_year…)` extracted from `escalate` so a
+  vintage's rates are only ever escalated over the years they actually span (vintage year → midpoint), and a
+  dollar amount still escalates from the base year exactly as before. Neutral by default: no region + no
+  timeline → global-average index (1.00) and no escalation, so rates are unchanged.
+- Backend-only; no UI change. `test_cost_db` extended (localize × escalate math, neutral defaults, both
+  endpoints carry the adjustment). 261/261 suites green; ruff clean.
+
 ## v0.3.435 — MCP-PACK: the MCP surface becomes a first-class authoring + analysis agent (CAD-UX lesson #7)
 
 - **The MCP tool catalog grew 8 → 14.** External AI agents (Claude Desktop, an agent) can now drive the

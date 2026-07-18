@@ -309,9 +309,15 @@ interop targets / content platforms / open standards named where they're integra
   `/cost/datasets` + `/projects/{pid}/cost-vintage` endpoints.
 - ✅ **COST-DB estimate integration SHIPPED v0.3.338** — the model estimate (`/estimate/from-model` +
   `/qto/by-floor`) prices the takeoff **through the project's pinned vintage** (its rate map as overrides) and
-  returns the `cost_vintage` it priced with — reproducible estimates. **Remaining build-order steps:** the
-  `massing.cloud` CloudDatasetImporter (signed bundle), real public-source ingest (BLS/FRED/DoD/Census),
-  location factors, delta sync, Ed25519 signatures, escalation-forward.
+  returns the `cost_vintage` it priced with — reproducible estimates.
+- ✅ **COST-DB localization + escalation SHIPPED v0.3.436** — `cost_db.rates_for_project` takes the pinned
+  vintage's national-average rates and makes them project-real **offline**: × the project region's cost index
+  and escalated from the vintage year to the construction midpoint (reusing the shipped market table +
+  `market_intelligence.escalation_factor`). The takeoff (`/qto/by-floor`, `/estimate/from-model`) and the
+  `/cost-vintage` endpoint carry the `cost_adjustment` (location index · escalation · combined factor); region
+  & timeline come from the project's `market_assumption`. **Remaining build-order steps:** the `massing.cloud`
+  CloudDatasetImporter (signed bundle), real public-source ingest (BLS/FRED/DoD/Census), per-county
+  location-factor / PPI-index DB tables, delta sync, Ed25519 signatures.
 - **COST-DB — vintage-versioned cost database + import** *(L · high)* — a local, **vintage-versioned (by year)**
   cost database populated from **either free public sources (BLS/FRED/DoD-UFC/Census — offline-first) or the
   `massing.cloud` subscription API**, behind one `DatasetImporter` interface. Projects **pin** to a specific

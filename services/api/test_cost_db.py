@@ -11,15 +11,17 @@ for f in ("./test_costdb.db",):
     if os.path.exists(f):
         os.remove(f)
 
-import sys                                                    # noqa: E402
-from pathlib import Path                                      # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "src"))
 
-from fastapi.testclient import TestClient                     # noqa: E402
-from aec_api.main import app                                  # noqa: E402
-from aec_api import cost_db                                   # noqa: E402
-from aec_api.db import SessionLocal, init_db                  # noqa: E402
-from aec_api.models import CostDataset, CostItem              # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import cost_db  # noqa: E402
+from aec_api.db import SessionLocal, init_db  # noqa: E402
+from aec_api.main import app  # noqa: E402
+from aec_api.models import CostDataset, CostItem  # noqa: E402
 
 init_db()
 
@@ -50,6 +52,24 @@ with SessionLocal() as db:
     # the rate map prices the model takeoff straight through a vintage
     rates = cost_db.rates_for(db, ds24.id)
     assert rates.get("IfcWall") and rates.get("IfcColumn"), rates
+
+    # COST-DB localization + escalation: a project pinned to the 2024 vintage, priced for a North
+    # America region and a 2034 target year, gets its national-average rates multiplied by the region
+    # location index AND escalated from 2024 → 2034 at the region rate.
+    from aec_api import market_intelligence as mi  # noqa: E402
+    from aec_api.models import Project  # noqa: E402
+    proj = Project(name="Loc/Esc"); proj.cost_dataset_id = ds24.id
+    db.add(proj); db.commit()
+    adj_rates, meta = cost_db.rates_for_project(db, proj, region="north_america", to_year=2034)
+    loc = mi.region_data("north_america")["location_index"]     # 1.05
+    esc = (1 + mi.region_data("north_america")["escalation_pct"] / 100.0) ** (2034 - 2024)
+    assert meta["location_index"] == round(loc, 4) and meta["vintage_year"] == 2024, meta
+    assert abs(meta["combined_factor"] - round(loc * esc, 4)) < 1e-6, meta
+    assert adj_rates["IfcWall"] == round(rates["IfcWall"] * loc * esc, 2), (adj_rates["IfcWall"], meta)
+    assert adj_rates["IfcWall"] > rates["IfcWall"], "localized+escalated must exceed the base rate"
+    # neutral defaults: no region + no timeline → global-average index (1.00), no escalation → base rates
+    neutral, nmeta = cost_db.rates_for_project(db, proj)
+    assert neutral["IfcWall"] == rates["IfcWall"] and nmeta["combined_factor"] == 1.0, nmeta
 
 # --- integration: endpoints + project pinning --------------------------------
 with TestClient(app) as c:
@@ -83,7 +103,7 @@ with TestClient(app) as c:
     # the model estimate PRICES THROUGH the pinned vintage (carries cost_vintage in the response)
     import tempfile
 
-    from aec_data import massing                              # noqa: E402
+    from aec_data import massing  # noqa: E402
     c.post(f"/projects/{pid}/cost-vintage", json={"dataset_id": ds24_id})
     metrics = massing.compute_massing({"lot_width": 20, "lot_depth": 14, "far": 1.5,
                                        "floor_to_floor": 3.5, "height_limit": 10})
@@ -94,9 +114,15 @@ with TestClient(app) as c:
     assert up.status_code == 200, up.text[:160]
     est = c.get(f"/projects/{pid}/qto/by-floor").json()
     assert est.get("cost_vintage", {}).get("vintage_year") == 2024, est.get("cost_vintage")
+    # the takeoff also carries the localization/escalation adjustment (neutral here — no market assumption)
+    assert est.get("cost_adjustment", {}).get("vintage_year") == 2024, est.get("cost_adjustment")
+    # and the cost-vintage endpoint previews the same adjustment without running a takeoff
+    va = c.get(f"/projects/{pid}/cost-vintage").json()
+    assert va["adjustment"]["combined_factor"] == 1.0, va["adjustment"]
 
 print("COST-DB OK - offline public importer builds vintage-versioned datasets (one priced item per shipped "
       "benchmark, MasterFormat-coded); importing a newer vintage flips is_latest; re-import is idempotent "
       "(no dup rows); resolve handles latest/exact/nearest-fallback/strict; a project pins a vintage for "
-      "reproducibility and resolves to latest when unpinned; cloud request without a subscription falls back "
-      "to public with a warning.")
+      "reproducibility and resolves to latest when unpinned; rates localize by the region cost index and "
+      "escalate from the vintage year (neutral 1.0 with no assumption); the takeoff + cost-vintage endpoint "
+      "both carry the adjustment; cloud request without a subscription falls back to public with a warning.")

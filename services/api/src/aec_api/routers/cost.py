@@ -539,20 +539,50 @@ def estimate_from_model(pid: str, db: Session = Depends(get_db), _: str = Depend
     # COST-DB: price through the project's pinned cost vintage (reproducibility); falls back to the
     # shipped benchmark when no vintage is installed.
     from .. import cost_db
-    overrides, ds = _vintage_overrides(db, pid)
+    overrides, ds, adjustment = _vintage_overrides(db, pid)
     out = est.estimate_from_takeoff(rows, overrides=overrides, gfa_sf=gfa_sf)
     if ds:
         out["cost_vintage"] = cost_db.dataset_dict(ds)
+    if adjustment:
+        out["cost_adjustment"] = adjustment
     return out
 
 
+def _market_params(db: Session, pid: str) -> dict:
+    """Region + construction timeline for cost localization/escalation, from the project's adopted (else
+    latest) `market_assumption` record — {} if none, so the neutral global-average index + no escalation
+    apply. Mirrors the market router's resolution so the takeoff and the market panel agree."""
+    def _int(v):
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return None
+    try:
+        recs = me.list_records(db, "market_assumption", pid, limit=1000)
+    except Exception:                                 # noqa: BLE001 — module may be absent
+        return {}
+    if not recs:
+        return {}
+    adopted = [r for r in recs if r.get("workflow_state") == "adopted"]
+    a = (adopted or recs)[-1].get("data") or {}
+    rate = a.get("escalation_override_pct")
+    return {"region": a.get("region"), "start_year": _int(a.get("construction_start_year")),
+            "duration_months": _int(a.get("duration_months")),
+            "rate_pct": float(rate) if rate not in (None, "") else None}
+
+
 def _vintage_overrides(db: Session, pid: str):
-    """The `{ifc_class: rate}` overrides + the dataset for a project's pinned cost vintage (or the latest
-    installed). Returns (None, None) when no vintage is installed → the shipped benchmark rates apply."""
+    """The `{ifc_class: rate}` overrides + the dataset + the localization/escalation adjustment for a
+    project's pinned cost vintage (or the latest installed). The rates are **localized** by the project
+    region's cost index and **escalated** from the vintage year to the construction midpoint. Returns
+    (None, None, None) when no vintage is installed → the shipped benchmark rates apply unchanged."""
     from .. import cost_db
     p = db.get(Project, pid)
-    ds = cost_db.dataset_for_project(db, p) if p else None
-    return (cost_db.rates_for(db, ds.id) if ds else None), ds
+    if not p:
+        return None, None, None
+    overrides, adjustment = cost_db.rates_for_project(db, p, **_market_params(db, pid))
+    ds = cost_db.dataset_for_project(db, p)
+    return overrides, ds, adjustment
 
 
 @router.get("/estimate/resources/catalog")
@@ -666,7 +696,9 @@ def get_cost_vintage(pid: str, db: Session = Depends(get_db), _: str = Depends(r
     if p is None:
         raise HTTPException(status_code=404, detail="project not found")
     ds = cost_db.dataset_for_project(db, p)
-    return {"pinned_id": p.cost_dataset_id, "resolved": cost_db.dataset_dict(ds) if ds else None}
+    _overrides, adjustment = cost_db.rates_for_project(db, p, **_market_params(db, pid))
+    return {"pinned_id": p.cost_dataset_id, "resolved": cost_db.dataset_dict(ds) if ds else None,
+            "adjustment": adjustment}
 
 
 @router.post("/projects/{pid}/cost-vintage")
@@ -717,10 +749,12 @@ def qto_by_floor(pid: str, db: Session = Depends(get_db), _: str = Depends(requi
     from ..deps import source_ifc_path
     rows = takeoff_file(source_ifc_path(db, pid), force_geometry=True)
     from .. import cost_db
-    overrides, ds = _vintage_overrides(db, pid)
+    overrides, ds, adjustment = _vintage_overrides(db, pid)
     out = est.estimate_by_storey(rows, overrides)
     if ds:
         out["cost_vintage"] = cost_db.dataset_dict(ds)
+    if adjustment:
+        out["cost_adjustment"] = adjustment
     return out
 
 
