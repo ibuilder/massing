@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.412 — REL-3: split the enclosure recipes out of edit.py (façade) — edit.py under 800
+
+- Fifth and final recipe-group split: the **enclosure/finish group** moves to a new leaf
+  **`edit_enclosure.py`** — ceiling/floor coverings (`add_covering`), railings along a run
+  (`add_railing`), footprint roofs (`add_roof`), and the wall-hosted opening + parametric door/window
+  fill (`add_opening`: IfcRelVoidsElement + IfcRelFillsElement with the LOD-350 lining/panel generators).
+- **`edit.py` 2127 → 761 across the six slices (−64%)** — what remains is the genuine engine core:
+  spaces/types/query, placement, content, storeys, copy/move/rotate/delete, and the RECIPES registry +
+  `apply_recipe`. Each recipe family (structural, MEP, enclosure, annotation, as-built) is now an
+  independently evolvable leaf on the `edit_core` foundation, all behind the unchanged `edit.` façade.
+- Verified: openings / curtain-wall / wave11-edges / representations suites + the cycle guard (**0
+  cycles**, 336 modules), `ruff` clean.
+
 ## v0.3.411 — REL-3: split the 2D annotation recipes out of edit.py (façade)
 
 - Fourth recipe-group split: the **drawing-annotation group** moves to a new leaf **`edit_annotate.py`**
