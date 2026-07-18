@@ -136,8 +136,11 @@ without fidelity gates (our per-release suite + IFC-QA roundtrip is exactly the 
 IFCX-as-foundation (IFC stays our source of truth; IFCX is a future *export*, tracked in №18).
 
 **📦 Tracked for later — large / needs nimbleness (attack once the cycle is fast; some worktree-forkable):**
-SITE-1 open-geodata BIM↔GIS view · durable **background-job queue** (heavy exports/PAdES/gen run inline
-today) · **server-rendered 3D hero** for the package · **COST-DB cloud ingest** (public-source + signed
+SITE-1 open-geodata BIM↔GIS view · ✅ **durable background-job queue SHIPPED v0.3.448** (`jobs.py`: DB-backed
+queued→running→done|error rows, per-process worker with crash recovery — orphaned `running` re-queues,
+idempotent-handler contract — a `register_kind` registry plugins can extend, `echo` + real `cobie_export`
+kinds, enqueue/poll/list endpoints with cross-project 404s; heavy inline paths migrate onto it
+opportunistically) · **server-rendered 3D hero** for the package · **COST-DB cloud ingest** (public-source + signed
 bundles) · **coupled-frame FEM solve** (the analytical model is complete + solver-ready, so this is a big
 optional build) · VIZ-U1 Unity bridge · IFC5 geometry write (upstream-blocked) · the frontier bets below
 (PROFORMA-LIVE, COST-AGENT, BOARDS, ENV-1, READY-AGENT, RISK-BOARD). Detail in

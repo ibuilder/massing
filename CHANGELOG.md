@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.448 — JOB-QUEUE: durable background jobs (then-bucket)
+
+- **Heavy work stops hanging HTTP requests and stops dying with the process.** `jobs.py` is the smallest
+  durable queue that fixes both with no new dependencies:
+  - jobs persist as DB rows (`queued → running → done | error`) with params/result/error + timestamps;
+  - one daemon worker per process claims the oldest queued job and runs its handler with its own session;
+  - **crash recovery** — on worker start, any job orphaned in `running` by a dead process re-queues and
+    runs again (handlers are idempotent by contract — they re-derive, never increment);
+  - a handler exception lands on the row (`error` + message), never kills the worker;
+  - **registry of kinds** (`register_kind`) — one line to add a kind, the same extension shape as edit
+    recipes, so plugins can register job kinds too.
+- Built-in kinds: `echo` (diagnostic) and the real `cobie_export` — the full-model COBie handover parse
+  now proves itself in the background and reports per-sheet row counts.
+- Endpoints: `POST /projects/{pid}/jobs` (editor) → `GET /projects/{pid}/jobs/{id}` (poll, cross-project
+  404) → `GET /projects/{pid}/jobs` (list, bounded). Worker starts in the app lifespan.
+- Unknown kinds fail **at submit** (400 with the registered list), not silently in the queue.
+- `test_jobs`: crash recovery (orphaned running → re-queued → completed), error capture, endpoints,
+  cross-project 404, the real background COBie export on a generated model. 264/264 suites; ruff clean.
+- Inline heavy paths (bundle export, PAdES, generative runs) migrate onto the queue opportunistically —
+  the infrastructure and the pattern are now in place.
+
 ## v0.3.447 — REL-3: the authoring god-router splits into leaves
 
 - **`routers/authoring.py` 1,350 → 1,030 lines**, with 21 read-only endpoints extracted into two

@@ -303,6 +303,25 @@ class Attachment(Base):
     topic: Mapped[Topic] = relationship(back_populates="attachments")
 
 
+class Job(Base):
+    """JOB-QUEUE — one durable background job (queued → running → done | error). Heavy operations
+    (full-model COBie export, bundles, generative runs) run through this instead of the request thread,
+    and a process restart loses nothing: orphaned `running` rows re-queue on worker start (handlers are
+    idempotent by contract). See `jobs.py`."""
+    __tablename__ = "jobs"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    kind: Mapped[str] = mapped_column(String, nullable=False)
+    project_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    state: Mapped[str] = mapped_column(String, default="queued", index=True)   # queued|running|done|error
+    params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    result: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    actor: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class AuditLog(Base):
     """Audit log on all write endpoints — RFIs/punchlist are contractual records (guide §10)."""
     __tablename__ = "audit_log"

@@ -69,6 +69,9 @@ from .routers import (
     turnover,
     verification,
 )
+from .routers import (
+    jobs as jobs_router,
+)
 
 _access_log = logging.getLogger("aec.access")
 _log = logging.getLogger("aec.autosync")
@@ -175,6 +178,9 @@ async def lifespan(_app: FastAPI):
     # plugins execute Python at load, so discovery is strictly opt-in). Refusals are logged, never fatal.
     from . import plugin_registry
     plugin_registry.load_all()
+    # JOB-QUEUE: start the per-process durable job worker (recovers orphaned running jobs from a crash).
+    from . import jobs
+    jobs.start_worker()
     task = asyncio.create_task(_autosync_loop()) if os.environ.get("AEC_AUTOSYNC", "1") == "1" else None
     try:
         yield
@@ -297,6 +303,7 @@ if _RATE_RPM > 0:
 app.include_router(bim.router, tags=["bim"])
 app.include_router(properties.router, tags=["properties"])
 app.include_router(plugins.router, tags=["plugins"])
+app.include_router(jobs_router.router, tags=["jobs"])
 app.include_router(exports.router, tags=["exports"])
 app.include_router(analysis.router, tags=["analysis"])
 app.include_router(drawings.router, tags=["drawings"])
