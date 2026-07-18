@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from . import modules as me
+from .timeutil import utc_today
 
 _DONE = ("completed", "verified")
 
@@ -30,7 +31,7 @@ def generate_pm(db, pid: str, actor: str, as_of: date | None = None) -> dict[str
     """Create preventive work orders for every ACTIVE pm_schedule that's due (next_due <= today, or
     never done). Idempotent per cycle: skips a schedule that already has an open PM work order linked.
     Advances next_due by frequency_days."""
-    today = as_of or date.today()
+    today = as_of or utc_today()
     scheds = me.list_records(db, "pm_schedule", pid, state="active", limit=1000)
     open_pm_for = set()
     for wo in me.list_records(db, "work_order", pid, limit=10000):
@@ -61,7 +62,7 @@ def generate_pm(db, pid: str, actor: str, as_of: date | None = None) -> dict[str
 def kpis(db, pid: str, as_of: date | None = None) -> dict[str, Any]:
     """Maintenance KPIs: open by priority/type, overdue, PM compliance % (preventive WOs done on/before
     due), and MTTR in days (created → completed_date, corrective+emergency only)."""
-    today = as_of or date.today()
+    today = as_of or utc_today()
     wos = me.list_records(db, "work_order", pid, limit=10000)
     open_by_priority: dict[str, int] = {}
     by_type: dict[str, int] = {}

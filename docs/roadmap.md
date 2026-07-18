@@ -86,7 +86,7 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
 7. ✅ **DOC-RACE — SHIPPED v0.3.419 — sidecar index lost-update** — `docmanager.py`/`edit_history.py` read-modify-write a whole
    JSON index with no lock: concurrent uploads lose entries / duplicate ids. Per-project serialization
    (Postgres advisory lock; in-process lock fallback).
-8. **TZ-UTC — overdue/aging math on UTC** — `date.today()`/`datetime.now()` local-time comparisons in
+8. ✅ **TZ-UTC — SHIPPED v0.3.420 — overdue/aging math on UTC** — `date.today()`/`datetime.now()` local-time comparisons in
    dashboard/bim_kpi/cde/closeout/cmms/evm drift a day around midnight; standardize on UTC.
 
 ### 🟡 P2 — docs, demo & surfacing

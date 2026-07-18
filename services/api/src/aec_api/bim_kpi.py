@@ -10,11 +10,12 @@ issue / asset / closeout modules — so a project can see, at a glance, where it
 strong or thin. Every category degrades to 'n/a' rather than guessing when its inputs aren't present."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 
 from . import cde
 from . import modules as me
+from .timeutil import utc_today
 
 GRADES = ("good", "warn", "poor", "na")
 
@@ -36,7 +37,7 @@ def _grade(pct: float | None, good: float, warn: float) -> str:
 def _age_days(created) -> int | None:
     try:
         c = datetime.fromisoformat(str(created).replace("Z", "+00:00")).date()
-        return max(0, (date.today() - c).days)
+        return max(0, (utc_today() - c).days)
     except (TypeError, ValueError):
         return None
 

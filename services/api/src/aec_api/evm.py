@@ -23,6 +23,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from . import modules as me
+from .timeutil import utc_today
 
 _PERIOD_DAYS = {"week": 7.0, "month": 30.44}
 
@@ -306,7 +307,7 @@ def model_ev(db: Session, pid: str, data_date: str | None = None) -> dict[str, A
 def snapshot(db: Session, pid: str, data_date: str | None = None) -> dict[str, Any]:
     """The full EVM snapshot at the data date: project totals (metrics + forecast family) + a
     per-control-account (cost code) breakdown + per-activity earned value."""
-    today = _d(data_date) or date.today()
+    today = _d(data_date) or utc_today()
 
     # cost-code id -> label (code · name), for control-account rows
     cc_label: dict[str, str] = {}

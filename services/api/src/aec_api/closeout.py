@@ -7,6 +7,8 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from .timeutil import utc_today
+
 PUNCH_DONE = ("verified",)
 # punchlist workflow_state -> whose court the ball is in
 PUNCH_COURT = {"open": "Responsible / Sub", "ready": "GC (verify)", "verified": "Verified"}
@@ -34,7 +36,7 @@ def _d(r: dict) -> dict:
 
 
 def punch_rollup(punches: list[dict], as_of: date | None = None) -> dict[str, Any]:
-    today = as_of or date.today()
+    today = as_of or utc_today()
     by_state, by_trade, by_priority, ball_in_court = {}, {}, {}, {}
     overdue = verified = 0
     open_cost = 0.0
@@ -104,7 +106,7 @@ def commissioning_rollup(cx: list[dict]) -> dict[str, Any]:
 
 
 def warranty_rollup(warranties: list[dict], as_of: date | None = None) -> dict[str, Any]:
-    today = as_of or date.today()
+    today = as_of or utc_today()
     horizon = today + timedelta(days=EXPIRING_WINDOW_DAYS)
     by_type = {}
     active = expired = expiring_soon = no_date = 0

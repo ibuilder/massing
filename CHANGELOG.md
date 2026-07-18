@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.420 — TZ-UTC: one clock for due-date & aging math (P1 №8 — P1 complete)
+
+- **Bug fix** (upgrade-plan P1 №8, the last P1): overdue/aging computations in the dashboard, BIM-KPI
+  scorecard, CDE container aging, closeout punch aging, CMMS PM scheduling, EVM data-date and the
+  document manager's naming date compared ISO-stored dates against the **server's local wall-clock** —
+  "overdue" and "days open" drifted a day around midnight and changed with the host timezone
+  (`benchmarking.py` already did this right).
+- New `timeutil.utc_today()/utc_now()`; all seven engines now age on the UTC clock. The EVM and
+  operations suites' expectations aligned to the same clock — they were computing planned-value /
+  next-due on local-today and genuinely tripped the fix during a local evening past UTC midnight
+  (the exact drift being fixed, caught live).
+- Verified: dashboard / bim-kpi / cde / closeout / evm / operations / docmanager + cycle guard green.
+
 ## v0.3.419 — DOC-RACE: per-project locks on the sidecar indexes (P1 №7)
 
 - **Bug fix** (upgrade-plan P1 №7): the document manager and the edit-history stack are

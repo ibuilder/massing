@@ -10,10 +10,11 @@ for _f in ("./test_evm.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from datetime import date, timedelta                  # noqa: E402
+from datetime import timedelta  # noqa: E402
 
-from fastapi.testclient import TestClient              # noqa: E402
-from aec_api.main import app                           # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 
 def _mk(c, pid, key, data):
@@ -23,7 +24,10 @@ def _mk(c, pid, key, data):
 
 
 with TestClient(app) as c:
-    today = date.today()
+    # TZ-UTC: the engine ages on the UTC clock — the test's planned-value expectations must use the
+    # same clock or they drift by a day whenever local evening crosses UTC midnight.
+    from aec_api.timeutil import utc_today
+    today = utc_today()
     pid = c.post("/projects", json={"name": "EVM Tower"}).json()["id"]
 
     cc1 = _mk(c, pid, "cost_code", {"code": "03-30", "description": "Concrete", "division": "03"})

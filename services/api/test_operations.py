@@ -28,7 +28,9 @@ def _act(c, pid, key, rid, action):
     return r.json()
 
 
-today = date.today()
+from aec_api.timeutil import utc_today
+
+today = utc_today()   # TZ-UTC: match the engine's clock
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "P"}).json()["id"]
 

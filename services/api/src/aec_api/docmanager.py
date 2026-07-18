@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Any
 
 from . import classification, folder_template, naming, pid_lock, storage
+from .timeutil import utc_now
 
 _INDEX = "{pid}/docs/_index.json"
 _MAX_NAME = 120
@@ -142,7 +143,7 @@ def upload(pid: str, folder: str, filename: str, data: bytes, actor: str, *, tit
     if not folder_template.is_valid(folder):
         raise ValueError(f"'{folder}' is not a standard folder — file into the standard taxonomy")
     node = folder_template.node(folder)
-    when = when or datetime.now()
+    when = when or utc_now()
     title = (title or filename.rsplit(".", 1)[0] or "Document").strip()
     discipline = discipline or node.get("discipline") or "General"
     doc_type = doc_type or "DOC"

@@ -11,12 +11,13 @@ from sqlalchemy.orm import Session
 
 from . import cost
 from . import modules as me
+from .timeutil import utc_today
 
 
 def _overdue(rec: dict) -> bool:
     due = rec["data"].get("due_date")
     try:
-        return bool(due) and date.fromisoformat(str(due)[:10]) < date.today() \
+        return bool(due) and date.fromisoformat(str(due)[:10]) < utc_today() \
             and rec["workflow_state"] not in ("closed", "answered", "verified", "done")
     except (TypeError, ValueError):
         return False

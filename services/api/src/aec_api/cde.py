@@ -13,6 +13,7 @@ from datetime import date, datetime
 from typing import Any
 
 from . import modules as me
+from .timeutil import utc_today
 
 # ISO 19650 CDE states, in order.
 STATES = ("wip", "shared", "published", "archived")
@@ -139,7 +140,7 @@ def delivery_plan(db, pid: str, today: date | None = None) -> dict[str, Any]:
     date + status (overdue / due-soon / scheduled / issued), a per-milestone (due-month) roll-up, and
     the summary the plan lives on — overdue count, next deliverable, and LOIN-specification coverage
     (share of requirements that state a Level of Information Need, per EN 17412)."""
-    today = today or date.today()
+    today = today or utc_today()
     reqs = me.list_records(db, "info_requirement", pid, limit=10000)
     items, months, overdue, upcoming, loin_set = [], {}, 0, 0, 0
     for r in reqs:
