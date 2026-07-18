@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.407 — REL-3: split the raw vendor HTTP clients out of connectors.py (façade)
+
+- Completes the `connectors.py` decomposition. The **outbound I/O half** — the raw Procore / Autodesk
+  Construction Cloud / QuickBooks Online / generic-ERP REST clients (urllib GET/PATCH, token in → parsed
+  JSON out) — moves to a new pure leaf **`connectors_vendors.py`** (json + urllib only; no DB, no app
+  imports, no dispatch logic).
+- The **overridable test seams** (`procore_rfis = …`, `acc_projects = …`, `qb_accounts = …`, `erp_read =
+  …`) deliberately **stay on `connectors.py`** — tests monkeypatch them there
+  (`connectors.acc_projects = fake`) and the per-vendor test/info dispatchers resolve them there, so the
+  patchability contract is byte-for-byte unchanged. `connectors.py` 411 → 325 (from the original 495).
+- Verified: `test_connections` green end-to-end (Procore two-way sync, ACC/QuickBooks/ERP reads — all
+  through the monkeypatched seams), import-cycle guard **0 cycles** (331 modules), `ruff` clean.
+
 ## v0.3.406 — REL-3: extract the edit.py authoring primitives into a foundation leaf
 
 - Foundation-first slice on the biggest file in the tree — `data/edit.py` (2127 lines), the GUID-stable IFC
