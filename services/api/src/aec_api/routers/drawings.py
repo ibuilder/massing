@@ -120,13 +120,26 @@ def drawing_issuances(pid: str, db: Session = Depends(get_db), _: str = Depends(
 def issue_drawing_set(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
                       _: str = Depends(require_role("editor"))):
     """Issue the current drawing set for a purpose — snapshots every current sheet + its revision.
-    Body: `{purpose, date?, description?, recipients?}`."""
+    Body: `{purpose, date?, description?, recipients?, enforce?}`. The **pre-flight issuance gate**
+    runs automatically and its verdict is stamped on the issuance record; with `enforce: true` a HOLD
+    verdict blocks the issue (409 listing the blocking checks)."""
     purpose = str(body.get("purpose") or "").strip()
     if not purpose:
         from fastapi import HTTPException
         raise HTTPException(422, "purpose is required")
+    pf = None
+    try:                                    # the gate never breaks issuing unless enforcement asks it to
+        from .. import preflight
+        pf = preflight.summary(preflight.run(db, pid))
+    except Exception:                       # noqa: BLE001 — a gate error is not an issuance error
+        pf = None
+    if body.get("enforce") and pf and not pf["ready"]:
+        from fastapi import HTTPException
+        raise HTTPException(409, "pre-flight HOLD — blocking checks: "
+                                 + ", ".join(pf["blocking_checks"]) + " (see /preflight)")
     return issuance.issue(db, pid, purpose, body.get("date"),
-                          str(body.get("description") or ""), str(body.get("recipients") or ""))
+                          str(body.get("description") or ""), str(body.get("recipients") or ""),
+                          preflight=pf)
 
 
 @router.get("/projects/{pid}/drawing-set/issuance-matrix")

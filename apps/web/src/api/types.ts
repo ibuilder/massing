@@ -365,3 +365,37 @@ export interface ModulePin {
   anchor: Vec3;
   element_guids: string[] | null;
 }
+
+/** One check row in the pre-flight issuance gate. */
+export interface PreflightCheck {
+  key: string;
+  label: string;
+  status: "pass" | "warn" | "fail";
+  detail: string;
+  score?: number;
+  count?: number;
+  guids?: string[];
+  link?: string | null;
+}
+
+/** The pre-flight issuance gate — PASS/HOLD verdict + deep-linked checklist. */
+export interface PreflightGate {
+  ready: boolean;
+  verdict: string;
+  overall_score: number | null;
+  band: string | null;
+  blocking: number;
+  warnings: number;
+  checks: PreflightCheck[];
+  disclaimer: string;
+}
+
+/** The compact gate stamp an issuance record carries. */
+export interface PreflightSummary {
+  ready: boolean;
+  verdict: string;
+  overall_score: number | null;
+  blocking: number;
+  warnings: number;
+  blocking_checks: string[];
+}

@@ -64,6 +64,16 @@ try:
     assert gate["blocking"] == 0, gate
     assert any(c["key"] == "hygiene" for c in gate["checks"]), gate            # health lens folded in
     assert any(c["key"] == "open_issues" and c["status"] == "pass" for c in gate["checks"]), gate
+    # PREFLIGHT: keynote/spec lens runs when a model is present; every check carries a deep link
+    keynote = [c for c in gate["checks"] if c["key"] == "keynotes"]
+    assert keynote and keynote[0]["status"] in ("pass", "warn", "fail") and "count" in keynote[0], gate
+    hy = next(c for c in gate["checks"] if c["key"] == "hygiene")
+    assert hy["link"] == f"/projects/{pid}/models/qa", hy
+    # no sheets registered + no pinned IDS → the drawing-QA and IDS lenses stay out of the checklist
+    assert not any(c["key"] in ("drawing_qa", "ids") for c in gate["checks"]), gate
+    # the compact stamp the issuance record carries
+    st = preflight.summary(gate)
+    assert st["ready"] is True and st["blocking_checks"] == [], st
     # classification completeness: all-wall index → every element maps to the discipline tree (100%)
     gate2 = preflight.issuance_gate(db, pid, model=_clean_model(),
                                     elements=[{"guid": f"g{i}", "ifc_class": "IfcWall"} for i in range(4)])

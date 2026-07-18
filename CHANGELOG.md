@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.459 — PREFLIGHT: the issuance gate now covers keynotes · drawing-set QA · pinned IDS, deep-links every check, and gates the Issue action (P1 #2)
+
+- **The pre-flight gate is now the full pre-issuance audit.** Three new lenses join model health /
+  classification / open-issues: **keynote/spec completeness** (the detail-rule QA — components missing
+  a required keynote), **drawing-set QA** (set integrity · issuance hygiene · model cross-checks, when
+  sheets exist), and the **pinned-IDS validation** (the project's contractual spec, when one is pinned).
+  Every check now carries a **deep link** to the API tool that drills into it (`preflight.py`).
+- **Wired into the issuance flow.** `POST /drawing-set/issue` runs the gate automatically and **stamps
+  the verdict on the issuance record** (a permanent "what did the gate say at the moment of release");
+  `enforce: true` makes a HOLD block the issue with a 409 listing the blocking checks. The Drawing-set
+  register UI grew a **🚦 Pre-flight** button (verdict + iconized checklist + ↗ deep links), and
+  **📤 Issue set** now enforces by default — on a HOLD it renders the evidence and arms a one-shot
+  **⛔ Issue anyway** override.
+- **Root-cause bug fix found by live-driving the UI:** the Report-Center `table()` helper used
+  `innerHTML +=`, which reparses the whole tool body and **silently detaches every button handler
+  wired before it** — the issuance tools (Generate / Issue / Pre-flight) were dead whenever the
+  register table rendered after them. It now appends a real element.
+- Live-verified end-to-end on the dev stack: gate returned a genuine HOLD with all 8 lenses (the
+  pinned IDS correctly failing 2/5 specs against the real model); enforced issue → 409; UI checklist +
+  deep links rendered; the override issued and the record carries the 4-blocker HOLD stamp; a corrupt
+  pinned IDS degrades gracefully (lens absent, no 500).
+- Backend suite green (test_issuance + test_model_health extended); web typecheck/lint/vitest(121)/build green.
+
 ## v0.3.458 — COLLAB-CURSORS: multiplayer presence cursors in the viewer (P1 #1)
 
 - **See where everyone is looking, live.** Every peer whose presence heartbeat carries a camera

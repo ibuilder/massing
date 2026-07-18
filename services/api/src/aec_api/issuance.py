@@ -55,9 +55,10 @@ def _issuances(db: Session, pid: str) -> list[dict]:
 
 def issue(db: Session, pid: str, purpose: str, issue_date: str | None = None,
           description: str = "", recipients: str = "", actor: str = "issuance",
-          party: str | None = "GC") -> dict[str, Any]:
+          party: str | None = "GC", preflight: dict[str, Any] | None = None) -> dict[str, Any]:
     """Snapshot the current drawing set as a new issuance for `purpose`. Records each current sheet +
-    its revision, so the issuance is a permanent record of exactly what was released."""
+    its revision, so the issuance is a permanent record of exactly what was released. `preflight` is
+    the gate-verdict stamp (verdict + blocking checks at the moment of issue) recorded with it."""
     reg = drawingset.drawing_set(db, pid)
     snapshot = [{"sheet_number": s.get("sheet_number"), "revision": s.get("revision") or "",
                  "title": s.get("title") or "", "discipline": s.get("discipline") or ""}
@@ -66,13 +67,17 @@ def issue(db: Session, pid: str, purpose: str, issue_date: str | None = None,
         raise HTTPException(409, "no drawings to issue — generate or add sheets first")
     n = 1 + len(_issuances(db, pid))
     abbr = _PURPOSE_ABBR.get(purpose, "ISS")
-    rec = me.create_record(db, "drawing_issuance", pid, {"data": {
+    data: dict[str, Any] = {
         "number": f"ISS-{n:03d} · {abbr}", "purpose": purpose,
         "issue_date": issue_date or date.today().isoformat(),
         "description": description, "recipients": recipients,
-        "sheet_count": len(snapshot), "sheets": snapshot}}, actor=actor, party=party)
+        "sheet_count": len(snapshot), "sheets": snapshot}
+    if preflight is not None:                       # the gate verdict at the moment of issue
+        data["preflight"] = preflight
+    rec = me.create_record(db, "drawing_issuance", pid, {"data": data}, actor=actor, party=party)
     return {"id": rec["id"], "ref": rec["ref"], "purpose": purpose,
-            "issue_date": (rec.get("data") or {}).get("issue_date"), "sheet_count": len(snapshot)}
+            "issue_date": (rec.get("data") or {}).get("issue_date"), "sheet_count": len(snapshot),
+            "preflight": preflight}
 
 
 def register(db: Session, pid: str) -> dict[str, Any]:

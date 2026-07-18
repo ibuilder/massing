@@ -11,6 +11,7 @@ import type {
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, ElementProps, EnergyResult, FinancialStatements,
   IntegrationGroup, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
+  PreflightGate, PreflightSummary,
   RecordAttachmentMeta, RelatedRecords, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, StampTemplate, SyncScheduleItem,
   Topic, Vec3, Viewpoint, WorkItem,
 } from "./types";
@@ -405,10 +406,18 @@ export class ApiClient extends HttpCore {
       skipped_existing: number; by_discipline: Record<string, number>; sheet_count: number }>(
       `/projects/${pid}/drawing-set/generate`, { method: "POST", body: JSON.stringify(body) });
   }
-  /** Issue the current drawing set for a purpose (AIA/CD) — snapshots every sheet + its revision. */
-  issueDrawingSet(pid: string, body: { purpose: string; date?: string; description?: string; recipients?: string }) {
-    return this.json<{ id: string; purpose: string; issue_date: string; sheet_count: number }>(
+  /** Issue the current drawing set for a purpose (AIA/CD) — snapshots every sheet + its revision.
+   *  The pre-flight gate runs server-side and its verdict is stamped on the issuance; `enforce: true`
+   *  makes a HOLD verdict block the issue (409). */
+  issueDrawingSet(pid: string, body: { purpose: string; date?: string; description?: string;
+      recipients?: string; enforce?: boolean }) {
+    return this.json<{ id: string; purpose: string; issue_date: string; sheet_count: number;
+      preflight?: PreflightSummary | null }>(
       `/projects/${pid}/drawing-set/issue`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** The pre-flight issuance gate — PASS/HOLD verdict + checklist, every check deep-linked. */
+  preflight(pid: string) {
+    return this.json<PreflightGate>(`/projects/${pid}/preflight`);
   }
   /** The issuance history (every release, purpose, date, sheet count, recipients). */
   drawingIssuances(pid: string) {

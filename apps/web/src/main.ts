@@ -223,10 +223,14 @@ async function openReportCenter() {
     b.style.cssText = "display:block;width:100%;text-align:left;margin:2px 0"; b.onclick = fn; card.appendChild(b);
   };
   const table = (body: HTMLElement, headers: string[], rows: (string | number)[][]) => {
-    body.innerHTML += `<table class="fin-table" style="width:100%;font-size:12px"><tr>`
+    // append a real element — `innerHTML +=` would reparse the whole body and silently detach every
+    // event handler wired to earlier buttons (bit the issuance tools: the register table killed them)
+    const t = document.createElement("table");
+    t.className = "fin-table"; t.style.cssText = "width:100%;font-size:12px";
+    t.innerHTML = "<tr>"
       + headers.map((h) => `<th style="text-align:left">${escapeHtml(h)}</th>`).join("") + "</tr>"
-      + rows.map((r) => "<tr>" + r.map((c) => `<td>${escapeHtml(String(c))}</td>`).join("") + "</tr>").join("")
-      + "</table>";
+      + rows.map((r) => "<tr>" + r.map((c) => `<td>${escapeHtml(String(c))}</td>`).join("") + "</tr>").join("");
+    body.appendChild(t);
   };
   tool("🩺 Project health (executive rollup)", () => showResult("Project health", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
@@ -294,13 +298,56 @@ async function openReportCenter() {
         const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0";
         const sel = document.createElement("select"); sel.className = "portal-filter";
         try { const pu = await api.drawingIssuancePurposes(pid); for (const p of pu.purposes) { const o = document.createElement("option"); o.value = p.name; o.textContent = p.name; sel.appendChild(o); } } catch { /* purposes optional */ }
-        const isb = document.createElement("button"); isb.className = "file-btn"; isb.textContent = "📤 Issue set";
-        isb.onclick = async () => {
-          isb.disabled = true; const prev = isb.textContent; isb.textContent = "Issuing…";
-          try { const r = await api.issueDrawingSet(pid, { purpose: sel.value }); toast(`Issued ${r.sheet_count} sheets for ${r.purpose}`, "success"); await load(); }
-          catch (e) { toast((e as Error).message, "error"); isb.disabled = false; isb.textContent = prev; }
+        // pre-flight gate: PASS/HOLD verdict + deep-linked checklist; the Issue button runs it first
+        const gateOut = document.createElement("div"); gateOut.style.margin = "4px 0";
+        const STATUS_ICON: Record<string, string> = { pass: "✅", warn: "⚠️", fail: "⛔" };
+        const renderGate = (g: import("./api/types").PreflightGate) => {
+          gateOut.innerHTML = `<div class="meta" style="font-weight:600">${g.ready ? "🟢" : "🔴"} ${escapeHtml(g.verdict)}`
+            + (g.overall_score != null ? ` · health ${g.overall_score}` : "")
+            + ` · ${g.blocking} blocking · ${g.warnings} warning(s)</div>`;
+          for (const c of g.checks) {
+            const line = document.createElement("div"); line.className = "meta"; line.style.margin = "2px 0";
+            line.textContent = `${STATUS_ICON[c.status] ?? "•"} ${c.label} — ${c.detail}`;
+            if (c.link) {
+              const a = document.createElement("a"); a.href = api.url(c.link); a.target = "_blank"; a.rel = "noopener";
+              a.textContent = " ↗"; a.title = `Open ${c.link}`; line.appendChild(a);
+            }
+            gateOut.appendChild(line);
+          }
         };
-        row.append(sel, isb); iss.appendChild(row); body.appendChild(iss);
+        const pfb = document.createElement("button"); pfb.className = "file-btn"; pfb.textContent = "🚦 Pre-flight";
+        pfb.title = "Run the pre-issuance gate: model health · classification/keynotes · drawing-set QA · pinned IDS · open issues";
+        pfb.onclick = async () => {
+          pfb.disabled = true; const prev = pfb.textContent; pfb.textContent = "Checking…";
+          try { renderGate(await api.preflight(pid)); } catch (e) { toast((e as Error).message, "error"); }
+          pfb.disabled = false; pfb.textContent = prev;
+        };
+        const isb = document.createElement("button"); isb.className = "file-btn"; isb.textContent = "📤 Issue set";
+        let issueAnyway = false;                       // second click after a HOLD issues without enforcement
+        isb.onclick = async () => {
+          isb.disabled = true; const prev = "📤 Issue set"; isb.textContent = "Issuing…";
+          try {
+            const r = await api.issueDrawingSet(pid, { purpose: sel.value, enforce: !issueAnyway });
+            toast(`Issued ${r.sheet_count} sheets for ${r.purpose}`
+              + (r.preflight && !r.preflight.ready ? " (pre-flight HOLD overridden)" : ""), "success");
+            issueAnyway = false; await load();
+          } catch (e) {
+            const msg = (e as Error).message;
+            if (!issueAnyway && msg.includes("-> 409")) {
+              // a 409 is either the pre-flight HOLD or "no sheets" — the gate itself tells us which;
+              // on HOLD, show the evidence and arm a one-shot override
+              let hold = false;
+              try { const g = await api.preflight(pid); hold = !g.ready; if (hold) renderGate(g); }
+              catch { /* gate detail optional */ }
+              if (hold) {
+                toast("Pre-flight HOLD — review the blockers below, or click again to issue anyway", "error");
+                issueAnyway = true; isb.disabled = false; isb.textContent = "⛔ Issue anyway"; return;
+              }
+            }
+            toast(msg, "error"); isb.disabled = false; isb.textContent = prev;
+          }
+        };
+        row.append(sel, pfb, isb); iss.appendChild(row); iss.appendChild(gateOut); body.appendChild(iss);
         try {
           const reg = await api.drawingIssuances(pid);
           if (reg.issuance_count) {

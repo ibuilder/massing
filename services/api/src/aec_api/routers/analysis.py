@@ -399,15 +399,12 @@ def model_health_scorecard(pid: str, db: Session = Depends(get_db), _sec: str = 
 @router.get("/projects/{pid}/preflight")
 def preflight_gate(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Pre-flight **issuance gate** — one PASS/HOLD verdict + a pre-issue checklist composing model health
-    (hygiene · clash · code-readiness · verified-as-built), **discipline-classification completeness**, and
-    **open high-priority issues** (a hard blocker). Run it before publishing/issuing a set."""
+    (hygiene · clash · code-readiness · verified-as-built), **discipline-classification completeness**,
+    **keynote/spec completeness**, **drawing-set QA**, the **pinned-IDS validation**, and **open
+    high-priority issues** (a hard blocker). Each check deep-links to its tool. Run it before issuing —
+    `POST /drawing-set/issue` runs it automatically and stamps the verdict on the issuance."""
     from .. import preflight
-    model = None
-    try:
-        model = open_source_ifc(db, pid)             # enables the hygiene lens; other lenses don't need it
-    except Exception:                                # noqa: BLE001 — score the DB/index-based lenses only
-        pass
-    return preflight.issuance_gate(db, pid, model, _index_elements(pid))
+    return preflight.run(db, pid)
 
 
 @router.get("/projects/{pid}/models/alignment")

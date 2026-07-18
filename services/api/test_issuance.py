@@ -12,9 +12,10 @@ for _f in ("./test_issuance.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient                 # noqa: E402
-from aec_api import issuance                              # noqa: E402
-from aec_api.main import app                              # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import issuance  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 HDR = {"X-User": "architect"}
 
@@ -34,6 +35,9 @@ with TestClient(app) as c:
     i1 = c.post(f"{P}/drawing-set/issue", json={"purpose": "Issued for Permit",
                 "recipients": "DOB, Owner", "description": "Permit set"}, headers=HDR)
     assert i1.status_code == 201 and i1.json()["sheet_count"] == m_count, i1.text
+    # PREFLIGHT: the gate runs automatically and its verdict is stamped on the issuance
+    pf = i1.json()["preflight"]
+    assert pf is not None and "ready" in pf and "verdict" in pf and "blocking_checks" in pf, pf
 
     # add the electrical series (new sheets), then issue for bid — a bigger snapshot
     c.post(f"{P}/drawing-set/generate", json={"disciplines": ["Electrical"]}, headers=HDR)
@@ -65,6 +69,18 @@ with TestClient(app) as c:
     # purposes endpoint
     pu = c.get(f"{P}/drawing-set/issuance-purposes", headers=HDR).json()
     assert any(p["name"] == "Issued for Construction" and p["abbr"] == "IFC" for p in pu["purposes"])
+
+    # PREFLIGHT enforcement: an open high-priority topic makes the gate a HOLD; enforce:true blocks
+    c.post(f"{P}/topics", json={"type": "clash", "title": "Beam vs duct", "priority": "high"}, headers=HDR)
+    gate = c.get(f"{P}/preflight", headers=HDR).json()
+    assert gate["ready"] is False and "open_issues" in [x["key"] for x in gate["checks"] if x["status"] == "fail"], gate
+    # every check deep-links to its tool
+    assert all("link" in x for x in gate["checks"]), gate["checks"]
+    blocked = c.post(f"{P}/drawing-set/issue", json={"purpose": "Issued for Construction", "enforce": True}, headers=HDR)
+    assert blocked.status_code == 409 and "open_issues" in blocked.text, blocked.text
+    # without enforcement it issues, but the HOLD verdict is stamped for the record
+    forced = c.post(f"{P}/drawing-set/issue", json={"purpose": "Issued for Construction"}, headers=HDR)
+    assert forced.status_code == 201 and forced.json()["preflight"]["ready"] is False, forced.text
 
 print(f"ISSUANCE OK - 2 issuances (Permit {m_count} sheets, Bid {total}); sheet×issuance matrix shows "
       "Mechanical in both issues and Electrical only in the later one; per-issuance transmittal PDF; "

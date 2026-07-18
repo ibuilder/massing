@@ -18,9 +18,10 @@ priorities below favor what that unblocked.
    peer's live camera position (`peerCursors.ts`); the presence beat now shares your viewpoint each
    tick. Live-verified: appear at exact position → track → remove on departure. **COLLAB-1 complete.**
    *(Selection halos = a later nicety; the viewpoint payload would carry a `selectedGuid`.)*
-2. **PREFLIGHT — model-health issuance gate** *(S/M · ★★★★)* — one-click pre-issuance audit assembling
-   the shipped checks (model hygiene · missing classifications/keynotes · open BCF · drawing-set QA ·
-   IDS) into a single go/no-go gate with counts + deep links, wired into the issuance flow.
+2. ✅ **PREFLIGHT — SHIPPED v0.3.459** *(★★★★)* — the gate now composes all the shipped checks (model
+   health · classification · keynotes · drawing-set QA · pinned IDS · open BCF), deep-links each one,
+   and gates `POST /drawing-set/issue` (verdict stamped on the record; `enforce` → 409 on HOLD; UI
+   🚦 button + ⛔ one-shot override). Also fixed the latent `table()` `innerHTML +=` handler-killer.
 3. **SITE-1 first slice — open-geodata site context** *(M · ★★★★)* — drop the georeferenced model onto
    real context: OSM building footprints + parcels as extruded GeoJSON blocks + terrain DEM, as a
    separate reference layer (`gis.ts` loaders ship; this adds the fetch/compose UX). OSM = ODbL
