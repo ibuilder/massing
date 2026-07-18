@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.422 — README-TRIM: the README reads like a README again (P2 №10 — P2 docs complete)
+
+- **README** 983 → 560 lines: the "Recent platform work" section keeps the five newest narrative arcs
+  (v0.3.113 → v0.3.412) and replaces the ~430-line release-by-release history dump with a one-paragraph
+  pointer to `CHANGELOG.md` + `docs/roadmap-completed.md` (which is where that record belongs).
+- The five June point-in-time audit docs (`audit-2026-06`, `gc-tools-audit`, `ux-findings`, `ux-ia`,
+  `phase2-large-models`) now carry a "superseded — kept for the record" banner so nobody mistakes them
+  for current state.
+
 ## v0.3.421 — DEMO-REGEN: the Pages demo snapshot rejoins the present (P2 №9)
 
 - The massing.build/app viewer-only demo serves a captured API snapshot — last regenerated at

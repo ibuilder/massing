@@ -1,5 +1,8 @@
 # Phase 2 — Large-model handling
 
+> **Point-in-time audit (June 2026) — superseded.** Kept for the record; current state lives in
+> [roadmap.md](roadmap.md) + [roadmap-completed.md](roadmap-completed.md) and the [changelog](../CHANGELOG.md).
+
 Goal: open hundreds of MB / millions of elements smoothly on a laptop and on the web.
 
 ## What Fragments gives us for free
