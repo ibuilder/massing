@@ -90,7 +90,7 @@ into micro-apps, but the **CAD authoring UX** and a few dev practices are worth 
 3. ✅ **AUTHOR-MATRIX — SHIPPED v0.3.431 — a public authoring-coverage matrix** *(★★ · like OCS's COMMANDS.md)* — one markdown
    table (IFC classes × create/edit/delete/parametrize, implemented/partial/missing) in the repo + docs.
    Honest maturity signal for users, work-picker for contributors. Cheap; generate from `edit.RECIPES`.
-4. **CLIENT-LIMITS — a `docs/client-vs-server.md`** *(★★)* — what runs in the browser vs the Python
+4. ✅ **CLIENT-LIMITS — SHIPPED v0.3.433 — [`docs/client-vs-server.md`](client-vs-server.md)** *(★★)* — what runs in the browser vs the Python
    service and why. Bank OCS's two transferable landmines: **WebGL2 has no vertex-stage storage buffers**
    (custom hatch/linetype must use triangulation/textures or gate on WebGPU) and **wasm is single-threaded
    without SharedArrayBuffer** (already why the viewer needs coi-serviceworker). Doubles as arch docs.

@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.433 — docs: client-vs-server architecture doc (OpenAEC-study lesson #4)
+
+- New [`docs/client-vs-server.md`](docs/client-vs-server.md): where work runs and why — the thin-client /
+  Python-authoring-service boundary (client renders/snaps/drafts; server holds the IFC source of truth and
+  does every geometry mutation + analysis), plus the two platform limits that shape the client, banked
+  from the OpenAEC study: **WebGL2 has no vertex-stage storage buffers** (custom 2D fill/linetype must
+  triangulate or gate on WebGPU — today our 2D is server-side SVG/PDF, so it's moot) and **wasm is
+  single-threaded without SharedArrayBuffer**, which needs cross-origin isolation (documenting exactly how
+  nginx COOP/COEP + the Pages `coi-serviceworker` provide it, and why the attachment route sets CORP).
+  Doubles as onboarding + architecture reference; no code change.
+
 ## v0.3.432 — docs: roadmap hygiene — archive the shipped upgrade cycle, refresh the intro
 
 - Roadmap maintenance per the file's own "holds only what's OPEN" rule: the intro now reads **latest
