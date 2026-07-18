@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.405 — REL-3: split the sheet renderers out of data/drawings.py (façade)
+
+- Next façade extraction. The **paper-output half** of `data/drawings.py` — `render_sheet_svg` /
+  `render_sheet_pdf` (turn a composed `layout` dict into an SVG string / PDF byte-stream) plus the shared
+  `_dim_h` / `_dim_v` dimension primitives — moves to a new pure leaf **`drawings_render.py`** that imports
+  no ifcopenshell / geometry / model code (just `layout`/`meta` dicts + reportlab in the PDF path).
+- `drawings.py` re-imports all four (used internally: the renderers in `sheet()`, the dim primitives in the
+  plan generator), so `drawings.render_sheet_svg` / `render_sheet_pdf` callers are unchanged. `drawings.py`
+  941 → 788. The leaf imports nothing back from `drawings.py`, so no cycle.
+- Verified: `test_sheetgen` / `test_pdfops` / `test_issuance` / `test_drawing` / `test_sections` green
+  (sheets render through the façade), the import-cycle guard confirms **0 new cycles** (329 modules), `ruff`
+  clean.
+
 ## v0.3.404 — REL-3: split the pure Procore field-mapping out of connectors.py (façade)
 
 - First façade extraction since the cycle guards landed (which now catch any regression). The **pure
