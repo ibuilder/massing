@@ -4,6 +4,14 @@ Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_codes.py"""
 import os
 import sys
 
+os.environ["DATABASE_URL"] = "sqlite:///./test_codes.db"
+os.environ["STORAGE_DIR"] = "./test_storage_codes"
+os.environ["AEC_TRUST_XUSER"] = "1"
+os.environ.pop("AEC_RBAC", None)
+for _f in ("./test_codes.db",):
+    if os.path.exists(_f):
+        os.remove(_f)
+
 _DATA_SRC = os.path.join(os.path.dirname(__file__), "..", "data", "src")
 if _DATA_SRC not in sys.path:
     sys.path.insert(0, _DATA_SRC)
@@ -54,6 +62,7 @@ assert "CA" in c.get("/codes/seeded", headers=h).json()["jurisdictions"]
 
 # --- CODE-5: applicable code requirements → buildingSMART IDS -----------------
 import xml.etree.ElementTree as ET  # noqa: E402
+
 ids = c.get("/codes/ids", params={"description": "5-story R-2 apartment building, 40,000 sf",
                                   "edition": "IBC 2021"}, headers=h).json()
 assert ids["spec_count"] > 0 and "<ids" in ids["ids_xml"], ids.get("spec_count")
@@ -66,6 +75,23 @@ assert any(t["code"] == "IBC" for t in ids["topics"]), ids["topics"]
 dl = c.get("/codes/ids", params={"description": "office, 8000 sf", "download": "true"}, headers=h)
 assert dl.status_code == 200 and dl.headers["content-type"].startswith("application/xml")
 assert "code-requirements.ids" in dl.headers.get("content-disposition", "")
+
+# --- CODE-1b/3: per-project jurisdiction → the egress checker auto-resolves the IBC edition -------
+with TestClient(app) as c2:                     # lifespan runs create_all for the project tables
+    pid = c2.post("/projects", json={"name": "Juris Test"}, headers=h).json()["id"]
+    pr = c2.patch(f"/projects/{pid}", json={"jurisdiction": "FL"}, headers=h)
+    assert pr.status_code == 200 and pr.json()["jurisdiction"] == "FL", pr.text[:200]
+    assert c2.get(f"/projects/{pid}", headers=h).json()["jurisdiction"] == "FL"   # round-trips on GET
+from aec_api.routers.codecheck import _project_ibc_edition  # noqa: E402
+
+
+class _P:  # the resolver only reads .jurisdiction
+    jurisdiction = "FL"
+
+
+assert _project_ibc_edition(_P()) == 2021, "FL seed adopts IBC 2021"
+_P.jurisdiction = None
+assert _project_ibc_edition(_P()) is None, "no jurisdiction → baseline (None)"
 
 print("CODES OK - CODE-1 catalog lists the I-Code families + editions and the baseline; resolve() maps a "
       "jurisdiction to adopted editions (seed vs baseline per family), falls back to the baseline when "

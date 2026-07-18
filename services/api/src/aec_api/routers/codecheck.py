@@ -70,8 +70,9 @@ async def code_check(pid: str, description: str = Body("", embed=True),
 def codecheck_egress(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W9-2: COMPUTED occupancy load (IBC 1004) + egress capacity (IBC 1005) from the model's
     IfcSpaces/IfcDoors — the depth layer above the presence-only /elements/code-check. Reads spaces
-    straight from the source IFC (they aren't in the physical-element index). Pre-check assist with
-    cited IBC sections; NOT a certified review."""
+    straight from the source IFC (they aren't in the physical-element index). CODE-3: the IBC
+    **edition auto-resolves from the project's jurisdiction** (set it via PATCH /projects/{pid});
+    unset → national baseline. Pre-check assist with cited IBC sections; NOT a certified review."""
     from aec_data.ifc_loader import open_model  # type: ignore
 
     p = db.get(Project, pid)
@@ -79,7 +80,25 @@ def codecheck_egress(pid: str, db: Session = Depends(get_db), _: str = Depends(r
         raise HTTPException(404, "project not found")
     if not p.source_ifc:
         raise HTTPException(409, "no source IFC — occupancy/egress needs a model with IfcSpaces")
-    return codecheck.egress_from_model(open_model(p.source_ifc))
+    edition = _project_ibc_edition(p)
+    out = codecheck.egress_from_model(open_model(p.source_ifc), edition=edition)
+    out["jurisdiction"] = p.jurisdiction
+    if edition:
+        out["ibc_edition"] = edition
+    return out
+
+
+def _project_ibc_edition(p) -> int | None:
+    """CODE-3: the project's adopted IBC edition, resolved from its jurisdiction (None → baseline)."""
+    if not getattr(p, "jurisdiction", None):
+        return None
+    try:
+        from aec_data import codes  # type: ignore
+        ctx = codes.resolve(p.jurisdiction)
+        ed = next((c.get("edition") for c in ctx.get("codes", []) if c.get("family") == "IBC"), None)
+        return int(ed) if ed else None
+    except Exception:  # noqa: BLE001 — an unseeded/odd jurisdiction falls back to the baseline
+        return None
 
 
 @router.get("/projects/{pid}/codecheck/analysis")

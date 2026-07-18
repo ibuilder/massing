@@ -510,6 +510,14 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
         # produces "<base>_<stamp>.ifc" off the ORIGINAL stem, not the previous versioned name.
         base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
         out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+        # CODE-3: the detail-rule recipe auto-resolves the IBC edition from the project's
+        # jurisdiction when the caller didn't pass one — citations name the adopted edition.
+        if recipe == "apply_detailing_rules" and not params.get("ibc_edition") \
+                and getattr(p, "jurisdiction", None):
+            from .codecheck import _project_ibc_edition
+            ed_year = _project_ibc_edition(p)
+            if ed_year:
+                params = {**params, "ibc_edition": str(ed_year)}
         try:
             result = ed.apply_recipe(p.source_ifc, recipe, params, out)
         except PermissionError as e:                   # A1 sandbox disabled
@@ -567,6 +575,46 @@ def edit_graph(pid: str, graph: dict = Body(...), publish: bool = Body(default=F
                             (v.get("guid") if isinstance(v, dict) else str(v)))
                         for k, v in result["outputs"].items()},
             **({"publish": result["publish"]} if "publish" in result else {})}
+
+
+@router.post("/projects/{pid}/edit/batch")
+def edit_batch(pid: str, steps: list[dict] = Body(...), publish: bool = Body(default=False),
+               base_source: str | None = Body(default=None),
+               db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """S4 — apply a **sequence of authoring steps as ONE version** (`steps: [{recipe, params}, …]`):
+    the model opens once, every step runs in memory, one file is written, one edit-history entry is
+    pushed — so a multi-step NL command **undoes as a single step**. All-or-nothing: every step is
+    guard-prechecked before anything runs. Honors the COLLAB-1 optimistic lock via `base_source`."""
+    from aec_data import edit as ed  # type: ignore
+
+    from .. import pid_lock
+
+    with pid_lock.mutating(pid):
+        p = _project(db, pid)
+        db.refresh(p)
+        if base_source is not None and p.source_ifc and Path(base_source).name != Path(p.source_ifc).name:
+            raise HTTPException(409, "the model changed since you loaded it (another user published) — "
+                                     "reload before editing")
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+        base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+        out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+        try:
+            result = ed.apply_recipes(p.source_ifc, steps, out)
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        except (ValueError, KeyError) as e:
+            raise HTTPException(400, str(e)) from e
+        from .. import edit_history
+        edit_history.push(pid, p.source_ifc)               # ONE undo entry for the whole batch
+        p.source_ifc = out
+        audit.record(db, action="ifc.edit_batch", actor=actor, method="POST",
+                     path=f"/projects/{pid}/edit/batch",
+                     detail={"steps": [s.get("recipe") for s in steps]})
+        db.commit()
+    if publish:
+        _publish_bg(pid)
+        result["publish"] = "running"
+    return result
 
 
 @router.get("/content/catalog")

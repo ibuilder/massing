@@ -42,6 +42,8 @@ class Project(Base):
     # COST-DB: the cost-database vintage this project's estimate is pinned to (reproducibility).
     # NULL = use the latest installed vintage. See cost_db.py + docs/cost-db-import-plan.md.
     cost_dataset_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # CODE-1: USPS state code (e.g. "CA") — resolves the adopted code editions for every checker
+    jurisdiction: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     topics: Mapped[list[Topic]] = relationship(back_populates="project", cascade="all, delete-orphan")

@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.471 — per-project jurisdiction + auto-resolved code edition (CODE-1b/3) · one-undo NL batches (S4)
+
+- **CODE-1b — the project knows its jurisdiction.** `Project.jurisdiction` (USPS state code) is now a
+  first-class field (PATCH `/projects/{pid}`, returned on GET; the column auto-migrates). **CODE-3 —
+  the edition resolves itself:** the egress/occupancy checker cites the jurisdiction's **adopted IBC
+  edition** automatically (unset → national baseline, always with the verify-with-AHJ note), and the
+  `apply_detailing_rules` recipe at `POST /edit` rewords its citations to the adopted edition when the
+  caller didn't pass one.
+- **S4 — multi-step commands undo as one step.** New `POST /projects/{pid}/edit/batch`
+  (`steps: [{recipe, params}, …]`) opens the model once, applies every step in memory, writes ONE
+  version and pushes ONE edit-history entry — so a multi-step NL command reverts with a single undo.
+  All-or-nothing: every step is guard-prechecked before anything runs; a bad step aborts the batch
+  with nothing written. Honors the COLLAB-1 optimistic lock.
+- `test_codes` extended (PATCH round-trip; FL → IBC 2021; no jurisdiction → baseline) and
+  `test_edit_undo` extended (3-step batch → exactly one undo entry; one undo reverts all; bad middle
+  step aborts atomically; empty batch 400). Backend suite green.
+
 ## v0.3.470 — RISK-BOARD: one register for every computed risk signal (P2 · AI & agents)
 
 - **`GET /projects/{pid}/risk-board`** unifies the platform's computed risks into one ranked,

@@ -759,3 +759,28 @@ def apply_recipe(ifc_path: str, recipe: str, params: dict, out_path: str) -> dic
     changed = RECIPES[recipe](model, params)
     model.write(out_path)
     return {"recipe": recipe, "changed": changed, "out": out_path}
+
+
+def apply_recipes(ifc_path: str, steps: list[dict], out_path: str) -> dict:
+    """S4 — apply a SEQUENCE of `{recipe, params}` steps as ONE new version: the model opens once,
+    every step mutates it in memory, and a single file is written — so a multi-step NL command (or
+    any scripted batch) is one edit-history entry and undoes as **one step**, not N. Every step is
+    guard-prechecked BEFORE anything runs (all-or-nothing: a bad step aborts the whole batch with
+    nothing written); an unknown recipe fails the same way."""
+    if not steps:
+        raise ValueError("empty step list")
+    from . import guards
+    for i, s in enumerate(steps):
+        recipe = s.get("recipe")
+        if recipe not in RECIPES:
+            raise ValueError(f"step {i + 1}: unknown recipe {recipe!r}; have {list(RECIPES)}")
+        pre = guards.precheck(recipe, s.get("params") or {})
+        if not pre["ok"]:
+            raise ValueError(f"step {i + 1} ({recipe}): " + "; ".join(pre["errors"]))
+    model = open_model(ifc_path)
+    results = []
+    for s in steps:
+        results.append({"recipe": s["recipe"],
+                        "changed": RECIPES[s["recipe"]](model, s.get("params") or {})})
+    model.write(out_path)
+    return {"steps": results, "step_count": len(results), "out": out_path}

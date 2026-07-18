@@ -84,7 +84,32 @@ with TestClient(app) as c:
                    "base_source": cur}, headers=h)
     assert fresh.status_code == 200, fresh.text[:200]
 
+    # --- S4 multi-step grouping: a 3-step batch = ONE version = ONE undo entry --------------------
+    depth0 = c.get(f"/projects/{p}/edit/history", headers=h).json()["undo_depth"]
+    bt = c.post(f"/projects/{p}/edit/batch", json={"steps": [
+        {"recipe": "add_wall", "params": {"start": [0, 5], "end": [6, 5], "height": 3, "thickness": 0.2}},
+        {"recipe": "add_wall", "params": {"start": [6, 5], "end": [6, 9], "height": 3, "thickness": 0.2}},
+        {"recipe": "add_column", "params": {"point": [3, 7], "height": 3}},
+    ]}, headers=h)
+    assert bt.status_code == 200, bt.text[:300]
+    assert bt.json()["step_count"] == 3, bt.json()
+    d1 = c.get(f"/projects/{p}/edit/history", headers=h).json()["undo_depth"]
+    assert d1 == depth0 + 1, f"3 steps must push ONE undo entry ({depth0} → {d1})"
+    # one undo reverts the whole batch
+    assert c.post(f"/projects/{p}/edit/undo", json={"publish": False}, headers=h).status_code == 200
+    assert c.get(f"/projects/{p}/edit/history", headers=h).json()["undo_depth"] == depth0
+    # all-or-nothing: a bad middle step aborts with NOTHING written (depth unchanged)
+    bad = c.post(f"/projects/{p}/edit/batch", json={"steps": [
+        {"recipe": "add_wall", "params": {"start": [0, 0], "end": [2, 0], "height": 3, "thickness": 0.2}},
+        {"recipe": "add_wall", "params": {"start": [1, 1], "end": [1, 1], "height": 3, "thickness": 0.2}},
+    ]}, headers=h)
+    assert bad.status_code == 400 and "step 2" in bad.text, bad.text[:200]
+    assert c.get(f"/projects/{p}/edit/history", headers=h).json()["undo_depth"] == depth0
+    # an empty batch is a 400 too
+    assert c.post(f"/projects/{p}/edit/batch", json={"steps": []}, headers=h).status_code == 400
+
 import shutil  # noqa: E402
+
 for f in ("./_undo_test.db",):
     if os.path.exists(f):
         try:

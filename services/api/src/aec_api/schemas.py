@@ -19,6 +19,8 @@ class ProjectPatch(BaseModel):
     name: str | None = None
     origin: dict[str, Any] | None = None
     source_ifc: str | None = None
+    # CODE-1: per-project jurisdiction (USPS state code) — code checkers auto-resolve the edition
+    jurisdiction: str | None = None
 
 
 class ProjectOut(ProjectIn):
@@ -31,6 +33,7 @@ class ProjectOut(ProjectIn):
     # whether a source IFC is on disk — gates IFC-only tools (drawings, clash/IDS, energy, authoring).
     # Independent of model_kind, since a project can have a published .frag with no source IFC.
     has_source_ifc: bool = False
+    jurisdiction: str | None = None
 
 
 class TopicIn(BaseModel):

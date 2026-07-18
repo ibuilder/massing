@@ -67,7 +67,8 @@ IFC) · W10-4 coincident-port auto-connect · W10-5 section/elevation annotation
 legend · W9-4 harder half (spec/code document text ingestion → cited NL answers) · W9-5 4D equipment
 motion + swept crane clash · W9-6b headcount-program → zones + auto-furnish.
 
-**AI & agents:** S4 multi-step undo grouping · S5 clarifying questions · AI read tools
+**AI & agents:** ✅ S4 multi-step undo grouping (v0.3.471 — `/edit/batch`, one version + one undo per
+batch) · S5 clarifying questions · AI read tools
 (quantities/schedules/clashes/violations) · NL-QA recipes ("audit + suggest fixes") · COST-AGENT
 (re-estimate on geometry change + learn from history) · READY-AGENT (proactive blockers w/ cited
 evidence) · ✅ RISK-BOARD (v0.3.470 — `/risk-board` unifies 5 engines into one ranked register).
@@ -81,8 +82,9 @@ GEN-SCORE depth (per-option 5D takeoffs + EPD carbon once options carry models).
 mode · VIZ-1 parity confirm.
 
 **Onboarding & codes:** B1 sign-in-first welcome panel (never a wall) · B2 sign-in→tour · A1/A2/C1
-provider prominence · B3/B4/C2 fast-follows · CODE-1 adoption-seed depth + per-project jurisdiction ·
-CODE-3 auto-resolve edition at /edit · CODE-4 local-amendment overlay.
+provider prominence · B3/B4/C2 fast-follows · CODE-1 adoption-seed depth (✅ per-project jurisdiction
+v0.3.471) · ✅ CODE-3 auto-resolve edition (v0.3.471 — egress + `apply_detailing_rules` cite the
+adopted IBC edition) · CODE-4 local-amendment overlay.
 
 **Reliability (REL):** REL-3 remainder (`modules.py` DI split · `main.py` · `codecheck.py` ·
 `connectors.py` residue · `auth.py` · `data/drawing.py`/`drawings.py`/`massing.py` · `bcf_io.py` ·
