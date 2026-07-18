@@ -525,8 +525,19 @@ with TestClient(app) as c:
                  "/documents/tree", "/documents/health", "/documents/template",
                  "/documents/by-role?role=Superintendent", "/documents/phase-gaps?phase=CD",
                  "/design/options/compare", "/design/standards", "/design/standards/check",
-                 "/drawing-set"):
+                 "/drawing-set",
+                 # v0.3.310–420 panels: model QA/diff, structural chain, MEP sizing, doc graph,
+                 # collab/edit-history, drawing issuances, discipline quantities
+                 "/versions", "/models/qa", "/models/health", "/models/export-qa",
+                 "/models/alignment", "/models/georeferencing",
+                 "/structure/lateral", "/structure/solve", "/analytical",
+                 "/doc-graph", "/scene-digest", "/edit/history", "/collab",
+                 "/mep/sizing", "/mep/sprinkler-coverage",
+                 "/quantities/disciplines", "/verification/coverage",
+                 "/drawing-set/issuances", "/drawing-set/issuance-matrix",
+                 "/drawing-set/issuance-purposes"):
         grab(c, f"{P}{path}")
+    grab(c, "/reference/disciplines")   # the global discipline tree (colors + IFC-class map)
     for folder in ("01_Contract Documents/Specifications", "02_Drawings/Architectural",
                    "08_Site Documents/Daily Reports"):
         grab(c, f"{P}/documents/folder?path={_up.quote(folder)}")

@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.421 — DEMO-REGEN: the Pages demo snapshot rejoins the present (P2 №9)
+
+- The massing.build/app viewer-only demo serves a captured API snapshot — last regenerated at
+  **v0.3.309**, ~110 releases ago, so every panel added since rendered empty in the public demo.
+- `build_demo_data.py`'s crawl list extended with the v0.3.310–420 surfaces — model QA / health /
+  export-QA, versions (+ element-level diff), the structural chain (lateral incl. the drift screen,
+  solve, analytical), MEP sizing + sprinkler coverage, doc-graph, scene digest, collab + edit history,
+  drawing-set issuances, per-discipline quantities, and the global discipline tree — and re-run against
+  the current seed: **952 fixtures (908 KB)**. Pushing this redeploys the live demo via Pages.
+- Verified: typecheck + production build green with the new snapshot bundled.
+
 ## v0.3.420 — TZ-UTC: one clock for due-date & aging math (P1 №8 — P1 complete)
 
 - **Bug fix** (upgrade-plan P1 №8, the last P1): overdue/aging computations in the dashboard, BIM-KPI

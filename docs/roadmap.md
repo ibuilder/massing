@@ -91,7 +91,7 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
 
 ### 🟡 P2 — docs, demo & surfacing
 
-9. **DEMO-REGEN — Pages demo snapshot** — `demoData.json` last captured at v0.3.309 (~100 releases ago);
+9. ✅ **DEMO-REGEN — SHIPPED v0.3.421 — Pages demo snapshot** — `demoData.json` last captured at v0.3.309 (~100 releases ago);
    every panel added since renders empty on massing.build/app. Re-run `build_demo_data.py`, extend its
    crawl list to the new endpoints, redeploy.
 10. **README-TRIM** — collapse the 360-line "Recent platform work" changelog dump to rolling highlights;
