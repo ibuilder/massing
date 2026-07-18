@@ -30,7 +30,7 @@ jobs:
           apt-get update && apt-get install -y --no-install-recommends git
           rm -rf /var/lib/apt/lists/*
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # build tooling in case a dep only ships an sdist and pip-compile must build it to hash
       - name: System deps
