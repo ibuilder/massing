@@ -58,18 +58,20 @@ docked Properties + Library + ribbon; a11y/mobile pass).
 egress/life-safety plans (path-trace over the semantic graph) · D8 COMcheck/A117.1 → approvability +
 BCF · `Pset_Massing_SpecLink` breadcrumb · F0b Box/Axis/FootPrint derivation · B3 wall Axis + clip
 planes · B5 fastener/connection assemblies · E2 type-a-dimension (VCB) · E3 sketch-to-BIM push/pull ·
-E5 parametric handles · E6 recipe-log design options · E7 live schedules while modeling · E8
+E5 parametric handles · E6 recipe-log design options · E7 live schedules while modeling · ✅ E2
+type-a-dimension/VCB (= the dynamic-input layer, v0.3.453/461/467) · E8
 model-aware guardrails · A2 RAG index over ifcopenshell/IFC docs.
 
 **Authoring depth (Wave 10/9):** W10-2 parametric family generators (profiles + swept/boolean;
 build123d/OCP optional track) · W10-9 dimensional constraints (planegcs LGPL; sidecar-solved, baked to
-IFC) · W10-4 coincident-port auto-connect · W10-5 section/elevation annotation views · W10-6 keynote
-legend · W9-4 harder half (spec/code document text ingestion → cited NL answers) · W9-5 4D equipment
+IFC) · W10-4 coincident-port auto-connect · W10-5 section/elevation annotation views · ✅ W10-6 keynote
+legend (sheets render the KEYNOTES legend from Track-D codes, test-asserted) · W9-4 harder half (spec/code document text ingestion → cited NL answers) · W9-5 4D equipment
 motion + swept crane clash · W9-6b headcount-program → zones + auto-furnish.
 
-**AI & agents:** ✅ S4 multi-step undo grouping (v0.3.471 — `/edit/batch`, one version + one undo per
-batch) · S5 clarifying questions · AI read tools
-(quantities/schedules/clashes/violations) · NL-QA recipes ("audit + suggest fixes") · COST-AGENT
+**AI & agents:** ✅ S4 multi-step undo grouping (471) · ✅ S5 clarifying questions (shipped: both
+planner paths return `needs_clarification`, surfaced in the command bar + Ask panel) · ✅ AI read
+tools (472 — model_quantities/computed_schedules/clash_results/code_violations in the MCP catalog) ·
+NL-QA recipes ("audit + suggest fixes") · COST-AGENT
 (re-estimate on geometry change + learn from history) · READY-AGENT (proactive blockers w/ cited
 evidence) · ✅ RISK-BOARD (v0.3.470 — `/risk-board` unifies 5 engines into one ranked register).
 
@@ -81,14 +83,14 @@ GEN-SCORE depth (per-option 5D takeoffs + EPD carbon once options carry models).
 ✅ DISC-poché (v0.3.469 — `by_discipline` on both plan renderers) · VIZ-2 three.js PBR presentation
 mode · VIZ-1 parity confirm.
 
-**Onboarding & codes:** B1 sign-in-first welcome panel (never a wall) · B2 sign-in→tour · A1/A2/C1
+**Onboarding & codes:** ✅ B1 sign-in-first welcome panel (472 — 🔐 lead row, never walls) · B2 sign-in→tour · A1/A2/C1
 provider prominence · B3/B4/C2 fast-follows · CODE-1 adoption-seed depth (✅ per-project jurisdiction
 v0.3.471) · ✅ CODE-3 auto-resolve edition (v0.3.471 — egress + `apply_detailing_rules` cite the
 adopted IBC edition) · CODE-4 local-amendment overlay.
 
 **Reliability (REL):** REL-3 remainder (`modules.py` DI split · `main.py` · `codecheck.py` ·
 `connectors.py` residue · `auth.py` · `data/drawing.py`/`drawings.py`/`massing.py` · `bcf_io.py` ·
-`routers/generate.py`) · REL-5 remainder (batch FS in `vite.config`/`bundle-budget` · `bridge.py`
+`routers/generate.py`) · REL-5 remainder (vite/bundle-budget FS reviewed — already single-pass, no change · `bridge.py`
 dataclass · recipes dedupe) · REL-8 (CI no-cycle check; module-header docs) · REL-6 tail (private-IP
 webhook blocking · cargo-audit/gitleaks in CI when available) · REL-7 stays evidence-gated (the bulk
 dead-code claim was disproven; only prove-then-delete small batches).

@@ -57,6 +57,14 @@ with TestClient(app) as c:
                                  {"project_id": pid, "subject": "From agent", "question": "Advise?"})
         db.commit()
         assert rfi.get("ref"), rfi
+        # AI read tools (P2): in the catalog; a clear error (not a stack trace) without a model
+        for t in ("model_quantities", "computed_schedules", "clash_results", "code_violations"):
+            assert t in mcp_tools.TOOL_NAMES, t
+            try:
+                mcp_tools.dispatch(db, t, {"project_id": pid})
+                raise AssertionError(f"{t} should refuse a model-less project")
+            except ValueError as e:
+                assert "no source IFC" in str(e), (t, e)
         try:
             mcp_tools.dispatch(db, "nonexistent_tool", {})
             raise AssertionError("expected ValueError")
@@ -128,7 +136,7 @@ with TestClient(app) as c:
     bad = c.get(f"/projects/{pid}/standards/check", params={"standard": "nope"}).json()
     assert "error" in bad, bad
 
-print("MCP + STANDARDS OK - catalog exposes 14 tools (MCP-PACK adds the authoring + analysis engines); "
+print("MCP + STANDARDS OK - catalog exposes 18 tools (incl. the 4 AI read tools) (MCP-PACK adds the authoring + analysis engines); "
       "dispatch runs snapshot/records/cde, list_recipes/schedule_risk/drawing_qa, creates a real RFI, "
       "gates run_recipe behind editor role, and refuses non-member identities; standards experts return "
       "clause-referenced findings (iso19650 flags missing AIR/BEP as gaps; ids notes no model)")

@@ -47,6 +47,11 @@ export async function buildAuthControl(deps: AccountDeps): Promise<void> {
   toolbar.insertBefore(el, statusEl);
 }
 
+/** B1: open the sign-in modal from anywhere (the welcome panel leads with it). */
+export function openSignIn(): void {
+  loginModal();
+}
+
 function loginModal() {
   const { card, msg, close } = modalShell("Sign in");
   msg.style.color = "var(--err)";

@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.472 — AI read tools · sign-in-first welcome (B1) · four P2 items confirmed shipped
+
+- **The model's own numbers, readable by any agent.** The MCP catalog grows four read tools —
+  `model_quantities` (discipline QTO roll-up), `computed_schedules` (door/window/room, the A-601
+  data), `clash_results` (geometric intersections with GUIDs), `code_violations` (IBC 1004/1005
+  occupancy/egress findings) — 18 tools total; model-less projects get a clear error, not a trace.
+- **B1 — the welcome now leads with sign-in, never walls.** A 🔐 sign-in row (Google · Microsoft ·
+  Procore SSO or username, via the topbar's own modal through the new `openSignIn()` export) heads
+  the first-run panel; every quick-start path below it still works signed-out. Live-verified: the
+  row renders first, the button opens the login modal, the never-walls copy is present.
+- **Confirmed shipped (audited with proof, now marked):** S5 clarifying questions (both planner
+  paths return `needs_clarification`; two UI surfaces show it) · E2 type-a-dimension/VCB (the
+  dynamic-input layer: type "6", "<30", "6<30" mid-draw — v0.3.453/461/467) · W10-6 keynote legend
+  (sheets render the KEYNOTES legend from Track-D codes, test-asserted) · REL-5's build-script
+  batch-FS review (bundle-budget is already single-pass; no change needed).
+- Backend suite 267/267; web typecheck / eslint / vitest (121) / build green.
+
 ## v0.3.471 — per-project jurisdiction + auto-resolved code edition (CODE-1b/3) · one-undo NL batches (S4)
 
 - **CODE-1b — the project knows its jurisdiction.** `Project.jurisdiction` (USPS state code) is now a

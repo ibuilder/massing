@@ -12,6 +12,9 @@ export const markOnboarded = (): void => localStorage.setItem(KEY, "1");
 export const resetOnboarding = (): void => localStorage.removeItem(KEY);
 
 export interface OnboardCtx {
+  /** B1: signed-in state + the sign-in opener — the welcome LEADS with sign-in, never walls on it. */
+  signedIn?: boolean;
+  signIn?: () => void;
   connected: boolean;
   newProject: () => void;        // create a blank project (GC portal + proforma)
   generate: () => void;          // Finance → generate a building from zoning
@@ -41,6 +44,23 @@ export function showWelcome(ctx: OnboardCtx): void {
     `<div style="font-size:22px;font-weight:650;letter-spacing:-.01em">Welcome to Massing 👋</div>`
     + `<div class="meta" style="margin-bottom:14px">A BIM viewer, a general-contracting portal, and a development`
     + ` proforma — one model, acquisition to turnover. Pick a starting point:</div>`;
+
+  // B1: sign-in-first — the panel LEADS with sign-in (Google · Microsoft · Procore via the server's
+  // configured providers), but never walls: every start path below works signed-out.
+  if (!ctx.signedIn && ctx.signIn) {
+    const si = document.createElement("div");
+    si.style.cssText = "display:flex;align-items:center;gap:10px;background:var(--panel2,#25272b);"
+      + "border:1px solid var(--accent,#4a8cff);border-radius:10px;padding:12px 14px;margin-bottom:12px";
+    si.innerHTML = `<div style="font-size:20px">🔐</div>`
+      + `<div style="flex:1"><div style="font-weight:600;font-size:13.5px">Sign in to sync your projects</div>`
+      + `<div class="meta" style="font-size:12px">Google · Microsoft · Procore single sign-on, or a username — `
+      + `everything below also works without an account.</div></div>`;
+    const btn = document.createElement("button");
+    btn.className = "file-btn"; btn.textContent = "Sign in";
+    btn.onclick = () => { ov.remove(); ctx.signIn?.(); };
+    si.append(btn);
+    card.append(si);
+  }
 
   const grid = document.createElement("div");
   grid.style.cssText = "display:grid;grid-template-columns:repeat(3,1fr);gap:12px";

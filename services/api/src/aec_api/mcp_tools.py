@@ -85,6 +85,28 @@ TOOLS: list[dict[str, Any]] = [
                     "(register-only) and adds the cross-checks when one exists.",
      "input_schema": {"type": "object", "properties": {"project_id": {"type": "string"}},
                       "required": ["project_id"]}},
+    # --- AI read tools (P2): the model's own numbers, readable by any agent ------------------------
+    {"name": "model_quantities",
+     "description": "Measured quantity takeoff rolled up by discipline: reinforcement tonnage, MEP "
+                    "linear runs + fitting counts, structural volume, wall/slab areas. Needs a model.",
+     "input_schema": {"type": "object", "properties": {"project_id": {"type": "string"}},
+                      "required": ["project_id"]}},
+    {"name": "computed_schedules",
+     "description": "The door / window / room schedules computed straight from the model (marks, "
+                    "sizes, levels) — the same data the A-601 sheet prints. Needs a model.",
+     "input_schema": {"type": "object", "properties": {"project_id": {"type": "string"}},
+                      "required": ["project_id"]}},
+    {"name": "clash_results",
+     "description": "Geometric clash detection over the source model (element-pair intersections with "
+                    "volumes + GUIDs). Needs a model.",
+     "input_schema": {"type": "object", "properties": {"project_id": {"type": "string"}},
+                      "required": ["project_id"]}},
+    {"name": "code_violations",
+     "description": "Computed occupancy-load + egress-capacity findings (IBC 1004/1005) from the "
+                    "model's spaces and doors, citing sections — pre-check facts, not a certified "
+                    "review. Needs a model with IfcSpaces.",
+     "input_schema": {"type": "object", "properties": {"project_id": {"type": "string"}},
+                      "required": ["project_id"]}},
 ]
 
 TOOL_NAMES = frozenset(t["name"] for t in TOOLS)
@@ -191,7 +213,27 @@ def dispatch(db: Session, name: str, args: dict[str, Any], actor: str = "mcp",
     if name == "drawing_qa":
         from . import drawing_qa
         return drawing_qa.review(db, pid, _open_source(db, pid))
+    if name == "model_quantities":
+        from aec_data import qto  # type: ignore
+        return qto.discipline_summary(_require_model(db, pid))
+    if name == "computed_schedules":
+        from aec_data import drawing_schedules  # type: ignore
+        return drawing_schedules.schedules(_require_model(db, pid))
+    if name == "clash_results":
+        from aec_data import clash  # type: ignore
+        return clash.detect(_require_model(db, pid))
+    if name == "code_violations":
+        from . import codecheck_egress
+        return codecheck_egress.egress_from_model(_require_model(db, pid))
     raise ValueError(f"unknown tool {name!r}")
+
+
+def _require_model(db: Session, pid: str):
+    """The opened source IFC for the read tools — a clear error instead of a stack trace without one."""
+    m = _open_source(db, pid)
+    if m is None:
+        raise ValueError("project has no source IFC — load a model first")
+    return m
 
 
 def _model_index(pid: str) -> dict | None:

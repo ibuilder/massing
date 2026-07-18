@@ -748,6 +748,9 @@ function onboardCtx() {
   return {
     // the demo serves read-only sample data, so create/generate (which persist) stay disabled there
     connected: connected && !import.meta.env.VITE_PAGES,
+    // B1: the welcome LEADS with sign-in (never walls) — reuse the topbar's sign-in modal
+    signedIn: api.authed,
+    signIn: () => { void import("./account/accountUI").then((m) => m.openSignIn()); },
     newProject: () => void newProject(),
     startModeling: () => void startModeling(),
     openSample: () => { setWorkspace("model"); withViewer((v) => void v.loadSample("/basichouse.frag", "BasicHouse")); },
