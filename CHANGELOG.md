@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.438 — the developer proforma carries the cost provenance too
+
+- **One cost basis, visible everywhere.** The dev-budget **sync-from-model** now returns the same
+  `cost_adjustment` block (location index · escalation · combined factor) the takeoff and 5D endpoints
+  carry — so a developer sees *why* the model-derived hard cost is what it is (which vintage, localized to
+  which region, escalated to which year), not just the number. The hard cost itself already priced through
+  the localized/escalated vintage (v0.3.436); this surfaces the provenance, it does not re-apply it.
+- Completes the cost-provenance theme across all three model-cost surfaces (takeoff · 5D · proforma).
+  Backend-only; covered by the existing dev-budget sync test path. 261/261 suites green; ruff clean.
+
 ## v0.3.437 — 5D element costs price through the localized/escalated vintage
 
 - **The per-element 5D table now agrees with the takeoff.** `/5d/element-costs` (5D-BIND) priced every

@@ -351,7 +351,7 @@ def sync_model_to_hard(pid: str, db: Session = Depends(get_db),
         gfa_sf = net_m2 * est.M2_TO_SF
     except Exception:                             # noqa: BLE001 — the GFA benchmark is best-effort
         gfa_sf = None
-    overrides, ds, _adjustment = _vintage_overrides(db, pid)
+    overrides, ds, adjustment = _vintage_overrides(db, pid)
     out = est.estimate_from_takeoff(rows, overrides=overrides, gfa_sf=gfa_sf)
     total = round(out.get("recommended_total") or out.get("total") or 0.0, 2)
 
@@ -379,7 +379,7 @@ def sync_model_to_hard(pid: str, db: Session = Depends(get_db),
     db.commit()
     from .. import cost_db as _cdb
     return {"synced": True, "source": "model_estimate", "hard_cost": total, "by_discipline": by_disc,
-            "cost_vintage": (_cdb.dataset_dict(ds) if ds else None),
+            "cost_vintage": (_cdb.dataset_dict(ds) if ds else None), "cost_adjustment": adjustment,
             "budget": budget, "summary": dvb.summarize(budget)}
 
 
