@@ -50,6 +50,7 @@ from .routers import (
     parcels,
     payapp,
     payroll,
+    plugins,
     prequal,
     pricing,
     procurement,
@@ -170,6 +171,10 @@ async def lifespan(_app: FastAPI):
             raise RuntimeError("refusing to start: " + msg)
         if rbac.RBAC_ON:
             logging.getLogger("aec").critical("SECURITY: %s", msg)
+    # PLUGIN-REGISTRY: discover + load recipe plugins at boot (no-op unless AEC_PLUGINS_ENABLED=1 —
+    # plugins execute Python at load, so discovery is strictly opt-in). Refusals are logged, never fatal.
+    from . import plugin_registry
+    plugin_registry.load_all()
     task = asyncio.create_task(_autosync_loop()) if os.environ.get("AEC_AUTOSYNC", "1") == "1" else None
     try:
         yield
@@ -291,6 +296,7 @@ if _RATE_RPM > 0:
 
 app.include_router(bim.router, tags=["bim"])
 app.include_router(properties.router, tags=["properties"])
+app.include_router(plugins.router, tags=["plugins"])
 app.include_router(exports.router, tags=["exports"])
 app.include_router(analysis.router, tags=["analysis"])
 app.include_router(drawings.router, tags=["drawings"])

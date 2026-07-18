@@ -1,0 +1,8 @@
+{
+  "name": "example-wall-brand",
+  "version": "1.0.0",
+  "api_version": "1.0",
+  "entry": "plugin.py",
+  "description": "Worked example: a namespaced recipe that stamps a custom pset on every wall.",
+  "author": "Massing"
+}

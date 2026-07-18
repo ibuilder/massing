@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.444 — PLUGIN-REGISTRY: manifest-gated recipe plugins (CAD-UX lesson #6)
+
+- **Third-party authoring recipes without archaeology.** A plugin is a directory with a `plugin.json`
+  manifest + a `register(api)` entry that adds **namespaced GUID-stable recipes** (`<plugin>.<recipe>`)
+  into the same registry every authoring surface dispatches — `POST /edit`, the CAD command line, the AI
+  bar, MCP `run_recipe` — and they appear in the authoring matrix automatically, categorized.
+- **Three hard gates** (the OpenAEC-study design, adapted):
+  - **opt-in** — plugins execute Python at load, so discovery is OFF unless `AEC_PLUGINS_ENABLED=1`;
+  - **api-version gate** — the manifest's `api_version` MAJOR must match the host's `PLUGIN_API_VERSION`
+    (1.0); a mismatch refuses the plugin with a clear reason instead of loading the wrong contract;
+  - **collision refusal** — an existing recipe key is never overwritten.
+- Refusals are data + logs, never fatal (one broken plugin can't block the rest); reload is idempotent
+  (previous registrations replaced). `GET /plugins` shows loaded + refused with reasons;
+  `POST /plugins/reload` is platform-admin (RBAC on). Loaded at boot via the app lifespan.
+- **Template + worked example** at `plugins/` (`example-wall-brand`: stamps a pset on every wall by
+  reusing the host's own `edit.set_pset_on_class` primitive — build on the toolkit, don't re-invent).
+- `test_plugin_registry`: off-by-default, all four refusal modes (bad api / no manifest / register()
+  raised / collision), idempotent reload, the namespaced recipe applied through `apply_recipe` on a real
+  IFC + visible categorized in the authoring matrix, endpoints incl. the RBAC-on 403 on reload.
+  263/263 suites green; ruff clean.
+
 ## v0.3.443 — GEN-SCORE: generative design-option scoring (cost · carbon · yield · code)
 
 - **The frontier bet lands**: `option_score.py` generates a deterministic variant grid around a zoning
