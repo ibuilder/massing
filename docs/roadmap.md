@@ -96,7 +96,7 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
    crawl list to the new endpoints, redeploy.
 10. ✅ **README-TRIM — SHIPPED v0.3.422** — collapse the 360-line "Recent platform work" changelog dump to rolling highlights;
     banner the June point-in-time audit docs as superseded.
-11. **UI-SURFACE — expose the invisible backend** — ~70 API client methods have zero UI callers
+11. 🟡 **UI-SURFACE — first slice SHIPPED v0.3.426** (SCHED-RISK/CARBON/PERMIT cards live in Schedule + Risk & Cost) — **expose the invisible backend** — ~70 API client methods have zero UI callers
     (aiEstimate, codeCheck, bidLeveling, scheduleOptimize, earnedSchedule, energy/mep, VE log…). Triage:
     surface the top 10 in their natural panels; delete truly-dead client methods.
 

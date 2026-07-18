@@ -1533,6 +1533,38 @@ export class ApiClient extends HttpCore {
       editors: { user: string; seconds_ago: number; viewpoint: unknown }[]; editor_count: number;
     }>(`/projects/${pid}/collab`);
   }
+  /** SCHED-RISK: Monte Carlo over the CPM network — P50/P80 forecasting + criticality + delay drivers. */
+  scheduleRisk(pid: string, iterations = 800) {
+    return this.json<{
+      iterations: number; activity_count?: number; message?: string; has_cycle?: boolean;
+      deterministic_days?: number; p10_days?: number; p50_days?: number; p80_days?: number; p90_days?: number;
+      p50_vs_deterministic_days?: number; buffer_p80_days?: number; on_time_probability_pct?: number;
+      ppc_calibration_pct?: number | null; start_date?: string;
+      deterministic_finish?: string; p50_finish?: string; p80_finish?: string;
+      delay_drivers?: { ref: string | null; name: string | null; criticality_pct: number; mean_slip_days: number }[];
+    }>(`/projects/${pid}/schedule/risk?iterations=${iterations}`);
+  }
+  /** CARBON-EC3: per-element A1–A3 + Buy Clean limit check + LEED-style inventory (404 until a model loads). */
+  carbonComplianceReport(pid: string) {
+    return this.json<{
+      elements: { total_tco2e: number; coverage_pct: number; intensity_kgco2e_m2?: number;
+                  carbon_matched: number; with_quantity: number;
+                  hotspots: { guid: string; name: string | null; category: string; kgco2e: number }[] };
+      buy_clean: { rows: { category: string; achieved_factor: number; limit: number; unit: string;
+                           pass: boolean; headroom_pct: number; action: string | null }[];
+                   passing: number; failing: number };
+      leed_inventory: { total_tco2e: number; items: { category: string; kgco2e: number; share_pct: number }[] };
+    }>(`/projects/${pid}/carbon/compliance`);
+  }
+  /** PERMIT-CHECK: submission-readiness — checklist + ranked deficiencies + verdict (409 without a model). */
+  permitReadiness(pid: string) {
+    return this.json<{
+      verdict: string; readiness_pct: number; approvability_score: number;
+      checklist: { requirement: string; satisfied: boolean; evidence: string }[];
+      deficiencies: { item: string; severity: string; action: string }[];
+    }>(`/projects/${pid}/permit/readiness`);
+  }
+
   /** Resilient SSE subscription. EventSource auto-retries transient network drops on its own, but a
    *  fatal close (the server answered with an HTTP error — deploy, restart, auth expiry) kills the
    *  stream permanently and silently. This helper re-subscribes with bounded backoff (5s → 60s) and

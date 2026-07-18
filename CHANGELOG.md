@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.426 — UI-SURFACE: the new engines are now visible in the portal (P2 №11, first slice)
+
+- The three capabilities shipped in v0.3.423–425 now have a UI (they were API-only):
+  - **Schedule panel → "🎲 Schedule risk (Monte Carlo)"** — CPM vs P50 vs P80 (+ calendar finishes),
+    on-time odds, the P80 buffer a reliable commitment needs, PPC-calibration note, and the top-5
+    delay drivers with criticality % and mean slip.
+  - **Risk & Cost panel → "Carbon compliance"** — total tCO₂e off the model with coverage % and
+    intensity, the Buy Clean pass/needs-EPD table with headroom, and the top hotspots.
+  - **Risk & Cost panel → "Permit-submission readiness"** — READY/NOT-READY verdict, readiness % +
+    approvability %, and the ranked deficiency list with actions.
+- New typed client methods (`scheduleRisk`, `carbonComplianceReport`, `permitReadiness`); panels degrade
+  to a "load a model" hint when no model/index exists. *(Remaining in №11: triage of the legacy unused
+  client methods.)*
+- Verified: typecheck + eslint + vitest (88) + production build green.
+
 ## v0.3.425 — PERMIT-CHECK: permit-submission readiness in one report (P3 №14)
 
 - **New capability** (upgrade-plan P3 №14; cities are rolling out AI plan review in 2026 — applicants

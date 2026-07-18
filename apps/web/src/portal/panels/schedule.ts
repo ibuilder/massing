@@ -39,6 +39,35 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   const ppBody = document.createElement("div"); ppBody.innerHTML = `<div class="meta">loading…</div>`; ppCard.appendChild(ppBody);
   const ppAnalytics = document.createElement("div"); ppAnalytics.style.display = "none"; ppCard.appendChild(ppAnalytics);
   ctx.root.appendChild(ppCard);
+
+  // --- Schedule risk (Monte Carlo over the CPM network): P50/P80, buffer, delay drivers -----------
+  const riskCard = document.createElement("div"); riskCard.className = "dash-card"; riskCard.style.marginBottom = "10px";
+  riskCard.innerHTML = `<div class="section-title">🎲 Schedule risk (Monte Carlo)</div>`;
+  const riskBody = document.createElement("div"); riskBody.innerHTML = `<div class="meta">simulating…</div>`;
+  riskCard.appendChild(riskBody); ctx.root.appendChild(riskCard);
+  ctx.host.api.scheduleRisk(pid).then((r) => {
+    if (r.message || !r.p80_days) { riskBody.innerHTML = `<div class="meta">${r.message || "Add activities with durations + predecessors to simulate."}</div>`; return; }
+    const finish = (d?: string) => (d ? ` <span class="meta">(${d})</span>` : "");
+    riskBody.innerHTML =
+      `<div style="display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 4px">`
+      + `<span>CPM <b>${r.deterministic_days}d</b>${finish(r.deterministic_finish)}</span>`
+      + `<span>P50 <b>${r.p50_days}d</b>${finish(r.p50_finish)}</span>`
+      + `<span>P80 <b style="color:var(--status-warn)">${r.p80_days}d</b>${finish(r.p80_finish)}</span>`
+      + `<span>on-time odds <b>${r.on_time_probability_pct}%</b></span>`
+      + `</div>`
+      + `<div class="meta">A reliable commitment needs a <b>${r.buffer_p80_days}d</b> buffer on the CPM date`
+      + (r.ppc_calibration_pct != null ? ` · tail calibrated by your PPC (${Math.round(r.ppc_calibration_pct)}%)` : "")
+      + ` · ${r.iterations} iterations</div>`;
+    if (r.delay_drivers?.length) {
+      const t = document.createElement("table"); t.className = "portal-table"; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
+      t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Delay driver</th>`
+        + `<th scope="col">On critical path</th><th scope="col">Mean slip</th></tr></thead><tbody>`
+        + r.delay_drivers.slice(0, 5).map((d) => `<tr><td>${d.name || d.ref || ""}</td>`
+          + `<td style="text-align:center">${d.criticality_pct}%</td>`
+          + `<td style="text-align:center">${d.mean_slip_days}d</td></tr>`).join("") + `</tbody>`;
+      riskBody.append(t);
+    }
+  }).catch((e) => { riskBody.innerHTML = `<div class="meta">risk simulation failed: ${(e as Error).message}</div>`; });
   const ppState = (s: string) => s === "done" ? "var(--status-good)" : s === "not_done" ? "var(--status-crit)"
     : s === "committed" ? "var(--accent)" : s === "made_ready" ? "var(--status-warn)" : "var(--muted)";
   const loadPull = (milestone: string) => {

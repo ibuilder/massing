@@ -144,6 +144,10 @@ export async function renderRiskCost(ctx: PanelContext) {
     const lienSlot = slot();
     section("Embodied carbon");
     const carbonSlot = slot();
+    section("Carbon compliance — per-element A1–A3 · Buy Clean · LEED inventory");
+    const carbonCompSlot = slot();
+    section("Permit-submission readiness");
+    const permitSlot = slot();
     section("Takeoff pricing vs estimate");
     const priceSlot = slot();
     section("Model classification (improve QTO + carbon)");
@@ -219,6 +223,50 @@ export async function renderRiskCost(ctx: PanelContext) {
       carbonSlot.innerHTML = `<div><b>${r.total_tco2e.toLocaleString()} tCO₂e</b> embodied (A1-A3)`
         + (r.unmatched ? ` · ${r.unmatched} line(s) unmatched` : "") + `</div><div class="meta">${mats}</div>`;
     }).catch((e) => { carbonSlot.textContent = `failed: ${(e as Error).message}`; });
+
+    api.carbonComplianceReport(pid).then((r) => {
+      const e = r.elements;
+      const bc = r.buy_clean;
+      carbonCompSlot.innerHTML = `<div><b>${e.total_tco2e.toLocaleString()} tCO₂e</b> A1–A3 from the model `
+        + `(${e.carbon_matched}/${e.with_quantity} elements matched · ${e.coverage_pct}% coverage`
+        + (e.intensity_kgco2e_m2 != null ? ` · ${e.intensity_kgco2e_m2} kg/m²` : "") + `)</div>`
+        + `<div class="meta" style="margin-top:2px">Buy Clean: `
+        + `<b style="color:var(--status-good)">${bc.passing} pass</b> · `
+        + `<b style="color:${bc.failing ? "var(--status-crit)" : "var(--status-good)"}">${bc.failing} need an EPD</b></div>`;
+      if (bc.rows.length) {
+        const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Category</th><th scope="col">Factor</th>`
+          + `<th scope="col">Limit</th><th scope="col">Headroom</th><th scope="col" style="text-align:left">Action</th></tr></thead><tbody>`
+          + bc.rows.map((x) => `<tr><td>${x.category}</td>`
+            + `<td style="text-align:center">${x.achieved_factor} /${x.unit}</td>`
+            + `<td style="text-align:center">${x.limit}</td>`
+            + `<td style="text-align:center;color:${x.pass ? "var(--status-good)" : "var(--status-crit)"}">${x.headroom_pct}%</td>`
+            + `<td class="meta">${x.action || "✅ within the program limit"}</td></tr>`).join("") + `</tbody>`;
+        carbonCompSlot.append(t);
+      }
+      if (e.hotspots?.length) {
+        const tops = e.hotspots.slice(0, 3).map((h) => `${h.name || h.guid} (${h.category}, ${(h.kgco2e / 1000).toFixed(1)} t)`).join(" · ");
+        carbonCompSlot.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:2px">Hotspots: ${tops}</div>`);
+      }
+    }).catch(() => { carbonCompSlot.innerHTML = `<div class="meta">Load a model in the Model workspace to compute per-element carbon.</div>`; });
+
+    api.permitReadiness(pid).then((r) => {
+      const good = r.verdict === "READY";
+      permitSlot.innerHTML = `<div><b style="color:${good ? "var(--status-good)" : "var(--status-warn)"}">${r.verdict}</b>`
+        + ` · readiness ${r.readiness_pct}% · approvability ${Math.round(r.approvability_score)}%</div>`;
+      if (r.deficiencies.length) {
+        const ul = el("ul"); ul.style.cssText = "margin:4px 0 0 16px;font-size:12px";
+        for (const d of r.deficiencies.slice(0, 6)) {
+          const li = el("li");
+          const col = d.severity === "critical" ? "var(--status-crit)" : d.severity === "major" ? "var(--status-warn)" : "var(--muted)";
+          li.innerHTML = `<span style="color:${col}">${d.severity}</span> ${d.item} — <span class="meta">${d.action}</span>`;
+          ul.append(li);
+        }
+        permitSlot.append(ul);
+      } else {
+        permitSlot.insertAdjacentHTML("beforeend", `<div class="meta">✅ No deficiencies — the intake checklist is clear.</div>`);
+      }
+    }).catch(() => { permitSlot.innerHTML = `<div class="meta">Load a model to run the permit-submission pre-check (egress + approvability + sheet series).</div>`; });
 
     api.pricingReconcile(pid).then((r) => {
       if (!r.matched) { priceSlot.innerHTML = `<div class="meta">No priced quantities (${r.pricing_source}).</div>`; return; }
