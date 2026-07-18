@@ -12,14 +12,16 @@ for f in ("./test_rfi_qa.db",):
     if os.path.exists(f):
         os.remove(f)
 
-import sys                                                   # noqa: E402
-from pathlib import Path                                     # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "src"))
 
-from fastapi.testclient import TestClient                    # noqa: E402
-from aec_api.main import app                                 # noqa: E402
-from aec_data import detailing, edit, massing                # noqa: E402
-from aec_data.ifc_loader import open_model                   # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
+from aec_data import detailing, edit, massing  # noqa: E402
+from aec_data.ifc_loader import open_model  # noqa: E402
 
 # a model with a governed, detailed column + readiness gaps (unnamed spaces, a sub-min egress door)
 _ifc = Path(tempfile.gettempdir()) / "rfiqa_test_model.ifc"
@@ -36,7 +38,7 @@ m.write(str(_ifc))
 COL_GUID = col
 IFC_BYTES = _ifc.read_bytes()
 
-with TestClient(app := __import__("aec_api.main", fromlist=["app"]).app) as c:
+with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "RFI QA"}).json()["id"]
 
     # no source IFC yet → 409
@@ -49,6 +51,12 @@ with TestClient(app := __import__("aec_api.main", fromlist=["app"]).app) as c:
     assert c.post(f"/projects/{pid}/rfi/qa", json={"question": "   "}).status_code == 400
 
     # 1) element provenance by GUID → a cited answer (spec section + detail sheet + location)
+    # regression: the GUID regex must match GUIDs that START or END with `$` (not a \w char, so
+    # the old -anchored pattern silently missed them — a random ~4% CI flake)
+    from aec_api.rfi_qa import _GUID_RE
+    for g in ("1Q08u1TFbC0gzf$ZF8psK$", "$Q08u1TFbC0gzf9ZF8psKa", "0abcDEF123__$$abcDEF12"):
+        assert _GUID_RE.search(f"what governs {g}?"), f"GUID regex must match {g!r}"
+    assert not _GUID_RE.search("only twentyone chars12345 here"), "must not match non-22-char runs"
     q1 = c.post(f"/projects/{pid}/rfi/qa", json={"question": f"what governs {COL_GUID}?"}).json()
     assert q1["intent"] == "element" and q1["found"], q1
     refs = [ci["ref"] for ci in q1["citations"]]

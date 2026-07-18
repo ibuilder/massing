@@ -3280,6 +3280,12 @@ export class ApiClient extends HttpCore {
   clearXer(pid: string) {
     return this.json<{ cleared: boolean }>(`/projects/${pid}/schedule/import-xer`, { method: "DELETE" });
   }
+  /** PROFORMA-LIVE: the model's takeoff-priced cost + GFA + budget delta — refresh on each publish. */
+  proformaLive(pid: string) {
+    return this.json<{ model_version: string; est_construction_cost: number; gfa_m2: number;
+      cost_per_m2: number | null; budget_hard_cost: number | null;
+      delta_vs_budget: number | null; note: string }>(`/projects/${pid}/proforma/live`);
+  }
   /** RISK-BOARD: one ranked register unifying every computed risk signal (deep-linked per item). */
   riskBoard(pid: string) {
     return this.json<{ items: { source: string; severity: "high" | "medium" | "low"; title: string;

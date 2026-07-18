@@ -19,7 +19,10 @@ import re
 from typing import Any
 
 # an IFC GlobalId is 22 base64 chars over this alphabet
-_GUID_RE = re.compile(r"\b[0-9A-Za-z_$]{22}\b")
+# IFC GUIDs use a base64 alphabet that includes `$` and `_`. `` fails on a GUID that
+# starts/ends with `$` ($ is not a \w char, so there is no word boundary next to it) —
+# a ~4%-of-models flake. Use explicit alphabet lookarounds instead of .
+_GUID_RE = re.compile(r"(?<![0-9A-Za-z_$])[0-9A-Za-z_$]{22}(?![0-9A-Za-z_$])")
 # a MasterFormat/UniFormat-style section code, e.g. "05 12 00"
 _CODE_RE = re.compile(r"\b\d{2} \d{2} \d{2}\b")
 _READINESS_HINTS = ("missing", "blocking", "block", "ready", "readiness", "approve", "approval",

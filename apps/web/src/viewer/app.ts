@@ -777,6 +777,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       // COLLAB-1: we now hold the latest published model — sync the known version + clear any reload
       // banner, so this client's own publish never re-nags us to reload.
       await collab.resync();
+      // E7: tell the paper views (Drawings workspace plans + schedules) the model changed — an open
+      // sheet re-renders itself against the new geometry.
+      window.dispatchEvent(new CustomEvent("aec:model-published"));
+      // PROFORMA-LIVE: the finance numbers follow the model — after every (re)load, surface the
+      // takeoff-priced cost + budget delta in the status line (server-cached per version; best-effort)
+      if (projectId) {
+        void api.proformaLive(projectId).then((pl) => {
+          const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
+          const delta = pl.delta_vs_budget != null
+            ? ` · ${pl.delta_vs_budget >= 0 ? "▲" : "▼"} ${money(Math.abs(pl.delta_vs_budget))} vs budget` : "";
+          setStatus(`model cost ${money(pl.est_construction_cost)} · GFA ${pl.gfa_m2} m²${delta}`);
+        }).catch(() => { /* no source IFC / offline — the readout is optional */ });
+      }
       return true;
     })) ?? false;
   }

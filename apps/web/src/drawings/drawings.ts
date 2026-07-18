@@ -34,7 +34,14 @@ export class DrawingsUI {
   private markupOn = false;
   private markup: DrawingMarkupItem[] = [];
 
-  constructor(host: HTMLElement, private host_: DrawingsHost) { this.root = host; }
+  constructor(host: HTMLElement, private host_: DrawingsHost) {
+    this.root = host;
+    // E7 — live schedules/plans while modeling: when an authoring edit republishes the model, the
+    // open sheet (plan or schedule SVG) re-renders itself, so the paper view tracks the geometry.
+    window.addEventListener("aec:model-published", () => {
+      if (this.current && this.root.isConnected && this.root.offsetParent !== null) void this.show(this.current);
+    });
+  }
 
   /** Build the workspace (idempotent) and load the sheet register for the active project. */
   async open(): Promise<void> {

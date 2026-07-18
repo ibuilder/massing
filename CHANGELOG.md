@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.473 — PROFORMA-LIVE: the finance numbers follow the model as you author (P2 · finance frontier)
+
+- **`GET /projects/{pid}/proforma/live`** — the current model version's **takeoff-priced construction
+  cost** (the benchmark-guarded recommended total, content-cached per published version so it's cheap
+  to poll), slab-derived **GFA**, **cost/m²**, and the **delta vs the developer budget's hard cost**.
+- **The viewer surfaces it automatically:** after every model (re)load the status line reads the live
+  figures — live-verified on the dev project: *“model cost $166,740 · GFA 958.5 m²”*. Re-publish an
+  edit and the number moves with the geometry.
+- **E7 — live paper while modeling:** the viewer now broadcasts `aec:model-published` after every
+  successful model (re)load, and an open Drawings-workspace sheet — floor plan or door/window/room
+  schedule — re-renders itself against the new geometry. Author a wall, watch the plan and the
+  schedules update.
+- **Fixed the CI flake that reddened v0.3.471/472:** the doc-graph QA's GUID regex was ``-anchored,
+  but IFC GUIDs may start/end with `$` (not a word character) — such GUIDs never matched and "what
+  governs <guid>?" fell back to the overview answer whenever the random test GUID ended in `$` (it did,
+  twice in a row, on CI). Now matched with explicit alphabet lookarounds + a regression test over
+  `$`-edged GUIDs.
+- `test_productivity` extended (cost > 0, GFA > 0, cost/m², version stamp). Backend suite green;
+  web typecheck / eslint / vitest (121) / build green.
+
 ## v0.3.472 — AI read tools · sign-in-first welcome (B1) · four P2 items confirmed shipped
 
 - **The model's own numbers, readable by any agent.** The MCP catalog grows four read tools —

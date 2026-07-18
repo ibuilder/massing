@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 from datetime import date
+from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
@@ -51,6 +52,44 @@ def labor_estimate(pid: str, loading: str = "commercial", rate: float = 25.0, fu
     from aec_data.ifc_loader import open_model  # type: ignore
     return productivity.from_model(open_model(p.source_ifc), float(rate), loading, full=bool(full),
                                    crews_parallel=max(1, int(crews)))
+
+
+@router.get("/projects/{pid}/proforma/live")
+def proforma_live(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """PROFORMA-LIVE — the finance numbers that follow the model as you author: the current model
+    version's **takeoff-priced construction cost** (cached per published version — cheap to poll after
+    a reload), slab-derived **GFA**, cost/m², and the **delta vs the developer budget's hard cost**.
+    The client refreshes this whenever the collab stream reports a new model version."""
+    from aec_data.qto import takeoff_file  # type: ignore
+
+    from .. import dev_budget as dvb
+    from .. import estimate as est
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — the live proforma prices the model")
+    rows = takeoff_file(p.source_ifc, force_geometry=True)         # content-cached per version
+    out = est.estimate_from_takeoff(rows)
+    cost = out.get("recommended_total") or out.get("total") or 0.0
+    gfa = round(sum(float(r.get("area") or 0.0) for r in rows
+                    if r.get("ifc_class") == "IfcSlab") / 2.0, 1)  # slab area ≈ both faces → /2
+    budget_hard = None
+    try:
+        if p.dev_budget:
+            budget_hard = (dvb.summarize(p.dev_budget).get("categories", {})
+                           .get("hard", {}).get("total"))
+    except Exception:  # noqa: BLE001 — a malformed budget never breaks the live readout
+        budget_hard = None
+    return {
+        "model_version": Path(p.source_ifc).stem, "est_construction_cost": round(float(cost), 2),
+        "gfa_m2": gfa, "cost_per_m2": round(float(cost) / gfa, 2) if gfa else None,
+        "budget_hard_cost": budget_hard,
+        "delta_vs_budget": round(float(cost) - float(budget_hard), 2) if budget_hard else None,
+        "note": "Takeoff-priced from the current model (recommended total: benchmark-guarded). "
+                "GFA approximated from slab areas. Refresh on each publish.",
+    }
 
 
 @router.get("/projects/{pid}/cost/g703")

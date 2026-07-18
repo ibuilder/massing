@@ -58,7 +58,7 @@ docked Properties + Library + ribbon; a11y/mobile pass).
 egress/life-safety plans (path-trace over the semantic graph) · D8 COMcheck/A117.1 → approvability +
 BCF · `Pset_Massing_SpecLink` breadcrumb · F0b Box/Axis/FootPrint derivation · B3 wall Axis + clip
 planes · B5 fastener/connection assemblies · E2 type-a-dimension (VCB) · E3 sketch-to-BIM push/pull ·
-E5 parametric handles · E6 recipe-log design options · E7 live schedules while modeling · ✅ E2
+E5 parametric handles · E6 recipe-log design options · ✅ E7 live schedules while modeling (473 — `aec:model-published` → open sheets re-render) · ✅ E2
 type-a-dimension/VCB (= the dynamic-input layer, v0.3.453/461/467) · E8
 model-aware guardrails · A2 RAG index over ifcopenshell/IFC docs.
 
@@ -75,7 +75,8 @@ NL-QA recipes ("audit + suggest fixes") · COST-AGENT
 (re-estimate on geometry change + learn from history) · READY-AGENT (proactive blockers w/ cited
 evidence) · ✅ RISK-BOARD (v0.3.470 — `/risk-board` unifies 5 engines into one ranked register).
 
-**Finance/frontier:** PROFORMA-LIVE (yield/cost recompute inline as you model) · BOARDS (styled
+**Finance/frontier:** ✅ PROFORMA-LIVE (473 — `/proforma/live` cached takeoff cost + GFA + budget
+delta; the viewer status updates after every load) · BOARDS (styled
 design-option decks as first-class artifacts) · ENV-1 wind-comfort at massing (approximate, offline) ·
 GEN-SCORE depth (per-option 5D takeoffs + EPD carbon once options carry models).
 

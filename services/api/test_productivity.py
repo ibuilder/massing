@@ -147,6 +147,12 @@ with TestClient(app) as c:
     # the QTO-driven GET estimate works too
     le = c.get(f"/projects/{pid}/estimate/labor?loading=standard", headers=HDR).json()
     assert le.get("derived_from_takeoff") is True and le["total_labor_cost"] > 0, le.get("note")
+    # PROFORMA-LIVE: the model's takeoff-priced cost + slab GFA, refreshed per version
+    pl = c.get(f"/projects/{pid}/proforma/live", headers=HDR)
+    assert pl.status_code == 200, pl.text[:200]
+    plb = pl.json()
+    assert plb["est_construction_cost"] > 0 and plb["gfa_m2"] > 0, plb
+    assert plb["cost_per_m2"] and plb["model_version"], plb
 
 if os.path.exists(TMP):
     os.remove(TMP)
