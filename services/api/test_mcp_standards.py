@@ -9,10 +9,11 @@ for _f in ("./test_mcp.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient             # noqa: E402
-from aec_api.main import app                          # noqa: E402
-from aec_api import mcp_tools                          # noqa: E402
-from aec_api.db import SessionLocal                    # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import mcp_tools  # noqa: E402
+from aec_api.db import SessionLocal  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 
 def _create(c, pid, key, data):
@@ -58,6 +59,25 @@ with TestClient(app) as c:
             raise AssertionError("expected ValueError")
         except ValueError:
             pass
+
+        # --- SEC-MCP: membership scoping (defense-in-depth if the server is ever non-local) --------
+        # RBAC is off in this suite, so member_project_ids is None → unrestricted; simulate RBAC by
+        # patching the rbac module the way dispatch resolves it.
+        from aec_api import rbac as _rbac
+        _saved_on = _rbac.RBAC_ON
+        _rbac.RBAC_ON = True
+        try:
+            # 'stranger' is a member of nothing: list_projects is empty, project tools are refused
+            assert mcp_tools.dispatch(db, "list_projects", {}, user="stranger") == []
+            try:
+                mcp_tools.dispatch(db, "cde_status", {"project_id": pid}, user="stranger")
+                raise AssertionError("expected PermissionError for a non-member identity")
+            except PermissionError:
+                pass
+            # the admin api-key identity (the stdio default) stays unrestricted
+            assert any(p["id"] == pid for p in mcp_tools.dispatch(db, "list_projects", {}, user="api-key"))
+        finally:
+            _rbac.RBAC_ON = _saved_on
     finally:
         db.close()
     # the agent-created RFI is now real

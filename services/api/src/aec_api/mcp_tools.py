@@ -54,16 +54,34 @@ TOOLS: list[dict[str, Any]] = [
 TOOL_NAMES = frozenset(t["name"] for t in TOOLS)
 
 
-def dispatch(db: Session, name: str, args: dict[str, Any], actor: str = "mcp") -> Any:
-    """Execute a tool by name against the DB session. Raises ValueError on an unknown tool."""
+def dispatch(db: Session, name: str, args: dict[str, Any], actor: str = "mcp",
+             user: str | None = None) -> Any:
+    """Execute a tool by name against the DB session. Raises ValueError on an unknown tool.
+
+    Defense-in-depth authorization: the MCP server is local/stdio today, but dispatch must not be the
+    layer that trusts everyone if that ever changes. The effective identity is `user`, else the
+    `AEC_MCP_USER` env var, else the admin api-key (the historical stdio behaviour). Under RBAC a
+    non-admin identity is membership-scoped: `list_projects` returns only member projects, and any tool
+    addressing a `project_id` outside the membership raises PermissionError."""
+    import os as _os
+
     from . import bim_kpi, cde, standards_expert
     from . import modules as me
     from .models import Project
+    from .rbac import member_project_ids
     a = args or {}
     pid = a.get("project_id")
 
+    ident = user or _os.environ.get("AEC_MCP_USER") or "api-key"
+    allowed = member_project_ids(db, ident)          # None = unrestricted (RBAC off / admin)
+    if allowed is not None and pid is not None and pid not in allowed:
+        raise PermissionError(f"identity {ident!r} is not a member of project {pid!r}")
+
     if name == "list_projects":
-        return [{"id": p.id, "name": p.name} for p in db.query(Project).limit(500).all()]
+        q = db.query(Project)
+        if allowed is not None:
+            q = q.filter(Project.id.in_(allowed))
+        return [{"id": p.id, "name": p.name} for p in q.limit(500).all()]
     if name == "project_snapshot":
         from . import assistant
         return assistant.project_snapshot(db, pid)

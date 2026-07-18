@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.417 — SEC-MCP: membership authorization in the MCP tool dispatch (P0 №4 — P0 complete)
+
+- **Security hardening** (upgrade-plan P0 №4, the last P0): `mcp_tools.dispatch` executed any tool
+  against any caller-supplied `project_id` with no authorization — safe only as long as the MCP server
+  stays local/stdio. Dispatch now resolves an effective identity (`user` arg → `AEC_MCP_USER` env → the
+  historical admin api-key default) and, under RBAC, membership-scopes it: `list_projects` returns only
+  member projects and any tool addressing a non-member `project_id` raises `PermissionError`
+  (defense-in-depth if the server is ever bound beyond stdio; operators can pin a restricted identity
+  via `AEC_MCP_USER`).
+- `test_mcp_standards` extended: a no-membership identity sees an empty project list and is refused
+  project tools; the api-key default stays unrestricted; existing dispatch/write-tool coverage green.
+
 ## v0.3.416 — SEC-GUARD: production safety guard beyond Postgres (P0 №3)
 
 - **Security fix** (upgrade-plan P0 №3): `_production_guard` only enforced its boot checks (RBAC on,

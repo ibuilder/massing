@@ -73,7 +73,7 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
 3. ✅ **SEC-GUARD — SHIPPED v0.3.416 — production guard beyond Postgres** — `_production_guard` only enforces
    secret/RBAC/S3 checks when the DB is Postgres; a SQLite/MySQL prod boots on the public dev secret
    (forgeable tokens/signed URLs). Trigger on "not obviously dev" instead.
-4. **SEC-MCP — per-project authz in `mcp_tools.dispatch`** — currently trusts any caller for any
+4. ✅ **SEC-MCP — SHIPPED v0.3.417 — per-project authz in `mcp_tools.dispatch`** — currently trusts any caller for any
    `project_id` (stdio-contained today; no defense-in-depth). Thread an identity + `member_project_ids`.
 
 ### 🟠 P1 — reliability & performance
