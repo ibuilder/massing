@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.468 — REL-4 slice 5: the Report Center becomes its own module
+
+- `reportCenter.ts` (new, 469 lines) now owns the whole Report Center modal — every exportable
+  report (PDF / in-app markup / Excel) and the interactive project tools & analytics (drawing-set
+  register + issuance + 🚦 pre-flight gate, WH-347 payroll, PDF tools, project health, assistant,
+  field-verification coverage). Extracted verbatim from `main.ts`, which drops **1,645 → 1,187
+  lines** and keeps a one-line `openReportCenter(api, projectId)` call.
+- Live-verified after the extraction: the modal opened with 54 report-download rows, the Drawing-set
+  register tool loaded with the 🚦 Pre-flight button, and all three issuance records rendered.
+- Typecheck / eslint / vitest (121) / build green.
+
 ## v0.3.467 — REL-4 slice 4: the KEYS + dynamic-input layer becomes its own viewer leaf
 
 - `viewer/keysDyn.ts` (new, 126 lines) owns the Revit-style **2-letter draw-tool shortcuts** (WA/SL/
