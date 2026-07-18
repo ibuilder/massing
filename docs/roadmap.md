@@ -113,10 +113,10 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
     Seattle/Austin live 2026).
 15. ✅ **QA-AGENT — SHIPPED v0.3.427 — drawing-set QA review** (deterministic sheet-cited core; AI narration layer = follow-up) — an agent pass over the self-generated sheet/model data
     (structured source, not raster) returning cited markups via the existing PDF markup stack.
-16. **LAYOUT-EXPORT — robotic layout / total-station points** — export the field-layout engine's points as
+16. ✅ **LAYOUT-EXPORT — already shipped (Wave 8 ②)** — PENZD/PNEZD CSV (configurable order/delimiter) + layered DXF for floor printers, georeferenced via IfcMapConversion with GlobalId round-trip + field verify. No new work needed. ~~robotic layout / total-station points~~ — export the field-layout engine's points as
     robot/instrument-consumable files (DXF layers + point CSV with survey control), riding the georef
     discipline.
-17. **5D-BIND — element↔cost binding** — bind cost assemblies to GUIDs so quantity edits reprice
+17. ✅ **5D-BIND — SHIPPED v0.3.428 — element↔cost binding** — bind cost assemblies to GUIDs so quantity edits reprice
     automatically; carbon-per-element (#13) rides the same binding. Foundation for generative scoring.
 18. **Later (tracked)** — SOC 2 feature set (KMS/retention/residency) · IFCX server-side read/write +
     bSI Validation Service in CI · BMS/IoT telemetry (Brick/Haystack) · reality-capture progress

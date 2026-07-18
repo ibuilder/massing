@@ -298,6 +298,22 @@ def element_5d(pid: str, guid: str, db: Session = Depends(get_db), _: str = Depe
             "name": meta.get("name") or meta.get("type_name"), "schedule": sched, "cost": cost}
 
 
+@router.get("/projects/{pid}/5d/element-costs")
+def element_costs_5d(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """5D-BIND: the GUID-keyed cost (+carbon) table off the **live** property index — element quantity
+    (per the rate's basis) × class rate, so a GUID-stable edit + republish reprices automatically.
+    Carbon rides the same row where the material matches. 404 until a model is loaded."""
+    from fastapi import HTTPException
+
+    from .. import element_5d
+    from .properties import _INDEX, _ensure_loaded
+    _ensure_loaded(pid)
+    idx = _INDEX.get(pid)
+    if not idx:
+        raise HTTPException(404, "no properties index for project — load a model first")
+    return element_5d.element_costs(idx)
+
+
 @router.get("/projects/{pid}/5d/heatmap")
 def elements_5d_map(pid: str, by: str = "progress", db: Session = Depends(get_db),
                     _: str = Depends(require_role("viewer"))):

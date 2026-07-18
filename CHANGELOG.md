@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.428 — 5D-BIND: every GlobalId carries its live cost (+carbon) row (P3 №17)
+
+- **New capability** (upgrade-plan P3 №17 — the last buildable P3 item; №16 LAYOUT-EXPORT was found
+  already shipped in Wave 8). New `element_5d.element_costs`: the **GUID-keyed 5D table off the live
+  property index** — element quantity (in the rate's basis: volume/area/length/count, from the
+  element's own Qto sets) × the class rate — so a GUID-stable edit → republish → reindex **reprices
+  automatically**, nothing to resync. Honest exclusions: no rate or a basis/Qto family mismatch is
+  skipped, never guessed.
+- **Carbon rides the same row** where the material matches — one table serving cost heatmaps, carbon
+  hotspots, and (later) generative option scoring against cost + carbon + code in one pass. Class +
+  storey rollups, top-cost list. `GET /projects/{pid}/5d/element-costs` (404 until a model loads).
+- Hand-computed fixture (wall/slab/door/pipe across all four bases; mismatch exclusions asserted) and
+  the reprice semantics proven: doubling the slab volume changes exactly that row (cost 825→1650,
+  carbon 450→900). cost/estimate suites green.
+
 ## v0.3.427 — QA-AGENT: drawing-set QA review, every finding sheet-cited (P3 №15)
 
 - **New capability** (upgrade-plan P3 №15; agentic drawing review is the 2026 benchmark — but most
