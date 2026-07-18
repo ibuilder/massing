@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.445 — VIEWER-FUNNEL: the demo gets its free-IFC-viewer identity (+ roadmap closures)
+
+- **massing.build now names what it already ships**: the hero CTA and a dedicated landing section present
+  the live demo as a **free in-browser IFC viewer & model checker** — open your own .ifc (small files
+  parse in-browser via WASM, "no signup, no install, no upload — your model never leaves your machine"),
+  inspect properties/quantities, run read-only model QA — with the explicit upgrade path to the free
+  desktop app / full stack. Visually verified. (CAD-UX lesson #5 — the viewer-funnel positioning.)
+- **Roadmap closures backed by the v0.3.441 audit evidence** (no code change needed):
+  - UI-SURFACE №11 — the caller scan found no zero-caller client methods (flagged names were recipes
+    dispatched by string); nothing to delete.
+  - REL-5/7 — `errorReporting.ts` already wires window.onerror + unhandledrejection to the error log,
+    panel promises carry near-universal `.catch` coverage, and the "~1,075 dead lines" claim did not
+    survive proof.
+
 ## v0.3.444 — PLUGIN-REGISTRY: manifest-gated recipe plugins (CAD-UX lesson #6)
 
 - **Third-party authoring recipes without archaeology.** A plugin is a directory with a `plugin.json`

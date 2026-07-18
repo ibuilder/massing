@@ -41,7 +41,10 @@ upgrade plan** (v0.3.413–428 — P0 security → P1 reliability → P2 docs/de
 - **REL-3 remainder** — `modules.py` CRUD/feeds (needs a DI pass, would cycle otherwise) · `main.py` ·
   rest of `data/drawings.py` / `drawing.py`. *(Diminishing returns — attack opportunistically.)*
 - **DEV-2 tail** (CI coverage upload · hotspot docstrings) · **DEV-3** (build/tsc speed) ·
-  **REL-5/7** (unhandled-rejection sweep + prove-then-delete the ~1,075 dead lines).
+  ✅ REL-5/7 — CLOSED by evidence (v0.3.441 audit): `errorReporting.ts` already wires window.onerror +
+  unhandledrejection to the O1 error log, panel promises carry near-universal `.catch` coverage, and the
+  caller scan found no zero-caller client methods — the "~1,075 dead lines" claim didn't survive proof,
+  so nothing is deleted.
   ✅ COBie/parse robustness SHIPPED v0.3.442 (all 8 swallow sites → counted, logged skips).
 
 Deferred bridges (deliberate 501s — money movement / KYC / paid APS) are a defensible pattern, not gaps.
@@ -57,9 +60,9 @@ README-TRIM · UI-SURFACE first slice (P2) · SCHED-RISK · CARBON-EC3 · PERMIT
 LAYOUT-EXPORT (found already shipped) · 5D-BIND (P3).
 
 **Still open from the plan:**
-- **UI-SURFACE №11 tail** *(P2)* — triage the remaining dark client methods (most flagged names are
-  authoring recipes dispatched by string, or surfaced under a variant name — surface the few genuine
-  read endpoints, don't delete recipes).
+- ✅ **UI-SURFACE №11 tail — CLOSED by the v0.3.441 audit**: the frontend audit's caller scan found no
+  zero-caller exported client methods — the earlier flagged names were authoring recipes dispatched by
+  string or variant-named surfaces, as suspected. Nothing to delete.
 - **№18 later-bucket** *(P3, large)* — SOC 2 feature set (KMS/retention/residency) · IFCX server-side
   read/write + bSI Validation Service in CI · BMS/IoT telemetry (Brick/Haystack) · reality-capture
   progress quantification · viewer tile-streaming upgrade · multiplayer cursors · AR field overlay.
@@ -102,14 +105,19 @@ into micro-apps, but the **CAD authoring UX** and a few dev practices are worth 
    service and why. Bank OCS's two transferable landmines: **WebGL2 has no vertex-stage storage buffers**
    (custom hatch/linetype must use triangulation/textures or gate on WebGPU) and **wasm is single-threaded
    without SharedArrayBuffer** (already why the viewer needs coi-serviceworker). Doubles as arch docs.
-5. **VIEWER-FUNNEL — name + promote the Pages demo as a standalone free IFC viewer/checker** *(★ · positioning)*
-   — OCS markets its WASM build separately as a free DWG viewer that funnels to the editor. We already ship
-   the demo; give it a viewer identity (drop-an-IFC, model-QA/IFC-QA read-only) with an obvious upgrade path.
-6. **PLUGIN-REGISTRY — a versioned, manifest+registry plugin model** *(★★★ · larger)* — OCS's best design:
-   `plugin.toml` manifest + a semver'd API crate with a hard `api_version` gate + process isolation +
-   a curated `registry.json` + a template repo. Our analog: server-side recipe/analysis plugins (Python)
-   with a manifest, a pinned API version checked at load, and a scaffold — so the first third-party
-   extension isn't archaeology. *(Depends on a stable recipe-API surface — do after REL-3/4 settle.)*
+5. ✅ **VIEWER-FUNNEL — SHIPPED v0.3.445** *(★ · positioning)* — the landing (massing.build) now names the
+   demo a **free in-browser IFC viewer & model checker**: hero CTA + a dedicated section (open-your-IFC ·
+   read-only model QA · "no signup, no install, no upload — your model never leaves your machine") with
+   the upgrade path to the desktop app / full stack. Visually verified.
+6. ✅ **PLUGIN-REGISTRY — SHIPPED v0.3.444 — manifest-gated recipe plugins** *(★★★)* — OCS's best design,
+   adapted: a plugin is a directory with a `plugin.json` manifest (name/version/`api_version`) + a
+   `register(api)` entry that adds **namespaced GUID-stable recipes** (`<plugin>.<recipe>`) into the same
+   `edit.RECIPES` registry every authoring surface dispatches (POST /edit, CADCMD, AI bar, MCP
+   `run_recipe`) — and they appear in the authoring matrix automatically. Three hard gates: **opt-in**
+   (`AEC_PLUGINS_ENABLED=1` — plugins execute Python at load), **api-version MAJOR match** (refused with
+   a reason otherwise), **collision refusal** (never overwrite). Idempotent reload; refusals are data +
+   logs, never fatal. `plugin_registry.py` · `GET /plugins` + admin-gated `POST /plugins/reload` ·
+   template + worked example at `plugins/`. *(Later: curated registry.json + process isolation.)*
 7. ✅ **MCP-PACK — SHIPPED v0.3.435 — Massing MCP server + skill/docs pack** *(★★)* — the MCP catalog grew
    8→14: the authoring + analysis engines are now agent-drivable (`list_recipes`, `run_recipe`,
    `schedule_risk`, `carbon_report`, `permit_readiness`, `drawing_qa`), so an agent is a first-class
