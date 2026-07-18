@@ -37,6 +37,29 @@ def job_status(pid: str, job_id: str, db: Session = Depends(get_db),
     return jobs.job_dict(j)
 
 
+@router.get("/projects/{pid}/jobs/{job_id}/artifact")
+def job_artifact(pid: str, job_id: str, db: Session = Depends(get_db),
+                 _: str = Depends(require_role("viewer"))):
+    """Download a finished job's binary artifact (e.g. the compiled drawing-set PDF). Artifact jobs
+    park their output in object storage and put `artifact_key` in the result; this streams it back.
+    409 while the job is still queued/running; 404 when the job has no artifact."""
+    from fastapi import Response
+
+    from .. import storage
+    j = db.get(Job, job_id)
+    if j is None or j.project_id != pid:
+        raise HTTPException(404, "job not found")
+    if j.state in ("queued", "running"):
+        raise HTTPException(409, f"job is {j.state} — poll until done")
+    res = j.result or {}
+    key = res.get("artifact_key") if isinstance(res, dict) else None
+    if j.state != "done" or not key or not storage.exists(key):
+        raise HTTPException(404, "job has no artifact" + (f" (state {j.state}: {j.error})" if j.error else ""))
+    fname = res.get("filename") or "artifact.bin"
+    return Response(storage.get(key), media_type=res.get("media_type") or "application/octet-stream",
+                    headers={"Content-Disposition": f'inline; filename="{fname}"'})
+
+
 @router.get("/projects/{pid}/jobs")
 def list_jobs(pid: str, limit: int = 50, db: Session = Depends(get_db),
               _: str = Depends(require_role("viewer"))):

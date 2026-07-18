@@ -104,6 +104,19 @@ with TestClient(app) as c:
     assert cj.state == "done" and cj.result["total_rows"] > 0, (cj.state, cj.error, cj.result)
     assert cj.result["sheets"]["Floor"] >= 1, cj.result
 
+    # JOB-QUEUE migration: the compiled drawing-set PDF as an ARTIFACT job — the PDF parks in object
+    # storage and /jobs/{id}/artifact streams it back (409 while running, 404 without an artifact)
+    r3 = c.post(f"/projects/{pid}/jobs", json={"kind": "compiled_set_pdf", "params": {"max_sheets": 4}})
+    pj_id = r3.json()["id"]
+    pj = _wait(pj_id, timeout=120)
+    assert pj.state == "done" and pj.result["artifact_key"].endswith(".pdf"), (pj.state, pj.error)
+    assert pj.result["bytes"] > 1000, pj.result
+    art = c.get(f"/projects/{pid}/jobs/{pj_id}/artifact")
+    assert art.status_code == 200 and art.content[:4] == b"%PDF", art.status_code
+    assert "application/pdf" in art.headers["content-type"], art.headers
+    # a result-only job (echo) has no artifact → 404
+    assert c.get(f"/projects/{pid}/jobs/{jid}/artifact").status_code == 404
+
 jobs.stop_worker()
 print("JOB-QUEUE OK - unknown kind 400s at submit; orphaned running job re-queued on worker start and "
       "completed (crash recovery); echo round-trips with timestamps; handler exception captured on the "

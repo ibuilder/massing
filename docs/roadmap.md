@@ -38,9 +38,9 @@ priorities below favor what that unblocked.
    `collabPresence.ts` (v0.3.463; app.ts ~4,010). Next leaves: the KEYS + dyn-input layer ·
    measure/section tools; then `main.ts` (~1,600) and `portal.ts` (2,542). One live-verified leaf
    per release.
-7. **JOB-QUEUE migration** *(S/M)* — move the heavy inline paths (compiled drawing-set PDF · PAdES
-   sealing · large exports · generative runs) onto the shipped durable queue (`jobs.register_kind`),
-   returning a job id + poll instead of a long-hanging request.
+7. **JOB-QUEUE migration** *(S/M)* — ✅ the artifact-job pattern + the heaviest path shipped
+   v0.3.464 (`compiled_set_pdf` kind + `GET /jobs/{id}/artifact` streaming). Remaining paths to
+   migrate onto it: PAdES sealing · large exports (.glb/IFC) · generative runs.
 8. **3D-HERO — package hero image** *(M)* — client screenshot-capture → upload → the project-package
    PDF gets a real 3D hero render (the capture path; headless render stays out of scope).
 9. **SHEET-LINK — hyperlinked callouts** *(S · ★★★)* — clickable detail/section bubbles cross-link

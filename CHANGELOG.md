@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.464 — JOB-QUEUE: the compiled drawing-set PDF runs on the durable queue with a downloadable artifact (P1 #7 begins)
+
+- **Artifact jobs.** The durable queue gains its first binary-artifact kind: `compiled_set_pdf`
+  renders the whole drawing set (cover + plan per storey + schedules) **off the request thread**,
+  parks the PDF in object storage, and the poll result carries `artifact_key`. A new
+  `GET /projects/{pid}/jobs/{id}/artifact` streams the bytes back (409 while queued/running,
+  404 when a job has no artifact) — the reusable pattern the remaining heavy paths (PAdES sealing ·
+  large exports · generative runs) migrate onto next.
+- Enqueue with the existing `POST /projects/{pid}/jobs` (`{kind: "compiled_set_pdf", params:
+  {scale?, max_sheets?, schedules?}}` — the same knobs as the inline endpoint, which stays for
+  small sets). Live-verified: enqueue → `running` → `done` in one poll cycle, and the artifact
+  endpoint streamed a real multi-page `%PDF` for the dev project.
+- `test_jobs` extended (artifact round-trip + no-artifact 404); backend suite green.
+
 ## v0.3.463 — REL-4 slice 3: the collab/presence block becomes its own viewer leaf
 
 - `viewer/collabPresence.ts` (new, ~150 lines) now owns the whole COLLAB-1 surface: the 👥 presence /

@@ -160,6 +160,32 @@ def _cobie_export(db: Session, params: dict) -> dict:
             "total_rows": sum(len(v) for v in sheets.values())}
 
 
+def _compiled_set_pdf(db: Session, params: dict) -> dict:
+    """JOB-QUEUE migration of the heaviest inline path: compile the WHOLE drawing set into one
+    multi-page PDF (cover + a plan per storey + schedules) off the request thread. The PDF parks in
+    object storage; the poll result carries `artifact_key` and `GET /jobs/{id}/artifact` streams it.
+    Params: {project_id, scale?, max_sheets?, schedules?} (same knobs as the inline endpoint).
+    Idempotent: a re-run just writes a fresh artifact."""
+    import uuid
+    from pathlib import Path
+
+    from . import drawingset, storage
+    from .models import Project
+    p = db.get(Project, params.get("project_id") or "")
+    if not p:
+        raise ValueError("project not found")
+    if not p.source_ifc or not Path(p.source_ifc).exists():
+        raise ValueError("project has no source IFC — the compiled set renders from the model")
+    pdf = drawingset.compiled_set_pdf(p.source_ifc, p.name or p.id,
+                                      scale=int(params.get("scale") or 200),
+                                      max_sheets=int(params.get("max_sheets") or 16),
+                                      include_schedules=bool(params.get("schedules", True)))
+    key = f"{p.id}/jobs/{uuid.uuid4().hex}-drawing-set.pdf"
+    storage.put(key, pdf)
+    return {"artifact_key": key, "media_type": "application/pdf",
+            "filename": f"{(p.name or p.id)}-drawing-set.pdf", "bytes": len(pdf)}
+
+
 def _echo(db: Session, params: dict) -> dict:
     """Test/diagnostic kind: returns its params (and proves the queue round-trips)."""
     return {"echo": params}
@@ -167,3 +193,4 @@ def _echo(db: Session, params: dict) -> dict:
 
 register_kind("echo", _echo)
 register_kind("cobie_export", _cobie_export)
+register_kind("compiled_set_pdf", _compiled_set_pdf)
