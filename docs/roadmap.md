@@ -63,8 +63,9 @@ they're archived in **[roadmap-completed.md](roadmap-completed.md)**.
    — the record-stamping recipe group → `edit_asbuilt.py` (leaf on `edit_core`). **MEP recipes SHIPPED
    v0.3.409** — the 416-line MEP group (systems/risers/runs/fittings/terminals/devices/connections) →
    `edit_mep.py` (leaf on `edit_core`). **structural recipes SHIPPED v0.3.410** — walls/slabs/columns/
-   beams/steel/rebar/footings → `edit_struct.py`; `edit.py` **2127→1103** across the four slices.
-   *Remaining:* `edit.py` annotation/opening/covering groups (diminishing returns — the engine core),
+   beams/steel/rebar/footings → `edit_struct.py`. **annotation recipes SHIPPED v0.3.411** — notes/dims/
+   rev-clouds/tags → `edit_annotate.py`; `edit.py` **2127→911** across the five slices (under 1000 for the
+   first time). *Remaining:* `edit.py` opening/covering groups (diminishing returns — the engine core),
    `modules.py` CRUD + feed builders (blocked — dense back-calls would cycle; needs DI), `main.py`,
    the rest of `data/drawings.py`, the rest of `drawing.py`.
    `ruff`+suite green after each. *(`openModule` O(n·m) already

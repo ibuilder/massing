@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.411 — REL-3: split the 2D annotation recipes out of edit.py (façade)
+
+- Fourth recipe-group split: the **drawing-annotation group** moves to a new leaf **`edit_annotate.py`**
+  — text notes (`add_annotation`), dimension lines with computed labels (`add_dimension`), scalloped
+  revision clouds with rev tags (`add_revision_cloud`), and element-aware tags (`add_tag`) — all authored
+  as IfcAnnotation in the 2D Annotation subcontext so they render on the generated plans.
+- Built on `edit_core` (annotation context / element-mark / storey lookup); `edit.py` re-exports every
+  name. **`edit.py` 2127 → 911 across the five slices** — under 1000 lines for the first time; what
+  remains is the engine core (spaces/types/query, placement, openings/coverings, RECIPES + apply_recipe).
+- Verified: annotation + drawing suites (author-to-sheet loop intact), cycle guard **0 cycles** (335
+  modules), `ruff` clean.
+
 ## v0.3.410 — REL-3: split the structural authoring recipes out of edit.py (façade)
 
 - Third recipe-group split on the `edit_core` foundation: the **structural/enclosure group** moves to a
