@@ -3278,6 +3278,13 @@ export class ApiClient extends HttpCore {
     return this.json<{ project_duration: number; activity_count: number; critical_count: number; has_cycle: boolean; critical_path: string[]; activities: { ref: string | null; name: string; duration: number; es: number; ef: number; total_float: number; critical: boolean }[] }>(
       `/projects/${pid}/schedule/cpm`);
   }
+  /** EST-1: upsert QTO-driven crew-day durations as EST schedule activities (one per trade, FS chain). */
+  scheduleFromEstimate(pid: string, body: { loading?: string; rate?: number; crews?: number } = {}) {
+    return this.json<{ written: { ref: string; trade: string; crew_days: number; duration_days: number;
+      updated: boolean }[]; activities: number; estimate_total_cost: number;
+      duration_working_days: number; cpm_project_duration: number; note: string }>(
+      `/projects/${pid}/schedule/from-estimate`, { method: "POST", body: JSON.stringify(body) });
+  }
   /** Developer cost budget (line-item hard/soft/acquisition + contingencies) + computed summary. */
   devBudget(pid: string) {
     return this.json<DevBudgetResponse>(`/projects/${pid}/dev-budget`);

@@ -30,8 +30,10 @@ priorities below favor what that unblocked.
 4. ✅ **UX-2 remaining — SHIPPED v0.3.461** — every annotation click snaps to the element's
    vertex/midpoint/corner/center (◻ glyph); two-click dimension/cloud flows show an anchor dot +
    dashed rubber guide line to the cursor. Live-verified (corner snap + tracking guide).
-5. **EST-1 remaining — QTO → durations → CPM** *(M)* — drive labour-estimate activity quantities from
-   the real `aec_data.qto` takeoff and write the crew-day durations into the CPM/Gantt schedule.
+5. ✅ **EST-1 remaining — SHIPPED v0.3.462** — the labour estimate prices the measured QTO takeoff
+   (`productivity.from_takeoff`, default on `/estimate/labor`), and `/schedule/from-estimate` upserts
+   the crew-day durations as FS-chained EST activities into CPM/Gantt (⚙ button in the Schedule
+   panel). Live-verified: crews 1→2 halved the durations and CPM went 118 d → 59 d.
 6. **REL-4 slices 3+ — continue the viewer decomposition** *(M each)* — next leaves out of `app.ts`
    (4,044): the collab/presence block · the KEYS + dyn-input layer · measure/section tools; then
    `main.ts` (1,563) and `portal.ts` (2,542). One live-verified leaf per release.

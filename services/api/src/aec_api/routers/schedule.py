@@ -41,6 +41,65 @@ def _activity_status(start: date | None, finish: date | None, pct: float, today:
     return "not_started"
 
 
+@router.post("/projects/{pid}/schedule/from-estimate")
+def schedule_from_estimate(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                           actor: str = Depends(require_role("editor"))):
+    """EST-1 (the CPM half): write the QTO-driven labour estimate's **crew-day durations into the
+    schedule** — one `schedule_activity` per trade group (WBS `EST`, chained FS in trade order), so
+    CPM / Gantt / lookahead immediately reflect the model-derived durations. Re-running **upserts**
+    the same EST activities (durations refresh, no duplicates; manual activities untouched).
+    Body: `{loading?, rate?, crews?, work_week?}`."""
+    import math
+
+    from fastapi import HTTPException
+
+    from aec_data import productivity  # type: ignore
+    from aec_data.qto import takeoff_file  # type: ignore
+
+    from ..models import Project
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — the estimate needs a model")
+    est = productivity.from_takeoff(
+        takeoff_file(p.source_ifc, force_geometry=True),
+        float(body.get("rate") or 25.0), str(body.get("loading") or "commercial"),
+        crews_parallel=max(1, int(body.get("crews") or 1)))
+    groups = (est.get("schedule") or {}).get("by_group") or []
+    if not groups:
+        raise HTTPException(409, "the takeoff produced no schedulable quantities")
+
+    # upsert one EST activity per trade group, chained sequentially (the estimate's conservative path)
+    existing = {((r.get("data") or {}).get("trade") or ""): r
+                for r in me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+                if (r.get("data") or {}).get("wbs") == "EST"}
+    written, prev_ref = [], None
+    for g in groups:
+        dur = max(1, math.ceil(float(g["duration_days"])))
+        data = {"name": f"{g['group']} (from model QTO)", "wbs": "EST", "trade": g["group"],
+                "duration": dur, "predecessors": prev_ref or "",
+                "activity_type": "task"}
+        old = existing.get(g["group"])
+        if old:
+            me.update_record(db, "schedule_activity", pid, old["id"], data, actor=actor, party=None)
+            ref = old.get("ref")
+        else:
+            rec = me.create_record(db, "schedule_activity", pid, {"data": data}, actor=actor, party=None)
+            ref = rec["ref"]
+        prev_ref = ref
+        written.append({"ref": ref, "trade": g["group"], "crew_days": g["crew_days"],
+                        "duration_days": dur, "updated": bool(old)})
+    cpm_out = schedule_cpm.compute(me.list_records(db, "schedule_activity", pid, limit=1_000_000))
+    return {"written": written, "activities": len(written),
+            "estimate_total_cost": est.get("total_labor_cost") or est.get("total_cost"),
+            "duration_working_days": (est.get("schedule") or {}).get("duration_working_days"),
+            "cpm_project_duration": cpm_out.get("project_duration"),
+            "note": "EST activities (WBS 'EST') upserted from the QTO-driven labour estimate — "
+                    "sequential trade chain; refine predecessors/overlap in the schedule module."}
+
+
 @router.get("/projects/{pid}/schedule/cpm")
 def cpm(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Critical Path Method analysis of the schedule_activity records — early/late dates, total +

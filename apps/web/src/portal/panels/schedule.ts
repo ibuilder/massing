@@ -1,6 +1,6 @@
 import type { ModuleDef } from "../../api/client";
 import { groupedBar } from "../../ui/charts";
-import { escapeHtml as esc } from "../../ui/feedback";
+import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
 
@@ -293,6 +293,24 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   // CPM summary line (critical path + float)
   const cpmBox = document.createElement("div"); cpmBox.className = "meta"; cpmBox.style.margin = "0 0 8px";
   cpmBox.textContent = "Computing critical path…"; ctx.root.appendChild(cpmBox);
+  // EST-1: seed/refresh trade durations straight from the model's measured QTO takeoff
+  const estBtn = document.createElement("button"); estBtn.className = "file-btn";
+  estBtn.textContent = "⚙ Durations from model (QTO)"; estBtn.style.margin = "0 0 8px";
+  estBtn.title = "Run the QTO-driven labour estimate and upsert one EST activity per trade "
+    + "(crew-day durations, chained FS) into this schedule — re-running refreshes, never duplicates.";
+  estBtn.onclick = async () => {
+    estBtn.disabled = true; const prev = estBtn.textContent; estBtn.textContent = "Estimating…";
+    try {
+      const r = await ctx.host.api.scheduleFromEstimate(pid);
+      toast(`${r.activities} trade activit${r.activities === 1 ? "y" : "ies"} upserted — `
+        + `CPM ${r.cpm_project_duration}d`, "success");
+      const c = await ctx.host.api.scheduleCpm(pid);       // refresh the CPM line in place
+      cpmBox.innerHTML = `<b>CPM</b>: project ${c.project_duration}d · ${c.critical_count}/${c.activity_count} on the `
+        + `<span style="color:var(--status-crit)">critical path</span>`;
+    } catch (e) { toast((e as Error).message, "error"); }
+    estBtn.disabled = false; estBtn.textContent = prev;
+  };
+  ctx.root.appendChild(estBtn);
   void ctx.host.api.scheduleCpm(pid).then((c) => {
     if (!c.activity_count) { cpmBox.textContent = "CPM: no activities with durations yet."; return; }
     const cp = c.critical_path.slice(0, 12).join(" → ") || "—";

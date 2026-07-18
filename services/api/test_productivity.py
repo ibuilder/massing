@@ -84,6 +84,70 @@ fmf = productivity.from_model(m, hourly_rate=25.0, loading="commercial", full=Tr
 assert fmf["has_material_equipment"] and fmf["total_cost"] > fmf["total_labor_cost"], fmf
 assert fmf["total_material_cost"] > 0 and abs(fmf["total_labor_cost"] - fm["total_labor_cost"]) < 0.1, fmf
 
+# --- EST-1: from_takeoff — the estimate driven by REAL measured QTO rows ---------------------------
+QTO_ROWS = [
+    {"ifc_class": "IfcWall", "area": 30.0, "volume": 6.0},           # wall face → masonry m²
+    {"ifc_class": "IfcWallStandardCase", "area": 15.0},
+    {"ifc_class": "IfcSlab", "area": 50.0, "volume": 10.0},          # slab → casting m³ + finish m²
+    {"ifc_class": "IfcColumn", "volume": 1.2},                       # concrete column → casting
+    {"ifc_class": "IfcBeam", "weight": 500.0},                       # steel beam (kg) → erection tons
+    {"ifc_class": "IfcCovering", "name": "Ceiling ACT", "area": 20.0},
+    {"ifc_class": "IfcCovering", "name": "Floor Tile", "area": 25.0},
+    {"ifc_class": "IfcPipeSegment", "length": 12.0},
+    {"ifc_class": "IfcDuctSegment", "length": 8.0},
+    {"ifc_class": "IfcDoor", "area": 2.0},                           # unmapped class → skipped
+]
+ft = productivity.from_takeoff(QTO_ROWS, hourly_rate=30.0, loading="standard")
+assert ft["derived_from_takeoff"] is True and ft["elements_counted"] == 9, ft["elements_counted"]
+by_act = {x["activity"]: x for x in ft["lines"]}
+assert abs(by_act["block_masonry"]["quantity"] - 45.0) < 0.1, by_act["block_masonry"]   # 30 + 15 m²
+assert abs(by_act["rc_casting"]["quantity"] - 11.2) < 0.1, by_act["rc_casting"]         # 10 + 1.2 m³
+assert abs(by_act["concrete_finish"]["quantity"] - 50.0) < 0.1, by_act
+assert abs(by_act["steel_erection"]["quantity"] - 0.5) < 0.01, by_act["steel_erection"] # 500 kg → 0.5 t
+assert abs(by_act["false_ceiling"]["quantity"] - 20.0) < 0.1 and abs(by_act["floor_tile"]["quantity"] - 25.0) < 0.1
+assert abs(by_act["pipe_install"]["quantity"] - 12.0) < 0.1 and abs(by_act["duct_install"]["quantity"] - 8.0) < 0.1
+assert ft["schedule"]["duration_working_days"] > 0 and ft["schedule"]["by_group"], ft["schedule"]
+
+# --- EST-1 CPM half: POST /schedule/from-estimate writes crew-day durations as EST activities -------
+m.write(TMP)                       # persist the walls+slab so the uploaded source IFC carries them
+os.environ["DATABASE_URL"] = "sqlite:///./test_productivity.db"
+os.environ["STORAGE_DIR"] = "./test_storage_prod"
+os.environ["IFC_DIR"] = "./_ifc_prod"     # writable; the default /app/ifc is read-only in CI
+os.environ["AEC_TRUST_XUSER"] = "1"
+os.environ.pop("AEC_RBAC", None)
+if os.path.exists("./test_productivity.db"):
+    os.remove("./test_productivity.db")
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
+
+HDR = {"X-User": "scheduler"}
+with TestClient(app) as c:
+    pid = c.post("/projects", json={"name": "EST-1"}, headers=HDR).json()["id"]
+    # no source IFC yet → 409
+    assert c.post(f"/projects/{pid}/schedule/from-estimate", json={}, headers=HDR).status_code == 409
+    with open(TMP, "rb") as fh:
+        up = c.post(f"/projects/{pid}/source-ifc?publish=false",
+                    files={"file": ("est.ifc", fh, "application/octet-stream")}, headers=HDR)
+    assert up.status_code == 200, up.text[:200]
+    r = c.post(f"/projects/{pid}/schedule/from-estimate", json={"loading": "standard"}, headers=HDR)
+    assert r.status_code == 200, r.text[:300]
+    b = r.json()
+    assert b["activities"] >= 2 and b["cpm_project_duration"] > 0, b            # Masonry + Concrete
+    assert all(w["duration_days"] >= 1 for w in b["written"]), b["written"]
+    # sequential chain: every activity after the first carries a predecessor
+    refs = [w["ref"] for w in b["written"]]
+    # re-run → UPSERT: same activity count, all rows marked updated (no duplicates)
+    r2 = c.post(f"/projects/{pid}/schedule/from-estimate", json={"loading": "standard"}, headers=HDR).json()
+    assert r2["activities"] == b["activities"] and all(w["updated"] for w in r2["written"]), r2
+    assert [w["ref"] for w in r2["written"]] == refs, "refs stable across re-runs"
+    # CPM sees the chain: project duration ≈ sum of the EST durations (sequential FS)
+    cpm = c.get(f"/projects/{pid}/schedule/cpm", headers=HDR).json()
+    assert cpm["project_duration"] >= sum(w["duration_days"] for w in b["written"]), cpm["project_duration"]
+    # the QTO-driven GET estimate works too
+    le = c.get(f"/projects/{pid}/estimate/labor?loading=standard", headers=HDR).json()
+    assert le.get("derived_from_takeoff") is True and le["total_labor_cost"] > 0, le.get("note")
+
 if os.path.exists(TMP):
     os.remove(TMP)
 

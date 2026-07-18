@@ -159,6 +159,64 @@ def _schedule_from_lines(lines: list[dict], crews_parallel: int = 1,
                     "shortens the real schedule. Duration = crew-days ÷ parallel crews."}
 
 
+def from_takeoff(rows: list[dict], hourly_rate: float = 25.0, loading: str = "standard",
+                 full: bool = False, crews_parallel: int = 1) -> dict[str, Any]:
+    """EST-1 (the QTO half): drive the labour estimate from the **real measured takeoff**
+    (`aec_data.qto.takeoff` rows — Qto psets with a geometry fallback) instead of rough element
+    dimensions. Element class routes its measured quantity to the matching productivity activity:
+    walls → masonry face area · slabs → concrete volume + finish area · columns/beams/footings →
+    concrete volume (steel members with a tonnage → steel erection) · coverings → tile/ceiling area ·
+    pipe/duct/tray/cable runs → install lengths (duct m² ≈ 1 m²/m run, an approximation)."""
+    agg: dict[str, float] = {}
+    counted = 0
+
+    def _add(activity: str, qty: Any) -> bool:
+        try:
+            q = float(qty)
+        except (TypeError, ValueError):
+            return False
+        if q <= 0:
+            return False
+        agg[activity] = agg.get(activity, 0.0) + q
+        return True
+
+    for r in rows:
+        c = str(r.get("ifc_class") or "")
+        used = False
+        if c in ("IfcWall", "IfcWallStandardCase"):
+            used = _add("block_masonry", r.get("area"))
+        elif c == "IfcSlab":
+            used = _add("rc_casting", r.get("volume")) | _add("concrete_finish", r.get("area"))
+        elif c in ("IfcColumn", "IfcBeam", "IfcMember", "IfcFooting", "IfcPile"):
+            w = r.get("weight")
+            if w:                                        # steel members carry a tonnage (kg → tons)
+                used = _add("steel_erection", float(w) / 1000.0)
+            else:
+                used = _add("rc_casting", r.get("volume"))
+        elif c == "IfcCovering":
+            hint = f"{r.get('name') or ''} {r.get('type') or ''}".lower()
+            used = _add("false_ceiling" if "ceil" in hint else "floor_tile", r.get("area"))
+        elif c == "IfcPipeSegment":
+            used = _add("pipe_install", r.get("length"))
+        elif c == "IfcDuctSegment":
+            used = _add("duct_install", r.get("length"))   # ≈1 m² duct surface per m run
+        elif c == "IfcCableCarrierSegment":
+            used = _add("conduit_install", r.get("length"))
+        elif c == "IfcCableSegment":
+            used = _add("cable_pulling", r.get("length"))
+        if used:
+            counted += 1
+
+    items = [{"activity": a, "quantity": round(q, 2)} for a, q in sorted(agg.items())]
+    out = (full_estimate(items, hourly_rate, loading, crews_parallel=crews_parallel) if full
+           else labor_estimate(items, hourly_rate, loading, crews_parallel=crews_parallel))
+    out["derived_from_takeoff"] = True
+    out["elements_counted"] = counted
+    out["note"] = ("Quantities from the measured QTO takeoff (Qto psets + geometry fallback). "
+                   + out["note"])
+    return out
+
+
 # IFC-class -> (activity, how to get the quantity from an element) for a rough model-driven takeoff
 def from_model(model, hourly_rate: float = 25.0, loading: str = "standard",
                full: bool = False, crews_parallel: int = 1) -> dict[str, Any]:

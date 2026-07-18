@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.462 — EST-1: QTO → crew-day durations → CPM (P1 #5)
+
+- **The labour estimate now prices the real takeoff.** `productivity.from_takeoff` routes each
+  measured QTO row (Qto psets + geometry fallback) to its productivity activity — walls → masonry
+  face area, slabs → casting volume + finish area, columns/beams/footings → concrete volume (steel
+  tonnage → erection), coverings → tile/ceiling area, pipe/duct/tray/cable runs → install lengths.
+  `GET /estimate/labor` uses it by default (`qto=false` falls back to the rough dimension parse).
+- **One click writes the durations into the schedule.** `POST /projects/{pid}/schedule/from-estimate`
+  upserts one `schedule_activity` per trade group (WBS `EST`, crew-day durations, FS-chained) — CPM,
+  Gantt, lookahead and Monte-Carlo risk immediately run on model-derived durations. Re-running
+  refreshes durations without duplicating; manual activities are untouched. The Schedule panel grew a
+  **⚙ Durations from model (QTO)** button.
+- Live-verified on the dev project: 2 trade activities (Concrete 112 d → Masonry 6 d, FS chain,
+  CPM 118 d); re-running with `crews: 2` refreshed the same records to 56 d + 3 d (CPM 59 d);
+  `/schedule/cpm` shows the ACT-001 → ACT-002 critical path and the Gantt SVG renders it.
+- `test_productivity` extended (from_takeoff mapping math + the endpoint's upsert/409/CPM chain);
+  backend suite green; web typecheck / eslint / vitest (121) / build green.
+
 ## v0.3.461 — UX-2: snap-as-you-place annotation + live guide lines (P1 #4)
 
 - **Every placed annotation now lands exactly on geometry.** A plain model click snaps the picked
