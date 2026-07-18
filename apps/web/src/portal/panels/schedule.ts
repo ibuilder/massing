@@ -48,6 +48,26 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   const ppAnalytics = document.createElement("div"); ppAnalytics.style.display = "none"; ppCard.appendChild(ppAnalytics);
   ctx.root.appendChild(ppCard);
 
+  // --- RISK-BOARD: one register unifying every computed risk signal (deep-linked) -----------------
+  const rbCard = document.createElement("div"); rbCard.className = "dash-card"; rbCard.style.marginBottom = "10px";
+  rbCard.innerHTML = `<div class="section-title">🚨 Risk board</div>`;
+  const rbBody = document.createElement("div"); rbBody.innerHTML = `<div class="meta">Collecting signals…</div>`;
+  rbCard.appendChild(rbBody); ctx.root.appendChild(rbCard);
+  void ctx.host.api.riskBoard(pid).then((rb) => {
+    const bandCol = rb.band === "critical" ? "var(--status-crit)" : rb.band === "elevated" ? "var(--status-warn)" : "var(--status-good)";
+    if (!rb.count) { rbBody.innerHTML = `<div class="meta">🟢 Clear — no computed risk signals right now.</div>`; return; }
+    const icon: Record<string, string> = { high: "⛔", medium: "⚠️", low: "•" };
+    rbBody.innerHTML = `<div class="meta" style="margin-bottom:4px">Band <b style="color:${bandCol}">${esc(rb.band)}</b>`
+      + ` · ${rb.by_severity.high} high · ${rb.by_severity.medium} medium · ${rb.by_severity.low} low</div>`;
+    for (const it of rb.items.slice(0, 10)) {
+      const row = document.createElement("div"); row.className = "meta"; row.style.margin = "2px 0";
+      row.innerHTML = `${icon[it.severity] ?? "•"} <b>${esc(it.title)}</b> — ${esc(it.detail)}`
+        + ` <span style="opacity:.6">[${esc(it.source)}]</span>`;
+      rbBody.appendChild(row);
+    }
+    if (rb.count > 10) rbBody.insertAdjacentHTML("beforeend", `<div class="meta">…and ${rb.count - 10} more.</div>`);
+  }).catch(() => { rbBody.innerHTML = `<div class="meta">Risk board unavailable.</div>`; });
+
   // --- Schedule risk (Monte Carlo over the CPM network): P50/P80, buffer, delay drivers -----------
   const riskCard = document.createElement("div"); riskCard.className = "dash-card"; riskCard.style.marginBottom = "10px";
   riskCard.innerHTML = `<div class="section-title">🎲 Schedule risk (Monte Carlo)</div>`;

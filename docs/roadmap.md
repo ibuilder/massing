@@ -70,7 +70,7 @@ motion + swept crane clash · W9-6b headcount-program → zones + auto-furnish.
 **AI & agents:** S4 multi-step undo grouping · S5 clarifying questions · AI read tools
 (quantities/schedules/clashes/violations) · NL-QA recipes ("audit + suggest fixes") · COST-AGENT
 (re-estimate on geometry change + learn from history) · READY-AGENT (proactive blockers w/ cited
-evidence) · RISK-BOARD (unify the computed hidden risks into one register).
+evidence) · ✅ RISK-BOARD (v0.3.470 — `/risk-board` unifies 5 engines into one ranked register).
 
 **Finance/frontier:** PROFORMA-LIVE (yield/cost recompute inline as you model) · BOARDS (styled
 design-option decks as first-class artifacts) · ENV-1 wind-comfort at massing (approximate, offline) ·

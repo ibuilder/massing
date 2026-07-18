@@ -3280,6 +3280,13 @@ export class ApiClient extends HttpCore {
   clearXer(pid: string) {
     return this.json<{ cleared: boolean }>(`/projects/${pid}/schedule/import-xer`, { method: "DELETE" });
   }
+  /** RISK-BOARD: one ranked register unifying every computed risk signal (deep-linked per item). */
+  riskBoard(pid: string) {
+    return this.json<{ items: { source: string; severity: "high" | "medium" | "low"; title: string;
+      detail: string; link: string | null; metric: number | null }[]; count: number;
+      by_severity: { high: number; medium: number; low: number };
+      lanes: Record<string, string>; band: string; note: string }>(`/projects/${pid}/risk-board`);
+  }
   /** CPM analysis of the schedule activities — float + critical path. */
   scheduleCpm(pid: string) {
     return this.json<{ project_duration: number; activity_count: number; critical_count: number; has_cycle: boolean; critical_path: string[]; activities: { ref: string | null; name: string; duration: number; es: number; ef: number; total_float: number; critical: boolean }[] }>(

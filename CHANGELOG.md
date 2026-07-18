@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.470 — RISK-BOARD: one register for every computed risk signal (P2 · AI & agents)
+
+- **`GET /projects/{pid}/risk-board`** unifies the platform's computed risks into one ranked,
+  deep-linked register: **Monte-Carlo schedule risk** (P80 buffer + the top delay driver by
+  criticality) · **predictive schedule alerts** (overdue / late starts / blocked predecessors /
+  procurement) · **EVM** (CPI/SPI below par with the recommended EAC) · **pre-flight issuance
+  blockers** · **overdue open coordination issues** (aging items become claims). Every row is
+  re-derived from its engine on each call — aggregation only, no new stored state; a broken lane
+  drops out and reports itself in `lanes`, never breaking the board.
+- The Schedule panel opens with a **🚨 Risk board** card (band + severity counts + the top 10 items).
+- Live-verified on the dev project: all 5 lanes `ok`, band `critical` — 4 pre-flight blockers + the
+  9.1-day P80 buffer computed from the EST-1 schedule. `test_risk_board` covers the empty board,
+  signal seeding (overdue activity → alert; overdue high topic → coordination + preflight), ranking,
+  deep links, and band escalation. Backend suite green; web gates green.
+
 ## v0.3.469 — DISC-poché: 2D plans read by trade (P2 · estimating/engineering)
 
 - **`by_discipline=true` on both plan renderers.** The **cut-plane plan** (`/drawings/plan.svg`)

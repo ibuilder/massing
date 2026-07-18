@@ -108,6 +108,17 @@ def cpm(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("
     return schedule_cpm.compute(acts)
 
 
+@router.get("/projects/{pid}/risk-board")
+def risk_board_endpoint(pid: str, db: Session = Depends(get_db),
+                        _: str = Depends(require_role("viewer"))):
+    """RISK-BOARD — one ranked register unifying every computed risk signal: Monte-Carlo schedule
+    risk (P80 buffer + top delay driver) · predictive schedule alerts · EVM cost/schedule indices ·
+    pre-flight issuance blockers · overdue coordination issues. Each item deep-links to the engine
+    that computed it; a broken lane drops out (reported in `lanes`), never the board."""
+    from .. import risk_board
+    return risk_board.board(db, pid)
+
+
 @router.get("/projects/{pid}/schedule/risk")
 def schedule_risk_endpoint(pid: str, iterations: int = 1000, seed: int | None = None,
                            ppc: float | None = None,
