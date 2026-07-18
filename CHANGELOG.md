@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.453 — SNAP-KIT phase 2: dynamic input + snap glyphs, live-verified to the IFC (lesson #2 complete)
+
+- **Type the constraint mid-draw.** With a draw tool armed and a first point placed, typing `6`, `<30`
+  or `6<30` builds a distance/angle constraint in a **HUD** ("⌨ 8<60 → 8 m @ 60° — click to place");
+  the next click is constrained through the tested snap engine — the typed value **beats every
+  automatic snap** (geometry, axis inference, polar, grid): explicit intent is never re-snapped away.
+  Backspace edits, Esc clears with the tool. Pure parser (`dynInput.ts`), strict like the CAD polar
+  tokens (`6<`, double-`<`, zero/negative distance → rejected), +3 vitest.
+- **Snap-kind glyphs**: each placed point flashes what won — `◻ snap` (geometry vertex), `∠ axis`
+  (inference), `◇ 45°` (polar), `⌨ 8<60` (typed) — the phase-2 osnap feedback.
+- **Two interaction bugs found by driving the live viewer** (the newly-unblocked Gate-A loop):
+  - a lingering **measure mode silently ate every draft click** — an armed draw tool now always wins
+    over measure (measure keeps the click only when nothing is armed);
+  - a stalled Fragments **raycast could wedge the click pipeline forever** — it now races a 1.5 s
+    timeout and falls back to the ground plane, so drafting keeps working through any worker stall.
+- **Live-verified end-to-end, to the IFC bytes**: armed the wall tool via KEYS (`WA`), clicked a point,
+  typed `8<60`, clicked again — the placed point measured **exactly 8.00 m @ 60.0°** from the first;
+  the wall authored + published, and the source IFC confirms two live-authored walls at **30.0°** (the
+  v0.3.439 CAD polar command) and **60.0°** (this dynamic input). Typecheck + eslint + vitest (121) +
+  build green.
+
 ## v0.3.452 — the "preparing geometry…" hang, root-caused and fixed (Gate A unblocked)
 
 - **The bug**: after a model loads, `fitToModels`/`fitToItems` awaited an **animated** camera-controls

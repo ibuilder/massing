@@ -128,11 +128,11 @@ into micro-apps, but the **CAD authoring UX** and a few dev practices are worth 
    grammar (`WALL`, `COLUMN`, `SLAB`, `GRID`, `DIM`…) + single-letter aliases (L/C/M/Z) + spacebar-repeat
    + up-arrow history + prompt-driven flows ("Specify first point"). Every drafter already knows this;
    it's scriptable for free. Builds on the shipped AI command bar (reuse its input + recipe dispatch).
-2. 🟡 **SNAP-KIT — phase 1 (engine + polar tracking) SHIPPED v0.3.434** *(★★★★)* — extend the shipped
-   E1 inference: osnap glyphs (endpoint/mid/center/intersection/perp/nearest), polar tracking with angle
-   increments + guide lines, and a **dynamic-input overlay** (type a distance/angle mid-draw to constrain
-   the rubber-band; Esc steps back one prompt, Enter repeats). Pure client-side in the three.js layer —
-   this is the "friendly CAD" feel. *(Pairs with CADCMD.)*
+2. ✅ **SNAP-KIT — COMPLETE v0.3.453** *(★★★★)* — phase 1 (v0.3.434: pure engine + 45° polar tracking)
+   + phase 2 (v0.3.453: **typed dynamic input** — `6` / `<30` / `6<30` mid-draw with a HUD, beats every
+   automatic snap — plus snap-kind glyphs ◻/∠/◇/⌨ on each placed point). **Live-verified to the IFC**:
+   a wall drafted with typed `8<60` landed at exactly 8.00 m @ 60.0° in the published model. The live
+   loop also surfaced + fixed two interaction bugs (draft-beats-measure priority; raycast timeout).
 3. ✅ **AUTHOR-MATRIX — SHIPPED v0.3.431 — a public authoring-coverage matrix** *(★★ · like OCS's COMMANDS.md)* — one markdown
    table (IFC classes × create/edit/delete/parametrize, implemented/partial/missing) in the repo + docs.
    Honest maturity signal for users, work-picker for contributors. Cheap; generate from `edit.RECIPES`.

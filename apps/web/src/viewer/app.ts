@@ -6,7 +6,8 @@ import CameraControls from "camera-controls";
 import { createViewer, renderMode, positionSun } from "./world";
 import { sunAltAz, sunSceneDir } from "./solar";
 import { inferDirection } from "./inference";
-import { polarConstrain } from "./snapEngine";
+import { applyDynamicInput, polarConstrain } from "./snapEngine";
+import { dynKeystroke, isDynKey, parseDynConstraint } from "./dynInput";
 import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
 import { loadReferenceModel } from "./referenceLoader";
@@ -309,12 +310,21 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // ---- 3D click ------------------------------------------------------------
   const mouse = new THREE.Vector2();
   container.addEventListener("click", async (e) => {
-    if (measure.mode !== "off") { measure.create(); return; }
+    // An ARMED draw tool always wins over a lingering measure mode — otherwise a measure tool left on
+    // silently eats every draft click with zero feedback (the drafter sees an armed wall tool and dead
+    // clicks). Measure keeps the click only when nothing is armed.
+    if (measure.mode !== "off" && !armed) { measure.create(); return; }
     if (gizmo?.dragging) return;                 // a gizmo-handle drag isn't a select/deselect click
     mouse.set(e.clientX, e.clientY);
-    const hit = await loader.fragments.raycast({
-      camera: viewer.world.camera.three, mouse, dom: viewer.world.renderer!.three.domElement,
-    });
+    // A stalled Fragments worker (hidden tab / heavy load) must not silently eat clicks: race the
+    // raycast with a short timeout and fall back to the ground plane — drafting keeps working, and a
+    // selection click just misses (same as clicking empty space). Normal raycasts answer in ms.
+    const hit = await Promise.race([
+      loader.fragments.raycast({
+        camera: viewer.world.camera.three, mouse, dom: viewer.world.renderer!.three.domElement,
+      }),
+      new Promise<null>((res) => window.setTimeout(() => res(null), 1500)),
+    ]);
     if (armed) { await captureDraftPoint(e, hit ?? null); return; }
     if (!hit) { await selectMap(null); return; }
     lastPoint = hit.point.clone();
@@ -877,7 +887,38 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   let armed: ArmedDraft | null = null;          // active Draft-panel element, or null
   const armPts: THREE.Vector3[] = [];
   let draftHandle: DraftPanelHandle | null = null;
-  function disarmDraft() { armed = null; armPts.length = 0; draftHandle?.onArmCleared(); }
+  // SNAP-KIT phase 2 — dynamic input: type "6", "<30" or "6<30" mid-draw to constrain the next click.
+  let dynBuf = "";
+  const dynHud = document.createElement("div");
+  dynHud.className = "dyn-hud";
+  dynHud.style.cssText = "position:absolute;bottom:44px;left:50%;transform:translateX(-50%);z-index:38;"
+    + "display:none;background:var(--panel,#0f172a);color:var(--fg,#e2e8f0);border:1px solid "
+    + "var(--accent,#4a8cff);border-radius:6px;padding:3px 10px;font-size:13px;"
+    + "font-family:ui-monospace,monospace";
+  container.appendChild(dynHud);
+  function setDynBuf(next: string) {
+    dynBuf = next;
+    const c = parseDynConstraint(dynBuf);
+    dynHud.style.display = dynBuf ? "block" : "none";
+    dynHud.textContent = dynBuf
+      ? `⌨ ${dynBuf}${c ? `  →  ${c.distance !== undefined ? c.distance + " m" : ""}${c.angle !== undefined ? " @ " + c.angle + "°" : ""} — click to place` : "  (…)"}`
+      : "";
+  }
+  /** Flash a short-lived snap-kind glyph at the click point (the phase-2 osnap feedback). */
+  function flashSnapGlyph(e: MouseEvent, label: string) {
+    const r = container.getBoundingClientRect();
+    const g = document.createElement("div");
+    g.className = "snap-glyph";
+    g.style.cssText = `position:absolute;left:${e.clientX - r.left + 10}px;top:${e.clientY - r.top - 18}px;`
+      + "z-index:39;pointer-events:none;background:var(--panel,#0f172a);color:var(--accent,#4a8cff);"
+      + "border:1px solid var(--accent,#4a8cff);border-radius:4px;padding:1px 6px;font-size:11px;"
+      + "font-family:ui-monospace,monospace;opacity:1;transition:opacity .7s ease .3s";
+    g.textContent = label;
+    container.appendChild(g);
+    requestAnimationFrame(() => { g.style.opacity = "0"; });
+    setTimeout(() => g.remove(), 1100);
+  }
+  function disarmDraft() { armed = null; armPts.length = 0; setDynBuf(""); draftHandle?.onArmCleared(); }
 
   // KEYS — Revit-style 2-letter keyboard shortcuts that arm a draw tool (WA=wall, CL=column, …), so
   // Revit-trained users are instantly fast. Type two letters (no modifier); Esc disarms; ? shows help.
@@ -914,6 +955,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "Escape") { disarmDraft(); clearBuf(); return; }
       if (e.key === "?") { e.preventDefault(); showKeysHelp(); return; }
+      // SNAP-KIT phase 2: while a draw tool is armed with a previous point, digits/./</- build the
+      // typed distance/angle constraint (Backspace edits it) — it wins over every automatic snap.
+      if (armed && armPts.length >= 1 && (isDynKey(e.key) || e.key === "Backspace")) {
+        e.preventDefault();
+        setDynBuf(dynKeystroke(dynBuf, e.key));
+        return;
+      }
       if (!/^[a-zA-Z]$/.test(e.key)) return;
       buf = (buf + e.key.toUpperCase()).slice(-2);
       window.clearTimeout(bufTimer);
@@ -1037,7 +1085,20 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const raw = hit?.point ?? screenToGround(e);
     const geoSnap = raw ? await snapToGeometry(raw, hit) : null;   // hard endpoint/edge/vertex snap
     let p = raw ? (geoSnap ?? snapPoint(raw)) : null;
-    if (p && e.shiftKey && armPts.length >= 1) {          // ortho lock from the previous point
+    if (geoSnap) flashSnapGlyph(e, "◻ snap");
+    // SNAP-KIT phase 2 — a TYPED constraint beats every automatic snap: the drafter said exactly
+    // what they want. Plan angles are CCW-from-east with North "up" = -z, while the snap engine's
+    // +z axis points south — so the typed angle's sign flips on the way in.
+    const dynC = armPts.length >= 1 ? parseDynConstraint(dynBuf) : null;
+    if (p && dynC) {
+      const a = armPts[armPts.length - 1]!;
+      const applied = applyDynamicInput({ x: a.x, z: a.z }, { x: p.x, z: p.z },
+        { distance: dynC.distance, angle: dynC.angle !== undefined ? -dynC.angle : undefined });
+      p = new THREE.Vector3(applied.x, p.y, applied.z);
+      showCoords(p);
+      flashSnapGlyph(e, `⌨ ${dynBuf}`);
+      setDynBuf("");
+    } else if (p && e.shiftKey && armPts.length >= 1) {   // ortho lock from the previous point
       const a = armPts[armPts.length - 1]!; // safe: armPts.length >= 1 checked above
       if (Math.abs(p.x - a.x) >= Math.abs(p.z - a.z)) p = new THREE.Vector3(p.x, p.y, a.z);
       else p = new THREE.Vector3(a.x, p.y, p.z);
@@ -1049,18 +1110,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       const ref = armPts.length >= 2
         ? { x: a.x - armPts[armPts.length - 2]!.x, z: a.z - armPts[armPts.length - 2]!.z } : undefined;
       const inf = inferDirection({ x: a.x, z: a.z }, { x: p.x, z: p.z }, { tolDeg: 6, ref });
-      if (inf) { p = new THREE.Vector3(inf.x, p.y, inf.z); showCoords(p); }
+      if (inf) { p = new THREE.Vector3(inf.x, p.y, inf.z); showCoords(p); flashSnapGlyph(e, "∠ axis"); }
       else {
         // SNAP-KIT — polar tracking: when axis/parallel inference didn't lock, snap the bearing from
         // the previous point to the nearest 45° increment (catches the diagonals the axis-only
         // inference misses). Distance preserved; a hard geometry snap above still always wins.
         const pol = polarConstrain({ x: a.x, z: a.z }, { x: p.x, z: p.z }, 45, 4);
-        if (pol.locked) { p = new THREE.Vector3(pol.x, p.y, pol.z); showCoords(p); }
+        if (pol.locked) { p = new THREE.Vector3(pol.x, p.y, pol.z); showCoords(p); flashSnapGlyph(e, `◇ ${pol.angle}°`); }
       }
     }
     if (!p) { notify("couldn't pick a point — click the floor or grid", "error"); return; }
-    // snap to the nearest grid intersection when the grid overlay is loaded (plan E=x, N=-z)
-    if (gridOverlay.hasData) {
+    // snap to the nearest grid intersection when the grid overlay is loaded (plan E=x, N=-z) —
+    // unless a TYPED constraint placed this point (explicit intent must not be re-snapped away)
+    if (gridOverlay.hasData && !dynC) {
       const gs = gridOverlay.nearestSnap(p.x, -p.z, 0.6);
       if (gs) p = new THREE.Vector3(gs[0], p.y, -gs[1]);
     }
