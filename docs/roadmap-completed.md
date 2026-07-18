@@ -7,6 +7,43 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## 🗓 Session v0.3.398–412 (2026-07-17) — code-gap closeouts + the REL-3 leaf marathon
+
+Two arcs in one session: the **code-gap sweep** (verifiable analysis/QA wins pulled forward while
+modularization looked stuck) and then — once the DEV-2 import-cycle guards made façade extractions safe —
+the **REL-3 leaf marathon** that decomposed the worst files in the tree. 254/254 suites green at the end;
+CodeQL 0 open alerts throughout. Detail in memory [[gap-sweep-2026-07-17]].
+
+**Code-gap closeouts (398–401):**
+- **MODEL-DIFF (398):** per-element fingerprints on every version snapshot (name · class · type · level ·
+  Pset-hash · Qto-hash); `versions.diff` now reports **modified** elements + what changed (renamed /
+  reclassified / retyped / re-leveled / properties / quantities); `/versions/diff` + viewer Version history
+  with click-to-select-in-3D; `ModelVersion.fingerprints` JSON column auto-migrates.
+- **FIN-TEST (399):** `test_leasemgmt.py` (escalation compounding, CAM recovery + over/under, renewal
+  at-risk) + `test_changeorders.py` (CO pipeline by state, schedule-days excl. rejected, ball-in-court,
+  ROM exposure) — hand-computed; math was already correct, now locked.
+- **DRIFT (400):** `lateral.drift_check` (ASCE 7-22 §12.12.1 allowable Δa by Risk Category; §12.8.6 design
+  drift Δ=Cd·δxe/Ie with per-story pass/fail) + `torsional_check` (§12.3.2.1 Type 1a/1b + Ax), wired into
+  `lateral_from_model` + the `structure/lateral` endpoint.
+- **IFC-QA (401):** `aec_data/roundtrip_qa.py` — `fingerprint` / `compare` (identical + lossless verdicts,
+  per-dimension deltas, offender GUIDs) / `roundtrip` (write→reopen); `GET …/models/export-qa`.
+
+**DEV-2 cycle guards (402–403):** `test_import_cycles.py` (stdlib ast + Tarjan over `aec_api`+`aec_data`
+top-level imports) and `apps/web/src/no-import-cycles.test.ts` (runtime import graph, `import type`
+excluded — tsc erases it). 0 cycles both sides; no new deps; a regression fails CI with the cycle path.
+
+**REL-3 leaf marathon (404–412)**, each a leaf + façade re-export (zero caller change), each verified by
+the guard + its suites: `connectors_mappings.py` (404, pure Procore field-mapping) · `drawings_render.py`
+(405, sheet SVG/PDF renderers; `data/drawings.py` 941→788) · `edit_core.py` (406, the 9 authoring
+primitives — the foundation that unblocked the recipe splits) · `connectors_vendors.py` (407, raw
+Procore/ACC/QuickBooks/ERP HTTP clients; test seams stay on `connectors.py`; 495→325 total) ·
+`edit_asbuilt.py` (408, phase/as-built/manufacturer/classification writers) · `edit_mep.py` (409, the
+416-line MEP group) · `edit_struct.py` (410, walls/slabs/columns/beams/steel/rebar/footings) ·
+`edit_annotate.py` (411, notes/dims/rev-clouds/tags) · `edit_enclosure.py` (412, coverings/railings/
+roofs/hosted openings). **`edit.py` 2127→761 (−64%)**; remainder is the genuine engine core.
+
+---
+
 ## 🗓 Session v0.3.393–397 (2026-07-17) — dev-velocity & modularization
 
 The pivot from features to **making development faster + the codebase more maintainable** (the release cycle

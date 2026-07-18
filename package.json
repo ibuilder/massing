@@ -2,7 +2,7 @@
   "name": "massing",
   "version": "0.0.0",
   "private": true,
-  "description": "Standalone web BIM viewer + data platform for AEC firms (IFC-native).",
+  "description": "In-browser IFC-native BIM authoring + construction docs + GC portal + development proforma — the whole building lifecycle on one model, self-hosted.",
   "workspaces": [
     "apps/web"
   ],

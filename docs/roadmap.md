@@ -6,12 +6,13 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.392**. Recent waves
-(v0.3.380–392): the **complete W10-7 analytical model** (gravity + lateral solve, member loads, shear-wall/
-slab surfaces, base supports → solver-ready IFC), **MEP-SIZE** velocity checks, plan **VIEW-RANGE**, the
-rendered **COVER-SHEET** + drawing index, **EXPORT** (.glb + IFC re-export), **TAKEOFF-2D**, and **DISC-SSOT**
-code consolidation. **Focus now pivots to dev-velocity & modularization** (below) — the codebase is heavy and
-the release cycle is the bottleneck. Full record in [roadmap-completed.md](roadmap-completed.md).
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.412**. Recent waves
+(v0.3.393–412): the **dev-velocity & modularization program** — test gate parallelized ~30→~11 min,
+backend + web **import-cycle guards** in CI, and the worst hotspots decomposed behind façades (`edit.py`
+2127→761 via a foundation + five recipe leaves; `connectors.py` and the sheet renderers split the same
+way) — plus the **code-gap closeouts**: element-level **MODEL-DIFF**, ASCE 7 **DRIFT** screen, **FIN-TEST**
+money-math locks, and the **IFC-QA** export round-trip fidelity check. Full record in
+[roadmap-completed.md](roadmap-completed.md).
 
 > **This file holds only what is still OPEN.** Everything shipped — every wave, track, and release — lives in
 > [roadmap-completed.md](roadmap-completed.md), so *what's left* is never buried under *what's done*. The
@@ -22,94 +23,105 @@ the release cycle is the bottleneck. Full record in [roadmap-completed.md](roadm
 
 ---
 
-## 🚀 Current focus — dev-velocity & modularization (2026-07-17)
+## 🚀 Current focus — quality, security & docs upgrade cycle (2026-07-17)
 
-The feature backlog is deep and **shipping is the bottleneck**: the codebase is heavy, the ~30-min
-sequential test gate + per-release cycle slow every change. So the priority pivots from *more features* to
-**making development faster and the product more maintainable** — small, safe, TESTED slices now; the large
-feature/infra bets are tracked below to attack once we're nimbler (a few are worktree-forkable in parallel).
+The dev-velocity & modularization program **completed** (v0.3.393–412; archived in
+[roadmap-completed.md](roadmap-completed.md)): parallel test gate, backend+web import-cycle guards, and
+the REL-3 façade decompositions (`edit.py` 2127→761, `connectors.py` 495→325, sheet renderers split).
+The four code-gap closeouts (MODEL-DIFF · DRIFT · FIN-TEST · IFC-QA) also shipped. Focus now: the
+**full-platform upgrade plan** below (from the 2026-07-17 codebase/docs/industry audit), executed in
+priority order — bugs & security first, then performance, docs/demo refresh, and 2026 capability gaps.
 
-The KEYS/PREFLIGHT/analysis/deliverable items that filled the earlier worklist all shipped (v0.3.380–392);
-they're archived in **[roadmap-completed.md](roadmap-completed.md)**.
+**Still open from the velocity program (fold into the plan):**
 
-**Do now — velocity & quality (small, safe, one PR each, suite green after each):**
+1. **DEV-2 tail** *(ci)* — upload coverage from CI; module-header docstrings on the refactored hotspots.
+2. **REL-3 remainder** — `modules.py` CRUD + feed builders (blocked — dense back-calls would cycle; needs a
+   DI pass like `modules_search`), `main.py`, the rest of `data/drawings.py` / `drawing.py`. *(Diminishing
+   returns — attack opportunistically.)*
+3. **REL-4 — decompose the *web* hotspots** *(one PR each, TESTED via typecheck/lint/vitest/build)* —
+   `viewer/app.ts` (worst file) split by responsibility; `main.ts`; `portal.ts`. Verify via the tools-panel
+   technique. *(perf-sensitive — measure, don't guess.)*
+4. **REL-5 / REL-7 — error handling + verified dead-code** *(small batches)* — unhandled promise rejections
+   in `main.ts`; `installErrorReporting` must not throw during install; batch FS calls out of loops in
+   `vite.config.ts::writeBundle` + `scripts/bundle-budget.mjs`; then prove-then-delete the ~1,075 dead lines.
+5. **DEV-3 — build & typecheck speed** *(★★★ · quick wins)* — profile the ~1-min web build + tsc;
+   `tsc --incremental`/project-references; keep the bundle-budget gate honest.
 
-1. ✅ **DEV-1 — parallelize the test gate — SHIPPED v0.3.393** — `run_tests.py` now runs the ~180 isolated
-   `test_*.py` through a bounded `ThreadPoolExecutor` (`TEST_JOBS` overrides) + a geometry worker cap
-   (`AEC_GEOM_WORKERS=1` via `aec_data.geomconf`, so each test is single-threaded and the outer parallelism
-   owns the cores — no cpu×cpu oversubscription) + `PYTHONUTF8=1`/utf-8 capture. **~30 min → ~11 min (2.7×)**,
-   250/250 green. Production geometry default unchanged (`cpu-1`).
-2. 🟡 **DEV-2 — lock in gains (REL-8)** *(ci)* — **import-cycle check SHIPPED v0.3.402 (backend) + v0.3.403
-   (web)** — `test_import_cycles.py` (stdlib `ast` + Tarjan over `aec_api`+`aec_data`; 0/704 edges) and
-   `apps/web/src/no-import-cycles.test.ts` (vitest, Tarjan over the runtime import graph excluding `import
-   type`; 0 cycles / 162 edges). No new deps; both run in the existing gates. *Remaining:* upload coverage
-   from CI; module-header docstrings on the refactored hotspots (bus factor 1).
-3. **REL-3 — modularize the worst *backend* hotspots** *(one PR each, TESTED)* — extract leaf modules behind a
-   **façade at the old import path** (zero public-API change). 🟡 **codecheck SHIPPED v0.3.394** — the egress
-   engine → `codecheck_egress.py`, `codecheck.py` 502→184 (façade). **modules FTS SHIPPED v0.3.395** — the full-text-search infra → `modules_search.py` as a **pure
-   leaf** (functions take the `Table` as an arg / DI; `modules.py` injects `TABLES`), 1009→969. **drawing schedules SHIPPED
-   v0.3.396** — computed schedules → `drawing_schedules.py` (pure leaf), `drawing.py` 941→821. **modules
-   registry SHIPPED v0.3.397** — the registry+table foundation → `modules_registry.py` (leaf, imports only
-   `db.Base`), `modules.py` 969→882 — this unblocks the CRUD/feeds splits (they can now share the base
-   without a cycle). **connectors mappings SHIPPED v0.3.404** — the pure Procore field-mapping half →
-   `connectors_mappings.py` (pure leaf), `connectors.py` 495→411 (façade); first extraction since the cycle
-   guards, verified 0 new cycles. **drawings renderers SHIPPED v0.3.405** — the sheet SVG/PDF renderers +
-   dim primitives → `data/drawings_render.py` (pure leaf), `data/drawings.py` 941→788 (façade), 0 new
-   cycles. **edit primitives SHIPPED v0.3.406** — the 9 pure IFC authoring primitives → `edit_core.py`
-   foundation leaf, `data/edit.py` 2127→2005 (façade); unblocks splitting the recipe groups (they import
-   primitives from `edit_core`, not the whole engine). **connectors vendor I/O SHIPPED v0.3.407** — the raw
-   Procore/ACC/QuickBooks/ERP HTTP clients → `connectors_vendors.py` (pure leaf); test seams stay on
-   `connectors.py` (patchability contract unchanged), 411→325. **as-built/phase writers SHIPPED v0.3.408**
-   — the record-stamping recipe group → `edit_asbuilt.py` (leaf on `edit_core`). **MEP recipes SHIPPED
-   v0.3.409** — the 416-line MEP group (systems/risers/runs/fittings/terminals/devices/connections) →
-   `edit_mep.py` (leaf on `edit_core`). **structural recipes SHIPPED v0.3.410** — walls/slabs/columns/
-   beams/steel/rebar/footings → `edit_struct.py`. **annotation recipes SHIPPED v0.3.411** — notes/dims/
-   rev-clouds/tags → `edit_annotate.py`. **enclosure recipes SHIPPED v0.3.412** — coverings/railings/
-   roofs/hosted-openings → `edit_enclosure.py`; **`edit.py` 2127→761 (−64%) across six slices — DONE**
-   (remainder is the genuine engine core: spaces/types/query/placement/RECIPES). *Remaining elsewhere:*
-   `modules.py` CRUD + feed builders (blocked — dense back-calls would cycle; needs DI), `main.py`,
-   the rest of `data/drawings.py`, the rest of `drawing.py`.
-   `ruff`+suite green after each. *(`openModule` O(n·m) already
-   fixed v0.3.373; REL-1/2 import cycles verified false positives — see below.)*
-4. **REL-4 — decompose the *web* hotspots** *(one PR each, TESTED via typecheck/lint/vitest/build)* —
-   `viewer/app.ts` (worst file) split by responsibility (render setup / event wiring / data load / UI glue);
-   `main.ts` extract large methods + flatten nesting; `portal.ts`. Verify via the tools-panel technique
-   (geometry-preview stall). *(perf-sensitive — measure, don't guess.)*
-5. **REL-5 / REL-7 — error handling + verified dead-code** *(small batches)* — unhandled promise rejections in
-   `main.ts`; `installErrorReporting` must not throw during install; batch FS calls out of loops in
-   `vite.config.ts::writeBundle` + `scripts/bundle-budget.mjs`; then prove-then-delete the ~1,075 dead lines
-   (out-of-band entry points checked first).
-6. **DEV-3 — build & typecheck speed** *(★★★ · quick wins)* — profile the ~1-min web build + tsc; check for a
-   `tsc --incremental`/project-references win and lazy-chunk boundaries; keep the bundle-budget gate honest.
-
-**Full REL detail:** [🔧 Reliability & hardening (REL)](#-reliability--hardening-rel).
-
-**⚠ If modularization stalls (cycle constraints), pull from these — code-gap findings (2026-07-17, from a
-codebase gap sweep + web scan). All backend, fully testable, on-mission, NOT stuck:**
-
-1. ✅ **MODEL-DIFF — element-level revision diff — SHIPPED v0.3.398** — each version snapshot now stores a
-   per-element **fingerprint** (name · class · type · level · Pset-hash · Qto-hash); `versions.diff` reports
-   **modified** elements + *what* changed (renamed / reclassified / retyped / re-leveled / properties /
-   quantities), served on `/versions/diff` (`modified[]` + counts) and surfaced in the viewer's Version
-   history with click-to-select-in-3D. *(Pure rigid moves out — geometry is Fragments, not the index — but
-   resizes show via the Qto delta.)* *Remaining: a geometry-delta lane if placement is ever indexed.*
-2. ✅ **DRIFT — inter-story drift + torsional-irregularity flag — SHIPPED v0.3.400** — `lateral.drift_check`
-   (§12.12.1 allowable Δa = coeff·hsx by Risk Category; §12.8.6 design drift Δ = Cd·δxe/Ie when story
-   stiffness / target elastic ratio supplied → per-story pass/fail) + `torsional_check` (§12.3.2.1
-   δmax/δavg → Type 1a/1b + Ax). Wired into `lateral_from_model` + the `structure/lateral` endpoint.
-3. ✅ **FIN-TEST — test the untested finance math — SHIPPED v0.3.399** — `test_leasemgmt.py` (escalation
-   compounding · CAM recovery ratio + over/under · renewal at-risk) + `test_changeorders.py` (CO pipeline by
-   state · schedule-days excl. rejected · ball-in-court · ROM exposure), hand-computed. Math was already
-   correct — regression protection, no product change.
-4. ✅ **IFC-QA — export/delivery fidelity check — SHIPPED v0.3.401** — `roundtrip_qa`: `fingerprint`
-   (schema/units/by-class counts/GUID set/storeys/property payload) + `compare` (two verdicts: `identical`
-   / `lossless`, with per-dimension deltas + offender GUIDs) + `roundtrip` (write→reopen serialization
-   check). Endpoint `GET …/models/export-qa`. Interchange-readiness, distinct from PREFLIGHT.
-5. **COBie/parse robustness** *(★★ · data integrity)* — `cobie.py` `_email_of`/`_grouped_names` (and
+6. **COBie/parse robustness** *(★★ · data integrity)* — `cobie.py` `_email_of`/`_grouped_names` (and
    `drawings.py:70,92,509`) `except Exception: pass` silently drop a Contact/zone from a *compliance*
    deliverable. Log + count skips instead of swallowing. *(Bundle into a small hardening PR.)*
 
 Deferred bridges (deliberate 501s — money movement / KYC / paid APS) are a defensible pattern, not gaps.
+
+---
+
+## 🎯 Upgrade plan (2026-07-17 audit) — execute in this order
+
+From a four-lane audit: backend bug/gap scan, web frontend scan, docs/repo-surface review, and a 2026
+industry/regulatory research pass. Each item ships as its own verified CI-green release.
+
+### 🔴 P0 — bugs & security (first)
+
+1. **SEC-TENANT — scope portfolio rollups to member projects** — `/benchmarks/costs|response-rates|
+   pull-planning`, `/wip/portfolio`, `/contractor-statements/portfolio` aggregate **every** project with no
+   `member_project_ids` filter (the sibling `fca_portfolio` does it right). Cross-tenant P&L/WIP leak in
+   shared deployments. Also: clamp the unbounded `limit` in `/modules/search`; add the `project_id`
+   predicate to `list_attachments`/`get_attachment` (defense-in-depth).
+2. **WEB-BOOT — un-brick corrupted settings** — `main.ts` top-level `JSON.parse(localStorage…)` is the one
+   unwrapped parse in the app; any invalid `aec-settings` value = permanent blank screen. Wrap it; also
+   guard the GeoJSON file-input parse and add the missing `.catch` on `responsibilityTemplates`.
+3. **SEC-GUARD — production guard beyond Postgres** — `_production_guard` only enforces
+   secret/RBAC/S3 checks when the DB is Postgres; a SQLite/MySQL prod boots on the public dev secret
+   (forgeable tokens/signed URLs). Trigger on "not obviously dev" instead.
+4. **SEC-MCP — per-project authz in `mcp_tools.dispatch`** — currently trusts any caller for any
+   `project_id` (stdio-contained today; no defense-in-depth). Thread an identity + `member_project_ids`.
+
+### 🟠 P1 — reliability & performance
+
+5. **WEB-LIVE — SSE resilience** — `modelStream`/`notificationStream`/`pullPlanStream` have no `onerror`/
+   re-subscribe: a backend restart silently kills live updates until reload. Add bounded reconnect + a
+   "live updates disconnected" surface; close the notification stream on `pagehide`.
+6. **WEB-LEAKS — listener & GPU leaks** — `nodeCanvas.makeDraggable` adds 2 permanent window listeners per
+   node (never removed); failed draft publishes orphan preview Fragments geometry (dispose in the catch).
+7. **DOC-RACE — sidecar index lost-update** — `docmanager.py`/`edit_history.py` read-modify-write a whole
+   JSON index with no lock: concurrent uploads lose entries / duplicate ids. Per-project serialization
+   (Postgres advisory lock; in-process lock fallback).
+8. **TZ-UTC — overdue/aging math on UTC** — `date.today()`/`datetime.now()` local-time comparisons in
+   dashboard/bim_kpi/cde/closeout/cmms/evm drift a day around midnight; standardize on UTC.
+
+### 🟡 P2 — docs, demo & surfacing
+
+9. **DEMO-REGEN — Pages demo snapshot** — `demoData.json` last captured at v0.3.309 (~100 releases ago);
+   every panel added since renders empty on massing.build/app. Re-run `build_demo_data.py`, extend its
+   crawl list to the new endpoints, redeploy.
+10. **README-TRIM** — collapse the 360-line "Recent platform work" changelog dump to rolling highlights;
+    banner the June point-in-time audit docs as superseded.
+11. **UI-SURFACE — expose the invisible backend** — ~70 API client methods have zero UI callers
+    (aiEstimate, codeCheck, bidLeveling, scheduleOptimize, earnedSchedule, energy/mep, VE log…). Triage:
+    surface the top 10 in their natural panels; delete truly-dead client methods.
+
+### 🟢 P3 — 2026 capability gaps (research-backed, feasibility-ordered)
+
+12. **SCHED-RISK — Monte Carlo over CPM** *(days of work; pure Python over existing CPM + PPC history)* —
+    P50/P80 completion, delay-driver ranking. Probabilistic forecasting is table-stakes in 2026 CM tools.
+13. **CARBON-EC3 — compliance-grade embodied carbon** — LEED v5 makes embodied-carbon inventory mandatory
+    for projects registering after **July 1, 2026**; Buy Clean GWP limits spread. Upgrade the carbon
+    engine: A1–A3 hotspots per element from existing quantities, EPD lookup via the EC3 open API
+    (offline-cached), Buy Clean limit checks. Rides the existing takeoff + bSDD classification spine.
+14. **PERMIT-CHECK — permit-readiness pre-review** — package the existing IBC/IEBC/egress engines into a
+    jurisdiction-checklist deficiency report + e-permitting export (cities now run AI plan review; LA/
+    Seattle/Austin live 2026).
+15. **QA-AGENT — agentic drawing-set review** — an agent pass over the self-generated sheet/model data
+    (structured source, not raster) returning cited markups via the existing PDF markup stack.
+16. **LAYOUT-EXPORT — robotic layout / total-station points** — export the field-layout engine's points as
+    robot/instrument-consumable files (DXF layers + point CSV with survey control), riding the georef
+    discipline.
+17. **5D-BIND — element↔cost binding** — bind cost assemblies to GUIDs so quantity edits reprice
+    automatically; carbon-per-element (#13) rides the same binding. Foundation for generative scoring.
+18. **Later (tracked)** — SOC 2 feature set (KMS/retention/residency) · IFCX server-side read/write +
+    bSI Validation Service in CI · BMS/IoT telemetry (Brick/Haystack) · reality-capture progress
+    quantification · generative option scoring · viewer tile-streaming upgrade (version-coupled) ·
+    multiplayer cursors · AR field overlay · subcontractor prequal module.
 
 **📦 Tracked for later — large / needs nimbleness (attack once the cycle is fast; some worktree-forkable):**
 SITE-1 open-geodata BIM↔GIS view · durable **background-job queue** (heavy exports/PAdES/gen run inline

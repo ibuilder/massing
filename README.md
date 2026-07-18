@@ -26,7 +26,7 @@
   to a permit-ready set: draw/edit walls (incl. **sloped-top parapet/shed/gable**), columns, slabs,
   doors/windows, **curtain walls, steel connections, rebar cages and MEP** (with **port-to-port
   connectivity**) by **GUID-stable server-side recipe**, with **drag-to-move edit-in-place**, **model
-  undo/redo**, SketchUp-style **drawing inference** (auto on-axis/parallel/perpendicular snap), a
+  undo/redo**, automatic **drawing inference** (auto on-axis/parallel/perpendicular snap), a
   family/type system, groups/arrays, **phasing**, **LOD dialing (100→500)**, a **site content library**
   (logistics/furniture/landscaping, auto-classified), a **procedural-mesh** and an AST-**sandboxed
   ifcopenshell** escape hatch (feature-flagged), **authoring guardrails** that reject broken IFC, and an
@@ -126,7 +126,7 @@ Highlights, all **built and verified** in this repo unless noted:
   template (office bay / residential floor / warehouse). **Create:** walls (incl. **sloped-top** —
   parapet-slope / shed / gable), slabs, columns, beams, roofs, rooms/spaces (sketch on the model/grid);
   **parametric doors/windows** (real lining/frame/panel) that void the host wall + fill it. Free-hand
-  drawing lands clean lines automatically via **SketchUp-style inference** (auto on-axis / parallel /
+  drawing lands clean lines automatically via **automatic axis inference** (auto on-axis / parallel /
   perpendicular snap within ~6°, no Shift needed). **Fabrication / LOD 350-400 (behind an "Advanced"
   toggle):** **curtain-wall systems** (mullions/transoms + glazing), **structural steel connections** (base
   plates, shear tabs + bolts as `IfcElementAssembly`), **rebar cages** (longitudinal bars + stirrups), **MEP
@@ -280,7 +280,19 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **Frontier tracks + designer-workspace UX + hardening (v0.3.341–v0.3.371, current).** Five large tracks
+- **Analysis depth, model QA and dev-velocity (v0.3.372–v0.3.412, current).** The **complete structural
+  analytical chain** — gravity + lateral solve (ASCE 7 seismic ELF + wind MWFRS with a **§12.12 story-drift
+  screen** and torsional-irregularity flag), member loads, shear-wall/slab surfaces, base supports → a
+  solver-ready IFC. **MEP-SIZE** velocity checks, plan **VIEW-RANGE**, the rendered **COVER-SHEET** +
+  drawing index, **EXPORT** (.glb + first-class IFC re-export), and 2D **TAKEOFF** from PDF/scan sheets.
+  Model QA grew teeth: **element-level version diff** (what actually changed — renamed / re-typed /
+  re-leveled / property & quantity deltas, click-to-select in 3D), an **export round-trip fidelity check**
+  (proves the write path drops nothing — schema, units, GUIDs, storeys, property payload), and money-math
+  regression tests across leases and change orders. Under the hood, a **dev-velocity program**: the test
+  gate parallelized ~30 min → ~11 min, backend + web **import-cycle guards** in CI, and the worst files
+  decomposed behind façades (the 2,127-line authoring engine → a foundation + five recipe leaves at 761
+  lines, connectors and sheet renderers split the same way) — zero public-API change, all suites green.
+- **Frontier tracks + designer-workspace UX + hardening (v0.3.341–v0.3.371).** Five large tracks
   landed end to end. A **structural analytical model** — `derive_analytical` idealises the physical frame into an
   `IfcStructuralAnalysisModel` (columns/beams → curve members, slabs → surface members, shared nodes, a
   self-weight load case). An **RFI-0 NL-QA** layer answers plain-language questions ("what governs this element?",
@@ -322,7 +334,7 @@ Deliverables** — with a sticky live-solved returns bar.
   scorecard**. And the **AI authoring command bar** — natural language → a validated recipe plan
   (deterministic baseline + optional Claude multi-step planning), guarded by an **authoring guardrail**
   that rejects broken IFC before it writes. The **Master-Builder** close-out (v0.3.294–v0.3.308) then made
-  the tool complete: **model undo/redo** (versioned, GUID-stable), SketchUp-style **drawing inference**,
+  the tool complete: **model undo/redo** (versioned, GUID-stable), automatic **drawing inference**,
   **sloped-top walls** (parapet/shed/gable), a **procedural-mesh** and an AST-**sandboxed `ifcopenshell`**
   escape hatch (feature-flagged; a proven RCE escape closed on review), a **site content library**
   (logistics / furniture / landscaping, auto-classified + logistics time-phased on the 4D slider), **MEP
@@ -843,7 +855,7 @@ docs/                status, capability matrix, gc-portal, deploy, images
 ## Run the full stack (Docker — easiest)
 
 ```bash
-git clone https://github.com/ibuilder/massing.git && cd Massing
+git clone https://github.com/ibuilder/massing.git && cd massing
 cp .env.example .env            # set secrets + AEC_RBAC=1 for anything but local dev
 docker compose --profile full up --build      # web → http://localhost:8080  (api → :8000)
 

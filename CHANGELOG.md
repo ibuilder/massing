@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.413 — docs & repo surface refresh + the 2026-07-17 upgrade plan
+
+- Output of a four-lane audit (backend scan · web scan · docs/repo review · 2026 industry research):
+  - **README** — the stale "current" marker (v0.3.341–371) replaced with a v0.3.372–412 summary
+    (analytical chain incl. drift screen, MEP-SIZE/VIEW-RANGE/COVER-SHEET/EXPORT/TAKEOFF-2D, MODEL-DIFF /
+    IFC-QA model-QA teeth, the dev-velocity program); clone-path case fix.
+  - **Neutral wording** — third-party product comparisons removed from README/guide/index/status per the
+    docs policy (drawing inference is now described by behavior).
+  - **Status pages** — `docs/status.html` version badge is now the live release shield (was hard-coded
+    v0.3.308/371); `docs/status.md` banner marks it a superseded point-in-time snapshot.
+  - **Roadmap coherence** — intro updated to v0.3.412; the shipped v0.3.398–412 work archived into
+    `roadmap-completed.md` (was stranded in the open file); "Current focus" rewritten now that the
+    modularization program is complete.
+  - **🎯 The upgrade plan** — a prioritized, research-cited plan added to `docs/roadmap.md`: P0 bugs &
+    security (tenant-scoped portfolio rollups, settings-parse boot guard, production-guard breadth, MCP
+    authz) → P1 reliability/perf (SSE resilience, listener/GPU leaks, sidecar-index race, UTC dates) →
+    P2 docs/demo/surfacing → P3 2026 capabilities (Monte Carlo schedule risk, LEED v5/Buy Clean embodied
+    carbon via EC3, permit pre-check, agentic drawing QA, robotic layout export, 5D element binding).
+  - **Repo hygiene** — issue templates (bug/feature + Discussions/security links), a PR template
+    mirroring the CONTRIBUTING gates, and a root `package.json` description that reflects the whole
+    platform (authoring + docs + GC portal + proforma), not just a viewer.
+
 ## v0.3.412 — REL-3: split the enclosure recipes out of edit.py (façade) — edit.py under 800
 
 - Fifth and final recipe-group split: the **enclosure/finish group** moves to a new leaf

@@ -1,0 +1,40 @@
+name: Bug report
+description: Something broke — a crash, wrong output, or a model that won't load/author correctly.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The in-app version (bottom of the left rail) or the git tag.
+      placeholder: v0.3.412
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did it happen?
+      options:
+        - Viewer / 3D authoring
+        - Drawings / sheets / PDF
+        - GC portal (modules — RFIs, submittals, budget…)
+        - Developer / finance (proforma, leases, draws)
+        - Analysis (structural, MEP, code, clash)
+        - API / server
+        - Desktop app (Tauri)
+        - Docs / demo site
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: Steps to reproduce. For model issues, attach or link a minimal IFC that reproduces it (strip anything confidential first).
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console / server logs
+      description: Browser devtools console errors, or the API log lines around the failure.
+      render: text

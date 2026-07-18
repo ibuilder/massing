@@ -1,0 +1,22 @@
+name: Feature request
+description: Something the platform should do — a workflow, capability, or integration.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The real-world workflow (e.g. "issue a permit set", "reconcile pay apps against the books") — not just the feature name.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like the platform to do?
+    validations:
+      required: true
+  - type: input
+    id: standards
+    attributes:
+      label: Relevant standards / formats (optional)
+      placeholder: IFC4.3, BCF 3.0, COBie, ASCE 7, IBC 2024, AIA G702…
