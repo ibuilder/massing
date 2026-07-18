@@ -34,9 +34,9 @@ priorities below favor what that unblocked.
    (`productivity.from_takeoff`, default on `/estimate/labor`), and `/schedule/from-estimate` upserts
    the crew-day durations as FS-chained EST activities into CPM/Gantt (⚙ button in the Schedule
    panel). Live-verified: crews 1→2 halved the durations and CPM went 118 d → 59 d.
-6. **REL-4 slices 4+ — continue the viewer decomposition** *(M each)* — ✅ collab/presence →
-   `collabPresence.ts` (v0.3.463; app.ts ~4,010). Next leaves: the KEYS + dyn-input layer ·
-   measure/section tools; then `main.ts` (~1,600) and `portal.ts` (2,542). One live-verified leaf
+6. **REL-4 slices 5+ — continue the viewer decomposition** *(M each)* — ✅ collab/presence →
+   `collabPresence.ts` (463) · ✅ KEYS + dyn-input → `keysDyn.ts` (467; app.ts 3,957). Next leaves:
+   measure/section tools; then `main.ts` (~1,700) and `portal.ts` (2,542). One live-verified leaf
    per release.
 7. **JOB-QUEUE migration** *(S/M)* — ✅ the artifact-job pattern + the heaviest path shipped
    v0.3.464 (`compiled_set_pdf` kind + `GET /jobs/{id}/artifact` streaming). Remaining paths to

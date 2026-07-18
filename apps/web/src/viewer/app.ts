@@ -6,10 +6,11 @@ import CameraControls from "camera-controls";
 import { createViewer, renderMode } from "./world";
 import { installFileIO } from "./fileIO";
 import { installCollabPresence } from "./collabPresence";
+import { installKeysDyn } from "./keysDyn";
 import { installEnvTools } from "./envTools";
 import { inferDirection } from "./inference";
 import { applyDynamicInput, polarConstrain } from "./snapEngine";
-import { dynKeystroke, isDynKey, parseDynConstraint } from "./dynInput";
+import { parseDynConstraint } from "./dynInput";
 import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
 import { buildElementProps, buildRawProps } from "./propsView";
@@ -523,98 +524,17 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   let armed: ArmedDraft | null = null;          // active Draft-panel element, or null
   const armPts: THREE.Vector3[] = [];
   let draftHandle: DraftPanelHandle | null = null;
-  // SNAP-KIT phase 2 — dynamic input: type "6", "<30" or "6<30" mid-draw to constrain the next click.
-  let dynBuf = "";
-  const dynHud = document.createElement("div");
-  dynHud.className = "dyn-hud";
-  dynHud.style.cssText = "position:absolute;bottom:44px;left:50%;transform:translateX(-50%);z-index:38;"
-    + "display:none;background:var(--panel,#0f172a);color:var(--fg,#e2e8f0);border:1px solid "
-    + "var(--accent,#4a8cff);border-radius:6px;padding:3px 10px;font-size:13px;"
-    + "font-family:ui-monospace,monospace";
-  container.appendChild(dynHud);
-  function setDynBuf(next: string) {
-    dynBuf = next;
-    const c = parseDynConstraint(dynBuf);
-    dynHud.style.display = dynBuf ? "block" : "none";
-    dynHud.textContent = dynBuf
-      ? `⌨ ${dynBuf}${c ? `  →  ${c.distance !== undefined ? c.distance + " m" : ""}${c.angle !== undefined ? " @ " + c.angle + "°" : ""} — click to place` : "  (…)"}`
-      : "";
-  }
-  /** Flash a short-lived snap-kind glyph at the click point (the phase-2 osnap feedback). */
-  function flashSnapGlyph(e: MouseEvent, label: string) {
-    const r = container.getBoundingClientRect();
-    const g = document.createElement("div");
-    g.className = "snap-glyph";
-    g.style.cssText = `position:absolute;left:${e.clientX - r.left + 10}px;top:${e.clientY - r.top - 18}px;`
-      + "z-index:39;pointer-events:none;background:var(--panel,#0f172a);color:var(--accent,#4a8cff);"
-      + "border:1px solid var(--accent,#4a8cff);border-radius:4px;padding:1px 6px;font-size:11px;"
-      + "font-family:ui-monospace,monospace;opacity:1;transition:opacity .7s ease .3s";
-    g.textContent = label;
-    container.appendChild(g);
-    requestAnimationFrame(() => { g.style.opacity = "0"; });
-    setTimeout(() => g.remove(), 1100);
-  }
+  // REL-4 leaf: the KEYS 2-letter shortcuts, the typed distance/angle constraint (dynamic input),
+  // and the snap-glyph feedback live in keysDyn.ts; the handle exposes the dyn buffer for the draft
+  // flow and Escape routes back through disarmDraft.
+  const keysDyn = installKeysDyn({
+    container, notify,
+    isArmed: () => !!armed, armedPoints: () => armPts.length,
+    draftHandle: () => draftHandle, onEscape: () => disarmDraft(),
+  });
+  const setDynBuf = keysDyn.setDynBuf;
+  const flashSnapGlyph = keysDyn.flashSnapGlyph;
   function disarmDraft() { armed = null; armPts.length = 0; setDynBuf(""); draftHandle?.onArmCleared(); }
-
-  // KEYS — Revit-style 2-letter keyboard shortcuts that arm a draw tool (WA=wall, CL=column, …), so
-  // Revit-trained users are instantly fast. Type two letters (no modifier); Esc disarms; ? shows help.
-  const KEY_SHORTCUTS: [string, string, string][] = [   // [code, draft-element key, label]
-    ["WA", "wall", "Wall"], ["SL", "slab", "Slab / floor"], ["RF", "roof", "Roof"],
-    ["RA", "railing", "Railing"], ["CL", "column", "Column"], ["BM", "beam", "Beam"],
-    ["SC", "steel_column", "Steel column"], ["SB", "steel_beam", "Steel beam"],
-    ["RB", "rebar", "Rebar"], ["FT", "footing", "Footing"],
-    ["DU", "duct", "Duct"], ["PI", "pipe", "Pipe"], ["CT", "cable_tray", "Cable tray"],
-    ["WR", "wire", "Wire"],
-  ];
-  const KEY_MAP: Record<string, string> = Object.fromEntries(KEY_SHORTCUTS.map(([c, k]) => [c, k]));
-  function showKeysHelp() {
-    showResult("⌨ Keyboard shortcuts", (body) => {
-      body.appendChild(resultNote("Type a 2-letter code (no modifier) to arm a draw tool, then click in "
-        + "the model to place. <b>Esc</b> disarms · <b>?</b> shows this.", ""));
-      body.appendChild(kvTable(KEY_SHORTCUTS.map(([c, , label]) => ({ k: c, v: label }))));
-    });
-  }
-  function installKeyboardShortcuts() {
-    let buf = "";
-    let bufTimer = 0;
-    const hud = document.createElement("div");
-    hud.className = "keys-hud";
-    hud.style.cssText = "position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:38;"
-      + "display:none;background:var(--panel,#0f172a);color:var(--fg,#e2e8f0);border:1px solid "
-      + "var(--border,#334155);border-radius:6px;padding:3px 10px;font-size:13px;"
-      + "font-family:ui-monospace,monospace;letter-spacing:2px";
-    container.appendChild(hud);
-    const clearBuf = () => { buf = ""; hud.style.display = "none"; };
-    window.addEventListener("keydown", (e) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === "Escape") { disarmDraft(); clearBuf(); return; }
-      if (e.key === "?") { e.preventDefault(); showKeysHelp(); return; }
-      // SNAP-KIT phase 2: while a draw tool is armed with a previous point, digits/./</- build the
-      // typed distance/angle constraint (Backspace edits it) — it wins over every automatic snap.
-      if (armed && armPts.length >= 1 && (isDynKey(e.key) || e.key === "Backspace")) {
-        e.preventDefault();
-        setDynBuf(dynKeystroke(dynBuf, e.key));
-        return;
-      }
-      if (!/^[a-zA-Z]$/.test(e.key)) return;
-      buf = (buf + e.key.toUpperCase()).slice(-2);
-      window.clearTimeout(bufTimer);
-      bufTimer = window.setTimeout(clearBuf, 900);
-      hud.textContent = buf; hud.style.display = "block";
-      if (buf.length === 2) {
-        const key = KEY_MAP[buf];
-        if (key) {
-          const label = draftHandle?.armByKey(key);
-          if (label) notify(`${label} armed — click in the model to place`, "info");
-          else if (draftHandle) notify(`“${buf}” → ${key}: not available (needs a source IFC)`, "info");
-        }
-        clearBuf();
-      }
-    });
-  }
-  installKeyboardShortcuts();
   // P1 grid/level drafting refs: the grid overlay + snap, and the active storey/work-plane.
   const gridOverlay = new GridOverlay(viewer.world.scene.three);
   const logisticsOverlay = new LogisticsOverlay(viewer.world.scene.three);
@@ -735,14 +655,14 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // SNAP-KIT phase 2 — a TYPED constraint beats every automatic snap: the drafter said exactly
     // what they want. Plan angles are CCW-from-east with North "up" = -z, while the snap engine's
     // +z axis points south — so the typed angle's sign flips on the way in.
-    const dynC = armPts.length >= 1 ? parseDynConstraint(dynBuf) : null;
+    const dynC = armPts.length >= 1 ? parseDynConstraint(keysDyn.dynBuf()) : null;
     if (p && dynC) {
       const a = armPts[armPts.length - 1]!;
       const applied = applyDynamicInput({ x: a.x, z: a.z }, { x: p.x, z: p.z },
         { distance: dynC.distance, angle: dynC.angle !== undefined ? -dynC.angle : undefined });
       p = new THREE.Vector3(applied.x, p.y, applied.z);
       showCoords(p);
-      flashSnapGlyph(e, `⌨ ${dynBuf}`);
+      flashSnapGlyph(e, `⌨ ${keysDyn.dynBuf()}`);
       setDynBuf("");
     } else if (p && e.shiftKey && armPts.length >= 1) {   // ortho lock from the previous point
       const a = armPts[armPts.length - 1]!; // safe: armPts.length >= 1 checked above

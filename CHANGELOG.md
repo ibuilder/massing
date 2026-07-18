@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.467 — REL-4 slice 4: the KEYS + dynamic-input layer becomes its own viewer leaf
+
+- `viewer/keysDyn.ts` (new, 126 lines) owns the Revit-style **2-letter draw-tool shortcuts** (WA/SL/
+  CL/… · Esc disarms · ? help) with their HUD, the **typed distance/angle constraint** buffer
+  ("6", "<30", "6<30") with its ⌨ HUD, and the **snap-glyph** feedback. `app.ts` keeps one
+  `installKeysDyn(deps)` call; the handle exposes `dynBuf()/setDynBuf/flashSnapGlyph` for the draft
+  flow. `app.ts` **3,957 lines** (4,361 at the start of this arc — five leaves out).
+- Live-verified after the extraction: typing `W` showed the shortcut HUD, `WA` armed the Wall tool
+  ("Wall armed — click in the model to place"), the dyn HUD is mounted, `?` opened the shortcuts
+  help, and Esc disarmed. Typecheck / eslint / vitest (121) / build green.
+
 ## v0.3.466 — SHEET-LINK: the compiled drawing set navigates like a hyperlinked document (P1 #9)
 
 - **The cover's drawing index is now clickable.** Every index row on the compiled-set cover carries a
