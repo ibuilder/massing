@@ -62,9 +62,11 @@ they're archived in **[roadmap-completed.md](roadmap-completed.md)**.
    `connectors.py` (patchability contract unchanged), 411→325. **as-built/phase writers SHIPPED v0.3.408**
    — the record-stamping recipe group → `edit_asbuilt.py` (leaf on `edit_core`). **MEP recipes SHIPPED
    v0.3.409** — the 416-line MEP group (systems/risers/runs/fittings/terminals/devices/connections) →
-   `edit_mep.py` (leaf on `edit_core`); `edit.py` **2127→1378** across the three slices. *Remaining:*
-   `edit.py` structural/annotation groups, `modules.py` CRUD + feed builders (blocked — dense back-calls
-   would cycle; needs DI), `main.py`, the rest of `data/drawings.py`, the rest of `drawing.py`.
+   `edit_mep.py` (leaf on `edit_core`). **structural recipes SHIPPED v0.3.410** — walls/slabs/columns/
+   beams/steel/rebar/footings → `edit_struct.py`; `edit.py` **2127→1103** across the four slices.
+   *Remaining:* `edit.py` annotation/opening/covering groups (diminishing returns — the engine core),
+   `modules.py` CRUD + feed builders (blocked — dense back-calls would cycle; needs DI), `main.py`,
+   the rest of `data/drawings.py`, the rest of `drawing.py`.
    `ruff`+suite green after each. *(`openModule` O(n·m) already
    fixed v0.3.373; REL-1/2 import cycles verified false positives — see below.)*
 4. **REL-4 — decompose the *web* hotspots** *(one PR each, TESTED via typecheck/lint/vitest/build)* —

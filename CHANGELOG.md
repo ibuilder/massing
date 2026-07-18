@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.410 — REL-3: split the structural authoring recipes out of edit.py (façade)
+
+- Third recipe-group split on the `edit_core` foundation: the **structural/enclosure group** moves to a
+  new leaf **`edit_struct.py`** — sloped walls (`set_wall_slope`), extruded walls/slabs (`add_wall` /
+  `add_slab`), concrete columns/beams, steel W-shapes (`add_steel_column` / `add_steel_beam` +
+  `_tag_section`, via the `steel` catalog imported lazily), rebar runs and spread footings.
+- Built entirely on `edit_core` primitives; `edit.py` re-exports every name (routers, RECIPES, tests,
+  generators unchanged). **`edit.py` 2127 → 1103 across the four slices** — the worst file in the tree cut
+  nearly in half, with each recipe group now an independently evolvable leaf.
+- Verified across 9 suites (structural / wall-slope / steel-connections / rebar / struct-solve /
+  wall-analytical / lateral / grid + the cycle guard: **0 cycles**, 334 modules), `ruff` clean.
+
 ## v0.3.409 — REL-3: split the MEP authoring recipes out of edit.py (façade)
 
 - Second recipe-group split on the `edit_core` foundation — and the biggest: the **MEP group** (416
