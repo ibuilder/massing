@@ -6,6 +6,7 @@ import os
 os.environ.setdefault("DATABASE_URL", "sqlite:///./_sheetlay_test.db")
 os.environ.setdefault("STORAGE_DIR", "./_storage_sheetlay")
 os.environ.setdefault("AEC_GEOM_WORKERS", "1")
+os.environ.setdefault("IFC_DIR", "./_ifc_sheetlay")   # writable; default /app/ifc is read-only in the CI container
 os.environ.pop("AEC_RBAC", None)
 if os.path.exists("./_sheetlay_test.db"):
     os.remove("./_sheetlay_test.db")

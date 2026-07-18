@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.451 — CI fix: the two new suites write IFC uploads to a writable dir
+
+- `test_jobs` and `test_sheet_layout` (new in v0.3.448/449) upload a source IFC, and the default
+  `IFC_DIR=/app/ifc` is **read-only in the CI container** (it resolves writable on the Windows dev
+  machine, so the local gates were green while CI failed with `PermissionError: /app`). Both now set a
+  local `IFC_DIR` the way `test_cost_db` already does. Test-env-only change — no src delta; both suites
+  re-verified locally.
+
 ## v0.3.450 — roadmap completion: DEV-3 incremental typecheck + the ⛔ gated ledger
 
 - **DEV-3 (measured, not guessed)**: `tsc` incremental mode with the buildinfo in `node_modules/.cache`
