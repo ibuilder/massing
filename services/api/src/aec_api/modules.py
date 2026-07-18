@@ -342,18 +342,35 @@ def _json_text(db: Session, col, jkey: str):
     return func.json_extract(col, f"$.{jkey}")
 
 
-def sum_field(db: Session, key: str, project_id: str, field: str) -> float:
+def sum_field(db: Session, key: str, project_id: str, field: str,
+              states: list[str] | None = None) -> float:
     """SQL `SUM` of a numeric JSON field across a project's records — no full-table load into Python.
     Portable: casts the Postgres `->>` text to float; SQLite `json_extract` is already numeric. NULL /
-    missing values are skipped by SUM. Use for aggregate-only reads (e.g. billed-to-date) instead of
+    missing values are skipped by SUM. Optional `states` narrows to those workflow states. Use for
+    aggregate-only reads (e.g. billed-to-date, open-risk exposure) instead of
     `list_records(limit=100000)` + a Python sum."""
     if key not in TABLES:
         return 0.0
     t = TABLES[key]
     col = _json_text(db, t.c.data, field)
     expr = func.sum(cast(col, Float)) if _is_postgres(db) else func.sum(col)
-    val = db.execute(select(expr).where(t.c.project_id == project_id)).scalar()
+    stmt = select(expr).where(t.c.project_id == project_id)
+    if states:
+        stmt = stmt.where(t.c.workflow_state.in_(states))
+    val = db.execute(stmt).scalar()
     return float(val or 0.0)
+
+
+def count_field_in(db: Session, key: str, project_id: str, field: str, values: list[str]) -> int:
+    """SQL `COUNT` of a project's records whose JSON `field` is one of `values` — the classification
+    tallies (e.g. OSHA-recordable incidents) without materializing every row into Python."""
+    if key not in TABLES or not values:
+        return 0
+    t = TABLES[key]
+    col = _json_text(db, t.c.data, field)
+    val = db.execute(select(func.count()).where(t.c.project_id == project_id,
+                                                col.in_(values))).scalar()
+    return int(val or 0)
 
 
 def _rollup(db: Session, key: str, project_id: str, rid: str, f: dict) -> float | int:

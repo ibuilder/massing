@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.446 — PERF: the owner portfolio roll-up goes zero-row
+
+- **`/portfolio/summary` no longer materializes any module rows into Python.** The audit's N+1 finding:
+  per project it loaded every open/mitigating risk row (for a sum) and every incident row (for a
+  classification tally). Now all four per-project figures are SQL aggregates — risk count via state-scoped
+  COUNT, risk exposure via the (new) state-scoped `sum_field`, OSHA-recordable tally via the (new)
+  `count_field_in` JSON-classification COUNT, open RFIs via the existing COUNT — so the owner dashboard
+  scales with the project count, not the record count.
+- New portable helpers in the module engine (Postgres `->>`/SQLite `json_extract`):
+  `sum_field(..., states=[…])` and `count_field_in(db, key, pid, field, values)` — reusable for every
+  future tally that today walks rows.
+- Verified against the 3,000-row mega-project scale suite (dashboard tallies unchanged) + tenant-scoping
+  + dashboard suites. 263/263 green; ruff clean.
+
 ## v0.3.445 — VIEWER-FUNNEL: the demo gets its free-IFC-viewer identity (+ roadmap closures)
 
 - **massing.build now names what it already ships**: the hero CTA and a dedicated landing section present

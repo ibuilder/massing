@@ -39,21 +39,20 @@ def construction_portfolio(db: Session = Depends(get_db), _: str = Depends(rbac.
         _q = _q.filter(Project.id.in_(_allowed))
     for p in _q.all():
         cs = cost_engine.summary(db, p.id)
-        # P0.1 perf: only the (small) open/mitigating risk rows are loaded for the exposure sum; RFIs
-        # use a SQL COUNT (no rows loaded); incidents are bounded. Was list_records(limit=1_000_000) x3.
-        risks = [r for st in ("open", "mitigating")
-                 for r in me.list_records(db, "risk", p.id, state=st, limit=100_000)]
-        exposure = sum(float((r.get("data") or {}).get("cost_exposure") or 0) for r in risks)
-        recordables = sum(1 for i in me.list_records(db, "incident", p.id, limit=100_000)
-                          if (i.get("data") or {}).get("classification") in _RECORDABLE)
+        # Zero-row roll-up (the v0.3.442 audit's N+1 finding): risk count/exposure, recordable tally,
+        # and open RFIs are all SQL aggregates now — this loop loads NO module rows into Python.
+        open_risks = (me.count_records(db, "risk", p.id, state="open")
+                      + me.count_records(db, "risk", p.id, state="mitigating"))
+        exposure = me.sum_field(db, "risk", p.id, "cost_exposure", states=["open", "mitigating"])
+        recordables = me.count_field_in(db, "incident", p.id, "classification", sorted(_RECORDABLE))
         open_rfis = me.count_records(db, "rfi", p.id, state="open")
         over_under = float(cs.get("projected_over_under") or 0)
         rows.append({"id": p.id, "name": p.name, "budget": cs.get("budget", 0),
                      "projected_over_under": over_under, "pct_spent": cs.get("pct_spent", 0),
-                     "over_budget": over_under > 0, "open_risks": len(risks),
+                     "over_budget": over_under > 0, "open_risks": open_risks,
                      "risk_exposure": round(exposure, 2), "recordables": recordables, "open_rfis": open_rfis})
         tot["budget"] += cs.get("budget", 0); tot["projected_over_under"] += over_under
-        tot["open_risks"] += len(risks); tot["risk_exposure"] += exposure
+        tot["open_risks"] += open_risks; tot["risk_exposure"] += exposure
         tot["recordables"] += recordables; tot["open_rfis"] += open_rfis
         tot["over_budget_count"] += 1 if over_under > 0 else 0
     tot["risk_exposure"] = round(tot["risk_exposure"], 2)
