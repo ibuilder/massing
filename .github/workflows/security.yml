@@ -23,7 +23,7 @@ jobs:
   python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }   # match ci.yml — audit the interpreter that actually ships
       - run: pip install pip-audit bandit
@@ -43,7 +43,7 @@ jobs:
   node:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with: { node-version: "20", cache: npm, cache-dependency-path: package-lock.json }
       - run: npm ci
