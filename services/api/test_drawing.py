@@ -64,9 +64,15 @@ assert ">S-501<" in svgd, "callout should show the derived sheet number S-501"
 detailing.attach_document(m, [w1], "Anchor bolt detail", identification="A-541/3")
 sref = drawing.plan_svg(m, scale=100)["svg"]
 assert "A-541/3" in sref, "explicit detail identification should reach the bubble"
+# SHEET-LINK: the SVG callout bubble is an anchor carrying its target sheet
+assert 'class="sheet-link"' in sref and 'data-sheet="S-501"' in sref, "callout should be an SVG anchor"
 # D5 PDF path: a sheet with an attached detail renders the callouts + DETAILS legend without error
-pdf_det = drawing.sheet_pdf(m, project="Drawing Test", number="A-101")
+_boxes: list = []
+pdf_det = drawing.sheet_pdf(m, project="Drawing Test", number="A-101", link_out=_boxes)
 assert pdf_det[:5] == b"%PDF-" and len(pdf_det) > 800, "detail-bearing sheet PDF should render"
+# SHEET-LINK: the PDF path reports each bubble's hit-box + target sheet for the compiled-set binder
+assert _boxes and all(len(b["rect"]) == 4 for b in _boxes), _boxes
+assert {b["sheet"] for b in _boxes} >= {"S-501"}, _boxes
 # a plan with no attached details reports zero and omits the DETAILS legend
 assert "DETAILS" not in svg and r["details"] == 0, "unattached plan should have no details"
 # details can be turned off

@@ -218,7 +218,8 @@ def _footprint_polylines(model, cut_z: float = 1.2):
 
 
 def _cover_pdf(project_name: str, sheet_index: list[dict], subtitle: str = "Drawing Set",
-               footprint=None, issue_date: str | None = None) -> bytes:
+               footprint=None, issue_date: str | None = None,
+               link_out: list[dict] | None = None) -> bytes:
     """A rendered cover + drawing-index sheet (ARCH-D, matching the sheets) for the compiled set: a
     title block with issue metadata, a key-plan footprint thumbnail rendered from the model, and the
     drawing index grouped by NCS discipline with section headers. The index paginates onto extra pages."""
@@ -286,6 +287,7 @@ def _cover_pdf(project_name: str, sheet_index: list[dict], subtitle: str = "Draw
     col_x, title_x = 232.0, 300.0          # index sits to the right of the key plan on page 1
     top_y, bot_y = h - 96.0, 30.0
     y = top_y
+    cover_page = 0                          # which cover page an index row lands on (SHEET-LINK)
     c.setFont("Helvetica-Bold", 12)
     c.drawString(col_x * mm, (y + 6) * mm, "DRAWING INDEX")
 
@@ -301,6 +303,7 @@ def _cover_pdf(project_name: str, sheet_index: list[dict], subtitle: str = "Draw
     for series, rows in _grouped(sheet_index):
         if y < bot_y + 12:                 # overflow → a fresh full-width index page
             c.showPage()
+            cover_page += 1
             _border()
             c.setFont("Helvetica-Bold", 12)
             c.drawString(28 * mm, (h - 24) * mm, "DRAWING INDEX (cont.)")
@@ -316,9 +319,14 @@ def _cover_pdf(project_name: str, sheet_index: list[dict], subtitle: str = "Draw
         for sh in rows:
             c.drawString((col_x + 4) * mm, y * mm, str(sh.get("number", "")))
             c.drawString(title_x * mm, y * mm, str(sh.get("title", ""))[:70])
+            if link_out is not None and sh.get("number"):    # SHEET-LINK: the row rect, in points
+                link_out.append({"page": cover_page, "sheet": str(sh["number"]),
+                                 "rect": ((col_x + 2) * mm, (y - 1.6) * mm,
+                                          (w - 28) * mm, (y + 4.4) * mm)})
             y -= 6.2
             if y < bot_y:
                 c.showPage()
+                cover_page += 1
                 _border()
                 c.setFont("Helvetica-Bold", 12)
                 c.drawString(28 * mm, (h - 24) * mm, "DRAWING INDEX (cont.)")
@@ -363,12 +371,18 @@ def compiled_set_pdf(source_ifc: str, project_name: str, scale: int = 200, max_s
 
     from datetime import date as _date
     footprint = _footprint_polylines(model)
+    cover_links: list[dict] = []
     parts: list[bytes] = [_cover_pdf(project_name, index, footprint=footprint,
-                                     issue_date=_date.today().isoformat())]
+                                     issue_date=_date.today().isoformat(), link_out=cover_links)]
+    sheet_links: list[tuple[int, list[dict]]] = []   # (part index, that sheet's callout link boxes)
     for sp in specs:
         try:
+            boxes: list[dict] = []
             parts.append(drawing.sheet_pdf(model, storey=sp["storey"], scale=scale,
-                                           project=project_name, number=sp["number"], title=sp["title"]))
+                                           project=project_name, number=sp["number"], title=sp["title"],
+                                           link_out=boxes))
+            if boxes:
+                sheet_links.append((len(parts) - 1, boxes))
         except Exception:  # noqa: BLE001 — one bad storey never aborts the whole set
             pass
     if include_schedules:
@@ -376,4 +390,44 @@ def compiled_set_pdf(source_ifc: str, project_name: str, scale: int = 200, max_s
             parts.append(drawing.schedule_pdf(model, project=project_name, number="A-601"))
         except Exception:  # noqa: BLE001 — a model with no doors/windows/rooms simply omits schedules
             pass
-    return pdfops.merge(parts)
+    merged = pdfops.merge(parts)
+
+    # SHEET-LINK: bind the cover-index rows (and any callout bubble whose target sheet is in this set)
+    # to real PDF GoTo links, so the compiled set navigates like a hyperlinked document.
+    try:
+        import io as _io
+
+        from pypdf import PdfReader, PdfWriter
+        from pypdf.annotations import Link
+
+        part_pages = [len(PdfReader(_io.BytesIO(b)).pages) for b in parts]
+        part_start = [sum(part_pages[:i]) for i in range(len(parts))]
+        # sheet number → absolute page index: specs are parts 1..N in order, schedules last
+        page_of: dict[str, int] = {}
+        for i, sp in enumerate(specs):
+            page_of[sp["number"]] = part_start[1 + i] if 1 + i < len(part_start) else 0
+        if include_schedules and len(part_start) > 1 + len(specs):
+            page_of["A-601"] = part_start[1 + len(specs)]
+
+        writer = PdfWriter(clone_from=_io.BytesIO(merged))
+        added = 0
+        for ln in cover_links:
+            tgt = page_of.get(ln["sheet"])
+            if tgt is not None:
+                writer.add_annotation(page_number=ln["page"],
+                                      annotation=Link(rect=ln["rect"], target_page_index=tgt))
+                added += 1
+        for part_idx, boxes in sheet_links:
+            for b in boxes:
+                tgt = page_of.get(b["sheet"])
+                if tgt is not None:
+                    writer.add_annotation(page_number=part_start[part_idx],
+                                          annotation=Link(rect=b["rect"], target_page_index=tgt))
+                    added += 1
+        if added:
+            out = _io.BytesIO()
+            writer.write(out)
+            return out.getvalue()
+    except Exception:  # noqa: BLE001 — links are an enhancement; the un-linked set is still correct
+        pass
+    return merged

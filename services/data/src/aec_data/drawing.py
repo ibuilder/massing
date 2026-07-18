@@ -348,12 +348,15 @@ def plan_svg(model: ifcopenshell.file, storey: str | None = None, scale: int = 1
             # offset up-left of the centroid so the callout doesn't sit on the keynote bubble
             bx, by = round(tx(cx) - 4, 2), round(ty(cy) - 4, 2)
             # NCS-style divided circle: detail number (top) over the real sheet ref (bottom) + a short leader
+            # SHEET-LINK: the bubble is an SVG anchor carrying its target sheet — a click in the
+            # Drawings workspace (or any SVG viewer honoring xlink) can jump to that sheet
             callouts.append(
+                f'<a class="sheet-link" data-sheet="{_xesc(sheet_ref)}" href="#sheet={_xesc(sheet_ref)}">'
                 f'<line class="lead" x1="{bx}" y1="{by}" x2="{round(tx(cx), 2)}" y2="{round(ty(cy), 2)}"/>'
                 f'<circle class="dc" cx="{bx}" cy="{by}" r="3.2"/>'
                 f'<line class="dcx" x1="{bx - 3.2}" y1="{by}" x2="{bx + 3.2}" y2="{by}"/>'
                 f'<text class="dct" x="{bx}" y="{round(by - 0.6, 2)}">{dn}</text>'
-                f'<text class="dct" x="{bx}" y="{round(by + 2.6, 2)}">{_xesc(sheet_ref)}</text>')
+                f'<text class="dct" x="{bx}" y="{round(by + 2.6, 2)}">{_xesc(sheet_ref)}</text></a>')
 
     # ── dimensions: overall width (below) + overall height (left) ──
     dims: list[str] = []
@@ -539,7 +542,7 @@ _PDF_FILL = {"IfcWall": (0.29, 0.29, 0.29), "IfcColumn": (0.16, 0.16, 0.16),
 
 def sheet_pdf(model: ifcopenshell.file, storey: str | None = None, scale: int = 100,
               project: str = "Project", number: str = "A-101", title: str = "FLOOR PLAN",
-              date: str = "", drawn_by: str = "") -> bytes:
+              date: str = "", drawn_by: str = "", link_out: list | None = None) -> bytes:
     """W11 C3b: render the issuable sheet (ARCH-D border + titleblock + plan poché + dimensions + keynote
     legend) **directly to PDF** via reportlab (BSD, no SVG→PDF dependency). Returns PDF bytes — the
     submittable construction-document deliverable. Reuses the same footprint/code helpers as the SVG path."""
@@ -690,6 +693,10 @@ def sheet_pdf(model: ifcopenshell.file, storey: str | None = None, scale: int = 
             c.setFont("Helvetica", 5)
             c.drawCentredString(bx, by + 1, str(dn))            # detail number (top)
             c.drawCentredString(bx, by - 4, sheet_ref[:8])      # sheet ref (bottom)
+            if link_out is not None and sheet_ref and sheet_ref != "—":
+                # SHEET-LINK: the bubble's hit-box (points) + its target sheet ref — the compiled set
+                # binds it to a PDF GoTo link when that sheet is part of the set
+                link_out.append({"sheet": sheet_ref, "rect": (bx - rr, by - rr, bx + rr, by + rr)})
         if detail_rows:
             lx = (_SHEET_W - _TB_W - inset - legend_mm + 4)
             hy = margin_mm + 6 + (len(legend_rows) + 1) * 5     # sit below the keynote legend

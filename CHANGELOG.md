@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.466 — SHEET-LINK: the compiled drawing set navigates like a hyperlinked document (P1 #9)
+
+- **The cover's drawing index is now clickable.** Every index row on the compiled-set cover carries a
+  real PDF **GoTo link annotation** to its sheet page (`_cover_pdf` reports each row's hit-box;
+  `compiled_set_pdf` binds them post-merge with pypdf) — open the set, click A-102, land on A-102.
+- **Detail callout bubbles cross-link too.** The NCS divided-circle callouts report their hit-box +
+  target sheet ref from the PDF renderer (`drawing.sheet_pdf(link_out=…)`); whenever the referenced
+  sheet is part of the compiled set, the bubble becomes a clickable link to it. In the **SVG** path
+  each bubble is now an `<a class="sheet-link" data-sheet="…">` anchor, so the Drawings workspace (or
+  any SVG viewer) can jump on click.
+- Links are an enhancement layer — if the binder fails for any reason the un-linked set still ships
+  (fail-open). `test_drawing` (SVG anchor + link_out boxes) and `test_drawing_set` (≥4 cover links,
+  callout-to-A-102 binding on the plan page) cover it; backend suite green.
+
 ## v0.3.465 — 3D-HERO: capture the live 3D view as the project package's hero page (P1 #8)
 
 - **📸 one click in the viewer** renders a fresh frame, captures the WebGL canvas as a PNG, and pins

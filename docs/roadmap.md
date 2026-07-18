@@ -44,8 +44,8 @@ priorities below favor what that unblocked.
 8. ✅ **3D-HERO — SHIPPED v0.3.465** — 📸 in the viewer captures the live canvas → `PUT /hero` →
    the project package opens with a full-bleed 3D hero page. Live-verified (1.27 MB capture,
    package grew to 10 pages with the image embedded).
-9. **SHEET-LINK — hyperlinked callouts** *(S · ★★★)* — clickable detail/section bubbles cross-link
-   sheets in the SVG/PDF set (sheetgen + the markup layer).
+9. ✅ **SHEET-LINK — SHIPPED v0.3.466** — the compiled set's cover index rows are PDF GoTo links,
+   detail callout bubbles link to in-set sheets, and SVG bubbles are `data-sheet` anchors.
 
 ## P2 — next ring (buildable; sequence opportunistically)
 

@@ -31,9 +31,26 @@ m.write(TMP)
 # --- the whole set compiles to one multi-page PDF ---------------------------------------------------
 pdf = drawingset.compiled_set_pdf(TMP, "Set Test Tower", scale=200, max_sheets=16)
 assert pdf[:5] == b"%PDF-", pdf[:16]
-pages = len(PdfReader(io.BytesIO(pdf)).pages)
+reader = PdfReader(io.BytesIO(pdf))
+pages = len(reader.pages)
 # 1 cover + 3 storey plans + 1 schedules = 5 pages
 assert pages == 5, f"expected 5 pages (cover + 3 plans + schedules), got {pages}"
+
+# SHEET-LINK: the cover's drawing-index rows are live PDF links to their sheets (4 index rows)
+annots = reader.pages[0].get("/Annots") or []
+assert len(annots) >= 4, f"cover index should carry >=4 link annotations, got {len(annots)}"
+assert all(a.get_object().get("/Subtype") == "/Link" for a in annots), "cover annots should be links"
+
+# SHEET-LINK: a detail callout whose ref names a sheet IN the set becomes a clickable bubble too —
+# attach a detail identified as A-102 to the ground-storey wall, then recompile
+from aec_data import detailing  # noqa: E402
+
+detailing.attach_document(m, [w], "Typ. wall detail", identification="A-102")
+m.write(TMP)
+linked = drawingset.compiled_set_pdf(TMP, "Set Test Tower", scale=200, max_sheets=16)
+lr = PdfReader(io.BytesIO(linked))
+plan_annots = lr.pages[1].get("/Annots") or []        # page 1 = the A-101 ground-floor plan
+assert len(plan_annots) >= 1, "the A-102 callout bubble should be a link on the A-101 sheet"
 
 # --- a tall tower samples storeys evenly, capped by max_sheets --------------------------------------
 massing.generate_blank_ifc(TMP, name="Tall", storeys=30, storey_height=3.0, ground_size=20.0)
