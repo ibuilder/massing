@@ -23,6 +23,33 @@ def conceptual(pid: str, params: dict = Body(...), _: str = Depends(require_role
     return ce.estimate(params)
 
 
+@router.post("/projects/{pid}/design/options/generate")
+def design_options_generate(pid: str, base: dict = Body(..., embed=True),
+                            far_steps: list[float] | None = Body(default=None, embed=True),
+                            types: list[str] | None = Body(default=None, embed=True),
+                            _: str = Depends(require_role("viewer"))):
+    """GEN-SCORE: the generative grid — massing variants around a `base` zoning envelope (FAR utilisation
+    steps × building types). Deterministic; each option is ready to feed straight into /options/score."""
+    from .. import option_score
+    return {"options": option_score.generate_options(base, far_steps, types)}
+
+
+@router.post("/projects/{pid}/design/options/score")
+def design_options_score(pid: str, options: list[dict] = Body(..., embed=True),
+                         weights: dict | None = Body(default=None, embed=True),
+                         _: str = Depends(require_role("viewer"))):
+    """GEN-SCORE: rank candidate massing options through the platform's own engines — conceptual $/SF
+    (cost), whole-building embodied-carbon benchmarks (carbon), net sellable area (yield), zoning
+    FAR/height checks (compliance) — weighted composite, non-compliant options never recommended."""
+    from fastapi import HTTPException
+
+    from .. import option_score
+    try:
+        return option_score.score_options(options, weights)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
 @router.post("/projects/{pid}/ifc/classify")
 def classify(pid: str, elements: list[dict] | None = Body(default=None, embed=True),
              _: str = Depends(require_role("viewer"))):

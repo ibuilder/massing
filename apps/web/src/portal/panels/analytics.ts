@@ -306,6 +306,42 @@ export async function renderRiskCost(ctx: PanelContext) {
         } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
       };
       ceWrap.append(type, region, gfa, go, out);
+
+      // GEN-SCORE: massing-option comparison — generate FAR variants of a zoning envelope and rank
+      // them through cost ($/SF) + embodied carbon + yield + FAR/height compliance in one pass.
+      const optRow = el("div"); optRow.style.cssText = "margin-top:8px;border-top:1px solid var(--line);padding-top:6px";
+      const mkNum = (ph: string, w = 86) => { const i = el("input", "portal-filter") as HTMLInputElement;
+        i.type = "number"; i.placeholder = ph; i.setAttribute("aria-label", ph); i.style.cssText = `width:${w}px;margin:2px 4px 2px 0`; return i; };
+      const lotW = mkNum("Lot W (m)"), lotD = mkNum("Lot D (m)"), farIn = mkNum("FAR", 60), hLim = mkNum("Ht limit (m)", 92);
+      const scoreBtn = el("button", "file-btn") as HTMLButtonElement; scoreBtn.textContent = "⚖ Score options";
+      scoreBtn.title = "Generate FAR variants of this envelope and rank them: cost · carbon · yield · compliance";
+      const optOut = el("div"); optOut.style.marginTop = "6px";
+      scoreBtn.onclick = async () => {
+        if (!Number(lotW.value) || !Number(lotD.value) || !Number(farIn.value)) { toast("Enter lot W/D + FAR", "error"); return; }
+        optOut.textContent = "scoring options…";
+        try {
+          const base: Record<string, unknown> = { lot_width: Number(lotW.value), lot_depth: Number(lotD.value),
+            far: Number(farIn.value), building_type: type.value, region: region.value,
+            ...(Number(hLim.value) ? { height_limit: Number(hLim.value) } : {}) };
+          const g = await api.designOptionsGenerate(pid, base, [type.value]);
+          const s = await api.designOptionsScore(pid, g.options);
+          const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:11px;margin-top:4px";
+          t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Option</th><th scope="col">Score</th><th scope="col">$/sf</th>`
+            + `<th scope="col">tCO₂e</th><th scope="col">Floors</th><th scope="col">GFA (sf)</th><th scope="col" style="text-align:left">Code</th></tr></thead><tbody>`
+            + s.options.map((o) => `<tr${o.label === s.recommended ? ' style="background:var(--hover)"' : ""}>`
+              + `<td>${o.label === s.recommended ? "★ " : ""}${o.label}</td><td style="text-align:center"><b>${o.composite}</b></td>`
+              + `<td style="text-align:right">${o.cost_per_sf != null ? "$" + Math.round(o.cost_per_sf) : "—"}</td>`
+              + `<td style="text-align:right">${o.carbon_total_tco2e.toLocaleString()}</td>`
+              + `<td style="text-align:center">${o.massing.floors}</td>`
+              + `<td style="text-align:right">${Math.round(o.massing.buildable_gfa_sf).toLocaleString()}</td>`
+              + `<td>${o.compliant ? "✓" : `<span style="color:var(--status-crit)" title="${o.violations.join("; ")}">✗</span>`}</td></tr>`).join("")
+            + `</tbody>`;
+          optOut.innerHTML = "";
+          optOut.append(t);
+        } catch (e) { optOut.textContent = `failed: ${(e as Error).message}`; }
+      };
+      optRow.append(lotW, lotD, farIn, hLim, scoreBtn, optOut);
+      ceWrap.append(optRow);
     }).catch(() => { ceWrap.innerHTML = `<div class="meta">conceptual estimator unavailable</div>`; });
 
     api.procurementThreeWayMatch(pid).then((r) => {

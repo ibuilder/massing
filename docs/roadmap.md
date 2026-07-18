@@ -62,8 +62,15 @@ LAYOUT-EXPORT (found already shipped) · 5D-BIND (P3).
   read endpoints, don't delete recipes).
 - **№18 later-bucket** *(P3, large)* — SOC 2 feature set (KMS/retention/residency) · IFCX server-side
   read/write + bSI Validation Service in CI · BMS/IoT telemetry (Brick/Haystack) · reality-capture
-  progress quantification · **generative option scoring** (the 5D-BIND + carbon + code engines are the
-  ready-made scoring functions) · viewer tile-streaming upgrade · multiplayer cursors · AR field overlay.
+  progress quantification · viewer tile-streaming upgrade · multiplayer cursors · AR field overlay.
+  - ✅ **GEN-SCORE (generative option scoring) SHIPPED v0.3.443** — `option_score.py`: a deterministic
+    variant grid around a zoning envelope (`generate_options`, FAR-utilisation steps × building types)
+    scored through the platform's own engines — conceptual $/SF (cost) · whole-building embodied-carbon
+    benchmarks (carbon) · net sellable area (yield) · FAR/height zoning checks (compliance) — min-max
+    normalized within the set, weighted composite, non-compliant options capped and never recommended.
+    `POST /design/options/generate` + `/design/options/score`; ⚖ Score-options block on the conceptual
+    estimator card (Analytics ▸ Risk & Cost). Deepen later with per-option 5D takeoffs + EPD carbon once
+    options carry real models.
 
 **Still open from the velocity program:** DEV-2 tail (CI coverage upload · hotspot docstrings) · REL-3
 remainder (`modules.py` CRUD/feeds — needs a DI pass · `main.py` · rest of `data/drawings.py`/`drawing.py`)

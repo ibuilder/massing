@@ -2566,6 +2566,24 @@ export class ApiClient extends HttpCore {
       metrics: Record<string, number>; region_index: number; escalation_factor: number; error?: string }>(
       `/projects/${pid}/estimate/conceptual`, { method: "POST", body: JSON.stringify(params) });
   }
+  /** GEN-SCORE option row: one massing variant with its engine-backed criteria + composite. */
+  // (shape shared by generate → score; scores/composite present only after scoring)
+  designOptionsGenerate(pid: string, base: Record<string, unknown>, types?: string[]) {
+    return this.json<{ options: Record<string, unknown>[] }>(
+      `/projects/${pid}/design/options/generate`,
+      { method: "POST", body: JSON.stringify({ base, ...(types ? { types } : {}) }) });
+  }
+  designOptionsScore(pid: string, options: Record<string, unknown>[], weights?: Record<string, number>) {
+    return this.json<{
+      options: { label: string; building_type: string; composite: number; compliant: boolean;
+        violations: string[]; cost_total: number; cost_per_sf: number | null;
+        carbon_total_tco2e: number; carbon_intensity_kgco2e_m2: number;
+        yield_net_sellable_m2: number; scores: Record<string, number>;
+        massing: { floors: number; building_height_m: number; buildable_gfa_sf: number; units: number | null } }[];
+      weights: Record<string, number>; recommended: string | null; note: string;
+    }>(`/projects/${pid}/design/options/score`,
+      { method: "POST", body: JSON.stringify({ options, ...(weights ? { weights } : {}) }) });
+  }
   ifcClassify(pid: string) {
     return this.json<{ suggestions: { guid?: string; name: string; current_class: string;
       suggested_class: string; confidence: string; reason: string }[]; count: number;

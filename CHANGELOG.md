@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.443 — GEN-SCORE: generative design-option scoring (cost · carbon · yield · code)
+
+- **The frontier bet lands**: `option_score.py` generates a deterministic variant grid around a zoning
+  envelope (`generate_options` — FAR-utilisation steps × building types) and ranks every candidate
+  through the platform's own engines in one pass:
+  - **cost** — conceptual $/SF (regionalized, escalated);
+  - **carbon** — whole-building embodied-carbon benchmarks (kgCO₂e/m² GFA by building type, editable
+    defaults aligned with the cost catalog);
+  - **yield** — net sellable/leasable area from the massing engine;
+  - **compliance** — FAR-achieved and height-limit zoning checks: a violating option is flagged, its
+    composite capped below every compliant one, and it is never `recommended`.
+  Criteria are min-max normalized within the option set (a flat criterion scores 100 for all — it can't
+  differentiate, so it penalizes no one) and combined by overridable weights.
+- `POST /projects/{pid}/design/options/generate` + `/design/options/score`; typed client methods; a
+  **⚖ Score options** block on the conceptual-estimator card (Analytics ▸ Risk & Cost): lot W/D + FAR +
+  height limit → ranked table (score, $/sf, tCO₂e, floors, GFA, code ✓/✗, ★ recommended).
+- Deterministic, offline, no LLM — the "generative" part is a systematic grid, the scoring is the
+  engines. Deepen later with per-option 5D takeoffs + EPD carbon once options carry real models.
+- `test_option_score`: hand-computed grid (2×3), warehouse-beats-hospital on cost+carbon with equal
+  yield, carbon total = GFA × benchmark, weight steering, compliance gating, empty-set 400, endpoints
+  end-to-end. 262/262 suites green; web typecheck + eslint + vitest (118) + build green.
+
 ## v0.3.442 — full-codebase audit: backend fixes, parse robustness, infra hygiene
 
 The backend + cross-cutting lanes of the same audit as v0.3.441 (three parallel deep passes over the
