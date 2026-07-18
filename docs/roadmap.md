@@ -14,9 +14,10 @@ priorities below favor what that unblocked.
 
 ## P1 — start now (buildable, live-verifiable, highest value)
 
-1. **COLLAB-CURSORS — multiplayer cursor/selection overlays** *(M · ★★★★★)* — the COLLAB-1 remainder:
-   per-user colored cursors + selection halos in the viewer, riding the existing presence heartbeat
-   (`viewpoint` payload) + model SSE stream. Awareness/edit-lock/live-reload already ship.
+1. ✅ **COLLAB-CURSORS — SHIPPED v0.3.458** *(★★★★★)* — per-user colored view-cones + name tags at each
+   peer's live camera position (`peerCursors.ts`); the presence beat now shares your viewpoint each
+   tick. Live-verified: appear at exact position → track → remove on departure. **COLLAB-1 complete.**
+   *(Selection halos = a later nicety; the viewpoint payload would carry a `selectedGuid`.)*
 2. **PREFLIGHT — model-health issuance gate** *(S/M · ★★★★)* — one-click pre-issuance audit assembling
    the shipped checks (model hygiene · missing classifications/keynotes · open BCF · drawing-set QA ·
    IDS) into a single go/no-go gate with counts + deep links, wired into the issuance flow.

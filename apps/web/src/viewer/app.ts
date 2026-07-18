@@ -5,6 +5,7 @@ import * as THREE from "three";
 import CameraControls from "camera-controls";
 import { createViewer, renderMode } from "./world";
 import { installFileIO } from "./fileIO";
+import { installPeerCursors } from "./peerCursors";
 import { installEnvTools } from "./envTools";
 import { inferDirection } from "./inference";
 import { applyDynamicInput, polarConstrain } from "./snapEngine";
@@ -479,8 +480,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     void viewer.world.camera.controls.setLookAt(
       vp.position.x, vp.position.y, vp.position.z, vp.target.x, vp.target.y, vp.target.z, true);
   }
+  // COLLAB-CURSORS: per-user 3D view-cones + name tags for every peer sharing a viewpoint
+  const peerCursors = installPeerCursors(viewer.world.scene.three);
+  let selfUser: string | null = null;
   function updatePresence(active: Peer[]) {
     peers = active || [];
+    const shown = peerCursors.sync(peers, selfUser);
+    if (shown) void loader.fragments.core.update(true);
     presenceBtn.textContent = peers.length ? `👥 ${peers.length}` : "👥";
     presenceBtn.title = peers.length
       ? `Viewing: ${peers.map((p) => p.user).join(", ")} — click to jump to a shared view`
@@ -502,7 +508,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     void showQrModal(projectId ? `${base}?project=${projectId}` : base, "Share via QR");
   });
   if (projectId) {
-    const beat = async () => { try { updatePresence((await api.presence(projectId!)).active); } catch { /* offline */ } };
+    const beat = async () => {
+      try {
+        const r = await api.presence(projectId!, captureViewpoint());   // share our view each tick
+        selfUser = r.user;
+        updatePresence(r.active);
+      } catch { /* offline */ }
+    };
     void beat();
     window.setInterval(beat, 20000);   // heartbeat keeps presence live while the tab is open
 

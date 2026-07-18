@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.458 — COLLAB-CURSORS: multiplayer presence cursors in the viewer (P1 #1)
+
+- **See where everyone is looking, live.** Every peer whose presence heartbeat carries a camera
+  viewpoint renders as a colored **view-cone + name tag** at their camera position, aimed at their
+  look-target (`viewer/peerCursors.ts` — a REL-4-style leaf from day one). Colors are stable per user
+  (name-hash → hue); cursors upsert/track/remove as the roster changes; you are never shown your own.
+- **The 20 s presence beat now shares your live camera viewpoint** (previously only the explicit
+  ⤴ share button did) — that's what makes the cursors continuous. No protocol change: the heartbeat
+  always accepted a viewpoint; the roster + the collab SSE `editors` both feed the same reconciler.
+- **Live-verified end-to-end**: a seeded peer's cursor appeared at exactly its camera position
+  (15, 9, 12) with cone + dot + name sprite; our own beat's viewpoint showed up in the server roster;
+  and when the peer departed, the next beat removed the cursor. This completes COLLAB-1
+  (awareness + edit-lock + live-reload shipped earlier; cursors were the remainder).
+- Typecheck + eslint + vitest (121) + build green.
+
 ## v0.3.457 — roadmap reorganized: completed work archived, open items re-prioritized
 
 - **`docs/roadmap.md` 679 → ~130 lines, open items only.** The full pre-reprioritization snapshot —
