@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.409 — REL-3: split the MEP authoring recipes out of edit.py (façade)
+
+- Second recipe-group split on the `edit_core` foundation — and the biggest: the **MEP group** (416
+  lines) moves to a new leaf **`edit_mep.py`** — system assignment + predefined types
+  (`set_system_predefined`), sized risers/runs (`add_riser` / `add_mep_run`), fittings with port counts
+  (`add_mep_fitting`), terminals, fire / fire-alarm / comms devices, and the element-connection graph
+  (`connect_mep` / `connect_elements` / `element_connections`).
+- Built entirely on the `edit_core` primitives (contexts / profiles / storey lookup) — never on another
+  recipe; all vendor-util imports were already function-local. `edit.py` re-exports every name (routers,
+  RECIPES, nodegraph unchanged). **`edit.py` 2127 → 1378 across the three slices** (core → as-built → MEP).
+- Verified across 7 suites (mep / mep-systems / mep-sizing / mep-families / element-connections /
+  nodegraph + the cycle guard: **0 cycles**, 333 modules), `ruff` clean.
+
 ## v0.3.408 — REL-3: split the as-built / phase record writers out of edit.py (façade)
 
 - First recipe-group split enabled by the `edit_core` foundation (v0.3.406). The element **record**
