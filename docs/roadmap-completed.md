@@ -29,8 +29,21 @@ in priority order — every item its own verified CI-green release, CodeQL 0 thr
   model, Buy Clean limit check, LEED-style inventory — LEED v5 mandate effective 2026-07-01),
   **PERMIT-CHECK** (submission-readiness report over the code engines + drawing register).
 
-*Remaining plan items live in roadmap.md §🎯: UI-SURFACE (№11), QA-AGENT (№15), LAYOUT-EXPORT (№16),
-5D-BIND (№17), and the №18 later-bucket.*
+*P3 continued (426–431):* **UI-SURFACE** (426, first slice — Monte Carlo card in Schedule; Carbon-
+compliance + Permit-readiness in Risk & Cost; 429 added the acceleration-levers card) · **QA-AGENT**
+(427 — `drawing_qa` sheet-cited set review) · **LAYOUT-EXPORT** (№16 found already shipped in Wave 8) ·
+**5D-BIND** (428 — `element_5d` GUID-keyed live cost+carbon rows, reprice-on-edit).
+
+**OpenAEC / Open CAD Studio study (2026-07-17)** → the 🧭 CAD-UX lessons in roadmap.md; shipped from it:
+**CADCMD** (430 — a deterministic CAD command line, `cadCommands.ts`, over the edit recipes: WALL/COLUMN/
+BEAM/SLAB/LEVEL/SPACE + aliases + history + spacebar-repeat, 11 pure-parser tests) and **AUTHOR-MATRIX**
+(431 — `authoring_matrix`, a live 76-recipe/14-category coverage table from `edit.RECIPES`, served at
+`/reference/authoring-matrix`, committed to `docs/authoring-matrix.md`, guarded by a completeness test).
+Detail in memory [[openaec-study-2026-07-17]].
+
+*Remaining open (roadmap.md §🎯 / §🧭): UI-SURFACE №11 tail (unused-method triage), the №18 later-bucket,
+and the CAD-UX lessons SNAP-KIT / CLIENT-LIMITS / VIEWER-FUNNEL / PLUGIN-REGISTRY / MCP-PACK /
+SHEET-VIEWPORTS.*
 
 ## 🗓 Session v0.3.398–412 (2026-07-17) — code-gap closeouts + the REL-3 leaf marathon
 

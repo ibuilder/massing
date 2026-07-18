@@ -6,8 +6,8 @@ The single product roadmap. Supporting detail lives in:
 [ux-findings.md](ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
-**developer/finance** (proforma). Shipped continuously — latest release **v0.3.412**. Recent waves
-(v0.3.393–412): the **dev-velocity & modularization program** — test gate parallelized ~30→~11 min,
+**developer/finance** (proforma). Shipped continuously — latest release **v0.3.431**. Recent waves
+(v0.3.393–431): the **dev-velocity & modularization program** — test gate parallelized ~30→~11 min,
 backend + web **import-cycle guards** in CI, and the worst hotspots decomposed behind façades (`edit.py`
 2127→761 via a foundation + five recipe leaves; `connectors.py` and the sheet renderers split the same
 way) — plus the **code-gap closeouts**: element-level **MODEL-DIFF**, ASCE 7 **DRIFT** screen, **FIN-TEST**
@@ -23,105 +23,51 @@ money-math locks, and the **IFC-QA** export round-trip fidelity check. Full reco
 
 ---
 
-## 🚀 Current focus — quality, security & docs upgrade cycle (2026-07-17)
+## 🚀 Current focus (2026-07-17)
 
-The dev-velocity & modularization program **completed** (v0.3.393–412; archived in
-[roadmap-completed.md](roadmap-completed.md)): parallel test gate, backend+web import-cycle guards, and
-the REL-3 façade decompositions (`edit.py` 2127→761, `connectors.py` 495→325, sheet renderers split).
-The four code-gap closeouts (MODEL-DIFF · DRIFT · FIN-TEST · IFC-QA) also shipped. Focus now: the
-**full-platform upgrade plan** below (from the 2026-07-17 codebase/docs/industry audit), executed in
-priority order — bugs & security first, then performance, docs/demo refresh, and 2026 capability gaps.
+Two big cycles **completed** and are archived in [roadmap-completed.md](roadmap-completed.md): the
+**dev-velocity & modularization program** (v0.3.393–412 — parallel test gate, import-cycle guards, the
+REL-3 façade decompositions, the MODEL-DIFF/DRIFT/FIN-TEST/IFC-QA closeouts) and the **four-lane audit
+upgrade plan** (v0.3.413–428 — P0 security → P1 reliability → P2 docs/demo → P3 2026 capabilities). The
+**OpenAEC / Open CAD Studio study** (v0.3.430–431) added the CAD command line + authoring matrix.
 
-**Still open from the velocity program (fold into the plan):**
+**What's still open** is consolidated in the two sections below — the 🎯 upgrade-plan remainder and the
+🧭 CAD-UX lessons — plus the standing engineering backlog:
 
-1. **DEV-2 tail** *(ci)* — upload coverage from CI; module-header docstrings on the refactored hotspots.
-2. **REL-3 remainder** — `modules.py` CRUD + feed builders (blocked — dense back-calls would cycle; needs a
-   DI pass like `modules_search`), `main.py`, the rest of `data/drawings.py` / `drawing.py`. *(Diminishing
-   returns — attack opportunistically.)*
-3. **REL-4 — decompose the *web* hotspots** *(one PR each, TESTED via typecheck/lint/vitest/build)* —
-   `viewer/app.ts` (worst file) split by responsibility; `main.ts`; `portal.ts`. Verify via the tools-panel
-   technique. *(perf-sensitive — measure, don't guess.)*
-4. **REL-5 / REL-7 — error handling + verified dead-code** *(small batches)* — unhandled promise rejections
-   in `main.ts`; `installErrorReporting` must not throw during install; batch FS calls out of loops in
-   `vite.config.ts::writeBundle` + `scripts/bundle-budget.mjs`; then prove-then-delete the ~1,075 dead lines.
-5. **DEV-3 — build & typecheck speed** *(★★★ · quick wins)* — profile the ~1-min web build + tsc;
-   `tsc --incremental`/project-references; keep the bundle-budget gate honest.
-
-6. **COBie/parse robustness** *(★★ · data integrity)* — `cobie.py` `_email_of`/`_grouped_names` (and
-   `drawings.py:70,92,509`) `except Exception: pass` silently drop a Contact/zone from a *compliance*
-   deliverable. Log + count skips instead of swallowing. *(Bundle into a small hardening PR.)*
+- **REL-4 — decompose the *web* hotspots** *(one PR each; typecheck/lint/vitest/build + tools-panel
+  verify)* — `viewer/app.ts` (worst file, and it just grew with CADCMD) split by responsibility; `main.ts`;
+  `portal.ts`. *(perf-sensitive — measure, don't guess.)*
+- **REL-3 remainder** — `modules.py` CRUD/feeds (needs a DI pass, would cycle otherwise) · `main.py` ·
+  rest of `data/drawings.py` / `drawing.py`. *(Diminishing returns — attack opportunistically.)*
+- **DEV-2 tail** (CI coverage upload · hotspot docstrings) · **DEV-3** (build/tsc speed) ·
+  **REL-5/7** (unhandled-rejection sweep + prove-then-delete the ~1,075 dead lines) ·
+  **COBie/parse robustness** (`cobie.py`/`drawings.py` `except: pass` → logged, counted skips).
 
 Deferred bridges (deliberate 501s — money movement / KYC / paid APS) are a defensible pattern, not gaps.
 
 ---
 
-## 🎯 Upgrade plan (2026-07-17 audit) — execute in this order
+## 🎯 Upgrade plan (2026-07-17 audit) — mostly SHIPPED (archived in roadmap-completed)
 
-From a four-lane audit: backend bug/gap scan, web frontend scan, docs/repo-surface review, and a 2026
-industry/regulatory research pass. Each item ships as its own verified CI-green release.
+The four-lane audit plan (P0 security · P1 reliability · P2 docs/demo · P3 2026 capabilities) executed
+**v0.3.413–428** — full detail in [roadmap-completed.md](roadmap-completed.md). Shipped: SEC-TENANT ·
+WEB-BOOT · SEC-GUARD · SEC-MCP (P0) · WEB-LIVE · WEB-LEAKS · DOC-RACE · TZ-UTC (P1) · DEMO-REGEN ·
+README-TRIM · UI-SURFACE first slice (P2) · SCHED-RISK · CARBON-EC3 · PERMIT-CHECK · QA-AGENT ·
+LAYOUT-EXPORT (found already shipped) · 5D-BIND (P3).
 
-### 🔴 P0 — bugs & security (first)
+**Still open from the plan:**
+- **UI-SURFACE №11 tail** *(P2)* — triage the remaining dark client methods (most flagged names are
+  authoring recipes dispatched by string, or surfaced under a variant name — surface the few genuine
+  read endpoints, don't delete recipes).
+- **№18 later-bucket** *(P3, large)* — SOC 2 feature set (KMS/retention/residency) · IFCX server-side
+  read/write + bSI Validation Service in CI · BMS/IoT telemetry (Brick/Haystack) · reality-capture
+  progress quantification · **generative option scoring** (the 5D-BIND + carbon + code engines are the
+  ready-made scoring functions) · viewer tile-streaming upgrade · multiplayer cursors · AR field overlay.
 
-1. ✅ **SEC-TENANT — SHIPPED v0.3.414 — scope portfolio rollups to member projects** — `/benchmarks/costs|response-rates|
-   pull-planning`, `/wip/portfolio`, `/contractor-statements/portfolio` aggregate **every** project with no
-   `member_project_ids` filter (the sibling `fca_portfolio` does it right). Cross-tenant P&L/WIP leak in
-   shared deployments. Also: clamp the unbounded `limit` in `/modules/search`; add the `project_id`
-   predicate to `list_attachments`/`get_attachment` (defense-in-depth).
-2. ✅ **WEB-BOOT — SHIPPED v0.3.415 — un-brick corrupted settings** — `main.ts` top-level `JSON.parse(localStorage…)` is the one
-   unwrapped parse in the app; any invalid `aec-settings` value = permanent blank screen. Wrap it; also
-   guard the GeoJSON file-input parse and add the missing `.catch` on `responsibilityTemplates`.
-3. ✅ **SEC-GUARD — SHIPPED v0.3.416 — production guard beyond Postgres** — `_production_guard` only enforces
-   secret/RBAC/S3 checks when the DB is Postgres; a SQLite/MySQL prod boots on the public dev secret
-   (forgeable tokens/signed URLs). Trigger on "not obviously dev" instead.
-4. ✅ **SEC-MCP — SHIPPED v0.3.417 — per-project authz in `mcp_tools.dispatch`** — currently trusts any caller for any
-   `project_id` (stdio-contained today; no defense-in-depth). Thread an identity + `member_project_ids`.
-
-### 🟠 P1 — reliability & performance
-
-5. ✅ **WEB-LIVE — SHIPPED v0.3.418 — SSE resilience** — `modelStream`/`notificationStream`/`pullPlanStream` have no `onerror`/
-   re-subscribe: a backend restart silently kills live updates until reload. Add bounded reconnect + a
-   "live updates disconnected" surface; close the notification stream on `pagehide`.
-6. ✅ **WEB-LEAKS — SHIPPED v0.3.418 — listener & GPU leaks** — `nodeCanvas.makeDraggable` adds 2 permanent window listeners per
-   node (never removed); failed draft publishes orphan preview Fragments geometry (dispose in the catch).
-7. ✅ **DOC-RACE — SHIPPED v0.3.419 — sidecar index lost-update** — `docmanager.py`/`edit_history.py` read-modify-write a whole
-   JSON index with no lock: concurrent uploads lose entries / duplicate ids. Per-project serialization
-   (Postgres advisory lock; in-process lock fallback).
-8. ✅ **TZ-UTC — SHIPPED v0.3.420 — overdue/aging math on UTC** — `date.today()`/`datetime.now()` local-time comparisons in
-   dashboard/bim_kpi/cde/closeout/cmms/evm drift a day around midnight; standardize on UTC.
-
-### 🟡 P2 — docs, demo & surfacing
-
-9. ✅ **DEMO-REGEN — SHIPPED v0.3.421 — Pages demo snapshot** — `demoData.json` last captured at v0.3.309 (~100 releases ago);
-   every panel added since renders empty on massing.build/app. Re-run `build_demo_data.py`, extend its
-   crawl list to the new endpoints, redeploy.
-10. ✅ **README-TRIM — SHIPPED v0.3.422** — collapse the 360-line "Recent platform work" changelog dump to rolling highlights;
-    banner the June point-in-time audit docs as superseded.
-11. 🟡 **UI-SURFACE — first slice SHIPPED v0.3.426** (SCHED-RISK/CARBON/PERMIT cards live in Schedule + Risk & Cost) — **expose the invisible backend** — ~70 API client methods have zero UI callers
-    (aiEstimate, codeCheck, bidLeveling, scheduleOptimize, earnedSchedule, energy/mep, VE log…). Triage:
-    surface the top 10 in their natural panels; delete truly-dead client methods.
-
-### 🟢 P3 — 2026 capability gaps (research-backed, feasibility-ordered)
-
-12. ✅ **SCHED-RISK — SHIPPED v0.3.423 — Monte Carlo over CPM** *(days of work; pure Python over existing CPM + PPC history)* —
-    P50/P80 completion, delay-driver ranking. Probabilistic forecasting is table-stakes in 2026 CM tools.
-13. ✅ **CARBON-EC3 — SHIPPED v0.3.424 — compliance-grade embodied carbon** — LEED v5 makes embodied-carbon inventory mandatory
-    for projects registering after **July 1, 2026**; Buy Clean GWP limits spread. Upgrade the carbon
-    engine: A1–A3 hotspots per element from existing quantities, EPD lookup via the EC3 open API
-    (offline-cached), Buy Clean limit checks. Rides the existing takeoff + bSDD classification spine.
-14. ✅ **PERMIT-CHECK — SHIPPED v0.3.425 — permit-readiness pre-review** — package the existing IBC/IEBC/egress engines into a
-    jurisdiction-checklist deficiency report + e-permitting export (cities now run AI plan review; LA/
-    Seattle/Austin live 2026).
-15. ✅ **QA-AGENT — SHIPPED v0.3.427 — drawing-set QA review** (deterministic sheet-cited core; AI narration layer = follow-up) — an agent pass over the self-generated sheet/model data
-    (structured source, not raster) returning cited markups via the existing PDF markup stack.
-16. ✅ **LAYOUT-EXPORT — already shipped (Wave 8 ②)** — PENZD/PNEZD CSV (configurable order/delimiter) + layered DXF for floor printers, georeferenced via IfcMapConversion with GlobalId round-trip + field verify. No new work needed. ~~robotic layout / total-station points~~ — export the field-layout engine's points as
-    robot/instrument-consumable files (DXF layers + point CSV with survey control), riding the georef
-    discipline.
-17. ✅ **5D-BIND — SHIPPED v0.3.428 — element↔cost binding** — bind cost assemblies to GUIDs so quantity edits reprice
-    automatically; carbon-per-element (#13) rides the same binding. Foundation for generative scoring.
-18. **Later (tracked)** — SOC 2 feature set (KMS/retention/residency) · IFCX server-side read/write +
-    bSI Validation Service in CI · BMS/IoT telemetry (Brick/Haystack) · reality-capture progress
-    quantification · generative option scoring · viewer tile-streaming upgrade (version-coupled) ·
-    multiplayer cursors · AR field overlay · subcontractor prequal module.
+**Still open from the velocity program:** DEV-2 tail (CI coverage upload · hotspot docstrings) · REL-3
+remainder (`modules.py` CRUD/feeds — needs a DI pass · `main.py` · rest of `data/drawings.py`/`drawing.py`)
+· **REL-4** (decompose the web hotspots — `viewer/app.ts` worst, `main.ts`, `portal.ts`; tools-panel
+verify) · REL-5/7 (error handling + verified dead-code) · DEV-3 (build/tsc speed) · COBie/parse robustness.
 
 ---
 

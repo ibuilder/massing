@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.432 — docs: roadmap hygiene — archive the shipped upgrade cycle, refresh the intro
+
+- Roadmap maintenance per the file's own "holds only what's OPEN" rule: the intro now reads **latest
+  release v0.3.431** (was v0.3.412); the fully-shipped 🎯 upgrade-plan tiers (P0/P1/P2/P3 v0.3.413–428)
+  and the CADCMD/AUTHOR-MATRIX study outputs are archived in `roadmap-completed.md` with a compact
+  pointer left in `roadmap.md`; the "Current focus" section rewritten to name only what's genuinely open
+  (REL-4 web decomposition, REL-3 remainder, DEV-2/3, REL-5/7, COBie robustness, the №11 tail, the №18
+  bucket, and the remaining CAD-UX lessons). No code change.
+
 ## v0.3.431 — AUTHOR-MATRIX: a live authoring-coverage matrix (OpenAEC-study lesson #3)
 
 - **New reference surface** (from the OpenAEC study — their COMMANDS.md capability tracker is a cheap,
