@@ -366,7 +366,8 @@ def add_enum_option(pid: str, key: str, field: str, value: str = Body(..., embed
 def search(pid: str, q: str, limit: int = 50, db: Session = Depends(get_db),
            _: str = Depends(require_role("viewer"))):
     """Cross-module full-text search (ref / title / field data)."""
-    return mod_engine.search_all(db, pid, q, limit)
+    # clamp like the record-list route — an unbounded limit fans out an oversized SQL LIMIT per module
+    return mod_engine.search_all(db, pid, q, max(1, min(int(limit or 50), 200)))
 
 
 @router.post("/projects/{pid}/modules/{key}/bulk")

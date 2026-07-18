@@ -146,10 +146,11 @@ def wip_model_progress(pid: str, quantity: str | None = None,
 
 
 @router.get("/wip/portfolio")
-def wip_portfolio(db: Session = Depends(get_db), _: str = Depends(current_user)):
-    """WIP across all projects — one row each, worst cash position (largest under-billing) first."""
+def wip_portfolio(db: Session = Depends(get_db), user: str = Depends(current_user)):
+    """WIP across your projects — one row each, worst cash position (largest under-billing) first."""
     from .. import wip
-    return wip.portfolio(db)
+    from ..rbac import member_project_ids
+    return wip.portfolio(db, project_ids=member_project_ids(db, user))
 
 
 @router.get("/projects/{pid}/contractor-statements")
@@ -161,10 +162,11 @@ def contractor_statements(pid: str, db: Session = Depends(get_db), _: str = Depe
 
 
 @router.get("/contractor-statements/portfolio")
-def contractor_statements_portfolio(db: Session = Depends(get_db), _: str = Depends(current_user)):
-    """Company-wide contractor statements — the POC P&L and contract position summed across jobs."""
+def contractor_statements_portfolio(db: Session = Depends(get_db), user: str = Depends(current_user)):
+    """Company-wide contractor statements — the POC P&L and contract position summed across your jobs."""
     from .. import contractor
-    return contractor.portfolio_statements(db)
+    from ..rbac import member_project_ids
+    return contractor.portfolio_statements(db, project_ids=member_project_ids(db, user))
 
 
 @router.get("/projects/{pid}/cost/traceability")

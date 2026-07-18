@@ -19,14 +19,18 @@ from sqlalchemy.orm import Session
 from . import modules as me
 
 
-def _rows(db: Session, key: str) -> list[dict]:
-    """Every record of a module across ALL projects, as {data, created_at, modified_at, state}."""
+def _rows(db: Session, key: str, project_ids: set[str] | None = None) -> list[dict]:
+    """Every record of a module across the caller's projects, as {data, created_at, modified_at, state}.
+    `project_ids=None` means no restriction (RBAC off / admin); otherwise the roll-up is tenant-scoped so
+    portfolio aggregations never leak other tenants' data (see rbac.member_project_ids)."""
     t = me.TABLES.get(key)
     if t is None:
         return []
+    stmt = select(t.c.data, t.c.created_at, t.c.modified_at, t.c.workflow_state)
+    if project_ids is not None:
+        stmt = stmt.where(t.c.project_id.in_(project_ids))
     out = []
-    for data, created, modified, state in db.execute(
-            select(t.c.data, t.c.created_at, t.c.modified_at, t.c.workflow_state)).all():
+    for data, created, modified, state in db.execute(stmt).all():
         out.append({"data": data or {}, "created_at": created, "modified_at": modified, "state": state})
     return out
 
@@ -51,10 +55,11 @@ def _pctile(sorted_vals: list[float], q: float) -> float:
     return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * frac
 
 
-def cost_benchmarks(db: Session, min_samples: int = 3) -> dict:
-    """Distribution of actual `direct_cost` amounts per cost code, across every project."""
+def cost_benchmarks(db: Session, min_samples: int = 3,
+                    project_ids: set[str] | None = None) -> dict:
+    """Distribution of actual `direct_cost` amounts per cost code, across the caller's projects."""
     by_code: dict[str, list[float]] = {}
-    for r in _rows(db, "direct_cost"):
+    for r in _rows(db, "direct_cost", project_ids):
         d = r["data"]
         code = (d.get("cost_code") or "").strip() or "(uncoded)"
         amt = _num(d.get("amount"))
@@ -79,15 +84,20 @@ def cost_benchmarks(db: Session, min_samples: int = 3) -> dict:
                         "code across your projects to benchmark.")}
 
 
-def pull_planning(db: Session, min_committed: int = 3) -> dict:
-    """Pull-planning reliability across every project: the distribution of PPC and Tasks-Made-Ready %
-    per project, so a team can see where a plan sits against its own portfolio and the ≥80% target."""
+def pull_planning(db: Session, min_committed: int = 3,
+                  project_ids: set[str] | None = None) -> dict:
+    """Pull-planning reliability across the caller's projects: the distribution of PPC and Tasks-Made-
+    Ready % per project, so a team can see where a plan sits against its own portfolio and the ≥80%
+    target."""
     t = me.TABLES.get("pull_plan_task")
     if t is None:
         return {"projects": 0, "message": "No pull-plan data yet."}
     ready_states = {"made_ready", "committed", "done", "not_done"}
     per_proj: dict[str, dict] = {}
-    for pid_, state in db.execute(select(t.c.project_id, t.c.workflow_state)).all():
+    stmt = select(t.c.project_id, t.c.workflow_state)
+    if project_ids is not None:
+        stmt = stmt.where(t.c.project_id.in_(project_ids))
+    for pid_, state in db.execute(stmt).all():
         p = per_proj.setdefault(pid_, {"total": 0, "ready": 0, "done": 0, "not_done": 0})
         p["total"] += 1
         if state in ready_states:
@@ -142,13 +152,14 @@ def _to_date(v):
 _RFI_DONE = {"answered", "closed"}
 
 
-def response_rates(db: Session) -> dict:
-    """RFI + submittal turnaround and overdue %, across all projects (ball-in-court accountability)."""
+def response_rates(db: Session, project_ids: set[str] | None = None) -> dict:
+    """RFI + submittal turnaround and overdue %, across the caller's projects (ball-in-court
+    accountability)."""
     today = datetime.now(timezone.utc).date()
 
     # RFI: turnaround = created -> last transition (modified) once answered/closed; overdue = past
     # due_date and still open.
-    rfis = _rows(db, "rfi")
+    rfis = _rows(db, "rfi", project_ids)
     rfi_turn = [t for t in (_age_days(r["created_at"], r["modified_at"]) for r in rfis
                             if r["state"] in _RFI_DONE) if t is not None and t >= 0]
     rfi_open = [r for r in rfis if r["state"] not in _RFI_DONE and r["state"] != "void"]
@@ -164,7 +175,7 @@ def response_rates(db: Session) -> dict:
 
     # Submittal: turnaround = date_received -> date_returned (fields); overdue = required_on_site
     # passed and not yet returned.
-    subs = _rows(db, "submittal")
+    subs = _rows(db, "submittal", project_ids)
     sub_turn = [t for t in (_age_days(s["data"].get("date_received"), s["data"].get("date_returned"))
                             for s in subs) if t is not None and t >= 0]
     sub_open = [s for s in subs if not s["data"].get("date_returned")]

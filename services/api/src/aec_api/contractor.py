@@ -75,11 +75,15 @@ def statements(db: Session, pid: str) -> dict[str, Any]:
     return out
 
 
-def portfolio_statements(db: Session) -> dict[str, Any]:
-    """Company-wide contractor statements — the POC P&L and contract position summed across jobs."""
+def portfolio_statements(db: Session, project_ids: set[str] | None = None) -> dict[str, Any]:
+    """Company-wide contractor statements — the POC P&L and contract position summed across the
+    caller's jobs. `project_ids=None` = no restriction (RBAC off / admin); otherwise tenant-scoped."""
     revenue = cor = asset = liability = retainage = ap = backlog = 0.0
     jobs = 0
-    for p in db.query(Project).all():
+    q = db.query(Project)
+    if project_ids is not None:
+        q = q.filter(Project.id.in_(project_ids))
+    for p in q.all():
         w = wip.schedule(db, p.id)
         if not (w["contract_value"] or w["cost_to_date"]):
             continue

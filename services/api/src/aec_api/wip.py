@@ -174,12 +174,16 @@ _ROW_KEYS = ("contract_value", "estimated_cost", "cost_to_date", "percent_comple
              "profit_to_date", "retainage", "backlog")
 
 
-def portfolio(db: Session) -> dict[str, Any]:
-    """WIP across all projects — one row each, worst cash position (largest under-billing) first."""
+def portfolio(db: Session, project_ids: set[str] | None = None) -> dict[str, Any]:
+    """WIP across the caller's projects — one row each, worst cash position (largest under-billing)
+    first. `project_ids=None` = no restriction (RBAC off / admin); otherwise tenant-scoped."""
     rows: list[dict[str, Any]] = []
     tot = {"contract_value": 0.0, "earned_revenue": 0.0, "billed_to_date": 0.0,
            "over_billing": 0.0, "under_billing": 0.0, "gross_profit": 0.0, "retainage": 0.0}
-    for p in db.query(Project).all():
+    q = db.query(Project)
+    if project_ids is not None:
+        q = q.filter(Project.id.in_(project_ids))
+    for p in q.all():
         w = schedule(db, p.id, with_model=False)   # skip the per-project model scan in the roll-up
         if not (w["contract_value"] or w["cost_to_date"]):
             continue

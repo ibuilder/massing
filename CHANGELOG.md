@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.414 — SEC-TENANT: portfolio roll-ups scoped to the caller's projects (P0 №1)
+
+- **Security fix** (upgrade-plan P0 №1): the cross-project roll-ups — `/benchmarks/costs`,
+  `/benchmarks/response-rates`, `/benchmarks/pull-planning`, `/wip/portfolio`,
+  `/contractor-statements/portfolio` — aggregated **every project in the database** while gating only on
+  authentication. In a shared/multi-tenant deployment, any signed-in user could read every other tenant's
+  job P&L, WIP cash positions and per-cost-code actuals. Each now takes the caller's
+  `member_project_ids` (the `fca_portfolio` pattern) and the engines filter `project_id IN (…)`; RBAC-off
+  dev and the admin api-key keep the unrestricted view.
+- Also: the `/projects/{pid}/search` `limit` is clamped to 200 (was unbounded — an oversized SQL LIMIT
+  fanned out per module), and `list_attachments` gains an explicit `project_id` predicate
+  (defense-in-depth; the download route's membership check already guarded the bytes).
+- **New `test_tenant_scoping.py`**: two tenants with distinct financial fingerprints under RBAC — each
+  caller's portfolio/benchmarks contain ONLY their member project (admin sees both); limit clamp
+  asserted. Wired into the gate; benchmarking / wip / portfolio / route-authz / pull-plan / attachments
+  suites all green.
+
 ## v0.3.413 — docs & repo surface refresh + the 2026-07-17 upgrade plan
 
 - Output of a four-lane audit (backend scan · web scan · docs/repo review · 2026 industry research):

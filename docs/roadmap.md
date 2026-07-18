@@ -62,7 +62,7 @@ industry/regulatory research pass. Each item ships as its own verified CI-green 
 
 ### 🔴 P0 — bugs & security (first)
 
-1. **SEC-TENANT — scope portfolio rollups to member projects** — `/benchmarks/costs|response-rates|
+1. ✅ **SEC-TENANT — SHIPPED v0.3.414 — scope portfolio rollups to member projects** — `/benchmarks/costs|response-rates|
    pull-planning`, `/wip/portfolio`, `/contractor-statements/portfolio` aggregate **every** project with no
    `member_project_ids` filter (the sibling `fca_portfolio` does it right). Cross-tenant P&L/WIP leak in
    shared deployments. Also: clamp the unbounded `limit` in `/modules/search`; add the `project_id`

@@ -433,10 +433,13 @@ def add_attachment(db: Session, key: str, project_id: str, rid: str, filename: s
 
 def list_attachments(db: Session, key: str, project_id: str, rid: str) -> list[dict]:
     from .models import RecordAttachment
+    # project_id predicate is defense-in-depth: record ids are UUIDs today, but a cross-project row
+    # must never surface even if an id is ever reused or a non-UUID id is introduced.
     return [{"id": a.id, "filename": a.filename, "size": a.size,
              "content_type": a.content_type, "uploaded_by": a.uploaded_by,
              "created_at": a.created_at.isoformat() if a.created_at else None}
             for a in db.query(RecordAttachment).filter(
+                RecordAttachment.project_id == project_id,
                 RecordAttachment.module == key, RecordAttachment.record_id == rid)
             .order_by(RecordAttachment.created_at).all()]
 
