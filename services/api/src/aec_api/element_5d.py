@@ -44,11 +44,17 @@ def _quantity_for_basis(el: dict, basis: str) -> float | None:
     return None                                        # basis/quantity family mismatch → don't guess
 
 
-def element_costs(idx: dict[str, dict]) -> dict[str, Any]:
+def element_costs(idx: dict[str, dict], rate_overrides: dict[str, float] | None = None) -> dict[str, Any]:
     """The GUID-keyed 5D table over the live index. Honest coverage: an element prices only when its
-    class has a rate AND its Qto family matches the rate's basis; carbon only when its material matches."""
+    class has a rate AND its Qto family matches the rate's basis; carbon only when its material matches.
+
+    `rate_overrides` ({ifc_class: rate}) layers a project's **localized + escalated** cost-vintage rates
+    over the representative table exactly as the takeoff estimate does — the rate *basis* (volume/area/
+    length/count) always stays the representative one; only the rate magnitude is overridden. So the
+    per-element 5D table and the `/qto/by-floor` roll-up price through the same numbers."""
     from .carbon import _match_factor
 
+    overrides = rate_overrides or {}
     rows: list[dict[str, Any]] = []
     by_class: dict[str, dict[str, float]] = {}
     by_storey: dict[str, float] = {}
@@ -60,6 +66,7 @@ def element_costs(idx: dict[str, dict]) -> dict[str, Any]:
         if not spec:
             continue
         basis, rate = spec
+        rate = overrides.get(cls, rate)                # localized/escalated vintage rate when available
         qty = _quantity_for_basis(el, basis)
         if qty is None:
             continue
@@ -95,8 +102,8 @@ def element_costs(idx: dict[str, dict]) -> dict[str, Any]:
         "by_storey": dict(sorted(by_storey.items(), key=lambda x: -x[1])),
         "top_cost": rows[:10],
         "note": ("Live binding: quantity × class rate off the current property index — a GUID-stable "
-                 "edit + republish reprices automatically. Rates are the representative table "
-                 "(estimate.DEFAULT_RATES / the public cost vintage); pin a cost vintage or supply EPDs "
-                 "to firm up either axis. Elements without a rate or a matching Qto family are excluded, "
-                 "never guessed."),
+                 "edit + republish reprices automatically. Rates come from the project's pinned cost "
+                 "vintage (localized by region + escalated to the construction midpoint) layered over the "
+                 "representative table (estimate.DEFAULT_RATES); pin a vintage or supply EPDs to firm up "
+                 "either axis. Elements without a rate or a matching Qto family are excluded, never guessed."),
     }

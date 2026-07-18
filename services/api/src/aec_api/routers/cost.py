@@ -305,13 +305,21 @@ def element_costs_5d(pid: str, db: Session = Depends(get_db), _: str = Depends(r
     Carbon rides the same row where the material matches. 404 until a model is loaded."""
     from fastapi import HTTPException
 
-    from .. import element_5d
+    from .. import cost_db, element_5d
     from .properties import _INDEX, _ensure_loaded
     _ensure_loaded(pid)
     idx = _INDEX.get(pid)
     if not idx:
         raise HTTPException(404, "no properties index for project — load a model first")
-    return element_5d.element_costs(idx)
+    # Price through the project's pinned, localized + escalated cost vintage (same numbers as the takeoff);
+    # falls back to the representative table when no vintage is installed.
+    overrides, ds, adjustment = _vintage_overrides(db, pid)
+    out = element_5d.element_costs(idx, rate_overrides=overrides)
+    if ds:
+        out["cost_vintage"] = cost_db.dataset_dict(ds)
+    if adjustment:
+        out["cost_adjustment"] = adjustment
+    return out
 
 
 @router.get("/projects/{pid}/5d/heatmap")

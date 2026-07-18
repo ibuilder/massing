@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.437 — 5D element costs price through the localized/escalated vintage
+
+- **The per-element 5D table now agrees with the takeoff.** `/5d/element-costs` (5D-BIND) priced every
+  GUID off the static representative rate table while `/qto/by-floor` priced through the project's
+  localized + escalated cost vintage — the two could disagree. `element_5d.element_costs` now takes an
+  optional `rate_overrides` map and the endpoint feeds it the same `_vintage_overrides` the takeoff uses.
+  The rate **basis** (volume/area/length/count) always stays representative; only the rate magnitude is
+  overridden — exactly how the estimate layers overrides. The response carries `cost_vintage` +
+  `cost_adjustment` like the takeoff, so per-element and roll-up numbers are one source of truth.
+- Falls back to the representative table when no vintage is installed (unchanged behaviour). `test_element_5d`
+  extended (override changes only the targeted class; others keep the base rate). 261/261 suites; ruff clean.
+
 ## v0.3.436 — COST-DB: localized + escalated cost vintages (offline)
 
 - **Element-level estimates are now project-real, still offline.** A cost vintage stores national-average

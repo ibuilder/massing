@@ -43,6 +43,14 @@ assert rows["W1"]["carbon_kgco2e"] is None, "wall carbon factor is per m3; area 
 assert r["carbon_matched"] == 1 and r["total_carbon_kgco2e"] == 450.0
 assert r["by_storey"]["L1"] == 320.0 + 825.0 and r["by_storey"]["L2"] == 3000.0, r["by_storey"]
 
+# rate override (localized/escalated vintage): the basis stays representative, only the rate magnitude
+# changes — wall $160/m2 → $200/m2 makes W1 2m2 = $400; classes without an override keep the base rate.
+ro = E5.element_costs(idx, rate_overrides={"IfcWall": 200.0})
+w1 = next(x for x in ro["top_cost"] if x["guid"] == "W1")
+d1 = next(x for x in ro["top_cost"] if x["guid"] == "D1")
+assert w1["cost"] == 400.0 and w1["rate"] == 200.0, w1              # overridden
+assert d1["cost"] == 1200.0, d1                                     # IfcDoor not overridden → base rate
+
 # reprice-on-edit: double the slab volume → the SAME call over the updated index doubles that row
 idx["S1"]["qtos"]["Q"]["NetVolume"] = 3.0
 r2 = E5.element_costs(idx)
