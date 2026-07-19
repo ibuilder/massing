@@ -45,6 +45,8 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   alertBtn.title = "Predictive schedule alerts: overdue, late-start, at-risk predecessor, SPI, procurement";
   const esBtn = document.createElement("button"); esBtn.className = "tool-btn"; esBtn.textContent = "⏱ Earned schedule";
   esBtn.title = "Earned Schedule (time-based EVM): ES, SV(t), SPI(t), forecast finish";
+  const baseBtn = document.createElement("button"); baseBtn.className = "tool-btn"; baseBtn.textContent = "📌 Baselines";
+  baseBtn.title = "Named schedule baselines: capture GMP/Recovery/etc. and measure slip against any of them";
   // SCHED-P6 export — the live schedule (imported + hand-entered, with GC edits) back out to the
   // scheduler's tool, keyed by the P6 activity code so their re-import matches by code (round-trip).
   const xerOut = document.createElement("button"); xerOut.className = "tool-btn"; xerOut.textContent = "⤓ Export .xer";
@@ -58,7 +60,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   xerOut.onclick = doExport("xer"); mspOut.onclick = doExport("msp");
   const note = document.createElement("span"); note.className = "meta";
   note.innerHTML = "One relational schedule — these views + the 3D <b>4D sequence</b> (Model → ⏱ 4D) share the same activities.";
-  intro.append(listBtn, xerLabel, xerOut, mspOut, alertBtn, esBtn, note);
+  intro.append(listBtn, xerLabel, xerOut, mspOut, alertBtn, esBtn, baseBtn, note);
   ctx.root.appendChild(intro);
 
   // a collapsible drawer the alerts / earned-schedule buttons fill on demand (kept out of the way)
@@ -89,6 +91,38 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
         + (es.note ? `<br><span style="opacity:.7">${esc(es.note)}</span>` : "") + `</div></div>`);
     } catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Earned schedule unavailable: ${esc((e as Error).message)}</div></div>`); }
   };
+  const drawBaselines = async () => {
+    showDrawer(`<div class="dash-card"><div class="meta">Loading baselines…</div></div>`);
+    let list;
+    try { list = (await ctx.host.api.scheduleBaselines(pid)).baselines; }
+    catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Baselines unavailable: ${esc((e as Error).message)}</div></div>`); return; }
+    const card = document.createElement("div"); card.className = "dash-card";
+    card.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: "📌 Named baselines" }));
+    const form = document.createElement("div"); form.style.cssText = "display:flex;gap:6px;margin:4px 0;flex-wrap:wrap";
+    const nameI = document.createElement("input"); nameI.className = "portal-filter"; nameI.placeholder = "name (e.g. GMP)"; nameI.style.cssText = "flex:1 1 140px;font-size:12px";
+    const cap = document.createElement("button"); cap.className = "mini-btn on"; cap.textContent = "＋ Capture now";
+    cap.onclick = async () => { try { await ctx.host.api.captureBaseline(pid, nameI.value.trim()); toast("baseline captured", "success"); void drawBaselines(); } catch (e) { toast((e as Error).message, "error"); } };
+    form.append(nameI, cap); card.appendChild(form);
+    if (!list.length) card.appendChild(Object.assign(document.createElement("div"), { className: "meta", textContent: "No baselines yet — capture one to track slip against it." }));
+    const varBox = document.createElement("div"); varBox.className = "meta"; varBox.style.marginTop = "4px";
+    for (const b of list) {
+      const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;margin:2px 0";
+      const link = document.createElement("a"); link.href = "#";
+      link.innerHTML = `<b>${esc(b.name)}</b> <span style="opacity:.6">${esc(b.captured_at)} · ${b.count} acts</span>`;
+      link.onclick = async (e) => {
+        e.preventDefault();
+        try { const v = await ctx.host.api.baselineVariance(pid, b.id); const s = v.summary;
+          varBox.innerHTML = `vs <b>${esc(b.name)}</b>: ${s.slipped} slipped · ${s.improved} improved · ${s.on_baseline} on-baseline · ${s.added} added · ${s.removed} removed · max slip <b>${s.max_slip_days}d</b>`;
+        } catch (err) { varBox.textContent = (err as Error).message; }
+      };
+      const del = document.createElement("button"); del.className = "selset-del"; del.textContent = "✕";
+      del.onclick = async () => { try { await ctx.host.api.deleteBaseline(pid, b.id); void drawBaselines(); } catch (e) { toast((e as Error).message, "error"); } };
+      row.append(link, del); card.appendChild(row);
+    }
+    card.appendChild(varBox);
+    interopDrawer.replaceChildren(card); interopDrawer.style.display = "";
+  };
+  baseBtn.onclick = () => void drawBaselines();
 
   // --- Pull planning (Last Planner phase board) — trade swimlanes × weeks, make-ready, PPC -------
   const ppCard = document.createElement("div"); ppCard.className = "dash-card"; ppCard.style.marginBottom = "10px";

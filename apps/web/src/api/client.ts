@@ -3024,6 +3024,27 @@ export class ApiClient extends HttpCore {
       frames: { day: number; new: number; completed_cumulative: number; pct: number; date?: string; new_guids: string[] }[] }>(
       `/projects/${pid}/schedule/4d${source ? `?source=${source}` : ""}`);
   }
+  /** RESOURCE-LEVEL — the named-baseline library (metadata, newest first). */
+  scheduleBaselines(pid: string) {
+    return this.json<{ baselines: { id: string; name: string; captured_at: string; count: number }[] }>(
+      `/projects/${pid}/schedule/baselines`);
+  }
+  /** Capture the current schedule as a new named baseline. */
+  captureBaseline(pid: string, name: string) {
+    return this.json<{ id: string; name: string; captured_at: string; count: number }>(
+      `/projects/${pid}/schedule/baselines`, { method: "POST", body: JSON.stringify({ name }) });
+  }
+  deleteBaseline(pid: string, bid: string) {
+    return this.json<{ deleted: boolean }>(`/projects/${pid}/schedule/baselines/${bid}`, { method: "DELETE" });
+  }
+  /** Per-activity slip of the live schedule vs a named baseline (`bid` or "latest"). */
+  baselineVariance(pid: string, bid: string) {
+    return this.json<{ baseline: { id: string; name: string; captured_at: string; count: number };
+      summary: { slipped: number; improved: number; on_baseline: number; added: number; removed: number;
+        max_slip_days: number; avg_finish_var: number };
+      activities: { ref: string | null; name: string | null; start_var: number | null; finish_var: number | null; status: string }[] }>(
+      `/projects/${pid}/schedule/baselines/${bid}/variance`);
+  }
   /** Snapshot the current schedule as the baseline (variance is measured against it). */
   setBaseline(pid: string) {
     return this.json<{ captured_at: string; count: number }>(

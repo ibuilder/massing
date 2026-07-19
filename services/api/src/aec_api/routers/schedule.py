@@ -382,6 +382,47 @@ def variance(pid: str, db: Session = Depends(get_db), _: str = Depends(require_r
             "summary": summary, "activities": lines}
 
 
+# --- RESOURCE-LEVEL: multiple NAMED baselines (a library, vs the single legacy baseline above) -------
+@router.get("/projects/{pid}/schedule/baselines")
+def list_baselines(pid: str, _: str = Depends(require_role("viewer"))):
+    """The project's named-baseline library (metadata only), newest first."""
+    from .. import schedule_baselines
+    return {"baselines": schedule_baselines.list_metas(pid)}
+
+
+@router.post("/projects/{pid}/schedule/baselines", status_code=201)
+def capture_baseline(pid: str, name: str = Body("", embed=True),
+                     db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Snapshot the current schedule as a new NAMED baseline (e.g. "GMP", "Recovery"). Unlike the
+    singular baseline, several coexist so drift can be tracked against each."""
+    from .. import schedule_baselines
+    return schedule_baselines.capture(db, pid, name)
+
+
+@router.delete("/projects/{pid}/schedule/baselines/{bid}")
+def delete_baseline(pid: str, bid: str, _: str = Depends(require_role("editor"))):
+    """Remove a named baseline from the library."""
+    from fastapi import HTTPException
+
+    from .. import schedule_baselines
+    if not schedule_baselines.delete(pid, bid):
+        raise HTTPException(404, "baseline not found")
+    return {"deleted": True}
+
+
+@router.get("/projects/{pid}/schedule/baselines/{bid}/variance")
+def named_baseline_variance(pid: str, bid: str, db: Session = Depends(get_db),
+                            _: str = Depends(require_role("viewer"))):
+    """Per-activity slip of the live schedule vs a chosen NAMED baseline (`bid`, or `latest`)."""
+    from fastapi import HTTPException
+
+    from .. import schedule_baselines
+    res = schedule_baselines.variance(db, pid, None if bid == "latest" else bid)
+    if res is None:
+        raise HTTPException(404, "named baseline not found — capture one with POST /schedule/baselines")
+    return res
+
+
 @router.get("/projects/{pid}/schedule/earned-value")
 def earned_value(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Schedule **earned value** over the activities that carry a budgeted cost. For each:

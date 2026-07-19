@@ -105,8 +105,12 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
     **RULE-LIB-2 remaining:** the *geometric/relational* checks (clearance-in-front-of, escape distance,
     accessible route, maintainability space) — they need swept geometry, not the property index, so
     they ride the logistics/clash geometry path.
-15. **RESOURCE-LEVEL** *(M)* — true resource-loaded scheduling + leveling + multiple named baselines
-    with variance (today's leveling is advisory-only).
+15. ◧ **RESOURCE-LEVEL** *(M)* — **named baselines SHIPPED v0.3.508.** Multiple named schedule
+    baselines (`schedule_baselines.py` + `GET/POST/DELETE /schedule/baselines` +
+    `/baselines/{id|latest}/variance`) so drift is tracked against any chosen baseline; "📌 Baselines"
+    drawer on the Schedule panel. Resource-loading S-curves + the leveling *advisory* already shipped
+    (`resource_loading.py`). **RESOURCE-LEVEL-2 remaining:** *applying* a level (shifting activities
+    within CPM float, mutating dates) behind an explicit confirm — it rewrites the schedule.
 16. **MODEL-CI** *(M, ★★★★)* — "Automate-lite": rule packs (IDS/clash/code/QTO-delta/custom) auto-run
     on every commit/option-branch save with pass/fail badges + BCF/report artifacts (jobs infra ships).
 17. **MARKUP-2** *(M)* — Bluebeam-parity: tool chests, markups-list DB with custom/formula columns,

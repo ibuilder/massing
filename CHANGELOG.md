@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.508 — RESOURCE-LEVEL: multiple named schedule baselines + variance (queue #15)
+
+- The single plan-of-record baseline becomes a **library of named baselines** — "GMP", "Recovery",
+  "post-ASI-014" — each a frozen snapshot of every activity's planned start/finish/budget, so a team can
+  track drift against the contract baseline *and* a later re-baseline at the same time. Variance can be
+  measured against any chosen baseline (or `latest`): per-activity slip in days + added/removed + a
+  by-status rollup (slipped / improved / on-baseline / added / removed / max-slip).
+- New `aec_api/schedule_baselines.py` (per-project JSON blob, bounded history, no migration) +
+  `GET/POST /schedule/baselines`, `DELETE /schedule/baselines/{id}`,
+  `GET /schedule/baselines/{id|latest}/variance`. The legacy singular `/schedule/baseline` +
+  `/schedule/variance` are untouched — the named library is a superset. Schedule panel gains a
+  **"📌 Baselines"** drawer (capture / list / click-to-compare / delete); client methods added.
+  `test_schedule_baselines` (274 suites green).
+- Resource-loading S-curves + the over-allocation leveling *advisory* already ship
+  (`resource_loading.py`); *applying* a level (mutating dates within float) is the RESOURCE-LEVEL-2
+  follow-up — it rewrites the schedule, so it lands on its own with an explicit confirm.
+
 ## v0.3.507 — RULE-LIB: user-authored parametric rule library (queue #14)
 
 - A Solibri-style rule library a firm can author without code, built on QUERY-DSL. Each rule is two
