@@ -67,6 +67,23 @@ def available_actions(mod: dict, state: str, party: str | None) -> list[dict]:
     return out
 
 
+def court_party(mod: dict, state: str | None) -> str | None:
+    """The party whose court a record in `state` is in — who owes the primary next move.
+
+    Taken from the FIRST outgoing transition declared for the state: module authors list the primary
+    forward action first (e.g. an RFI in `open` is answered by the Consultant before the GC's `void`
+    escape hatch), so the first transition's party is the real ball-in-court. `/`-joins a move shared
+    by several parties (Consultant/OwnersRep). Returns None for a terminal state — nobody's move —
+    so `transition` leaves the last owner in place there."""
+    if not state:
+        return None
+    for t in mod.get("workflow", {}).get("transitions", []):
+        if t["from"] == state:
+            parties = t.get("party") or []
+            return "/".join(parties) if parties else None
+    return None
+
+
 # --- CRUD -------------------------------------------------------------------
 def _log(db: Session, project_id: str, key: str, rid: str, actor: str,
          party: str | None, action: str, detail: dict | None = None) -> None:
@@ -816,9 +833,16 @@ def transition(db: Session, key: str, project_id: str, rid: str, action: str,
             RecordAttachment.record_id == rid).count()
         if not n:
             raise HTTPException(400, f"{action!r} requires at least one attachment (photo/evidence) first")
-    db.execute(update(t).where(t.c.id == rid).values(workflow_state=tr["to"], modified_at=_now()))
+    # move the record AND its ball-in-court: party_owner now tracks whose court the new state is in
+    # (WORKFLOW-ENGINE — it was set once at create and then went stale). Terminal states have no next
+    # court, so we leave the last owner in place there rather than blanking it.
+    vals: dict = {"workflow_state": tr["to"], "modified_at": _now()}
+    new_court = court_party(mod, tr["to"])
+    if new_court:
+        vals["party_owner"] = new_court
+    db.execute(update(t).where(t.c.id == rid).values(**vals))
     _log(db, project_id, key, rid, actor, party, f"transition:{action}",
-         {"from": rec["workflow_state"], "to": tr["to"], "note": note})
+         {"from": rec["workflow_state"], "to": tr["to"], "note": note, "court": new_court})
     db.commit()
     # fire an outbound webhook (opt-in, fail-open) so external automation can react — include the
     # record's resolved distribution (CC) emails so a listener can notify them.

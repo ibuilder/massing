@@ -224,6 +224,32 @@ def due_feed(pid: str, days: int = 7, db: Session = Depends(get_db),
     return mod_engine.due_feed(db, pid, soon_days=days)
 
 
+@router.get("/projects/{pid}/escalations")
+def escalations_scan(pid: str, db: Session = Depends(get_db),
+                     _: str = Depends(require_role("viewer"))):
+    """WORKFLOW-ENGINE — read-only escalation preview: every overdue record with its computed
+    escalation level, the level already applied, and whether it still needs escalating."""
+    from .. import escalation
+    return escalation.scan(db, pid)
+
+
+@router.post("/projects/{pid}/escalations/run")
+def escalations_run(pid: str, db: Session = Depends(get_db),
+                    user: str = Depends(require_role("admin"))):
+    """Apply the overdue-escalation pass now: each record past its due rung gets an `escalation:L{n}`
+    activity that surfaces to its ball-in-court party + assignee. Idempotent (level-guarded)."""
+    from .. import escalation
+    # escalations are attributed to "system" (the default actor) so they surface in EVERY relevant
+    # party's notification feed — the feed hides a viewer's own actions, and the human who triggered
+    # the run is captured in the audit row below, not on each record's timeline.
+    res = escalation.run(db, pid)
+    audit.record(db, action="escalation.run", actor=user, method="POST",
+                 path=f"/projects/{pid}/escalations/run",
+                 detail={"escalated": res["escalated"], "by_level": res["by_level"]})
+    db.commit()
+    return res
+
+
 def _build_digests(db: Session, pid: str) -> list[dict]:
     """Per-member work-queue digests for everyone on the project who has open items."""
     project = db.get(Project, pid)

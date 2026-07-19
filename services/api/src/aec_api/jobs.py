@@ -243,6 +243,18 @@ def _clash_detect(db: Session, params: dict) -> dict:
             "truncated": len(results) > limit}
 
 
+def _escalation_scan(db: Session, params: dict) -> dict:
+    """WORKFLOW-ENGINE: run the overdue-escalation pass for a project off the request path, so it can be
+    scheduled (nightly) or fired on demand without holding a request slot. Idempotent — each overdue
+    record is escalated to a given level at most once (guarded by its timeline), so the crash-recovery
+    re-run is safe. Params: {project_id, ladder?}. Returns the escalation summary."""
+    from . import escalation
+    pid = params.get("project_id") or ""
+    if not pid:
+        raise ValueError("escalation_scan needs a project_id")
+    return escalation.run(db, pid, actor=escalation.SYSTEM_ACTOR, ladder=params.get("ladder"))
+
+
 def _echo(db: Session, params: dict) -> dict:
     """Test/diagnostic kind: returns its params (and proves the queue round-trips)."""
     return {"echo": params}
@@ -253,3 +265,4 @@ register_kind("cobie_export", _cobie_export)
 register_kind("compiled_set_pdf", _compiled_set_pdf)
 register_kind("model_export", _model_export)
 register_kind("clash_detect", _clash_detect)
+register_kind("escalation_scan", _escalation_scan)

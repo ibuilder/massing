@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.502 — WORKFLOW-ENGINE: overdue escalation + explicit ball-in-court (queue #10)
+
+- The workflow layer already had the full state machine (per-doc-type states/transitions, party gating,
+  `requires`/evidence gates, transition audit, notifications feed + SSE, and a `due_feed` SLA view).
+  The genuine gaps were **automation and clarity**, and this closes both:
+  - **Explicit ball-in-court** — a record's `party_owner` now **tracks the workflow** instead of going
+    stale at creation. Each transition moves it to the new state's court (the party owing the primary
+    next move, e.g. an RFI entering `open` → *Consultant/OwnersRep*, then `answered` → *GC*), so
+    "whose court is this in?" is a stored, filterable, board-groupable value.
+  - **Overdue escalation** — a new `escalation.py` engine turns the read-only `due_feed` into action.
+    Each overdue record climbs an escalation **ladder** as it ages (L1 at 0–2 days late, L2 at 3–6,
+    L3 at 7+); `run` writes an `escalation:L{n}` entry to the record's timeline, which the existing
+    notifications feed surfaces to the ball-in-court party and the assignee — so an ignored RFI /
+    submittal / change order nudges the responsible party harder the longer it sits. Idempotent per
+    rung (guarded by the highest level already on the timeline), so a nightly pass never spams.
+  - Endpoints `GET /projects/{pid}/escalations` (read-only preview) + `POST …/escalations/run`
+    (admin, audited), plus an `escalation_scan` durable **job kind** so the pass can run off the
+    request path / on a schedule (crash-recovery safe because it's idempotent).
+- UI surface (an escalation badge on the notifications/SLA view) follows as WFE-2.
+
 ## v0.3.501 — fix(sec): escape untrusted text in the Budget estimating drawer (XSS)
 
 - Closes a stored/DOM-XSS path introduced in v0.3.499 (SURF-2): the "📐 Estimate from the model" card
