@@ -61,7 +61,9 @@ BCF (480 — WWR vs the IECC prescriptive cap · envelope U-value coverage · ac
 the pre-flight; `POST /codecheck/approvability/bcf` promotes failures to GUID-anchored topics) · ✅ `Pset_Massing_SpecLink` breadcrumb (479 — `set_spec_link` recipe + `/spec-links` rollup) ·
 ✅ F0b Box/Axis/FootPrint derivation (479 — `derive_representations`: bounds-true IfcBoundingBox +
 mid-thickness Axis + FootPrint rectangle into the F0 subcontexts, idempotent) · B3 wall Axis + clip
-planes · B5 fastener/connection assemblies · E2 type-a-dimension (VCB) · E3 sketch-to-BIM push/pull ·
+planes · B5 fastener/connection assemblies · E2 type-a-dimension (VCB) · ✅ E3 sketch-to-BIM push/pull (488 —
+`extrude_profile` closed-sketch → extruded element + `set_extrusion_depth` in-place pull, both
+tessellation-verified GUID-stable recipes) ·
 E5 parametric handles · ✅ E6 recipe-log design-option branches (483 — `model_options.py`:
 snapshot/list/activate/diff/delete named whole-model branches; activate is one undo step) ·
 ✅ E7 live schedules while modeling (473 — `aec:model-published` → open sheets re-render) · ✅ E2

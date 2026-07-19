@@ -74,6 +74,8 @@ from .edit_struct import (  # noqa: F401 — re-exported: routers/RECIPES/genera
     add_steel_beam,
     add_steel_column,
     add_wall,
+    extrude_profile,
+    set_extrusion_depth,
     set_wall_slope,
 )
 from .geomconf import geom_workers
@@ -734,6 +736,11 @@ RECIPES = {
     "execute_ifc_code": lambda m, p: _sandbox().execute_ifc_code(m, p["code"]),
     # B3 — sloped-top wall (parapet slope / shed / gable)
     "set_wall_slope": lambda m, p: set_wall_slope(m, p["guid"], p["start_height"], p["end_height"]),
+    # E3 — sketch-to-BIM: closed profile → extruded element; pull an existing extrusion's depth
+    "extrude_profile": lambda m, p: extrude_profile(
+        m, p["points"], float(p.get("height", 3.0)), p.get("ifc_class", "IfcBuildingElementProxy"),
+        p.get("name"), p.get("storey"), float(p.get("z", 0.0))),
+    "set_extrusion_depth": lambda m, p: set_extrusion_depth(m, p["guid"], float(p["depth"])),
     # B4 — procedural-mesh escape hatch (IfcTriangulatedFaceSet)
     "add_mesh_representation": lambda m, p: add_mesh_representation(
         m, p["verts"], p["faces"], p.get("name", "Mesh"),

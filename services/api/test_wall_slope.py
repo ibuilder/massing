@@ -70,9 +70,54 @@ for bad in (lambda: edit.set_wall_slope(m, "not-a-guid", 2, 4),
     except ValueError:
         pass
 
+# --- E3: sketch-to-BIM push/pull --------------------------------------------------------------------
+import numpy as np  # noqa: E402
+
+# a closed L-shaped sketch extruded 4 m → a real proxy mass with exactly that extrusion
+L = [[0, 0], [6, 0], [6, 2], [2, 2], [2, 5], [0, 5]]
+g = edit.extrude_profile(m, L, height=4.0, name="Podium sketch")
+mass = m.by_guid(g)
+assert mass.is_a() == "IfcBuildingElementProxy" and mass.Name == "Podium sketch", mass
+solid = next(item for r in mass.Representation.Representations for item in r.Items
+             if item.is_a("IfcExtrudedAreaSolid"))
+assert abs(float(solid.Depth) - 4.0) < 1e-6, solid.Depth
+# tessellated bounds match the sketch (6 × 5 plan, 4 m rise)
+sh = ifcopenshell.geom.create_shape(ifcopenshell.geom.settings(), mass)
+v = np.asarray(sh.geometry.verts, dtype=float).reshape(-1, 3)
+assert abs((v[:, 0].max() - v[:, 0].min()) - 6.0) < 0.01, "plan X"
+assert abs((v[:, 1].max() - v[:, 1].min()) - 5.0) < 0.01, "plan Y"
+assert abs((v[:, 2].max() - v[:, 2].min()) - 4.0) < 0.01, "rise"
+
+# the PULL: deepen the same mass to 7 m in place — GUID, name and psets survive
+r = edit.set_extrusion_depth(m, g, 7.0)
+assert r["old_depth_m"] == 4.0 and r["new_depth_m"] == 7.0, r
+sh2 = ifcopenshell.geom.create_shape(ifcopenshell.geom.settings(), m.by_guid(g))
+v2 = np.asarray(sh2.geometry.verts, dtype=float).reshape(-1, 3)
+assert abs((v2[:, 2].max() - v2[:, 2].min()) - 7.0) < 0.01, "pulled rise"
+assert m.by_guid(g).Name == "Podium sketch", "GUID-stable pull"
+
+# pulling a WALL works too (its height is an extrusion depth)
+w_pull = edit.add_wall(m, [10, 10], [16, 10], 3.0, 0.2, st)
+assert edit.set_extrusion_depth(m, w_pull, 5.5)["new_depth_m"] == 5.5
+
+# guards: a short profile, a bad class, a bad depth, and a non-extruded target all reject cleanly
+for bad_call in (lambda: edit.extrude_profile(m, [[0, 0], [1, 0]], 3.0),
+                 lambda: edit.extrude_profile(m, L, 3.0, ifc_class="IfcSpace"),
+                 lambda: edit.set_extrusion_depth(m, g, 0),
+                 lambda: edit.set_extrusion_depth(m, "0" * 22, 3.0)):
+    try:
+        bad_call()
+        raise AssertionError("expected ValueError")
+    except ValueError:
+        pass
+assert "extrude_profile" in edit.RECIPES and "set_extrusion_depth" in edit.RECIPES
+
 if os.path.exists(TMP):
     os.remove(TMP)
 
 print("WALL-SLOPE OK - set_wall_slope rebuilds the wall Body as a trapezoidal extrusion; tessellation "
       "confirms a flat wall tops out at 3 m, and after sloping the start end is ~2 m and the far end ~4 m "
-      "(a real rising slope, base at Z=0); equal heights give a flat top; non-wall / non-positive heights rejected.")
+      "(a real rising slope, base at Z=0); equal heights give a flat top; non-wall / non-positive heights rejected. "
+      "E3: extrude_profile turns an L-sketch into a 6x5x4 m proxy (tessellation-verified) and "
+      "set_extrusion_depth PULLS it to 7 m in place (GUID/name survive) and deepens a wall to 5.5 m; "
+      "short profiles, bad classes/depths, and non-extruded targets reject; both are recipes.")

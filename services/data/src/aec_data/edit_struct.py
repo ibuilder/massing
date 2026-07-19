@@ -138,6 +138,72 @@ def add_slab(model: ifcopenshell.file, points, thickness: float = 0.2,
     return slab.GlobalId
 
 
+_EXTRUDABLE = ("IfcBuildingElementProxy", "IfcWall", "IfcSlab", "IfcCovering", "IfcMember",
+               "IfcPlate", "IfcFooting")
+
+
+def extrude_profile(model: ifcopenshell.file, points, height: float = 3.0,
+                    ifc_class: str = "IfcBuildingElementProxy", name: str | None = None,
+                    storey: str | None = None, z: float = 0.0) -> str:
+    """E3 — **sketch-to-BIM**: a closed 2D profile (XY points, metres) extruded to `height` as a real
+    IFC element — the massing move of sketching a shape and pulling it up. `ifc_class` picks what it
+    becomes (default a generic proxy mass; walls/slabs/coverings when the sketch IS one); `z` lifts
+    the base above the storey. GUID-stable; pull it later with `set_extrusion_depth`."""
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+    if ifc_class not in _EXTRUDABLE:
+        raise ValueError(f"ifc_class must be one of {_EXTRUDABLE}")
+    if not isinstance(points, (list, tuple)) or len(points) < 3:
+        raise ValueError("a profile needs at least 3 points")
+    scale = uunit.calculate_unit_scale(model)
+    body = _body_context(model)
+    st = _first_storey(model, storey)
+    elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale
+    el = ifcopenshell.api.run("root.create_entity", model, ifc_class=ifc_class,
+                              name=name or "Sketch mass")
+    matrix = np.eye(4)
+    matrix[2, 3] = elev + float(z)
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=el, matrix=matrix)
+    pts = [model.create_entity("IfcCartesianPoint",
+                               Coordinates=(float(p[0]) / scale, float(p[1]) / scale)) for p in points]
+    pts.append(pts[0])
+    poly = model.create_entity("IfcPolyline", Points=pts)
+    profile = model.create_entity("IfcArbitraryClosedProfileDef", ProfileType="AREA", OuterCurve=poly)
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model,
+                               context=body, profile=profile, depth=float(height))
+    ifcopenshell.api.run("geometry.assign_representation", model, product=el, representation=rep)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[el], relating_structure=st)
+    return el.GlobalId
+
+
+def set_extrusion_depth(model: ifcopenshell.file, guid: str, depth: float) -> dict:
+    """E3 — the **pull**: change an existing extruded element's depth in place (a wall's height, a
+    slab's thickness, a sketch mass's rise) by editing its `IfcExtrudedAreaSolid.Depth`. GUID-stable —
+    the element, its psets, and every reference survive; only the geometry deepens. Raises when the
+    element isn't a simple extrusion (meshes/booleans aren't pullable)."""
+    import ifcopenshell.util.unit as uunit
+    if float(depth) <= 0:
+        raise ValueError("depth must be greater than 0")
+    try:
+        el = model.by_guid(guid)
+    except Exception as e:  # noqa: BLE001 — a stale/malformed GUID is a clean rejection
+        raise ValueError(f"element {guid} not found") from e
+    if el is None:
+        raise ValueError(f"element {guid} not found")
+    scale = uunit.calculate_unit_scale(model)
+    rep = getattr(el, "Representation", None)
+    for r in (rep.Representations if rep else []):
+        for item in r.Items or []:
+            if item.is_a("IfcExtrudedAreaSolid"):
+                old = float(item.Depth) * scale
+                item.Depth = float(depth) / scale
+                return {"guid": guid, "class": el.is_a(),
+                        "old_depth_m": round(old, 4), "new_depth_m": float(depth)}
+    raise ValueError(f"{el.is_a()} {guid} has no extruded solid to pull — only simple extrusions "
+                     "are pullable")
+
+
 def add_column(model: ifcopenshell.file, point, height: float = 3.0, width: float = 0.4,
                depth: float = 0.4, storey: str | None = None, profile=None) -> str:
     """Author an IfcColumn at an XY point (meters): a rectangular profile (or a supplied parametric

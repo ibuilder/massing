@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.488 — E3 sketch-to-BIM push/pull (P2 · Master-builder UX)
+
+- **`extrude_profile` recipe** — sketch-to-BIM: a closed 2D profile (XY metres) extruded to height
+  as a real IFC element (generic proxy mass by default; walls/slabs/coverings/members when the
+  sketch IS one), placed on the storey with an optional base lift. Tessellation-verified: an
+  L-shaped sketch becomes exactly a 6 × 5 × 4 m solid.
+- **`set_extrusion_depth` recipe** — the **pull**: change any simple extrusion's depth **in place**
+  (a wall's height, a slab's thickness, a sketch mass's rise) by editing its
+  `IfcExtrudedAreaSolid.Depth`. GUID-stable — the element, psets, and every reference survive; only
+  the geometry deepens. Non-extruded targets (meshes/booleans) reject cleanly.
+- Both registered (82 recipes, matrix guard green) and guarded (short profiles, bad classes/depths,
+  stale GUIDs). Completes E3.
+
 ## v0.3.487 — JOB-QUEUE geometry exports · REL-8 complete (P2 · reliability)
 
 - **JOB-QUEUE — `model_export` artifact job**: the heavy **.glb/.gltf geometry exports** now run as

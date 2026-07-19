@@ -46,6 +46,8 @@ _MAP: dict[str, tuple[str, str]] = {
     # --- edit-in-place ---
     "move_element": ("edit", "translate"), "rotate_element": ("edit", "rotate"),
     "copy_element": ("edit", "duplicate"), "delete_element": ("edit", "remove"),
+    "extrude_profile": ("create-structure", "sketch profile → extruded element"),
+    "set_extrusion_depth": ("edit", "push/pull an extrusion depth"),
     "set_wall_slope": ("edit", "sloped-top wall"), "add_opening": ("edit", "void a host"),
     "rename_storey": ("edit", "rename level"), "set_storey_elevation": ("edit", "move level"),
     # --- groups / types / arrays ---
