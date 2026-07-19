@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.517 — SURF-2b: bid-leveling summary + invite-bidders surfaced
+
+- The bid-leveling tab now opens with the **all-packages leveling summary** (`GET /bids/leveling` —
+  low / high / avg / spread per package, previously backed but never surfaced); picking a package
+  still drills into the per-bid detail. New **✉ Invite** action sends the ITB to comma-separated
+  companies via the existing `POST /bidding/packages/{id}/invite` and reports who was invited.
+  Frontend-only; panel live-load verified in the preview.
+
 ## v0.3.516 — MARKUP-2d: live co-markup — the MARKUP-2 track is complete
 
 - **Live co-markup**: a new SSE stream (`GET /projects/{pid}/drawings/markup/stream`, mirroring the

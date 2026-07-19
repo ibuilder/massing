@@ -112,19 +112,51 @@ export async function renderAiAssist(ctx: PanelContext) {
       if (active === "level") {
         const pick = el("select", "portal-filter") as HTMLSelectElement; pick.style.cssText = "margin:4px 0";
         pick.innerHTML = `<option value="">Loading packages…</option>`;
+        // SURF-2b: invite bidders to the selected package (comma-separated companies) — was backed,
+        // never surfaced. Sends the ITB and reports who was invited.
+        const invI = el("input", "portal-filter") as HTMLInputElement;
+        invI.placeholder = "invite bidders: Acme Mech, Delta Steel…"; invI.style.cssText = "margin:4px 0;flex:1 1 220px;min-width:0";
+        const invB = el("button", "tool-btn") as HTMLButtonElement; invB.textContent = "✉ Invite"; invB.dataset.cap = "edit";
+        const invRow = el("div"); invRow.style.cssText = "display:flex;gap:6px;align-items:center";
+        invRow.append(invI, invB);
         const out = el("div"); out.style.marginTop = "8px";
-        body.append(pick, out);
+        body.append(pick, invRow, out);
+        invB.onclick = async () => {
+          const companies = invI.value.split(",").map((s) => s.trim()).filter(Boolean);
+          if (!pick.value) { out.textContent = "choose a bid package first"; return; }
+          if (!companies.length) { out.textContent = "name at least one company"; return; }
+          try {
+            const r = await ctx.host.api.inviteBidders(pid, pick.value, companies);
+            out.textContent = `invited ${r.bidders_invited}: ${r.invited_companies.join(", ")}`;
+            invI.value = "";
+          } catch (e) { out.textContent = `invite failed: ${(e as Error).message}`; }
+        };
         try {
           const pkgs = await ctx.host.api.moduleRecords(pid, "bid_package");
-          pick.innerHTML = `<option value="">Choose a bid package…</option>`
+          pick.innerHTML = `<option value="">All packages (leveling summary)</option>`
             + pkgs.map((p) => `<option value="${p.id}">${(p.title || p.ref || p.id) as string}</option>`).join("");
         } catch { pick.innerHTML = `<option value="">No bid packages</option>`; }
+        // SURF-2b: the ALL-packages leveling summary (low/high/avg/spread per package) — backed by
+        // GET /bids/leveling, never surfaced. Shown by default; picking a package drills into detail.
+        const summary = async () => {
+          out.textContent = "leveling…";
+          try {
+            const s = await ctx.host.api.bidLeveling(pid);
+            if (!s.packages.length) { out.textContent = "no bids yet — invite bidders above"; return; }
+            const usd = (n: number | null) => n == null ? "—" : `$${Math.round(n).toLocaleString()}`;
+            out.innerHTML = `<div class="meta" style="margin-bottom:4px"><b>${s.package_count}</b> package(s) · ${s.bid_count} bid(s)</div>`
+              + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Package</th><th style="text-align:right">Bids</th><th style="text-align:right">Low</th><th style="text-align:right">High</th><th style="text-align:right">Avg</th><th style="text-align:right">Spread</th></tr></thead><tbody>`
+              + s.packages.map((p) => `<tr><td>${esc(p.package)}</td><td style="text-align:right">${p.bid_count}</td><td style="text-align:right">${usd(p.low)}</td><td style="text-align:right">${usd(p.high)}</td><td style="text-align:right">${usd(p.avg)}</td><td style="text-align:right">${Math.round(p.spread * 100)}%</td></tr>`).join("")
+              + `</tbody></table></div>`;
+          } catch (e) { out.textContent = `leveling failed: ${(e as Error).message}`; }
+        };
         pick.onchange = async () => {
-          if (!pick.value) return;
+          if (!pick.value) { void summary(); return; }
           out.textContent = "leveling…";
           try { renderLeveling(out, await ctx.host.api.bidLevelingDetail(pid, pick.value)); }
           catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
         };
+        void summary();
         return;
       }
 
