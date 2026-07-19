@@ -98,9 +98,13 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
     predicates, and a viewer **🔎 Query-select** tool that isolates matches in 3D. Reusable core for
     clash scopes / view filters / schedules / bulk edits / MCP. **Next:** wire `select()` into the
     clash-scope + bulk-edit call sites (they still take explicit class lists) to compound the value.
-14. **RULE-LIB** *(M, ★★★★)* — a Solibri-style user-authored parametric rule-check library
-    (clearance-in-front-of, accessible route, escape distance, maintainability space) with a severity
-    matrix, on the existing compliance substrate.
+14. ✅ **RULE-LIB — SHIPPED v0.3.507** — a user-authored parametric rule library on QUERY-DSL: each
+    rule = a `scope` selector + a `require` selector + a severity; an in-scope element failing `require`
+    is a violation. `aec_api/rule_library.py` + `GET/PUT /rules` (validated atomic save) + `GET
+    /rules/run` (per-rule pass/fail + GUIDs + by-severity rollup) + a viewer **✔ Rule check** tool.
+    **RULE-LIB-2 remaining:** the *geometric/relational* checks (clearance-in-front-of, escape distance,
+    accessible route, maintainability space) — they need swept geometry, not the property index, so
+    they ride the logistics/clash geometry path.
 15. **RESOURCE-LEVEL** *(M)* — true resource-loaded scheduling + leveling + multiple named baselines
     with variance (today's leveling is advisory-only).
 16. **MODEL-CI** *(M, ★★★★)* — "Automate-lite": rule packs (IDS/clash/code/QTO-delta/custom) auto-run

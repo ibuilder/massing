@@ -3001,6 +3001,15 @@ export class ApiClient extends HttpCore {
    *  Relational by default — when GC `schedule_activity` records exist they drive it (`source:"gc"`),
    *  each frame carrying a real calendar `date` + `linked`/`unlinked` element counts. Otherwise a takt
    *  plan; a P6 .xer import yields `source:"p6"` with interpolated dates. `?source=gc|takt` forces one. */
+  /** RULE-LIB — check the loaded model against the user-authored rule library → per-rule pass/fail
+   *  + offending GUIDs + a by-severity rollup. */
+  rulesRun(pid: string) {
+    return this.json<{ model_scored: boolean; total_rules: number; failing_rules?: number;
+      total_violations?: number; by_severity?: Record<string, number>; note?: string;
+      rules: { id: string; name: string; severity: string; scope: string; require: string;
+        scoped: number; passed: number; failed: number; fail_guids: string[]; status: string }[] }>(
+      `/projects/${pid}/rules/run`);
+  }
   /** QUERY-DSL — select elements by a selector string (`IfcWall & Pset_WallCommon.FireRating=2HR &
    *  storey=L3`) → matching GUIDs + parsed predicates. One grammar for filter / isolate / scope. */
   modelSelect(pid: string, q: string, limit = 5000) {

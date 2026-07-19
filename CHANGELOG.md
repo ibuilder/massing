@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.507 — RULE-LIB: user-authored parametric rule library (queue #14)
+
+- A Solibri-style rule library a firm can author without code, built on QUERY-DSL. Each rule is two
+  selector strings + a severity: **`scope`** (which elements it applies to) and **`require`** (the
+  condition each in-scope element must satisfy). An in-scope element that fails `require` is a
+  violation — so "every fire door needs a fire rating" is `scope: IfcDoor` / `require:
+  Pset_DoorCommon.FireRating`, and "external walls declare a fire rating" is `scope: IfcWall &
+  Pset_WallCommon.IsExternal=true` / `require: Pset_WallCommon.FireRating`.
+- New `aec_api/rule_library.py` (per-project JSON blob, no migration; a starter set seeds an empty
+  library) + `GET/PUT /projects/{pid}/rules` (selectors validated before an atomic save → 422 on a bad
+  rule) and `GET /projects/{pid}/rules/run` → per-rule pass/fail + offending GUIDs + by-severity
+  rollup. Viewer gains a **"✔ Rule check"** tool listing each rule's pass/fail with an "isolate
+  failures" link; new `rulesRun` client method. `test_rule_library` (273 suites green).
+- Geometric/relational checks (clearance-in-front-of, escape distance, accessible route) need swept
+  geometry, not the property index — deferred to a RULE-LIB-2 riding the logistics/clash geometry path.
+
 ## v0.3.506 — QUERY-DSL: a selector language over the model (queue #13)
 
 - Adds a compact selector grammar so one filter language scopes clash runs, view filters, schedules,

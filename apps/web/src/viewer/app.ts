@@ -2973,6 +2973,33 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             inp.onkeydown = (e) => { if (e.key === "Enter") void exec(); };
           });
         }));
+        b.appendChild(toolBtn2("✔ Rule check (rule library)", () => withLoading(container, "Checking the rule library", async () => {
+          let r;
+          try { r = await api.rulesRun(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          if (!r.model_scored) { toast(r.note || "no model loaded", "info"); return; }
+          out.textContent = `rules: ${r.failing_rules ?? 0}/${r.total_rules} failing`;
+          showResult("Rule library check", (body) => {
+            const bySev = r!.by_severity || {};
+            body.appendChild(resultNote(`<b>${r!.failing_rules ?? 0}</b> of ${r!.total_rules} rules failing · `
+              + `${r!.total_violations ?? 0} violations` + (bySev.high ? ` · 🔴 ${bySev.high} high` : "")
+              + (bySev.medium ? ` · 🟡 ${bySev.medium} medium` : "") + (bySev.low ? ` · ⚪ ${bySev.low} low` : ""),
+            (r!.failing_rules ?? 0) ? "" : "ok"));
+            const sev: Record<string, string> = { high: "🔴", medium: "🟡", low: "⚪" };
+            for (const rule of r!.rules) {
+              const icon = rule.status === "pass" ? "✅" : rule.status === "n/a" ? "➖" : (sev[rule.severity] || "•");
+              const line = resultNote(`${icon} <b>${escapeHtml(rule.name)}</b> — ${rule.passed}/${rule.scoped} pass`
+                + (rule.failed ? ` · <b>${rule.failed}</b> fail` : ""), rule.status === "fail" ? "" : "ok");
+              if (rule.failed && rule.fail_guids.length) {
+                const pick = document.createElement("a"); pick.href = "#"; pick.textContent = " isolate failures";
+                pick.style.cssText = "font-size:11px;margin-left:6px";
+                pick.onclick = (e) => { e.preventDefault(); void layerMgr.isolateGuids(rule.fail_guids.slice(0, 500)); };
+                line.appendChild(pick);
+              }
+              body.appendChild(line);
+            }
+          });
+        })));
         b.appendChild(toolBtn2("🔗 Coordinate clashes (grouped issues)", () => withLoading(container, "Running federated clash + coordination", async () => {
           let r;
           try { r = await api.clashFederated(pid, { coordinate: true }); }

@@ -1,7 +1,7 @@
 """ISO 19650 / openBIM standards endpoints — CDE container discipline + requirements register."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from .. import bim_kpi, bsdd, cde, ids_authoring, mcp_tools, openbim, openbim_quality, standards_expert
@@ -169,6 +169,40 @@ def model_select(pid: str, q: str, limit: int = 5000, db: Session = Depends(get_
         return query_dsl.select(_idx_for(pid), q, limit=min(max(limit, 1), 20000))
     except query_dsl.QueryError as e:
         raise HTTPException(422, str(e))
+
+
+@router.get("/projects/{pid}/rules")
+def rules_get(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """RULE-LIB — the project's user-authored parametric rule library (falls back to the starter set
+    until one is saved). Each rule = a scope selector + a require selector + a severity."""
+    from .. import rule_library
+    _project(db, pid)
+    stored = rule_library.load(pid)
+    return {"rules": stored or rule_library.STARTER_RULES, "seeded": not stored}
+
+
+@router.put("/projects/{pid}/rules")
+def rules_put(pid: str, rules: list[dict] = Body(..., embed=True),
+              db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Replace the project's rule library. Every rule's selectors are validated (QUERY-DSL) before
+    anything is written — a bad selector rejects the whole save with 422."""
+    from .. import rule_library
+    _project(db, pid)
+    try:
+        saved = rule_library.save(pid, rules)
+    except rule_library.QueryError as e:
+        raise HTTPException(422, str(e))
+    return {"saved": len(saved), "rules": saved}
+
+
+@router.get("/projects/{pid}/rules/run")
+def rules_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Check the loaded model against the rule library → per-rule pass/fail + offending GUIDs +
+    a by-severity rollup."""
+    from .. import rule_library
+    _project(db, pid)
+    stored = rule_library.load(pid) or rule_library.STARTER_RULES
+    return rule_library.run(_idx_for(pid), stored)
 
 
 @router.get("/projects/{pid}/model/export.csv")
