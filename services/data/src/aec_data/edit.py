@@ -828,6 +828,11 @@ RECIPES = {
     "add_shear_tab": lambda m, p: _conn().add_shear_tab(m, p["beam_guid"], float(p.get("thickness", 0.01)),
                                                         float(p.get("depth", 0.2)), float(p.get("width", 0.1)),
                                                         int(p.get("bolts", 2)), storey=p.get("storey")),
+    # B5 — generic fastener/connection assembly with IfcRelConnectsWithRealizingElements semantics
+    "add_connection_assembly": lambda m, p: _conn().add_connection_assembly(
+        m, p["guid_a"], p["guid_b"], p.get("kind", "bolted"), int(p.get("bolts", 4)),
+        float(p.get("bolt_dia", 0.02)), float(p.get("plate_size", 0.25)),
+        float(p.get("plate_thickness", 0.012)), p.get("storey")),
     "add_rebar_cage": lambda m, p: _rebar().add_rebar_cage(m, p["column_guid"], p.get("bar_size", "#8"),
                                                           p.get("tie_size", "#3"), float(p.get("cover", 0.04)),
                                                           float(p.get("tie_spacing", 0.25)), p.get("storey")),

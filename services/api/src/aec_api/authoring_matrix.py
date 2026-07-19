@@ -21,6 +21,7 @@ _MAP: dict[str, tuple[str, str]] = {
     "add_rebar_cage": ("create-structure", "IfcReinforcingBar (cage)"),
     "add_base_plate": ("create-structure", "IfcPlate (base plate)"),
     "add_shear_tab": ("create-structure", "IfcPlate (shear tab) + bolts"),
+    "add_connection_assembly": ("create-structure", "connection plate+bolts + IfcRelConnectsWithRealizingElements"),
     "add_roof": ("create-enclosure", "IfcRoof"), "add_covering": ("create-enclosure", "IfcCovering"),
     "add_railing": ("create-enclosure", "IfcRailing"), "add_curtain_wall": ("create-enclosure", "IfcCurtainWall"),
     "add_door": ("create-opening", "IfcDoor + IfcOpeningElement"),

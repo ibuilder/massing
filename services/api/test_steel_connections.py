@@ -62,10 +62,42 @@ assert rc["changed"]["bolts"] == 4, rc
 mo = open_model(OUT)
 assert mo.by_guid(rc["changed"]["assembly"]).is_a() == "IfcElementAssembly"
 
+# --- B5: connection assembly with IfcRelConnectsWithRealizingElements ------------------------------
+m5 = open_model(TMP)
+st5 = m5.by_type("IfcBuildingStorey")[0].Name
+c5 = edit.add_column(m5, [10, 10], 4.0, 0.4, 0.4, st5)
+b5 = edit.add_beam(m5, [10, 10], [16, 10], 0.3, 0.5, st5)
+r5 = connections.add_connection_assembly(m5, c5, b5, kind="bolted", bolts=4)
+assert r5["fasteners"] == 4 and r5["kind"] == "bolted", r5
+# the REAL LOD-400 semantic: A connects to B, realized by the plate + 4 bolts
+rel = m5.by_guid(r5["connection_rel"])
+assert rel.is_a("IfcRelConnectsWithRealizingElements") and rel.ConnectionType == "BOLTED", rel
+assert {rel.RelatingElement.GlobalId, rel.RelatedElement.GlobalId} == {c5, b5}
+assert len(rel.RealizingElements) == 5, len(rel.RealizingElements)
+assert m5.by_guid(r5["assembly"]).is_a() == "IfcElementAssembly"
+# a welded connection carries just the weldment plate; the summary lists both
+w5 = connections.add_connection_assembly(m5, c5, b5, kind="welded")
+assert w5["fasteners"] == 0, w5
+cs = connections.connection_summary(m5)
+assert cs["count"] == 2 and {c["type"] for c in cs["connections"]} == {"BOLTED", "WELDED"}, cs
+assert all(c["realized_by"] for c in cs["connections"])
+# same-member and bad-kind reject
+for bad5 in (lambda: connections.add_connection_assembly(m5, c5, c5),
+             lambda: connections.add_connection_assembly(m5, c5, b5, kind="glued")):
+    try:
+        bad5()
+        raise AssertionError("expected ValueError")
+    except ValueError:
+        pass
+assert "add_connection_assembly" in edit.RECIPES
+
 for f in (TMP, OUT):
     if os.path.exists(f):
         os.remove(f)
 
 print("STEEL CONNECTIONS OK - base plate (IfcPlate) + 4 anchor bolts (IfcMechanicalFastener ANCHORBOLT) "
       "under a steel column, grouped into an IfcElementAssembly (>=6 parts, fabrication LOD 350/400); "
-      "shear tab + 3 bolts on a beam; non-column rejected; add_base_plate recipe works via apply_recipe.")
+      "shear tab + 3 bolts on a beam; non-column rejected; add_base_plate recipe works via apply_recipe. "
+      "B5: add_connection_assembly authors plate+bolts at the joint AND records "
+      "IfcRelConnectsWithRealizingElements (A↔B realized by 5 parts, ConnectionType BOLTED/WELDED); "
+      "connection_summary browses them; same-member/bad-kind reject; registered as a recipe.")

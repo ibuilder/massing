@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.490 — B5 fastener/connection assemblies (P2 · Wave 11)
+
+- **`add_connection_assembly` recipe**: a connection plate + bolt array authored at the joint
+  between two members, grouped into an `IfcElementAssembly`, **and** — the semantic B6's base
+  plates/shear tabs lacked — an **`IfcRelConnectsWithRealizingElements`** recording that A connects
+  to B *realized by* the plate and fasteners (`ConnectionType` BOLTED/WELDED). That's the construct
+  fabrication and detailing tools round-trip. Welded connections carry the weldment plate alone.
+- **`connection_summary`** — the fabrication-level connection browser: every realized connection
+  with its members, type, and realizing parts.
+- Test-proven (A↔B realized by 5 parts; bolted + welded both listed; same-member and unknown kinds
+  reject) and registered (83 recipes, matrix guard green). Completes B5.
+
 ## v0.3.489 — security: bounded doc_text regexes (CodeQL ReDoS)
 
 - The two section-number regexes in `doc_text.py` used an unbounded `\d+(\.\d+)+`, which backtracks

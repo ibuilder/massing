@@ -103,6 +103,97 @@ def add_base_plate(model: ifcopenshell.file, column_guid: str, width: float = 0.
     return {"assembly": asm["guid"], "plate": made[0], "bolts": len(made) - 1, "column": column_guid}
 
 
+def add_connection_assembly(model: ifcopenshell.file, guid_a: str, guid_b: str,
+                            kind: str = "bolted", bolts: int = 4, bolt_dia: float = 0.02,
+                            plate_size: float = 0.25, plate_thickness: float = 0.012,
+                            storey: str | None = None) -> dict:
+    """B5 — a **fastener/connection assembly** between two members with the full LOD-400 semantics:
+    a connection plate + bolt array authored at the joint (the midpoint between the members' base
+    points), everything grouped into an `IfcElementAssembly`, and — the part B6 lacked — an
+    **`IfcRelConnectsWithRealizingElements`** recording that A connects to B *realized by* the plate
+    and fasteners (`ConnectionType` = kind). That's the construct fabrication/detailing tools
+    round-trip; `connection_summary` lists them. `kind`: bolted · welded (welds get no bolts, the
+    plate reads as the weldment). GUID-stable."""
+    from .edit import _body_context, _first_storey, _rect_profile
+
+    kinds = ("bolted", "welded")
+    if kind not in kinds:
+        raise ValueError(f"kind must be one of {kinds}")
+    a = _member(model, guid_a, ("IfcColumn", "IfcBeam", "IfcMember", "IfcPlate", "IfcWall"))
+    b = _member(model, guid_b, ("IfcColumn", "IfcBeam", "IfcMember", "IfcPlate", "IfcWall"))
+    if a == b:
+        raise ValueError("a connection needs two different members")
+    body = _body_context(model)
+    ax, ay, az = _base_xyz(model, a)
+    bx, by, bz = _base_xyz(model, b)
+    jx, jy, jz = (ax + bx) / 2, (ay + by) / 2, (az + bz) / 2
+
+    made: list[str] = []
+    plate = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcPlate",
+                                 name="Connection plate" if kind == "bolted" else "Weldment plate")
+    _set_predefined(plate, "SHEET")
+    _place(model, plate, jx, jy, jz)
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                               profile=_rect_profile(model, float(plate_size), float(plate_size)),
+                               depth=float(plate_thickness))
+    ifcopenshell.api.run("geometry.assign_representation", model, product=plate, representation=rep)
+    made.append(plate.GlobalId)
+
+    if kind == "bolted":
+        inset = float(plate_size) * 0.2
+        h = float(plate_size) / 2 - inset
+        corners = [(h, h), (-h, h), (-h, -h), (h, -h)]
+        for i in range(max(1, min(int(bolts), 4))):
+            dx, dy = corners[i]
+            bolt = ifcopenshell.api.run("root.create_entity", model,
+                                        ifc_class="IfcMechanicalFastener", name="Bolt")
+            _set_predefined(bolt, "BOLT")
+            _place(model, bolt, jx + dx, jy + dy, jz - 0.02)
+            brep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                        profile=_circle(model, float(bolt_dia) / 2),
+                                        depth=float(plate_thickness) + 0.05)
+            ifcopenshell.api.run("geometry.assign_representation", model, product=bolt,
+                                 representation=brep)
+            made.append(bolt.GlobalId)
+
+    st = _first_storey(model, storey)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model,
+                             products=[model.by_guid(g) for g in made], relating_structure=st)
+
+    from . import groups
+    asm = groups.create_assembly(
+        model, f"{kind.title()} connection {(a.Name or '')}–{(b.Name or '')}".strip(),
+        [guid_a, guid_b, *made], predefined="RIGID_FRAME")
+
+    rel = model.create_entity(
+        "IfcRelConnectsWithRealizingElements", GlobalId=ifcopenshell.guid.new(),
+        RelatingElement=a, RelatedElement=b,
+        RealizingElements=[model.by_guid(g) for g in made],
+        ConnectionType=kind.upper())
+    return {"assembly": asm["guid"], "connection_rel": rel.GlobalId, "kind": kind,
+            "plate": made[0], "fasteners": len(made) - 1, "a": guid_a, "b": guid_b}
+
+
+def connection_summary(model: ifcopenshell.file) -> dict:
+    """The model's realized connections (`IfcRelConnectsWithRealizingElements`) — who connects to
+    whom, the connection type, and the realizing plate/fastener parts. The fabrication-level
+    connection browser."""
+    rows = []
+    for rel in model.by_type("IfcRelConnectsWithRealizingElements"):
+        rows.append({
+            "rel": rel.GlobalId,
+            "a": getattr(rel.RelatingElement, "GlobalId", None),
+            "a_class": rel.RelatingElement.is_a() if rel.RelatingElement else None,
+            "b": getattr(rel.RelatedElement, "GlobalId", None),
+            "b_class": rel.RelatedElement.is_a() if rel.RelatedElement else None,
+            "type": rel.ConnectionType,
+            "realized_by": [{"guid": e.GlobalId, "class": e.is_a(),
+                             "name": getattr(e, "Name", None)}
+                            for e in (rel.RealizingElements or [])]})
+    return {"connections": rows, "count": len(rows)}
+
+
 def add_shear_tab(model: ifcopenshell.file, beam_guid: str, thickness: float = 0.01, depth: float = 0.2,
                   width: float = 0.1, bolts: int = 2, bolt_dia: float = 0.02,
                   storey: str | None = None) -> dict:
