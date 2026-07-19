@@ -186,6 +186,38 @@ def _compiled_set_pdf(db: Session, params: dict) -> dict:
             "filename": f"{(p.name or p.id)}-drawing-set.pdf", "bytes": len(pdf)}
 
 
+def _model_export(db: Session, params: dict) -> dict:
+    """JOB-QUEUE: the heavy **geometry exports** (.glb / .gltf) as artifact jobs — a large model's
+    tessellation runs off the request thread and the file parks in object storage
+    (`GET /jobs/{id}/artifact` streams it). The inline `/model/export.glb|.gltf` routes stay for
+    small models; this is the no-timeout path for big ones. Params: {project_id, format: glb|gltf}."""
+    import uuid
+    from pathlib import Path
+
+    from aec_data import gltf_export  # type: ignore
+
+    from . import storage
+    from .models import Project
+    p = db.get(Project, params.get("project_id") or "")
+    if not p:
+        raise ValueError("project not found")
+    if not p.source_ifc or not Path(p.source_ifc).exists():
+        raise ValueError("project has no source IFC to export")
+    fmt = str(params.get("format") or "glb").lower()
+    if fmt == "glb":
+        data = gltf_export.export_glb_bytes(p.source_ifc, p.name or p.id)
+        media, ext = "model/gltf-binary", "glb"
+    elif fmt == "gltf":
+        data = gltf_export.export_gltf_bytes(p.source_ifc, p.name or p.id)
+        media, ext = "model/gltf+json", "gltf"
+    else:
+        raise ValueError(f"unknown export format {fmt!r} — glb or gltf")
+    key = f"{p.id}/jobs/{uuid.uuid4().hex}-model.{ext}"
+    storage.put(key, data if isinstance(data, bytes) else data.encode())
+    return {"artifact_key": key, "media_type": media,
+            "filename": f"model-{p.id}.{ext}", "bytes": len(data)}
+
+
 def _echo(db: Session, params: dict) -> dict:
     """Test/diagnostic kind: returns its params (and proves the queue round-trips)."""
     return {"echo": params}
@@ -194,3 +226,4 @@ def _echo(db: Session, params: dict) -> dict:
 register_kind("echo", _echo)
 register_kind("cobie_export", _cobie_export)
 register_kind("compiled_set_pdf", _compiled_set_pdf)
+register_kind("model_export", _model_export)

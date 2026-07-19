@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.487 — JOB-QUEUE geometry exports · REL-8 complete (P2 · reliability)
+
+- **JOB-QUEUE — `model_export` artifact job**: the heavy **.glb/.gltf geometry exports** now run as
+  background jobs — tessellation off the request thread, the file parked in object storage,
+  `GET /jobs/{id}/artifact` streams it (valid glTF magic verified). The inline
+  `/model/export.glb|.gltf` routes stay for small models; this is the no-timeout path for big ones.
+  A bad format errors on the job row (the worker survives).
+- **REL-8 — COMPLETE**: audited all 359 first-party modules — every one already opens with a header
+  docstring — and made it durable: `test_import_cycles` now **enforces** the header-docstring rule
+  alongside the existing no-cycle guard, so a future module can't ship undocumented.
+
 ## v0.3.486 — W9-4 document-text ingestion → cited NL answers (P2 · knowledge graph)
 
 - **`doc_text.py` + 4 routes under `/projects/{pid}/doctext`**: ingest a specification / code

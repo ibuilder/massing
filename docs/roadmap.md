@@ -39,8 +39,9 @@ priorities below favor what that unblocked.
    1,187) · ✅ measure/section → `measureSection.ts` (481; app.ts 3,948, order/behaviour
    live-verified). Next leaf: `portal.ts` (2,542). One live-verified leaf per release.
 7. **JOB-QUEUE migration** *(S/M)* — ✅ the artifact-job pattern + the heaviest path shipped
-   v0.3.464 (`compiled_set_pdf` kind + `GET /jobs/{id}/artifact` streaming). Remaining paths to
-   migrate onto it: PAdES sealing · large exports (.glb/IFC) · generative runs.
+   v0.3.464 (`compiled_set_pdf` kind + `GET /jobs/{id}/artifact` streaming) · ✅ large geometry
+   exports (487 — `model_export` .glb/.gltf artifact job, glTF-magic verified). Remaining: PAdES
+   sealing (needs the doc-reference plumbing) · generative runs (mutating jobs need the pid lock).
 8. ✅ **3D-HERO — SHIPPED v0.3.465** — 📸 in the viewer captures the live canvas → `PUT /hero` →
    the project package opens with a full-bleed 3D hero page. Live-verified (1.27 MB capture,
    package grew to 10 pages with the image embedded).
@@ -119,7 +120,8 @@ amendments ride the code context; audited, clearable).
 `connectors.py` residue · `auth.py` · `data/drawing.py`/`drawings.py`/`massing.py` · `bcf_io.py` ·
 `routers/generate.py`) · ✅ REL-5 COMPLETE (481 — `bridge.py` plan/execute → typed
 Plan/ExecutionResult dataclasses · `recipes.py` storey-lookup dedupe · vite/bundle-budget FS was
-already single-pass) · REL-8 (CI no-cycle check; module-header docs) · REL-6 tail (✅ private-IP
+already single-pass) · ✅ REL-8 COMPLETE (487 — all 359 modules carry header docstrings, now
+ENFORCED in test_import_cycles beside the no-cycle guard) · REL-6 tail (✅ private-IP
 webhook blocking 478 — `AEC_WEBHOOK_ALLOW_PRIVATE=0` refuses private/loopback targets, tested ·
 cargo-audit/gitleaks in CI when available) · REL-7 stays evidence-gated (the bulk
 dead-code claim was disproven; only prove-then-delete small batches).

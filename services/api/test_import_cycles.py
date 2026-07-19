@@ -120,7 +120,20 @@ if cycles:
     lines = "\n".join("  CYCLE: " + " -> ".join(c) for c in cycles)
     raise AssertionError(f"{len(cycles)} top-level import cycle(s) found:\n{lines}")
 
+# REL-8: every first-party module opens with a header docstring — the one-paragraph "what this is"
+# a newcomer reads before the code. Enforced so it stays true as modules are added.
+undocumented = []
+for name, path in mods.items():
+    if name.endswith("__init__") or os.path.basename(path) == "__init__.py":
+        continue
+    with open(path, encoding="utf-8") as fh:
+        first = fh.readline()
+    if not first.lstrip().startswith(('"""', "'''", 'r"""', 'f"""')):
+        undocumented.append(name)
+assert not undocumented, f"module(s) missing a header docstring (REL-8): {undocumented}"
+
 edge_count = sum(len(v) for v in edges.values())
 print(f"test_import_cycles OK - no top-level import cycles across {len(mods)} first-party modules "
       f"(aec_api + aec_data), {edge_count} intra-package import edges. Function-local/deferred imports are "
-      f"correctly ignored (they don't cycle at import time). Guards the REL-3 façade layering.")
+      f"correctly ignored (they don't cycle at import time). Guards the REL-3 façade layering. "
+      f"REL-8: every module opens with a header docstring (enforced).")

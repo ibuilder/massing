@@ -117,8 +117,22 @@ with TestClient(app) as c:
     # a result-only job (echo) has no artifact → 404
     assert c.get(f"/projects/{pid}/jobs/{jid}/artifact").status_code == 404
 
+    # JOB-QUEUE: heavy geometry exports as artifact jobs — .glb tessellated off-thread, parked in
+    # storage, streamed back as a valid binary glTF; a bad format fails on the row (worker survives)
+    r4 = c.post(f"/projects/{pid}/jobs", json={"kind": "model_export", "params": {"format": "glb"}})
+    gj = _wait(r4.json()["id"], timeout=120)
+    assert gj.state == "done" and gj.result["artifact_key"].endswith(".glb"), (gj.state, gj.error)
+    ga = c.get(f"/projects/{pid}/jobs/{r4.json()['id']}/artifact")
+    assert ga.status_code == 200 and ga.content[:4] == b"glTF", ga.content[:8]
+    assert "model/gltf-binary" in ga.headers["content-type"], ga.headers
+    r5 = c.post(f"/projects/{pid}/jobs", json={"kind": "model_export", "params": {"format": "step"}})
+    bj = _wait(r5.json()["id"], timeout=60)
+    assert bj.state == "error" and "unknown export format" in (bj.error or ""), (bj.state, bj.error)
+
 jobs.stop_worker()
 print("JOB-QUEUE OK - unknown kind 400s at submit; orphaned running job re-queued on worker start and "
       "completed (crash recovery); echo round-trips with timestamps; handler exception captured on the "
       "row (worker survives); endpoints enqueue/poll/list with cross-project 404; the real cobie_export "
-      "kind parses the model in the background and reports per-sheet counts.")
+      "kind parses the model in the background and reports per-sheet counts; model_export tessellates "
+      "the .glb off-thread into a streamed artifact (valid glTF magic) and a bad format errors on the "
+      "row.")
