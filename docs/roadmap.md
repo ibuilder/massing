@@ -46,8 +46,9 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
 6. ✅ **SURF-1 — Schedule/interop surface — SHIPPED v0.3.498** — ⇪ P6/MSP `.xer/.xml` import, 🔔
    predictive alerts, ⏱ earned-schedule surfaced in the Schedule panel toolbar (all were backed, no
    surface). 4D playback stays with FOURD-SIM (#12); XER *export* with SCHED-P6 (#11).
-7. **SURF-2 — Estimating/takeoff surface** *(M)* — model-based estimate, resource-based estimate,
-   DXF/scan takeoff, QTO-by-floor, bid leveling / invite bidders (backed, no surface).
+7. ✅ **SURF-2 — Estimating/takeoff surface — SHIPPED v0.3.499** — the "📐 Estimate from the model"
+   card in Budget: conceptual (unit-rate), resource-based (L/M/E), QTO-by-floor, DXF takeoff. (Bid
+   leveling / invite-bidders remain for SURF-2b — they belong on the procurement surface, not Budget.)
 8. **SURF-3 — Authoring surface** *(M)* — base-plate/shear-tab/curtain-wall/MEP-fitting/rebar-cage/
    assembly/type/detailing-rules/LOD/phase recipes reachable from the rail (backed, no surface).
 9. **SURF-4 — QA + RE/ops surface** *(M)* — scan-deviation, model/data QA, code-check, code-adoptions;

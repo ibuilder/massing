@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.499 — SURF-2: estimating/takeoff surface — model estimates + DXF takeoff (queue #7)
+
+- Second UI-surfacing wave item: a **"📐 Estimate from the model"** card in the Budget panel wires
+  up four backed-but-unsurfaced estimating capabilities, each filling a shared results drawer:
+  - **＄ Conceptual (unit-rate)** — `estimateFromModel`: the IFC takeoff × cost-DB unit rates →
+    priced line items, total, and the unpriced-class list.
+  - **🧱 Resource-based (L/M/E)** — `estimateResourceBased`: assembly build-ups (labor + material +
+    equipment) with crew-hours and a by-trade table.
+  - **🏢 QTO by floor** — `qtoByFloor`: quantity + cost per storey and discipline.
+  - **⬒ Takeoff a DXF** — `takeoffDxf`: a 2D CAD file picker → linear metres, enclosed area, and
+    block counts per layer (flags unitless DXFs).
+- All four routes ship + are CI-covered; pure surface. Frontend-only (backend tree identical to
+  v0.3.498); typecheck · lint · 121 vitest · build green; panel load-verified.
+
 ## v0.3.498 — SURF-1: schedule interop surface — P6/MSP import, alerts, earned schedule (queue #6)
 
 - First of the **UI-surfacing wave**: three fully-backed schedule capabilities that had **no

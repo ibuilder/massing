@@ -44,6 +44,68 @@ export async function renderBudget(ctx: PanelContext) {
   note.innerHTML = "The agreed <b>GMP</b> broken to every cost code & bid package + GC/GR, overhead, fee & contingency — budget vs committed vs actual.";
   intro.append(jump, sovBtn, baseBtn, note); ctx.root.appendChild(intro);
 
+  // SURF-2: model-based estimating + 2D takeoff were fully backed but had no surface. One card, a
+  // button row, and a shared results drawer — each button fills it on demand.
+  const estCard = document.createElement("div"); estCard.className = "dash-card"; estCard.style.marginBottom = "10px";
+  const estHead = document.createElement("div"); estHead.className = "section-title"; estHead.textContent = "📐 Estimate from the model";
+  const estRow = document.createElement("div"); estRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin:4px 0";
+  const estDrawer = document.createElement("div"); estDrawer.innerHTML = `<div class="meta">Price the model's takeoff against the cost DB, or take off a 2D CAD sheet.</div>`;
+  estCard.append(estHead, estRow, estDrawer); ctx.root.appendChild(estCard);
+  const fillEst = (html: string) => { estDrawer.innerHTML = html; };
+  const rows = (arr: string[]) => arr.join("");
+
+  const emBtn = document.createElement("button"); emBtn.className = "tool-btn"; emBtn.textContent = "＄ Conceptual (unit-rate)";
+  emBtn.title = "Conceptual estimate: the model's IFC takeoff × cost-DB unit rates → priced line items";
+  emBtn.onclick = async () => {
+    fillEst(`<div class="meta">Pricing the model…</div>`);
+    try {
+      const e = await ctx.host.api.estimateFromModel(pid);
+      const lines = e.lines.map((l) => `<tr><td>${l.ifc_class.replace("Ifc", "")}</td><td style="text-align:right">${l.count}</td><td style="text-align:right">${l.quantity.toLocaleString()} ${l.unit}</td><td style="text-align:right">${usd(l.rate)}</td><td style="text-align:right">${usd(l.amount)}</td></tr>`);
+      const unpriced = e.unpriced.length ? `<div class="meta" style="margin-top:4px">Unpriced (no rate): ${e.unpriced.map((u) => `${u.ifc_class.replace("Ifc", "")}×${u.count}`).join(", ")}</div>` : "";
+      fillEst(`<div style="font-weight:600;margin-bottom:4px">Conceptual estimate — <b>${usd(e.total)}</b> · ${e.element_count} elements</div>`
+        + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Class</th><th style="text-align:right">Count</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th></tr></thead><tbody>${rows(lines)}</tbody></table></div>${unpriced}`);
+    } catch (err) { fillEst(`<div class="meta">Estimate unavailable: ${(err as Error).message}</div>`); }
+  };
+  const rbBtn = document.createElement("button"); rbBtn.className = "tool-btn"; rbBtn.textContent = "🧱 Resource-based (L/M/E)";
+  rbBtn.title = "Assembly estimate: each class built up from labor + material + equipment, with crew-hours";
+  rbBtn.onclick = async () => {
+    fillEst(`<div class="meta">Building resource-loaded estimate…</div>`);
+    try {
+      const e = await ctx.host.api.estimateResourceBased(pid);
+      const trades = e.by_trade.slice(0, 12).map((t) => `<tr><td>${t.name}</td><td style="text-align:right">${Math.round(t.hours).toLocaleString()} h</td><td style="text-align:right">${usd(t.cost)}</td></tr>`);
+      fillEst(`<div style="font-weight:600;margin-bottom:4px">Resource-based — <b>${usd(e.total)}</b> · ${Math.round(e.labor_hours).toLocaleString()} crew-hours</div>`
+        + `<div class="meta">Labor ${usd(e.by_kind.labor)} · Material ${usd(e.by_kind.material)} · Equipment ${usd(e.by_kind.equipment)}</div>`
+        + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Trade</th><th style="text-align:right">Hours</th><th style="text-align:right">Cost</th></tr></thead><tbody>${rows(trades)}</tbody></table></div>`
+        + (e.unmapped.length ? `<div class="meta" style="margin-top:4px">Unmapped: ${e.unmapped.map((u) => `${u.ifc_class.replace("Ifc", "")}×${u.count}`).join(", ")}</div>` : ""));
+    } catch (err) { fillEst(`<div class="meta">Resource estimate unavailable: ${(err as Error).message}</div>`); }
+  };
+  const flBtn = document.createElement("button"); flBtn.className = "tool-btn"; flBtn.textContent = "🏢 QTO by floor";
+  flBtn.title = "Quantity + cost by storey and discipline — quantities mapped to where they are";
+  flBtn.onclick = async () => {
+    fillEst(`<div class="meta">Taking off by floor…</div>`);
+    try {
+      const e = await ctx.host.api.qtoByFloor(pid);
+      const st = e.storeys.map((s) => `<tr><td>${s.storey}</td><td style="text-align:right">${s.element_count}</td><td style="text-align:right">${usd(s.total)}</td></tr>`);
+      fillEst(`<div style="font-weight:600;margin-bottom:4px">QTO by floor — grand total <b>${usd(e.grand_total)}</b> · ${e.element_count} elements</div>`
+        + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Storey</th><th style="text-align:right">Elements</th><th style="text-align:right">Cost</th></tr></thead><tbody>${rows(st)}</tbody></table></div>`);
+    } catch (err) { fillEst(`<div class="meta">By-floor QTO unavailable: ${(err as Error).message}</div>`); }
+  };
+  const dxfLabel = document.createElement("label"); dxfLabel.className = "tool-btn"; dxfLabel.style.cursor = "pointer";
+  dxfLabel.textContent = "⬒ Takeoff a DXF"; dxfLabel.title = "2D CAD quantity takeoff — linear metres, enclosed area and block counts per layer";
+  const dxfInput = document.createElement("input"); dxfInput.type = "file"; dxfInput.accept = ".dxf"; dxfInput.style.display = "none"; dxfLabel.appendChild(dxfInput);
+  dxfInput.onchange = async () => {
+    const f = dxfInput.files?.[0]; if (!f) return;
+    fillEst(`<div class="meta">Taking off ${f.name}…</div>`);
+    try {
+      const e = await ctx.host.api.takeoffDxf(pid, f);
+      const ly = e.layers.slice(0, 15).map((l) => `<tr><td>${l.layer}</td><td style="text-align:right">${l.entities}</td><td style="text-align:right">${l.length_m.toFixed(1)}</td><td style="text-align:right">${l.area_m2.toFixed(1)}</td><td style="text-align:right">${l.inserts}</td></tr>`);
+      fillEst(`<div style="font-weight:600;margin-bottom:4px">DXF takeoff — ${e.layer_count} layers · ${e.total_length_m.toFixed(1)} ${e.units} linear · ${e.total_area_m2.toFixed(1)} ${e.units}² area${e.unitless ? " <span class='meta'>(unitless DXF — verify scale)</span>" : ""}</div>`
+        + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Layer</th><th style="text-align:right">Ent.</th><th style="text-align:right">Length</th><th style="text-align:right">Area</th><th style="text-align:right">Blocks</th></tr></thead><tbody>${rows(ly)}</tbody></table></div>`);
+    } catch (err) { fillEst(`<div class="meta">DXF takeoff failed: ${(err as Error).message}</div>`); }
+    finally { dxfInput.value = ""; }
+  };
+  estRow.append(emBtn, rbBtn, flBtn, dxfLabel);
+
   // budget movement vs baseline (shown only if a baseline exists; 409 otherwise → ignored)
   const bvHolder = document.createElement("div"); ctx.root.appendChild(bvHolder);
   void ctx.host.api.budgetVariance(pid).then((v) => {
