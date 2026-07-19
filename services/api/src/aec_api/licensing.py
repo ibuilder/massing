@@ -148,4 +148,14 @@ def state() -> dict[str, Any]:
         "key_format_valid": fmt_ok,
         "message": msg,
         "manage_url": "https://www.massing.cloud/docs/",
+        "cloud": _cloud_status(),
     }
+
+
+def _cloud_status() -> dict[str, Any]:
+    """massing.cloud online-validation status for the Settings panel (never leaks the secret)."""
+    try:
+        from . import license_cloud
+        return license_cloud.status()
+    except Exception:                     # noqa: BLE001 — the bridge is optional; never break /license
+        return {"online": False}

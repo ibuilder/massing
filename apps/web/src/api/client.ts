@@ -124,7 +124,14 @@ export class ApiClient extends HttpCore {
       features: { exports: string[]; api_access: boolean; sso: boolean; navisworks: boolean };
       tiers: { id: string; label: string; features: Record<string, unknown> }[];
       key_configured: boolean; key_masked: string; key_format_valid: boolean | null;
-      message: string; manage_url: string }>("/license");
+      message: string; manage_url: string;
+      cloud?: { online: boolean; url?: string; secret_configured?: boolean; note?: string } }>("/license");
+  }
+  /** CLOUD-BRIDGE: validate the recorded key against massing.cloud + apply the returned plan (admin). */
+  licenseCloudCheck() {
+    return this.json<{ checked_online: boolean; valid?: boolean; tier?: string; reason?: string | null;
+      applied: boolean; tier_before: string; tier_after: string; error?: string }>(
+      "/license/cloud-check", { method: "POST" });
   }
   /** AI/rules risk summary over a project's dashboard. */
   riskSummary(pid: string) {

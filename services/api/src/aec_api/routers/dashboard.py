@@ -7,8 +7,9 @@ from sqlalchemy.orm import Session
 from .. import ai, dashboard, mailer, oauth, rbac, report
 from .. import modules as me
 from ..db import get_db
-from ..models import Project
+from ..models import Project, User
 from ..rbac import require_role
+from .auth import require_admin_user
 
 router = APIRouter()
 
@@ -188,6 +189,15 @@ def license_state():
     is recorded (key is masked, never returned in full). Drives the Settings licence panel."""
     from .. import licensing
     return licensing.state()
+
+
+@router.post("/license/cloud-check")
+def license_cloud_check(db: Session = Depends(get_db), admin: User = Depends(require_admin_user)):
+    """CLOUD-BRIDGE: validate the recorded licence key against massing.cloud (when online validation is
+    enabled + the shared secret is configured) and apply the returned plan. Admin-only. Offline / not
+    configured → a no-op result (the locally recorded tier is untouched). The secret is never returned."""
+    from .. import license_cloud
+    return license_cloud.check_and_apply(db, actor=admin.username)
 
 
 @router.get("/projects/{pid}/ai/risk-summary")

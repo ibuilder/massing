@@ -21,6 +21,13 @@ CATALOG: list[dict[str, Any]] = [
          "secret": False, "default": "free"},
         {"key": "MASSING_LICENSE_ENFORCE", "label": "Enforce plan limits (1/0) — off = open, licence optional",
          "secret": False, "default": "0"},
+        # CLOUD-BRIDGE: optional online validation against massing.cloud. Off by default (offline-first);
+        # the recorded tier above is authoritative until the operator enables + configures this.
+        {"key": "MASSING_CLOUD_ONLINE", "label": "Validate licence online (1/0)", "secret": False,
+         "default": "0"},
+        {"key": "MASSING_CLOUD_URL", "label": "massing.cloud REST base (e.g. https://www.massing.cloud/wp-json/massing/v1)",
+         "secret": False},
+        {"key": "MASSING_CLOUD_SECRET", "label": "Shared secret (X-Massing-Secret header)", "secret": True},
     ]},
     {"group": "AI assist (Draft RFI)", "keys": [
         {"key": "ANTHROPIC_API_KEY", "label": "Anthropic API key", "secret": True},

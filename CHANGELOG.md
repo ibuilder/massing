@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.524 — CLOUD-BRIDGE: optional online licence validation (massing.cloud)
+
+- New **massing.cloud licence bridge** (`license_cloud.py`) — the "online check" the licensing module
+  always anticipated. Off by default (offline-first): the recorded plan is authoritative on its own,
+  so a cloud outage never locks a paying operator out. When enabled, the app validates the recorded
+  key against `POST {base}/validate` with the shared `X-Massing-Secret`, normalizes the verdict
+  (unknown tier → free), and — via the admin **`POST /license/cloud-check`** (+ a *☁ Validate online*
+  button in the licence panel) — writes the cloud-confirmed plan back to Settings. An explicit
+  `valid:false` downgrades to Free; an unreachable cloud changes nothing.
+- The shared secret lives only in the operator's config (`MASSING_CLOUD_SECRET`, a **secret** setting)
+  — masked in the Settings catalog, never returned by any endpoint, never logged. Contract documented
+  in [docs/massing-cloud-bridge.md](docs/massing-cloud-bridge.md) for the massing.cloud plugin to mirror.
+- **Container hardening**: the API runtime image no longer copies the base image's global `npm` CLI
+  (`/usr/local/lib/node_modules`) into production. The API invokes the IFC→Fragments converter via
+  `node <script>` with deps in `/app/node_modules` and never runs `npm` at runtime, so dropping the
+  npm CLI removes its bundled deps (cross-spawn / glob / minimatch / sigstore / tar) and their CVEs
+  from the image, clearing the Trivy container-scan gate and shrinking the image.
+
 ## v0.3.523 — JOB-QUEUE: mutating jobs hold the project mutation lock
 
 - Job handlers that **write project state** now run under `pid_lock.mutating(project_id)` — the same

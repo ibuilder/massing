@@ -904,6 +904,25 @@ function settingsModal() {
         + `<br><span style="opacity:.75">Unlocks: ${escapeHtml(unlocked)}</span>`
         + ` — <a class="ref-link" href="${l.manage_url}" target="_blank" rel="noopener">manage at massing.cloud</a>`;
     }
+    // CLOUD-BRIDGE: when online validation is configured, offer a "validate now" action (admin-gated
+    // server-side; non-admins get a graceful 403 message). The shared secret is never shown here.
+    if (l.cloud?.online) {
+      const row = document.createElement("div"); row.style.cssText = "margin-top:6px;display:flex;gap:8px;align-items:center";
+      const b = document.createElement("button"); b.className = "tool-btn"; b.textContent = "☁ Validate online";
+      b.title = "Validate the recorded licence key against massing.cloud and apply the returned plan.";
+      const msg = document.createElement("span"); msg.className = "meta"; msg.style.fontSize = "11px";
+      b.onclick = async () => {
+        msg.textContent = "checking massing.cloud…";
+        try {
+          const r = await api.licenseCloudCheck();
+          if (!r.checked_online) { msg.textContent = `offline — ${r.error || "unreachable"} (plan unchanged)`; return; }
+          msg.textContent = r.valid
+            ? (r.applied ? `✓ valid — plan set to ${r.tier_after}` : `✓ valid — already on ${r.tier_after}`)
+            : `✗ ${r.reason || "invalid"} — plan now ${r.tier_after}`;
+        } catch (e) { msg.textContent = (e as Error).message; }
+      };
+      row.append(b, msg); lic.appendChild(row);
+    }
   }).catch(() => { lic.textContent = ""; });
   const credit = document.createElement("div");
   credit.className = "meta"; credit.style.cssText = "margin-top:8px;font-size:11px";

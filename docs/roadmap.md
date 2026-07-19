@@ -116,6 +116,11 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
     (`escalation_scan`, `model_ci`, future generative runs) can't race a concurrent edit; read/artifact
     kinds stay unwrapped. **Still open:** PAdES sealing on the queue (needs doc-reference plumbing —
     defer until a queued signing flow actually exists).
+20. ✅ **CLOUD-BRIDGE — SHIPPED v0.3.524 (Sprint 7, user-directed)** — optional online licence
+    validation against massing.cloud (`license_cloud.py`, off by default / offline-first). `POST
+    /license/cloud-check` (admin) validates the recorded key via `{base}/validate` + `X-Massing-Secret`
+    and applies the cloud-confirmed plan; `☁ Validate online` button in the licence panel. Secret lives
+    only in operator config (masked, never returned/logged). Contract: docs/massing-cloud-bridge.md.
 
 **THEN:** the ⚙️ RUNTIME ring below (orjson first — S effort, wide benefit; interleave the S items
 between features) · R14 Tier-2/3 + 🧭 R15 remaining tiers (itemized below) — SCOPE-GAP · GOLDEN-THREAD ·

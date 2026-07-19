@@ -54,9 +54,11 @@ COPY services/api/modules /app/services/api/modules
 COPY services/api/seed_demo.py /app/services/api/seed_demo.py
 
 # Node runtime + the IFC->Fragments converter so /publish can reconvert authored edits.
-# node_modules at /app/node_modules resolves from services/converter/src (node walks up).
+# The API invokes the converter with `node <script>` (subprocess) — deps resolve from /app/node_modules
+# (node walks up from services/converter/src). It never runs `npm` at runtime, so the global npm CLI at
+# /usr/local/lib/node_modules is deliberately NOT copied — that keeps npm's bundled deps (cross-spawn,
+# glob, minimatch, sigstore, tar) and their CVEs out of the production image.
 COPY --from=converter /usr/local/bin/node /usr/local/bin/node
-COPY --from=converter /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=converter /conv/node_modules /app/node_modules
 COPY services/converter /app/services/converter
 
