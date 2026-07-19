@@ -30,7 +30,33 @@ cd services/api && ./.venv/Scripts/python.exe -m pip_audit --progress-spinner of
 ```
 Pin CVE'd transitive deps in `services/data/requirements.txt` (e.g. `pillow>=12.3.0`).
 
+## Hand-audit checklist (HARDEN passes — beyond CodeQL's reach)
+Run over a release range (`git diff vX..vY --stat`, then read the changed files). Every class below
+produced a real finding in the v0.3.510 HARDEN-2 pass:
+
+- **Privilege side doors:** a stricter endpoint (admin + audited) whose work is ALSO reachable through
+  a generic gate — the job queue (`routers/jobs.py` `_KIND_MIN_ROLE`), bulk endpoints, MCP dispatch.
+  New privileged operations must gate every path, not just the front door, and audit each.
+- **Unbounded stored data → cheap-GET amplification:** anything an editor stores that a viewer-level
+  GET later evaluates (rules, configs, lists) needs count/size caps at save (`rule_library.MAX_*` is
+  the pattern; `schedule_baselines._MAX` too).
+- **Payload caps must keep the NEWEST rows:** `order_by(asc).limit()` silently hides everything
+  created after row N — cap with `desc().limit()` then re-sort ascending for stable display.
+- **innerHTML interpolation:** any file/server/model-derived free-text must pass `esc()` (panels,
+  from `ui/charts`) or `escapeHtml` (viewer). Numbers/`.toFixed`/server-constant labels are fine.
+  CodeQL catches some (`js/xss-through-dom`) but not all sinks.
+- **Hand-rolled parsers:** operator splitting must be leftmost + quote-aware (the QUERY-DSL `_find_op`
+  fix); validate what stored selectors will DO, not just that they parse — a silently-never-matching
+  rule is a false "pass" downstream.
+- **Serializer/format parity on swaps:** replacing a serializer (orjson) or parser needs the FULL
+  suite as the parity gate + explicit deltas checked: non-str keys, float subclasses (numpy.float64),
+  NaN/Infinity, tuples/sets, str subclasses.
+- **Live-UI teardown:** modal/panel tools with timers or visibility state need an `onClose` hook
+  (`ui/result.ts showResult(title, render, onClose)`) — closing must stop timers + restore state.
+- **External-format imports:** skip container/rollup rows (MSPDI `<Summary>1</Summary>`; XER non-TASK
+  tables) — named+dated summary rows import as phantom records otherwise.
+
 ## Not a vulnerability (don't manufacture fixes)
 Per the security-review exclusions: DoS/resource-exhaustion, secrets-on-disk (handled elsewhere), rate-limiting, SSRF that only controls the path, client-side authz, log-spoofing, outdated-dep advisories (handled separately). Fix concrete, exploitable HIGH/MED with a clear path.
 
-See memory: `codeql-monitoring`, `perf-sec-p0-patterns`.
+See memory: `codeql-monitoring`, `perf-sec-p0-patterns`, `innerhtml-xss-esc`, `query-dsl-selector-spine`.

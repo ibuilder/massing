@@ -147,10 +147,12 @@ Interleave the S items between feature releases; each is its own measured, verif
 benchmark before/after, no adoption without a measured win.*
 
 **Backend (Python):**
-- **RT-ORJSON** *(S · first)* — [orjson](https://github.com/ijl/orjson) (Rust, Apache-2.0/MIT) as
-  FastAPI's `default_response_class=ORJSONResponse` + the hot `json.dumps/loads` storage-blob paths
-  (props.json index, demo snapshot, 4D frames, dashboards — our biggest payloads). One-line adoption
-  per site; benchmark the big endpoints before/after.
+- ✅ **RT-ORJSON — SHIPPED v0.3.511** — orjson (Rust) as the default response serializer via our own
+  thin `JSONResponse` subclass (FastAPI's `ORJSONResponse` is deprecated; our un-annotated-dict
+  majority still renders through the response class). **Measured 7.1–9.4×** vs stdlib (prop-index
+  27.5→3.8 ms). `OPT_NON_STR_KEYS` for int-keyed rollups; hash-locked via the lockfile workflow.
+  **Remaining (S):** the hot `json.dumps/loads` storage-blob call sites (props.json index load,
+  demo snapshot) — measure, then swap.
 - **RT-UVLOOP** *(S, prod-container only)* — `--loop uvloop` (+ confirm `httptools`) in the Linux
   Docker entrypoint; a free event-loop win at high connection counts. Windows dev stays on asyncio
   (uvloop is Linux/macOS-only). Pair with a pass on worker count + keep-alive + `--limit-concurrency`

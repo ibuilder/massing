@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.511 — RT-ORJSON: Rust-backed JSON responses (⚙️ RUNTIME ring #1)
+
+- Every default API response now serializes with **orjson** (Rust; Apache-2.0/MIT) — measured
+  **7.1–9.4× faster** than stdlib on our representative payloads (a 5k-element property index drops
+  27.5 → 3.8 ms per response; 2k module records 4.4 → 0.6 ms; 300 4D frames 1.6 → 0.2 ms).
+- Implementation notes: we ship our **own** thin `JSONResponse` subclass rather than FastAPI's
+  `ORJSONResponse` (deprecated in current FastAPI — its native Pydantic path only covers *annotated*
+  routes, while most of our endpoints return plain dicts that still render through the default
+  response class). `OPT_NON_STR_KEYS` preserves stdlib behavior for int-keyed rollups and
+  `OPT_SERIALIZE_NUMPY` for `numpy.float64` (a float *subclass* stdlib accepted silently — the full
+  suite caught 12 analysis endpoints emitting it; numpy arrays now serialize natively too). One real
+  behavior change: `NaN`/`Infinity` now serialize as `null` instead of stdlib's literal `NaN` — which
+  was *invalid JSON* that would have broken any browser `JSON.parse`. Graceful fallback to stdlib if
+  orjson is absent. Dependency added via the hash-locked flow (`requirements.in`
+  → the `lockfile.yml` pip-compile workflow in the prod py3.12 container → `requirements.lock`; the
+  regenerated lock adds exactly one package, zero drift).
+- Verified: warnings-as-errors smoke + the full 275-suite gate exercising every endpoint through the
+  orjson render path (which also caught the int-key case).
+
 ## v0.3.510 — HARDEN-2: security + bug audit of the queue wave · roadmap reconciliation · RUNTIME ring
 
 - A dedicated hand audit of everything shipped v0.3.495–509 (beyond CodeQL's 0-alert baseline) found
