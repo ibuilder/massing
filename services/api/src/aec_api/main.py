@@ -22,6 +22,7 @@ from .routers import (
     assistant,
     auth,
     authoring,
+    bcf_api,
     benchmarking,
     bidding,
     bim,
@@ -327,6 +328,7 @@ if _RATE_RPM > 0:
         return await call_next(request)
 
 app.include_router(bim.router, tags=["bim"])
+app.include_router(bcf_api.router, tags=["bcf-api"])
 app.include_router(properties.router, tags=["properties"])
 app.include_router(plugins.router, tags=["plugins"])
 app.include_router(jobs_router.router, tags=["jobs"])

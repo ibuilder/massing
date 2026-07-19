@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.528 — BCF-API-SRV: live BCF-API 2.1 (OpenCDE) endpoints (R15)
+
+- New **server-side BCF-API 2.1** surface (`routers/bcf_api.py`) so external BCF managers — Revit,
+  Navisworks, Solibri, BIMcollab, usBIM — connect and sync issues live instead of exchanging
+  `.bcfzip` files. `GET /bcf/versions` negotiates the version, `GET /bcf/2.1/auth` advertises the
+  token URL, `GET /bcf/2.1/projects` lists accessible projects, and topics (list / get-by-guid /
+  create) + comments (list / create) map the standard BCF-API JSON — `topic_type`, `topic_status`,
+  `assigned_to`, `creation_author`, `labels` — directly onto the existing `Topic` / `Comment` rows.
+  A topic created over the BCF-API is the same row the native `/projects/{pid}/topics` returns (and
+  round-trips through `.bcfzip` export), reusing the platform's Bearer-token auth + role gates.
+
 ## v0.3.527 — IFCPATCH-LIB: one-click model maintenance recipes (R15)
 
 - New **model cleanup** — deterministic maintenance passes that remove dead data an IFC accumulates:
