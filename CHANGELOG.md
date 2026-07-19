@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.492 — R14 research ring planned · doc_text ReDoS round 2
+
+- **🔬 R14 ring added to the roadmap** — a field-research pass (13 infographics + 10 open-source
+  tools/products studied) synthesized into 18 planned upgrades, ranked in three tiers:
+  **Tier 1** — a full commissioning module (model-derived asset registry, phase-typed checklists,
+  system×phase matrix, MEP design values as expected FPT values) · per-typology reinforcement rules
+  + bar bending schedules with calc-run provenance · procurement close-the-loop (3-way match +
+  price-observation ledger into the cost DB). **Tier 2** — bid-scope coverage gaps with cited scope
+  lines · a compliance evidence ledger ("golden thread") · an MEP connector-topology graph with
+  parallel-run generation · range estimates + firm rate sheets. **Tier 3** — clash-report triage
+  import, lean BIM→GIS GeoJSON export, mnemonic shortcuts, view templates, a warnings panel,
+  drawing-status lifecycle, CBS rollups, a live BIM Execution Plan generator, BIM-org roles, and
+  charter/lessons-learned modules. All deterministic + offline; techniques only, no code lifted.
+- **doc_text ReDoS, round 2**: CodeQL re-flagged the section matcher — the leading `\s*` was
+  ambiguous against the optional `SECTION\s+` prefix (quadratic on space-runs). The line is now
+  stripped before matching and every whitespace quantifier is bounded. Behaviour unchanged.
+
 ## v0.3.491 — UX-1 full ribbon merge: physical phase clusters (P2 · designer workspace)
 
 - The Tools rail's sections are now **physically regrouped by lifecycle phase** — the DOM reorders

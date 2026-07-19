@@ -20,8 +20,10 @@ from . import storage
 
 # bounded quantifiers throughout — an unbounded \d+(\.\d+)+ backtracks polynomially on adversarial
 # "9.9.9…" input (CodeQL py/polynomial-redos); real section numbers are short, so bound them
+# matched against an lstripped line — no leading \s*, whose ambiguity with the optional
+# "SECTION\s+" prefix backtracked quadratically on space-runs (CodeQL polynomial-redos, round 2)
 _SECTION_RE = re.compile(
-    r"^\s*(?:SECTION\s+)?(\d{2}\s?\d{2}\s?\d{2}|\d{1,4}(?:\.\d{1,4}){1,6})\s*[–—-]?\s*(.{0,80})$",
+    r"^(?:SECTION\s{1,4})?(\d{2}\s?\d{2}\s?\d{2}|\d{1,4}(?:\.\d{1,4}){1,6})\s{0,4}[–—-]?\s{0,4}(.{0,80})$",
     re.IGNORECASE)
 _SECTION_NUM_RE = re.compile(r"\d{2}\s?\d{2}\s?\d{2}|\d{1,4}(?:\.\d{1,4}){1,6}")
 _PAGE_RE = re.compile(r"\f")
@@ -56,7 +58,7 @@ def chunk_text(text: str) -> list[dict]:
     blank_run = 0
     for raw_line in text.splitlines():
         page += raw_line.count("\f")
-        line = raw_line.replace("\f", "").rstrip()
+        line = raw_line.replace("\f", "").strip()
         m = _SECTION_RE.match(line) if line else None
         if m and len(line) < 100:
             if cur and cur["text"].strip():

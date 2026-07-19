@@ -132,6 +132,78 @@ webhook blocking 478 — `AEC_WEBHOOK_ALLOW_PRIVATE=0` refuses private/loopback 
 cargo-audit/gitleaks in CI when available) · REL-7 stays evidence-gated (the bulk
 dead-code claim was disproven; only prove-then-delete small batches).
 
+## 🔬 R14 ring — field-research upgrades (2026-07-19: 13 infographics + 10 tools/products studied)
+
+*Every item reimplements a proven WORKFLOW as a deterministic, offline feature grounded in the model
+we own (GUID-everywhere provenance is our structural edge over the AI-first equivalents). Techniques
+only — no code from unlicensed/proprietary sources; MIT/LGPL references studied, never pasted.*
+
+**Tier 1 (whitespace / highest leverage):**
+- **CX-1 — Commissioning module** *(L · ★★★★★)* — the lifecycle gap after punch/turnover: an asset
+  registry **auto-derived from the model** (every MEP equipment class → a commissionable asset), a
+  `cx_test` module with phase-typed checklists (pre-functional · functional-performance · integrated,
+  from curated templates keyed to IFC class × discipline), the **system × phase completion matrix**
+  panel, MEP-sizing design values as the FPT *expected-value* columns (a loop only a model-owning
+  platform can close), and a per-system commissioning dossier via reports/sheetgen.
+- **REBAR-RULES — per-typology reinforcement rules + BBS** *(M/L · ★★★★★)* — extend the rebar-cage
+  recipe into a detailing-rule catalog (column ties/laps · beam stirrup zones from the shear envelope ·
+  wall/opening trim + corner bars · footing mats), inputs = element + solver results, outputs =
+  GUID-stable cage edits **stamped with the calc-run** (stale-cage flag on re-solve), plus a **bar
+  bending schedule** (shape codes, cut lengths, weights) feeding 5D tonnage and S-sheets.
+- **PROC-LOOP — procurement close-the-loop** *(M · ★★★★)* — deterministic **3-way match** (PO lines
+  vs delivery records vs invoice lines, discrepancy flags) + a **price-observation ledger**: every
+  priced quote/PO line becomes a dated observation per cost-DB item (trend/volatility, "your last 5
+  purchases" surfaced at estimate time) + field material-requests keyed to QTO lines/GUIDs.
+
+**Tier 2 (extends existing engines):**
+- **SCOPE-GAP — bid-scope coverage + citations** *(M · ★★★★)* — QTO divisions vs bid-package scope
+  coverage (uncovered elements / spec sections with no quantities → flagged gaps), a per-trade
+  **scope/bid-form export where every line cites GUIDs + sheet + spec section** (click-to-highlight),
+  and schedule-vs-model count reconciliation.
+- **GOLDEN-THREAD — compliance evidence ledger** *(M · ★★★★)* — persist every code/approvability
+  check outcome → responsible person → evidence artifact (drawing rev · doc · photo) → sign-off,
+  versioned across the lifecycle (extends preflight + ISO 19650 codes); **check-scoping matrix**
+  (building type × new-build/refurb/change-of-use activates rule packs); tolerant-geometry fallbacks
+  so checks degrade gracefully on imported, poorly-classified IFC.
+- **MEP-GRAPH — connector-topology graph + parallel runs** *(M · ★★★★)* — a first-class port-graph
+  over IfcDistributionPort (proper path extraction → pressure-loss index runs become real paths),
+  **parallel/stacked run generation** (trace a run → offset the path → re-intersect at bends →
+  regenerate fittings; the multi-service rack workflow), nearest-open-connector matching hardening
+  auto_connect.
+- **EST-BANDS — range estimates + firm rate sheets** *(S/M · ★★★)* — low/likely/high bands per QTO
+  line rolled to a bid range (pairs with the Monte Carlo risk engine) + a firm **rate-sheet overlay**
+  on the localized cost vintages.
+
+**Tier 3 (interop + UX wins from the infographic set):**
+- **CLASH-TRIAGE** *(M)* — import external clash reports (Navisworks XML/HTML), filterable triage
+  table with zoom-to + linked-model resolution, BCF status round-trip.
+- **GIS-OUT** *(S/M)* — lean BIM→GIS export: exterior shell + footprint **GeoJSON in WGS84** (via the
+  georef) — the <10%-size site-context artifact; CityJSON site-context import extending SITE-1.
+- **KEYS-2** *(S)* — two-letter mnemonic shortcuts (WA wall · DR door · CS section · TH temp-hide …)
+  layered on the command line, discoverable via a cheat-sheet overlay.
+- **VIEW-TPL** *(S)* — saved **view templates** (camera + layers + color mode + section state) applied
+  per view/sheet for consistency.
+- **WARN-1** *(S)* — a persistent **model-warnings panel** (hygiene findings by type, count-badged,
+  click-to-elements) elevating model_qa from a report to a workflow.
+- **DRAW-STATUS** *(S)* — drawing-register lifecycle status (**Issued-for-Construction → Shop →
+  As-Built**) with shop-drawing ↔ submittal linkage.
+- **CBS-1** *(S/M)* — a Cost Breakdown Structure view over estimates: direct / indirect /
+  **contingency / management reserve / taxes & fees** layers with hierarchical rollup.
+- **BEP-GEN** *(M)* — generate the **BIM Execution Plan** from the project's LIVE configuration
+  (pinned IDS, CDE folders, classification systems, roles/responsibility matrix, exchange formats,
+  model-health gates) — the "information framework, not just a 3D model" deliverable, always current.
+- **ROLES-BIM** *(S)* — BIM-org personas (BIM manager · coordinator · information manager · QA/QC)
+  as responsibility-matrix defaults mapped to ISO 19650 duties.
+- **PM-CLOSE** *(S)* — project **charter** + **lessons-learned register** modules closing the PMBOK
+  process-group spine (initiate/close were thin).
+- **SOLVER-OUT** *(S, flagged)* — structural-solver exchange exports of the analytical model for
+  desktop solver round-trips.
+
+*Explicitly skipped from this research pass: seed-stage unlicensed contractor-OS apps (nothing beyond
+what the module engine ships), parametric beam/panel modeling cores (our GUID-stable recipes are
+ahead), and all LLM/computer-vision document scanning (non-deterministic; we author the model, so we
+never reverse-engineer PDFs).*
+
 ## P3 — gated (each entry names its unblocking event)
 
 *Audited 2026-07-18 during the P2 sweep: every entry below was re-checked and its gate still holds —
