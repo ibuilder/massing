@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.521 — CX-1: commissioning as a first-class loop (R14 Tier-1 complete)
+
+- **Seed from the model** (`POST /cx/seed` + the ⚡ button on Turnover): equipment classes in the
+  published model become GUID-keyed `asset_register` records (deduped on re-seed), and every
+  systemed asset gets its phase-typed `commissioning` tests (Pre-Functional + Functional) — the
+  Functional stamped with **FPT expected values** from the MEP equipment register (capacity / flow /
+  size per system).
+- **System × phase matrix** (`GET /cx/matrix`): the Cx wall chart — per-cell total / tested /
+  accepted / pass / fail across Pre-Functional → Retro-Cx, with per-system asset counts and
+  completion %. Rendered on the Turnover panel with per-system **dossier** drill-down
+  (`GET /cx/dossier` — assets, tests by phase, expected values, best-effort punch mentions).
+- With CX-1, PROC-LOOP, and REBAR-RULES/BBS shipped, **all of the 🔬 R14 Tier-1 ring is complete**.
+- **TEST-GAPS closed**: the audit's "6 untested engines" was mostly overcount (5 already covered);
+  the genuine gap — the distribution-waterfall investor allocator — now has a direct suite
+  (dollar conservation, pref clearance, pro-rata classes, period synthesis).
+
 ## v0.3.520 — MODEL-CI-3 · PROC-LOOP · REBAR-RULES + BBS
 
 - **Security**: the ⧉ compare overlay now allowlists its image source (data:image/png / blob: only),

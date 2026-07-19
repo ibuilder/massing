@@ -468,6 +468,74 @@ export async function renderTurnover(ctx: PanelContext) {
             : `not yet ready to certify`);
     }).catch(() => { strip.remove(); });
     const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+    // CX-1: the commissioning loop — seed from the model, the system × phase matrix, per-system dossier
+    const cxHead = el("div", "meta"); cxHead.style.cssText = "margin:12px 0 4px;font-weight:600";
+    cxHead.textContent = "🔌 Commissioning (system × phase)";
+    const cxWrap = el("div");
+    root.append(cxHead, cxWrap);
+    const loadCx = async () => {
+      cxWrap.innerHTML = `<div class="meta">loading matrix…</div>`;
+      try {
+        const mx = await ctx.host.api.cxMatrix(pid);
+        cxWrap.innerHTML = "";
+        const row = el("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;margin-bottom:6px";
+        const seedB = el("button", "file-btn") as HTMLButtonElement;
+        seedB.textContent = "⚡ Seed from model";
+        seedB.title = "Equipment classes in the published model become GUID-keyed assets (deduped), "
+          + "each systemed asset gets Pre-Functional + Functional tests with MEP FPT expected values.";
+        seedB.onclick = async () => {
+          seedB.disabled = true;
+          try {
+            const r = await ctx.host.api.cxSeed(pid);
+            toast(r.model_scored
+              ? `${r.created} asset(s) + ${r.checklists?.created ?? 0} checklist(s) seeded`
+              : (r.note || "no model loaded"), r.model_scored ? "success" : "info");
+            void loadCx();
+          } catch (e) { toast((e as Error).message, "error"); }
+          finally { seedB.disabled = false; }
+        };
+        row.append(seedB);
+        cxWrap.append(row);
+        if (!mx.system_count) {
+          cxWrap.insertAdjacentHTML("beforeend",
+            `<div class="meta">No commissioning systems yet — seed from the model or add commissioning records.</div>`);
+          return;
+        }
+        const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:11px";
+        const cell = (c: { total: number; accepted: number; pass: number; fail: number } | null | undefined) =>
+          !c ? "—" : `${c.accepted}/${c.total}` + (c.fail ? ` <span style="color:var(--status-crit)">✗${c.fail}</span>` : "");
+        t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">System</th><th scope="col">Assets</th>`
+          + mx.phases.map((p) => `<th scope="col">${esc(p)}</th>`).join("")
+          + `<th scope="col">%</th><th scope="col"><span class="sr-only">Dossier</span></th></tr></thead><tbody>`
+          + mx.systems.map((s) => `<tr><td>${esc(s.system)}</td><td style="text-align:center">${s.assets}</td>`
+            + mx.phases.map((p) => `<td style="text-align:center">${cell(s.phases[p])}</td>`).join("")
+            + `<td style="text-align:right">${s.complete_pct}%</td>`
+            + `<td><a href="#" data-sys="${esc(s.system)}" class="cx-dossier">dossier</a></td></tr>`).join("")
+          + `</tbody>`;
+        const wrap = el("div"); wrap.style.overflowX = "auto"; wrap.appendChild(t); cxWrap.append(wrap);
+        const detail = el("div"); cxWrap.append(detail);
+        t.querySelectorAll<HTMLAnchorElement>("a.cx-dossier").forEach((a) => {
+          a.onclick = async (ev) => {
+            ev.preventDefault();
+            try {
+              const dz = await ctx.host.api.cxDossier(pid, a.dataset.sys || "");
+              const box = el("div", "dash-card"); box.style.cssText = "margin:6px 0";
+              box.innerHTML = `<div class="meta"><b>${esc(dz.system)}</b> — ${dz.asset_count} asset(s) · `
+                + `${dz.accepted}/${dz.test_count} tests accepted (${dz.complete_pct}%)`
+                + (dz.open_punch_mentions ? ` · <span style="color:var(--status-warn)">${dz.open_punch_mentions} open punch mention(s)</span>` : "") + `</div>`
+                + (Object.keys(dz.expected_values).length
+                  ? `<div class="meta">FPT expected: ${Object.entries(dz.expected_values).slice(0, 8)
+                    .map(([k, v]) => `${esc(k)}=${esc(String(v))}`).join(" · ")}</div>` : "")
+                + Object.entries(dz.tests).map(([ph, ts]) => `<div class="meta"><b>${esc(ph)}</b>: `
+                  + ts.slice(0, 10).map((x) => `${esc(x.ref || "")} ${x.state === "accepted" ? "✅" : x.result === "Fail" ? "🔴" : "·"}`).join(" ")
+                  + (ts.length > 10 ? ` +${ts.length - 10} more` : "") + `</div>`).join("");
+              detail.innerHTML = ""; detail.append(box);
+            } catch (e) { toast((e as Error).message, "error"); }
+          };
+        });
+      } catch (e) { cxWrap.innerHTML = `<div class="meta">commissioning matrix failed: ${esc((e as Error).message)}</div>`; }
+    };
+    void loadCx();
     const load = async () => {
       body.innerHTML = "";
       let rd; let certs;

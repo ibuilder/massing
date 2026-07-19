@@ -76,9 +76,11 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
     config-row trick; revisit after MARKUP-2 (lower value than the shipped automation).
 
 **THEN (R14 Tier-1 feature builds):**
-12. **CX-1 commissioning** *(L, ★★★★★)* — model-derived asset registry, phase-typed `cx_test`
-    checklists, the system × phase completion matrix, MEP-sizing values as FPT expected values,
-    per-system dossier (see 🔬 R14 for full detail).
+12. ✅ **CX-1 commissioning — SHIPPED v0.3.521 (Sprint 7)** — `cx.py`: model→asset seeding
+    (equipment classes, GUID-deduped) + phase-typed checklist seeding with MEP FPT expected values
+    (the `commissioning` module already carried the 5 phases — overcount again); `GET /cx/matrix`
+    system × phase wall chart; `GET /cx/dossier` per-system package. Turnover panel: ⚡ seed +
+    matrix + dossier drill-down. **R14 Tier-1 ring complete.**
 13. ✅ **REBAR-RULES + BBS — SHIPPED v0.3.520 (Sprint 6)** — `aec_data/rebar_rules.py`: the
     ACI-envelope rule catalog (column/beam/wall/slab; `column_cage_params` names the governing
     limb), `check_cage` verifies authored cages (bar count + tie spacing; bare column = finding),
@@ -92,8 +94,12 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
     optional create keyed to GUIDs). Analytics panel: price ledger + suggest→create flow.
 
 **REL/quality carry-overs (interleave one per few releases; all audit-discovered):**
-15. **TEST-GAPS** *(S each)* — direct tests for the 6 higher-risk untested engines: distwaterfall ·
-    clash_intel · scope_library · standards_expert · schedule_viz · permit_check.
+15. ✅ **TEST-GAPS — CLOSED v0.3.521** — audit overcount: 5 of the 6 "untested" engines were
+    already covered (clash_intel + permit_check have direct suites; scope_library in
+    test_contracts, standards_expert in test_mcp_standards, schedule_viz smoke in test_research).
+    The genuine gap — `distwaterfall.scenario` (investor allocation over run_waterfall) — now has
+    test_distwaterfall (dollar conservation, pref clearance, pro-rata classes, period synthesis,
+    overrides; tier math stays pinned in test_waterfall).
 16. **REL-3 remainder** *(M)* — `modules.py` DI split (unblocks its CRUD/feeds leaves) · `main.py` ·
     `codecheck.py` · `connectors.py` residue · `auth.py` · `data/drawing.py`/`drawings.py`/
     `massing.py` · `bcf_io.py` · `routers/generate.py`.

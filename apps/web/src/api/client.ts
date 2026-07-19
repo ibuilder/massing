@@ -2636,6 +2636,32 @@ export class ApiClient extends HttpCore {
       `/projects/${pid}/procurement/level-quotes${record ? "?record=true" : ""}`,
       { method: "POST", body: JSON.stringify({ quotes }) });
   }
+  // --- CX-1 commissioning loop ----------------------------------------------
+  /** Seed asset_register from the model's equipment classes (GUID-deduped) + phase-typed
+   *  commissioning checklists with MEP FPT expected values. */
+  cxSeed(pid: string, checklists = true) {
+    return this.json<{ model_scored: boolean; created: number; skipped_existing: number;
+      capped?: boolean; note?: string;
+      checklists?: { created: number; capped?: boolean } }>(
+      `/projects/${pid}/cx/seed${checklists ? "" : "?checklists=false"}`, { method: "POST" });
+  }
+  /** The system × phase completion matrix. */
+  cxMatrix(pid: string) {
+    return this.json<{ systems: { system: string; assets: number; tests: number; accepted: number;
+      complete_pct: number; phases: Record<string, { total: number; tested: number; accepted: number;
+        pass: number; fail: number } | null> }[]; phases: string[]; system_count: number }>(
+      `/projects/${pid}/cx/matrix`);
+  }
+  /** The per-system turnover dossier. */
+  cxDossier(pid: string, system: string) {
+    return this.json<{ system: string; asset_count: number; test_count: number; accepted: number;
+      complete_pct: number; open_punch_mentions: number;
+      assets: { ref?: string; name?: string; tag?: string; location?: string; guid?: string }[];
+      tests: Record<string, { ref?: string; asset?: string; state?: string; result?: string;
+        date?: string; cx_agent?: string; deficiencies?: string }[]>;
+      expected_values: Record<string, unknown>; note?: string }>(
+      `/projects/${pid}/cx/dossier?system=${encodeURIComponent(system)}`);
+  }
   /** REBAR-RULES — the bar bending schedule off the authored IfcReinforcingBar geometry. */
   rebarBbs(pid: string) {
     return this.json<{ rows: { mark: string; size: string | null; diameter_mm: number; shape: string;

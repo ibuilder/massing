@@ -190,6 +190,46 @@ def closeout_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(r
     return closeout_engine.closeout_summary(db, pid)
 
 
+@router.post("/projects/{pid}/cx/seed")
+def cx_seed(pid: str, checklists: bool = True, db: Session = Depends(get_db),
+            actor: str = Depends(require_role("editor"))):
+    """CX-1: seed the commissioning registry from the published model — equipment classes become
+    GUID-keyed asset_register records (deduped), and (with `checklists`, the default) every systemed
+    asset gets its Pre-Functional + Functional commissioning records, the Functional stamped with
+    the system's MEP expected values (FPT)."""
+    from .. import audit, cx
+    from .properties import _INDEX, _ensure_loaded
+    try:
+        _ensure_loaded(pid)
+    except Exception:                                 # noqa: BLE001 — no model → seed reports it
+        pass
+    out = cx.seed_assets_from_model(db, pid, _INDEX.get(pid), actor)
+    if checklists and out.get("model_scored"):
+        out["checklists"] = cx.seed_checklists(db, pid, actor)
+    audit.record(db, action="cx.seed", actor=actor, method="POST",
+                 path=f"/projects/{pid}/cx/seed",
+                 detail={"created": out.get("created", 0),
+                         "checklists": (out.get("checklists") or {}).get("created", 0)})
+    db.commit()
+    return out
+
+
+@router.get("/projects/{pid}/cx/matrix")
+def cx_matrix(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """CX-1: the system × phase completion matrix (total/tested/accepted/pass/fail per cell)."""
+    from .. import cx
+    return cx.matrix(db, pid)
+
+
+@router.get("/projects/{pid}/cx/dossier")
+def cx_dossier(pid: str, system: str, db: Session = Depends(get_db),
+               _: str = Depends(require_role("viewer"))):
+    """CX-1: the per-system turnover dossier — assets, tests by phase, FPT expected values from the
+    MEP register, and best-effort punch mentions."""
+    from .. import cx
+    return cx.dossier(db, pid, system)
+
+
 @router.get("/projects/{pid}/safety/summary")
 def safety_summary(pid: str, hours: float | None = None, db: Session = Depends(get_db),
                    _: str = Depends(require_role("viewer"))):
