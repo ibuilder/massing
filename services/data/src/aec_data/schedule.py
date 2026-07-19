@@ -157,7 +157,12 @@ def parse_mspdi(text: str) -> list[dict[str, str]]:
         start = vals.get("Start") or vals.get("ActualStart") or ""
         finish = vals.get("Finish") or vals.get("ActualFinish") or ""
         act_name = vals.get("Name") or ""
-        if not act_name and not start:               # skip the MS Project project-summary / empty task
+        if not act_name and not start:               # empty placeholder task
+            continue
+        # HARDEN-2 (B3): real MS Project exports carry the project-summary task (UID 0) and one
+        # summary task per WBS header — named AND dated, so the old blank-guard let them through as
+        # phantom activities inflating CPM/4D/EV. Summary containers are rollups, not work — skip.
+        if vals.get("Summary") == "1" or vals.get("OutlineLevel") == "0":
             continue
         rows.append({
             "activity_id": vals.get("WBS") or vals.get("UID") or "",
@@ -196,7 +201,7 @@ def to_xer(activities: list[dict[str, Any]], project_name: str = "Schedule",
     percent — the exact fields `parse_xer` reads back, so export→re-import round-trips by activity
     code. Each activity dict: {activity_id, name, start 'YYYY-MM-DD', finish, activity_type?, percent?}.
     Dates are written 'YYYY-MM-DD 00:00' (P6's format); `parse_xer` truncates back to the date."""
-    lines = ["\t".join(["ERMHDR", "8.0", export_date, "Project", "", "",
+    lines = ["\t".join(["ERMHDR", "8.0", export_date, _xer_cell(project_name) or "Project", "", "",
                         "dbxDatabaseNoName", "Project Management", "USD"])]
     fields = ["task_id", "task_code", "task_name", "task_type", "status_code",
               "target_start_date", "target_end_date", "phys_complete_pct"]

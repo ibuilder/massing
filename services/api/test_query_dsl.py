@@ -52,6 +52,20 @@ assert sel("IfcWall & storey=L3 & Pset_WallCommon.LoadBearing=true") == ["g1"]
 # nothing matches
 assert sel("IfcDoor") == []
 
+# HARDEN-2 (B2): leftmost-operator, quote-aware split — a quoted value may CONTAIN operator chars
+IDX_OPS = {
+    "q1": {"ifc_class": "IfcColumn", "psets": {"Pset_ColumnCommon": {"Reference": "C=1-A"}}},
+    "q2": {"ifc_class": "IfcColumn", "psets": {"Pset_ColumnCommon": {"Reference": "plain"}}},
+}
+assert sorted(q.select(IDX_OPS, 'Pset_ColumnCommon.Reference~"C=1"')["guids"]) == ["q1"]
+assert sorted(q.select(IDX_OPS, "Pset_ColumnCommon.Reference='C=1-A'")["guids"]) == ["q1"]
+p = q.parse('name~"a>=b"')
+assert p == [("name", "~", "a>=b")], p              # the >= inside quotes is data, not an operator
+# HARDEN-2 (B2b): a bare ifc-prefixed FIELD is an existence test, not a class token
+assert sorted(q.select(IDX, "ifc_class")["guids"]) == ["g1", "g2", "g3", "g4"]
+assert q.parse("ifc_class") == [("ifc_class", "__has__", None)]
+assert q.parse("IfcWall") == [("ifc_class", "=", "IfcWall")]   # real class tokens still shorthand
+
 # parse errors -> QueryError (endpoint maps these to 422)
 for bad in ("", "   ", "&", "  &  "):
     try:

@@ -5,6 +5,7 @@
 
 let host: HTMLElement | null = null;
 let lastFocus: HTMLElement | null = null;
+let currentOnClose: (() => void) | null = null;   // HARDEN-2 (B5): teardown for live panels (timers…)
 
 function close() {
   host?.remove();
@@ -12,6 +13,9 @@ function close() {
   document.removeEventListener("keydown", onKey);
   lastFocus?.focus?.();        // return focus to whatever opened the modal
   lastFocus = null;
+  const fn = currentOnClose;   // run the panel's teardown exactly once (✕ / Esc / backdrop / replace)
+  currentOnClose = null;
+  try { fn?.(); } catch { /* teardown must never block closing */ }
 }
 function focusable(): HTMLElement[] {
   if (!host) return [];
@@ -30,9 +34,13 @@ function onKey(e: KeyboardEvent) {
   }
 }
 
-/** Open a result modal titled `title`; `render` fills the scrollable body. Replaces any open one. */
-export function showResult(title: string, render: (body: HTMLElement) => void): void {
+/** Open a result modal titled `title`; `render` fills the scrollable body. Replaces any open one
+ *  (running its teardown). `onClose` runs once when THIS modal closes — by ✕ / Esc / backdrop click
+ *  or by being replaced — so live panels (e.g. the 4D player) can stop timers + restore state. */
+export function showResult(title: string, render: (body: HTMLElement) => void,
+                           onClose?: () => void): void {
   close();
+  currentOnClose = onClose ?? null;
   lastFocus = document.activeElement as HTMLElement | null;
   host = document.createElement("div");
   host.className = "result-overlay";

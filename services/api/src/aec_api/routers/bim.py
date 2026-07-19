@@ -390,8 +390,10 @@ def list_topics(pid: str, type: str | None = None, status: str | None = None,
                 limit: int = 500, offset: int = 0,
                 db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     # PERF-4 (PAYLOAD-CAPS): bound the response — on a mega-project the issue/clash log can be tens of
-    # thousands of rows; an unbounded serialize was the growth driver. Default 500, hard cap 2000;
-    # existing callers (no params) get the first 500 newest-order page.
+    # thousands of rows; an unbounded serialize was the growth driver. Default 500, hard cap 2000.
+    # HARDEN-2 (B1): page from the NEWEST rows (desc + limit), else the cap silently drops every topic
+    # created after row N — the worst truncation for an issue log. The page is then re-sorted ascending
+    # so under-cap projects see exactly the previous response order.
     limit = max(1, min(int(limit), 2000))
     offset = max(0, int(offset))
     q = db.query(Topic).filter(Topic.project_id == pid)
@@ -399,7 +401,9 @@ def list_topics(pid: str, type: str | None = None, status: str | None = None,
         q = q.filter(Topic.type == type)
     if status:
         q = q.filter(Topic.status == status)
-    return q.order_by(Topic.created_at).offset(offset).limit(limit).all()
+    rows = q.order_by(Topic.created_at.desc()).offset(offset).limit(limit).all()
+    rows.reverse()
+    return rows
 
 
 @router.get("/projects/{pid}/topics/{tid}", response_model=TopicOut)
@@ -426,8 +430,11 @@ def list_pins(pid: str, limit: int = 2000, db: Session = Depends(get_db),
               _sec: str = Depends(require_role("viewer"))):
     # PERF-4 (PAYLOAD-CAPS): the viewer loads every pin to render markers — hard-cap so a runaway
     # issue log can't ship an unbounded payload (2000 markers is already beyond usefully renderable).
-    return (db.query(Topic).filter(Topic.project_id == pid, Topic.anchor.isnot(None))
-            .order_by(Topic.created_at).limit(max(1, min(int(limit), 5000))).all())
+    # HARDEN-2 (B1): cap keeps the NEWEST pins (desc), re-sorted ascending for stable display order.
+    rows = (db.query(Topic).filter(Topic.project_id == pid, Topic.anchor.isnot(None))
+            .order_by(Topic.created_at.desc()).limit(max(1, min(int(limit), 5000))).all())
+    rows.reverse()
+    return rows
 
 
 # --- comments ----------------------------------------------------------------

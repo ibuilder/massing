@@ -174,6 +174,7 @@ with TestClient(app) as c:
     xer_out = c.get(f"/projects/{pid}/schedule/export?fmt=xer")
     assert xer_out.status_code == 200 and "%T\tTASK" in xer_out.text, xer_out.text
     assert "A1010" in xer_out.text and "Foundations" in xer_out.text and "2026-03-01 00:00" in xer_out.text, xer_out.text
+    assert "Lean Job" in xer_out.text.splitlines()[0], "HARDEN-2 B7: ERMHDR carries the project name"
     msp_out = c.get(f"/projects/{pid}/schedule/export?fmt=msp")
     assert msp_out.status_code == 200 and "schemas.microsoft.com/project" in msp_out.text, msp_out.text
     assert "<WBS>A1020</WBS>" in msp_out.text and "<Name>Superstructure</Name>" in msp_out.text, msp_out.text
@@ -183,6 +184,19 @@ with TestClient(app) as c:
     # and the MS-Project XML round-trips through the same auto-detecting endpoint (parse_mspdi)
     rt2 = c.post(f"/projects/{pid}/schedule/import-xer", files={"file": ("rt.xml", msp_out.text, "application/octet-stream")})
     assert rt2.json()["updated"] == 2 and rt2.json()["created"] == 0, rt2.json()
+    # HARDEN-2 (B3): a REAL MS Project export carries the project-summary + WBS-header tasks
+    # (<Summary>1</Summary>, named AND dated) — those are rollup containers, never activities.
+    from aec_data.schedule import parse_mspdi
+    _msp_real = ('<Project xmlns="http://schemas.microsoft.com/project"><Tasks>'
+                 '<Task><UID>0</UID><Name>Lean Job</Name><Summary>1</Summary><OutlineLevel>0</OutlineLevel>'
+                 '<Start>2026-03-01T08:00:00</Start><Finish>2026-07-15T17:00:00</Finish></Task>'
+                 '<Task><UID>1</UID><Name>Phase 1</Name><Summary>1</Summary><OutlineLevel>1</OutlineLevel>'
+                 '<Start>2026-03-01T08:00:00</Start><Finish>2026-03-20T17:00:00</Finish></Task>'
+                 '<Task><UID>2</UID><Name>Dig</Name><WBS>D-1</WBS><Summary>0</Summary><OutlineLevel>2</OutlineLevel>'
+                 '<Start>2026-03-01T08:00:00</Start><Finish>2026-03-10T17:00:00</Finish></Task>'
+                 '</Tasks></Project>')
+    rows_msp = parse_mspdi(_msp_real)
+    assert [r["name"] for r in rows_msp] == ["Dig"], rows_msp   # both summary containers skipped
     # bare import (no trades yet) keeps the takt+P6 sequence for the 4D scrub (real calendar window)
     fd2 = c.get(f"/projects/{pid}/schedule/4d").json()
     assert fd2["source"] == "p6" and fd2["start_date"] == "2026-03-01" and fd2["finish_date"] == "2026-07-15", fd2

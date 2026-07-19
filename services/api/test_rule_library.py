@@ -47,6 +47,19 @@ for bad in ({"scope": "", "require": "IfcWall"}, {"scope": "IfcWall", "require":
 # no model loaded → not scored
 assert rl.run(None, rl.STARTER_RULES)["model_scored"] is False
 
+# HARDEN-2 (S2): the library is bounded — count, selector length, id length
+try:
+    rl.save("unit-bounds", [{"scope": "IfcWall", "require": "name"}] * (rl.MAX_RULES + 1))
+    raise AssertionError("expected QueryError for too many rules")
+except rl.QueryError:
+    pass
+try:
+    rl._norm({"scope": "IfcWall & " + "x" * rl.MAX_SELECTOR_LEN, "require": "name"})
+    raise AssertionError("expected QueryError for oversized selector")
+except rl.QueryError:
+    pass
+assert len(rl._norm({"scope": "IfcWall", "require": "name", "id": "z" * 999})["id"]) == rl.MAX_ID_LEN
+
 # --- endpoints ---
 from fastapi.testclient import TestClient  # noqa: E402
 

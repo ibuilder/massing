@@ -27,6 +27,11 @@ from .query_dsl import QueryError
 
 SEVERITIES = ("low", "medium", "high")
 _KEY = "{pid}/rule_library.json"
+# HARDEN-2 (S2): a stored library is evaluated O(rules × predicates × elements) on every viewer-level
+# /rules/run and Model-CI pass — bound what one save can park there so a cheap GET can't be amplified.
+MAX_RULES = 200
+MAX_SELECTOR_LEN = 500
+MAX_ID_LEN = 40
 
 # Seeded when a project has never saved a library — real, useful defaults a firm can edit/extend.
 STARTER_RULES: list[dict[str, Any]] = [
@@ -40,15 +45,17 @@ STARTER_RULES: list[dict[str, Any]] = [
 
 
 def _norm(r: dict) -> dict:
-    """Validate + normalize one rule; raises QueryError (→422) on a missing/garbage selector."""
+    """Validate + normalize one rule; raises QueryError (→422) on a missing/garbage/oversized selector."""
     scope = str(r.get("scope") or "").strip()
     require = str(r.get("require") or "").strip()
     if not scope or not require:
         raise QueryError("each rule needs both a 'scope' and a 'require' selector")
+    if len(scope) > MAX_SELECTOR_LEN or len(require) > MAX_SELECTOR_LEN:
+        raise QueryError(f"selector too long (max {MAX_SELECTOR_LEN} chars)")
     query_dsl.parse(scope)                            # validate the grammar now, not at run time
     query_dsl.parse(require)
     sev = r.get("severity")
-    return {"id": str(r.get("id") or uuid.uuid4().hex[:12]),
+    return {"id": str(r.get("id") or uuid.uuid4().hex[:12])[:MAX_ID_LEN],
             "name": (str(r.get("name") or "Rule").strip() or "Rule")[:120],
             "scope": scope, "require": require,
             "severity": sev if sev in SEVERITIES else "medium"}
@@ -64,6 +71,8 @@ def load(pid: str) -> list[dict]:
 
 def save(pid: str, rules: list[dict]) -> list[dict]:
     """Validate + persist the library. Raises QueryError on any bad rule (nothing is written)."""
+    if len(rules or []) > MAX_RULES:
+        raise QueryError(f"too many rules ({len(rules)}) — max {MAX_RULES}")
     clean = [_norm(r) for r in (rules or [])]         # validate ALL before persisting (atomic)
     storage.put(_KEY.format(pid=pid), json.dumps({"rules": clean}).encode("utf-8"))
     return clean

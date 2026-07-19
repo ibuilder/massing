@@ -2935,7 +2935,9 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             body.appendChild(resultNote(`<b>${r!.compliant_pct}%</b> of ${r!.total} elements carry their required properties `
               + `(${r!.noncompliant} non-compliant).`, tone));
             for (const rule of r!.rules) {
-              const sev: Record<string, string> = { high: "🔴", medium: "🟡", low: "⚪" };
+              // HARDEN-2 (B6): /elements/qa severities are "required"/"recommended" — the old
+              // high/medium/low map never matched, so every row fell back to "•".
+              const sev: Record<string, string> = { required: "🔴", recommended: "🟡" };
               const line = resultNote(`${sev[rule.severity] || "•"} <b>${rule.label}</b> — ${rule.present} present · <b>${rule.missing}</b> missing`,
                 rule.missing ? "" : "ok");
               if (rule.missing && rule.missing_guids.length) {
@@ -3138,10 +3140,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         }));
         b.appendChild(toolBtn2("⏱ 4D construction sequence (playback)", () => {
           if (!projectId) { notify("connect a project first", "error"); return; }
-          dispose4d?.();                       // tear down a prior player before opening a fresh one
+          // teardown rides the modal's onClose (✕/Esc/backdrop/replaced) — stops the play timer and
+          // restores visibility, so closing mid-play never leaves the model isolated (HARDEN-2 B5).
           showResult("4D construction sequence", (body) => {
             dispose4d = populate4dPanel(body, { api, pid, layers: layerMgr, notify });
-          });
+          }, () => { dispose4d?.(); dispose4d = null; });
         }));
         b.appendChild(toolBtn2("🕸 Related elements (model graph)", () => withLoading(container, "Building model graph", async () => {
           if (!selectedGuid) { notify("select an element in 3D first", "error"); return; }

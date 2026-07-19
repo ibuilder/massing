@@ -4,6 +4,38 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.510 — HARDEN-2: security + bug audit of the queue wave · roadmap reconciliation · RUNTIME ring
+
+- A dedicated hand audit of everything shipped v0.3.495–509 (beyond CodeQL's 0-alert baseline) found
+  and fixed 2 security issues + 7 bugs — every fix test-locked:
+  - **S1 (sec)** — the job queue was a side door around the escalation admin gate: an *editor* could
+    enqueue `escalation_scan` (with an arbitrary ladder) even though `POST /escalations/run` is
+    admin-only + audited. Job kinds now carry a per-kind minimum role checked at enqueue (mirroring
+    `require_role`, incl. the dev bypass) and privileged enqueues write the same audit trail.
+  - **S2 (sec)** — the rule library was unbounded: caps added (≤200 rules, ≤500-char selectors,
+    ≤40-char ids) so a stored library can't amplify viewer-level `GET /rules/run` into unbounded CPU.
+  - **B1** — the v0.3.496 `/topics` + `/pins` payload caps kept the *oldest* rows, silently hiding
+    every newly created issue/pin past the cap. The cap now keeps the newest (desc + re-sort so
+    under-cap responses are byte-identical to before).
+  - **B2** — QUERY-DSL's operator split took the highest-precedence operator *anywhere*, so a quoted
+    value containing `=`/`>` (`Reference~"C=1"`) mis-parsed and silently matched nothing — a stored
+    rule could false-"pass" Model-CI. Now leftmost-operator, quote-aware; and a bare ifc-prefixed
+    *field* (`ifc_class`) is no longer hijacked by the bare-class shorthand.
+  - **B3** — `parse_mspdi` imported MS Project *summary* tasks (project/WBS rollups are named + dated)
+    as phantom activities; `<Summary>1</Summary>` / outline-0 tasks are now skipped.
+  - **B4/B5** — 4D player: an empty-frames reload left live controls over `frames:[]` (TypeError) —
+    now fully resets; and `showResult` gained an `onClose` hook so closing the modal (✕/Esc/backdrop/
+    replaced) stops the play timer and restores visibility instead of leaving the model isolated.
+  - **B6** — Data-QA severity dots never rendered (`high/medium/low` map vs the endpoint's
+    `required/recommended`); **B7** — the exported `.xer` now carries the project name in ERMHDR.
+- **Roadmap reconciliation:** all shipped items (the v0.3.493–509 queue wave AND the v0.3.457–492
+  P1/P2 run) moved to [roadmap-completed.md](docs/roadmap-completed.md); [roadmap.md](docs/roadmap.md)
+  rewritten as open-items-only with a fresh prioritized queue (MARKUP-2 → XLSX-ROUNDTRIP → DXF-EXPORT
+  → PERF-4 remainder → the *-2 follow-ups → R14 Tier-1 → REL/test-gap carry-overs).
+- **⚙️ RUNTIME ring added** (researched, license-vetted): orjson (first), uvloop (prod container),
+  msgspec/zstd (investigate), oxlint, Node-22 lane → Rolldown/Vite-8 trial, TanStack Virtual,
+  three-mesh-bvh (investigate), knip — each gated on a measured before/after win.
+
 ## v0.3.509 — MODEL-CI: "Automate-lite" quality-gate check pack (queue #16)
 
 - A model check pack that runs on demand and produces a **pass / warn / fail badge** stored as an

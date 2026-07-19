@@ -5,24 +5,48 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import rbac
 from ..db import get_db
 from ..models import Job
 from ..rbac import require_role
 
 router = APIRouter()
 
+# HARDEN-2 (S1): job kinds that do more than read/derive need a HIGHER role than the generic editor
+# gate below — otherwise the queue is a side door around a stricter endpoint (escalation_scan applies
+# the escalation pass that POST /escalations/run deliberately gates at admin + audits).
+_KIND_MIN_ROLE = {"escalation_scan": "admin"}
+
+
+def _require_kind_role(db: Session, pid: str, user: str, kind: str) -> None:
+    """403 unless the caller meets the kind's minimum role (mirrors require_role, incl. the RBAC-off
+    dev bypass)."""
+    needed = _KIND_MIN_ROLE.get(kind)
+    if needed is None or not rbac.RBAC_ON:
+        return
+    role = rbac.role_for(db, pid, user)
+    if role is None or rbac.ROLE_ORDER.get(role, -1) < rbac.ROLE_ORDER[needed]:
+        raise HTTPException(403, f"job kind {kind!r} requires {needed} on project "
+                                 f"(user {user!r} has {role or 'no'} role)")
+
 
 @router.post("/projects/{pid}/jobs", status_code=201)
 def enqueue_job(pid: str, kind: str = Body(..., embed=True),
                 params: dict | None = Body(default=None, embed=True),
                 db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
-    """Queue a background job for this project (editor — jobs do real work against the model/records).
-    `kind` must be registered (400 with the registered list otherwise). Poll GET /projects/{pid}/jobs/{id}."""
-    from .. import jobs
+    """Queue a background job for this project (editor — jobs do real work against the model/records;
+    kinds in `_KIND_MIN_ROLE` need more). `kind` must be registered (400 with the registered list
+    otherwise). Poll GET /projects/{pid}/jobs/{id}."""
+    from .. import audit, jobs
+    _require_kind_role(db, pid, actor, kind)
     try:
         j = jobs.enqueue(db, kind, pid, {**(params or {}), "project_id": pid}, actor=actor)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+    if kind in _KIND_MIN_ROLE:                       # privileged kinds get the same audit trail as
+        audit.record(db, action=f"job.enqueue:{kind}", actor=actor, method="POST",   # their endpoint
+                     path=f"/projects/{pid}/jobs", detail={"job_id": j.id, "params": params or {}})
+        db.commit()
     return jobs.job_dict(j)
 
 

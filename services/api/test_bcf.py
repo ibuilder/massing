@@ -56,6 +56,10 @@ with TestClient(app) as c:
     assert len(c.get(f"/projects/{dst}/topics?limit=1").json()) == 1, "limit caps the page"
     assert len(c.get(f"/projects/{dst}/topics?offset=1").json()) == 1, "offset skips"
     assert len(c.get(f"/projects/{dst}/topics?limit=99999").json()) == 2, "over-cap limit is clamped, not an error"
+    # HARDEN-2 (B1): the cap keeps the NEWEST rows — a limited page must contain the latest topic,
+    # not the oldest (the old asc+limit silently hid everything created after row N).
+    newest_id = topics[-1]["id"]                     # full list is ascending; last = newest
+    assert c.get(f"/projects/{dst}/topics?limit=1").json()[0]["id"] == newest_id, "cap must keep newest"
     titles = {t["title"] for t in topics}
     assert {"Beam vs duct", "Slab edge detail"} == titles, titles
     clash = next(t for t in topics if t["title"] == "Beam vs duct")

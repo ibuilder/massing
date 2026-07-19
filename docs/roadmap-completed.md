@@ -7,6 +7,85 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## 🗓 Session v0.3.493–509 (2026-07-19) — the ★ execution-queue wave (audit-synthesized)
+
+The R15 landscape + codebase + security/perf audit pass (task #445) produced a re-prioritized
+execution queue; this wave executed items #0–16 top-down, every one a verified CI-green release,
+CodeQL 0 open alerts throughout. **Recurring audit correction:** the "orphaned capability" counts were
+materially overstated — the workflow state machine, 4D element-linking, temp site-logistics geometry,
+and most SURF-3/4 candidates already existed under other names — so each item narrowed to its genuine
+delta after verifying by feature/route, not wrapper name.
+
+- **#0 SEC-XSS (493)** — attachment stored-XSS closed: raster-allowlist inline, everything else
+  `attachment` + nosniff + CSP sandbox.
+- **#1–2 PERF-1/2 (494)** — event-loop-blocking pdf/import/upload ops → `run_in_threadpool`;
+  `drawings.bake()` memoized + `world_bounds()` AABB fast path; 2 frontend listener leaks fixed.
+- **#3 PERF-3 (495)** — `discipline_summary_file` mtime-keyed cache (was re-tessellating per GET);
+  `clash_detect` durable job kind (narrow-phase clash off the request path).
+- **#4 PERF-4 partial (496)** — TEST-FASTPATH (fresh-DB init skips `_ensure_columns/_indexes`;
+  suite ~780s→~525s) + PAYLOAD-CAPS (`/topics` limit/offset, `/pins` hard cap). DASH-UNION et al
+  remain open (see queue).
+- **#5 PANEL-LAZY (497)** — ~30 secondary portal panels dynamic-imported (per-file chunks) out of
+  the eager shell.
+- **#6 SURF-1 (498)** — Schedule toolbar: P6/MSP import, predictive alerts, earned schedule surfaced.
+- **#7 SURF-2 (499)** — Budget "📐 Estimate from the model" card: conceptual, resource-based (L/M/E),
+  QTO-by-floor, DXF takeoff.
+- **#8 SURF-3 (verified 499)** — already done; the audit's orphan flag was a false positive (viewer
+  dispatches recipes by name via `authorAndReload`, bypassing typed wrappers).
+- **#9 SURF-4 (500)** — viewer "🔍 Data QA" surfacing `/elements/qa` completeness with
+  click-to-select-missing. **(501)** — fix(sec): the SURF-2 card wrote a DXF filename + server/model
+  free-text into `innerHTML` unescaped (CodeQL js/xss-through-dom); `esc()` exported from `ui/charts`
+  and applied.
+- **#10 WORKFLOW-ENGINE (502) + WFE-2 (503)** — audit premise corrected (the state machine already
+  shipped); genuine gaps closed: `party_owner` now tracks ball-in-court on every transition
+  (`court_party`), and `escalation.py` turns the due-feed into action (L1/L2/L3 ladder,
+  `escalation:L{n}` timeline entries the notifications feed surfaces, `GET/POST /escalations`,
+  idempotent `escalation_scan` job kind). 503 = the portal-home escalation surface with one-click
+  "escalate & notify".
+- **#11 SCHED-P6 (504)** — the export half of the round-trip: `GET /schedule/export?fmt=xer|msp`
+  serializes the LIVE schedule keyed by activity code (`to_xer`/`to_mspdi`); import auto-detects
+  MSPDI too (`parse_mspdi`); re-import matches by code, no GUID drift. Export buttons on the panel.
+- **#12 FOURD-SIM core (505)** — the viewer 4D playback (`viewer/fourD.ts`): scrub/auto-play through
+  construction days, built-so-far shown, not-yet-built hidden, the day's completions amber; reusable
+  `LayerManager.colorGuids/resetColors`. (Linking + temp geometry already existed — W9-5.)
+- **#13 QUERY-DSL (506)** — the selector grammar over the property index (`query_dsl.py`:
+  parse/matches/select; ops `= != >= <= > < ~` + existence) + `GET /model/select` + the viewer
+  "🔎 Query-select" isolate tool. The reusable scoping spine.
+- **#14 RULE-LIB (507)** — user-authored parametric rules on QUERY-DSL (scope + require + severity;
+  `rule_library.py`, `GET/PUT /rules` atomic-validated, `GET /rules/run`, viewer "✔ Rule check").
+- **#15 RESOURCE-LEVEL named baselines (508)** — `schedule_baselines.py`: a library of named
+  snapshots (GMP/Recovery/…) + variance vs any chosen baseline (`/schedule/baselines` CRUD +
+  `/baselines/{id|latest}/variance`) + the "📌 Baselines" drawer.
+- **#16 MODEL-CI core (509)** — the pluggable check-pack runner (`model_ci.py` + `POST /ci/run` +
+  `GET /ci/latest`) → pass/warn/fail badge artifact, seeded with RULE-LIB + data-completeness gates;
+  viewer "▢ Model CI" tool.
+
+## 🗓 Sessions v0.3.457–492 (2026-07-18/19) — the P1 run + P2 ring (pre-queue)
+
+The 2026-07-18 re-prioritization's P1 list ran to completion, then the P2 ring advanced
+opportunistically. Every item live-verified where the preview allowed.
+
+**P1 (all shipped):** COLLAB-CURSORS (458 — peer view-cones/name tags; COLLAB-1 complete) ·
+PREFLIGHT (459 — composed gate over health/classification/keynotes/QA/IDS/BCF, gates
+`/drawing-set/issue`) · SITE-1 first slice (460 — OSM buildings/roads/land-use, cached, ODbL) ·
+UX-2 snap (461 — vertex/midpoint/corner/center snapping + rubber guides) · EST-1 (462 — labour
+estimate prices the QTO; `/schedule/from-estimate` upserts crew-day CPM activities) · REL-4 leaves
+(463 collab/presence · 467 KEYS+dyn-input · 468 reportCenter · 481 measureSection) · JOB-QUEUE
+artifact pattern (464 `compiled_set_pdf` + artifact streaming; 487 `model_export` .glb/.gltf) ·
+3D-HERO (465) · SHEET-LINK (466 — cover-index GoTo links + callout-bubble anchors).
+
+**P2 ring (shipped through 492):** RISK-BOARD (470) · CODE-1/3 jurisdiction+edition (471) · S4 undo
+grouping (471) · B1 sign-in-first + AI read tools (472) · PROFORMA-LIVE + E7 live schedules (473) ·
+NL-QA recipes + READY-AGENT (474) · BOARDS + cost calibration (475) · ENV-1 wind screen + VIZ-1
+parity (476) · MEP sizing (pressure-loss/tray-fill/thermal) + VIZ-2 SSAO/bloom + B2 tour + CODE-4
+amendments (477) · W10-4 auto_connect_mep + A1/A2/C1 provider prominence + REL-6 webhook privacy
+(478) · B3/B4/C2 onboarding + SpecLink + F0b representations (479) · D8 COMcheck approvability→BCF
+(480) · REL-5 bridge dataclasses + measureSection (481) · E6 design-option branches + E8 model
+guardrails (483) · W9-6b program_fit (484) · W9-5 logistics motion + swept crane clash (485) ·
+W9-4 doc_text cited retrieval (486) · REL-8 docstrings enforced (487) · E3 sketch-to-BIM
+extrude/pull (488) · B5 connection assemblies (490) · UX-1 full ribbon merge (491) · R14 ring
+planned + doc_text ReDoS round 2 (492). DISC-poché (469).
+
 ## 🗓 Session v0.3.413–425 (2026-07-17) — the four-lane audit → prioritized upgrade cycle
 
 A full-platform evaluation (four parallel audit lanes: backend bugs, web frontend, docs/repo surface,

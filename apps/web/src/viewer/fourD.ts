@@ -58,7 +58,7 @@ export function populate4dPanel(body: HTMLElement, deps: FourDDeps): () => void 
   const stop = () => { if (timer !== null) { clearInterval(timer); timer = null; } playBtn.textContent = "▶ Play"; };
 
   const seek = async (i: number) => {
-    if (!timeline) return;
+    if (!timeline || !timeline.frames.length) return;   // HARDEN-2 (B4): never index an empty timeline
     idx = Math.max(0, Math.min(i, timeline.frames.length - 1));
     slider.value = String(idx);
     const f = timeline.frames[idx]!;
@@ -77,8 +77,14 @@ export function populate4dPanel(body: HTMLElement, deps: FourDDeps): () => void 
     loadBtn.textContent = "⏳ Loading…"; loadBtn.disabled = true;
     try {
       const src = srcSel.value as "gc" | "takt" | "";
-      timeline = await api.schedule4d(pid, src || undefined);
-      if (!timeline.frames.length) { notify("no schedule to sequence — import a P6 file or add activities", "error"); return; }
+      const tl = await api.schedule4d(pid, src || undefined);
+      if (!tl.frames.length) {
+        // HARDEN-2 (B4): an empty source must fully reset the player — the old code kept the prior
+        // timeline's controls live over frames:[], so slider/step threw on frames[0].
+        timeline = null; cumulative = []; idx = 0; controls.style.display = "none";
+        notify("no schedule to sequence — import a P6 file or add activities", "error"); return;
+      }
+      timeline = tl;
       // precompute cumulative built-guid sets (dedup as we go)
       cumulative = [];
       const acc = new Set<string>();

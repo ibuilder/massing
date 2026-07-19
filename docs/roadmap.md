@@ -1,340 +1,226 @@
 # Roadmap
 
-The single product roadmap — **open items only**, re-prioritized 2026-07-18 at **v0.3.456**.
-Everything ever shipped (every wave, track, and release) lives in
-[roadmap-completed.md](roadmap-completed.md), including the full pre-reprioritization snapshot.
-Supporting detail: [production-readiness.md](production-readiness.md) · [gc-portal.md](gc-portal.md) ·
-[cost-db-import-plan.md](cost-db-import-plan.md) · [mobile.md](mobile.md).
+The single product roadmap — **open items only**, re-prioritized 2026-07-19 at **v0.3.509** after the
+execution-queue wave (#0–16 shipped, see the archive). Everything ever shipped lives in
+[roadmap-completed.md](roadmap-completed.md), including the v0.3.493–509 queue wave and the
+v0.3.457–492 P1/P2 run. Supporting detail: [production-readiness.md](production-readiness.md) ·
+[gc-portal.md](gc-portal.md) · [cost-db-import-plan.md](cost-db-import-plan.md) · [mobile.md](mobile.md).
 
 Three pillars on one IFC-keyed model: **BIM authoring/viewer** · **GC portal** · **developer/finance**.
-The live-verification loop is open (the v0.3.452 fix): viewer work is provable in-environment, so
-priorities below favor what that unblocked.
+Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order), the 🔬 R14 ring
+(feature detail), and the REL/quality carry-overs — all audit-discovered items are represented below.
 
 ---
 
-## ★ EXECUTION QUEUE — re-prioritized 2026-07-19 at v0.3.492 (this is the current order of work)
+## ★ EXECUTION QUEUE — re-prioritized 2026-07-19 at v0.3.509 (current order of work)
 
-Synthesized from a full field-research + landscape + audit pass: two agents surveyed the commercial
-(Procore/ACC/P6/Solibri/Bluebeam/Aconex/CostX/…) and open-source (Bonsai/Speckle/xeokit/OpenProject/
-EnergyPlus/Radiance/…) landscapes; a very-thorough codebase gap review; and security + performance
-audits. **Key finding: the backend is far ahead of the frontend** — ~72 shipped capabilities have API
-+ client wrappers but no UI surface, and most GC/owner workflow features already exist at the data
-level. So the cheapest, highest-leverage value is **surfacing + workflow depth**, not new engines.
-Everything below is deterministic + offline unless flagged. Work top-down; each is a verified release.
+**NOW:**
+0. ✅ **HARDEN-2 — SHIPPED v0.3.510** — the hand audit over v0.3.495–509 found + fixed 2 security
+   issues (S1 job-queue side door around the escalation admin gate → per-kind role map + audit;
+   S2 unbounded rule library → count/length caps) and 7 bugs (B1 payload caps kept oldest-not-newest
+   rows; B2 QUERY-DSL quoted-operator mis-parse; B3 MSPDI summary-task phantoms; B4/B5 4D player
+   empty-timeline crash + no modal-close teardown; B6 Data-QA severity icons; B7 XER project name).
+   All test-locked; 275/275 suites; clean categories verified (XSS, XER/MSPDI injection, authz tiers,
+   storage keys, escalation idempotency, party_owner consumers).
+1. **MARKUP-2** *(M, ★★★★)* — Bluebeam-parity markup depth: tool chests, a markups-list DB with
+   custom/formula columns, overlay compare, slip-sheet markup carry-forward, live co-markup (rides
+   the existing presence infra + pdf-lib flatten path; permissive libs only).
+2. **XLSX-ROUNDTRIP** *(S, ★★★★)* — IfcCSV-style GUID-keyed property export → edit → re-import with
+   a dry-run diff; the single most-used daily openBIM workflow.
+3. **DXF-EXPORT** *(S, ★★★)* — DXF export of generated drawings (plan/section/elevation DXF paths
+   ship; extend to the composed sheet output — PDF-only is a consultant-contract blocker).
+4. **PERF-4 remainder** *(M)* — DASH-UNION (one UNION-ALL for the 124-query dashboard) ·
+   lean-column single-activity schedule load · SQL-aggregate the `limit=100000` analytics.
 
-**NOW (security + perf hygiene + cheapest value):**
-0. ✅ **SEC-XSS — SHIPPED v0.3.493-pending** — module-record attachments served inline only for a
-   raster-image allowlist; text/html + SVG + blobs forced to `attachment`/octet-stream with
-   `nosniff` + `Content-Security-Policy: sandbox` (was stored-XSS on the API origin). Tested.
-1. ✅ **PERF-1 (ASYNC-BLOCK) — SHIPPED v0.3.494** — pdf ops + module import parse + large IFC-upload
-   writes now `run_in_threadpool` (were stalling the event loop for all users).
-2. ✅ **PERF-2 (GEOM-CACHE) — SHIPPED v0.3.494** — `drawings.bake()` memoized per model object;
-   `world_bounds()` returns the AABB with no trimesh build; env/wind uses it. (frontend leaks from
-   PERF-4 also shipped here: the once-installed guide-line listener + `collabPresence.dispose()`.)
-3. ✅ **PERF-3 (QTO-CACHE + CLASH-JOBS) — SHIPPED v0.3.495** — `takeoff_file` was already
-   mtime-cached; extended the same cache to `discipline_summary_file` (per-element create_shape
-   fallback). New `clash_detect` job kind runs the narrow-phase clash on the durable worker.
-4. ⚠️ **PERF-4 — PARTIAL** — ✅ TEST-FASTPATH (496 — fresh-DB skips `_ensure_columns/_indexes`) +
-   ✅ PAYLOAD-CAPS (496 — `/topics` limit/offset, `/pins` hard cap); the pointermove-listener +
-   `collabPresence` leaks already shipped in 494. **Remaining (own batch):** DASH-UNION (one
-   UNION-ALL for the 124-query dashboard), lean-column single-activity schedule load, SQL-aggregate
-   the `limit=100000` analytics.
-5. ✅ **PANEL-LAZY — SHIPPED v0.3.497** — the ~30 secondary portal panels dynamic-imported at first
-   open (per-file chunks) out of the eager `index-*.js`; live-verified, gates green.
+**NEXT (compound the queue wave — each is a small, verified follow-up):**
+5. **QUERY-DSL wiring** *(S)* — point the clash-scope + bulk-edit call sites at `query_dsl.select()`
+   (they still take explicit class lists); one grammar everywhere is the multiplier.
+6. **MODEL-CI-2** *(M)* — auto-run the check pack on publish/option-branch save (enqueue a CI job —
+   jobs infra ships); add the clash / IDS / QTO-delta checks (engines exist); BCF/report artifacts.
+7. **FOURD-SIM-2** *(S/M)* — planned-vs-actual variance coloring on the 4D timeline (variance math
+   ships in `/schedule/variance`); the site-logistics overlay riding the same play clock.
+8. **RESOURCE-LEVEL-2** *(S/M)* — *apply* a leveling pass (shift activities within CPM float) behind
+   an explicit confirm — it mutates the schedule, so it lands alone.
+9. **RULE-LIB-2** *(M)* — the geometric/relational rule checks (clearance-in-front-of, escape
+   distance, accessible route, maintainability space) on the logistics/clash geometry path.
+10. **SURF-2b + SURF-4b** *(S)* — the procurement surface (bid leveling / invite-bidders belong
+    there, not Budget) + the thin remaining QA/ops surfaces (scan-deviation · turnover-status ·
+    procurement-gate). Securities stays flagged (regulated), not built.
+11. **WFE-3** *(M, deferred-by-choice)* — per-project configurable workflow transitions via the
+    config-row trick; revisit after MARKUP-2 (lower value than the shipped automation).
 
-**NEXT (surface the hidden backend — the ~72 orphaned capabilities, in themed UI waves):**
-6. ✅ **SURF-1 — Schedule/interop surface — SHIPPED v0.3.498** — ⇪ P6/MSP `.xer/.xml` import, 🔔
-   predictive alerts, ⏱ earned-schedule surfaced in the Schedule panel toolbar (all were backed, no
-   surface). 4D playback stays with FOURD-SIM (#12); XER *export* with SCHED-P6 (#11).
-7. ✅ **SURF-2 — Estimating/takeoff surface — SHIPPED v0.3.499** — the "📐 Estimate from the model"
-   card in Budget: conceptual (unit-rate), resource-based (L/M/E), QTO-by-floor, DXF takeoff. (Bid
-   leveling / invite-bidders remain for SURF-2b — they belong on the procurement surface, not Budget.)
-8. ✅ **SURF-3 — Authoring surface — ALREADY DONE (verified v0.3.499)** — every recipe in the audit's
-   list is in fact reachable: base-plate/shear-tab/rebar/MEP-fitting/curtain-wall via the Advanced
-   fabrication toolbar, `create_type` via the type browser, array via ▦ Array, LOD via the LOD panel,
-   phase via the Phasing panel, detailing via ✨ Auto-detail. The audit's orphan flag was a false
-   positive — the viewer dispatches recipes by NAME through `authorAndReload`/`editIfc`, bypassing the
-   typed client wrappers the audit keyed on. No new surface needed. (The genuinely-new recipes without
-   *any* client method — auto_connect_mep, add_connection_assembly, extrude_profile, program_fit —
-   are folded into their feature tracks, not SURF.)
-9. ✅ **SURF-4 — QA + RE/ops surface — SHIPPED v0.3.500** — the viewer QA section now surfaces the
-   `/elements/qa` required-property-completeness engine via a **"🔍 Data QA"** button: overall
-   compliant %, per-rule present/missing with severity dots, and a click-to-select-missing link that
-   highlights up to 200 offending GUIDs. Audit correction: code-check, model-health, and quantity
-   distributions were ALREADY surfaced under other route/method names (the wrapper-name "orphan"
-   heuristic false-positives on recipe dispatch-by-name). Remaining genuine gaps — scan-deviation,
-   turnover-status, procurement-gate — are thin and deferred; securities is regulated (flag, not build).
+**THEN (R14 Tier-1 feature builds):**
+12. **CX-1 commissioning** *(L, ★★★★★)* — model-derived asset registry, phase-typed `cx_test`
+    checklists, the system × phase completion matrix, MEP-sizing values as FPT expected values,
+    per-system dossier (see 🔬 R14 for full detail).
+13. **REBAR-RULES + BBS** *(M/L, ★★★★★)* — per-typology reinforcement rule catalog over the rebar
+    cage recipe + bar bending schedule feeding 5D tonnage.
+14. **PROC-LOOP** *(M, ★★★★)* — deterministic 3-way match (PO/delivery/invoice) + the
+    price-observation ledger + field material-requests keyed to QTO/GUIDs.
 
-**NEXT (workflow depth — the real backend gap the audit found):**
-10. ⬛ **WORKFLOW-ENGINE** *(L, ★★★★★)* — **audit premise corrected + genuine gaps SHIPPED v0.3.502.**
-    The state machine was NOT missing: per-doc-type states/transitions, party (ball-in-court) gating,
-    `requires`/evidence gates, transition audit, notifications feed + SSE, and a `due_feed` SLA view
-    all already shipped (`modules.py` engine + `module.json` workflow blocks). The real gaps were
-    automation + clarity, now closed: **(a)** `party_owner` tracks the workflow on each transition
-    (explicit ball-in-court, was stale-at-create); **(b)** `escalation.py` — an escalation-ladder
-    engine over `due_feed` that writes `escalation:L{n}` timeline entries surfaced by the notifications
-    feed, with `GET/POST /escalations` + an idempotent `escalation_scan` job kind. **WFE-2 SHIPPED
-    v0.3.503:** the escalation surface on the portal-home command center (per-level summary, badged
-    items with ball-in-court, one-click "escalate & notify"). Optional per-project configurable
-    transitions (the config-row trick) remain deferred — lower-value/higher-risk than the automation.
+**REL/quality carry-overs (interleave one per few releases; all audit-discovered):**
+15. **TEST-GAPS** *(S each)* — direct tests for the 6 higher-risk untested engines: distwaterfall ·
+    clash_intel · scope_library · standards_expert · schedule_viz · permit_check.
+16. **REL-3 remainder** *(M)* — `modules.py` DI split (unblocks its CRUD/feeds leaves) · `main.py` ·
+    `codecheck.py` · `connectors.py` residue · `auth.py` · `data/drawing.py`/`drawings.py`/
+    `massing.py` · `bcf_io.py` · `routers/generate.py`.
+17. **REL-4 leaves** *(M)* — continue the god-file decomposition: `portal.ts` (next leaf) +
+    `viewer/app.ts` leaves.
+18. **ENTITLE-1** *(S/M)* — entitlement-tier enforcement (license_tier is read but not enforced).
+19. **JOB-QUEUE remainder** *(S/M)* — PAdES sealing on the queue (needs doc-reference plumbing) ·
+    generative runs (mutating jobs need the pid lock).
 
-**NEXT (twice-validated interop gaps — top of BOTH landscape reports):**
-11. ✅ **SCHED-P6 — SHIPPED v0.3.504** — P6 `.xer` + MS-Project XML (MSPDI) **export** closes the
-    round-trip: `GET /schedule/export?fmt=xer|msp` serializes the live schedule (imported + hand-entered,
-    with GC edits) keyed by the activity code, and re-import matches the same records by code (no GUID
-    drift). Import now also auto-detects MSPDI. `aec_data.schedule` `to_xer`/`to_mspdi`/`parse_mspdi` +
-    export buttons on the Schedule panel. The #1 scheduler-credibility gate — cleared.
-12. ◧ **FOURD-SIM** *(M, ★★★★★)* — **core SHIPPED v0.3.505.** Audit correction: element↔activity
-    linking (`element_guids` + "Tie 3D selection") and temp site-logistics geometry (W9-5: cranes/laydown
-    with path motion + swept clash) were ALREADY built, and the `/schedule/4d` timeline backend was
-    complete + tested — the only real gap was that the viewer never consumed it. Now shipped: the
-    **"⏱ 4D construction sequence"** viewer tool — scrub/auto-play through construction days, built-so-far
-    shown, not-yet-built hidden, the day's completions flash amber (`viewer/fourD.ts`). **FOURD-SIM-2
-    remaining:** planned-vs-actual variance coloring on the timeline (variance math ships in
-    `/schedule/variance`); temp-geometry overlay riding the same play clock.
-13. ✅ **QUERY-DSL — SHIPPED v0.3.506** — a selector grammar (`IfcWall & Pset_WallCommon.FireRating=2HR
-    & storey=L3`; ops `= != >= <= > < ~` + existence) over the property index. `aec_api/query_dsl.py`
-    (`parse`/`matches`/`select`, reusing `model_query._val`) + `GET /model/select?q=…` → GUIDs +
-    predicates, and a viewer **🔎 Query-select** tool that isolates matches in 3D. Reusable core for
-    clash scopes / view filters / schedules / bulk edits / MCP. **Next:** wire `select()` into the
-    clash-scope + bulk-edit call sites (they still take explicit class lists) to compound the value.
-14. ✅ **RULE-LIB — SHIPPED v0.3.507** — a user-authored parametric rule library on QUERY-DSL: each
-    rule = a `scope` selector + a `require` selector + a severity; an in-scope element failing `require`
-    is a violation. `aec_api/rule_library.py` + `GET/PUT /rules` (validated atomic save) + `GET
-    /rules/run` (per-rule pass/fail + GUIDs + by-severity rollup) + a viewer **✔ Rule check** tool.
-    **RULE-LIB-2 remaining:** the *geometric/relational* checks (clearance-in-front-of, escape distance,
-    accessible route, maintainability space) — they need swept geometry, not the property index, so
-    they ride the logistics/clash geometry path.
-15. ◧ **RESOURCE-LEVEL** *(M)* — **named baselines SHIPPED v0.3.508.** Multiple named schedule
-    baselines (`schedule_baselines.py` + `GET/POST/DELETE /schedule/baselines` +
-    `/baselines/{id|latest}/variance`) so drift is tracked against any chosen baseline; "📌 Baselines"
-    drawer on the Schedule panel. Resource-loading S-curves + the leveling *advisory* already shipped
-    (`resource_loading.py`). **RESOURCE-LEVEL-2 remaining:** *applying* a level (shifting activities
-    within CPM float, mutating dates) behind an explicit confirm — it rewrites the schedule.
-16. ◧ **MODEL-CI** *(M, ★★★★)* — **core SHIPPED v0.3.509.** A pluggable check-pack runner
-    (`model_ci.py` + `POST /ci/run` + `GET /ci/latest`) → a pass/warn/fail badge stored as an artifact;
-    a viewer **▢ Model CI** tool. Seeded with the RULE-LIB + data-completeness gates (the pack grows by
-    registering one adapter). **MODEL-CI-2 remaining:** auto-run on publish/option-branch save (enqueue
-    a CI job — jobs infra ships), the clash/IDS/QTO-delta checks (engines all exist), and BCF/report
-    artifacts.
-17. **MARKUP-2** *(M)* — Bluebeam-parity: tool chests, markups-list DB with custom/formula columns,
-    overlay compare, slip-sheet markup carry-forward, live co-markup (rides existing presence infra).
-18. **XLSX-ROUNDTRIP** *(S)* — IfcCSV-style GUID-keyed property export→edit→re-import with a dry-run
-    diff; the single most-used daily openBIM workflow.
-19. **DXF-EXPORT** *(S)* — DXF export of generated drawings (PDF-only is a hard consultant-contract
-    blocker; That Open has a DXF path to extend).
-
-**THEN (R14 Tier-1 feature builds + the remaining landscape/UX tiers):**
-20. **CX-1 commissioning** (R14) · **REBAR-RULES + BBS** (R14) · **PROC-LOOP 3-way match + price
-    ledger** (R14) · then R14 Tier-2/3 + R15 Tier-2/3 (transmittals/ITP · assemblies+RFQ ·
-    normative IFC validation · EnergyPlus/Radiance adapters · smart-views/auto-resolving issues ·
-    meetings module · client-portal selections · fabrication deliverables · BEP-GEN · … see the
-    🔬 R14 and 🧭 R15 sections for the full itemized lists).
-
-**REL/quality carry-overs interleaved:** REL-3 remainder (modules.py DI split etc.) · REL-4 portal.ts
-+ app.ts god-file leaves · test gaps on the 6 higher-risk untested engines (distwaterfall, clash_intel,
-scope_library, standards_expert, schedule_viz, permit_check) · entitlement-tier enforcement.
-
-*The pre-existing P1–P3 sections, the 🔬 R14 ring, and the 🧭 R15 landscape detail below remain the
-canonical itemized descriptions; this queue is the ORDER. UI-surfacing (SURF-*) reuses shipped
-endpoints, so those releases are frontend-only where the backend already covers them.*
+**THEN:** the ⚙️ RUNTIME ring below (orjson first — S effort, wide benefit; interleave the S items
+between features) · R14 Tier-2/3 + 🧭 R15 remaining tiers (itemized below) — SCOPE-GAP · GOLDEN-THREAD ·
+MEP-GRAPH · EST-BANDS · CLASH-TRIAGE · GIS-OUT · KEYS-2 · VIEW-TPL · WARN-1 · DRAW-STATUS · CBS-1 ·
+BEP-GEN · ROLES-BIM · PM-CLOSE · SOLVER-OUT · NORM-VALID · VERSION-COMPARE-3D · IFCPATCH-LIB ·
+BCF-API-SRV · TRANSMIT-ITP · SMART-VIEWS · MEETINGS · EST-ASSEMBLIES · REVISION-DELTA ·
+ENERGY-PLUS · RADIANCE · FEM-EXPORT · FIELD-PWA · CLIENT-PORTAL · FAB-DELIVER · PHOTO-PIN ·
+CMMS-OPS · schedule optioneering (ALICE-style, flagship L).
 
 ---
 
-## 🧭 R15 ring — landscape gap analysis (2026-07-19: commercial + open-source sweeps + 3 audits)
+## 🧭 R15 ring — landscape gap analysis (2026-07-19; remaining open items)
 
-*Every item is a deterministic, offline-capable feature (cloud/paid dependencies flagged). Licenses
-mapped: MIT/BSD/Apache/LBNL studied freely, LGPL reimplemented, AGPL/GPL/proprietary = techniques
-only. The two landscape reports strongly cross-validated — P6/MSP interchange, 4D simulation,
-model-CI, a query DSL, rule libraries, and markup depth top BOTH lists. Items promoted into the
-execution queue above are cross-referenced; the rest are itemized here.*
+*Deterministic, offline-capable features (cloud/paid flagged). Licenses mapped: MIT/BSD/Apache/LBNL
+studied freely, LGPL reimplemented, AGPL/GPL/proprietary = techniques only. Shipped from this ring:
+SCHED-P6 · FOURD-SIM core · QUERY-DSL · RULE-LIB core · RESOURCE-LEVEL named baselines · MODEL-CI
+core (v0.3.504–509 — see archive). Open items:*
 
-**Interop & scheduling (highest cross-validated demand):** SCHED-P6 export round-trip (#11) · FOURD-SIM
-(#12) · RESOURCE-LEVEL + multi-baseline variance (#15) · schedule optioneering (ALICE-style: permute
-crew/sequence/zoning over CPM+productivity+Takt, score thousands of scenarios — *L, flagship, our
-inputs are uniquely all-present offline*) · MSP XML import (folds into SCHED-P6).
+**Interop & scheduling:** schedule optioneering (ALICE-style: permute crew/sequence/zoning over
+CPM+productivity+Takt, score thousands of scenarios — *L, flagship, our inputs are uniquely
+all-present offline*).
 
-**Model intelligence & QA:** QUERY-DSL (#13) · RULE-LIB (#14) · MODEL-CI (#16) · **NORM-VALID** —
-normative IFC validation porting the buildingSMART validation-service checks (STEP syntax, schema
-propositions, normative rules, bSDD alignment; MIT reference) as an offline job · **VERSION-COMPARE-3D**
-— per-property old/new change lists (iTwin-style) + in-viewer added/removed/modified overlay between
-any two versions/option branches (MODEL-DIFF data ships) · **IFCPATCH-LIB** — one-click maintenance
-recipes (purge orphans, optimize, extract discipline subset, rebase coordinates, unit-convert,
-merge/split).
+**Model intelligence & QA:** **NORM-VALID** — normative IFC validation porting the buildingSMART
+validation-service checks (STEP syntax, schema propositions, normative rules, bSDD alignment; MIT
+reference) as an offline job · **VERSION-COMPARE-3D** — per-property old/new change lists
+(iTwin-style) + in-viewer added/removed/modified overlay between any two versions/option branches
+(MODEL-DIFF data ships) · **IFCPATCH-LIB** — one-click maintenance recipes (purge orphans, optimize,
+extract discipline subset, rebase coordinates, unit-convert, merge/split).
 
-**Documents & coordination:** MARKUP-2 (#17) · XLSX-ROUNDTRIP (#18) · DXF-EXPORT (#19) · **BCF-API-SRV**
-— server-side BCF-API 3.0 / OpenCDE endpoints so Revit/Navisworks/BIMcollab BCF managers connect live
-(spec is open) · **TRANSMIT-ITP** — numbered transmittals + Review Matrix routing + supplier-
-deliverables register + ITP/Test-Plan workflows (Aconex parity; extends the CDE plan) · **SMART-VIEWS**
-— property-driven saved color/filter presets + clash-bound issues that auto-resolve on model diff
-(BIMcollab; cheap glue over MODEL-DIFF + clash) · **MEETINGS** — meeting series + minutes + flagged
-action items linked to RFIs/issues (ACC just shipped it; S).
+**Documents & coordination:** **BCF-API-SRV** — server-side BCF-API 3.0 / OpenCDE endpoints so
+Revit/Navisworks/BIMcollab BCF managers connect live (spec is open) · **TRANSMIT-ITP** — numbered
+transmittals + Review Matrix routing + supplier-deliverables register + ITP/Test-Plan workflows
+(extends the CDE plan) · **SMART-VIEWS** — property-driven saved color/filter presets + clash-bound
+issues that auto-resolve on model diff (cheap glue over MODEL-DIFF + clash) · **MEETINGS** — meeting
+series + minutes + flagged action items linked to RFIs/issues (S).
 
-**Estimating & precon depth:** EST-ASSEMBLIES — cost-item assemblies + resource-based rate build-ups
-(crew+plant+material per unit rate; Candy/WinEst) + RFQ/quote management inside the estimate (InEight) ·
+**Estimating & precon depth:** **EST-ASSEMBLIES** — cost-item assemblies + resource-based rate
+build-ups (crew+plant+material per unit rate) + RFQ/quote management inside the estimate ·
 **REVISION-DELTA** — 2D drawing overlay diff → changed-quantity flags → estimate delta flow-through
-(CostX signature; we have MODEL-DIFF, lack the 2D-revision→cost loop) · CBS view (R14) · EST-BANDS (R14).
+(we have MODEL-DIFF, lack the 2D-revision→cost loop) · CBS view (R14) · EST-BANDS (R14).
 
 **Analysis (permissive-license engines, offline):** **ENERGY-PLUS** — export model → IDF/OSM + run
-EnergyPlus (BSD) for defensible annual energy, backing the IECC screen with real numbers *(L, ship
-binaries via jobs infra)* · **RADIANCE** — export → Radiance scenes (LBNL) for annual daylight
-(DA/ASE/UDI) + glare (DGP) · **FEM-EXPORT** — analytical model → Code_Aster/OpenSees for third-party
-verification of our gravity/lateral solver (trust unlock).
+EnergyPlus (BSD) for defensible annual energy *(L, ship binaries via jobs infra)* · **RADIANCE** —
+export → Radiance scenes (LBNL) for annual daylight (DA/ASE/UDI) + glare (DGP) · **FEM-EXPORT** —
+analytical model → Code_Aster/OpenSees for third-party verification of the gravity/lateral solver.
 
 **Field & residential (heavier / GTM):** **FIELD-PWA** — offline-first mobile PWA with sheet sync +
-auto slip-sheeting + hyperlinked callouts *(L; Fieldwire/PlanGrid wedge)* · **CLIENT-PORTAL** —
-selections/allowances (choices → price deltas → CO/budget; Buildertrend residential moat) ·
-**FAB-DELIVER** — fabrication outputs from steel/rebar recipes (assembly/part marks, DSTV-NC, bolt
-lists, BVBS bending schedules; Tekla-adjacent, no web platform does this) · **PHOTO-PIN** — photo/360
-pinning to plan locations with timeline compare (integrate OpenSpace/DroneDeploy for photogrammetry
-rather than build) · **CLASH-TRIAGE** (R14) · **GIS-OUT** (R14) · **CMMS-OPS** — preventive-maintenance
-plans + work orders on COBie-handover assets (openMAINT territory; the 50-year phase; *L, defer*).
+auto slip-sheeting + hyperlinked callouts *(L)* · **CLIENT-PORTAL** — selections/allowances (choices
+→ price deltas → CO/budget) · **FAB-DELIVER** — fabrication outputs from steel/rebar recipes
+(assembly/part marks, DSTV-NC, bolt lists, BVBS bending schedules) · **PHOTO-PIN** — photo/360
+pinning to plan locations with timeline compare (integrate photogrammetry, don't build) ·
+**CLASH-TRIAGE** (R14) · **GIS-OUT** (R14) · **CMMS-OPS** — preventive-maintenance plans + work
+orders on COBie-handover assets (*L, defer*).
 
-**Explicitly not building (flagged from research):** photogrammetry pipelines, learned risk forecasting
-(nPlan's data moat — Monte Carlo already covers it), voice agents over capture history, and all
-LLM/computer-vision document scanning (non-deterministic; we author the model, so we never
-reverse-engineer PDFs). Cloud/paid to integrate-not-build: Cesium ion imagery, Speckle Automate hosted
-runner, iTwin Platform REST, Autodesk APS, Pollination.
+**Explicitly not building (flagged from research):** photogrammetry pipelines, learned risk
+forecasting (Monte Carlo already covers it), voice agents, and all LLM/computer-vision document
+scanning (non-deterministic; we author the model). Cloud/paid to integrate-not-build: Cesium ion
+imagery, Speckle Automate hosted runner, iTwin Platform REST, Autodesk APS, Pollination.
 
-## 🔒 Audit findings (2026-07-19 — fold into the NOW queue)
+## 🔒 Audit findings status (2026-07-19)
 
-**Security** (one concrete finding; codebase otherwise well-hardened — path containment, defusedxml,
-AST-allowlist sandbox, RBAC membership scoping, HMAC signed URLs, production-secret guard all verified
-clean): ✅ SEC-XSS fixed (queue #0). No other exploitable issue surfaced.
+**Security:** SEC-XSS (attachments) fixed v0.3.493; SURF-2 innerHTML XSS fixed v0.3.501 (CodeQL
+caught it; `esc()` now exported + a standing memory rule). CodeQL 0 open alerts. HARDEN-2 (queue #0)
+is the deeper hand pass over the new wave. Previously-verified clean: path containment, defusedxml,
+AST-allowlist sandbox, RBAC membership scoping, HMAC signed URLs, production-secret guard.
 
-**Performance** (ranked, → queue #1-5): GEOM-CACHE, ASYNC-BLOCK, QTO-CACHE, CLASH-JOBS, PANEL-LAZY,
-DASH-UNION, PAYLOAD-CAPS, TEST-FASTPATH + the two frontend leaks. See the NOW block for the ordered
-plan; all are deterministic refactors with no coverage loss.
+**Performance:** shipped — ASYNC-BLOCK · GEOM-CACHE · QTO-CACHE · CLASH-JOBS · PANEL-LAZY ·
+TEST-FASTPATH · PAYLOAD-CAPS · the 2 frontend leaks. **Open (queue #4):** DASH-UNION · lean-column
+schedule load · SQL-aggregate the big-limit analytics.
+
+## ⚙️ RUNTIME ring — runtime & tooling upgrades (researched 2026-07-19; licenses vetted)
+
+*Rust/C-backed libraries + toolchain moves that improve performance, load time, modularization, and
+UX with small, verifiable diffs. Every entry passes the license guardrails (MIT/BSD/Apache only).
+Interleave the S items between feature releases; each is its own measured, verified release —
+benchmark before/after, no adoption without a measured win.*
+
+**Backend (Python):**
+- **RT-ORJSON** *(S · first)* — [orjson](https://github.com/ijl/orjson) (Rust, Apache-2.0/MIT) as
+  FastAPI's `default_response_class=ORJSONResponse` + the hot `json.dumps/loads` storage-blob paths
+  (props.json index, demo snapshot, 4D frames, dashboards — our biggest payloads). One-line adoption
+  per site; benchmark the big endpoints before/after.
+- **RT-UVLOOP** *(S, prod-container only)* — `--loop uvloop` (+ confirm `httptools`) in the Linux
+  Docker entrypoint; a free event-loop win at high connection counts. Windows dev stays on asyncio
+  (uvloop is Linux/macOS-only). Pair with a pass on worker count + keep-alive + `--limit-concurrency`
+  and DB pool-size alignment (pool exhaustion, not CPU, is the classic outage).
+- **RT-MSGSPEC** *(S, investigate)* — msgspec (C, BSD-3) typed-Struct decode for the ONE hot blob:
+  the per-project property index load in `model_index`. Only if profiling shows the parse matters;
+  Pydantic v2 stays for API models (its Rust core + our validation live there).
+- **RT-ZSTD** *(S/M)* — zstandard (BSD) compression for large storage blobs at rest (props.json can
+  be MB-scale) → faster load + smaller MinIO/disk; transparent wrap in `storage.py` keyed by a magic
+  prefix, fully backward-compatible reads.
+
+**Frontend (JS/TS):**
+- **RT-OXLINT** *(S)* — [oxlint](https://oxc.rs) (Rust, MIT) as a fast pre-lint gate beside the
+  pinned eslint 9.39.5 (oxlint is a standalone binary — immune to the Node 20.3.1 constraint that
+  pins eslint). Sub-second lint on the whole tree locally + in CI; eslint stays authoritative until
+  rule parity is proven.
+- **RT-NODE-LANE** *(M, unblocker)* — upgrade the local Node toolchain (20.3.1 → 22 LTS): unpins
+  eslint, unlocks Vite 7/8. Prereq for RT-ROLLDOWN; needs the "crypto is not defined"/laragon PATH
+  cleanup done carefully.
+- **RT-ROLLDOWN** *(M, after NODE-LANE)* — trial `rolldown-vite` / Vite 8 (Rust bundler) in a
+  branch: reported 1.6–7.7× production-build speedups; verify the pinned
+  @thatopen/fragments+components pair + PWA/workbox plugins survive, then adopt.
+- **RT-VIRTUAL** *(M · UX)* — [@tanstack/virtual](https://tanstack.com/virtual/latest) (MIT,
+  headless, ~10–15kb) to virtualize the big DOM lists: module record tables (mega-projects hold
+  100k+ rows), my-work, boards, the model-browser tree. 60fps scrolling where today we render
+  bounded slices; removes the "first 500" truncations UX-side.
+- **RT-BVH** *(S/M, investigate)* — [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh)
+  (MIT) BVH raycasting for OUR raw-three raycast paths (snap engine, measure, draft-proxy picking —
+  Fragments' own picking stays vendor-managed). 500-rays/80k-tri @60fps class speedup; only where we
+  cast against plain three geometry.
+- **RT-KNIP** *(S · modularization)* — [knip](https://knip.dev) (ISC) unused-export/dead-dependency
+  scans for apps/web → the evidence stream REL-7 requires (prove-then-delete); also surfaces
+  accidental eager imports that grow the shell bundle (guards PANEL-LAZY).
+
+**Explicitly evaluated, not adopted:** Biome (would replace the whole eslint setup — churn > win
+while eslint is pinned; oxlint gives the speed without the migration) · granian (replacing
+uvicorn/gunicorn is high-risk for no measured need) · wholesale msgspec/Pydantic swap (Pydantic v2
+is already Rust-core) · vite-plugin-compression for Pages (GitHub Pages already serves gzip; no .br
+control) · comlink/web-workers for client parsing (the heavy parsing is server-side by design).
 
 ---
 
-## P1 — start now (buildable, live-verifiable, highest value)
+## P2 — next ring (open items; sequence opportunistically)
 
-1. ✅ **COLLAB-CURSORS — SHIPPED v0.3.458** *(★★★★★)* — per-user colored view-cones + name tags at each
-   peer's live camera position (`peerCursors.ts`); the presence beat now shares your viewpoint each
-   tick. Live-verified: appear at exact position → track → remove on departure. **COLLAB-1 complete.**
-   *(Selection halos = a later nicety; the viewpoint payload would carry a `selectedGuid`.)*
-2. ✅ **PREFLIGHT — SHIPPED v0.3.459** *(★★★★)* — the gate now composes all the shipped checks (model
-   health · classification · keynotes · drawing-set QA · pinned IDS · open BCF), deep-links each one,
-   and gates `POST /drawing-set/issue` (verdict stamped on the record; `enforce` → 409 on HOLD; UI
-   🚦 button + ⛔ one-shot override). Also fixed the latent `table()` `innerHTML +=` handler-killer.
-3. ✅ **SITE-1 first slice — SHIPPED v0.3.460** *(★★★★)* — Open ▾ → Add site context: OSM buildings
-   (height-extruded) + roads + land-use around the georeferenced site, fetched once server-side and
-   cached (offline after), ODbL attribution shown. Live-verified: Empire State roof at exactly 443.2 m.
-   *(Remaining slices: terrain DEM auto-fetch and parcel overlays — user-supplied GeoTIFF DEMs
-   already load via `gis.ts`.)*
-4. ✅ **UX-2 remaining — SHIPPED v0.3.461** — every annotation click snaps to the element's
-   vertex/midpoint/corner/center (◻ glyph); two-click dimension/cloud flows show an anchor dot +
-   dashed rubber guide line to the cursor. Live-verified (corner snap + tracking guide).
-5. ✅ **EST-1 remaining — SHIPPED v0.3.462** — the labour estimate prices the measured QTO takeoff
-   (`productivity.from_takeoff`, default on `/estimate/labor`), and `/schedule/from-estimate` upserts
-   the crew-day durations as FS-chained EST activities into CPM/Gantt (⚙ button in the Schedule
-   panel). Live-verified: crews 1→2 halved the durations and CPM went 118 d → 59 d.
-6. **REL-4 slices 6+ — continue the viewer decomposition** *(M each)* — ✅ collab/presence (463) ·
-   ✅ KEYS + dyn-input (467; app.ts 3,957) · ✅ Report Center → `reportCenter.ts` (468; main.ts
-   1,187) · ✅ measure/section → `measureSection.ts` (481; app.ts 3,948, order/behaviour
-   live-verified). Next leaf: `portal.ts` (2,542). One live-verified leaf per release.
-7. **JOB-QUEUE migration** *(S/M)* — ✅ the artifact-job pattern + the heaviest path shipped
-   v0.3.464 (`compiled_set_pdf` kind + `GET /jobs/{id}/artifact` streaming) · ✅ large geometry
-   exports (487 — `model_export` .glb/.gltf artifact job, glTF-magic verified). Remaining: PAdES
-   sealing (needs the doc-reference plumbing) · generative runs (mutating jobs need the pid lock).
-8. ✅ **3D-HERO — SHIPPED v0.3.465** — 📸 in the viewer captures the live canvas → `PUT /hero` →
-   the project package opens with a full-bleed 3D hero page. Live-verified (1.27 MB capture,
-   package grew to 10 pages with the image embedded).
-9. ✅ **SHEET-LINK — SHIPPED v0.3.466** — the compiled set's cover index rows are PDF GoTo links,
-   detail callout bubbles link to in-set sheets, and SVG bubbles are `data-sheet` anchors.
-
-## P2 — next ring (buildable; sequence opportunistically)
-
-**Designer workspace (UX Master Pass):** ✅ UX-1 full ribbon merge (491 — sections physically
-regrouped into Build → Analyze & Coordinate → Document → Data DOM clusters with phase headers;
-data-phase filtering, four real tabs, stale-tab migration; live-verified) · UX-3 library depth
-(thumbnails · drag-to-place · pick-host→auto-build · appendable IFC libraries · CC0 seed/H1) ·
-UX-4 assemble the one-shell layout (Project-Browser spine + docked Properties + Library + ribbon;
-a11y/mobile pass).
+**Designer workspace:** UX-3 library depth (thumbnails · drag-to-place · pick-host→auto-build ·
+appendable IFC libraries · CC0 seed/H1) · UX-4 one-shell layout (Project-Browser spine + docked
+Properties + Library + ribbon; a11y/mobile pass).
 
 **Construction documents (Wave 11):** C6 reference-line datums + LOD-following poché · D2 routed
-egress/life-safety plans (path-trace over the semantic graph) · ✅ D8 COMcheck/A117.1 → approvability +
-BCF (480 — WWR vs the IECC prescriptive cap · envelope U-value coverage · accessible entrance, all in
-the pre-flight; `POST /codecheck/approvability/bcf` promotes failures to GUID-anchored topics) · ✅ `Pset_Massing_SpecLink` breadcrumb (479 — `set_spec_link` recipe + `/spec-links` rollup) ·
-✅ F0b Box/Axis/FootPrint derivation (479 — `derive_representations`: bounds-true IfcBoundingBox +
-mid-thickness Axis + FootPrint rectangle into the F0 subcontexts, idempotent) · B3 wall Axis + clip
-planes · ✅ B5 fastener/connection assemblies (490 — `add_connection_assembly` plate+bolts +
-IfcRelConnectsWithRealizingElements + `connection_summary` browser) · E2 type-a-dimension (VCB) ·
-✅ E3 sketch-to-BIM push/pull (488 —
-`extrude_profile` closed-sketch → extruded element + `set_extrusion_depth` in-place pull, both
-tessellation-verified GUID-stable recipes) ·
-E5 parametric handles · ✅ E6 recipe-log design-option branches (483 — `model_options.py`:
-snapshot/list/activate/diff/delete named whole-model branches; activate is one undo step) ·
-✅ E7 live schedules while modeling (473 — `aec:model-published` → open sheets re-render) · ✅ E2
-type-a-dimension/VCB (= the dynamic-input layer, v0.3.453/461/467) · ✅ E8
-model-aware guardrails (483 — `guards.model_precheck` in apply_recipe: storey exists, host is a
-wall, GUIDs resolve, connect ends have ports; batches exempt by design) · A2 RAG index over
-ifcopenshell/IFC docs.
+egress/life-safety plans (path-trace over the semantic graph) · B3 wall Axis + clip planes ·
+E5 parametric handles · A2 RAG index over ifcopenshell/IFC docs.
 
-**Authoring depth (Wave 10/9):** W10-2 parametric family generators (profiles + swept/boolean;
-build123d/OCP optional track) · W10-9 dimensional constraints (planegcs LGPL; sidecar-solved, baked to
-IFC) · ✅ W10-4 coincident-port auto-connect (478 — `auto_connect_mep` recipe: one sweep wires
-coincident segment-end/fitting points with IfcRelConnectsPorts; fittings claim the joints, idempotent) ·
-W10-5 section/elevation annotation views · ✅ W10-6 keynote
-legend (sheets render the KEYNOTES legend from Track-D codes, test-asserted) · ✅ W9-4 harder half (486 — `doc_text.py`: PDF/text ingestion, section-header chunking with pages,
-deterministic cited retrieval, extractive `/doctext/ask` + the `/rfi/qa` document fallthrough) · ✅ W9-5 4D equipment
-motion + swept crane clash (485 — `position_at` walks paths by schedule progress; `/logistics/clash`
-flags intersecting swing discs with the worst date + under-hook resources) · ✅ W9-6b
-headcount-program → zones + auto-furnish (484 —
-`program_fit`: largest-first allocation, Pset_Massing_Program zones, furnish-to-seat-count,
-honest short_by reporting).
+**Authoring depth (Wave 10):** W10-2 parametric family generators (profiles + swept/boolean;
+build123d/OCP optional track) · W10-9 dimensional constraints (planegcs LGPL; sidecar-solved, baked
+to IFC) · W10-5 section/elevation annotation views.
 
-**AI & agents:** ✅ S4 multi-step undo grouping (471) · ✅ S5 clarifying questions (shipped: both
-planner paths return `needs_clarification`, surfaced in the command bar + Ask panel) · ✅ AI read
-tools (472 — model_quantities/computed_schedules/clash_results/code_violations in the MCP catalog) ·
-✅ NL-QA recipes (474) · ✅ COST-AGENT (473 PROFORMA-LIVE = re-estimate on change; 475
-`/cost/calibration` = learn from awarded/actual history) · READY-AGENT (proactive blockers w/ cited
-evidence — ✅ 474, `/schedule/make-ready` cites predecessors' real % + open submittals) ·
-✅ RISK-BOARD (v0.3.470 — `/risk-board` unifies 5 engines into one ranked register).
+**Finance/frontier:** GEN-SCORE depth (per-option 5D takeoffs + EPD carbon once options carry
+models) · SITE-1 remaining slices (terrain DEM auto-fetch · parcel overlays) · COLLAB selection
+halos (viewpoint payload carries `selectedGuid`).
 
-**Finance/frontier:** ✅ PROFORMA-LIVE (473 — `/proforma/live` cached takeoff cost + GFA + budget
-delta; the viewer status updates after every load) · ✅ BOARDS (475) · ✅ ENV-1 (476 —
-`/env/wind` Lawson screen: corner/downwash/channelling + mitigations, NOT-CFD labelled) ·
-GEN-SCORE depth (per-option 5D takeoffs + EPD carbon once options carry models).
+**Reliability:** REL-6 tail (cargo-audit/gitleaks in CI when available) · REL-7 stays
+evidence-gated (prove-then-delete small batches only).
 
-**Estimating/engineering:** ✅ MEP pressure-loss balancing + thermal loads + per-conductor tray fill
-(477 — `/mep/pressure-loss` empirical-duct + Hazen-Williams rates with per-system index runs ·
-`/mep/tray-fill` per-conductor NEC 392.22 from authored cable diameters · `/mep/thermal-loads`
-space-by-space W/sf screen vs the block estimate; physics hand-checked in `test_mep_sizing`) ·
-✅ DISC-poché (v0.3.469 — `by_discipline` on both plan renderers) · ✅ VIZ-2 presentation FX (477 —
-SSAO + bloom EffectComposer on an MSAA target wrapped around render mode; live-verified pass chain) ·
-✅ VIZ-1 parity confirmed (476 — live .glb valid glTF 2.0, all geometry classes present;
-per-class merge is the documented design).
-
-**Onboarding & codes:** ✅ B1 sign-in-first welcome panel (472 — 🔐 lead row, never walls) · ✅ B2
-sign-in→tour (477 — the auth reload resumes into the coach-mark tour via a consumed one-shot flag;
-live-verified) · ✅ A1/A2/C1 provider prominence (478 — the sign-in modal leads with big Google +
-Microsoft buttons, everything else behind "More sign-in options"; live-verified) · ✅ B3/B4/C2
-fast-follows (479 — role picker on first signed-in boot · tour confirmed at the 5-step cap ·
-one-shot "sign in to save your work" nudge on a signed-out publish; live-verified) · CODE-1 adoption-seed depth (✅ per-project jurisdiction
-v0.3.471) · ✅ CODE-3 auto-resolve edition (v0.3.471 — egress + `apply_detailing_rules` cite the
-adopted IBC edition) · ✅ CODE-4 local-amendment overlay (477 — `PUT/GET /code/amendments`: validated
-per-family edition overrides beat the jurisdiction seed in `_project_ibc_edition` + recorded section
-amendments ride the code context; audited, clearable).
-
-**Reliability (REL):** REL-3 remainder (`modules.py` DI split · `main.py` · `codecheck.py` ·
-`connectors.py` residue · `auth.py` · `data/drawing.py`/`drawings.py`/`massing.py` · `bcf_io.py` ·
-`routers/generate.py`) · ✅ REL-5 COMPLETE (481 — `bridge.py` plan/execute → typed
-Plan/ExecutionResult dataclasses · `recipes.py` storey-lookup dedupe · vite/bundle-budget FS was
-already single-pass) · ✅ REL-8 COMPLETE (487 — all 359 modules carry header docstrings, now
-ENFORCED in test_import_cycles beside the no-cycle guard) · REL-6 tail (✅ private-IP
-webhook blocking 478 — `AEC_WEBHOOK_ALLOW_PRIVATE=0` refuses private/loopback targets, tested ·
-cargo-audit/gitleaks in CI when available) · REL-7 stays evidence-gated (the bulk
-dead-code claim was disproven; only prove-then-delete small batches).
-
-## 🔬 R14 ring — field-research upgrades (2026-07-19: 13 infographics + 10 tools/products studied)
+## 🔬 R14 ring — field-research upgrades (2026-07-19; all open)
 
 *Every item reimplements a proven WORKFLOW as a deterministic, offline feature grounded in the model
-we own (GUID-everywhere provenance is our structural edge over the AI-first equivalents). Techniques
-only — no code from unlicensed/proprietary sources; MIT/LGPL references studied, never pasted.*
+we own (GUID-everywhere provenance is the structural edge). Techniques only — no code from
+unlicensed/proprietary sources.*
 
-**Tier 1 (whitespace / highest leverage):**
+**Tier 1 (whitespace / highest leverage — queue #12–14):**
 - **CX-1 — Commissioning module** *(L · ★★★★★)* — the lifecycle gap after punch/turnover: an asset
   registry **auto-derived from the model** (every MEP equipment class → a commissionable asset), a
   `cx_test` module with phase-typed checklists (pre-functional · functional-performance · integrated,
@@ -370,11 +256,11 @@ only — no code from unlicensed/proprietary sources; MIT/LGPL references studie
   line rolled to a bid range (pairs with the Monte Carlo risk engine) + a firm **rate-sheet overlay**
   on the localized cost vintages.
 
-**Tier 3 (interop + UX wins from the infographic set):**
+**Tier 3 (interop + UX wins):**
 - **CLASH-TRIAGE** *(M)* — import external clash reports (Navisworks XML/HTML), filterable triage
   table with zoom-to + linked-model resolution, BCF status round-trip.
 - **GIS-OUT** *(S/M)* — lean BIM→GIS export: exterior shell + footprint **GeoJSON in WGS84** (via the
-  georef) — the <10%-size site-context artifact; CityJSON site-context import extending SITE-1.
+  georef); CityJSON site-context import extending SITE-1.
 - **KEYS-2** *(S)* — two-letter mnemonic shortcuts (WA wall · DR door · CS section · TH temp-hide …)
   layered on the command line, discoverable via a cheat-sheet overlay.
 - **VIEW-TPL** *(S)* — saved **view templates** (camera + layers + color mode + section state) applied
@@ -387,25 +273,23 @@ only — no code from unlicensed/proprietary sources; MIT/LGPL references studie
   **contingency / management reserve / taxes & fees** layers with hierarchical rollup.
 - **BEP-GEN** *(M)* — generate the **BIM Execution Plan** from the project's LIVE configuration
   (pinned IDS, CDE folders, classification systems, roles/responsibility matrix, exchange formats,
-  model-health gates) — the "information framework, not just a 3D model" deliverable, always current.
+  model-health gates) — always current.
 - **ROLES-BIM** *(S)* — BIM-org personas (BIM manager · coordinator · information manager · QA/QC)
   as responsibility-matrix defaults mapped to ISO 19650 duties.
 - **PM-CLOSE** *(S)* — project **charter** + **lessons-learned register** modules closing the PMBOK
-  process-group spine (initiate/close were thin).
+  process-group spine.
 - **SOLVER-OUT** *(S, flagged)* — structural-solver exchange exports of the analytical model for
   desktop solver round-trips.
 
-*Explicitly skipped from this research pass: seed-stage unlicensed contractor-OS apps (nothing beyond
-what the module engine ships), parametric beam/panel modeling cores (our GUID-stable recipes are
-ahead), and all LLM/computer-vision document scanning (non-deterministic; we author the model, so we
-never reverse-engineer PDFs).*
+*Explicitly skipped from this research pass: seed-stage unlicensed contractor-OS apps, parametric
+beam/panel modeling cores (our GUID-stable recipes are ahead), and all LLM/computer-vision document
+scanning.*
 
 ## P3 — gated (each entry names its unblocking event)
 
-*Audited 2026-07-18 during the P2 sweep: every entry below was re-checked and its gate still holds —
-none are buildable offline on this machine tonight. What CAN ship without the gate has already shipped
-(the offline COST-DB importers, the PWA, the data-path IFC5 export, the origination connector); the
-rest stays honestly gated rather than falsely ✅.*
+*Audited 2026-07-18: every entry below was re-checked and its gate still holds — none are buildable
+offline on this machine. What CAN ship without the gate has already shipped; the rest stays honestly
+gated rather than falsely ✅.*
 
 - **Upstream:** IFC5/IFCX *geometry* write (web-ifc/Fragments write path — data path ships) · bSI
   Validation Service in CI (service account). Track buildingSMART.

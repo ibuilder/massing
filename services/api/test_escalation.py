@@ -98,5 +98,30 @@ with TestClient(app) as c:
     assert st["state"] == "done", st
     assert st["result"]["escalated"] == 0, st["result"]
 
+# HARDEN-2 (S1): the escalation_scan job kind is admin-gated at enqueue — the queue must not be a
+# side door around POST /escalations/run's admin gate. Unit-check the gate with RBAC forced on.
+from fastapi import HTTPException  # noqa: E402
+
+from aec_api import rbac  # noqa: E402
+from aec_api.routers import jobs as jobs_router  # noqa: E402
+
+_was = rbac.RBAC_ON
+rbac.RBAC_ON = True
+try:
+    _orig_role_for = rbac.role_for
+    rbac.role_for = lambda db, pid, user: "editor"       # an editor…
+    try:
+        jobs_router._require_kind_role(None, "p1", "eve", "escalation_scan")
+        raise AssertionError("expected 403 for editor enqueueing escalation_scan")
+    except HTTPException as e:
+        assert e.status_code == 403, e.status_code       # …is refused,
+    rbac.role_for = lambda db, pid, user: "admin"
+    jobs_router._require_kind_role(None, "p1", "root", "escalation_scan")   # an admin passes,
+    rbac.role_for = lambda db, pid, user: "editor"
+    jobs_router._require_kind_role(None, "p1", "eve", "echo")               # ungated kinds unaffected
+finally:
+    rbac.role_for = _orig_role_for
+    rbac.RBAC_ON = _was
+
 print("ESCALATION OK - ball-in-court tracks transitions (open→Consultant/OwnersRep, answered→GC); "
       "3 overdue escalated (L2×2 + L3×1) onto timelines + notified; idempotent re-run; job round-trips")

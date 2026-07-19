@@ -29,8 +29,6 @@ from typing import Any
 
 from .model_query import _val  # field resolution (ifc_class/storey/discipline/Pset::Prop) — reused
 
-# two-char operators MUST precede their one-char prefixes so ">=" isn't mis-split as ">"
-_OPS = ("!=", ">=", "<=", "=", ">", "<", "~")
 _FIELD_ALIAS = {"type": "type_name", "class": "ifc_class"}
 _MISSING = (None, "", [], {})
 
@@ -85,6 +83,31 @@ def _cmp(actual: Any, op: str, target: str) -> bool:
     return False
 
 
+def _find_op(term: str) -> tuple[str, int] | None:
+    """The LEFTMOST unquoted operator in a term (2-char ops win at the same position), or None.
+
+    HARDEN-2 (B2): the previous split took the first operator in precedence order found ANYWHERE, so a
+    quoted value containing an operator character (``name~"a=b"``) split at the ``=`` inside the
+    quotes and silently matched nothing. Scanning left-to-right (and skipping quoted spans outright)
+    always finds the real operator first."""
+    in_q: str | None = None
+    i = 0
+    while i < len(term):
+        c = term[i]
+        if in_q:
+            if c == in_q:
+                in_q = None
+        elif c in "\"'":
+            in_q = c
+        else:
+            if term[i:i + 2] in ("!=", ">=", "<=") and i > 0:   # non-empty field must precede the op
+                return (term[i:i + 2], i)
+            if c in "=<>~" and i > 0:
+                return (c, i)
+        i += 1
+    return None
+
+
 def parse(dsl: str) -> list[tuple[str, str, str | None]]:
     """Compile a query string into ``[(field, op, value)]`` predicates. ``op`` is one of the operators
     or ``"__has__"`` (bare-field existence). Raises :class:`QueryError` on empty/garbage input."""
@@ -95,16 +118,13 @@ def parse(dsl: str) -> list[tuple[str, str, str | None]]:
         term = raw.strip()
         if not term:
             continue
-        split_at: tuple[str, int] | None = None
-        for op in _OPS:
-            i = term.find(op)
-            if i > 0:                            # op present and a non-empty field precedes it
-                split_at = (op, i)
-                break
+        split_at = _find_op(term)
         if split_at:
             op, i = split_at
             preds.append((_field(term[:i]), op, _unquote(term[i + len(op):])))
-        elif term[:3].lower() == "ifc" and " " not in term:
+        # bare-IfcClass shorthand — but never hijack a bare-FIELD existence test: real IFC class
+        # tokens (IfcWall) carry no "_"/"." while the ifc-prefixed fields (ifc_class, Pset paths) do.
+        elif term[:3].lower() == "ifc" and " " not in term and "_" not in term and "." not in term:
             preds.append(("ifc_class", "=", term))
         else:
             preds.append((_field(term), "__has__", None))
