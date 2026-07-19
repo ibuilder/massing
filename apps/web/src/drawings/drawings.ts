@@ -182,7 +182,9 @@ export class DrawingsUI {
       btn("↓ SVG", "Download SVG", () => window.open(this.host_.api.url(sheet.path), "_blank")),
       // DXF-EXPORT: every rendered view/sheet has a .dxf twin (plan/section/elevation/sheet) —
       // editable R12 CAD linework for consultants, not just paper.
-      btn("↓ DXF", "Download DXF (editable CAD linework)", () => window.open(this.host_.api.url(sheet.path.replace(".svg", ".dxf")), "_blank")));
+      btn("↓ DXF", "Download DXF (editable CAD linework)", () => window.open(this.host_.api.url(sheet.path.replace(".svg", ".dxf")), "_blank")),
+      // MARKUP-2b: the cross-sheet markups grid (every markup in the project, Σ totals, statuses)
+      btn("☰ Markups", "All markups across every sheet — totals, revisions, RFI links", () => void this.showMarkupGrid()));
     if (sheet.pdf) bar.append(btn("🖊 PDF markup", "Open the sheet PDF in the 2D editor — measure / mark up / persist to the sheet (promotable to RFI)", async () => {
       const api = this.host_.api, pid = this.host_.projectId();
       const { openPdfUrl, saveToDocuments } = await import("./openPdf");
@@ -309,5 +311,63 @@ export class DrawingsUI {
     });
     const t = this.root.querySelector<HTMLElement>("#dwg-toolbar .dwg-name");
     if (t && this.markup.length) t.textContent = `${this.current!.label}  ·  ${this.markup.length} markup${this.markup.length > 1 ? "s" : ""}`;
+  }
+
+  /** MARKUP-2b: the cross-sheet markups grid — every markup in the project in one sortable list with
+   *  Σ totals per kind, revision/carried status, and RFI links. DOM built with textContent throughout
+   *  (XSS-safe by construction — markup notes/authors are user text). */
+  private async showMarkupGrid() {
+    const pid = this.host_.projectId();
+    if (!pid) return;
+    let rows: DrawingMarkupItem[] = [];
+    try { rows = await this.host_.api.drawingMarkup(pid); }
+    catch { this.host_.setStatus("couldn't load markups"); return; }
+    const ov = document.createElement("div");
+    ov.style.cssText = "position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center";
+    const box = document.createElement("div");
+    box.style.cssText = "background:var(--panel,#23262d);color:var(--fg,#eee);border:1px solid var(--line,#3a3f47);"
+      + "border-radius:8px;padding:14px;width:min(920px,94vw);max-height:84vh;display:flex;flex-direction:column;gap:8px";
+    const head = document.createElement("div"); head.style.cssText = "display:flex;justify-content:space-between;align-items:center";
+    const title = document.createElement("strong");
+    // Σ totals per kind (count of markups; summed measure value for distance/area)
+    const sums: Record<string, { n: number; v: number; unit: string }> = {};
+    for (const m of rows) {
+      const k = m.kind || "pin";
+      const s = (sums[k] ??= { n: 0, v: 0, unit: m.data?.unit || "" });
+      s.n += 1; s.v += m.data?.value || 0;
+    }
+    const sumTxt = Object.entries(sums)
+      .map(([k, s]) => `${k}: ${s.n}${s.v && (k === "distance" || k === "area") ? ` (Σ ${s.v.toFixed(1)} ${s.unit})` : ""}`)
+      .join(" · ");
+    title.textContent = `☰ Markups — ${rows.length} across ${new Set(rows.map((m) => m.sheet_id.split("#")[0])).size} sheet(s)`;
+    const x = document.createElement("button"); x.className = "tool-btn"; x.textContent = "✕";
+    x.onclick = () => ov.remove();
+    head.append(title, x);
+    const sub = document.createElement("div"); sub.className = "meta"; sub.textContent = sumTxt || "no markups yet";
+    const scroll = document.createElement("div"); scroll.style.cssText = "overflow:auto;flex:1";
+    const tbl = document.createElement("table"); tbl.style.cssText = "width:100%;border-collapse:collapse;font-size:12px";
+    const hr = document.createElement("tr");
+    for (const h of ["Sheet", "Kind", "Note", "Measure", "Author", "Rev", "Status"]) {
+      const th = document.createElement("th");
+      th.textContent = h; th.style.cssText = "text-align:left;padding:4px 8px;border-bottom:1px solid var(--line,#3a3f47);position:sticky;top:0;background:var(--panel,#23262d)";
+      hr.appendChild(th);
+    }
+    tbl.appendChild(hr);
+    for (const m of rows.slice(0, 1000)) {
+      const tr = document.createElement("tr");
+      const td = (s: string) => { const c = document.createElement("td"); c.textContent = s; c.style.cssText = "padding:3px 8px;border-bottom:1px solid #ffffff12"; return c; };
+      tr.append(
+        td(m.sheet_id), td(m.kind || "pin"), td(m.note || ""),
+        td(m.data?.value ? `${m.data.value} ${m.data.unit || ""}` : ""),
+        td(m.author || ""), td(m.data?.rev || ""),
+        td([m.topic_id ? "RFI" : "", m.data?.carried_from ? `⟳ carried from ${m.data.carried_from}` : ""].filter(Boolean).join(" · ")));
+      if (m.data?.carried_from) tr.style.color = "#ff8c1a";
+      tbl.appendChild(tr);
+    }
+    scroll.appendChild(tbl);
+    box.append(head, sub, scroll);
+    ov.onclick = (e) => { if (e.target === ov) ov.remove(); };
+    ov.appendChild(box);
+    document.body.appendChild(ov);
   }
 }

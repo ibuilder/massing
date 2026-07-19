@@ -279,6 +279,25 @@ def state_counts(db: Session, key: str, project_id: str) -> dict[str, int]:
     return {(state or ""): int(n) for state, n in db.execute(stmt).all()}
 
 
+def state_counts_all(db: Session, project_id: str) -> dict[str, dict[str, int]]:
+    """DASH-UNION (PERF-4): every module's {workflow_state: count} in ONE round-trip — a UNION ALL of
+    the per-module GROUP BYs. The dashboard previously issued one query per registered module (~124);
+    at scale the round-trips, not the row work, dominated. Only non-empty modules appear in the
+    result, so callers keep their `if not total: continue` shape."""
+    from sqlalchemy import literal, union_all
+    parts = [
+        select(literal(key).label("mod"), t.c.workflow_state, func.count().label("n"))
+        .where(t.c.project_id == project_id).group_by(t.c.workflow_state)
+        for key, t in TABLES.items()
+    ]
+    if not parts:
+        return {}
+    out: dict[str, dict[str, int]] = {}
+    for mod_key, state, n in db.execute(union_all(*parts)).all():
+        out.setdefault(mod_key, {})[state or ""] = int(n)
+    return out
+
+
 def active_records(db: Session, key: str, project_id: str, exclude_states: set[str],
                    with_data: bool = True, states: set[str] | None = None,
                    limit: int | None = None) -> list[dict]:

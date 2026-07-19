@@ -255,6 +255,22 @@ def _escalation_scan(db: Session, params: dict) -> dict:
     return escalation.run(db, pid, actor=escalation.SYSTEM_ACTOR, ladder=params.get("ladder"))
 
 
+def _model_ci(db: Session, params: dict) -> dict:
+    """MODEL-CI-2: run the quality-gate check pack off the request path. Auto-enqueued after every
+    successful publish so the badge is always fresh; also schedulable. Idempotent — a re-run just
+    recomputes and re-stores the report."""
+    from . import model_ci
+    from .model_index import _INDEX, _ensure_loaded
+    pid = params.get("project_id") or ""
+    if not pid:
+        raise ValueError("model_ci needs a project_id")
+    try:
+        _ensure_loaded(pid)
+    except Exception:                                # noqa: BLE001 — no index → checks skip honestly
+        pass
+    return model_ci.run(db, pid, _INDEX.get(pid))
+
+
 def _echo(db: Session, params: dict) -> dict:
     """Test/diagnostic kind: returns its params (and proves the queue round-trips)."""
     return {"echo": params}
@@ -266,3 +282,4 @@ register_kind("compiled_set_pdf", _compiled_set_pdf)
 register_kind("model_export", _model_export)
 register_kind("clash_detect", _clash_detect)
 register_kind("escalation_scan", _escalation_scan)
+register_kind("model_ci", _model_ci)

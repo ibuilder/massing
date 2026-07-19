@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.514 — SPRINT 2: dashboard UNION-ALL · CI-on-publish + clash check · cross-sheet markups grid
+
+**DASH-UNION (PERF-4)** — the role dashboard's per-module status tallies now come from **one
+UNION-ALL round-trip** (`modules.state_counts_all`) instead of one GROUP BY per registered module
+(~124 queries). Counts proven byte-identical by an equivalence test against every per-module query.
+
+**MODEL-CI-2 (#6)** — the quality gate is now **automatic**: every successful publish enqueues a
+`model_ci` job on the durable queue, so the badge is always fresh without anyone clicking "run"
+(best-effort — a queue hiccup never fails a good publish). The pack gains a third check: **Latest
+clash run** reads the newest `clash_detect` job result (clashes → warn, zero → pass, no run → skip —
+coordination work, not automatically a defect). IDS/QTO-delta checks remain open (MODEL-CI-3).
+
+**MARKUP-2b (#1)** — the **cross-sheet markups grid**: a "☰ Markups" button in the drawings browser
+lists every markup in the project — sheet, kind, note, measure, author, revision, RFI-link and
+⟳ carried-forward status — with Σ totals per kind (count + summed distance/area). DOM built with
+`textContent` throughout (XSS-safe by construction). `drawingMarkup()` without a sheet now returns
+the whole project (the server always supported it).
+
 ## v0.3.513 — SPRINT 1: XLSX round-trip · sheet DXF · selector-scoped clash · 4D variance · apply-leveling
 
 Five queue items in one sprint release (the new cadence: targeted tests per feature while building,

@@ -2772,8 +2772,10 @@ export class ApiClient extends HttpCore {
     return this.json<EscalationRun>(`/projects/${pid}/escalations/run`, { method: "POST" });
   }
   // --- drawing markup (2D sheet pins; promotable to RFIs) ----------------
-  drawingMarkup(pid: string, sheet: string) {
-    return this.json<DrawingMarkupItem[]>(`/projects/${pid}/drawings/markup?sheet=${encodeURIComponent(sheet)}`);
+  /** Markups for one sheet — or, with no sheet, EVERY markup in the project (the MARKUP-2b grid). */
+  drawingMarkup(pid: string, sheet?: string) {
+    return this.json<DrawingMarkupItem[]>(
+      `/projects/${pid}/drawings/markup${sheet ? `?sheet=${encodeURIComponent(sheet)}` : ""}`);
   }
   addDrawingMarkup(pid: string, sheetId: string, x: number, y: number, note: string) {
     return this.json<DrawingMarkupItem>(`/projects/${pid}/drawings/markup`, { method: "POST", body: JSON.stringify({ sheet_id: sheetId, x, y, note }) });

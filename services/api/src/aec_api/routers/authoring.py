@@ -1165,7 +1165,18 @@ def run_publish(pid: str) -> None:
                 _set_pub_status(pid, "error", {"error": "project not found"})
                 return
             result = _publish(p)
-        _set_pub_status(pid, "error" if result.get("reconvert_error") else "done", result)
+        ok = not result.get("reconvert_error")
+        _set_pub_status(pid, "done" if ok else "error", result)
+        if ok:
+            # MODEL-CI-2: every successful publish auto-runs the quality-gate check pack on the
+            # durable queue, so the CI badge is always fresh without anyone clicking "run".
+            # Best-effort: a queue hiccup must never mark a good publish as failed.
+            try:
+                from .. import jobs
+                with SessionLocal() as db2:
+                    jobs.enqueue(db2, "model_ci", pid, {"project_id": pid}, actor="publish")
+            except Exception:                        # noqa: BLE001
+                logging.getLogger("aec.publish").warning("model_ci auto-enqueue failed for %s", pid)
     except Exception as e:  # noqa: BLE001 — surface the failure in the status, never crash the worker
         logging.getLogger("aec.publish").exception("publish failed for %s", pid)
         _set_pub_status(pid, "error", {"error": str(e)[:300]})

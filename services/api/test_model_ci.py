@@ -52,8 +52,20 @@ with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "CI"}).json()["id"]
     assert c.get(f"/projects/{pid}/ci/latest").json()["overall"] == "none"   # never run
     run = c.post(f"/projects/{pid}/ci/run").json()
-    assert run["overall"] == "skip" and run["total_checks"] == 2, run          # no model → skip
+    assert run["overall"] == "skip" and run["total_checks"] == 3, run          # no model → skip
     assert c.get(f"/projects/{pid}/ci/latest").json()["overall"] == "skip"    # persisted
+    # MODEL-CI-2: the clash adapter reads the LATEST clash_detect job — no run yet → skip
+    clash_chk = next(x for x in run["checks"] if x["key"] == "clash")
+    assert clash_chk["status"] == "skip" and "no clash run" in clash_chk["summary"], clash_chk
+    # MODEL-CI-2: the model_ci job kind (auto-enqueued on publish) round-trips on the durable queue
+    import time
+    job = c.post(f"/projects/{pid}/jobs", json={"kind": "model_ci", "params": {}}).json()
+    for _ in range(50):
+        st = c.get(f"/projects/{pid}/jobs/{job['id']}").json()
+        if st["state"] in ("done", "error"):
+            break
+        time.sleep(0.1)
+    assert st["state"] == "done" and st["result"]["total_checks"] == 3, st
 
 print("MODEL-CI OK - check pack (rules + named) → pass/warn/fail badge; door-missing-rating fails, "
       "clean model passes, unnamed fails completeness, no-model skips; run persists + latest reads it")

@@ -49,10 +49,26 @@ def _named_check(db: Session | None, pid: str, idx: dict | None) -> dict:
             "metrics": {"named_pct": pct, "named": named, "total": total}}
 
 
+def _clash_check(db: Session | None, pid: str, idx: dict | None) -> dict:
+    """MODEL-CI-2: the latest durable clash run (`clash_detect` job). Clashes are coordination work,
+    not automatically defects — any clashes → warn, zero → pass, no run yet → skip."""
+    if db is None:
+        return {"status": "skip", "summary": "no db session", "metrics": {}}
+    from .models import Job
+    j = (db.query(Job).filter(Job.kind == "clash_detect", Job.project_id == pid, Job.state == "done")
+         .order_by(Job.created_at.desc()).first())
+    if not j or not isinstance(j.result, dict):
+        return {"status": "skip", "summary": "no clash run yet", "metrics": {}}
+    n = int(j.result.get("count") or 0)
+    return {"status": "warn" if n else "pass", "summary": f"{n} clash(es) in the latest run",
+            "metrics": {"count": n, "job_id": j.id}}
+
+
 # (key, label, fn) — register a new check by appending one adapter over an existing engine.
 CHECKS: list[tuple[str, str, Callable[[Session | None, str, dict | None], dict]]] = [
     ("rules", "Rule library", _rules_check),
     ("named", "Elements named", _named_check),
+    ("clash", "Latest clash run", _clash_check),
 ]
 
 

@@ -27,7 +27,8 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
    audit line overstated the gap). 2a = the project stamp library wired into the editor picker
    (per-disposition dynamic stamps) + **slip-sheet carry-forward**: markups stamp the register rev at
    save; revising tags `carried_from` (dashed-amber "verify against current revision" pins, never
-   dropped). **Remaining:** 2b markups grid (cross-sheet columns/Σ) · 2c overlay compare (rev A/B
+   dropped). **2b markups grid SHIPPED v0.3.514 (Sprint 2)** — the "☰ Markups" cross-sheet grid with
+   Σ totals + carried/RFI status. **Remaining:** 2c overlay compare (rev A/B
    tinted) · 2d live co-markup (2D presence payload + mutation broadcast on the existing SSE).
 2. ✅ **XLSX-ROUNDTRIP — SHIPPED v0.3.513** — `GET /model/roundtrip.csv?props=…` (guarded GUID-keyed
    export) → edit in Excel/Sheets → `POST /model/roundtrip/diff` (dry-run: changes + dtype inferred
@@ -37,15 +38,18 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
 3. ✅ **DXF-EXPORT — SHIPPED v0.3.513 (Sprint 1)** — the composed sheet as R12 CAD entities
    (`GET /drawings/sheet.dxf`, layers BORDER/VIEW-n/ANNO/TITLEBLOCK, `render_sheet_dxf` + dxf.py
    entity builders) + the **↓ DXF** button on every view/sheet. Consultant-contract blocker cleared.
-4. **PERF-4 remainder** *(M)* — DASH-UNION (one UNION-ALL for the 124-query dashboard) ·
+4. ◧ **PERF-4 remainder** — **DASH-UNION SHIPPED v0.3.514 (Sprint 2)**: `state_counts_all` UNION-ALL
+   replaces the dashboard's ~124 per-module GROUP BYs (equivalence-tested). **Still open (S each):**
    lean-column single-activity schedule load · SQL-aggregate the `limit=100000` analytics.
 
 **NEXT (compound the queue wave — each is a small, verified follow-up):**
 5. ✅ **QUERY-DSL wiring — SHIPPED v0.3.513 (Sprint 1)** — clash sides accept selectors:
    `detect(guids_a=, guids_b=)` + `POST /clash?a_q=…&b_q=…` via `query_dsl.select` (bad → 422).
    (Bulk-edit already composes client-side: Query-select GUIDs → `set_props_by_guid`.)
-6. **MODEL-CI-2** *(M)* — auto-run the check pack on publish/option-branch save (enqueue a CI job —
-   jobs infra ships); add the clash / IDS / QTO-delta checks (engines exist); BCF/report artifacts.
+6. ◧ **MODEL-CI-2 — core SHIPPED v0.3.514 (Sprint 2)** — every successful publish auto-enqueues a
+   `model_ci` job (badge always fresh, best-effort); the pack gains the **Latest clash run** check
+   (newest `clash_detect` job → warn/pass/skip). **MODEL-CI-3 remaining:** IDS + QTO-delta checks,
+   BCF/report artifacts.
 7. ✅ **FOURD-SIM-2 — SHIPPED v0.3.513 (Sprint 1)** — planned-vs-actual on the playback: frames carry
    `late_guids`/`early_guids` (actual_finish vs finish), the player tints slipped red / ahead green
    over the amber flash. (The logistics overlay on the play clock stays open — FOURD-SIM-3.)

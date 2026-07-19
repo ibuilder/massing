@@ -35,8 +35,10 @@ def build(db: Session, pid: str, party: str | None) -> dict[str, Any]:
     counts = Counter()
 
     ACTION_CAP = 300          # bound the action-item collection (output is sliced to 100 anyway)
+    # DASH-UNION (PERF-4): ONE UNION-ALL round-trip replaces the per-module GROUP BY (~124 queries).
+    all_counts = me.state_counts_all(db, pid)
     for key, mod in me.REGISTRY.items():
-        states = me.state_counts(db, key, pid)           # GROUP BY — no JSON parsed
+        states = all_counts.get(key, {})
         total = sum(states.values())
         if not total:
             continue

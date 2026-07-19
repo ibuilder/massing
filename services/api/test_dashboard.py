@@ -11,6 +11,7 @@ for f in ("./test_dash.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api.main import app  # noqa: E402
 
 H = lambda u: {"X-User": u}  # noqa: E731
@@ -52,6 +53,19 @@ with TestClient(app) as c:
     texts = " ".join(r["text"].lower() for r in risk["risks"])
     assert "rfi" in texts and "change order" in texts, risk   # 1 open RFI + 1 pending CO above
 
+    # DASH-UNION (PERF-4): the single UNION-ALL matches every per-module GROUP BY exactly, and no
+    # non-empty module is missing from it — the dashboard's counts are provably unchanged.
+    from aec_api import modules as me
+    from aec_api.db import SessionLocal
+    with SessionLocal() as s:
+        uni = me.state_counts_all(s, pid)
+        assert uni, "a seeded project must produce union counts"
+        for k, states in uni.items():
+            assert states == me.state_counts(s, k, pid), f"union mismatch for {k}"
+        for k in me.REGISTRY:
+            if me.state_counts(s, k, pid):
+                assert k in uni, f"non-empty module {k} missing from the union"
+
     print("DASHBOARD OK")
     print(f"  GC={sorted(items('GC'))}  Consultant={sorted(items('Consultant'))}  Owner={sorted(items('Owner'))}")
-    print(f"  kpis: {{k:v for non-zero}} = {dict((k, v) for k, v in d['kpis'].items() if v)}")
+    print(f"  kpis: {{k:v for non-zero}} = { {k: v for k, v in d['kpis'].items() if v} }")
