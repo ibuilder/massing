@@ -12,11 +12,13 @@ for _f in ("./test_webhooks.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient   # noqa: E402
-from aec_api import webhooks                # noqa: E402
-from aec_api.main import app               # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import webhooks  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # capture deliveries instead of hitting the network
+_real_send = webhooks._send                       # kept for the REL-6 validation cases at the end
 SENT: list[tuple[str, dict]] = []
 webhooks._send = lambda url, body: SENT.append((url, json.loads(body)))   # type: ignore
 
@@ -90,6 +92,20 @@ assert not bad["ok"] and bad["attempts"] == 3 and "nope" in (bad["error"] or "")
 with TestClient(app) as c2:
     assert c2.get("/webhooks/deliveries").status_code in (401, 403)
 
+# --- REL-6: private-IP blocking (opt-in for hosted deployments) ------------------------------------
+webhooks._send = _real_send  # restore the real sender (validation happens inside it)
+os.environ["AEC_WEBHOOK_ALLOW_PRIVATE"] = "0"
+webhooks._deliver(["http://127.0.0.1:9/hook"], b"{}", "ssrf")     # loopback → refused, no socket dial
+strict = webhooks.recent(1)[0]
+assert not strict["ok"] and "private/loopback" in (strict["error"] or ""), strict
+# scheme validation still applies in strict mode
+webhooks._deliver(["file:///etc/passwd"], b"{}", "scheme")
+assert "http(s)" in (webhooks.recent(1)[0]["error"] or "")
+os.environ["AEC_WEBHOOK_ALLOW_PRIVATE"] = "1"                     # default: LAN/loopback allowed
+assert webhooks._allow_private() is True
+
 print("WEBHOOKS OK - transition fired record.transition to both URLs (event/module/action/from/to/ref "
       "present); fail-open on a throwing endpoint; no-op when unconfigured; HMAC sha256(ts.body) "
-      "signing; retry-with-backoff (2 fails->3rd ok) + delivery log; /webhooks/deliveries admin-gated")
+      "signing; retry-with-backoff (2 fails->3rd ok) + delivery log; /webhooks/deliveries admin-gated; "
+      "REL-6: AEC_WEBHOOK_ALLOW_PRIVATE=0 refuses loopback/private targets (logged, fail-open) and "
+      "file:// is always refused")

@@ -56,6 +56,7 @@ from .edit_mep import (  # noqa: F401 — re-exported: routers/RECIPES/nodegraph
     add_mep_run,
     add_mep_terminal,
     add_riser,
+    auto_connect,
     connect_elements,
     connect_mep,
     element_connections,
@@ -566,6 +567,8 @@ RECIPES = {
                                         p.get("flow"), p.get("flow_unit")),
     "set_system_predefined": lambda m, p: set_system_predefined(m, p["system"], p["discipline"]),
     "connect_mep": lambda m, p: connect_mep(m, p["guid_a"], p["guid_b"]),
+    # W10-4 — one-pass coincident-port auto-connect over every unconnected MEP element
+    "auto_connect_mep": lambda m, p: auto_connect(m, float(p.get("tolerance", 0.05))),
     # B5 — generic element-to-element connection (IfcRelConnectsElements, LOD-350 coordination)
     "connect_elements": lambda m, p: connect_elements(m, p["guid_a"], p["guid_b"], p.get("description")),
     # A1 — sandboxed ifcopenshell escape hatch (gated by AEC_ALLOW_IFC_CODE; AST-whitelisted)

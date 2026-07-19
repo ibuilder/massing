@@ -64,7 +64,9 @@ model-aware guardrails · A2 RAG index over ifcopenshell/IFC docs.
 
 **Authoring depth (Wave 10/9):** W10-2 parametric family generators (profiles + swept/boolean;
 build123d/OCP optional track) · W10-9 dimensional constraints (planegcs LGPL; sidecar-solved, baked to
-IFC) · W10-4 coincident-port auto-connect · W10-5 section/elevation annotation views · ✅ W10-6 keynote
+IFC) · ✅ W10-4 coincident-port auto-connect (478 — `auto_connect_mep` recipe: one sweep wires
+coincident segment-end/fitting points with IfcRelConnectsPorts; fittings claim the joints, idempotent) ·
+W10-5 section/elevation annotation views · ✅ W10-6 keynote
 legend (sheets render the KEYNOTES legend from Track-D codes, test-asserted) · W9-4 harder half (spec/code document text ingestion → cited NL answers) · W9-5 4D equipment
 motion + swept crane clash · W9-6b headcount-program → zones + auto-furnish.
 
@@ -92,8 +94,9 @@ per-class merge is the documented design).
 
 **Onboarding & codes:** ✅ B1 sign-in-first welcome panel (472 — 🔐 lead row, never walls) · ✅ B2
 sign-in→tour (477 — the auth reload resumes into the coach-mark tour via a consumed one-shot flag;
-live-verified) · A1/A2/C1
-provider prominence · B3/B4/C2 fast-follows · CODE-1 adoption-seed depth (✅ per-project jurisdiction
+live-verified) · ✅ A1/A2/C1 provider prominence (478 — the sign-in modal leads with big Google +
+Microsoft buttons, everything else behind "More sign-in options"; live-verified) · B3/B4/C2
+fast-follows · CODE-1 adoption-seed depth (✅ per-project jurisdiction
 v0.3.471) · ✅ CODE-3 auto-resolve edition (v0.3.471 — egress + `apply_detailing_rules` cite the
 adopted IBC edition) · ✅ CODE-4 local-amendment overlay (477 — `PUT/GET /code/amendments`: validated
 per-family edition overrides beat the jurisdiction seed in `_project_ibc_edition` + recorded section
@@ -102,8 +105,9 @@ amendments ride the code context; audited, clearable).
 **Reliability (REL):** REL-3 remainder (`modules.py` DI split · `main.py` · `codecheck.py` ·
 `connectors.py` residue · `auth.py` · `data/drawing.py`/`drawings.py`/`massing.py` · `bcf_io.py` ·
 `routers/generate.py`) · REL-5 remainder (vite/bundle-budget FS reviewed — already single-pass, no change · `bridge.py`
-dataclass · recipes dedupe) · REL-8 (CI no-cycle check; module-header docs) · REL-6 tail (private-IP
-webhook blocking · cargo-audit/gitleaks in CI when available) · REL-7 stays evidence-gated (the bulk
+dataclass · recipes dedupe) · REL-8 (CI no-cycle check; module-header docs) · REL-6 tail (✅ private-IP
+webhook blocking 478 — `AEC_WEBHOOK_ALLOW_PRIVATE=0` refuses private/loopback targets, tested ·
+cargo-audit/gitleaks in CI when available) · REL-7 stays evidence-gated (the bulk
 dead-code claim was disproven; only prove-then-delete small batches).
 
 ## P3 — gated (each entry names its unblocking event)

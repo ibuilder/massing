@@ -73,9 +73,19 @@ def _retry_base() -> float:
     return float(os.environ.get("AEC_WEBHOOK_RETRY_BASE", "0.5"))
 
 
+def _allow_private() -> bool:
+    """REL-6: whether webhook targets may resolve to private/loopback addresses. Default yes —
+    on-prem listeners (Power Automate gateway, a LAN automation host) are a legitimate operator
+    choice and the URLs are operator-set. Set AEC_WEBHOOK_ALLOW_PRIVATE=0 (env or Settings) in
+    hosted/multi-tenant deployments to refuse them (blocks cloud-metadata + intranet probing via a
+    compromised settings key)."""
+    return (settings_store.get("AEC_WEBHOOK_ALLOW_PRIVATE", "1") or "1").strip() != "0"
+
+
 def _send(url: str, body: bytes) -> int:
     """POST `body` to `url`, HMAC-signing it when a secret is set. Returns the HTTP status."""
-    validate_outbound_url(url, label="AEC_WEBHOOK_URLS entry")  # block file://etc; LAN targets allowed
+    validate_outbound_url(url, label="AEC_WEBHOOK_URLS entry",  # block file:// etc; see _allow_private
+                          allow_private=_allow_private())
     ts = str(int(time.time()))
     headers = {"Content-Type": "application/json", "User-Agent": "Massing-Webhook",
                "X-Massing-Event-Timestamp": ts}

@@ -86,12 +86,36 @@ function loginModal() {
       card.appendChild(hint);
       return;
     }
-    const wrap = document.createElement("div"); wrap.style.cssText = "display:flex;flex-direction:column;gap:6px";
-    for (const pv of providers) {
+    // A1/C1: the modal LEADS with big Google + Microsoft buttons (co-equal defaults); when neither
+    // is configured the first configured provider takes the lead slot instead.
+    const wrap = document.createElement("div"); wrap.style.cssText = "display:flex;flex-direction:column;gap:8px";
+    const go2 = (pv: { id: string }) => { window.location.href = D.api.url(`/auth/oauth/${pv.id}/login`); };
+    const PRIMARY = new Set(["google", "microsoft"]);
+    const primary = providers.filter((pv) => PRIMARY.has(pv.id));
+    const lead = primary.length ? primary : providers.slice(0, 1);
+    for (const pv of lead) {
       const b = document.createElement("button"); b.className = "file-btn";
+      b.style.cssText = "padding:11px 14px;font-size:14px;font-weight:600";
       b.textContent = `Continue with ${pv.label}`;
-      b.onclick = () => { window.location.href = D.api.url(`/auth/oauth/${pv.id}/login`); };
+      b.onclick = () => go2(pv);
       wrap.appendChild(b);
+    }
+    // A2: every other provider collapses behind "More sign-in options"
+    const others = providers.filter((pv) => !lead.includes(pv));
+    if (others.length) {
+      const hidden = document.createElement("div");
+      hidden.style.cssText = "display:none;flex-direction:column;gap:6px";
+      for (const pv of others) {
+        const b = document.createElement("button"); b.className = "tool-btn";
+        b.textContent = `Continue with ${pv.label}`;
+        b.onclick = () => go2(pv);
+        hidden.appendChild(b);
+      }
+      const more = document.createElement("a"); more.href = "#";
+      more.textContent = `More sign-in options (${others.length})`;
+      more.style.cssText = "font-size:12px;color:var(--muted);text-align:center";
+      more.onclick = (e) => { e.preventDefault(); hidden.style.display = "flex"; more.remove(); };
+      wrap.append(more, hidden);
     }
     const div = document.createElement("div"); div.className = "meta"; div.textContent = "— or sign in with a password —";
     div.style.cssText = "text-align:center;margin:4px 0";

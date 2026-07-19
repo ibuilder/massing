@@ -123,6 +123,7 @@ assert "add_fire_equipment" in edit.RECIPES
 
 # sprinkler coverage: 2 SPRINKLER heads over authored spaces; required = ceil(area / max-coverage)
 import math  # noqa: E402
+
 edit.add_spaces(m, rooms_per_storey=2, ceiling_height=3.0)       # gives measurable NetFloorArea
 cov = mep.sprinkler_coverage(m, "light")
 assert cov["sprinkler_heads"] == 2, cov                          # hose reel/fdc/pump are NOT counted
@@ -134,6 +135,7 @@ cov_o = mep.sprinkler_coverage(m, "ordinary")
 assert cov_o["required_heads"] >= cov["required_heads"], (cov_o["required_heads"], cov["required_heads"])
 # no spaces → area unknown → adequate None (a fresh empty model)
 import ifcopenshell as _ios  # noqa: E402
+
 covn = mep.sprinkler_coverage(_ios.file(schema="IFC4"), "light")
 assert covn["protected_area_m2"] == 0 and covn["sprinkler_heads"] == 0 and covn["adequate"] is None, covn
 
@@ -142,6 +144,7 @@ assert covn["protected_area_m2"] == 0 and covn["sprinkler_heads"] == 0 and covn[
 # engine's state. (Its tessellation is exercised standalone; add_spaces above leaves the geom engine unusable
 # for a later create_shape in the same process.)
 import ifcopenshell.util.placement as _upl  # noqa: E402
+
 riser_g = edit.add_riser(m, [8, 8], bottom_z=0.0, top_z=9.0, size=0.15, system="Fire Protection", discipline="fire")
 riser = m.by_guid(riser_g)
 assert riser.is_a() == "IfcPipeSegment", riser
@@ -176,6 +179,36 @@ import ifcopenshell  # noqa: E402
 legacy = mep.mep_summary(ifcopenshell.file(schema="IFC2X3"))
 assert legacy["total_systems"] == 0 and legacy["systems"] == [], legacy
 
+# --- W10-4b: coincident-port AUTO-connect ----------------------------------------------------------
+# a fresh network authored end-to-end: A --(elbow)-- B --(tee)-- C, plus a far-away stray
+AC = os.path.join(os.path.dirname(__file__), "_mep_ac.ifc")
+massing.generate_blank_ifc(AC, name="AutoConnect", storeys=1, storey_height=3.5, ground_size=30.0)
+ma = open_model(AC)
+sta = ma.by_type("IfcBuildingStorey")[0].Name
+a = edit.add_mep_run(ma, "IfcDuctSegment", [0, 0], [5, 0], "round", 0.3, sta, system="HVAC Supply")
+b = edit.add_mep_run(ma, "IfcDuctSegment", [5, 0], [5, 4], "round", 0.3, sta, system="HVAC Supply")
+cseg = edit.add_mep_run(ma, "IfcDuctSegment", [5, 4], [8, 4], "round", 0.3, sta, system="HVAC Supply")
+el2 = edit.add_mep_fitting(ma, "IfcDuctFitting", [5, 0], 0.3, "BEND", sta, system="HVAC Supply")
+te2 = edit.add_mep_fitting(ma, "IfcDuctFitting", [5, 4], 0.3, "JUNCTION", sta, system="HVAC Supply")
+stray = edit.add_mep_run(ma, "IfcDuctSegment", [20, 20], [25, 20], "round", 0.3, sta, system="HVAC Supply")
+
+ac = edit.auto_connect(ma)
+# the physical network: A–elbow, B–elbow, B–tee, C–tee — the fittings claim the joints (never a
+# direct A–B weld through the elbow), and the stray stays untouched
+assert ac["count"] == 4, ac
+pairs = {frozenset((x["a"], x["b"])) for x in ac["connected"]}
+assert pairs == {frozenset((a, el2)), frozenset((b, el2)), frozenset((b, te2)),
+                 frozenset((cseg, te2))}, pairs
+assert all(x["distance_m"] <= 0.05 for x in ac["connected"])
+assert not any(stray in p for p in pairs), "the far-away stray must not connect"
+cac = mep.connectivity(ma)
+assert cac["connections"] == 4 and cac["ports_connected"] == 8, cac
+# idempotent: the second sweep finds nothing left to wire (port budgets consumed)
+assert edit.auto_connect(ma)["count"] == 0, "re-run must be a no-op"
+# registered as a recipe (one undo step wires the whole network)
+assert "auto_connect_mep" in edit.RECIPES
+os.remove(AC)
+
 for f in (TMP, OUT):
     if os.path.exists(f):
         os.remove(f)
@@ -185,4 +218,7 @@ print("MEP OK - add_mep_fitting authors IfcDuctFitting/IfcPipeFitting (BEND=2 po
       "mep_summary browses systems (segments/fittings/terminals counts + open-port connectivity signal + "
       "unassigned tally); add_mep_fitting recipe works via apply_recipe. W10-4: connect_mep wires elements "
       "port-to-port (IfcRelConnectsPorts, first free port, raises when none), and mep.connectivity reports "
-      "ports connected/open, connection count, dangling (floating) elements + connected %.")
+      "ports connected/open, connection count, dangling (floating) elements + connected %. W10-4b: "
+      "auto_connect sweeps coincident endpoints (segment ends from placement+Length_m, fittings at their "
+      "point) into the exact physical network — fittings claim the joints, no direct weld through an elbow, "
+      "strays untouched, idempotent re-run, registered as the auto_connect_mep recipe.")

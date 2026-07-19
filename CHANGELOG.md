@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.478 — W10-4 coincident-port auto-connect · webhook private-IP blocking (P2)
+
+- **W10-4 — `auto_connect_mep` recipe**: one pass wires every unconnected MEP element pair whose
+  connection points coincide (segment ends from placement + the sizing pset's length; fittings and
+  terminals at their placement point) with `IfcRelConnectsPorts` — a run drawn end-to-end with a
+  fitting at each junction snaps into a connected network without N manual `connect_mep` calls.
+  Nearest pairs first; at a joint the **fitting claims the ports** (never a direct segment-to-segment
+  weld through an elbow); strays stay untouched; re-running is a no-op (already-connected pairs and
+  consumed port budgets are respected). Test-proven on an A–elbow–B–tee–C network.
+- **REL-6 — webhook private-IP blocking**: set `AEC_WEBHOOK_ALLOW_PRIVATE=0` (env or Settings) and
+  outbound webhooks refuse targets that resolve to private/loopback/link-local addresses (blocks
+  cloud-metadata and intranet probing via a compromised settings key). Default stays permissive —
+  on-prem LAN listeners are a legitimate operator choice; `file://` and friends remain always-refused.
+- **A1/A2/C1 — provider-first sign-in modal**: the sign-in dialog now **leads with big Google +
+  Microsoft buttons** (co-equal defaults; the first configured provider takes the lead slot when
+  neither is set up), every other provider collapses behind **"More sign-in options"**, and the
+  password form follows the divider. Live-verified with a stubbed 3-provider config.
+- Backend suite green; web gates green.
+
 ## v0.3.477 — VIZ-2 presentation FX · CODE-4 local amendments · MEP engineering depth (P2)
 
 - **VIZ-2 — SSAO + bloom presentation FX** in render mode: the viewer's render toggle now routes the

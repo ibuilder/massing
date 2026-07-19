@@ -34,6 +34,7 @@ _MAP: dict[str, tuple[str, str]] = {
     "add_fire_equipment": ("create-mep", "fire-protection equipment"),
     "add_fa_device": ("create-mep", "fire-alarm device"), "add_comms_device": ("create-mep", "telecom device"),
     "connect_mep": ("edit-mep", "port-to-port connection"),
+    "auto_connect_mep": ("edit-mep", "coincident-port auto-connect sweep"),
     # --- create: content / families / geometry ---
     "add_family": ("create-content", "family occurrence"), "place_content": ("create-content", "catalog content"),
     "add_mesh_representation": ("create-content", "IfcBuildingElementProxy (mesh)"),

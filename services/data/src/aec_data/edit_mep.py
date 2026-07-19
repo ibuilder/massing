@@ -379,6 +379,123 @@ def _mep_element(model: ifcopenshell.file, guid: str):
     return el
 
 
+_AC_SEGMENTS = ("IfcDuctSegment", "IfcPipeSegment", "IfcCableCarrierSegment", "IfcCableSegment")
+_AC_NODES = ("IfcDuctFitting", "IfcPipeFitting", "IfcCableCarrierFitting", "IfcAirTerminal",
+             "IfcSanitaryTerminal", "IfcFireSuppressionTerminal", "IfcFlowTerminal", "IfcPump",
+             "IfcFan", "IfcLightFixture", "IfcElectricAppliance")
+
+
+def auto_connect(model: ifcopenshell.file, tolerance: float = 0.05) -> dict:
+    """W10-4: **coincident-port auto-connect** — wire every unconnected MEP element pair whose
+    connection points coincide (within `tolerance` metres) with `IfcRelConnectsPorts`, in one pass.
+    A segment's connection points are its two ends (placement origin + extrusion direction × the
+    sizing pset's `Length_m`); a fitting/terminal connects at its placement point — exactly where the
+    authoring recipes put them, so a run drawn end-to-end with a fitting at the junction snaps into a
+    connected network without N manual `connect_mep` calls. Nearest pairs first; each element joins
+    at most as many pairs as it has free ports, so re-running is a no-op (idempotent by port budget)."""
+    import ifcopenshell.util.element as ue
+    import ifcopenshell.util.placement as uplace
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    from . import mep
+
+    scale = uunit.calculate_unit_scale(model)
+    tol = max(1e-6, float(tolerance))
+
+    def _free(el) -> int:
+        return sum(1 for p in mep._ports(el) if not mep._port_connected(p))
+
+    def _origin_dir(el):
+        m4 = np.asarray(uplace.get_local_placement(el.ObjectPlacement), dtype=float)
+        return m4[:3, 3] * scale, m4[:3, 2]
+
+    entries: list[dict] = []
+    for cls in _AC_SEGMENTS:
+        for el in model.by_type(cls):
+            if el.is_a("IfcElementType"):
+                continue
+            free = _free(el)
+            if free <= 0:
+                continue
+            try:
+                origin, direction = _origin_dir(el)
+            except Exception:  # noqa: BLE001 — an unplaced element simply can't be matched
+                continue
+            n = float(np.linalg.norm(direction))
+            length = (ue.get_psets(el).get("Pset_Massing_MEPSizing", {}) or {}).get("Length_m")
+            if n < 1e-9 or not length:
+                continue
+            entries.append({"el": el, "guid": el.GlobalId, "free": free, "node": False,
+                            "points": [origin, origin + direction / n * float(length)]})
+    for cls in _AC_NODES:
+        for el in model.by_type(cls):
+            if el.is_a("IfcElementType"):
+                continue
+            free = _free(el)
+            if free <= 0:
+                continue
+            try:
+                origin, _ = _origin_dir(el)
+            except Exception:  # noqa: BLE001
+                continue
+            entries.append({"el": el, "guid": el.GlobalId, "free": free, "node": True,
+                            "points": [origin]})
+
+    # nearest first; at equal distance a segment↔fitting pair beats a direct segment↔segment weld —
+    # when a fitting sits on the joint it IS the connection, so it must claim the ports first
+    candidates: list[tuple[float, int, int, int]] = []
+    for i in range(len(entries)):
+        for j in range(i + 1, len(entries)):
+            d = min(float(np.linalg.norm(pa - pb))
+                    for pa in entries[i]["points"] for pb in entries[j]["points"])
+            if d <= tol:
+                node_rank = 0 if (entries[i]["node"] or entries[j]["node"]) else 1
+                candidates.append((d, node_rank, i, j))
+    candidates.sort(key=lambda c: (c[0], c[1]))
+
+    def _peer_guids(el) -> set[str]:
+        """GlobalIds of elements already port-connected to `el` (so a re-run never double-welds a
+        pair that still has spare ports on both sides)."""
+        peers: set[str] = set()
+        for p in mep._ports(el):
+            for rel in (getattr(p, "ConnectedTo", None) or []):
+                other = getattr(rel, "RelatedPort", None)
+                for nest in (getattr(other, "Nests", None) or []):
+                    peers.add(nest.RelatingObject.GlobalId)
+            for rel in (getattr(p, "ConnectedFrom", None) or []):
+                other = getattr(rel, "RelatingPort", None)
+                for nest in (getattr(other, "Nests", None) or []):
+                    peers.add(nest.RelatingObject.GlobalId)
+        return peers
+
+    connected: list[dict] = []
+    paired: set[tuple[str, str]] = set()
+    for e in entries:
+        for peer in _peer_guids(e["el"]):
+            paired.add((e["guid"], peer))
+            paired.add((peer, e["guid"]))
+    for d, _rank, i, j in candidates:
+        a, b = entries[i], entries[j]
+        key = (a["guid"], b["guid"])
+        if a["free"] <= 0 or b["free"] <= 0 or key in paired:
+            continue
+        pa = next((p for p in mep._ports(a["el"]) if not mep._port_connected(p)), None)
+        pb = next((p for p in mep._ports(b["el"]) if not mep._port_connected(p)), None)
+        if pa is None or pb is None:
+            continue
+        try:
+            ifcopenshell.api.run("system.connect_port", model, port1=pa, port2=pb)
+        except Exception:  # noqa: BLE001 — one unconnectable pair must not abort the sweep
+            continue
+        a["free"] -= 1
+        b["free"] -= 1
+        paired.add(key)
+        paired.add((b["guid"], a["guid"]))
+        connected.append({"a": a["guid"], "b": b["guid"], "distance_m": round(d, 4)})
+    return {"count": len(connected), "connected": connected, "tolerance_m": tol}
+
+
 def connect_elements(model: ifcopenshell.file, guid_a: str, guid_b: str, description: str | None = None) -> dict:
     """B5: record a physical **connection** between two building elements (`IfcRelConnectsElements`) — the
     LOD-350 coordination primitive (a beam framing into a column, a brace to a gusset plate, a hanger to a
