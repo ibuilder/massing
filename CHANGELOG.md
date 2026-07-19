@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.504 — SCHED-P6: P6 .xer + MS-Project XML export / round-trip (queue #11)
+
+- Closes the schedule round-trip. Import already read Primavera P6 **.xer** and **PMXML**; this adds the
+  return path so contractor updates flow both ways without GUID drift:
+  - **Export** `GET /projects/{pid}/schedule/export?fmt=xer|msp` serializes the *live* schedule — every
+    `schedule_activity` (imported **and** hand-entered, with the GC's edits) — keyed by the P6 activity
+    code (`wbs`). `xer` → a P6 `.xer` (TASK table with task_code/dates/type/percent); `msp` → **MS-Project
+    XML (MSPDI)** with the code in each task's `<WBS>`.
+  - **Round-trip** closes: re-importing an exported file matches the same records by code and updates in
+    place. Import now also auto-detects **MSPDI** (`<Task>`) alongside P6 PMXML (`<Activity>`), so a file
+    edited in MS Project comes back cleanly — new `parse_mspdi` + `to_xer`/`to_mspdi` in `aec_data.schedule`.
+  - Schedule panel gains **⤓ Export .xer** / **⤓ Export MSP .xml** buttons next to the P6/MSP import;
+    new `exportSchedule` client method.
+
 ## v0.3.503 — WFE-2: escalation surface on the portal home
 
 - Surfaces the v0.3.502 escalation engine so it isn't a backend orphan. The portal command-center home,

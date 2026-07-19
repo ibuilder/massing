@@ -45,9 +45,20 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   alertBtn.title = "Predictive schedule alerts: overdue, late-start, at-risk predecessor, SPI, procurement";
   const esBtn = document.createElement("button"); esBtn.className = "tool-btn"; esBtn.textContent = "⏱ Earned schedule";
   esBtn.title = "Earned Schedule (time-based EVM): ES, SV(t), SPI(t), forecast finish";
+  // SCHED-P6 export — the live schedule (imported + hand-entered, with GC edits) back out to the
+  // scheduler's tool, keyed by the P6 activity code so their re-import matches by code (round-trip).
+  const xerOut = document.createElement("button"); xerOut.className = "tool-btn"; xerOut.textContent = "⤓ Export .xer";
+  xerOut.title = "Export the live schedule as a Primavera P6 .xer (round-trips: re-import matches by activity code)";
+  const mspOut = document.createElement("button"); mspOut.className = "tool-btn"; mspOut.textContent = "⤓ Export MSP .xml";
+  mspOut.title = "Export the live schedule as MS-Project XML (MSPDI) for Microsoft Project";
+  const doExport = (fmt: "xer" | "msp") => async () => {
+    try { await ctx.host.api.exportSchedule(pid, fmt); toast(`Exported the schedule as ${fmt === "msp" ? "MS-Project XML" : "P6 .xer"}`, "success"); }
+    catch (e) { toast(`Export failed: ${(e as Error).message}`, "error"); }
+  };
+  xerOut.onclick = doExport("xer"); mspOut.onclick = doExport("msp");
   const note = document.createElement("span"); note.className = "meta";
   note.innerHTML = "One relational schedule — these views + the 3D <b>4D sequence</b> (Model → ⏱ 4D) share the same activities.";
-  intro.append(listBtn, xerLabel, alertBtn, esBtn, note);
+  intro.append(listBtn, xerLabel, xerOut, mspOut, alertBtn, esBtn, note);
   ctx.root.appendChild(intro);
 
   // a collapsible drawer the alerts / earned-schedule buttons fill on demand (kept out of the way)

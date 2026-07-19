@@ -137,13 +137,122 @@ def parse_pmxml(text: str) -> list[dict[str, str]]:
     return rows
 
 
+def parse_mspdi(text: str) -> list[dict[str, str]]:
+    """Parse a **Microsoft Project XML (MSPDI)** export into the same activity rows
+    {activity_id, name, start, finish} as the P6 parsers. MSPDI uses `<Task>` under `<Tasks>` (P6's
+    PMXML uses `<Activity>`), so the two are distinguished by tag. The activity code round-trips via
+    the `<WBS>` field (that's where `to_mspdi` writes it); falls back to `<UID>`. The project-summary
+    task (blank name, no dates) is skipped. Namespace-agnostic. Returns [] for XML without `<Task>`."""
+    try:
+        root = _DET.fromstring(text)                # defused: blocks XXE / entity-expansion attacks
+    except (ET.ParseError, DefusedXmlException):
+        return []
+    rows: list[dict[str, str]] = []
+    for task in (e for e in root.iter() if _local(e.tag) == "Task"):
+        vals: dict[str, str] = {}
+        for child in task:
+            name = _local(child.tag)
+            if name not in vals and child.text and child.text.strip():
+                vals[name] = child.text.strip()
+        start = vals.get("Start") or vals.get("ActualStart") or ""
+        finish = vals.get("Finish") or vals.get("ActualFinish") or ""
+        act_name = vals.get("Name") or ""
+        if not act_name and not start:               # skip the MS Project project-summary / empty task
+            continue
+        rows.append({
+            "activity_id": vals.get("WBS") or vals.get("UID") or "",
+            "name": act_name, "start": start[:10], "finish": finish[:10],
+        })
+    return rows
+
+
 def parse_schedule(text: str) -> list[dict[str, str]]:
-    """Parse a Primavera P6 export in either format — **XER** (tab-delimited) or **PMXML** (XML) —
-    auto-detected from the content, into activity rows the schedule import consumes."""
+    """Parse a schedule export in any supported format — Primavera **XER** (tab-delimited), Primavera
+    **PMXML** (XML with `<Activity>`), or **MS-Project MSPDI** (XML with `<Task>`) — auto-detected from
+    the content, into the activity rows the schedule import consumes."""
     stripped = text.lstrip()
     if stripped.startswith("<"):
-        return parse_pmxml(text)
+        rows = parse_pmxml(text)                      # P6 XML first (…<Activity>…)
+        if not rows:
+            rows = parse_mspdi(text)                  # …then MS-Project XML (…<Task>…)
+        return rows
     return parse_xer(text)
+
+
+def _is_milestone(a: dict[str, Any]) -> bool:
+    return bool(a.get("activity_type") == "Milestone"
+               or (a.get("start") and a.get("start") == a.get("finish")))
+
+
+def _xer_cell(v: Any) -> str:
+    """XER is tab/newline-delimited, so a value can contain neither — flatten to spaces."""
+    return str(v if v is not None else "").replace("\t", " ").replace("\r", " ").replace("\n", " ")
+
+
+def to_xer(activities: list[dict[str, Any]], project_name: str = "Schedule",
+           export_date: str = "2024-01-01") -> str:
+    """Serialize activities → a minimal but valid Primavera P6 **.xer** (tab-delimited). Emits the
+    ERMHDR header and a TASK table carrying task_code / task_name / task_type / target dates /
+    percent — the exact fields `parse_xer` reads back, so export→re-import round-trips by activity
+    code. Each activity dict: {activity_id, name, start 'YYYY-MM-DD', finish, activity_type?, percent?}.
+    Dates are written 'YYYY-MM-DD 00:00' (P6's format); `parse_xer` truncates back to the date."""
+    lines = ["\t".join(["ERMHDR", "8.0", export_date, "Project", "", "",
+                        "dbxDatabaseNoName", "Project Management", "USD"])]
+    fields = ["task_id", "task_code", "task_name", "task_type", "status_code",
+              "target_start_date", "target_end_date", "phys_complete_pct"]
+    lines.append("%T\tTASK")
+    lines.append("%F\t" + "\t".join(fields))
+    for i, a in enumerate(activities, 1):
+        code = a.get("activity_id") or f"A{i:04d}"
+        ttype = "TT_Mile" if _is_milestone(a) else "TT_Task"
+        start = a.get("start") or ""
+        finish = a.get("finish") or ""
+        row = [i, code, a.get("name") or code, ttype, "TK_NotStart",
+               (start + " 00:00") if start else "", (finish + " 00:00") if finish else "",
+               int(a.get("percent") or 0)]
+        lines.append("%R\t" + "\t".join(_xer_cell(c) for c in row))
+    lines.append("%E")
+    return "\n".join(lines) + "\n"
+
+
+def _msp_dt(d: str | None, end: bool) -> str:
+    """A 'YYYY-MM-DD' date → an MSPDI datetime; work-day 08:00 start / 17:00 finish. '' when no date."""
+    if not d:
+        return ""
+    return f"{d[:10]}T{'17:00:00' if end else '08:00:00'}"
+
+
+def _xesc(v: Any) -> str:
+    from xml.sax.saxutils import escape
+    return escape(str(v if v is not None else ""))
+
+
+def to_mspdi(activities: list[dict[str, Any]], project_name: str = "Schedule") -> str:
+    """Serialize activities → a **Microsoft Project XML (MSPDI)** document that MS Project can open.
+    The activity code is written to each task's `<WBS>` so the export round-trips through
+    `parse_mspdi` by code. Milestones get `<Milestone>1</Milestone>` and equal start/finish."""
+    parts = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<Project xmlns="http://schemas.microsoft.com/project">',
+             f'<Name>{_xesc(project_name)}</Name>', '<Tasks>']
+    for i, a in enumerate(activities, 1):
+        code = a.get("activity_id") or f"A{i:04d}"
+        start = _msp_dt(a.get("start"), False)
+        finish = _msp_dt(a.get("finish"), True)
+        parts += [
+            '<Task>', f'<UID>{i}</UID>', f'<ID>{i}</ID>',
+            f'<Name>{_xesc(a.get("name") or code)}</Name>',
+            f'<WBS>{_xesc(code)}</WBS>',
+            f'<OutlineNumber>{i}</OutlineNumber>', '<OutlineLevel>1</OutlineLevel>',
+            f'<Milestone>{1 if _is_milestone(a) else 0}</Milestone>',
+        ]
+        if start:
+            parts.append(f'<Start>{start}</Start>')
+        if finish:
+            parts.append(f'<Finish>{finish}</Finish>')
+        parts.append(f'<PercentComplete>{int(a.get("percent") or 0)}</PercentComplete>')
+        parts.append('</Task>')
+    parts += ['</Tasks>', '</Project>']
+    return "\n".join(parts) + "\n"
 
 
 def from_xer(model: ifcopenshell.file, xer_path: str) -> list[dict[str, Any]]:

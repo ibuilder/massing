@@ -79,8 +79,11 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
     transitions (the config-row trick) remain deferred — lower-value/higher-risk than the automation.
 
 **NEXT (twice-validated interop gaps — top of BOTH landscape reports):**
-11. **SCHED-P6** *(M, ★★★★★)* — P6 XER + MS-Project XML **export/round-trip** (import ships) mapping
-    contractor updates back to task GUIDs; the #1 credibility gate with schedulers.
+11. ✅ **SCHED-P6 — SHIPPED v0.3.504** — P6 `.xer` + MS-Project XML (MSPDI) **export** closes the
+    round-trip: `GET /schedule/export?fmt=xer|msp` serializes the live schedule (imported + hand-entered,
+    with GC edits) keyed by the activity code, and re-import matches the same records by code (no GUID
+    drift). Import now also auto-detects MSPDI. `aec_data.schedule` `to_xer`/`to_mspdi`/`parse_mspdi` +
+    export buttons on the Schedule panel. The #1 scheduler-credibility gate — cleared.
 12. **FOURD-SIM** *(M, ★★★★★)* — 4D: element↔activity linking, time-phased playback, planned-vs-actual
     coloring, temp geometry (cranes/laydown) in the viewer — replaces Navisworks TimeLiner + SYNCHRO.
 13. **QUERY-DSL** *(M, ★★★★)* — an ifcopenshell-selector/ECSQL-style filter language

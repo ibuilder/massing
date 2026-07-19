@@ -3288,6 +3288,16 @@ export class ApiClient extends HttpCore {
   clearXer(pid: string) {
     return this.json<{ cleared: boolean }>(`/projects/${pid}/schedule/import-xer`, { method: "DELETE" });
   }
+  /** SCHED-P6 — export the live schedule for round-trip into a scheduler's tool: Primavera P6 `.xer`
+   *  or MS-Project XML (MSPDI). Reflects the current edited state, keyed by the P6 activity code. */
+  async exportSchedule(pid: string, fmt: "xer" | "msp") {
+    const res = await fetch(this.url(`/projects/${pid}/schedule/export?fmt=${fmt}`), { headers: this.authHeaders() });
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `export -> ${res.status}`); }
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = fmt === "msp" ? "schedule.xml" : "schedule.xer"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
   /** PROFORMA-LIVE: the model's takeoff-priced cost + GFA + budget delta — refresh on each publish. */
   proformaLive(pid: string) {
     return this.json<{ model_version: string; est_construction_cost: number; gfa_m2: number;

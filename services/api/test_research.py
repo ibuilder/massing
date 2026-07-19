@@ -10,6 +10,7 @@ for f in ("./test_research.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api import fourd, lean, takt  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
@@ -101,6 +102,7 @@ assert takt.progress(p, [{"trade": "Bogus", "floors_done": 3, "as_of_day": 10}])
 
 # --- C3: 4D sequencing — elements appear when their trade reaches their floor -
 from aec_api import fourd  # noqa: E402
+
 els = [{"guid": "c1", "ifc_class": "IfcColumn", "storey": "Level 1"},
        {"guid": "c2", "ifc_class": "IfcColumn", "storey": "Level 3"},
        {"guid": "w1", "ifc_class": "IfcWall", "storey": "Level 1"},
@@ -167,6 +169,20 @@ with TestClient(app) as c:
     assert imp.json()["created"] == 2 and imp.json()["updated"] == 0, imp.json()
     acts = c.get(f"/projects/{pid}/modules/schedule_activity").json()
     assert len(acts) == 2 and {a["data"]["wbs"] for a in acts} == {"A1010", "A1020"}, acts
+    # SCHED-P6 export round-trip: the live schedule serializes to P6 .xer / MS-Project XML keyed by the
+    # activity code, and re-importing the exported file matches the same records (no GUID drift).
+    xer_out = c.get(f"/projects/{pid}/schedule/export?fmt=xer")
+    assert xer_out.status_code == 200 and "%T\tTASK" in xer_out.text, xer_out.text
+    assert "A1010" in xer_out.text and "Foundations" in xer_out.text and "2026-03-01 00:00" in xer_out.text, xer_out.text
+    msp_out = c.get(f"/projects/{pid}/schedule/export?fmt=msp")
+    assert msp_out.status_code == 200 and "schemas.microsoft.com/project" in msp_out.text, msp_out.text
+    assert "<WBS>A1020</WBS>" in msp_out.text and "<Name>Superstructure</Name>" in msp_out.text, msp_out.text
+    # re-import the exported .xer → the two activities match by code and UPDATE in place (no duplicates)
+    rt = c.post(f"/projects/{pid}/schedule/import-xer", files={"file": ("rt.xer", xer_out.text, "application/octet-stream")})
+    assert rt.json()["updated"] == 2 and rt.json()["created"] == 0, rt.json()
+    # and the MS-Project XML round-trips through the same auto-detecting endpoint (parse_mspdi)
+    rt2 = c.post(f"/projects/{pid}/schedule/import-xer", files={"file": ("rt.xml", msp_out.text, "application/octet-stream")})
+    assert rt2.json()["updated"] == 2 and rt2.json()["created"] == 0, rt2.json()
     # bare import (no trades yet) keeps the takt+P6 sequence for the 4D scrub (real calendar window)
     fd2 = c.get(f"/projects/{pid}/schedule/4d").json()
     assert fd2["source"] == "p6" and fd2["start_date"] == "2026-03-01" and fd2["finish_date"] == "2026-07-15", fd2
@@ -222,7 +238,8 @@ with TestClient(app) as c:
     assert c.get(f"/projects/{pid}/schedule/4d?source=takt").json()["source"] == "takt"
 
     # lookahead + milestone schedules (the field's short-interval plan + the key dates)
-    from datetime import date as _date, timedelta as _td
+    from datetime import date as _date
+    from datetime import timedelta as _td
     t0 = _date.today()
     started = (t0 - _td(days=2)).isoformat(); soon = (t0 + _td(days=10)).isoformat()
     far = (t0 + _td(days=90)).isoformat(); past = (t0 - _td(days=5)).isoformat()

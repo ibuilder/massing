@@ -2,7 +2,7 @@
 analytics (R4), and research-grade benchmarks (R5)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -34,7 +34,6 @@ def schedule_takt(body: TaktIn):
 @router.get("/schedule/takt.svg")
 def schedule_takt_svg(floors: int = 10):
     """Line-of-balance (takt) chart as SVG — floors vs days, one line per trade (R2)."""
-    from fastapi import Response
     return Response(takt.takt_svg(takt.plan(max(1, floors))), media_type="image/svg+xml")
 
 
@@ -118,8 +117,6 @@ def project_takt_progress(pid: str, db: Session = Depends(get_db), _: str = Depe
 def project_takt_svg(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Line-of-balance chart for the project with the **actual ascent overlaid** (dashed) on the plan."""
     import json
-
-    from fastapi import Response
 
     from .. import storage
     try:
@@ -237,6 +234,44 @@ def clear_xer(pid: str, db: Session = Depends(get_db), actor: str = Depends(requ
         pass
     storage.delete(_P6_KEY.format(pid=pid))
     return {"cleared": True, "removed_activities": removed}
+
+
+def _schedule_activities(db: Session, pid: str) -> list[dict]:
+    """The project's LIVE schedule as export-ready activity dicts — every `schedule_activity` record
+    (imported *and* hand-entered, with the GC's edits), keyed by its P6 activity code (`wbs`). This is
+    what makes the round-trip real: edits made in the web app flow back out to the scheduler's tool."""
+    out = []
+    for r in me.list_records(db, "schedule_activity", pid, limit=100000):
+        d = r.get("data") or {}
+        out.append({"activity_id": d.get("wbs") or r.get("ref") or "",
+                    "name": d.get("name") or r.get("title") or "", "start": d.get("start") or "",
+                    "finish": d.get("finish") or "", "activity_type": d.get("activity_type") or "Task",
+                    "percent": d.get("percent") or 0})
+    return out
+
+
+@router.get("/projects/{pid}/schedule/export")
+def export_schedule(pid: str, fmt: str = Query("xer", pattern="^(xer|msp)$"),
+                    db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """SCHED-P6 — export the live schedule for **round-trip** into a scheduler's tool. `fmt=xer` →
+    Primavera P6 **.xer**; `fmt=msp` → **MS-Project XML (MSPDI)**. Both carry the P6 activity code
+    (task_code / `<WBS>`), so re-importing a scheduler's updated file matches the same records by code
+    — the GC's web edits go out, the scheduler's updates come back, no GUID drift. Reflects the current
+    edited state of every `schedule_activity` (imported + hand-entered), not the frozen import."""
+    from aec_data.schedule import to_mspdi, to_xer  # type: ignore  (data-service engine on sys.path)
+
+    activities = _schedule_activities(db, pid)
+    if not activities:
+        raise HTTPException(404, "no schedule activities to export — import a P6 file or add activities first")
+    project = db.get(Project, pid)
+    pname = (project.name if project else None) or "Schedule"
+    if fmt == "msp":
+        body = to_mspdi(activities, pname)
+        return Response(body, media_type="application/xml",
+                        headers={"Content-Disposition": 'attachment; filename="schedule.xml"'})
+    body = to_xer(activities, pname)
+    return Response(body, media_type="application/octet-stream",
+                    headers={"Content-Disposition": 'attachment; filename="schedule.xer"'})
 
 
 @router.get("/projects/{pid}/schedule/4d")
@@ -361,7 +396,6 @@ async def pull_plan_stream(pid: str, request: Request, _: str = Depends(require_
 def pull_plan_pdf(pid: str, milestone: str | None = None, db: Session = Depends(get_db),
                   _: str = Depends(require_role("viewer"))):
     """The pull-plan board as a printable PDF (trade × week matrix + constraint log + PPC)."""
-    from fastapi import Response
     p = db.get(Project, pid)
     if not p:
         raise HTTPException(404, "project not found")
