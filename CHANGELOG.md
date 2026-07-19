@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.479 — F0b coarse view derivation · SpecLink breadcrumbs (P2 · Wave 11)
+
+- **F0b — `derive_representations` recipe**: derives the coarse view-keyed representations from Body
+  geometry — a dimension-true **`IfcBoundingBox`** in the Model/Box subcontext, a 2-point
+  **Axis centreline** (mid-thickness, linear elements only) in Model/Axis, and a closed **FootPrint
+  rectangle** in Plan/FootPrint — so massing display and schematic plans have a cheap per-view
+  fallback on every element. Bounds-based by design (not a silhouette); idempotent per element+kind;
+  sweeps the whole model or a GUID list. Completes the F0 spine's promised derivation half.
+- **SpecLink — `set_spec_link` recipe + `GET /projects/{pid}/spec-links`**: stamp
+  `Pset_Massing_SpecLink` (MasterFormat **SpecSection** + optional title/url) on elements as the
+  quick model→spec breadcrumb (distinct from the formal `classify` carrier), and read the rollup —
+  each linked section with its element tally + the unlinked count — for submittal/schedule grouping.
+- Both registered in the authoring matrix (79 recipes, completeness guard green) and test-proven
+  (bounding-box dims hand-checked against a 5 m × 0.2 m × 3 m wall).
+- **B3/B4/C2 — onboarding fast-follows**: first signed-in boot offers a **role picker** (tailors
+  workspaces immediately; skippable, never repeats, defers to any manual choice) · the coach-mark
+  tour is confirmed at its **5-step cap** · publishing a model edit while signed out shows a one-shot
+  dismissible **"sign in to save your work"** nudge (30 s auto-dismiss, never a wall). All three
+  live-verified.
+
 ## v0.3.478 — W10-4 coincident-port auto-connect · webhook private-IP blocking (P2)
 
 - **W10-4 — `auto_connect_mep` recipe**: one pass wires every unconnected MEP element pair whose

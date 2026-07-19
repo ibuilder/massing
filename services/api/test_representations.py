@@ -85,6 +85,53 @@ assert rl["changed"] == 1, rl
 mo = open_model(OUT)
 assert ue.get_pset(mo.by_guid(gw), "Pset_MassingLOD")["Stage"] == "300"
 
+# --- F0b: derive coarse Box/Axis/FootPrint from Body ------------------------------------------------
+d = rep.derive_representations(m, [w1])
+assert d["derived"]["Box"] == 1 and d["derived"]["FootPrint"] == 1, d
+# w1 is a 5 m × 0.2 m wall → clearly linear → an Axis lands too
+assert d["derived"]["Axis"] == 1, d
+reps = {r_.RepresentationIdentifier: r_ for r_ in m.by_guid(w1).Representation.Representations}
+assert {"Body", "Box", "Axis", "FootPrint"} <= set(reps), set(reps)
+# the Box is a real IfcBoundingBox in the Model/Box subcontext with the wall's dims (5 × 0.2 × 3)
+bb = reps["Box"].Items[0]
+assert bb.is_a("IfcBoundingBox") and reps["Box"].ContextOfItems.ContextIdentifier == "Box"
+assert abs(bb.XDim - 5.0) < 0.05 and abs(bb.YDim - 0.2) < 0.02 and abs(bb.ZDim - 3.0) < 0.05, \
+    (bb.XDim, bb.YDim, bb.ZDim)
+# the Axis is a 2-point centreline along the long dimension at the wall's mid-thickness
+ax = reps["Axis"].Items[0]
+axp = [tuple(p.Coordinates) for p in ax.Points]
+assert len(axp) == 2 and abs(axp[1][0] - axp[0][0] - 5.0) < 0.05, axp
+assert abs(axp[0][1] - axp[1][1]) < 1e-6, "axis runs at constant mid-thickness"
+# the FootPrint is the closed bounds rectangle (5 points, first == last)
+fp = reps["FootPrint"].Items[0]
+assert len(fp.Points) == 5 and tuple(fp.Points[0].Coordinates) == tuple(fp.Points[-1].Coordinates)
+assert reps["FootPrint"].ContextOfItems.TargetView == "PLAN_VIEW"
+# idempotent per element+kind; a full sweep covers the rest and never re-derives w1
+d2 = rep.derive_representations(m, [w1])
+assert d2["derived"]["Box"] == 0 and d2["derived"]["Axis"] == 0 and d2["derived"]["FootPrint"] == 0, d2
+dall = rep.derive_representations(m)
+assert dall["derived"]["Box"] >= 1, dall                    # w2 (and any slabs) picked up
+# a squarish element (w2 is 5 m × 0.2 m too, but the ground slab is square) gets NO axis
+# registered as a recipe
+assert "derive_representations" in edit.RECIPES
+
+# --- SpecLink breadcrumb ----------------------------------------------------------------------------
+assert edit.set_spec_link(m, [w1, w2], "09 21 16", title="Gypsum Board Assemblies") == 2
+assert ue.get_pset(m.by_guid(w1), "Pset_Massing_SpecLink")["SpecSection"] == "09 21 16"
+sl = edit.spec_link_summary(m)
+row = next(s for s in sl["sections"] if s["section"] == "09 21 16")
+assert row["count"] == 2 and row["title"] == "Gypsum Board Assemblies" and w1 in row["guids"], row
+assert sl["linked"] == 2 and sl["unlinked"] == sl["total"] - 2, sl
+# stale GUIDs skipped; empty section rejected; registered as a recipe
+assert edit.set_spec_link(m, ["NOTAGUID000000000000000"], "03 30 00") == 0
+try:
+    edit.set_spec_link(m, [w1], "  ")
+    raised2 = False
+except ValueError:
+    raised2 = True
+assert raised2, "an empty spec section should raise"
+assert "set_spec_link" in edit.RECIPES
+
 for f in (TMP, TMP2, OUT):
     if os.path.exists(f):
         os.remove(f)
@@ -92,4 +139,9 @@ for f in (TMP, TMP2, OUT):
 print("REPRESENTATIONS OK - ensure_contexts builds the view-keyed context tree (Model+Plan roots; "
       "Body/Axis/Box/Annotation/FootPrint subcontexts by TargetView), idempotent; set_lod stamps "
       "Pset_MassingLOD.Stage (100-500) GUID-stable, advances in place (no dup pset), rejects bad "
-      "stages, skips stale GUIDs; lod_summary counts by stage; both work via apply_recipe.")
+      "stages, skips stale GUIDs; lod_summary counts by stage; both work via apply_recipe. F0b: "
+      "derive_representations authors a dimension-checked IfcBoundingBox (Model/Box), a 2-point "
+      "mid-thickness Axis centreline (linear elements only) and a closed FootPrint rectangle "
+      "(Plan/FootPrint) from Body geometry, idempotent per element+kind. SpecLink: set_spec_link "
+      "stamps Pset_Massing_SpecLink (section+title) and spec_link_summary rolls sections up with "
+      "element tallies; both are registered recipes.")

@@ -131,6 +131,70 @@ export function showWelcome(ctx: OnboardCtx): void {
   document.body.appendChild(ov);
 }
 
+// --- B3: role self-selection after sign-in -----------------------------------
+const ROLE_PROMPTED = "aec-role-prompted";
+
+/** B3: on the first signed-in boot (and only when no persona was ever picked manually), offer the
+ *  role list so the workspace tailors itself immediately. One-shot; picking or dismissing marks it. */
+export function maybeRolePrompt(opts: {
+  authed: boolean;
+  roles: { id: string; label: string }[];
+  apply: (id: string) => void;
+}): void {
+  if (!opts.authed || !opts.roles.length) return;
+  if (localStorage.getItem(ROLE_PROMPTED) === "1" || localStorage.getItem("persona-manual") === "1") return;
+  if (document.querySelector(".ob-welcome, .ob-tour")) return;   // don't stack on the welcome/tour
+  localStorage.setItem(ROLE_PROMPTED, "1");
+  const ov = backdrop(); ov.className = "ob-role";
+  const card = document.createElement("div");
+  card.style.cssText = "background:var(--panel);border:1px solid var(--line);border-radius:14px;"
+    + "padding:22px;max-width:440px;width:100%;display:flex;flex-direction:column;gap:10px;box-shadow:0 18px 60px #000a";
+  card.innerHTML = `<div style="font-size:17px;font-weight:650">What's your role?</div>`
+    + `<div class="meta" style="font-size:12.5px">Massing tailors the workspaces and tools to how you `
+    + `work. You can change this any time from the role picker (top right).</div>`;
+  const list = document.createElement("div");
+  list.style.cssText = "display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto";
+  for (const r of opts.roles) {
+    const b = document.createElement("button"); b.className = "tool-btn";
+    b.style.cssText = "text-align:left;padding:9px 12px";
+    b.textContent = r.label;
+    b.onclick = () => { ov.remove(); opts.apply(r.id); };
+    list.appendChild(b);
+  }
+  const skip = document.createElement("button"); skip.className = "meta";
+  skip.style.cssText = "background:none;border:none;cursor:pointer;font-size:12px;align-self:flex-end";
+  skip.textContent = "Skip — show me everything";
+  skip.onclick = () => ov.remove();
+  card.append(list, skip);
+  ov.append(card);
+  ov.addEventListener("pointerdown", (e) => { if (e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+// --- C2: value-moment sign-in nudge ------------------------------------------
+const C2_SHOWN = "aec-c2-shown";
+
+/** C2: the first time a signed-out user creates something worth keeping (a project, a published
+ *  model edit), nudge — once, dismissible, never a wall. */
+export function valueMomentPrompt(signIn: () => void): void {
+  if (localStorage.getItem(C2_SHOWN) === "1" || document.querySelector(".ob-c2")) return;
+  localStorage.setItem(C2_SHOWN, "1");
+  const bar = document.createElement("div");
+  bar.className = "ob-c2";
+  bar.style.cssText = "position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:290;"
+    + "display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--accent,#4a8cff);"
+    + "border-radius:12px;padding:10px 14px;box-shadow:0 10px 36px #000a;max-width:92vw";
+  bar.innerHTML = `<span style="font-size:16px">💾</span>`
+    + `<span style="font-size:13px">Nice — <strong>sign in to save your work</strong> and pick it up on any device.</span>`;
+  const go = document.createElement("button"); go.className = "file-btn"; go.textContent = "Sign in";
+  go.onclick = () => { bar.remove(); signIn(); };
+  const later = document.createElement("button"); later.className = "tool-btn"; later.textContent = "Later";
+  later.onclick = () => bar.remove();
+  bar.append(go, later);
+  document.body.appendChild(bar);
+  setTimeout(() => bar.remove(), 30000);   // never lingers
+}
+
 // --- coach-mark tour ---------------------------------------------------------
 interface Step { sel: string; title: string; body: string; }
 

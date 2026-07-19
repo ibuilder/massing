@@ -39,6 +39,58 @@ def set_element_pset(model: ifcopenshell.file, guid: str, pset: str, prop: str,
     return guid
 
 
+def set_spec_link(model: ifcopenshell.file, guids, section: str, title: str | None = None,
+                  url: str | None = None) -> int:
+    """W11 SpecLink breadcrumb: stamp `Pset_Massing_SpecLink` (SpecSection — a MasterFormat number
+    like "09 21 16" — plus optional SpecTitle/SpecUrl) on elements, so a modelled element traces to
+    the governing spec section and submittals/schedules can group by it. Distinct from `classify`
+    (the formal IfcClassification carrier): this is the quick per-element breadcrumb a spec writer or
+    estimator drops while working. GUID-stable; a bad GUID never aborts the batch."""
+    sec = (section or "").strip()
+    if not sec:
+        raise ValueError("a spec section number is required (e.g. '09 21 16')")
+    n = 0
+    for g in guids or []:
+        try:
+            set_element_pset(model, g, "Pset_Massing_SpecLink", "SpecSection", sec, "str")
+            if title:
+                set_element_pset(model, g, "Pset_Massing_SpecLink", "SpecTitle", title.strip(), "str")
+            if url:
+                set_element_pset(model, g, "Pset_Massing_SpecLink", "SpecUrl", url.strip(), "str")
+            n += 1
+        except Exception:  # noqa: BLE001 — skip stale/unknown GUIDs, keep stamping the rest
+            pass
+    return n
+
+
+def spec_link_summary(model: ifcopenshell.file) -> dict:
+    """The model's spec-section breadcrumbs rolled up: each linked section with its title and element
+    tally (GUIDs capped for the payload), plus how many physical elements carry no link yet."""
+    import ifcopenshell.util.element as ue
+
+    sections: dict[str, dict] = {}
+    total = 0
+    unlinked = 0
+    for el in model.by_type("IfcElement"):
+        if el.is_a("IfcElementType") or el.is_a("IfcFeatureElement"):
+            continue
+        total += 1
+        ps = ue.get_pset(el, "Pset_Massing_SpecLink") or {}
+        sec = str(ps.get("SpecSection") or "").strip()
+        if not sec:
+            unlinked += 1
+            continue
+        row = sections.setdefault(sec, {"section": sec, "title": ps.get("SpecTitle"),
+                                        "count": 0, "guids": []})
+        row["count"] += 1
+        if len(row["guids"]) < 25:
+            row["guids"].append(el.GlobalId)
+        row["title"] = row["title"] or ps.get("SpecTitle")
+    return {"sections": sorted(sections.values(), key=lambda r: r["section"]),
+            "linked": total - unlinked, "unlinked": unlinked, "total": total,
+            "pset": "Pset_Massing_SpecLink"}
+
+
 _PHASE_CODES = {"new": "NEW", "existing": "EXISTING", "demolish": "DEMOLISH", "temporary": "TEMPORARY"}
 
 

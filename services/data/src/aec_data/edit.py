@@ -29,6 +29,8 @@ from .edit_asbuilt import (  # noqa: F401 — re-exported: scene/ebc/detailing +
     set_element_pset,
     set_manufacturer_info,
     set_phase,
+    set_spec_link,
+    spec_link_summary,
     verify_asbuilt,
 )
 from .edit_core import (  # noqa: F401 — re-exported: connections/curtainwall/families import these via edit
@@ -636,6 +638,12 @@ RECIPES = {
     # W11 F0 — the representation/context spine + LOD stage
     "ensure_contexts": lambda m, p: _rep().ensure_contexts(m),
     "set_lod": lambda m, p: _rep().set_lod(m, p["guids"], p.get("stage", "300")),
+    # W11 F0b — derive coarse Box/Axis/FootPrint views from Body geometry (bounds-based)
+    "derive_representations": lambda m, p: _rep().derive_representations(
+        m, p.get("guids"), tuple(p.get("kinds") or ("Box", "Axis", "FootPrint"))),
+    # W11 SpecLink — the per-element spec-section breadcrumb (Pset_Massing_SpecLink)
+    "set_spec_link": lambda m, p: set_spec_link(m, p["guids"], p["section"],
+                                                p.get("title"), p.get("url")),
     # W11 Track D carrier layer — classification (keynote/spec code) + document (detail/instruction)
     "classify": lambda m, p: _det().classify(m, p["guids"], p["system"], p["code"],
                                              p.get("name"), p.get("edition")),

@@ -3,7 +3,7 @@ import { PortalUI } from "./portal/portal";   // eager: the default Construction
 import { ApiClient, type MassingParams } from "./api/client";
 import { toast, escapeHtml } from "./ui/feedback";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
-import { maybeResumeTour, maybeWelcome, showWelcome } from "./ui/onboarding";
+import { maybeResumeTour, maybeRolePrompt, maybeWelcome, showWelcome, valueMomentPrompt } from "./ui/onboarding";
 import { mountChecklist, reopenChecklist } from "./ui/checklist";
 import { FieldCapture } from "./field/field";
 import { modalShell, confirmModal } from "./ui/modal";
@@ -1124,7 +1124,21 @@ async function startup() {
   mountChecklist();
   // first run: welcome the user (skippable). Anchors must exist first, so defer a tick.
   // B2: a sign-in from the welcome reloads the page — resume straight into the tour instead.
-  setTimeout(() => { if (!maybeResumeTour()) maybeWelcome(onboardCtx()); }, 600);
+  // B3: first signed-in boot → offer the role list so the workspace tailors itself immediately.
+  setTimeout(() => {
+    if (!maybeResumeTour()) maybeWelcome(onboardCtx());
+    maybeRolePrompt({
+      authed: api.authed,
+      roles: [...personaSel.options].filter((o) => o.value !== "all")
+        .map((o) => ({ id: o.value, label: o.textContent || o.value })),
+      apply: (id) => { localStorage.setItem("persona-manual", "1"); personaSel.value = id; applyPersona(id, true); },
+    });
+  }, 600);
+  // C2: publishing a model edit while signed out is the clearest "work worth saving" moment — one
+  // gentle, dismissible nudge (never a wall, never repeated).
+  window.addEventListener("aec:model-published", () => {
+    if (!api.authed) valueMomentPrompt(() => void import("./account/accountUI").then((m) => m.openSignIn()));
+  });
 }
 
 function initNav() {

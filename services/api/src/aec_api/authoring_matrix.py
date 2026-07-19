@@ -70,6 +70,8 @@ _MAP: dict[str, tuple[str, str]] = {
     "edit_type_params": ("type", "edit type parameters"), "ungroup": ("group", "dissolve a group"),
     "set_pset": ("data", "Pset property"), "map_properties": ("data", "vendor→IDS pset remap"),
     "set_lod": ("data", "LOD stage tag"), "ensure_contexts": ("data", "representation contexts"),
+    "derive_representations": ("data", "coarse Box/Axis/FootPrint views"),
+    "set_spec_link": ("data", "Pset_Massing_SpecLink breadcrumb"),
     "set_system_predefined": ("edit-mep", "system predefined type"),
     "execute_ifc_code": ("edit", "sandboxed ifcopenshell escape hatch"),
 }

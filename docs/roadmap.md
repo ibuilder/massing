@@ -56,7 +56,9 @@ docked Properties + Library + ribbon; a11y/mobile pass).
 
 **Construction documents (Wave 11):** C6 reference-line datums + LOD-following poché · D2 routed
 egress/life-safety plans (path-trace over the semantic graph) · D8 COMcheck/A117.1 → approvability +
-BCF · `Pset_Massing_SpecLink` breadcrumb · F0b Box/Axis/FootPrint derivation · B3 wall Axis + clip
+BCF · ✅ `Pset_Massing_SpecLink` breadcrumb (479 — `set_spec_link` recipe + `/spec-links` rollup) ·
+✅ F0b Box/Axis/FootPrint derivation (479 — `derive_representations`: bounds-true IfcBoundingBox +
+mid-thickness Axis + FootPrint rectangle into the F0 subcontexts, idempotent) · B3 wall Axis + clip
 planes · B5 fastener/connection assemblies · E2 type-a-dimension (VCB) · E3 sketch-to-BIM push/pull ·
 E5 parametric handles · E6 recipe-log design options · ✅ E7 live schedules while modeling (473 — `aec:model-published` → open sheets re-render) · ✅ E2
 type-a-dimension/VCB (= the dynamic-input layer, v0.3.453/461/467) · E8
@@ -95,8 +97,9 @@ per-class merge is the documented design).
 **Onboarding & codes:** ✅ B1 sign-in-first welcome panel (472 — 🔐 lead row, never walls) · ✅ B2
 sign-in→tour (477 — the auth reload resumes into the coach-mark tour via a consumed one-shot flag;
 live-verified) · ✅ A1/A2/C1 provider prominence (478 — the sign-in modal leads with big Google +
-Microsoft buttons, everything else behind "More sign-in options"; live-verified) · B3/B4/C2
-fast-follows · CODE-1 adoption-seed depth (✅ per-project jurisdiction
+Microsoft buttons, everything else behind "More sign-in options"; live-verified) · ✅ B3/B4/C2
+fast-follows (479 — role picker on first signed-in boot · tour confirmed at the 5-step cap ·
+one-shot "sign in to save your work" nudge on a signed-out publish; live-verified) · CODE-1 adoption-seed depth (✅ per-project jurisdiction
 v0.3.471) · ✅ CODE-3 auto-resolve edition (v0.3.471 — egress + `apply_detailing_rules` cite the
 adopted IBC edition) · ✅ CODE-4 local-amendment overlay (477 — `PUT/GET /code/amendments`: validated
 per-family edition overrides beat the jurisdiction seed in `_project_ibc_edition` + recorded section

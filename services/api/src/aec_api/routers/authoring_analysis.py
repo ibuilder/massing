@@ -81,6 +81,18 @@ def structure_lateral(pid: str,
         wind={"speed_mph": wind_speed_mph, "exposure": exposure}, drift=drift)
 
 
+@router.get("/projects/{pid}/spec-links")
+def spec_links(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """W11 SpecLink: the model's `Pset_Massing_SpecLink` breadcrumbs rolled up — each linked spec
+    section (MasterFormat number + title) with its element tally, plus the unlinked count. Stamp
+    links with the `set_spec_link` recipe (guids + section + optional title/url)."""
+    from aec_data import edit  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return edit.spec_link_summary(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/mep")
 def mep_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W11 B6: MEP system browser — each IfcDistributionSystem with its segment/fitting/terminal
