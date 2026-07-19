@@ -162,7 +162,8 @@ the BCF 3.0 shape still open · **TRANSMIT-ITP** — numbered
 transmittals + Review Matrix routing + supplier-deliverables register + ITP/Test-Plan workflows
 (extends the CDE plan) · ◧ **SMART-VIEWS** — **saved presets SHIPPED v0.3.525** (`smart_views.py`:
 per-project name + QUERY-DSL selector + isolate/colour/hide, ★ viewer tool; validated + capped).
-**Still open:** clash-bound issues that auto-resolve on model diff · **MEETINGS** — meeting series +
+**SMART-VIEWS clash-freshness SHIPPED v0.3.530** (`coordination_fresh.py` + `/coordination/stale`
+[+recheck] — advisory flag, never auto-closes). · **MEETINGS** — meeting series +
 minutes + flagged action items linked to RFIs/issues (S).
 
 **Estimating & precon depth:** **EST-ASSEMBLIES** — cost-item assemblies + resource-based rate

@@ -404,6 +404,26 @@ def diff_versions(pid: str, a: int, b: int, db: Session = Depends(get_db), _sec:
     return versions.diff(db, pid, a, b)
 
 
+@router.get("/projects/{pid}/coordination/stale")
+def coordination_stale(pid: str, a: int, b: int, db: Session = Depends(get_db),
+                       _sec: str = Depends(require_role("viewer"))):
+    """SMART-VIEWS (clash freshness): open clash/coordination issues whose referenced elements changed
+    between versions a→b — the ones likely resolved (or worsened) and worth a re-check."""
+    from .. import coordination_fresh
+    _project(db, pid)
+    return coordination_fresh.stale_clashes(db, pid, a, b)
+
+
+@router.post("/projects/{pid}/coordination/stale/recheck")
+def coordination_stale_recheck(pid: str, a: int = Body(..., embed=True), b: int = Body(..., embed=True),
+                               db: Session = Depends(get_db), actor: str = Depends(require_role("reviewer"))):
+    """Flag each stale clash topic with a `model-changed` label + a re-verify comment (idempotent;
+    never auto-closes — the coordinator decides)."""
+    from .. import coordination_fresh
+    _project(db, pid)
+    return coordination_fresh.recheck(db, pid, a, b, actor)
+
+
 @router.get("/projects/{pid}/bundle")
 def export_bundle(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Download the whole project as a portable .mmproj bundle (geometry + all data + blobs)."""

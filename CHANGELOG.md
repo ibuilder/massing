@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.530 — SMART-VIEWS: clash-freshness (auto-flag stale coordination issues)
+
+- Completes SMART-VIEWS: open **clash / coordination issues whose referenced elements changed**
+  between two model versions are surfaced as likely-stale (resolved, moved, or worse).
+  `GET /projects/{pid}/coordination/stale?a=&b=` lists them (reusing the version diff's
+  added/removed/modified GUIDs against each topic's `element_guids`);
+  `POST .../coordination/stale/recheck` flags each with a `model-changed` label + a re-verify comment.
+  Deliberately **advisory — never auto-closes** (a changed element doesn't prove a clash is gone), and
+  idempotent.
+
 ## v0.3.529 — BCF-API-SRV: viewpoints over the API (R15)
 
 - The BCF-API 2.1 surface gains **viewpoints** — the camera + selection + snapshot that make a topic
