@@ -767,6 +767,11 @@ def apply_recipe(ifc_path: str, recipe: str, params: dict, out_path: str) -> dic
     if not pre["ok"]:
         raise ValueError("; ".join(pre["errors"]))
     model = open_model(ifc_path)
+    # E8 (model-aware): references must exist in THIS model — a hallucinated GUID, a typo'd storey,
+    # or a door hosted on a slab is rejected before any mutation
+    mpre = guards.model_precheck(model, recipe, params)
+    if not mpre["ok"]:
+        raise ValueError("; ".join(mpre["errors"]))
     changed = RECIPES[recipe](model, params)
     model.write(out_path)
     return {"recipe": recipe, "changed": changed, "out": out_path}
@@ -789,6 +794,9 @@ def apply_recipes(ifc_path: str, steps: list[dict], out_path: str) -> dict:
         if not pre["ok"]:
             raise ValueError(f"step {i + 1} ({recipe}): " + "; ".join(pre["errors"]))
     model = open_model(ifc_path)
+    # E8 note: NO model-aware precheck on batches — a step may legally reference an element (or a
+    # storey) a PRIOR step in the same batch creates, which can't be known up front. Single-recipe
+    # applies get the full model_precheck; wired dependent flows use /edit/graph.
     results = []
     for s in steps:
         results.append({"recipe": s["recipe"],

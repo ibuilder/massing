@@ -61,9 +61,13 @@ the pre-flight; `POST /codecheck/approvability/bcf` promotes failures to GUID-an
 ✅ F0b Box/Axis/FootPrint derivation (479 — `derive_representations`: bounds-true IfcBoundingBox +
 mid-thickness Axis + FootPrint rectangle into the F0 subcontexts, idempotent) · B3 wall Axis + clip
 planes · B5 fastener/connection assemblies · E2 type-a-dimension (VCB) · E3 sketch-to-BIM push/pull ·
-E5 parametric handles · E6 recipe-log design options · ✅ E7 live schedules while modeling (473 — `aec:model-published` → open sheets re-render) · ✅ E2
-type-a-dimension/VCB (= the dynamic-input layer, v0.3.453/461/467) · E8
-model-aware guardrails · A2 RAG index over ifcopenshell/IFC docs.
+E5 parametric handles · ✅ E6 recipe-log design-option branches (483 — `model_options.py`:
+snapshot/list/activate/diff/delete named whole-model branches; activate is one undo step) ·
+✅ E7 live schedules while modeling (473 — `aec:model-published` → open sheets re-render) · ✅ E2
+type-a-dimension/VCB (= the dynamic-input layer, v0.3.453/461/467) · ✅ E8
+model-aware guardrails (483 — `guards.model_precheck` in apply_recipe: storey exists, host is a
+wall, GUIDs resolve, connect ends have ports; batches exempt by design) · A2 RAG index over
+ifcopenshell/IFC docs.
 
 **Authoring depth (Wave 10/9):** W10-2 parametric family generators (profiles + swept/boolean;
 build123d/OCP optional track) · W10-9 dimensional constraints (planegcs LGPL; sidecar-solved, baked to

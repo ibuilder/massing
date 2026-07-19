@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.483 — E6 model-option branches · E8 model-aware guardrails (P2 · Master-builder UX)
+
+- **E6 — recipe-log design-option branches** (`model_options.py` + 5 routes under
+  `/projects/{pid}/model/options`): **snapshot the current model as a named branch** ("Scheme A —
+  steel frame"), keep editing, snapshot again, and **switch between schemes** — each activate goes
+  through the same edit-history push as any edit, so the switch itself is one undo step. `GET` lists
+  branches (the byte-identical one flagged `current`); `.../diff` reports added/removed element
+  GUIDs + per-class count deltas vs the working model; `DELETE` drops a branch (history untouched).
+  Whole-model branches — per-element overlays remain the W9-3 layer system. Distinct from
+  `design_options.py` (which compares metrics, not models).
+- **E8 — model-aware guardrails** (`guards.model_precheck`, enforced in `apply_recipe`): references
+  are now validated against the **open model** before any mutation — a typo'd storey (available
+  names listed), a door hosted on a slab, a hallucinated host/element GUID, a `connect_mep` end
+  with no ports, and a fully-stale GUID batch are all rejected; a partly-stale batch warns and
+  proceeds. Batches (`apply_recipes`) deliberately skip this layer — a step may legally reference
+  what a prior step in the same batch creates (wired flows use `/edit/graph`). Completes E8.
+- Both test-proven end to end (branch → edit → diff `+1 IfcWall` → activate → undo returns to the
+  other scheme; slab-hosted door blocked before write).
+
 ## v0.3.482 — CI fix: approvability test writes models to a temp dir
 
 - The new D8 BCF test generated its model through `/generate/massing` with the default `IFC_DIR`,

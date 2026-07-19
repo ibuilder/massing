@@ -162,3 +162,69 @@ _NEEDS = {
     "guids": ("set_lod", "set_phase", "verify_asbuilt", "set_manufacturer_info", "record_asbuilt_dimension",
               "attach_document", "attach_om_document", "set_spec_link"),   # map_properties works over all elements (rules), no selection
 }
+
+
+# ── E8: model-aware guardrails — checks that need the OPEN model at precheck time ──────────────────
+# The pure `precheck` validates shapes; this layer validates REFERENCES against reality: the host of
+# a door/window is actually a wall, a named storey exists, a GUID being edited resolves, an MEP
+# connect targets elements that have ports. Runs inside apply_recipe/apply_recipes AFTER the model
+# opens and BEFORE any mutation — so a hallucinated GUID or a typo'd storey never half-applies.
+
+_HOSTABLE = ("IfcWall", "IfcWallStandardCase", "IfcCurtainWall")
+
+
+def _safe_guid(model, guid):
+    try:
+        return model.by_guid(guid)
+    except Exception:  # noqa: BLE001 — malformed GUID → unresolved
+        return None
+
+
+def model_precheck(model, recipe: str, params: dict | None) -> dict[str, Any]:
+    """Validate an edit's references against the open model. Returns {ok, errors, warnings} in the
+    same shape as `precheck`. Only judges what it can see — unknown params pass through."""
+    p = params or {}
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    # a named storey must exist (recipes fall back to the first storey when None — that's fine)
+    storey = p.get("storey")
+    if storey:
+        names = [s.Name for s in model.by_type("IfcBuildingStorey")]
+        if storey not in names:
+            errors.append(f"storey {storey!r} not found — have {names}")
+
+    # door/window/opening hosts must resolve AND be a wall
+    if recipe in _NEEDS["host_guid"] and p.get("host_guid"):
+        host = _safe_guid(model, p["host_guid"])
+        if host is None:
+            errors.append(f"host {p['host_guid']} not found in the model")
+        elif host.is_a() not in _HOSTABLE:
+            errors.append(f"host {p['host_guid']} is a {host.is_a()} — a door/window/opening needs a wall")
+
+    # single-element edits: the GUID must resolve
+    if recipe in _NEEDS["guid"] and p.get("guid") and _safe_guid(model, p["guid"]) is None:
+        errors.append(f"element {p['guid']} not found in the model")
+
+    # port-to-port connects: both ends must resolve and carry at least one port
+    if recipe == "connect_mep":
+        from . import mep
+        for k in ("guid_a", "guid_b"):
+            el = _safe_guid(model, p.get(k)) if p.get(k) else None
+            if el is None:
+                errors.append(f"{k} {p.get(k)!r} not found in the model")
+            elif not mep._ports(el):
+                errors.append(f"{k} {p.get(k)} ({el.is_a()}) has no connection ports")
+
+    # batch tags: warn (not fail) when most of the GUIDs don't resolve — one stale GUID is normal,
+    # a fully-unresolvable list means the selection came from a different model
+    guids = p.get("guids")
+    if recipe in _NEEDS["guids"] and isinstance(guids, list) and guids:
+        missing = sum(1 for g in guids if _safe_guid(model, g) is None)
+        if missing == len(guids):
+            errors.append(f"none of the {len(guids)} element(s) exist in this model — "
+                          "the selection came from a different model/version")
+        elif missing:
+            warnings.append(f"{missing} of {len(guids)} element(s) not found — they'll be skipped")
+
+    return {"ok": not errors, "errors": errors, "warnings": warnings}

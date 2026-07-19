@@ -687,6 +687,101 @@ async def content_import(pid: str, file: UploadFile = File(...), category: str =
     return result
 
 
+@router.post("/projects/{pid}/model/options")
+def option_snapshot(pid: str, name: str = Body(..., embed=True),
+                    note: str | None = Body(default=None, embed=True),
+                    db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """E6: **branch the current model** as a named design option — the recipe log is the undo stack;
+    this makes it branchable ("Scheme A — steel frame"). Re-using a name overwrites that branch head.
+    Switch with `/model/options/{slug}/activate` (itself undoable); compare with `.../diff`."""
+    from .. import model_options
+
+    p = _project(db, pid)
+    try:
+        entry = model_options.snapshot(pid, p.source_ifc, name, note)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    audit.record(db, action="model.option.snapshot", actor=actor, method="POST",
+                 path=f"/projects/{pid}/model/options", detail={"slug": entry["slug"]})
+    db.commit()
+    return entry
+
+
+@router.get("/projects/{pid}/model/options")
+def option_list(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """E6: the project's model-option branches; the one byte-identical to the current source is
+    flagged `current`."""
+    from .. import model_options
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    return model_options.list_options(pid, p.source_ifc)
+
+
+@router.post("/projects/{pid}/model/options/{slug}/activate")
+def option_activate(pid: str, slug: str, publish: bool = Body(default=True, embed=True),
+                    db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """E6: switch the project to an option branch. Goes through the same edit-history push as any
+    edit — so the switch itself is one undo step — and republishes the viewer geometry."""
+    from .. import edit_history, model_options, pid_lock
+
+    with pid_lock.mutating(pid):
+        p = _project(db, pid)
+        db.refresh(p)
+        try:
+            data = model_options.load_option_bytes(pid, slug)
+        except (FileNotFoundError, ValueError) as e:
+            raise HTTPException(404, str(e)) from e
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+        base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+        out = Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc")
+        out.write_bytes(data)
+        edit_history.push(pid, p.source_ifc)
+        p.source_ifc = str(out)
+        audit.record(db, action="model.option.activate", actor=actor, method="POST",
+                     path=f"/projects/{pid}/model/options/{slug}/activate", detail={"slug": slug})
+        db.commit()
+    result: dict = {"activated": slug, "source_ifc": str(out)}
+    if publish:
+        _publish_bg(pid)
+        result["publish"] = "running"
+    return result
+
+
+@router.get("/projects/{pid}/model/options/{slug}/diff")
+def option_diff(pid: str, slug: str, db: Session = Depends(get_db),
+                _: str = Depends(require_role("viewer"))):
+    """E6: what separates the current model from an option branch — added/removed element GUIDs and
+    per-class count deltas (GUID-set level; use the version history's fingerprint diff within a
+    branch)."""
+    from .. import model_options
+
+    p = _project(db, pid)
+    try:
+        return model_options.diff_option(pid, slug, p.source_ifc)
+    except (FileNotFoundError, ValueError) as e:
+        raise HTTPException(404, str(e)) from e
+
+
+@router.delete("/projects/{pid}/model/options/{slug}")
+def option_delete(pid: str, slug: str, db: Session = Depends(get_db),
+                  actor: str = Depends(require_role("editor"))):
+    """E6: drop an option branch (the edit history is untouched)."""
+    from .. import model_options
+
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    try:
+        existed = model_options.delete_option(pid, slug)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    audit.record(db, action="model.option.delete", actor=actor, method="DELETE",
+                 path=f"/projects/{pid}/model/options/{slug}", detail={"existed": existed})
+    db.commit()
+    return {"deleted": existed}
+
+
 @router.get("/projects/{pid}/authoring/capabilities")
 def authoring_capabilities(pid: str, _: str = Depends(require_role("viewer"))):
     """Which optional/gated authoring capabilities are enabled on this server (so the UI can hide what's

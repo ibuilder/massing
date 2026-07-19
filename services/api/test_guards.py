@@ -95,11 +95,55 @@ assert os.path.exists(OUT) and res["recipe"] == "add_wall", res
 m = open_model(OUT)
 assert len(m.by_type("IfcWall")) == 1, "the valid wall was authored"
 
-for f in (TMP, OUT):
+# --- E8 model-aware layer: references validated against the OPEN model -----------------------------
+wall_guid = m.by_type("IfcWall")[0].GlobalId
+slab_guid = m.by_type("IfcSlab")[0].GlobalId
+st_name = m.by_type("IfcBuildingStorey")[0].Name
+
+# a typo'd storey name is rejected with the available names listed
+mp = guards.model_precheck(m, "add_wall", {"start": [0, 4], "end": [4, 4], "storey": "Level 99"})
+assert not mp["ok"] and "not found" in mp["errors"][0] and st_name in mp["errors"][0], mp
+assert guards.model_precheck(m, "add_wall", {"start": [0, 4], "end": [4, 4], "storey": st_name})["ok"]
+
+# a door hosted on a SLAB is rejected; on the wall it passes; a hallucinated host is rejected
+mp2 = guards.model_precheck(m, "add_door", {"host_guid": slab_guid, "width": 0.9, "height": 2.1})
+assert not mp2["ok"] and "needs a wall" in mp2["errors"][0], mp2
+assert guards.model_precheck(m, "add_door", {"host_guid": wall_guid, "width": 0.9, "height": 2.1})["ok"]
+mp3 = guards.model_precheck(m, "add_door", {"host_guid": "0" * 22, "width": 0.9, "height": 2.1})
+assert not mp3["ok"] and "not found" in mp3["errors"][0], mp3
+
+# single-element edits: a missing GUID is rejected; connect_mep needs ports on both ends
+assert not guards.model_precheck(m, "move_element", {"guid": "0" * 22, "dx": 1})["ok"]
+mp4 = guards.model_precheck(m, "connect_mep", {"guid_a": wall_guid, "guid_b": slab_guid})
+assert not mp4["ok"] and "no connection ports" in mp4["errors"][0], mp4
+
+# guids batches: all-missing fails; partly-missing warns and proceeds
+mp5 = guards.model_precheck(m, "set_lod", {"guids": ["0" * 22, "1" * 22], "stage": "300"})
+assert not mp5["ok"] and "different model" in mp5["errors"][0], mp5
+mp6 = guards.model_precheck(m, "set_lod", {"guids": [wall_guid, "0" * 22], "stage": "300"})
+assert mp6["ok"] and mp6["warnings"], mp6
+
+# and apply_recipe ENFORCES it: the slab-hosted door never writes a file
+OUT2 = os.path.join(os.path.dirname(__file__), "_guards_out2.ifc")
+raised2 = False
+try:
+    edit.apply_recipe(OUT, "add_door", {"host_guid": slab_guid, "width": 0.9, "height": 2.1}, OUT2)
+except ValueError as e:
+    raised2 = True
+    assert "needs a wall" in str(e), str(e)
+assert raised2 and not os.path.exists(OUT2), "the model-aware gate must block before writing"
+# a wall-hosted door passes through the same gate
+r2 = edit.apply_recipe(OUT, "add_door", {"host_guid": wall_guid, "width": 0.9, "height": 2.1}, OUT2)
+assert os.path.exists(OUT2) and r2["recipe"] == "add_door", r2
+
+for f in (TMP, OUT, OUT2):
     if os.path.exists(f):
         os.remove(f)
 
 assert math.isfinite(1.0)  # (import sanity)
 print("GUARDS OK - precheck rejects zero-length lines, non-positive/non-finite dims, bad coords, "
       "out-of-range LOD/count, and missing host/target refs; warns on non-standard phase + huge dims; "
-      "apply_recipe enforces the gate so a broken edit never writes a file, valid edits still apply.")
+      "apply_recipe enforces the gate so a broken edit never writes a file, valid edits still apply. "
+      "E8 model-aware: a typo'd storey (names listed), a slab-hosted door, a hallucinated host/guid, "
+      "port-less connect_mep ends, and an all-stale guids batch are rejected against the OPEN model "
+      "(partly-stale warns); apply_recipe enforces it (slab-door blocked before write, wall-door ok).")
