@@ -1,4 +1,4 @@
-import { money as cmoney } from "../../ui/charts";
+import { esc, money as cmoney } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
 import { toast } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
@@ -157,6 +157,11 @@ export async function renderRiskCost(ctx: PanelContext) {
     root.appendChild(ceWrap);
     section("Materials 3-way match (PO ↔ delivery ↔ invoice)");
     const matchSlot = slot();
+    section("Price ledger (observed material prices)");
+    const priceLedgerSlot = slot();
+    section("Material requests from the model (QTO)");
+    const mrWrap = el("div");
+    root.appendChild(mrWrap);
     section("Accounting export");
     const acct = el("div");
     const glBtn = el("a", "file-btn") as HTMLAnchorElement; glBtn.textContent = "⬇ GL (CSV)";
@@ -352,10 +357,66 @@ export async function renderRiskCost(ctx: PanelContext) {
       if (flagged.length) {
         const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:11px;margin-top:4px";
         t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">PO</th><th scope="col">Vendor</th><th scope="col">PO</th><th scope="col">Recd</th><th scope="col">Invoiced</th><th scope="col" style="text-align:left">Issue</th></tr></thead><tbody>`
-          + flagged.map((p) => `<tr><td>${p.po}</td><td>${p.vendor || ""}</td><td style="text-align:right">${cmoney(p.po_amount)}</td>`
+          + flagged.map((p) => `<tr><td>${esc(p.po)}</td><td>${esc(p.vendor || "")}</td><td style="text-align:right">${cmoney(p.po_amount)}</td>`
             + `<td style="text-align:center">${p.received}</td><td style="text-align:right;color:${p.variance > 0 ? "var(--status-crit)" : "inherit"}">${cmoney(p.invoiced)}</td>`
-            + `<td>${(p.flags || []).join("; ")}</td></tr>`).join("") + `</tbody>`;
+            + `<td>${esc((p.flags || []).join("; "))}</td></tr>`).join("") + `</tbody>`;
         matchSlot.append(t);
       }
     }).catch((e) => { matchSlot.textContent = `failed: ${(e as Error).message}`; });
+
+    // PROC-LOOP: the price-observation ledger — per-material stats, latest price + drift vs median
+    api.procurementPriceHistory(pid).then((r) => {
+      if (!r.material_count) { priceLedgerSlot.innerHTML = `<div class="meta">${esc(r.message || "No price observations yet.")}</div>`; return; }
+      const top = r.materials.slice().sort((a, b) => b.observations - a.observations).slice(0, 15);
+      const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:11px";
+      t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Material</th><th scope="col">Obs</th><th scope="col">Min</th>`
+        + `<th scope="col">Median</th><th scope="col">Max</th><th scope="col">Latest</th><th scope="col">Drift</th></tr></thead><tbody>`
+        + top.map((m) => {
+          const drift = m.latest_vs_median_pct;
+          const col = Math.abs(drift) >= 10 ? (drift > 0 ? "var(--status-crit)" : "var(--status-good)") : "inherit";
+          return `<tr><td>${esc(m.material)}${m.unit ? ` <span class="meta">/${esc(m.unit)}</span>` : ""}</td>`
+            + `<td style="text-align:center">${m.observations}</td><td style="text-align:right">${cmoney(m.min)}</td>`
+            + `<td style="text-align:right">${cmoney(m.median)}</td><td style="text-align:right">${cmoney(m.max)}</td>`
+            + `<td style="text-align:right" title="${esc(m.latest.date)} · ${esc(m.latest.vendor || "")}">${cmoney(m.latest.unit_price)}</td>`
+            + `<td style="text-align:right;color:${col}">${drift > 0 ? "+" : ""}${drift}%</td></tr>`;
+        }).join("") + `</tbody>`;
+      priceLedgerSlot.innerHTML = `<div class="meta">${r.material_count} material(s) tracked — quote leveling with "record" feeds this ledger</div>`;
+      priceLedgerSlot.append(t);
+    }).catch((e) => { priceLedgerSlot.textContent = `failed: ${(e as Error).message}`; });
+
+    // PROC-LOOP: model selection → per-class material-request suggestions → create requests
+    {
+      const row = el("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap";
+      const qIn = el("input", "portal-filter") as HTMLInputElement;
+      qIn.placeholder = "QUERY-DSL scope (blank = whole model), e.g. IfcWall & storey=L2";
+      qIn.style.cssText = "flex:1 1 260px;min-width:0";
+      const sugBtn = el("button", "tool-btn") as HTMLButtonElement; sugBtn.textContent = "📦 Suggest";
+      const out = el("div"); out.style.marginTop = "6px";
+      row.append(qIn, sugBtn); mrWrap.append(row, out);
+      sugBtn.onclick = async () => {
+        out.textContent = "computing takeoff…";
+        try {
+          const q = qIn.value.trim();
+          const r = await api.procurementMaterialSuggest(pid, q ? { q } : {});
+          if (!r.suggestions.length) { out.textContent = "nothing matched the selection"; return; }
+          const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:11px";
+          t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Material</th><th scope="col">Qty</th>`
+            + `<th scope="col">Unit</th><th scope="col">Elements</th></tr></thead><tbody>`
+            + r.suggestions.map((s) => `<tr><td>${esc(s.material)}</td><td style="text-align:right">${s.qty ?? "—"}</td>`
+              + `<td style="text-align:center">${esc(s.unit || "")}</td><td style="text-align:center">${s.elements}</td></tr>`).join("")
+            + `</tbody>`;
+          const mk = el("button", "tool-btn") as HTMLButtonElement;
+          mk.textContent = `✚ Create ${r.suggestions.length} request(s)`; mk.style.marginTop = "6px";
+          mk.onclick = async () => {
+            mk.disabled = true;
+            try {
+              const cr = await api.procurementMaterialSuggest(pid, { ...(q ? { q } : {}), create: true });
+              toast(`${cr.created.length} material request(s) created`, "success");
+              mk.textContent = `✓ ${cr.created.length} created`;
+            } catch (e) { toast((e as Error).message, "error"); mk.disabled = false; }
+          };
+          out.innerHTML = ""; out.append(t, mk);
+        } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
+      };
+    }
   }

@@ -1,0 +1,93 @@
+{
+  "key": "material_request",
+  "name": "Material Requests",
+  "section": "Resources",
+  "icon": "📦",
+  "ref_prefix": "MRQ",
+  "title_field": "material",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "material",
+      "label": "Material",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "qty",
+      "label": "Quantity",
+      "type": "number"
+    },
+    {
+      "name": "unit",
+      "label": "Unit",
+      "type": "text"
+    },
+    {
+      "name": "needed_by",
+      "label": "Needed By",
+      "type": "date"
+    },
+    {
+      "name": "activity",
+      "label": "Schedule Activity",
+      "type": "reference",
+      "module": "schedule_activity"
+    },
+    {
+      "name": "guids",
+      "label": "Element GUIDs",
+      "type": "textarea"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea"
+    }
+  ],
+  "workflow": {
+    "initial": "requested",
+    "states": [
+      "requested",
+      "approved",
+      "ordered",
+      "delivered",
+      "rejected"
+    ],
+    "transitions": [
+      {
+        "from": "requested",
+        "to": "approved",
+        "action": "approve",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "requested",
+        "to": "rejected",
+        "action": "reject",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "approved",
+        "to": "ordered",
+        "action": "order",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "ordered",
+        "to": "delivered",
+        "action": "receive",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  },
+  "workspace": "construction"
+}

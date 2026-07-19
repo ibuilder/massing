@@ -2628,12 +2628,48 @@ export class ApiClient extends HttpCore {
       flags: string[]; status: string }[]; po_count: number; flagged: string[];
       message?: string | null }>(`/projects/${pid}/procurement/three-way-match`);
   }
-  procurementLevelQuotes(pid: string, quotes: unknown[]) {
+  procurementLevelQuotes(pid: string, quotes: unknown[], record = false) {
     return this.json<{ suppliers: string[]; items: { item: string; low_supplier: string | null;
       low_price: number; prices: Record<string, number | null>; spread_pct: number }[];
       supplier_totals: Record<string, number>; best_all_in_supplier: string | null;
-      line_by_line_savings: number; message?: string | null }>(
-      `/projects/${pid}/procurement/level-quotes`, { method: "POST", body: JSON.stringify({ quotes }) });
+      line_by_line_savings: number; recorded_observations?: number; message?: string | null }>(
+      `/projects/${pid}/procurement/level-quotes${record ? "?record=true" : ""}`,
+      { method: "POST", body: JSON.stringify({ quotes }) });
+  }
+  /** REBAR-RULES — the bar bending schedule off the authored IfcReinforcingBar geometry. */
+  rebarBbs(pid: string) {
+    return this.json<{ rows: { mark: string; size: string | null; diameter_mm: number; shape: string;
+      cut_length_m: number; count: number; unit_mass_kg_m: number; total_length_m: number;
+      total_kg: number; guids: string[] }[]; marks: number; bars: number; skipped: number;
+      total_length_m: number; total_kg: number; total_tonnes: number }>(
+      `/projects/${pid}/rebar/bbs`);
+  }
+  rebarBbsCsvUrl(pid: string) { return this.url(`/projects/${pid}/rebar/bbs.csv`); }
+  /** REBAR-RULES — verify a column's authored cage against the ACI envelope (bar count, tie spacing). */
+  rebarCheckCage(pid: string, column: string) {
+    return this.json<{ checked: boolean; longitudinal_bars?: number; ties?: number;
+      violations: string[]; params: { bar_size: string; tie_size: string; tie_spacing: number;
+        governing: string; rule: string; min_longitudinal_bars: number } }>(
+      `/projects/${pid}/rebar/check?column=${encodeURIComponent(column)}`);
+  }
+  /** PROC-LOOP — the price-observation ledger per material: min/median/avg/max, latest + drift. */
+  procurementPriceHistory(pid: string, material?: string) {
+    return this.json<{ materials: { material: string; observations: number; min: number;
+      median: number; avg: number; max: number; unit?: string | null;
+      latest: { unit_price: number; date: string; vendor?: string | null; source?: string | null };
+      latest_vs_median_pct: number; vendors: string[];
+      series: { date: string; unit_price: number }[] }[];
+      material_count: number; message?: string | null }>(
+      `/projects/${pid}/procurement/price-history${material ? `?material=${encodeURIComponent(material)}` : ""}`);
+  }
+  /** PROC-LOOP — QTO-derived material-request suggestions for a model selection; `create` also
+   *  creates `material_request` records keyed to the GUIDs. */
+  procurementMaterialSuggest(pid: string, opts: { q?: string; guids?: string[]; create?: boolean;
+    needed_by?: string } = {}) {
+    return this.json<{ suggestions: { material: string; ifc_class: string; qty: number | null;
+      unit: string | null; elements: number; guids: string[] }[]; created: string[] }>(
+      `/projects/${pid}/procurement/material-request/suggest`,
+      { method: "POST", body: JSON.stringify(opts) });
   }
 
   // --- IDS authoring (BIMIDS) ------------------------------------------------
@@ -3010,9 +3046,11 @@ export class ApiClient extends HttpCore {
    *  Relational by default — when GC `schedule_activity` records exist they drive it (`source:"gc"`),
    *  each frame carrying a real calendar `date` + `linked`/`unlinked` element counts. Otherwise a takt
    *  plan; a P6 .xer import yields `source:"p6"` with interpolated dates. `?source=gc|takt` forces one. */
-  /** MODEL-CI — run the model check pack → pass/warn/fail report + badge (persisted). */
-  ciRun(pid: string) {
-    return this.json<ModelCiReport>(`/projects/${pid}/ci/run`, { method: "POST" });
+  /** MODEL-CI — run the model check pack → pass/warn/fail report + badge (persisted). With
+   *  `createTopics`, each failing check becomes an open coordination Topic (BCF-model). */
+  ciRun(pid: string, createTopics = false) {
+    return this.json<ModelCiReport>(
+      `/projects/${pid}/ci/run${createTopics ? "?create_topics=true" : ""}`, { method: "POST" });
   }
   /** MODEL-CI — the project's latest check-pack report (the badge source). */
   ciLatest(pid: string) {

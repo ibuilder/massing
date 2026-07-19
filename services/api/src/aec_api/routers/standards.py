@@ -356,12 +356,29 @@ async def roundtrip_diff(pid: str, file: UploadFile = File(...), db: Session = D
 
 
 @router.post("/projects/{pid}/ci/run")
-def ci_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
-    """MODEL-CI — run the model check pack (rule library + data-completeness gates) → a pass/warn/fail
-    report + badge, persisted as the project's latest CI result."""
-    from .. import model_ci
+def ci_run(pid: str, create_topics: bool = False, db: Session = Depends(get_db),
+           actor: str = Depends(require_role("editor"))):
+    """MODEL-CI — run the model check pack (rule library, completeness, clash, pinned IDS, quantity
+    drift) → a pass/warn/fail report + badge, persisted as the project's latest CI result. With
+    `create_topics=true`, each FAILING check becomes an open coordination Topic (BCF-model), so a CI
+    failure round-trips to Solibri / ACC / BIMcollab like any other issue."""
+    from .. import audit, model_ci
+    from ..models import Topic
     _project(db, pid)
-    return model_ci.run(db, pid, _idx_for(pid))
+    rep = model_ci.run(db, pid, _idx_for(pid))
+    created = 0
+    if create_topics:
+        for chk in rep["checks"]:
+            if chk["status"] == "fail":
+                db.add(Topic(project_id=pid, type="issue", status="open", author=actor,
+                             title=f"Model CI: {chk['label']} failing",
+                             description=f"{chk['summary']} (check `{chk['key']}`, run {rep['ran_at']})"))
+                created += 1
+        if created:
+            audit.record(db, action="model_ci.create_topics", actor=actor, method="POST",
+                         path=f"/projects/{pid}/ci/run", detail={"created": created})
+        db.commit()
+    return {**rep, "created_topics": created}
 
 
 @router.get("/projects/{pid}/ci/latest")

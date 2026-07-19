@@ -1,0 +1,67 @@
+{
+  "key": "price_observation",
+  "name": "Price Observations",
+  "section": "Resources",
+  "icon": "📈",
+  "ref_prefix": "PX",
+  "title_field": "material",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "material",
+      "label": "Material",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "unit_price",
+      "label": "Unit Price",
+      "type": "currency",
+      "required": true
+    },
+    {
+      "name": "unit",
+      "label": "Unit",
+      "type": "text"
+    },
+    {
+      "name": "qty",
+      "label": "Quantity",
+      "type": "number"
+    },
+    {
+      "name": "vendor",
+      "label": "Vendor / Supplier",
+      "type": "text"
+    },
+    {
+      "name": "date",
+      "label": "Observed",
+      "type": "date"
+    },
+    {
+      "name": "source",
+      "label": "Source",
+      "type": "select",
+      "options": ["quote", "invoice", "po", "manual"]
+    }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": [
+      "open",
+      "closed"
+    ],
+    "transitions": [
+      {
+        "from": "open",
+        "to": "closed",
+        "action": "close",
+        "party": [
+          "GC"
+        ]
+      }
+    ]
+  },
+  "workspace": "construction"
+}

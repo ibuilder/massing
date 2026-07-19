@@ -2221,6 +2221,51 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       });
       rebarBtn.title = "Author a reinforcement cage — 4 longitudinal corner bars + stirrups (swept-disk "
         + "IfcReinforcingBar) in the selected concrete column, assembled with it (LOD 400). GUID-stable.";
+      const cageChkBtn = toolBtn2("✓ Check cage (ACI envelope)", async () => {
+        if (!selectedGuid) { notify("select the caged concrete column first", "error"); return; }
+        try {
+          const r = await api.rebarCheckCage(pid, selectedGuid);
+          const ok = r.checked && !r.violations.length;
+          showResult("Rebar cage check", (body) => {
+            body.appendChild(resultNote(ok
+              ? `✅ cage OK — ${r.longitudinal_bars} bars · ${r.ties} ties · tie spacing within `
+                + `${r.params.tie_spacing} m (${escapeHtml(r.params.governing)})`
+              : `🔴 ${r.violations.map(escapeHtml).join(" · ")}`, ok ? "ok" : ""));
+            body.appendChild(resultNote(`Rule: ${escapeHtml(r.params.rule)} — #bars ≥ ${r.params.min_longitudinal_bars}, `
+              + `envelope ${r.params.tie_spacing} m for ${escapeHtml(r.params.bar_size)}/${escapeHtml(r.params.tie_size)}.`, ""));
+          });
+        } catch (e) { notify((e as Error).message, "error"); }
+      });
+      cageChkBtn.title = "Verify the selected column's authored cage against the ACI 318 envelope — "
+        + "longitudinal bar count and tie spacing min(16·d_bar, 48·d_tie, least dimension).";
+      const bbsBtn = toolBtn2("📋 Bar bending schedule", async () => {
+        try {
+          const r = await api.rebarBbs(pid);
+          showResult("Bar bending schedule", (body) => {
+            body.appendChild(resultNote(`<b>${r.bars}</b> bars · ${r.marks} marks · `
+              + `${r.total_length_m.toLocaleString()} m · <b>${r.total_tonnes} t</b>`
+              + (r.skipped ? ` · ${r.skipped} skipped (no swept geometry)` : ""), r.bars ? "ok" : ""));
+            if (r.rows.length) {
+              const t = document.createElement("table"); t.className = "mini-table";
+              t.style.cssText = "width:100%;font-size:11px;border-collapse:collapse";
+              t.innerHTML = `<thead><tr><th>Mark</th><th>Size</th><th>Shape</th><th>Cut (m)</th>`
+                + `<th>Count</th><th>kg/m</th><th>Total kg</th></tr></thead><tbody>`
+                + r.rows.map((x) => `<tr><td>${escapeHtml(x.mark)}</td><td>${escapeHtml(x.size || String(x.diameter_mm) + "mm")}</td>`
+                  + `<td>${escapeHtml(x.shape)}</td><td style="text-align:right">${x.cut_length_m}</td>`
+                  + `<td style="text-align:center">${x.count}</td><td style="text-align:right">${x.unit_mass_kg_m}</td>`
+                  + `<td style="text-align:right">${x.total_kg}</td></tr>`).join("") + `</tbody>`;
+              body.appendChild(t);
+              const dl = document.createElement("a"); dl.className = "file-btn"; dl.style.marginTop = "6px";
+              dl.textContent = "⬇ BBS (CSV)"; dl.href = api.rebarBbsCsvUrl(pid);
+              body.appendChild(dl);
+            } else {
+              body.appendChild(resultNote("No IfcReinforcingBar elements — author cages first (🪝).", ""));
+            }
+          });
+        } catch (e) { notify((e as Error).message, "error"); }
+      });
+      bbsBtn.title = "Group every authored IfcReinforcingBar into marks (size · shape · cut length) with "
+        + "unit mass and total tonnage — the fabricator/5D quantity, downloadable as CSV.";
 
       // W11 B6: MEP fitting at the last-clicked point + a system browser.
       const mepFittingBtn = toolBtn2("🔀 MEP fitting (elbow / tee)", async () => {
@@ -2761,7 +2806,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, cageChkBtn, bbsBtn, mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, ifcCodeBtn);
 
       // UX-1b: surface the interactive annotation tools + the content library as their own labelled groups
       // (the Annotate + Library ribbon groups), instead of burying them in the Advanced-fabrication fold.

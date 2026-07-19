@@ -59,6 +59,45 @@ def drawing_schedules(pid: str, db: Session = Depends(get_db), _: str = Depends(
     return drawing.schedules(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/rebar/bbs")
+def rebar_bbs(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """REBAR-RULES: the bar bending schedule — every authored IfcReinforcingBar grouped into marks
+    (size · shape · cut length) with unit mass and total tonnage (the fabricator/5D quantity)."""
+    from aec_data import rebar_rules  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return rebar_rules.bar_bending_schedule(open_model(p.source_ifc))
+
+
+@router.get("/projects/{pid}/rebar/bbs.csv")
+def rebar_bbs_csv(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The bar bending schedule as CSV (fabricator import)."""
+    from aec_data import rebar_rules  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    csv_txt = rebar_rules.bbs_csv(rebar_rules.bar_bending_schedule(open_model(p.source_ifc)))
+    return Response(content=csv_txt, media_type="text/csv", headers={
+        "Content-Disposition": f'attachment; filename="{_safe_filename(p.name)}-bbs.csv"'})
+
+
+@router.get("/projects/{pid}/rebar/check")
+def rebar_check(pid: str, column: str, db: Session = Depends(get_db),
+                _: str = Depends(require_role("viewer"))):
+    """REBAR-RULES: verify the authored cage on a column against the ACI 318 envelope —
+    longitudinal bar count + tie spacing min(16·d_bar, 48·d_tie, least dimension). A bare column
+    is a finding, not an error; a non-column GUID is a 422."""
+    from aec_data import rebar_rules  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    try:
+        return rebar_rules.check_cage(open_model(p.source_ifc), column)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
 @router.get("/projects/{pid}/drawings/schedule.svg")
 def schedule_svg(pid: str, kind: str = "doors", db: Session = Depends(get_db),
                  _: str = Depends(require_role("viewer"))):

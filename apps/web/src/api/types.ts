@@ -258,7 +258,7 @@ export interface EscalationScan {
 }
 export interface ModelCiReport {
   overall: string; badge: string; ran_at?: string; note?: string;
-  total_checks?: number; passed?: number; failed?: number; warned?: number;
+  total_checks?: number; passed?: number; failed?: number; warned?: number; created_topics?: number;
   checks: { key: string; label: string; status: string; summary: string; metrics?: Record<string, unknown> }[];
 }
 export interface EscalationRun {

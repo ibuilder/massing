@@ -49,10 +49,11 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
 5. ✅ **QUERY-DSL wiring — SHIPPED v0.3.513 (Sprint 1)** — clash sides accept selectors:
    `detect(guids_a=, guids_b=)` + `POST /clash?a_q=…&b_q=…` via `query_dsl.select` (bad → 422).
    (Bulk-edit already composes client-side: Query-select GUIDs → `set_props_by_guid`.)
-6. ◧ **MODEL-CI-2 — core SHIPPED v0.3.514 (Sprint 2)** — every successful publish auto-enqueues a
-   `model_ci` job (badge always fresh, best-effort); the pack gains the **Latest clash run** check
-   (newest `clash_detect` job → warn/pass/skip). **MODEL-CI-3 remaining:** IDS + QTO-delta checks,
-   BCF/report artifacts.
+6. ✅ **MODEL-CI-2+3 — COMPLETE v0.3.520 (Sprint 6)** — publish auto-enqueues `model_ci` (✅514);
+   the pack is now 5 checks: rules · named · latest-clash · **pinned-IDS contract** (failing spec
+   → fail; unpinned → skip) · **quantity drift** (>25% per-class swings vs the previous run →
+   warn; baseline lives in the stored report). `ci/run?create_topics=true` → one open coordination
+   Topic per failing check (BCF-model round-trip).
 7. ✅ **FOURD-SIM-2 — SHIPPED v0.3.513 (Sprint 1)** — planned-vs-actual on the playback: frames carry
    `late_guids`/`early_guids` (actual_finish vs finish), the player tints slipped red / ahead green
    over the amber flash. (The logistics overlay on the play clock stays open — FOURD-SIM-3.)
@@ -78,10 +79,17 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
 12. **CX-1 commissioning** *(L, ★★★★★)* — model-derived asset registry, phase-typed `cx_test`
     checklists, the system × phase completion matrix, MEP-sizing values as FPT expected values,
     per-system dossier (see 🔬 R14 for full detail).
-13. **REBAR-RULES + BBS** *(M/L, ★★★★★)* — per-typology reinforcement rule catalog over the rebar
-    cage recipe + bar bending schedule feeding 5D tonnage.
-14. **PROC-LOOP** *(M, ★★★★)* — deterministic 3-way match (PO/delivery/invoice) + the
-    price-observation ledger + field material-requests keyed to QTO/GUIDs.
+13. ✅ **REBAR-RULES + BBS — SHIPPED v0.3.520 (Sprint 6)** — `aec_data/rebar_rules.py`: the
+    ACI-envelope rule catalog (column/beam/wall/slab; `column_cage_params` names the governing
+    limb), `check_cage` verifies authored cages (bar count + tie spacing; bare column = finding),
+    `bar_bending_schedule` groups IfcReinforcingBar into marks with unit mass + tonnage
+    (`GET /rebar/bbs` + `.csv`; ✓ + 📋 viewer tools).
+14. ✅ **PROC-LOOP — SHIPPED v0.3.520 (Sprint 6)** — 3-way match already existed (audit overcount);
+    the genuine deltas landed: `price_observation` module + capture on `level-quotes?record=true` +
+    `GET /procurement/price-history` (min/median/max, latest + drift vs median, vendors, series);
+    `material_request` module (requested→approved→ordered→delivered) +
+    `POST /procurement/material-request/suggest` (QUERY-DSL selection → per-class QTO quantities,
+    optional create keyed to GUIDs). Analytics panel: price ledger + suggest→create flow.
 
 **REL/quality carry-overs (interleave one per few releases; all audit-discovered):**
 15. **TEST-GAPS** *(S each)* — direct tests for the 6 higher-risk untested engines: distwaterfall ·

@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.520 — MODEL-CI-3 · PROC-LOOP · REBAR-RULES + BBS
+
+- **Security**: the ⧉ compare overlay now allowlists its image source (data:image/png / blob: only),
+  closing the CodeQL js/xss-through-dom warning on the file-picked prior revision.
+- **REBAR-RULES + BBS (R14)**: a per-typology reinforcement catalog (`aec_data/rebar_rules.py`,
+  ACI 318-informed — the column tie-spacing envelope min(16·d_bar, 48·d_tie, least dimension) with
+  the governing limb named), a **cage checker** (`GET /rebar/check?column=` + the ✓ viewer tool —
+  longitudinal bar count and tie spacing verified against the envelope; a bare column is a finding),
+  and the **bar bending schedule** (`GET /rebar/bbs` + `.csv`, 📋 viewer tool): every authored
+  `IfcReinforcingBar` grouped into marks by size · shape · cut length with unit mass (π r² × 7850)
+  and total tonnage — the fabricator/5D quantity.
+
+- **Model CI grows to a 5-check pack**: `ids` validates the model against the project's **pinned
+  IDS** (the information-delivery contract — any failing specification fails the build; unpinned
+  projects skip), and `qto_delta` compares headline per-class quantities against the previous CI
+  run (>25% swings, appeared/vanished classes → warn — a review flag, never a hard fail; the
+  baseline rides inside the stored report). `POST /ci/run?create_topics=true` turns each failing
+  check into an open coordination Topic (BCF-model) so CI failures round-trip like any issue.
+- **PROC-LOOP (R14)**: quote leveling with `record=true` persists every priced line as a
+  `price_observation` (source="quote") — the **price-observation ledger**
+  (`GET /procurement/price-history`) rolls up min/median/avg/max, the latest price + vendor,
+  latest-vs-median drift, and a spark series per material. **Field material requests**: a new
+  `material_request` module (requested→approved→ordered→delivered) plus
+  `POST /procurement/material-request/suggest` — a QUERY-DSL model selection becomes per-class
+  quantity suggestions straight from the QTO takeoff (volume→m³, area→m², else count), optionally
+  created as requests keyed to the element GUIDs. Analytics panel gains the price ledger table and
+  the suggest→create flow; the 3-way-match table now escapes record-derived text.
+
 ## v0.3.519 — RULE-LIB-2 geometric rule checks + PERF-4 complete
 
 - **Geometric rule checks** (`POST /projects/{pid}/rules/geometry/run` + the ⛶ Geometry check

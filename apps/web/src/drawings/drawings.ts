@@ -359,6 +359,9 @@ export class DrawingsUI {
           src = URL.createObjectURL(f);
         }
       } catch (e) { this.host_.setStatus(`couldn't open prior revision: ${(e as Error).message}`); return; }
+      // both branches produce a data:image/png or blob: URL; refuse anything else so a crafted
+      // file can never smuggle an executable URL into the image sink (js/xss-through-dom)
+      if (!/^(data:image\/png[;,]|blob:)/.test(src)) { this.host_.setStatus("unsupported overlay source"); return; }
       const wrap = document.createElement("div");
       wrap.style.cssText = "position:absolute;inset:0;pointer-events:none";
       const img = document.createElement("img");

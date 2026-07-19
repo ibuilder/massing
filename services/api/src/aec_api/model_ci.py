@@ -64,11 +64,107 @@ def _clash_check(db: Session | None, pid: str, idx: dict | None) -> dict:
             "metrics": {"count": n, "job_id": j.id}}
 
 
+def _src(db: Session | None, pid: str) -> str | None:
+    """The project's source IFC path, or None (no db / no accessible source) — checks skip on None."""
+    if db is None:
+        return None
+    try:
+        from .deps import source_ifc_path
+        return source_ifc_path(db, pid)
+    except Exception:                                 # noqa: BLE001 — no source IFC is a skip, not a crash
+        return None
+
+
+def _ids_check(db: Session | None, pid: str, idx: dict | None) -> dict:
+    """MODEL-CI-3: validate against the project's **pinned IDS** (PUT /projects/{pid}/ids). The IDS is
+    the information-delivery contract, so any failing specification fails the build. No pinned IDS →
+    skip (an unpinned project hasn't signed up for the contract)."""
+    import os
+    import tempfile
+
+    key = f"{pid}/ids/project.ids"                    # mirrors routers/analysis._ids_key
+    if not storage.exists(key):
+        return {"status": "skip", "summary": "no IDS pinned", "metrics": {}}
+    ifc = _src(db, pid)
+    if not ifc:
+        return {"status": "skip", "summary": "no source IFC", "metrics": {}}
+    from aec_data import validate  # type: ignore
+    fd, ids_path = tempfile.mkstemp(suffix=".ids")    # temp dir, not the read-only /app tree
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(storage.get(key))
+        s = validate.validate_file(ifc, ids_path).get("summary", {})
+    finally:
+        try:
+            os.unlink(ids_path)
+        except OSError:
+            pass
+    failed = int(s.get("failed") or 0)
+    return {"status": "fail" if failed else "pass",
+            "summary": f"{s.get('passed', 0)}/{s.get('specifications', 0)} IDS specifications passing",
+            "metrics": {"specifications": s.get("specifications", 0),
+                        "passed": s.get("passed", 0), "failed": failed}}
+
+
+def _qto_rollup(rows: list[dict]) -> dict:
+    """Per-class {count, area, volume} headline quantities from takeoff rows."""
+    out: dict[str, dict] = {}
+    for r in rows:
+        c = out.setdefault(r.get("ifc_class") or "?", {"count": 0, "area": 0.0, "volume": 0.0})
+        c["count"] += 1
+        c["area"] = round(c["area"] + float(r.get("area") or 0.0), 2)
+        c["volume"] = round(c["volume"] + float(r.get("volume") or 0.0), 2)
+    return out
+
+
+def _qto_delta(prev: dict, cur: dict, threshold: float = 0.25) -> list[str]:
+    """Human-readable notes for classes that appeared, vanished, or swung more than ``threshold``
+    in count / area / volume between two rollups. Pure — unit-testable without an IFC."""
+    notes = []
+    for cls in sorted(set(prev) | set(cur)):
+        p, c = prev.get(cls), cur.get(cls)
+        if p is None:
+            notes.append(f"{cls} appeared ({c['count']} elements)")
+            continue
+        if c is None:
+            notes.append(f"{cls} vanished ({p['count']} elements before)")
+            continue
+        for m in ("count", "area", "volume"):
+            pv, cv = float(p.get(m) or 0.0), float(c.get(m) or 0.0)
+            if pv and abs(cv - pv) / pv > threshold:
+                notes.append(f"{cls} {m} {pv:g} → {cv:g} ({(cv - pv) / pv:+.0%})")
+                break                                 # one note per class is enough
+    return notes
+
+
+def _qto_delta_check(db: Session | None, pid: str, idx: dict | None) -> dict:
+    """MODEL-CI-3: headline quantities vs the previous CI run — big unexplained swings are a review
+    flag (warn), never a hard fail; quantities legitimately change as the model grows. The snapshot
+    rides in this check's metrics inside the stored report, so no extra storage is needed."""
+    ifc = _src(db, pid)
+    if not ifc:
+        return {"status": "skip", "summary": "no source IFC", "metrics": {}}
+    from aec_data import qto  # type: ignore
+    snap = _qto_rollup(qto.takeoff_file(ifc))         # mtime-cached — cheap on repeat runs
+    prev = next(((c.get("metrics") or {}).get("snapshot")
+                 for c in latest(pid).get("checks", []) if c.get("key") == "qto_delta"), None)
+    if not prev:
+        return {"status": "pass", "summary": f"baseline captured ({sum(v['count'] for v in snap.values())} elements)",
+                "metrics": {"snapshot": snap}}
+    notes = _qto_delta(prev, snap)
+    return {"status": "warn" if notes else "pass",
+            "summary": f"{len(notes)} class(es) moved >25% since the last run" if notes
+                       else "quantities stable vs the last run",
+            "metrics": {"snapshot": snap, "changes": notes[:20]}}
+
+
 # (key, label, fn) — register a new check by appending one adapter over an existing engine.
 CHECKS: list[tuple[str, str, Callable[[Session | None, str, dict | None], dict]]] = [
     ("rules", "Rule library", _rules_check),
     ("named", "Elements named", _named_check),
     ("clash", "Latest clash run", _clash_check),
+    ("ids", "Pinned IDS contract", _ids_check),
+    ("qto_delta", "Quantity drift", _qto_delta_check),
 ]
 
 
