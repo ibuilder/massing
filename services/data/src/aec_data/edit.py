@@ -847,7 +847,15 @@ RECIPES = {
                                                            int(p.get("cols", 3)), int(p.get("rows", 2)),
                                                            float(p.get("mullion", 0.06)),
                                                            float(p.get("panel_thickness", 0.03)), p.get("storey")),
+    # IFCPATCH-LIB — maintenance purges (no params; GUID-stable for kept elements)
+    "purge_orphan_psets": lambda m, p: _ifcpatch().purge_orphan_psets(m),
+    "purge_empty_groups": lambda m, p: _ifcpatch().purge_empty_groups(m),
 }
+
+
+def _ifcpatch():
+    from . import ifcpatch_lib
+    return ifcpatch_lib
 
 
 def _cw():

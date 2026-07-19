@@ -3663,6 +3663,12 @@ export class ApiClient extends HttpCore {
     return this.json<{ recipe: string; changed: number | string; published: unknown }>(
       `/projects/${pid}/edit`, { method: "POST", body: JSON.stringify({ recipe, params, publish }) });
   }
+  /** IFCPATCH-LIB — dry-run maintenance scan: how many entities each cleanup recipe would remove. */
+  modelMaintenance(pid: string) {
+    return this.json<{ total_entities: number; cleanable: number;
+      recipes: { recipe: string; label: string; removable: number; sample: string[] }[] }>(
+      `/projects/${pid}/model/maintenance`);
+  }
   /** Incremental one-element preview fragment (real geometry, fast) while the full model republishes.
    *  Returns the fragment bytes + new element GUID, or null (fail-open → the viewer keeps its proxy). */
   async editPreview(pid: string, recipe: string, params: Record<string, unknown>):

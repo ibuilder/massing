@@ -149,8 +149,10 @@ reference) as an offline job · ◧ **VERSION-COMPARE-3D** — **in-viewer overl
 pick any two versions → added/removed/modified summary + a 3D overlay colouring added green /
 modified amber (the `/versions/diff` snapshot data + change labels already shipped). **Still open:**
 the per-property old/new value list (iTwin-style) — needs richer per-version property snapshots, not
-just the fingerprint hashes stored today · **IFCPATCH-LIB** — one-click maintenance recipes (purge
-orphans, optimize, extract discipline subset, rebase coordinates, unit-convert, merge/split).
+just the fingerprint hashes stored today · ◧ **IFCPATCH-LIB** — **first recipes SHIPPED v0.3.527**:
+`ifcpatch_lib.py` purge-orphan-property-sets + purge-empty-groups (dry-run `GET /model/maintenance`;
+apply via the `/edit` republish path; 🧹 viewer tool). **Still open:** extract discipline subset ·
+rebase coordinates (georef already covers set-origin) · unit-convert · merge/split.
 
 **Documents & coordination:** **BCF-API-SRV** — server-side BCF-API 3.0 / OpenCDE endpoints so
 Revit/Navisworks/BIMcollab BCF managers connect live (spec is open) · **TRANSMIT-ITP** — numbered

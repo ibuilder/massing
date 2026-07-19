@@ -59,6 +59,20 @@ def drawing_schedules(pid: str, db: Session = Depends(get_db), _: str = Depends(
     return drawing.schedules(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/model/maintenance")
+def model_maintenance_scan(pid: str, db: Session = Depends(get_db),
+                           _: str = Depends(require_role("viewer"))):
+    """IFCPATCH-LIB: a dry-run maintenance report — how many entities each cleanup recipe would remove
+    (orphaned property sets, empty groups) without mutating anything. Run a recipe via the edit path
+    (`POST /projects/{pid}/edit` with `recipe: purge_orphan_psets | purge_empty_groups`) to apply +
+    republish (GUID-stable for kept elements)."""
+    from aec_data import ifcpatch_lib  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return ifcpatch_lib.scan(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/rebar/bbs")
 def rebar_bbs(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """REBAR-RULES: the bar bending schedule — every authored IfcReinforcingBar grouped into marks

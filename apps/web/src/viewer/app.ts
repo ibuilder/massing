@@ -3121,6 +3121,38 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             void refresh();
           });
         }));
+        b.appendChild(toolBtn2("🧹 Model cleanup (maintenance)", () => {
+          showResult("Model cleanup — maintenance recipes", (body) => {
+            body.appendChild(resultNote("Remove dead data an IFC accumulates over its life. A dry-run scan "
+              + "shows what each recipe would drop; running it republishes the model (element GUIDs are "
+              + "preserved, so pins / RFIs / clashes survive).", ""));
+            const out = document.createElement("div"); body.appendChild(out);
+            const refresh = async () => {
+              out.innerHTML = "<div class=\"meta\">scanning…</div>";
+              let s; try { s = await api.modelMaintenance(pid); }
+              catch (e) { out.innerHTML = ""; out.appendChild(resultNote(`scan failed: ${escapeHtml((e as Error).message)}`, "")); return; }
+              out.innerHTML = "";
+              out.appendChild(resultNote(`<b>${s.cleanable}</b> cleanable entity(ies) across ${s.total_entities} total`, s.cleanable ? "" : "ok"));
+              for (const r of s.recipes) {
+                const row = document.createElement("div"); row.style.cssText = "display:flex;gap:8px;align-items:center;margin:3px 0";
+                const label = document.createElement("span"); label.style.cssText = "flex:1;font-size:12px";
+                label.innerHTML = `<b>${escapeHtml(r.label)}</b> — ${r.removable} removable`
+                  + (r.sample.length ? ` <span class="meta">(${r.sample.slice(0, 5).map(escapeHtml).join(", ")}${r.sample.length > 5 ? "…" : ""})</span>` : "");
+                const run = document.createElement("button"); run.className = "mini-btn on"; run.textContent = "Purge"; run.disabled = r.removable === 0;
+                run.onclick = async () => {
+                  run.disabled = true; run.textContent = "purging…";
+                  try {
+                    const res = await api.editIfc(pid, r.recipe, {}, true);
+                    notify(`removed ${res.changed} — model republishing, reload to see it`, "success");
+                    await refresh();
+                  } catch (e) { notify((e as Error).message, "error"); run.disabled = false; run.textContent = "Purge"; }
+                };
+                row.append(label, run); out.appendChild(row);
+              }
+            };
+            void refresh();
+          });
+        }));
         b.appendChild(toolBtn2("⇄ Property round-trip (CSV/XLSX)", () => {
           showResult("Property round-trip — export · edit · re-import", (body) => {
             body.appendChild(resultNote("The daily openBIM workflow: export a GUID-keyed property table, edit it in "

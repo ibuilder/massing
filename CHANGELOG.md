@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.527 — IFCPATCH-LIB: one-click model maintenance recipes (R15)
+
+- New **model cleanup** — deterministic maintenance passes that remove dead data an IFC accumulates:
+  **purge orphaned property sets** (an `IfcPropertySet` attached to no element or type — its owned
+  properties go with it) and **purge empty groups** (a plain `IfcGroup` with no members; never
+  systems / zones). Both are GUID-stable for kept elements, so pins / RFIs / clashes survive.
+- `GET /projects/{pid}/model/maintenance` is a **dry-run scan** (what each recipe would remove, with
+  a sample) — the recipes ride the existing `POST /edit` apply→republish pipeline
+  (`purge_orphan_psets` / `purge_empty_groups`, both idempotent). New **🧹 Model cleanup** viewer tool
+  scans and runs each purge with a live count.
+
 ## v0.3.526 — VERSION-COMPARE-3D: pick-any-two version overlay (R15)
 
 - The viewer's version tool becomes a real **version compare**: pick **any two** published versions
