@@ -39,8 +39,8 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
    `collabPresence` leaks already shipped in 494. **Remaining (own batch):** DASH-UNION (one
    UNION-ALL for the 124-query dashboard), lean-column single-activity schedule load, SQL-aggregate
    the `limit=100000` analytics.
-5. **PANEL-LAZY** *(M, High-bundle)* — dynamic-import the 16 portal panels out of the eager shell
-   (`portal.ts:10-25`) — the single biggest eager-bundle cut, and the CI budget already fights it.
+5. ✅ **PANEL-LAZY — SHIPPED v0.3.497** — the ~30 secondary portal panels dynamic-imported at first
+   open (per-file chunks) out of the eager `index-*.js`; live-verified, gates green.
 
 **NEXT (surface the hidden backend — the ~72 orphaned capabilities, in themed UI waves):**
 6. **SURF-1 — Schedule/interop surface** *(M)* — UI for XER import, earned-schedule, 4D, schedule

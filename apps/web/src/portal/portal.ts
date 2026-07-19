@@ -7,22 +7,11 @@ import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offli
 import type { PanelContext } from "./panelContext";
 import { SECTIONS_BY_PERSONA, pushRecent, readCollapsedStages, readDensity, readFavs, readRecents, setDensity, setStageCollapsed, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
-import { renderOperations, renderFca, renderSpine, renderResilience, renderEnergy, renderTurnover } from "./panels/operations";
-import { renderAiAssist, renderRiskReview } from "./panels/aiassist";
-import { renderBenchmarks, renderRiskCost, renderMarket } from "./panels/analytics";
-import { renderEvm } from "./panels/evm";
-import { renderResourceLoading } from "./panels/resourceLoading";
-import { renderWip } from "./panels/wip";
-import { renderLedger } from "./panels/ledger";
-import { renderTraceability } from "./panels/traceability";
-import { renderLandScreen, renderLifecycle, renderDiligence, renderEsg, renderConceptRender } from "./panels/design";
-import { renderMaterials } from "./panels/materials";
-import { renderModuleGraph } from "./panels/moduleGraph";
-import { renderProgram, renderBimKpi, renderStandards, renderIds, renderModelAnalysis } from "./panels/standards";
-import { renderResponsibility } from "./panels/responsibility";
-import { renderDocuments } from "./panels/documents";
-import { renderBudget } from "./panels/budget";
-import { renderScheduleViews } from "./panels/schedule";
+// PANEL-LAZY (PERF): the ~30 secondary portal panels are DYNAMICALLY imported at first render
+// (see the wrapper methods below), not eagerly bundled into the app shell — each panel file (and
+// its heavy deps: charts, tables, module-graph, etc.) becomes its own chunk fetched only when the
+// user opens that destination. This was the single biggest eager-bundle cut. Panel modules are
+// grouped per source file so one dynamic import covers all its exports (Vite dedupes the chunk).
 
 /**
  * GC portal UI — one config-driven engine renders every module's list / form / record pages
@@ -476,25 +465,26 @@ export class PortalUI {
     quick.appendChild(qrow); root.appendChild(quick);
   }
 
-  private renderRiskReview() { return renderRiskReview(this.panelCtx()); }
-  private renderAiAssist() { return renderAiAssist(this.panelCtx()); }
+  // PANEL-LAZY: each wrapper dynamic-imports its panel chunk on first open (Vite splits per file).
+  private async renderRiskReview() { return (await import("./panels/aiassist")).renderRiskReview(this.panelCtx()); }
+  private async renderAiAssist() { return (await import("./panels/aiassist")).renderAiAssist(this.panelCtx()); }
 
-  private renderBenchmarks() { return renderBenchmarks(this.panelCtx()); }
-  private renderRiskCost() { return renderRiskCost(this.panelCtx()); }
-  private renderMarket() { return renderMarket(this.panelCtx()); }
-  private renderEvm() { return renderEvm(this.panelCtx()); }
-  private renderResourceLoading() { return renderResourceLoading(this.panelCtx()); }
-  private renderWip() { return renderWip(this.panelCtx()); }
-  private renderLedger() { return renderLedger(this.panelCtx()); }
-  private renderTraceability() { return renderTraceability(this.panelCtx()); }
+  private async renderBenchmarks() { return (await import("./panels/analytics")).renderBenchmarks(this.panelCtx()); }
+  private async renderRiskCost() { return (await import("./panels/analytics")).renderRiskCost(this.panelCtx()); }
+  private async renderMarket() { return (await import("./panels/analytics")).renderMarket(this.panelCtx()); }
+  private async renderEvm() { return (await import("./panels/evm")).renderEvm(this.panelCtx()); }
+  private async renderResourceLoading() { return (await import("./panels/resourceLoading")).renderResourceLoading(this.panelCtx()); }
+  private async renderWip() { return (await import("./panels/wip")).renderWip(this.panelCtx()); }
+  private async renderLedger() { return (await import("./panels/ledger")).renderLedger(this.panelCtx()); }
+  private async renderTraceability() { return (await import("./panels/traceability")).renderTraceability(this.panelCtx()); }
 
-  private renderLandScreen() { return renderLandScreen(this.panelCtx()); }
-  private renderLifecycle() { return renderLifecycle(this.panelCtx()); }
-  private renderDiligence() { return renderDiligence(this.panelCtx()); }
-  private renderEsg() { return renderEsg(this.panelCtx()); }
-  private renderConceptRender() { return renderConceptRender(this.panelCtx()); }
-  private renderMaterials() { return renderMaterials(this.panelCtx()); }
-  private renderModuleGraph() { return renderModuleGraph(this.panelCtx()); }
+  private async renderLandScreen() { return (await import("./panels/design")).renderLandScreen(this.panelCtx()); }
+  private async renderLifecycle() { return (await import("./panels/design")).renderLifecycle(this.panelCtx()); }
+  private async renderDiligence() { return (await import("./panels/design")).renderDiligence(this.panelCtx()); }
+  private async renderEsg() { return (await import("./panels/design")).renderEsg(this.panelCtx()); }
+  private async renderConceptRender() { return (await import("./panels/design")).renderConceptRender(this.panelCtx()); }
+  private async renderMaterials() { return (await import("./panels/materials")).renderMaterials(this.panelCtx()); }
+  private async renderModuleGraph() { return (await import("./panels/moduleGraph")).renderModuleGraph(this.panelCtx()); }
 
   // --- Model Health launcher: the model-QA checks live in the Model viewer's Tools rail (they need
   //     the loaded 3D geometry), so from Design we explain them and deep-link straight there. --------
@@ -582,21 +572,21 @@ export class PortalUI {
     } catch { /* no dashboard yet — tiles above are enough */ }
   }
 
-  private renderProgram() { return renderProgram(this.panelCtx()); }
-  private renderBimKpi() { return renderBimKpi(this.panelCtx()); }
-  private renderModelAnalysis() { return renderModelAnalysis(this.panelCtx()); }
-  private renderDocuments() { return renderDocuments(this.panelCtx()); }
-  private renderStandards() { return renderStandards(this.panelCtx()); }
-  private renderResponsibility() { return renderResponsibility(this.panelCtx()); }
+  private async renderProgram() { return (await import("./panels/standards")).renderProgram(this.panelCtx()); }
+  private async renderBimKpi() { return (await import("./panels/standards")).renderBimKpi(this.panelCtx()); }
+  private async renderModelAnalysis() { return (await import("./panels/standards")).renderModelAnalysis(this.panelCtx()); }
+  private async renderDocuments() { return (await import("./panels/documents")).renderDocuments(this.panelCtx()); }
+  private async renderStandards() { return (await import("./panels/standards")).renderStandards(this.panelCtx()); }
+  private async renderResponsibility() { return (await import("./panels/responsibility")).renderResponsibility(this.panelCtx()); }
 
-  private renderOperations() { return renderOperations(this.panelCtx()); }
-  private renderFca() { return renderFca(this.panelCtx()); }
-  private renderSpine() { return renderSpine(this.panelCtx()); }
-  private renderResilience() { return renderResilience(this.panelCtx()); }
-  private renderEnergy() { return renderEnergy(this.panelCtx()); }
-  private renderTurnover() { return renderTurnover(this.panelCtx()); }
+  private async renderOperations() { return (await import("./panels/operations")).renderOperations(this.panelCtx()); }
+  private async renderFca() { return (await import("./panels/operations")).renderFca(this.panelCtx()); }
+  private async renderSpine() { return (await import("./panels/operations")).renderSpine(this.panelCtx()); }
+  private async renderResilience() { return (await import("./panels/operations")).renderResilience(this.panelCtx()); }
+  private async renderEnergy() { return (await import("./panels/operations")).renderEnergy(this.panelCtx()); }
+  private async renderTurnover() { return (await import("./panels/operations")).renderTurnover(this.panelCtx()); }
 
-  private renderIds() { return renderIds(this.panelCtx()); }
+  private async renderIds() { return (await import("./panels/standards")).renderIds(this.panelCtx()); }
 
   /** Reflect the persisted command-center density onto the portal root so `.dense …` CSS tightens
    *  the home dashboards. Harmless on other views (module tables carry no dash-cards). */
@@ -1147,9 +1137,9 @@ export class PortalUI {
     }).catch(() => { status.className = "empty-state"; status.innerHTML = `Portfolio unavailable<span class="es-hint">Needs at least one project with schedule/budget data.</span>`; });
   }
 
-  private renderBudget() { return renderBudget(this.panelCtx()); }
+  private async renderBudget() { return (await import("./panels/budget")).renderBudget(this.panelCtx()); }
 
-  private renderScheduleViews(m: ModuleDef) { return renderScheduleViews(this.panelCtx(), m); }
+  private async renderScheduleViews(m: ModuleDef) { return (await import("./panels/schedule")).renderScheduleViews(this.panelCtx(), m); }
 
   private async openModule(m: ModuleDef, filter: { q?: string; state?: string; offset?: number } = {}) {
     const pid = this.host.projectId()!;

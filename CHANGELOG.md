@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.497 — PANEL-LAZY: portal panels dynamic-imported out of the eager shell (queue #5)
+
+- The ~30 secondary portal panels (operations/FCA/spine/resilience/energy/turnover, analytics,
+  aiassist, EVM, WIP, ledger, traceability, resource-loading, design/lifecycle/diligence/ESG,
+  materials, module-graph, standards/program/BIM-KPI/IDS/model-analysis, responsibility, documents,
+  budget, schedule-views) are now **dynamically imported at first open** instead of statically bundled
+  into the app shell. Each panel file (and its heavy deps — charts, tables, module-graph) becomes its
+  own chunk fetched only when the user navigates to that destination.
+- The wrapper methods went from `renderX(this.panelCtx())` to `async () => (await import("./panels/Y"))
+  .renderX(...)`; every call site already `void`s the result or routes through `goDest`/dispatch
+  (Promise-tolerant), so behaviour is unchanged. Verified: the dynamic chunk resolves and exposes its
+  renderers; build splits ~15 panel chunks (aiassist 16KB, analytics 20KB, design 18KB, budget 14KB…)
+  out of the eager `index-*.js` the CI bundle budget reads.
+- Frontend-only (backend tree identical to v0.3.496); web gates green (typecheck · lint · 121 vitest ·
+  build); live-verified in the dev preview.
+
 ## v0.3.496 — PERF-4a: test-fastpath schema-sync skip · topics/pins payload caps (queue #4)
 
 - **TEST-FASTPATH**: `init_db` now detects a **brand-new database** (no known table present before
