@@ -244,6 +244,19 @@ export interface DueFeed {
   overdue: DueItem[]; due_soon: DueItem[];
   counts: { overdue: number; due_soon: number }; as_of: string; horizon_days: number;
 }
+export interface EscalationItem {
+  module: string; module_name: string | null; icon: string | null; id: string; ref: string | null;
+  title: string | null; state: string | null; assignee: string | null; due_date: string | null;
+  days_overdue: number; level: number; applied_level: number; court: string | null; needs_escalation: boolean;
+}
+export interface EscalationScan {
+  as_of: string | null; count: number; pending: number;
+  by_level: Record<string, number>; items: EscalationItem[];
+}
+export interface EscalationRun {
+  as_of: string | null; escalated: number; by_level: Record<string, number>;
+  items: { module: string; id: string; ref: string | null; title: string | null; level: number; days_overdue: number; court: string | null }[];
+}
 
 export interface StatementLine { label: string; amount: number; subtotal?: boolean; total?: boolean }
 export interface FinancialStatements {

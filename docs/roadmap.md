@@ -73,9 +73,10 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
     automation + clarity, now closed: **(a)** `party_owner` tracks the workflow on each transition
     (explicit ball-in-court, was stale-at-create); **(b)** `escalation.py` — an escalation-ladder
     engine over `due_feed` that writes `escalation:L{n}` timeline entries surfaced by the notifications
-    feed, with `GET/POST /escalations` + an idempotent `escalation_scan` job kind. **WFE-2 remaining:**
-    the escalation badge/UI surface on the notifications/SLA view; optional per-project configurable
-    transitions (the config-row trick) — deferred as lower-value/higher-risk than the automation.
+    feed, with `GET/POST /escalations` + an idempotent `escalation_scan` job kind. **WFE-2 SHIPPED
+    v0.3.503:** the escalation surface on the portal-home command center (per-level summary, badged
+    items with ball-in-court, one-click "escalate & notify"). Optional per-project configurable
+    transitions (the config-row trick) remain deferred — lower-value/higher-risk than the automation.
 
 **NEXT (twice-validated interop gaps — top of BOTH landscape reports):**
 11. **SCHED-P6** *(M, ★★★★★)* — P6 XER + MS-Project XML **export/round-trip** (import ships) mapping

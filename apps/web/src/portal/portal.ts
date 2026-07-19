@@ -795,6 +795,37 @@ export class PortalUI {
         for (const x of due.due_soon.slice(0, 6)) rowFor(x, false);
       }).catch(() => {});
 
+      // MAIN — escalation status (WFE-2): overdue items that have crossed an escalation rung, with a
+      // one-click "escalate & notify" action (admin-gated server-side; a 403 surfaces as a toast).
+      void this.host.api.escalationsScan(pid).then((escd) => {
+        if (!escd.pending) return;
+        const summary = [3, 2, 1].filter((l) => escd.by_level[l]).map((l) => `L${l}×${escd.by_level[l]}`).join(" · ");
+        main.appendChild(Object.assign(el("div", "section-title"),
+          { textContent: `▲ Escalations — ${escd.pending} past threshold (${summary})` }));
+        for (const x of escd.items.filter((i) => i.needs_escalation).slice(0, 8)) {
+          const row = el("button", "portal-mod") as HTMLButtonElement;
+          row.innerHTML = `<span class="ic">${x.icon ?? "•"}</span> <b>${esc(x.ref)}</b> ${esc(x.title ?? "")} `
+            + `<span class="badge rfi">L${x.level} · ${x.days_overdue}d late</span>`
+            + (x.court ? ` <span class="notif-meta">→ ${esc(x.court)}</span>` : "");
+          row.onclick = () => { const m = this.mods.find((mm) => mm.key === x.module); if (m) void this.openRecord(m, x.id); };
+          main.appendChild(row);
+        }
+        const runBtn = el("button", "portal-mod notif") as HTMLButtonElement;
+        runBtn.innerHTML = `<span class="ic">▲</span> Escalate &amp; notify the ball-in-court party`;
+        runBtn.onclick = async () => {
+          runBtn.disabled = true;
+          try {
+            const r = await this.host.api.escalationsRun(pid);
+            toast(`escalated ${r.escalated} item(s) — the responsible party has been notified`, "success");
+            void this.renderHome();
+          } catch (e) {
+            toast(`couldn't escalate: ${(e as Error).message}`, "error");
+            runBtn.disabled = false;
+          }
+        };
+        main.appendChild(runBtn);
+      }).catch(() => {});
+
       // MAIN — recent notifications
       void this.host.api.notifications(pid).then((notes) => {
         if (!notes.length) return;

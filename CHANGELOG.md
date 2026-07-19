@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.503 — WFE-2: escalation surface on the portal home
+
+- Surfaces the v0.3.502 escalation engine so it isn't a backend orphan. The portal command-center home,
+  below the "⏰ Deadlines" feed, now shows an **"▲ Escalations"** section whenever overdue records have
+  crossed an escalation rung: a per-level summary (L3×n · L2×n · L1×n), the top items badged with their
+  level + days-late + ball-in-court party, and a one-click **"Escalate & notify the ball-in-court
+  party"** action. The action is admin-gated on the server (a 403 surfaces as a toast); on success it
+  re-renders the home so the freshly-cleared items drop off. New `escalationsScan`/`escalationsRun`
+  client methods + `EscalationScan`/`EscalationRun` types.
+
 ## v0.3.502 — WORKFLOW-ENGINE: overdue escalation + explicit ball-in-court (queue #10)
 
 - The workflow layer already had the full state machine (per-doc-type states/transitions, party gating,

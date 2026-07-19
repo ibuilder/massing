@@ -8,7 +8,7 @@ import { HttpCore } from "./httpCore";
 export * from "./types";
 import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
-  DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, ElementProps, EnergyResult, FinancialStatements,
+  DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EscalationScan, EscalationRun, ElementProps, EnergyResult, FinancialStatements,
   IntegrationGroup, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   PreflightGate, PreflightSummary,
@@ -2762,6 +2762,14 @@ export class ApiClient extends HttpCore {
   /** Cross-module SLA feed — open records past or near their due date (overdue / due-soon). */
   dueFeed(pid: string, days = 7) {
     return this.json<DueFeed>(`/projects/${pid}/due-feed?days=${days}`);
+  }
+  /** WORKFLOW-ENGINE — read-only escalation preview: overdue records with their computed level. */
+  escalationsScan(pid: string) {
+    return this.json<EscalationScan>(`/projects/${pid}/escalations`);
+  }
+  /** Apply the overdue-escalation pass (admin) — notifies the ball-in-court party + assignee. */
+  escalationsRun(pid: string) {
+    return this.json<EscalationRun>(`/projects/${pid}/escalations/run`, { method: "POST" });
   }
   // --- drawing markup (2D sheet pins; promotable to RFIs) ----------------
   drawingMarkup(pid: string, sheet: string) {
