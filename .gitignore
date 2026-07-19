@@ -117,3 +117,4 @@ services/api/_oapi.json
 services/api/_store_dev/
 services/api/_ifc_dev/
 services/api/aec_dev.db
+*.stackdump
