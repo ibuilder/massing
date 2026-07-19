@@ -48,7 +48,19 @@ export class DrawingsUI {
   async open(): Promise<void> {
     if (!this.root.childElementCount) this.build();
     await this.loadRegister();
+    // MARKUP-2d (live co-markup): subscribe once to the markup change-signature stream — whenever
+    // ANYONE saves a markup, the open sheet's pins refresh live (no reload). Skips the initial
+    // snapshot so the first event doesn't double-load.
+    const pid = this.host_.projectId();
+    if (pid && !this.markupSub) {
+      let first = true;
+      this.markupSub = this.host_.api.markupStream(pid, () => {
+        if (first) { first = false; return; }
+        void this.loadPins();
+      });
+    }
   }
+  private markupSub: import("../api/client").LiveStream | null = null;
 
   private build() {
     this.root.innerHTML = "";

@@ -2825,6 +2825,13 @@ export class ApiClient extends HttpCore {
     return this.liveStream(`/projects/${pid}/notifications/stream`,
                            onMessage as (d: unknown) => void, onStatus);
   }
+  /** MARKUP-2d — SSE stream of the drawing-markup change-signature; fires whenever anyone saves a
+   *  markup so open sheets live-refresh (live co-markup). */
+  markupStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void,
+               onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+    return this.liveStream(`/projects/${pid}/drawings/markup/stream`,
+                           onMessage as (d: unknown) => void, onStatus);
+  }
   /** SSE stream of the pull-board change-signature; fires whenever any trade edits a sticky note so
    *  the board can live-refresh. Returns a resilient handle so callers can close it on teardown. */
   pullPlanStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void,

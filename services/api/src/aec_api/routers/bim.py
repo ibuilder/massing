@@ -231,6 +231,36 @@ def save_markup_bulk(pid: str, body: MarkupBulkIn, db: Session = Depends(get_db)
     return {"saved": len(rows), "sheet_id": body.sheet_id}
 
 
+@router.get("/projects/{pid}/drawings/markup/stream")
+async def markup_stream(pid: str, request: Request, _: str = Depends(require_role("viewer"))):
+    """MARKUP-2d (live co-markup): server-sent events for the shared sheet — polls a cheap signature
+    (markup row count + latest created_at for the project) every few seconds and pushes it on change,
+    so every open sheet live-refreshes the moment anyone saves a markup. Fresh DB session per poll
+    (the generator outlives the request scope — mirrors the pull-plan/notifications streams)."""
+    import asyncio
+    import json as _json
+
+    from fastapi.responses import StreamingResponse
+    from sqlalchemy import func as _f
+
+    from ..db import SessionLocal
+
+    async def gen():
+        last = None
+        while not await request.is_disconnected():
+            with SessionLocal() as db:
+                n, latest = db.query(_f.count(DrawingMarkup.id), _f.max(DrawingMarkup.created_at)) \
+                              .filter(DrawingMarkup.project_id == pid).one()
+            key = (int(n or 0), latest.isoformat() if latest else None)
+            if key != last:
+                last = key
+                yield f"data: {_json.dumps({'count': key[0], 'latest': key[1]})}\n\n"
+            await asyncio.sleep(4)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 @router.delete("/projects/{pid}/drawings/markup/{mid}")
 def delete_markup(pid: str, mid: str, db: Session = Depends(get_db),
                   _: str = Depends(require_role("reviewer"))):

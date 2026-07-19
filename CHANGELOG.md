@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.516 — MARKUP-2d: live co-markup — the MARKUP-2 track is complete
+
+- **Live co-markup**: a new SSE stream (`GET /projects/{pid}/drawings/markup/stream`, mirroring the
+  pull-plan/notifications pattern — cheap count+latest signature polled server-side, fresh session
+  per poll) pushes whenever anyone saves a markup, and the drawings browser subscribes on open — so
+  every open sheet **live-refreshes its pins the moment a teammate marks up**, no reload. Resilient
+  `liveStream` client handle; the initial snapshot is skipped so opening doesn't double-load.
+- With 2a (stamp library + slip-sheet), 2b (cross-sheet grid), and 2c (overlay compare), **queue #1
+  MARKUP-2 is fully shipped** across v0.3.512–516. Sheet-space peer cursors remain a polish idea on
+  the presence roster (free-form viewpoint payload — no protocol change needed when wanted).
+
 ## v0.3.515 — MARKUP-2c: light-table overlay compare
 
 - **"⧉ Compare"** on any sheet view overlays an uploaded prior revision (SVG, or PDF page 1

@@ -89,6 +89,23 @@ with TestClient(app) as c:
     rr2 = c.post(f"/projects/{pid}/drawings/{did}/revise", headers=H, json={"rev": "3"}).json()
     assert rr2["markups_carried"] == 1, rr2          # only the rev-2 markup newly carries (others already tagged)
 
+    # --- MARKUP-2d (live co-markup): the stream's change-signature moves on every save -------------
+    from sqlalchemy import func as _f  # noqa: E402
+
+    from aec_api.db import SessionLocal  # noqa: E402
+    from aec_api.models import DrawingMarkup  # noqa: E402
+    with SessionLocal() as s:
+        n1, _t1 = (s.query(_f.count(DrawingMarkup.id), _f.max(DrawingMarkup.created_at))
+                   .filter(DrawingMarkup.project_id == pid).one())
+    c.post(f"/projects/{pid}/drawings/markup", headers=H,
+           json={"sheet_id": "S-101", "x": 9, "y": 9, "note": "live co-markup"})
+    with SessionLocal() as s:
+        n2, t2 = (s.query(_f.count(DrawingMarkup.id), _f.max(DrawingMarkup.created_at))
+                  .filter(DrawingMarkup.project_id == pid).one())
+    assert n2 == (n1 or 0) + 1 and t2 is not None, "signature must move on every markup save"
+    # the SSE route itself is registered (generator behaviour mirrors the tested pull-plan stream)
+    assert "/projects/{pid}/drawings/markup/stream" in app.openapi()["paths"], "stream route missing"
+
 print("MARKUP OK - takeoff markups persist to the shared drawing_markups store (kind+data), bulk "
       "save/replace scoped per sheet + author, SVG pins untouched, structured markup promotes to RFI "
       "with its measurement, and promoted markups survive replace. SLIP-SHEET: markups stamp the "
