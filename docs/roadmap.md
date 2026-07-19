@@ -49,10 +49,21 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
 7. ✅ **SURF-2 — Estimating/takeoff surface — SHIPPED v0.3.499** — the "📐 Estimate from the model"
    card in Budget: conceptual (unit-rate), resource-based (L/M/E), QTO-by-floor, DXF takeoff. (Bid
    leveling / invite-bidders remain for SURF-2b — they belong on the procurement surface, not Budget.)
-8. **SURF-3 — Authoring surface** *(M)* — base-plate/shear-tab/curtain-wall/MEP-fitting/rebar-cage/
-   assembly/type/detailing-rules/LOD/phase recipes reachable from the rail (backed, no surface).
-9. **SURF-4 — QA + RE/ops surface** *(M)* — scan-deviation, model/data QA, code-check, code-adoptions;
-   securities package, distributions, turnover status, procurement gate (backed, no surface).
+8. ✅ **SURF-3 — Authoring surface — ALREADY DONE (verified v0.3.499)** — every recipe in the audit's
+   list is in fact reachable: base-plate/shear-tab/rebar/MEP-fitting/curtain-wall via the Advanced
+   fabrication toolbar, `create_type` via the type browser, array via ▦ Array, LOD via the LOD panel,
+   phase via the Phasing panel, detailing via ✨ Auto-detail. The audit's orphan flag was a false
+   positive — the viewer dispatches recipes by NAME through `authorAndReload`/`editIfc`, bypassing the
+   typed client wrappers the audit keyed on. No new surface needed. (The genuinely-new recipes without
+   *any* client method — auto_connect_mep, add_connection_assembly, extrude_profile, program_fit —
+   are folded into their feature tracks, not SURF.)
+9. ✅ **SURF-4 — QA + RE/ops surface — SHIPPED v0.3.500** — the viewer QA section now surfaces the
+   `/elements/qa` required-property-completeness engine via a **"🔍 Data QA"** button: overall
+   compliant %, per-rule present/missing with severity dots, and a click-to-select-missing link that
+   highlights up to 200 offending GUIDs. Audit correction: code-check, model-health, and quantity
+   distributions were ALREADY surfaced under other route/method names (the wrapper-name "orphan"
+   heuristic false-positives on recipe dispatch-by-name). Remaining genuine gaps — scan-deviation,
+   turnover-status, procurement-gate — are thin and deferred; securities is regulated (flag, not build).
 
 **NEXT (workflow depth — the real backend gap the audit found):**
 10. **WORKFLOW-ENGINE** *(L, ★★★★★)* — a real state-machine layer over submittals/RFI/CO/transmittals:

@@ -2921,6 +2921,31 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             body.appendChild(note);
           });
         })));
+        // SURF-4: element data-QA (`/elements/qa`) was backed but unsurfaced — the per-rule
+        // required-property completeness check (missing GUIDs are click-to-select).
+        b.appendChild(toolBtn2("🔍 Data QA (required-property completeness)", () => withLoading(container, "Checking element data quality", async () => {
+          let r;
+          try { r = await api.dataQa(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `data QA ${r.compliant_pct}% (${r.compliant}/${r.total})`;
+          showResult("Element data QA", (body) => {
+            const tone = r!.compliant_pct >= 90 ? "ok" : r!.compliant_pct < 60 ? "bad" : "";
+            body.appendChild(resultNote(`<b>${r!.compliant_pct}%</b> of ${r!.total} elements carry their required properties `
+              + `(${r!.noncompliant} non-compliant).`, tone));
+            for (const rule of r!.rules) {
+              const sev: Record<string, string> = { high: "🔴", medium: "🟡", low: "⚪" };
+              const line = resultNote(`${sev[rule.severity] || "•"} <b>${rule.label}</b> — ${rule.present} present · <b>${rule.missing}</b> missing`,
+                rule.missing ? "" : "ok");
+              if (rule.missing && rule.missing_guids.length) {
+                const pick = document.createElement("a"); pick.href = "#"; pick.textContent = " select missing";
+                pick.style.cssText = "font-size:11px;margin-left:6px";
+                pick.onclick = async (e) => { e.preventDefault(); await selectMap(await sets.fromGuids(rule.missing_guids.slice(0, 200))); };
+                line.appendChild(pick);
+              }
+              body.appendChild(line);
+            }
+          });
+        })));
         b.appendChild(toolBtn2("🔗 Coordinate clashes (grouped issues)", () => withLoading(container, "Running federated clash + coordination", async () => {
           let r;
           try { r = await api.clashFederated(pid, { coordinate: true }); }

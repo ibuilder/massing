@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.500 — SURF-4: Data-QA surface — required-property completeness in the viewer (queue #9)
+
+- Fourth UI-surfacing wave item: a **"🔍 Data QA"** button in the viewer's QA section surfaces the
+  backed-but-unsurfaced `/elements/qa` required-property-completeness engine. It renders the overall
+  compliant/non-compliant split with a percentage, then a per-rule breakdown (label, severity dot,
+  present vs. missing counts). Each rule with gaps offers a **"select missing"** link that highlights
+  the offending elements in the model (up to 200 GUIDs) via the existing `sets.fromGuids` → `selectMap`
+  path — so a modeler can jump straight from "37 walls missing FireRating" to those walls on screen.
+- Audit note: the codebase-review "orphan capability" count was materially overstated. SURF-3 (phasing/
+  LOD) and most SURF-4 candidates (code-check, model-health, quantity distributions) were already
+  surfaced under different route/method names; the recipe dispatch-by-name path produces false-positive
+  "orphans" in a wrapper-name heuristic. Verified by feature/route, not wrapper name, before building.
+
 ## v0.3.499 — SURF-2: estimating/takeoff surface — model estimates + DXF takeoff (queue #7)
 
 - Second UI-surfacing wave item: a **"📐 Estimate from the model"** card in the Budget panel wires
