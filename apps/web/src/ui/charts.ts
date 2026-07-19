@@ -17,7 +17,7 @@ const AXIS = "var(--muted)";
 
 export function chartColor(i: number): string { return PALETTE[i % PALETTE.length] ?? PALETTE[0]!; } // safe: PALETTE is a non-empty literal
 
-function esc(s: unknown): string {
+export function esc(s: unknown): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 

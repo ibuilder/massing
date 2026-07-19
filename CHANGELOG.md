@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.501 — fix(sec): escape untrusted text in the Budget estimating drawer (XSS)
+
+- Closes a stored/DOM-XSS path introduced in v0.3.499 (SURF-2): the "📐 Estimate from the model" card
+  wrote an uploaded DXF's **filename** — and server/model-derived free-text (layer names, storey labels,
+  trade names, IFC-class strings, unit labels) — into `innerHTML` without escaping. A file named
+  `<img src=x onerror=…>.dxf` would have executed script on selection. All such interpolations now pass
+  through a shared `esc()` helper (now exported from `ui/charts`). Numeric/enum fields are unaffected.
+
 ## v0.3.500 — SURF-4: Data-QA surface — required-property completeness in the viewer (queue #9)
 
 - Fourth UI-surfacing wave item: a **"🔍 Data QA"** button in the viewer's QA section surfaces the
