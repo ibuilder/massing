@@ -111,8 +111,11 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
     out-path consistently (closes the IFC bypass); fixed the matrix (`glb` was missing from base
     exports → would 402 even at Enterprise; `ifcx` declared Commercial+). Test flips enforcement on
     and verifies each tier boundary. SSO/Navisworks gating deferred (auth-flow-coupled, lower value).
-19. **JOB-QUEUE remainder** *(S/M)* — PAdES sealing on the queue (needs doc-reference plumbing) ·
-    generative runs (mutating jobs need the pid lock).
+19. ◧ **JOB-QUEUE remainder** — **pid-lock SHIPPED v0.3.523 (Sprint 7)**: `register_kind(mutating=)`
+    + a `pid_lock.mutating(project_id)` wrap in the worker dispatch, so a mutating job
+    (`escalation_scan`, `model_ci`, future generative runs) can't race a concurrent edit; read/artifact
+    kinds stay unwrapped. **Still open:** PAdES sealing on the queue (needs doc-reference plumbing —
+    defer until a queued signing flow actually exists).
 
 **THEN:** the ⚙️ RUNTIME ring below (orjson first — S effort, wide benefit; interleave the S items
 between features) · R14 Tier-2/3 + 🧭 R15 remaining tiers (itemized below) — SCOPE-GAP · GOLDEN-THREAD ·

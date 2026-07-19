@@ -33,16 +33,26 @@ from .timeutil import utc_now
 log = logging.getLogger(__name__)
 
 KINDS: dict[str, Callable[[Session, dict], Any]] = {}
+# kinds that WRITE project state (records / republished model) rather than only reading + parking an
+# artifact. Their handler runs under `pid_lock.mutating(project_id)` so a queued mutating job can't
+# interleave with a concurrent API edit (which takes the same lock) or another mutating job on the
+# same project — the read-modify-write race pid_lock already guards for docmanager/edit_history.
+_MUTATING_KINDS: set[str] = set()
 _WAKE = threading.Event()
 _STOP = threading.Event()
 _THREAD: threading.Thread | None = None
 _LOCK = threading.Lock()
 
 
-def register_kind(name: str, fn: Callable[[Session, dict], Any]) -> None:
+def register_kind(name: str, fn: Callable[[Session, dict], Any], *, mutating: bool = False) -> None:
     """Register a job handler: `fn(db, params) -> JSON-serializable result`. Handlers MUST be
-    idempotent (crash recovery re-runs an orphaned job)."""
+    idempotent (crash recovery re-runs an orphaned job). Set `mutating=True` for a handler that writes
+    project state — the worker then runs it under the project's mutation lock (needs `project_id`)."""
     KINDS[name] = fn
+    if mutating:
+        _MUTATING_KINDS.add(name)
+    else:
+        _MUTATING_KINDS.discard(name)
 
 
 def enqueue(db: Session, kind: str, project_id: str | None, params: dict | None,
@@ -88,7 +98,12 @@ def _run_one(SessionLocal) -> bool:
         try:
             if fn is None:                           # kind vanished across a restart (plugin removed)
                 raise ValueError(f"job kind {j.kind!r} is no longer registered")
-            result = fn(db, j.params or {})
+            if j.kind in _MUTATING_KINDS and j.project_id:
+                from . import pid_lock
+                with pid_lock.mutating(j.project_id):   # serialize against concurrent edits/jobs
+                    result = fn(db, j.params or {})
+            else:
+                result = fn(db, j.params or {})
             j.result = result if isinstance(result, (dict, list)) else {"value": result}
             j.state = "done"
         except Exception as e:  # noqa: BLE001 — the job row carries the failure; the worker never dies
@@ -277,9 +292,9 @@ def _echo(db: Session, params: dict) -> dict:
 
 
 register_kind("echo", _echo)
-register_kind("cobie_export", _cobie_export)
-register_kind("compiled_set_pdf", _compiled_set_pdf)
-register_kind("model_export", _model_export)
-register_kind("clash_detect", _clash_detect)
-register_kind("escalation_scan", _escalation_scan)
-register_kind("model_ci", _model_ci)
+register_kind("cobie_export", _cobie_export)            # read → artifact (no project-state write)
+register_kind("compiled_set_pdf", _compiled_set_pdf)   # read → artifact
+register_kind("model_export", _model_export)           # read → artifact
+register_kind("clash_detect", _clash_detect)           # read-only
+register_kind("escalation_scan", _escalation_scan, mutating=True)   # WRITES records (me.update_record)
+register_kind("model_ci", _model_ci, mutating=True)    # writes the CI report; wants a consistent model read

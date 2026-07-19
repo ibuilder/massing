@@ -138,9 +138,68 @@ with TestClient(app) as c:
     assert cj2.state == "done" and "count" in cj2.result and "clashes" in cj2.result, (cj2.state, cj2.error)
 
 jobs.stop_worker()
+
+# --- JOB-QUEUE (pid-lock): a MUTATING job holds the project mutation lock while its handler runs, so
+# it can't interleave with a concurrent edit; a read/artifact job does NOT take the lock. Worker is
+# stopped here, so the dedicated _run_one thread is the sole claimer (deterministic). ------------------
+import threading as _th  # noqa: E402
+
+from aec_api import pid_lock  # noqa: E402
+
+PIDL = "pidlock-proj"
+_entered, _release = _th.Event(), _th.Event()
+
+
+def _mut_hold(db, params):
+    _entered.set()
+    _release.wait(timeout=5.0)                        # bounded held window — can't hang the suite
+    return {"held": True}
+
+
+jobs.register_kind("mut_hold", _mut_hold, mutating=True)
+assert "mut_hold" in jobs._MUTATING_KINDS, "register_kind(mutating=True) must flag the kind"
+with SessionLocal() as db:
+    mjid = jobs.enqueue(db, "mut_hold", PIDL, {}).id
+_t = _th.Thread(target=lambda: jobs._run_one(SessionLocal), daemon=True); _t.start()
+assert _entered.wait(timeout=5.0), "mutating handler never entered"
+lk = pid_lock._lock_for(PIDL)
+assert lk.acquire(timeout=0.5) is False, "a MUTATING job must hold pid_lock while running"
+_release.set(); _t.join(timeout=5.0)
+assert lk.acquire(timeout=1.0) is True, "the lock must free once the job finishes"
+lk.release()
+assert _wait(mjid).state == "done"
+
+# a non-mutating kind (default) leaves the project lock free during its run
+_entered2, _release2 = _th.Event(), _th.Event()
+
+
+def _read_hold(db, params):
+    _entered2.set()
+    _release2.wait(timeout=5.0)
+    return {"held": False}
+
+
+jobs.register_kind("read_hold", _read_hold)          # mutating defaults False
+assert "read_hold" not in jobs._MUTATING_KINDS
+with SessionLocal() as db:
+    njid = jobs.enqueue(db, "read_hold", PIDL, {}).id
+_t2 = _th.Thread(target=lambda: jobs._run_one(SessionLocal), daemon=True); _t2.start()
+assert _entered2.wait(timeout=5.0), "read handler never entered"
+assert pid_lock._lock_for(PIDL).acquire(timeout=0.5) is True, "a read job must NOT hold pid_lock"
+pid_lock._lock_for(PIDL).release()
+_release2.set(); _t2.join(timeout=5.0)
+assert _wait(njid).state == "done"
+
+# the real mutating kinds (write records / republish-adjacent) are flagged; read/artifact kinds aren't
+assert {"escalation_scan", "model_ci"} <= jobs._MUTATING_KINDS, jobs._MUTATING_KINDS
+assert not ({"model_export", "clash_detect", "cobie_export"} & jobs._MUTATING_KINDS), jobs._MUTATING_KINDS
+
 print("JOB-QUEUE OK - unknown kind 400s at submit; orphaned running job re-queued on worker start and "
       "completed (crash recovery); echo round-trips with timestamps; handler exception captured on the "
       "row (worker survives); endpoints enqueue/poll/list with cross-project 404; the real cobie_export "
       "kind parses the model in the background and reports per-sheet counts; model_export tessellates "
       "the .glb off-thread into a streamed artifact (valid glTF magic) and a bad format errors on the "
-      "row; clash_detect runs the narrow-phase clash on the worker and returns its summary.")
+      "row; clash_detect runs the narrow-phase clash on the worker and returns its summary. PID-LOCK: "
+      "a mutating job (register_kind mutating=True) holds pid_lock.mutating(project_id) for its whole "
+      "run so it can't interleave a concurrent edit; a read/artifact job leaves the lock free; the real "
+      "escalation_scan + model_ci kinds are flagged mutating while model_export/clash_detect/cobie are not.")

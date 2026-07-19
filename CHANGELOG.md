@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.523 — JOB-QUEUE: mutating jobs hold the project mutation lock
+
+- Job handlers that **write project state** now run under `pid_lock.mutating(project_id)` — the same
+  per-project lock the API edit path and the docmanager/edit_history sidecars already take. A queued
+  mutating job (e.g. `escalation_scan`, which escalates records) can no longer interleave its
+  read-modify-write with a concurrent edit or another mutating job on the same project.
+- `register_kind(name, fn, mutating=True)` declares a mutating kind; the worker wraps only those
+  (when the job carries a `project_id`) in the lock. Read/artifact kinds
+  (`model_export`, `clash_detect`, `cobie_export`, `compiled_set_pdf`) are unaffected — the wrap is
+  a no-op for them, so nothing serializes that doesn't need to.
+
 ## v0.3.522 — ENTITLE-1: consistent export entitlement enforcement
 
 - **Closed the IFC-export side-doors**: `/model/export.ifc` and `/model/export.ifcx` now gate on the
