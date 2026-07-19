@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.495 — PERF-3: QTO/discipline caching · clash off the request path (queue #3)
+
+- **QTO-CACHE**: `qto.takeoff_file` was already memoized on (path, mtime, cost-map); this extends the
+  same mtime-keyed cache to `discipline_summary_file` (the `/quantities/disciplines` roll-up), which
+  falls back to per-element `create_shape` for volume/length — it re-ran the geometry pass on every
+  GET. Bounded LRU (24 entries), evict-oldest; a re-parse (new mtime) yields a fresh entry so it can
+  never go stale.
+- **CLASH-JOBS**: a new `clash_detect` job kind runs the narrow-phase (mesh-boolean) clash on the
+  durable worker instead of a request slot — the same engine as `POST /projects/{pid}/clash`, so a
+  minutes-long large-model run never holds a thread or hits the HTTP timeout. Returns the clash
+  summary + top rows as a job result; topic creation stays on the interactive route.
+- Test-proven: `clash_detect` round-trips through the queue; `discipline_summary_file` cache verified
+  by test_discipline; 270/270 backend suites, web gates green.
+
 ## v0.3.494 — PERF: async-block, geometry cache, frontend leaks (execution queue NOW #1–2, #4)
 
 - **PERF-1 (ASYNC-BLOCK)**: the pdf_info/merge/split/extract/rotate routes, the module Excel/CSV

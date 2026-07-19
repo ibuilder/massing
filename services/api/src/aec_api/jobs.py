@@ -218,6 +218,31 @@ def _model_export(db: Session, params: dict) -> dict:
             "filename": f"model-{p.id}.{ext}", "bytes": len(data)}
 
 
+def _clash_detect(db: Session, params: dict) -> dict:
+    """PERF-3 (CLASH-JOBS): the narrow-phase clash off the request path for large models. Same engine
+    as `POST /projects/{pid}/clash`, but the (potentially minutes-long, mesh-boolean) run happens on
+    the durable worker so it never holds a request slot or hits the HTTP timeout. Params:
+    {project_id, a, b (comma class lists), min_volume?, tolerance?, narrow?, max_narrow?, limit?}.
+    Returns the clash summary + the top rows (topic creation stays on the interactive route)."""
+    from aec_data import clash  # type: ignore
+
+    from .models import Project
+    p = db.get(Project, params.get("project_id") or "")
+    if not p or not p.source_ifc:
+        raise ValueError("project has no source IFC")
+
+    def _classes(s: str | None) -> list[str]:
+        return [c.strip() for c in (s or "").split(",") if c.strip()]
+
+    limit = int(params.get("limit") or 200)
+    results = clash.detect_file(
+        p.source_ifc, _classes(params.get("a")), _classes(params.get("b")),
+        float(params.get("min_volume") or 1e-3), float(params.get("tolerance") or 0.0),
+        narrow=bool(params.get("narrow", True)), max_narrow=int(params.get("max_narrow") or 200))
+    return {"count": len(results), "clashes": results[:limit],
+            "truncated": len(results) > limit}
+
+
 def _echo(db: Session, params: dict) -> dict:
     """Test/diagnostic kind: returns its params (and proves the queue round-trips)."""
     return {"echo": params}
@@ -227,3 +252,4 @@ register_kind("echo", _echo)
 register_kind("cobie_export", _cobie_export)
 register_kind("compiled_set_pdf", _compiled_set_pdf)
 register_kind("model_export", _model_export)
+register_kind("clash_detect", _clash_detect)

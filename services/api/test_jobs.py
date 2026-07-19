@@ -129,10 +129,18 @@ with TestClient(app) as c:
     bj = _wait(r5.json()["id"], timeout=60)
     assert bj.state == "error" and "unknown export format" in (bj.error or ""), (bj.state, bj.error)
 
+    # PERF-3 (CLASH-JOBS): the narrow-phase clash runs on the worker (off the request slot) and
+    # returns its summary as a result (not an artifact)
+    r6 = c.post(f"/projects/{pid}/jobs",
+                json={"kind": "clash_detect",
+                      "params": {"a": "IfcWall", "b": "IfcSlab", "narrow": False}})
+    cj2 = _wait(r6.json()["id"], timeout=120)
+    assert cj2.state == "done" and "count" in cj2.result and "clashes" in cj2.result, (cj2.state, cj2.error)
+
 jobs.stop_worker()
 print("JOB-QUEUE OK - unknown kind 400s at submit; orphaned running job re-queued on worker start and "
       "completed (crash recovery); echo round-trips with timestamps; handler exception captured on the "
       "row (worker survives); endpoints enqueue/poll/list with cross-project 404; the real cobie_export "
       "kind parses the model in the background and reports per-sheet counts; model_export tessellates "
       "the .glb off-thread into a streamed artifact (valid glTF magic) and a bad format errors on the "
-      "row.")
+      "row; clash_detect runs the narrow-phase clash on the worker and returns its summary.")

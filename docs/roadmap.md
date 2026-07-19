@@ -31,8 +31,9 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
 2. ✅ **PERF-2 (GEOM-CACHE) — SHIPPED v0.3.494** — `drawings.bake()` memoized per model object;
    `world_bounds()` returns the AABB with no trimesh build; env/wind uses it. (frontend leaks from
    PERF-4 also shipped here: the once-installed guide-line listener + `collabPresence.dispose()`.)
-3. **PERF-3 (QTO-CACHE + CLASH-JOBS)** *(M, High)* — cache `qto.takeoff_file` keyed on (mtime, cost-map)
-   for the 7 cost endpoints; move `/clash` narrow-phase onto the existing jobs queue.
+3. ✅ **PERF-3 (QTO-CACHE + CLASH-JOBS) — SHIPPED v0.3.495** — `takeoff_file` was already
+   mtime-cached; extended the same cache to `discipline_summary_file` (per-element create_shape
+   fallback). New `clash_detect` job kind runs the narrow-phase clash on the durable worker.
 4. **PERF-4 (PAYLOAD-CAPS + DASH-UNION + TEST-FASTPATH)** *(M, Med)* — paginate `/topics` + `/pins`;
    lean-column single activity load per schedule request; SQL-aggregate the `limit=100000` analytics;
    one UNION-ALL for the 124-query dashboard; fresh-DB skip of `_ensure_columns/_indexes` in `init_db`

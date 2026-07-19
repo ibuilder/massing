@@ -144,8 +144,22 @@ def discipline_summary(model: ifcopenshell.file, settings=None) -> dict[str, Any
     }
 
 
+_DISC_CACHE: dict[tuple, dict[str, Any]] = {}
+_DISC_CACHE_MAX = 24
+
+
 def discipline_summary_file(ifc_path: str) -> dict[str, Any]:
-    return discipline_summary(open_model(ifc_path))
+    # PERF-3: cache the discipline roll-up keyed on (path, mtime) — discipline_summary falls back to
+    # per-element create_shape for volume/length, which re-runs on every /quantities/disciplines GET
+    key = (ifc_path, _mtime(ifc_path))
+    cached = _DISC_CACHE.get(key)
+    if cached is not None:
+        return cached
+    out = discipline_summary(open_model(ifc_path))
+    if len(_DISC_CACHE) >= _DISC_CACHE_MAX:
+        _DISC_CACHE.pop(next(iter(_DISC_CACHE)))
+    _DISC_CACHE[key] = out
+    return out
 
 
 def load_cost_map(path: str | None) -> dict[str, CostCodeRow]:
