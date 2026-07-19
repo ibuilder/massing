@@ -1197,6 +1197,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     return b;
   };
 
+  // PERF-4: the UX-2 guide-line cursor tracker lives at this (persistent) scope, so its single
+  // container `pointermove` listener is installed ONCE — buildToolsPanel re-runs on every persona
+  // switch, which previously stacked a new listener (and leaked its closure) on each rebuild.
+  let annotGuide: { grp: THREE.Group; line: THREE.Line } | null = null;
+  let guideWired = false;
+
   async function buildToolsPanel() {
     const panel = $("panel-tools");
     panel.innerHTML = "";
@@ -2518,16 +2524,15 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       // UX-2 — live guide line: a dashed rubber line + anchor dot from a pending first point to the
       // cursor while a two-click annotation flow (dimension / revision cloud) waits for its second
       // click — the drafter sees exactly what's being measured before committing.
-      let guide: { grp: THREE.Group; line: THREE.Line } | null = null;
       const setGuideAnchor = (from: THREE.Vector3 | null) => {
-        if (guide) {
-          viewer.world.scene.three.remove(guide.grp);
-          guide.grp.traverse((o) => {
+        if (annotGuide) {
+          viewer.world.scene.three.remove(annotGuide.grp);
+          annotGuide.grp.traverse((o) => {
             const m = o as THREE.Mesh;
             if (m.geometry) m.geometry.dispose();
             if (m.material) (m.material as THREE.Material).dispose();
           });
-          guide = null;
+          annotGuide = null;
         }
         if (!from) return;
         const grp = new THREE.Group(); grp.name = "annot-guide";
@@ -2540,16 +2545,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         line.computeLineDistances();
         grp.add(dot, line);
         viewer.world.scene.three.add(grp);
-        guide = { grp, line };
+        annotGuide = { grp, line };
       };
-      container.addEventListener("pointermove", (e) => {
-        if (!guide) return;
-        const p = screenToGround(e);
-        if (!p) return;
-        const pos = guide.line.geometry.attributes.position as THREE.BufferAttribute;
-        pos.setXYZ(1, p.x, p.y, p.z); pos.needsUpdate = true;
-        guide.line.computeLineDistances();
-      });
+      if (!guideWired) {                    // install the cursor tracker exactly once (see PERF-4 note)
+        guideWired = true;
+        container.addEventListener("pointermove", (e) => {
+          if (!annotGuide) return;
+          const p = screenToGround(e);
+          if (!p) return;
+          const pos = annotGuide.line.geometry.attributes.position as THREE.BufferAttribute;
+          pos.setXYZ(1, p.x, p.y, p.z); pos.needsUpdate = true;
+          annotGuide.line.computeLineDistances();
+        });
+      }
 
       // UX-2 — dimension: two-click flow (pick first point, then second → measured dimension annotation)
       let dimFrom: THREE.Vector3 | null = null;

@@ -55,8 +55,53 @@ def _world_settings(geom_mod):
     return settings
 
 
+# PERF-2 (GEOM-CACHE): tessellation is the dominant per-request cost — every section/elevation/DXF/
+# sheet view re-baked the whole model. `open_model` is lru-cached, so the SAME model object is handed
+# back for an unchanged (path, mtime, size); we memoize the bake on that object's identity. A held
+# strong ref per entry prevents id() reuse while cached; the cache is small (meshes are large) and
+# entries fall out naturally when open_model evicts + GCs the model. A re-parsed file → new object →
+# fresh bake, so this can't serve stale geometry.
+_BAKE_CACHE: dict[int, tuple[Any, list[tuple[str, trimesh.Trimesh]]]] = {}
+_BAKE_CACHE_MAX = 4
+
+
 def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
-    """Bake every element's world-space mesh ONCE so many views can section the same set."""
+    """Bake every element's world-space mesh ONCE so many views can section the same set. Cached per
+    model object (see GEOM-CACHE note) — repeated views of one model tessellate only once."""
+    hit = _BAKE_CACHE.get(id(model))
+    if hit is not None and hit[0] is model:      # identity check guards against id() reuse
+        return hit[1]
+    meshes = _bake_uncached(model)
+    if len(_BAKE_CACHE) >= _BAKE_CACHE_MAX:
+        _BAKE_CACHE.pop(next(iter(_BAKE_CACHE)))  # evict oldest (dict is insertion-ordered)
+    _BAKE_CACHE[id(model)] = (model, meshes)
+    return meshes
+
+
+def world_bounds(model: ifcopenshell.file) -> tuple[list[float], list[float]] | None:
+    """PERF-2: the model's world-space AABB [min_xyz, max_xyz] (metres) without building any trimesh —
+    just min/max over the geom-iterator verts. Reuses the bake cache when the model was already baked
+    for a drawing (free), else runs a lean vert-only pass. None when the model has no geometry."""
+    hit = _BAKE_CACHE.get(id(model))
+    if hit is not None and hit[0] is model and hit[1]:
+        pts = np.vstack([m.bounds for _, m in hit[1] if getattr(m, "bounds", None) is not None])
+        return list(pts.min(axis=0)), list(pts.max(axis=0))
+    it = geom.iterator(_world_settings(geom), model, geom_workers())
+    if not it.initialize():
+        return None
+    mn = np.array([np.inf, np.inf, np.inf])
+    mx = -mn
+    while True:
+        v = np.asarray(it.get().geometry.verts, dtype=float).reshape(-1, 3)
+        if v.size:
+            mn = np.minimum(mn, v.min(axis=0))
+            mx = np.maximum(mx, v.max(axis=0))
+        if not it.next():
+            break
+    return (list(mn), list(mx)) if np.isfinite(mn).all() else None
+
+
+def _bake_uncached(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
     it = geom.iterator(_world_settings(geom), model, geom_workers())
     meshes: list[tuple[str, trimesh.Trimesh]] = []
     if not it.initialize():

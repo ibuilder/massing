@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.494 — PERF: async-block, geometry cache, frontend leaks (execution queue NOW #1–2, #4)
+
+- **PERF-1 (ASYNC-BLOCK)**: the pdf_info/merge/split/extract/rotate routes, the module Excel/CSV
+  import parse, and the large source-IFC / discipline-model upload writes now run in a threadpool —
+  they were `async def` calling blocking pypdf / openpyxl / multi-hundred-MB `write_bytes` + MinIO
+  `put` on the event loop, stalling **every** request in the process. (The sibling pdf_stamp/seal
+  routes already did this; now they all do.)
+- **PERF-2 (GEOM-CACHE)**: `drawings.bake()` — the dominant per-request CPU cost, re-tessellating the
+  whole model on every section/elevation/DXF/sheet view — is now **memoized per model object**
+  (`open_model` is lru-cached, so an unchanged file hands back the same object; a re-parse yields a
+  new object → fresh bake, so it can't serve stale geometry). Added `world_bounds()` that returns the
+  model AABB without building trimeshes (reuses the bake cache when present), and env/wind now derives
+  its bounding box through it instead of a full bake. Tested (second bake is identity; bounds agree).
+- **PERF-4 (frontend leaks)**: the UX-2 guide-line `pointermove` listener is installed **once**
+  instead of stacking a new one (plus a leaked closure) on every persona-triggered `buildToolsPanel`
+  rebuild; `collabPresence` now keeps + exposes `dispose()` to clear its 20 s heartbeat interval and
+  close its SSE stream on viewer teardown (both previously leaked on re-init).
+- Backend suite green; web gates green (typecheck · lint · 121 vitest · build). No behaviour change —
+  pure performance + hygiene.
+
 ## v0.3.493 — SEC: attachment stored-XSS fix · 🧭 R15 landscape plan + re-prioritized queue
 
 - **SECURITY (stored XSS)**: module-record attachments were served **inline** with the client-supplied

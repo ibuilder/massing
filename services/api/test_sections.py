@@ -22,6 +22,25 @@ meshes = drawings.bake(m)
 cx = drawings._axis_center(meshes, 0)          # midpoint of the X extent
 assert cx > 1.0, f"auto-centre should be well off origin, got {cx}"
 
+# PERF-2 (GEOM-CACHE): a second bake of the SAME model object returns the memoized list (identity),
+# not a fresh tessellation
+meshes2 = drawings.bake(m)
+assert meshes2 is meshes, "bake must be cached per model object"
+# world_bounds reuses that cache and agrees with the baked extent (no trimesh build on the hot path)
+wb = drawings.world_bounds(m)
+assert wb is not None
+mn, mx = wb
+assert abs(((mn[0] + mx[0]) / 2.0) - cx) < 0.01, (mn, mx, cx)
+# a distinct model object gets its own bake (cache keyed on identity, invalidates on re-parse), and
+# world_bounds runs the lean vert-only pass on a never-baked model
+_ALT = os.path.join(os.path.dirname(__file__), "_sec_alt.ifc")
+massing.generate_blank_ifc(_ALT, name="Alt", storeys=1, storey_height=3.0, ground_size=8.0)
+alt = open_model(_ALT)
+assert drawings.bake(alt) is not meshes, "a different model must bake independently"
+altb = drawings.world_bounds(alt)
+assert altb is not None and (altb[1][0] - altb[0][0]) > 1.0, altb
+os.remove(_ALT)
+
 # auto-centred section (offset=None) cuts through the model → non-empty linework
 auto = drawings.section_svg(m, "x")            # offset omitted → auto-centre
 assert auto.startswith("<svg") or "<svg" in auto[:120], "section must be an SVG"

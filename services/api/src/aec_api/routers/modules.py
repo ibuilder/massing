@@ -426,10 +426,14 @@ async def import_preview(pid: str, key: str, file: UploadFile = File(...),
                          db: Session = Depends(get_db), _: str = Depends(require_role("reviewer"))):
     """Step 1 of a generic Excel/CSV import: parse the sheet, auto-suggest a column->field mapping,
     coerce a sample, and flag unmapped required fields. No records are created."""
+    from starlette.concurrency import run_in_threadpool
+
     from .. import imports
     if key not in mod_engine.TABLES:
         raise HTTPException(404, "unknown module")
-    return imports.preview(key, await file.read(), file.filename)
+    data = await file.read()
+    # PERF-1: openpyxl parse off the event loop (a large workbook would block every request)
+    return await run_in_threadpool(imports.preview, key, data, file.filename)
 
 
 @router.post("/projects/{pid}/modules/{key}/import")
@@ -438,6 +442,8 @@ async def import_records(pid: str, key: str, file: UploadFile = File(...), mappi
     """Step 2: import the sheet using a column->field mapping (JSON {source_header: field_name}).
     Validates required fields + coerces types per row; one bad row never aborts the batch."""
     import json
+
+    from starlette.concurrency import run_in_threadpool
 
     from .. import imports
     if key not in mod_engine.TABLES:
@@ -448,7 +454,10 @@ async def import_records(pid: str, key: str, file: UploadFile = File(...), mappi
             raise ValueError
     except ValueError:
         raise HTTPException(422, "mapping must be a JSON object {source_header: field_name}")
-    res = imports.do_import(db, key, pid, await file.read(), file.filename, m, user, _party(pid, db, user))
+    data = await file.read()
+    party = _party(pid, db, user)
+    # PERF-1: openpyxl parse + row coercion off the event loop
+    res = await run_in_threadpool(imports.do_import, db, key, pid, data, file.filename, m, user, party)
     audit.record(db, action="module.import", method="POST", path=f"/projects/{pid}/modules/{key}/import",
                  detail={"module": key, "imported": res.get("imported", 0)})
     db.commit()

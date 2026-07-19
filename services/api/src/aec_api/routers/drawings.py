@@ -300,18 +300,24 @@ async def _read_pdf(f: UploadFile) -> bytes:
     return data
 
 
+# PERF-1: pypdf work runs off the event loop (a 200-page set would otherwise block every request in
+# the process). Mirrors pdf_stamp/pdf_seal below, which already thread-pool.
 @router.post("/pdf/info")
 async def pdf_info(file: UploadFile = File(...), _: str = Depends(current_user)):
     """Page count + flags for an uploaded PDF."""
-    return pdfops.info(await _read_pdf(file))
+    from starlette.concurrency import run_in_threadpool
+    data = await _read_pdf(file)
+    return await run_in_threadpool(pdfops.info, data)
 
 
 @router.post("/pdf/merge")
 async def pdf_merge(files: list[UploadFile] = File(...), _: str = Depends(current_user)):
     """Concatenate several uploaded PDFs into one (order = upload order)."""
+    from starlette.concurrency import run_in_threadpool
     if len(files) < 2:
         raise HTTPException(422, "merge needs at least 2 PDFs")
-    out = pdfops.merge([await _read_pdf(f) for f in files])
+    datas = [await _read_pdf(f) for f in files]
+    out = await run_in_threadpool(pdfops.merge, datas)
     return Response(out, media_type="application/pdf",
                     headers={"Content-Disposition": 'attachment; filename="merged.pdf"'})
 
@@ -319,8 +325,10 @@ async def pdf_merge(files: list[UploadFile] = File(...), _: str = Depends(curren
 @router.post("/pdf/split")
 async def pdf_split(file: UploadFile = File(...), _: str = Depends(current_user)):
     """Split an uploaded PDF into one PDF per page, returned as a .zip."""
-    zipped = pdfops.zip_bytes(pdfops.split(await _read_pdf(file)),
-                              stem=(file.filename or "doc").rsplit(".", 1)[0])
+    from starlette.concurrency import run_in_threadpool
+    data = await _read_pdf(file)
+    stem = (file.filename or "doc").rsplit(".", 1)[0]
+    zipped = await run_in_threadpool(lambda: pdfops.zip_bytes(pdfops.split(data), stem=stem))
     return Response(zipped, media_type="application/zip",
                     headers={"Content-Disposition": 'attachment; filename="pages.zip"'})
 
@@ -329,10 +337,12 @@ async def pdf_split(file: UploadFile = File(...), _: str = Depends(current_user)
 async def pdf_extract(file: UploadFile = File(...), pages: str = Form(...),
                       _: str = Depends(current_user)):
     """A new PDF of just the given pages (`pages` = '1,3,5-7', 1-based)."""
+    from starlette.concurrency import run_in_threadpool
     sel = pdfops.parse_pages(pages)
     if not sel:
         raise HTTPException(422, "no valid page numbers (e.g. '1,3,5-7')")
-    out = pdfops.extract(await _read_pdf(file), sel)
+    data = await _read_pdf(file)
+    out = await run_in_threadpool(pdfops.extract, data, sel)
     return Response(out, media_type="application/pdf",
                     headers={"Content-Disposition": 'attachment; filename="extract.pdf"'})
 
@@ -341,8 +351,10 @@ async def pdf_extract(file: UploadFile = File(...), pages: str = Form(...),
 async def pdf_rotate(file: UploadFile = File(...), angle: int = Form(90), pages: str = Form(""),
                      _: str = Depends(current_user)):
     """Rotate pages by `angle` (multiple of 90). `pages` (1-based, '1,3-5') limits it; blank = all."""
+    from starlette.concurrency import run_in_threadpool
     sel = pdfops.parse_pages(pages) or None
-    out = pdfops.rotate(await _read_pdf(file), angle, sel)
+    data = await _read_pdf(file)
+    out = await run_in_threadpool(pdfops.rotate, data, angle, sel)
     return Response(out, media_type="application/pdf",
                     headers={"Content-Disposition": 'attachment; filename="rotated.pdf"'})
 

@@ -911,11 +911,16 @@ async def upload_source_ifc(pid: str, file: UploadFile = File(...), publish: boo
     if actor == "api-key":
         from .. import licensing
         licensing.require("api_access", "Programmatic publish (REST API)")
+    from starlette.concurrency import run_in_threadpool
     data = await file.read()
     _IFC_DIR.joinpath(storage.safe_seg(pid)).mkdir(parents=True, exist_ok=True)
     ifc_path = _IFC_DIR / storage.safe_seg(pid) / "source.ifc"
-    ifc_path.write_bytes(data)
-    storage.put(f"{storage.safe_seg(pid)}/source.ifc", data)          # durable copy
+
+    # PERF-1: the local write + MinIO network put of a multi-hundred-MB IFC runs off the event loop
+    def _persist() -> None:
+        ifc_path.write_bytes(data)
+        storage.put(f"{storage.safe_seg(pid)}/source.ifc", data)      # durable copy
+    await run_in_threadpool(_persist)
     p.source_ifc = str(ifc_path)
     db.commit()
     audit.record(db, action="ifc.upload", actor=actor, method="POST",
@@ -941,14 +946,19 @@ def list_project_models(pid: str, db: Session = Depends(get_db),
 async def add_project_model(pid: str, file: UploadFile = File(...), discipline: str = Form("Model"),
                             db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
     """Append a discipline IFC (STR / MEP / ARCH …) so it can take part in federated clash."""
+    from starlette.concurrency import run_in_threadpool
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
     data = await file.read()
     mid = uuid.uuid4().hex
     (_IFC_DIR / storage.safe_seg(pid) / "models").mkdir(parents=True, exist_ok=True)
     ifc_path = _IFC_DIR / storage.safe_seg(pid) / "models" / f"{mid}.ifc"
-    ifc_path.write_bytes(data)
-    storage.put(f"{storage.safe_seg(pid)}/models/{mid}.ifc", data)          # durable copy
+
+    # PERF-1: local write + MinIO put off the event loop
+    def _persist() -> None:
+        ifc_path.write_bytes(data)
+        storage.put(f"{storage.safe_seg(pid)}/models/{mid}.ifc", data)      # durable copy
+    await run_in_threadpool(_persist)
     m = ProjectModel(id=mid, project_id=pid, discipline=(discipline or "Model").strip() or "Model",
                      ifc_path=str(ifc_path))
     db.add(m)

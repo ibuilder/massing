@@ -32,6 +32,8 @@ export interface CollabHandle {
   jumpToViewpoint(vp: Viewpoint): void;
   /** Called after (re)loading the model: hide the reload banner + adopt the now-loaded version. */
   resync(): Promise<void>;
+  /** PERF-4: stop the heartbeat + close the SSE stream (call on viewer teardown/re-init). */
+  dispose(): void;
 }
 
 export function installCollabPresence(d: CollabDeps): CollabHandle {
@@ -41,6 +43,8 @@ export function installCollabPresence(d: CollabDeps): CollabHandle {
   // version is published by someone else (loadProjectModel → resync keeps our own publishes quiet)
   let collabKnownVersion = -1;
   let bannerEl: HTMLElement | null = null;
+  let heartbeat: number | null = null;                         // PERF-4: torn down in dispose()
+  let stream: { close: () => void } | null = null;
 
   function captureViewpoint() {
     const p = new THREE.Vector3(), t = new THREE.Vector3();
@@ -100,7 +104,9 @@ export function installCollabPresence(d: CollabDeps): CollabHandle {
       } catch { /* offline */ }
     };
     void beat();
-    window.setInterval(beat, 20000);   // heartbeat keeps presence live while the tab is open
+    // PERF-4: keep the heartbeat + SSE handles so they can be torn down (they leaked if the viewer
+    // was ever re-initialized — the interval kept firing and the stream stayed open).
+    heartbeat = window.setInterval(beat, 20000);   // heartbeat keeps presence live while the tab is open
 
     // COLLAB-1: a reload banner shown when another user publishes a new model version
     const banner = document.createElement("div");
@@ -132,6 +138,7 @@ export function installCollabPresence(d: CollabDeps): CollabHandle {
           else if (v > collabKnownVersion) { collabKnownVersion = v; banner.style.display = "flex"; }
         }
       });
+      stream = es;
       window.addEventListener("beforeunload", () => es.close());
     } catch { /* EventSource unsupported / offline — presence still polls */ }
   }
@@ -139,6 +146,11 @@ export function installCollabPresence(d: CollabDeps): CollabHandle {
   return {
     captureViewpoint,
     jumpToViewpoint,
+    /** PERF-4: stop the heartbeat + close the SSE stream (call on viewer teardown/re-init). */
+    dispose() {
+      if (heartbeat !== null) { window.clearInterval(heartbeat); heartbeat = null; }
+      if (stream) { stream.close(); stream = null; }
+    },
     async resync() {
       if (bannerEl) bannerEl.style.display = "none";
       const pid = d.projectId();

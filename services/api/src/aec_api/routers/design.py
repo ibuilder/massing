@@ -215,10 +215,11 @@ def env_wind_screen(pid: str, body: dict = Body(default={}),
             raise HTTPException(409, "pass height_m/width_m/depth_m, or load a source IFC to derive them")
         from aec_data import drawings as _dwg  # type: ignore
         from aec_data.ifc_loader import open_model  # type: ignore
-        meshes = _dwg.bake(open_model(p.source_ifc))
-        import numpy as _np
-        pts = _np.vstack([m.bounds for _, m in meshes if getattr(m, "bounds", None) is not None])
-        mn, mx = pts.min(axis=0), pts.max(axis=0)
+        # PERF-2: bounds without building trimeshes (reuses the bake cache when one exists)
+        wb = _dwg.world_bounds(open_model(p.source_ifc))
+        if wb is None:
+            raise HTTPException(409, "the source model has no geometry to derive dimensions from")
+        mn, mx = wb
         w = w if w is not None else float(mx[0] - mn[0])
         d = d if d is not None else float(mx[1] - mn[1])
         h = h if h is not None else float(mx[2] - mn[2])

@@ -26,12 +26,11 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
 0. ✅ **SEC-XSS — SHIPPED v0.3.493-pending** — module-record attachments served inline only for a
    raster-image allowlist; text/html + SVG + blobs forced to `attachment`/octet-stream with
    `nosniff` + `Content-Security-Policy: sandbox` (was stored-XSS on the API origin). Tested.
-1. **PERF-1 (ASYNC-BLOCK)** *(S, High)* — `run_in_threadpool` the pdf_info/merge/split/extract/rotate
-   routes + the module Excel/CSV import parse + the large IFC-upload writes (`drawings.py:304`,
-   `modules.py:424`, `authoring.py:915/948`) — they stall the whole event loop today.
-2. **PERF-2 (GEOM-CACHE)** *(M, High)* — an `(path, mtime)`-keyed cache for `drawings.bake()` (used by
-   every section/elevation/DXF/sheet request) + compute env/wind bbox from iterator verts without a
-   full bake. Biggest per-request CPU sink.
+1. ✅ **PERF-1 (ASYNC-BLOCK) — SHIPPED v0.3.494** — pdf ops + module import parse + large IFC-upload
+   writes now `run_in_threadpool` (were stalling the event loop for all users).
+2. ✅ **PERF-2 (GEOM-CACHE) — SHIPPED v0.3.494** — `drawings.bake()` memoized per model object;
+   `world_bounds()` returns the AABB with no trimesh build; env/wind uses it. (frontend leaks from
+   PERF-4 also shipped here: the once-installed guide-line listener + `collabPresence.dispose()`.)
 3. **PERF-3 (QTO-CACHE + CLASH-JOBS)** *(M, High)* — cache `qto.takeoff_file` keyed on (mtime, cost-map)
    for the 7 cost endpoints; move `/clash` narrow-phase onto the existing jobs queue.
 4. **PERF-4 (PAYLOAD-CAPS + DASH-UNION + TEST-FASTPATH)** *(M, Med)* — paginate `/topics` + `/pins`;
