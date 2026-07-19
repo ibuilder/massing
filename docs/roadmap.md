@@ -22,9 +22,13 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
    empty-timeline crash + no modal-close teardown; B6 Data-QA severity icons; B7 XER project name).
    All test-locked; 275/275 suites; clean categories verified (XSS, XER/MSPDI injection, authz tiers,
    storage keys, escalation idempotency, party_owner consumers).
-1. **MARKUP-2** *(M, ★★★★)* — Bluebeam-parity markup depth: tool chests, a markups-list DB with
-   custom/formula columns, overlay compare, slip-sheet markup carry-forward, live co-markup (rides
-   the existing presence infra + pdf-lib flatten path; permissive libs only).
+1. ◧ **MARKUP-2** *(M, ★★★★)* — **2a SHIPPED v0.3.512** (scoping note: the editor, server-persisted
+   markups + RFI promotion, stamp library, revision register, and presence/SSE all pre-existed — the
+   audit line overstated the gap). 2a = the project stamp library wired into the editor picker
+   (per-disposition dynamic stamps) + **slip-sheet carry-forward**: markups stamp the register rev at
+   save; revising tags `carried_from` (dashed-amber "verify against current revision" pins, never
+   dropped). **Remaining:** 2b markups grid (cross-sheet columns/Σ) · 2c overlay compare (rev A/B
+   tinted) · 2d live co-markup (2D presence payload + mutation broadcast on the existing SSE).
 2. **XLSX-ROUNDTRIP** *(S, ★★★★)* — IfcCSV-style GUID-keyed property export → edit → re-import with
    a dry-run diff; the single most-used daily openBIM workflow.
 3. **DXF-EXPORT** *(S, ★★★)* — DXF export of generated drawings (plan/section/elevation DXF paths

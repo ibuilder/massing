@@ -607,6 +607,8 @@ body[data-cap-admin="off"] [data-cap="admin"] { display: none !important; }
 /* takeoff markup from the PDF 2D editor, placed on the SVG sheet via its normalized anchor */
 .dwg-pin.takeoff { background: #e6a700; border-radius: 3px; rotate: 0deg; width: 16px; height: 16px; font-size: 10px; }
 .dwg-pin.takeoff.linked { background: #33d17a; }
+/* MARKUP-2a slip-sheet: markup carried forward from a superseded revision — verify against current */
+.dwg-pin.carried { border: 2px dashed #ff8c1a; opacity: 0.75; }
 
 /* phones: tighten chrome + reflow grids so the portal/proforma are usable in the field.
    Placed last so these win over the base .kpi-grid/.pf-form rules (media queries add no specificity). */

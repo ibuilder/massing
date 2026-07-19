@@ -37,6 +37,10 @@ export type PdfSource = File | { url: string; name: string; headers?: Record<str
 /** Optional wiring so the marked-up PDF can be saved back to its source (attachment / document / etc.). */
 export interface TakeoffOpts {
   onSave?: (pdf: Blob, name: string) => Promise<void>; saveLabel?: string;
+  /** MARKUP-2a: load the PROJECT stamp library (the server templates behind /stamps/library) into the
+   *  stamp picker — review templates fan out one entry per disposition (EJCDC/CSI vocabularies), each
+   *  a dynamic {{user}}/{{date}} stamp. Structural type so the editor stays api-import-free. */
+  stamps?: () => Promise<{ name: string; category?: string; dispositions?: string[] }[]>;
   /** Persist the structured markups to a shared store (e.g. a drawing sheet) so they reload + promote to
    *  RFI like pins — rather than only flattening to a throwaway PDF. `save` also gets a `norm` helper that
    *  maps a markup's anchor to a page-normalized (0..1) coordinate, so the SVG sheet viewer can place the
@@ -73,6 +77,21 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
   const measures: Measure[] = [];
   let seq = 0;
   let stampTpl = STAMPS[0] ?? "";                            // STAMPS is a non-empty literal
+  // MARKUP-2a: project stamp library (server templates), flattened to dynamic text stamps. Loaded
+  // async after the shell opens; the picker re-renders with a "Project library" group when it lands.
+  let libStamps: string[] = [];
+  if (opts.stamps) {
+    void opts.stamps().then((templates) => {
+      libStamps = templates.flatMap((t) => {
+        const base = t.name.toUpperCase();
+        const tail = " · {{user}} · {{date}}";
+        return t.dispositions?.length
+          ? t.dispositions.map((d) => `${base} — ${d.toUpperCase()}${tail}`)
+          : [`${base}${tail}`];
+      });
+      if (libStamps.length) buildBar();               // refresh the picker in place
+    }).catch(() => { /* library unavailable → built-ins only */ });
+  }
   // resolve a dynamic stamp's {{fields}} at placement time
   const resolveStamp = async (tpl: string): Promise<string> => {
     const now = new Date();
@@ -140,8 +159,19 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
   const calOk = () => unitsPerPt > 0;
   function stampPicker(): HTMLSelectElement {
     const s = document.createElement("select"); s.className = "portal-filter"; s.title = "Stamp template"; s.style.maxWidth = "160px";
-    for (const t of STAMPS) { const o = document.createElement("option"); o.value = t; o.textContent = t; s.appendChild(o); }
-    s.value = stampTpl; s.onchange = () => { stampTpl = s.value; setMode("stamp"); };
+    const opt = (parent: HTMLElement, t: string) => { const o = document.createElement("option"); o.value = t; o.textContent = t.replace(" · {{user}} · {{date}}", ""); parent.appendChild(o); };
+    if (libStamps.length) {                            // MARKUP-2a: server library leads, built-ins follow
+      const lib = document.createElement("optgroup"); lib.label = "Project library";
+      for (const t of libStamps) opt(lib, t);
+      const quick = document.createElement("optgroup"); quick.label = "Quick stamps";
+      for (const t of STAMPS) opt(quick, t);
+      s.append(lib, quick);
+    } else {
+      for (const t of STAMPS) opt(s, t);
+    }
+    s.value = stampTpl;
+    if (s.selectedIndex < 0) s.selectedIndex = 0;      // stampTpl not in the rebuilt list → first entry
+    s.onchange = () => { stampTpl = s.value; setMode("stamp"); };
     return s;
   }
   // Tool set = the serialized markup scene (calibration + markups) — save/share/reload, Bluebeam-style.

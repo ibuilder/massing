@@ -275,14 +275,16 @@ export class DrawingsUI {
     const ch = rect && this.scale ? rect.height / this.scale : 0;
     this.markup.forEach((p, i) => {
       const takeoff = p.kind && p.kind !== "pin" && p.data?.nx != null;
+      const carried = !!p.data?.carried_from;        // MARKUP-2a: predates the current sheet revision
       const el = document.createElement("div");
-      el.className = "dwg-pin" + (p.topic_id ? " linked" : "") + (takeoff ? " takeoff" : "");
+      el.className = "dwg-pin" + (p.topic_id ? " linked" : "") + (takeoff ? " takeoff" : "") + (carried ? " carried" : "");
       el.textContent = takeoff ? "◆" : String(i + 1);
       const left = takeoff && cw ? p.data!.nx! * cw : p.x;
       const top = takeoff && ch ? p.data!.ny! * ch : p.y;
       el.style.left = `${left}px`; el.style.top = `${top}px`;
       const meas = takeoff && p.data?.value ? ` — ${p.data.value} ${p.data.unit || ""}` : "";
-      el.title = (p.note || (takeoff ? p.kind! : "")) + meas + (p.topic_id ? "  · linked to RFI" : "");
+      el.title = (p.note || (takeoff ? p.kind! : "")) + meas + (p.topic_id ? "  · linked to RFI" : "")
+        + (carried ? `  · carried from Rev ${p.data!.carried_from} — verify against the current revision` : "");
       el.onclick = async (e) => {
         e.stopPropagation();
         if (!pid) return;

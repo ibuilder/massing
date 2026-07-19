@@ -62,6 +62,35 @@ with TestClient(app) as c:
     kept = c.get(f"/projects/{pid}/drawings/markup?sheet=S-101%23pdf", headers=H).json()
     assert len(kept) == 1 and kept[0]["topic_id"], kept
 
+    # --- MARKUP-2a slip-sheet: markups stamp the register revision + carry forward on revise -------
+    # a registered sheet at Rev 1
+    did = c.post(f"/projects/{pid}/modules/drawing", headers=H, json={"data": {
+        "number": "S-201", "title": "Slip Sheet", "revision": "1", "discipline": "Structural"}}).json()["id"]
+    # markups on the SVG sheet AND the PDF space stamp rev=1 at save
+    c.post(f"/projects/{pid}/drawings/markup", headers=H,
+           json={"sheet_id": "S-201", "x": 1, "y": 1, "note": "check base plate"})
+    c.post(f"/projects/{pid}/drawings/markup/bulk", headers=H, json={"sheet_id": "S-201#pdf", "replace": True,
+        "markups": [{"x": 2, "y": 2, "note": "dim", "kind": "distance",
+                     "data": {"pts": [{"x": 2, "y": 2}], "value": 3.2, "unit": "m", "page": 1}}]})
+    m201 = c.get(f"/projects/{pid}/drawings/markup?sheet=S-201", headers=H).json()
+    assert m201[0]["data"]["rev"] == "1", m201
+    # revise the sheet to Rev 2 → both markups tagged carried_from=1 (they predate the new rev)
+    rr = c.post(f"/projects/{pid}/drawings/{did}/revise", headers=H,
+                json={"rev": "2", "description": "ASI-001 rebar change"}).json()
+    assert rr["revision"] == "2" and rr["markups_carried"] == 2, rr
+    carried = c.get(f"/projects/{pid}/drawings/markup?sheet=S-201", headers=H).json()
+    assert carried[0]["data"]["carried_from"] == "1", carried
+    # a NEW markup after the revise stamps rev=2 with no carried flag; re-revise carries only the old one
+    c.post(f"/projects/{pid}/drawings/markup", headers=H,
+           json={"sheet_id": "S-201", "x": 5, "y": 5, "note": "new on rev 2"})
+    fresh = [m for m in c.get(f"/projects/{pid}/drawings/markup?sheet=S-201", headers=H).json()
+             if m["note"] == "new on rev 2"][0]
+    assert fresh["data"]["rev"] == "2" and "carried_from" not in fresh["data"], fresh
+    rr2 = c.post(f"/projects/{pid}/drawings/{did}/revise", headers=H, json={"rev": "3"}).json()
+    assert rr2["markups_carried"] == 1, rr2          # only the rev-2 markup newly carries (others already tagged)
+
 print("MARKUP OK - takeoff markups persist to the shared drawing_markups store (kind+data), bulk "
       "save/replace scoped per sheet + author, SVG pins untouched, structured markup promotes to RFI "
-      "with its measurement, and promoted markups survive replace.")
+      "with its measurement, and promoted markups survive replace. SLIP-SHEET: markups stamp the "
+      "register rev at save; revise tags carried_from on both sheet spaces; fresh markups stamp the "
+      "new rev; re-revise carries only untagged rows.")

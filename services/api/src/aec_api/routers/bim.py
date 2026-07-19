@@ -156,6 +156,30 @@ def _markup_out(m: DrawingMarkup) -> dict:
             "data": m.data, "created_at": m.created_at}
 
 
+def _sheet_rev(db: Session, pid: str, sheet_id: str) -> str | None:
+    """MARKUP-2a (slip-sheet): the drawing register's CURRENT revision for the sheet backing a markup
+    sheet_id (base = the part before any '#pdf' suffix). None when the register doesn't carry the
+    sheet — generated/SVG-only sheets are fine unversioned. Best-effort: a register hiccup must never
+    block saving a markup."""
+    base = sheet_id.split("#", 1)[0].strip()
+    if not base:
+        return None
+    try:
+        from .. import modules as me
+        from ..drawingset import _rev_key
+        best: str | None = None
+        for r in me.list_records(db, "drawing", pid, limit=2000):
+            d = r.get("data") or {}
+            num = str(d.get("sheet_number") or d.get("number") or r.get("ref") or "").strip()
+            if num == base and d.get("revision") not in (None, ""):
+                rev = str(d["revision"])
+                if best is None or _rev_key(rev) > _rev_key(best):
+                    best = rev
+        return best
+    except Exception:                                # noqa: BLE001 — stamping is best-effort
+        return None
+
+
 @router.get("/projects/{pid}/drawings/markup")
 def list_markup(pid: str, sheet: str | None = None, db: Session = Depends(get_db),
                 _: str = Depends(require_role("viewer"))):
@@ -169,8 +193,14 @@ def list_markup(pid: str, sheet: str | None = None, db: Session = Depends(get_db
 @router.post("/projects/{pid}/drawings/markup", status_code=201)
 def add_markup(pid: str, body: MarkupIn, db: Session = Depends(get_db),
                actor: str = Depends(require_role("reviewer"))):
+    # MARKUP-2a: stamp the sheet's current register revision so slip-sheet can tell which rev the
+    # markup was made against (carried-forward detection on revise).
+    data = dict(body.data or {})
+    rev = _sheet_rev(db, pid, body.sheet_id)
+    if rev is not None and "rev" not in data:
+        data["rev"] = rev
     m = DrawingMarkup(project_id=pid, sheet_id=body.sheet_id, x=body.x, y=body.y,
-                      note=body.note, author=actor, kind=body.kind or "pin", data=body.data)
+                      note=body.note, author=actor, kind=body.kind or "pin", data=data or None)
     db.add(m)
     db.commit()
     return _markup_out(m)
@@ -187,8 +217,15 @@ def save_markup_bulk(pid: str, body: MarkupBulkIn, db: Session = Depends(get_db)
            .filter(DrawingMarkup.project_id == pid, DrawingMarkup.sheet_id == body.sheet_id,
                    DrawingMarkup.author == actor, DrawingMarkup.topic_id.is_(None))
            .delete(synchronize_session=False))
+    rev = _sheet_rev(db, pid, body.sheet_id)         # MARKUP-2a: one register lookup for the batch
+    def _stamp(d: dict | None) -> dict | None:
+        if rev is None:
+            return d
+        out = dict(d or {})
+        out.setdefault("rev", rev)
+        return out
     rows = [DrawingMarkup(project_id=pid, sheet_id=body.sheet_id, x=mk.x, y=mk.y, note=mk.note,
-                          author=actor, kind=mk.kind or "pin", data=mk.data) for mk in body.markups]
+                          author=actor, kind=mk.kind or "pin", data=_stamp(mk.data)) for mk in body.markups]
     db.add_all(rows)
     db.commit()
     return {"saved": len(rows), "sheet_id": body.sheet_id}

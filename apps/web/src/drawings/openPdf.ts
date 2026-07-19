@@ -8,6 +8,9 @@ import { openPdfTakeoff, type TakeoffOpts } from "./pdfTakeoff";
  * auth headers, so authenticated download endpoints work without a signed URL.
  */
 export async function openPdfUrl(api: ApiClient, url: string, name: string, opts: TakeoffOpts = {}): Promise<void> {
+  // MARKUP-2a: every server-PDF editor session gets the project stamp library in its stamp picker
+  // (review/inspection/status templates fan out per disposition) unless the caller overrides.
+  opts.stamps ??= () => api.stampLibrary().then((r) => r.templates);
   await openPdfTakeoff({ url, name, headers: api.authHeaders() }, opts);
 }
 

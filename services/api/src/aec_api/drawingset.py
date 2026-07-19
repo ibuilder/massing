@@ -155,9 +155,31 @@ def revise_sheet(db, pid: str, drawing_id: str, rev: str, description: str = "",
     if instrument_ref:
         delta["instrument"] = {"type": instrument_type, "ref": instrument_ref}
     revs.append(delta)
+    old_rev = data.get("revision")
     me.update_record(db, "drawing", pid, drawing_id,
                      {"revision": str(rev), "revisions": revs}, actor, party)
-    return {"drawing_id": drawing_id, "revision": str(rev), "delta_count": len(revs)}
+    # MARKUP-2a (slip-sheet): every existing markup on this sheet now predates the new revision — tag
+    # it `carried_from` so reviewers verify it against the revised sheet. Markups keep rendering (a
+    # located comment is never dropped); the tag is the honest "carried forward — re-check" state.
+    carried = 0
+    try:
+        from .models import DrawingMarkup
+        base = str(data.get("sheet_number") or data.get("number") or rec.get("ref") or "").strip()
+        if base:
+            for m in (db.query(DrawingMarkup)
+                        .filter(DrawingMarkup.project_id == pid,
+                                DrawingMarkup.sheet_id.in_([base, f"{base}#pdf"])).all()):
+                d2 = dict(m.data or {})
+                if d2.get("rev") != str(rev) and "carried_from" not in d2:
+                    d2["carried_from"] = str(d2.get("rev") or old_rev or "prior")
+                    m.data = d2
+                    carried += 1
+            if carried:
+                db.commit()
+    except Exception:                                # noqa: BLE001 — tagging must never block a revision
+        pass
+    return {"drawing_id": drawing_id, "revision": str(rev), "delta_count": len(revs),
+            "markups_carried": carried}
 
 
 def revisions(db, pid: str) -> dict[str, Any]:

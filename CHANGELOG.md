@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.512 — MARKUP-2a: project stamp library in the editor + slip-sheet carry-forward (queue #1)
+
+- First MARKUP-2 slice. Scoping note: the markup stack was far ahead of the roadmap line — the 2D
+  editor (8 tools), server-persisted structured markups with RFI promotion, the stamp-template
+  library, the full sheet-revision register, and the presence/SSE plumbing all already shipped. The
+  genuine gaps are integration + a few net-new UIs; this slice closes the two highest-leverage:
+  - **Project stamp library in the editor** — the PDF editor's stamp picker now leads with the
+    server library (`GET /stamps/library`: EJCDC/CSI review, inspection, status, seal templates),
+    each review template fanned out per disposition as a dynamic `{{user}}/{{date}}` stamp, with the
+    quick built-ins behind it. Wired automatically for every server-PDF session via `openPdfUrl`.
+  - **Slip-sheet carry-forward (the honest workflow)** — markups now stamp the drawing register's
+    **current revision** at save (`data.rev`, both the SVG-pin and `#pdf` editor spaces). Revising a
+    sheet (`POST /drawings/{id}/revise`) tags every pre-existing markup `carried_from: <old rev>` —
+    they keep rendering (a located comment is never dropped) but show as **⟳ carried — "verify
+    against the current revision"** (dashed amber pin + tooltip). Fresh markups stamp the new rev;
+    re-revising carries only untagged rows. `markups_carried` reported in the revise response.
+- `test_markup` extended with the full slip-sheet round-trip (stamp → revise → carry → fresh-rev →
+  re-revise). Remaining slices: MARKUP-2b markups grid · 2c overlay compare · 2d live co-markup.
+
 ## v0.3.511 — RT-ORJSON: Rust-backed JSON responses (⚙️ RUNTIME ring #1)
 
 - Every default API response now serializes with **orjson** (Rust; Apache-2.0/MIT) — measured

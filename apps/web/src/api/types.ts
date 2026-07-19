@@ -67,7 +67,10 @@ export interface IntegrationGroup { group: string; keys: IntegrationKey[] }
 export interface DrawingMarkupItem {
   id: string; sheet_id: string; x: number; y: number; note: string | null;
   author: string | null; topic_id: string | null; created_at: string;
-  kind?: string; data?: { pts?: { x: number; y: number }[]; value?: number; unit?: string; page?: number; text?: string; nx?: number; ny?: number } | null;
+  kind?: string; data?: { pts?: { x: number; y: number }[]; value?: number; unit?: string; page?: number; text?: string; nx?: number; ny?: number;
+    /** MARKUP-2a slip-sheet: the register revision the markup was made against, and (after a sheet
+     *  revise) the superseded revision it was carried forward from — "verify against current". */
+    rev?: string; carried_from?: string } | null;
 }
 
 /** One markup in a bulk save from the 2D editor (pin or a structured takeoff markup). `nx`/`ny` are the
