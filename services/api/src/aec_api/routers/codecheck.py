@@ -410,6 +410,59 @@ def egress_to_bcf(pid: str, db: Session = Depends(get_db), actor: str = Depends(
     return {"created": len(created), "topics": [t.id for t in created]}
 
 
+@router.post("/projects/{pid}/codecheck/approvability/bcf")
+def approvability_to_bcf(pid: str, db: Session = Depends(get_db),
+                         actor: str = Depends(require_role("editor"))):
+    """D8: promote every **failed approvability check** (egress, occupancy classification, fire-rated
+    substantiation, the COMcheck WWR/U-value layer, accessible entrance) to a **BCF topic** — the
+    plan-review punchlist becomes trackable, GUID-anchored issues that round-trip with clashes/RFIs.
+    Idempotent: re-running clears prior approvability topics first. `info` checks ride along at
+    normal priority (they need a documented answer, not a fix)."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — the approvability pre-flight needs a model")
+    model = open_model(p.source_ifc)
+    a = codecheck.approvability(model)
+
+    import ifcopenshell.util.placement as up  # type: ignore
+    import ifcopenshell.util.unit as uu  # type: ignore
+    scale = uu.calculate_unit_scale(model)
+
+    def _anchor(guid: str) -> dict | None:
+        try:
+            el = model.by_guid(guid)
+            m = up.get_local_placement(el.ObjectPlacement)
+            return {"x": float(m[0][3]) * scale, "y": float(m[2][3]) * scale, "z": float(-m[1][3]) * scale}
+        except Exception:  # noqa: BLE001
+            return None
+
+    db.query(Topic).filter(Topic.project_id == pid, Topic.type == "approvability").delete()
+    created: list[Topic] = []
+    for c in a["checks"]:
+        if c["status"] not in ("fail", "info"):
+            continue
+        guids = [g for g in (c.get("guids") or []) if g]
+        created.append(Topic(
+            project_id=pid, type="approvability", status="open",
+            priority="high" if c["status"] == "fail" else "normal",
+            title=f"{c['check']} — {'FAILS' if c['status'] == 'fail' else 'verify'} ({c['citation']})"[:200],
+            description=c.get("detail", ""),
+            element_guids=guids or None,
+            anchor=(_anchor(guids[0]) if guids else None),
+            labels=["code", "approvability"], author=actor))
+    for t in created:
+        db.add(t)
+    audit.record(db, action="approvability.create_topics", actor=actor, method="POST",
+                 path=f"/projects/{pid}/codecheck/approvability/bcf", detail={"created": len(created)})
+    db.commit()
+    return {"created": len(created), "topics": [t.id for t in created],
+            "summary": a["summary"]}
+
+
 @router.post("/projects/{pid}/rfi/readiness/bcf")
 def readiness_to_bcf(pid: str, db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
     """RFI-0: promote the **decision-readiness gaps** to BCF topics — every information gap a builder would

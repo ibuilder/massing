@@ -55,8 +55,9 @@ appendable IFC libraries · CC0 seed/H1) · UX-4 assemble the one-shell layout (
 docked Properties + Library + ribbon; a11y/mobile pass).
 
 **Construction documents (Wave 11):** C6 reference-line datums + LOD-following poché · D2 routed
-egress/life-safety plans (path-trace over the semantic graph) · D8 COMcheck/A117.1 → approvability +
-BCF · ✅ `Pset_Massing_SpecLink` breadcrumb (479 — `set_spec_link` recipe + `/spec-links` rollup) ·
+egress/life-safety plans (path-trace over the semantic graph) · ✅ D8 COMcheck/A117.1 → approvability +
+BCF (480 — WWR vs the IECC prescriptive cap · envelope U-value coverage · accessible entrance, all in
+the pre-flight; `POST /codecheck/approvability/bcf` promotes failures to GUID-anchored topics) · ✅ `Pset_Massing_SpecLink` breadcrumb (479 — `set_spec_link` recipe + `/spec-links` rollup) ·
 ✅ F0b Box/Axis/FootPrint derivation (479 — `derive_representations`: bounds-true IfcBoundingBox +
 mid-thickness Axis + FootPrint rectangle into the F0 subcontexts, idempotent) · B3 wall Axis + clip
 planes · B5 fastener/connection assemblies · E2 type-a-dimension (VCB) · E3 sketch-to-BIM push/pull ·

@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.480 — D8 COMcheck/A117.1 approvability layer + BCF round-trip (P2 · Wave 11)
+
+- **D8 — the approvability pre-flight grows the energy/accessibility layer** (3 new cited checks):
+  - **Window-wall ratio** vs the IECC C402.4.1 prescriptive 30% cap — computed from the authored
+    exterior walls (explicitly `IsExternal`-flagged; unflagged walls are never guessed at) and the
+    windows' overall dims. Over the cap → `info` steering to the COMcheck trade-off/performance path.
+  - **Envelope U-values present (COMcheck-ready)** — every envelope element (external walls, windows,
+    roofs) must carry a `ThermalTransmittance`/U-value before a COMcheck submission is possible;
+    missing ones fail with their GUIDs.
+  - **Accessible entrance** (IBC 1105.1 / A117.1 404) — at least one door at the 32 in clear width.
+- **D8 → BCF**: `POST /projects/{pid}/codecheck/approvability/bcf` promotes every failed (high) and
+  info (normal) check to GUID-anchored, labeled BCF topics — the plan-review punchlist round-trips
+  with clashes/RFIs. Idempotent (re-running replaces its own topics).
+- Test-proven end to end: WWR 0% → pass, ~32% → info; stamping U-values flips the COMcheck check to
+  pass; topics created/replaced idempotently. The model-health issuance gate now legitimately blocks
+  on missing envelope U-values.
+
 ## v0.3.479 — F0b coarse view derivation · SpecLink breadcrumbs (P2 · Wave 11)
 
 - **F0b — `derive_representations` recipe**: derives the coarse view-keyed representations from Body

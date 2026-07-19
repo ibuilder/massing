@@ -250,6 +250,97 @@ def _has_assembly_ref(el) -> bool:
     return False
 
 
+def _wall_gross_area_m2(el, scale: float) -> float | None:
+    """Gross side area (m²) of an authored wall — rectangle profile length × extrusion depth. None
+    when the wall isn't a simple extruded rectangle (counted as unmeasured, never guessed)."""
+    rep = getattr(el, "Representation", None)
+    for r in (rep.Representations if rep else []):
+        for item in r.Items or []:
+            if item.is_a("IfcExtrudedAreaSolid") and item.SweptArea.is_a("IfcRectangleProfileDef"):
+                return float(item.SweptArea.XDim) * scale * float(item.Depth) * scale
+    return None
+
+
+def _has_thermal(el, ue) -> bool:
+    for props in (ue.get_psets(el, psets_only=True) or {}).values():
+        for k in props:
+            if k in ("ThermalTransmittance", "UValue", "RValue"):
+                return True
+    return False
+
+
+def envelope_accessibility_checks(model) -> list[dict[str, Any]]:
+    """D8 — the COMcheck/A117.1 layer of the pre-flight: window-wall ratio vs the IECC prescriptive
+    cap, U-value coverage on the envelope (a COMcheck run needs them), and an accessible entrance
+    (≥ 1 door at the 32 in clear width). Areas come from the authored rectangle-profile walls and the
+    windows' overall dims — coarse and honest (unmeasured elements are counted, never guessed)."""
+    import ifcopenshell.util.element as ue
+    import ifcopenshell.util.unit as uu
+
+    scale = uu.calculate_unit_scale(model)
+    checks: list[dict[str, Any]] = []
+
+    # envelope = walls explicitly flagged IsExternal (never guessed — an unflagged interior wall must
+    # not demand a U-value) + windows + roofs, which are inherently envelope
+    walls = [w for w in model.by_type("IfcWall") if not w.is_a("IfcElementType")]
+    ext = [w for w in walls
+           if (ue.get_pset(w, "Pset_WallCommon") or {}).get("IsExternal") in (True, "TRUE", "True", 1)]
+    wall_area = 0.0
+    unmeasured = 0
+    for w in ext:
+        a = _wall_gross_area_m2(w, scale)
+        if a is None:
+            unmeasured += 1
+        else:
+            wall_area += a
+    windows = [w for w in model.by_type("IfcWindow") if not w.is_a("IfcElementType")]
+    win_area = sum(float(w.OverallWidth) * scale * float(w.OverallHeight) * scale
+                   for w in windows
+                   if isinstance(getattr(w, "OverallWidth", None), (int, float))
+                   and isinstance(getattr(w, "OverallHeight", None), (int, float)))
+    if wall_area > 0:
+        wwr = win_area / wall_area
+        status = "pass" if wwr <= 0.30 else "info"
+        note = (f"WWR {wwr:.0%} — within the 30% prescriptive cap" if status == "pass"
+                else f"WWR {wwr:.0%} exceeds the 30% prescriptive cap — use the COMcheck "
+                     "trade-off/performance path (or daylighting credits) and document it")
+        if unmeasured:
+            note += f" ({unmeasured} wall(s) unmeasured — not simple extrusions)"
+        checks.append({"check": "Window-wall ratio (prescriptive)", "citation": "IECC C402.4.1",
+                       "status": status, "detail": note})
+    else:
+        checks.append({"check": "Window-wall ratio (prescriptive)", "citation": "IECC C402.4.1",
+                       "status": "na",
+                       "detail": "no measurable exterior walls — flag envelope walls "
+                                 "(Pset_WallCommon.IsExternal) to compute the WWR"})
+
+    envelope = ext + windows + [r for r in model.by_type("IfcRoof") if not r.is_a("IfcElementType")]
+    if envelope:
+        missing = [e for e in envelope if not _has_thermal(e, ue)]
+        checks.append({
+            "check": "Envelope U-values present (COMcheck-ready)", "citation": "IECC C303.1 / C402",
+            "status": "pass" if not missing else "fail",
+            "detail": (f"{len(envelope) - len(missing)} of {len(envelope)} envelope element(s) carry a "
+                       "ThermalTransmittance/U-value — a COMcheck submission needs one on every "
+                       "envelope assembly"),
+            "guids": [e.GlobalId for e in missing[:20]]})
+    else:
+        checks.append({"check": "Envelope U-values present (COMcheck-ready)",
+                       "citation": "IECC C303.1 / C402", "status": "na",
+                       "detail": "no envelope elements authored yet"})
+
+    doors = [d for d in model.by_type("IfcDoor") if not d.is_a("IfcElementType")]
+    wide = [d for d in doors
+            if isinstance(getattr(d, "OverallWidth", None), (int, float))
+            and float(d.OverallWidth) * scale >= _MIN_EGRESS_DOOR_M]
+    checks.append({
+        "check": "Accessible entrance (≥ 1 door at 32 in clear)", "citation": "IBC 1105.1 / A117.1 404",
+        "status": "na" if not doors else ("pass" if wide else "fail"),
+        "detail": (f"{len(wide)} of {len(doors)} door(s) meet the 32 in clear width — at least one "
+                   "accessible entrance is required") if doors else "no doors authored yet"})
+    return checks
+
+
 def approvability(model) -> dict[str, Any]:
     """D8 — a **plan-reviewer pre-flight checklist** over the model: is it permit-ready? Each check reports
     pass/fail with counts + the governing citation. Reuses the computed egress; scans rated assemblies for
@@ -309,6 +400,9 @@ def approvability(model) -> dict[str, Any]:
                               "tested-assembly reference (classification or attached detail)")
                    if rated else "no fire-rated walls/slabs found (set FireRating to track)",
                    "guids": undocumented[:20]})
+
+    # 6–8. D8: the COMcheck/A117.1 layer — WWR, envelope U-value coverage, accessible entrance
+    checks.extend(envelope_accessibility_checks(model))
 
     passed = sum(1 for c in checks if c["status"] == "pass")
     failed = sum(1 for c in checks if c["status"] == "fail")

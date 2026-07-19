@@ -13,6 +13,7 @@ for f in ("./_rl_test.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api.main import app  # noqa: E402
 
 with TestClient(app) as c:
@@ -20,6 +21,14 @@ with TestClient(app) as c:
     for _ in range(20):
         assert c.get("/health").status_code == 200
     assert c.get("/metrics").status_code == 200
+
+    # the limiter buckets per wall-clock minute — if the boundary falls inside the 7-request loop the
+    # count resets mid-loop and every request legally passes (seen as a 1-in-60 flake under a loaded
+    # parallel suite). Start the loop clear of the rollover.
+    import time
+    from datetime import datetime
+    if datetime.now().second >= 45:
+        time.sleep(61 - datetime.now().second)
 
     # a limited route: first 5 in the window pass, the 6th+ is 429 with Retry-After
     codes = [c.get("/projects").status_code for _ in range(7)]
