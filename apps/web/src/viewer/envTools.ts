@@ -31,11 +31,11 @@ export function installEnvTools(d: EnvToolsDeps): { isRenderOn: () => boolean } 
   let renderBtn: HTMLButtonElement | null = null;
   // render mode: presentation lighting + soft shadows (off by default — flat is cheaper/faster)
   let renderOn = false;
-  renderBtn = d.toolBtn("◓", "Render mode — sun, soft shadows & PBR lighting", (b) => {
+  renderBtn = d.toolBtn("◓", "Render mode — sun, soft shadows, PBR lighting, SSAO & bloom", (b) => {
     renderOn = !renderOn;
     renderMode(d.viewer.world, renderOn);
     b.classList.toggle("on", renderOn);
-    d.setStatus(renderOn ? "render mode on — sun + soft shadows" : "render mode off (flat shading)");
+    d.setStatus(renderOn ? "render mode on — sun + soft shadows + SSAO/bloom" : "render mode off (flat shading)");
     void d.loader.fragments.core.update(true);
   });
 

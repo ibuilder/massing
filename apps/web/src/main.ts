@@ -3,7 +3,7 @@ import { PortalUI } from "./portal/portal";   // eager: the default Construction
 import { ApiClient, type MassingParams } from "./api/client";
 import { toast, escapeHtml } from "./ui/feedback";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
-import { maybeWelcome, showWelcome } from "./ui/onboarding";
+import { maybeResumeTour, maybeWelcome, showWelcome } from "./ui/onboarding";
 import { mountChecklist, reopenChecklist } from "./ui/checklist";
 import { FieldCapture } from "./field/field";
 import { modalShell, confirmModal } from "./ui/modal";
@@ -1123,7 +1123,8 @@ async function startup() {
   // gamified getting-started checklist (feature discovery + activation)
   mountChecklist();
   // first run: welcome the user (skippable). Anchors must exist first, so defer a tick.
-  setTimeout(() => maybeWelcome(onboardCtx()), 600);
+  // B2: a sign-in from the welcome reloads the page — resume straight into the tour instead.
+  setTimeout(() => { if (!maybeResumeTour()) maybeWelcome(onboardCtx()); }, 600);
 }
 
 function initNav() {

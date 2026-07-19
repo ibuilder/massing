@@ -81,15 +81,23 @@ delta; the viewer status updates after every load) · ✅ BOARDS (475) · ✅ EN
 `/env/wind` Lawson screen: corner/downwash/channelling + mitigations, NOT-CFD labelled) ·
 GEN-SCORE depth (per-option 5D takeoffs + EPD carbon once options carry models).
 
-**Estimating/engineering:** MEP pressure-loss balancing + thermal loads + per-conductor tray fill ·
-✅ DISC-poché (v0.3.469 — `by_discipline` on both plan renderers) · VIZ-2 three.js PBR presentation
-mode · ✅ VIZ-1 parity confirmed (476 — live .glb valid glTF 2.0, all geometry classes present;
+**Estimating/engineering:** ✅ MEP pressure-loss balancing + thermal loads + per-conductor tray fill
+(477 — `/mep/pressure-loss` empirical-duct + Hazen-Williams rates with per-system index runs ·
+`/mep/tray-fill` per-conductor NEC 392.22 from authored cable diameters · `/mep/thermal-loads`
+space-by-space W/sf screen vs the block estimate; physics hand-checked in `test_mep_sizing`) ·
+✅ DISC-poché (v0.3.469 — `by_discipline` on both plan renderers) · ✅ VIZ-2 presentation FX (477 —
+SSAO + bloom EffectComposer on an MSAA target wrapped around render mode; live-verified pass chain) ·
+✅ VIZ-1 parity confirmed (476 — live .glb valid glTF 2.0, all geometry classes present;
 per-class merge is the documented design).
 
-**Onboarding & codes:** ✅ B1 sign-in-first welcome panel (472 — 🔐 lead row, never walls) · B2 sign-in→tour · A1/A2/C1
+**Onboarding & codes:** ✅ B1 sign-in-first welcome panel (472 — 🔐 lead row, never walls) · ✅ B2
+sign-in→tour (477 — the auth reload resumes into the coach-mark tour via a consumed one-shot flag;
+live-verified) · A1/A2/C1
 provider prominence · B3/B4/C2 fast-follows · CODE-1 adoption-seed depth (✅ per-project jurisdiction
 v0.3.471) · ✅ CODE-3 auto-resolve edition (v0.3.471 — egress + `apply_detailing_rules` cite the
-adopted IBC edition) · CODE-4 local-amendment overlay.
+adopted IBC edition) · ✅ CODE-4 local-amendment overlay (477 — `PUT/GET /code/amendments`: validated
+per-family edition overrides beat the jurisdiction seed in `_project_ibc_edition` + recorded section
+amendments ride the code context; audited, clearable).
 
 **Reliability (REL):** REL-3 remainder (`modules.py` DI split · `main.py` · `codecheck.py` ·
 `connectors.py` residue · `auth.py` · `data/drawing.py`/`drawings.py`/`massing.py` · `bcf_io.py` ·

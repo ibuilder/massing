@@ -109,6 +109,53 @@ def mep_sizing(pid: str,
     return _ms.sizing_check(open_model(p.source_ifc), duct_max_fpm=duct_max_fpm, pipe_max_fps=pipe_max_fps)
 
 
+@router.get("/projects/{pid}/mep/pressure-loss")
+def mep_pressure_loss(pid: str,
+                      duct_friction_max: float = Query(0.10, gt=0),
+                      pipe_friction_max: float = Query(4.0, gt=0),
+                      hazen_c: float = Query(140.0, gt=0),
+                      db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """MEP depth: friction (pressure) loss per authored duct/pipe run (empirical round-duct + Hazen-
+    Williams rates from the sizing pset's size + flow + length) with per-system series-sum totals and
+    the **index run** a balancing engineer hunts first. Rates checked against the equal-friction
+    budgets. **Preliminary — no branch topology/fittings/diversity; final balancing by a PE.**"""
+    from aec_data import mep_sizing as _ms  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return _ms.pressure_loss(open_model(p.source_ifc), duct_friction_max=duct_friction_max,
+                             pipe_friction_max=pipe_friction_max, hazen_c=hazen_c)
+
+
+@router.get("/projects/{pid}/mep/tray-fill")
+def mep_tray_fill(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """MEP depth: per-conductor NEC 392.22 cable-tray fill — computed from the actual authored
+    IfcCableSegment diameters on each tray's distribution system vs the Table 392.22(A) allowable
+    (7 in² per 6 in of width), instead of a supplied ratio. **Preliminary pre-check, not a PE design.**"""
+    from aec_data import mep_sizing as _ms  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return _ms.tray_fill(open_model(p.source_ifc))
+
+
+@router.get("/projects/{pid}/mep/thermal-loads")
+def mep_thermal_loads(pid: str,
+                      envelope_btuh_sf: float = Query(12.0, gt=0),
+                      block_sf_per_ton: float = Query(350.0, gt=0),
+                      db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """MEP depth: space-by-space cooling-load screen (W/sf method) — people/lighting/equipment
+    densities by space type + a flat envelope allowance per IfcSpace, summed to tons and compared to
+    the block `GFA ÷ 350` estimate so the team sees WHERE the load lives. **A screen, not an ASHRAE
+    heat-balance calc — design loads by a licensed mechanical engineer.**"""
+    from aec_data import mep_sizing as _ms  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return _ms.thermal_loads(open_model(p.source_ifc), envelope_btuh_sf=envelope_btuh_sf,
+                             block_sf_per_ton=block_sf_per_ton)
+
+
 @router.get("/projects/{pid}/mep/connectivity")
 def mep_connectivity(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W10-4: MEP connectivity validation — ports connected vs open, port-to-port connection count, and the

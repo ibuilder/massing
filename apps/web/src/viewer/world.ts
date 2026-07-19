@@ -1,6 +1,10 @@
 import * as OBC from "@thatopen/components";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 
 export type World = OBC.SimpleWorld<OBC.SimpleScene, OBC.OrthoPerspectiveCamera, OBC.SimpleRenderer>;
 
@@ -89,18 +93,82 @@ function setMeshPbr(m: THREE.Mesh, on: boolean): void {
   }
 }
 
+// VIZ-2: presentation post-processing (SSAO + bloom), installed by wrapping the engine renderer's
+// `render` call — @thatopen's SimpleRenderer owns the frame loop, so routing its per-frame render
+// through an EffectComposer is the only seam that needs no engine changes. Internal composer passes
+// re-enter the wrapped `render`; the `inComposer` flag routes those to the raw renderer.
+interface Fx {
+  composer: EffectComposer;
+  ssao: SSAOPass;
+  raw: THREE.WebGLRenderer["render"];
+  resize: () => void;
+}
+let fx: Fx | null = null;
+
+function setPresentationFx(world: World, on: boolean): void {
+  const r = world.renderer!.three;
+  if (on && !fx) {
+    const scene = world.scene.three;
+    const size = r.getSize(new THREE.Vector2());
+    // MSAA + half-float target so the composer chain doesn't lose the canvas's antialiasing
+    const target = new THREE.WebGLRenderTarget(size.x, size.y, { samples: 4, type: THREE.HalfFloatType });
+    const composer = new EffectComposer(r, target);
+    const ssao = new SSAOPass(scene, world.camera.three, size.x, size.y);
+    ssao.kernelRadius = 0.55;                       // metres-scale scenes: tight contact shadows
+    ssao.minDistance = 0.001;
+    ssao.maxDistance = 0.15;
+    const bloom = new UnrealBloomPass(size.clone(), 0.22, 0.5, 0.85); // subtle — highlights only
+    composer.addPass(ssao);
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());             // applies the renderer's ACES + sRGB at the end
+    const raw = r.render.bind(r);
+    let inComposer = false;
+    r.render = (s: THREE.Object3D, c: THREE.Camera): void => {
+      // only the world scene through a perspective camera gets the FX chain — SSAO's shader is
+      // compiled for a perspective depth reconstruction, and overlay/internal renders must stay raw
+      if (inComposer || s !== scene || !(c as THREE.PerspectiveCamera).isPerspectiveCamera) {
+        raw(s, c);
+        return;
+      }
+      ssao.camera = c;
+      inComposer = true;
+      try {
+        composer.render();
+      } finally {
+        inComposer = false;
+      }
+    };
+    const resize = () => {
+      const v = r.getSize(new THREE.Vector2());
+      composer.setSize(v.x, v.y);
+      ssao.setSize(v.x, v.y);
+      bloom.setSize(v.x, v.y);
+    };
+    world.renderer!.onResize.add(resize);
+    fx = { composer, ssao, raw, resize };
+  } else if (!on && fx) {
+    world.renderer!.onResize.remove(fx.resize);
+    r.render = fx.raw;
+    for (const p of fx.composer.passes) (p as Partial<{ dispose: () => void }>).dispose?.();
+    fx.composer.dispose();
+    fx = null;
+  }
+}
+
 /**
  * "Render mode": a presentation-grade upgrade over the flat default scene — a directional sun with
  * soft shadows, hemisphere sky/ground fill, ACES tone mapping + sRGB output, a shadow-catching
- * ground plane, **IBL environment lighting**, and a **PBR material swap** (plain lit surfaces →
+ * ground plane, **IBL environment lighting**, a **PBR material swap** (plain lit surfaces →
  * `MeshStandardMaterial`) so they gain roughness/metalness + environment reflections on top of the
- * sun. Off by default (cheaper, flat); toggled from the viewer toolbar. Idempotent — safe to call
+ * sun, and (VIZ-2) an **SSAO + bloom post chain** for contact shadows and highlight glow. Off by
+ * default (cheaper, flat); toggled from the viewer toolbar. Idempotent — safe to call
  * repeatedly and after new models load.
  */
 export function renderMode(world: World, on: boolean): void {
   const r = world.renderer!.three;
   const s = world.scene.three;
 
+  setPresentationFx(world, on);               // VIZ-2: SSAO + bloom post chain
   s.environment = on ? studioEnv(r) : null;   // IBL ambient + reflections (PBR materials only)
 
   r.shadowMap.enabled = on;

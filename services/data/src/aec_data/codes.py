@@ -81,3 +81,70 @@ def resolve(jurisdiction: str | None = None) -> dict[str, Any]:
 def seeded_jurisdictions() -> list[str]:
     """The USPS codes present in the reference seed (so a UI can show which have specifics vs baseline)."""
     return sorted(_ADOPTIONS)
+
+
+# ── CODE-4: local-amendment overlay ────────────────────────────────────────────────────────────────
+# A jurisdiction's *local* amendments sit on top of the statewide adoption: a city may adopt a newer
+# (or older) edition of a family than the state, and it may amend individual sections. We store both
+# as project-level facts: an **edition override** per family (applied to the resolved context so every
+# downstream check runs against the locally-adopted edition) and **recorded section amendments**
+# (family + section + note) that ride along on the context so citations can flag "locally amended —
+# read the ordinance". Only the edition override changes computation; section text stays with the AHJ.
+
+def validate_amendments(amendments: list[dict]) -> list[str]:
+    """Validation errors for a local-amendment list (empty = valid). Each amendment carries `family`
+    (required, a known code family), optionally `edition` (must be a published edition of that
+    family), and optionally `section`/`note` free text for recorded section amendments."""
+    errors: list[str] = []
+    if not isinstance(amendments, list):
+        return ["amendments must be a list"]
+    for i, a in enumerate(amendments):
+        if not isinstance(a, dict):
+            errors.append(f"[{i}] each amendment must be an object")
+            continue
+        fam = a.get("family")
+        if not fam or fam not in CODE_FAMILIES:
+            errors.append(f"[{i}] unknown code family {fam!r} — one of {sorted(CODE_FAMILIES)}")
+            continue
+        ed = a.get("edition")
+        if ed is not None:
+            try:
+                ed_i = int(ed)
+            except (TypeError, ValueError):
+                errors.append(f"[{i}] edition must be a year, got {ed!r}")
+                continue
+            if ed_i not in CODE_FAMILIES[fam]["editions"]:
+                errors.append(f"[{i}] {fam} has no {ed_i} edition — published: "
+                              f"{CODE_FAMILIES[fam]['editions']}")
+        if ed is None and not (a.get("section") or a.get("note")):
+            errors.append(f"[{i}] an amendment needs an edition override or a section/note")
+    return errors
+
+
+def apply_amendments(ctx: dict[str, Any], amendments: list[dict]) -> dict[str, Any]:
+    """Overlay local amendments onto a resolved code context (from `resolve`). Edition overrides
+    replace the family's edition with `source: "amendment"`; recorded section amendments are carried
+    in `ctx["amendments"]` so citations can flag locally-amended sections. Invalid entries are
+    skipped (validate first with `validate_amendments` for a hard gate)."""
+    if not amendments or validate_amendments(amendments):
+        out = dict(ctx)
+        out.setdefault("amendments", [])
+        return out
+    out = dict(ctx)
+    overrides = {a["family"]: int(a["edition"]) for a in amendments if a.get("edition") is not None}
+    codes = []
+    for c in out.get("codes", []):
+        if c.get("family") in overrides:
+            c = {**c, "edition": overrides[c["family"]], "source": "amendment"}
+        codes.append(c)
+    out["codes"] = codes
+    primary = dict(out.get("primary") or {})
+    for fam in list(primary):
+        if fam in overrides:
+            primary[fam] = overrides[fam]
+    out["primary"] = primary
+    out["amendments"] = [{"family": a["family"], "edition": a.get("edition"),
+                          "section": a.get("section"), "note": a.get("note")} for a in amendments]
+    out["verify"] = (out.get("verify") or _VERIFY) + (" Local amendments applied — the amended "
+                    "section text lives in the local ordinance; read it at the AHJ.")
+    return out

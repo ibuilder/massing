@@ -6,10 +6,25 @@
  * the welcome and the tour are relaunchable from the Help (?) menu.
  */
 const KEY = "aec-onboarded";
+const TOUR_AFTER_SIGNIN = "aec-tour-after-signin";
 
 export const onboardingDone = (): boolean => localStorage.getItem(KEY) === "1";
 export const markOnboarded = (): void => localStorage.setItem(KEY, "1");
 export const resetOnboarding = (): void => localStorage.removeItem(KEY);
+
+/** B2: sign-in → tour. Signing in reloads the page (token/SSO), so the welcome flow leaves a flag
+ *  and the next boot resumes straight into the coach-mark tour instead of dropping the new user. */
+export const queueTourAfterSignIn = (): void => localStorage.setItem(TOUR_AFTER_SIGNIN, "1");
+
+/** Call once on boot after the chrome exists: consumes the flag and runs the tour (first-run only).
+ *  Returns true when the tour was resumed — the caller then skips the welcome modal. */
+export function maybeResumeTour(): boolean {
+  if (localStorage.getItem(TOUR_AFTER_SIGNIN) !== "1") return false;
+  localStorage.removeItem(TOUR_AFTER_SIGNIN);
+  if (onboardingDone()) return false;
+  startTour();
+  return true;
+}
 
 export interface OnboardCtx {
   /** B1: signed-in state + the sign-in opener — the welcome LEADS with sign-in, never walls on it. */
@@ -57,7 +72,7 @@ export function showWelcome(ctx: OnboardCtx): void {
       + `everything below also works without an account.</div></div>`;
     const btn = document.createElement("button");
     btn.className = "file-btn"; btn.textContent = "Sign in";
-    btn.onclick = () => { ov.remove(); ctx.signIn?.(); };
+    btn.onclick = () => { ov.remove(); queueTourAfterSignIn(); ctx.signIn?.(); };
     si.append(btn);
     card.append(si);
   }

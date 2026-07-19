@@ -4,6 +4,38 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.477 — VIZ-2 presentation FX · CODE-4 local amendments · MEP engineering depth (P2)
+
+- **VIZ-2 — SSAO + bloom presentation FX** in render mode: the viewer's render toggle now routes the
+  frame through a three.js **EffectComposer** (SSAO contact shadows → subtle bloom → tone-mapped
+  output on an MSAA half-float target), on top of the existing sun/soft-shadow/IBL/PBR upgrade.
+  Wraps the engine renderer's per-frame render — no engine changes, overlay/ortho renders stay raw,
+  toggling off restores the raw path and disposes the chain. Offline + license-free (bundled three
+  examples). Live-verified: one wrapped call runs the full pass chain; off → single raw render.
+- **CODE-4 — local-amendment overlay**: `PUT/GET /projects/{pid}/code/amendments` records the AHJ's
+  **local amendments** on top of the statewide adoption — a per-family **edition override** (must be
+  a published edition; beats the jurisdiction seed everywhere `_project_ibc_edition` is consulted,
+  i.e. every model code check) plus recorded **section amendments** (family + section + note) that
+  ride on the code context so citations can flag "locally amended — read the ordinance". Hard 422
+  validation; an empty list clears the overlay; audited. `codes.apply_amendments` is the pure core.
+- **MEP engineering depth** (`mep_sizing.py` + three routes):
+  - **`GET /projects/{pid}/mep/pressure-loss`** — friction loss per authored duct/pipe run (empirical
+    round-galvanized duct rate + **Hazen-Williams** pipe rate from the sizing pset's size + flow +
+    length), checked against equal-friction budgets (0.10 in.wg / 4 ft per 100 ft), with per-system
+    series-sum totals and the **index run** a balancing engineer hunts first.
+  - **`GET /projects/{pid}/mep/tray-fill`** — **per-conductor NEC 392.22** cable-tray fill computed
+    from the actual authored `IfcCableSegment` diameters on each tray's system vs the Table
+    392.22(A) allowable (7 in² per 6 in of width) — no supplied ratio needed.
+  - **`GET /projects/{pid}/mep/thermal-loads`** — space-by-space **cooling-load screen** (W/sf
+    method): people/lighting/equipment densities by space type + a flat envelope allowance per
+    IfcSpace, summed to tons vs the block `GFA ÷ 350` estimate, showing *where* the load lives.
+  - All hand-checked against the physics in `test_mep_sizing` and honestly disclaimed (screens, not
+    PE designs).
+- **B2 — sign-in → tour**: signing in from the welcome panel now resumes straight into the coach-mark
+  tour after the auth reload (a consumed one-shot flag), instead of dropping the new user on the raw
+  workspace. Live-verified: reload with the flag → tour step 1 opens, welcome suppressed, flag cleared.
+- Backend suite green (268/268); web gates green (typecheck · lint · 121 vitest · build).
+
 ## v0.3.476 — ENV-1 wind-comfort screen · VIZ-1 export parity confirmed (P2)
 
 - **ENV-1 — `POST /projects/{pid}/env/wind`**: a pedestrian **wind-comfort screen** at massing stage —

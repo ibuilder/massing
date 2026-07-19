@@ -76,16 +76,64 @@ dl = c.get("/codes/ids", params={"description": "office, 8000 sf", "download": "
 assert dl.status_code == 200 and dl.headers["content-type"].startswith("application/xml")
 assert "code-requirements.ids" in dl.headers.get("content-disposition", "")
 
-# --- CODE-1b/3: per-project jurisdiction → the egress checker auto-resolves the IBC edition -------
+# --- CODE-4: local-amendment overlay (pure functions) ----------------------------------------------
+assert codes.validate_amendments([{"family": "IBC", "edition": 2018}]) == []
+assert codes.validate_amendments([{"family": "IBC", "section": "1005.1", "note": "wider stairs"}]) == []
+errs = codes.validate_amendments([{"family": "XYZ", "edition": 2018},        # unknown family
+                                  {"family": "IBC", "edition": 2019},        # unpublished edition
+                                  {"family": "IBC"},                          # nothing amended
+                                  "not-a-dict"])                              # wrong shape
+assert len(errs) == 4, errs
+tx = codes.apply_amendments(codes.resolve("TX"), [{"family": "IBC", "edition": 2021},
+                                                  {"family": "IECC", "section": "C402",
+                                                   "note": "local envelope amendment"}])
+ibc_tx = next(x for x in tx["codes"] if x["family"] == "IBC")
+assert ibc_tx["edition"] == 2021 and ibc_tx["source"] == "amendment", ibc_tx   # beats the 2015 seed
+assert tx["primary"]["IBC"] == 2021
+assert next(x for x in tx["codes"] if x["family"] == "IRC")["edition"] == 2015, "unamended stays seeded"
+assert len(tx["amendments"]) == 2 and "Local amendments" in tx["verify"], tx["amendments"]
+# invalid overlays are skipped whole (validate first for the hard gate); context stays clean
+bad = codes.apply_amendments(codes.resolve("TX"), [{"family": "IBC", "edition": 2019}])
+assert next(x for x in bad["codes"] if x["family"] == "IBC")["edition"] == 2015 and bad["amendments"] == []
+
+# --- CODE-1b/3/4: per-project jurisdiction + amendment overlay through the API ---------------------
 with TestClient(app) as c2:                     # lifespan runs create_all for the project tables
     pid = c2.post("/projects", json={"name": "Juris Test"}, headers=h).json()["id"]
     pr = c2.patch(f"/projects/{pid}", json={"jurisdiction": "FL"}, headers=h)
     assert pr.status_code == 200 and pr.json()["jurisdiction"] == "FL", pr.text[:200]
     assert c2.get(f"/projects/{pid}", headers=h).json()["jurisdiction"] == "FL"   # round-trips on GET
-from aec_api.routers.codecheck import _project_ibc_edition  # noqa: E402
+
+    # CODE-4 endpoints: empty by default; PUT validates hard; the context reflects the overlay
+    g0 = c2.get(f"/projects/{pid}/code/amendments", headers=h).json()
+    assert g0["amendments"] == [] and g0["context"]["jurisdiction"] == "FL", g0
+    bad_put = c2.put(f"/projects/{pid}/code/amendments",
+                     json=[{"family": "IBC", "edition": 2019}], headers=h)
+    assert bad_put.status_code == 422 and "2019" in bad_put.json()["detail"], bad_put.text[:200]
+    ok_put = c2.put(f"/projects/{pid}/code/amendments",
+                    json=[{"family": "IBC", "edition": 2018, "note": "city ordinance 24-101"}],
+                    headers=h)
+    assert ok_put.status_code == 200, ok_put.text[:300]
+    ctx = ok_put.json()["context"]
+    ibc_am = next(x for x in ctx["codes"] if x["family"] == "IBC")
+    assert ibc_am["edition"] == 2018 and ibc_am["source"] == "amendment", ibc_am
+    g1 = c2.get(f"/projects/{pid}/code/amendments", headers=h).json()
+    assert g1["amendments"][0]["edition"] == 2018 and g1["context"]["primary"]["IBC"] == 2018
+
+    # the amendment steers the CODE-3 auto-edition used by every model code check
+    from aec_api.db import SessionLocal  # noqa: E402
+    from aec_api.models import Project as _Proj  # noqa: E402
+    from aec_api.routers.codecheck import _project_ibc_edition  # noqa: E402
+    with SessionLocal() as _s:
+        assert _project_ibc_edition(_s.get(_Proj, pid)) == 2018, "amendment beats the FL 2021 seed"
+
+    # clearing restores the jurisdiction resolve
+    assert c2.put(f"/projects/{pid}/code/amendments", json=[], headers=h).status_code == 200
+    with SessionLocal() as _s:
+        assert _project_ibc_edition(_s.get(_Proj, pid)) == 2021, "cleared → back to the FL seed"
+from aec_api.routers.codecheck import _project_ibc_edition  # noqa: E402, F811
 
 
-class _P:  # the resolver only reads .jurisdiction
+class _P:  # the resolver only reads .jurisdiction (+ optionally .id)
     jurisdiction = "FL"
 
 

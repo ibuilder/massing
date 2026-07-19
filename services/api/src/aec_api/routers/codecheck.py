@@ -88,17 +88,91 @@ def codecheck_egress(pid: str, db: Session = Depends(get_db), _: str = Depends(r
     return out
 
 
-def _project_ibc_edition(p) -> int | None:
-    """CODE-3: the project's adopted IBC edition, resolved from its jurisdiction (None → baseline)."""
-    if not getattr(p, "jurisdiction", None):
-        return None
+def _amendments_key(pid: str) -> str:
+    return f"{pid}/code/amendments.json"
+
+
+def _stored_amendments(pid: str | None) -> list[dict]:
+    """The project's recorded local amendments (CODE-4), or [] when none are stored."""
+    import json
+
+    from .. import storage
+    if not pid:
+        return []
+    key = _amendments_key(pid)
+    if not storage.exists(key):
+        return []
     try:
-        from aec_data import codes  # type: ignore
-        ctx = codes.resolve(p.jurisdiction)
-        ed = next((c.get("edition") for c in ctx.get("codes", []) if c.get("family") == "IBC"), None)
+        data = json.loads(storage.get(key))
+        return data if isinstance(data, list) else []
+    except Exception:  # noqa: BLE001 — a corrupt overlay must never break code checks
+        return []
+
+
+def _project_code_context(p) -> dict:
+    """CODE-3/4: the project's resolved code context — jurisdiction adoption overlaid with any
+    stored local amendments (a local edition override beats the statewide adoption)."""
+    from aec_data import codes  # type: ignore
+
+    ctx = codes.resolve(getattr(p, "jurisdiction", None))
+    return codes.apply_amendments(ctx, _stored_amendments(getattr(p, "id", None)))
+
+
+def _project_ibc_edition(p) -> int | None:
+    """CODE-3/4: the project's adopted IBC edition — jurisdiction resolve + local-amendment overlay
+    (an IBC amendment applies even when no jurisdiction is set; both unset → baseline default)."""
+    try:
+        ams = _stored_amendments(getattr(p, "id", None))
+        if not getattr(p, "jurisdiction", None) and not ams:
+            return None
+        ed = next((c.get("edition") for c in _project_code_context(p).get("codes", [])
+                   if c.get("family") == "IBC"), None)
         return int(ed) if ed else None
     except Exception:  # noqa: BLE001 — an unseeded/odd jurisdiction falls back to the baseline
         return None
+
+
+@router.get("/projects/{pid}/code/amendments")
+def get_code_amendments(pid: str, db: Session = Depends(get_db),
+                        _: str = Depends(require_role("viewer"))):
+    """CODE-4: the project's local-amendment overlay + the resolved code context with it applied —
+    edition overrides show `source: "amendment"`, recorded section amendments ride along so sheets
+    and citations can flag locally-amended sections. Set via PUT; empty when none recorded."""
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    return {"amendments": _stored_amendments(pid), "context": _project_code_context(p)}
+
+
+@router.put("/projects/{pid}/code/amendments")
+def put_code_amendments(pid: str, amendments: list[dict] = Body(...),
+                        db: Session = Depends(get_db), user: str = Depends(require_role("editor"))):
+    """CODE-4: record the AHJ's local amendments for this project. Each entry: `family` (required —
+    IBC/IECC/…), optional `edition` (a published edition year — overrides the statewide adoption for
+    every code check), optional `section` + `note` (a recorded section amendment). Validated hard —
+    422 lists every problem. An empty list clears the overlay."""
+    import json
+
+    from aec_data import codes  # type: ignore
+
+    from .. import storage
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    errors = codes.validate_amendments(amendments)
+    if errors:
+        raise HTTPException(422, "; ".join(errors))
+    key = _amendments_key(pid)
+    if amendments:
+        storage.put(key, json.dumps(amendments).encode())
+    elif storage.exists(key):
+        storage.delete(key)
+    audit.record(db, action="code.amendments", actor=user, method="PUT",
+                 path=f"/projects/{pid}/code/amendments",
+                 detail={"count": len(amendments)})
+    db.commit()
+    return {"amendments": amendments, "context": _project_code_context(p)}
 
 
 @router.get("/projects/{pid}/codecheck/analysis")
