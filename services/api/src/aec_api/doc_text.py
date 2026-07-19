@@ -18,8 +18,12 @@ from datetime import datetime, timezone
 
 from . import storage
 
-_SECTION_RE = re.compile(r"^\s*(?:SECTION\s+)?(\d{2}\s?\d{2}\s?\d{2}|\d+(?:\.\d+)+)\s*[–—-]?\s*(.{0,80})$",
-                         re.IGNORECASE)
+# bounded quantifiers throughout — an unbounded \d+(\.\d+)+ backtracks polynomially on adversarial
+# "9.9.9…" input (CodeQL py/polynomial-redos); real section numbers are short, so bound them
+_SECTION_RE = re.compile(
+    r"^\s*(?:SECTION\s+)?(\d{2}\s?\d{2}\s?\d{2}|\d{1,4}(?:\.\d{1,4}){1,6})\s*[–—-]?\s*(.{0,80})$",
+    re.IGNORECASE)
+_SECTION_NUM_RE = re.compile(r"\d{2}\s?\d{2}\s?\d{2}|\d{1,4}(?:\.\d{1,4}){1,6}")
 _PAGE_RE = re.compile(r"\f")
 _WORD_RE = re.compile(r"[a-z0-9]{2,}")
 _STOP = {"the", "and", "for", "with", "shall", "all", "are", "not", "this", "that", "will",
@@ -123,7 +127,7 @@ def search(pid: str, query: str, k: int = 5) -> list[dict]:
     """Top-k chunks across every ingested document — token-overlap score, section-number and title
     matches boosted (asking "09 21 16" must surface that section first)."""
     q_tokens = _tokens(query)
-    q_secs = re.findall(r"\d{2}\s?\d{2}\s?\d{2}|\d+(?:\.\d+)+", query)
+    q_secs = _SECTION_NUM_RE.findall(query[:500])      # cap the query — defense in depth vs ReDoS
     hits: list[dict] = []
     for e in _load_index(pid):
         key = _key(pid, f"{e['doc_id']}.json")

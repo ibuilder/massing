@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.489 — security: bounded doc_text regexes (CodeQL ReDoS)
+
+- The two section-number regexes in `doc_text.py` used an unbounded `\d+(\.\d+)+`, which backtracks
+  polynomially on adversarial `9.9.9…` input (CodeQL `py/polynomial-redos` ×2, flagged on
+  v0.3.486's ingestion/search paths). Quantifiers are now **bounded** (`\d{1,4}(\.\d{1,4}){1,6}` —
+  real section numbers are short) and the search query is capped at 500 chars as defense in depth.
+  Behaviour unchanged (both consumer suites green); the CodeQL count returns to 0.
+
 ## v0.3.488 — E3 sketch-to-BIM push/pull (P2 · Master-builder UX)
 
 - **`extrude_profile` recipe** — sketch-to-BIM: a closed 2D profile (XY metres) extruded to height
