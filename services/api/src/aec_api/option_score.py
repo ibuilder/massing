@@ -56,6 +56,79 @@ def generate_options(base: dict, far_steps: list[float] | None = None,
     return out
 
 
+def board_pdf(project_name: str, scored: dict[str, Any]) -> bytes:
+    """BOARDS — a styled one-page **design-option deck**: the scored option set as a client-facing
+    artifact (title + recommendation, the comparison table, and score bars for the top options).
+    Deterministic reportlab render over `score_options` output — a first-class deliverable, not a
+    screenshot."""
+    from io import BytesIO
+
+    from reportlab.lib.pagesizes import landscape, letter
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+
+    rows = scored.get("options") or []
+    buf = BytesIO()
+    W, H = landscape(letter)
+    c = canvas.Canvas(buf, pagesize=(W, H))
+    c.setFont("Helvetica-Bold", 24)
+    c.drawString(18 * mm, H - 22 * mm, f"{project_name[:48]} — Design Options")
+    c.setFont("Helvetica", 11)
+    rec = scored.get("recommended")
+    c.drawString(18 * mm, H - 30 * mm,
+                 (f"Recommended: {rec}" if rec else "No compliant option to recommend") +
+                 f"   ·   {len(rows)} option(s) scored")
+
+    # comparison table
+    cols = [("Option", 62), ("GFA m²", 22), ("Cost", 26), ("$/SF", 16), ("kgCO₂e/m²", 22),
+            ("Sellable m²", 24), ("OK", 10), ("Score", 16)]
+    x0, y = 18 * mm, H - 42 * mm
+    c.setFont("Helvetica-Bold", 8.5)
+    x = x0
+    for name, wmm in cols:
+        c.drawString(x, y, name)
+        x += wmm * mm
+    c.setLineWidth(0.5)
+    c.line(x0, y - 2 * mm, x, y - 2 * mm)
+    y -= 7 * mm
+    c.setFont("Helvetica", 8.5)
+    for r in rows[:12]:
+        vals = [str(r.get("label", ""))[:44], f"{r.get('gfa_m2', 0):,.0f}",
+                f"${r.get('cost_total', 0):,.0f}", f"{r.get('cost_per_sf') or 0:,.0f}",
+                f"{r.get('carbon_intensity_kgco2e_m2', 0):,.0f}",
+                f"{r.get('yield_net_sellable_m2', 0):,.0f}",
+                "✓" if r.get("compliant") else "✗", f"{r.get('composite', 0):.0f}"]
+        x = x0
+        for (_name, wmm), v in zip(cols, vals):
+            c.drawString(x, y, v)
+            x += wmm * mm
+        y -= 6 * mm
+        if y < 40 * mm:
+            break
+
+    # score bars for the top 4 (composite out of 100)
+    top = rows[:4]
+    bx, bw = 18 * mm, W - 36 * mm
+    y -= 4 * mm
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(bx, y, "Composite scores")
+    y -= 6 * mm
+    for r in top:
+        c.setFont("Helvetica", 8.5)
+        c.drawString(bx, y, str(r.get("label", ""))[:52])
+        frac = max(0.0, min(1.0, float(r.get("composite", 0)) / 100.0))
+        c.setFillColorRGB(0.29, 0.55, 1.0)
+        c.rect(bx + 70 * mm, y - 1, (bw - 90 * mm) * frac, 3.4 * mm, fill=1, stroke=0)
+        c.setFillColorRGB(0, 0, 0)
+        c.drawString(bx + 72 * mm + (bw - 90 * mm) * frac, y, f"{r.get('composite', 0):.0f}")
+        y -= 6.5 * mm
+    c.setFont("Helvetica-Oblique", 7.5)
+    c.drawString(18 * mm, 14 * mm, (scored.get("note") or "")[:180])
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def _norm(vals: list[float], value: float, higher_better: bool) -> float:
     """Min-max normalize `value` against the option set → 0–100. A flat set (all equal) scores 100 —
     the criterion doesn't differentiate, so it shouldn't penalize anyone."""

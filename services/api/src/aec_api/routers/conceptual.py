@@ -5,6 +5,7 @@ from fastapi import APIRouter, Body, Depends
 
 from .. import conceptual_estimate as ce
 from .. import ifc_classify
+from ..db import get_db
 from ..rbac import current_user, require_role
 
 router = APIRouter()
@@ -48,6 +49,28 @@ def design_options_score(pid: str, options: list[dict] = Body(..., embed=True),
         return option_score.score_options(options, weights)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+
+
+@router.post("/projects/{pid}/design/options/board.pdf")
+def design_options_board(pid: str, options: list[dict] = Body(..., embed=True),
+                         weights: dict | None = Body(default=None, embed=True),
+                         db=Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """BOARDS: score the option set and render it as a styled one-page **design-option deck PDF** —
+    title + recommendation, the comparison table, and composite score bars. The client-facing
+    artifact of a GEN-SCORE run."""
+    from fastapi import HTTPException, Response
+
+    from .. import option_score
+    from ..models import Project
+    p = db.get(Project, pid)
+    name = (p.name if p else None) or pid
+    try:
+        scored = option_score.score_options(options, weights)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    pdf = option_score.board_pdf(name, scored)
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="{name}-options-board.pdf"'})
 
 
 @router.post("/projects/{pid}/ifc/classify")

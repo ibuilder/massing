@@ -92,6 +92,52 @@ def proforma_live(pid: str, db: Session = Depends(get_db), _: str = Depends(requ
     }
 
 
+@router.get("/projects/{pid}/cost/calibration")
+def cost_calibration(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """COST-AGENT — **learn from this project's own history**: compare the model's takeoff estimate
+    against what the project has actually **committed** (awarded subcontract values) and **spent**
+    (posted direct costs), and derive a calibration factor (clamped 0.5–2.0) future estimates can
+    apply (`estimate_from_takeoff(benchmark_factor=…)`). Reported, never silently applied — the
+    estimator decides. Needs a source IFC; committed/actuals are optional (factor null without them)."""
+    from aec_data.qto import takeoff_file  # type: ignore
+
+    from .. import estimate as est
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — calibration compares against the model estimate")
+    out = est.estimate_from_takeoff(takeoff_file(p.source_ifc, force_geometry=True))
+    est_total = float(out.get("recommended_total") or out.get("total") or 0.0)
+
+    def _sum(module: str, field: str) -> float:
+        try:
+            return sum(float((r.get("data") or {}).get(field) or 0.0)
+                       for r in me.list_records(db, module, pid, limit=1_000_000)
+                       if r.get("workflow_state") != "void")
+        except Exception:  # noqa: BLE001 — module optional
+            return 0.0
+
+    committed = _sum("subcontract", "value")
+    actual = _sum("direct_cost", "amount")
+    basis, basis_total = (("actual", actual) if actual > 0 else
+                          ("committed", committed) if committed > 0 else (None, 0.0))
+    factor = None
+    if basis and est_total > 0:
+        factor = round(max(0.5, min(2.0, basis_total / est_total)), 3)
+    return {
+        "estimate_total": round(est_total, 2), "committed_total": round(committed, 2),
+        "actual_total": round(actual, 2), "basis": basis,
+        "calibration_factor": factor,
+        "apply_hint": ("pass benchmark_factor to estimate_from_takeoff / re-run the estimate with the "
+                       "factor to price the next iteration off this project's own outcomes"
+                       if factor else "award subcontracts or post direct costs to enable calibration"),
+        "note": "Factor = observed cost ÷ model estimate, clamped 0.5–2.0 (actuals preferred over "
+                "commitments). Reported for the estimator — never auto-applied.",
+    }
+
+
 @router.get("/projects/{pid}/cost/g703")
 def g703(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     return cost.g703(db, pid)

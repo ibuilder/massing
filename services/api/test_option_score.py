@@ -82,6 +82,17 @@ with TestClient(app) as c:
     assert body["options"] == sorted(body["options"], key=lambda o: -o["composite"]), "ranked"
     assert c.post(f"/projects/{pid}/design/options/score", json={"options": []}).status_code == 400
 
+    # BOARDS: the scored set renders as a one-page deck PDF (pure builder + the HTTP route)
+    import io as _io
+
+    from pypdf import PdfReader
+    pdf = osc.board_pdf("Deck Test", body)
+    assert pdf[:5] == b"%PDF-" and len(PdfReader(_io.BytesIO(pdf)).pages) == 1, len(pdf)
+    bd = c.post(f"/projects/{pid}/design/options/board.pdf", json={"options": g.json()["options"]})
+    assert bd.status_code == 200 and bd.content[:5] == b"%PDF-", bd.status_code
+    assert "options-board.pdf" in bd.headers.get("content-disposition", "")
+    assert c.post(f"/projects/{pid}/design/options/board.pdf", json={"options": []}).status_code == 400
+
 print("GEN-SCORE OK - deterministic variant grid (2 types x 3 FAR steps); warehouse beats hospital on "
       "cost+carbon with equal yield (flat criteria score 100 for all); carbon total = GFA x benchmark; "
       "weights steer ranking (all-yield -> tie); non-compliant options capped <=49 and never "

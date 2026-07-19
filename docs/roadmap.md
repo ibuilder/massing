@@ -71,14 +71,14 @@ motion + swept crane clash · W9-6b headcount-program → zones + auto-furnish.
 **AI & agents:** ✅ S4 multi-step undo grouping (471) · ✅ S5 clarifying questions (shipped: both
 planner paths return `needs_clarification`, surfaced in the command bar + Ask panel) · ✅ AI read
 tools (472 — model_quantities/computed_schedules/clash_results/code_violations in the MCP catalog) ·
-✅ NL-QA recipes (474 — `/ai/audit` gaps + executable fix_steps → `/edit/batch`) · COST-AGENT
-(re-estimate on geometry change + learn from history) · READY-AGENT (proactive blockers w/ cited
+✅ NL-QA recipes (474) · ✅ COST-AGENT (473 PROFORMA-LIVE = re-estimate on change; 475
+`/cost/calibration` = learn from awarded/actual history) · READY-AGENT (proactive blockers w/ cited
 evidence — ✅ 474, `/schedule/make-ready` cites predecessors' real % + open submittals) ·
 ✅ RISK-BOARD (v0.3.470 — `/risk-board` unifies 5 engines into one ranked register).
 
 **Finance/frontier:** ✅ PROFORMA-LIVE (473 — `/proforma/live` cached takeoff cost + GFA + budget
-delta; the viewer status updates after every load) · BOARDS (styled
-design-option decks as first-class artifacts) · ENV-1 wind-comfort at massing (approximate, offline) ·
+delta; the viewer status updates after every load) · ✅ BOARDS (475 —
+`/design/options/board.pdf` one-page scored deck) · ENV-1 wind-comfort at massing (approximate, offline) ·
 GEN-SCORE depth (per-option 5D takeoffs + EPD carbon once options carry models).
 
 **Estimating/engineering:** MEP pressure-loss balancing + thermal loads + per-conductor tray fill ·

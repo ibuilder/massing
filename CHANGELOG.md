@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.475 — COST-AGENT calibration · BOARDS option decks (P2 · AI & finance frontier)
+
+- **COST-AGENT — `GET /projects/{pid}/cost/calibration`**: the project learns from its own history —
+  the model's takeoff estimate compared against **awarded subcontract values** and **posted direct
+  costs**, deriving a calibration factor (observed ÷ estimate, clamped 0.5–2.0, actuals preferred)
+  that `estimate_from_takeoff(benchmark_factor=…)` can apply to the next iteration. Reported, never
+  silently applied. Test-proven: awarding a subcontract at 1.2× the estimate yields factor 1.2.
+  (The re-estimate-on-geometry-change half shipped as PROFORMA-LIVE in v0.3.473.)
+- **BOARDS — `POST /projects/{pid}/design/options/board.pdf`**: a GEN-SCORE run becomes a styled
+  one-page **design-option deck** — title + recommendation, the cost/carbon/yield/compliance
+  comparison table, and composite score bars — the client-facing artifact of an options study
+  (`option_score.board_pdf`, deterministic reportlab).
+- `test_productivity` + `test_option_score` extended; backend suite green; web gates green.
+
 ## v0.3.474 — NL-QA "audit + suggest fixes" · READY-AGENT make-ready register (P2 · AI & agents)
 
 - **`POST /projects/{pid}/ai/audit`** — the ranked decision-readiness gaps, now with an **executable

@@ -153,6 +153,15 @@ with TestClient(app) as c:
     plb = pl.json()
     assert plb["est_construction_cost"] > 0 and plb["gfa_m2"] > 0, plb
     assert plb["cost_per_m2"] and plb["model_version"], plb
+    # COST-AGENT: no commitments/actuals yet → basis null; awarding a subcontract enables the factor
+    cal0 = c.get(f"/projects/{pid}/cost/calibration", headers=HDR).json()
+    assert cal0["basis"] is None and cal0["calibration_factor"] is None, cal0
+    est_total = cal0["estimate_total"]
+    assert c.post(f"/projects/{pid}/modules/subcontract", json={"data": {
+        "vendor": "Acme Concrete", "trade": "Concrete", "value": est_total * 1.2}},
+        headers=HDR).status_code == 201
+    cal1 = c.get(f"/projects/{pid}/cost/calibration", headers=HDR).json()
+    assert cal1["basis"] == "committed" and abs(cal1["calibration_factor"] - 1.2) < 0.02, cal1
 
 if os.path.exists(TMP):
     os.remove(TMP)
