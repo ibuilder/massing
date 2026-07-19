@@ -34,11 +34,11 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
 3. ✅ **PERF-3 (QTO-CACHE + CLASH-JOBS) — SHIPPED v0.3.495** — `takeoff_file` was already
    mtime-cached; extended the same cache to `discipline_summary_file` (per-element create_shape
    fallback). New `clash_detect` job kind runs the narrow-phase clash on the durable worker.
-4. **PERF-4 (PAYLOAD-CAPS + DASH-UNION + TEST-FASTPATH)** *(M, Med)* — paginate `/topics` + `/pins`;
-   lean-column single activity load per schedule request; SQL-aggregate the `limit=100000` analytics;
-   one UNION-ALL for the 124-query dashboard; fresh-DB skip of `_ensure_columns/_indexes` in `init_db`
-   (big CI-time win). Fold in the `buildToolsPanel` pointermove-listener leak + `collabPresence`
-   interval cleanup.
+4. ⚠️ **PERF-4 — PARTIAL** — ✅ TEST-FASTPATH (496 — fresh-DB skips `_ensure_columns/_indexes`) +
+   ✅ PAYLOAD-CAPS (496 — `/topics` limit/offset, `/pins` hard cap); the pointermove-listener +
+   `collabPresence` leaks already shipped in 494. **Remaining (own batch):** DASH-UNION (one
+   UNION-ALL for the 124-query dashboard), lean-column single-activity schedule load, SQL-aggregate
+   the `limit=100000` analytics.
 5. **PANEL-LAZY** *(M, High-bundle)* — dynamic-import the 16 portal panels out of the eager shell
    (`portal.ts:10-25`) — the single biggest eager-bundle cut, and the CI budget already fights it.
 

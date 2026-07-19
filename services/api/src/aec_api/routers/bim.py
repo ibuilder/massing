@@ -387,13 +387,19 @@ def create_topic(pid: str, body: TopicIn, db: Session = Depends(get_db),
 
 @router.get("/projects/{pid}/topics", response_model=list[TopicOut])
 def list_topics(pid: str, type: str | None = None, status: str | None = None,
+                limit: int = 500, offset: int = 0,
                 db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    # PERF-4 (PAYLOAD-CAPS): bound the response — on a mega-project the issue/clash log can be tens of
+    # thousands of rows; an unbounded serialize was the growth driver. Default 500, hard cap 2000;
+    # existing callers (no params) get the first 500 newest-order page.
+    limit = max(1, min(int(limit), 2000))
+    offset = max(0, int(offset))
     q = db.query(Topic).filter(Topic.project_id == pid)
     if type:
         q = q.filter(Topic.type == type)
     if status:
         q = q.filter(Topic.status == status)
-    return q.order_by(Topic.created_at).all()
+    return q.order_by(Topic.created_at).offset(offset).limit(limit).all()
 
 
 @router.get("/projects/{pid}/topics/{tid}", response_model=TopicOut)
@@ -416,8 +422,12 @@ def patch_topic(pid: str, tid: str, body: TopicPatch, db: Session = Depends(get_
 
 # --- pins (topics with a 3D anchor) -----------------------------------------
 @router.get("/projects/{pid}/pins", response_model=list[TopicOut])
-def list_pins(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
-    return db.query(Topic).filter(Topic.project_id == pid, Topic.anchor.isnot(None)).all()
+def list_pins(pid: str, limit: int = 2000, db: Session = Depends(get_db),
+              _sec: str = Depends(require_role("viewer"))):
+    # PERF-4 (PAYLOAD-CAPS): the viewer loads every pin to render markers — hard-cap so a runaway
+    # issue log can't ship an unbounded payload (2000 markers is already beyond usefully renderable).
+    return (db.query(Topic).filter(Topic.project_id == pid, Topic.anchor.isnot(None))
+            .order_by(Topic.created_at).limit(max(1, min(int(limit), 5000))).all())
 
 
 # --- comments ----------------------------------------------------------------

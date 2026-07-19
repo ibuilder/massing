@@ -52,6 +52,10 @@ with TestClient(app) as c:
 
     topics = c.get(f"/projects/{dst}/topics").json()
     assert len(topics) == 2, topics
+    # PERF-4: the topics list is paginated (default 500, hard cap) — limit/offset bound the payload
+    assert len(c.get(f"/projects/{dst}/topics?limit=1").json()) == 1, "limit caps the page"
+    assert len(c.get(f"/projects/{dst}/topics?offset=1").json()) == 1, "offset skips"
+    assert len(c.get(f"/projects/{dst}/topics?limit=99999").json()) == 2, "over-cap limit is clamped, not an error"
     titles = {t["title"] for t in topics}
     assert {"Beam vs duct", "Slab edge detail"} == titles, titles
     clash = next(t for t in topics if t["title"] == "Beam vs duct")

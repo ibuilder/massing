@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.496 — PERF-4a: test-fastpath schema-sync skip · topics/pins payload caps (queue #4)
+
+- **TEST-FASTPATH**: `init_db` now detects a **brand-new database** (no known table present before
+  `create_all`) and skips the additive `_ensure_columns`/`_ensure_indexes` reconciliation — on a
+  fresh DB `create_all` already builds every table + index current, so the sync (an `inspect`
+  round-trip per ~130 tables + a `checkfirst`-create per index) was pure startup overhead. Every
+  test spins up a fresh SQLite DB, so this trims the bulk of per-test boot cost; the upgrade path
+  (some tables predate the build) still reconciles exactly as before. `test_migrate` still exercises
+  `_ensure_columns`/`_ensure_indexes` directly, unchanged.
+- **PAYLOAD-CAPS**: `GET /projects/{pid}/topics` gains `limit` (default 500, hard cap 2000) +
+  `offset` pagination — on a mega-project the issue/clash log is the unbounded-serialize growth
+  driver; `GET /pins` hard-caps at 5000 (beyond usefully renderable). Existing param-less callers
+  get the first newest-order page; over-cap limits clamp rather than error.
+- Remaining PERF-4: the 124-query dashboard UNION-ALL is a larger rewrite deferred to its own batch.
+- 270/270 backend suites; web gates green.
+
 ## v0.3.495 — PERF-3: QTO/discipline caching · clash off the request path (queue #3)
 
 - **QTO-CACHE**: `qto.takeoff_file` was already memoized on (path, mtime, cost-map); this extends the

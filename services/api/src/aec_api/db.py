@@ -83,14 +83,24 @@ def _ensure_indexes() -> None:
 
 
 def init_db() -> None:
+    from sqlalchemy import inspect
+
     from . import (
         models,  # noqa: F401  (register mappers)
         modules,  # GC portal: register one mod_<key> table per module.json
     )
     modules.load_registry()
+    # PERF-4 (TEST-FASTPATH): reconciliation only matters on an EXISTING db that predates a model
+    # change. On a brand-new db, create_all() builds every table + its indexes current, so the
+    # column/index sync is a pure no-op — an inspect round-trip per ~130 tables + a checkfirst per
+    # index. Detect "fresh" BEFORE create_all (no known table present) and skip it. Every test spins
+    # up a fresh SQLite db, so this is the bulk of the suite's per-test startup cost.
+    known = {t.name for t in Base.metadata.sorted_tables}
+    pre_existing = set(inspect(engine).get_table_names()) & known
     Base.metadata.create_all(bind=engine)
-    _ensure_columns()
-    _ensure_indexes()
+    if pre_existing:                      # an upgrade path: some tables predate this build → reconcile
+        _ensure_columns()
+        _ensure_indexes()
     # Postgres-only: GIN index behind the module full-text search (`@@`). No-op on SQLite.
     modules.ensure_fts_indexes(engine)
     # load admin-configured integration settings into the in-process cache
