@@ -166,8 +166,11 @@ per-project name + QUERY-DSL selector + isolate/colour/hide, ★ viewer tool; va
 [+recheck] — advisory flag, never auto-closes). · **MEETINGS** — meeting series +
 minutes + flagged action items linked to RFIs/issues (S).
 
-**Estimating & precon depth:** **EST-ASSEMBLIES** — cost-item assemblies + resource-based rate
-build-ups (crew+plant+material per unit rate) + RFQ/quote management inside the estimate ·
+**Estimating & precon depth:** ◧ **EST-ASSEMBLIES** — **rate build-ups SHIPPED v0.3.531**
+(`assemblies_cost.py` composite unit rate from labour/material/equipment components + overrides +
+take-off extension; `/estimate/assemblies` library + `/estimate/assembly/price`; Analytics card).
+**Still open:** persisting user-authored assemblies (a module) + wiring assemblies into the takeoff
+estimate + RFQ/quote management ·
 **REVISION-DELTA** — 2D drawing overlay diff → changed-quantity flags → estimate delta flow-through
 (we have MODEL-DIFF, lack the 2D-revision→cost loop) · CBS view (R14) · EST-BANDS (R14).
 

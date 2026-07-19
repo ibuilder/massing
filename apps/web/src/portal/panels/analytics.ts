@@ -152,6 +152,34 @@ export async function renderRiskCost(ctx: PanelContext) {
     const priceSlot = slot();
     section("Model classification (improve QTO + carbon)");
     const classifySlot = slot();
+    section("Cost assemblies (unit-rate build-ups)");
+    const asmWrap = el("div");
+    root.appendChild(asmWrap);
+    void api.estimateAssemblies().then((r) => {
+      asmWrap.innerHTML = "";
+      const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:11px";
+      t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Assembly</th><th scope="col">CSI</th>`
+        + `<th scope="col">Unit</th><th scope="col">Rate</th><th scope="col">Qty</th><th scope="col">Total</th></tr></thead><tbody>`;
+      const tb = el("tbody");
+      for (const a of r.assemblies) {
+        const tr = el("tr");
+        tr.innerHTML = `<td>${esc(a.name)}</td><td style="text-align:center">${esc(a.csi || "")}</td>`
+          + `<td style="text-align:center">${esc(a.unit)}</td><td style="text-align:right">${cmoney(a.unit_rate)}/${esc(a.unit)}</td>`;
+        const qtd = el("td"); const qi = el("input", "portal-filter") as HTMLInputElement;
+        qi.type = "number"; qi.min = "0"; qi.placeholder = "qty"; qi.style.cssText = "width:64px;font-size:11px;text-align:right";
+        qtd.appendChild(qi); tr.appendChild(qtd);
+        const totd = el("td"); totd.style.textAlign = "right"; totd.className = "meta"; tr.appendChild(totd);
+        qi.oninput = async () => {
+          const q = Number(qi.value); if (!q) { totd.textContent = ""; return; }
+          try { const p = await api.estimateAssemblyPrice({ assembly_id: a.id, quantity: q }); totd.textContent = cmoney(p.total || 0); }
+          catch { totd.textContent = "—"; }
+        };
+        tb.appendChild(tr);
+      }
+      t.appendChild(tb); const w = el("div"); w.style.overflowX = "auto"; w.appendChild(t);
+      asmWrap.appendChild(w);
+      asmWrap.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:4px">Each rate is built up from labour + material + equipment components (auditable, re-costs when a wage/price moves). Enter a take-off quantity for a line total.</div>`);
+    }).catch(() => { asmWrap.innerHTML = `<div class="meta">assemblies unavailable</div>`; });
     section("Conceptual estimate (parametric $/SF)");
     const ceWrap = el("div");
     root.appendChild(ceWrap);

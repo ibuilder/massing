@@ -1413,6 +1413,20 @@ export class ApiClient extends HttpCore {
         material_cost?: number; equipment_cost?: number; line_total?: number }[] }>(
       `/projects/${pid}/estimate/labor?loading=${encodeURIComponent(loading)}&rate=${rate}${full ? "&full=true" : ""}`);
   }
+  /** EST-ASSEMBLIES: the starter cost-assembly library (each a built-up unit rate). */
+  estimateAssemblies() {
+    return this.json<{ assemblies: { id: string; name: string; unit: string; csi?: string | null;
+      unit_rate: number; component_count: number }[] }>("/estimate/assemblies");
+  }
+  /** Build up an assembly's unit rate (+ extend over a quantity). Pass assembly_id or components. */
+  estimateAssemblyPrice(body: { assembly_id?: string; components?: unknown[]; quantity?: number;
+    overrides?: Record<string, number> }) {
+    return this.json<{ unit_rate: number; quantity?: number; total?: number;
+      by_kind: Record<string, number>;
+      lines: { resource: string; kind: string; qty: number; unit: string | null; unit_cost: number;
+        waste_pct: number; extended: number }[]; component_count: number }>(
+      "/estimate/assembly/price", { method: "POST", body: JSON.stringify(body) });
+  }
   /** RFI-0: decision-readiness audit — the information gaps a builder would ask about, ranked. */
   rfiReadiness(pid: string) {
     return this.json<{ ready: boolean; total_gaps: number; high_severity: number; summary: string; disclaimer: string;

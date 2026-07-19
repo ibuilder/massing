@@ -26,6 +26,35 @@ def labor_rates(_: str = Depends(current_user)):
     return productivity.catalog()
 
 
+@router.get("/estimate/assemblies")
+def estimate_assemblies(_: str = Depends(current_user)):
+    """EST-ASSEMBLIES: the starter cost-assembly library — each a unit rate built up from labour /
+    material / equipment component resources (pre-computed rate + component count)."""
+    from .. import assemblies_cost
+    return {"assemblies": assemblies_cost.library()}
+
+
+@router.post("/estimate/assembly/price")
+def estimate_assembly_price(body: dict = Body(...), _: str = Depends(current_user)):
+    """Build up an assembly's unit rate and extend it over a take-off quantity. Body:
+    `{assembly_id | components:[{resource,kind,qty,unit,unit_cost,waste_pct?}], quantity?, overrides?}`.
+    `overrides` maps a component `resource` → a new `unit_cost` (re-cost when a wage/price moves)."""
+    from .. import assemblies_cost
+    comps = body.get("components")
+    if not comps and body.get("assembly_id"):
+        a = assemblies_cost.get(body["assembly_id"])
+        if not a:
+            raise HTTPException(404, f"no assembly '{body['assembly_id']}'")
+        comps = a["components"]
+    if not isinstance(comps, list) or not comps:
+        raise HTTPException(422, "provide components[] or a known assembly_id")
+    overrides = body.get("overrides") if isinstance(body.get("overrides"), dict) else None
+    qty = body.get("quantity")
+    if qty is not None:
+        return assemblies_cost.price(comps, qty, overrides)
+    return assemblies_cost.build_up(comps, overrides)
+
+
 @router.get("/projects/{pid}/estimate/labor")
 def labor_estimate(pid: str, loading: str = "commercial", rate: float = 25.0, full: bool = False,
                    crews: int = 1, qto: bool = True,

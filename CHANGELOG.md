@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.531 — EST-ASSEMBLIES: cost-item unit-rate build-ups (R15)
+
+- New **cost assemblies** — a unit rate composed from its component resources (labour crew +
+  material + equipment + sub), the way an estimator actually builds a price, so the number is
+  auditable and re-costs when a wage or material price moves. `GET /estimate/assemblies` returns a
+  starter library (CMU wall, cast-in-place slab, metal-stud partition) with each rate pre-computed;
+  `POST /estimate/assembly/price` builds up a rate from an `assembly_id` or a custom component list
+  (`{resource, kind, qty, unit, unit_cost, waste_pct}`), supports per-resource `overrides`, and
+  extends over a take-off `quantity`. Analytics panel gains a **Cost assemblies** table with a
+  per-line quantity → total.
+
 ## v0.3.530 — SMART-VIEWS: clash-freshness (auto-flag stale coordination issues)
 
 - Completes SMART-VIEWS: open **clash / coordination issues whose referenced elements changed**
