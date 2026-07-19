@@ -18,8 +18,9 @@ import { type ModelIdMap } from "./modelIds";
 import { askText } from "../ui/prompt";
 import { confirmModal, promptModal } from "../ui/modal";
 import { SelectionSets } from "./selectionSets";
-import { MeasureTool, type MeasureMode } from "../tools/measure";
+import { MeasureTool } from "../tools/measure";
 import { SectionTool } from "../tools/section";
+import { installMeasureTools, installSectionBox } from "./measureSection";
 import { VisibilityTool } from "../tools/visibility";
 import { ColorizeTool } from "../tools/colorize";
 import { LayerManager } from "../tools/layers";
@@ -374,19 +375,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (cap) d.dataset.cap = cap;   // hide the divider too when its group is capability-hidden
     viewerTools.appendChild(d);
   }
-  const setMeasure = (m: MeasureMode) => {
-    measure.setMode(m);
-    setStatus(`measure: ${m}`);
-    const ro = document.getElementById("measure-readout");
-    if (ro) ro.textContent = m === "off" ? "mode: off — labels show values in 3D" : `mode: ${m} — click points; values appear as 3D labels`;
+  // REL-4 leaf: the measure / visibility button group lives in measureSection.ts
+  const msDeps = {
+    viewer, loader, toolBtn, setStatus, notify, measure, section,
+    selection: () => selection, visibility, colorize,
   };
-  toolBtn("↔", "Measure distance (M)", (b) => { const on = measure.mode !== "length"; setMeasure(on ? "length" : "off"); b.classList.toggle("on", on); });
-  toolBtn("▱", "Measure area (A)", (b) => { const on = measure.mode !== "area"; setMeasure(on ? "area" : "off"); b.classList.toggle("on", on); });
-  toolBtn("✂", "Section plane (S) — dbl-click a face", (b) => { section.enabled = !section.enabled; b.classList.toggle("on", section.enabled); setStatus(`section ${section.enabled ? "on (dbl-click face)" : "off"}`); });
-  toolBtn("⊙", "Isolate selection", () => selection && visibility.isolate(selection));
-  toolBtn("◐", "Color selection", () => selection && colorize.color(selection, "#ffb000"));
-  toolBtn("⌫", "Clear measurements", () => measure.deleteCurrent());
-  toolBtn("⊞", "Show all (H)", async () => { await visibility.showAll(); await colorize.reset(); });
+  installMeasureTools(msDeps);
   toolBtn("✦", "Ask the model — plain-English questions about the data", () => {
     if (!connected || !projectId) { notify("open a project to ask about its model", "error"); return; }
     showResult("Ask the model", (body) => {
@@ -472,26 +466,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const jumpToViewpoint = collab.jumpToViewpoint;
   toolDivider();   // ── collaboration ──┊── view aids ──
 
-  // section box: 6 clipping planes shrunk inside the model bounds (renderer-level clip)
-  let sectionBox: THREE.Plane[] | null = null;
-  toolBtn("⬚", "Section box (clip to model bounds)", (b) => {
-    const r = viewer.world.renderer!.three;
-    if (sectionBox) { r.clippingPlanes = []; sectionBox = null; b.classList.remove("on"); void loader.fragments.core.update(true); return; }
-    const box = new THREE.Box3();
-    viewer.world.scene.three.traverse((o) => { const msh = o as THREE.Mesh; if (msh.isMesh) box.expandByObject(msh); });
-    if (box.isEmpty()) { notify("no model to clip", "error"); return; }
-    const c = box.getCenter(new THREE.Vector3());
-    const s = box.getSize(new THREE.Vector3()).multiplyScalar(0.35);   // keep the middle ~70%
-    const mn = c.clone().sub(s), mx = c.clone().add(s);
-    sectionBox = [
-      new THREE.Plane(new THREE.Vector3(1, 0, 0), -mn.x), new THREE.Plane(new THREE.Vector3(-1, 0, 0), mx.x),
-      new THREE.Plane(new THREE.Vector3(0, 1, 0), -mn.y), new THREE.Plane(new THREE.Vector3(0, -1, 0), mx.y),
-      new THREE.Plane(new THREE.Vector3(0, 0, 1), -mn.z), new THREE.Plane(new THREE.Vector3(0, 0, -1), mx.z),
-    ];
-    r.localClippingEnabled = true; r.clippingPlanes = sectionBox;
-    b.classList.add("on"); void loader.fragments.core.update(true);
-    setStatus("section box on (toggle to clear)");
-  });
+  // REL-4 leaf: the section-box tool lives in measureSection.ts (positioned after the collab group)
+  installSectionBox(msDeps);
 
   // 3D-HERO: capture the current 3D view → the project's hero image (page 2 of the package PDF).
   // Render one fresh frame synchronously before reading the canvas — WebGL buffers don't persist

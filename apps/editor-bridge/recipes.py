@@ -17,13 +17,18 @@ import ifcopenshell.api
 import ifcopenshell.util.element as ue
 
 
+def _find_storey(model: ifcopenshell.file, storey_name: str):
+    """The named storey, or None (REL-5: the lookup was duplicated across recipes)."""
+    return next((s for s in model.by_type("IfcBuildingStorey") if s.Name == storey_name), None)
+
+
 def place_type(model: ifcopenshell.file, type_guid: str, storey_name: str,
                location: tuple[float, float, float]) -> ifcopenshell.entity_instance:
     """Instantiate an occurrence of an IFC type ("family") at a point on a storey."""
     el_type = next((t for t in model.by_type("IfcTypeProduct") if t.GlobalId == type_guid), None)
     if el_type is None:
         raise ValueError(f"type {type_guid} not found")
-    storey = next((s for s in model.by_type("IfcBuildingStorey") if s.Name == storey_name), None)
+    storey = _find_storey(model, storey_name)
     if storey is None:
         raise ValueError(f"storey {storey_name!r} not found")
 
@@ -57,7 +62,7 @@ def batch_tag(model: ifcopenshell.file, elements: Iterable, tag: str) -> int:
 
 def elements_on_storey(model: ifcopenshell.file, storey_name: str, ifc_class: str = "IfcWall"):
     """Selection helper: all elements of a class on a named storey."""
-    storey = next((s for s in model.by_type("IfcBuildingStorey") if s.Name == storey_name), None)
+    storey = _find_storey(model, storey_name)
     if storey is None:
         return []
     return [el for el in model.by_type(ifc_class) if ue.get_container(el) is storey]

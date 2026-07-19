@@ -36,8 +36,8 @@ priorities below favor what that unblocked.
    panel). Live-verified: crews 1→2 halved the durations and CPM went 118 d → 59 d.
 6. **REL-4 slices 6+ — continue the viewer decomposition** *(M each)* — ✅ collab/presence (463) ·
    ✅ KEYS + dyn-input (467; app.ts 3,957) · ✅ Report Center → `reportCenter.ts` (468; main.ts
-   1,187). Next leaves: measure/section tools · `portal.ts` (2,542). One live-verified leaf per
-   release.
+   1,187) · ✅ measure/section → `measureSection.ts` (481; app.ts 3,948, order/behaviour
+   live-verified). Next leaf: `portal.ts` (2,542). One live-verified leaf per release.
 7. **JOB-QUEUE migration** *(S/M)* — ✅ the artifact-job pattern + the heaviest path shipped
    v0.3.464 (`compiled_set_pdf` kind + `GET /jobs/{id}/artifact` streaming). Remaining paths to
    migrate onto it: PAdES sealing · large exports (.glb/IFC) · generative runs.
@@ -108,8 +108,9 @@ amendments ride the code context; audited, clearable).
 
 **Reliability (REL):** REL-3 remainder (`modules.py` DI split · `main.py` · `codecheck.py` ·
 `connectors.py` residue · `auth.py` · `data/drawing.py`/`drawings.py`/`massing.py` · `bcf_io.py` ·
-`routers/generate.py`) · REL-5 remainder (vite/bundle-budget FS reviewed — already single-pass, no change · `bridge.py`
-dataclass · recipes dedupe) · REL-8 (CI no-cycle check; module-header docs) · REL-6 tail (✅ private-IP
+`routers/generate.py`) · ✅ REL-5 COMPLETE (481 — `bridge.py` plan/execute → typed
+Plan/ExecutionResult dataclasses · `recipes.py` storey-lookup dedupe · vite/bundle-budget FS was
+already single-pass) · REL-8 (CI no-cycle check; module-header docs) · REL-6 tail (✅ private-IP
 webhook blocking 478 — `AEC_WEBHOOK_ALLOW_PRIVATE=0` refuses private/loopback targets, tested ·
 cargo-audit/gitleaks in CI when available) · REL-7 stays evidence-gated (the bulk
 dead-code claim was disproven; only prove-then-delete small batches).

@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.481 — REL-4 measure/section leaf · REL-5 bridge dataclasses (P2 · reliability)
+
+- **REL-4 — `viewer/measureSection.ts`**: the measure/visibility toolbar group (↔ ▱ ✂ ⊙ ◐ ⌫ ⊞) and
+  the section-box tool extracted from `app.ts` into a leaf (two positional installers because other
+  groups interleave). Pure extraction — button order, behaviour and DOM unchanged, live-verified;
+  `app.ts` 3,970 → 3,948 lines and keeps the tool instances (click handlers, settings, shortcuts).
+- **REL-5 — editor-bridge hardening**: `bridge.py`'s `plan`/`execute` now return typed
+  **`Plan`/`PlanStep`/`ExecutionResult` dataclasses** (the safety-gate step shapes are part of the
+  contract, so they're spelled out), and `recipes.py`'s duplicated storey lookup is deduped into
+  `_find_storey`. The offline safety-gate test updated and green (save-first, chunking, confirm
+  gate, dry-run default). This closes the REL-5 remainder — the vite/bundle-budget FS item was
+  audited earlier as already single-pass.
+
 ## v0.3.480 — D8 COMcheck/A117.1 approvability layer + BCF round-trip (P2 · Wave 11)
 
 - **D8 — the approvability pre-flight grows the energy/accessibility layer** (3 new cited checks):
