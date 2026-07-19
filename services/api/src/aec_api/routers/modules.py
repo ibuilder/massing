@@ -16,6 +16,7 @@ from .. import sync as sync_engine
 from ..db import get_db
 from ..models import Connection, Project, ProjectMember, SyncSchedule, User
 from ..rbac import current_user, require_role
+from .authoring_shared import safe_filename
 
 router = APIRouter()
 
@@ -644,11 +645,23 @@ def download_attachment(att_id: str, request: Request, db: Session = Depends(get
     att, data = mod_engine.get_attachment(db, att_id)
     if not _download_allowed(request, db, getattr(att, "project_id", None), user):
         raise HTTPException(403, "not a member of this attachment's project")
-    # CORP so an <img> can embed this cross-origin: the SPA is COEP-isolated (require-corp, for the
-    # viewer's SharedArrayBuffer WASM), which otherwise blocks cross-origin image subresources.
-    return Response(data, media_type=att.content_type or "application/octet-stream",
-                    headers={"Content-Disposition": f'inline; filename="{att.filename}"',
-                             "Cross-Origin-Resource-Policy": "cross-origin"})
+    # SECURITY: only serve INLINE (renders in the browser on the API origin) for a safe raster-image
+    # allowlist — thumbnails are the only inline use case. Everything else (text/html, image/svg+xml
+    # with embedded <script>, PDFs, arbitrary blobs) is forced to `attachment` so a malicious upload
+    # can't execute JS on the API origin against a lured victim's session (stored-XSS). The declared
+    # type is also normalized to octet-stream for the download path so `nosniff` fully applies.
+    ctype = (att.content_type or "").split(";")[0].strip().lower()
+    inline_ok = ctype in ("image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp")
+    disposition = "inline" if inline_ok else "attachment"
+    media = ctype if inline_ok else "application/octet-stream"
+    # CORP so an <img> can embed the (image-only) inline path cross-origin: the SPA is COEP-isolated
+    # (require-corp, for the viewer's SharedArrayBuffer WASM), which otherwise blocks cross-origin
+    # image subresources.
+    return Response(data, media_type=media,
+                    headers={"Content-Disposition": f'{disposition}; filename="{safe_filename(att.filename)}"',
+                             "Cross-Origin-Resource-Policy": "cross-origin",
+                             "X-Content-Type-Options": "nosniff",
+                             "Content-Security-Policy": "sandbox; default-src 'none'"})
 
 
 @router.get("/projects/{pid}/modules/{key}/{rid}/pdf")

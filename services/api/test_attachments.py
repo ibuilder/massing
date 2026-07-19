@@ -3,7 +3,6 @@
 (RecordAttachment table) and 404'd every portal image thumbnail. The module attachment now lives at a
 distinct /module-attachments/{id}/download path.
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_attachments.py"""
-import io
 import os
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_attachments.db"
@@ -13,8 +12,9 @@ for _f in ("./test_attachments.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient     # noqa: E402
-from aec_api.main import app                  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 PNG = (b"\x89PNG\r\n\x1a\n" + b"\x00" * 40)    # enough bytes to stand in for an image
 
@@ -36,6 +36,26 @@ with TestClient(app) as c:
     assert "inline" in dl.headers.get("content-disposition", ""), dl.headers.get("content-disposition")
     # CORP header so a COEP-isolated SPA can embed the image cross-origin (else <img> is blocked)
     assert dl.headers.get("cross-origin-resource-policy") == "cross-origin", dict(dl.headers)
+
+    # a safe raster image renders inline, with the anti-sniff + sandbox headers
+    assert dl.headers.get("x-content-type-options") == "nosniff", dict(dl.headers)
+    assert "sandbox" in dl.headers.get("content-security-policy", ""), dict(dl.headers)
+
+    # SECURITY: a text/html (or SVG) upload must NOT be served inline as text/html — that would let a
+    # malicious attachment run JS on the API origin against a lured member's session (stored-XSS).
+    # It is forced to attachment + octet-stream so nothing executes.
+    xss = c.post(f"/projects/{pid}/modules/rfi/{rid}/attachments",
+                 files={"file": ("evil.html", b"<script>alert(document.cookie)</script>", "text/html")})
+    assert xss.status_code == 201, xss.text[:200]
+    xdl = c.get(f"/module-attachments/{xss.json()['id']}/download")
+    assert xdl.status_code == 200
+    assert xdl.headers.get("content-type", "").startswith("application/octet-stream"), xdl.headers.get("content-type")
+    assert "attachment" in xdl.headers.get("content-disposition", ""), xdl.headers.get("content-disposition")
+    # an SVG (a classic XSS vector) is likewise never inline
+    svg = c.post(f"/projects/{pid}/modules/rfi/{rid}/attachments",
+                 files={"file": ("x.svg", b"<svg xmlns='http://www.w3.org/2000/svg'><script>1</script></svg>", "image/svg+xml")})
+    sdl = c.get(f"/module-attachments/{svg.json()['id']}/download")
+    assert "attachment" in sdl.headers.get("content-disposition", ""), sdl.headers.get("content-disposition")
 
     # the OLD shared path routes to bim.py's Attachment-table handler -> 404 for a module attachment id
     # (this is exactly the collision that broke thumbnails; the distinct path above is the fix)

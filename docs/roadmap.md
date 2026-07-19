@@ -12,6 +12,157 @@ priorities below favor what that unblocked.
 
 ---
 
+## ★ EXECUTION QUEUE — re-prioritized 2026-07-19 at v0.3.492 (this is the current order of work)
+
+Synthesized from a full field-research + landscape + audit pass: two agents surveyed the commercial
+(Procore/ACC/P6/Solibri/Bluebeam/Aconex/CostX/…) and open-source (Bonsai/Speckle/xeokit/OpenProject/
+EnergyPlus/Radiance/…) landscapes; a very-thorough codebase gap review; and security + performance
+audits. **Key finding: the backend is far ahead of the frontend** — ~72 shipped capabilities have API
++ client wrappers but no UI surface, and most GC/owner workflow features already exist at the data
+level. So the cheapest, highest-leverage value is **surfacing + workflow depth**, not new engines.
+Everything below is deterministic + offline unless flagged. Work top-down; each is a verified release.
+
+**NOW (security + perf hygiene + cheapest value):**
+0. ✅ **SEC-XSS — SHIPPED v0.3.493-pending** — module-record attachments served inline only for a
+   raster-image allowlist; text/html + SVG + blobs forced to `attachment`/octet-stream with
+   `nosniff` + `Content-Security-Policy: sandbox` (was stored-XSS on the API origin). Tested.
+1. **PERF-1 (ASYNC-BLOCK)** *(S, High)* — `run_in_threadpool` the pdf_info/merge/split/extract/rotate
+   routes + the module Excel/CSV import parse + the large IFC-upload writes (`drawings.py:304`,
+   `modules.py:424`, `authoring.py:915/948`) — they stall the whole event loop today.
+2. **PERF-2 (GEOM-CACHE)** *(M, High)* — an `(path, mtime)`-keyed cache for `drawings.bake()` (used by
+   every section/elevation/DXF/sheet request) + compute env/wind bbox from iterator verts without a
+   full bake. Biggest per-request CPU sink.
+3. **PERF-3 (QTO-CACHE + CLASH-JOBS)** *(M, High)* — cache `qto.takeoff_file` keyed on (mtime, cost-map)
+   for the 7 cost endpoints; move `/clash` narrow-phase onto the existing jobs queue.
+4. **PERF-4 (PAYLOAD-CAPS + DASH-UNION + TEST-FASTPATH)** *(M, Med)* — paginate `/topics` + `/pins`;
+   lean-column single activity load per schedule request; SQL-aggregate the `limit=100000` analytics;
+   one UNION-ALL for the 124-query dashboard; fresh-DB skip of `_ensure_columns/_indexes` in `init_db`
+   (big CI-time win). Fold in the `buildToolsPanel` pointermove-listener leak + `collabPresence`
+   interval cleanup.
+5. **PANEL-LAZY** *(M, High-bundle)* — dynamic-import the 16 portal panels out of the eager shell
+   (`portal.ts:10-25`) — the single biggest eager-bundle cut, and the CI budget already fights it.
+
+**NEXT (surface the hidden backend — the ~72 orphaned capabilities, in themed UI waves):**
+6. **SURF-1 — Schedule/interop surface** *(M)* — UI for XER import, earned-schedule, 4D, schedule
+   alerts (all backed, no surface) — pairs with SCHED-P6 export below.
+7. **SURF-2 — Estimating/takeoff surface** *(M)* — model-based estimate, resource-based estimate,
+   DXF/scan takeoff, QTO-by-floor, bid leveling / invite bidders (backed, no surface).
+8. **SURF-3 — Authoring surface** *(M)* — base-plate/shear-tab/curtain-wall/MEP-fitting/rebar-cage/
+   assembly/type/detailing-rules/LOD/phase recipes reachable from the rail (backed, no surface).
+9. **SURF-4 — QA + RE/ops surface** *(M)* — scan-deviation, model/data QA, code-check, code-adoptions;
+   securities package, distributions, turnover status, procurement gate (backed, no surface).
+
+**NEXT (workflow depth — the real backend gap the audit found):**
+10. **WORKFLOW-ENGINE** *(L, ★★★★★)* — a real state-machine layer over submittals/RFI/CO/transmittals:
+    configurable transitions, ball-in-court routing, overdue escalation, notifications — today these
+    are read-side registers with computed columns, not processes.
+
+**NEXT (twice-validated interop gaps — top of BOTH landscape reports):**
+11. **SCHED-P6** *(M, ★★★★★)* — P6 XER + MS-Project XML **export/round-trip** (import ships) mapping
+    contractor updates back to task GUIDs; the #1 credibility gate with schedulers.
+12. **FOURD-SIM** *(M, ★★★★★)* — 4D: element↔activity linking, time-phased playback, planned-vs-actual
+    coloring, temp geometry (cranes/laydown) in the viewer — replaces Navisworks TimeLiner + SYNCHRO.
+13. **QUERY-DSL** *(M, ★★★★)* — an ifcopenshell-selector/ECSQL-style filter language
+    (`IfcWall & Pset_WallCommon.FireRating=2HR & storey=L3`) powering clash scopes, view filters,
+    schedules, bulk edits, MCP tools — multiplies every existing feature.
+14. **RULE-LIB** *(M, ★★★★)* — a Solibri-style user-authored parametric rule-check library
+    (clearance-in-front-of, accessible route, escape distance, maintainability space) with a severity
+    matrix, on the existing compliance substrate.
+15. **RESOURCE-LEVEL** *(M)* — true resource-loaded scheduling + leveling + multiple named baselines
+    with variance (today's leveling is advisory-only).
+16. **MODEL-CI** *(M, ★★★★)* — "Automate-lite": rule packs (IDS/clash/code/QTO-delta/custom) auto-run
+    on every commit/option-branch save with pass/fail badges + BCF/report artifacts (jobs infra ships).
+17. **MARKUP-2** *(M)* — Bluebeam-parity: tool chests, markups-list DB with custom/formula columns,
+    overlay compare, slip-sheet markup carry-forward, live co-markup (rides existing presence infra).
+18. **XLSX-ROUNDTRIP** *(S)* — IfcCSV-style GUID-keyed property export→edit→re-import with a dry-run
+    diff; the single most-used daily openBIM workflow.
+19. **DXF-EXPORT** *(S)* — DXF export of generated drawings (PDF-only is a hard consultant-contract
+    blocker; That Open has a DXF path to extend).
+
+**THEN (R14 Tier-1 feature builds + the remaining landscape/UX tiers):**
+20. **CX-1 commissioning** (R14) · **REBAR-RULES + BBS** (R14) · **PROC-LOOP 3-way match + price
+    ledger** (R14) · then R14 Tier-2/3 + R15 Tier-2/3 (transmittals/ITP · assemblies+RFQ ·
+    normative IFC validation · EnergyPlus/Radiance adapters · smart-views/auto-resolving issues ·
+    meetings module · client-portal selections · fabrication deliverables · BEP-GEN · … see the
+    🔬 R14 and 🧭 R15 sections for the full itemized lists).
+
+**REL/quality carry-overs interleaved:** REL-3 remainder (modules.py DI split etc.) · REL-4 portal.ts
++ app.ts god-file leaves · test gaps on the 6 higher-risk untested engines (distwaterfall, clash_intel,
+scope_library, standards_expert, schedule_viz, permit_check) · entitlement-tier enforcement.
+
+*The pre-existing P1–P3 sections, the 🔬 R14 ring, and the 🧭 R15 landscape detail below remain the
+canonical itemized descriptions; this queue is the ORDER. UI-surfacing (SURF-*) reuses shipped
+endpoints, so those releases are frontend-only where the backend already covers them.*
+
+---
+
+## 🧭 R15 ring — landscape gap analysis (2026-07-19: commercial + open-source sweeps + 3 audits)
+
+*Every item is a deterministic, offline-capable feature (cloud/paid dependencies flagged). Licenses
+mapped: MIT/BSD/Apache/LBNL studied freely, LGPL reimplemented, AGPL/GPL/proprietary = techniques
+only. The two landscape reports strongly cross-validated — P6/MSP interchange, 4D simulation,
+model-CI, a query DSL, rule libraries, and markup depth top BOTH lists. Items promoted into the
+execution queue above are cross-referenced; the rest are itemized here.*
+
+**Interop & scheduling (highest cross-validated demand):** SCHED-P6 export round-trip (#11) · FOURD-SIM
+(#12) · RESOURCE-LEVEL + multi-baseline variance (#15) · schedule optioneering (ALICE-style: permute
+crew/sequence/zoning over CPM+productivity+Takt, score thousands of scenarios — *L, flagship, our
+inputs are uniquely all-present offline*) · MSP XML import (folds into SCHED-P6).
+
+**Model intelligence & QA:** QUERY-DSL (#13) · RULE-LIB (#14) · MODEL-CI (#16) · **NORM-VALID** —
+normative IFC validation porting the buildingSMART validation-service checks (STEP syntax, schema
+propositions, normative rules, bSDD alignment; MIT reference) as an offline job · **VERSION-COMPARE-3D**
+— per-property old/new change lists (iTwin-style) + in-viewer added/removed/modified overlay between
+any two versions/option branches (MODEL-DIFF data ships) · **IFCPATCH-LIB** — one-click maintenance
+recipes (purge orphans, optimize, extract discipline subset, rebase coordinates, unit-convert,
+merge/split).
+
+**Documents & coordination:** MARKUP-2 (#17) · XLSX-ROUNDTRIP (#18) · DXF-EXPORT (#19) · **BCF-API-SRV**
+— server-side BCF-API 3.0 / OpenCDE endpoints so Revit/Navisworks/BIMcollab BCF managers connect live
+(spec is open) · **TRANSMIT-ITP** — numbered transmittals + Review Matrix routing + supplier-
+deliverables register + ITP/Test-Plan workflows (Aconex parity; extends the CDE plan) · **SMART-VIEWS**
+— property-driven saved color/filter presets + clash-bound issues that auto-resolve on model diff
+(BIMcollab; cheap glue over MODEL-DIFF + clash) · **MEETINGS** — meeting series + minutes + flagged
+action items linked to RFIs/issues (ACC just shipped it; S).
+
+**Estimating & precon depth:** EST-ASSEMBLIES — cost-item assemblies + resource-based rate build-ups
+(crew+plant+material per unit rate; Candy/WinEst) + RFQ/quote management inside the estimate (InEight) ·
+**REVISION-DELTA** — 2D drawing overlay diff → changed-quantity flags → estimate delta flow-through
+(CostX signature; we have MODEL-DIFF, lack the 2D-revision→cost loop) · CBS view (R14) · EST-BANDS (R14).
+
+**Analysis (permissive-license engines, offline):** **ENERGY-PLUS** — export model → IDF/OSM + run
+EnergyPlus (BSD) for defensible annual energy, backing the IECC screen with real numbers *(L, ship
+binaries via jobs infra)* · **RADIANCE** — export → Radiance scenes (LBNL) for annual daylight
+(DA/ASE/UDI) + glare (DGP) · **FEM-EXPORT** — analytical model → Code_Aster/OpenSees for third-party
+verification of our gravity/lateral solver (trust unlock).
+
+**Field & residential (heavier / GTM):** **FIELD-PWA** — offline-first mobile PWA with sheet sync +
+auto slip-sheeting + hyperlinked callouts *(L; Fieldwire/PlanGrid wedge)* · **CLIENT-PORTAL** —
+selections/allowances (choices → price deltas → CO/budget; Buildertrend residential moat) ·
+**FAB-DELIVER** — fabrication outputs from steel/rebar recipes (assembly/part marks, DSTV-NC, bolt
+lists, BVBS bending schedules; Tekla-adjacent, no web platform does this) · **PHOTO-PIN** — photo/360
+pinning to plan locations with timeline compare (integrate OpenSpace/DroneDeploy for photogrammetry
+rather than build) · **CLASH-TRIAGE** (R14) · **GIS-OUT** (R14) · **CMMS-OPS** — preventive-maintenance
+plans + work orders on COBie-handover assets (openMAINT territory; the 50-year phase; *L, defer*).
+
+**Explicitly not building (flagged from research):** photogrammetry pipelines, learned risk forecasting
+(nPlan's data moat — Monte Carlo already covers it), voice agents over capture history, and all
+LLM/computer-vision document scanning (non-deterministic; we author the model, so we never
+reverse-engineer PDFs). Cloud/paid to integrate-not-build: Cesium ion imagery, Speckle Automate hosted
+runner, iTwin Platform REST, Autodesk APS, Pollination.
+
+## 🔒 Audit findings (2026-07-19 — fold into the NOW queue)
+
+**Security** (one concrete finding; codebase otherwise well-hardened — path containment, defusedxml,
+AST-allowlist sandbox, RBAC membership scoping, HMAC signed URLs, production-secret guard all verified
+clean): ✅ SEC-XSS fixed (queue #0). No other exploitable issue surfaced.
+
+**Performance** (ranked, → queue #1-5): GEOM-CACHE, ASYNC-BLOCK, QTO-CACHE, CLASH-JOBS, PANEL-LAZY,
+DASH-UNION, PAYLOAD-CAPS, TEST-FASTPATH + the two frontend leaks. See the NOW block for the ordered
+plan; all are deterministic refactors with no coverage loss.
+
+---
+
 ## P1 — start now (buildable, live-verifiable, highest value)
 
 1. ✅ **COLLAB-CURSORS — SHIPPED v0.3.458** *(★★★★★)* — per-user colored view-cones + name tags at each

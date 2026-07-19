@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.493 — SEC: attachment stored-XSS fix · 🧭 R15 landscape plan + re-prioritized queue
+
+- **SECURITY (stored XSS)**: module-record attachments were served **inline** with the client-supplied
+  `Content-Type`, so a `text/html` or `image/svg+xml` upload with `<script>` executed JS on the API
+  origin against a lured member's session. Inline serving is now restricted to a **raster-image
+  allowlist** (png/jpeg/gif/webp/bmp); everything else is forced to `Content-Disposition: attachment`
+  + `application/octet-stream`, with `X-Content-Type-Options: nosniff` and
+  `Content-Security-Policy: sandbox; default-src 'none'` on the response. Filenames run through the
+  existing whitelist. Regression-tested (HTML + SVG both forced to attachment; images still inline).
+- **🧭 R15 ring + re-prioritized execution queue** added to the roadmap from a full research pass —
+  commercial + open-source landscape sweeps, a very-thorough codebase gap review, and security +
+  performance audits. Headline finding: the **backend is far ahead of the frontend** (~72 shipped
+  capabilities have no UI), so the new order leads with security/perf hygiene, then UI-surfacing
+  waves, then a real workflow state-machine layer, then the twice-validated interop gaps
+  (P6/MSP export round-trip, 4D simulation, model query DSL, Solibri-style rule library, model-CI,
+  Bluebeam-parity markup), then the R14/R15 feature tiers. All deterministic + offline; licenses
+  mapped; non-deterministic AI/photogrammetry features explicitly out of scope.
+- The performance audit's ranked fixes (GEOM-CACHE, ASYNC-BLOCK, QTO-CACHE, CLASH-JOBS, PANEL-LAZY,
+  DASH-UNION, PAYLOAD-CAPS, TEST-FASTPATH) are queued as the NOW block for execution.
+
 ## v0.3.492 — R14 research ring planned · doc_text ReDoS round 2
 
 - **🔬 R14 ring added to the roadmap** — a field-research pass (13 infographics + 10 open-source
