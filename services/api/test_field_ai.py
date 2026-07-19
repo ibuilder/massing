@@ -47,6 +47,25 @@ with TestClient(app) as c:
                  json={"activity": "A1", "percent": 65, "source": "vision-svc"}).json()
     assert ing["accepted"] is False, ing                                 # nothing fabricated when disabled
 
+    # --- PERF-4: name→id resolution is a single SQL probe (find_id_by_field), same answers as the
+    # old per-estimate Python scan: case-insensitive name hit, id passthrough, miss → not applied.
+    act = c.post(f"/projects/{pid}/modules/schedule_activity",
+                 json={"data": {"name": "Frame L2", "start": "2026-03-01",
+                                "finish": "2026-03-10"}}).json()["id"]
+    os.environ["AEC_CV_BRIDGE"] = "1"
+    by_name = c.post(f"/projects/{pid}/cv-progress/ingest",
+                     json={"activity": "  frame l2 ", "percent": 40}).json()
+    assert by_name["applied"] is True and by_name["activity_id"] == act, by_name
+    got = c.get(f"/projects/{pid}/modules/schedule_activity/{act}").json()
+    assert float(got["data"]["percent"]) == 40.0, got["data"]
+    by_id = c.post(f"/projects/{pid}/cv-progress/ingest",
+                   json={"activity": act, "percent": 55}).json()
+    assert by_id["applied"] is True and by_id["activity_id"] == act, by_id
+    miss = c.post(f"/projects/{pid}/cv-progress/ingest",
+                  json={"activity": "No Such Task", "percent": 10}).json()
+    assert miss.get("applied") is False and "no schedule_activity matched" in miss["apply_error"], miss
+    os.environ.pop("AEC_CV_BRIDGE", None)
+
 # --- E2 engine: when the operator enables the flag, estimates are accepted (clamped) --------------
 os.environ["AEC_CV_BRIDGE"] = "1"
 assert cv_bridge.enabled() is True

@@ -3056,6 +3056,35 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             }
           });
         })));
+        b.appendChild(toolBtn2("⛶ Geometry check (clearance/egress)", () => withLoading(container, "Running geometric checks", async () => {
+          let r;
+          try { r = await api.rulesGeometryRun(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `geometry: ${r.violation_total} violation(s)`;
+          showResult("Geometric rule check", (body) => {
+            const bySev = r!.by_severity || {};
+            body.appendChild(resultNote(`<b>${r!.violation_total}</b> violation(s)`
+              + (bySev.high ? ` · 🔴 ${bySev.high} high` : "") + (bySev.medium ? ` · 🟡 ${bySev.medium} medium` : "")
+              + (bySev.low ? ` · ⚪ ${bySev.low} low` : ""), r!.violation_total ? "" : "ok"));
+            for (const chk of r!.results) {
+              const line = resultNote(`${chk.passed ? "✅" : "🔴"} <b>${escapeHtml(chk.name)}</b> — `
+                + `${chk.checked} checked, ${chk.violations.length} violation(s)`
+                + (chk.note ? ` · ${escapeHtml(chk.note)}` : ""), chk.passed ? "ok" : "");
+              if (chk.violations.length) {
+                const pick = document.createElement("a"); pick.href = "#"; pick.textContent = " isolate";
+                pick.style.cssText = "font-size:11px;margin-left:6px";
+                const guids = chk.violations.map((v) => v.guid);
+                pick.onclick = (e) => { e.preventDefault(); void layerMgr.isolateGuids(guids.slice(0, 500)); };
+                line.appendChild(pick);
+              }
+              body.appendChild(line);
+              for (const v of chk.violations.slice(0, 12)) {
+                body.appendChild(resultNote(`&nbsp;&nbsp;${escapeHtml(v.name || v.guid.slice(0, 8) + "…")} — ${escapeHtml(v.detail)}`, ""));
+              }
+            }
+            body.appendChild(resultNote("AABB-level checks on the clash geometry path: door/equipment approach clearance, straight-line egress distance, accessible clear width. Property rules live in ✔ Rule check.", ""));
+          });
+        })));
         b.appendChild(toolBtn2("▢ Model CI (quality gate)", () => withLoading(container, "Running model CI checks", async () => {
           let r;
           try { r = await api.ciRun(pid); }

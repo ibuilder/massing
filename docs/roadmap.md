@@ -39,9 +39,11 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
 3. ✅ **DXF-EXPORT — SHIPPED v0.3.513 (Sprint 1)** — the composed sheet as R12 CAD entities
    (`GET /drawings/sheet.dxf`, layers BORDER/VIEW-n/ANNO/TITLEBLOCK, `render_sheet_dxf` + dxf.py
    entity builders) + the **↓ DXF** button on every view/sheet. Consultant-contract blocker cleared.
-4. ◧ **PERF-4 remainder** — **DASH-UNION SHIPPED v0.3.514 (Sprint 2)**: `state_counts_all` UNION-ALL
-   replaces the dashboard's ~124 per-module GROUP BYs (equivalence-tested). **Still open (S each):**
-   lean-column single-activity schedule load · SQL-aggregate the `limit=100000` analytics.
+4. ✅ **PERF-4 — COMPLETE v0.3.519 (Sprint 5)** — DASH-UNION ✅514; trade AP → SQL SUM with
+   `exclude_states` (NULL-state semantics preserved, equivalence-tested); CV name→id resolution →
+   one id-only SQL probe (`find_id_by_field`). The remaining ~100 `limit=100000` sites genuinely
+   consume row detail (journals, registers) — not aggregate candidates; convert opportunistically
+   only when a site proves to be a pure sum/count.
 
 **NEXT (compound the queue wave — each is a small, verified follow-up):**
 5. ✅ **QUERY-DSL wiring — SHIPPED v0.3.513 (Sprint 1)** — clash sides accept selectors:
@@ -57,8 +59,12 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
 8. ✅ **RESOURCE-LEVEL-2 — SHIPPED v0.3.513 (Sprint 1)** — `POST /schedule/resource-leveling/apply`:
    one leveling round within CPM float (week-granular, finish never moves, critical never shifts),
    audited; the **⚖ Level** button behind an explicit confirm.
-9. **RULE-LIB-2** *(M)* — the geometric/relational rule checks (clearance-in-front-of, escape
-   distance, accessible route, maintainability space) on the logistics/clash geometry path.
+9. ✅ **RULE-LIB-2 — SHIPPED v0.3.519 (Sprint 5)** — `aec_data/geometric_rules.py` on the clash
+   broad-phase AABB path: `clearance` (approach space along the thin axis — covers
+   clearance-in-front + maintainability access via scope), `escape_distance` (straight-line lower
+   bound), `clear_width` (accessible-route 815 mm proxy). `POST /rules/geometry/run` with QUERY-DSL
+   scopes + starter defaults; ⛶ viewer tool isolates violators. Swept-path route analysis stays
+   out of scope (needs a nav-mesh, not AABBs).
 10. ✅ **SURF-2b + SURF-4b** — SURF-2b SHIPPED v0.3.517 (all-packages bid-leveling summary +
     ✉ invite-bidders). SURF-4b SHIPPED v0.3.518: turnover-readiness strip on the Turnover panel
     (certificate ref/signers/record-model lock via `GET /turnover/status`) + 🚦 vendor procurement

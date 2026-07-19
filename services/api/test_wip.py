@@ -12,8 +12,9 @@ for _f in ("./test_wip.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient                # noqa: E402
-from aec_api.main import app                             # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 
 def _mk(c, pid, key, data):
@@ -129,6 +130,18 @@ with TestClient(app) as c:
     for _rep in ("wip", "contractor_financials"):
         rep = c.get(f"/projects/{pid}/reports/{_rep}.pdf")
         assert rep.status_code == 200 and rep.content[:4] == b"%PDF", (_rep, rep.status_code)
+
+    # --- PERF-4 equivalence: trade AP is now a SQL SUM with exclude_states — same answer as the ----
+    # old Python loop over every sub_invoice ("not in (paid, void)"; NULL/other states kept).
+    ap_pid = c.post("/projects", json={"name": "AP Equiv"}).json()["id"]
+    i1 = _mk(c, ap_pid, "sub_invoice", {"vendor": "Sub A", "amount": 10000})            # submitted
+    i2 = _mk(c, ap_pid, "sub_invoice", {"vendor": "Sub B", "amount": 20000})
+    c.post(f"/projects/{ap_pid}/modules/sub_invoice/{i2}/transition", json={"action": "approve"})
+    i3 = _mk(c, ap_pid, "sub_invoice", {"vendor": "Sub C", "amount": 5000})
+    for a in ("approve", "pay"):                                                        # paid → excluded
+        c.post(f"/projects/{ap_pid}/modules/sub_invoice/{i3}/transition", json={"action": a})
+    ap = c.get(f"/projects/{ap_pid}/contractor-statements").json()["contract_position"]
+    assert ap["accounts_payable"] == 30000, ap                     # 10k submitted + 20k approved, not the 5k paid
 
 print("WIP OK - percentage-of-completion 50% (cost 400k / est 800k) -> earned 500k (50% of 1M contract); "
       "under-billed 200k (contract asset) at 300k billed, flips to over-billed 200k (liability) at 700k; "

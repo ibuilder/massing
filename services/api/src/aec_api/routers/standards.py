@@ -205,6 +205,64 @@ def rules_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_
     return rule_library.run(_idx_for(pid), stored)
 
 
+# RULE-LIB-2: the geometric checks a property selector can't express. Starter set when no checks
+# are posted — same seeded-defaults pattern as the property library.
+_GEO_DEFAULTS = [
+    {"kind": "clearance", "name": "Door approach clearance", "scope": "IfcDoor",
+     "distance_m": 0.9, "severity": "high"},
+    {"kind": "clear_width", "name": "Accessible door clear width", "scope": "IfcDoor",
+     "min_m": 0.815, "severity": "medium"},
+    {"kind": "escape_distance", "name": "Space within reach of a door", "scope": "IfcSpace",
+     "exits": "IfcDoor", "max_m": 60.0, "severity": "medium"},
+]
+_GEO_MAX_CHECKS = 20
+
+
+@router.post("/projects/{pid}/rules/geometry/run")
+def rules_geometry_run(pid: str, payload: dict = Body(default={}), db: Session = Depends(get_db),
+                       _: str = Depends(require_role("editor"))):
+    """Geometric/relational rule checks over the model's baked AABBs (the clash broad-phase path):
+    `clearance` (approach space along the thin axis), `escape_distance` (straight-line to the
+    nearest exit), `clear_width` (accessible opening width). Body `{checks: [{kind, scope, …}]}`
+    with QUERY-DSL selector strings for scope/exits/obstructions; omit for the starter set.
+    Editor role — this bakes geometry, like /clash."""
+    from aec_data import geometric_rules  # type: ignore
+
+    from .. import query_dsl
+    from ..deps import source_ifc_path
+
+    checks = payload.get("checks") or _GEO_DEFAULTS
+    if not isinstance(checks, list) or len(checks) > _GEO_MAX_CHECKS:
+        raise HTTPException(422, f"checks must be a list of at most {_GEO_MAX_CHECKS}")
+    idx = _idx_for(pid)
+
+    def _sel(q) -> set[str] | None:
+        if q is None:
+            return None
+        try:
+            return set(query_dsl.select(idx, str(q), limit=20000)["guids"])
+        except query_dsl.QueryError as e:
+            raise HTTPException(422, f"bad selector: {e}")
+
+    resolved = []
+    for c in checks:
+        if c.get("kind") not in geometric_rules.KINDS:
+            raise HTTPException(422, f"kind must be one of {geometric_rules.KINDS}")
+        for p in ("distance_m", "max_m", "min_m"):
+            if c.get(p) is not None:
+                try:
+                    ok = 0 < float(c[p]) <= 1000
+                except (TypeError, ValueError):
+                    ok = False
+                if not ok:
+                    raise HTTPException(422, f"{p} must be a number in (0, 1000]")
+        resolved.append({**c, "scope": _sel(c.get("scope") or ""),
+                         "exits": _sel(c.get("exits")) if c.get("exits") is not None else set(),
+                         "obstructions": _sel(c.get("obstructions"))})
+    boxes = geometric_rules.bake_boxes(source_ifc_path(db, pid))
+    return geometric_rules.run(boxes, resolved)
+
+
 @router.get("/projects/{pid}/model/roundtrip.csv")
 def roundtrip_export(pid: str, props: str, db: Session = Depends(get_db),
                      _: str = Depends(require_role("viewer"))):

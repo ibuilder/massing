@@ -31,12 +31,12 @@ def _n(v: Any) -> float:
 
 
 def _accounts_payable(db: Session, pid: str) -> float:
-    """Unpaid subcontractor invoices (approved/submitted but not paid) — a proxy for trade AP."""
+    """Unpaid subcontractor invoices (approved/submitted but not paid) — a proxy for trade AP.
+    A pure filtered SUM, so it aggregates in SQL instead of loading every invoice into Python."""
     if "sub_invoice" not in me.TABLES:
         return 0.0
-    return round(sum(_n((r.get("data") or {}).get("amount"))
-                     for r in me.list_records(db, "sub_invoice", pid, limit=100_000)
-                     if r["workflow_state"] not in ("paid", "void")), 2)
+    return round(me.sum_field(db, "sub_invoice", pid, "amount",
+                              exclude_states=["paid", "void"]), 2)
 
 
 def _statements_from_wip(w: dict[str, Any], ap: float) -> dict[str, Any]:

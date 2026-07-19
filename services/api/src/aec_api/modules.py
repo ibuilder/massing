@@ -379,11 +379,13 @@ def _json_text(db: Session, col, jkey: str):
 
 
 def sum_field(db: Session, key: str, project_id: str, field: str,
-              states: list[str] | None = None) -> float:
+              states: list[str] | None = None,
+              exclude_states: list[str] | None = None) -> float:
     """SQL `SUM` of a numeric JSON field across a project's records — no full-table load into Python.
     Portable: casts the Postgres `->>` text to float; SQLite `json_extract` is already numeric. NULL /
-    missing values are skipped by SUM. Optional `states` narrows to those workflow states. Use for
-    aggregate-only reads (e.g. billed-to-date, open-risk exposure) instead of
+    missing values are skipped by SUM. Optional `states` narrows to those workflow states;
+    `exclude_states` drops them (NULL states are kept, matching a Python `not in` check). Use for
+    aggregate-only reads (e.g. billed-to-date, open trade AP) instead of
     `list_records(limit=100000)` + a Python sum."""
     if key not in TABLES:
         return 0.0
@@ -393,6 +395,9 @@ def sum_field(db: Session, key: str, project_id: str, field: str,
     stmt = select(expr).where(t.c.project_id == project_id)
     if states:
         stmt = stmt.where(t.c.workflow_state.in_(states))
+    if exclude_states:
+        stmt = stmt.where(or_(t.c.workflow_state.is_(None),
+                              t.c.workflow_state.notin_(exclude_states)))
     val = db.execute(stmt).scalar()
     return float(val or 0.0)
 
@@ -407,6 +412,22 @@ def count_field_in(db: Session, key: str, project_id: str, field: str, values: l
     val = db.execute(select(func.count()).where(t.c.project_id == project_id,
                                                 col.in_(values))).scalar()
     return int(val or 0)
+
+
+def find_id_by_field(db: Session, key: str, project_id: str, field: str, value: str) -> str | None:
+    """Id of the first record whose JSON `field` (or the title column) equals `value`
+    case-insensitively — one SQL probe selecting only the id column, instead of materializing full
+    rows into Python to search (the previous name→id resolutions scanned the table per lookup)."""
+    if key not in TABLES or not value:
+        return None
+    t = TABLES[key]
+    want = str(value).strip().lower()
+    col = _json_text(db, t.c.data, field)
+    return db.execute(
+        select(t.c.id).where(t.c.project_id == project_id,
+                             or_(func.lower(func.trim(col)) == want,
+                                 func.lower(func.trim(t.c.title)) == want))
+        .limit(1)).scalar()
 
 
 def _rollup(db: Session, key: str, project_id: str, rid: str, f: dict) -> float | int:

@@ -3027,6 +3027,17 @@ export class ApiClient extends HttpCore {
         scoped: number; passed: number; failed: number; fail_guids: string[]; status: string }[] }>(
       `/projects/${pid}/rules/run`);
   }
+  /** RULE-LIB-2 — geometric rule checks over the model's baked AABBs (clearance / escape-distance /
+   *  clear-width). Omit `checks` for the server's starter set. */
+  rulesGeometryRun(pid: string, checks?: { kind: string; scope: string; [k: string]: unknown }[]) {
+    return this.json<{ violation_total: number; by_severity: Record<string, number>;
+      results: { id?: string; kind: string; name: string; severity: string; passed: boolean;
+        checked: number; note?: string;
+        violations: { guid: string; name?: string; detail: string; distance_m?: number;
+          width_m?: number; blocking?: (string | null)[] }[] }[] }>(
+      `/projects/${pid}/rules/geometry/run`,
+      { method: "POST", body: JSON.stringify(checks?.length ? { checks } : {}) });
+  }
   /** XLSX-ROUNDTRIP — download the GUID-keyed property table (chosen `Pset.Prop` columns) as CSV
    *  for editing in Excel/Sheets; re-import via `roundtripDiff` + the `set_props_by_guid` recipe. */
   async roundtripExport(pid: string, props: string[]) {

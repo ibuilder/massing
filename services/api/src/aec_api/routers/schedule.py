@@ -192,20 +192,15 @@ def cv_progress_status(pid: str, _: str = Depends(require_role("viewer"))):
 
 def _resolve_activity(db: Session, pid: str, key: str) -> str | None:
     """Resolve a schedule_activity reference — an id, or a name matched case-insensitively — to its id.
-    Lets a CV service that only knows human task labels ('Frame L2') address activities by name."""
+    Lets a CV service that only knows human task labels ('Frame L2') address activities by name. The
+    name lookup is a single id-only SQL probe (find_id_by_field), not a per-estimate table scan."""
     if not key:
         return None
     try:
         me.get_record(db, "schedule_activity", pid, key)
         return key                                          # already a valid id
     except Exception:                                       # noqa: BLE001 — not an id; try name
-        want = str(key).strip().lower()
-        for r in me.list_records(db, "schedule_activity", pid, limit=1000):
-            data = r.get("data") or {}                      # module fields live in the data blob
-            name = data.get("name") or r.get("title") or ""
-            if str(name).strip().lower() == want:
-                return r["id"]
-    return None
+        return me.find_id_by_field(db, "schedule_activity", pid, "name", key)
 
 
 def _apply_estimate(db: Session, pid: str, activity_key: str, percent: float, actor: str) -> dict:

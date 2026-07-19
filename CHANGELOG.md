@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.519 — RULE-LIB-2 geometric rule checks + PERF-4 complete
+
+- **Geometric rule checks** (`POST /projects/{pid}/rules/geometry/run` + the ⛶ Geometry check
+  viewer tool): AABB-level spatial checks on the clash broad-phase geometry path — `clearance`
+  (door/equipment needs a clear approach on at least one side along its thin axis; host wall and
+  floor excluded), `escape_distance` (straight-line to the nearest exit ≤ max — the lower bound of
+  egress travel distance, so violations are always real), `clear_width` (accessible 815 mm opening
+  proxy). QUERY-DSL selectors scope each check; a starter set runs when none are posted; violations
+  isolate in the viewer. The spatial questions the property rule library can't express.
+- **PERF-4 closed out**: trade AP is now a SQL `SUM` with state exclusion (`sum_field
+  exclude_states`, NULL states kept — equivalence-tested against the old Python loop), and CV
+  progress name→id resolution is a single id-only SQL probe (`find_id_by_field`, case-insensitive
+  on the name field or title) instead of a per-estimate table scan.
+
 ## v0.3.518 — SURF-4b: turnover readiness + vendor procurement gate surfaced
 
 - The Turnover panel now opens with a **readiness strip**: substantial-completion certificate ref +
