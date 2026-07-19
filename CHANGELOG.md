@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.505 — FOURD-SIM: time-phased 4D construction playback in the viewer (queue #12)
+
+- Turns the (already server-computed + unit-tested) `/schedule/4d` timeline into a viewer playback — the
+  one genuinely-missing piece of 4D. A new **"⏱ 4D construction sequence (playback)"** tool loads the
+  day-by-day timeline and lets you **scrub or auto-play** through construction days: every element built
+  up to the current day is shown, everything not yet built is hidden, and the day's completions flash
+  **amber** — so the model assembles itself as the sequence advances (the Navisworks TimeLiner / SYNCHRO
+  core). Source selector (auto / GC schedule / takt), day slider, play/pause/step/reset, and a
+  day·date·%·built readout. Uses the schedule's element↔activity ties (hard-tied first, then by trade +
+  floor). New `viewer/fourD.ts` + reusable `LayerManager.colorGuids`/`resetColors` primitives.
+- Scope note (audit correction): 4D element↔activity linking and temporary site-logistics geometry were
+  **already shipped** (the `element_guids` tie + "Tie 3D selection", and W9-5 logistics with path motion
+  and swept-crane clash). The only real gap was the viewer never consuming the 4D frames — now closed.
+  Planned-vs-actual variance *coloring* on the timeline (the math ships in `/schedule/variance`) follows
+  as FOURD-SIM-2.
+
 ## v0.3.504 — SCHED-P6: P6 .xer + MS-Project XML export / round-trip (queue #11)
 
 - Closes the schedule round-trip. Import already read Primavera P6 **.xer** and **PMXML**; this adds the

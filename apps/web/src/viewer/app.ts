@@ -33,6 +33,7 @@ import { GridOverlay } from "./draft/gridOverlay";
 import { LogisticsOverlay } from "./draft/logisticsOverlay";
 import { type LogisticsResource } from "../api/client";
 import { DraftProxyLayer } from "./draft/draftProxy";
+import { populate4dPanel } from "./fourD";
 import { TransformGizmo } from "./draft/transformGizmo";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type DisciplineTree, type ElementProps, type PropLayer, type PropMapRule, type Topic } from "../api/client";
@@ -127,6 +128,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const visibility = new VisibilityTool(viewer.components);
   const colorize = new ColorizeTool(viewer.components);
   const layerMgr = new LayerManager(viewer.components);
+  let dispose4d: (() => void) | null = null;   // FOURD-SIM playback teardown (restores visibility)
   const origin = new OriginTool();
 
   let selection: ModelIdMap | null = null;
@@ -3062,6 +3064,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             const save = document.createElement("button"); save.className = "mini-btn on"; save.textContent = "💾 Save";
             save.onclick = async () => { try { await api.putLogistics(pid, resources); notify("logistics saved", "success"); } catch (e) { notify((e as Error).message, "error"); } };
             actions.append(dateI, phase, showAll, save); body.append(actions, status);
+          });
+        }));
+        b.appendChild(toolBtn2("⏱ 4D construction sequence (playback)", () => {
+          if (!projectId) { notify("connect a project first", "error"); return; }
+          dispose4d?.();                       // tear down a prior player before opening a fresh one
+          showResult("4D construction sequence", (body) => {
+            dispose4d = populate4dPanel(body, { api, pid, layers: layerMgr, notify });
           });
         }));
         b.appendChild(toolBtn2("🕸 Related elements (model graph)", () => withLoading(container, "Building model graph", async () => {

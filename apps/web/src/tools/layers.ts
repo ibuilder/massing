@@ -88,4 +88,15 @@ export class LayerManager {
   showAll() {
     return this.visibility.showAll();
   }
+
+  /** Color an ad-hoc set of GUIDs without registering a layer (e.g. the 4D "built today" highlight). */
+  async colorGuids(guids: string[], color: string) {
+    if (!guids.length) return;
+    await this.colorize.color(await this.sets.fromGuids(guids), color);
+  }
+
+  /** Clear every ad-hoc color override, returning elements to their material color. */
+  resetColors() {
+    return this.colorize.reset();
+  }
 }

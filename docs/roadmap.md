@@ -84,8 +84,14 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
     with GC edits) keyed by the activity code, and re-import matches the same records by code (no GUID
     drift). Import now also auto-detects MSPDI. `aec_data.schedule` `to_xer`/`to_mspdi`/`parse_mspdi` +
     export buttons on the Schedule panel. The #1 scheduler-credibility gate — cleared.
-12. **FOURD-SIM** *(M, ★★★★★)* — 4D: element↔activity linking, time-phased playback, planned-vs-actual
-    coloring, temp geometry (cranes/laydown) in the viewer — replaces Navisworks TimeLiner + SYNCHRO.
+12. ◧ **FOURD-SIM** *(M, ★★★★★)* — **core SHIPPED v0.3.505.** Audit correction: element↔activity
+    linking (`element_guids` + "Tie 3D selection") and temp site-logistics geometry (W9-5: cranes/laydown
+    with path motion + swept clash) were ALREADY built, and the `/schedule/4d` timeline backend was
+    complete + tested — the only real gap was that the viewer never consumed it. Now shipped: the
+    **"⏱ 4D construction sequence"** viewer tool — scrub/auto-play through construction days, built-so-far
+    shown, not-yet-built hidden, the day's completions flash amber (`viewer/fourD.ts`). **FOURD-SIM-2
+    remaining:** planned-vs-actual variance coloring on the timeline (variance math ships in
+    `/schedule/variance`); temp-geometry overlay riding the same play clock.
 13. **QUERY-DSL** *(M, ★★★★)* — an ifcopenshell-selector/ECSQL-style filter language
     (`IfcWall & Pset_WallCommon.FireRating=2HR & storey=L3`) powering clash scopes, view filters,
     schedules, bulk edits, MCP tools — multiplies every existing feature.
