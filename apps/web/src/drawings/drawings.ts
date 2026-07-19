@@ -28,6 +28,7 @@ export class DrawingsUI {
   private stage!: HTMLElement;      // transformed content (SVG + pins)
   private svgHost!: HTMLElement;
   private pinLayer!: HTMLElement;
+  private compareLayer: HTMLElement | null = null;   // MARKUP-2c light-table overlay (prior revision)
   private tx = 0; private ty = 0; private scale = 1;
   private current?: Sheet;
   private callouts = false;
@@ -184,7 +185,10 @@ export class DrawingsUI {
       // editable R12 CAD linework for consultants, not just paper.
       btn("↓ DXF", "Download DXF (editable CAD linework)", () => window.open(this.host_.api.url(sheet.path.replace(".svg", ".dxf")), "_blank")),
       // MARKUP-2b: the cross-sheet markups grid (every markup in the project, Σ totals, statuses)
-      btn("☰ Markups", "All markups across every sheet — totals, revisions, RFI links", () => void this.showMarkupGrid()));
+      btn("☰ Markups", "All markups across every sheet — totals, revisions, RFI links", () => void this.showMarkupGrid()),
+      // MARKUP-2c: light-table overlay compare — the live sheet (blue) under an uploaded prior
+      // revision (red); differences pop where the tints don't cancel.
+      btn("⧉ Compare", "Overlay a prior revision (SVG/PDF) on this sheet — light-table compare", () => void this.startCompare(), !!this.compareLayer));
     if (sheet.pdf) bar.append(btn("🖊 PDF markup", "Open the sheet PDF in the 2D editor — measure / mark up / persist to the sheet (promotable to RFI)", async () => {
       const api = this.host_.api, pid = this.host_.projectId();
       const { openPdfUrl, saveToDocuments } = await import("./openPdf");
@@ -311,6 +315,62 @@ export class DrawingsUI {
     });
     const t = this.root.querySelector<HTMLElement>("#dwg-toolbar .dwg-name");
     if (t && this.markup.length) t.textContent = `${this.current!.label}  ·  ${this.markup.length} markup${this.markup.length > 1 ? "s" : ""}`;
+  }
+
+  /** MARKUP-2c: light-table overlay compare. The live sheet is tinted BLUE, an uploaded prior
+   *  revision (SVG or PDF page 1) is laid over it tinted RED at adjustable opacity — unchanged
+   *  linework reads dark, differences pop in pure red (removed→was only in prior) or blue (added).
+   *  Toggles off on a second click. Rides the existing pan/zoom (the overlay lives in the stage). */
+  private async startCompare() {
+    if (this.compareLayer) {                               // toggle off → restore normal rendering
+      this.compareLayer.remove(); this.compareLayer = null;
+      this.svgHost.style.filter = "";
+      this.buildToolbar();
+      return;
+    }
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".svg,.pdf";
+    inp.onchange = async () => {
+      const f = inp.files?.[0]; if (!f) return;
+      let src: string | null = null;
+      try {
+        if (/\.pdf$/i.test(f.name)) {                      // rasterize page 1 via the bundled pdf.js
+          const pdfjs = await import("pdfjs-dist");
+          const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+          pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+          const doc = await pdfjs.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
+          const page = await doc.getPage(1);
+          const vp = page.getViewport({ scale: 2 });
+          const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
+          await page.render({ canvasContext: cv.getContext("2d")!, viewport: vp } as never).promise;
+          src = cv.toDataURL("image/png");
+        } else {
+          src = URL.createObjectURL(f);
+        }
+      } catch (e) { this.host_.setStatus(`couldn't open prior revision: ${(e as Error).message}`); return; }
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "position:absolute;inset:0;pointer-events:none";
+      const img = document.createElement("img");
+      img.src = src; img.alt = "prior revision overlay";
+      // red tint for the prior revision; multiply so shared linework darkens instead of hiding
+      img.style.cssText = "width:100%;height:auto;opacity:.55;mix-blend-mode:multiply;"
+        + "filter:sepia(1) saturate(8) hue-rotate(315deg)";
+      const ctrl = document.createElement("div");
+      ctrl.style.cssText = "position:absolute;top:6px;left:6px;display:flex;gap:6px;align-items:center;"
+        + "background:var(--panel,#23262d);border:1px solid var(--line,#3a3f47);border-radius:6px;"
+        + "padding:4px 8px;pointer-events:auto;font-size:11px;color:var(--fg,#eee)";
+      const lbl = document.createElement("span"); lbl.textContent = "⧉ prior (red) opacity";
+      const rng = document.createElement("input"); rng.type = "range"; rng.min = "0"; rng.max = "100"; rng.value = "55";
+      rng.oninput = () => { img.style.opacity = String(Number(rng.value) / 100); };
+      ctrl.append(lbl, rng);
+      wrap.append(img, ctrl);
+      // live sheet tinted blue so "added since prior" linework reads blue against the red overlay
+      this.svgHost.style.filter = "sepia(1) saturate(6) hue-rotate(175deg)";
+      this.stage.appendChild(wrap);
+      this.compareLayer = wrap;
+      this.buildToolbar();
+      this.host_.setStatus("compare on — shared linework dark · prior-only red · current-only blue");
+    };
+    inp.click();
   }
 
   /** MARKUP-2b: the cross-sheet markups grid — every markup in the project in one sortable list with

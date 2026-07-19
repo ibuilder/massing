@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.515 — MARKUP-2c: light-table overlay compare
+
+- **"⧉ Compare"** on any sheet view overlays an uploaded prior revision (SVG, or PDF page 1
+  rasterized via the bundled pdf.js) on the live sheet, classic light-table style: the current sheet
+  tints **blue**, the prior tints **red** with multiply blending — shared linework reads dark,
+  removed-since-prior work pops red, added work pops blue. Adjustable prior-layer opacity; rides the
+  existing pan/zoom (the overlay lives in the transformed stage); second click toggles off and
+  restores normal rendering. Frontend-only — no server change.
+- Remaining MARKUP slice: 2d live co-markup (2D presence payload + markup-mutation broadcast).
+
 ## v0.3.514 — SPRINT 2: dashboard UNION-ALL · CI-on-publish + clash check · cross-sheet markups grid
 
 **DASH-UNION (PERF-4)** — the role dashboard's per-module status tallies now come from **one

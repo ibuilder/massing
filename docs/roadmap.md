@@ -27,9 +27,10 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
    audit line overstated the gap). 2a = the project stamp library wired into the editor picker
    (per-disposition dynamic stamps) + **slip-sheet carry-forward**: markups stamp the register rev at
    save; revising tags `carried_from` (dashed-amber "verify against current revision" pins, never
-   dropped). **2b markups grid SHIPPED v0.3.514 (Sprint 2)** — the "☰ Markups" cross-sheet grid with
-   Σ totals + carried/RFI status. **Remaining:** 2c overlay compare (rev A/B
-   tinted) · 2d live co-markup (2D presence payload + mutation broadcast on the existing SSE).
+   dropped). **2b markups grid SHIPPED v0.3.514 (Sprint 2)**; **2c overlay compare SHIPPED
+   v0.3.515** — the "⧉ Compare" light-table overlay (live sheet blue × uploaded prior red, multiply
+   blend, opacity slider). **Remaining:** 2d live co-markup (2D presence payload + mutation
+   broadcast on the existing SSE).
 2. ✅ **XLSX-ROUNDTRIP — SHIPPED v0.3.513** — `GET /model/roundtrip.csv?props=…` (guarded GUID-keyed
    export) → edit in Excel/Sheets → `POST /model/roundtrip/diff` (dry-run: changes + dtype inferred
    from old values + unknown GUIDs) → the new `set_props_by_guid` batch recipe applies the sheet in
