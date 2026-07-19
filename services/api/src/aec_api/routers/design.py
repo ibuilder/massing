@@ -1,6 +1,8 @@
 """Design-lifecycle endpoints — the RIBA/AIA phase spine + itemized soft costs for a project."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
@@ -195,6 +197,35 @@ def reference(_: str = Depends(current_user)):
     return {"phases": design_phase.PHASES,
             "soft_cost_components": soft_costs.COMPONENTS,
             "ae_phase_split": soft_costs.AE_PHASE_SPLIT}
+
+
+@router.post("/projects/{pid}/env/wind")
+def env_wind_screen(pid: str, body: dict = Body(default={}),
+                    db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """ENV-1 — pedestrian **wind-comfort screen** at massing stage (approximate, offline): corner
+    acceleration, downwash, and channelling graded on the Lawson comfort categories, with the
+    standard mitigations. Pass `{height_m, width_m, depth_m, wind_ms?, gap_m?, podium_height_m?}`;
+    omit the dims to derive height/width/depth from the source model's bounding box. NOT CFD."""
+    from .. import env_wind
+
+    h, w, d = body.get("height_m"), body.get("width_m"), body.get("depth_m")
+    if h is None or w is None or d is None:
+        p = db.get(Project, pid)
+        if not (p and p.source_ifc and Path(p.source_ifc).exists()):
+            raise HTTPException(409, "pass height_m/width_m/depth_m, or load a source IFC to derive them")
+        from aec_data import drawings as _dwg  # type: ignore
+        from aec_data.ifc_loader import open_model  # type: ignore
+        meshes = _dwg.bake(open_model(p.source_ifc))
+        import numpy as _np
+        pts = _np.vstack([m.bounds for _, m in meshes if getattr(m, "bounds", None) is not None])
+        mn, mx = pts.min(axis=0), pts.max(axis=0)
+        w = w if w is not None else float(mx[0] - mn[0])
+        d = d if d is not None else float(mx[1] - mn[1])
+        h = h if h is not None else float(mx[2] - mn[2])
+    return env_wind.screen(float(h), float(w), float(d),
+                           wind_ms=float(body.get("wind_ms") or 5.0),
+                           gap_m=(float(body["gap_m"]) if body.get("gap_m") is not None else None),
+                           podium_height_m=float(body.get("podium_height_m") or 0.0))
 
 
 @router.get("/projects/{pid}/resilience/flood")

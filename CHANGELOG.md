@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.476 — ENV-1 wind-comfort screen · VIZ-1 export parity confirmed (P2)
+
+- **ENV-1 — `POST /projects/{pid}/env/wind`**: a pedestrian **wind-comfort screen** at massing stage —
+  corner acceleration, downwash (with the podium-interception rule), and passage channelling, each
+  graded on the **Lawson comfort categories** (A sitting → E uncomfortable → unsafe > 15 m/s) with
+  the standard mitigations (podium/canopy, corner chamfers, porous screens). Dims explicit or derived
+  from the source model's bounds. Deterministic rules of thumb, honestly labelled **NOT CFD** — a
+  screen to steer massing, verified with a wind consultant for tall/exposed sites. `test_env_wind`
+  covers the physics behaviors (podium cuts the downwash factor; a 10 m gap channels, 40 m doesn't;
+  >15 m/s grades unsafe).
+- **VIZ-1 — .glb export parity confirmed** against the live dev model: a valid glTF 2.0 binary with
+  every geometry class present (Slab/Space/Wall nodes, all named). Noted design trade-off: the
+  exporter merges **per IFC class** (compact presentation export), so per-element identity lives in
+  the IFC/Fragments path, not the .glb — as documented on the endpoint.
+- Backend suite green; web gates green.
+
 ## v0.3.475 — COST-AGENT calibration · BOARDS option decks (P2 · AI & finance frontier)
 
 - **COST-AGENT — `GET /projects/{pid}/cost/calibration`**: the project learns from its own history —

@@ -77,13 +77,14 @@ evidence — ✅ 474, `/schedule/make-ready` cites predecessors' real % + open s
 ✅ RISK-BOARD (v0.3.470 — `/risk-board` unifies 5 engines into one ranked register).
 
 **Finance/frontier:** ✅ PROFORMA-LIVE (473 — `/proforma/live` cached takeoff cost + GFA + budget
-delta; the viewer status updates after every load) · ✅ BOARDS (475 —
-`/design/options/board.pdf` one-page scored deck) · ENV-1 wind-comfort at massing (approximate, offline) ·
+delta; the viewer status updates after every load) · ✅ BOARDS (475) · ✅ ENV-1 (476 —
+`/env/wind` Lawson screen: corner/downwash/channelling + mitigations, NOT-CFD labelled) ·
 GEN-SCORE depth (per-option 5D takeoffs + EPD carbon once options carry models).
 
 **Estimating/engineering:** MEP pressure-loss balancing + thermal loads + per-conductor tray fill ·
 ✅ DISC-poché (v0.3.469 — `by_discipline` on both plan renderers) · VIZ-2 three.js PBR presentation
-mode · VIZ-1 parity confirm.
+mode · ✅ VIZ-1 parity confirmed (476 — live .glb valid glTF 2.0, all geometry classes present;
+per-class merge is the documented design).
 
 **Onboarding & codes:** ✅ B1 sign-in-first welcome panel (472 — 🔐 lead row, never walls) · B2 sign-in→tour · A1/A2/C1
 provider prominence · B3/B4/C2 fast-follows · CODE-1 adoption-seed depth (✅ per-project jurisdiction
