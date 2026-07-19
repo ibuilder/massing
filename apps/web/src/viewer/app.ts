@@ -2948,6 +2948,31 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             }
           });
         })));
+        b.appendChild(toolBtn2("🔎 Query-select (filter language)", () => {
+          showResult("Query-select — selector language", (body) => {
+            body.appendChild(resultNote("Select elements by a selector string, then isolate them in 3D. "
+              + "Combine terms with <b>&amp;</b>: <code>IfcWall &amp; Pset_WallCommon.FireRating=2HR &amp; storey=L3</code>. "
+              + "Operators: <code>= != &gt;= &lt;= &gt; &lt; ~</code> (contains); a bare <code>Pset.Prop</code> tests existence.", ""));
+            const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0";
+            const inp = document.createElement("input"); inp.className = "portal-filter"; inp.style.cssText = "flex:1 1 240px;min-width:0;font-size:12px";
+            inp.placeholder = "IfcWall & storey=L3"; inp.value = "IfcWall";
+            const run = document.createElement("button"); run.className = "mini-btn on"; run.textContent = "Run";
+            const status = document.createElement("div"); status.className = "meta"; status.style.marginTop = "4px";
+            row.append(inp, run); body.append(row, status);
+            const exec = async () => {
+              const query = inp.value.trim(); if (!query) return;
+              status.textContent = "querying…";
+              try {
+                const r = await api.modelSelect(pid, query);
+                status.innerHTML = `<b>${r.matched}</b> matched${r.truncated ? " (showing first " + r.guids.length + ")" : ""}`;
+                if (r.guids.length) await layerMgr.isolateGuids(r.guids);
+                else { await layerMgr.showAll(); notify("no elements matched", "info"); }
+              } catch (e) { status.textContent = `query error: ${(e as Error).message}`; }
+            };
+            run.onclick = () => void exec();
+            inp.onkeydown = (e) => { if (e.key === "Enter") void exec(); };
+          });
+        }));
         b.appendChild(toolBtn2("🔗 Coordinate clashes (grouped issues)", () => withLoading(container, "Running federated clash + coordination", async () => {
           let r;
           try { r = await api.clashFederated(pid, { coordinate: true }); }

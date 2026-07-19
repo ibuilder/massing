@@ -3001,6 +3001,13 @@ export class ApiClient extends HttpCore {
    *  Relational by default — when GC `schedule_activity` records exist they drive it (`source:"gc"`),
    *  each frame carrying a real calendar `date` + `linked`/`unlinked` element counts. Otherwise a takt
    *  plan; a P6 .xer import yields `source:"p6"` with interpolated dates. `?source=gc|takt` forces one. */
+  /** QUERY-DSL — select elements by a selector string (`IfcWall & Pset_WallCommon.FireRating=2HR &
+   *  storey=L3`) → matching GUIDs + parsed predicates. One grammar for filter / isolate / scope. */
+  modelSelect(pid: string, q: string, limit = 5000) {
+    return this.json<{ query: string; matched: number; truncated: boolean; guids: string[];
+      predicates: { field: string; op: string; value: string | null }[]; note?: string }>(
+      `/projects/${pid}/model/select?q=${encodeURIComponent(q)}&limit=${limit}`);
+  }
   schedule4d(pid: string, source?: "gc" | "takt") {
     return this.json<{ floors: number; duration_days?: number; total_days?: number; element_count: number;
       source: "takt" | "p6" | "gc"; start_date?: string; finish_date?: string; p6_activities?: number;

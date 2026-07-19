@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.506 — QUERY-DSL: a selector language over the model (queue #13)
+
+- Adds a compact selector grammar so one filter language scopes clash runs, view filters, schedules,
+  bulk edits, and MCP tools — instead of each feature inventing its own filter shape. Combine terms
+  with `&`: `IfcWall & Pset_WallCommon.FireRating=2HR & storey=L3`. Fields: `ifc_class`, `storey`,
+  `type_name` (alias `type`), `name`, `discipline`, or any `Pset.Prop`; operators `= != >= <= > < ~`
+  (contains) plus a bare `Pset.Prop` for existence. Comparisons are numeric when both sides parse as
+  numbers, else case-insensitive string.
+- New `aec_api/query_dsl.py` (`parse`/`matches`/`select`, reusing `model_query._val` for field
+  resolution) + `GET /projects/{pid}/model/select?q=…` → matching GUIDs + parsed predicates (bad query
+  → 422). Viewer gains a **"🔎 Query-select (filter language)"** tool that runs a query and isolates
+  the matches in 3D; new `modelSelect` client method. Unit-tested end to end (`test_query_dsl`, 272 suites).
+
 ## v0.3.505 — FOURD-SIM: time-phased 4D construction playback in the viewer (queue #12)
 
 - Turns the (already server-computed + unit-tested) `/schedule/4d` timeline into a viewer playback — the

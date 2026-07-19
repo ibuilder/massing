@@ -155,6 +155,22 @@ def model_query_run(pid: str, view: str | None = None, group_by: str = "ifc_clas
     return model_query.run_saved(idx, view) if view else model_query.query(idx, group_by, agg, quantity)
 
 
+@router.get("/projects/{pid}/model/select")
+def model_select(pid: str, q: str, limit: int = 5000, db: Session = Depends(get_db),
+                 _: str = Depends(require_role("viewer"))):
+    """QUERY-DSL — select elements with a selector string (`IfcWall & Pset_WallCommon.FireRating=2HR &
+    storey=L3`) → matching GUIDs + the parsed predicates. One grammar scopes clash runs, view filters,
+    schedules, bulk edits, and MCP tools. Bad query → 422."""
+    from fastapi import HTTPException
+
+    from .. import query_dsl
+    _project(db, pid)
+    try:
+        return query_dsl.select(_idx_for(pid), q, limit=min(max(limit, 1), 20000))
+    except query_dsl.QueryError as e:
+        raise HTTPException(422, str(e))
+
+
 @router.get("/projects/{pid}/model/export.csv")
 def model_export_csv(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Export the model element table as CSV (columnar, one row per element)."""

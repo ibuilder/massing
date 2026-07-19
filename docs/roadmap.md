@@ -92,9 +92,12 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
     shown, not-yet-built hidden, the day's completions flash amber (`viewer/fourD.ts`). **FOURD-SIM-2
     remaining:** planned-vs-actual variance coloring on the timeline (variance math ships in
     `/schedule/variance`); temp-geometry overlay riding the same play clock.
-13. **QUERY-DSL** *(M, ★★★★)* — an ifcopenshell-selector/ECSQL-style filter language
-    (`IfcWall & Pset_WallCommon.FireRating=2HR & storey=L3`) powering clash scopes, view filters,
-    schedules, bulk edits, MCP tools — multiplies every existing feature.
+13. ✅ **QUERY-DSL — SHIPPED v0.3.506** — a selector grammar (`IfcWall & Pset_WallCommon.FireRating=2HR
+    & storey=L3`; ops `= != >= <= > < ~` + existence) over the property index. `aec_api/query_dsl.py`
+    (`parse`/`matches`/`select`, reusing `model_query._val`) + `GET /model/select?q=…` → GUIDs +
+    predicates, and a viewer **🔎 Query-select** tool that isolates matches in 3D. Reusable core for
+    clash scopes / view filters / schedules / bulk edits / MCP. **Next:** wire `select()` into the
+    clash-scope + bulk-edit call sites (they still take explicit class lists) to compound the value.
 14. **RULE-LIB** *(M, ★★★★)* — a Solibri-style user-authored parametric rule-check library
     (clearance-in-front-of, accessible route, escape distance, maintainability space) with a severity
     matrix, on the existing compliance substrate.
