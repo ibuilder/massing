@@ -75,8 +75,11 @@ def run(idx: dict[str, dict] | None, view: dict, limit: int = 20000) -> dict[str
     """Resolve a view's selector to the matching GUIDs (for the viewer to isolate / colour / hide)."""
     try:
         sel = query_dsl.select(idx, view["selector"], limit=limit)
-    except QueryError as e:
-        return {"id": view.get("id"), "name": view.get("name"), "error": str(e), "guids": []}
+    except QueryError:
+        # a saved view's selector is validated at save time, so this is defensive — return a fixed
+        # message rather than echoing the exception (py/stack-trace-exposure) into the response.
+        return {"id": view.get("id"), "name": view.get("name"),
+                "error": "this view's selector could not be evaluated — re-save it", "guids": []}
     return {"id": view.get("id"), "name": view.get("name"), "mode": view.get("mode"),
             "color": view.get("color"), "selector": view["selector"],
             "matched": sel.get("matched", 0), "truncated": sel.get("truncated", False),

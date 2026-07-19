@@ -1317,23 +1317,59 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const fedBody = section("models", "Data · Models (federation)");
     if (fedBody) {
       const l = document.createElement("div"); l.id = "fed-models"; fedBody.appendChild(l); refreshFederation();
-      if (projectId) fedBody.appendChild(toolBtn2("🕔 Version history", async () => {
+      if (projectId) fedBody.appendChild(toolBtn2("🕔 Version compare (3D)", async () => {
         const h = await api.modelVersions(pid);
-        showResult("Model version history", async (body) => {
+        showResult("Version compare", async (body) => {
           if (!h.length) { body.appendChild(resultNote("No versions yet — publish the model (Authoring) to snapshot one.")); return; }
           if (h.length >= 2) {
-            const d = await api.versionDiff(pid, h[1]!.version, h[0]!.version); // safe: h.length >= 2 checked above
-            body.appendChild(resultNote(`v${h[1]!.version} → v${h[0]!.version}: <b>+${d.added_count}</b> added / <b>−${d.removed_count}</b> removed`
-              + (d.modified_available ? ` / <b>~${d.modified_count}</b> modified` : "") + ` · ${d.unchanged_count} unchanged`, "ok"));
-            if (d.modified_count) {
-              body.appendChild(resultNote("Modified elements (click to select in 3D):", ""));
-              body.appendChild(kvTable(d.modified.slice(0, 40).map((m) => ({
-                k: `${(m.ifc_class || "").replace("Ifc", "")} · ${m.name || m.guid.slice(0, 8)}`,
-                v: m.changes.join(", "),
-                onClick: () => selectByGuid(m.guid, false),
-              }))));
-            }
+            // VERSION-COMPARE-3D: pick any two versions → summary + a 3D overlay (added green / modified amber)
+            const versionOpts = (sel: HTMLSelectElement, def: number) => {
+              for (const v of h) { const o = document.createElement("option"); o.value = String(v.version); o.textContent = `v${v.version}`; sel.appendChild(o); }
+              sel.value = String(def);
+            };
+            const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0";
+            const aSel = document.createElement("select"); aSel.className = "portal-filter"; aSel.style.fontSize = "12px"; versionOpts(aSel, h[1]!.version);
+            const bSel = document.createElement("select"); bSel.className = "portal-filter"; bSel.style.fontSize = "12px"; versionOpts(bSel, h[0]!.version);
+            const cmp = document.createElement("button"); cmp.className = "mini-btn on"; cmp.textContent = "Compare";
+            row.append(document.createTextNode("from "), aSel, document.createTextNode(" → "), bSel, cmp);
+            body.appendChild(row);
+            const out = document.createElement("div"); body.appendChild(out);
+            const render = async () => {
+              const a = Number(aSel.value), b = Number(bSel.value);
+              out.innerHTML = "<div class=\"meta\">comparing…</div>";
+              let d; try { d = await api.versionDiff(pid, a, b); } catch (e) { out.innerHTML = ""; out.appendChild(resultNote(`compare failed: ${escapeHtml((e as Error).message)}`, "")); return; }
+              out.innerHTML = "";
+              out.appendChild(resultNote(`v${a} → v${b}: <b style="color:var(--status-good)">+${d.added_count}</b> added / `
+                + `<b style="color:var(--status-crit)">−${d.removed_count}</b> removed`
+                + (d.modified_available ? ` / <b style="color:#e0a020">~${d.modified_count}</b> modified` : " / modified n/a (older version)")
+                + ` · ${d.unchanged_count} unchanged`, "ok"));
+              const ctl = document.createElement("div"); ctl.style.cssText = "display:flex;gap:6px;margin:4px 0";
+              const overlay = document.createElement("button"); overlay.className = "mini-btn on"; overlay.textContent = "◉ Overlay in 3D";
+              overlay.title = "Colour added elements green and modified elements amber in the loaded model (removed elements aren't in it).";
+              const reset = document.createElement("button"); reset.className = "mini-btn"; reset.textContent = "Reset";
+              overlay.onclick = async () => {
+                try {
+                  await layerMgr.resetColors();
+                  if (d!.added.length) await layerMgr.colorGuids(d!.added, "#33d17a");
+                  if (d!.modified.length) await layerMgr.colorGuids(d!.modified.map((m) => m.guid), "#e0a020");
+                  notify(`overlaid +${d!.added_count} / ~${d!.modified_count}`, "success");
+                } catch (e) { notify((e as Error).message, "error"); }
+              };
+              reset.onclick = async () => { await layerMgr.resetColors(); await layerMgr.showAll(); };
+              ctl.append(overlay, reset); out.appendChild(ctl);
+              if (d.modified_count) {
+                out.appendChild(resultNote("Modified elements (click to select in 3D):", ""));
+                out.appendChild(kvTable(d.modified.slice(0, 40).map((m) => ({
+                  k: `${(m.ifc_class || "").replace("Ifc", "")} · ${m.name || m.guid.slice(0, 8)}`,
+                  v: m.changes.join(", "),
+                  onClick: () => selectByGuid(m.guid, false),
+                }))));
+              }
+            };
+            cmp.onclick = () => void render();
+            void render();
           }
+          body.appendChild(resultNote("Version history:", ""));
           body.appendChild(kvTable(h.map((v) => ({
             k: `v${v.version}${v.note ? " (" + v.note + ")" : ""}`,
             v: `${v.element_count} elements · ${(v.created_at || "").slice(0, 10)}` }))));

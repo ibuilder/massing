@@ -145,10 +145,12 @@ all-present offline*).
 
 **Model intelligence & QA:** **NORM-VALID** — normative IFC validation porting the buildingSMART
 validation-service checks (STEP syntax, schema propositions, normative rules, bSDD alignment; MIT
-reference) as an offline job · **VERSION-COMPARE-3D** — per-property old/new change lists
-(iTwin-style) + in-viewer added/removed/modified overlay between any two versions/option branches
-(MODEL-DIFF data ships) · **IFCPATCH-LIB** — one-click maintenance recipes (purge orphans, optimize,
-extract discipline subset, rebase coordinates, unit-convert, merge/split).
+reference) as an offline job · ◧ **VERSION-COMPARE-3D** — **in-viewer overlay SHIPPED v0.3.526**:
+pick any two versions → added/removed/modified summary + a 3D overlay colouring added green /
+modified amber (the `/versions/diff` snapshot data + change labels already shipped). **Still open:**
+the per-property old/new value list (iTwin-style) — needs richer per-version property snapshots, not
+just the fingerprint hashes stored today · **IFCPATCH-LIB** — one-click maintenance recipes (purge
+orphans, optimize, extract discipline subset, rebase coordinates, unit-convert, merge/split).
 
 **Documents & coordination:** **BCF-API-SRV** — server-side BCF-API 3.0 / OpenCDE endpoints so
 Revit/Navisworks/BIMcollab BCF managers connect live (spec is open) · **TRANSMIT-ITP** — numbered

@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.526 — VERSION-COMPARE-3D: pick-any-two version overlay (R15)
+
+- The viewer's version tool becomes a real **version compare**: pick **any two** published versions
+  (not just the latest pair) and get the added / removed / modified summary plus a **◉ Overlay in 3D**
+  that colours added elements green and modified elements amber in the loaded model (with a reset).
+  Modified elements still list their change labels (renamed · reclassified · retyped · re-leveled ·
+  properties · quantities) and select in 3D on click. Frontend-only — the per-version snapshot diff
+  (`GET /versions/diff`) already shipped.
+- **Security**: `smart_views.run` no longer echoes a `QueryError` string into its response (the saved
+  selector is validated at save, so the branch is defensive) — clears a `py/stack-trace-exposure`
+  CodeQL finding.
+
 ## v0.3.525 — SMART-VIEWS: saved property-driven view presets (R15)
 
 - New **smart views** — user-authored, per-project saved view presets over the model (the
