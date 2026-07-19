@@ -75,7 +75,9 @@ IFC) · ✅ W10-4 coincident-port auto-connect (478 — `auto_connect_mep` recip
 coincident segment-end/fitting points with IfcRelConnectsPorts; fittings claim the joints, idempotent) ·
 W10-5 section/elevation annotation views · ✅ W10-6 keynote
 legend (sheets render the KEYNOTES legend from Track-D codes, test-asserted) · W9-4 harder half (spec/code document text ingestion → cited NL answers) · W9-5 4D equipment
-motion + swept crane clash · W9-6b headcount-program → zones + auto-furnish.
+motion + swept crane clash · ✅ W9-6b headcount-program → zones + auto-furnish (484 —
+`program_fit`: largest-first allocation, Pset_Massing_Program zones, furnish-to-seat-count,
+honest short_by reporting).
 
 **AI & agents:** ✅ S4 multi-step undo grouping (471) · ✅ S5 clarifying questions (shipped: both
 planner paths return `needs_clarification`, surfaced in the command bar + Ask panel) · ✅ AI read

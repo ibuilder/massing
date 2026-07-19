@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.484 — W9-6b headcount program → zones + auto-furnish (P2 · generative fit-out)
+
+- **W9-6b — `program_fit` recipe**: give it a **headcount program** (`{Engineering: 40, Sales: 20}`)
+  and it allocates the model's spaces to departments (largest rooms to the largest remaining asks),
+  stamps each allocated space as that department's **zone** (`LongName` + `Pset_Massing_Program`
+  Department/SeatsAllocated), and **furnishes it to exactly the allocated seat count** using the
+  W9-6 gridder (aisle-cleared desk/table templates). The report partitions allocated vs unallocated
+  rooms and never silently under-seats — an over-capacity ask comes back `short_by: N`. Test-proven:
+  an 11-seat program authors exactly 11 desks; a 500-seat ask on two small rooms reports the
+  shortage. Completes the W9-6 generative fit-out track.
+
 ## v0.3.483 — E6 model-option branches · E8 model-aware guardrails (P2 · Master-builder UX)
 
 - **E6 — recipe-log design-option branches** (`model_options.py` + 5 routes under

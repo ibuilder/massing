@@ -489,6 +489,161 @@ def furnish_spaces(model: ifcopenshell.file, item: str = "desk", per_room: int =
     return placed
 
 
+def program_fit(model: ifcopenshell.file, program: dict, item: str = "desk") -> dict:
+    """W9-6b — **headcount program → zones + auto-furnish**: given `{department: headcount}`, allocate
+    the model's IfcSpaces to departments (largest rooms to the largest remaining headcounts), stamp
+    each allocated space as that department's zone (`LongName` + `Pset_Massing_Program`
+    Department/SeatsAllocated), and furnish it with exactly the allocated seats (via the W9-6
+    gridder). Returns the allocation report — per department: spaces, seats provided vs asked,
+    satisfied/short — plus unallocated spaces. Deterministic; capacity = how many `item`s the
+    footprint grids with aisle clearance (the same math the furnisher uses)."""
+
+    import ifcopenshell.geom as geom
+    import numpy as np
+
+    if not isinstance(program, dict) or not program:
+        raise ValueError("program must be a non-empty {department: headcount} map")
+    asks: list[tuple[str, int]] = []
+    for dept, n in program.items():
+        try:
+            count = int(n)
+        except (TypeError, ValueError):
+            raise ValueError(f"headcount for {dept!r} must be a whole number") from None
+        if count < 1:
+            raise ValueError(f"headcount for {dept!r} must be at least 1")
+        asks.append((str(dept), count))
+    asks.sort(key=lambda a: -a[1])                     # biggest department first
+
+    templates = {"desk": (1.5, 0.75, 0.75), "table": (2.0, 1.0, 0.75),
+                 "bed": (2.0, 1.5, 0.5), "sofa": (2.0, 0.9, 0.8)}
+    w, d, _h = templates.get(item, templates["desk"])
+    aisle = 0.8
+    cw, cd = w + aisle, d + aisle
+
+    # capacity per space from the baked footprint (same math as furnish_spaces)
+    settings = geom.settings()
+    it = geom.iterator(settings, model, geom_workers())
+    rooms: list[dict] = []
+    if it.initialize():
+        while True:
+            sh = it.get()
+            el = model.by_guid(sh.guid)
+            if el and el.is_a() == "IfcSpace":
+                v = np.asarray(sh.geometry.verts, dtype=float).reshape(-1, 3)
+                if v.size:
+                    cols = max(0, int((v[:, 0].max() - v[:, 0].min() - aisle) // cw))
+                    rows = max(0, int((v[:, 1].max() - v[:, 1].min() - aisle) // cd))
+                    rooms.append({"guid": sh.guid, "name": getattr(el, "Name", None),
+                                  "capacity": cols * rows})
+            if not it.next():
+                break
+    rooms.sort(key=lambda r: -r["capacity"])           # biggest room first
+
+    allocation: dict[str, dict] = {dept: {"department": dept, "headcount": n, "seats": 0,
+                                          "spaces": []} for dept, n in asks}
+    free = list(rooms)
+    for dept, n in asks:
+        a = allocation[dept]
+        while a["seats"] < n and free:
+            room = free.pop(0)
+            take = min(room["capacity"], n - a["seats"])
+            if take <= 0:
+                continue
+            a["seats"] += take
+            a["spaces"].append({**room, "seats": take})
+    for a in allocation.values():
+        a["satisfied"] = a["seats"] >= a["headcount"]
+        a["short_by"] = max(0, a["headcount"] - a["seats"])
+
+    placed_total = 0
+    for a in allocation.values():
+        for s in a["spaces"]:
+            space = model.by_guid(s["guid"])
+            space.LongName = f"{a['department']} zone"
+            ps = ifcopenshell.api.run("pset.add_pset", model, product=space,
+                                      name="Pset_Massing_Program")
+            ifcopenshell.api.run("pset.edit_pset", model, pset=ps,
+                                 properties={"Department": a["department"],
+                                             "SeatsAllocated": int(s["seats"])})
+    # furnish each allocated room to its seat count: temporarily grid via furnish_spaces would hit
+    # EVERY space — instead reuse its per-room cap by furnishing one room at a time is heavier than
+    # needed; the gridder already caps per room, so run it once per distinct cap group
+    # (in practice: run per room via the same placement math)
+    placed_total = _furnish_allocated(model, allocation, item)
+
+    used = {s["guid"] for a in allocation.values() for s in a["spaces"]}
+    return {"item": item,
+            "departments": sorted(allocation.values(), key=lambda a: -a["headcount"]),
+            "seats_placed": placed_total,
+            "seats_asked": sum(n for _, n in asks),
+            "all_satisfied": all(a["satisfied"] for a in allocation.values()),
+            "unallocated_spaces": [{"guid": r["guid"], "name": r["name"],
+                                    "capacity": r["capacity"]}
+                                   for r in rooms if r["guid"] not in used],
+            "note": "largest-first greedy fit; capacity from the footprint grid with "
+                    f"{aisle} m aisle clearance around each {item}"}
+
+
+def _furnish_allocated(model: ifcopenshell.file, allocation: dict, item: str) -> int:
+    """Grid `seats` items into each allocated space (the furnish_spaces placement math, scoped to
+    the allocation instead of every space)."""
+    import ifcopenshell.geom as geom
+    import ifcopenshell.util.element as ue
+    import numpy as np
+
+    templates = {"desk": (1.5, 0.75, 0.75), "table": (2.0, 1.0, 0.75),
+                 "bed": (2.0, 1.5, 0.5), "sofa": (2.0, 0.9, 0.8)}
+    w, d, h = templates.get(item, templates["desk"])
+    aisle = 0.8
+    cw, cd = w + aisle, d + aisle
+    body = _body_context(model)
+    targets = {s["guid"]: s["seats"] for a in allocation.values() for s in a["spaces"]}
+
+    settings = geom.settings()
+    it = geom.iterator(settings, model, geom_workers())
+    boxes: dict[str, tuple] = {}
+    if it.initialize():
+        while True:
+            sh = it.get()
+            if sh.guid in targets:
+                v = np.asarray(sh.geometry.verts, dtype=float).reshape(-1, 3)
+                if v.size:
+                    boxes[sh.guid] = (v[:, 0].min(), v[:, 1].min(), v[:, 0].max(), v[:, 1].max(),
+                                      v[:, 2].min())
+            if not it.next():
+                break
+    placed = 0
+    for guid, (x0, y0, x1, y1, z0) in boxes.items():
+        space = model.by_guid(guid)
+        st = ue.get_container(space) or ue.get_aggregate(space)
+        cols = max(0, int((x1 - x0 - aisle) // cw))
+        rows = max(0, int((y1 - y0 - aisle) // cd))
+        k = 0
+        for r in range(rows):
+            for c in range(cols):
+                if k >= targets[guid]:
+                    break
+                cx = x0 + aisle / 2 + cw / 2 + c * cw
+                cy = y0 + aisle / 2 + cd / 2 + r * cd
+                f = ifcopenshell.api.run("root.create_entity", model,
+                                         ifc_class="IfcFurnishingElement", name=item.title())
+                matrix = np.eye(4)
+                matrix[0, 3] = cx
+                matrix[1, 3] = cy
+                matrix[2, 3] = z0
+                ifcopenshell.api.run("geometry.edit_object_placement", model, product=f, matrix=matrix)
+                rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                           profile=_rect_profile(model, w, d), depth=h)
+                ifcopenshell.api.run("geometry.assign_representation", model, product=f,
+                                     representation=rep)
+                if st is not None:
+                    ifcopenshell.api.run("spatial.assign_container", model, products=[f],
+                                         relating_structure=st)
+                placed += 1
+                k += 1
+    return placed
+
+
 RECIPES = {
     "add_wall": lambda m, p: add_wall(m, p["start"], p["end"], float(p.get("height", 3.0)),
                                       float(p.get("thickness", 0.2)), p.get("storey")),
@@ -522,6 +677,8 @@ RECIPES = {
                                           float(p.get("ceiling_height", 3.0))),
     # W9-6 generative fit-out: grid furniture into each space's footprint
     "furnish_spaces": lambda m, p: furnish_spaces(m, p.get("item", "desk"), int(p.get("per_room", 0))),
+    # W9-6b — headcount program → department zones + furnish-to-seat-count
+    "program_fit": lambda m, p: program_fit(m, p["program"], p.get("item", "desk")),
     "add_storey": lambda m, p: add_storey(m, p["name"], float(p.get("elevation", 0.0))),
     "rename_storey": lambda m, p: rename_storey(m, p["guid"], p["name"]),
     "set_storey_elevation": lambda m, p: set_storey_elevation(m, p["guid"], float(p.get("elevation", 0.0))),

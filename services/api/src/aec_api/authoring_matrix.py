@@ -39,6 +39,7 @@ _MAP: dict[str, tuple[str, str]] = {
     "add_family": ("create-content", "family occurrence"), "place_content": ("create-content", "catalog content"),
     "add_mesh_representation": ("create-content", "IfcBuildingElementProxy (mesh)"),
     "furnish_spaces": ("create-content", "FF&E per room"),
+    "program_fit": ("create-content", "headcount program → zones + seats"),
     # --- annotate (2D) ---
     "add_annotation": ("annotate", "IfcAnnotation (text)"), "add_dimension": ("annotate", "IfcAnnotation (dimension)"),
     "add_tag": ("annotate", "IfcAnnotation (element tag)"), "add_revision_cloud": ("annotate", "IfcAnnotation (rev cloud)"),

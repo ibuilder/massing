@@ -49,10 +49,56 @@ edit.apply_recipe(TMP, "add_spaces", {"rooms_per_storey": 4}, OUT)
 res = edit.apply_recipe(OUT, "furnish_spaces", {"item": "desk"}, OUT)
 assert res["changed"] > 0, res
 
-for f in (TMP, TMP2, OUT):
+# --- W9-6b: headcount program → zones + furnish-to-seat-count --------------------------------------
+TMP3 = os.path.join(os.path.dirname(__file__), "_fitout_test3.ifc")
+massing.generate_blank_ifc(TMP3, name="Program Fit", storeys=1, storey_height=3.5, ground_size=24.0)
+m3 = open_model(TMP3)
+edit.add_spaces(m3, rooms_per_storey=4, ceiling_height=3.0)
+n_rooms = len(m3.by_type("IfcSpace"))
+assert n_rooms == 4, n_rooms
+
+pf = edit.program_fit(m3, {"Engineering": 8, "Sales": 3}, item="desk")
+depts = {a["department"]: a for a in pf["departments"]}
+# every department seated in full; seats_placed matches the real furniture authored
+assert pf["all_satisfied"] is True and pf["seats_asked"] == 11, pf["seats_asked"]
+assert depts["Engineering"]["seats"] == 8 and depts["Sales"]["seats"] == 3, depts
+placed_items = m3.by_type("IfcFurnishingElement")
+assert pf["seats_placed"] == len(placed_items) == 11, (pf["seats_placed"], len(placed_items))
+# Engineering (the bigger ask) claimed the room(s) first — its zones are stamped
+eng_space = m3.by_guid(depts["Engineering"]["spaces"][0]["guid"])
+assert eng_space.LongName == "Engineering zone", eng_space.LongName
+prog_ps = ue.get_pset(eng_space, "Pset_Massing_Program")
+assert prog_ps["Department"] == "Engineering" and prog_ps["SeatsAllocated"] >= 1, prog_ps
+# allocated + unallocated partitions the room list
+n_used = sum(len(a["spaces"]) for a in pf["departments"])
+assert n_used + len(pf["unallocated_spaces"]) == n_rooms, (n_used, pf["unallocated_spaces"])
+
+# an over-capacity ask reports the shortage honestly (never silently under-seats)
+TMP4 = os.path.join(os.path.dirname(__file__), "_fitout_test4.ifc")
+massing.generate_blank_ifc(TMP4, name="Program Short", storeys=1, storey_height=3.5, ground_size=12.0)
+m4 = open_model(TMP4)
+edit.add_spaces(m4, rooms_per_storey=2, ceiling_height=3.0)
+pf2 = edit.program_fit(m4, {"Everyone": 500})
+short = pf2["departments"][0]
+assert pf2["all_satisfied"] is False and short["short_by"] > 0, pf2
+assert short["seats"] + short["short_by"] == 500, short
+
+# bad programs are clean errors; registered as a recipe
+for bad in ({}, {"Eng": 0}, {"Eng": "lots"}):
+    try:
+        edit.program_fit(m4, bad)
+        raise AssertionError(f"expected ValueError for {bad}")
+    except ValueError:
+        pass
+assert "program_fit" in edit.RECIPES
+
+for f in (TMP, TMP2, TMP3, TMP4, OUT):
     if os.path.exists(f):
         os.remove(f)
 
 print(f"FITOUT OK - blank model -> {rooms} rooms -> furnish placed {placed} desks (real "
       "IfcFurnishingElement w/ geometry + storey container); per_room=1 caps at <=1/room and applies the "
-      "table template; furnish_spaces recipe works via apply_recipe.")
+      "table template; furnish_spaces recipe works via apply_recipe. W9-6b: program_fit seats "
+      "{Engineering:8, Sales:3} in full (11 desks authored = seats_placed), stamps LongName + "
+      "Pset_Massing_Program on the zones, partitions allocated/unallocated rooms, reports a 500-seat "
+      "over-ask as short_by (never silently under-seats), rejects bad programs, and is a recipe.")
