@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.498 — SURF-1: schedule interop surface — P6/MSP import, alerts, earned schedule (queue #6)
+
+- First of the **UI-surfacing wave**: three fully-backed schedule capabilities that had **no
+  user-facing surface** now appear in the Schedule panel's toolbar:
+  - **⇪ Import P6/MSP** — a file picker feeding `importXer` (Primavera `.xer` or MS-Project
+    `.xml`/PMXML, auto-detected); imported tasks become editable `schedule_activity` records with
+    real calendar dates and the CPM/Gantt re-renders off them. The #1 scheduler-credibility gate.
+  - **🔔 Alerts** — the predictive `schedule/alerts` (overdue · late-start · at-risk predecessor ·
+    SPI · procurement) in a collapsible drawer with severity dots + high/medium/low counts.
+  - **⏱ Earned Schedule** — the time-based EVM metric (`evm/earned-schedule`: SPI(t), SV(t) periods,
+    forecast finish) alongside the existing dollar earned-value card.
+- All three routes already ship + are CI-covered; this is pure surface. Frontend-only (backend tree
+  identical to v0.3.497); typecheck · lint · 121 vitest · build green; panel module load-verified.
+
 ## v0.3.497 — PANEL-LAZY: portal panels dynamic-imported out of the eager shell (queue #5)
 
 - The ~30 secondary portal panels (operations/FCA/spine/resilience/energy/turnover, analytics,

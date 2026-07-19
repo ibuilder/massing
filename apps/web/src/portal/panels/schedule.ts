@@ -25,10 +25,59 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   const listBtn = document.createElement("button"); listBtn.className = "tool-btn"; listBtn.textContent = "✎ Activities (list)";
   listBtn.title = "Open the activity list to add / edit / import tasks";
   listBtn.onclick = () => { ctx.activeKey = "schedule_activity"; void ctx.openModule(m); ctx.buildNav(); };
+  // SURF-1: P6/MSP import + predictive alerts + earned-schedule were backed but had no surface.
+  const xerLabel = document.createElement("label"); xerLabel.className = "tool-btn";
+  xerLabel.style.cssText = "cursor:pointer"; xerLabel.textContent = "⇪ Import P6/MSP (.xer/.xml)";
+  xerLabel.title = "Import a Primavera P6 (.xer) or MS-Project (.xml/PMXML) export — tasks become editable activities with real calendar dates";
+  const xerInput = document.createElement("input"); xerInput.type = "file"; xerInput.accept = ".xer,.xml"; xerInput.style.display = "none";
+  xerLabel.appendChild(xerInput);
+  xerInput.onchange = async () => {
+    const f = xerInput.files?.[0]; if (!f) return;
+    xerLabel.textContent = "⏳ Importing…";
+    try {
+      const r = await ctx.host.api.importXer(pid, f);
+      toast(`Imported ${r.count} activities${r.start ? ` (${r.start} → ${r.finish})` : ""}`, "success");
+      void renderScheduleViews(ctx, m);   // re-render the CPM/Gantt off the imported schedule
+    } catch (e) { toast(`P6/MSP import failed: ${(e as Error).message}`, "error"); xerLabel.textContent = "⇪ Import P6/MSP (.xer/.xml)"; }
+    finally { xerInput.value = ""; }
+  };
+  const alertBtn = document.createElement("button"); alertBtn.className = "tool-btn"; alertBtn.textContent = "🔔 Alerts";
+  alertBtn.title = "Predictive schedule alerts: overdue, late-start, at-risk predecessor, SPI, procurement";
+  const esBtn = document.createElement("button"); esBtn.className = "tool-btn"; esBtn.textContent = "⏱ Earned schedule";
+  esBtn.title = "Earned Schedule (time-based EVM): ES, SV(t), SPI(t), forecast finish";
   const note = document.createElement("span"); note.className = "meta";
   note.innerHTML = "One relational schedule — these views + the 3D <b>4D sequence</b> (Model → ⏱ 4D) share the same activities.";
-  intro.append(listBtn, note);
+  intro.append(listBtn, xerLabel, alertBtn, esBtn, note);
   ctx.root.appendChild(intro);
+
+  // a collapsible drawer the alerts / earned-schedule buttons fill on demand (kept out of the way)
+  const interopDrawer = document.createElement("div"); interopDrawer.style.cssText = "display:none;margin:0 0 8px";
+  ctx.root.appendChild(interopDrawer);
+  const showDrawer = (html: string) => { interopDrawer.innerHTML = html; interopDrawer.style.display = ""; };
+  alertBtn.onclick = async () => {
+    showDrawer(`<div class="dash-card"><div class="meta">Collecting alerts…</div></div>`);
+    try {
+      const a = await ctx.host.api.scheduleAlerts(pid);
+      const dot: Record<string, string> = { high: "⛔", medium: "⚠️", low: "•" };
+      const rows = a.alerts.length
+        ? a.alerts.map((al) => `<div class="meta" style="margin:2px 0">${dot[al.level] ?? "•"} <b>${esc(al.title)}</b> — ${esc(al.detail)}${al.ref ? ` <span style="opacity:.6">[${esc(al.ref)}]</span>` : ""}</div>`).join("")
+        : `<div class="meta">🟢 No schedule alerts.</div>`;
+      showDrawer(`<div class="dash-card"><div class="section-title">🔔 Schedule alerts · ${a.counts.high} high · ${a.counts.medium} medium · ${a.counts.low} low</div>${rows}</div>`);
+    } catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Alerts unavailable: ${esc((e as Error).message)}</div></div>`); }
+  };
+  esBtn.onclick = async () => {
+    showDrawer(`<div class="dash-card"><div class="meta">Computing earned schedule…</div></div>`);
+    try {
+      const es = await ctx.host.api.earnedSchedule(pid);
+      const spit = es.spi_t == null ? "—" : es.spi_t.toFixed(2);
+      const col = es.spi_t == null ? "var(--muted)" : es.spi_t < 1 ? "var(--status-crit)" : "var(--status-good)";
+      showDrawer(`<div class="dash-card"><div class="section-title">⏱ Earned Schedule</div>`
+        + `<div class="meta">SPI(t) <b style="color:${col}">${spit}</b>`
+        + ` · SV(t) ${es.sv_t_periods.toFixed(1)} periods`
+        + (es.forecast_finish ? ` · forecast finish <b>${esc(es.forecast_finish)}</b>` : "")
+        + (es.note ? `<br><span style="opacity:.7">${esc(es.note)}</span>` : "") + `</div></div>`);
+    } catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Earned schedule unavailable: ${esc((e as Error).message)}</div></div>`); }
+  };
 
   // --- Pull planning (Last Planner phase board) — trade swimlanes × weeks, make-ready, PPC -------
   const ppCard = document.createElement("div"); ppCard.className = "dash-card"; ppCard.style.marginBottom = "10px";

@@ -43,8 +43,9 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
    open (per-file chunks) out of the eager `index-*.js`; live-verified, gates green.
 
 **NEXT (surface the hidden backend — the ~72 orphaned capabilities, in themed UI waves):**
-6. **SURF-1 — Schedule/interop surface** *(M)* — UI for XER import, earned-schedule, 4D, schedule
-   alerts (all backed, no surface) — pairs with SCHED-P6 export below.
+6. ✅ **SURF-1 — Schedule/interop surface — SHIPPED v0.3.498** — ⇪ P6/MSP `.xer/.xml` import, 🔔
+   predictive alerts, ⏱ earned-schedule surfaced in the Schedule panel toolbar (all were backed, no
+   surface). 4D playback stays with FOURD-SIM (#12); XER *export* with SCHED-P6 (#11).
 7. **SURF-2 — Estimating/takeoff surface** *(M)* — model-based estimate, resource-based estimate,
    DXF/scan takeoff, QTO-by-floor, bid leveling / invite bidders (backed, no surface).
 8. **SURF-3 — Authoring surface** *(M)* — base-plate/shear-tab/curtain-wall/MEP-fitting/rebar-cage/
