@@ -179,7 +179,19 @@ def ask(db, pid: str, model, question: str) -> dict[str, Any]:
         if named is not None:
             result = _element_answer(model, named.GlobalId)
         else:
-            result = _overview_answer(model)
+            # W9-4 harder half: before falling back to the overview, try the ingested document text —
+            # a question about the spec's own words answers extractively with doc·section·page cites
+            from . import doc_text
+            doc = doc_text.answer(pid, q)
+            if doc.get("answer"):
+                result = {"intent": "document", "answer": doc["answer"],
+                          "answered_from": doc.get("answered_from"),
+                          "citations": [{"kind": "document", "ref": f"{c['doc']}"
+                                        + (f" §{c['section']}" if c.get("section") else "")
+                                        + f" p.{c['page']}", **c}
+                                        for c in doc.get("citations", [])]}
+            else:
+                result = _overview_answer(model)
 
     result["question"] = q
     result.setdefault("citations", [])

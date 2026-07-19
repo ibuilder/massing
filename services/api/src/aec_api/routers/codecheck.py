@@ -2,7 +2,7 @@
 computed occupancy-load + egress-capacity pre-check over the model (W9-2)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -283,6 +283,72 @@ def rfi_qa_ask(pid: str, body: dict, db: Session = Depends(get_db),
     if not str(question).strip():
         raise HTTPException(400, "a 'question' is required")
     return rfi_qa.ask(db, pid, open_model(p.source_ifc), str(question))
+
+
+@router.post("/projects/{pid}/doctext")
+async def doctext_ingest(pid: str, request: Request, db: Session = Depends(get_db),
+                         actor: str = Depends(require_role("editor"))):
+    """W9-4: **ingest a spec/code document's text** for cited NL answers. Send JSON
+    `{name, text}`, or a raw PDF body with `?name=` (extracted via pypdf). Chunks split at
+    spec-section headers / numbered headings with page tracking; re-ingesting a name replaces it."""
+    from .. import doc_text
+
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    name = request.query_params.get("name", "")
+    ctype = (request.headers.get("content-type") or "").lower()
+    try:
+        if "application/pdf" in ctype:
+            entry = doc_text.ingest(pid, name or "document.pdf", pdf_bytes=await request.body())
+        else:
+            body = await request.json()
+            entry = doc_text.ingest(pid, str(body.get("name") or name or ""),
+                                    text=str(body.get("text") or ""))
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:  # noqa: BLE001 — an unreadable PDF is a clean 400, not a 500
+        raise HTTPException(400, f"could not read the document: {e}") from e
+    audit.record(db, action="doctext.ingest", actor=actor, method="POST",
+                 path=f"/projects/{pid}/doctext", detail=entry)
+    db.commit()
+    return entry
+
+
+@router.get("/projects/{pid}/doctext")
+def doctext_catalog(pid: str, db: Session = Depends(get_db),
+                    _: str = Depends(require_role("viewer"))):
+    """The project's ingested documents (chunk + section counts)."""
+    from .. import doc_text
+
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return doc_text.catalog(pid)
+
+
+@router.get("/projects/{pid}/doctext/search")
+def doctext_search(pid: str, q: str, k: int = 5, db: Session = Depends(get_db),
+                   _: str = Depends(require_role("viewer"))):
+    """Top-k cited chunks across the ingested documents (token overlap; section numbers boosted)."""
+    from .. import doc_text
+
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return {"query": q, "hits": doc_text.search(pid, q, k=max(1, min(20, k)))}
+
+
+@router.post("/projects/{pid}/doctext/ask")
+def doctext_ask(pid: str, body: dict = Body(...), db: Session = Depends(get_db),
+                _: str = Depends(require_role("viewer"))):
+    """W9-4: a **cited, extractive answer** from the ingested documents' own text — the answer IS the
+    source's words (document · section · page named), never a paraphrase; no match says so honestly."""
+    from .. import doc_text
+
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    q = str((body or {}).get("question") or "").strip()
+    if not q:
+        raise HTTPException(400, "a 'question' is required")
+    return doc_text.answer(pid, q)
 
 
 @router.get("/codes/ebc/pathways")

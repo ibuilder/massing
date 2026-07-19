@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.486 — W9-4 document-text ingestion → cited NL answers (P2 · knowledge graph)
+
+- **`doc_text.py` + 4 routes under `/projects/{pid}/doctext`**: ingest a specification / code
+  commentary / report (**JSON text or a raw PDF body**, extracted via pypdf) — chunks split at
+  spec-section headers ("SECTION 09 21 16") and numbered headings with **page tracking**
+  (headerless documents fall back to paragraph chunks). `search` is deterministic token-overlap
+  retrieval with section-number boosting; `ask` returns an **extractive answer — the document's own
+  words** — cited by document · section · page, and says so honestly when nothing matches. No LLM
+  involved or silently invoked: quoting the answer on an RFI is quoting the spec.
+- **`/rfi/qa` now falls through to the documents**: a question no model intent claims searches the
+  ingested text before the overview — `intent: "document"` with `kind: "document"` citations.
+  Completes the W9-4 harder half (spec/code document text → cited NL answers).
+- Test-proven end to end, including the PDF path ("4000 psi" survives canvas → pypdf → chunk →
+  answer) and the QA fallthrough.
+
 ## v0.3.485 — W9-5 4D equipment motion + swept crane-reach clash (P2 · site logistics)
 
 - **Motion along paths**: a logistics resource with a `path` now **interpolates its position by
