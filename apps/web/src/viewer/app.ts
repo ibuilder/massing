@@ -3000,6 +3000,24 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             }
           });
         })));
+        b.appendChild(toolBtn2("▢ Model CI (quality gate)", () => withLoading(container, "Running model CI checks", async () => {
+          let r;
+          try { r = await api.ciRun(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          const mark: Record<string, string> = { pass: "✅", warn: "🟡", fail: "🔴", skip: "➖", none: "➖" };
+          out.textContent = `CI: ${r.badge}`;
+          showResult("Model CI — quality gate", (body) => {
+            body.appendChild(resultNote(`Overall <b>${mark[r!.overall] || ""} ${escapeHtml(r!.badge)}</b>`
+              + (r!.ran_at ? ` · ${escapeHtml(r!.ran_at)}` : "")
+              + ` · ${r!.passed ?? 0}/${r!.total_checks ?? r!.checks.length} passed`,
+            r!.overall === "fail" ? "bad" : r!.overall === "pass" ? "ok" : ""));
+            for (const chk of r!.checks) {
+              body.appendChild(resultNote(`${mark[chk.status] || "•"} <b>${escapeHtml(chk.label)}</b> — ${escapeHtml(chk.summary)}`,
+                chk.status === "fail" ? "" : "ok"));
+            }
+            body.appendChild(resultNote("Checks compose the rule library + data-completeness gates; the badge is stored so every model version carries a quality gate. Add rules via the ✔ Rule check tool.", ""));
+          });
+        })));
         b.appendChild(toolBtn2("🔗 Coordinate clashes (grouped issues)", () => withLoading(container, "Running federated clash + coordination", async () => {
           let r;
           try { r = await api.clashFederated(pid, { coordinate: true }); }

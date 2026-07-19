@@ -205,6 +205,23 @@ def rules_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_
     return rule_library.run(_idx_for(pid), stored)
 
 
+@router.post("/projects/{pid}/ci/run")
+def ci_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """MODEL-CI — run the model check pack (rule library + data-completeness gates) → a pass/warn/fail
+    report + badge, persisted as the project's latest CI result."""
+    from .. import model_ci
+    _project(db, pid)
+    return model_ci.run(db, pid, _idx_for(pid))
+
+
+@router.get("/projects/{pid}/ci/latest")
+def ci_latest(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The project's last MODEL-CI report (the badge source)."""
+    from .. import model_ci
+    _project(db, pid)
+    return model_ci.latest(pid)
+
+
 @router.get("/projects/{pid}/model/export.csv")
 def model_export_csv(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Export the model element table as CSV (columnar, one row per element)."""

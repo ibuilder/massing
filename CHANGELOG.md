@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.509 — MODEL-CI: "Automate-lite" quality-gate check pack (queue #16)
+
+- A model check pack that runs on demand and produces a **pass / warn / fail badge** stored as an
+  artifact, so every model version carries a quality gate. Each check is a thin adapter over an engine
+  that already ships — the pack grows by registering one function (same shape as the job-kind registry):
+  - **Rule library** — the RULE-LIB rules must pass; a high-severity failure fails the build, medium/low
+    warns.
+  - **Elements named** — a data-completeness gate on the share of named elements (<50% fail, <90% warn).
+- New `aec_api/model_ci.py` (per-project JSON blob, no migration; a broken check fails rather than
+  crashing the run) + `POST /projects/{pid}/ci/run` and `GET /projects/{pid}/ci/latest` (the badge
+  source). Viewer gains a **"▢ Model CI (quality gate)"** tool showing the overall badge + per-check
+  status; `ciRun`/`ciLatest` client methods + `ModelCiReport` type. `test_model_ci` (275 suites green).
+- **MODEL-CI-2:** auto-run on publish/option-branch save (enqueue a CI job on the durable queue) + more
+  checks (clash / IDS / QTO-delta) and BCF/report artifacts — the engines exist; wiring them into the
+  pack + the publish hook is the follow-up.
+
 ## v0.3.508 — RESOURCE-LEVEL: multiple named schedule baselines + variance (queue #15)
 
 - The single plan-of-record baseline becomes a **library of named baselines** — "GMP", "Recovery",

@@ -253,6 +253,11 @@ export interface EscalationScan {
   as_of: string | null; count: number; pending: number;
   by_level: Record<string, number>; items: EscalationItem[];
 }
+export interface ModelCiReport {
+  overall: string; badge: string; ran_at?: string; note?: string;
+  total_checks?: number; passed?: number; failed?: number; warned?: number;
+  checks: { key: string; label: string; status: string; summary: string; metrics?: Record<string, unknown> }[];
+}
 export interface EscalationRun {
   as_of: string | null; escalated: number; by_level: Record<string, number>;
   items: { module: string; id: string; ref: string | null; title: string | null; level: number; days_overdue: number; court: string | null }[];

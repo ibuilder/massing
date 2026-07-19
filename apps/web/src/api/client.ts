@@ -9,7 +9,7 @@ export * from "./types";
 import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EscalationScan, EscalationRun, ElementProps, EnergyResult, FinancialStatements,
-  IntegrationGroup, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
+  IntegrationGroup, ModelCiReport, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   PreflightGate, PreflightSummary,
   RecordAttachmentMeta, RelatedRecords, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, StampTemplate, SyncScheduleItem,
@@ -3001,6 +3001,14 @@ export class ApiClient extends HttpCore {
    *  Relational by default — when GC `schedule_activity` records exist they drive it (`source:"gc"`),
    *  each frame carrying a real calendar `date` + `linked`/`unlinked` element counts. Otherwise a takt
    *  plan; a P6 .xer import yields `source:"p6"` with interpolated dates. `?source=gc|takt` forces one. */
+  /** MODEL-CI — run the model check pack → pass/warn/fail report + badge (persisted). */
+  ciRun(pid: string) {
+    return this.json<ModelCiReport>(`/projects/${pid}/ci/run`, { method: "POST" });
+  }
+  /** MODEL-CI — the project's latest check-pack report (the badge source). */
+  ciLatest(pid: string) {
+    return this.json<ModelCiReport>(`/projects/${pid}/ci/latest`);
+  }
   /** RULE-LIB — check the loaded model against the user-authored rule library → per-rule pass/fail
    *  + offending GUIDs + a by-severity rollup. */
   rulesRun(pid: string) {

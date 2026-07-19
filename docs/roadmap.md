@@ -111,8 +111,12 @@ Everything below is deterministic + offline unless flagged. Work top-down; each 
     drawer on the Schedule panel. Resource-loading S-curves + the leveling *advisory* already shipped
     (`resource_loading.py`). **RESOURCE-LEVEL-2 remaining:** *applying* a level (shifting activities
     within CPM float, mutating dates) behind an explicit confirm — it rewrites the schedule.
-16. **MODEL-CI** *(M, ★★★★)* — "Automate-lite": rule packs (IDS/clash/code/QTO-delta/custom) auto-run
-    on every commit/option-branch save with pass/fail badges + BCF/report artifacts (jobs infra ships).
+16. ◧ **MODEL-CI** *(M, ★★★★)* — **core SHIPPED v0.3.509.** A pluggable check-pack runner
+    (`model_ci.py` + `POST /ci/run` + `GET /ci/latest`) → a pass/warn/fail badge stored as an artifact;
+    a viewer **▢ Model CI** tool. Seeded with the RULE-LIB + data-completeness gates (the pack grows by
+    registering one adapter). **MODEL-CI-2 remaining:** auto-run on publish/option-branch save (enqueue
+    a CI job — jobs infra ships), the clash/IDS/QTO-delta checks (engines all exist), and BCF/report
+    artifacts.
 17. **MARKUP-2** *(M)* — Bluebeam-parity: tool chests, markups-list DB with custom/formula columns,
     overlay compare, slip-sheet markup carry-forward, live co-markup (rides existing presence infra).
 18. **XLSX-ROUNDTRIP** *(S)* — IfcCSV-style GUID-keyed property export→edit→re-import with a dry-run
