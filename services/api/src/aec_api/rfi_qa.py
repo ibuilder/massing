@@ -44,6 +44,43 @@ def _named_element(model, question: str):
     return best
 
 
+# NL-QA "audit + suggest fixes": gap category → the executable recipe that closes it (only where a
+# deterministic, safe recipe exists — everything else keeps its prose fix for a human).
+_FIX_RECIPES: dict[str, dict[str, Any]] = {
+    "detail": {"recipe": "apply_detailing_rules", "params": {},
+               "why": "the D3 rule engine attaches the required keynote/spec codes + governing details "
+                      "to every element a seed rule applies to"},
+}
+
+
+def audit(db, pid: str, model) -> dict[str, Any]:
+    """NL-QA: audit the model (the ranked decision-readiness gaps) and attach an **executable fix**
+    to every gap a deterministic recipe can close — the returned `fix_steps` list drops straight into
+    `POST /projects/{pid}/edit/batch` (one version, one undo). Gaps without a safe automatic fix keep
+    their prose guidance; nothing is applied here."""
+    from . import rfi_prevention
+
+    r = rfi_prevention.decision_readiness(db, pid, model)
+    gaps = r.get("gaps", [])
+    fix_steps: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for g in gaps:
+        fx = _FIX_RECIPES.get(g.get("category", ""))
+        if fx:
+            g["fix_step"] = {"recipe": fx["recipe"], "params": fx["params"]}
+            g["fix_why"] = fx["why"]
+            if fx["recipe"] not in seen:            # one batch step per recipe, not per gap
+                seen.add(fx["recipe"])
+                fix_steps.append({"recipe": fx["recipe"], "params": fx["params"]})
+    return {"gaps": gaps, "gap_count": len(gaps), "verdict": r.get("verdict"),
+            "fix_steps": fix_steps, "fixable": len(fix_steps),
+            "apply_hint": f"POST /projects/{pid}/edit/batch with {{steps: fix_steps}} applies every "
+                          "executable fix as ONE undoable version." if fix_steps else
+                          "No automatic fixes for the current gaps — each carries prose guidance.",
+            "disclaimer": r.get("disclaimer") or "Pre-check assist; not a substitute for professional "
+                                                "review or the AHJ."}
+
+
 def _element_answer(model, guid: str) -> dict[str, Any]:
     from aec_data import docgraph  # type: ignore
 

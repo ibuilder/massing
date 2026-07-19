@@ -248,6 +248,16 @@ def schedule_alerts(pid: str, db: Session = Depends(get_db), _: str = Depends(re
     return px.alerts(db, pid)
 
 
+@router.get("/projects/{pid}/schedule/make-ready")
+def schedule_make_ready(pid: str, days: int = 14, db: Session = Depends(get_db),
+                        _: str = Depends(require_role("viewer"))):
+    """READY-AGENT — every activity starting within `days`, its preconditions checked with **cited
+    evidence** (incomplete predecessors by ref + % complete · open submittals by ref/state) and a
+    ready/blocked verdict — 'can next week's work actually start?', answered proactively."""
+    from .. import px
+    return px.make_ready(db, pid, days=days)
+
+
 @router.get("/projects/{pid}/schedule/optimize")
 def schedule_optimize(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Schedule-acceleration ADVISORY off the CPM critical path — crash candidates (longest critical

@@ -160,6 +160,58 @@ def alerts(db: Session, pid: str) -> dict[str, Any]:
     return {"alerts": out, "counts": counts}
 
 
+def make_ready(db: Session, pid: str, days: int = 14) -> dict[str, Any]:
+    """READY-AGENT — the forward make-ready register: every activity starting within `days`, each with
+    its preconditions **checked and cited** — incomplete predecessors (by ref + their % complete) and
+    open submittals (by ref/title) — and a ready/blocked verdict. The Last Planner question ("can next
+    week's work actually start?") answered proactively, with the evidence attached."""
+    acts = pb._records(db, "schedule_activity", pid)
+    today = date.today()
+    horizon = today + timedelta(days=max(1, int(days)))
+    pct_by_key: dict[str, float] = {}
+    name_by_key: dict[str, str] = {}
+    for r in acts:
+        d = r.get("data") or {}
+        for k in (r.get("ref"), d.get("wbs")):
+            if k:
+                pct_by_key[str(k)] = _n(d.get("percent"))
+                name_by_key[str(k)] = str(d.get("name") or r.get("ref") or k)
+
+    try:
+        subs = pb._records(db, "submittal", pid)
+        open_subs = [{"ref": x.get("ref"), "title": (x.get("data") or {}).get("title") or x.get("ref"),
+                      "state": x.get("workflow_state")}
+                     for x in subs if x.get("workflow_state") not in ("approved", "closed", "void")]
+    except Exception:  # noqa: BLE001 — submittal module optional
+        open_subs = []
+
+    rows: list[dict[str, Any]] = []
+    for r in acts:
+        d = r.get("data") or {}
+        s = pb._pdate(d.get("start"))
+        if not s or not (today <= s < horizon) or _n(d.get("percent")) >= 100:
+            continue
+        blockers: list[dict[str, Any]] = []
+        for p_key in [t.strip() for t in str(d.get("predecessors") or "").replace(";", ",").split(",") if t.strip()]:
+            pct = pct_by_key.get(p_key)
+            if pct is not None and pct < 100:
+                blockers.append({"kind": "predecessor", "ref": p_key,
+                                 "evidence": f"{name_by_key.get(p_key, p_key)} is {pct:.0f}% complete"})
+        if open_subs:
+            blockers.append({"kind": "submittals", "count": len(open_subs),
+                             "evidence": "open: " + ", ".join(f"{x['ref']} ({x['state']})" for x in open_subs[:5]),
+                             "refs": [x["ref"] for x in open_subs[:10]]})
+        rows.append({"ref": r.get("ref"), "name": d.get("name") or r.get("ref"),
+                     "start": s.isoformat(), "trade": d.get("trade"),
+                     "ready": not blockers, "blockers": blockers})
+    rows.sort(key=lambda x: (x["ready"], x["start"]))
+    return {"window_days": int(days), "activities": rows,
+            "ready": sum(1 for x in rows if x["ready"]),
+            "blocked": sum(1 for x in rows if not x["ready"]),
+            "note": "Make-ready look-ahead: each upcoming start checked against its predecessors' real "
+                    "% complete and the open submittal register — evidence cited per blocker."}
+
+
 def risk_digest(db: Session, pid: str) -> dict[str, Any]:
     """A project risk digest across cost + schedule + open items + safety. Assembles the drivers and
     runs them through ai.risk_summary for a prioritized narrative (Claude when configured, else a

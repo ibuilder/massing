@@ -84,6 +84,22 @@ with TestClient(app) as c:
     for qq in (q1, q2, q3, q4):
         assert "cited-source" in qq["disclaimer"], qq["disclaimer"]
 
+    # --- NL-QA "audit + suggest fixes": gaps + executable fix steps for /edit/batch ---------------
+    au = c.post(f"/projects/{pid}/ai/audit")
+    assert au.status_code == 200, au.text[:200]
+    ab = au.json()
+    assert ab["gap_count"] >= 1 and ab["gaps"], ab.get("gap_count")
+    # the detail gap (elements missing keynote/detail) carries an executable apply_detailing_rules fix
+    det = next((g for g in ab["gaps"] if g.get("category") == "detail"), None)
+    if det is not None:
+        assert det["fix_step"]["recipe"] == "apply_detailing_rules", det
+        assert any(sp["recipe"] == "apply_detailing_rules" for sp in ab["fix_steps"]), ab["fix_steps"]
+        assert "edit/batch" in ab["apply_hint"], ab["apply_hint"]
+        # the suggested batch actually APPLIES through /edit/batch (S4) as one undoable version
+        bt = c.post(f"/projects/{pid}/edit/batch", json={"steps": ab["fix_steps"]})
+        assert bt.status_code == 200, bt.text[:300]
+    assert ab["disclaimer"], "audit must carry the pre-check disclaimer"
+
 print("RFI-QA OK - /rfi/qa routes a plain-language question to the right substrate and answers with "
       "citations: 'what governs <guid>?' -> element provenance (MasterFormat 05 12 00 + Column base "
       "detail S-501 + level); 'what's blocking approval?' -> ranked decision-readiness gaps + fixes; "

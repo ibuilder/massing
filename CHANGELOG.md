@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.474 — NL-QA "audit + suggest fixes" · READY-AGENT make-ready register (P2 · AI & agents)
+
+- **`POST /projects/{pid}/ai/audit`** — the ranked decision-readiness gaps, now with an **executable
+  fix step** attached wherever a deterministic recipe can close the gap (elements missing their
+  keynote/detail → `apply_detailing_rules`). The returned `fix_steps` drop straight into
+  `POST /edit/batch`, so "audit → apply every automatic fix → one undoable version" is a two-call
+  flow — proven in-test end-to-end. Gaps without a safe automatic fix keep their prose guidance;
+  the audit itself never writes.
+- **READY-AGENT — `GET /projects/{pid}/schedule/make-ready?days=N`** — every activity starting in the
+  window, its preconditions **checked with cited evidence** (incomplete predecessors by ref + their
+  real % complete · open submittals by ref/state) and a ready/blocked verdict. The Last Planner
+  "can next week's work actually start?" answered proactively. Test-proven: a start blocked by a 20%-
+  complete predecessor cites exactly that.
+- Backend suite green; web gates green.
+
 ## v0.3.473 — PROFORMA-LIVE: the finance numbers follow the model as you author (P2 · finance frontier)
 
 - **`GET /projects/{pid}/proforma/live`** — the current model version's **takeoff-priced construction

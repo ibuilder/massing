@@ -57,6 +57,20 @@ with TestClient(app) as c:
     over = next(i for i in b["items"] if i["source"] == "coordination")
     assert "overdue open issue" in over["title"], over
 
+    # --- READY-AGENT: forward make-ready register with cited evidence ------------------------------
+    soon = (date.today() + timedelta(days=3)).isoformat()
+    assert c.post(f"{P}/modules/schedule_activity", json={"data": {
+        "name": "Roofing", "wbs": "2.1", "duration": 5, "start": soon,
+        "predecessors": "1.1"}}, headers=HDR).status_code == 201
+    mr = c.get(f"{P}/schedule/make-ready?days=14", headers=HDR)
+    assert mr.status_code == 200, mr.text[:200]
+    mb = mr.json()
+    roof = next((a for a in mb["activities"] if a["name"] == "Roofing"), None)
+    assert roof is not None and roof["ready"] is False, mb["activities"]
+    pred = next(b for b in roof["blockers"] if b["kind"] == "predecessor")
+    assert pred["ref"] == "1.1" and "20% complete" in pred["evidence"], pred   # cites the real %
+    assert mb["blocked"] >= 1, mb
+
 print("RISK-BOARD OK - one register over 5 engines: empty project → clear board with lane report; an "
       "overdue activity raises a schedule alert, an overdue high topic raises coordination + preflight "
       "blockers; items ranked high→low, all deep-linked; band escalates to elevated/critical.")

@@ -173,6 +173,23 @@ def rfi_readiness(pid: str, db: Session = Depends(get_db), _: str = Depends(requ
     return rfi_prevention.decision_readiness(db, pid, open_model(p.source_ifc))
 
 
+@router.post("/projects/{pid}/ai/audit")
+def ai_audit(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """NL-QA "audit + suggest fixes": the ranked decision-readiness gaps with an **executable fix
+    step** attached to every gap a deterministic recipe can close — the returned `fix_steps` drop
+    straight into `POST /projects/{pid}/edit/batch` (one version, one undo). Read-only: nothing is
+    applied here. Needs a source IFC."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import rfi_qa
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — the audit needs a model")
+    return rfi_qa.audit(db, pid, open_model(p.source_ifc))
+
+
 @router.post("/projects/{pid}/rfi/qa")
 def rfi_qa_ask(pid: str, body: dict, db: Session = Depends(get_db),
                _: str = Depends(require_role("viewer"))):

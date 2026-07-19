@@ -71,9 +71,10 @@ motion + swept crane clash · W9-6b headcount-program → zones + auto-furnish.
 **AI & agents:** ✅ S4 multi-step undo grouping (471) · ✅ S5 clarifying questions (shipped: both
 planner paths return `needs_clarification`, surfaced in the command bar + Ask panel) · ✅ AI read
 tools (472 — model_quantities/computed_schedules/clash_results/code_violations in the MCP catalog) ·
-NL-QA recipes ("audit + suggest fixes") · COST-AGENT
+✅ NL-QA recipes (474 — `/ai/audit` gaps + executable fix_steps → `/edit/batch`) · COST-AGENT
 (re-estimate on geometry change + learn from history) · READY-AGENT (proactive blockers w/ cited
-evidence) · ✅ RISK-BOARD (v0.3.470 — `/risk-board` unifies 5 engines into one ranked register).
+evidence — ✅ 474, `/schedule/make-ready` cites predecessors' real % + open submittals) ·
+✅ RISK-BOARD (v0.3.470 — `/risk-board` unifies 5 engines into one ranked register).
 
 **Finance/frontier:** ✅ PROFORMA-LIVE (473 — `/proforma/live` cached takeoff cost + GFA + budget
 delta; the viewer status updates after every load) · BOARDS (styled
@@ -97,6 +98,11 @@ webhook blocking · cargo-audit/gitleaks in CI when available) · REL-7 stays ev
 dead-code claim was disproven; only prove-then-delete small batches).
 
 ## P3 — gated (each entry names its unblocking event)
+
+*Audited 2026-07-18 during the P2 sweep: every entry below was re-checked and its gate still holds —
+none are buildable offline on this machine tonight. What CAN ship without the gate has already shipped
+(the offline COST-DB importers, the PWA, the data-path IFC5 export, the origination connector); the
+rest stays honestly gated rather than falsely ✅.*
 
 - **Upstream:** IFC5/IFCX *geometry* write (web-ifc/Fragments write path — data path ships) · bSI
   Validation Service in CI (service account). Track buildingSMART.
