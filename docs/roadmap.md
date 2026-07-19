@@ -157,7 +157,8 @@ rebase coordinates (georef already covers set-origin) · unit-convert · merge/s
 **Documents & coordination:** ◧ **BCF-API-SRV** — **BCF-API 2.1 core SHIPPED v0.3.528**
 (`routers/bcf_api.py`: `/bcf/versions` + `/bcf/2.1/{auth,projects,topics,comments}` mapping onto the
 native Topic/Comment rows so Revit/Navisworks/Solibri/BIMcollab sync live). **Still open:**
-viewpoints + attachments over the API, and the 3.0 shape · **TRANSMIT-ITP** — numbered
+viewpoints (SHIPPED v0.3.529 — camera/selection/snapshot round-trip) done; attachments over the API +
+the BCF 3.0 shape still open · **TRANSMIT-ITP** — numbered
 transmittals + Review Matrix routing + supplier-deliverables register + ITP/Test-Plan workflows
 (extends the CDE plan) · ◧ **SMART-VIEWS** — **saved presets SHIPPED v0.3.525** (`smart_views.py`:
 per-project name + QUERY-DSL selector + isolate/colour/hide, ★ viewer tool; validated + capped).

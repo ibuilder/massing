@@ -62,8 +62,36 @@ with TestClient(app) as c:
     assert c.post(f"/bcf/2.1/projects/{pid}/topics", json={"topic_type": "Issue"}).status_code == 422
     assert c.post(f"/bcf/2.1/projects/{pid}/topics/{guid}/comments", json={}).status_code == 422
 
+    # --- viewpoints: camera + selection + snapshot round-trip in BCF shape -------------------------
+    # a 1x1 transparent PNG, base64
+    png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    vp = c.post(f"/bcf/2.1/projects/{pid}/topics/{guid}/viewpoints", json={
+        "perspective_camera": {"camera_view_point": {"x": 10, "y": 0, "z": 5},
+                               "camera_direction": {"x": -1, "y": 0, "z": 0},
+                               "camera_up_vector": {"x": 0, "y": 0, "z": 1}, "field_of_view": 60},
+        "components": {"selection": [{"ifc_guid": "abc123"}],
+                       "visibility": {"default_visibility": True, "exceptions": [{"ifc_guid": "hidden1"}]}},
+        "snapshot": {"snapshot_type": "png", "snapshot_data": png_b64}}).json()
+    vguid = vp["guid"]
+    assert vp["perspective_camera"]["camera_view_point"] == {"x": 10.0, "y": 0.0, "z": 5.0}, vp
+    # direction is a unit vector pointing -x
+    assert abs(vp["perspective_camera"]["camera_direction"]["x"] + 1.0) < 1e-6, vp
+    assert vp["components"]["selection"] == [{"ifc_guid": "abc123"}], vp
+    assert vp["components"]["visibility"]["exceptions"] == [{"ifc_guid": "hidden1"}], vp
+    assert vp["snapshot"] == {"snapshot_type": "png"}, vp                 # data fetched separately
+
+    vps = c.get(f"/bcf/2.1/projects/{pid}/topics/{guid}/viewpoints").json()
+    assert len(vps) == 1 and vps[0]["guid"] == vguid, vps
+    # it's the same row the native viewpoint route returns
+    assert len(c.get(f"/projects/{pid}/topics/{tid}/viewpoints").json()) == 1
+    # the snapshot streams as a real PNG
+    snap = c.get(f"/bcf/2.1/projects/{pid}/topics/{guid}/viewpoints/{vguid}/snapshot")
+    assert snap.status_code == 200 and snap.content[:8] == b"\x89PNG\r\n\x1a\n", snap.status_code
+
 print("BCF-API OK - /bcf/versions negotiates 2.1 + /bcf/2.1/auth advertises the token URL; "
       "/bcf/2.1/projects lists accessible projects; a BCF-shape topic create maps topic_type/"
       "topic_status/labels/assigned_to onto the native Topic (Clash/Open, same row as /projects/"
       "{pid}/topics), fetch-by-guid 404s on a bad guid; comments round-trip in BCF shape and share the "
-      "native Comment row; missing title / empty comment → 422.")
+      "native Comment row; missing title / empty comment → 422. Viewpoints round-trip the "
+      "perspective_camera (view_point + unit direction), components.selection/visibility.exceptions, "
+      "and snapshot — same row as the native viewpoint route; the snapshot streams as a real PNG.")

@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.529 — BCF-API-SRV: viewpoints over the API (R15)
+
+- The BCF-API 2.1 surface gains **viewpoints** — the camera + selection + snapshot that make a topic
+  navigable in 3D. `GET/POST /bcf/2.1/projects/{pid}/topics/{guid}/viewpoints` map our camera
+  (`position`/`target`) to the BCF `perspective_camera` (`camera_view_point` + unit
+  `camera_direction`), `components.selection` / `visibility.exceptions`, and clipping planes; the PNG
+  snapshot streams from `.../viewpoints/{vguid}/snapshot`. A viewpoint created over the BCF-API is the
+  same row the native viewpoint route returns — completing the BCF sync-object set
+  (topics · comments · viewpoints) external managers need.
+
 ## v0.3.528 — BCF-API-SRV: live BCF-API 2.1 (OpenCDE) endpoints (R15)
 
 - New **server-side BCF-API 2.1** surface (`routers/bcf_api.py`) so external BCF managers — Revit,
