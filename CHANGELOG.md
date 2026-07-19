@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.482 — CI fix: approvability test writes models to a temp dir
+
+- The new D8 BCF test generated its model through `/generate/massing` with the default `IFC_DIR`,
+  which resolves under `/app` — **read-only in the CI container** (the container-readonly-tmp
+  pattern again). The test now points `IFC_DIR` at a temp dir, like every other generator test.
+  No product code changed; the v0.3.480 API gate goes back green.
+
 ## v0.3.481 — REL-4 measure/section leaf · REL-5 bridge dataclasses (P2 · reliability)
 
 - **REL-4 — `viewer/measureSection.ts`**: the measure/visibility toolbar group (↔ ▱ ✂ ⊙ ◐ ⌫ ⊞) and

@@ -88,10 +88,15 @@ uval5 = next(c for c in a5["checks"] if c["check"].startswith("Envelope U-values
 assert uval5["status"] == "pass", uval5
 
 # --- D8: failed checks promote to BCF topics (route) ------------------------------------------------
+import tempfile  # noqa: E402
+
 from fastapi.testclient import TestClient  # noqa: E402
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_approvability.db"
 os.environ["STORAGE_DIR"] = "./test_storage_appr"
+# the default IFC_DIR resolves under /app, which is READ-ONLY in the CI container — always point
+# generated models at a temp dir (see the container-readonly-tmp incident)
+os.environ["IFC_DIR"] = tempfile.mkdtemp(prefix="appr_ifc_")
 os.environ["AEC_TRUST_XUSER"] = "1"
 if os.path.exists("./test_approvability.db"):
     os.remove("./test_approvability.db")
