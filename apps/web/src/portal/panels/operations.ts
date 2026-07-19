@@ -454,6 +454,19 @@ export async function renderTurnover(ctx: PanelContext) {
       + "list, the current model version is stamped as the record (as-built) model, and the signed "
       + "certificate joins the turnover package.";
     root.appendChild(intro);
+    // SURF-4b: the combined turnover STATUS strip (/turnover/status — backed, never surfaced):
+    // certified-or-not at a glance, who signed, and whether the record model is locked.
+    const strip = el("div", "meta"); strip.style.cssText = "margin-bottom:8px";
+    root.appendChild(strip);
+    void ctx.host.api.turnoverStatus(pid).then((s) => {
+      const sc = s.substantial_completion;
+      strip.innerHTML = sc
+        ? `🏁 <b>${esc(sc.ref)}</b> certified` + (sc.signed_by.length ? ` — signed by ${esc(sc.signed_by.join(", "))}` : "")
+          + (s.record_model_locked ? ` · <span style="color:var(--status-good)">🔒 record model locked${sc.record_model_version != null ? ` at v${sc.record_model_version}` : ""}</span>` : "")
+        : (s.readiness.ready_for_substantial_completion
+            ? `<span style="color:var(--status-good)">ready to certify</span> — no certificate on file yet`
+            : `not yet ready to certify`);
+    }).catch(() => { strip.remove(); });
     const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
     const load = async () => {
       body.innerHTML = "";

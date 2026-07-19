@@ -59,9 +59,12 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
    audited; the **⚖ Level** button behind an explicit confirm.
 9. **RULE-LIB-2** *(M)* — the geometric/relational rule checks (clearance-in-front-of, escape
    distance, accessible route, maintainability space) on the logistics/clash geometry path.
-10. ◧ **SURF-2b + SURF-4b** — **SURF-2b SHIPPED v0.3.517**: the all-packages bid-leveling summary +
-    ✉ invite-bidders action on the leveling tab. **SURF-4b remaining (S):** the thin QA/ops surfaces
-    (scan-deviation · turnover-status · procurement-gate). Securities stays flagged (regulated).
+10. ✅ **SURF-2b + SURF-4b** — SURF-2b SHIPPED v0.3.517 (all-packages bid-leveling summary +
+    ✉ invite-bidders). SURF-4b SHIPPED v0.3.518: turnover-readiness strip on the Turnover panel
+    (certificate ref/signers/record-model lock via `GET /turnover/status`) + 🚦 vendor procurement
+    gate on the leveling tab (`GET /procurement/gate` — can-bid/can-bill + blockers). Scan-deviation
+    was an overcount (field-verification already surfaced in the viewer). Securities stays flagged
+    (regulated).
 11. **WFE-3** *(M, deferred-by-choice)* — per-project configurable workflow transitions via the
     config-row trick; revisit after MARKUP-2 (lower value than the shipped automation).
 

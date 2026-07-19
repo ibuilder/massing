@@ -119,8 +119,30 @@ export async function renderAiAssist(ctx: PanelContext) {
         const invB = el("button", "tool-btn") as HTMLButtonElement; invB.textContent = "✉ Invite"; invB.dataset.cap = "edit";
         const invRow = el("div"); invRow.style.cssText = "display:flex;gap:6px;align-items:center";
         invRow.append(invI, invB);
+        // SURF-4b: the vendor procurement GATE (/procurement/gate — backed, never surfaced): can this
+        // vendor bid / bill right now, and exactly which compliance items block them (COI, prequal,
+        // subcontract, waiver)?
+        const gateI = el("input", "portal-filter") as HTMLInputElement;
+        gateI.placeholder = "vendor gate: company name…"; gateI.style.cssText = "margin:4px 0;flex:1 1 220px;min-width:0";
+        const gateB = el("button", "tool-btn") as HTMLButtonElement; gateB.textContent = "🚦 Check";
+        const gateRow = el("div"); gateRow.style.cssText = "display:flex;gap:6px;align-items:center";
+        gateRow.append(gateI, gateB);
         const out = el("div"); out.style.marginTop = "8px";
-        body.append(pick, invRow, out);
+        body.append(pick, invRow, gateRow, out);
+        gateB.onclick = async () => {
+          const v = gateI.value.trim(); if (!v) { out.textContent = "name a vendor"; return; }
+          out.textContent = "checking gate…";
+          try {
+            const g = await ctx.host.api.procurementGate(pid, v);
+            const yn = (ok: boolean) => ok ? `<span style="color:var(--status-good)">✓</span>` : `<span style="color:var(--status-crit)">✗</span>`;
+            out.innerHTML = `<div class="meta"><b>${esc(g.vendor)}</b> — bid ${yn(g.can_bid)} · bill ${yn(g.can_bill)}`
+              + ` · COI ${esc(g.coi.status)}${g.coi.expires ? ` (exp ${esc(g.coi.expires)})` : ""}`
+              + ` · prequal ${esc(g.prequal.status)} · subcontract ${g.subcontract.executed ? "executed" : "not executed"}`
+              + (g.waiver_on_file ? " · waiver on file" : "") + `</div>`
+              + (g.bid_blockers.length ? `<div class="meta">bid blockers: ${g.bid_blockers.map(esc).join(" · ")}</div>` : "")
+              + (g.bill_blockers.length ? `<div class="meta">bill blockers: ${g.bill_blockers.map(esc).join(" · ")}</div>` : "");
+          } catch (e) { out.textContent = `gate check failed: ${(e as Error).message}`; }
+        };
         invB.onclick = async () => {
           const companies = invI.value.split(",").map((s) => s.trim()).filter(Boolean);
           if (!pick.value) { out.textContent = "choose a bid package first"; return; }

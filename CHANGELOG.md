@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.518 — SURF-4b: turnover readiness + vendor procurement gate surfaced
+
+- The Turnover panel now opens with a **readiness strip**: substantial-completion certificate ref +
+  signers, record-model lock state (and locked version), or "ready to certify / not yet ready" when
+  no certificate is on file — `GET /turnover/status`, previously backed but never surfaced.
+- New **🚦 vendor gate** check on the bid-leveling tab: name a vendor and see can-bid / can-bill at
+  a glance with the exact compliance blockers (COI status + expiry, prequal, subcontract execution,
+  lien waiver) — `GET /procurement/gate`, also previously unsurfaced.
+
 ## v0.3.517 — SURF-2b: bid-leveling summary + invite-bidders surfaced
 
 - The bid-leveling tab now opens with the **all-packages leveling summary** (`GET /bids/leveling` —
