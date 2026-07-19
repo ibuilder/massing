@@ -50,10 +50,12 @@ priorities below favor what that unblocked.
 
 ## P2 — next ring (buildable; sequence opportunistically)
 
-**Designer workspace (UX Master Pass):** UX-1 full ribbon merge (physically regroup the ~97 tools;
-tab-filtering ships) · UX-3 library depth (thumbnails · drag-to-place · pick-host→auto-build ·
-appendable IFC libraries · CC0 seed/H1) · UX-4 assemble the one-shell layout (Project-Browser spine +
-docked Properties + Library + ribbon; a11y/mobile pass).
+**Designer workspace (UX Master Pass):** ✅ UX-1 full ribbon merge (491 — sections physically
+regrouped into Build → Analyze & Coordinate → Document → Data DOM clusters with phase headers;
+data-phase filtering, four real tabs, stale-tab migration; live-verified) · UX-3 library depth
+(thumbnails · drag-to-place · pick-host→auto-build · appendable IFC libraries · CC0 seed/H1) ·
+UX-4 assemble the one-shell layout (Project-Browser spine + docked Properties + Library + ribbon;
+a11y/mobile pass).
 
 **Construction documents (Wave 11):** C6 reference-line datums + LOD-following poché · D2 routed
 egress/life-safety plans (path-trace over the semantic graph) · ✅ D8 COMcheck/A117.1 → approvability +

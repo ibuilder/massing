@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.491 — UX-1 full ribbon merge: physical phase clusters (P2 · designer workspace)
+
+- The Tools rail's sections are now **physically regrouped by lifecycle phase** — the DOM reorders
+  into **Build → Analyze & Coordinate → Document → Data** clusters with a header over each, so
+  "Advanced authoring" sits beside "Draw elements" instead of at the bottom of an accretion list.
+  Every section declares its phase once at creation (`data-phase`); the ribbon filters on that,
+  never by parsing titles at runtime.
+- The ribbon consolidates to the **four real phases** (+ All): the old separate Analyze / Coordinate
+  tabs both showed the same single section. A stale saved tab migrates to All. Persona-secondary
+  tools now sort to the end of their phase cluster with a "more" badge (replacing the positional
+  "More tools" separator the reorder would have orphaned).
+- Live-verified: cluster order + headers, Build-tab filtering to exactly its three groups, header
+  hiding on filtered tabs, persistence, and the stale-tab migration.
+
 ## v0.3.490 — B5 fastener/connection assemblies (P2 · Wave 11)
 
 - **`add_connection_assembly` recipe**: a connection plate + bolt array authored at the joint

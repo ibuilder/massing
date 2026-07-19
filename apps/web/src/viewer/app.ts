@@ -1217,37 +1217,48 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     }
     panel.appendChild(links);
 
-    // UX-1: a lifecycle ribbon tab-strip — filter the accreted tool sections to one phase at a time
-    // (Build · Analyze · Coordinate · Document · Data), matched off each group's title prefix. A thin
-    // navigation layer over the existing section()s; the choice persists per session.
+    // UX-1 (full ribbon merge): the sections are PHYSICALLY regrouped by lifecycle phase — see
+    // regroupByPhase() below, which reorders the DOM into Build → Analyze & Coordinate → Document →
+    // Data with a phase header over each cluster. The ribbon filters by each group's declared
+    // data-phase (set once at section() creation), never by parsing titles at runtime. Four real
+    // phases: the old separate Analyze / Coordinate tabs both showed the same single section.
     const RIBBON_KEY = "tools-ribbon";
-    const PHASES: [string, (t: string) => boolean][] = [
-      ["All", () => true],
-      ["Build", (t) => t.startsWith("build ")],
-      ["Analyze", (t) => t.includes("analyze")],
-      ["Coordinate", (t) => t.includes("coordinate") || t.includes("clash")],
-      ["Document", (t) => t.startsWith("document")],
-      ["Data", (t) => t.startsWith("data ")],
-    ];
+    const PHASES = ["All", "Build", "Analyze & Coordinate", "Document", "Data"];
     const ribbon = document.createElement("div");
     ribbon.className = "tools-ribbon";
     ribbon.style.cssText = "display:flex;flex-wrap:wrap;gap:3px;margin:0 2px 8px";
     const applyPhase = (name: string) => {
-      const match = PHASES.find(([n]) => n === name)?.[1] ?? (() => true);
+      if (!PHASES.includes(name)) name = "All";        // migrates stale saved tabs (e.g. "Coordinate")
       for (const g of panel.querySelectorAll<HTMLElement>(".tool-group")) {
-        const title = (g.querySelector(".tool-group-head .t")?.textContent || "").toLowerCase();
-        g.style.display = name === "All" || match(title) ? "" : "none";
+        g.style.display = name === "All" || g.dataset.phase === name ? "" : "none";
+      }
+      for (const h of panel.querySelectorAll<HTMLElement>(".tools-phase-head")) {
+        h.style.display = name === "All" ? "" : "none"; // headers are redundant on a filtered tab
       }
       for (const b of ribbon.querySelectorAll<HTMLElement>("button")) b.classList.toggle("on", b.dataset.phase === name);
-      for (const sep of panel.querySelectorAll<HTMLElement>(".tools-more")) sep.style.display = name === "All" ? "" : "none";
     };
-    for (const [name] of PHASES) {
+    for (const name of PHASES) {
       const b = document.createElement("button"); b.className = "tool-btn"; b.textContent = name; b.dataset.phase = name;
       b.style.cssText = "font-size:10.5px;padding:2px 9px";
       b.onclick = () => { localStorage.setItem(RIBBON_KEY, name); applyPhase(name); };
       ribbon.appendChild(b);
     }
     panel.appendChild(ribbon);
+    /** Physically reorder the accreted sections into phase clusters (primary tools before "more"
+     *  tools inside each), with a header row per phase. Runs once after every section is built. */
+    const regroupByPhase = () => {
+      for (const phase of PHASES.slice(1)) {
+        const groups = [...panel.querySelectorAll<HTMLElement>(`.tool-group[data-phase="${CSS.escape(phase)}"]`)];
+        if (!groups.length) continue;
+        const head = document.createElement("div");
+        head.className = "tools-phase-head meta";
+        head.style.cssText = "margin:10px 2px 2px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.75";
+        head.textContent = phase;
+        panel.appendChild(head);
+        groups.sort((a, b2) => Number(a.dataset.secondary === "1") - Number(b2.dataset.secondary === "1"));
+        for (const g of groups) panel.appendChild(g);   // appendChild MOVES the existing node
+      }
+    };
 
     // model metadata gates IFC-only tools (drawings, QA, energy, authoring, exports)
     let hasIfc = false;
@@ -1257,7 +1268,6 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const persona = localStorage.getItem("persona") || "all";
     const primary = TOOLS_BY_PERSONA[persona];
     const order = primary ? [...primary, ...ALL_TOOLS.filter((t) => !primary.includes(t))] : ALL_TOOLS;
-    let moreShown = false;
 
     /** Collapsible section. Returns the body to fill, or null when its precondition is unmet
      *  (in which case it renders one muted reason line and stays collapsed). */
@@ -1268,13 +1278,17 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       const reason = opts.requires === "sourceIfc" ? "needs a source IFC"
         : opts.requires === "project" ? "needs a project" : "";
       const isPrimary = !opts.tool || !primary || primary.includes(key);
-      if (opts.tool && primary && !isPrimary && !moreShown) {
-        const sep = document.createElement("div"); sep.className = "tools-more"; sep.textContent = "More tools";
-        panel.appendChild(sep); moreShown = true;
-      }
       const group = document.createElement("section"); group.className = "tool-group"; group.dataset.tool = key;
+      // UX-1 (physical regroup): every section declares its lifecycle phase ONCE, from its title
+      // prefix — the ribbon and the regroup pass key off data-phase, never runtime title parsing
+      group.dataset.phase = title.startsWith("Build") ? "Build"
+        : title.startsWith("Analyze") ? "Analyze & Coordinate"
+          : title.startsWith("Document") ? "Document" : "Data";
+      if (opts.tool && primary && !isPrimary) group.dataset.secondary = "1";
       const head = document.createElement("button"); head.type = "button"; head.className = "tool-group-head";
-      head.innerHTML = `<span class="chev">▸</span><span class="t">${title}</span>` + (ok ? "" : `<span class="why">${reason}</span>`);
+      head.innerHTML = `<span class="chev">▸</span><span class="t">${title}</span>`
+        + (opts.tool && primary && !isPrimary ? `<span class="why">more</span>` : "")
+        + (ok ? "" : `<span class="why">${reason}</span>`);
       const body = document.createElement("div"); body.className = "tool-group-body";
       group.append(head, body);
       const saved = localStorage.getItem(`tools-open:${key}`);
@@ -3704,6 +3718,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       },
     };
     for (const key of order) builders[key]?.();
+    regroupByPhase();                                        // UX-1: physical phase clusters + headers
     applyPhase(localStorage.getItem(RIBBON_KEY) || "All");   // UX-1: restore the active lifecycle tab
   }
 
