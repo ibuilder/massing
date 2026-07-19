@@ -11,13 +11,15 @@ for f in ("./test_fed_clash.db",):
     if os.path.exists(f):
         os.remove(f)
 
-import sys                                                   # noqa: E402
-from pathlib import Path                                     # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "src"))
 
-from fastapi.testclient import TestClient                    # noqa: E402
-from aec_api.main import app                                 # noqa: E402
-from aec_data import massing                                 # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
+from aec_data import massing  # noqa: E402
 
 # a small real IFC with geometry (columns/slabs) — two copies overlap → federated clashes
 metrics = massing.compute_massing({"lot_width": 30, "lot_depth": 20, "far": 2.0,
@@ -69,5 +71,19 @@ with TestClient(app) as c:
     assert len(c.get(f"/projects/{pid}/models").json()) == 1
     assert c.post(f"/projects/{pid}/clash/federated").status_code == 409
 
+# --- QUERY-DSL wiring (Sprint 1): detect() accepts explicit GUID sets per side ---------------------
+from aec_data import clash  # noqa: E402
+from aec_data.ifc_loader import open_model  # noqa: E402
+
+_m = open_model(str(_ifc))
+base = clash.detect(_m, narrow=False)                        # broad-phase: the model self-overlaps
+assert base, "the massing model must self-overlap for the filter test"
+one_guid = base[0]["a_guid"]
+scoped = clash.detect(_m, narrow=False, guids_a={one_guid})
+assert scoped and all(x["a_guid"] == one_guid for x in scoped), "guids_a scopes side A to the set"
+assert len(scoped) < len(base), "a one-element scope must shrink the result"
+assert clash.detect(_m, narrow=False, guids_a=set()) == [], "an empty GUID set matches nothing"
+
 print(f"FEDERATED CLASH OK — {res['count']} cross-model clashes (STR×MEP), "
-      f"{res['created_topics']} BCF topics; registry append/list/delete + auto-build verified")
+      f"{res['created_topics']} BCF topics; registry append/list/delete + auto-build verified; "
+      f"QUERY-DSL guid scoping: {len(scoped)}/{len(base)} clashes for one scoped element, empty set → none")

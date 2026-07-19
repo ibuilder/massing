@@ -59,6 +59,7 @@ _MAP: dict[str, tuple[str, str]] = {
     # --- data / classification / detailing ---
     "classify": ("data", "IfcClassificationReference"), "set_classification": ("data", "classification"),
     "set_element_pset": ("data", "Pset property"), "set_pset_on_class": ("data", "Pset (by class)"),
+    "set_props_by_guid": ("data", "Pset batch (XLSX round-trip)"),
     "batch_tag": ("data", "AEC_Tags label"), "attach_document": ("data", "IfcRelAssociatesDocument"),
     "attach_om_document": ("data", "O&M document ref"), "apply_detailing_rules": ("data", "rule-driven details"),
     "apply_layers": ("data", "property-override layers"), "set_manufacturer_info": ("data", "manufacturer psets"),

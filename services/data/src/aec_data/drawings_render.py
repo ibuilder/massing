@@ -86,6 +86,57 @@ def render_sheet_svg(layout: dict, meta: dict) -> str:
     return "".join(out)
 
 
+def render_sheet_dxf(layout: dict, meta: dict) -> str:
+    """DXF-EXPORT: the composed sheet as an R12 DXF — the same `compose()` layout the SVG/PDF renderers
+    consume, emitted as CAD entities so consultants get editable linework, not just paper. Layers:
+    BORDER · TITLEBLOCK · TEXT · one `VIEW-n` per placed viewport (+ ANNO for grids/levels/dims/bubbles).
+    DXF is Y-up, the layout is SVG-style Y-down → every y is flipped against the page height."""
+    from . import dxf
+
+    pw, ph = layout["page"]
+    fy = lambda y: ph - y                              # noqa: E731 — page-space Y flip
+    ents: list[str] = []
+    # page border (mirrors the SVG's 6-unit inset frame)
+    ents += dxf.polyline_entities([[(6, fy(6)), (pw - 6, fy(6)), (pw - 6, fy(ph - 6)),
+                                    (6, fy(ph - 6)), (6, fy(6))]], layer="BORDER", closed_hint=True)
+    for vi, v in enumerate(layout["views"]):
+        layer = f"VIEW-{vi + 1}"
+        x, y, _w, _h = v["rect"]
+        ents.append(dxf.text_entity(x + 14, fy(y + 16), 10, f'{v["label"]} · {v["scale_text"]}', "TEXT"))
+        ents += dxf.polyline_entities([[(p[0], fy(p[1])) for p in poly] for poly in v["polys"]],
+                                      layer=layer, closed_hint=bool(v.get("filled")))
+        for e in v.get("extras", []):
+            if e[0] == "lvl":
+                _, x1, x2, yy = e
+                ents.append(dxf.line_entity(x1, fy(yy), x2, fy(yy), "ANNO"))
+            elif e[0] == "line":
+                _, x1, y1, x2, y2, _dash = e
+                ents.append(dxf.line_entity(x1, fy(y1), x2, fy(y2), "ANNO"))
+            elif e[0] == "bub":
+                _, bx, byy, r, lbl = e
+                ents.append(dxf.circle_entity(bx, fy(byy), r, "ANNO"))
+                ents.append(dxf.text_entity(bx - r / 2, fy(byy + 2.5), 5, str(lbl), "ANNO"))
+            elif e[0] == "dim":
+                _, x1, y1, x2, y2, txt = e
+                ents.append(dxf.line_entity(x1, fy(y1), x2, fy(y2), "ANNO"))
+                ents.append(dxf.text_entity((x1 + x2) / 2, fy((y1 + y2) / 2) + 3, 6, str(txt), "ANNO"))
+    # title block strip
+    m = layout["margin"]
+    by = ph - m - layout["tb_h"] + 10
+    ents.append(dxf.line_entity(m, fy(by), pw - m, fy(by), "TITLEBLOCK"))
+    ents.append(dxf.text_entity(m + 8, fy(by + 34), 16, str(meta.get("project", "PROJECT")), "TITLEBLOCK"))
+    fields = [("SHEET", meta.get("sheet", "A-101")), ("ISSUED FOR", meta.get("purpose", "") or "—"),
+              ("REV", str(meta.get("revision", "") or "—")), ("DATE", meta.get("date", "")),
+              ("DRAWN", meta.get("drawn_by", "")), ("SCALE", "AS NOTED")]
+    fx = pw - m - 360
+    for i, (k, val) in enumerate(fields):
+        cx = fx + (i % 2) * 180
+        cy = by + 20 + (i // 2) * 28
+        ents.append(dxf.text_entity(cx, fy(cy), 7, str(k), "TITLEBLOCK"))
+        ents.append(dxf.text_entity(cx, fy(cy + 14), 9, str(val or ""), "TITLEBLOCK"))
+    return dxf.document(ents)
+
+
 def render_sheet_pdf(layout: dict, meta: dict) -> bytes:
     import io
 

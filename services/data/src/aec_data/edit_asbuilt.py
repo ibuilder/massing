@@ -39,6 +39,24 @@ def set_element_pset(model: ifcopenshell.file, guid: str, pset: str, prop: str,
     return guid
 
 
+def set_props_by_guid(model: ifcopenshell.file, changes) -> int:
+    """XLSX-ROUNDTRIP: apply a BATCH of GUID-keyed property edits in one model pass —
+    ``changes = [{guid, pset, prop, value (or new), dtype?}]`` — the write half of the
+    export→edit-in-Excel→re-import workflow (one open/save/publish for the whole sheet, not one per
+    cell). ``dtype`` is supplied by the diff endpoint from the OLD value's type so a numeric property
+    edited in a spreadsheet doesn't silently flip to a string. GUID-stable; a bad row never aborts
+    the batch (mirrors set_spec_link). Returns the number applied."""
+    n = 0
+    for ch in changes or []:
+        try:
+            val = ch.get("value", ch.get("new"))
+            set_element_pset(model, ch["guid"], ch["pset"], ch["prop"], val, ch.get("dtype", "str"))
+            n += 1
+        except Exception:                            # noqa: BLE001 — skip bad rows, apply the rest
+            continue
+    return n
+
+
 def set_spec_link(model: ifcopenshell.file, guids, section: str, title: str | None = None,
                   url: str | None = None) -> int:
     """W11 SpecLink breadcrumb: stamp `Pset_Massing_SpecLink` (SpecSection — a MasterFormat number

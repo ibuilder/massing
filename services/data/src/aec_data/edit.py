@@ -29,6 +29,7 @@ from .edit_asbuilt import (  # noqa: F401 — re-exported: scene/ebc/detailing +
     set_element_pset,
     set_manufacturer_info,
     set_phase,
+    set_props_by_guid,
     set_spec_link,
     spec_link_summary,
     verify_asbuilt,
@@ -667,6 +668,8 @@ RECIPES = {
     "rotate_element": lambda m, p: rotate_element(m, p["guid"], float(p.get("angle", 0))),
     "set_element_pset": lambda m, p: set_element_pset(m, p["guid"], p["pset"], p["prop"],
                                                       p.get("value"), p.get("dtype", "str")),
+    # XLSX-ROUNDTRIP: the batch write half of export→edit-in-Excel→re-import (one pass, GUID-keyed)
+    "set_props_by_guid": lambda m, p: set_props_by_guid(m, p.get("changes") or []),
     "copy_element": lambda m, p: copy_element(m, p["guid"], float(p.get("dx", 1)),
                                               float(p.get("dy", 0)), float(p.get("dz", 0))),
     "set_pset": lambda m, p: set_pset_on_class(

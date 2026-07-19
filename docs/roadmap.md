@@ -29,22 +29,29 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
    save; revising tags `carried_from` (dashed-amber "verify against current revision" pins, never
    dropped). **Remaining:** 2b markups grid (cross-sheet columns/Σ) · 2c overlay compare (rev A/B
    tinted) · 2d live co-markup (2D presence payload + mutation broadcast on the existing SSE).
-2. **XLSX-ROUNDTRIP** *(S, ★★★★)* — IfcCSV-style GUID-keyed property export → edit → re-import with
-   a dry-run diff; the single most-used daily openBIM workflow.
-3. **DXF-EXPORT** *(S, ★★★)* — DXF export of generated drawings (plan/section/elevation DXF paths
-   ship; extend to the composed sheet output — PDF-only is a consultant-contract blocker).
+2. ✅ **XLSX-ROUNDTRIP — SHIPPED v0.3.513** — `GET /model/roundtrip.csv?props=…` (guarded GUID-keyed
+   export) → edit in Excel/Sheets → `POST /model/roundtrip/diff` (dry-run: changes + dtype inferred
+   from old values + unknown GUIDs) → the new `set_props_by_guid` batch recipe applies the sheet in
+   one GUID-stable pass + republish. Viewer "⇄ Property round-trip" tool with a confirm-apply diff
+   table. (XLSX read via openpyxl; CSV formula-injection guarded.)
+3. ✅ **DXF-EXPORT — SHIPPED v0.3.513 (Sprint 1)** — the composed sheet as R12 CAD entities
+   (`GET /drawings/sheet.dxf`, layers BORDER/VIEW-n/ANNO/TITLEBLOCK, `render_sheet_dxf` + dxf.py
+   entity builders) + the **↓ DXF** button on every view/sheet. Consultant-contract blocker cleared.
 4. **PERF-4 remainder** *(M)* — DASH-UNION (one UNION-ALL for the 124-query dashboard) ·
    lean-column single-activity schedule load · SQL-aggregate the `limit=100000` analytics.
 
 **NEXT (compound the queue wave — each is a small, verified follow-up):**
-5. **QUERY-DSL wiring** *(S)* — point the clash-scope + bulk-edit call sites at `query_dsl.select()`
-   (they still take explicit class lists); one grammar everywhere is the multiplier.
+5. ✅ **QUERY-DSL wiring — SHIPPED v0.3.513 (Sprint 1)** — clash sides accept selectors:
+   `detect(guids_a=, guids_b=)` + `POST /clash?a_q=…&b_q=…` via `query_dsl.select` (bad → 422).
+   (Bulk-edit already composes client-side: Query-select GUIDs → `set_props_by_guid`.)
 6. **MODEL-CI-2** *(M)* — auto-run the check pack on publish/option-branch save (enqueue a CI job —
    jobs infra ships); add the clash / IDS / QTO-delta checks (engines exist); BCF/report artifacts.
-7. **FOURD-SIM-2** *(S/M)* — planned-vs-actual variance coloring on the 4D timeline (variance math
-   ships in `/schedule/variance`); the site-logistics overlay riding the same play clock.
-8. **RESOURCE-LEVEL-2** *(S/M)* — *apply* a leveling pass (shift activities within CPM float) behind
-   an explicit confirm — it mutates the schedule, so it lands alone.
+7. ✅ **FOURD-SIM-2 — SHIPPED v0.3.513 (Sprint 1)** — planned-vs-actual on the playback: frames carry
+   `late_guids`/`early_guids` (actual_finish vs finish), the player tints slipped red / ahead green
+   over the amber flash. (The logistics overlay on the play clock stays open — FOURD-SIM-3.)
+8. ✅ **RESOURCE-LEVEL-2 — SHIPPED v0.3.513 (Sprint 1)** — `POST /schedule/resource-leveling/apply`:
+   one leveling round within CPM float (week-granular, finish never moves, critical never shifts),
+   audited; the **⚖ Level** button behind an explicit confirm.
 9. **RULE-LIB-2** *(M)* — the geometric/relational rule checks (clearance-in-front-of, escape
    distance, accessible route, maintainability space) on the logistics/clash geometry path.
 10. **SURF-2b + SURF-4b** *(S)* — the procurement surface (bid leveling / invite-bidders belong

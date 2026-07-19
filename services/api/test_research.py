@@ -60,6 +60,22 @@ assert _when["g1"] < _when["g3"], _when
 # no activities with finish dates → empty (caller falls back to takt)
 assert fourd.timeline_from_activities([{"name": "x"}], _els)["element_count"] == 0
 
+# FOURD-SIM-2: planned-vs-actual — an activity whose actual_finish differs from finish tints its
+# elements late/early on their completion frame (both dates required; on-time stays neutral).
+_pv = fourd.timeline_from_activities([
+    {"name": "Slipped", "trade": "Structure", "start": "2026-01-05", "finish": "2026-01-20",
+     "actual_finish": "2026-01-28", "element_guids": ["g1"]},          # late
+    {"name": "Ahead", "trade": "Envelope", "start": "2026-03-01", "finish": "2026-03-15",
+     "actual_finish": "2026-03-10", "element_guids": ["g2"]},          # early
+    {"name": "OnTime", "trade": "Finishes", "start": "2026-04-01", "finish": "2026-04-30",
+     "actual_finish": "2026-04-30", "element_guids": ["g4"]},          # neutral
+], _els)
+_late = {g for f in _pv["frames"] for g in f.get("late_guids", [])}
+_early = {g for f in _pv["frames"] for g in f.get("early_guids", [])}
+assert "g1" in _late and "g2" in _early, (_late, _early)
+assert "g4" not in _late and "g4" not in _early, "on-time work stays neutral"
+assert sum(f.get("late", 0) for f in _pv["frames"]) >= 1, _pv["frames"]
+
 # --- R2: takt / line-of-balance ----------------------------------------------
 p = takt.plan(10)                                  # 10 floors, default 5-trade train
 assert len(p["trades"]) == 5 and p["floors"] == 10

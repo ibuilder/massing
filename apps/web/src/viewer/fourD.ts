@@ -11,6 +11,8 @@ import type { LayerManager } from "../tools/layers";
 type Timeline = Awaited<ReturnType<ApiClient["schedule4d"]>>;
 
 const BUILT_TODAY = "#ff8c1a";   // amber — elements completing on the current day
+const LATE = "#e05555";          // FOURD-SIM-2: activity finished after plan (actual > planned)
+const EARLY = "#33d17a";         //              activity finished ahead of plan
 const PLAY_MS = 650;             // per-frame dwell during auto-play (isolate is the cost, keep it slow)
 
 export interface FourDDeps {
@@ -64,12 +66,17 @@ export function populate4dPanel(body: HTMLElement, deps: FourDDeps): () => void 
     const f = timeline.frames[idx]!;
     const total = timeline.element_count || 0;
     readout.innerHTML = `<b>Day ${f.day}</b>${f.date ? ` · ${f.date}` : ""} — ${f.pct}% · `
-      + `${f.completed_cumulative}/${total} built · +${f.new} today`;
+      + `${f.completed_cumulative}/${total} built · +${f.new} today`
+      + (f.late ? ` · <span style="color:${LATE}">${f.late} late</span>` : "")
+      + (f.early ? ` · <span style="color:${EARLY}">${f.early} early</span>` : "");
     const built = cumulative[idx] ?? [];
     await layers.resetColors();
     if (built.length) await layers.isolateGuids(built);
     else await layers.showAll();
     if (f.new_guids.length) await layers.colorGuids(f.new_guids, BUILT_TODAY);
+    // FOURD-SIM-2: planned-vs-actual tint overrides the amber for slipped / ahead work
+    if (f.late_guids?.length) await layers.colorGuids(f.late_guids, LATE);
+    if (f.early_guids?.length) await layers.colorGuids(f.early_guids, EARLY);
   };
 
   const load = async () => {

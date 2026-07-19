@@ -2975,6 +2975,60 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             inp.onkeydown = (e) => { if (e.key === "Enter") void exec(); };
           });
         }));
+        b.appendChild(toolBtn2("⇄ Property round-trip (CSV/XLSX)", () => {
+          showResult("Property round-trip — export · edit · re-import", (body) => {
+            body.appendChild(resultNote("The daily openBIM workflow: export a GUID-keyed property table, edit it in "
+              + "Excel/Sheets, upload it back — a <b>dry-run diff</b> shows exactly what would change before anything "
+              + "is written (GUID-stable <code>set_props_by_guid</code> recipe + republish).", ""));
+            const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0";
+            const propsI = document.createElement("input"); propsI.className = "portal-filter"; propsI.style.cssText = "flex:1 1 260px;min-width:0;font-size:12px";
+            propsI.placeholder = "Pset_WallCommon.FireRating, Pset_WallCommon.LoadBearing"; propsI.value = "Pset_WallCommon.FireRating";
+            const exp = document.createElement("button"); exp.className = "mini-btn on"; exp.textContent = "⤓ Export CSV";
+            const upLabel = document.createElement("label"); upLabel.className = "mini-btn"; upLabel.textContent = "⇪ Upload edited"; upLabel.style.cursor = "pointer";
+            const upInput = document.createElement("input"); upInput.type = "file"; upInput.accept = ".csv,.xlsx"; upInput.style.display = "none";
+            upLabel.appendChild(upInput);
+            const status = document.createElement("div"); status.className = "meta"; status.style.marginTop = "4px";
+            const diffBox = document.createElement("div"); diffBox.style.cssText = "margin-top:6px;max-height:40vh;overflow:auto";
+            row.append(propsI, exp, upLabel); body.append(row, status, diffBox);
+            exp.onclick = async () => {
+              const props = propsI.value.split(",").map((s) => s.trim()).filter(Boolean);
+              if (!props.length) { notify("name at least one Pset.Prop column", "error"); return; }
+              try { await api.roundtripExport(pid, props); status.textContent = "exported — edit the CSV, then upload it back"; }
+              catch (e) { status.textContent = `export failed: ${(e as Error).message}`; }
+            };
+            upInput.onchange = async () => {
+              const f = upInput.files?.[0]; if (!f) return;
+              status.textContent = "computing dry-run diff…"; diffBox.replaceChildren();
+              try {
+                const d = await api.roundtripDiff(pid, f);
+                status.innerHTML = `<b>${d.changes.length}</b> change(s) across ${d.checked} rows`
+                  + (d.unknown_guids.length ? ` · <b>${d.unknown_guids.length}</b> unknown GUID(s) skipped` : "")
+                  + ` · ${d.unchanged} unchanged`;
+                if (!d.changes.length) return;
+                const tbl = document.createElement("table"); tbl.className = "result-table";
+                for (const c of d.changes.slice(0, 300)) {
+                  const tr = document.createElement("tr");
+                  tr.innerHTML = `<td class="k">${escapeHtml(c.guid.slice(0, 8))}… ${escapeHtml(c.pset)}.${escapeHtml(c.prop)}</td>`
+                    + `<td class="v">${escapeHtml(c.old ?? "—")} → <b>${escapeHtml(c.new)}</b></td>`;
+                  tbl.appendChild(tr);
+                }
+                diffBox.appendChild(tbl);
+                const apply = document.createElement("button"); apply.className = "mini-btn on"; apply.style.marginTop = "6px";
+                apply.textContent = `✓ Apply ${d.changes.length} change(s) + republish`;
+                apply.onclick = async () => {
+                  apply.disabled = true; status.textContent = "applying via set_props_by_guid…";
+                  try {
+                    const r = await api.editIfc(pid, "set_props_by_guid", { changes: d.changes });
+                    status.textContent = `applied ${r.changed} change(s) — model republishing`;
+                    notify("properties applied — reload the model to see them", "success");
+                  } catch (e) { status.textContent = `apply failed: ${(e as Error).message}`; apply.disabled = false; }
+                };
+                diffBox.appendChild(apply);
+              } catch (e) { status.textContent = `diff failed: ${(e as Error).message}`; }
+              finally { upInput.value = ""; }
+            };
+          });
+        }));
         b.appendChild(toolBtn2("✔ Rule check (rule library)", () => withLoading(container, "Checking the rule library", async () => {
           let r;
           try { r = await api.rulesRun(pid); }

@@ -604,6 +604,19 @@ def sheet_svg(pid: str, sheet: str = "A-101", page: str = "A3", purpose: str = "
     return _svg(svg)
 
 
+@router.get("/projects/{pid}/drawings/sheet.dxf")
+def sheet_dxf(pid: str, sheet: str = "A-101", page: str = "A3", purpose: str = "", rev: str = "",
+              storey: str | None = None, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """DXF-EXPORT — the composed sheet (viewports + annotations + titleblock) as editable R12 CAD
+    linework, not just paper. Same composition as sheet.svg/pdf; layers BORDER/VIEW-n/ANNO/TITLEBLOCK."""
+    from aec_data import drawings  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    text = drawings.default_sheet(open_model(_source_ifc(db, pid)),
+                                  _sheet_meta(db, pid, sheet, purpose, rev), page=page, fmt="dxf", storey=storey)
+    return _dxf(text, f"{sheet}")
+
+
 @router.get("/projects/{pid}/drawings/sheet.pdf")
 def sheet_pdf(pid: str, sheet: str = "A-101", page: str = "A3", purpose: str = "", rev: str = "",
               storey: str | None = None, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):

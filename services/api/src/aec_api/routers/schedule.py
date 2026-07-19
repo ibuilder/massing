@@ -150,6 +150,21 @@ def resource_loading_endpoint(pid: str, cap: float | None = None, db: Session = 
     return resource_loading.loading(db, pid, cap)
 
 
+@router.post("/projects/{pid}/schedule/resource-leveling/apply")
+def resource_leveling_apply(pid: str, cap: float = Body(..., embed=True),
+                            db: Session = Depends(get_db), user: str = Depends(require_role("editor"))):
+    """RESOURCE-LEVEL-2 — APPLY one leveling round: shift over-allocated activities forward within
+    their CPM float (week-granular, most-float-first, finish never moves). Mutates the schedule —
+    the UI gates this behind an explicit confirm. Returns moves + before/after peak."""
+    from .. import audit, resource_loading
+    res = resource_loading.apply_level(db, pid, cap, actor=user)
+    audit.record(db, action="schedule.level_apply", actor=user, method="POST",
+                 path=f"/projects/{pid}/schedule/resource-leveling/apply",
+                 detail={"cap": cap, "moved": res["moved"]})
+    db.commit()
+    return res
+
+
 @router.get("/projects/{pid}/schedule/resource-leveling")
 def resource_leveling_endpoint(pid: str, cap: float, db: Session = Depends(get_db),
                                _: str = Depends(require_role("viewer"))):

@@ -17,7 +17,7 @@ import ifcopenshell.util.unit as uunit
 import numpy as np
 import trimesh
 
-from .drawings_render import _dim_h, _dim_v, render_sheet_pdf, render_sheet_svg  # noqa: F401
+from .drawings_render import _dim_h, _dim_v, render_sheet_dxf, render_sheet_pdf, render_sheet_svg  # noqa: F401
 from .geomconf import geom_workers
 from .ifc_loader import open_model
 
@@ -865,6 +865,8 @@ def compose(meshes, specs: list[dict], page: str = "A3", cols: int = 2,
 def sheet(model: ifcopenshell.file, specs: list[dict], meta: dict,
           page: str = "A3", cols: int = 2, fmt: str = "svg"):
     layout = compose(bake(model), specs, page=page, cols=cols, levels=storey_elevations(model))
+    if fmt == "dxf":
+        return render_sheet_dxf(layout, meta)
     return render_sheet_pdf(layout, meta) if fmt == "pdf" else render_sheet_svg(layout, meta)
 
 
@@ -898,4 +900,6 @@ def default_sheet(model: ifcopenshell.file, meta: dict, page: str = "A3", fmt: s
     specs.append({"kind": "elevation", "direction": "north", "title": "NORTH ELEVATION"})
 
     layout = compose(meshes, specs, page=page, cols=2, levels=storeys)
+    if fmt == "dxf":
+        return render_sheet_dxf(layout, meta)
     return render_sheet_pdf(layout, meta) if fmt == "pdf" else render_sheet_svg(layout, meta)

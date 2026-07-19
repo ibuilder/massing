@@ -49,8 +49,21 @@ assert "8\nSECTION\n" in sec and sec.rstrip().endswith("EOF"), "section DXF"
 elev = drawings.elevation_dxf(m, "north")
 assert "8\nELEVATION\n" in elev and "70\n1\n" in elev, "elevation DXF (closed silhouettes)"
 
+# --- DXF-EXPORT (Sprint 1): the COMPOSED SHEET as R12 CAD entities, not just paper -----------------
+sheet = drawings.default_sheet(m, {"project": "DXF Tower", "sheet": "A-101", "purpose": "REVIEW",
+                                   "revision": "2", "date": "2026-07-19", "drawn_by": "QA"}, fmt="dxf")
+assert isinstance(sheet, str) and sheet.startswith("0\nSECTION\n2\nENTITIES\n") and sheet.rstrip().endswith("EOF")
+for layer in ("BORDER", "TITLEBLOCK", "VIEW-1", "ANNO"):
+    assert f"8\n{layer}\n" in sheet, f"sheet DXF carries layer {layer}"
+assert "\nTEXT\n" in sheet and "DXF Tower" in sheet and "A-101" in sheet, "titleblock TEXT entities"
+assert "\nPOLYLINE\n" in sheet and "\nLINE\n" in sheet, "linework + annotation entities"
+# DXF is Y-up: every emitted Y must be within the page, none negative (the SVG-space flip applied)
+ys = [float(sheet.split("\n")[i + 1]) for i, tok in enumerate(sheet.split("\n")[:-1]) if tok == "20"]
+assert ys and min(ys) >= 0, "Y-flip keeps all coordinates on the page"
+
 if os.path.exists(TMP):
     os.remove(TMP)
 
 print("DXF OK - polylines_to_dxf emits well-formed R12 (POLYLINE/VERTEX/SEQEND, closed-loop flag, skips "
-      "degenerate), and plan/section/elevation export world-placed linework on named layers.")
+      "degenerate), plan/section/elevation export world-placed linework on named layers, and the COMPOSED "
+      "SHEET exports as CAD entities (BORDER/VIEW-n/ANNO/TITLEBLOCK layers, titleblock TEXT, Y-flipped).")

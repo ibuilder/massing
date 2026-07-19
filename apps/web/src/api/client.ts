@@ -3018,6 +3018,24 @@ export class ApiClient extends HttpCore {
         scoped: number; passed: number; failed: number; fail_guids: string[]; status: string }[] }>(
       `/projects/${pid}/rules/run`);
   }
+  /** XLSX-ROUNDTRIP — download the GUID-keyed property table (chosen `Pset.Prop` columns) as CSV
+   *  for editing in Excel/Sheets; re-import via `roundtripDiff` + the `set_props_by_guid` recipe. */
+  async roundtripExport(pid: string, props: string[]) {
+    const q = encodeURIComponent(props.join(","));
+    const res = await fetch(this.url(`/projects/${pid}/model/roundtrip.csv?props=${q}`), { headers: this.authHeaders() });
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `export -> ${res.status}`); }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(await res.blob()); a.download = "properties.csv"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+  /** XLSX-ROUNDTRIP — dry-run diff of an edited CSV/XLSX against the live model: what would change. */
+  async roundtripDiff(pid: string, file: File) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/model/roundtrip/diff`), { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `diff -> ${res.status}`); }
+    return res.json() as Promise<{ checked: number; changes: { guid: string; pset: string; prop: string; old: string | null; new: string }[];
+      unknown_guids: string[]; unchanged: number }>;
+  }
   /** QUERY-DSL — select elements by a selector string (`IfcWall & Pset_WallCommon.FireRating=2HR &
    *  storey=L3`) → matching GUIDs + parsed predicates. One grammar for filter / isolate / scope. */
   modelSelect(pid: string, q: string, limit = 5000) {
@@ -3029,8 +3047,17 @@ export class ApiClient extends HttpCore {
     return this.json<{ floors: number; duration_days?: number; total_days?: number; element_count: number;
       source: "takt" | "p6" | "gc"; start_date?: string; finish_date?: string; p6_activities?: number;
       activity_count?: number; linked?: number; unlinked?: number; by_trade: Record<string, number>;
-      frames: { day: number; new: number; completed_cumulative: number; pct: number; date?: string; new_guids: string[] }[] }>(
+      frames: { day: number; new: number; completed_cumulative: number; pct: number; date?: string; new_guids: string[];
+        late?: number; early?: number; late_guids?: string[]; early_guids?: string[] }[] }>(
       `/projects/${pid}/schedule/4d${source ? `?source=${source}` : ""}`);
+  }
+  /** RESOURCE-LEVEL-2 — APPLY one leveling round: shift over-allocated activities forward within
+   *  their CPM float (finish never moves). Mutates the schedule — gate behind an explicit confirm. */
+  applyResourceLevel(pid: string, cap: number) {
+    return this.json<{ cap: number; moved: number; peak_before: { units: number }; peak_after: { units: number };
+      over_weeks_before: number; over_weeks_after: number; note: string;
+      moves: { activity: string | null; shifted_days: number; new_start: string; new_finish: string; float_remaining: number }[] }>(
+      `/projects/${pid}/schedule/resource-leveling/apply`, { method: "POST", body: JSON.stringify({ cap }) });
   }
   /** RESOURCE-LEVEL — the named-baseline library (metadata, newest first). */
   scheduleBaselines(pid: string) {

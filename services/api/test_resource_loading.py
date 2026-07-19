@@ -12,11 +12,12 @@ for _f in ("./test_resource_loading.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from datetime import date, timedelta                    # noqa: E402
+from datetime import date, timedelta  # noqa: E402
 
-from fastapi.testclient import TestClient                # noqa: E402
-from aec_api import reports                              # noqa: E402
-from aec_api.main import app                             # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import reports  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 
 def _mk(c, pid, key, data):
@@ -62,6 +63,24 @@ with TestClient(app) as c:
     assert all(s["total_float_days"] > 0 for s in lv["suggestions"]), lv["suggestions"]
     lv2 = c.get(f"/projects/{pid}/schedule/resource-leveling?cap=100").json()
     assert lv2["over_weeks"] == 0 and lv2["suggestions"] == [], lv2
+
+    # --- RESOURCE-LEVEL-2 (Sprint 1): APPLY one leveling round — mutates within float only ---------
+    ap = c.post(f"/projects/{pid}/schedule/resource-leveling/apply", json={"cap": 10}).json()
+    assert ap["moved"] == 1 and ap["moves"][0]["activity"] == "Sitework", ap
+    assert ap["moves"][0]["shifted_days"] == 7, "week-granular shift, bounded by float"
+    assert ap["moves"][0]["float_remaining"] > 0, "shift stayed within the CPM float"
+    # the Sitework record's dates actually moved +7d; critical Foundations untouched
+    b_rec = c.get(f"/projects/{pid}/modules/schedule_activity/{b}").json()["data"]
+    assert b_rec["start"] == str(today + timedelta(days=7)), b_rec["start"]
+    assert b_rec["finish"] == str(today + timedelta(days=17)), b_rec["finish"]
+    a_rec = c.get(f"/projects/{pid}/modules/schedule_activity/{a}").json()["data"]
+    assert a_rec["start"] == str(today), "critical-path activity never shifts"
+    # honest physics: a 10d task can't de-overlap a 40d critical task within this window — the peak
+    # stays; the endpoint reports it truthfully rather than pretending the plan leveled.
+    assert ap["peak_after"]["units"] == ap["peak_before"]["units"] == 16.0, ap
+    # cap=100 → nothing over-allocated → a no-op apply
+    ap2 = c.post(f"/projects/{pid}/schedule/resource-leveling/apply", json={"cap": 100}).json()
+    assert ap2["moved"] == 0, ap2
 
     # --- report PDF renders --------------------------------------------------------------------
     assert "resource_loading" in {x["id"] for x in reports.catalog()}, "resource_loading missing"

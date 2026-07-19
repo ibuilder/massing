@@ -33,6 +33,8 @@ def run_clash(
     pid: str,
     a: str | None = None,
     b: str | None = None,
+    a_q: str | None = None,
+    b_q: str | None = None,
     min_volume: float = 1e-3,
     tolerance: float = 0.0,
     narrow: bool = True,
@@ -42,14 +44,27 @@ def run_clash(
     db: Session = Depends(get_db),
     actor: str = Depends(require_role("editor")),
 ):
-    """Detect clashes between two IFC-class groups (comma-separated in `a` / `b`).
-    narrow=true runs the mesh boolean-intersection narrow phase (exact penetration volume).
-    With create_topics=true, the top clashes become BCF `clash` topics (pins/issues)."""
+    """Detect clashes between two element groups: IFC-class lists (comma-separated `a`/`b`) and/or
+    QUERY-DSL selectors (`a_q`/`b_q`, e.g. `IfcDuctSegment & storey=L3`) — selectors scope a side to
+    the matching GUID set, composing with the class filter. narrow=true runs the mesh
+    boolean-intersection narrow phase. With create_topics=true, top clashes become BCF topics."""
     from aec_data import clash  # type: ignore
+
+    def _sel(q: str | None) -> set[str] | None:
+        if not q:
+            return None
+        from .. import query_dsl
+        from .properties import _INDEX, _ensure_loaded
+        _ensure_loaded(pid)
+        try:
+            return set(query_dsl.select(_INDEX.get(pid), q, limit=20000)["guids"])
+        except query_dsl.QueryError as e:
+            raise HTTPException(422, f"bad selector: {e}")
 
     ifc = _source_ifc(db, pid)
     results = clash.detect_file(ifc, _classes(a), _classes(b), min_volume, tolerance,
-                               narrow=narrow, max_narrow=max_narrow)
+                               narrow=narrow, max_narrow=max_narrow,
+                               guids_a=_sel(a_q), guids_b=_sel(b_q))
 
     created = 0
     if create_topics:

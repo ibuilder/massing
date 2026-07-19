@@ -1,7 +1,7 @@
 """ISO 19650 / openBIM standards endpoints — CDE container discipline + requirements register."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Response
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import bim_kpi, bsdd, cde, ids_authoring, mcp_tools, openbim, openbim_quality, standards_expert
@@ -203,6 +203,98 @@ def rules_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_
     _project(db, pid)
     stored = rule_library.load(pid) or rule_library.STARTER_RULES
     return rule_library.run(_idx_for(pid), stored)
+
+
+@router.get("/projects/{pid}/model/roundtrip.csv")
+def roundtrip_export(pid: str, props: str, db: Session = Depends(get_db),
+                     _: str = Depends(require_role("viewer"))):
+    """XLSX-ROUNDTRIP — the GUID-keyed property table for editing in Excel/Sheets: one row per
+    element, columns = guid, ifc_class, name + the requested `Pset.Prop` columns (comma-separated).
+    Re-import via POST /model/roundtrip/diff → the set_props_by_guid recipe."""
+    import csv
+    import io
+
+    from .. import model_query
+    _project(db, pid)
+    fields = [p.strip() for p in (props or "").split(",") if p.strip()][:20]
+    if not fields:
+        raise HTTPException(422, "name at least one Pset.Prop column via ?props=")
+    idx = _idx_for(pid) or {}
+
+    def _cell(v) -> str:
+        s = "" if v is None else str(v)
+        # CSV formula-injection guard: Excel executes =+-@ leads; the diff parser strips one "'".
+        return "'" + s if s[:1] in ("=", "+", "-", "@") else s
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["guid", "ifc_class", "name", *fields])
+    for g, e in idx.items():
+        w.writerow([g, e.get("ifc_class", ""), _cell(e.get("name")),
+                    *[_cell(model_query._val(e, f.replace(".", "::", 1))) for f in fields]])
+    return Response(buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": 'attachment; filename="properties.csv"'})
+
+
+@router.post("/projects/{pid}/model/roundtrip/diff")
+async def roundtrip_diff(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
+                         _: str = Depends(require_role("viewer"))):
+    """XLSX-ROUNDTRIP — DRY-RUN diff of an edited CSV/XLSX against the live property index: which
+    cells would change (`{guid, pset, prop, old, new, dtype}`), which GUIDs are unknown. Nothing is
+    written — apply the returned `changes` via the `set_props_by_guid` edit recipe (which republishes).
+    `dtype` is inferred from the OLD value's type so numeric properties don't flip to strings."""
+    import csv
+    import io
+
+    from .. import model_query
+    _project(db, pid)
+    idx = _idx_for(pid) or {}
+    raw = await file.read()
+    name = (file.filename or "").lower()
+    if name.endswith(".xlsx"):
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+        ws = wb.active
+        rows = [["" if c is None else str(c) for c in r] for r in ws.iter_rows(values_only=True)]
+    else:
+        rows = list(csv.reader(io.StringIO(raw.decode("utf-8-sig", "replace"))))
+    if not rows or "guid" not in [h.strip().lower() for h in rows[0]]:
+        raise HTTPException(422, "first row must be a header containing a 'guid' column")
+    header = [h.strip() for h in rows[0]]
+    gcol = [h.lower() for h in header].index("guid")
+    prop_cols = [(i, h) for i, h in enumerate(header)
+                 if "." in h and i != gcol and h.lower() not in ("ifc_class", "name")]
+    changes: list[dict] = []
+    unknown: list[str] = []
+    unchanged = 0
+    checked = 0
+    for row in rows[1:5001]:                          # bounded: a sheet, not a bulk-import channel
+        if gcol >= len(row) or not str(row[gcol]).strip():
+            continue
+        guid = str(row[gcol]).strip()
+        e = idx.get(guid)
+        checked += 1
+        if e is None:
+            unknown.append(guid)
+            continue
+        for i, h in prop_cols:
+            new = str(row[i]).strip() if i < len(row) else ""
+            if new.startswith("'"):                   # shed the export's formula-injection guard
+                new = new[1:]
+            if new == "":
+                continue                              # blank cell = no edit intended
+            old = model_query._val(e, h.replace(".", "::", 1))
+            old_s = "" if old is None else str(old)
+            if new == old_s:
+                unchanged += 1
+                continue
+            pset, prop = h.split(".", 1)
+            dtype = ("bool" if isinstance(old, bool) else "int" if isinstance(old, int)
+                     else "float" if isinstance(old, float) else "str")
+            changes.append({"guid": guid, "pset": pset, "prop": prop,
+                            "old": old_s or None, "new": new, "dtype": dtype})
+    return {"checked": checked, "changes": changes[:1000], "truncated": len(changes) > 1000,
+            "unknown_guids": unknown[:100], "unchanged": unchanged}
 
 
 @router.post("/projects/{pid}/ci/run")

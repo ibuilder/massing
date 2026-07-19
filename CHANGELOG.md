@@ -4,6 +4,52 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.513 — SPRINT 1: XLSX round-trip · sheet DXF · selector-scoped clash · 4D variance · apply-leveling
+
+Five queue items in one sprint release (the new cadence: targeted tests per feature while building,
+one full-suite + gates + CI pass at the sprint boundary).
+
+**XLSX-ROUNDTRIP (#2)** — the single most-used daily openBIM workflow (IfcCSV-style), end to end:
+  - **Export** `GET /projects/{pid}/model/roundtrip.csv?props=Pset_WallCommon.FireRating,…` — one row
+    per element (guid, ifc_class, name + the chosen `Pset.Prop` columns), formula-injection-guarded
+    for Excel.
+  - **Dry-run diff** `POST /projects/{pid}/model/roundtrip/diff` (CSV or XLSX upload) — exactly which
+    cells would change (`{guid, pset, prop, old, new}`), unknown GUIDs reported, blank cells ignored,
+    **`dtype` inferred from the OLD value's type** so a numeric property edited in a spreadsheet
+    doesn't silently flip to a string. Nothing is written by the diff.
+  - **Apply** rides the existing GUID-stable edit path: a new **`set_props_by_guid`** batch recipe
+    (`aec_data.edit_asbuilt`) applies the whole sheet in ONE model pass + republish — not one edit
+    call per cell. Bad rows are skipped, never abort the batch.
+  - Viewer gains **"⇄ Property round-trip (CSV/XLSX)"**: pick columns → export → upload the edited
+    file → review the diff table → one-click "Apply N changes + republish". New
+    `roundtripExport`/`roundtripDiff` client methods.
+- `test_xlsx_roundtrip` covers the recipe against a real IFC (str + typed float + skipped bad row)
+  and the endpoints (guarded export, diff semantics, 422s).
+
+**DXF-EXPORT (#3)** — every composed **sheet** now exports as editable R12 CAD linework, not just
+paper: `GET /drawings/sheet.dxf` (same composition as sheet.svg/pdf) with layers
+BORDER / VIEW-n / ANNO / TITLEBLOCK, annotation LINE/CIRCLE/TEXT entities, the titleblock as TEXT,
+and the SVG-space Y flipped for DXF's Y-up. New `render_sheet_dxf` + dxf.py entity builders
+(LINE/CIRCLE/TEXT/document); a **↓ DXF** button beside ↓ SVG downloads any view or sheet
+(plan/section/elevation .dxf routes already shipped). Clears the PDF-only consultant-contract blocker.
+
+**QUERY-DSL wiring (#5)** — the clash engine + route now accept **selector-scoped sides**:
+`clash.detect(..., guids_a=, guids_b=)` composes GUID-set filters with the class filters, and
+`POST /clash` takes `a_q`/`b_q` selector strings (`IfcDuctSegment & storey=L3`) resolved through
+`query_dsl.select` (bad selector → 422). One grammar now scopes isolate, rules, CI, and clash.
+
+**FOURD-SIM-2 (#7)** — planned-vs-actual on the 4D playback: each frame splits its completions into
+`late_guids` / `early_guids` (activity `actual_finish` vs `finish`, hard-tied and trade-mapped
+elements alike), and the player tints slipped work **red** / ahead-of-plan work **green** over the
+amber "built today" flash, with late/early counts in the readout. On-time work stays neutral.
+
+**RESOURCE-LEVEL-2 (#8)** — leveling now has a WRITE half: `POST /schedule/resource-leveling/apply
+{cap}` applies one leveling round — over-allocated activities with CPM float shift forward
+(week-granular, most-float-first, **the finish never moves**, critical path never shifts), mutating
+`schedule_activity` dates through the audited module engine. Returns moves + before/after peak and
+over-allocated weeks, truthfully reporting when a plan *can't* level under the cap. Schedule panel
+gains **⚖ Level** behind an explicit confirm; re-renders CPM/Gantt on success.
+
 ## v0.3.512 — MARKUP-2a: project stamp library in the editor + slip-sheet carry-forward (queue #1)
 
 - First MARKUP-2 slice. Scoping note: the markup stack was far ahead of the roadmap line — the 2D

@@ -53,20 +53,27 @@ def timeline_from_activities(activities: list[dict], elements: list[dict]) -> di
         fin = _pdate(a.get("finish")) or _pdate(a.get("actual_finish"))
         if fin is None:
             continue
+        # FOURD-SIM-2: planned-vs-actual per activity — late/early when BOTH dates exist and differ.
+        planned, actual = _pdate(a.get("finish")), _pdate(a.get("actual_finish"))
+        status = None
+        if planned and actual and actual != planned:
+            status = "late" if actual > planned else "early"
         acts.append({"trade": a.get("trade"), "_finish": fin,
                      "_start": _pdate(a.get("start")) or _pdate(a.get("actual_start")) or fin,
-                     "_guids": set(a.get("element_guids") or [])})
+                     "_guids": set(a.get("element_guids") or []), "_status": status})
     empty = {"frames": [], "total_days": 0, "element_count": 0, "by_trade": {},
              "source": "gc", "linked": 0, "unlinked": 0, "activity_count": len(acts)}
     if not acts:
         return empty
 
     guid_finish: dict[str, Any] = {}
+    guid_status: dict[str, str | None] = {}            # FOURD-SIM-2: the winning activity's late/early
     # (A) direct element tags — earliest finishing activity wins for a shared guid
     for a in acts:
         for g in a["_guids"]:
             if g not in guid_finish or a["_finish"] < guid_finish[g]:
                 guid_finish[g] = a["_finish"]
+                guid_status[g] = a["_status"]
     direct = set(guid_finish)
 
     # (B) untagged elements: class → trade → distribute across that trade's activities by floor
@@ -90,6 +97,7 @@ def timeline_from_activities(activities: list[dict], elements: list[dict]) -> di
         f = _floor_index(el.get("storey"))
         idx = round(f / max(1, floors - 1) * (len(pool) - 1)) if len(pool) > 1 else 0
         guid_finish[g] = pool[idx]["_finish"]
+        guid_status[g] = pool[idx]["_status"]
 
     if not guid_finish:
         return empty
@@ -102,9 +110,14 @@ def timeline_from_activities(activities: list[dict], elements: list[dict]) -> di
     for d in sorted(by_date):
         gs = by_date[d]
         cum += len(gs)
+        # FOURD-SIM-2: split the day's completions by planned-vs-actual so the player can tint
+        # slipped work red and early work green on top of the amber "built today" flash.
+        late = [g for g in gs if guid_status.get(g) == "late"]
+        early = [g for g in gs if guid_status.get(g) == "early"]
         out.append({"day": (d - d0).days, "date": d.isoformat(), "new": len(gs),
                     "completed_cumulative": cum, "pct": round(cum / placed * 100, 1),
-                    "new_guids": gs[:500]})
+                    "new_guids": gs[:500], "late": len(late), "early": len(early),
+                    "late_guids": late[:500], "early_guids": early[:500]})
     linked = sum(1 for el in elements if el.get("guid") in direct)
     return {"frames": out, "total_days": out[-1]["day"] if out else 0,
             "element_count": placed, "by_trade": {t: len(v) for t, v in by_trade.items()},

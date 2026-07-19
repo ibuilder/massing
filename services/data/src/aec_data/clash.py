@@ -91,20 +91,27 @@ def detect(
     tolerance: float = 0.0,
     narrow: bool = True,
     max_narrow: int = 800,
+    guids_a: set[str] | None = None,
+    guids_b: set[str] | None = None,
 ) -> list[dict[str, Any]]:
+    """`group_*` scope a side by IFC class; `guids_*` (QUERY-DSL wiring) scope it to an explicit GUID
+    set — e.g. the elements matching `IfcDuctSegment & storey=L3`. Both filters compose (AND)."""
     elems = _compute_geometry(model, keep_mesh=narrow and _MESH_OK)
     if tolerance:
         for e in elems:
             e.min = e.min + tolerance
             e.max = e.max - tolerance
 
-    def pick(group):
-        if not group:
-            return elems
-        s = {g.lower() for g in group}
-        return [e for e in elems if e.ifc_class.lower() in s]
+    def pick(group, guids):
+        out = elems
+        if group:
+            s = {g.lower() for g in group}
+            out = [e for e in out if e.ifc_class.lower() in s]
+        if guids is not None:
+            out = [e for e in out if e.guid in guids]
+        return out
 
-    A, B = pick(group_a), pick(group_b)
+    A, B = pick(group_a, guids_a), pick(group_b, guids_b)
     if not A or not B:
         return []
 
@@ -158,8 +165,9 @@ def detect(
 
 
 def detect_file(ifc_path: str, group_a=None, group_b=None, min_volume=1e-3,
-                tolerance=0.0, narrow=True, max_narrow=800):
-    return detect(open_model(ifc_path), group_a, group_b, min_volume, tolerance, narrow, max_narrow)
+                tolerance=0.0, narrow=True, max_narrow=800, guids_a=None, guids_b=None):
+    return detect(open_model(ifc_path), group_a, group_b, min_volume, tolerance, narrow, max_narrow,
+                  guids_a=guids_a, guids_b=guids_b)
 
 
 def detect_federated(models: list[tuple[str, ifcopenshell.file]], min_volume: float = 1e-3,

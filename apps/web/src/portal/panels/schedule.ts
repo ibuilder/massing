@@ -47,6 +47,22 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   esBtn.title = "Earned Schedule (time-based EVM): ES, SV(t), SPI(t), forecast finish";
   const baseBtn = document.createElement("button"); baseBtn.className = "tool-btn"; baseBtn.textContent = "📌 Baselines";
   baseBtn.title = "Named schedule baselines: capture GMP/Recovery/etc. and measure slip against any of them";
+  const lvlBtn = document.createElement("button"); lvlBtn.className = "tool-btn"; lvlBtn.dataset.cap = "edit";
+  lvlBtn.textContent = "⚖ Level"; lvlBtn.title = "Apply one resource-leveling round: shift over-allocated work forward WITHIN its CPM float (the finish never moves)";
+  lvlBtn.onclick = async () => {
+    const capS = prompt("Availability cap (crew units) to level against:", "10");
+    if (capS == null) return;
+    const cap = Number(capS);
+    if (!Number.isFinite(cap) || cap <= 0) { toast("cap must be a positive number", "error"); return; }
+    if (!(await confirmModal(`Apply one leveling round vs cap ${cap}? Over-allocated activities WITH float shift forward (week-granular, finish never moves). This edits schedule dates.`, ""))) return;
+    try {
+      const r = await ctx.host.api.applyResourceLevel(pid, cap);
+      toast(r.moved
+        ? `leveled: ${r.moved} activity(ies) shifted · peak ${r.peak_before.units} → ${r.peak_after.units} · over-allocated weeks ${r.over_weeks_before} → ${r.over_weeks_after}`
+        : "nothing to level — no over-allocated work with float", r.moved ? "success" : "info");
+      if (r.moved) void renderScheduleViews(ctx, m);   // dates changed → re-render CPM/Gantt
+    } catch (e) { toast(`leveling failed: ${(e as Error).message}`, "error"); }
+  };
   // SCHED-P6 export — the live schedule (imported + hand-entered, with GC edits) back out to the
   // scheduler's tool, keyed by the P6 activity code so their re-import matches by code (round-trip).
   const xerOut = document.createElement("button"); xerOut.className = "tool-btn"; xerOut.textContent = "⤓ Export .xer";
@@ -60,7 +76,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   xerOut.onclick = doExport("xer"); mspOut.onclick = doExport("msp");
   const note = document.createElement("span"); note.className = "meta";
   note.innerHTML = "One relational schedule — these views + the 3D <b>4D sequence</b> (Model → ⏱ 4D) share the same activities.";
-  intro.append(listBtn, xerLabel, xerOut, mspOut, alertBtn, esBtn, baseBtn, note);
+  intro.append(listBtn, xerLabel, xerOut, mspOut, alertBtn, esBtn, baseBtn, lvlBtn, note);
   ctx.root.appendChild(intro);
 
   // a collapsible drawer the alerts / earned-schedule buttons fill on demand (kept out of the way)

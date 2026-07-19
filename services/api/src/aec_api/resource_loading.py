@@ -161,7 +161,7 @@ def level(db: Session, pid: str, cap: float) -> dict[str, Any]:
             seen.add(r["id"])
             suggestions.append({
                 "assignment": r.get("ref"), "resource": d.get("resource_name"),
-                "activity": act.get("name") or aid, "trade": d.get("trade"),
+                "activity": act.get("name") or aid, "activity_id": aid, "trade": d.get("trade"),
                 "total_float_days": fl, "units": _num(d.get("units")),
                 "action": f"shift within {fl}-day float to smooth the peak"})
     suggestions.sort(key=lambda x: -(x["total_float_days"] or 0))
@@ -173,3 +173,47 @@ def level(db: Session, pid: str, cap: float) -> dict[str, Any]:
                 "delaying the finish. Assignments on the critical path (no float) can only be leveled "
                 "by extending the schedule or raising the cap.",
     }
+
+
+def apply_level(db: Session, pid: str, cap: float, actor: str = "leveler") -> dict[str, Any]:
+    """RESOURCE-LEVEL-2: APPLY one leveling round — the write half of the advisory above. Each
+    smoothing candidate's ACTIVITY is shifted forward by up to a week, bounded by its CPM total float
+    (so the project finish never moves), most-float-first, one shift per activity per round. Mutates
+    `schedule_activity` start/finish via the module engine (audited, modified_at bumps) — callers gate
+    this behind an explicit confirm. Returns the moves + before/after peak and over-allocated weeks;
+    re-run for another round if over-allocation remains."""
+    from datetime import timedelta
+
+    before = loading(db, pid, cap)
+    plan = level(db, pid, cap)
+    moves: list[dict] = []
+    moved_acts: set[str] = set()
+    for s in plan.get("suggestions", []):
+        aid = s.get("activity_id")
+        fl = int(s.get("total_float_days") or 0)
+        if not aid or aid in moved_acts or fl < 1:
+            continue
+        try:
+            rec = me.get_record(db, "schedule_activity", pid, aid)
+        except Exception:                            # noqa: BLE001 — assignment points at a gone activity
+            continue
+        d = rec.get("data") or {}
+        s0, f0 = _date(d.get("start")), _date(d.get("finish"))
+        if not s0 or not f0:
+            continue
+        shift = min(fl, 7)                           # week-granular: the loading buckets are weekly
+        ns, nf = s0 + timedelta(days=shift), f0 + timedelta(days=shift)
+        me.update_record(db, "schedule_activity", pid, aid,
+                         {"start": ns.isoformat(), "finish": nf.isoformat()}, actor, "GC")
+        moved_acts.add(aid)
+        moves.append({"activity_id": aid, "activity": s.get("activity"), "shifted_days": shift,
+                      "new_start": ns.isoformat(), "new_finish": nf.isoformat(),
+                      "float_remaining": fl - shift})
+    after = loading(db, pid, cap)
+    return {"cap": cap, "moved": len(moves), "moves": moves,
+            "peak_before": before["peak"], "peak_after": after["peak"],
+            "over_weeks_before": len(before["over_allocation"]),
+            "over_weeks_after": len(after["over_allocation"]),
+            "note": "One leveling round applied (shifts bounded by CPM float — the finish never "
+                    "moves). Re-run for another round if over-allocation remains; critical-path "
+                    "work is never shifted."}

@@ -179,7 +179,10 @@ export class DrawingsUI {
     }
     bar.append(
       btn("✎ Markup", "Drop pins + notes on the sheet", () => { this.markupOn = !this.markupOn; this.root.querySelector(".dwg-viewport")!.classList.toggle("marking", this.markupOn); this.buildToolbar(); }, this.markupOn),
-      btn("↓ SVG", "Download SVG", () => window.open(this.host_.api.url(sheet.path), "_blank")));
+      btn("↓ SVG", "Download SVG", () => window.open(this.host_.api.url(sheet.path), "_blank")),
+      // DXF-EXPORT: every rendered view/sheet has a .dxf twin (plan/section/elevation/sheet) —
+      // editable R12 CAD linework for consultants, not just paper.
+      btn("↓ DXF", "Download DXF (editable CAD linework)", () => window.open(this.host_.api.url(sheet.path.replace(".svg", ".dxf")), "_blank")));
     if (sheet.pdf) bar.append(btn("🖊 PDF markup", "Open the sheet PDF in the 2D editor — measure / mark up / persist to the sheet (promotable to RFI)", async () => {
       const api = this.host_.api, pid = this.host_.projectId();
       const { openPdfUrl, saveToDocuments } = await import("./openPdf");
