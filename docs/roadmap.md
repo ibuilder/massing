@@ -74,8 +74,10 @@ build123d/OCP optional track) · W10-9 dimensional constraints (planegcs LGPL; s
 IFC) · ✅ W10-4 coincident-port auto-connect (478 — `auto_connect_mep` recipe: one sweep wires
 coincident segment-end/fitting points with IfcRelConnectsPorts; fittings claim the joints, idempotent) ·
 W10-5 section/elevation annotation views · ✅ W10-6 keynote
-legend (sheets render the KEYNOTES legend from Track-D codes, test-asserted) · W9-4 harder half (spec/code document text ingestion → cited NL answers) · W9-5 4D equipment
-motion + swept crane clash · ✅ W9-6b headcount-program → zones + auto-furnish (484 —
+legend (sheets render the KEYNOTES legend from Track-D codes, test-asserted) · W9-4 harder half (spec/code document text ingestion → cited NL answers) · ✅ W9-5 4D equipment
+motion + swept crane clash (485 — `position_at` walks paths by schedule progress; `/logistics/clash`
+flags intersecting swing discs with the worst date + under-hook resources) · ✅ W9-6b
+headcount-program → zones + auto-furnish (484 —
 `program_fit`: largest-first allocation, Pset_Massing_Program zones, furnish-to-seat-count,
 honest short_by reporting).
 

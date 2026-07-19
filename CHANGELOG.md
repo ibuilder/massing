@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.485 — W9-5 4D equipment motion + swept crane-reach clash (P2 · site logistics)
+
+- **Motion along paths**: a logistics resource with a `path` now **interpolates its position by
+  schedule progress** (arc-length along the polyline) — a crawler crane walks its runway, a hoist
+  relocates bay by bay — and `/logistics/state` carries the interpolated position so the 4D overlay
+  draws equipment where it IS on that date, not where it started.
+- **`GET /projects/{pid}/logistics/clash` — swept crane-reach clash**: crane pairs whose swing discs
+  intersect **while both are on site** (closest approach sampled along any motion paths, with the
+  worst date and the overlap in metres — "both tower cranes swing over the same bay in June");
+  time-separated or distant pairs clear. Static resources (trailers/laydown/gates/parking) **under a
+  crane's hook** surface as safety flags, not clashes. Plan-level screen, honestly disclaimed (not a
+  jib kinematic simulation). Completes W9-5.
+- Test-proven: schedule midpoint → 50 m along a 100 m runway; a 30 m pair with 20 m jibs clashes
+  with 10 m overlap; a **walking** crane creates a clash only as it arrives; the trailer flags.
+
 ## v0.3.484 — W9-6b headcount program → zones + auto-furnish (P2 · generative fit-out)
 
 - **W9-6b — `program_fit` recipe**: give it a **headcount program** (`{Engineering: 40, Sales: 20}`)

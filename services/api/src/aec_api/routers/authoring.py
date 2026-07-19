@@ -218,6 +218,21 @@ def logistics_state(pid: str, date: str | None = None, db: Session = Depends(get
     return logistics.state_at((p.site_logistics or {}).get("resources", []), date)
 
 
+@router.get("/projects/{pid}/logistics/clash")
+def logistics_clash(pid: str, samples: int = 16, db: Session = Depends(get_db),
+                    _: str = Depends(require_role("viewer"))):
+    """W9-5: **swept crane-reach clash** over the logistics plan — crane pairs whose swing discs
+    intersect while both are on site (closest approach sampled along any motion paths, with the
+    worst date) plus static resources parked under a hook. Plan-level screen, not a jib simulation."""
+    from .. import logistics  # type: ignore
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    return logistics.swept_clash((p.site_logistics or {}).get("resources", []),
+                                 samples=max(2, min(64, samples)))
+
+
 # --- W9-4: semantic model graph (IFC relationships) -------------------------------------------------
 @router.get("/projects/{pid}/graph")
 def model_graph(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
