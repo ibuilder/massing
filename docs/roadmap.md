@@ -153,9 +153,10 @@ extract discipline subset, rebase coordinates, unit-convert, merge/split).
 **Documents & coordination:** **BCF-API-SRV** — server-side BCF-API 3.0 / OpenCDE endpoints so
 Revit/Navisworks/BIMcollab BCF managers connect live (spec is open) · **TRANSMIT-ITP** — numbered
 transmittals + Review Matrix routing + supplier-deliverables register + ITP/Test-Plan workflows
-(extends the CDE plan) · **SMART-VIEWS** — property-driven saved color/filter presets + clash-bound
-issues that auto-resolve on model diff (cheap glue over MODEL-DIFF + clash) · **MEETINGS** — meeting
-series + minutes + flagged action items linked to RFIs/issues (S).
+(extends the CDE plan) · ◧ **SMART-VIEWS** — **saved presets SHIPPED v0.3.525** (`smart_views.py`:
+per-project name + QUERY-DSL selector + isolate/colour/hide, ★ viewer tool; validated + capped).
+**Still open:** clash-bound issues that auto-resolve on model diff · **MEETINGS** — meeting series +
+minutes + flagged action items linked to RFIs/issues (S).
 
 **Estimating & precon depth:** **EST-ASSEMBLIES** — cost-item assemblies + resource-based rate
 build-ups (crew+plant+material per unit rate) + RFQ/quote management inside the estimate ·

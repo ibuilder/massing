@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.525 — SMART-VIEWS: saved property-driven view presets (R15)
+
+- New **smart views** — user-authored, per-project saved view presets over the model (the
+  Solibri/Navisworks "saved search → view" staple). Each is a name + a QUERY-DSL selector + a display
+  mode (**isolate / colour / hide**) + an optional colour, persisted with the project. The **★ Smart
+  views** viewer tool lists them, applies one (isolates / colours / hides the resolved elements in
+  3D), and saves the current selector as a new preset. Built entirely on QUERY-DSL (`query_dsl.select`)
+  + the storage sidecar — cheap glue, not a new subsystem.
+- Endpoints (`GET/PUT /projects/{pid}/smart-views`, `GET …/{vid}/run`): selectors are validated at
+  save (a bad selector rejects the whole set atomically with 422, never clobbering the saved views);
+  caps on count/length + hex-checked colours (HARDEN pattern).
+
 ## v0.3.524 — CLOUD-BRIDGE: optional online licence validation (massing.cloud)
 
 - New **massing.cloud licence bridge** (`license_cloud.py`) — the "online check" the licensing module

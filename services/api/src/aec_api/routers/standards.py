@@ -205,6 +205,43 @@ def rules_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_
     return rule_library.run(_idx_for(pid), stored)
 
 
+# SMART-VIEWS — user-authored saved view presets (name + QUERY-DSL selector + isolate/color/hide).
+@router.get("/projects/{pid}/smart-views")
+def smart_views_get(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The project's saved smart views (property-driven view presets for the viewer)."""
+    from .. import smart_views
+    _project(db, pid)
+    views = smart_views.load(pid)
+    return {"views": views, "count": len(views)}
+
+
+@router.put("/projects/{pid}/smart-views")
+def smart_views_put(pid: str, views: list[dict] = Body(..., embed=True),
+                    db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Replace the project's smart views. Every view's selector is validated (QUERY-DSL) before
+    anything is written — a bad selector rejects the whole save with 422."""
+    from .. import smart_views
+    _project(db, pid)
+    try:
+        saved = smart_views.save(pid, views)
+    except smart_views.QueryError as e:
+        raise HTTPException(422, str(e))
+    return {"saved": len(saved), "views": saved}
+
+
+@router.get("/projects/{pid}/smart-views/{vid}/run")
+def smart_views_run(pid: str, vid: str, db: Session = Depends(get_db),
+                    _: str = Depends(require_role("viewer"))):
+    """Resolve a saved view's selector to the matching GUIDs (the viewer isolates / colours / hides
+    them). 404 if the view id isn't saved."""
+    from .. import smart_views
+    _project(db, pid)
+    view = next((v for v in smart_views.load(pid) if v["id"] == vid), None)
+    if not view:
+        raise HTTPException(404, f"no smart view '{vid}'")
+    return smart_views.run(_idx_for(pid), view)
+
+
 # RULE-LIB-2: the geometric checks a property selector can't express. Starter set when no checks
 # are posted — same seeded-defaults pattern as the property library.
 _GEO_DEFAULTS = [

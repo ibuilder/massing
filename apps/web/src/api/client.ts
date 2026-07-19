@@ -12,7 +12,7 @@ import type {
   IntegrationGroup, ModelCiReport, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   PreflightGate, PreflightSummary,
-  RecordAttachmentMeta, RelatedRecords, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, StampTemplate, SyncScheduleItem,
+  RecordAttachmentMeta, RelatedRecords, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
   Topic, Vec3, Viewpoint, WorkItem,
 } from "./types";
 
@@ -3133,6 +3133,21 @@ export class ApiClient extends HttpCore {
     return this.json<{ query: string; matched: number; truncated: boolean; guids: string[];
       predicates: { field: string; op: string; value: string | null }[]; note?: string }>(
       `/projects/${pid}/model/select?q=${encodeURIComponent(q)}&limit=${limit}`);
+  }
+  /** SMART-VIEWS — the project's saved property-driven view presets (name + selector + mode). */
+  smartViews(pid: string) {
+    return this.json<{ views: SmartView[]; count: number }>(`/projects/${pid}/smart-views`);
+  }
+  /** Replace the saved smart views (editor). Selectors are validated server-side → 422 on a bad one. */
+  smartViewsSave(pid: string, views: SmartView[]) {
+    return this.json<{ saved: number; views: SmartView[] }>(
+      `/projects/${pid}/smart-views`, { method: "PUT", body: JSON.stringify({ views }) });
+  }
+  /** Resolve a saved view's selector to the matching GUIDs (to isolate / colour / hide in 3D). */
+  smartViewRun(pid: string, vid: string) {
+    return this.json<{ id: string; name: string; mode: string; color: string | null;
+      selector: string; matched: number; truncated: boolean; guids: string[]; error?: string }>(
+      `/projects/${pid}/smart-views/${encodeURIComponent(vid)}/run`);
   }
   schedule4d(pid: string, source?: "gc" | "takt") {
     return this.json<{ floors: number; duration_days?: number; total_days?: number; element_count: number;

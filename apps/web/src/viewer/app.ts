@@ -3020,6 +3020,71 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             inp.onkeydown = (e) => { if (e.key === "Enter") void exec(); };
           });
         }));
+        b.appendChild(toolBtn2("★ Smart views (saved presets)", () => {
+          showResult("Smart views — saved property-driven presets", (body) => {
+            body.appendChild(resultNote("Save a QUERY-DSL selector as a reusable view — <b>isolate</b>, "
+              + "<b>colour</b>, or <b>hide</b> the matching elements. Presets persist with the project so the "
+              + "whole team re-applies the same coordination views.", ""));
+            const list = document.createElement("div"); list.style.cssText = "display:flex;flex-direction:column;gap:4px;margin:6px 0";
+            body.appendChild(list);
+            const apply = async (v: { id?: string }) => {
+              if (!v.id) return;
+              try {
+                const r = await api.smartViewRun(pid, v.id);
+                if (r.error) { notify(`selector error: ${r.error}`, "error"); return; }
+                if (!r.guids.length) { await layerMgr.showAll(); notify("no elements matched", "info"); return; }
+                if (r.mode === "color") { await layerMgr.colorGuids(r.guids, r.color || "#ffb020"); }
+                else if (r.mode === "hide") { const ly = await layerMgr.addGuidLayer(`hide:${r.name}`, r.guids); await layerMgr.setVisible(ly.id, false); }
+                else { await layerMgr.isolateGuids(r.guids); }
+                notify(`${r.name}: ${r.matched} element(s) · ${r.mode}`, "success");
+              } catch (e) { notify((e as Error).message, "error"); }
+            };
+            const refresh = async () => {
+              list.textContent = "loading…";
+              let views: { id?: string; name: string; selector: string; mode: string; color?: string | null }[] = [];
+              try { views = (await api.smartViews(pid)).views; }
+              catch (e) { list.textContent = `failed: ${(e as Error).message}`; return; }
+              list.innerHTML = "";
+              if (!views.length) { list.appendChild(resultNote("No saved views yet — add one below.", "")); }
+              for (const v of views) {
+                const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center";
+                const dot = v.mode === "color" ? `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${escapeHtml(v.color || "#ffb020")};margin-right:4px"></span>` : "";
+                const label = document.createElement("span"); label.style.cssText = "flex:1;font-size:12px";
+                label.innerHTML = `${dot}<b>${escapeHtml(v.name)}</b> <span class="meta">${escapeHtml(v.mode)} · ${escapeHtml(v.selector)}</span>`;
+                const go = document.createElement("button"); go.className = "mini-btn on"; go.textContent = "Apply"; go.onclick = () => void apply(v);
+                const del = document.createElement("button"); del.className = "mini-btn"; del.textContent = "✕"; del.title = "delete";
+                del.onclick = async () => {
+                  try { await api.smartViewsSave(pid, views.filter((x) => x.id !== v.id) as never); await refresh(); }
+                  catch (e) { notify((e as Error).message, "error"); }
+                };
+                row.append(label, go, del); list.appendChild(row);
+              }
+            };
+            // add-new row: name + selector + mode (+ colour when mode=color)
+            const add = document.createElement("div"); add.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;border-top:1px solid var(--line,#3a3f47);padding-top:8px";
+            const nameI = document.createElement("input"); nameI.className = "portal-filter"; nameI.placeholder = "view name"; nameI.style.cssText = "flex:1 1 120px;min-width:0;font-size:12px";
+            const selI = document.createElement("input"); selI.className = "portal-filter"; selI.placeholder = "IfcDuctSegment & storey=L3"; selI.style.cssText = "flex:2 1 200px;min-width:0;font-size:12px";
+            const modeS = document.createElement("select"); modeS.className = "portal-filter"; modeS.style.fontSize = "12px";
+            for (const m of ["isolate", "color", "hide"]) { const o = document.createElement("option"); o.value = m; o.textContent = m; modeS.appendChild(o); }
+            const colorI = document.createElement("input"); colorI.type = "color"; colorI.value = "#ffb020"; colorI.style.display = "none";
+            modeS.onchange = () => { colorI.style.display = modeS.value === "color" ? "" : "none"; };
+            const save = document.createElement("button"); save.className = "mini-btn on"; save.textContent = "＋ Save view";
+            save.onclick = async () => {
+              const name = nameI.value.trim(), selector = selI.value.trim();
+              if (!name || !selector) { notify("name + selector required", "error"); return; }
+              try {
+                const cur = (await api.smartViews(pid)).views;
+                const nv = { name, selector, mode: modeS.value as "isolate" | "color" | "hide",
+                  ...(modeS.value === "color" ? { color: colorI.value } : {}) };
+                await api.smartViewsSave(pid, [...cur, nv] as never);
+                nameI.value = ""; selI.value = ""; await refresh();
+                notify("view saved", "success");
+              } catch (e) { notify((e as Error).message, "error"); }
+            };
+            add.append(nameI, selI, modeS, colorI, save); body.appendChild(add);
+            void refresh();
+          });
+        }));
         b.appendChild(toolBtn2("⇄ Property round-trip (CSV/XLSX)", () => {
           showResult("Property round-trip — export · edit · re-import", (body) => {
             body.appendChild(resultNote("The daily openBIM workflow: export a GUID-keyed property table, edit it in "

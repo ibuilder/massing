@@ -256,6 +256,13 @@ export interface EscalationScan {
   as_of: string | null; count: number; pending: number;
   by_level: Record<string, number>; items: EscalationItem[];
 }
+export interface SmartView {
+  id?: string;
+  name: string;
+  selector: string;
+  mode: "isolate" | "color" | "hide";
+  color?: string | null;
+}
 export interface ModelCiReport {
   overall: string; badge: string; ran_at?: string; note?: string;
   total_checks?: number; passed?: number; failed?: number; warned?: number; created_topics?: number;
