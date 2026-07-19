@@ -11,9 +11,10 @@ for _f in ("./test_licensing.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from aec_api import licensing            # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from aec_api.main import app              # noqa: E402
+
+from aec_api import licensing  # noqa: E402
+from aec_api.main import app  # noqa: E402
 
 # --- engine: key format ------------------------------------------------------
 assert licensing.valid_key_format("MASS-AB12-CD34-EF56-GH78")
@@ -26,6 +27,9 @@ assert not licensing.valid_key_format(None)
 # --- engine: tier features cumulative ----------------------------------------
 assert licensing.allows_export("png", "home") and not licensing.allows_export("png", "free")
 assert licensing.allows_export("ifc", "commercial") and not licensing.allows_export("ifc", "home")
+# ENTITLE-1: glb is a base (Home+) export like gltf; ifcx (IFC5/ifcJSON) is openBIM data-out (Commercial+)
+assert licensing.allows_export("glb", "home") and not licensing.allows_export("glb", "free")
+assert licensing.allows_export("ifcx", "commercial") and not licensing.allows_export("ifcx", "home")
 assert licensing.allows("api_access", "commercial") and not licensing.allows("api_access", "home")
 assert licensing.allows("navisworks", "enterprise") and not licensing.allows("navisworks", "commercial")
 assert licensing.allows("sso", "enterprise") and not licensing.allows("sso", "commercial")
@@ -79,12 +83,26 @@ with TestClient(app) as c:
     ls = c.get("/license").json()
     assert ls["enforced"] is True and ls["tier"] == "free", ls
     assert c.get("/projects/%s/source.ifc" % pid).status_code == 402   # IFC export blocked before 409
+    # ENTITLE-1: free tier + enforced → every model-export side-door is gated (before the 409/geometry)
+    for _rt in ("model/export.gltf", "model/export.glb", "model/export.ifc", "model/export.ifcx"):
+        assert c.get(f"/projects/{pid}/{_rt}").status_code == 402, _rt
+
+    # --- HOME tier: base 3D exports open, but openBIM (ifc/ifcx) still gated ----------------------
+    c.put("/settings/integrations", json={"values": {"MASSING_LICENSE_TIER": "home", "MASSING_LICENSE_KEY": ""}})
+    assert licensing.allows_export("glb") and not licensing.allows_export("ifc")
+    for _rt in ("model/export.gltf", "model/export.glb"):
+        assert c.get(f"/projects/{pid}/{_rt}").status_code != 402, _rt    # allowed → 409 (no model), not 402
+    for _rt in ("model/export.ifc", "model/export.ifcx", "source.ifc"):
+        assert c.get(f"/projects/{pid}/{_rt}").status_code == 402, _rt    # openBIM out needs Commercial+
 
     # --- upgrade to Commercial -> IFC export + API allowed again --------------
     c.put("/settings/integrations", json={"values": {
         "MASSING_LICENSE_KEY": "MASS-AB12-CD34-EF56-GH78", "MASSING_LICENSE_TIER": "commercial"}})
     assert licensing.allows("api_access") and licensing.allows_export("ifc")
     assert c.get("/projects/%s/source.ifc" % pid).status_code == 409   # allowed -> just no IFC yet
+    # ENTITLE-1: Commercial unlocks the openBIM side-doors too (no 402; 409/other since no model yet)
+    for _rt in ("model/export.ifc", "model/export.ifcx"):
+        assert c.get(f"/projects/{pid}/{_rt}").status_code != 402, _rt
 
     # --- back to open mode (default) ------------------------------------------
     c.put("/settings/integrations", json={"values": {"MASSING_LICENSE_ENFORCE": "0"}})
@@ -99,4 +117,6 @@ with TestClient(app) as c:
 print("LICENSING OK - key format validated; tiers free<home<commercial<enterprise; enforcement is "
       "OPTIONAL + OFF by default (open mode grants everything, licence not required); when enabled it "
       "gates IFC export (402) + programmatic API by tier and clears on upgrade; /license reports enforced; "
-      "Settings activates/rejects/masks the key and never echoes it")
+      "Settings activates/rejects/masks the key and never echoes it. ENTITLE-1: glb is a Home+ base "
+      "export, ifcx is Commercial+ openBIM out; every model-export side-door (gltf/glb/ifc/ifcx) is "
+      "gated consistently — Home opens 3D but not openBIM, Commercial opens both, all no-op in open mode")

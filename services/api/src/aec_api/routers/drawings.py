@@ -537,6 +537,9 @@ async def export_gltf(pid: str, db: Session = Depends(get_db), _sec: str = Depen
     from starlette.concurrency import run_in_threadpool
 
     from aec_data import gltf_export  # type: ignore
+
+    from .. import licensing
+    licensing.require_export("gltf", "glTF")   # Home+ when enforcement is on; no-op in open mode
     path = _source_ifc(db, pid)
     p = db.get(Project, pid)
     data = await run_in_threadpool(gltf_export.export_gltf_bytes, path, (p.name if p else pid))
@@ -553,6 +556,9 @@ async def export_glb(pid: str, db: Session = Depends(get_db), _sec: str = Depend
     from starlette.concurrency import run_in_threadpool
 
     from aec_data import gltf_export  # type: ignore
+
+    from .. import licensing
+    licensing.require_export("glb", "GLB")   # Home+ when enforcement is on; no-op in open mode
     path = _source_ifc(db, pid)
     p = db.get(Project, pid)
     data = await run_in_threadpool(gltf_export.export_glb_bytes, path, (p.name if p else pid))
@@ -567,6 +573,8 @@ def export_ifc(pid: str, db: Session = Depends(get_db), _sec: str = Depends(requ
     source of truth a coordinator can round-trip through any openBIM tool."""
     from pathlib import Path as _P
 
+    from .. import licensing
+    licensing.require_export("ifc", "IFC")   # gate this side-door too (parity with /source.ifc)
     path = _source_ifc(db, pid)     # 409 if the project has no accessible source IFC
     data = _P(path).read_bytes()
     return Response(data, media_type="application/x-step",

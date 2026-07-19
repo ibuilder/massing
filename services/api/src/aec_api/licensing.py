@@ -18,14 +18,16 @@ TIER_ORDER = ["free", "home", "commercial", "enterprise"]
 TIER_LABEL = {"free": "Free", "home": "Home", "commercial": "Commercial", "enterprise": "Enterprise"}
 
 # feature entitlements per tier (cumulative). Export formats + capability flags per the docs.
-_BASE_EXPORTS = ["png", "gltf", "pdf", "obj", "dxf"]          # Home and up
+_BASE_EXPORTS = ["png", "gltf", "glb", "pdf", "obj", "dxf"]   # Home and up (glb = binary glTF)
+# openBIM data-out formats (IFC + the IFC5/ifcJSON write path) — the interchange the paid tiers unlock
+_OPENBIM_EXPORTS = ["ifc", "ifcx", "rvt"]
 TIER_FEATURES: dict[str, dict[str, Any]] = {
     "free": {"exports": [], "api_access": False, "sso": False, "navisworks": False},
     "home": {"exports": list(_BASE_EXPORTS), "api_access": False, "sso": False, "navisworks": False},
-    "commercial": {"exports": _BASE_EXPORTS + ["ifc", "rvt"], "api_access": True, "sso": False,
+    "commercial": {"exports": _BASE_EXPORTS + _OPENBIM_EXPORTS, "api_access": True, "sso": False,
                    "navisworks": False},
-    "enterprise": {"exports": _BASE_EXPORTS + ["ifc", "rvt", "nwd"], "api_access": True, "sso": True,
-                   "navisworks": True},
+    "enterprise": {"exports": _BASE_EXPORTS + _OPENBIM_EXPORTS + ["nwd"], "api_access": True,
+                   "sso": True, "navisworks": True},
 }
 
 
@@ -94,7 +96,7 @@ def tier_at_least(minimum: str, tier: str | None = None) -> bool:
 
 # minimum tier that grants each capability (for upgrade messaging)
 _MIN_TIER = {"api_access": "Commercial", "sso": "Enterprise", "navisworks": "Enterprise"}
-_EXPORT_MIN_TIER = {"ifc": "Commercial", "rvt": "Commercial", "nwd": "Enterprise"}
+_EXPORT_MIN_TIER = {"ifc": "Commercial", "ifcx": "Commercial", "rvt": "Commercial", "nwd": "Enterprise"}
 
 
 def require(feature, label=None):

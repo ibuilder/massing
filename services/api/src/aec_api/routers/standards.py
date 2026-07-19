@@ -435,6 +435,8 @@ def model_export_ifcx(pid: str, flavor: str = "ifcjson", db: Session = Depends(g
     ifcJSON, default, full-fidelity round-trip) or `ifcx` (OpenUSD-style IFCX node list). Geometry is
     out of scope until web-ifc / Fragments add IFC5 upstream — this is the data write path."""
     _project(db, pid)
+    from .. import licensing
+    licensing.require_export("ifcx", "IFC5 / ifcJSON")   # openBIM data-out — Commercial+ when enforced
     import sys
     from pathlib import Path
     data_src = Path(__file__).resolve().parents[4] / "data" / "src"

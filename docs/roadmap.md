@@ -105,7 +105,12 @@ Standing sources: the 2026-07-19 R15 landscape+audit synthesis (execution order)
     `massing.py` · `bcf_io.py` · `routers/generate.py`.
 17. **REL-4 leaves** *(M)* — continue the god-file decomposition: `portal.ts` (next leaf) +
     `viewer/app.ts` leaves.
-18. **ENTITLE-1** *(S/M)* — entitlement-tier enforcement (license_tier is read but not enforced).
+18. ✅ **ENTITLE-1 — SHIPPED v0.3.522 (Sprint 7)** — the framework existed (`licensing.require*`,
+    enforcement off by default) but only `/source.ifc` + programmatic publish were gated. Wired the
+    remaining model-export side-doors (`export.ifc`/`ifcx`/`gltf`/`glb`) so enforcement covers every
+    out-path consistently (closes the IFC bypass); fixed the matrix (`glb` was missing from base
+    exports → would 402 even at Enterprise; `ifcx` declared Commercial+). Test flips enforcement on
+    and verifies each tier boundary. SSO/Navisworks gating deferred (auth-flow-coupled, lower value).
 19. **JOB-QUEUE remainder** *(S/M)* — PAdES sealing on the queue (needs doc-reference plumbing) ·
     generative runs (mutating jobs need the pid lock).
 

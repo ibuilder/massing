@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.522 — ENTITLE-1: consistent export entitlement enforcement
+
+- **Closed the IFC-export side-doors**: `/model/export.ifc` and `/model/export.ifcx` now gate on the
+  export entitlement just like `/source.ifc` did — previously a licensee could bypass the IFC gate
+  through the drawings/standards routes when enforcement was on.
+- **Gated the 3D-export routes** (`/model/export.gltf`, `/model/export.glb`) on the base (Home+)
+  export entitlement, so free-tier enforcement now covers every model-out path.
+- **Fixed the tier matrix**: `glb` (binary glTF) was absent from the base export set — it would have
+  402'd even at Enterprise; it's now a Home+ base export alongside `gltf`. `ifcx` (IFC5 / ifcJSON) is
+  declared as Commercial+ openBIM data-out. All gates remain **no-ops in open mode** (enforcement is
+  off by default — no licence required until an operator flips `MASSING_LICENSE_ENFORCE`).
+
 ## v0.3.521 — CX-1: commissioning as a first-class loop (R14 Tier-1 complete)
 
 - **Seed from the model** (`POST /cx/seed` + the ⚡ button on Turnover): equipment classes in the
