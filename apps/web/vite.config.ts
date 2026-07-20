@@ -100,9 +100,12 @@ return {
     dedupe: ["three"],
   },
   // web-ifc and the fragments worker ship their own WASM/worker assets; don't let
-  // esbuild's dep pre-bundler rewrite them.
+  // esbuild's dep pre-bundler rewrite them. `three` is excluded too: the @thatopen/*
+  // packages above import it raw from node_modules, so pre-bundling the app's own `three`
+  // separately would load a SECOND copy in dev ("Multiple instances of Three.js") — excluding
+  // it (with the resolve.dedupe above) makes every importer share the one node_modules/three.
   optimizeDeps: {
-    exclude: ["web-ifc", "@thatopen/fragments", "@thatopen/components"],
+    exclude: ["web-ifc", "@thatopen/fragments", "@thatopen/components", "three"],
   },
   server: {
     port: 5173,

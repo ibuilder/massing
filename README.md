@@ -283,7 +283,20 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **Analysis depth, model QA and dev-velocity (v0.3.372–v0.3.412, current).** The **complete structural
+- **openBIM conformance, ISO 19650 automation & estimate depth (v0.3.413–v0.3.542, current).** The
+  analytical chain got an **exit** — export the derived frame to **OpenSees (`.tcl`)** for third-party FE
+  verification. openBIM QA gained a **normative conformance gauntlet** (header/schema/GlobalId/spatial-
+  containment checks in the spirit of the buildingSMART validation service), a **standalone discipline-slice
+  IFC export** (selector → a valid, GUID-stable IFC you hand a consultant), one-click **model-cleanup
+  recipes**, and a live **BCF-API 2.1 (OpenCDE) server** so external managers sync issues without swapping
+  `.bcfzip` files. ISO 19650 delivery became self-documenting: a **BIM Execution Plan generated from live
+  project config**, a **BIM information-management responsibility template**, plus PMBOK **project-charter +
+  lessons-learned** registers, an **Inspection & Test Plan**, and **commissioning as a first-class loop**
+  (seed assets from the model → system×phase matrix). Estimating deepened — **three-point range estimates**
+  (P10/P50/P90 bid range), **unit-rate cost assemblies**, and a **version→cost delta** (what a model revision
+  costs). Plus **saved smart views**, stale-clash re-checks, a **rebar cage check + bar bending schedule**, a
+  field **material-request + price-observation ledger**, and an optional **online licence bridge**.
+- **Analysis depth, model QA and dev-velocity (v0.3.372–v0.3.412).** The **complete structural
   analytical chain** — gravity + lateral solve (ASCE 7 seismic ELF + wind MWFRS with a **§12.12 story-drift
   screen** and torsional-irregularity flag), member loads, shear-wall/slab surfaces, base supports → a
   solver-ready IFC. **MEP-SIZE** velocity checks, plan **VIEW-RANGE**, the rendered **COVER-SHEET** +

@@ -42,6 +42,13 @@ run the job, and hand it over — open, self-hosted, and free to run on one mach
 - **The RFI you didn't have to write** — a decision-readiness audit surfaces the information gaps a builder would otherwise ask about — failed code checks, missing details, model-data holes, open clashes — as one ranked resolve-before-you-issue list.
 - **Labour from the model** — productivity rates (man-hours per unit) turn the model's real quantities into labour cost, crew-days, and a duration estimate.
 - **Code checks that know the edition** — occupant loads and citations follow the IBC edition your jurisdiction actually adopted, not a generic default.
+- **Structure you can check — and re-check elsewhere** — idealize the frame into an analytical model, run a gravity + lateral (ASCE 7 seismic/wind) solve with a story-drift screen, then export to **OpenSees (.tcl)** so an engineer verifies it in a third-party solver.
+- **Does the IFC actually conform?** — a normative openBIM validation gauntlet (header, schema, unique GlobalIds, spatial containment) in the spirit of the buildingSMART validation service — pass / warn / fail per check.
+- **The BIM Execution Plan writes itself** — an ISO 19650 BEP composed from live project config (standards, EIR/AIR coverage, the RACI matrix, CDE state, model-QA gates), never a stale side-document.
+- **Hand a consultant just their slice** — a selector streams a standalone, GUID-stable discipline IFC (e.g. structural only) with the spatial skeleton preserved.
+- **An estimate is a range, not a number** — three-point low / likely / high pricing rolls up to a P10 / P50 / P90 bid range.
+- **What did the revision cost?** — a version diff becomes a conceptual cost impact (priced additions, changes flagged for re-estimate).
+- **Live issue sync, not file swaps** — a BCF-API 2.1 (OpenCDE) server so external coordination tools sync topics, comments and viewpoints directly.
 - **Grounded in the literature** — Willis (form follows finance), Salvadori (structure), the Empire State takt assembly line.
 
 ## One-pager — Earned Value Management

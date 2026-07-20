@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.543 — Docs refresh, roadmap reconciliation & dev-console polish
+
+- **Roadmap reconciled + re-prioritized.** The R15 ring and the shippable R14 tiers are fully closed;
+  the v0.3.510–542 wave moved to [roadmap-completed.md](docs/roadmap-completed.md) and `roadmap.md` was
+  rewritten as a fresh, open-items-only backlog (NOW: SCOPE-GAP · GOLDEN-THREAD · CLASH-TRIAGE · GIS-OUT ·
+  CBS-1 · MEP-GRAPH; a RUNTIME ring; R15/R14 tails; the flagship-L builds; decomposition + P2 carry-overs).
+- **Docs brought current.** README's "recent work" recap now covers v0.3.413–542; `status.md` corrected
+  (stale version + test count + the obsolete "authoring needs Blender" framing — in-browser authoring ships
+  as server-side recipes); marketing one-liners gained the structural-solve/OpenSees, NORM-VALID, BEP-GEN,
+  subset-export, range-estimate, revision→cost, and live-BCF entries. Pages demo snapshot regenerated.
+- **Dev console fix.** The Vite dev "Multiple instances of Three.js" warning is silenced by also excluding
+  `three` from `optimizeDeps` (the `@thatopen/*` packages import it raw, so pre-bundling the app's own copy
+  loaded a second instance in dev) — with `resolve.dedupe: ["three"]`, every importer now shares the one
+  `node_modules/three`. Production was already single-instance via `manualChunks`.
+
 ## v0.3.542 — EST-BANDS: range estimate (low / likely / high → probabilistic bid range)
 
 - **A conceptual estimate is a range, not a number.** `GET /projects/{pid}/estimate/bands` prices the

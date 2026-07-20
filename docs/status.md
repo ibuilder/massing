@@ -4,13 +4,13 @@ Snapshot of what's been built and how far each piece is verified on this machine
 (node 20.3.1, python 3.10.6, Windows). "Verified" = ran successfully against the real
 sample model (`samples/school_str.ifc`, the That Open structural school, 8.6 MB, IFC4).
 
-**Point-in-time snapshot (v0.3.86, June 2026) — superseded; see [the changelog](../CHANGELOG.md) and [status.html](status.html) for current state.** The M0–M6 milestones below are the foundational viewer/portal/deploy
+**Point-in-time snapshot (v0.3.86, June 2026) — long superseded (the build has since passed v0.3.540; see [the changelog](../CHANGELOG.md) and [status.html](status.html) for current state).** The M0–M6 milestones below are the foundational viewer/portal/deploy
 spine and remain accurate. Everything shipped on top of them since — the full lifecycle from
 acquisition through operations (due diligence, ISO 19650 openBIM standards, the **Discipline Spine**
 threading model → discipline sheets → specs → bid → budget, lean **pull-planning** with a real-time
 board, **Facility Condition** / FCI, **climate & water resilience**, CMMS/reserves/ESG, and a Python
 code-standards lint lock-in) — is catalogued release-by-release in [`../CHANGELOG.md`](../CHANGELOG.md)
-and sequenced in [`roadmap.md`](roadmap.md). Backend suite: **120/120 green**.
+and sequenced in [`roadmap.md`](roadmap.md). Backend suite: **~295 test scripts, all green** (run via `run_tests.py`; count grows each release).
 
 ## Milestones
 | ID | Goal | Status |
@@ -20,7 +20,7 @@ and sequenced in [`roadmap.md`](roadmap.md). Backend suite: **120/120 green**.
 | **M2** | Full toolset: nav, tree, isolate/ghost, section, measure, set-origin | ✅ modules build + typecheck; **color-by-data verified in browser** (307 slabs highlighted) |
 | **M3** | Pin an RFI, restore viewpoint, export `.bcfzip` | ✅ **verified** end-to-end (API smoke test) |
 | **M4** | Export QTO/estimate, spaces, COBie; 4D timeline | ✅ **verified** (XLSX written; 5D = $2.38M from geometry fallback) |
-| **M5** | Place a family/type via Bonsai, re-publish, pins survive | 📝 recipes + MCP config written; needs Blender to run |
+| **M5** | Author/edit families server-side, re-publish, pins survive | ✅ **verified** — in-browser authoring ships as server-side ifcopenshell recipes (create/edit walls, columns, slabs, families, MEP by GUID-stable recipe; no Blender required). The Bonsai/Blender bridge is now an optional advanced-interop path, not required. |
 | **M6** | Self-hosted, offline, authenticated deployment | ✅ docker/compose/Dockerfiles + optional API-key auth (verified 401/201); full stack not booted here |
 
 ## Verified by running

@@ -7,6 +7,30 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## 🗓 Session v0.3.510–542 (2026-07-19) — execution-queue tail + R15/R14 rings closed
+
+Continuation of the audit-synthesized wave: the ★ execution queue (#0–20) finished, then the entire
+🧭 **R15 ring** was executed to completion and the shippable **R14** tiers cleared — every item a
+verified CI-green release, **CodeQL 0 open alerts throughout**. **Recurring lesson:** "the well is dry"
+was repeatedly wrong — verifying by source (route/module/engine) kept surfacing genuine bounded items
+mislabeled as flagship-scale. Full per-release detail is in [CHANGELOG.md](../CHANGELOG.md) (v0.3.510–
+542); the highlights:
+
+- **Queue tail:** HARDEN-2 (v0.3.510, 2 sec + 7 bug fixes), RT-ORJSON (v0.3.511, 7–9× serialize),
+  MARKUP-2 slices (v0.3.512–516), XLSX-ROUNDTRIP + DXF-EXPORT + QUERY-DSL clash wiring + FOURD-SIM-2 +
+  RESOURCE-LEVEL-2 (v0.3.513), MODEL-CI-2/3 (v0.3.520), PERF-4 (v0.3.519), SURF-2b/4b (v0.3.517–518),
+  CX-1 commissioning + REBAR-RULES/BBS + PROC-LOOP (v0.3.520–521), ENTITLE-1 export gates (v0.3.522),
+  JOB-QUEUE pid-lock (v0.3.523), CLOUD-BRIDGE massing.cloud (v0.3.524).
+- **R15 ring (all shipped/verified):** SMART-VIEWS + clash-freshness (v0.3.525/530), VERSION-COMPARE-3D
+  (v0.3.526), IFCPATCH-LIB purges + **SUBSET-EXPORT** discipline slice (v0.3.527/533), BCF-API-SRV 2.1 +
+  viewpoints (v0.3.528–529), EST-ASSEMBLIES (v0.3.531), **FEM-EXPORT** OpenSees (v0.3.532), **NORM-VALID**
+  openBIM conformance (v0.3.535), **REVISION-DELTA** version→cost (v0.3.536), **BEP-GEN** ISO 19650 BIM
+  Execution Plan (v0.3.537), **ROLES-BIM** info-management RACI template (v0.3.538), **PM-CLOSE** charter +
+  lessons-learned (v0.3.539), **TRANSMIT-ITP** inspection & test plan (v0.3.540), **MEETINGS** action-item
+  ↔ RFI/issue links (v0.3.541), **EST-BANDS** range estimate (v0.3.542).
+- **Along the way:** COORD-FRESH stale-clash recheck (v0.3.529), a subset-export path-injection harden
+  (v0.3.534, CodeQL), and a dev CORS fix (localhost + 127.0.0.1 both trusted, v0.3.542).
+
 ## 🗓 Session v0.3.493–509 (2026-07-19) — the ★ execution-queue wave (audit-synthesized)
 
 The R15 landscape + codebase + security/perf audit pass (task #445) produced a re-prioritized
