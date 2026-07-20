@@ -1815,6 +1815,14 @@ export class ApiClient extends HttpCore {
         unenclosed_spaces: Check & { total_spaces: number }; blank_names: Check & { of_elements: number } };
       note: string }>(`/projects/${pid}/models/qa`);
   }
+  /** NORM-VALID — normative openBIM conformance gauntlet (header/schema/IFC implementer-agreement rules). */
+  normValid(pid: string) {
+    return this.json<{
+      schema: string; passed: boolean; summary: { pass: number; warn: number; fail: number };
+      checks: { id: string; category: string; label: string; status: "pass" | "warn" | "fail";
+        count: number; sample: unknown[]; note: string }[]; note: string;
+    }>(`/projects/${pid}/models/norm-valid`);
+  }
   /** Shared-coordinates / setout basis — IfcMapConversion (E/N/height, true-north, scale) + CRS + LoGeoRef. */
   modelGeoreferencing(pid: string) {
     return this.json<{ georeferenced: boolean; level: number; level_label: string; note: string;

@@ -143,9 +143,10 @@ core (v0.3.504–509 — see archive). Open items:*
 CPM+productivity+Takt, score thousands of scenarios — *L, flagship, our inputs are uniquely
 all-present offline*).
 
-**Model intelligence & QA:** **NORM-VALID** — normative IFC validation porting the buildingSMART
-validation-service checks (STEP syntax, schema propositions, normative rules, bSDD alignment; MIT
-reference) as an offline job · ◧ **VERSION-COMPARE-3D** — **in-viewer overlay SHIPPED v0.3.526**:
+**Model intelligence & QA:** ✅ **NORM-VALID v0.3.535** — normative openBIM conformance gauntlet
+(`norm_valid.py` + `GET /models/norm-valid`; header + schema + IFC implementer-agreement rules: single
+IfcProject with units + context, valid/unique 22-char GlobalIds, OwnerHistory, spatial containment;
+pass/warn/fail, 📋 viewer tool). **Still open:** full STEP-syntax gauntlet + bSDD-alignment lane · ◧ **VERSION-COMPARE-3D** — **in-viewer overlay SHIPPED v0.3.526**:
 pick any two versions → added/removed/modified summary + a 3D overlay colouring added green /
 modified amber (the `/versions/diff` snapshot data + change labels already shipped). **Still open:**
 the per-property old/new value list (iTwin-style) — needs richer per-version property snapshots, not

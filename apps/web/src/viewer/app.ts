@@ -3004,6 +3004,28 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             body.appendChild(note);
           });
         })));
+        b.appendChild(toolBtn2("📋 Normative validation (openBIM conformance)", () => withLoading(container, "Running normative validation", async () => {
+          let r;
+          try { r = await api.normValid(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = r.passed ? `norm-valid ✓ (${r.schema})` : `norm-valid ✗ ${r.summary.fail} fail`;
+          const dot: Record<string, string> = { pass: "🟢", warn: "🟡", fail: "🔴" };
+          showResult("Normative validation — openBIM conformance", (body) => {
+            body.appendChild(resultNote(r!.passed
+              ? `<b>${r!.schema}</b> — conforms: <b>${r!.summary.pass}</b> pass · ${r!.summary.warn} warn · 0 fail.`
+              : `<b>${r!.schema}</b> — <b>${r!.summary.fail}</b> check(s) failed (${r!.summary.pass} pass · ${r!.summary.warn} warn).`,
+              r!.passed ? "ok" : "bad"));
+            body.appendChild(kvTable(r!.checks.map((c) => ({
+              k: `${dot[c.status] || "⚪"} ${c.label}`,
+              v: c.count ? `${c.count} — ${escapeHtml(c.note || c.category)}` : escapeHtml(c.note || c.category),
+            }))));
+            const note = document.createElement("div"); note.className = "meta";
+            note.style.cssText = "margin-top:8px;font-size:11px";
+            note.textContent = "Header + schema + IFC implementer-agreement rules (buildingSMART-style). "
+              + "Complements Model QA (authoring quality) and IDS (data completeness). Warnings don't block; only fails do.";
+            body.appendChild(note);
+          });
+        })));
         // SURF-4: element data-QA (`/elements/qa`) was backed but unsurfaced — the per-rule
         // required-property completeness check (missing GUIDs are click-to-select).
         b.appendChild(toolBtn2("🔍 Data QA (required-property completeness)", () => withLoading(container, "Checking element data quality", async () => {

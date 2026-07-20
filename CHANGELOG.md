@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.535 — NORM-VALID: normative openBIM conformance gauntlet
+
+- **Does this IFC *conform*, not just is it well-authored.** A validation gauntlet in the spirit of
+  the buildingSMART validation service — `GET /projects/{pid}/models/norm-valid` runs header + schema
+  + IFC implementer-agreement checks: a recognised `FILE_SCHEMA` and populated header, exactly one
+  `IfcProject` carrying units + a geometric context, every `IfcRoot` GlobalId a valid & unique 22-char
+  `IfcGloballyUniqueId`, OwnerHistory presence (required in IFC2X3, optional after), and no physical
+  element left outside the spatial structure. Each check reports **pass / warn / fail**; `passed` is
+  true when nothing fails (warnings don't block). Complements `model_qa` (authoring quality) and IDS
+  (data completeness). Surfaced as a **📋 Normative validation** tool in the viewer's QA group.
+
 ## v0.3.534 — Harden the subset-export temp path (CodeQL py/path-injection)
 
 - The `/export/subset.ifc` handler built its scratch filename from the URL `pid`

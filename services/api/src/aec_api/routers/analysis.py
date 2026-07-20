@@ -387,6 +387,18 @@ def model_qa_report(pid: str, db: Session = Depends(get_db), _sec: str = Depends
     return model_qa.model_qa(open_source_ifc(db, pid))
 
 
+@router.get("/projects/{pid}/models/norm-valid")
+def model_norm_valid(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """NORM-VALID · **normative openBIM conformance** — a validation gauntlet in the spirit of the
+    buildingSMART validation service: a recognised FILE_SCHEMA + populated header, a single IfcProject
+    with units + a geometric context, valid & unique 22-char GlobalIds, OwnerHistory presence (required
+    in IFC2X3), and no physical element outside the spatial structure. Each check reports pass/warn/fail;
+    `passed` is true when nothing fails. Complements model_qa (authoring quality) and IDS (data). 409 if
+    the project has no source IFC."""
+    from aec_data import norm_valid  # type: ignore
+    return norm_valid.validate(open_source_ifc(db, pid))
+
+
 @router.get("/projects/{pid}/models/export-qa")
 def model_export_qa(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """IFC-QA · **export round-trip fidelity** — writes the source IFC out and reopens it, then compares
