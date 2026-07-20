@@ -21,6 +21,22 @@ def itb_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(requir
     return itb_engine.itb(db, pid)
 
 
+@router.get("/projects/{pid}/bidding/scope-gap")
+def scope_gap_analysis(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """SCOPE-GAP — does every element in the model land in a bid package? Maps the model's takeoff (by
+    NCS discipline) against the defined `bid_package` records and flags **gaps** — disciplines present in
+    the model with no covering package, i.e. quantities not in any bid (with sample GUIDs to highlight) —
+    plus packages whose discipline has no model elements. Distinct from the ITB bid-response coverage.
+    409 without a source IFC."""
+    from aec_data.qto import takeoff_file  # type: ignore
+
+    from .. import scope_gap
+    from ..deps import source_ifc_path as _src
+
+    rows = takeoff_file(_src(db, pid), force_geometry=False)   # 409 if no source IFC; class-only is enough
+    return scope_gap.analyze(db, pid, rows)
+
+
 @router.post("/projects/{pid}/bidding/packages/{rid}/invite")
 def invite_bidders(pid: str, rid: str, companies: list[str] = Body(..., embed=True),
                    db: Session = Depends(get_db), user: str = Depends(require_role("editor"))):

@@ -170,6 +170,19 @@ export async function renderAiAssist(ctx: PanelContext) {
               + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Package</th><th style="text-align:right">Bids</th><th style="text-align:right">Low</th><th style="text-align:right">High</th><th style="text-align:right">Avg</th><th style="text-align:right">Spread</th></tr></thead><tbody>`
               + s.packages.map((p) => `<tr><td>${esc(p.package)}</td><td style="text-align:right">${p.bid_count}</td><td style="text-align:right">${usd(p.low)}</td><td style="text-align:right">${usd(p.high)}</td><td style="text-align:right">${usd(p.avg)}</td><td style="text-align:right">${Math.round(p.spread * 100)}%</td></tr>`).join("")
               + `</tbody></table></div>`;
+            // SCOPE-GAP: does every element in the model land in a bid package? (needs a source IFC)
+            try {
+              const g = await ctx.host.api.scopeGap(pid);
+              if (g.element_count > 0) {
+                const gapRow = g.gaps.length
+                  ? `<div class="meta" style="color:var(--status-warn)">⚠️ Scope gaps — ${g.gaps.map((x) => `${esc(x.discipline)} (${x.element_count})`).join(" · ")} not in any bid package</div>`
+                  : `<div class="meta" style="color:var(--status-good)">✅ Every model discipline is covered by a bid package</div>`;
+                const over = g.packages_without_model_scope.length
+                  ? `<div class="meta">Over-scoped (no model elements): ${g.packages_without_model_scope.map(esc).join(", ")}</div>` : "";
+                out.insertAdjacentHTML("beforeend",
+                  `<div style="margin-top:6px;border-top:1px solid var(--border);padding-top:4px"><b>Model coverage</b> <span class="meta">${g.covered_pct}% of ${g.element_count} elements in a package</span>${gapRow}${over}</div>`);
+              }
+            } catch { /* no source IFC (409) — scope-gap needs a model; skip silently */ }
           } catch (e) { out.textContent = `leveling failed: ${(e as Error).message}`; }
         };
         pick.onchange = async () => {

@@ -21,10 +21,11 @@ feature depth, a runtime/tooling ring, the flagship-L builds, and the decomposit
 *Each is a small, verifiable release grounded in the model we own (GUID-everywhere provenance). Ship
 top-down; interleave one RUNTIME-ring S-item every few features.*
 
-1. **SCOPE-GAP — bid-scope coverage + GUID citations** *(M · ★★★★)* — QTO divisions vs bid-package
-   scope coverage (uncovered elements / spec sections with no quantities → flagged gaps); a per-trade
-   scope/bid-form export where **every line cites GUIDs + sheet + spec section** (click-to-highlight);
-   schedule-vs-model count reconciliation. Extends the estimate + procurement engines.
+1. ◧ **SCOPE-GAP — bid-scope coverage + GUID citations** *(M · ★★★★)* — **discipline-level coverage
+   SHIPPED v0.3.544** (`scope_gap.py` + `GET /bidding/scope-gap`: model takeoff by NCS discipline vs
+   `bid_package` claims → covered % + gaps with sample GUIDs + over-scoped packages; Model-coverage strip
+   in the Bidding view). **Still open:** spec-section-level refinement · a per-trade scope/bid-form
+   export where every line cites GUIDs + sheet + spec section · schedule-vs-model count reconciliation.
 2. **GOLDEN-THREAD — compliance evidence ledger** *(M · ★★★★)* — persist every code/approvability
    check outcome → responsible person → evidence artifact (drawing rev · doc · photo) → sign-off,
    versioned across the lifecycle (extends preflight + ISO 19650 codes); a **check-scoping matrix**

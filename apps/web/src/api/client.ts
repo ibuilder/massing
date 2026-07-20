@@ -718,6 +718,16 @@ export class ApiClient extends HttpCore {
     return this.json<{ package_count: number; total_invited: number; total_responses: number;
       packages_without_bids: number; rows: Record<string, unknown>[] }>(`/projects/${pid}/bidding/itb`);
   }
+  /** SCOPE-GAP — model-QTO coverage vs bid packages: covered disciplines, gaps (uncovered quantities), over-scoped packages. */
+  scopeGap(pid: string) {
+    type Disc = { discipline: string; element_count: number; classes: { ifc_class: string; count: number }[] };
+    return this.json<{
+      package_count: number; element_count: number; covered_pct: number; gap_element_count: number;
+      covered: (Disc & { packages: string[] })[];
+      gaps: (Disc & { sample_guids: string[] })[];
+      packages_without_model_scope: string[]; note: string;
+    }>(`/projects/${pid}/bidding/scope-gap`);
+  }
   /** Invite companies to bid on a package (records the invitee list). */
   inviteBidders(pid: string, packageId: string, companies: string[]) {
     return this.json<{ bidders_invited: number; invited_companies: string[] }>(

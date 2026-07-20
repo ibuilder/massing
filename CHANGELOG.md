@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.544 — SCOPE-GAP: does every element land in a bid package?
+
+- **The scope hole a GC finds at buyout, found at precon.** `GET /projects/{pid}/bidding/scope-gap`
+  maps the model's takeoff (grouped by NCS discipline) against the project's `bid_package` records and
+  flags **gaps** — disciplines present in the model with *no* covering package, i.e. quantities not in
+  any bid yet (with sample GUIDs to click-highlight the uncovered elements) — a covered-percentage, and
+  **over-scoped packages** whose discipline has no model elements. Distinct from the ITB bid-*response*
+  coverage. Surfaced under the Bidding leveling view as a **Model coverage** strip. First item off the
+  freshly re-prioritized roadmap (R14 Tier-2).
+
 ## v0.3.543 — Docs refresh, roadmap reconciliation & dev-console polish
 
 - **Roadmap reconciled + re-prioritized.** The R15 ring and the shippable R14 tiers are fully closed;
