@@ -168,8 +168,10 @@ ae_review→returned→closed + distribution) already shipped; the **ITP/Test-Pl
 from the `inspection` results log) · ◧ **SMART-VIEWS** — **saved presets SHIPPED v0.3.525** (`smart_views.py`:
 per-project name + QUERY-DSL selector + isolate/colour/hide, ★ viewer tool; validated + capped).
 **SMART-VIEWS clash-freshness SHIPPED v0.3.530** (`coordination_fresh.py` + `/coordination/stale`
-[+recheck] — advisory flag, never auto-closes). · **MEETINGS** — meeting series +
-minutes + flagged action items linked to RFIs/issues (S).
+[+recheck] — advisory flag, never auto-closes). · ✅ **MEETINGS COMPLETE** — meeting series + agenda→
+minutes (`meeting` module) + action-item register (`action_item`) already shipped; **action items now
+link to RFIs & issues** (v0.3.541 — `linked_rfi`/`linked_issue` references, incoming on the RFI/issue),
+closing the last sub-item.
 
 **Estimating & precon depth:** ◧ **EST-ASSEMBLIES** — **rate build-ups SHIPPED v0.3.531**
 (`assemblies_cost.py` composite unit rate from labour/material/equipment components + overrides +

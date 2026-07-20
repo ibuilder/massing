@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.541 — MEETINGS: link action items to RFIs & issues
+
+- **Minutes that trace to the record.** Meeting **action items** could reference their source meeting;
+  they can now also link a **Linked RFI** and a **Linked Issue**, so a flagged action captured in
+  minutes traces to the RFI or coordination issue it concerns — and each RFI/issue shows the action as
+  an incoming reference in its related view. This closes the last MEETINGS sub-item (the meeting series,
+  agenda→minutes, and action-item register were already in place).
+
 ## v0.3.540 — TRANSMIT-ITP: Inspection & Test Plan register
 
 - **The QA plan, not just the results log.** Added an **Inspection & Test Plan** register — one record

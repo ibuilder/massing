@@ -30,6 +30,18 @@
       "module": "meeting"
     },
     {
+      "name": "linked_rfi",
+      "label": "Linked RFI",
+      "type": "reference",
+      "module": "rfi"
+    },
+    {
+      "name": "linked_issue",
+      "label": "Linked Issue",
+      "type": "reference",
+      "module": "issue"
+    },
+    {
       "name": "priority",
       "label": "Priority",
       "type": "select",
