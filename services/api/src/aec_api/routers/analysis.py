@@ -443,6 +443,19 @@ def model_health_scorecard(pid: str, db: Session = Depends(get_db), _sec: str = 
     return model_health.scorecard(db, pid, model=model, elements=_index_elements(pid))
 
 
+@router.get("/projects/{pid}/master-builder/brief")
+def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """MASTER-BUILDER — the whole project in one view: runs the 8-step Master Builder Protocol (place →
+    program/HBU → feasibility → regulatory → design-integration → delivery → risk → handover) over the
+    project's own data, grounds it in the project's jurisdiction, and reports a readiness status + the
+    concrete gap per step (each linking to the tool that closes it). A readiness synthesis over the data
+    on hand — not a substitute for licensed judgment, a plan check, or committed underwriting."""
+    from .. import master_builder
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return master_builder.brief(db, pid)
+
+
 @router.get("/projects/{pid}/preflight")
 def preflight_gate(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Pre-flight **issuance gate** — one PASS/HOLD verdict + a pre-issue checklist composing model health

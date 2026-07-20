@@ -4,6 +4,32 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.557 — MASTER-BUILDER: the whole project in one brief (SPRINT MB phase-1)
+
+A new synthesis that holds the entire project in one view — the software embodiment of the
+Master Builder Protocol.
+
+- **`master_builder.py` engine** + `GET /projects/{pid}/master-builder/brief`: runs the 8 protocol
+  steps (place → program/HBU → feasibility → regulatory → design-integration → delivery → risk →
+  handover) over the project's *own* data, **grounds the whole brief in the project's jurisdiction**
+  (the field that resolves which code editions and hazard loads govern), and returns a per-step
+  readiness status (`ready` / `partial` / `gap`) with the concrete gap and a link to the tool that
+  closes it, plus an overall readiness score.
+- It is a **synthesis over the platform's existing engines** — georeferencing, budget, schedule + bid
+  packages, the compliance-evidence golden thread, the clash coordination log, the risk board, and the
+  facility-condition/asset basis — reading the canonical signals, never re-deriving them. Every probe is
+  guarded, so a missing module degrades a step to a gap rather than erroring.
+- Honest-status boundary carried in the payload: a readiness synthesis over the data on hand is **not a
+  substitute** for licensed engineering/architectural judgment, an AHJ plan check, or committed
+  underwriting.
+- **🏛 Master Builder** panel (Model & standards nav): a readiness header (score + grounded-in-place +
+  the reframe prompt) and one card per protocol step (status pill, the "why", what's present, the gap),
+  wired to `masterBuilderBrief`.
+- Ships with the **`master-builder` skill** (`.claude/skills/master-builder`, v0.3.0) — the reasoning
+  doctrine behind the feature; the skill's `build-doctrine.md` gained the "synthesis over sources of
+  truth" principle and `digital-toolkit.md` now documents this endpoint as the protocol's reference
+  implementation.
+
 ## v0.3.556 — SCHED-OPT: optimize the real project — takt train from the schedule (SPRINT B phase-4a)
 
 The optioneer no longer always defaults to the residential takt train — it now **derives the trade

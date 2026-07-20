@@ -163,6 +163,7 @@ export class PortalUI {
       __wip__: () => this.renderWip(), __ledger__: () => this.renderLedger(),
       __traceability__: () => this.renderTraceability(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
+      __masterbuilder__: () => this.renderMasterBuilder(),
       __responsibility__: () => this.renderResponsibility(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __modelanalysis__: () => this.renderModelAnalysis(),
@@ -206,6 +207,7 @@ export class PortalUI {
           { key: "__program__", icon: "🧩", label: "Space Program" },       // adjacency graph → massing
           { key: "__conceptrender__", icon: "🖼", label: "Concept Renders" }, // AI concept visuals (feature-flagged)
           { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" },
+          { key: "__masterbuilder__", icon: "🏛", label: "Master Builder" },  // 8-step protocol brief over the whole project
         ]],
         ["Model & standards", [
           { key: "__ids__", icon: "📋", label: "IDS Requirements" },
@@ -574,6 +576,7 @@ export class PortalUI {
 
   private async renderProgram() { return (await import("./panels/standards")).renderProgram(this.panelCtx()); }
   private async renderBimKpi() { return (await import("./panels/standards")).renderBimKpi(this.panelCtx()); }
+  private async renderMasterBuilder() { return (await import("./panels/masterBuilder")).renderMasterBuilder(this.panelCtx()); }
   private async renderModelAnalysis() { return (await import("./panels/standards")).renderModelAnalysis(this.panelCtx()); }
   private async renderDocuments() { return (await import("./panels/documents")).renderDocuments(this.panelCtx()); }
   private async renderStandards() { return (await import("./panels/standards")).renderStandards(this.panelCtx()); }

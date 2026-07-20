@@ -1854,6 +1854,17 @@ export class ApiClient extends HttpCore {
       scenarios: Scenario[]; note: string;
     }>(`/projects/${pid}/schedule/optioneer`, { method: "POST", body: JSON.stringify(body) });
   }
+  /** MASTER-BUILDER — the 8-step Master Builder Protocol run over the project's own data, grounded in place. */
+  masterBuilderBrief(pid: string) {
+    type Step = { n: number; key: string; title: string; why: string; link: string;
+      status: "ready" | "partial" | "gap";
+      findings: { label: string; detail: string }[]; gaps: string[] };
+    return this.json<{
+      project: string | null; jurisdiction: string | null; grounded_in_place: boolean;
+      reframe_prompt: string; readiness_pct: number; ready_steps: number; gap_steps: number;
+      step_count: number; steps: Step[]; disclaimer: string; note: string;
+    }>(`/projects/${pid}/master-builder/brief`);
+  }
   /** WARN-1 — unified model-warnings feed: hygiene + normative-conformance defects, one worst-first punch list. */
   modelWarnings(pid: string) {
     return this.json<{
