@@ -598,3 +598,17 @@ def golden_thread_summary(pid: str, db: Session = Depends(get_db), _: str = Depe
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
     return golden_thread.summary(db, pid)
+
+
+@router.post("/projects/{pid}/golden-thread/seed")
+def golden_thread_seed(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """GOLDEN-THREAD seed — populate the evidence ledger from the latest **model-CI** report: each check
+    becomes a tracked ``compliance_evidence`` requirement (outcome mapped from its status), so the thread
+    starts from the checks already run instead of a blank slate. Idempotent — requirements already in the
+    ledger are skipped, so re-seeding after a fresh CI run only adds what's new. Each seeded row still
+    needs evidence + a sign-off to close."""
+    from .. import golden_thread
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    reqs = golden_thread._ci_requirements(db, pid)
+    return golden_thread.seed(db, pid, reqs, actor="system")

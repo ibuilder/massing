@@ -16,6 +16,55 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 _MAX_BROKEN = 100
+_MAX_SEED = 200
+# model-CI status → the evidence ledger's Outcome vocabulary
+_STATUS_OUTCOME = {"fail": "Fail", "warn": "Pending", "pass": "Pass", "skip": "N/A"}
+
+
+def seed(db: Session, pid: str, requirements: list[dict], actor: str = "system") -> dict[str, Any]:
+    """Populate the ``compliance_evidence`` ledger from a list of checked requirements (e.g. the latest
+    model-CI report), so the golden thread starts from the checks already run instead of a blank slate.
+
+    Idempotent: a requirement whose text already exists in the ledger is skipped, so re-seeding after a
+    fresh check run only adds what's new. Each ``requirement`` dict may carry ``requirement`` (text, req'd),
+    ``code_section``, ``category``, ``outcome`` (or ``status`` mapped via ``_STATUS_OUTCOME``), ``notes``.
+    """
+    from . import modules as me
+
+    existing = {(r.get("data") or {}).get("requirement", "").strip().lower()
+                for r in me.list_records(db, "compliance_evidence", pid, limit=100_000)}
+    created, skipped = [], 0
+    for req in requirements[:_MAX_SEED]:
+        text = (req.get("requirement") or "").strip()
+        if not text:
+            continue
+        if text.lower() in existing:
+            skipped += 1
+            continue
+        outcome = req.get("outcome") or _STATUS_OUTCOME.get((req.get("status") or "").lower(), "Pending")
+        data = {"requirement": text, "outcome": outcome,
+                "code_section": (req.get("code_section") or "").strip(),
+                "category": req.get("category") or "Other",
+                "notes": (req.get("notes") or "").strip()}
+        rec = me.create_record(db, "compliance_evidence", pid, {"data": data}, actor, None)
+        existing.add(text.lower())
+        created.append(rec.get("ref"))
+    return {"created": len(created), "skipped": skipped, "created_refs": created,
+            "note": "Seeded the compliance-evidence ledger from checked requirements; existing "
+                    "requirements were skipped (idempotent). Each seeded row still needs evidence + a "
+                    "sign-off to close its thread."}
+
+
+def _ci_requirements(db: Session, pid: str) -> list[dict]:
+    """Turn the latest model-CI report's per-check results into seedable requirement rows."""
+    from . import model_ci
+    report = model_ci.latest(pid)
+    rows: list[dict] = []
+    for chk in ((report or {}).get("checks") or []):
+        rows.append({"requirement": chk.get("label") or chk.get("key"),
+                     "status": chk.get("status"), "category": "Other",
+                     "notes": chk.get("summary") or ""})
+    return [r for r in rows if r["requirement"]]
 
 
 def summary(db: Session, pid: str) -> dict[str, Any]:

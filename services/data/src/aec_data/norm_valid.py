@@ -50,6 +50,19 @@ def validate(model: ifcopenshell.file) -> dict[str, Any]:
         "pass" if any((d or "").strip() for d in desc) else "warn",
         note="; ".join(d for d in desc if d) or "(empty)"))
 
+    # --- STEP-syntax lane: a populated ISO-10303-21 FILE_NAME header (name + timestamp) ----------
+    fn_name = fn_ts = ""
+    try:
+        fh = model.wrapped_data.header.file_name
+        fn_name = (getattr(fh, "name", None) or "").strip()
+        fn_ts = (getattr(fh, "time_stamp", None) or "").strip()
+    except Exception:                                # noqa: BLE001 — malformed/absent header
+        pass
+    checks.append(_check(
+        "header.file_name", "header", "FILE_NAME carries a name + timestamp (ISO-10303-21)",
+        "pass" if (fn_name and fn_ts) else "warn",
+        note=f"name: {fn_name or '(empty)'} · timestamp: {fn_ts or '(empty)'}"))
+
     # --- project singularity + units + context --------------------------------------------------
     projects = model.by_type("IfcProject")
     checks.append(_check(
@@ -106,6 +119,21 @@ def validate(model: ifcopenshell.file) -> dict[str, Any]:
         "containment.orphans", "normative", "Every physical element sits in the spatial structure",
         "pass" if not orphans else "warn", count=len(orphans),
         sample=[{"class": e.is_a(), "name": e.Name, "guid": e.GlobalId} for e in orphans]))
+
+    # --- bSDD/classification lane: share of physical elements carrying a classification reference --
+    elements = model.by_type("IfcElement")
+    classified: set[int] = set()
+    for rel in model.by_type("IfcRelAssociatesClassification"):
+        for e in (getattr(rel, "RelatedObjects", None) or []):
+            classified.add(e.id())
+    n_el = len(elements)
+    n_cl = sum(1 for e in elements if e.id() in classified)
+    pct = round(100.0 * n_cl / n_el, 1) if n_el else 0.0
+    # a well-linked model carries classifications (Uniclass/OmniClass/MasterFormat via bSDD); none → warn
+    checks.append(_check(
+        "classification.coverage", "data", "Elements carry a classification reference (bSDD alignment)",
+        "pass" if pct >= 50.0 else "warn", count=n_cl,
+        note=f"{n_cl}/{n_el} elements classified ({pct}%)"))
 
     summary = {s: sum(1 for c in checks if c["status"] == s) for s in ("pass", "warn", "fail")}
     return {"schema": schema, "passed": summary["fail"] == 0, "summary": summary,

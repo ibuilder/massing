@@ -4,6 +4,33 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.552 — Quick-wins sprint: model-warnings feed + check-lane depth
+
+A batch of low-risk, high-clarity refinements across the model-quality and coordination engines —
+cleaning up the small items before the big-ticket sprints.
+
+- **WARN-1 — unified model-warnings feed** (`GET /projects/{pid}/models/warnings`): a new
+  `model_warnings.py` engine flattens every individual defect the hygiene lens (`model_qa` —
+  duplicate GUIDs, orphans, overlapping duplicates, unenclosed spaces, blank names, wrong-storey)
+  and the normative-conformance lens (`norm_valid`) surface into one worst-first punch list —
+  fails before warns, each row carrying its offender sample for zoom-to-GUID. Where the model-CI
+  badge says pass/warn/fail, this is the actionable list behind it.
+- **NORM-VALID tails** — the conformance gauntlet gains two lanes: a STEP-syntax check that the
+  ISO-10303-21 `FILE_NAME` header carries a name + timestamp, and a bSDD/classification-coverage
+  check reporting the share of physical elements associated to a classification reference
+  (pass ≥ 50%, else warn).
+- **SCOPE-GAP spec-section refinement** — bid-package coverage now unions the CSI spec sections
+  each covering package cites and surfaces them per discipline; a discipline covered by a package
+  that names **no** spec section is flagged as `covered_without_specs` (thin, non-traceable
+  coverage) — distinct from a true scope gap.
+- **GOLDEN-THREAD seed** (`POST /projects/{pid}/golden-thread/seed`): populate the compliance-
+  evidence ledger from the latest model-CI report — each check becomes a tracked requirement
+  (outcome mapped from its status) so the thread starts from the checks already run instead of a
+  blank slate. Idempotent — re-seeding after a fresh run only adds what's new.
+- **DRAW-STATUS** — the drawing module gains a `lifecycle` field (Not Issued · Issued for
+  Construction · Shop Drawing · As-Built), surfaced in the drawing list, distinct from the
+  revision-status field.
+
 ## v0.3.551 — Hardening pass over v0.3.544–550
 
 - Between-sprint adversarial bug-hunt + security hand-audit over the seven new engines (SCOPE-GAP,

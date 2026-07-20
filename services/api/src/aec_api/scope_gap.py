@@ -53,20 +53,34 @@ def analyze(db: Session, pid: str, rows: list[dict]) -> dict[str, Any]:
         if g and len(b["guids"]) < 50:
             b["guids"].append(g)
 
-    covered, gaps = [], []
+    # spec-section refinement: union the sections each covering package cites, per discipline — a
+    # discipline covered by a package that names *no* spec section is "thin" coverage (a discipline-level
+    # claim with no CSI traceability), which we flag separately from a true scope gap.
+    specs_by_disc: dict[str, set[str]] = {}
+    for p in pkgs:
+        if p["discipline"]:
+            specs_by_disc.setdefault(p["discipline"], set()).update(p["spec_sections"])
+
+    covered, gaps, thin = [], [], []
     for dname, b in sorted(by_disc.items()):
         classes = sorted(({"ifc_class": k, "count": v} for k, v in b["classes"].items()),
                          key=lambda x: -x["count"])
         entry = {"discipline": dname, "element_count": b["count"], "classes": classes}
         if dname in claimed:
             entry["packages"] = claimed[dname]
+            sections = sorted(specs_by_disc.get(dname, set()))
+            entry["spec_sections"] = sections
             covered.append(entry)
+            if not sections:                         # covered by discipline but no spec section cited
+                thin.append({"discipline": dname, "packages": claimed[dname],
+                             "element_count": b["count"], "sample_guids": b["guids"][:_MAX_SAMPLE]})
         else:
             entry["sample_guids"] = b["guids"][:_MAX_SAMPLE]
             gaps.append(entry)
 
     model_discs = set(by_disc)
     empty_pkgs = sorted({p["name"] for p in pkgs if p["discipline"] and p["discipline"] not in model_discs})
+    all_specs = sorted({s for ss in specs_by_disc.values() for s in ss})
 
     total = sum(b["count"] for b in by_disc.values())
     covered_ct = sum(e["element_count"] for e in covered)
@@ -75,9 +89,12 @@ def analyze(db: Session, pid: str, rows: list[dict]) -> dict[str, Any]:
         "covered_pct": round(100.0 * covered_ct / total, 1) if total else 0.0,
         "gap_element_count": total - covered_ct,
         "covered": covered, "gaps": gaps,
+        "covered_without_specs": thin, "spec_sections": all_specs,
+        "spec_section_count": len(all_specs),
         "packages_without_model_scope": empty_pkgs,
         "note": "Coverage matches each element's NCS discipline to a bid package that claims that "
                 "discipline. Gaps = disciplines present in the model with no covering package — their "
-                "quantities aren't in any bid. Spec-section refinement + per-line sheet citation extend "
-                "this discipline-level baseline. Conceptual-grade.",
+                "quantities aren't in any bid. 'covered_without_specs' flags disciplines covered by a "
+                "package that cites no CSI spec section (thin, non-traceable coverage). Per-line sheet "
+                "citation extends this discipline-level baseline. Conceptual-grade.",
     }

@@ -1833,6 +1833,14 @@ export class ApiClient extends HttpCore {
         count: number; sample: unknown[]; note: string }[]; note: string;
     }>(`/projects/${pid}/models/norm-valid`);
   }
+  /** WARN-1 — unified model-warnings feed: hygiene + normative-conformance defects, one worst-first punch list. */
+  modelWarnings(pid: string) {
+    return this.json<{
+      total: number; clean: boolean; by_severity: { fail: number; warn: number; info: number };
+      warnings: { source: string; id: string; severity: "fail" | "warn" | "info"; label: string;
+        count: number; sample: unknown[]; note?: string }[]; note: string;
+    }>(`/projects/${pid}/models/warnings`);
+  }
   /** Shared-coordinates / setout basis — IfcMapConversion (E/N/height, true-north, scale) + CRS + LoGeoRef. */
   modelGeoreferencing(pid: string) {
     return this.json<{ georeferenced: boolean; level: number; level_label: string; note: string;

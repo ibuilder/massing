@@ -30,22 +30,32 @@ with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "Scope Gap"}).json()["id"]
     # one bid package covering Structural only, plus one over-scoped (Landscape — no model elements)
     c.post(f"/projects/{pid}/modules/bid_package",
-           json={"data": {"name": "Concrete structure", "discipline": "Structural", "trade": "Concrete"}})
+           json={"data": {"name": "Concrete structure", "discipline": "Structural", "trade": "Concrete",
+                          "spec_sections": "03 30 00, 05 12 00"}})
     c.post(f"/projects/{pid}/modules/bid_package",
            json={"data": {"name": "Site landscaping", "discipline": "Landscape", "trade": "Landscape"}})
+    # Mechanical duct IS covered by a package, but that package cites NO spec section → thin coverage
+    c.post(f"/projects/{pid}/modules/bid_package",
+           json={"data": {"name": "HVAC ductwork", "discipline": "Mechanical", "trade": "Mechanical"}})
 
     with SessionLocal() as db:
         res = scope_gap.analyze(db, pid, ROWS)
 
-    assert res["package_count"] == 2 and res["element_count"] == 6, res
+    assert res["package_count"] == 3 and res["element_count"] == 6, res
     covered = {e["discipline"] for e in res["covered"]}
     gaps = {e["discipline"] for e in res["gaps"]}
-    assert covered == {"Structural"}, covered                       # only Structural is claimed
-    assert gaps == {"Architectural", "Mechanical"}, gaps            # wall + duct disciplines uncovered
-    # the structural package covers the 3 structural elements; the 3 others are the gap
+    assert covered == {"Structural", "Mechanical"}, covered         # Structural + Mechanical are claimed
+    assert gaps == {"Architectural"}, gaps                          # only the doors' discipline is uncovered
+    # the structural package covers the 3 structural elements; architectural doors are the gap
     struct = next(e for e in res["covered"] if e["discipline"] == "Structural")
     assert struct["element_count"] == 3 and struct["packages"] == ["Concrete structure"], struct
-    assert res["gap_element_count"] == 3 and res["covered_pct"] == 50.0, res
+    assert res["gap_element_count"] == 2 and res["covered_pct"] == 66.7, res
+    # spec-section refinement: the Structural package cites two CSI sections; they surface on the entry
+    assert struct["spec_sections"] == ["03 30 00", "05 12 00"], struct
+    assert set(res["spec_sections"]) == {"03 30 00", "05 12 00"} and res["spec_section_count"] == 2, res
+    # Mechanical is covered by discipline but its package cites no spec section → thin (non-traceable) coverage
+    thin = {t["discipline"] for t in res["covered_without_specs"]}
+    assert thin == {"Mechanical"}, res["covered_without_specs"]
     # gaps cite sample GUIDs so the UI can highlight the uncovered elements
     arch = next(e for e in res["gaps"] if e["discipline"] == "Architectural")
     assert set(arch["sample_guids"]) == {"w1", "w2"}, arch
@@ -77,7 +87,8 @@ with TestClient(app) as c:
         os.remove(TMP)
 
 print("SCOPE-GAP OK - the model takeoff is matched by NCS discipline to the bid packages: a Structural "
-      "package covers the 3 structural elements (50%%), the wall (Architectural) + duct (Mechanical) are "
-      "flagged as gaps with sample GUIDs to highlight, and the Landscape package (no model elements) is "
-      "flagged over-scoped; the /bidding/scope-gap route 409s without a model and analyses the real takeoff "
-      "(architectural walls surface as an uncovered gap) otherwise.")
+      "package (citing CSI sections 03 30 00 / 05 12 00) covers the 3 structural elements, the HVAC package "
+      "covers the duct but cites no spec section so Mechanical is flagged thin/non-traceable coverage, the "
+      "doors (Architectural) are an uncovered gap with sample GUIDs, and the Landscape package (no model "
+      "elements) is flagged over-scoped; the /bidding/scope-gap route 409s without a model and analyses the "
+      "real takeoff otherwise.")

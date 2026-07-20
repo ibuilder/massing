@@ -65,6 +65,23 @@ with TestClient(app) as c:
     assert jr.json()["completeness_pct"] == 25.0 and jr.json()["broken_count"] == 3, jr.json()
     assert c.get("/projects/no-such/golden-thread").status_code == 404
 
+    # --- seed: turn checked requirements into ledger rows, idempotently ---------------------------
+    with SessionLocal() as db:
+        reqs = [{"requirement": "Egress width per IBC 1005", "status": "pass"},   # dup of r1 → skipped
+                {"requirement": "Sprinkler coverage NFPA 13", "status": "warn", "code_section": "NFPA 13"},
+                {"requirement": "Guard height per IBC 1015", "status": "fail"},
+                {"requirement": "", "status": "pass"}]                             # blank → ignored
+        seeded = golden_thread.seed(db, pid, reqs)
+    assert seeded["created"] == 2 and seeded["skipped"] == 1, seeded                # 2 new, 1 dup skipped
+    with SessionLocal() as db:
+        again = golden_thread.seed(db, pid, reqs)                                  # re-seed adds nothing
+    assert again["created"] == 0 and again["skipped"] == 3, again
+    # the two seeded rows carry the mapped outcomes (warn→Pending, fail→Fail) and appear in the rollup
+    with SessionLocal() as db:
+        g2 = golden_thread.summary(db, pid)
+    assert g2["total"] == 6, g2                                                    # 4 original + 2 seeded
+    assert g2["by_outcome"].get("Fail") == 2 and g2["by_outcome"].get("Pending") == 2, g2["by_outcome"]
+
 print("GOLDEN-THREAD OK - the compliance_evidence ledger (Quality) registers; the summary rolls up 4 "
       "requirements — 1 signed off (25%% complete), 2 evidenced, outcome spread Pass2/Fail1/Pending1 — and "
       "the broken-thread list ranks the 3 unfinished links worst-first (the two Fail/Pending items with no "

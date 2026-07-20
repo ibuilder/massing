@@ -58,6 +58,17 @@
       ]
     },
     {
+      "name": "lifecycle",
+      "label": "Lifecycle Stage",
+      "type": "select",
+      "options": [
+        "Not Issued",
+        "Issued for Construction",
+        "Shop Drawing",
+        "As-Built"
+      ]
+    },
+    {
       "name": "drawing_set",
       "label": "Drawing Set",
       "type": "reference",
@@ -101,7 +112,8 @@
   "list_columns": [
     "discipline",
     "sheet_number",
-    "revision"
+    "revision",
+    "lifecycle"
   ],
   "workspace": "construction|design"
 }

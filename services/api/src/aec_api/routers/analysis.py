@@ -409,6 +409,16 @@ def model_norm_valid(pid: str, db: Session = Depends(get_db), _sec: str = Depend
     return norm_valid.validate(open_source_ifc(db, pid))
 
 
+@router.get("/projects/{pid}/models/warnings")
+def model_warnings_feed(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """WARN-1 · **unified model-warnings feed** — every individual defect the hygiene (model_qa) and
+    normative-conformance (norm_valid) lenses surface, flattened into one worst-first punch list (fails
+    before warns, each with its offender sample for zoom-to-GUID). Where the model-CI badge says pass/warn/
+    fail, this is the actionable list behind it. 409 if the project has no source IFC."""
+    from .. import model_warnings
+    return model_warnings.feed(open_source_ifc(db, pid))
+
+
 @router.get("/projects/{pid}/models/export-qa")
 def model_export_qa(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """IFC-QA · **export round-trip fidelity** — writes the source IFC out and reopens it, then compares

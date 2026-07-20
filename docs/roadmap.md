@@ -16,51 +16,42 @@ feature depth, a runtime/tooling ring, the flagship-L builds, and the decomposit
 
 ---
 
-## ★ NOW — freshly prioritized bounded work (backend-testable first)
+> **The bounded NOW batch shipped v0.3.544–549** — SCOPE-GAP, GOLDEN-THREAD, CLASH-TRIAGE (Navisworks
+> XML), GIS-OUT, CBS-1, MEP-GRAPH — plus RT-ORJSON (v0.3.550) and a hardening pass (v0.3.551). Details
+> in [CHANGELOG.md](../CHANGELOG.md); the "still open" refinements of each fold into the sprints below.
 
-*Each is a small, verifiable release grounded in the model we own (GUID-everywhere provenance). Ship
-top-down; interleave one RUNTIME-ring S-item every few features.*
+## ⚡ QUICK-WINS SPRINT — small, no-new-dependency, backend-testable (do these first)
 
-1. ◧ **SCOPE-GAP — bid-scope coverage + GUID citations** *(M · ★★★★)* — **discipline-level coverage
-   SHIPPED v0.3.544** (`scope_gap.py` + `GET /bidding/scope-gap`: model takeoff by NCS discipline vs
-   `bid_package` claims → covered % + gaps with sample GUIDs + over-scoped packages; Model-coverage strip
-   in the Bidding view). **Still open:** spec-section-level refinement · a per-trade scope/bid-form
-   export where every line cites GUIDs + sheet + spec section · schedule-vs-model count reconciliation.
-2. ◧ **GOLDEN-THREAD — compliance evidence ledger** *(M · ★★★★)* — **ledger + rollup SHIPPED v0.3.545**
-   (`compliance_evidence` module: requirement → outcome → responsible → evidence → sign-off workflow;
-   `golden_thread.py` + `GET /golden-thread`: signed-off % + outcome/category spread + risk-ranked
-   broken-thread list). **Still open:** seed the ledger from the live preflight/code findings · a
-   dedicated rollup panel · the check-scoping matrix (building type × new-build/refurb/change-of-use) ·
-   tolerant-geometry fallbacks for imported, poorly-classified IFC.
-3. ◧ **CLASH-TRIAGE — import external clash reports** *(M)* — **XLSX importer already shipped; native
-   Navisworks XML added v0.3.546** (`clash_import.parse_clash_xml`/`import_clash_xml` + `POST
-   /coordination/import-xml`: `<clashresult>` → coordination_issue, GUIDs harvested from clashobjects,
-   defusedxml-hardened; each round-trips to BCF). **Still open:** an in-app coordination-import UI panel
-   (both formats) · a filterable triage table with zoom-to · HTML-report format.
-4. ◧ **GIS-OUT — lean BIM→GIS export** *(S/M)* — **footprint→WGS84 GeoJSON SHIPPED v0.3.547**
-   (`gis_out.to_geojson` + `GET /models/footprint.geojson`: footprint bbox + site point anchored on the
-   IfcSite lat/long via an equirectangular transform; the inbound CityGML→GeoJSON site-context import
-   already shipped). **Still open:** the true exterior-shell polygon (vs bbox) · pyproj-grade reprojection
-   from the projected CRS · a viewer map-overlay surface.
-5. ✅ **CBS-1 — Cost Breakdown Structure** *(S/M, v0.3.548)* — direct / indirect / contingency /
-   **management reserve** / overhead & profit / taxes layers over the model estimate with per-layer
-   rate + share (`cbs.build` + `GET /estimate/cbs`, query-overridable rates; 🧱 button in the Budget panel).
-6. ◧ **MEP-GRAPH — connector-topology graph + parallel runs** *(M · ★★★★)* — **port-graph + path
-   extraction SHIPPED v0.3.549** (`mep_graph.graph` + `GET /mep/graph`: connected runs with endpoints/
-   branches + the longest linear path = index-run backbone; isolated-element wiring gap). **Still open:**
-   wiring the extracted path into the pressure-loss index run · parallel/stacked run generation (trace →
-   offset → re-intersect at bends → regenerate fittings) · nearest-open-connector hardening for `auto_connect`.
-7. **EST-ASSEMBLIES depth** *(S/M)* — persist user-authored assemblies (a module) + wire assemblies
-   into the model takeoff estimate + RFQ/quote management (builds on the shipped `assemblies_cost`).
+*Each is an S-effort release: a pure engine leaf or a config-module tweak + a thin surface + a test,
+grounded in the model we own. No new dependencies; verifiable without the frontend. Ship top-down.*
 
-**Viewer/UX quick wins (S; frontend — verify what the preview stall allows, flag the rest):**
-- **WARN-1** — a persistent **model-warnings panel** (hygiene findings by type, count-badged,
-  click-to-elements) elevating `model_qa` / NORM-VALID from a report to a workflow.
-- **DRAW-STATUS** — drawing-register lifecycle status (**IFC → Shop → As-Built**) with shop-drawing ↔
-  submittal linkage.
-- **VIEW-TPL** — saved **view templates** (camera + layers + colour mode + section state) per view/sheet.
-- **KEYS-2** — two-letter mnemonic shortcuts (WA wall · DR door · CS section · TH temp-hide …) on the
-  command line, discoverable via a cheat-sheet overlay.
+> **Batch shipped v0.3.552.** All five landed in one sprint release (per the batch-per-sprint cadence),
+> each with a targeted test. Details in [CHANGELOG.md](../CHANGELOG.md).
+
+1. ✅ **NORM-VALID tails** *(v0.3.552)* — the conformance gauntlet gained a **STEP-syntax lane**
+   (`FILE_NAME` carries a name + timestamp) and a **bSDD/classification-coverage lane** (share of
+   physical elements carrying a classification reference; pass ≥ 50%, else warn).
+2. ✅ **WARN-1 — model-warnings feed** *(v0.3.552)* — `model_warnings.py` + `GET /models/warnings`
+   flattens the hygiene (`model_qa`) + normative-conformance (`norm_valid`) lenses into one worst-first
+   punch list (fails before warns, each row with its offender sample for zoom-to-GUID). *Panel is a thin
+   follow-up (viewer quick-wins below).*
+3. ✅ **DRAW-STATUS — drawing lifecycle** *(v0.3.552)* — the `drawing` module gained a distinct
+   **lifecycle** field (*Not Issued → Issued for Construction → Shop Drawing → As-Built*), surfaced in
+   the register list, separate from the revision-`status` field.
+4. ✅ **SCOPE-GAP spec-section refinement** *(v0.3.552)* — `scope_gap` now unions the CSI spec sections
+   each covering package cites (per discipline) and flags `covered_without_specs` — a discipline covered
+   by a package citing no spec section (thin, non-traceable coverage), distinct from a true gap.
+5. ✅ **GOLDEN-THREAD seed** *(v0.3.552)* — `POST /golden-thread/seed` populates the compliance-evidence
+   ledger from the latest model-CI report (each check → a tracked requirement, outcome mapped from
+   status); idempotent, so re-seeding after a fresh run only adds what's new.
+
+**Needs a dependency OK (fast once approved):** RT-OXLINT (dev-only lint binary), RT-KNIP (dev-only
+dead-code scan), RT-ZSTD (runtime `zstandard` for storage-blob compression). Flagged separately because
+each adds a dependency — see the RUNTIME ring below.
+
+**Viewer/UX quick wins (S; frontend — build/typecheck-verifiable, but the preview stall + pane sandbox
+limit live click-testing, so these ship with that caveat):** VIEW-TPL (saved view templates) · KEYS-2
+(two-letter mnemonic shortcuts) · the WARN-1 / GOLDEN-THREAD / coordination-import panels.
 
 ## ⚙️ RUNTIME ring — runtime & tooling upgrades (interleave S-items; measured wins only)
 
@@ -107,24 +98,32 @@ is server-side by design).*
 - **SOLVER-OUT** *(flagged)* — additional structural-solver exchange formats (Code_Aster) beyond the
   shipped OpenSees `.tcl` (FEM-EXPORT v0.3.532).
 
-## 🚀 Flagship-L — multi-release directional builds (sequence deliberately)
+## 🏔 BIG-TICKET SPRINTS — multi-release initiatives (pick one; slice + check in between phases)
 
-*Each needs real infrastructure (jobs + shipped binaries, a mobile PWA lane, an external-stakeholder
-portal). Not single-release slices — open one track at a time and slice it.*
+*Each is a directional investment that needs real infrastructure, not a single-release slice. Listed so
+the shape + first increment of each is clear; open ONE track at a time, ship its first slice, and
+reassess. Rough size + the "phase-1" that de-risks it are called out.*
 
-- **schedule optioneering (ALICE-style)** — permute crew/sequence/zoning over CPM + productivity + Takt,
-  score thousands of scenarios. Our inputs are uniquely all-present offline; the flagship differentiator.
-- **ENERGY-PLUS** — export model → IDF/OSM + run EnergyPlus (BSD) for defensible annual energy (ship
-  binaries via the jobs infra). *First slice: the IDF geometry/envelope export (mirrors FEM-EXPORT).*
-- **RADIANCE** — export → Radiance scenes (LBNL) for annual daylight (DA/ASE/UDI) + glare (DGP).
-- **FIELD-PWA** — offline-first mobile PWA with sheet sync + auto slip-sheeting + hyperlinked callouts.
-- **CLIENT-PORTAL** — selections/allowances (choices → price deltas → CO/budget); external read-only
-  stakeholder views.
-- **FAB-DELIVER** — fabrication outputs from the steel/rebar recipes (assembly/part marks, DSTV-NC,
-  bolt lists, BVBS bending schedules).
-- **PHOTO-PIN** — photo/360 pinning to plan locations with timeline compare (integrate photogrammetry,
-  don't build it).
-- **CMMS-OPS** — preventive-maintenance plans + work orders on the COBie-handover assets *(defer)*.
+- **SPRINT A — ENERGY & DAYLIGHT (via the jobs lane).** *(L)* Bring EnergyPlus (BSD) + Radiance (LBNL)
+  online for defensible annual energy / daylight (DA·ASE·UDI) / glare (DGP). **Phase 1 (no binaries,
+  de-risks the whole track):** the **IDF/gbXML envelope export** — model → surfaces/constructions/zones,
+  mirroring the shipped FEM-EXPORT pattern. **Phase 2+:** ship the solver binaries through the durable
+  job queue and run them; parse results back onto the model.
+- **SPRINT B — SCHEDULE OPTIONEERING (ALICE-style).** *(L, flagship differentiator)* Permute crew /
+  sequence / zoning over CPM + productivity + Takt and score thousands of scenarios — our inputs are
+  uniquely all-present offline. **Phase 1:** a deterministic scenario generator + scorer over a bounded
+  option set (a few crew/sequence permutations), reusing the CPM + Takt engines; then widen the search.
+- **SPRINT C — FIELD-PWA.** *(L, mostly frontend)* Offline-first mobile PWA: sheet sync, auto
+  slip-sheeting, hyperlinked callouts. **Phase 1:** the service-worker offline cache + sheet sync over
+  the existing markup/SSE infra; then the field-optimized nav + callout links.
+- **SPRINT D — CLIENT-PORTAL.** *(L)* Selections / allowances (choices → price deltas → CO/budget) +
+  external read-only stakeholder views. **Phase 1:** a tokenized read-only project digest (KPIs / model
+  health / schedule) — needs a share-token model + a public route + a minimal page.
+- **SPRINT E — FAB-DELIVER.** *(M/L)* Fabrication outputs from the steel/rebar recipes — assembly/part
+  marks, **DSTV-NC**, bolt lists, **BVBS** bending schedules. **Phase 1:** the BVBS bending-schedule
+  export off the shipped rebar BBS (backend-testable, no geometry authoring); then DSTV-NC for steel.
+- **PHOTO-PIN** *(L)* — photo/360 pinning to plan locations + timeline compare (integrate photogrammetry,
+  don't build it). **CMMS-OPS** *(L, defer)* — preventive-maintenance plans + work orders on COBie assets.
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 

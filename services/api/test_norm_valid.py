@@ -20,6 +20,11 @@ by_id = {c["id"]: c for c in res["checks"]}
 for cid in ("header.schema", "project.single", "project.units", "guid.format", "guid.unique"):
     assert by_id[cid]["status"] == "pass", (cid, by_id[cid])
 assert res["summary"]["fail"] == 0 and res["summary"]["pass"] >= 5, res["summary"]
+# STEP-syntax + bSDD/classification lanes are present (warn on an unclassified blank model, never fail)
+assert "header.file_name" in by_id and by_id["header.file_name"]["status"] in ("pass", "warn"), by_id.get("header.file_name")
+assert "classification.coverage" in by_id, list(by_id)
+assert by_id["classification.coverage"]["status"] in ("pass", "warn"), by_id["classification.coverage"]
+assert "%" in by_id["classification.coverage"]["note"], by_id["classification.coverage"]["note"]
 
 # --- inject violations: a bad GlobalId + a duplicate GlobalId + a second IfcProject → fails ---------
 import ifcopenshell  # noqa: E402
