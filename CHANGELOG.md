@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.540 — TRANSMIT-ITP: Inspection & Test Plan register
+
+- **The QA plan, not just the results log.** Added an **Inspection & Test Plan** register — one record
+  per planned inspection/test on a work activity, with the ITP essentials: the inspection point type
+  (**Hold Point** / Witness Point / Review / Surveillance / Monitor), method, **acceptance criteria**,
+  frequency, responsible + verifying party, and the record/form required. Its `planned → active →
+  verified` workflow models a hold point releasing work and gates verification on acceptance criteria
+  being set. This complements the existing `inspection` module (which logs field *results*) and closes
+  the remaining TRANSMIT-ITP gap — numbered transmittals, the submittal review-matrix routing, and the
+  supplier-deliverables register were already covered by the `transmittal` and `submittal` modules.
+
 ## v0.3.539 — PM-CLOSE: project charter + lessons-learned register
 
 - **Closing the PMBOK process-group spine.** Two new config-driven registers on the module engine:

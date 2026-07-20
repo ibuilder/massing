@@ -1,0 +1,40 @@
+{
+  "key": "itp",
+  "name": "Inspection & Test Plan",
+  "section": "Quality",
+  "icon": "🧾",
+  "ref_prefix": "ITP",
+  "title_field": "activity",
+  "pinnable": false,
+  "fields": [
+    { "name": "activity", "label": "Work Activity", "type": "text", "required": true, "fieldset": "Activity" },
+    { "name": "work_package", "label": "Work Package", "type": "text", "fieldset": "Activity" },
+    { "name": "spec_section", "label": "Spec Section", "type": "text", "fieldset": "Activity" },
+    { "name": "discipline", "label": "Discipline", "type": "text", "fieldset": "Activity" },
+
+    { "name": "point_type", "label": "Inspection Point", "type": "select", "required": true,
+      "options": ["Hold Point", "Witness Point", "Review Point", "Surveillance", "Monitor"],
+      "fieldset": "Inspection & Test" },
+    { "name": "method", "label": "Method", "type": "select",
+      "options": ["Visual", "Measurement", "Test", "Document Review", "Sampling", "Survey"],
+      "fieldset": "Inspection & Test" },
+    { "name": "acceptance_criteria", "label": "Acceptance Criteria", "type": "textarea", "fieldset": "Inspection & Test" },
+    { "name": "frequency", "label": "Frequency", "type": "text", "fieldset": "Inspection & Test" },
+
+    { "name": "responsible_party", "label": "Responsible Party", "type": "select",
+      "options": ["Contractor", "Subcontractor", "Consultant", "Owner", "Third-Party Agency"],
+      "fieldset": "Responsibility" },
+    { "name": "verifying_party", "label": "Verifying Party", "type": "text", "fieldset": "Responsibility" },
+    { "name": "record_form", "label": "Record / Form Required", "type": "text", "fieldset": "Responsibility" }
+  ],
+  "workflow": {
+    "initial": "planned",
+    "states": ["planned", "active", "verified"],
+    "transitions": [
+      { "from": "planned", "to": "active", "action": "release", "party": ["PM", "OwnersRep", "Architect"] },
+      { "from": "active", "to": "verified", "action": "verify", "party": ["PM", "OwnersRep", "Architect"], "requires": ["acceptance_criteria"] }
+    ]
+  },
+  "list_columns": ["point_type", "spec_section", "responsible_party"],
+  "workspace": "construction"
+}

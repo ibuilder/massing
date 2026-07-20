@@ -161,9 +161,11 @@ coordinates (georef already covers set-origin) · unit-convert · merge/split.
 (`routers/bcf_api.py`: `/bcf/versions` + `/bcf/2.1/{auth,projects,topics,comments}` mapping onto the
 native Topic/Comment rows so Revit/Navisworks/Solibri/BIMcollab sync live). **Still open:**
 viewpoints (SHIPPED v0.3.529 — camera/selection/snapshot round-trip) done; attachments over the API +
-the BCF 3.0 shape still open · **TRANSMIT-ITP** — numbered
-transmittals + Review Matrix routing + supplier-deliverables register + ITP/Test-Plan workflows
-(extends the CDE plan) · ◧ **SMART-VIEWS** — **saved presets SHIPPED v0.3.525** (`smart_views.py`:
+the BCF 3.0 shape still open · ✅ **TRANSMIT-ITP COMPLETE** — numbered transmittals (`transmittal`
+module) + review-matrix routing + supplier-deliverables register (`submittal` module: draft→gc_review→
+ae_review→returned→closed + distribution) already shipped; the **ITP/Test-Plan** gap closed **v0.3.540**
+(`modules/itp` — hold/witness points + acceptance criteria per activity, planned→active→verified, distinct
+from the `inspection` results log) · ◧ **SMART-VIEWS** — **saved presets SHIPPED v0.3.525** (`smart_views.py`:
 per-project name + QUERY-DSL selector + isolate/colour/hide, ★ viewer tool; validated + capped).
 **SMART-VIEWS clash-freshness SHIPPED v0.3.530** (`coordination_fresh.py` + `/coordination/stale`
 [+recheck] — advisory flag, never auto-closes). · **MEETINGS** — meeting series +
