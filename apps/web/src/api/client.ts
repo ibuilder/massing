@@ -3012,6 +3012,14 @@ export class ApiClient extends HttpCore {
     if (!res.ok) throw new Error(`Clash import -> ${res.status}`);
     return res.json() as Promise<{ imported: number; detected_columns: string[]; sheet: string; rows_parsed: number }>;
   }
+  /** CLASH-TRIAGE — import a native Navisworks clash-report XML -> coordination_issue records (GUID-anchored). */
+  async importClashXml(pid: string, file: File) {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch(this.url(`/projects/${pid}/coordination/import-xml`), {
+      method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) throw new Error(`Clash XML import -> ${res.status}`);
+    return res.json() as Promise<{ imported: number; sheet: string; rows_parsed: number; truncated: boolean }>;
+  }
   /** Tie model elements (IFC GlobalIds) to a record. mode: add | remove | set. */
   tagElements(pid: string, key: string, rid: string, guids: string[], mode: "add" | "remove" | "set" = "add") {
     return this.json<{ element_guids: string[]; count: number }>(

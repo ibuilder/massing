@@ -32,9 +32,11 @@ top-down; interleave one RUNTIME-ring S-item every few features.*
    broken-thread list). **Still open:** seed the ledger from the live preflight/code findings · a
    dedicated rollup panel · the check-scoping matrix (building type × new-build/refurb/change-of-use) ·
    tolerant-geometry fallbacks for imported, poorly-classified IFC.
-3. **CLASH-TRIAGE — import external clash reports** *(M)* — Navisworks XML/HTML → a filterable triage
-   table with zoom-to + linked-model resolution + BCF status round-trip (importer, fully backend-
-   testable; complements the native clash engine).
+3. ◧ **CLASH-TRIAGE — import external clash reports** *(M)* — **XLSX importer already shipped; native
+   Navisworks XML added v0.3.546** (`clash_import.parse_clash_xml`/`import_clash_xml` + `POST
+   /coordination/import-xml`: `<clashresult>` → coordination_issue, GUIDs harvested from clashobjects,
+   defusedxml-hardened; each round-trips to BCF). **Still open:** an in-app coordination-import UI panel
+   (both formats) · a filterable triage table with zoom-to · HTML-report format.
 4. **GIS-OUT — lean BIM→GIS export** *(S/M)* — exterior shell + footprint **GeoJSON in WGS84** (via the
    georef) + CityJSON site-context import extending SITE-1.
 5. **CBS-1 — Cost Breakdown Structure view** *(S/M)* — direct / indirect / **contingency / management

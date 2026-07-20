@@ -755,6 +755,20 @@ async def coordination_import_xlsx(pid: str, file: UploadFile = File(...), db: S
     return res
 
 
+@router.post("/projects/{pid}/coordination/import-xml")
+async def coordination_import_xml(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
+                                  actor: str = Depends(require_role("editor"))):
+    """CLASH-TRIAGE: import a **native Navisworks clash-report XML** export → one coordination_issue per
+    clash (name → subject, its clash test → discipline, type/distance/status → description; GUIDs anchor
+    it on the model and each round-trips to BCF). Untrusted XML parsed with defusedxml."""
+    from .. import clash_import
+    res = clash_import.import_clash_xml(db, pid, await file.read(), actor)
+    audit.record(db, action="coordination.import_xml", method="POST",
+                 path=f"/projects/{pid}/coordination/import-xml", detail={"imported": res.get("imported", 0)})
+    db.commit()
+    return res
+
+
 # --- helpers -----------------------------------------------------------------
 def _project(db: Session, pid: str) -> Project:
     p = db.get(Project, pid)

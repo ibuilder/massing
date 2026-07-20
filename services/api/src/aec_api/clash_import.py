@@ -132,12 +132,73 @@ def parse_clash_xlsx(data: bytes) -> dict[str, Any]:
             "header_row": header_idx, "truncated": truncated}
 
 
-def import_clash_xlsx(db, pid: str, data: bytes, actor: str) -> dict[str, Any]:
-    """Parse + create a `coordination_issue` per row (GUIDs -> element_guids so it anchors on the model)."""
+def parse_clash_xml(data: bytes) -> dict[str, Any]:
+    """Parse a **native Navisworks clash-report XML** export into the same row shape as
+    ``parse_clash_xlsx``. Namespace-agnostic (Navisworks uses the ``smart:`` namespace) + tolerant:
+    each ``clashresult`` becomes a row (name → subject, its ``clashtest`` name → discipline, clash type/
+    distance/status → description); GUIDs are harvested by scanning descendant text + attributes for the
+    22-char IFC GlobalId pattern. Untrusted uploaded XML → parsed with defusedxml (XXE/entity-hardened)."""
+    from defusedxml.common import DefusedXmlException
+    from defusedxml.ElementTree import ParseError
+    from defusedxml.ElementTree import fromstring as _safe_fromstring
+
+    def _local(tag: Any) -> str:
+        return str(tag).rsplit("}", 1)[-1].lower()
+
+    try:
+        root = _safe_fromstring(data)
+    except (ParseError, DefusedXmlException, ValueError):
+        return {"rows": [], "columns": {}, "sheet": "Navisworks XML", "truncated": False,
+                "error": "unparseable or unsafe XML"}
+
+    rows: list[dict] = []
+    truncated = False
+    for tc in root.iter():
+        if _local(tc.tag) != "clashtest":
+            continue
+        test_name = (tc.get("name") or "").strip()
+        for cr in tc.iter():
+            if _local(cr.tag) != "clashresult":
+                continue
+            if len(rows) >= _MAX_ROWS:
+                truncated = True
+                break
+            name = (cr.get("name") or "Clash").strip()
+            status = (cr.get("status") or "").strip()
+            dist = cr.get("distance")
+            desc_bits, blob = [], []
+            for e in cr.iter():
+                lt = _local(e.tag)
+                if lt == "description" and e.text:
+                    desc_bits.append(e.text.strip())
+                if e.text:
+                    blob.append(e.text)
+                blob.extend(str(v) for v in e.attrib.values())
+            guids = sorted(set(_GUID_RE.findall(" ".join(blob))))
+            desc = "; ".join(d for d in desc_bits if d)
+            extra = " · ".join(x for x in (f"distance {dist}" if dist else "",
+                                           f"status {status}" if status else "") if x)
+            row: dict[str, Any] = {"subject": name[:200]}
+            if test_name:
+                row["discipline"] = test_name[:120]
+            full = " · ".join(x for x in (desc, extra) if x)
+            if full:
+                row["description"] = full[:1000]
+            pr = _map_priority(status)
+            if pr:
+                row["priority"] = pr
+            if guids:
+                row["_guids"] = guids[:20]
+            rows.append(row)
+    return {"rows": rows, "columns": {"navisworks_xml": "clashresult"}, "sheet": "Navisworks XML",
+            "truncated": truncated}
+
+
+def _write_issues(db, pid: str, parsed: dict[str, Any], actor: str) -> dict[str, Any]:
+    """Create a `coordination_issue` per parsed row (GUIDs -> element_guids so it anchors on the model)."""
     from . import modules as me
     if "coordination_issue" not in me.TABLES:
         return {"error": "coordination_issue module not installed", "imported": 0}
-    parsed = parse_clash_xlsx(data)
     created = 0
     for r in parsed["rows"]:
         guids = r.pop("_guids", None)
@@ -149,3 +210,13 @@ def import_clash_xlsx(db, pid: str, data: bytes, actor: str) -> dict[str, Any]:
     return {"imported": created, "detected_columns": list(parsed["columns"].keys()),
             "sheet": parsed["sheet"], "rows_parsed": len(parsed["rows"]),
             "truncated": parsed.get("truncated", False)}
+
+
+def import_clash_xlsx(db, pid: str, data: bytes, actor: str) -> dict[str, Any]:
+    """Parse an XLSX clash export + create a `coordination_issue` per row."""
+    return _write_issues(db, pid, parse_clash_xlsx(data), actor)
+
+
+def import_clash_xml(db, pid: str, data: bytes, actor: str) -> dict[str, Any]:
+    """Parse a native Navisworks clash-report XML export + create a `coordination_issue` per clash."""
+    return _write_issues(db, pid, parse_clash_xml(data), actor)

@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.546 — CLASH-TRIAGE: import native Navisworks clash-report XML
+
+- **The other standard clash export.** The XLSX clash-report importer already shipped; this adds the
+  **native Navisworks XML** format (the `smart:` namespace `<clashresult>` export coordinators produce
+  straight from Navisworks). `POST /projects/{pid}/coordination/import-xml` parses each clash into a
+  `coordination_issue` — name → subject, its clash test → discipline, clash type/distance/status →
+  description, and both element GlobalIds harvested from the `clashobjects` so it anchors on the model
+  and round-trips to BCF. Namespace-agnostic and tolerant; untrusted XML is parsed with **defusedxml**
+  (XXE / entity-expansion hardened). Third item off the re-prioritized roadmap (R14 Tier-3).
+
 ## v0.3.545 — GOLDEN-THREAD: the compliance evidence ledger
 
 - **Every requirement traced to evidence + a sign-off.** A new **Compliance Evidence** register (one
