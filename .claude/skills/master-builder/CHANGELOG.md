@@ -2,6 +2,16 @@
 
 All notable changes to the **master-builder** skill.
 
+## [0.3.2] — 2026-07-20
+Fabrication-output honesty boundary.
+
+### Added
+- `construction-delivery.md` **Fabrication outputs — the honest boundary on machine formats** — a
+  machine bending/cutting file (BVBS/BF2D, DSTV-NC, CAM) is a consequential, near-irreversible output;
+  ship the human-read bending schedule (legs / angles / shape / mass) first, and hold the byte-exact
+  machine format behind validation against the authoritative spec + a real importer. Mirrors the shipped
+  rebar bending-detail schedule and its gated BVBS follow-up.
+
 ## [0.3.1] — 2026-07-20
 Place-grounding mechanized in the Master Builder brief.
 

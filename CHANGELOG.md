@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.560 — FAB-DELIVER: rebar bending detail (SPRINT E phase-1)
+
+The first fabrication-delivery slice — the human-read bending schedule a detailer and fabricator
+actually work from, ahead of any machine format.
+
+- The bar bending schedule (`rebar_rules.bar_bending_schedule` → `GET /projects/{pid}/rebar/bbs`) now
+  carries **per-mark bending detail** off the authored bar geometry: **leg lengths** (mm), the
+  **deviation/bend angle** at each interior vertex (degrees), the **bend count**, and a **shape family**
+  (straight · single bend (L) · double bend (U/crank) · closed tie/stirrup · N-bend). The CSV export
+  gains Bends / Legs / Bend-angles columns.
+- Pure `rebar_rules.bending_detail(points, closed)` is unit-testable (an L-bar → 1 bend, two legs, a 90°
+  corner; collinear points → 0 bends).
+- **The BVBS/BF2D machine bending-file export is deliberately deferred**, held behind a validation gate:
+  a byte-wrong bending file makes a machine mis-bend real steel, so per the fabrication-output doctrine it
+  ships only once validated against the authoritative BVBS spec **and** a real importer. The `master-builder`
+  skill (v0.3.2, `construction-delivery.md`) documents this honest boundary.
+
 ## v0.3.559 — Hardening pass over the v0.3.552–558 feature wave
 
 Between-sprint adversarial bug-hunt + XSS/security hand-audit over the seven new releases (WARN-1,

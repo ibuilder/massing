@@ -154,3 +154,17 @@ already built:
   their APIs.
 
 Match the tool to the control it serves, and keep the data in open formats so it survives the project.
+
+## Fabrication outputs — the honest boundary on machine formats
+
+Turning a model into a **fabrication instruction** (a rebar bending file for a BVBS/BF2D bending machine,
+a DSTV-NC file for a steel CNC line, a CAM toolpath) is a *consequential, near-irreversible* output: a
+byte-wrong file makes a machine mis-bend or mis-cut real steel. Treat it like pouring concrete — gate it.
+The doctrine (see `build-doctrine.md` §6): ship the **human-read schedule first** — a bar-bending
+schedule with per-leg lengths, bend angles, shape family, cut length, and mass, which a detailer reads
+and checks — and only emit the **machine format** once it is validated against the *authoritative spec*
+(e.g. the BVBS guideline) **and** a real importer/validator, labeled with the exact format version.
+Never present an unverified machine-format export as production-ready; a schedule a human catches errors
+in is worth more than a machine file that silently mis-fabricates. Massing implements the schedule
+(`GET /projects/{pid}/rebar/bbs` with leg/angle bending detail) and holds the BVBS byte-format export
+behind that validation gate.

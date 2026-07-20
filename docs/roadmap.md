@@ -145,8 +145,14 @@ reassess. Rough size + the "phase-1" that de-risks it are called out.*
   external read-only stakeholder views. **Phase 1:** a tokenized read-only project digest (KPIs / model
   health / schedule) — needs a share-token model + a public route + a minimal page.
 - **SPRINT E — FAB-DELIVER.** *(M/L)* Fabrication outputs from the steel/rebar recipes — assembly/part
-  marks, **DSTV-NC**, bolt lists, **BVBS** bending schedules. **Phase 1:** the BVBS bending-schedule
-  export off the shipped rebar BBS (backend-testable, no geometry authoring); then DSTV-NC for steel.
+  marks, **DSTV-NC**, bolt lists, **BVBS** bending schedules.
+  - ✅ **Phase 1 — bending detail** *(v0.3.560)* — the bar-bending schedule now carries per-mark leg
+    lengths, bend angles, bend count, and shape family off the authored geometry (`rebar_rules.bending_detail`
+    + the BBS route/CSV); the human-read schedule a detailer works from.
+  - **Phase 2 — BVBS machine export (GATED)** — the byte-exact BF2D bending file is held behind
+    validation against the authoritative BVBS guideline **and** a real importer/validator (a wrong file
+    mis-bends real steel — a consequential output, per the fabrication-output doctrine in the skill's
+    `construction-delivery.md`). Needs the spec + a validator before it ships. Then **DSTV-NC** for steel.
 - **PHOTO-PIN** *(L)* — photo/360 pinning to plan locations + timeline compare (integrate photogrammetry,
   don't build it). **CMMS-OPS** *(L, defer)* — preventive-maintenance plans + work orders on COBie assets.
 

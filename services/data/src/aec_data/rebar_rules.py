@@ -78,6 +78,38 @@ def _polyline_length(pts: list[tuple]) -> float:
     return sum(math.dist(a, b) for a, b in zip(pts, pts[1:]))
 
 
+def _unit(a: tuple, b: tuple) -> tuple | None:
+    """Unit direction from a→b (3D), or None for a zero-length segment."""
+    d = tuple(bi - ai for ai, bi in zip(a, b))
+    n = math.sqrt(sum(c * c for c in d))
+    return tuple(c / n for c in d) if n > 1e-9 else None
+
+
+def bending_detail(pts: list[tuple], closed: bool) -> dict:
+    """Fabrication geometry of one bar from its directrix: per-leg lengths (mm) and the deviation
+    (bend) angle at each interior vertex (degrees, 0 = straight-through). Pure — a shop drawing a
+    detailer reads and checks, NOT a machine bending instruction. Bends count deviations ≥ 1°."""
+    legs = [round(math.dist(a, b) * 1000.0, 1) for a, b in zip(pts, pts[1:])]
+    angles: list[float] = []
+    for i in range(1, len(pts) - 1):
+        v1, v2 = _unit(pts[i - 1], pts[i]), _unit(pts[i], pts[i + 1])
+        if v1 and v2:
+            dot = max(-1.0, min(1.0, sum(a * b for a, b in zip(v1, v2))))
+            angles.append(round(math.degrees(math.acos(dot)), 1))
+    bends = sum(1 for a in angles if a >= 1.0)
+    if closed:
+        family = "closed tie / stirrup"
+    elif bends == 0:
+        family = "straight"
+    elif bends == 1:
+        family = "single bend (L)"
+    elif bends == 2:
+        family = "double bend (U / crank)"
+    else:
+        family = f"{bends}-bend"
+    return {"legs_mm": legs, "bend_angles_deg": angles, "bends": bends, "shape_family": family}
+
+
 def _size_for_diameter(dia_m: float) -> str | None:
     """Closest bar designation for a diameter (≤1 mm off), e.g. 0.0254 → '#8'."""
     from .steel import REBAR_SIZES
@@ -99,7 +131,7 @@ def bar_bending_schedule(model: ifcopenshell.file) -> dict:
         dia = g["radius"] * 2
         shape = "closed tie" if g["closed"] else ("straight" if len(g["points"]) == 2 else "bent")
         key = (round(dia * 1000, 1), shape, length)
-        row = groups.setdefault(key, {"count": 0, "guids": []})
+        row = groups.setdefault(key, {"count": 0, "guids": [], "pts": g["points"], "closed": g["closed"]})
         row["count"] += 1
         if len(row["guids"]) < 200:
             row["guids"].append(bar.GlobalId)
@@ -112,10 +144,14 @@ def bar_bending_schedule(model: ifcopenshell.file) -> dict:
         line_kg = round(kg_m * line_len, 1)
         total_len += line_len
         total_kg += line_kg
+        detail = bending_detail(g.get("pts") or [], g.get("closed", False))
         rows.append({"mark": f"B{i}", "size": _size_for_diameter(dia_mm / 1000.0),
                      "diameter_mm": dia_mm, "shape": shape, "cut_length_m": length,
                      "count": g["count"], "unit_mass_kg_m": round(kg_m, 3),
-                     "total_length_m": line_len, "total_kg": line_kg, "guids": g["guids"]})
+                     "total_length_m": line_len, "total_kg": line_kg,
+                     "shape_family": detail["shape_family"], "bends": detail["bends"],
+                     "legs_mm": detail["legs_mm"], "bend_angles_deg": detail["bend_angles_deg"],
+                     "guids": g["guids"]})
     return {"rows": rows, "marks": len(rows), "bars": sum(r["count"] for r in rows),
             "skipped": skipped, "total_length_m": round(total_len, 1),
             "total_kg": round(total_kg, 1), "total_tonnes": round(total_kg / 1000.0, 3)}
@@ -127,13 +163,16 @@ def bbs_csv(bbs: dict) -> str:
     import io
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["Mark", "Size", "Dia (mm)", "Shape", "Cut length (m)", "Count",
-                "Unit mass (kg/m)", "Total length (m)", "Total (kg)"])
+    w.writerow(["Mark", "Size", "Dia (mm)", "Shape", "Bends", "Legs (mm)", "Bend angles (deg)",
+                "Cut length (m)", "Count", "Unit mass (kg/m)", "Total length (m)", "Total (kg)"])
     for r in bbs["rows"]:
-        w.writerow([r["mark"], r["size"] or "", r["diameter_mm"], r["shape"], r["cut_length_m"],
+        legs = "; ".join(str(x) for x in r.get("legs_mm", []))
+        angs = "; ".join(str(x) for x in r.get("bend_angles_deg", []))
+        w.writerow([r["mark"], r["size"] or "", r["diameter_mm"], r.get("shape_family", r["shape"]),
+                    r.get("bends", ""), legs, angs, r["cut_length_m"],
                     r["count"], r["unit_mass_kg_m"], r["total_length_m"], r["total_kg"]])
     w.writerow([])
-    w.writerow(["TOTAL", "", "", "", "", bbs["bars"], "", bbs["total_length_m"], bbs["total_kg"]])
+    w.writerow(["TOTAL", "", "", "", "", "", "", "", bbs["bars"], "", bbs["total_length_m"], bbs["total_kg"]])
     return buf.getvalue()
 
 

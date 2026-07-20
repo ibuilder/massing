@@ -43,6 +43,23 @@ assert bbs["total_kg"] > 0 and bbs["total_tonnes"] == round(bbs["total_kg"] / 10
 csv_txt = rebar_rules.bbs_csv(bbs)
 assert csv_txt.startswith("Mark,") and "TOTAL" in csv_txt and "#8" in csv_txt, csv_txt[:200]
 
+# --- SPRINT E: bending detail (legs + bend angles) per mark, off the authored geometry -------------
+# the straight column bar is a single leg, no bends; its leg length ≈ the cut length in mm
+assert straight["shape_family"] == "straight" and straight["bends"] == 0, straight
+assert straight["bend_angles_deg"] == [] and len(straight["legs_mm"]) == 1, straight
+assert abs(straight["legs_mm"][0] - straight["cut_length_m"] * 1000) < 1.0, straight
+# the closed tie is classified as a stirrup and carries per-leg lengths + corner angles
+assert tie["shape_family"] == "closed tie / stirrup", tie
+assert len(tie["legs_mm"]) >= 4 and all(a >= 0 for a in tie["bend_angles_deg"]), tie
+# the CSV now carries the bending columns
+assert "Bends" in csv_txt and "Bend angles (deg)" in csv_txt and "Legs (mm)" in csv_txt, csv_txt[:200]
+# pure bending_detail: an L-bar (one 90° corner) → single bend, two legs
+lbar = rebar_rules.bending_detail([(0, 0, 0), (0, 0, 1.0), (0.3, 0, 1.0)], closed=False)
+assert lbar["bends"] == 1 and lbar["shape_family"] == "single bend (L)", lbar
+assert lbar["legs_mm"] == [1000.0, 300.0] and abs(lbar["bend_angles_deg"][0] - 90.0) < 0.5, lbar
+# a straight-through polyline (collinear points) registers zero bends
+assert rebar_rules.bending_detail([(0, 0, 0), (0, 0, 1.0), (0, 0, 2.0)], closed=False)["bends"] == 0
+
 # check_cage: authored at 0.3 m ties < the 0.406 envelope → clean
 chk = rebar_rules.check_cage(m, col)
 assert chk["checked"] and chk["longitudinal_bars"] == 4 and chk["violations"] == [], chk
