@@ -667,7 +667,6 @@ def export_subset_ifc(pid: str, query: str = Query(..., min_length=1, max_length
     units/contexts are preserved so the slice is a valid, correctly-contained IFC with GUIDs unchanged.
     409 without a source IFC; 422 on a bad selector or an empty match."""
     import tempfile
-    from pathlib import Path
 
     from fastapi.responses import FileResponse
 
@@ -693,9 +692,10 @@ def export_subset_ifc(pid: str, query: str = Query(..., min_length=1, max_length
     res = ifcpatch_lib.extract_subset(model, keep)  # the shared open_model() cache other endpoints use
     if not res["available"] or res["kept"] == 0:
         raise HTTPException(422, "selector matched no physical elements to export")
-    out = Path(tempfile.gettempdir()) / f"subset-{pid}-{res['kept']}.ifc"
-    model.write(str(out))
-    return FileResponse(str(out), filename=f"subset-{pid}.ifc", media_type="application/octet-stream")
+    fd, out = tempfile.mkstemp(suffix=".ifc", prefix="subset-")  # server-chosen path — no user input in it
+    os.close(fd)
+    model.write(out)
+    return FileResponse(out, filename=f"subset-{pid}.ifc", media_type="application/octet-stream")
 
 
 # --- BCF interoperability ----------------------------------------------------

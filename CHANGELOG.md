@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.534 — Harden the subset-export temp path (CodeQL py/path-injection)
+
+- The `/export/subset.ifc` handler built its scratch filename from the URL `pid`
+  (`subset-{pid}-….ifc`). Project ids are server-generated UUIDs, so this was not
+  exploitable, but the taint tripped CodeQL's `py/path-injection`. The scratch file now
+  comes from `tempfile.mkstemp` — a server-chosen path with no request input in it; `pid`
+  survives only as the download filename in the `Content-Disposition` header.
+
 ## v0.3.533 — SUBSET-EXPORT: hand off a discipline slice as a standalone IFC
 
 - **Selector → standalone IFC.** `GET /projects/{pid}/export/subset.ifc?query=<QUERY-DSL>` streams an
