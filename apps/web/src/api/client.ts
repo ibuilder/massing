@@ -3085,6 +3085,18 @@ export class ApiClient extends HttpCore {
     return this.json<{ total: number; element_count: number; lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number }[]; unpriced: { ifc_class: string; count: number }[] }>(
       `/projects/${pid}/estimate/from-model`);
   }
+  /** EST-BANDS — range estimate: low/likely/high per line + a correlated envelope and an independent
+   *  P10/P50/P90 bid range from design-stage cost uncertainty by discipline. */
+  estimateBands(pid: string) {
+    return this.json<{
+      expected: number; element_count: number;
+      lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number;
+        amount: number; low: number; likely: number; high: number; spread_pct: number }[];
+      envelope: { low: number; high: number; note: string };
+      range: { p10: number; p50: number; p90: number; std: number; note: string };
+      unpriced: { ifc_class: string; count: number }[]; note: string;
+    }>(`/projects/${pid}/estimate/bands`);
+  }
   /** Resource-based (assembly) estimate — each class priced by building the cost up from labor +
    *  material + equipment, returning the L/M/E split + total crew-hours (not just a blended $/unit). */
   estimateResourceBased(pid: string) {

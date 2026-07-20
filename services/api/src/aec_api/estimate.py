@@ -113,6 +113,55 @@ def estimate_by_storey(rows: list[dict], overrides: dict[str, float] | None = No
             "element_count": int(sum(a["count"] for a in by_class.values()))}
 
 
+# EST-BANDS — design-stage cost uncertainty by discipline (± fraction of the point estimate). A
+# conceptual estimate is a range, not a number; MEP/sitework carry more scope risk than well-defined
+# structure. Overridable per class.
+_DISCIPLINE_SPREAD = {"S": 0.15, "A": 0.20, "M": 0.30, "E": 0.30, "P": 0.30, "FP": 0.30,
+                      "C": 0.35, "T": 0.30, "G": 0.25}
+_DEFAULT_SPREAD = 0.25
+_Z90 = 1.2816   # standard-normal z for the 10th/90th percentile
+
+
+def bands(rows: list[dict], overrides: dict[str, float] | None = None,
+          spreads: dict[str, float] | None = None) -> dict[str, Any]:
+    """EST-BANDS — three-point (low / likely / high) cost bands per priced line from design-stage
+    uncertainty, rolled to a bid range two ways: a **correlated envelope** (every line at its extreme
+    together) and an **independent probabilistic range** (P10/P50/P90 via a CLT normal approximation of
+    the summed per-line triangular distributions). Pass firm rates through ``overrides`` to overlay a
+    rate sheet. Pure over the takeoff rows — conceptual-grade."""
+    from . import classification as cls
+
+    base = estimate_from_takeoff(rows, overrides or {})
+    spreads = spreads or {}
+    lines, expected, env_lo, env_hi, variance = [], 0.0, 0.0, 0.0, 0.0
+    for ln in base["lines"]:
+        c, amt = ln["ifc_class"], ln["amount"]
+        disc = cls.discipline_of_ifc_class(c) or "G"
+        spread = float(spreads.get(c, _DISCIPLINE_SPREAD.get(disc, _DEFAULT_SPREAD)))
+        lo, hi = round(amt * (1 - spread), 2), round(amt * (1 + spread), 2)
+        lines.append({**ln, "low": lo, "likely": amt, "high": hi, "spread_pct": round(spread * 100, 1)})
+        expected += amt
+        env_lo += lo
+        env_hi += hi
+        # variance of triangular(min=lo, mode=amt, max=hi)
+        variance += (lo * lo + amt * amt + hi * hi - lo * amt - lo * hi - amt * hi) / 18.0
+    std = variance ** 0.5
+    return {
+        "lines": sorted(lines, key=lambda x: -x["high"]),
+        "expected": round(expected, 2),
+        "envelope": {"low": round(env_lo, 2), "high": round(env_hi, 2),
+                     "note": "fully-correlated worst/best case — every line at its low / its high together"},
+        "range": {"p10": round(max(0.0, expected - _Z90 * std), 2), "p50": round(expected, 2),
+                  "p90": round(expected + _Z90 * std, 2), "std": round(std, 2),
+                  "note": "probabilistic bid range assuming lines vary independently (CLT normal "
+                          "approximation of the summed per-line triangular distributions)"},
+        "unpriced": base["unpriced"], "element_count": base["element_count"],
+        "note": "Three-point bands per line from design-stage cost uncertainty by discipline; roll-up "
+                "gives both the correlated envelope and an independent probabilistic range. Overlay a "
+                "firm rate sheet via `overrides`. Conceptual-grade — not a bid.",
+    }
+
+
 def estimate_from_takeoff(rows: list[dict], overrides: dict[str, float] | None = None,
                           gfa_sf: float | None = None, psf: float = DEFAULT_PSF,
                           benchmark_factor: float = 1.0) -> dict[str, Any]:

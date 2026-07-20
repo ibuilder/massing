@@ -262,8 +262,12 @@ if _hosts:
 
 # In production the web app calls the API same-origin via nginx's /api proxy, so CORS
 # is moot. CORS only matters for the dev server (:5173) or direct cross-origin access;
-# AEC_CORS_ORIGINS (comma-separated) overrides the dev default.
-_cors = os.environ.get("AEC_CORS_ORIGINS", "http://localhost:5173")
+# AEC_CORS_ORIGINS (comma-separated) overrides the dev default. The default covers BOTH the
+# localhost and 127.0.0.1 forms of the Vite origin — they are distinct CORS origins, and the web
+# app's own default API URL is the 127.0.0.1 form (apps/web/.env.local), so a dev opening the app at
+# http://127.0.0.1:5173 would otherwise be blocked even with the API running.
+_cors = os.environ.get("AEC_CORS_ORIGINS",
+                       "http://localhost:5173,http://127.0.0.1:5173")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _cors.split(",") if o.strip()],

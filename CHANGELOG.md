@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.542 — EST-BANDS: range estimate (low / likely / high → probabilistic bid range)
+
+- **A conceptual estimate is a range, not a number.** `GET /projects/{pid}/estimate/bands` prices the
+  model's takeoff and puts a three-point **low / likely / high** band on every line from design-stage
+  cost uncertainty by discipline (structure ±15%, MEP ±30%, sitework ±35%, …). It rolls up two ways: a
+  **correlated envelope** (every line at its extreme together — the worst/best case) and an
+  **independent probabilistic P10 / P50 / P90 bid range** (a CLT normal approximation of the summed
+  per-line triangular distributions, which diversification tightens inside the envelope). Overlay a
+  firm rate sheet by passing `overrides`. Surfaced as a **📊 Range (low/likely/high)** button in the
+  Budget panel's model-estimate group. Conceptual-grade — not a bid.
+- **Dev CORS fix.** The API's default `AEC_CORS_ORIGINS` now trusts **both** `http://localhost:5173`
+  and `http://127.0.0.1:5173` — they're distinct CORS origins, and since the web app's default API URL
+  is the `127.0.0.1` form, a dev opening the app at `127.0.0.1:5173` was previously blocked by CORS even
+  with the API running. (Production is unaffected — same-origin via the nginx `/api` proxy.)
+
 ## v0.3.541 — MEETINGS: link action items to RFIs & issues
 
 - **Minutes that trace to the record.** Meeting **action items** could reference their source meeting;

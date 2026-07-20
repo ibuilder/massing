@@ -121,6 +121,24 @@ def proforma_live(pid: str, db: Session = Depends(get_db), _: str = Depends(requ
     }
 
 
+@router.get("/projects/{pid}/estimate/bands")
+def estimate_bands(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """EST-BANDS — a **range estimate**: three-point (low / likely / high) cost bands per priced line
+    from design-stage cost uncertainty by discipline, rolled to a bid range two ways — a fully-correlated
+    envelope and an independent probabilistic P10/P50/P90 range (CLT over the per-line triangular
+    distributions). Prices the current model's takeoff. 409 without a source IFC."""
+    from aec_data.qto import takeoff_file  # type: ignore
+
+    from .. import estimate as est
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — the range estimate prices the model")
+    return est.bands(takeoff_file(p.source_ifc, force_geometry=True))
+
+
 @router.get("/projects/{pid}/cost/calibration")
 def cost_calibration(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """COST-AGENT — **learn from this project's own history**: compare the model's takeoff estimate

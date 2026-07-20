@@ -79,6 +79,20 @@ export async function renderBudget(ctx: PanelContext) {
         + (e.unmapped.length ? `<div class="meta" style="margin-top:4px">Unmapped: ${e.unmapped.map((u) => `${esc(u.ifc_class.replace("Ifc", ""))}×${u.count}`).join(", ")}</div>` : ""));
     } catch (err) { fillEst(`<div class="meta">Resource estimate unavailable: ${(err as Error).message}</div>`); }
   };
+  const bandBtn = document.createElement("button"); bandBtn.className = "tool-btn"; bandBtn.textContent = "📊 Range (low/likely/high)";
+  bandBtn.title = "Range estimate: three-point cost bands per line from design-stage uncertainty, rolled to a probabilistic P10/P50/P90 bid range";
+  bandBtn.onclick = async () => {
+    fillEst(`<div class="meta">Building the range estimate…</div>`);
+    try {
+      const e = await ctx.host.api.estimateBands(pid);
+      const lines = e.lines.slice(0, 20).map((l) => `<tr><td>${esc(l.ifc_class.replace("Ifc", ""))}</td><td style="text-align:right">${usd(l.low)}</td><td style="text-align:right"><b>${usd(l.likely)}</b></td><td style="text-align:right">${usd(l.high)}</td><td style="text-align:right">±${l.spread_pct}%</td></tr>`);
+      fillEst(`<div style="font-weight:600;margin-bottom:4px">Range estimate — likely <b>${usd(e.expected)}</b> · ${e.element_count} elements</div>`
+        + `<div class="meta">Bid range (P10–P90): <b>${usd(e.range.p10)}</b> – <b>${usd(e.range.p90)}</b> · P50 ${usd(e.range.p50)}</div>`
+        + `<div class="meta">Worst/best envelope: ${usd(e.envelope.low)} – ${usd(e.envelope.high)}</div>`
+        + `<div style="overflow:auto;margin-top:4px"><table class="mini-table" style="width:100%"><thead><tr><th>Class</th><th style="text-align:right">Low</th><th style="text-align:right">Likely</th><th style="text-align:right">High</th><th style="text-align:right">±</th></tr></thead><tbody>${rows(lines)}</tbody></table></div>`
+        + `<div class="meta" style="margin-top:4px">${esc(e.range.note)}</div>`);
+    } catch (err) { fillEst(`<div class="meta">Range estimate unavailable: ${(err as Error).message}</div>`); }
+  };
   const flBtn = document.createElement("button"); flBtn.className = "tool-btn"; flBtn.textContent = "🏢 QTO by floor";
   flBtn.title = "Quantity + cost by storey and discipline — quantities mapped to where they are";
   flBtn.onclick = async () => {
@@ -104,7 +118,7 @@ export async function renderBudget(ctx: PanelContext) {
     } catch (err) { fillEst(`<div class="meta">DXF takeoff failed: ${(err as Error).message}</div>`); }
     finally { dxfInput.value = ""; }
   };
-  estRow.append(emBtn, rbBtn, flBtn, dxfLabel);
+  estRow.append(emBtn, rbBtn, bandBtn, flBtn, dxfLabel);
 
   // budget movement vs baseline (shown only if a baseline exists; 409 otherwise → ignored)
   const bvHolder = document.createElement("div"); ctx.root.appendChild(bvHolder);

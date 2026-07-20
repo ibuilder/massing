@@ -330,9 +330,10 @@ unlicensed/proprietary sources.*
   **parallel/stacked run generation** (trace a run → offset the path → re-intersect at bends →
   regenerate fittings; the multi-service rack workflow), nearest-open-connector matching hardening
   auto_connect.
-- **EST-BANDS — range estimates + firm rate sheets** *(S/M · ★★★)* — low/likely/high bands per QTO
-  line rolled to a bid range (pairs with the Monte Carlo risk engine) + a firm **rate-sheet overlay**
-  on the localized cost vintages.
+- ✅ **EST-BANDS — range estimates + firm rate sheets** *(S/M · ★★★, v0.3.542)* — low/likely/high bands
+  per QTO line from design-stage uncertainty by discipline, rolled to a **correlated envelope** + an
+  **independent P10/P50/P90 bid range** (CLT over per-line triangular dists); firm rate-sheet overlay via
+  `overrides`. `estimate.bands` + `GET /estimate/bands` + 📊 Range button in the Budget panel.
 
 **Tier 3 (interop + UX wins):**
 - **CLASH-TRIAGE** *(M)* — import external clash reports (Navisworks XML/HTML), filterable triage
