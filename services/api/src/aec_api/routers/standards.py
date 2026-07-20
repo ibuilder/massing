@@ -19,6 +19,17 @@ def _project(db: Session, pid: str) -> Project:
     return p
 
 
+@router.get("/projects/{pid}/bep")
+def bep_generate(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """BEP-GEN: the **BIM Execution Plan** generated from the project's live configuration (ISO 19650) —
+    standards + classification, information requirements (EIR/BEP/AIR + IDS), the RACI responsibility
+    matrix, CDE container state, the model's exchange formats, and the model-quality acceptance gates.
+    Always current — it reflects present state, not a stale point-in-time document. 404 if no project."""
+    from .. import bep
+    _project(db, pid)
+    return bep.generate(db, pid)
+
+
 @router.get("/projects/{pid}/cde/status")
 def cde_status(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """CDE container rollup (ISO 19650): state distribution WIP/Shared/Published/Archived,

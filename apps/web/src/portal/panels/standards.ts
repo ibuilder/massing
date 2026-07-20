@@ -141,6 +141,27 @@ export async function renderStandards(ctx: PanelContext) {
       + "and revisions, and the appointment carries its information requirements (EIR, BEP, AIR). "
       + "Manage records under Information Management → Information Containers / Requirements.";
     root.appendChild(intro);
+    // BEP-GEN — the BIM Execution Plan generated from the project's live configuration
+    const bepCard = el("div", "dash-card"); bepCard.style.marginBottom = "8px";
+    const bepHead = el("div"); bepHead.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:8px";
+    bepHead.innerHTML = `<b>📘 BIM Execution Plan</b> <span class="meta">generated from the project's live config — always current</span>`;
+    const bepBtn = el("button"); bepBtn.className = "mini-btn on"; bepBtn.textContent = "Generate";
+    bepHead.append(bepBtn); bepCard.append(bepHead);
+    const bepBody = el("div"); bepBody.style.marginTop = "6px"; bepCard.append(bepBody);
+    bepBtn.onclick = () => void (async () => {
+      bepBody.innerHTML = `<div class="meta">generating…</div>`;
+      let plan; try { plan = await ctx.host.api.bep(pid); } catch (e) { bepBody.innerHTML = `<div class="meta">failed: ${esc((e as Error).message)}</div>`; return; }
+      bepBody.innerHTML = `<div class="meta">${plan.completeness.configured}/${plan.completeness.total} sections configured (${plan.completeness.pct}%)</div>`;
+      for (const s of plan.sections) {
+        const sec = el("div"); sec.style.cssText = "margin-top:6px;padding-left:8px;border-left:3px solid var(" + (s.configured ? "--status-good" : "--status-warn") + ")";
+        sec.innerHTML = `<div><b>${esc(s.title)}</b>${s.configured ? "" : ` <span class="meta">— to configure</span>`}</div>`
+          + `<table class="fin-table" style="width:100%;font-size:12px;margin-top:2px">`
+          + s.items.map((it) => `<tr><td style="white-space:nowrap;padding-right:8px">${esc(it.k)}</td><td>${esc(it.v)}</td></tr>`).join("")
+          + `</table>`;
+        bepBody.append(sec);
+      }
+    })();
+    root.appendChild(bepCard);
     // AI / data-readiness — "can an agent act on this project's data yet?"
     void ctx.host.api.aiReadiness(pid).then((ai) => {
       const col = ai.verdict === "ready" ? "--status-good" : ai.verdict === "partial" ? "--status-warn" : "--status-crit";

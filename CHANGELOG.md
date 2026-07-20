@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.537 — BEP-GEN: the BIM Execution Plan, generated from live config
+
+- **The BEP is never a stale side-document.** `GET /projects/{pid}/bep` composes the ISO 19650 BIM
+  Execution Plan from what the project *actually* has configured right now: standards + classification
+  systems, information requirements (EIR/BEP/AIR coverage + IDS), the RACI responsibility matrix, CDE
+  container state + metadata discipline, the source model's schema/exchange formats, and the
+  model-quality acceptance gates (NORM-VALID / Model QA / IDS / change-control). Each section reports
+  `configured` and degrades gracefully — a fresh project still yields a valid six-section skeleton that
+  fills in as the team works, with a completeness roll-up. Surfaced as a **📘 Generate BIM Execution
+  Plan** action in the CDE / Standards panel.
+
 ## v0.3.536 — REVISION-DELTA: the cost impact of a model revision
 
 - **"What changed" → "what it costs."** `GET /projects/{pid}/versions/cost-delta?a=&b=` turns a

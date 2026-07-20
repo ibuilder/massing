@@ -2303,6 +2303,15 @@ export class ApiClient extends HttpCore {
   }
 
   // --- ISO 19650 standards: CDE container discipline + requirements register ----
+  /** BEP-GEN — the BIM Execution Plan generated from the project's live config (always current). */
+  bep(pid: string) {
+    return this.json<{
+      project: { id: string; name: string; has_model: boolean } | null;
+      sections: { id: string; title: string; configured: boolean; summary: string;
+        items: { k: string; v: string }[] }[];
+      completeness: { configured: number; total: number; pct: number }; note: string;
+    }>(`/projects/${pid}/bep`);
+  }
   cdeStatus(pid: string) {
     return this.json<{ total: number; by_state: Record<string, number>;
       by_suitability: Record<string, number>;

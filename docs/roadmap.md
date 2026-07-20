@@ -345,9 +345,10 @@ unlicensed/proprietary sources.*
   As-Built**) with shop-drawing ↔ submittal linkage.
 - **CBS-1** *(S/M)* — a Cost Breakdown Structure view over estimates: direct / indirect /
   **contingency / management reserve / taxes & fees** layers with hierarchical rollup.
-- **BEP-GEN** *(M)* — generate the **BIM Execution Plan** from the project's LIVE configuration
-  (pinned IDS, CDE folders, classification systems, roles/responsibility matrix, exchange formats,
-  model-health gates) — always current.
+- ✅ **BEP-GEN** *(M, v0.3.537)* — generate the **BIM Execution Plan** from the project's LIVE
+  configuration (`bep.py` + `GET /bep`; standards/classification, information requirements EIR/BEP/AIR,
+  RACI matrix, CDE state, exchange formats, model-quality gates; per-section `configured` + completeness
+  roll-up, 📘 Generate button in the CDE/Standards panel) — always current, degrades gracefully.
 - **ROLES-BIM** *(S)* — BIM-org personas (BIM manager · coordinator · information manager · QA/QC)
   as responsibility-matrix defaults mapped to ISO 19650 duties.
 - **PM-CLOSE** *(S)* — project **charter** + **lessons-learned register** modules closing the PMBOK
