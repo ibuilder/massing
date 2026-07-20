@@ -61,7 +61,9 @@ def to_geojson(model: ifcopenshell.file) -> dict[str, Any]:
     minx, maxx, miny, maxy = min(xs), max(xs), min(ys), max(ys)
     br = math.radians(bearing)
     m_per_deg_lat = 111_320.0
-    m_per_deg_lon = 111_320.0 * math.cos(math.radians(lat0)) or 1.0
+    # floor the longitude scale near the poles — cos(lat) is ~6e-17 (not exactly 0) at |lat|=90, so a
+    # bare `or 1.0` never fires and the division would explode; max() clamps it honestly.
+    m_per_deg_lon = max(111_320.0 * math.cos(math.radians(lat0)), 1.0)
     corners = [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy), (minx, miny)]
     ring = []
     for x, y in corners:

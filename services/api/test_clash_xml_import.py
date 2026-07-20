@@ -50,6 +50,17 @@ xxe = clash_import.parse_clash_xml(
     b'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY e SYSTEM "file:///etc/passwd">]><exchange>&e;</exchange>')
 assert xxe["rows"] == [], xxe                               # entity expansion blocked
 
+# an over-large upload is rejected BEFORE building the DOM (memory bound)
+huge = clash_import.parse_clash_xml(b"<exchange>" + b"x" * (clash_import._MAX_XML_BYTES + 1) + b"</exchange>")
+assert huge["rows"] == [] and huge["truncated"] and "limit" in huge["error"], huge
+
+# _write_issues must NOT mutate the caller's parsed rows (re-callable) — GUIDs survive a second read
+_p = clash_import.parse_clash_xml(NW_XML)
+_before = [dict(r) for r in _p["rows"]]
+assert _p["rows"] == _before                               # baseline
+_g0 = next((r.get("_guids") for r in _p["rows"] if r.get("_guids")), None)
+assert _g0 is not None and all(("_guids" in r) == ("_guids" in b) for r, b in zip(_p["rows"], _before)), _p
+
 # --- route ----------------------------------------------------------------------------------------
 os.environ["DATABASE_URL"] = "sqlite:///./test_clash_xml.db"
 os.environ["STORAGE_DIR"] = "./test_storage_clashxml"

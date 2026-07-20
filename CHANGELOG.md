@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.551 — Hardening pass over v0.3.544–550
+
+- Between-sprint adversarial bug-hunt + security hand-audit over the seven new engines (SCOPE-GAP,
+  GOLDEN-THREAD, CLASH-TRIAGE XML, GIS-OUT, CBS-1, MEP-GRAPH, the RT-ORJSON swap). No crash / hang /
+  security hole found — the two priority suspicions (a possible `mep_graph` longest-path hang on a
+  cyclic network; division-by-zero across the ratio helpers) were both **verified safe** (BFS-parent
+  reconstruction can't loop; every ratio is `if total else 0.0`-guarded). Three low-severity items fixed:
+  - **GIS-OUT** — the near-pole longitude-scale guard was dead code (`cos(90°)` is `6e-17`, not `0`, so
+    `or 1.0` never fired); now `max(..., 1.0)` clamps it so a site near the poles can't blow up the transform.
+  - **CLASH-TRIAGE** — `_write_issues` no longer pops `_guids` off the caller's parsed rows (reads instead),
+    so a future "parse once, write twice" caller can't silently lose the model-GUID anchoring.
+  - **CLASH-TRIAGE** — the Navisworks XML import now rejects an over-large upload (>50 MB) before building
+    the DOM, bounding memory (the row cap already bounded the created issues).
+
 ## v0.3.550 — RT-ORJSON remainder: orjson at the hot storage-blob sites
 
 - **Faster index loads.** The response serializer already used orjson (v0.3.511); this swaps the

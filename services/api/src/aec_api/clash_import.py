@@ -31,6 +31,7 @@ _SEVERITY_MAP = {
 _GUID_RE = re.compile(r"[0-9A-Za-z_$]{22}")          # IFC base64 GlobalId
 _MAX_ROWS = 5000                                     # cap imported issues (DoS guard on a huge sheet)
 _MAX_SCAN = 200_000                                  # hard cap on rows scanned before giving up
+_MAX_XML_BYTES = 50 * 1024 * 1024                    # cap the Navisworks XML upload before DOM parse (50 MB)
 
 
 def _norm(s: Any) -> str:
@@ -145,6 +146,9 @@ def parse_clash_xml(data: bytes) -> dict[str, Any]:
     def _local(tag: Any) -> str:
         return str(tag).rsplit("}", 1)[-1].lower()
 
+    if len(data) > _MAX_XML_BYTES:                     # bound memory: cap before building the full DOM
+        return {"rows": [], "columns": {}, "sheet": "Navisworks XML", "truncated": True,
+                "error": f"clash XML exceeds the {_MAX_XML_BYTES // (1024 * 1024)} MB limit"}
     try:
         root = _safe_fromstring(data)
     except (ParseError, DefusedXmlException, ValueError):
@@ -201,7 +205,7 @@ def _write_issues(db, pid: str, parsed: dict[str, Any], actor: str) -> dict[str,
         return {"error": "coordination_issue module not installed", "imported": 0}
     created = 0
     for r in parsed["rows"]:
-        guids = r.pop("_guids", None)
+        guids = r.get("_guids")                       # read, don't pop — never mutate the caller's rows
         body: dict[str, Any] = {"data": {k: v for k, v in r.items() if not k.startswith("_")}}
         if guids:
             body["element_guids"] = guids
