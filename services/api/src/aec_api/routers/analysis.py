@@ -465,6 +465,26 @@ def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = De
     return master_builder.brief(db, pid, place_context=place_context)
 
 
+@router.get("/projects/{pid}/master-builder/brief.md")
+def master_builder_brief_md(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """MASTER-BUILDER brief as a shareable Markdown document — the printable one-page project-readiness
+    brief (place grounding, per-step readiness + gaps, hazards to verify, the honest-status boundary)."""
+    from .. import master_builder
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    place_context = None
+    try:
+        from .. import georef
+        site = (georef.georeferencing(open_source_ifc(db, pid)) or {}).get("site")
+        if site:
+            place_context = {"ref_latitude": site.get("ref_latitude"),
+                             "ref_longitude": site.get("ref_longitude")}
+    except Exception:                                # noqa: BLE001
+        pass
+    md = master_builder.to_markdown(master_builder.brief(db, pid, place_context=place_context))
+    return Response(md, media_type="text/markdown")
+
+
 @router.get("/projects/{pid}/preflight")
 def preflight_gate(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Pre-flight **issuance gate** — one PASS/HOLD verdict + a pre-issue checklist composing model health

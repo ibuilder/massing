@@ -236,3 +236,33 @@ def brief(db: Session, pid: str, place_context: dict | None = None) -> dict[str,
         "note": "The Master Builder Protocol, run over this project's own data and grounded in its "
                 "jurisdiction. Each step links to the tool that closes its gap.",
     }
+
+
+def to_markdown(b: dict[str, Any]) -> str:
+    """Render a brief() result as a shareable Markdown document — the printable one-page project brief."""
+    _icon = {"ready": "✅", "partial": "🟡", "gap": "⛔"}
+    pg = b.get("place_grounding") or {}
+    lines = [f"# Master Builder Brief — {b.get('project') or 'Project'}", ""]
+    place = f"**{b['jurisdiction']}**" if b.get("jurisdiction") else "_not set_"
+    lines.append(f"**Readiness:** {b['readiness_pct']}%  ·  {b['ready_steps']}/{b['step_count']} steps "
+                 f"ready  ·  {b['gap_steps']} gap(s)")
+    lines.append(f"**Jurisdiction:** {place}"
+                 + (f"  ·  Code family: {pg['code_family']}" if pg.get("code_family") else ""))
+    if pg.get("coordinates"):
+        c = pg["coordinates"]
+        lines.append(f"**Place:** {c['latitude']}°, {c['longitude']}° ({pg.get('hemisphere', '')})  ·  "
+                     f"{pg.get('climate_band', '')} climate band")
+    lines += ["", f"> {b.get('reframe_prompt', '')}", ""]
+    for s in b.get("steps", []):
+        lines.append(f"## {s['n']}. {s['title']}  {_icon.get(s['status'], '')} {s['status']}")
+        lines.append(f"_{s.get('why', '')}_")
+        for f in s.get("findings", []):
+            lines.append(f"- ✓ {f['label']}" + (f" — {f['detail']}" if f.get("detail") else ""))
+        for g in s.get("gaps", []):
+            lines.append(f"- ◦ **needs:** {g}")
+        lines.append("")
+    if pg.get("hazards_to_verify"):
+        lines.append("## Verify locally — site hazard basis")
+        lines += [f"- {h}" for h in pg["hazards_to_verify"]] + [""]
+    lines += ["---", f"_{b.get('disclaimer', '')}_", ""]
+    return "\n".join(lines)

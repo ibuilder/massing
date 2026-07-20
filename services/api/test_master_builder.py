@@ -97,6 +97,17 @@ with TestClient(app) as c:
     assert "place_grounding" in j and j["place_grounding"]["code_family"] == "US / ICC (IBC-derived)", j
     assert c.get("/projects/no-such/master-builder/brief").status_code == 404
 
+    # phase-2b: the shareable Markdown brief
+    with SessionLocal() as db:
+        md = master_builder.to_markdown(master_builder.brief(db, pid))
+    assert md.startswith("# Master Builder Brief — Tower on Nowhere"), md[:80]
+    assert "**Readiness:**" in md and "## 1. Place & context" in md and "Verify locally" in md, md[:400]
+    assert "not a substitute" in md.lower(), md[-400:]                 # disclaimer carried into the doc
+    rmd = c.get(f"/projects/{pid}/master-builder/brief.md")
+    assert rmd.status_code == 200 and rmd.headers["content-type"].startswith("text/markdown"), rmd.status_code
+    assert "# Master Builder Brief" in rmd.text, rmd.text[:80]
+    assert c.get("/projects/no-such/master-builder/brief.md").status_code == 404
+
 print("MASTER-BUILDER OK - the 8-step protocol runs over a project's own data: a bare project is all gaps "
       "(readiness 0%%, not grounded in place, every step links to the tool that closes it, with the "
       "not-a-substitute disclaimer); setting the jurisdiction grounds it in place and seeding budget / "

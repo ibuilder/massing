@@ -1854,6 +1854,8 @@ export class ApiClient extends HttpCore {
       scenarios: Scenario[]; note: string;
     }>(`/projects/${pid}/schedule/optioneer`, { method: "POST", body: JSON.stringify(body) });
   }
+  /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
+  masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
   /** MASTER-BUILDER — the 8-step Master Builder Protocol run over the project's own data, grounded in place. */
   masterBuilderBrief(pid: string) {
     type Step = { n: number; key: string; title: string; why: string; link: string;

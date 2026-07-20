@@ -39,7 +39,9 @@ export async function renderMasterBuilder(ctx: PanelContext) {
     ].filter(Boolean).join(" · ");
     head.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">`
       + `<div class="section-title" style="margin:0">${esc(b.project ?? "Project")} — project readiness</div>`
-      + `<div style="font-size:22px;font-weight:800;color:${scoreCol}">${b.readiness_pct}%</div></div>`
+      + `<div style="display:flex;gap:10px;align-items:baseline">`
+      + `<a class="tool-btn" href="${ctx.host.api.masterBuilderBriefMdUrl(pid)}" target="_blank" rel="noopener" title="Download the brief as a shareable Markdown one-pager">⬇ Markdown</a>`
+      + `<div style="font-size:22px;font-weight:800;color:${scoreCol}">${b.readiness_pct}%</div></div></div>`
       + `<div class="meta" style="margin-top:2px">${place} · <b>${b.ready_steps}</b>/${b.step_count} steps ready · <b>${b.gap_steps}</b> gap(s)</div>`
       + (groundLine ? `<div class="meta" style="margin-top:3px">${groundLine}</div>` : "")
       + `<div class="meta" style="margin-top:4px;opacity:.85">🔎 ${esc(b.reframe_prompt)}</div>`;

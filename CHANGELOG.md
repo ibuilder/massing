@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.562 — MASTER-BUILDER: shareable Markdown brief (SPRINT MB phase-2b)
+
+- `master_builder.to_markdown()` + `GET /projects/{pid}/master-builder/brief.md` (text/markdown): the
+  8-step brief as a printable one-page document — readiness header, place grounding (jurisdiction, code
+  family, coordinates, climate band), a section per protocol step with its ✅/🟡/⛔ status, findings and
+  gaps, the hazards-to-verify list, and the honest-status disclaimer. A **⬇ Markdown** button in the 🏛
+  panel downloads it (wired to `masterBuilderBriefMdUrl`).
+
 ## v0.3.561 — Security: clear the brace-expansion advisories
 
 - Bumped the two vulnerable transitive `brace-expansion` instances (a ReDoS advisory) to their patched
