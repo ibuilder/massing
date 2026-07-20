@@ -1,0 +1,38 @@
+{
+  "key": "lessons_learned",
+  "name": "Lessons Learned",
+  "section": "Closeout",
+  "icon": "🎓",
+  "ref_prefix": "LL",
+  "title_field": "title",
+  "pinnable": false,
+  "fields": [
+    { "name": "title", "label": "Lesson", "type": "text", "required": true, "fieldset": "Lesson" },
+    { "name": "category", "label": "Category", "type": "select", "required": true,
+      "options": ["What went well", "What to improve", "Risk realized", "Process", "Technical", "Safety"],
+      "fieldset": "Lesson" },
+    { "name": "phase", "label": "Phase", "type": "select",
+      "options": ["Initiation", "Design", "Procurement", "Construction", "Closeout"],
+      "fieldset": "Lesson" },
+    { "name": "discipline", "label": "Discipline / Area", "type": "text", "fieldset": "Lesson" },
+
+    { "name": "situation", "label": "Situation / What Happened", "type": "textarea", "fieldset": "Detail" },
+    { "name": "impact", "label": "Impact", "type": "select",
+      "options": ["High", "Medium", "Low"], "fieldset": "Detail" },
+    { "name": "root_cause", "label": "Root Cause", "type": "textarea", "fieldset": "Detail" },
+
+    { "name": "recommendation", "label": "Recommendation (feed forward)", "type": "textarea", "fieldset": "Recommendation" },
+    { "name": "owner", "label": "Owner", "type": "text", "fieldset": "Recommendation" },
+    { "name": "feed_forward", "label": "Carry to standards / templates", "type": "checkbox", "fieldset": "Recommendation" }
+  ],
+  "workflow": {
+    "initial": "logged",
+    "states": ["logged", "reviewed", "adopted"],
+    "transitions": [
+      { "from": "logged", "to": "reviewed", "action": "review", "party": ["PM", "OwnersRep"] },
+      { "from": "reviewed", "to": "adopted", "action": "adopt", "party": ["PM", "OwnersRep"], "requires": ["recommendation"] }
+    ]
+  },
+  "list_columns": ["category", "phase", "impact"],
+  "workspace": "construction|developer"
+}

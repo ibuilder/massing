@@ -1,0 +1,43 @@
+{
+  "key": "project_charter",
+  "name": "Project Charter",
+  "section": "Preconstruction",
+  "icon": "📜",
+  "ref_prefix": "CHTR",
+  "title_field": "title",
+  "pinnable": false,
+  "fields": [
+    { "name": "title", "label": "Charter Title", "type": "text", "required": true, "fieldset": "Charter" },
+    { "name": "sponsor", "label": "Project Sponsor", "type": "text", "fieldset": "Charter" },
+    { "name": "project_manager", "label": "Project Manager", "type": "text", "fieldset": "Charter" },
+    { "name": "authorized_date", "label": "Authorized Date", "type": "date", "fieldset": "Charter" },
+
+    { "name": "business_case", "label": "Business Case / Justification", "type": "textarea", "fieldset": "Purpose" },
+    { "name": "objectives", "label": "Objectives (SMART)", "type": "textarea", "fieldset": "Purpose" },
+    { "name": "success_criteria", "label": "Success Criteria", "type": "textarea", "fieldset": "Purpose" },
+
+    { "name": "scope_in", "label": "In Scope", "type": "textarea", "fieldset": "Scope" },
+    { "name": "scope_out", "label": "Out of Scope", "type": "textarea", "fieldset": "Scope" },
+    { "name": "key_deliverables", "label": "Key Deliverables", "type": "textarea", "fieldset": "Scope" },
+
+    { "name": "budget_authority", "label": "Budget Authority", "type": "currency", "fieldset": "Budget & Schedule" },
+    { "name": "target_completion", "label": "Target Completion", "type": "date", "fieldset": "Budget & Schedule" },
+    { "name": "key_milestones", "label": "Key Milestones", "type": "textarea", "fieldset": "Budget & Schedule" },
+
+    { "name": "assumptions", "label": "Assumptions", "type": "textarea", "fieldset": "Risks & Assumptions" },
+    { "name": "constraints", "label": "Constraints", "type": "textarea", "fieldset": "Risks & Assumptions" },
+    { "name": "high_level_risks", "label": "High-Level Risks", "type": "textarea", "fieldset": "Risks & Assumptions" },
+
+    { "name": "key_stakeholders", "label": "Key Stakeholders", "type": "textarea", "fieldset": "Stakeholders" }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": ["draft", "in_review", "approved"],
+    "transitions": [
+      { "from": "draft", "to": "in_review", "action": "submit_for_review", "party": ["PM", "OwnersRep"] },
+      { "from": "in_review", "to": "approved", "action": "authorize", "party": ["Owner", "OwnersRep"], "requires": ["business_case", "objectives"] }
+    ]
+  },
+  "list_columns": ["sponsor", "project_manager", "target_completion"],
+  "workspace": "construction|developer"
+}

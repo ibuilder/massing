@@ -353,8 +353,9 @@ unlicensed/proprietary sources.*
   manager · coordinator · task team · QA/QC) as a `bim_iso19650` responsibility template with its own
   role columns, mapped across 9 ISO 19650-2 information-management duties (templates can now carry
   `roles`; appears in the existing matrix template picker).
-- **PM-CLOSE** *(S)* — project **charter** + **lessons-learned register** modules closing the PMBOK
-  process-group spine.
+- ✅ **PM-CLOSE** *(S, v0.3.539)* — project **charter** (Preconstruction/initiating, draft→in_review→
+  approved) + **lessons-learned register** (Closeout/closing, logged→reviewed→adopted) modules on the
+  generic engine, closing the PMBOK process-group spine (`modules/project_charter` + `lessons_learned`).
 - **SOLVER-OUT** *(S, flagged)* — structural-solver exchange exports of the analytical model for
   desktop solver round-trips.
 

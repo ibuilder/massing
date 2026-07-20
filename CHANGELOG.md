@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.539 — PM-CLOSE: project charter + lessons-learned register
+
+- **Closing the PMBOK process-group spine.** Two new config-driven registers on the module engine:
+  a **Project Charter** (Preconstruction / initiating) — sponsor, business case, SMART objectives,
+  scope in/out, budget authority, milestones, assumptions/constraints/risks, stakeholders, with a
+  `draft → in_review → approved` authorization workflow — and a **Lessons Learned** register
+  (Closeout / closing) — one record per lesson with category, phase, impact, root cause and a
+  feed-forward recommendation, on a `logged → reviewed → adopted` workflow. Both appear automatically
+  in their workspace nav (construction + developer) with generic CRUD, import, search and the SLA feed.
+
 ## v0.3.538 — ROLES-BIM: ISO 19650 information-management responsibility template
 
 - **The BIM-org, not just the construction org.** The responsibility matrix's four starter templates
