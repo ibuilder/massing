@@ -349,8 +349,10 @@ unlicensed/proprietary sources.*
   configuration (`bep.py` + `GET /bep`; standards/classification, information requirements EIR/BEP/AIR,
   RACI matrix, CDE state, exchange formats, model-quality gates; per-section `configured` + completeness
   roll-up, 📘 Generate button in the CDE/Standards panel) — always current, degrades gracefully.
-- **ROLES-BIM** *(S)* — BIM-org personas (BIM manager · coordinator · information manager · QA/QC)
-  as responsibility-matrix defaults mapped to ISO 19650 duties.
+- ✅ **ROLES-BIM** *(S, v0.3.538)* — BIM-org personas (appointing party · information manager · BIM
+  manager · coordinator · task team · QA/QC) as a `bim_iso19650` responsibility template with its own
+  role columns, mapped across 9 ISO 19650-2 information-management duties (templates can now carry
+  `roles`; appears in the existing matrix template picker).
 - **PM-CLOSE** *(S)* — project **charter** + **lessons-learned register** modules closing the PMBOK
   process-group spine.
 - **SOLVER-OUT** *(S, flagged)* — structural-solver exchange exports of the analytical model for

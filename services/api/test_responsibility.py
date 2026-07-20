@@ -75,7 +75,23 @@ with TestClient(app) as c:
     assert "D" in letters_used and "R" not in letters_used, f"DACI template must use D not R: {letters_used}"
     assert m2["validation"]["clean"] is True, m2["validation"]
 
+    # --- ROLES-BIM: the ISO 19650 template brings its OWN role columns (BIM-org personas) ------
+    tpls = {t["key"]: t for t in c.get(f"/projects/{pid}/responsibility/templates").json()["templates"]}
+    assert "bim_iso19650" in tpls, list(tpls)
+    assert tpls["bim_iso19650"]["roles"][0] == "Appointing Party", tpls["bim_iso19650"]["roles"]
+    pid3 = c.post("/projects", json={"name": "ISO 19650 Tower"}).json()["id"]
+    c.post(f"/projects/{pid3}/responsibility/apply-template", json={"key": "bim_iso19650", "mode": "RACI"})
+    m3 = c.get(f"/projects/{pid3}/responsibility").json()
+    # applying the BIM template switches the matrix columns to the BIM-org personas
+    assert m3["roles"] == ["Appointing Party", "Information Manager", "BIM Manager",
+                           "BIM Coordinator", "Task Team", "QA/QC"], m3["roles"]
+    assert m3["count"] == 9 and m3["validation"]["clean"] is True, (m3["count"], m3["validation"])
+    # every duty has an Information Manager or BIM Manager involved (the info-management line)
+    assert all(("Information Manager" in r["assignments"] or "BIM Manager" in r["assignments"])
+               for r in m3["rows"]), m3["rows"]
+
     # unknown template -> 400
     assert c.post(f"/projects/{pid}/responsibility/apply-template", json={"key": "nope"}).status_code == 400
 
-print("RESPONSIBILITY OK - grid assembly, single-A / >=1-R validation, role config, RACI<->DACI, templates + remap")
+print("RESPONSIBILITY OK - grid assembly, single-A / >=1-R validation, role config, RACI<->DACI, templates + "
+      "remap, and the ROLES-BIM ISO 19650 template (own BIM-org persona columns, 9 info-mgmt duties, clean)")

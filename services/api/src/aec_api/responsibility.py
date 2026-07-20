@@ -132,6 +132,18 @@ def _row(activity, phase, category, cells):
     return {"activity": activity, "phase": phase, "category": category, "assignments": a}
 
 
+# ROLES-BIM — the ISO 19650 information-management org: appointing party + lead-appointed-party
+# information function, the BIM management line, the delivery task team, and QA/QC. Distinct from the
+# construction delivery roles above, and a template may declare its own role columns (`roles`).
+BIM_ROLES = ["Appointing Party", "Information Manager", "BIM Manager",
+             "BIM Coordinator", "Task Team", "QA/QC"]
+
+
+def _brow(activity, phase, category, cells):
+    a = {BIM_ROLES[i]: cells[i] for i in range(len(cells)) if cells[i]}
+    return {"activity": activity, "phase": phase, "category": category, "assignments": a}
+
+
 TEMPLATES: dict[str, dict] = {
     "design_delivery": {
         "name": "Design delivery (SD → CD)",
@@ -176,11 +188,31 @@ TEMPLATES: dict[str, dict] = {
             _row("Warranty & final payment", "Closeout", "Cost", ["A", "", "R", "", "C", "", ""]),
         ],
     },
+    # ROLES-BIM — ISO 19650 information-management duties across the BIM-org personas (own role columns)
+    "bim_iso19650": {
+        "name": "BIM information management (ISO 19650)",
+        "description": "The information-management org: appointing party, information manager, and the "
+                       "BIM management / task-team / QA line across the ISO 19650-2 activities.",
+        "roles": BIM_ROLES,
+        "rows": [
+            # cols: Appointing Party · Information Manager · BIM Manager · BIM Coordinator · Task Team · QA/QC
+            _brow("Establish EIR / information requirements", "Appointment", "Information Mgmt", ["A", "R", "C", "", "", ""]),
+            _brow("Produce & maintain the BEP", "Appointment", "Information Mgmt", ["C", "A", "R", "C", "", ""]),
+            _brow("Set up & administer the CDE", "Mobilisation", "Information Mgmt", ["I", "A", "R", "C", "", ""]),
+            _brow("Author discipline models (TIDP)", "Production", "Design", ["I", "C", "A", "C", "R", ""]),
+            _brow("Federate & coordinate / clash detection", "Production", "Quality", ["I", "C", "A", "R", "C", ""]),
+            _brow("Model QA — standards & IDS checks", "Production", "Quality", ["I", "C", "A", "C", "C", "R"]),
+            _brow("Review & authorize for Shared / Published", "Delivery", "Approvals", ["C", "A", "R", "C", "", "C"]),
+            _brow("Deliver information to appointing party", "Delivery", "Information Mgmt", ["A", "R", "C", "", "C", ""]),
+            _brow("Archive & PIM → AIM handover", "Handover", "Information Mgmt", ["A", "R", "C", "", "C", ""]),
+        ],
+    },
 }
 
 
 def templates() -> list[dict]:
-    return [{"key": k, "name": v["name"], "description": v["description"], "rows": len(v["rows"])}
+    return [{"key": k, "name": v["name"], "description": v["description"], "rows": len(v["rows"]),
+             "roles": v.get("roles") or DEFAULT_ROLES}
             for k, v in TEMPLATES.items()]
 
 
@@ -192,7 +224,7 @@ def apply_template(db: Session, pid: str, key: str, mode: str, actor: str) -> di
     mode = mode if mode in MODES else "RACI"
     # DACI reuses the same cell letters except the doer: R→D.
     remap = (lambda v: "D" if v == "R" else v) if mode == "DACI" else (lambda v: v)
-    set_config(db, pid, DEFAULT_ROLES, mode, actor)
+    set_config(db, pid, tpl.get("roles") or DEFAULT_ROLES, mode, actor)
     created = 0
     for r in tpl["rows"]:
         data = {

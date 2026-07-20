@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.538 — ROLES-BIM: ISO 19650 information-management responsibility template
+
+- **The BIM-org, not just the construction org.** The responsibility matrix's four starter templates
+  were all construction/PM-oriented (design delivery, buyout, execution, closeout) over the same seven
+  delivery-role columns. Added a **BIM information management (ISO 19650)** template that brings its own
+  role columns — the BIM-org personas *Appointing Party · Information Manager · BIM Manager · BIM
+  Coordinator · Task Team · QA/QC* — mapped across nine ISO 19650-2 information-management duties (EIR →
+  BEP → CDE setup → authoring → federation/coordination → model QA → authorize → deliver → PIM→AIM
+  handover). Templates may now declare their own `roles`, so applying it switches the matrix columns to
+  the information-management org. Appears automatically in the existing Responsibility-matrix template
+  picker.
+
 ## v0.3.537 — BEP-GEN: the BIM Execution Plan, generated from live config
 
 - **The BEP is never a stale side-document.** `GET /projects/{pid}/bep` composes the ISO 19650 BIM
