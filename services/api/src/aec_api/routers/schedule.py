@@ -122,6 +122,8 @@ def schedule_optioneer(pid: str, body: dict = Body(default={}), db: Session = De
     trades, per-floor takt = each trade's total duration ÷ floors), falling back to the residential takt
     train; absent `floors` are derived from the model's storey count (else 1). The response's
     `trade_source` reports which of body / schedule / default was used."""
+    from fastapi import HTTPException
+
     from .. import schedule_options, takt
     from ..models import Project
 
@@ -134,10 +136,15 @@ def schedule_optioneer(pid: str, body: dict = Body(default={}), db: Session = De
                 floors = len(open_source_ifc(db, pid).by_type("IfcBuildingStorey")) or 1
             except Exception:                            # noqa: BLE001 — no/opaque model: fall back to 1
                 floors = 1
-    floors = int(floors or 1)
+    try:
+        floors = int(floors or 1)
+    except (TypeError, ValueError):
+        raise HTTPException(422, "floors must be numeric") from None
 
-    if body.get("trades"):
-        trades, source = body["trades"], "body"
+    if body.get("trades") is not None:
+        if not isinstance(body["trades"], list):
+            raise HTTPException(422, "trades must be a list of {name, takt_days} objects")
+        trades, source = body["trades"], "body"          # content is normalised in schedule_options.optimize
     else:
         derived = _derive_takt_train(db, pid, floors)    # the project's own schedule → a takt train
         trades, source = (derived, "schedule") if derived else (takt.DEFAULT_TRADES, "default")
@@ -147,10 +154,13 @@ def schedule_optioneer(pid: str, body: dict = Body(default={}), db: Session = De
     for k in ("max_crew_trades", "weight_time", "weight_cost", "permute_sequence"):
         if body.get(k) is not None:
             kw[k] = body[k]
-    if body.get("zone_options"):
-        kw["zone_options"] = tuple(int(z) for z in body["zone_options"])
-    if body.get("overlap_options"):
-        kw["overlap_options"] = tuple(float(o) for o in body["overlap_options"])
+    try:
+        if body.get("zone_options"):
+            kw["zone_options"] = tuple(int(z) for z in body["zone_options"])
+        if body.get("overlap_options"):
+            kw["overlap_options"] = tuple(float(o) for o in body["overlap_options"])
+    except (TypeError, ValueError):
+        raise HTTPException(422, "zone_options / overlap_options must be numeric") from None
     out = schedule_options.optimize(base, **kw)
     out["trade_source"] = source
     return out

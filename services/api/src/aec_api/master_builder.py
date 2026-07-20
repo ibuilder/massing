@@ -75,7 +75,7 @@ def _dms_to_deg(dms: list | None) -> float | None:
     parts = [p for p in dms if p is not None]
     if not parts:
         return None
-    sign = -1 if parts[0] < 0 else 1
+    sign = -1 if any(p < 0 for p in parts) else 1     # IFC carries the sign on any component, not just degrees
     mag = abs(parts[0])
     for i, div in ((1, 60.0), (2, 3600.0), (3, 3600.0e6)):
         if len(parts) > i:

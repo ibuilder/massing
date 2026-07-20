@@ -108,6 +108,22 @@ big = schedule_options.optimize(SEQ_BASE, zone_options=(1, 2, 3), overlap_option
                                 permute_sequence=True)
 assert big["scenario_count"] <= 800, big["scenario_count"]
 
+# --- HARDEN: malformed / hostile inputs are coerced or dropped, never a crash --------------------
+# a trade with a null / non-numeric / string takt_days, and a non-dict trade, are normalised or skipped
+mixed = schedule_options.optimize({"floors": 4, "trades": [
+    {"name": "Good", "takt_days": 5}, {"name": "NullTakt", "takt_days": None},
+    {"name": "StrTakt", "takt_days": "6.5"}, {"name": "Zero", "takt_days": 0}, "not-a-dict",
+    {"takt_days": 4}]})                                   # missing name → dropped
+kept = {t["name"] for t in mixed["baseline"]["trades"]}
+assert kept == {"Good", "StrTakt"}, kept                  # null/zero/nameless/non-dict all dropped
+assert next(t for t in mixed["baseline"]["trades"] if t["name"] == "StrTakt")["takt_days"] == 6, mixed  # "6.5"→6
+# floors + zones are value-clamped so a scenario can't allocate an absurd grid (no MemoryError)
+huge = schedule_options.optimize({"floors": 10**9, "trades": BASE["trades"], "crew_day_rate": 2000},
+                                 zone_options=(1, 10**9))
+assert huge["floors"] <= 2000 and max(huge["levers"]["zones"]) <= 24, (huge["floors"], huge["levers"]["zones"])
+# a non-numeric floors doesn't raise — it degrades to 1
+assert schedule_options.optimize({"floors": "lots", "trades": BASE["trades"]})["floors"] == 1
+
 # --- route ----------------------------------------------------------------------------------------
 os.environ["DATABASE_URL"] = "sqlite:///./test_schedule_options.db"
 os.environ["STORAGE_DIR"] = "./test_storage_schedopt"
@@ -132,6 +148,15 @@ with TestClient(app) as c:
     r2 = c.post(f"/projects/{pid}/schedule/optioneer", json={})
     assert r2.status_code == 200 and r2.json()["trade_count"] == 5, r2.json()
     assert r2.json()["trade_source"] == "default", r2.json()["trade_source"]
+    # HARDEN: malformed body coercions are rejected with 422, not a 500
+    assert c.post(f"/projects/{pid}/schedule/optioneer", json={"zone_options": ["x"]}).status_code == 422
+    assert c.post(f"/projects/{pid}/schedule/optioneer", json={"overlap_options": ["hi"]}).status_code == 422
+    assert c.post(f"/projects/{pid}/schedule/optioneer", json={"floors": "many"}).status_code == 422
+    assert c.post(f"/projects/{pid}/schedule/optioneer", json={"trades": "wall"}).status_code == 422
+    # a body trade with a null takt_days is dropped, not a 500 (normalised away)
+    r3 = c.post(f"/projects/{pid}/schedule/optioneer",
+                json={"floors": 4, "trades": [{"name": "A", "takt_days": None}, {"name": "B", "takt_days": 5}]})
+    assert r3.status_code == 200 and r3.json()["trade_count"] == 1, r3.json()
 
     # phase-4a: with a real schedule, the takt train is DERIVED from the project's own activities
     pid2 = c.post("/projects", json={"name": "SchedOptDerive"}).json()["id"]

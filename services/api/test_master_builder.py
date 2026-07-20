@@ -81,6 +81,13 @@ with TestClient(app) as c:
     with SessionLocal() as db:
         gz2 = master_builder.brief(db, pid, place_context={"ref_latitude": [-1, 17, 0], "ref_longitude": [36, 49, 0]})
     assert gz2["place_grounding"]["hemisphere"] == "S/E" and gz2["place_grounding"]["climate_band"] == "tropical", gz2["place_grounding"]
+    # HARDEN: the sign is carried on ANY DMS component, not just degrees — a sub-degree southern site
+    # (0° deg, -30′) must decode as -0.5°, not +0.5° (IfcCompoundPlaneAngleMeasure sign rule)
+    assert master_builder._dms_to_deg([0, -30, 0]) == -0.5, master_builder._dms_to_deg([0, -30, 0])
+    assert master_builder._dms_to_deg([0, 0, -3600]) == -1.0, master_builder._dms_to_deg([0, 0, -3600])
+    with SessionLocal() as db:
+        sub = master_builder.brief(db, pid, place_context={"ref_latitude": [0, -30, 0], "ref_longitude": [0, 30, 0]})
+    assert sub["place_grounding"]["hemisphere"] == "S/E", sub["place_grounding"]
 
     # --- route ----------------------------------------------------------------------------------------
     r = c.get(f"/projects/{pid}/master-builder/brief")

@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.559 — Hardening pass over the v0.3.552–558 feature wave
+
+Between-sprint adversarial bug-hunt + XSS/security hand-audit over the seven new releases (WARN-1,
+NORM-VALID tails, SCOPE-GAP, GOLDEN-THREAD seed, SCHED-OPT phases 1–4a, Master Builder brief phases 1–2a).
+No high-severity issue found — the frontend had **no XSS** (every model-derived string escaped), route
+role-gating was sound, the optioneer's 800-scenario cap genuinely bounds enumeration, and the
+division/zero paths were all guarded. Three concrete low-severity defects fixed:
+
+- **Master Builder** — `_dms_to_deg` read the coordinate sign only from the degrees component, so a
+  sub-degree southern/western site (e.g. IFC `[0, -30, 0]` = −0.5°) decoded as positive and reported the
+  wrong hemisphere/climate band. Now the sign is taken from any DMS component (the IFC rule).
+- **SCHED-OPT** — the optioneer engine now **normalises caller-supplied trades** (a null / non-numeric /
+  string `takt_days`, a non-dict entry, or a nameless trade is coerced or dropped) and **value-clamps
+  `floors` (≤ 2000) and zones (≤ 24)** before enumerating — a malformed or absurd body can no longer 500
+  or attempt a multi-GB allocation. The route now returns **422** (not 500) for non-numeric
+  `floors` / `zone_options` / `overlap_options` / non-list `trades`.
+- **SCHED-OPT panel** — the recommended-scenario row highlight compared object identity (`s === rec`),
+  which is never true across a JSON round-trip, so the row never highlighted; now matches on `rank`.
+
 ## v0.3.558 — MASTER-BUILDER: ground the brief in real coordinates (SPRINT MB phase-2a)
 
 The Master Builder brief now grounds itself in the project's actual place, not just its jurisdiction.

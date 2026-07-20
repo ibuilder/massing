@@ -285,7 +285,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
           const lev = [s.is_baseline ? "baseline" : "", s.crews_doubled.length ? `+crew ${esc(s.crews_doubled.join("/"))}` : "",
             s.zones > 1 ? `${s.zones}z` : "", s.overlap ? `${Math.round(s.overlap * 100)}% ft` : "",
             s.resequenced ? "reseq" : ""].filter(Boolean).join(" · ") || "single crews · 1z";
-          const hl = s === rec ? "background:var(--hover);font-weight:600" : "";
+          const hl = s.rank === rec.rank ? "background:var(--hover);font-weight:600" : "";
           return `<tr style="${hl}"><td style="text-align:center">${s.rank}</td><td style="text-align:left">${lev}</td>`
             + `<td style="text-align:right">${s.duration_days}</td><td style="text-align:right">${usd0(s.cost)}</td>`
             + `<td style="text-align:right">${s.crew_peak}</td><td style="text-align:center">${s.pareto ? "◆" : ""}</td></tr>`;

@@ -29,6 +29,17 @@ _OVERLAP_PREMIUM = 0.10         # fast-tracking carries a rework-risk premium (�
 _MAX_REORDER = 4                # cap on order-flexible trades permuted (beyond this → identity only)
 _MAX_SEQUENCES = 6              # cap on sequence variants kept (identity always first)
 _MAX_SCENARIOS = 800            # hard cap on the enumerated grid (bounded; truncation is reported)
+_MAX_FLOORS = 2000              # value clamp: a scenario allocates floors×zone cells, so bound floors…
+_MAX_ZONES = 24                 # …and zones, before any grid enumeration (keeps allocation sane)
+
+
+def _takt_days(v: Any) -> int:
+    """Coerce a caller-supplied ``takt_days`` (int, float, or numeric string) to a non-negative int;
+    a null / non-numeric value yields 0 so the trade is dropped rather than raising."""
+    try:
+        return max(0, int(float(v)))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _lob(locations: int, takts: list[int], overlap: float = 0.0) -> tuple[int, list[tuple[float, float]]]:
@@ -144,9 +155,20 @@ def optimize(base: dict, *, max_crew_trades: int = 3, zone_options: tuple[int, .
     scenarios (not beaten on *both* time and cost) are flagged, and the best-scoring one is recommended.
     The enumerated grid is hard-capped at ``_MAX_SCENARIOS`` (truncation is reported, never silent).
     """
-    floors = max(1, int(base.get("floors", 1)))
+    try:
+        floors = max(1, min(int(base.get("floors", 1)), _MAX_FLOORS))
+    except (TypeError, ValueError):
+        floors = 1
     rate = float(base.get("crew_day_rate") or _DEFAULT_RATE)
-    trades = [t for t in (base.get("trades") or []) if t.get("name") and int(t.get("takt_days", 0)) > 0]
+    # normalise trades up front — a caller-supplied trade with a null / non-numeric / non-int takt_days is
+    # coerced or dropped (never a 500), and every downstream read gets a real int takt_days.
+    trades = []
+    for t in (base.get("trades") or []):
+        if not isinstance(t, dict) or not t.get("name"):
+            continue
+        td = _takt_days(t.get("takt_days"))
+        if td > 0:
+            trades.append({**t, "takt_days": td})
     if not trades:
         return {"scenarios": [], "note": "no trades to optimise"}
     nt = len(trades)
@@ -154,7 +176,7 @@ def optimize(base: dict, *, max_crew_trades: int = 3, zone_options: tuple[int, .
     by_takt = sorted(range(nt), key=lambda i: (-int(trades[i]["takt_days"]), i))
     crew_candidates = set(by_takt[: max(0, min(max_crew_trades, nt))])
     crew_axes = [[1, 2] if i in crew_candidates else [1] for i in range(nt)]
-    zones = sorted({z for z in zone_options if z >= 1}) or [1]
+    zones = sorted({min(int(z), _MAX_ZONES) for z in zone_options if z >= 1}) or [1]
     overlaps = sorted({round(min(0.9, max(0.0, o)), 3) for o in overlap_options}) or [0.0]
     reorderable = [i for i, t in enumerate(trades) if t.get("reorderable")] if permute_sequence else []
     sequences, seq_truncated = _sequence_variants(nt, reorderable)
