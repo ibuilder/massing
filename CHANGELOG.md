@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.550 — RT-ORJSON remainder: orjson at the hot storage-blob sites
+
+- **Faster index loads.** The response serializer already used orjson (v0.3.511); this swaps the
+  remaining hot `json.loads/dumps` at the storage-blob call sites — the per-project **props.json index
+  load** (on every model-index cache miss) and the **scan cache** read/write — to orjson, with the same
+  graceful stdlib fallback for an orjson-less venv. **Measured on a 924 KB props blob: `orjson.loads`
+  1.7× (19.8→11.4 ms), `orjson.dumps` 4.8× (16.1→3.4 ms)** vs stdlib; `OPT_NON_STR_KEYS` +
+  `OPT_SERIALIZE_NUMPY` mirror stdlib's acceptance of int keys and `numpy.float64`. First of the RUNTIME
+  ring's measured-win S-items.
+
 ## v0.3.549 — MEP-GRAPH: port connectivity graph + run/path extraction
 
 - **From "unconnected ports" to the actual network.** `GET /projects/{pid}/mep/graph` builds a

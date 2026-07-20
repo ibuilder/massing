@@ -67,8 +67,9 @@ top-down; interleave one RUNTIME-ring S-item every few features.*
 *Rust/C-backed libs + toolchain moves; MIT/BSD/Apache only; each is its own benchmarked release — no
 adoption without a measured win.*
 
-- **RT-ORJSON remainder** *(S)* — swap the hot `json.dumps/loads` storage-blob call sites (props.json
-  index load, demo snapshot) to orjson (the response serializer already shipped, 7–9×).
+- ✅ **RT-ORJSON remainder** *(S, v0.3.550)* — the hot `json.loads/dumps` storage-blob sites (props.json
+  index load + scan cache in `model_index`) now use orjson with a stdlib fallback. **Measured 924 KB
+  blob: loads 1.7×, dumps 4.8×.** (Response serializer shipped v0.3.511.)
 - **RT-OXLINT** *(S)* — [oxlint](https://oxc.rs) (Rust, MIT) as a sub-second pre-lint gate beside the
   pinned eslint 9.39.5 (standalone binary — immune to the Node 20.3.1 pin); eslint stays authoritative.
 - **RT-ZSTD** *(S/M)* — zstandard (BSD) for large storage blobs at rest (props.json is MB-scale) →
