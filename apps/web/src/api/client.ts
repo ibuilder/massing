@@ -3033,6 +3033,19 @@ export class ApiClient extends HttpCore {
       added_count: number; removed_count: number; modified_count: number; unchanged_count: number;
     }>(`/projects/${pid}/versions/diff?a=${a}&b=${b}`);
   }
+  /** REVISION-DELTA — conceptual cost impact of a revision (added priced, removed counted, modified flagged). */
+  versionCostDelta(pid: string, a: number, b: number) {
+    return this.json<{
+      from: number; to: number;
+      added: { count: number; priced_count: number; cost: number;
+        lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number }[];
+        unpriced: { ifc_class: string; count: number }[] };
+      removed: { count: number; by_class: { ifc_class: string; count: number; discipline: string }[]; note: string };
+      requantified: { count: number; sample: { guid: string; name: string | null; ifc_class: string | null }[]; note: string };
+      summary: { added_count: number; removed_count: number; requantified_count: number; added_cost: number };
+      note: string;
+    }>(`/projects/${pid}/versions/cost-delta?a=${a}&b=${b}`);
+  }
   /** Reusable templates for a module (save a project's records → apply to another project). */
   templates(module: string) {
     return this.json<{ id: string; module: string; name: string; item_count: number }[]>(`/templates?module=${encodeURIComponent(module)}`);

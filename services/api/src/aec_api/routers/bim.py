@@ -404,6 +404,28 @@ def diff_versions(pid: str, a: int, b: int, db: Session = Depends(get_db), _sec:
     return versions.diff(db, pid, a, b)
 
 
+@router.get("/projects/{pid}/versions/cost-delta")
+def version_cost_delta(pid: str, a: int, b: int, db: Session = Depends(get_db),
+                       _sec: str = Depends(require_role("viewer"))):
+    """REVISION-DELTA: the conceptual **cost impact** of the revision a→b. ADDED elements (present in the
+    current model) are priced from the live takeoff; REMOVED elements are counted by IFC class (prior
+    quantities aren't stored, so not priced); quantity-modified elements are flagged for re-estimate.
+    A change-management aid, not a change order. 409 if the project has no source IFC."""
+    from aec_data import qto  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import revision_delta, versions
+    from ..deps import source_ifc_path as _src
+    from ..models import ModelVersion
+
+    diff_res = versions.diff(db, pid, a, b)
+    rows = qto.takeoff(open_model(_src(db, pid)), force_geometry=True)   # 409 if no source IFC
+    va = (db.query(ModelVersion)
+          .filter(ModelVersion.project_id == pid, ModelVersion.version == a).first())
+    prev_fp = (va.fingerprints or {}) if va else {}
+    return revision_delta.delta(diff_res, rows, prev_fp)
+
+
 @router.get("/projects/{pid}/coordination/stale")
 def coordination_stale(pid: str, a: int, b: int, db: Session = Depends(get_db),
                        _sec: str = Depends(require_role("viewer"))):

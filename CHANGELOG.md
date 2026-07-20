@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.536 — REVISION-DELTA: the cost impact of a model revision
+
+- **"What changed" → "what it costs."** `GET /projects/{pid}/versions/cost-delta?a=&b=` turns a
+  version diff into a conceptual cost impact: **added** elements (present in the current model) are
+  priced from the live quantity takeoff through the conceptual estimator; **removed** elements are
+  counted by IFC class from the prior version's fingerprints (their quantities aren't stored, so they
+  aren't priced); elements whose **quantity changed** are flagged for re-estimate (before/after
+  magnitudes aren't both retained, so no automatic net is claimed). Honest about the version store's
+  limits — a change-management aid, not a change order. Surfaced as a **$ Cost impact** button in the
+  viewer's Version-compare tool, beside the 3D overlay.
+
 ## v0.3.535 — NORM-VALID: normative openBIM conformance gauntlet
 
 - **Does this IFC *conform*, not just is it well-authored.** A validation gauntlet in the spirit of

@@ -1347,6 +1347,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               const overlay = document.createElement("button"); overlay.className = "mini-btn on"; overlay.textContent = "◉ Overlay in 3D";
               overlay.title = "Colour added elements green and modified elements amber in the loaded model (removed elements aren't in it).";
               const reset = document.createElement("button"); reset.className = "mini-btn"; reset.textContent = "Reset";
+              const cost = document.createElement("button"); cost.className = "mini-btn"; cost.textContent = "$ Cost impact";
+              cost.title = "REVISION-DELTA: conceptual cost of this revision — added elements priced from the current takeoff, removed counted by class, quantity changes flagged for re-estimate";
               overlay.onclick = async () => {
                 try {
                   await layerMgr.resetColors();
@@ -1356,7 +1358,31 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
                 } catch (e) { notify((e as Error).message, "error"); }
               };
               reset.onclick = async () => { await layerMgr.resetColors(); await layerMgr.showAll(); };
-              ctl.append(overlay, reset); out.appendChild(ctl);
+              cost.onclick = () => void (async () => {
+                let cd; try { cd = await api.versionCostDelta(pid, a, b); } catch (e) { notify((e as Error).message, "error"); return; }
+                showResult(`Revision cost impact — v${a} → v${b}`, (cb) => {
+                  cb.appendChild(resultNote(`<b>+$${cd!.added.cost.toLocaleString()}</b> added `
+                    + `(${cd!.added.priced_count}/${cd!.added.count} priced) · `
+                    + `<b>${cd!.removed.count}</b> removed (by class) · `
+                    + `<b>${cd!.requantified.count}</b> flagged for re-estimate`, "ok"));
+                  if (cd!.added.lines.length) {
+                    cb.appendChild(resultNote("Added — priced from the current takeoff:", ""));
+                    cb.appendChild(kvTable(cd!.added.lines.map((l) => ({
+                      k: `${l.ifc_class.replace("Ifc", "")} ×${l.count}`,
+                      v: `${l.quantity} ${l.unit} × $${l.rate} = <b>$${l.amount.toLocaleString()}</b>`,
+                    }))));
+                  }
+                  if (cd!.removed.by_class.length) {
+                    cb.appendChild(resultNote("Removed — counted by class (not priced; prior quantities aren't stored):", ""));
+                    cb.appendChild(kvTable(cd!.removed.by_class.map((l) => ({
+                      k: `${l.ifc_class.replace("Ifc", "")} (${escapeHtml(l.discipline)})`, v: `−${l.count}`,
+                    }))));
+                  }
+                  const n = document.createElement("div"); n.className = "meta"; n.style.cssText = "margin-top:8px;font-size:11px";
+                  n.textContent = cd!.note; cb.appendChild(n);
+                });
+              })();
+              ctl.append(overlay, cost, reset); out.appendChild(ctl);
               if (d.modified_count) {
                 out.appendChild(resultNote("Modified elements (click to select in 3D):", ""));
                 out.appendChild(kvTable(d.modified.slice(0, 40).map((m) => ({

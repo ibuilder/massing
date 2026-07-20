@@ -174,7 +174,10 @@ minutes + flagged action items linked to RFIs/issues (S).
 take-off extension; `/estimate/assemblies` library + `/estimate/assembly/price`; Analytics card).
 **Still open:** persisting user-authored assemblies (a module) + wiring assemblies into the takeoff
 estimate + RFQ/quote management ·
-**REVISION-DELTA** — 2D drawing overlay diff → changed-quantity flags → estimate delta flow-through
+✅ **REVISION-DELTA v0.3.536** — version-diff → cost impact (`revision_delta.py` + `GET /versions/cost-delta`;
+added elements priced from the live takeoff, removed counted by class, quantity-modified flagged for
+re-estimate; $ Cost-impact button in the viewer's Version-compare tool). *(A 2D drawing-overlay diff lane
+remains a separate future item.)*
 (we have MODEL-DIFF, lack the 2D-revision→cost loop) · CBS view (R14) · EST-BANDS (R14).
 
 **Analysis (permissive-license engines, offline):** **ENERGY-PLUS** — export model → IDF/OSM + run
