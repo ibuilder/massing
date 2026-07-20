@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.556 — SCHED-OPT: optimize the real project — takt train from the schedule (SPRINT B phase-4a)
+
+The optioneer no longer always defaults to the residential takt train — it now **derives the trade
+train from the project's own schedule** when one exists.
+
+- When the `/schedule/optioneer` request omits `trades`, the route builds the takt train from the
+  project's `schedule_activity` records: group by trade, sum each trade's duration, and set its
+  per-floor takt = total ÷ floors; trades order by earliest start (a stable, schedule-honouring
+  sequence). Falls back to the residential takt train when there's no usable schedule (< 2 trades with
+  duration).
+- The response carries `trade_source` (`body` / `schedule` / `default`) and the panel's recommended
+  line names it ("… N trades from your project schedule"), so it's clear the optioneer is optimising
+  real project data — not a generic template.
+
 ## v0.3.555 — SCHED-OPT: scenario-comparison panel (SPRINT B phase-3)
 
 Surfaces the optioneer in the Schedule workspace so the ranked scenarios are usable, not just an API.

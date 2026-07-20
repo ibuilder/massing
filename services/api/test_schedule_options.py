@@ -127,9 +127,30 @@ with TestClient(app) as c:
     j = r.json()
     assert j["floors"] == 8 and j["scenario_count"] == len(j["scenarios"]) and j["recommended"], j
     assert j["recommended"]["rank"] == 1, j["recommended"]
-    # no body → defaults to the residential takt train, floors derived (no model → 1)
+    assert j["trade_source"] == "body", j["trade_source"]         # explicit trades → body source
+    # no body, no schedule → defaults to the residential takt train, floors derived (no model → 1)
     r2 = c.post(f"/projects/{pid}/schedule/optioneer", json={})
     assert r2.status_code == 200 and r2.json()["trade_count"] == 5, r2.json()
+    assert r2.json()["trade_source"] == "default", r2.json()["trade_source"]
+
+    # phase-4a: with a real schedule, the takt train is DERIVED from the project's own activities
+    pid2 = c.post("/projects", json={"name": "SchedOptDerive"}).json()["id"]
+    acts = [("Foundations", "Concrete", 20, "2026-01-05"), ("Superstructure", "Concrete", 40, "2026-02-01"),
+            ("Rough-in", "Mechanical", 30, "2026-03-01"), ("Drywall", "Interiors", 24, "2026-04-01")]
+    for name, trade, dur, start in acts:
+        c.post(f"/projects/{pid2}/modules/schedule_activity",
+               json={"data": {"name": name, "trade": trade, "duration": dur, "start": start}})
+    rd = c.post(f"/projects/{pid2}/schedule/optioneer", json={"floors": 4})
+    assert rd.status_code == 200, rd.text[:200]
+    jd = rd.json()
+    assert jd["trade_source"] == "schedule", jd["trade_source"]    # derived from the seeded activities
+    assert jd["trade_count"] == 3, jd["trade_count"]               # 3 distinct trades (Concrete merged)
+    # Concrete = (20+40)/4 floors = 15 days/floor — the sum of its two activities' durations
+    base_sc2 = jd["baseline"]
+    concrete = next(t for t in base_sc2["trades"] if t["name"] == "Concrete")
+    assert concrete["takt_days"] == 15, concrete
+    # earliest-start ordering: Concrete (Jan) leads the derived train
+    assert base_sc2["trades"][0]["name"] == "Concrete", base_sc2["trades"]
 
 print("SCHED-OPT OK - the optioneer enumerates a bounded crew/zoning grid over the Takt line-of-balance "
       "model: the 3 slowest trades are the bottleneck crew-doubling candidates, the baseline (single-crew, "

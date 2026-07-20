@@ -1848,6 +1848,7 @@ export class ApiClient extends HttpCore {
       floors: number; trade_count: number; crew_day_rate: number; scenario_count: number;
       weights: { time: number; cost: number }; crew_candidates: string[]; pareto_count: number;
       levers: { zones: number[]; overlaps: number[]; sequence_variants: number; crew_candidates: string[] };
+      trade_source: "body" | "schedule" | "default";
       recommended: Scenario; baseline: Scenario | null; truncated: boolean;
       recommended_vs_baseline: { days: number; cost: number; pct_faster: number } | null;
       scenarios: Scenario[]; note: string;

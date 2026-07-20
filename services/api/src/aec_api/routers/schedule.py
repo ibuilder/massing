@@ -117,8 +117,11 @@ def schedule_optioneer(pid: str, body: dict = Body(default={}), db: Session = De
     frontier + a recommended option.
 
     Body (all optional): `floors`, `trades:[{name,takt_days}]`, `crew_day_rate`, `max_crew_trades`,
-    `zone_options:[…]`, `weight_time`, `weight_cost`. Absent `trades` default to the residential takt
-    train; absent `floors` are derived from the model's storey count (else 1)."""
+    `zone_options:[…]`, `overlap_options:[…]`, `permute_sequence`, `weight_time`, `weight_cost`. When
+    `trades` is absent the train is **derived from the project's own schedule** (trades = the activity
+    trades, per-floor takt = each trade's total duration ÷ floors), falling back to the residential takt
+    train; absent `floors` are derived from the model's storey count (else 1). The response's
+    `trade_source` reports which of body / schedule / default was used."""
     from .. import schedule_options, takt
     from ..models import Project
 
@@ -131,11 +134,15 @@ def schedule_optioneer(pid: str, body: dict = Body(default={}), db: Session = De
                 floors = len(open_source_ifc(db, pid).by_type("IfcBuildingStorey")) or 1
             except Exception:                            # noqa: BLE001 — no/opaque model: fall back to 1
                 floors = 1
-    base = {
-        "floors": int(floors or 1),
-        "trades": body.get("trades") or takt.DEFAULT_TRADES,
-        "crew_day_rate": body.get("crew_day_rate"),
-    }
+    floors = int(floors or 1)
+
+    if body.get("trades"):
+        trades, source = body["trades"], "body"
+    else:
+        derived = _derive_takt_train(db, pid, floors)    # the project's own schedule → a takt train
+        trades, source = (derived, "schedule") if derived else (takt.DEFAULT_TRADES, "default")
+
+    base = {"floors": floors, "trades": trades, "crew_day_rate": body.get("crew_day_rate")}
     kw = {}
     for k in ("max_crew_trades", "weight_time", "weight_cost", "permute_sequence"):
         if body.get(k) is not None:
@@ -144,7 +151,39 @@ def schedule_optioneer(pid: str, body: dict = Body(default={}), db: Session = De
         kw["zone_options"] = tuple(int(z) for z in body["zone_options"])
     if body.get("overlap_options"):
         kw["overlap_options"] = tuple(float(o) for o in body["overlap_options"])
-    return schedule_options.optimize(base, **kw)
+    out = schedule_options.optimize(base, **kw)
+    out["trade_source"] = source
+    return out
+
+
+def _derive_takt_train(db: Session, pid: str, floors: int) -> list[dict] | None:
+    """Build a takt train from the project's schedule_activity records: group by trade, sum duration, and
+    set each trade's per-floor takt = round(total ÷ floors). Trades order by earliest start (a stable,
+    schedule-honouring sequence). Returns None when there's nothing usable so the caller can fall back."""
+    try:
+        acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    except Exception:                                    # noqa: BLE001 — module absent: caller falls back
+        return None
+    agg: dict[str, dict] = {}
+    for a in acts:
+        d = a.get("data") or {}
+        trade = (d.get("trade") or "").strip()
+        if not trade:
+            continue
+        try:
+            dur = float(d.get("duration") or 0)
+        except (TypeError, ValueError):
+            dur = 0.0
+        e = agg.setdefault(trade, {"dur": 0.0, "first": None})
+        e["dur"] += max(0.0, dur)
+        s = str(d.get("start") or "")[:10]
+        if s and (e["first"] is None or s < e["first"]):
+            e["first"] = s
+    usable = {t: e for t, e in agg.items() if e["dur"] > 0}
+    if len(usable) < 2:                                  # need ≥2 trades with real duration to optimise
+        return None
+    ordered = sorted(usable.items(), key=lambda kv: (kv[1]["first"] or "9999", kv[0]))
+    return [{"name": t, "takt_days": max(1, round(e["dur"] / max(1, floors)))} for t, e in ordered]
 
 
 @router.get("/projects/{pid}/risk-board")

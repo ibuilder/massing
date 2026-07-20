@@ -124,8 +124,12 @@ reassess. Rough size + the "phase-1" that de-risks it are called out.*
     Schedule workspace: Run control + weighting selector + fast-track toggle, a recommended-plan summary
     (duration / cost / peak crews / saving vs. baseline), and a ranked scenario table with a Pareto-frontier
     marker and the recommended row highlighted.
-  - **Phase 4** *(next)* — CPM-driven crew shifts off the critical path + a productivity-rate lever off
-    `productivity.py`; scale the enumeration; and a Pareto frontier **chart** (cost vs. duration scatter).
+  - ✅ **Phase 4a — optimise the real project** *(v0.3.556)* — the optioneer now derives the takt train
+    from the project's own `schedule_activity` records (group by trade, per-floor takt = total ÷ floors,
+    order by earliest start) instead of always defaulting to the residential train; `trade_source`
+    reports body / schedule / default.
+  - **Phase 4b** *(next)* — CPM-driven crew shifts off the critical path; scale the enumeration; and a
+    Pareto frontier **chart** (cost vs. duration scatter).
 - **SPRINT C — FIELD-PWA.** *(L, mostly frontend)* Offline-first mobile PWA: sheet sync, auto
   slip-sheeting, hyperlinked callouts. **Phase 1:** the service-worker offline cache + sheet sync over
   the existing markup/SSE infra; then the field-optimized nav + callout links.

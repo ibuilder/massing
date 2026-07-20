@@ -273,7 +273,8 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
         `${rec.zones} zone${rec.zones > 1 ? "s" : ""}`, rec.overlap ? `${Math.round(rec.overlap * 100)}% fast-track` : "no overlap",
         rec.resequenced ? "resequenced" : ""].filter(Boolean).join(" · ");
       const recLine = document.createElement("div"); recLine.className = "meta"; recLine.style.marginBottom = "4px";
-      recLine.innerHTML = `<b>Recommended plan:</b> ${esc(recLevers)}`;
+      const src = r.trade_source === "schedule" ? "your project schedule" : r.trade_source === "body" ? "the supplied trades" : "the default takt train";
+      recLine.innerHTML = `<b>Recommended plan:</b> ${esc(recLevers)} <span style="opacity:.6">· ${r.trade_count} trades from ${src}</span>`;
       const wrap = document.createElement("div"); wrap.style.overflowX = "auto";
       const top = r.scenarios.slice(0, 12);
       const t = document.createElement("table"); t.className = "portal-table"; t.style.cssText = "width:100%;font-size:11px;margin-top:2px";
