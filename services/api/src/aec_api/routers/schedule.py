@@ -137,11 +137,13 @@ def schedule_optioneer(pid: str, body: dict = Body(default={}), db: Session = De
         "crew_day_rate": body.get("crew_day_rate"),
     }
     kw = {}
-    for k in ("max_crew_trades", "weight_time", "weight_cost"):
+    for k in ("max_crew_trades", "weight_time", "weight_cost", "permute_sequence"):
         if body.get(k) is not None:
             kw[k] = body[k]
     if body.get("zone_options"):
         kw["zone_options"] = tuple(int(z) for z in body["zone_options"])
+    if body.get("overlap_options"):
+        kw["overlap_options"] = tuple(float(o) for o in body["overlap_options"])
     return schedule_options.optimize(base, **kw)
 
 

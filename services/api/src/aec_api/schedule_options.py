@@ -25,12 +25,19 @@ from typing import Any
 _DEFAULT_RATE = 2000.0          # $ per crew-day (a blended trade crew) — overridable per call
 _CREW2_PREMIUM = 0.15           # a 2nd crew carries a 15% coordination/overtime premium on its trade
 _ZONE_SETUP_CREWDAYS = 3.0      # crew-days of mobilisation per extra work-face zone
+_OVERLAP_PREMIUM = 0.10         # fast-tracking carries a rework-risk premium (× the overlap fraction)
+_MAX_REORDER = 4                # cap on order-flexible trades permuted (beyond this → identity only)
+_MAX_SEQUENCES = 6              # cap on sequence variants kept (identity always first)
+_MAX_SCENARIOS = 800            # hard cap on the enumerated grid (bounded; truncation is reported)
 
 
-def _lob(locations: int, takts: list[int]) -> tuple[int, list[tuple[float, float]]]:
+def _lob(locations: int, takts: list[int], overlap: float = 0.0) -> tuple[int, list[tuple[float, float]]]:
     """Line-of-balance recurrence (same rule as ``takt.plan``): a trade can't start a location until it
-    finished the previous location *and* the preceding trade finished this location. Returns the makespan
-    and the flat list of (start, finish) work intervals (one per trade × location)."""
+    finished the previous location *and* the preceding trade is far enough along on this location. With
+    ``overlap`` (fast-tracking), the successor may start when the predecessor is ``1-overlap`` complete on a
+    location — but never *finishes* a location before its predecessor does. ``overlap=0`` reproduces the
+    strict finish-to-start line-of-balance exactly. Returns the makespan + the flat (start, finish) intervals
+    (one per trade × location, in the given trade/sequence order)."""
     nt = len(takts)
     finish = [[0.0] * locations for _ in range(nt)]
     start = [[0.0] * locations for _ in range(nt)]
@@ -38,10 +45,18 @@ def _lob(locations: int, takts: list[int]) -> tuple[int, list[tuple[float, float
         td = takts[i]
         for f in range(locations):
             prev_loc = finish[i][f - 1] if f > 0 else 0.0
-            prev_trade = finish[i - 1][f] if i > 0 else 0.0
+            if i == 0:
+                prev_trade = 0.0
+            elif overlap <= 0:
+                prev_trade = finish[i - 1][f]                    # strict FS — exact phase-1 behaviour
+            else:
+                prev_trade = start[i - 1][f] + takts[i - 1] * (1.0 - overlap)
             s = max(prev_loc, prev_trade)
             start[i][f] = s
-            finish[i][f] = s + td
+            fin = s + td
+            if i > 0 and overlap > 0:
+                fin = max(fin, finish[i - 1][f])                 # can't finish a location before predecessor
+            finish[i][f] = fin
     makespan = max((finish[i][locations - 1] for i in range(nt)), default=0)
     intervals = [(start[i][f], finish[i][f]) for i in range(nt) for f in range(locations)]
     return round(makespan), intervals
@@ -65,38 +80,69 @@ def _peak_crews(intervals: list[tuple[float, float]], weights: list[int], nt: in
     return peak
 
 
-def _score_one(floors: int, trades: list[dict], crews: tuple[int, ...], zone: int, rate: float) -> dict:
-    """Evaluate one scenario (a crew-count per trade + a zone count) → its metrics."""
+def _sequence_variants(nt: int, reorderable: list[int]) -> tuple[list[tuple[int, ...]], bool]:
+    """Sequence orders to try: always the identity, plus permutations of the ``reorderable`` trades placed
+    back into their own slots (fixed trades stay put). Bounded — beyond ``_MAX_REORDER`` flexible trades we
+    keep the identity only (returns ``truncated=True``); the kept set is capped at ``_MAX_SEQUENCES``."""
+    identity = tuple(range(nt))
+    if not (2 <= len(reorderable) <= _MAX_REORDER):
+        return [identity], len(reorderable) > _MAX_REORDER
+    out: list[tuple[int, ...]] = [identity]
+    seen = {identity}
+    for perm in itertools.permutations(reorderable):
+        order = list(range(nt))
+        for slot, val in zip(reorderable, perm):
+            order[slot] = val
+        t = tuple(order)
+        if t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out[:_MAX_SEQUENCES], False
+
+
+def _score_one(floors: int, trades: list[dict], crews: tuple[int, ...], zone: int, rate: float,
+               overlap: float = 0.0, order: tuple[int, ...] | None = None) -> dict:
+    """Evaluate one scenario (crew-count per trade + zone count + fast-track overlap + execution order)."""
     nt = len(trades)
     locations = floors * zone
-    takts = [max(1, round(int(t["takt_days"]) / (zone * crews[i]))) for i, t in enumerate(trades)]
-    makespan, intervals = _lob(locations, list(takts))
-    peak = _peak_crews(intervals, list(crews), nt, locations)
-    # cost: conserved base labor + a premium for every 2nd crew + per-extra-zone setup
+    order = order if order is not None else tuple(range(nt))
+    per_takt = [max(1, round(int(t["takt_days"]) / (zone * crews[i]))) for i, t in enumerate(trades)]
+    seq_takts = [per_takt[j] for j in order]                     # takts in execution order
+    seq_weights = [crews[j] for j in order]
+    makespan, intervals = _lob(locations, seq_takts, overlap)
+    peak = _peak_crews(intervals, seq_weights, nt, locations)
+    # cost: conserved base labor + a premium for every 2nd crew + per-extra-zone setup + fast-track risk
     base_crew_days = sum(int(t["takt_days"]) * floors for t in trades)
     premium_crew_days = sum(_CREW2_PREMIUM * int(t["takt_days"]) * floors
                             for i, t in enumerate(trades) if crews[i] >= 2)
     setup_crew_days = _ZONE_SETUP_CREWDAYS * (zone - 1) * nt
-    total_crew_days = base_crew_days + premium_crew_days + setup_crew_days
-    loaded = [{"name": t["name"], "takt_days": max(1, round(int(t["takt_days"]) / (zone * crews[i]))),
-               "crews": crews[i]} for i, t in enumerate(trades)]
+    overlap_crew_days = _OVERLAP_PREMIUM * overlap * base_crew_days
+    total_crew_days = base_crew_days + premium_crew_days + setup_crew_days + overlap_crew_days
+    loaded = [{"name": trades[j]["name"], "takt_days": per_takt[j], "crews": crews[j]} for j in order]
     doubled = [trades[i]["name"] for i in range(nt) if crews[i] >= 2]
+    is_identity = order == tuple(range(nt))
     return {"zones": zone, "crews": list(crews), "crews_doubled": doubled,
+            "overlap": round(overlap, 3), "sequence": [trades[j]["name"] for j in order],
+            "resequenced": not is_identity,
             "duration_days": makespan, "duration_weeks": round(makespan / 7, 1),
             "crew_peak": peak, "labor_crew_days": round(total_crew_days, 1),
             "cost": round(total_crew_days * rate), "trades": loaded,
-            "is_baseline": zone == 1 and all(c == 1 for c in crews)}
+            "is_baseline": zone == 1 and all(c == 1 for c in crews) and overlap == 0 and is_identity}
 
 
 def optimize(base: dict, *, max_crew_trades: int = 3, zone_options: tuple[int, ...] = (1, 2),
+             overlap_options: tuple[float, ...] = (0.0,), permute_sequence: bool = False,
              weight_time: float = 0.6, weight_cost: float = 0.4) -> dict[str, Any]:
-    """Enumerate the bounded crew/zoning option grid over ``base`` = ``{floors, trades:[{name,takt_days}],
+    """Enumerate the bounded option grid over ``base`` = ``{floors, trades:[{name,takt_days,reorderable?}],
     crew_day_rate?}`` and rank the scenarios.
 
-    Only the slowest ``max_crew_trades`` trades (the bottlenecks) are crew-doubling candidates — throwing
-    crews at the bottleneck, ALICE-style — which keeps the grid small and the moves meaningful. Score is a
-    min-max-normalised weighted sum of duration + cost (lower is better); the Pareto-optimal scenarios
-    (not beaten on *both* time and cost) are flagged, and the best-scoring one is recommended.
+    Levers: **crews** — only the slowest ``max_crew_trades`` trades (the bottlenecks) are crew-doubling
+    candidates; **zoning** — ``zone_options`` work-face splits; **fast-track** — ``overlap_options`` (a
+    successor starts when its predecessor is ``1-overlap`` done, at a rework-risk premium); **sequence** —
+    when ``permute_sequence`` is set, trades flagged ``reorderable`` are permuted among their slots (bounded).
+    Score is a min-max-normalised weighted sum of duration + cost (lower is better); the Pareto-optimal
+    scenarios (not beaten on *both* time and cost) are flagged, and the best-scoring one is recommended.
+    The enumerated grid is hard-capped at ``_MAX_SCENARIOS`` (truncation is reported, never silent).
     """
     floors = max(1, int(base.get("floors", 1)))
     rate = float(base.get("crew_day_rate") or _DEFAULT_RATE)
@@ -108,16 +154,32 @@ def optimize(base: dict, *, max_crew_trades: int = 3, zone_options: tuple[int, .
     by_takt = sorted(range(nt), key=lambda i: (-int(trades[i]["takt_days"]), i))
     crew_candidates = set(by_takt[: max(0, min(max_crew_trades, nt))])
     crew_axes = [[1, 2] if i in crew_candidates else [1] for i in range(nt)]
+    zones = sorted({z for z in zone_options if z >= 1}) or [1]
+    overlaps = sorted({round(min(0.9, max(0.0, o)), 3) for o in overlap_options}) or [0.0]
+    reorderable = [i for i, t in enumerate(trades) if t.get("reorderable")] if permute_sequence else []
+    sequences, seq_truncated = _sequence_variants(nt, reorderable)
 
     seen: set[tuple] = set()
     scenarios: list[dict] = []
-    for zone in sorted({z for z in zone_options if z >= 1}) or [1]:
-        for crews in itertools.product(*crew_axes):
-            key = (zone, crews)
-            if key in seen:
-                continue
-            seen.add(key)
-            scenarios.append(_score_one(floors, trades, crews, zone, rate))
+    truncated = False
+    for zone in zones:
+        for overlap in overlaps:
+            for order in sequences:
+                for crews in itertools.product(*crew_axes):
+                    key = (zone, crews, overlap, order)
+                    if key in seen:
+                        continue
+                    if len(scenarios) >= _MAX_SCENARIOS:
+                        truncated = True
+                        break
+                    seen.add(key)
+                    scenarios.append(_score_one(floors, trades, crews, zone, rate, overlap, order))
+                if truncated:
+                    break
+            if truncated:
+                break
+        if truncated:
+            break
 
     # normalise + score (min-max over the enumerated set; degenerate spread → 0)
     durs = [s["duration_days"] for s in scenarios]
@@ -150,13 +212,19 @@ def optimize(base: dict, *, max_crew_trades: int = 3, zone_options: tuple[int, .
         "floors": floors, "trade_count": nt, "crew_day_rate": rate,
         "scenario_count": len(scenarios),
         "weights": {"time": weight_time, "cost": weight_cost},
+        "levers": {"zones": zones, "overlaps": overlaps, "sequence_variants": len(sequences),
+                   "crew_candidates": [trades[i]["name"] for i in sorted(crew_candidates)]},
         "crew_candidates": [trades[i]["name"] for i in sorted(crew_candidates)],
         "recommended": best, "baseline": baseline,
         "recommended_vs_baseline": saving,
         "pareto_count": sum(1 for s in scenarios if s["pareto"]),
+        "truncated": truncated or seq_truncated,
         "scenarios": scenarios,
-        "note": "Deterministic crew/zoning optioneering over the Takt line-of-balance model. Work content "
-                "is conserved; the tradeoff is schedule compression + peak congestion vs. a crew-mobilisation "
-                "premium. Recommended = lowest weighted time+cost score; Pareto = not beaten on both. "
-                "Phase-1 bounded grid (bottleneck crew-doubling + zoning); widen with sequence permutation.",
+        "note": "Deterministic optioneering over the Takt line-of-balance model — levers: bottleneck "
+                "crew-doubling, work-face zoning, fast-track overlap, and (opt-in) sequence permutation of "
+                "order-flexible trades. Work content is conserved; the tradeoff is schedule compression + "
+                "peak congestion vs. crew-mobilisation + fast-track-rework premiums. Recommended = lowest "
+                "weighted time+cost score; Pareto = not beaten on both. "
+                + ("Grid truncated at the scenario cap — widen the levers deliberately." if
+                   (truncated or seq_truncated) else "Full bounded grid enumerated."),
     }

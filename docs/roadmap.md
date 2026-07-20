@@ -116,10 +116,13 @@ reassess. Rough size + the "phase-1" that de-risks it are called out.*
     optioneer`: a bounded crew-loading (2nd crew on the bottleneck trades) + work-face-zoning grid over
     the Takt line-of-balance model, every scenario scored on makespan / cost / peak-congestion, ranked by
     a weighted time+cost score with a Pareto frontier + a recommended option vs. baseline. Pure & tested.
-  - **Phase 2+** *(next)* — **widen the search**: sequence permutation (reorder order-flexible trades),
-    fast-track overlaps (start trade i+1 before i finishes a floor), CPM-driven crew shifts off the
-    critical path, and a scenario-comparison panel (frontier chart + the ranked table). Then scale the
-    enumeration and add a productivity-rate lever off `productivity.py`.
+  - ✅ **Phase 2 — widen the search (engine)** *(v0.3.554)* — added **fast-track overlap** (successor
+    starts when predecessor is `1-overlap` done, at a rework-risk premium) and opt-in **sequence
+    permutation** (reorder `reorderable` trades, fixed trades stay put) as scenario levers, with the grid
+    hard-capped at 800 (truncation reported). `overlap=0` reproduces phase-1 exactly.
+  - **Phase 3** *(next)* — a **scenario-comparison panel** (Pareto frontier chart + the ranked table,
+    wired to `scheduleOptioneer`); then CPM-driven crew shifts off the critical path + a productivity-rate
+    lever off `productivity.py`, and scale the enumeration.
 - **SPRINT C — FIELD-PWA.** *(L, mostly frontend)* Offline-first mobile PWA: sheet sync, auto
   slip-sheeting, hyperlinked callouts. **Phase 1:** the service-worker offline cache + sheet sync over
   the existing markup/SSE infra; then the field-optimized nav + callout links.

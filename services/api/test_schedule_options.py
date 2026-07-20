@@ -70,6 +70,44 @@ assert time_heavy["recommended"]["duration_days"] <= base_sc["duration_days"], t
 # empty / degenerate input is handled
 assert schedule_options.optimize({"floors": 5, "trades": []})["scenarios"] == []
 
+# --- phase-2 levers: fast-track overlap + sequence permutation -------------------------------------
+# overlap=0 must reproduce phase-1 exactly (backward-compatible); adding overlap widens the grid
+assert res["levers"]["overlaps"] == [0.0] and res["truncated"] is False, res["levers"]
+ov = schedule_options.optimize(BASE, max_crew_trades=3, zone_options=(1,), overlap_options=(0.0, 0.5))
+assert ov["levers"]["overlaps"] == [0.0, 0.5], ov["levers"]
+# the no-overlap baseline in the widened run equals the phase-1 baseline duration (identical model)
+ov_base = ov["baseline"]
+assert ov_base["overlap"] == 0.0 and ov_base["duration_days"] == tp["duration_days"], ov_base
+# fast-tracking compresses: some overlap=0.5 scenario finishes sooner than the no-overlap baseline…
+faster_ov = [s for s in ov["scenarios"] if s["overlap"] == 0.5 and s["duration_days"] < ov_base["duration_days"]]
+assert faster_ov, "overlap did not compress any scenario"
+# …and pays a rework-risk premium (costs more than its no-overlap twin at the same crews/zone)
+twin = next(s for s in ov["scenarios"]
+            if s["overlap"] == 0.0 and s["crews"] == faster_ov[0]["crews"] and s["zones"] == faster_ov[0]["zones"])
+assert faster_ov[0]["cost"] > twin["cost"], (faster_ov[0]["cost"], twin["cost"])
+
+# sequence permutation only fires when opted in AND trades are flagged reorderable
+SEQ_BASE = {"floors": 8, "crew_day_rate": 2000.0, "trades": [
+    {"name": "Structure", "takt_days": 5},                       # fixed (must lead)
+    {"name": "MEP rough-in", "takt_days": 6, "reorderable": True},
+    {"name": "Framing", "takt_days": 4, "reorderable": True},
+    {"name": "Finishes", "takt_days": 6},
+]}
+no_seq = schedule_options.optimize(SEQ_BASE, zone_options=(1,))
+assert no_seq["levers"]["sequence_variants"] == 1, no_seq["levers"]      # off by default
+with_seq = schedule_options.optimize(SEQ_BASE, zone_options=(1,), permute_sequence=True)
+assert with_seq["levers"]["sequence_variants"] >= 2, with_seq["levers"]  # MEP<->Framing swap appears
+# a resequenced scenario exists and Structure still leads every sequence (only flagged trades move)
+reseq = [s for s in with_seq["scenarios"] if s["resequenced"]]
+assert reseq, "no resequenced scenario produced"
+assert all(s["sequence"][0] == "Structure" and s["sequence"][3] == "Finishes" for s in with_seq["scenarios"]), \
+    "a fixed trade moved"
+
+# the enumerated grid stays bounded even with every lever on
+big = schedule_options.optimize(SEQ_BASE, zone_options=(1, 2, 3), overlap_options=(0.0, 0.3, 0.5),
+                                permute_sequence=True)
+assert big["scenario_count"] <= 800, big["scenario_count"]
+
 # --- route ----------------------------------------------------------------------------------------
 os.environ["DATABASE_URL"] = "sqlite:///./test_schedule_options.db"
 os.environ["STORAGE_DIR"] = "./test_storage_schedopt"

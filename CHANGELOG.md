@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.554 — SCHED-OPT: widen the search — fast-track overlap + sequence permutation (SPRINT B phase-2)
+
+Widens the optioneer's search space with two more levers, so the enumerated frontier spans real
+schedule-compression moves — not just crews and zoning.
+
+- **Fast-track overlap** — a scenario lever (`overlap_options`) where a successor trade may start a floor
+  when its predecessor is `1-overlap` complete (rather than fully finished), while still never *finishing*
+  a floor before its predecessor. Compresses the makespan at a **rework-risk premium** proportional to the
+  overlap fraction, so fast-tracking shows up as a distinct time/cost tradeoff on the Pareto frontier.
+  `overlap=0` reproduces the strict finish-to-start line-of-balance exactly (backward-compatible default).
+- **Sequence permutation** — opt-in (`permute_sequence`): trades flagged `reorderable` are permuted among
+  their own slots while fixed trades stay put (e.g. Structure keeps leading), surfacing whether a different
+  trade order shortens the run. Bounded — capped at 4 flexible trades / 6 sequence variants.
+- The whole grid (crews × zoning × overlap × sequence) is **hard-capped at 800 scenarios** with the
+  truncation reported (`truncated`), never silent. The result now carries a `levers` summary
+  (zones / overlaps / sequence-variant count / crew candidates).
+- Deterministic and pure throughout; `test_schedule_options` extended to cover both new levers +
+  the bound. Client method `scheduleOptioneer` accepts the new options.
+
 ## v0.3.553 — SCHED-OPT: deterministic schedule optioneering (SPRINT B phase-1)
 
 First slice of the schedule-optioneering track — permute the construction plan and score the options,

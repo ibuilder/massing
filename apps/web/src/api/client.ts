@@ -1835,17 +1835,20 @@ export class ApiClient extends HttpCore {
   }
   /** SCHED-OPT — deterministic schedule optioneering: ranked crew/zoning scenarios over the Takt LOB model. */
   scheduleOptioneer(pid: string, body: {
-    floors?: number; trades?: { name: string; takt_days: number }[]; crew_day_rate?: number;
-    max_crew_trades?: number; zone_options?: number[]; weight_time?: number; weight_cost?: number;
+    floors?: number; trades?: { name: string; takt_days: number; reorderable?: boolean }[];
+    crew_day_rate?: number; max_crew_trades?: number; zone_options?: number[];
+    overlap_options?: number[]; permute_sequence?: boolean; weight_time?: number; weight_cost?: number;
   } = {}) {
-    type Scenario = { zones: number; crews: number[]; crews_doubled: string[]; duration_days: number;
+    type Scenario = { zones: number; crews: number[]; crews_doubled: string[]; overlap: number;
+      sequence: string[]; resequenced: boolean; duration_days: number;
       duration_weeks: number; crew_peak: number; labor_crew_days: number; cost: number;
       score: number; pareto: boolean; rank: number; is_baseline: boolean;
       trades: { name: string; takt_days: number; crews: number }[] };
     return this.json<{
       floors: number; trade_count: number; crew_day_rate: number; scenario_count: number;
       weights: { time: number; cost: number }; crew_candidates: string[]; pareto_count: number;
-      recommended: Scenario; baseline: Scenario | null;
+      levers: { zones: number[]; overlaps: number[]; sequence_variants: number; crew_candidates: string[] };
+      recommended: Scenario; baseline: Scenario | null; truncated: boolean;
       recommended_vs_baseline: { days: number; cost: number; pct_faster: number } | null;
       scenarios: Scenario[]; note: string;
     }>(`/projects/${pid}/schedule/optioneer`, { method: "POST", body: JSON.stringify(body) });
