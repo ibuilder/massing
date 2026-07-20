@@ -47,6 +47,63 @@ _PROTOCOL: list[dict[str, Any]] = [
 
 _STATUS_SCORE = {"ready": 1.0, "partial": 0.5, "gap": 0.0}
 
+# US state / territory codes → the ICC (IBC-derived) code family. Non-US jurisdictions are left for the
+# "identify the code family" step rather than guessed.
+_US_STATES = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY",
+    "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND",
+    "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+    "DC", "PR", "GU", "VI", "AS", "MP",
+}
+
+# The location-specific hazards a builder must read from the local basis — named as parameters to look up,
+# never invented (per the ground-in-place doctrine: state the parameter, verify the value locally).
+_HAZARDS_TO_VERIFY = [
+    "Seismic design parameters (Ss, S1) from the site's seismic hazard map",
+    "Basic wind speed for the risk category from the wind hazard map",
+    "Ground snow load from the snow-load map",
+    "Flood design elevation from the local flood map (FIRM or equivalent)",
+    "Energy-code climate zone from the energy code's climate map",
+]
+
+
+def _dms_to_deg(dms: list | None) -> float | None:
+    """Decode an IFC compound-plane-angle (degrees, minutes, seconds[, millionths]) to decimal degrees.
+    IFC carries the sign on the first component; the rest share it."""
+    if not dms:
+        return None
+    parts = [p for p in dms if p is not None]
+    if not parts:
+        return None
+    sign = -1 if parts[0] < 0 else 1
+    mag = abs(parts[0])
+    for i, div in ((1, 60.0), (2, 3600.0), (3, 3600.0e6)):
+        if len(parts) > i:
+            mag += abs(parts[i]) / div
+    return round(sign * mag, 5)
+
+
+def _climate_band(lat: float) -> str:
+    """Broad latitude climate band — universal physics (the value that *is* transferable), not a code value."""
+    a = abs(lat)
+    return ("tropical" if a < 23.5 else "subtropical" if a < 35 else "temperate"
+            if a < 55 else "subpolar" if a < 66.5 else "polar")
+
+
+def _place_grounding(jurisdiction: str, lat: float | None, lon: float | None) -> dict[str, Any]:
+    """Ground the project in place: code family from the jurisdiction, climate band + hemisphere from the
+    coordinates (universal), and the location-specific hazard parameters that must be verified locally."""
+    out: dict[str, Any] = {
+        "code_family": "US / ICC (IBC-derived)" if (jurisdiction or "").upper() in _US_STATES else None,
+        "coordinates": None, "hemisphere": None, "climate_band": None,
+        "hazards_to_verify": list(_HAZARDS_TO_VERIFY),
+    }
+    if lat is not None and lon is not None:
+        out["coordinates"] = {"latitude": lat, "longitude": lon}
+        out["hemisphere"] = f"{'N' if lat >= 0 else 'S'}/{'E' if lon >= 0 else 'W'}"
+        out["climate_band"] = _climate_band(lat)
+    return out
+
 
 def _count(db: Session, key: str, pid: str) -> int:
     """Guarded module-record count — a missing/absent module reads as zero, never raises."""
@@ -66,9 +123,12 @@ def _step(present: list[tuple[str, str]], missing: list[str]) -> str:
     return "partial" if present else "gap"
 
 
-def brief(db: Session, pid: str) -> dict[str, Any]:
+def brief(db: Session, pid: str, place_context: dict | None = None) -> dict[str, Any]:
     """Run the Master Builder Protocol over the project. Returns the per-step readiness + gaps, grounded
-    in the project's jurisdiction, plus an overall readiness score."""
+    in the project's jurisdiction (and, when a georeferenced model is present, its real coordinates), plus
+    an overall readiness score. ``place_context`` (optional) carries the model's site lat/long as IFC DMS
+    (``{"ref_latitude": […], "ref_longitude": […]}``) so the caller can pass georeferencing without the
+    engine doing I/O."""
     from .models import Project
 
     project = db.get(Project, pid)
@@ -76,6 +136,9 @@ def brief(db: Session, pid: str) -> dict[str, Any]:
         raise KeyError(pid)
     jurisdiction = (getattr(project, "jurisdiction", None) or "").strip()
     has_model = bool(getattr(project, "source_ifc", None))
+    lat = _dms_to_deg((place_context or {}).get("ref_latitude"))
+    lon = _dms_to_deg((place_context or {}).get("ref_longitude"))
+    grounding = _place_grounding(jurisdiction, lat, lon)
 
     findings: dict[str, dict] = {}          # step key -> {present:[(label,detail)], missing:[label]}
     for s in _PROTOCOL:
@@ -88,7 +151,14 @@ def brief(db: Session, pid: str) -> dict[str, Any]:
     # 1 — place & context: the jurisdiction that resolves code editions + hazards, and a georeferenced model
     add("place", bool(jurisdiction), f"Jurisdiction set ({jurisdiction})" if jurisdiction else
         "Jurisdiction (AHJ / state) so code editions + loads resolve", jurisdiction)
+    if grounding["code_family"]:
+        add("place", True, f"Code family: {grounding['code_family']}", "")
     add("place", has_model, "Source IFC model present", "")
+    if grounding["coordinates"]:
+        add("place", True, f"Georeferenced at {lat}°, {lon}° ({grounding['hemisphere']})",
+            f"{grounding['climate_band']} climate band")
+    else:
+        add("place", False, "Georeference the model (site lat/long) to derive climate + hazards")
 
     # 2 — program & HBU: a model that carries the program (spaces/quantities)
     add("program", has_model, "Model defines the program (spaces / quantities)", "")
@@ -154,6 +224,7 @@ def brief(db: Session, pid: str) -> dict[str, Any]:
     return {
         "project": getattr(project, "name", None), "jurisdiction": jurisdiction or None,
         "grounded_in_place": bool(jurisdiction),
+        "place_grounding": grounding,
         "reframe_prompt": "Name what this asset actually is, stripped of marketing — the real use drives "
                           "the comps, the tenants, and the buyer.",
         "readiness_pct": readiness_pct, "ready_steps": ready, "gap_steps": gaps, "step_count": len(steps),

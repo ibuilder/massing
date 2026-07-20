@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.558 — MASTER-BUILDER: ground the brief in real coordinates (SPRINT MB phase-2a)
+
+The Master Builder brief now grounds itself in the project's actual place, not just its jurisdiction.
+
+- **Place-grounding** — the brief resolves the **code family** from the jurisdiction (a US state → ICC /
+  IBC-derived) and, when the model is **georeferenced**, decodes the site's IFC lat/long (compound
+  degrees-minutes-seconds) to derive the **hemisphere** and a broad **climate band** (universal physics).
+  The place step now cites the real coordinates as a finding.
+- **Hazards to verify locally** — per the ground-in-place doctrine, it never invents load values; it
+  emits the list of location-specific parameters to read from the site's hazard basis (seismic Ss/S1,
+  basic wind speed, ground snow, flood design elevation, energy-code climate zone) — the parameter to
+  look up, marked for local confirmation. Surfaced as a collapsible "Verify locally" card in the 🏛 panel.
+- The route feeds the brief the model's georeferencing best-effort (guarded); the engine stays pure
+  (coordinates passed in, no I/O). `master-builder` skill co-evolved to v0.3.1 (`global-codes.md` §8
+  documents the mechanized grounding).
+
 ## v0.3.557 — MASTER-BUILDER: the whole project in one brief (SPRINT MB phase-1)
 
 A new synthesis that holds the entire project in one view — the software embodiment of the

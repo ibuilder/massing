@@ -1861,6 +1861,8 @@ export class ApiClient extends HttpCore {
       findings: { label: string; detail: string }[]; gaps: string[] };
     return this.json<{
       project: string | null; jurisdiction: string | null; grounded_in_place: boolean;
+      place_grounding: { code_family: string | null; hemisphere: string | null; climate_band: string | null;
+        coordinates: { latitude: number; longitude: number } | null; hazards_to_verify: string[] };
       reframe_prompt: string; readiness_pct: number; ready_steps: number; gap_steps: number;
       step_count: number; steps: Step[]; disclaimer: string; note: string;
     }>(`/projects/${pid}/master-builder/brief`);

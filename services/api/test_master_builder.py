@@ -62,11 +62,32 @@ with TestClient(app) as c:
     # the score strictly improved once real signals exist
     assert b1["readiness_pct"] > b0["readiness_pct"] and b1["ready_steps"] >= 2, b1
 
+    # --- phase-2a: place grounding from georeferencing ------------------------------------------------
+    # code family resolves from a US state jurisdiction even without coordinates
+    assert b1["place_grounding"]["code_family"] == "US / ICC (IBC-derived)", b1["place_grounding"]
+    assert b1["place_grounding"]["coordinates"] is None, b1["place_grounding"]     # no georef yet
+    assert len(b1["place_grounding"]["hazards_to_verify"]) >= 4, b1["place_grounding"]
+    # feed a georeferenced site (Los Angeles, 34.05°N / 118.24°W in IFC DMS) via place_context
+    with SessionLocal() as db:
+        gz = master_builder.brief(db, pid, place_context={
+            "ref_latitude": [34, 3, 0], "ref_longitude": [-118, 14, 24]})
+    pg = gz["place_grounding"]
+    assert pg["coordinates"]["latitude"] == 34.05 and round(pg["coordinates"]["longitude"], 2) == -118.24, pg
+    assert pg["hemisphere"] == "N/W" and pg["climate_band"] == "subtropical", pg
+    # the place step now cites the real coordinates as a finding
+    gplace = next(s for s in gz["steps"] if s["key"] == "place")
+    assert any("georeferenced at" in f["label"].lower() for f in gplace["findings"]), gplace
+    # a southern-hemisphere tropical site decodes with the right sign + band
+    with SessionLocal() as db:
+        gz2 = master_builder.brief(db, pid, place_context={"ref_latitude": [-1, 17, 0], "ref_longitude": [36, 49, 0]})
+    assert gz2["place_grounding"]["hemisphere"] == "S/E" and gz2["place_grounding"]["climate_band"] == "tropical", gz2["place_grounding"]
+
     # --- route ----------------------------------------------------------------------------------------
     r = c.get(f"/projects/{pid}/master-builder/brief")
     assert r.status_code == 200, r.status_code
     j = r.json()
     assert j["jurisdiction"] == "CA" and len(j["steps"]) == 8 and j["readiness_pct"] == b1["readiness_pct"], j
+    assert "place_grounding" in j and j["place_grounding"]["code_family"] == "US / ICC (IBC-derived)", j
     assert c.get("/projects/no-such/master-builder/brief").status_code == 404
 
 print("MASTER-BUILDER OK - the 8-step protocol runs over a project's own data: a bare project is all gaps "

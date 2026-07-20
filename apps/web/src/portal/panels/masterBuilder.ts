@@ -30,12 +30,28 @@ export async function renderMasterBuilder(ctx: PanelContext) {
     const place = b.grounded_in_place
       ? `Grounded in place — jurisdiction <b>${esc(b.jurisdiction ?? "")}</b>`
       : `<b style="color:var(--status-crit)">Not grounded in place</b> — set a jurisdiction so code editions + loads resolve`;
+    const pgr = b.place_grounding;
+    const coordStr = pgr.coordinates ? `${pgr.coordinates.latitude}°, ${pgr.coordinates.longitude}° (${esc(pgr.hemisphere ?? "")})` : null;
+    const groundLine = [
+      pgr.code_family ? `Code family <b>${esc(pgr.code_family)}</b>` : null,
+      coordStr ? `📍 ${coordStr}` : null,
+      pgr.climate_band ? `${esc(pgr.climate_band)} climate` : null,
+    ].filter(Boolean).join(" · ");
     head.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">`
       + `<div class="section-title" style="margin:0">${esc(b.project ?? "Project")} — project readiness</div>`
       + `<div style="font-size:22px;font-weight:800;color:${scoreCol}">${b.readiness_pct}%</div></div>`
       + `<div class="meta" style="margin-top:2px">${place} · <b>${b.ready_steps}</b>/${b.step_count} steps ready · <b>${b.gap_steps}</b> gap(s)</div>`
+      + (groundLine ? `<div class="meta" style="margin-top:3px">${groundLine}</div>` : "")
       + `<div class="meta" style="margin-top:4px;opacity:.85">🔎 ${esc(b.reframe_prompt)}</div>`;
     body.replaceChildren(head);
+
+    // hazards to verify locally — the parameters a builder reads from the site's hazard basis
+    if (pgr.hazards_to_verify.length) {
+      const hz = document.createElement("details"); hz.className = "dash-card"; hz.style.marginBottom = "10px";
+      hz.innerHTML = `<summary style="cursor:pointer;font-weight:600;font-size:12px">⚠ Verify locally — site hazard basis (${pgr.hazards_to_verify.length})</summary>`
+        + `<div class="meta" style="margin-top:4px">` + pgr.hazards_to_verify.map((h) => `<div style="margin:1px 0">◦ ${esc(h)}</div>`).join("") + `</div>`;
+      body.appendChild(hz);
+    }
 
     // --- one card per protocol step ----------------------------------------------------------------
     for (const s of b.steps) {

@@ -167,3 +167,22 @@ Codes move on cycles (I-Codes and NCC every 3 years; Eurocodes generationally; I
 Any value you recall may be a cycle out of date. For authoritative current figures — a specific load,
 an allowable area, an energy target, a setback — **web-search the exact edition and AHJ** rather than
 relying on memory, and tell the user the value must be confirmed against the adopted local code.
+
+## 8. Grounding in place, mechanized — the parameters to look up
+
+The ground-in-place rule is mechanizable, and Massing does it in the Master Builder brief
+(`digital-toolkit.md` §8): from the project's **jurisdiction** it resolves the *code family* (a US state
+→ ICC/IBC-derived; other nations left to the identify-the-family method above), and from the model's
+**georeferenced coordinates** it derives the *hemisphere* and a broad *climate band* — the transferable,
+universal facts. It deliberately **does not invent load values**; it emits the list of location-specific
+hazard parameters to read from the site's basis and verify locally:
+
+- Seismic design parameters (Ss, S1) from the seismic hazard map
+- Basic wind speed for the risk category from the wind hazard map
+- Ground snow load from the snow-load map
+- Flood design elevation from the local flood map (FIRM or equivalent)
+- Energy-code climate zone from the energy code's climate map
+
+This is the doctrine as code: reason confidently about *structure and method* (climate band from latitude
+is physics), name the *parameter* for each hazard, and mark the *value* as requiring local confirmation —
+never let a remembered number masquerade as the adopted one.

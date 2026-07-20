@@ -19,8 +19,10 @@ feature depth, a runtime/tooling ring, the flagship-L builds, and the decomposit
 > **★ MASTER-BUILDER brief shipped v0.3.557** — the 8-step Master Builder Protocol (place → program/HBU →
 > feasibility → regulatory → design → delivery → risk → handover) as one synthesis over the project's own
 > data, grounded in its jurisdiction: `master_builder.py` + `GET /master-builder/brief` + the 🏛 panel,
-> backed by the installed `master-builder` skill (`.claude/skills/master-builder`). Phase-2: per-step
-> deep-links wired to their tools, a printable brief, and richer place-grounding (climate/hazard from georef).
+> backed by the installed `master-builder` skill (`.claude/skills/master-builder`). **Phase-2a (v0.3.558):**
+> place-grounding — code family from jurisdiction + hemisphere/climate band from the georeferenced
+> coordinates + the hazard parameters to verify locally. **Phase-2b next:** per-step deep-links wired to
+> their tools + a printable brief.
 
 > **The bounded NOW batch shipped v0.3.544–549** — SCOPE-GAP, GOLDEN-THREAD, CLASH-TRIAGE (Navisworks
 > XML), GIS-OUT, CBS-1, MEP-GRAPH — plus RT-ORJSON (v0.3.550) and a hardening pass (v0.3.551). Details

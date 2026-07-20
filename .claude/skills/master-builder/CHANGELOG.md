@@ -2,6 +2,14 @@
 
 All notable changes to the **master-builder** skill.
 
+## [0.3.1] — 2026-07-20
+Place-grounding mechanized in the Master Builder brief.
+
+### Changed
+- `global-codes.md` §8 **Grounding in place, mechanized** — documents how the brief resolves the code
+  family from jurisdiction and derives hemisphere + climate band from the model's georeferenced
+  coordinates, while emitting the hazard *parameters* to verify locally (never inventing load values).
+
 ## [0.3.0] — 2026-07-20
 Co-evolution pass: the protocol became running software, and the doctrine gained the principle that made
 it possible.

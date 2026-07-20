@@ -453,7 +453,16 @@ def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = De
     from .. import master_builder
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
-    return master_builder.brief(db, pid)
+    place_context = None
+    try:                                             # best-effort georeferencing → real place grounding
+        from .. import georef
+        site = (georef.georeferencing(open_source_ifc(db, pid)) or {}).get("site")
+        if site:
+            place_context = {"ref_latitude": site.get("ref_latitude"),
+                             "ref_longitude": site.get("ref_longitude")}
+    except Exception:                                # noqa: BLE001 — no/opaque model: brief still runs
+        pass
+    return master_builder.brief(db, pid, place_context=place_context)
 
 
 @router.get("/projects/{pid}/preflight")
