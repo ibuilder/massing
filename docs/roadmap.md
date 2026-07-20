@@ -37,8 +37,11 @@ top-down; interleave one RUNTIME-ring S-item every few features.*
    /coordination/import-xml`: `<clashresult>` → coordination_issue, GUIDs harvested from clashobjects,
    defusedxml-hardened; each round-trips to BCF). **Still open:** an in-app coordination-import UI panel
    (both formats) · a filterable triage table with zoom-to · HTML-report format.
-4. **GIS-OUT — lean BIM→GIS export** *(S/M)* — exterior shell + footprint **GeoJSON in WGS84** (via the
-   georef) + CityJSON site-context import extending SITE-1.
+4. ◧ **GIS-OUT — lean BIM→GIS export** *(S/M)* — **footprint→WGS84 GeoJSON SHIPPED v0.3.547**
+   (`gis_out.to_geojson` + `GET /models/footprint.geojson`: footprint bbox + site point anchored on the
+   IfcSite lat/long via an equirectangular transform; the inbound CityGML→GeoJSON site-context import
+   already shipped). **Still open:** the true exterior-shell polygon (vs bbox) · pyproj-grade reprojection
+   from the projected CRS · a viewer map-overlay surface.
 5. **CBS-1 — Cost Breakdown Structure view** *(S/M)* — direct / indirect / **contingency / management
    reserve / taxes & fees** layers over estimates with hierarchical rollup.
 6. **MEP-GRAPH — connector-topology graph + parallel runs** *(M · ★★★★)* — a first-class port-graph

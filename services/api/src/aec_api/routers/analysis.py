@@ -341,6 +341,16 @@ def model_georeferencing(pid: str, db: Session = Depends(get_db), _sec: str = De
     return georef.georeferencing(open_source_ifc(db, pid))
 
 
+@router.get("/projects/{pid}/models/footprint.geojson")
+def model_footprint_geojson(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """GIS-OUT — the building footprint + site point as a **WGS84 GeoJSON FeatureCollection**, anchored
+    on the model's IfcSite reference lat/long (equirectangular local-tangent transform; building-scale,
+    not survey-grade). Drops the model onto a web map / GIS. `available` is false when the model carries
+    no site lat/long. 409 if there's no source IFC."""
+    from .. import gis_out
+    return gis_out.to_geojson(open_source_ifc(db, pid))
+
+
 @router.post("/projects/{pid}/scan/deviation")
 async def scan_deviation(pid: str, file: UploadFile = File(...), tolerance: float = Query(0.05, gt=0),
                          db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):

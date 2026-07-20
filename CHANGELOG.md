@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.547 — GIS-OUT: BIM footprint → WGS84 GeoJSON
+
+- **Drop the model onto a real map.** `GET /projects/{pid}/models/footprint.geojson` exports the
+  building footprint (plan bounding box) + a site point as a **WGS84 GeoJSON FeatureCollection**,
+  anchored on the model's `IfcSite` reference lat/long and transformed from local metres with a
+  dependency-free **equirectangular local-tangent** approximation (rotated by the model's true-north
+  bearing) — building-scale accurate, no pyproj. `available` is false when the model carries no site
+  lat/long. Complements the inbound CityGML→GeoJSON site-context import. Fourth item off the
+  re-prioritized roadmap (R14 Tier-3).
+
 ## v0.3.546 — CLASH-TRIAGE: import native Navisworks clash-report XML
 
 - **The other standard clash export.** The XLSX clash-report importer already shipped; this adds the
