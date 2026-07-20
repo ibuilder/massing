@@ -3040,8 +3040,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             const inp = document.createElement("input"); inp.className = "portal-filter"; inp.style.cssText = "flex:1 1 240px;min-width:0;font-size:12px";
             inp.placeholder = "IfcWall & storey=L3"; inp.value = "IfcWall";
             const run = document.createElement("button"); run.className = "mini-btn on"; run.textContent = "Run";
+            const dl = document.createElement("button"); dl.className = "mini-btn"; dl.textContent = "⬇ IFC";
+            dl.title = "Download an IFC of just the matching elements (spatial skeleton preserved) — the discipline/scope slice you hand a consultant";
             const status = document.createElement("div"); status.className = "meta"; status.style.marginTop = "4px";
-            row.append(inp, run); body.append(row, status);
+            row.append(inp, run, dl); body.append(row, status);
             const exec = async () => {
               const query = inp.value.trim(); if (!query) return;
               status.textContent = "querying…";
@@ -3053,6 +3055,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               } catch (e) { status.textContent = `query error: ${(e as Error).message}`; }
             };
             run.onclick = () => void exec();
+            dl.onclick = () => {
+              const query = inp.value.trim(); if (!query) { notify("enter a selector first", "info"); return; }
+              window.open(api.subsetIfcUrl(pid, query), "_blank");
+            };
             inp.onkeydown = (e) => { if (e.key === "Enter") void exec(); };
           });
         }));

@@ -1557,6 +1557,11 @@ export class ApiClient extends HttpCore {
     return this.url(`/projects/${pid}/structure/opensees.tcl`);
   }
 
+  /** SUBSET-EXPORT: download URL for an IFC of just the elements matching a QUERY-DSL selector. */
+  subsetIfcUrl(pid: string, query: string) {
+    return this.url(`/projects/${pid}/export/subset.ifc?query=${encodeURIComponent(query)}`);
+  }
+
   // STRUCT-LATERAL: ASCE 7 wind + seismic lateral analysis (base shear → story forces)
   structureLateral(pid: string, opts?: {
     sds?: number; sd1?: number; r?: number; ie?: number; system?: string;

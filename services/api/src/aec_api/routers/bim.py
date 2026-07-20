@@ -658,6 +658,46 @@ def source_ifc_download(pid: str, db: Session = Depends(get_db), _sec: str = Dep
                         media_type="application/octet-stream")
 
 
+@router.get("/projects/{pid}/export/subset.ifc")
+def export_subset_ifc(pid: str, query: str = Query(..., min_length=1, max_length=500),
+                      db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """SUBSET-EXPORT: download a standalone IFC of just the elements matching a QUERY-DSL selector
+    (e.g. `IfcDuctSegment | IfcPipeSegment` or `discipline=Structural`) — the discipline / scope slice
+    you hand a consultant. The spatial skeleton (project/site/building/storey/space) and shared
+    units/contexts are preserved so the slice is a valid, correctly-contained IFC with GUIDs unchanged.
+    409 without a source IFC; 422 on a bad selector or an empty match."""
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.responses import FileResponse
+
+    from .. import licensing, query_dsl
+    from ..deps import source_ifc_path as _src
+    from .properties import _INDEX, _ensure_loaded
+
+    licensing.require_export("ifc", "IFC")   # Commercial+ when enforcement is on; no-op in open mode
+    ifc_path = _src(db, pid)                  # 409 if the project has no accessible source IFC
+    _ensure_loaded(pid)
+    try:
+        keep = set(query_dsl.select(_INDEX.get(pid), query, limit=200000)["guids"])
+    except query_dsl.QueryError as e:
+        raise HTTPException(422, f"bad selector: {e}")
+    if not keep:
+        raise HTTPException(422, "selector matched no elements")
+
+    import ifcopenshell  # type: ignore
+
+    from aec_data import ifcpatch_lib  # type: ignore
+
+    model = ifcopenshell.open(ifc_path)       # UNCACHED throwaway — extract_subset mutates it; never
+    res = ifcpatch_lib.extract_subset(model, keep)  # the shared open_model() cache other endpoints use
+    if not res["available"] or res["kept"] == 0:
+        raise HTTPException(422, "selector matched no physical elements to export")
+    out = Path(tempfile.gettempdir()) / f"subset-{pid}-{res['kept']}.ifc"
+    model.write(str(out))
+    return FileResponse(str(out), filename=f"subset-{pid}.ifc", media_type="application/octet-stream")
+
+
 # --- BCF interoperability ----------------------------------------------------
 @router.get("/projects/{pid}/bcf/export")
 def bcf_export(pid: str, version: str = Query("2.1", pattern="^(2\\.1|3\\.0)$"),

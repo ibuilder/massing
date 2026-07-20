@@ -71,6 +71,33 @@ RECIPES = {
 }
 
 
+def extract_subset(model: ifcopenshell.file, keep_guids: set[str]) -> dict[str, Any]:
+    """SUBSET-EXPORT — prune the model **in place** to just the physical elements whose ``GlobalId`` is
+    in ``keep_guids`` (a discipline / selector slice you hand a consultant as a standalone IFC).
+
+    Every ``IfcElement`` (wall/slab/column/door/MEP/…) NOT in the keep-set is removed with the
+    ``root.remove_product`` API (which also detaches its spatial-containment / opening / property
+    relationships and purges the owned geometry — ``remove_deep2`` alone can't, since a placed element
+    has inverses). The **spatial skeleton** — ``IfcProject``, ``IfcSite``, ``IfcBuilding``,
+    ``IfcBuildingStorey``, ``IfcSpace`` — and shared units / geometric contexts are left intact, so the
+    pruned file is a valid IFC the kept elements are still correctly contained in, with GUIDs unchanged.
+    Caller opens a throwaway copy of the source (never the live model) and writes the result. Returns
+    ``{available, kept, removed}``."""
+    import ifcopenshell.api.root  # local import — the api package is heavier than the util helpers
+
+    keep = {g for g in keep_guids if g}
+    elements = model.by_type("IfcElement")
+    if not elements:
+        return {"available": False, "kept": 0, "removed": 0,
+                "message": "model has no IfcElement to subset"}
+    removed = 0
+    for e in list(elements):
+        if getattr(e, "GlobalId", None) not in keep:
+            ifcopenshell.api.root.remove_product(model, product=e)
+            removed += 1
+    return {"available": True, "kept": len(elements) - removed, "removed": removed}
+
+
 def scan(model: ifcopenshell.file) -> dict[str, Any]:
     """Dry-run maintenance report — how many entities each recipe WOULD remove (no mutation)."""
     orphan_ps = _orphan_psets(model)

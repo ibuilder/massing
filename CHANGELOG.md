@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.533 — SUBSET-EXPORT: hand off a discipline slice as a standalone IFC
+
+- **Selector → standalone IFC.** `GET /projects/{pid}/export/subset.ifc?query=<QUERY-DSL>` streams an
+  IFC containing only the elements matching a selector (e.g. `IfcDuctSegment | IfcPipeSegment`,
+  `discipline=Structural`) — the scope slice you hand a consultant. Every physical element outside the
+  keep-set is removed via `root.remove_product` (which detaches its containment / opening / property
+  relationships and purges the owned geometry); the spatial skeleton (project → site → building →
+  storey → space) and shared units/contexts are preserved, so the slice is a valid, correctly-contained
+  IFC with **GUIDs unchanged**. The export gates behind `require_export` like the source-IFC download,
+  and runs on an uncached copy of the model so the shared in-memory index is never mutated. In the
+  viewer's Query-select tool a **⬇ IFC** button downloads the slice for the current selector.
+
 ## v0.3.532 — FEM-EXPORT: analytical model → OpenSees (.tcl)
 
 - **Third-party structural verification.** Export the W10-7 analytical frame as an OpenSees

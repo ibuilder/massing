@@ -151,8 +151,10 @@ modified amber (the `/versions/diff` snapshot data + change labels already shipp
 the per-property old/new value list (iTwin-style) — needs richer per-version property snapshots, not
 just the fingerprint hashes stored today · ◧ **IFCPATCH-LIB** — **first recipes SHIPPED v0.3.527**:
 `ifcpatch_lib.py` purge-orphan-property-sets + purge-empty-groups (dry-run `GET /model/maintenance`;
-apply via the `/edit` republish path; 🧹 viewer tool). **Still open:** extract discipline subset ·
-rebase coordinates (georef already covers set-origin) · unit-convert · merge/split.
+apply via the `/edit` republish path; 🧹 viewer tool). ✅ **SUBSET-EXPORT v0.3.533** — selector →
+standalone IFC (`GET /export/subset.ifc?query=…`, keep-set prune via `root.remove_product`, spatial
+skeleton + GUIDs preserved, export-gated; viewer ⬇ IFC on Query-select). **Still open:** rebase
+coordinates (georef already covers set-origin) · unit-convert · merge/split.
 
 **Documents & coordination:** ◧ **BCF-API-SRV** — **BCF-API 2.1 core SHIPPED v0.3.528**
 (`routers/bcf_api.py`: `/bcf/versions` + `/bcf/2.1/{auth,projects,topics,comments}` mapping onto the
