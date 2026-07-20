@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.545 — GOLDEN-THREAD: the compliance evidence ledger
+
+- **Every requirement traced to evidence + a sign-off.** A new **Compliance Evidence** register (one
+  record per requirement → outcome → responsible party → evidence artifact, on an `open → evidenced →
+  sign-off` workflow) plus `GET /projects/{pid}/golden-thread` — the rollup: how complete the thread is
+  (**signed-off %**), the outcome/category spread, and the **broken-thread list** — requirements still
+  missing evidence or a sign-off, ranked worst-first (a failed or pending requirement with no evidence
+  attached is the top risk). Extends the point-in-time preflight/code checks into an auditable, versioned,
+  sign-off-tracked record. Second item off the re-prioritized roadmap (R14 Tier-2). *(A dedicated
+  golden-thread rollup panel is the open UI follow-up; the ledger records edit via the Quality workspace.)*
+
 ## v0.3.544 — SCOPE-GAP: does every element land in a bid package?
 
 - **The scope hole a GC finds at buyout, found at precon.** `GET /projects/{pid}/bidding/scope-gap`

@@ -1,0 +1,37 @@
+{
+  "key": "compliance_evidence",
+  "name": "Compliance Evidence",
+  "section": "Quality",
+  "icon": "🧵",
+  "ref_prefix": "CE",
+  "title_field": "requirement",
+  "pinnable": false,
+  "fields": [
+    { "name": "requirement", "label": "Requirement", "type": "text", "required": true, "fieldset": "Requirement" },
+    { "name": "code_section", "label": "Code / Standard Section", "type": "text", "fieldset": "Requirement" },
+    { "name": "category", "label": "Category", "type": "select",
+      "options": ["Life Safety", "Egress", "Structural", "Fire Protection", "Accessibility", "Energy", "Zoning", "Other"],
+      "fieldset": "Requirement" },
+
+    { "name": "outcome", "label": "Outcome", "type": "select", "required": true,
+      "options": ["Pass", "Fail", "N/A", "Pending"], "fieldset": "Status" },
+    { "name": "responsible", "label": "Responsible Party", "type": "text", "fieldset": "Status" },
+    { "name": "review_date", "label": "Review Date", "type": "date", "fieldset": "Status" },
+
+    { "name": "evidence_type", "label": "Evidence Type", "type": "select",
+      "options": ["Drawing", "Document", "Photo", "Calculation", "Inspection", "Test Report"],
+      "fieldset": "Evidence" },
+    { "name": "evidence_ref", "label": "Evidence Reference", "type": "text", "fieldset": "Evidence" },
+    { "name": "notes", "label": "Notes", "type": "textarea", "fieldset": "Evidence" }
+  ],
+  "workflow": {
+    "initial": "open",
+    "states": ["open", "evidenced", "signed_off"],
+    "transitions": [
+      { "from": "open", "to": "evidenced", "action": "attach_evidence", "party": ["Architect", "PM", "GC"], "requires": ["evidence_ref"] },
+      { "from": "evidenced", "to": "signed_off", "action": "sign_off", "party": ["Architect", "OwnersRep", "GC"], "requires": ["responsible"] }
+    ]
+  },
+  "list_columns": ["category", "outcome", "evidence_type"],
+  "workspace": "construction"
+}

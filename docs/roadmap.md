@@ -26,11 +26,12 @@ top-down; interleave one RUNTIME-ring S-item every few features.*
    `bid_package` claims → covered % + gaps with sample GUIDs + over-scoped packages; Model-coverage strip
    in the Bidding view). **Still open:** spec-section-level refinement · a per-trade scope/bid-form
    export where every line cites GUIDs + sheet + spec section · schedule-vs-model count reconciliation.
-2. **GOLDEN-THREAD — compliance evidence ledger** *(M · ★★★★)* — persist every code/approvability
-   check outcome → responsible person → evidence artifact (drawing rev · doc · photo) → sign-off,
-   versioned across the lifecycle (extends preflight + ISO 19650 codes); a **check-scoping matrix**
-   (building type × new-build/refurb/change-of-use activates rule packs); tolerant-geometry fallbacks
-   so checks degrade gracefully on imported, poorly-classified IFC.
+2. ◧ **GOLDEN-THREAD — compliance evidence ledger** *(M · ★★★★)* — **ledger + rollup SHIPPED v0.3.545**
+   (`compliance_evidence` module: requirement → outcome → responsible → evidence → sign-off workflow;
+   `golden_thread.py` + `GET /golden-thread`: signed-off % + outcome/category spread + risk-ranked
+   broken-thread list). **Still open:** seed the ledger from the live preflight/code findings · a
+   dedicated rollup panel · the check-scoping matrix (building type × new-build/refurb/change-of-use) ·
+   tolerant-geometry fallbacks for imported, poorly-classified IFC.
 3. **CLASH-TRIAGE — import external clash reports** *(M)* — Navisworks XML/HTML → a filterable triage
    table with zoom-to + linked-model resolution + BCF status round-trip (importer, fully backend-
    testable; complements the native clash engine).

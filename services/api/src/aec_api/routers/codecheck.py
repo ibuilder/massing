@@ -585,3 +585,16 @@ def readiness_to_bcf(pid: str, db: Session = Depends(get_db), actor: str = Depen
     db.commit()
     return {"created": len(created), "topics": [t.id for t in created],
             "ready": audit_r.get("ready"), "high_severity": audit_r.get("high_severity")}
+
+
+@router.get("/projects/{pid}/golden-thread")
+def golden_thread_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """GOLDEN-THREAD — the compliance **evidence ledger** rollup: how complete the requirement→evidence
+    →sign-off thread is (signed-off %), the outcome/category spread, and the **broken-thread list** —
+    requirements still missing evidence or a sign-off (a failed/pending item with no evidence ranks
+    highest). Rolls up the `compliance_evidence` records; extends the point-in-time preflight/code
+    checks into an auditable, sign-off-tracked record."""
+    from .. import golden_thread
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return golden_thread.summary(db, pid)
