@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.561 — Security: clear the brace-expansion advisories
+
+- Bumped the two vulnerable transitive `brace-expansion` instances (a ReDoS advisory) to their patched
+  versions — `2.1.1 → 2.1.2` and `5.0.6 → 5.0.7` — via a lockfile-only `npm audit fix`. The three
+  non-vulnerable `1.1.16` copies are untouched. `npm audit` now reports **0 vulnerabilities**, clearing
+  the 2 high Dependabot alerts on the default branch. Build-tooling transitive deps only (eslint /
+  redocly / jake), not in the shipped app bundle; no code change.
+
 ## v0.3.560 — FAB-DELIVER: rebar bending detail (SPRINT E phase-1)
 
 The first fabrication-delivery slice — the human-read bending schedule a detailer and fabricator
