@@ -1552,6 +1552,11 @@ export class ApiClient extends HttpCore {
     }>(`/projects/${pid}/structure/solve${qs ? `?${qs}` : ""}`);
   }
 
+  /** FEM-EXPORT: download URL for the analytical frame as an OpenSees (.tcl) model. */
+  openseesTclUrl(pid: string) {
+    return this.url(`/projects/${pid}/structure/opensees.tcl`);
+  }
+
   // STRUCT-LATERAL: ASCE 7 wind + seismic lateral analysis (base shear → story forces)
   structureLateral(pid: string, opts?: {
     sds?: number; sd1?: number; r?: number; ie?: number; system?: string;

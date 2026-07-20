@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.532 — FEM-EXPORT: analytical model → OpenSees (.tcl)
+
+- **Third-party structural verification.** Export the W10-7 analytical frame as an OpenSees
+  (`.tcl`) input file — dedup shared member endpoints into nodes, fully fix the base-level nodes,
+  and write one `elasticBeamColumn` per member with a per-orientation geometric transform (a
+  column's local axis is vertical, so it takes a different reference vector than a beam). Units are
+  kip·inch·ksi; sections are nominal defaults, so the file is a runnable *geometry + connectivity +
+  supports* skeleton an engineer re-sections and loads to independently verify the built-in
+  gravity/lateral solver in a third-party FE solver. `GET /projects/{pid}/structure/opensees.tcl`
+  streams the file (409 until an analytical model is derived); a **⬇ Export OpenSees (.tcl)** button
+  sits next to the statics-solve tool in the viewer's structural panel.
+
 ## v0.3.531 — EST-ASSEMBLIES: cost-item unit-rate build-ups (R15)
 
 - New **cost assemblies** — a unit rate composed from its component resources (labour crew +

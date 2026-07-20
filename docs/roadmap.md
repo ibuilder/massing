@@ -176,8 +176,10 @@ estimate + RFQ/quote management ·
 
 **Analysis (permissive-license engines, offline):** **ENERGY-PLUS** — export model → IDF/OSM + run
 EnergyPlus (BSD) for defensible annual energy *(L, ship binaries via jobs infra)* · **RADIANCE** —
-export → Radiance scenes (LBNL) for annual daylight (DA/ASE/UDI) + glare (DGP) · **FEM-EXPORT** —
-analytical model → Code_Aster/OpenSees for third-party verification of the gravity/lateral solver.
+export → Radiance scenes (LBNL) for annual daylight (DA/ASE/UDI) + glare (DGP) · ✅ **FEM-EXPORT**
+(v0.3.532) — analytical model → OpenSees `.tcl` (nodes + base restraints + per-member
+elasticBeamColumn, nominal sections, kip-inch-ksi) for third-party verification of the gravity/
+lateral solver; `GET /structure/opensees.tcl` + viewer download button. *(Code_Aster export TBD.)*
 
 **Field & residential (heavier / GTM):** **FIELD-PWA** — offline-first mobile PWA with sheet sync +
 auto slip-sheeting + hyperlinked callouts *(L)* · **CLIENT-PORTAL** — selections/allowances (choices

@@ -3789,6 +3789,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               }));
               solve.title = "Apply an ASCE 7 gravity load case to the analytical members and solve determinate statics (reactions, shear/moment/deflection)";
               body.appendChild(solve);
+              const fem = toolBtn2("⬇ Export OpenSees (.tcl)", () => {
+                window.open(api.openseesTclUrl(pid), "_blank");
+              });
+              fem.title = "Download the analytical frame as an OpenSees .tcl model (nodes, base restraints, one elasticBeamColumn per member, nominal sections) so an engineer can independently verify the solver in a third-party FE solver";
+              body.appendChild(fem);
             }
             const lat = toolBtn2("🌪 Lateral (wind + seismic base shear)", () => withLoading(container, "Running ASCE 7 lateral analysis", async () => {
               let lr;

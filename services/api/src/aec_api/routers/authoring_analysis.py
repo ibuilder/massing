@@ -3,7 +3,7 @@ gravity/lateral solves, and the MEP browser/sizing/connectivity/coverage checks.
 `authoring.py` includes this router."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -48,6 +48,23 @@ def structure_solve(pid: str,
     return struct_solve.solve(open_model(p.source_ifc), live_occupancy=live_occupancy, sdl_psf=sdl_psf,
                               slab_thickness_in=slab_thickness_in, tributary_ft=tributary_ft,
                               gross_area_sf=gross_area_sf, e_ksi=e_ksi, i_in4=i_in4)
+
+
+@router.get("/projects/{pid}/structure/opensees.tcl")
+def structure_opensees(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """FEM-EXPORT: the analytical frame as an OpenSees (.tcl) model — nodes, base restraints, and one
+    elasticBeamColumn per member (nominal sections, kip-inch-ksi) — a runnable skeleton an engineer
+    re-sections + loads to independently verify the solver. 409 if there's no analytical model yet."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import fem_export
+    p = _project(db, pid)
+    res = fem_export.to_opensees(open_model(p.source_ifc))
+    if not res["available"]:
+        raise HTTPException(409, res.get("message") or "no analytical model")
+    from fastapi import Response
+    return Response(res["tcl"], media_type="text/plain",
+                    headers={"Content-Disposition": f'attachment; filename="model-{pid}.tcl"'})
 
 
 @router.get("/projects/{pid}/structure/lateral")
