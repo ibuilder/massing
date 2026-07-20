@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.555 — SCHED-OPT: scenario-comparison panel (SPRINT B phase-3)
+
+Surfaces the optioneer in the Schedule workspace so the ranked scenarios are usable, not just an API.
+
+- A **🧮 Schedule optioneering** card on the Schedule panel: a **▶ Run** control with a weighting
+  selector (Balanced / Fastest / Cheapest) and a fast-track toggle, a **recommended-plan summary**
+  (duration, cost, peak crews, saving vs. baseline, its lever mix), and a **ranked scenario table**
+  (top 12 — levers, days, cost, peak crews, Pareto-frontier marker) with the recommended row
+  highlighted. Wired to the `scheduleOptioneer` client method.
+- Frontend only (no backend change) — verified by typecheck / lint / build; the card renders even
+  without a model (defaults to the residential takt train), so it's exercisable on any project.
+
 ## v0.3.554 — SCHED-OPT: widen the search — fast-track overlap + sequence permutation (SPRINT B phase-2)
 
 Widens the optioneer's search space with two more levers, so the enumerated frontier spans real

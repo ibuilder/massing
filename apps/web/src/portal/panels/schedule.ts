@@ -234,6 +234,69 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     }
     accBody.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:3px">Advisory only — the platform never rewrites your schedule.</div>`);
   }).catch((e) => { accBody.innerHTML = `<div class="meta">acceleration analysis failed: ${(e as Error).message}</div>`; });
+
+  // --- SCHED-OPT: schedule optioneering — permute crews/zoning/overlap/sequence, score & rank --------
+  const optCard = document.createElement("div"); optCard.className = "dash-card"; optCard.style.marginBottom = "10px";
+  const optHead = document.createElement("div"); optHead.className = "section-title";
+  optHead.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap";
+  optHead.append(Object.assign(document.createElement("span"), { textContent: "🧮 Schedule optioneering" }));
+  const optCtl = document.createElement("div"); optCtl.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap";
+  const wSel = document.createElement("select"); wSel.className = "sb-sel"; wSel.title = "How to weigh the ranking";
+  wSel.innerHTML = `<option value="0.6">Balanced (time+cost)</option><option value="1">Fastest (time)</option><option value="0">Cheapest (cost)</option>`;
+  const ovChk = document.createElement("label"); ovChk.className = "meta"; ovChk.style.cssText = "display:inline-flex;gap:3px;align-items:center;cursor:pointer";
+  const ovBox = document.createElement("input"); ovBox.type = "checkbox"; ovBox.title = "Include fast-track (overlap) options";
+  ovChk.append(ovBox, document.createTextNode("fast-track"));
+  const runBtn = document.createElement("button"); runBtn.className = "tool-btn on"; runBtn.textContent = "▶ Run";
+  runBtn.title = "Enumerate the bounded crew/zoning/overlap option grid over the Takt model and rank the scenarios";
+  optCtl.append(wSel, ovChk, runBtn); optHead.append(optCtl); optCard.appendChild(optHead);
+  const optNote = document.createElement("div"); optNote.className = "meta"; optNote.style.margin = "2px 0 6px";
+  optNote.innerHTML = "Deterministic — throws a 2nd crew at the bottleneck trades and splits work-face zones over the Takt line-of-balance; work content is conserved, so it trades schedule compression against a crew premium.";
+  optCard.appendChild(optNote);
+  const optBody = document.createElement("div"); optBody.innerHTML = `<div class="meta">Click <b>▶ Run</b> to score the options.</div>`;
+  optCard.appendChild(optBody); ctx.root.appendChild(optCard);
+  const usd0 = (n: number) => `$${Math.round(n).toLocaleString()}`;
+  const runOpt = async () => {
+    optBody.innerHTML = `<div class="meta">enumerating options…</div>`; runBtn.disabled = true;
+    try {
+      const wt = Number(wSel.value);
+      const r = await ctx.host.api.scheduleOptioneer(pid, {
+        weight_time: wt, weight_cost: 1 - wt,
+        ...(ovBox.checked ? { overlap_options: [0, 0.5] } : {}),
+      });
+      if (!r.scenarios.length) { optBody.innerHTML = `<div class="meta">No trades to optimise.</div>`; return; }
+      const rec = r.recommended, base = r.baseline, sv = r.recommended_vs_baseline;
+      const chips = document.createElement("div"); chips.className = "meta"; chips.style.cssText = "margin-bottom:6px;display:flex;gap:14px;flex-wrap:wrap";
+      chips.innerHTML = `<span>Recommended <b style="color:var(--status-good)">${rec.duration_days}d</b> (${rec.duration_weeks} wk) · ${usd0(rec.cost)} · peak ${rec.crew_peak} crews</span>`
+        + (base && sv ? `<span>vs baseline <b>${base.duration_days}d</b>: ${sv.days > 0 ? `<b style="color:var(--status-good)">${sv.days}d faster</b> (${sv.pct_faster}%)` : "no faster"}${sv.cost ? ` · ${sv.cost > 0 ? "+" : ""}${usd0(sv.cost)}` : ""}</span>` : "")
+        + `<span>${r.scenario_count} scenarios · ${r.pareto_count} on the Pareto frontier</span>`;
+      const recLevers = [rec.crews_doubled.length ? `2nd crew: ${esc(rec.crews_doubled.join(", "))}` : "single crews",
+        `${rec.zones} zone${rec.zones > 1 ? "s" : ""}`, rec.overlap ? `${Math.round(rec.overlap * 100)}% fast-track` : "no overlap",
+        rec.resequenced ? "resequenced" : ""].filter(Boolean).join(" · ");
+      const recLine = document.createElement("div"); recLine.className = "meta"; recLine.style.marginBottom = "4px";
+      recLine.innerHTML = `<b>Recommended plan:</b> ${esc(recLevers)}`;
+      const wrap = document.createElement("div"); wrap.style.overflowX = "auto";
+      const top = r.scenarios.slice(0, 12);
+      const t = document.createElement("table"); t.className = "portal-table"; t.style.cssText = "width:100%;font-size:11px;margin-top:2px";
+      t.innerHTML = `<thead><tr><th scope="col">#</th><th scope="col" style="text-align:left">Levers</th>`
+        + `<th scope="col" style="text-align:right">Days</th><th scope="col" style="text-align:right">Cost</th>`
+        + `<th scope="col" style="text-align:right">Peak</th><th scope="col">Frontier</th></tr></thead><tbody>`
+        + top.map((s) => {
+          const lev = [s.is_baseline ? "baseline" : "", s.crews_doubled.length ? `+crew ${esc(s.crews_doubled.join("/"))}` : "",
+            s.zones > 1 ? `${s.zones}z` : "", s.overlap ? `${Math.round(s.overlap * 100)}% ft` : "",
+            s.resequenced ? "reseq" : ""].filter(Boolean).join(" · ") || "single crews · 1z";
+          const hl = s === rec ? "background:var(--hover);font-weight:600" : "";
+          return `<tr style="${hl}"><td style="text-align:center">${s.rank}</td><td style="text-align:left">${lev}</td>`
+            + `<td style="text-align:right">${s.duration_days}</td><td style="text-align:right">${usd0(s.cost)}</td>`
+            + `<td style="text-align:right">${s.crew_peak}</td><td style="text-align:center">${s.pareto ? "◆" : ""}</td></tr>`;
+        }).join("") + `</tbody>`;
+      wrap.appendChild(t);
+      optBody.replaceChildren(chips, recLine, wrap);
+      if (r.truncated) optBody.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:3px;opacity:.7">Grid truncated at the scenario cap.</div>`);
+    } catch (e) { optBody.innerHTML = `<div class="meta">Optioneering failed: ${esc((e as Error).message)}</div>`; }
+    finally { runBtn.disabled = false; }
+  };
+  runBtn.onclick = () => void runOpt();
+
   const ppState = (s: string) => s === "done" ? "var(--status-good)" : s === "not_done" ? "var(--status-crit)"
     : s === "committed" ? "var(--accent)" : s === "made_ready" ? "var(--status-warn)" : "var(--muted)";
   const loadPull = (milestone: string) => {

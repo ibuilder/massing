@@ -120,9 +120,12 @@ reassess. Rough size + the "phase-1" that de-risks it are called out.*
     starts when predecessor is `1-overlap` done, at a rework-risk premium) and opt-in **sequence
     permutation** (reorder `reorderable` trades, fixed trades stay put) as scenario levers, with the grid
     hard-capped at 800 (truncation reported). `overlap=0` reproduces phase-1 exactly.
-  - **Phase 3** *(next)* — a **scenario-comparison panel** (Pareto frontier chart + the ranked table,
-    wired to `scheduleOptioneer`); then CPM-driven crew shifts off the critical path + a productivity-rate
-    lever off `productivity.py`, and scale the enumeration.
+  - ✅ **Phase 3 — scenario-comparison panel** *(v0.3.555)* — a 🧮 Schedule-optioneering card in the
+    Schedule workspace: Run control + weighting selector + fast-track toggle, a recommended-plan summary
+    (duration / cost / peak crews / saving vs. baseline), and a ranked scenario table with a Pareto-frontier
+    marker and the recommended row highlighted.
+  - **Phase 4** *(next)* — CPM-driven crew shifts off the critical path + a productivity-rate lever off
+    `productivity.py`; scale the enumeration; and a Pareto frontier **chart** (cost vs. duration scatter).
 - **SPRINT C — FIELD-PWA.** *(L, mostly frontend)* Offline-first mobile PWA: sheet sync, auto
   slip-sheeting, hyperlinked callouts. **Phase 1:** the service-worker offline cache + sheet sync over
   the existing markup/SSE infra; then the field-optimized nav + callout links.
