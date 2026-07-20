@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.548 — CBS-1: Cost Breakdown Structure over the model estimate
+
+- **The estimator's layering, not the developer proforma.** `GET /projects/{pid}/estimate/cbs` takes
+  the model's takeoff-priced **direct cost** and layers it through **indirect / general conditions →
+  contingency (known risks) → management reserve (unknown-unknowns, a PMBOK layer held separately from
+  contingency) → overhead & profit → taxes & fees**, each with its amount, rate and share of the total.
+  Every rate is overridable via query. Surfaced as a **🧱 Cost breakdown (CBS)** button in the Budget
+  panel's model-estimate group. Fifth item off the re-prioritized roadmap (R14 Tier-3); conceptual-grade.
+
 ## v0.3.547 — GIS-OUT: BIM footprint → WGS84 GeoJSON
 
 - **Drop the model onto a real map.** `GET /projects/{pid}/models/footprint.geojson` exports the

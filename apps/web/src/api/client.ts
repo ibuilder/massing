@@ -3115,6 +3115,17 @@ export class ApiClient extends HttpCore {
       unpriced: { ifc_class: string; count: number }[]; note: string;
     }>(`/projects/${pid}/estimate/bands`);
   }
+  /** CBS-1 — Cost Breakdown Structure over the model estimate: direct → indirect → contingency →
+   *  management reserve → overhead & profit → taxes, each with amount/rate/share. */
+  estimateCbs(pid: string) {
+    return this.json<{
+      direct: number; indirect: number; subtotal: number; contingency: number;
+      management_reserve: number; base_with_risk: number; overhead_profit: number; taxes: number;
+      total: number; rates: Record<string, number>;
+      layers: { level: string; amount: number; rate: number | null; pct_of_total: number }[];
+      direct_source: string; note: string;
+    }>(`/projects/${pid}/estimate/cbs`);
+  }
   /** Resource-based (assembly) estimate — each class priced by building the cost up from labor +
    *  material + equipment, returning the L/M/E split + total crew-hours (not just a blended $/unit). */
   estimateResourceBased(pid: string) {

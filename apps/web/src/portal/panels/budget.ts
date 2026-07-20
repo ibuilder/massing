@@ -93,6 +93,19 @@ export async function renderBudget(ctx: PanelContext) {
         + `<div class="meta" style="margin-top:4px">${esc(e.range.note)}</div>`);
     } catch (err) { fillEst(`<div class="meta">Range estimate unavailable: ${(err as Error).message}</div>`); }
   };
+  const cbsBtn = document.createElement("button"); cbsBtn.className = "tool-btn"; cbsBtn.textContent = "🧱 Cost breakdown (CBS)";
+  cbsBtn.title = "Cost Breakdown Structure: the model's direct cost layered through indirect → contingency → management reserve → overhead & profit → taxes";
+  cbsBtn.onclick = async () => {
+    fillEst(`<div class="meta">Building the cost breakdown structure…</div>`);
+    try {
+      const e = await ctx.host.api.estimateCbs(pid);
+      const rows2 = e.layers.map((l) => `<tr><td>${esc(l.level)}</td><td style="text-align:right">${l.rate != null ? Math.round(l.rate * 1000) / 10 + "%" : "—"}</td><td style="text-align:right">${usd(l.amount)}</td><td style="text-align:right">${l.pct_of_total}%</td></tr>`);
+      fillEst(`<div style="font-weight:600;margin-bottom:4px">Cost breakdown — total <b>${usd(e.total)}</b> (direct ${usd(e.direct)})</div>`
+        + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Layer</th><th style="text-align:right">Rate</th><th style="text-align:right">Amount</th><th style="text-align:right">% total</th></tr></thead><tbody>${rows(rows2)}</tbody>`
+        + `<tfoot><tr><td><b>Total</b></td><td></td><td style="text-align:right"><b>${usd(e.total)}</b></td><td style="text-align:right">100%</td></tr></tfoot></table></div>`
+        + `<div class="meta" style="margin-top:4px">${esc(e.note)}</div>`);
+    } catch (err) { fillEst(`<div class="meta">CBS unavailable: ${(err as Error).message}</div>`); }
+  };
   const flBtn = document.createElement("button"); flBtn.className = "tool-btn"; flBtn.textContent = "🏢 QTO by floor";
   flBtn.title = "Quantity + cost by storey and discipline — quantities mapped to where they are";
   flBtn.onclick = async () => {
@@ -118,7 +131,7 @@ export async function renderBudget(ctx: PanelContext) {
     } catch (err) { fillEst(`<div class="meta">DXF takeoff failed: ${(err as Error).message}</div>`); }
     finally { dxfInput.value = ""; }
   };
-  estRow.append(emBtn, rbBtn, bandBtn, flBtn, dxfLabel);
+  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, dxfLabel);
 
   // budget movement vs baseline (shown only if a baseline exists; 409 otherwise → ignored)
   const bvHolder = document.createElement("div"); ctx.root.appendChild(bvHolder);

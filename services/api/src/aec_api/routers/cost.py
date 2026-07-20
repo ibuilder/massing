@@ -121,6 +121,35 @@ def proforma_live(pid: str, db: Session = Depends(get_db), _: str = Depends(requ
     }
 
 
+@router.get("/projects/{pid}/estimate/cbs")
+def estimate_cbs(pid: str,
+                 indirect_pct: float | None = None, contingency_pct: float | None = None,
+                 management_reserve_pct: float | None = None, fee_pct: float | None = None,
+                 tax_pct: float | None = None,
+                 db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """CBS-1 — a **Cost Breakdown Structure** over the model's construction estimate: the takeoff-priced
+    direct cost layered through indirect / general conditions → contingency (known risks) → management
+    reserve (unknown-unknowns) → overhead & profit → taxes, each with its amount, rate and share of the
+    total. Rates overridable via query. 409 without a source IFC."""
+    from aec_data.qto import takeoff_file  # type: ignore
+
+    from .. import cbs
+    from .. import estimate as est
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    if not p.source_ifc:
+        raise HTTPException(409, "no source IFC — the CBS prices the model as the direct cost")
+    out = est.estimate_from_takeoff(takeoff_file(p.source_ifc, force_geometry=True))
+    direct = out.get("recommended_total") or out.get("total") or 0.0
+    params = {"indirect_pct": indirect_pct, "contingency_pct": contingency_pct,
+              "management_reserve_pct": management_reserve_pct, "fee_pct": fee_pct, "tax_pct": tax_pct}
+    res = cbs.build(direct, params)
+    res["direct_source"] = "model takeoff estimate"
+    return res
+
+
 @router.get("/projects/{pid}/estimate/bands")
 def estimate_bands(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """EST-BANDS — a **range estimate**: three-point (low / likely / high) cost bands per priced line

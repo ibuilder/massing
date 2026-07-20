@@ -42,8 +42,9 @@ top-down; interleave one RUNTIME-ring S-item every few features.*
    IfcSite lat/long via an equirectangular transform; the inbound CityGML→GeoJSON site-context import
    already shipped). **Still open:** the true exterior-shell polygon (vs bbox) · pyproj-grade reprojection
    from the projected CRS · a viewer map-overlay surface.
-5. **CBS-1 — Cost Breakdown Structure view** *(S/M)* — direct / indirect / **contingency / management
-   reserve / taxes & fees** layers over estimates with hierarchical rollup.
+5. ✅ **CBS-1 — Cost Breakdown Structure** *(S/M, v0.3.548)* — direct / indirect / contingency /
+   **management reserve** / overhead & profit / taxes layers over the model estimate with per-layer
+   rate + share (`cbs.build` + `GET /estimate/cbs`, query-overridable rates; 🧱 button in the Budget panel).
 6. **MEP-GRAPH — connector-topology graph + parallel runs** *(M · ★★★★)* — a first-class port-graph
    over `IfcDistributionPort` (real path extraction → pressure-loss index runs become true paths),
    parallel/stacked run generation (trace → offset → re-intersect at bends → regenerate fittings), and
