@@ -111,8 +111,15 @@ reassess. Rough size + the "phase-1" that de-risks it are called out.*
   job queue and run them; parse results back onto the model.
 - **SPRINT B — SCHEDULE OPTIONEERING (ALICE-style).** *(L, flagship differentiator)* Permute crew /
   sequence / zoning over CPM + productivity + Takt and score thousands of scenarios — our inputs are
-  uniquely all-present offline. **Phase 1:** a deterministic scenario generator + scorer over a bounded
-  option set (a few crew/sequence permutations), reusing the CPM + Takt engines; then widen the search.
+  uniquely all-present offline.
+  - ✅ **Phase 1 — deterministic optioneer** *(v0.3.553)* — `schedule_options.py` + `POST /schedule/
+    optioneer`: a bounded crew-loading (2nd crew on the bottleneck trades) + work-face-zoning grid over
+    the Takt line-of-balance model, every scenario scored on makespan / cost / peak-congestion, ranked by
+    a weighted time+cost score with a Pareto frontier + a recommended option vs. baseline. Pure & tested.
+  - **Phase 2+** *(next)* — **widen the search**: sequence permutation (reorder order-flexible trades),
+    fast-track overlaps (start trade i+1 before i finishes a floor), CPM-driven crew shifts off the
+    critical path, and a scenario-comparison panel (frontier chart + the ranked table). Then scale the
+    enumeration and add a productivity-rate lever off `productivity.py`.
 - **SPRINT C — FIELD-PWA.** *(L, mostly frontend)* Offline-first mobile PWA: sheet sync, auto
   slip-sheeting, hyperlinked callouts. **Phase 1:** the service-worker offline cache + sheet sync over
   the existing markup/SSE infra; then the field-optimized nav + callout links.

@@ -108,6 +108,43 @@ def cpm(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("
     return schedule_cpm.compute(acts)
 
 
+@router.post("/projects/{pid}/schedule/optioneer")
+def schedule_optioneer(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                       _: str = Depends(require_role("viewer"))):
+    """SCHED-OPT (SPRINT B) — deterministic **schedule optioneering** over the Takt line-of-balance model:
+    permute crew loading (a 2nd crew on the bottleneck trades) and work-face zoning across a bounded grid,
+    score every scenario on makespan / cost / peak-congestion, and return the ranked list with the Pareto
+    frontier + a recommended option.
+
+    Body (all optional): `floors`, `trades:[{name,takt_days}]`, `crew_day_rate`, `max_crew_trades`,
+    `zone_options:[…]`, `weight_time`, `weight_cost`. Absent `trades` default to the residential takt
+    train; absent `floors` are derived from the model's storey count (else 1)."""
+    from .. import schedule_options, takt
+    from ..models import Project
+
+    floors = body.get("floors")
+    if not floors:                                       # derive from the model's storeys, best-effort
+        p = db.get(Project, pid)
+        if p and p.source_ifc:
+            try:
+                from ..deps import open_source_ifc
+                floors = len(open_source_ifc(db, pid).by_type("IfcBuildingStorey")) or 1
+            except Exception:                            # noqa: BLE001 — no/opaque model: fall back to 1
+                floors = 1
+    base = {
+        "floors": int(floors or 1),
+        "trades": body.get("trades") or takt.DEFAULT_TRADES,
+        "crew_day_rate": body.get("crew_day_rate"),
+    }
+    kw = {}
+    for k in ("max_crew_trades", "weight_time", "weight_cost"):
+        if body.get(k) is not None:
+            kw[k] = body[k]
+    if body.get("zone_options"):
+        kw["zone_options"] = tuple(int(z) for z in body["zone_options"])
+    return schedule_options.optimize(base, **kw)
+
+
 @router.get("/projects/{pid}/risk-board")
 def risk_board_endpoint(pid: str, db: Session = Depends(get_db),
                         _: str = Depends(require_role("viewer"))):

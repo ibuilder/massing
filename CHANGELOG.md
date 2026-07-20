@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.553 — SCHED-OPT: deterministic schedule optioneering (SPRINT B phase-1)
+
+First slice of the schedule-optioneering track — permute the construction plan and score the options,
+the way a dedicated optioneering tool does, but exactly and offline because our inputs (the Takt trade
+train + per-floor production rates) are already present.
+
+- **SCHED-OPT engine** (`schedule_options.py`) + `POST /projects/{pid}/schedule/optioneer`: enumerates a
+  bounded crew-loading + work-face-zoning option grid over the Takt line-of-balance model and ranks every
+  scenario. Levers: a **second crew** on the bottleneck (slowest) trades — halves that trade's
+  days-per-floor at a mobilisation premium; and **zoning** — splitting each floor into Z work-face zones
+  lets the train pipeline tighter (shorter makespan) at the cost of more concurrent crews + a per-zone
+  setup. Work content is conserved across scenarios, so the enumerated tradeoff is schedule compression +
+  peak congestion vs. a crew premium — the real buyout question.
+- Each scenario carries makespan (days/weeks), peak concurrent crews, labor crew-days, and cost; the
+  result ranks by a min-max-normalised weighted **time + cost score**, flags the **Pareto frontier** (not
+  beaten on both time and cost), and returns a **recommended** option + its saving vs. the single-crew /
+  one-zone baseline. Weighting toward cost keeps the baseline; toward time picks a compressed option.
+- Deterministic and pure (no solver, no randomness) — fully unit-tested. Client method `scheduleOptioneer`
+  wired; the scenario-comparison panel is the phase-2 follow-up.
+
 ## v0.3.552 — Quick-wins sprint: model-warnings feed + check-lane depth
 
 A batch of low-risk, high-clarity refinements across the model-quality and coordination engines —
