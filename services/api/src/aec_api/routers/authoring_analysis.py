@@ -197,6 +197,19 @@ def mep_connectivity(pid: str, db: Session = Depends(get_db), _: str = Depends(r
     return mep.connectivity(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/mep/graph")
+def mep_graph(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """MEP-GRAPH: the port connectivity graph over IfcDistributionPort — connected **runs** with their
+    endpoints, branch points and the **longest linear path** (the index-run backbone), plus the count of
+    isolated (unconnected) elements. A first-class network view over the connect_mep edges, the
+    foundation for real path-based pressure-loss. 409 without a source IFC."""
+    from aec_data import mep_graph as _mg  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return _mg.graph(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/mep/sprinkler-coverage")
 def sprinkler_coverage(pid: str, hazard: str = "light", db: Session = Depends(get_db),
                        _: str = Depends(require_role("viewer"))):

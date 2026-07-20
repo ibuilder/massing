@@ -45,10 +45,11 @@ top-down; interleave one RUNTIME-ring S-item every few features.*
 5. ✅ **CBS-1 — Cost Breakdown Structure** *(S/M, v0.3.548)* — direct / indirect / contingency /
    **management reserve** / overhead & profit / taxes layers over the model estimate with per-layer
    rate + share (`cbs.build` + `GET /estimate/cbs`, query-overridable rates; 🧱 button in the Budget panel).
-6. **MEP-GRAPH — connector-topology graph + parallel runs** *(M · ★★★★)* — a first-class port-graph
-   over `IfcDistributionPort` (real path extraction → pressure-loss index runs become true paths),
-   parallel/stacked run generation (trace → offset → re-intersect at bends → regenerate fittings), and
-   nearest-open-connector hardening for `auto_connect`.
+6. ◧ **MEP-GRAPH — connector-topology graph + parallel runs** *(M · ★★★★)* — **port-graph + path
+   extraction SHIPPED v0.3.549** (`mep_graph.graph` + `GET /mep/graph`: connected runs with endpoints/
+   branches + the longest linear path = index-run backbone; isolated-element wiring gap). **Still open:**
+   wiring the extracted path into the pressure-loss index run · parallel/stacked run generation (trace →
+   offset → re-intersect at bends → regenerate fittings) · nearest-open-connector hardening for `auto_connect`.
 7. **EST-ASSEMBLIES depth** *(S/M)* — persist user-authored assemblies (a module) + wire assemblies
    into the model takeoff estimate + RFQ/quote management (builds on the shipped `assemblies_cost`).
 

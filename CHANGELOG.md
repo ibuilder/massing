@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.549 — MEP-GRAPH: port connectivity graph + run/path extraction
+
+- **From "unconnected ports" to the actual network.** `GET /projects/{pid}/mep/graph` builds a
+  first-class port graph over `IfcDistributionPort` (nodes = MEP elements, edges = the port-to-port
+  `IfcRelConnectsPorts` connections from `connect_mep`) and extracts the connected **runs**: each with
+  its endpoints (degree-1 terminals), branch points (degree ≥3), class tally, and the **longest linear
+  path** — the index-run backbone a balancing engineer follows and the foundation a real path-based
+  pressure-loss calc needs (vs. today's per-segment sum). Isolated elements (no connected port) are
+  reported as the wiring gap. Sixth item off the re-prioritized roadmap (R14 Tier-2), closing the NOW
+  batch. *(Parallel/stacked run generation — the geometry-authoring half — remains open.)*
+
 ## v0.3.548 — CBS-1: Cost Breakdown Structure over the model estimate
 
 - **The estimator's layering, not the developer proforma.** `GET /projects/{pid}/estimate/cbs` takes
