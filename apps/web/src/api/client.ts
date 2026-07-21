@@ -12,7 +12,7 @@ import type {
   IntegrationGroup, ModelCiReport, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   PreflightGate, PreflightSummary,
-  RecordAttachmentMeta, RelatedRecords, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
+  RecordAttachmentMeta, RelatedRecords, ResolveAction, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
   Topic, Vec3, Viewpoint, WorkItem,
 } from "./types";
 
@@ -1894,7 +1894,7 @@ export class ApiClient extends HttpCore {
   marginByCostCode(pid: string) {
     type Row = { cost_code: string; budget: number; committed: number; actual: number; billed: number;
       buyout_margin: number; variance: number; pct_committed: number | null; pct_spent: number | null;
-      over_committed: boolean; over_budget: boolean };
+      over_committed: boolean; over_budget: boolean; actions: ResolveAction[] };
     return this.json<{
       code_count: number; total_budget: number; total_committed: number; total_actual: number;
       total_billed: number; total_buyout_margin: number; total_variance: number;

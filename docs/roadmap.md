@@ -14,7 +14,7 @@ What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runt
 decomposition/design carry-overs.
 
 **Status:** CodeQL 0 open alerts · full backend suite green (310 suites) · single-source version in
-`apps/web/package.json` (v0.3.576).
+`apps/web/package.json` (v0.3.577).
 
 ---
 
@@ -168,13 +168,12 @@ the strongest ideas are *interaction polish*, not new modules — every worthwhi
 deterministically with zero cloud/AI.** These are UX upgrades over surfaces we already have. All BUILD
 unless noted.
 
-- **★ UX-ACT — actionable inline diagnostics** *(S; highest-leverage).* Render a diagnosis (schedule
-  conflict, over-budget flag, rule violation) *with a one-click resolve action next to it* ("crew
-  double-booked → [Resolve][Assign crews]"), not as a passive alert in a separate view. We already
-  **compute** exactly these — `schedule_options.py` conflicts, `rule_library.py` violations, margin
-  over-budget flags — but surface them as read-only analysis. Attach a resolve-action (jump-to-fix /
-  apply-suggested-shift / open-the-record) to each conflict/warning row across the schedule, rule-run, and
-  money-card feeds. Pure UX, zero AI.
+- ◧ **★ UX-ACT — actionable inline diagnostics** *(S; highest-leverage; phase-1 v0.3.577).* ✅
+  `resolve_hint.py` — a shared resolve-action vocabulary (`open_module`/`navigate`/`open_record`) — + the
+  **📒 margin card** now pairs each over-budget/over-committed cost code with a one-click **Fix** button
+  that jumps to the causing records, filtered to that code (`dispatchResolveAction`/`resolveActionButtons`
+  shared for the ring). **Remaining:** extend the same descriptors to the `rule_library.py` violations and
+  `schedule_options.py` conflict feeds.
 - **UX-CHIPS — universal status + delta chip component** *(S).* Standardize one component: timestamped
   **status chips** (Sent→Viewed→Won · Draft→Submitted · On-track/Over-budget) + **metric + colored-delta**
   chips (+12% · −$14K), used consistently across the GC/client-portal money cards, DRAW-STATUS, and

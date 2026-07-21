@@ -44,6 +44,12 @@ with TestClient(app) as c:
     # CC2 — committed over budget → negative buyout margin + over-committed flag
     b = by["09 20 00"]
     assert b["buyout_margin"] == -5000 and b["over_committed"] is True and b["over_budget"] is False, b
+    # UX-ACT: the over-committed code carries a one-click "Review commitments" action filtered to its code;
+    # the healthy code carries none
+    assert a["actions"] == [], a["actions"]
+    act = b["actions"]
+    assert any(x["kind"] == "open_module" and x["module"] == "commitment" and x.get("q") == "09 20 00"
+               for x in act), act
     # rows sorted worst-margin first → CC2 (−5k) before CC1 (+15k)
     assert [r["cost_code"].split(" · ")[0] for r in m["rows"]] == ["09 20 00", "03 30 00"], m["rows"]
     # totals

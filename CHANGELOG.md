@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.577 — UX-ACT: actionable inline diagnostics (UX-POLISH ring)
+
+The first UX-POLISH build — pair a computed diagnostic with a one-click action next to it, instead of
+leaving it a passive read-only number. We already compute the exposure; now you can act on it in one click.
+
+- **`resolve_hint.py`** — a shared, tiny **resolve-action vocabulary** (`open_module` · `navigate` ·
+  `open_record`) so every actionable feed emits the same descriptor shape and the portal renders them
+  uniformly. Pure, no I/O.
+- **MARGIN-CBS** now attaches an `actions` list to each flagged cost-code row: an **over-budget** code
+  gets a "Review direct costs" jump, an **over-committed** code gets a "Review commitments" jump — each
+  **pre-filtered to that cost code** so the PM lands on exactly the records behind the flag instead of
+  hunting. A healthy code carries none. `test_margin` covers the descriptor shape + filter.
+- **Portal** — a shared `dispatchResolveAction` / `resolveActionButtons` (in the margin panel module,
+  reusable across the ring) renders the actions as inline buttons in a new **Fix** column on the 📒
+  Cost-code Margin card; clicking one opens that module's records filtered to the code. `ResolveAction`
+  type + client wiring.
+- *Next:* extend the same action descriptors to the rule-run violations and schedule-conflict feeds.
+
 ## v0.3.576 — MASSING-OPT: the layout/massing optioneer (R16 Tier-1)
 
 The literal "Massing" play — deterministically enumerate envelope options over a zoning envelope and rank

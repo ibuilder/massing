@@ -23,6 +23,7 @@ def _num(v: Any) -> float:
 def by_cost_code(db: Session, pid: str) -> dict[str, Any]:
     """Aggregate budget / committed / actual / billed by cost code → per-code margin + variance rows."""
     from . import modules as me
+    from . import resolve_hint as rh
 
     codes = {r["id"]: (r.get("data") or {}) for r in me.list_records(db, "cost_code", pid, limit=100_000)}
 
@@ -31,6 +32,10 @@ def by_cost_code(db: Session, pid: str) -> dict[str, Any]:
         if d:
             return (d.get("code") or "").strip() + ((" · " + d["description"]) if d.get("description") else "") or ref
         return str(ref) if ref else "(unassigned)"
+
+    def code_of(ref: Any) -> str:
+        """The bare cost-code string (e.g. ``03-3000``) — the filter a resolve-action jumps with."""
+        return ((codes.get(ref) or {}).get("code") or "").strip()
 
     agg: dict[Any, dict] = {}
 
@@ -58,6 +63,16 @@ def by_cost_code(db: Session, pid: str) -> dict[str, Any]:
         budget, committed, actual, billed = a["budget"], a["committed"], a["actual"], a["billed"]
         buyout_margin = round(budget - committed, 2)      # projected margin from buying out below budget
         variance = round(budget - actual, 2)              # budget remaining vs actual incurred
+        over_committed = committed > budget + 0.005
+        over_budget = actual > budget + 0.005
+        # UX-ACT: pair each exposure flag with a one-click action, filtered to this cost code — the PM
+        # jumps straight to the records that caused it instead of hunting for them.
+        code = code_of(ref)
+        actions: list[dict] = []
+        if over_budget:
+            actions.append(rh.open_module("direct_cost", "Review direct costs", code or None))
+        if over_committed:
+            actions.append(rh.open_module("commitment", "Review commitments", code or None))
         rows.append({
             "cost_code": label(ref),
             "budget": round(budget, 2), "committed": round(committed, 2),
@@ -65,8 +80,9 @@ def by_cost_code(db: Session, pid: str) -> dict[str, Any]:
             "buyout_margin": buyout_margin, "variance": variance,
             "pct_committed": round(100.0 * committed / budget, 1) if budget else None,
             "pct_spent": round(100.0 * actual / budget, 1) if budget else None,
-            "over_committed": committed > budget + 0.005,
-            "over_budget": actual > budget + 0.005,
+            "over_committed": over_committed,
+            "over_budget": over_budget,
+            "actions": actions,
         })
     rows.sort(key=lambda x: x["buyout_margin"])            # worst (thinnest / negative) margin first
 

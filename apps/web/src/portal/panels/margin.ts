@@ -1,5 +1,40 @@
+import type { ResolveAction } from "../../api/types";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
+
+/**
+ * UX-ACT: dispatch a resolve-action descriptor to the right portal behaviour. Shared across the ring so
+ * every actionable diagnostic (margin, rules, schedule) resolves the same way. Currently: open_module
+ * (optionally filtered) — the one-click jump from a flagged row to the records behind it.
+ */
+export function dispatchResolveAction(ctx: PanelContext, a: ResolveAction) {
+  // open_module / open_record: jump to that module's records view, optionally pre-filtered. (The
+  // `navigate` kind is reserved for future feeds; only module-opens are wired today.)
+  if ((a.kind === "open_module" || a.kind === "open_record") && a.module) {
+    const m = ctx.mods.find((x) => x.key === a.module);
+    if (!m) return;
+    ctx.activeKey = a.module;
+    void ctx.openModule(m, a.q ? { q: a.q } : undefined);
+    ctx.buildNav();
+  }
+}
+
+/** Build the inline action buttons for a diagnostic row (UX-ACT). Returns "" when there are none. */
+export function resolveActionButtons(ctx: PanelContext, actions: ResolveAction[] | undefined, cls = "ux-act"): HTMLElement | null {
+  if (!actions?.length) return null;
+  const span = document.createElement("span");
+  span.style.cssText = "display:inline-flex;gap:4px;flex-wrap:wrap";
+  for (const a of actions) {
+    const b = document.createElement("button");
+    b.className = cls;
+    b.type = "button";
+    b.textContent = a.label;
+    b.style.cssText = "font-size:10px;padding:1px 6px;border:1px solid var(--border,#3a3a3a);border-radius:4px;background:transparent;color:var(--accent,#5b9);cursor:pointer;white-space:nowrap";
+    b.onclick = () => dispatchResolveAction(ctx, a);
+    span.appendChild(b);
+  }
+  return span;
+}
 
 /**
  * MARGIN-CBS money card (R16) — per-cost-code reconciliation surfaced in the portal: budget vs committed
@@ -41,16 +76,23 @@ export async function renderMargin(ctx: PanelContext) {
     t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Cost code</th>`
       + `<th scope="col" style="text-align:right">Budget</th><th scope="col" style="text-align:right">Committed</th>`
       + `<th scope="col" style="text-align:right">Actual</th><th scope="col" style="text-align:right">Buyout margin</th>`
-      + `<th scope="col" style="text-align:right">Variance</th></tr></thead><tbody>`
-      + m.rows.map((r) => {
-        const flag = r.over_committed ? " ⚠" : "";
+      + `<th scope="col" style="text-align:right">Variance</th><th scope="col" style="text-align:left">Fix</th></tr></thead><tbody>`
+      + m.rows.map((r, i) => {
+        const flag = r.over_committed || r.over_budget ? " ⚠" : "";
         return `<tr><td style="text-align:left">${esc(r.cost_code)}${flag}</td>`
           + `<td style="text-align:right;font-variant-numeric:tabular-nums">${usd(r.budget)}</td>`
           + `<td style="text-align:right;font-variant-numeric:tabular-nums">${usd(r.committed)}</td>`
           + `<td style="text-align:right;font-variant-numeric:tabular-nums">${usd(r.actual)}</td>`
           + `<td style="text-align:right;font-variant-numeric:tabular-nums;color:${marginCol(r.buyout_margin)}">${usd(r.buyout_margin)}</td>`
-          + `<td style="text-align:right;font-variant-numeric:tabular-nums;color:${marginCol(r.variance)}">${usd(r.variance)}</td></tr>`;
+          + `<td style="text-align:right;font-variant-numeric:tabular-nums;color:${marginCol(r.variance)}">${usd(r.variance)}</td>`
+          + `<td style="text-align:left" data-act="${i}"></td></tr>`;
       }).join("") + `</tbody>`;
+    // UX-ACT: inject the one-click resolve buttons into each flagged row's Fix cell (onclick needs DOM)
+    m.rows.forEach((r, i) => {
+      const cell = t.querySelector(`td[data-act="${i}"]`);
+      const btns = resolveActionButtons(ctx, r.actions);
+      if (cell && btns) cell.appendChild(btns);
+    });
     wrap.appendChild(t);
     body.appendChild(wrap);
   } catch (e) {

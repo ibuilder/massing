@@ -64,6 +64,16 @@ export interface EditMacro {
   steps: { recipe: string; params: Record<string, unknown> }[];
 }
 
+/** UX-ACT: a one-click resolve-action descriptor paired with a computed diagnostic (over-budget code, etc). */
+export interface ResolveAction {
+  kind: "open_module" | "navigate" | "open_record";
+  label: string;
+  module?: string;   // open_module | open_record
+  q?: string;        // open_module free-text filter
+  target?: string;   // navigate destination key
+  ref?: string;      // open_record record id
+}
+
 /** Project-scoped capability role, least→most privileged. */
 export type ProjectRole = "viewer" | "reviewer" | "editor" | "admin";
 
