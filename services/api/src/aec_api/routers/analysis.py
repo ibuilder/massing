@@ -461,6 +461,15 @@ def model_assets_seed(pid: str, db: Session = Depends(get_db), actor: str = Depe
     return ma.seed(db, pid, ma.assets(open_source_ifc(db, pid)).get("assets", []), actor)
 
 
+@router.get("/projects/{pid}/model/equipment")
+def model_equipment(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """MEP-EQUIP — the procurement equipment schedule derived from the IFC: procurable MEP units grouped by
+    class + type into RFQ line-items with a quantity + representative spec (from the model's Psets);
+    ducts/pipes/fittings + controls excluded. 409 if the project has no source IFC."""
+    from .. import equipment as eq
+    return eq.schedule(open_source_ifc(db, pid))
+
+
 @router.get("/projects/{pid}/master-builder/brief")
 def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MASTER-BUILDER — the whole project in one view: runs the 8-step Master Builder Protocol (place →

@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.580 — MEP-EQUIP: procurement equipment schedule from the IFC (R16 Tier-1)
+
+Derive the RFQ equipment schedule straight from the model — no doc-scanning, because we own the model.
+
+- **`equipment.py`** + `GET /projects/{pid}/model/equipment`: groups the procurable MEP units
+  (`IfcEnergyConversionDevice` / `IfcFlowMovingDevice` / `IfcFlowStorageDevice` /
+  `IfcFlowTreatmentDevice` / `IfcFlowController` / `IfcFlowTerminal` / `IfcTransportElement`, subtype-
+  resolved) by **(class, type)** into **RFQ line-items with a quantity**, a representative spec pulled
+  from the model's Psets (manufacturer / model / capacity / power / flow / voltage), and the unit GUIDs;
+  plus by-discipline / by-class tallies. Ducts/pipes/fittings and controls are excluded (installed
+  material / commissioned, not scheduled units). Where ASSET-REG lists every asset one-per-GUID for FM,
+  this rolls them up for buyout.
+- Client `modelEquipment`. `test_equipment` covers the type-grouping (two same-type terminals → one line,
+  qty 2), the pump as its own line, duct exclusion, descending-quantity sort, and the 409.
+- *Next:* SPEC-CONFLICT — a `rule_library.py` cross-check of each line's Pset values against a specified-
+  requirement set (the scheduled-vs-specified mismatch catch) + a procurement panel / RFQ export.
+
 ## v0.3.579 — security: generic proforma solve-error, clearing the CodeQL alert
 
 The actual sink behind the `py/stack-trace-exposure` alert: `_proforma_seed` caught a broad `Exception`

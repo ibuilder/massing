@@ -1952,6 +1952,16 @@ export class ApiClient extends HttpCore {
     return this.json<{ created: number; skipped: number; created_refs: string[]; note: string }>(
       `/projects/${pid}/model/assets/seed`, { method: "POST", body: "{}" });
   }
+  /** MEP-EQUIP — the procurement equipment schedule from the IFC: procurable units grouped by class+type. */
+  modelEquipment(pid: string) {
+    type Tally = { count: number } & Record<string, string | number>;
+    type Line = { ifc_class: string; type: string; discipline: string; count: number;
+      spec: Record<string, unknown>; guids: (string | null)[] };
+    return this.json<{
+      line_count: number; unit_count: number; by_discipline: Tally[]; by_class: Tally[];
+      lines: Line[]; note: string;
+    }>(`/projects/${pid}/model/equipment`);
+  }
   /** MASTER-BUILDER — the 8-step Master Builder Protocol run over the project's own data, grounded in place. */
   masterBuilderBrief(pid: string) {
     type Step = { n: number; key: string; title: string; why: string; link: string;

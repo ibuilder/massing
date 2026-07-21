@@ -13,8 +13,8 @@ are driven several phases deep; the **master-builder skill** is installed and co
 What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runtime/tooling ring, and the
 decomposition/design carry-overs.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (310 suites) · single-source version in
-`apps/web/package.json` (v0.3.579).
+**Status:** CodeQL 0 open alerts · full backend suite green (311 suites) · single-source version in
+`apps/web/package.json` (v0.3.580).
 
 ---
 
@@ -80,11 +80,14 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   module (asset-GUID link, PPM interval, last/next-due, warranty, spares, O&M docs via `docmanager.py`); +
   round-trip COBie export from the register. Extends the design-to-turnover lifecycle into operations, no
   new infra. (IFC = source of truth: FM data derives from the model, never a parallel sheet.)
-- **MEP-EQUIP + SPEC-CONFLICT — equipment procurement + spec-vs-model conflict** *(M).* Derive
-  the equipment schedule straight from the IFC (`IfcUnitaryEquipment`/`IfcPump`/`IfcAirTerminal`… via
-  `query_dsl.py`) — **no doc-scanning, because we own the model** — into an RFQ package tied to submittals +
-  budget/GMP + QTO (`GET /model/equipment`); + a `rule_library.py` rule that cross-validates IFC Pset values
-  against a specified-requirement set (the "air-cooled schedule vs water-cooled spec" mismatch catch), `/rules/run`.
+- ◧ **MEP-EQUIP + SPEC-CONFLICT — equipment procurement + spec-vs-model conflict** *(M; phase-1 v0.3.580).*
+  ✅ `equipment.py` + `GET /model/equipment` derives the equipment schedule straight from the IFC
+  (`IfcEnergyConversionDevice`/`IfcFlowMovingDevice`/`IfcFlowTerminal`… subtype-resolved) — **no
+  doc-scanning, because we own the model** — grouping procurable units by (class, type) into **RFQ
+  line-items with a quantity + representative spec** (from the Psets) + GUIDs; ducts/pipes/controls
+  excluded. Client `modelEquipment`. **Remaining:** tie into submittals + budget/GMP + QTO as an RFQ
+  package, and **SPEC-CONFLICT** — a `rule_library.py` cross-check of Pset values against a
+  specified-requirement set (the "air-cooled schedule vs water-cooled spec" mismatch catch), `/rules/run`.
 - **RECIPE-MACROS + headless `massing` CLI** *(M/L; three independent sources converge here).* Save a
   chained sequence of edit-recipes as a **named, parameterized,
   shareable command** with a typed-variable schema (`POST /macros`, `POST /macros/{key}/run`), executed as an
