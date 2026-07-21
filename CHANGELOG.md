@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.582 — portal UIs for the shipped MASSING-OPT + MEP-EQUIP engines
+
+The R16 Tier-1 engines shipped with backend + client methods but no portal surface; this makes two of them
+usable.
+
+- **🧮 Massing Optioneer** (developer › Acquire) — a compact zoning-envelope + acquisition form (lot,
+  FAR, coverage, height, floor-to-floor, efficiency, unit size, land/hard-$/rent/cap) that runs
+  MASSING-OPT and renders the ranked options — floors · units · GFA · yield-on-cost · profit · levers,
+  with the **cost-vs-profit frontier** marked (✦) and a rank-by selector (yield / profit / units / net
+  sellable). Stateless.
+- **🔩 Equipment schedule** (construction › Build) — the MEP-EQUIP procurement schedule derived from the
+  model: by-discipline tallies + the RFQ line-items (type · class · quantity · discipline · representative
+  spec), ducts/pipes/fittings excluded.
+- Both are lazy-imported panels wired into the portal nav + dispatch; typecheck + lint + build green.
+  *(Live end-to-end not exercised — the dev preview's geometry stall + a frequently-stale local API gate
+  interactive portal checks here; the panels mirror the proven asset/margin-card pattern and the backend
+  routes are CI-covered.)*
+
 ## v0.3.581 — SPEC-CONFLICT: scheduled-vs-specified equipment cross-check (MEP-EQUIP phase-2)
 
 Complete the MEP-EQUIP value prop — catch the "scheduled air-cooled unit vs. the spec's water-cooled

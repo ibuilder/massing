@@ -165,6 +165,7 @@ export class PortalUI {
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
       __masterbuilder__: () => this.renderMasterBuilder(), __selections__: () => this.renderSelections(),
       __margin__: () => this.renderMargin(), __assets__: () => this.renderAssets(),
+      __equipment__: () => this.renderEquipment(), __massingopt__: () => this.renderMassingOpt(),
       __responsibility__: () => this.renderResponsibility(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __modelanalysis__: () => this.renderModelAnalysis(),
@@ -190,6 +191,7 @@ export class PortalUI {
           { key: "__wip__", icon: "📄", label: "WIP Schedule" },            // POC + over/under-billing (accounting twin)
           { key: "__ledger__", icon: "📒", label: "General Ledger" },        // balanced journal + trial balance + export
           { key: "__traceability__", icon: "🔗", label: "Cost Traceability" }, // model→cost→GL by GlobalId
+          { key: "__equipment__", icon: "🔩", label: "Equipment" },          // MEP-EQUIP — procurement schedule from the IFC
           { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // weather-sequenced work + site hazards
           { key: "__aiassist__", icon: "✍️", label: "AI Assist" },
         ]],
@@ -233,6 +235,7 @@ export class PortalUI {
           { key: "__uw__", icon: "📊", label: "Underwriting",
             go: () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "finance" })) },
           { key: "__land__", icon: "🗺️", label: "Land Screening" },
+          { key: "__massingopt__", icon: "🧮", label: "Massing Optioneer" }, // MASSING-OPT — sweep the envelope for yield
           { key: "__diligence__", icon: "📜", label: "Diligence & Entitlements" },
           { key: "__market__", icon: "💹", label: "Market Intelligence" },   // regional escalation + warm/cold sectors
         ]],
@@ -584,6 +587,8 @@ export class PortalUI {
   private async renderSelections() { return (await import("./panels/selections")).renderSelections(this.panelCtx()); }
   private async renderMargin() { return (await import("./panels/margin")).renderMargin(this.panelCtx()); }
   private async renderAssets() { return (await import("./panels/assets")).renderAssets(this.panelCtx()); }
+  private async renderEquipment() { return (await import("./panels/equipment")).renderEquipment(this.panelCtx()); }
+  private async renderMassingOpt() { return (await import("./panels/massingOpt")).renderMassingOpt(this.panelCtx()); }
   private async renderModelAnalysis() { return (await import("./panels/standards")).renderModelAnalysis(this.panelCtx()); }
   private async renderDocuments() { return (await import("./panels/documents")).renderDocuments(this.panelCtx()); }
   private async renderStandards() { return (await import("./panels/standards")).renderStandards(this.panelCtx()); }

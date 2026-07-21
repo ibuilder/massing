@@ -14,7 +14,7 @@ What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runt
 decomposition/design carry-overs.
 
 **Status:** CodeQL 0 open alerts · full backend suite green (311 suites) · single-source version in
-`apps/web/package.json` (v0.3.581).
+`apps/web/package.json` (v0.3.582).
 
 ---
 
@@ -67,8 +67,9 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   `layout_options.py` `optioneer()` deterministically sweeps envelope levers (floor-to-floor · core
   efficiency · coverage strategy · unit size) over `massing.compute_massing`, scores each by a transparent
   yield-on-cost proforma, and ranks by objective + a Pareto cost-vs-profit frontier → `POST
-  /massing/optioneer` (stateless) + client. **Remaining:** emit each option as a **GUID-stable edit-recipe
-  chain** (blank IFC → levels/grid → walls/slabs) + a 🧮-style comparison panel.
+  /massing/optioneer` (stateless) + client + ✅ the **🧮 Massing Optioneer portal panel** *(v0.3.582)*
+  (envelope form → ranked options + frontier). **Remaining:** emit each option as a **GUID-stable
+  edit-recipe chain** (blank IFC → levels/grid → walls/slabs).
 - **MARGIN-CBS — per-cost-code live margin rollup** *(M).* One reconciliation view keyed on the
   CBS/cost-code (`CBS-1` shipped) that computes **committed vs. billed vs. earned margin** per cost code
   from one quantity record, tying QTO → pay-apps → actuals. `GET /projects/{pid}/margin/by-costcode` (reuse
@@ -88,8 +89,9 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   excluded. Client `modelEquipment`. ✅ **SPEC-CONFLICT** *(phase-2 v0.3.581)* — `equipment.spec_conflicts`
   + `POST /model/equipment/spec-check` cross-checks each scheduled line's Pset values against a
   specified-requirement set (`{ifc_class: {spec_key: expected}}`) → conflicts + missing (the "air-cooled
-  schedule vs water-cooled spec" catch), deterministic. **Remaining:** tie into submittals + budget/GMP +
-  QTO as an RFQ package + a curated starter requirement set + a procurement panel.
+  schedule vs water-cooled spec" catch), deterministic. ✅ the **🔩 Equipment schedule portal panel**
+  *(v0.3.582)*. **Remaining:** tie into submittals + budget/GMP + QTO as an RFQ package + a curated starter
+  requirement set + an in-panel spec-conflict view.
 - **RECIPE-MACROS + headless `massing` CLI** *(M/L; three independent sources converge here).* Save a
   chained sequence of edit-recipes as a **named, parameterized,
   shareable command** with a typed-variable schema (`POST /macros`, `POST /macros/{key}/run`), executed as an
