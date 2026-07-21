@@ -22,8 +22,7 @@ idea, done deterministically over our own cost modules).
 
 ## v0.3.572 — Roadmap: R16 external-scan upgrade ring
 
-Synthesized a web scan of 14 AEC/proptech products (Finch, Versatile, BIMAssetPro, VergeSense,
-BuildVision, Maket, Beamstack, Prolo, Canaveral, BIMLOGIQ, BimOra, PropData, Helix) + 4 dev/skills
+Synthesized a web scan of 14 AEC/proptech products + 4 dev/skills
 resources (css-protips, frontend-dev-bookmarks, awesome-claude-code, Anthropic-Cybersecurity-Skills)
 into a new **🔬 R16 ring** in [docs/roadmap.md](docs/roadmap.md), with per-item engine/endpoint/module
 specifics and BUILD / INTEGRATE / SKIP tags. Highlights: **MASSING-OPT** (a layout optioneer mirroring the
