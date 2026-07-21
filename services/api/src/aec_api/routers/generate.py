@@ -410,6 +410,29 @@ def preview_massing(body: MassingIn):
     return {"metrics": metrics, "proforma": _proforma_seed(body, metrics)}
 
 
+class MassingOptioneerIn(BaseModel):
+    """MASSING-OPT — the zoning envelope + econ to optimise, plus the sweep controls."""
+    envelope: MassingIn
+    levers: dict[str, list[float]] | None = Field(default=None)     # override any default lever list
+    objective: str = Field(default="yield_on_cost")                 # yield_on_cost|profit|units|net_sellable
+    limit: int = Field(default=24, ge=1, le=120)
+
+
+@router.post("/massing/optioneer")
+def massing_optioneer(body: MassingOptioneerIn):
+    """MASSING-OPT (R16) — the layout optioneer: sweep the massing levers (floor-to-floor, core
+    efficiency, coverage strategy, unit size) over the zoning envelope, score each option for developer
+    yield, and return the ranked set + a Pareto (cost vs. profit) frontier. Deterministic + stateless —
+    no IFC is written (author the winner via the recipe chain); feeds a 🧮-style comparison panel."""
+    from .. import layout_options as lo
+
+    try:
+        return lo.optioneer(body.envelope.model_dump(), body.levers,
+                            objective=body.objective, limit=body.limit)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+
+
 def compute_massing_only(body: MassingIn) -> dict:
     from aec_data.massing import compute_massing  # type: ignore
     return compute_massing(body.model_dump())

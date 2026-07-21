@@ -1876,6 +1876,18 @@ export class ApiClient extends HttpCore {
       scenarios: Scenario[]; note: string;
     }>(`/projects/${pid}/schedule/optioneer`, { method: "POST", body: JSON.stringify(body) });
   }
+  /** MASSING-OPT — sweep massing levers over a zoning envelope → ranked options + Pareto frontier (stateless). */
+  massingOptioneer(envelope: Record<string, unknown>, opts?: { levers?: Record<string, number[]>; objective?: string; limit?: number }) {
+    type Opt = { id: string; levers: Record<string, number>; floors: number; height_m: number;
+      gfa_m2: number; gfa_sf: number; net_sellable_m2: number; units: number; far_achieved: number;
+      binding_constraint: string; on_frontier: boolean;
+      proforma: { total_cost: number; noi: number; stabilized_value: number; profit: number;
+        yield_on_cost: number; profit_margin: number } };
+    return this.json<{
+      scenarios: Opt[]; frontier: string[]; best: string | null; objective: string;
+      count: number; shown: number; levers_swept: Record<string, number[]>; note: string;
+    }>(`/massing/optioneer`, { method: "POST", body: JSON.stringify({ envelope, levers: opts?.levers ?? null, objective: opts?.objective ?? "yield_on_cost", limit: opts?.limit ?? 24 }) });
+  }
   /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
   masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
   /** MARGIN-CBS — per-cost-code reconciliation: budget vs committed vs actual vs billed → buyout margin. */

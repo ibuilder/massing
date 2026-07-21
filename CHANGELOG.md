@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.576 — MASSING-OPT: the layout/massing optioneer (R16 Tier-1)
+
+The literal "Massing" play — deterministically enumerate envelope options over a zoning envelope and rank
+them by developer yield, mirroring the schedule optioneer but for the massing stage.
+
+- **`layout_options.py`** — `optioneer(envelope, levers?, objective?, limit?)` sweeps the levers a
+  developer turns early — **floor-to-floor · core efficiency · coverage strategy (podium vs. tower) · unit
+  size/mix** — running each combination through the deterministic `massing.compute_massing` zoning→program
+  engine, then scores each option with a transparent **yield-on-cost proforma** (NOI ÷ total cost, from the
+  land + hard-$/sf + rent + cap-rate assumptions already on the envelope). Returns the options **ranked by
+  objective** (`yield_on_cost` | `profit` | `units` | `net_sellable`) plus a real **Pareto cost-vs-profit
+  frontier** (an option is on the frontier if no other is both cheaper *and* more profitable). Duplicate
+  programs collapse; the base envelope is validated up front (a bad lot → 422).
+- **`POST /massing/optioneer`** — stateless: no IFC is written (authoring the winning massing via the
+  blank-IFC → levels/grid → walls/slabs recipe chain is the phase-2 emission). Client `massingOptioneer`.
+  `test_layout_options` checks feasibility, yield math, the objective switch, and frontier non-domination
+  (no frontier option beaten on both axes; a tighter floor-to-floor fits more floors under the height cap).
+- *Next phase:* emit each option as a GUID-stable edit-recipe chain + a 🧮-style comparison panel.
+
 ## v0.3.575 — RECIPE-MACROS: save a chained edit-recipe as a named, parameterized command (R16 Tier-1)
 
 The reuse multiplier the GUID-stable edit-recipe spine was built for — capture your standard assemblies
@@ -31,8 +50,8 @@ as commands instead of re-typing the same step sequence.
 
 ## v0.3.574 — ASSET-REG: maintainable-asset register from the IFC (R16 Tier-1)
 
-The second R16 build — derive the FM handover register straight from the model (BIMAssetPro's "model → full
-control in days", done deterministically because IFC is our source of truth), so it isn't hand-entered.
+The second R16 build — derive the FM handover register straight from the model, deterministically (because
+IFC is our source of truth), so it isn't hand-entered.
 
 - **`model_assets.py` + `GET /projects/{pid}/model/assets`**: selects the maintainable serviceable assets
   from the IFC by class (subtype-resolved — `IfcEnergyConversionDevice` / `IfcFlowMovingDevice` /
@@ -50,8 +69,8 @@ control in days", done deterministically because IFC is our source of truth), so
 
 ## v0.3.573 — MARGIN-CBS: per-cost-code margin reconciliation (R16 Tier-1)
 
-The first R16 build — the highest-value GC-portal item from the external scan (Beamstack's "per-lot margin"
-idea, done deterministically over our own cost modules).
+The first R16 build — the highest-value GC-portal item from the research pass: per-cost-code margin
+reconciliation, done deterministically over our own cost modules.
 
 - **`margin.py` + `GET /projects/{pid}/margin/by-costcode`**: one reconciliation view keyed on cost code
   that ties the portal's separate cost modules together — **budget** (revised control number) vs
