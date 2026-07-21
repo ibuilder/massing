@@ -55,6 +55,17 @@ def estimate_assembly_price(body: dict = Body(...), _: str = Depends(current_use
     return assemblies_cost.build_up(comps, overrides)
 
 
+@router.get("/projects/{pid}/margin/by-costcode")
+def margin_by_costcode(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """MARGIN-CBS — per-cost-code money reconciliation: budget vs committed (subcontracts/POs) vs actual
+    (direct costs) vs billed (sub invoices), with the projected **buyout margin** (budget − committed),
+    the **cost variance** (budget − actual), and over-committed / over-budget flags, worst-margin first."""
+    from .. import margin
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return margin.by_cost_code(db, pid)
+
+
 @router.get("/projects/{pid}/selections/summary")
 def selections_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """SELECTIONS — the owner selections & allowances money rollup: total allowance vs. actual, the net

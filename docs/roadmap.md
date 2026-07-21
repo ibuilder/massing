@@ -13,8 +13,8 @@ are driven several phases deep; the **master-builder skill** is installed and co
 What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runtime/tooling ring, and the
 decomposition/design carry-overs.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (306 suites) · single-source version in
-`apps/web/package.json` (v0.3.567).
+**Status:** CodeQL 0 open alerts · full backend suite green (307 suites) · single-source version in
+`apps/web/package.json` (v0.3.573).
 
 ---
 
@@ -24,8 +24,9 @@ decomposition/design carry-overs.
 in the model we own. Verifiable without the frontend. These are the cleanest next wins.* **The top three
 are R16 Tier-1 picks (see the R16 ring below for full specifics).**
 
-- **★ MARGIN-CBS** *(R16; M)* — per-cost-code live margin rollup (committed vs. billed vs. earned, QTO →
-  pay-apps → actuals) at `GET /margin/by-costcode` + a portal money card. Highest-value GC-portal fit.
+- ✅ **MARGIN-CBS** *(R16; v0.3.573)* — per-cost-code reconciliation (budget vs committed vs actual vs
+  billed → buyout margin + variance, over-committed/over-budget flags) at `GET /margin/by-costcode` + the
+  📒 Cost-code Margin money card.
 - **★ ASSET-REG** *(R16; M)* — derive the maintainable-asset register from the IFC (`GET /model/assets`,
   `classification.py` + `query_dsl.py`) + a `pm_task` module — the concrete first slice of CMMS-OPS.
 - **★ RECIPE-MACROS** *(R16; M)* — save chained edit-recipes as named, parameterized, shareable commands

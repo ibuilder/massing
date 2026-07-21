@@ -164,6 +164,7 @@ export class PortalUI {
       __traceability__: () => this.renderTraceability(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
       __masterbuilder__: () => this.renderMasterBuilder(), __selections__: () => this.renderSelections(),
+      __margin__: () => this.renderMargin(),
       __responsibility__: () => this.renderResponsibility(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __modelanalysis__: () => this.renderModelAnalysis(),
@@ -183,6 +184,7 @@ export class PortalUI {
           ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__schedule__", icon: "📅", label: "Schedule" }] : []),
           ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__resload__", icon: "👷", label: "Resource Loading" }] : []),
           { key: "__budget__", icon: "💰", label: "Budget" },
+          ...(this.mods.some((x) => x.key === "cost_code") ? [{ key: "__margin__", icon: "📒", label: "Cost-code Margin" }] : []),  // budget vs committed vs actual → buyout margin
           ...(this.mods.some((x) => x.key === "selection") ? [{ key: "__selections__", icon: "◈", label: "Selections" }] : []),  // allowance vs actual → change events
           { key: "__evm__", icon: "📊", label: "Earned Value" },            // EVM: CPI/SPI/forecast + S-curve
           { key: "__wip__", icon: "📄", label: "WIP Schedule" },            // POC + over/under-billing (accounting twin)
@@ -579,6 +581,7 @@ export class PortalUI {
   private async renderBimKpi() { return (await import("./panels/standards")).renderBimKpi(this.panelCtx()); }
   private async renderMasterBuilder() { return (await import("./panels/masterBuilder")).renderMasterBuilder(this.panelCtx()); }
   private async renderSelections() { return (await import("./panels/selections")).renderSelections(this.panelCtx()); }
+  private async renderMargin() { return (await import("./panels/margin")).renderMargin(this.panelCtx()); }
   private async renderModelAnalysis() { return (await import("./panels/standards")).renderModelAnalysis(this.panelCtx()); }
   private async renderDocuments() { return (await import("./panels/documents")).renderDocuments(this.panelCtx()); }
   private async renderStandards() { return (await import("./panels/standards")).renderStandards(this.panelCtx()); }

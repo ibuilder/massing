@@ -1860,6 +1860,18 @@ export class ApiClient extends HttpCore {
   }
   /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
   masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
+  /** MARGIN-CBS — per-cost-code reconciliation: budget vs committed vs actual vs billed → buyout margin. */
+  marginByCostCode(pid: string) {
+    type Row = { cost_code: string; budget: number; committed: number; actual: number; billed: number;
+      buyout_margin: number; variance: number; pct_committed: number | null; pct_spent: number | null;
+      over_committed: boolean; over_budget: boolean };
+    return this.json<{
+      code_count: number; total_budget: number; total_committed: number; total_actual: number;
+      total_billed: number; total_buyout_margin: number; total_variance: number;
+      pct_committed: number | null; pct_spent: number | null;
+      over_committed_codes: number; over_budget_codes: number; rows: Row[]; note: string;
+    }>(`/projects/${pid}/margin/by-costcode`);
+  }
   /** SELECTIONS — owner selections & allowances rollup (allowance vs actual → change-order candidates). */
   selectionsSummary(pid: string) {
     type Cat = { category: string; count: number; allowance: number; actual: number; delta: number };

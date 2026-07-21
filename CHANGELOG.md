@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.573 — MARGIN-CBS: per-cost-code margin reconciliation (R16 Tier-1)
+
+The first R16 build — the highest-value GC-portal item from the external scan (Beamstack's "per-lot margin"
+idea, done deterministically over our own cost modules).
+
+- **`margin.py` + `GET /projects/{pid}/margin/by-costcode`**: one reconciliation view keyed on cost code
+  that ties the portal's separate cost modules together — **budget** (revised control number) vs
+  **committed** (subcontracts/POs) vs **actual** (direct costs) vs **billed** (sub invoices) — and computes
+  per code the projected **buyout margin** (budget − committed), the **cost variance** (budget − actual),
+  and **over-committed / over-budget** flags, sorted worst-margin first, with project totals.
+- **📒 Cost-code Margin** portal destination (Cost/Budget nav group, shown when the project uses the
+  `cost_code` module): a buyout-margin headline + a per-code table (budget/committed/actual/margin/variance,
+  over-committed rows flagged). Client method `marginByCostCode`.
+- Pure over the module records (tolerant currency parsing, guarded); `test_margin` covers the under/over-
+  budget split, worst-first ordering, totals, empty + 404.
+
 ## v0.3.572 — Roadmap: R16 external-scan upgrade ring
 
 Synthesized a web scan of 14 AEC/proptech products (Finch, Versatile, BIMAssetPro, VergeSense,
