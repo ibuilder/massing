@@ -1,7 +1,8 @@
 # Roadmap
 
-The single product roadmap — **open items only**, reconciled + re-prioritized **2026-07-20 at v0.3.567**
-after the quick-wins + flagship-sprints wave (v0.3.543–567). Everything ever shipped lives in
+The single product roadmap — **open items only**, reconciled + re-prioritized **2026-07-21 at v0.3.571**
+(a 14-product AEC/proptech + dev-resource web scan added the 🔬 R16 ring and re-topped the NOW list).
+Everything ever shipped lives in
 [roadmap-completed.md](roadmap-completed.md); per-release detail is in [CHANGELOG.md](../CHANGELOG.md).
 Supporting detail: [production-readiness.md](production-readiness.md) · [gc-portal.md](gc-portal.md) ·
 [cost-db-import-plan.md](cost-db-import-plan.md) · [mobile.md](mobile.md).
@@ -20,7 +21,15 @@ decomposition/design carry-overs.
 ## ▶ NOW — bounded, backend-testable, no new dependency (ship top-down)
 
 *Each is an S/M release: a pure engine leaf or a config-module tweak + a thin surface + a test, grounded
-in the model we own. Verifiable without the frontend. These are the cleanest next wins.*
+in the model we own. Verifiable without the frontend. These are the cleanest next wins.* **The top three
+are R16 Tier-1 picks (see the R16 ring below for full specifics).**
+
+- **★ MARGIN-CBS** *(R16; M)* — per-cost-code live margin rollup (committed vs. billed vs. earned, QTO →
+  pay-apps → actuals) at `GET /margin/by-costcode` + a portal money card. Highest-value GC-portal fit.
+- **★ ASSET-REG** *(R16; M)* — derive the maintainable-asset register from the IFC (`GET /model/assets`,
+  `classification.py` + `query_dsl.py`) + a `pm_task` module — the concrete first slice of CMMS-OPS.
+- **★ RECIPE-MACROS** *(R16; M)* — save chained edit-recipes as named, parameterized, shareable commands
+  (`/macros`), mirrored across CADCMD/MCP + a headless `massing` CLI with `massing check` as a CI gate.
 
 1. ~~**VERSION-COMPARE per-property**~~ — ✅ **changed-property *names*** shipped v0.3.570 (`diff` now
    names the exact Pset/Qto keys that changed, tagged added/removed/changed). The old/new **values** still
@@ -35,6 +44,116 @@ in the model we own. Verifiable without the frontend. These are the cleanest nex
    panel *(v0.3.571)*. Remaining: CPM-driven crew shifts off the critical path + scale the enumeration.
 6. **SPRINT MB — per-step deep-links** — wire each Master Builder brief step's gap to the portal
    destination that closes it (nav-map the step keys to their tools).
+
+## 🔬 R16 — external-scan upgrades (2026-07-21)
+
+Synthesized from a web scan of 14 AEC/proptech products + 4 dev/skills resources. **Recurring strategic
+edge:** three-quarters of these products spend their core AI budget *reconstructing structured data from
+unstructured inputs* (prose→plan, PDF→takeoff, email→line-items, bid-doc→equipment). Because **IFC is our
+source of truth**, we skip that whole problem and invest the same effort in deterministic
+scoring/optimization/validation on data we already hold — via the `rule_library.py` + `query_dsl.py`
+selector/rule spine and the `schedule_options.py` optioneer pattern, which recur as the implementation
+vehicle across almost every item. BUILD = deterministic/offline/we-own-it · INTEGRATE = optional
+feature-flagged connector (never a runtime dep) · SKIP = conflicts with a constraint/non-goal.
+
+**Tier 1 — flagship, high-value, reuse proven engines:**
+- **MASSING-OPT — layout optioneer** *(L; Finch).* The literal "Massing" play: `layout_options.py`
+  deterministically enumerates unit-mix / core-placement / bay-spacing options over a site envelope, emits
+  each as a **GUID-stable edit-recipe chain** (blank IFC → levels/grid → walls/slabs), and scores each —
+  mirroring `schedule_options.py` → `POST /massing/optioneer` → a 🧮-style comparison panel. Highest-leverage
+  next act for the authoring stack; on-brand, offline, zero new deps.
+- **MARGIN-CBS — per-cost-code live margin rollup** *(M; Beamstack).* One reconciliation view keyed on the
+  CBS/cost-code (`CBS-1` shipped) that computes **committed vs. billed vs. earned margin** per cost code
+  from one quantity record, tying QTO → pay-apps → actuals. `GET /projects/{pid}/margin/by-costcode` (reuse
+  the where-aggregate SQL-helper shape) surfaced as a portal money card like the selections card. Closest
+  fit to the GC portal; highest-value GC item in the scan.
+- **ASSET-REG + PM-OPS — asset register + preventive maintenance** *(M; bimassetpro)* — the concrete first
+  slice of the deferred CMMS-OPS. `GET /model/assets` deterministically derives the maintainable-asset
+  register from the IFC by class (`classification.py` + `query_dsl.py`), GUID-keyed; a `pm_task` config
+  module (asset-GUID link, PPM interval, last/next-due, warranty, spares, O&M docs via `docmanager.py`); +
+  round-trip COBie export from the register. Extends the design-to-turnover lifecycle into operations, no
+  new infra. (IFC = source of truth: FM data derives from the model, never a parallel sheet.)
+- **MEP-EQUIP + SPEC-CONFLICT — equipment procurement + spec-vs-model conflict** *(M; BuildVision).* Derive
+  the equipment schedule straight from the IFC (`IfcUnitaryEquipment`/`IfcPump`/`IfcAirTerminal`… via
+  `query_dsl.py`) — **no doc-scanning, because we own the model** — into an RFQ package tied to submittals +
+  budget/GMP + QTO (`GET /model/equipment`); + a `rule_library.py` rule that cross-validates IFC Pset values
+  against a specified-requirement set (their "air-cooled schedule vs water-cooled spec" catch), `/rules/run`.
+- **RECIPE-MACROS + headless `massing` CLI** *(M/L; BIMLOGIQ + BimOra + Unity CLI — two AEC vendors + Unity
+  independently converge here).* Save a chained sequence of edit-recipes as a **named, parameterized,
+  shareable command** with a typed-variable schema (`POST /macros`, `POST /macros/{key}/run`), executed as an
+  **ordered, resumable background job** (reuse job-artifacts) through the **model-diff plan/preview/apply
+  gate**. Surface the SAME registry across three faces — the viewer **CADCMD** line, the **MCP** tools, and a
+  new headless **`massing` CLI** binary (Unity-CLI contract: `--json` structured output, meaningful exit
+  codes, fully non-interactive; `massing convert|validate|diff|select|edit run|export`). Headline: **`massing
+  check`** runs model-CI (IDS/rule-library) and **exits non-zero on failure** so a CDE/repo pipeline fails
+  the build when a model breaks compliance — the single most valuable ISO-19650 CI pattern in the scan. Dual
+  auth (interactive session vs env-var CI token); an `eval`-against-the-running-model path (no cold re-convert).
+
+**Tier 2 — solid, reuse engines:**
+- **MEP-FITTINGS — auto fitting insertion** *(S/M; Canaveral).* At each `MEP-GRAPH` node a direction/size
+  change *implies* a fitting (elbow/tee/reducer/transition); `mep_fittings.py` over the graph auto-inserts +
+  counts them into QTO — deterministic geometry, no CV (IFC gives us what Canaveral infers from PDFs).
+- **PROCURE-LEVEL — RFQ / quote-leveling** *(M; Prolo + BuildVision).* Group QTO line items into buyout
+  packages, emit a structured RFQ, and score returned quotes on a normalized per-unit basis (price + lead-time
+  + coverage completeness) — `procurement.py` + a `procurement_package` module + `/procurement/level`, reusing
+  the shipped bid-leveling scorer. (Supplier price/catalog feeds = INTEGRATE; placing the PO stays human.)
+- **TESTFIT-ADJ — adjacency + dimensional rule packs** *(S/M; Maket).* Extend the test-fit solver with a
+  declarative **adjacency matrix** (required-adjacent · must-not-be-adjacent · needs-daylight/exterior-wall ·
+  needs-wet-wall) as an `adjacency_score` term, and a room-program **dimensional-compliance** rule pack
+  (min-room-dim · min-ceiling-height · egress-width · setback) via `rule_library.py`/`/rules/run` scoped to
+  `IfcSpace`.
+- **DESIGN-METRICS + DAYLIGHT — live design-metrics panel** *(M; Finch + VergeSense).* On every edit recipe,
+  recompute GFA · net-to-gross · unit count · area-per-type · code-check (rule sets) + a **deterministic
+  daylight-factor / solar-exposure** metric per `IfcSpace` (analytical formula, not ray-traced) — turns
+  sustainability + program-validation into active constraints beside the model.
+- **PROD-ACTUALS — productivity actuals loop** *(M; Versatile).* A `{task_id, qto_line, material_class, qty,
+  cycle_time, idle_time, ts}` actuals schema at `POST /progress/actuals`, mapped to QTO (`EST-1` link) +
+  schedule, computing **installed-rate actual vs planned takt** on the LOB/4D views. (Crane/telematics sensor
+  = INTEGRATE CSV/webhook connector; on-hook CV = SKIP.)
+- **SPACE-UTIL — utilization + supply/demand planner** *(S/M; VergeSense).* Per-`IfcSpace` capacity /
+  area-per-person / efficiency; a headcount/program forecast → required-area-by-type → gap-vs-modeled-inventory
+  planner (pure arithmetic, no sensors/ML); + extend the shipped cross-project benchmarking (our own-projects
+  analog to their 200M-sf dataset).
+
+**Tier 3 — tooling / DX / security (cross-cutting):**
+- **CSS-REFACTOR — panel CSS modernize** *(S; css-protips).* Across the ~130-module panels: a shared
+  `.stack > * + *` owl utility (kill per-child margin hacks), flex `space-between` over nth-child, `:is()` to
+  collapse selector lists, standardized `:focus-visible` outlines (a11y), `16px` inputs (stop iOS zoom on the
+  PWA), `:empty` to hide blank containers, logical properties for future RTL. Pure-CSS, offline-safe.
+- **SEC-SUPPLY — supply-chain hardening** *(S; Anthropic-Cybersecurity-Skills).* Add an **SBOM (CycloneDX)
+  generation + license/CVE scan** step to CI (mechanically enforces the MIT/BSD/Apache-only, no-AGPL
+  constraint + catches supply-chain CVEs); an **MCP tool-poisoning self-audit** of our MCP server's tool
+  defs; a lightweight **uploaded-PDF sanity check** (we ingest/emit PDFs). Folds into the `security-monitoring`
+  skill. *(The pack is 90% blue/red-team off-topic — cherry-pick only these; it does NOT replace CodeQL or our
+  esc() XSS discipline.)*
+- **DX-HOOKS — Claude Code guardrails** *(S; awesome-claude-code — needs the config path + an explicit OK,
+  since hooks change harness behavior).* A `PreToolUse` secret-scan + destructive-command (`git reset --hard`
+  / force-push / `rm -rf`) guard; a `Stop` hook that runs the `security-monitoring`/`backend-tests` skills so
+  the "check after every push" directive is enforced by the harness not memory; the **Anthropic Security-Review
+  GitHub Action** as an orthogonal second PR gate beside CodeQL; a SkillSpector-style scan of our own
+  `.claude/skills`.
+
+**INTEGRATE (optional, feature-flagged, never a runtime dependency):**
+- **MARKET-DATA connector** *(PropData).* A flagged/paid `propdata.py` connector feeding the pro-forma /
+  underwriting / valuation modules — parcel + rent-comps (ZORI/HUD FMR) + FHFA HPA + FEMA flood (ties into the
+  shipped `resilience.py` DFE) + Opportunity-Zone flags + FRED macro. Same posture as the APS/RVT bridge:
+  gate it, normalize to our inputs, never assume online. Also adopt two architecture-agnostic techniques from
+  it as BUILD: the **self-enriching cache** (local store → on-miss fetch from an authoritative source → cache
+  with source + fetched-at provenance) for our own reference/GIS lookups; and **weighted multi-source
+  estimates that expose each component value + its weight** (not just the blend) — fits the golden-thread ethos.
+
+**SKIP (reaffirmed non-goals — the scan's core-AI approaches we deliberately don't take):**
+LLM natural-language plan generation, CV takeoff from 2D PDFs (QuickDraw/SymbolSight/SheetScan), LLM bid-doc
+equipment extraction, on-sensor CV pick-classification, embedded-in-Revit agents — all reconstruct data we
+already hold as structured IFC. Owning sensors / a sourcing marketplace / placing POs or moving money.
+Skip-trace / owner-contact / foreclosure-lead (PII, off-mission). *(Helix yielded no grounded lesson — a
+pre-product landing page.)*
+
+> **Re-prioritization:** the ▶ NOW list above gains three R16 Tier-1 items at the top —
+> **MARGIN-CBS** (small, high-value, closest GC fit), **ASSET-REG** (concrete CMMS-OPS first slice), and
+> **RECIPE-MACROS/CLI** (converged-on by 3 sources). **MASSING-OPT** and **MEP-EQUIP** are the next authoring/
+> MEP wins after those. Tier 3's **SEC-SUPPLY** + **CSS-REFACTOR** interleave as small hardening/quality
+> releases.
 
 ## 🏔 BIG-TICKET SPRINTS — multi-release initiatives (open ONE track; slice + reassess)
 

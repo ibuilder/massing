@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.572 — Roadmap: R16 external-scan upgrade ring
+
+Synthesized a web scan of 14 AEC/proptech products (Finch, Versatile, BIMAssetPro, VergeSense,
+BuildVision, Maket, Beamstack, Prolo, Canaveral, BIMLOGIQ, BimOra, PropData, Helix) + 4 dev/skills
+resources (css-protips, frontend-dev-bookmarks, awesome-claude-code, Anthropic-Cybersecurity-Skills)
+into a new **🔬 R16 ring** in [docs/roadmap.md](docs/roadmap.md), with per-item engine/endpoint/module
+specifics and BUILD / INTEGRATE / SKIP tags. Highlights: **MASSING-OPT** (a layout optioneer mirroring the
+schedule-optioneer pattern), **MARGIN-CBS** (per-cost-code committed/billed/earned margin), **ASSET-REG +
+PM-OPS** (asset register + preventive maintenance from the IFC), **MEP-EQUIP + SPEC-CONFLICT**,
+**RECIPE-MACROS + a headless `massing` CLI** with a `massing check` CI gate, plus MEP auto-fittings,
+RFQ quote-leveling, test-fit adjacency rules, a live design-metrics/daylight panel, a productivity-actuals
+loop, and Tier-3 CSS/security/DX hardening. The recurring strategic note: because IFC is our source of
+truth, we skip the "reconstruct structured data from unstructured inputs" problem most of these products
+spend their AI budget on. The ▶ NOW list is re-topped with the three highest-value R16 Tier-1 picks.
+
 ## v0.3.571 — SCHED-OPT: Pareto frontier chart (SPRINT B phase-4b, part 1)
 
 - The 🧮 Schedule-optioneering card now renders a compact **cost-vs-duration scatter**: every scenario is
