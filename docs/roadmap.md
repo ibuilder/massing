@@ -14,7 +14,7 @@ What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runt
 decomposition/design carry-overs.
 
 **Status:** CodeQL 0 open alerts · full backend suite green (311 suites) · single-source version in
-`apps/web/package.json` (v0.3.584).
+`apps/web/package.json` (v0.3.585).
 
 ---
 
@@ -126,10 +126,11 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   cycle_time, idle_time, ts}` actuals schema at `POST /progress/actuals`, mapped to QTO (`EST-1` link) +
   schedule, computing **installed-rate actual vs planned takt** on the LOB/4D views. (Crane/telematics sensor
   = INTEGRATE CSV/webhook connector; on-hook CV = SKIP.)
-- **SPACE-UTIL — utilization + supply/demand planner** *(S/M).* Per-`IfcSpace` capacity /
-  area-per-person / efficiency; a headcount/program forecast → required-area-by-type → gap-vs-modeled-inventory
-  planner (pure arithmetic, no sensors/ML); + extend the shipped cross-project benchmarking (our own-projects
-  analog to a large external dataset).
+- ◧ **SPACE-UTIL — utilization + supply/demand planner** *(S/M; v0.3.585).* ✅ `space_util.py` +
+  `GET /model/space-utilization` (per-`IfcSpace` occupancy capacity at an area-per-person standard, by
+  type) + `POST /model/space-demand` (headcount program → required-area-by-type → gap-vs-modelled-inventory,
+  worst-deficit first); pure arithmetic, no sensors/ML; client + `test_space_util`. **Remaining:** a portal
+  panel + extend the cross-project benchmarking (our own-projects analog to a large external dataset).
 
 **Tier 3 — tooling / DX / security (cross-cutting):**
 - **CSS-REFACTOR — panel CSS modernize** *(S).* Across the ~130-module panels: a shared

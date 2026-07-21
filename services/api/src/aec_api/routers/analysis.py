@@ -482,6 +482,25 @@ def model_equipment_spec_check(pid: str, requirements: dict = Body(default={}, e
             "line_count": sched.get("line_count", 0), "unit_count": sched.get("unit_count", 0)}
 
 
+@router.get("/projects/{pid}/model/space-utilization")
+def model_space_utilization(pid: str, area_per_person: float = Query(default=10.0, gt=0, le=1000),
+                            db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """SPACE-UTIL — occupancy capacity per `IfcSpace` at the given area-per-person standard, rolled up by
+    space type + totals. Pure arithmetic over the modelled net floor areas. 409 if no source IFC."""
+    from .. import space_util as su
+    return su.from_model(open_source_ifc(db, pid), area_per_person)
+
+
+@router.post("/projects/{pid}/model/space-demand")
+def model_space_demand(pid: str, program: dict = Body(default={}, embed=True),
+                       area_per_person: float = Body(default=10.0, embed=True),
+                       db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """SPACE-UTIL — a headcount `program` (`{space_type: headcount}`) vs. the modelled inventory → required
+    vs. supplied area + the gap (deficit/surplus) per type. Deterministic supply/demand planner."""
+    from .. import space_util as su
+    return su.demand(su._spaces_from_model(open_source_ifc(db, pid)), program or {}, area_per_person)
+
+
 @router.get("/projects/{pid}/master-builder/brief")
 def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MASTER-BUILDER — the whole project in one view: runs the 8-step Master Builder Protocol (place →

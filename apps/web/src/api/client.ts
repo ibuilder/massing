@@ -1970,6 +1970,22 @@ export class ApiClient extends HttpCore {
       conflicts: Row[]; missing: Row[]; line_count: number; unit_count: number; note: string;
     }>(`/projects/${pid}/model/equipment/spec-check`, { method: "POST", body: JSON.stringify({ requirements }) });
   }
+  /** SPACE-UTIL — occupancy capacity per IfcSpace at an area-per-person standard, rolled up by type. */
+  modelSpaceUtilization(pid: string, areaPerPerson = 10) {
+    type Row = { type: string; count: number; area_m2: number; capacity: number };
+    return this.json<{
+      space_count: number; total_area_m2: number; area_per_person: number; capacity_total: number;
+      by_type: Row[]; spaces: { guid: string | null; name: string; type: string; area_m2: number; capacity: number }[]; note: string;
+    }>(`/projects/${pid}/model/space-utilization?area_per_person=${encodeURIComponent(areaPerPerson)}`);
+  }
+  /** SPACE-UTIL — a headcount program ({space_type: headcount}) vs the modelled inventory → the area gap. */
+  modelSpaceDemand(pid: string, program: Record<string, number>, areaPerPerson = 10) {
+    type Row = { type: string; headcount: number; required_m2: number; supplied_m2: number; gap_m2: number; status: string };
+    return this.json<{
+      area_per_person: number; total_required_m2: number; total_supplied_m2: number; total_gap_m2: number;
+      deficit_types: number; by_type: Row[]; note: string;
+    }>(`/projects/${pid}/model/space-demand`, { method: "POST", body: JSON.stringify({ program, area_per_person: areaPerPerson }) });
+  }
   /** MASTER-BUILDER — the 8-step Master Builder Protocol run over the project's own data, grounded in place. */
   masterBuilderBrief(pid: string) {
     type Step = { n: number; key: string; title: string; why: string; link: string; dest: string;

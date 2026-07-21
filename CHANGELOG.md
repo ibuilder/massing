@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.585 — SPACE-UTIL: space utilization + supply/demand planner (R16 Tier-2)
+
+Turn the model's `IfcSpace` inventory into a workplace-planning answer — deterministically, because we
+hold the areas in the IFC (no sensors, no ML).
+
+- **`space_util.py`** — `utilization(spaces, area_per_person)` gives each space an occupancy **capacity**
+  (`floor(net-area ÷ area-per-person)`) rolled up by space type + totals; `demand(spaces, program,
+  area_per_person)` compares a headcount **program** (`{space_type: headcount}`) against the modelled
+  inventory → required vs. supplied area + the **gap** (deficit/surplus) per type, worst-deficit first.
+  The computation is pure over a plain space list (fully unit-tested); `from_model` pulls the spaces off
+  the IFC (`Qto_SpaceBaseQuantities` net/gross floor area, LongName/ObjectType for the type).
+- **`GET /projects/{pid}/model/space-utilization?area_per_person=…`** + **`POST
+  /projects/{pid}/model/space-demand`** ({program, area_per_person}). Client `modelSpaceUtilization` /
+  `modelSpaceDemand`. `test_space_util` covers capacity math, the standard-changes-count case, the
+  bad-standard fallback, the demand gap + worst-first sort, and the routes (409 without a model).
+
 ## v0.3.584 — SPRINT MB: the Master Builder brief's gaps are now one click from the fix
 
 The 8-step Master Builder brief named a gap per step but left you to find the tool that closes it. Each
