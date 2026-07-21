@@ -283,7 +283,20 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **openBIM conformance, ISO 19650 automation & estimate depth (v0.3.413–v0.3.542, current).** The
+- **Schedule optioneering, a whole-project "master builder" brief, and the owner client-portal (v0.3.543–v0.3.567, current).**
+  A **schedule-optioneering** engine permutes crew loading, work-face zoning, fast-track overlap and trade
+  sequence over the Takt line-of-balance model — scoring every scenario on makespan / cost / peak-crew
+  congestion, ranking by a weighted time+cost score with a Pareto frontier, and recommending a plan against
+  the project's own schedule (a 🧮 comparison panel drives it). A new **Master Builder brief** holds the
+  entire project in one view — the 8-step protocol (place → program → feasibility → regulatory → design →
+  delivery → risk → handover) run over the project's own data, grounded in its jurisdiction and the model's
+  georeferenced coordinates, with a shareable Markdown one-pager. The **client-portal** gives an owner a
+  tokenized read-only readiness link (a self-contained public page — no record data / GUIDs / financials /
+  PII) and turns the selections log into money: **allowance-vs-actual** with over-allowance items pushed to
+  **change events**. Plus a unified **model-warnings feed**, a **rebar bar-bending schedule** with per-bar
+  legs/angles, and a second structural-solver exchange — **Code_Aster** `.mail` mesh beside the OpenSees
+  `.tcl`. (The reasoning behind these ships as an in-repo **`master-builder` skill**.)
+- **openBIM conformance, ISO 19650 automation & estimate depth (v0.3.413–v0.3.542).** The
   analytical chain got an **exit** — export the derived frame to **OpenSees (`.tcl`)** for third-party FE
   verification. openBIM QA gained a **normative conformance gauntlet** (header/schema/GlobalId/spatial-
   containment checks in the spirit of the buildingSMART validation service), a **standalone discipline-slice

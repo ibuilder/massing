@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.568 — Docs & demo refresh to current state
+
+Brought every doc and the offline demo up to the v0.3.543–567 wave.
+
+- **Roadmap reconciled** — the whole ✅-completed wave (quick-wins, SPRINT B Schedule Optioneering,
+  SPRINT MB Master Builder + the skill, SPRINT D Client-Portal, SPRINT E rebar bending, SOLVER-OUT,
+  RT-ORJSON, the hardening + security bumps) moved into `roadmap-completed.md`; `roadmap.md` rewritten
+  fresh with **open items only**, re-prioritized around a bounded backend-testable NOW list (VERSION-COMPARE
+  per-property, IFCPATCH-LIB, BCF-API-SRV depth, the SPRINT D/B/MB continuations) + the big-ticket tracks.
+- **README** — new lead "Recent platform work" entry for the wave (schedule optioneering, the Master
+  Builder brief + in-repo skill, the client-portal + selections/allowances, Code_Aster export, the
+  model-warnings feed).
+- **GitHub Pages** — `index.html` (GC-portal capability card updated: 130 modules, schedule optioneering,
+  client-portal, selections & allowances, Master Builder brief; BIM card gains the model-warnings feed +
+  the OpenSees/Code_Aster solver export) and `status.html` (release count refreshed; the second
+  "Recently shipped" grid replaced with the current-wave cards). `status.md` watermark → v0.3.567, test
+  count → 306.
+- **Guide** — a "Recently added" callout covering the six new capabilities.
+- **Demo** — `demoData.json` regenerated (970 fixtures) so the offline `/app/` demo renders the current
+  feature set.
+
 ## v0.3.567 — SOLVER-OUT: Code_Aster mesh export (R15 tail)
 
 A second independent structural-solver exchange beside the shipped OpenSees `.tcl`.

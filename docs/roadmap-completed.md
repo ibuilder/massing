@@ -7,6 +7,46 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## 🗓 Session v0.3.543–567 (2026-07-20) — quick-wins, flagship sprints, master-builder skill, fab + solver tails
+
+The big continuous run: a quick-wins sprint, two flagship big-ticket tracks driven multiple phases deep
+(Schedule Optioneering and the Client-Portal), the **master-builder skill installed in-repo and
+co-evolved with the platform**, plus a hardening pass, a security bump, and two structural/fab tails —
+every item a verified CI-green release, **CodeQL 0 open alerts throughout**. Per-release detail in
+[CHANGELOG.md](../CHANGELOG.md); the highlights:
+
+- **⚡ QUICK-WINS SPRINT (v0.3.552, batched):** NORM-VALID tails (STEP-syntax + bSDD classification-coverage
+  lanes), **WARN-1** unified model-warnings feed (`model_warnings.py` + `/models/warnings`), DRAW-STATUS
+  drawing lifecycle field, SCOPE-GAP spec-section refinement (`covered_without_specs`), GOLDEN-THREAD seed
+  (`/golden-thread/seed` from the model-CI report, idempotent).
+- **🧮 SPRINT B — SCHEDULE OPTIONEERING (flagship, v0.3.553–556):** deterministic crew/zoning optioneer
+  over the Takt line-of-balance model (`schedule_options.py` + `/schedule/optioneer`) → widened with
+  fast-track overlap + sequence permutation (grid capped at 800) → the 🧮 scenario-comparison panel
+  (Pareto frontier + recommended-plan summary) → optimises the **real project** (takt train derived from
+  the project's own `schedule_activity` records).
+- **🏛 SPRINT MB — MASTER BUILDER (v0.3.557–558, 562) + the skill:** installed the **`master-builder`
+  skill** (`.claude/skills/master-builder`, now v0.3.2) and shipped its 8-step protocol as software —
+  `master_builder.py` + `/master-builder/brief` + the 🏛 panel (place → program/HBU → feasibility →
+  regulatory → design → delivery → risk → handover, grounded in the project's jurisdiction) → place-grounding
+  from the model's georeferencing (code family + hemisphere/climate band + hazard params to verify) →
+  a shareable **Markdown brief** (`/master-builder/brief.md`). Skill co-evolved: build-doctrine §11
+  (synthesis over sources of truth), global-codes §8 (mechanized grounding), construction-delivery
+  (fabrication-output honesty boundary).
+- **🔗 SPRINT D — CLIENT-PORTAL (v0.3.563–566):** a `ShareToken` model + `client_portal.py` + editor-gated
+  token management + the PUBLIC `/shared/{token}/digest` (curated readiness only — no record data / GUIDs /
+  financials / PII) → a self-contained fully-escaped public HTML readiness page → **selections & allowances**
+  rollup (`selections.py` + `/selections/summary`: allowance-vs-actual, per-category deltas, over-allowance
+  change-order candidates) → **push overages to change events** (`/selections/push-change-events`, idempotent).
+- **🔩 SPRINT E — FAB-DELIVER phase-1 (v0.3.560):** rebar bar-bending schedule now carries per-mark leg
+  lengths, bend angles, bend count, and shape family off the authored geometry (`rebar_rules.bending_detail`).
+  The BVBS machine bending-file export is **held behind a validation gate** (a byte-wrong file mis-bends
+  real steel — per the fabrication-output doctrine).
+- **🧰 Tails & hygiene:** **SOLVER-OUT** Code_Aster `.mail` mesh export beside the OpenSees `.tcl`
+  (v0.3.567); **RT-ORJSON remainder** for the hot storage-blob paths (v0.3.550, measured 1.7×/4.8×); a
+  **hardening pass** over the wave (v0.3.559 — adversarial audit, no XSS/no high-sev, 3 low-sev fixes: DMS
+  sign, optioneer input-normalisation + value clamps + 422s, a panel row-highlight identity bug); and a
+  **security bump** clearing the brace-expansion advisories (v0.3.561).
+
 ## 🗓 Session v0.3.510–542 (2026-07-19) — execution-queue tail + R15/R14 rings closed
 
 Continuation of the audit-synthesized wave: the ★ execution queue (#0–20) finished, then the entire
