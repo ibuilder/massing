@@ -89,7 +89,7 @@ export async function renderMasterBuilder(ctx: PanelContext) {
         shareBody.innerHTML = "";
         for (const t of live) {
           const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;margin:2px 0;flex-wrap:wrap";
-          const link = document.createElement("a"); link.href = ctx.host.api.sharedDigestUrl(t.token); link.target = "_blank"; link.rel = "noopener";
+          const link = document.createElement("a"); link.href = ctx.host.api.sharedPageUrl(t.token); link.target = "_blank"; link.rel = "noopener";
           link.className = "meta"; link.style.cssText = "flex:1 1 200px;word-break:break-all";
           link.textContent = `🔗 ${t.label ? t.label + " · " : ""}…${t.token.slice(-8)} (${t.view_count} view${t.view_count === 1 ? "" : "s"})`;
           const del = document.createElement("button"); del.className = "selset-del"; del.textContent = "✕ revoke"; del.title = "Revoke this link immediately";

@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.564 — CLIENT-PORTAL: public read-only share page (SPRINT D phase-2)
+
+- **`GET /shared/{token}`** (public, no auth) now serves a **self-contained read-only HTML page** rendering
+  the share digest — a readiness bar, the project + jurisdiction, and the 8 protocol steps with their
+  status. A stakeholder opens the link and sees the project's readiness with no login and no app.
+- **Every value is HTML-escaped** (`client_portal.to_html`), the page is marked `noindex,nofollow`, and it
+  exposes only the same curated readiness data as the JSON digest — no record-level data. Covered by a test
+  that a hostile project name (`<script>…`) is escaped, not executed.
+- The 🔗 Share section in the 🏛 panel now links to the human HTML page (`sharedPageUrl`).
+
 ## v0.3.563 — CLIENT-PORTAL: tokenized read-only project digest (SPRINT D phase-1)
 
 Opens the first external-stakeholder surface — a link an owner can hand out to see project readiness

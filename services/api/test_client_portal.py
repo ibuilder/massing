@@ -52,11 +52,23 @@ with TestClient(app) as c:
     c.get(f"/shared/{tok}/digest")
     assert c.get(f"/projects/{pid}/share-tokens").json()["tokens"][0]["view_count"] == 2, "view not counted"
 
+    # --- phase-2: the public HTML page renders the same digest, fully escaped ------------------------
+    pg = c.get(f"/shared/{tok}")
+    assert pg.status_code == 200 and pg.headers["content-type"].startswith("text/html"), pg.status_code
+    assert "Harbour Point" in pg.text and "Project readiness" in pg.text and "Master Builder Protocol" in pg.text, pg.text[:200]
+    assert "noindex" in pg.text, "public share page must ask not to be indexed"
+
     # --- revoke → immediate 404; unknown token → 404 (no enumeration signal) --------------------------
     assert c.delete(f"/projects/{pid}/share-tokens/{tok}").status_code == 200
     assert c.get(f"/shared/{tok}/digest").status_code == 404, "revoked token still readable!"
     assert c.delete(f"/projects/{pid}/share-tokens/{tok}").status_code == 404   # already revoked
     assert c.get("/shared/totally-made-up-token/digest").status_code == 404
+
+    # SECURITY: a hostile project name is HTML-escaped in the public page (no XSS on the shared surface)
+    xpid = c.post("/projects", json={"name": "<script>alert(1)</script>"}).json()["id"]
+    xtok = c.post(f"/projects/{xpid}/share-tokens", json={}).json()["token"]
+    xhtml = c.get(f"/shared/{xtok}").text
+    assert "<script>alert(1)</script>" not in xhtml and "&lt;script&gt;" in xhtml, "project name not escaped in share page!"
 
     # tokens are strong + unique across mints
     toks = {c.post(f"/projects/{pid}/share-tokens", json={}).json()["token"] for _ in range(5)}

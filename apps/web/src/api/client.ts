@@ -1870,8 +1870,10 @@ export class ApiClient extends HttpCore {
     return this.json<{ revoked: boolean }>(`/projects/${pid}/share-tokens/${encodeURIComponent(token)}`,
       { method: "DELETE" });
   }
-  /** The public digest URL for a share token (opens with no login). */
+  /** The public digest JSON URL for a share token. */
   sharedDigestUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}/digest`); }
+  /** The public read-only HTML page for a share token (opens with no login — the human share link). */
+  sharedPageUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}`); }
   /** MASTER-BUILDER — the 8-step Master Builder Protocol run over the project's own data, grounded in place. */
   masterBuilderBrief(pid: string) {
     type Step = { n: number; key: string; title: string; why: string; link: string;

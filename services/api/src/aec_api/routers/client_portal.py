@@ -5,8 +5,8 @@ The management routes are gated to editors on the project; the public digest rou
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Body, Depends, HTTPException, Response
+from sqlalchemy.orm import Session  # noqa: F401
 
 from .. import client_portal
 from ..db import get_db
@@ -56,3 +56,14 @@ def shared_digest(token: str, db: Session = Depends(get_db)):
         return client_portal.digest(db, token)
     except KeyError:
         raise HTTPException(404, "not found") from None
+
+
+@router.get("/shared/{token}")
+def shared_page(token: str, db: Session = Depends(get_db)):
+    """PUBLIC (no auth) — a self-contained read-only HTML page rendering the share digest (the same
+    curated readiness data as the .json digest). All values are HTML-escaped. Unknown/revoked → 404."""
+    try:
+        d = client_portal.digest(db, token)
+    except KeyError:
+        raise HTTPException(404, "not found") from None
+    return Response(client_portal.to_html(d), media_type="text/html")

@@ -92,6 +92,50 @@ def digest(db: Session, token: str) -> dict[str, Any]:
     }
 
 
+def to_html(d: dict[str, Any]) -> str:
+    """Render a digest() result as a self-contained, escaped read-only HTML page (the public share page).
+    Every dynamic value is HTML-escaped — the page is served to unauthenticated visitors."""
+    import html as _html
+
+    def esc(v: Any) -> str:
+        return _html.escape(str(v if v is not None else ""))
+
+    _color = {"ready": "#1a7f37", "partial": "#9a6700", "gap": "#b3261e"}
+    _dot = {"ready": "●", "partial": "●", "gap": "●"}
+    pct = d.get("readiness_pct") or 0
+    bar = f'<div style="height:10px;border-radius:6px;background:#e5e7eb;overflow:hidden">' \
+          f'<div style="height:100%;width:{max(0, min(100, pct))}%;background:#2563eb"></div></div>'
+    rows = "".join(
+        f'<li style="display:flex;gap:8px;align-items:baseline;margin:6px 0">'
+        f'<span style="color:{_color.get(s.get("status"), "#6b7280")};font-size:11px">{_dot.get(s.get("status"), "○")}</span>'
+        f'<span style="min-width:1.4em;color:#6b7280">{esc(s.get("n"))}.</span>'
+        f'<span style="flex:1">{esc(s.get("title"))}</span>'
+        f'<span style="font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:{_color.get(s.get("status"), "#6b7280")}">{esc(s.get("status"))}</span>'
+        f'</li>' for s in d.get("steps", []))
+    juris = f' · {esc(d.get("jurisdiction"))}' if d.get("jurisdiction") else ""
+    return (
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+        "<meta name=\"robots\" content=\"noindex,nofollow\">"
+        f"<title>{esc(d.get('project') or 'Project')} — readiness</title>"
+        "<style>body{margin:0;font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;"
+        "background:#f7f7f8;color:#111827}main{max-width:640px;margin:0 auto;padding:28px 20px}"
+        ".card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:14px 0}"
+        "h1{font-size:20px;margin:0 0 2px}.muted{color:#6b7280;font-size:13px}"
+        "ul{list-style:none;padding:0;margin:8px 0 0}</style></head><body><main>"
+        f"<h1>{esc(d.get('project') or 'Project')}</h1>"
+        f"<div class=\"muted\">Project readiness{juris} · read-only shared digest</div>"
+        "<div class=\"card\">"
+        f"<div style=\"display:flex;justify-content:space-between;align-items:baseline\"><b>Readiness</b>"
+        f"<span style=\"font-size:26px;font-weight:800;color:#2563eb\">{esc(pct)}%</span></div>"
+        f"{bar}"
+        f"<div class=\"muted\" style=\"margin-top:6px\">{esc(d.get('ready_steps'))}/"
+        f"{esc(d.get('step_count'))} steps ready · {esc(d.get('gap_steps'))} gap(s)</div></div>"
+        f"<div class=\"card\"><b>Master Builder Protocol</b><ul>{rows}</ul></div>"
+        f"<div class=\"muted\">{esc(d.get('note'))}</div>"
+        "</main></body></html>")
+
+
 def _public_row(r) -> dict[str, Any]:
     return {"token": r.token, "label": r.label, "revoked": bool(r.revoked),
             "created_at": r.created_at.isoformat() if r.created_at else None,
