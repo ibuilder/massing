@@ -225,7 +225,7 @@ A construction-management portal on top of the viewer — full writeup in
 [docs/gc-portal.md](docs/gc-portal.md). Highlights:
 
 - **Module engine** — every process (RFIs, Submittals, PCO/Change-Order chain, Daily
-  Reports, …) is a `module.json` → its own auto-created table. **80 modules / 16 sections**,
+  Reports, …) is a `module.json` → its own auto-created table. **130 modules / 16 sections**,
   no per-module code. Each gets CRUD, role-gated workflow, comments, CSV/PDF, pins, timeline.
 - **Two role dimensions** — capability roles (viewer→admin) + party roles
   (GC/Owner/OwnersRep/Consultant/Subcontractor) that gate workflow transitions.
@@ -283,7 +283,19 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **Schedule optioneering, a whole-project "master builder" brief, and the owner client-portal (v0.3.543–v0.3.567, current).**
+- **Deriving the deal, the buyout and the FM register straight from the model (v0.3.573–v0.3.582, current).**
+  A wave of deterministic, IFC-native engines — because the model *is* the source of truth, each is computed,
+  not reconstructed by AI. A **massing optioneer** sweeps the zoning-envelope levers (floor-to-floor, core
+  efficiency, coverage, unit mix) over the program engine and ranks the options by yield-on-cost with a
+  cost-vs-profit Pareto frontier (🧮 panel). A **per-cost-code margin** view reconciles budget vs. committed
+  vs. actual vs. billed into a projected buyout margin, flagging over-committed / over-budget codes worst-first
+  (📒 money card), and every flagged code carries a **one-click Fix** action to the records behind it. The
+  **maintainable-asset register** and the **procurement equipment schedule** both derive from the IFC by class
+  — the FM handover register (🔧) one-per-GUID, the RFQ line-items (🔩) rolled up by type with representative
+  spec — and a **spec-conflict** check cross-validates the modelled Pset values against the specified
+  requirements. **Recipe-macros** capture a chained edit-recipe as a named, parameterized command that applies
+  as one GUID-stable version.
+- **Schedule optioneering, a whole-project "master builder" brief, and the owner client-portal (v0.3.543–v0.3.567).**
   A **schedule-optioneering** engine permutes crew loading, work-face zoning, fast-track overlap and trade
   sequence over the Takt line-of-balance model — scoring every scenario on makespan / cost / peak-crew
   congestion, ranking by a weighted time+cost score with a Pareto frontier, and recommending a plan against
@@ -423,7 +435,7 @@ Platform interface (vector renders of the redesigned UI — see the [live demo](
 | ![tools panel](docs/img/ui-tools-panel.svg) | ![portal catalog](docs/img/ui-portal-catalog.svg) |
 
 The ⚙ Tools panel is a persona-ordered, collapsible, state-aware accordion (secondary tools fold
-under "More tools"; analysis opens in a readable modal); the GC-portal catalog tames 80 modules
+under "More tools"; analysis opens in a readable modal); the GC-portal catalog tames 130 modules
 with ★ favorites, collapsible persona-aware sections, and a filter.
 
 ## Architecture

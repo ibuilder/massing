@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.583 — docs / Pages / demo refreshed to the R16 Tier-1 wave
+
+Marketing + docs surfaces were last refreshed at v0.3.567; this brings them current to the whole
+v0.3.573–582 wave (and fixes the stale 80-module count → 130).
+
+- **README** — new lead highlight bullet for "deriving the deal, the buyout and the FM register straight
+  from the model" (massing optioneer · cost-code margin + one-click fixes · asset register + equipment RFQ
+  + spec-conflict · recipe-macros); module count 80 → **130** in both places.
+- **GitHub Pages** — `status.html` "Recently shipped" section + cards rewritten to the R16 wave;
+  `guide.html` "Recently added" callout rewritten; `status.md` watermark → v0.3.582.
+- **Demo** — `demoData.json` regenerated (970 fixtures) against the current build.
+- No code change; the backend suite is unchanged at 311 green.
+
 ## v0.3.582 — portal UIs for the shipped MASSING-OPT + MEP-EQUIP engines
 
 The R16 Tier-1 engines shipped with backend + client methods but no portal surface; this makes two of them
