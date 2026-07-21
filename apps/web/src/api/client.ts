@@ -1566,6 +1566,10 @@ export class ApiClient extends HttpCore {
   openseesTclUrl(pid: string) {
     return this.url(`/projects/${pid}/structure/opensees.tcl`);
   }
+  /** SOLVER-OUT — the analytical frame as a Code_Aster mesh (.mail, SI metres). */
+  codeAsterMailUrl(pid: string) {
+    return this.url(`/projects/${pid}/structure/code-aster.mail`);
+  }
 
   /** SUBSET-EXPORT: download URL for an IFC of just the elements matching a QUERY-DSL selector. */
   subsetIfcUrl(pid: string, query: string) {

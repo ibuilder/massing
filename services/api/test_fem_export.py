@@ -42,6 +42,20 @@ massing.generate_blank_ifc(TMP, name="Empty", storeys=1, storey_height=3.0, grou
 empty = fem_export.to_opensees(open_model(TMP))
 assert empty["available"] is False and "derive_analytical" in empty["message"], empty
 
+# --- SOLVER-OUT: the same frame as a Code_Aster .mail (ASTER text, SI metres) ---------------------
+ca = fem_export.to_code_aster(m)
+assert ca["available"] is True, ca
+# same topology as the OpenSees export (both read the analytical frame)
+assert ca["node_count"] == res["node_count"] and ca["element_count"] == 3 and ca["fixed_count"] == res["fixed_count"], ca
+mail = ca["mail"]
+for tok in ("COOR_3D", "SEG2", "GROUP_NO", "NOM=BASE", "GROUP_MA", "NOM=FRAME", "FIN"):
+    assert tok in mail, f"missing ASTER block '{tok}'"
+# one COOR_3D node line per node, one SEG2 line per element
+node_lines = [ln for ln in mail.splitlines() if ln.startswith("N") and len(ln.split()) == 4]
+seg_lines = [ln for ln in mail.splitlines() if ln.startswith("M") and ln.split()[1:2] and ln.split()[1].startswith("N")]
+assert len(node_lines) == ca["node_count"] and len(seg_lines) == ca["element_count"], (len(node_lines), len(seg_lines))
+assert fem_export.to_code_aster(open_model(TMP))["available"] is False   # blank model → not available
+
 # --- route: streams the .tcl; 409 without an analytical model ------------------------------------
 os.environ["DATABASE_URL"] = "sqlite:///./test_fem_export.db"
 os.environ["STORAGE_DIR"] = "./test_storage_fem_export"
@@ -73,6 +87,10 @@ with TestClient(app) as c:
     r = c.get(f"/projects/{pid}/structure/opensees.tcl")
     assert r.status_code == 200 and "model BasicBuilder" in r.text, r.status_code
     assert r.headers["content-type"].startswith("text/plain")
+    # the Code_Aster route streams the .mail (same 409 contract without a model)
+    ra = c.get(f"/projects/{pid}/structure/code-aster.mail")
+    assert ra.status_code == 200 and "COOR_3D" in ra.text and "NOM=BASE" in ra.text, ra.status_code
+    assert ".mail" in ra.headers.get("content-disposition", ""), ra.headers.get("content-disposition")
 
 if os.path.exists(TMP):
     os.remove(TMP)

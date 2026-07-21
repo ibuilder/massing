@@ -67,6 +67,23 @@ def structure_opensees(pid: str, db: Session = Depends(get_db), _: str = Depends
                     headers={"Content-Disposition": f'attachment; filename="model-{pid}.tcl"'})
 
 
+@router.get("/projects/{pid}/structure/code-aster.mail")
+def structure_code_aster(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """SOLVER-OUT: the analytical frame as a Code_Aster mesh (.mail, ASTER text, SI metres) — COOR_3D
+    nodes, SEG2 elements, a BASE node group (supports) and a FRAME element group — a second independent
+    solver exchange beside the OpenSees .tcl. 409 if there's no analytical model yet."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import fem_export
+    p = _project(db, pid)
+    res = fem_export.to_code_aster(open_model(p.source_ifc))
+    if not res["available"]:
+        raise HTTPException(409, res.get("message") or "no analytical model")
+    from fastapi import Response
+    return Response(res["mail"], media_type="text/plain",
+                    headers={"Content-Disposition": f'attachment; filename="model-{pid}.mail"'})
+
+
 @router.get("/projects/{pid}/structure/lateral")
 def structure_lateral(pid: str,
                       sds: float = Query(1.0, gt=0), sd1: float = Query(0.6, gt=0),

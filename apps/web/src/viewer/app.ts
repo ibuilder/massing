@@ -3848,6 +3848,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               });
               fem.title = "Download the analytical frame as an OpenSees .tcl model (nodes, base restraints, one elasticBeamColumn per member, nominal sections) so an engineer can independently verify the solver in a third-party FE solver";
               body.appendChild(fem);
+              const femA = toolBtn2("⬇ Export Code_Aster (.mail)", () => {
+                window.open(api.codeAsterMailUrl(pid), "_blank");
+              });
+              femA.title = "Download the analytical frame as a Code_Aster mesh (.mail, ASTER text, SI metres): COOR_3D nodes, SEG2 elements, a BASE support group + a FRAME element group — a second independent solver exchange beside the OpenSees export";
+              body.appendChild(femA);
             }
             const lat = toolBtn2("🌪 Lateral (wind + seismic base shear)", () => withLoading(container, "Running ASCE 7 lateral analysis", async () => {
               let lr;

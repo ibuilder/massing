@@ -89,3 +89,63 @@ def to_opensees(model: ifcopenshell.file) -> dict[str, Any]:
               "skeleton).", ""]
     return {"available": True, "tcl": "\n".join(lines),
             "node_count": len(order), "element_count": len(elems), "fixed_count": len(base)}
+
+
+_Z_TOL_M = _Z_TOL_IN / _IN_PER_M                          # base-node tolerance in metres (~0.305 m)
+
+
+def to_code_aster(model: ifcopenshell.file) -> dict[str, Any]:
+    """Build a **Code_Aster** (EDF, GPL — code-aster.org) mesh (`.mail`, ASTER text format, SI metres) for
+    the model's analytical frame: `COOR_3D` nodes, `SEG2` beam elements, a `BASE` node group (the fixed
+    supports) and a `FRAME` element group. A second independent solver exchange beside the OpenSees `.tcl`,
+    so a structural engineer can verify the frame in Code_Aster. Returns
+    `{available, mail, node_count, element_count, fixed_count}`. Geometry/supports skeleton only — the
+    engineer assigns the section (AFFE_CARA_ELEM), material, boundary conditions on BASE, and the load case."""
+    from .struct_solve import _member_endpoints
+
+    members = model.by_type("IfcStructuralCurveMember")
+    if not members:
+        return {"available": False, "mail": "", "node_count": 0, "element_count": 0, "fixed_count": 0,
+                "message": "No analytical model — run the derive_analytical recipe first."}
+    scale = _uu.calculate_unit_scale(model)              # metres per file unit
+    to_m = lambda c: round(float(c) * scale, 4)          # noqa: E731 — SI metres
+
+    nodes: dict[tuple, int] = {}
+    order: list[tuple] = []
+
+    def _nid(pt) -> int:
+        key = (to_m(pt[0]), to_m(pt[1]), to_m(pt[2]))
+        nid = nodes.get(key)
+        if nid is None:
+            nid = nodes[key] = len(nodes) + 1
+            order.append(key)
+        return nid
+
+    elems: list[tuple[int, int]] = []
+    for cm in members:
+        ends = _member_endpoints(cm)
+        if not ends:
+            continue
+        n1, n2 = _nid(ends[0]), _nid(ends[1])
+        if n1 != n2:
+            elems.append((n1, n2))
+    if not order or not elems:
+        return {"available": False, "mail": "", "node_count": 0, "element_count": 0, "fixed_count": 0,
+                "message": "analytical model carries no usable geometry"}
+
+    min_z = min(k[2] for k in order)
+    base = [i + 1 for i, k in enumerate(order) if k[2] - min_z <= _Z_TOL_M]
+
+    out = ["TITRE",
+           "Massing analytical frame — geometry/supports skeleton for third-party verification (Code_Aster).",
+           "FINSF", "%", "COOR_3D"]
+    out += [f"N{i:<8d} {x} {y} {z}" for i, (x, y, z) in enumerate(order, 1)]
+    out += ["FINSF", "%", "SEG2"]
+    out += [f"M{eid:<8d} N{n1} N{n2}" for eid, (n1, n2) in enumerate(elems, 1)]
+    out += ["FINSF", "%", "GROUP_NO", "NOM=BASE"]
+    out += [" ".join(f"N{n}" for n in base[i:i + 8]) for i in range(0, len(base), 8)]
+    out += ["FINSF", "%", "GROUP_MA", "NOM=FRAME"]
+    out += [" ".join(f"M{e}" for e in range(i + 1, min(i + 9, len(elems) + 1))) for i in range(0, len(elems), 8)]
+    out += ["FINSF", "%", "FIN", ""]
+    return {"available": True, "mail": "\n".join(out),
+            "node_count": len(order), "element_count": len(elems), "fixed_count": len(base)}

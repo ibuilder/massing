@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.567 — SOLVER-OUT: Code_Aster mesh export (R15 tail)
+
+A second independent structural-solver exchange beside the shipped OpenSees `.tcl`.
+
+- **`fem_export.to_code_aster` + `GET /projects/{pid}/structure/code-aster.mail`**: exports the W10-7
+  analytical frame as a **Code_Aster** mesh (`.mail`, ASTER text format, SI metres) — `COOR_3D` nodes,
+  `SEG2` beam elements, a `BASE` node group (the fixed supports) and a `FRAME` element group. Same frame
+  topology as the OpenSees export; a structural engineer can now independently verify the frame in
+  Code_Aster (GPL) as well as OpenSees.
+- Geometry/supports skeleton only — the engineer assigns the section (AFFE_CARA_ELEM), material, BCs on
+  BASE, and the load case. A `⬇ Export Code_Aster (.mail)` button sits beside the OpenSees export in the
+  structural tools; client method `codeAsterMailUrl`.
+
 ## v0.3.566 — SELECTIONS: push overages to change events (SPRINT D phase-3b)
 
 Closes the selections → change-order → budget thread.

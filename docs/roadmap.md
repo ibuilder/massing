@@ -104,8 +104,8 @@ is server-side by design).*
   shipped v0.3.527/533).
 - **BCF-API-SRV** — attachments over the API + the **BCF 3.0** shape (2.1 core + viewpoints shipped
   v0.3.528–529).
-- **SOLVER-OUT** *(flagged)* — additional structural-solver exchange formats (Code_Aster) beyond the
-  shipped OpenSees `.tcl` (FEM-EXPORT v0.3.532).
+- ✅ **SOLVER-OUT** *(v0.3.567)* — **Code_Aster** `.mail` mesh export (COOR_3D / SEG2 / BASE + FRAME
+  groups, SI metres) beside the shipped OpenSees `.tcl` (`to_code_aster` + `/structure/code-aster.mail`).
 
 ## 🏔 BIG-TICKET SPRINTS — multi-release initiatives (pick one; slice + check in between phases)
 
