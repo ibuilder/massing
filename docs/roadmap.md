@@ -149,7 +149,9 @@ reassess. Rough size + the "phase-1" that de-risks it are called out.*
     readiness only — no record-level data / GUIDs / financials / PII) + a 🔗 Share section in the 🏛 panel.
   - ✅ **Phase 2 — public read-only page** *(v0.3.564)* — `GET /shared/{token}` serves a self-contained,
     fully-escaped HTML readiness page (noindex).
-  - **Phase 3** *(next)* — selections / allowances (choices → price deltas → CO/budget).
+  - ✅ **Phase 3 — selections & allowances** *(v0.3.565)* — `selections.py` + `/selections/summary`:
+    allowance-vs-actual rollup, per-category deltas, and the over-allowance change-order candidates.
+  - **Phase 3b** *(next)* — a selections money card in the panel + a push-to-change-order action.
 - **SPRINT E — FAB-DELIVER.** *(M/L)* Fabrication outputs from the steel/rebar recipes — assembly/part
   marks, **DSTV-NC**, bolt lists, **BVBS** bending schedules.
   - ✅ **Phase 1 — bending detail** *(v0.3.560)* — the bar-bending schedule now carries per-mark leg

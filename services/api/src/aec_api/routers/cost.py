@@ -55,6 +55,17 @@ def estimate_assembly_price(body: dict = Body(...), _: str = Depends(current_use
     return assemblies_cost.build_up(comps, overrides)
 
 
+@router.get("/projects/{pid}/selections/summary")
+def selections_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """SELECTIONS — the owner selections & allowances money rollup: total allowance vs. actual, the net
+    over/under, per-category deltas, approval status, and the over-allowance items that are change-order
+    candidates (delta = actual − allowance; over is an add to the owner, under a credit)."""
+    from .. import selections
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return selections.summary(db, pid)
+
+
 @router.get("/projects/{pid}/estimate/labor")
 def labor_estimate(pid: str, loading: str = "commercial", rate: float = 25.0, full: bool = False,
                    crews: int = 1, qto: bool = True,

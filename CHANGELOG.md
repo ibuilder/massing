@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.565 — SELECTIONS: allowances → change-order candidates (SPRINT D phase-3)
+
+Turns the owner's selections log into the money picture a builder actually manages.
+
+- **`selections.py` + `GET /projects/{pid}/selections/summary`**: rolls up the `selection` records into
+  allowance-vs-actual — total allowance, total actual, the **net over/under**, per-category signed deltas,
+  approval count, and the **change-order candidates** (delta = actual − allowance; over is an add to the
+  owner, under a credit) worst-first. Priced = selections with an actual cost entered.
+- Tolerant currency parsing (`$1,200.50` → number), guarded so an unpriced or malformed selection is
+  skipped rather than breaking the rollup; empty project → a zeroed summary. Client method
+  `selectionsSummary` wired.
+
 ## v0.3.564 — CLIENT-PORTAL: public read-only share page (SPRINT D phase-2)
 
 - **`GET /shared/{token}`** (public, no auth) now serves a **self-contained read-only HTML page** rendering

@@ -1856,6 +1856,18 @@ export class ApiClient extends HttpCore {
   }
   /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
   masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
+  /** SELECTIONS — owner selections & allowances rollup (allowance vs actual → change-order candidates). */
+  selectionsSummary(pid: string) {
+    type Cat = { category: string; count: number; allowance: number; actual: number; delta: number };
+    type Cand = { ref: string; item: string; category: string; allowance: number; actual: number;
+      delta: number; state: string };
+    return this.json<{
+      count: number; priced: number; approved: number; total_allowance: number; total_actual: number;
+      net_delta: number; direction: "over" | "under" | "on-allowance";
+      over_count: number; under_count: number; on_count: number;
+      by_category: Cat[]; co_candidate_count: number; co_candidates: Cand[]; note: string;
+    }>(`/projects/${pid}/selections/summary`);
+  }
   /** CLIENT-PORTAL — read-only share tokens for a public project-readiness digest. */
   shareTokens(pid: string) {
     type Tok = { token: string; label: string | null; revoked: boolean; created_at: string | null;
