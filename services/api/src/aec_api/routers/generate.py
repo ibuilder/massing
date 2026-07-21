@@ -27,6 +27,10 @@ if str(_DATA_SRC) not in sys.path:
 router = APIRouter()
 
 M2_TO_SF = 10.7639
+# Controlled 422 detail for an invalid zoning envelope — returned instead of the raw ValueError string so
+# no exception text flows to the response (py/stack-trace-exposure).
+_ENVELOPE_422 = ("invalid or incomplete zoning envelope — provide lot_area, lot_width × lot_depth, "
+                 "or a lot_polygon")
 
 
 class MassingIn(BaseModel):
@@ -405,8 +409,10 @@ def preview_massing(body: MassingIn):
     'what would this lot yield?' form before committing to a model. Stateless, instant."""
     try:
         metrics = compute_massing_only(body)
-    except ValueError as e:
-        raise HTTPException(422, str(e))
+    except ValueError:
+        # compute_massing raises a single, controlled validation message; return it as a fixed 422 detail
+        # rather than flowing the exception string to the response (py/stack-trace-exposure).
+        raise HTTPException(422, _ENVELOPE_422) from None
     return {"metrics": metrics, "proforma": _proforma_seed(body, metrics)}
 
 
@@ -429,8 +435,8 @@ def massing_optioneer(body: MassingOptioneerIn):
     try:
         return lo.optioneer(body.envelope.model_dump(), body.levers,
                             objective=body.objective, limit=body.limit)
-    except ValueError as e:
-        raise HTTPException(422, str(e)) from e
+    except ValueError:
+        raise HTTPException(422, _ENVELOPE_422) from None
 
 
 def compute_massing_only(body: MassingIn) -> dict:

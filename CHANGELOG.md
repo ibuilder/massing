@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.578 — security: no exception string in the massing 422s (CodeQL)
+
+CodeQL flagged `py/stack-trace-exposure` (medium) after the MASSING-OPT push: the new `/massing/optioneer`
+route added a data-flow path in which a `ValueError` from `compute_massing` reached the HTTP response via
+`str(e)` — the same pattern the older `/generate/massing/preview` route used. `compute_massing` only ever
+raises one controlled validation message, so both routes now return a **fixed 422 detail** (`_ENVELOPE_422`)
+instead of flowing the exception string to the client. Behaviour unchanged (still 422 on a bad envelope);
+CodeQL back to 0 open alerts.
+
 ## v0.3.577 — UX-ACT: actionable inline diagnostics (UX-POLISH ring)
 
 The first UX-POLISH build — pair a computed diagnostic with a one-click action next to it, instead of

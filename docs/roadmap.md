@@ -14,7 +14,7 @@ What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runt
 decomposition/design carry-overs.
 
 **Status:** CodeQL 0 open alerts · full backend suite green (310 suites) · single-source version in
-`apps/web/package.json` (v0.3.577).
+`apps/web/package.json` (v0.3.578).
 
 ---
 
