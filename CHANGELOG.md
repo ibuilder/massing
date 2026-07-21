@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.581 — SPEC-CONFLICT: scheduled-vs-specified equipment cross-check (MEP-EQUIP phase-2)
+
+Complete the MEP-EQUIP value prop — catch the "scheduled air-cooled unit vs. the spec's water-cooled
+requirement" mismatch deterministically, by comparing the model's own Pset values (no doc-scanning).
+
+- **`equipment.spec_conflicts(lines, requirements)`** — `requirements` is `{ifc_class: {spec_key:
+  expected}}` over the canonical schedule spec labels; a **conflict** is a scheduled line whose Pset value
+  disagrees with the spec (case-insensitive for strings; `expected` may be a list of acceptable values), a
+  **missing** is a specified property the model doesn't carry. Pure over the schedule output.
+- **`POST /projects/{pid}/model/equipment/spec-check`** runs the schedule then the cross-check → conflicts
+  + missing + `units_in_conflict`. Client `equipmentSpecCheck`. `test_equipment` extended (conflict,
+  case-insensitive match, missing, empty-requirements, route).
+- *Next:* a curated starter requirement set + surfacing conflicts on a procurement panel / RFQ export.
+
 ## v0.3.580 — MEP-EQUIP: procurement equipment schedule from the IFC (R16 Tier-1)
 
 Derive the RFQ equipment schedule straight from the model — no doc-scanning, because we own the model.

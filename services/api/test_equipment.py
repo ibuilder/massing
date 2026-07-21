@@ -21,6 +21,24 @@ edit_mep.add_mep_run(m, "IfcDuctSegment", [0, 0], [5, 0], "round", 0.3, st)     
 m.create_entity("IfcPump", GlobalId=ifcopenshell.guid.new(), Name="CHW Pump 1")   # equipment
 m.write(TMP)
 
+# --- SPEC-CONFLICT: pure comparison over fabricated schedule lines (no model needed) ----------------
+_lines = [
+    {"ifc_class": "IfcChiller", "type": "CH-1", "count": 2, "spec": {"CondenserType": "AirCooled"}},
+    {"ifc_class": "IfcPump", "type": "P-1", "count": 1, "spec": {"Model": "CHW-2000"}},
+    {"ifc_class": "IfcAirTerminal", "type": "AT-1", "count": 4, "spec": {}},          # no spec value
+]
+sc = eq.spec_conflicts(_lines, {
+    "IfcChiller": {"CondenserType": "WaterCooled"},       # spec says water-cooled, model says air → CONFLICT
+    "IfcPump": {"Model": "chw-2000"},                      # matches case-insensitively → NO conflict
+    "IfcAirTerminal": {"FlowRate": 250},                   # specified but not modelled → MISSING
+})
+assert sc["conflict_count"] == 1 and sc["conflicts"][0]["ifc_class"] == "IfcChiller", sc
+assert sc["conflicts"][0]["expected"] == "WaterCooled" and sc["conflicts"][0]["actual"] == "AirCooled", sc
+assert sc["units_in_conflict"] == 2, sc                    # the conflicting chiller line has 2 units
+assert sc["missing_count"] == 1 and sc["missing"][0]["ifc_class"] == "IfcAirTerminal", sc
+# a class with no requirement is never flagged
+assert eq.spec_conflicts(_lines, {})["conflict_count"] == 0
+
 res = eq.schedule(open_model(TMP))
 by_class = {r["ifc_class"]: r for r in res["lines"]}
 # two air terminals of the same (class, type) collapse into ONE line with count 2
@@ -55,6 +73,14 @@ with TestClient(app) as c:
     assert r.status_code == 200, r.text
     j = r.json()
     assert j["unit_count"] == 3 and j["line_count"] == 2, j
+    # SPEC-CONFLICT route: require the pump to be a model the schedule doesn't carry → reported missing;
+    # an empty requirement set yields zero conflicts
+    sr = c.post(f"/projects/{pid}/model/equipment/spec-check",
+                json={"requirements": {"IfcPump": {"Model": "P-9999"}}})
+    assert sr.status_code == 200, sr.text
+    sj = sr.json()
+    assert sj["conflict_count"] + sj["missing_count"] >= 1 and sj["line_count"] == 2, sj
+    assert c.post(f"/projects/{pid}/model/equipment/spec-check", json={"requirements": {}}).json()["conflict_count"] == 0
 
 if os.path.exists(TMP):
     os.remove(TMP)

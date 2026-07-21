@@ -470,6 +470,18 @@ def model_equipment(pid: str, db: Session = Depends(get_db), _sec: str = Depends
     return eq.schedule(open_source_ifc(db, pid))
 
 
+@router.post("/projects/{pid}/model/equipment/spec-check")
+def model_equipment_spec_check(pid: str, requirements: dict = Body(default={}, embed=True),
+                               db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """MEP-EQUIP SPEC-CONFLICT — cross-check the scheduled equipment against a specified-requirement set
+    (`{ifc_class: {spec_key: expected}}`) → the mismatches (a modelled Pset value disagreeing with the
+    spec) + missing specified properties. Deterministic; no spec-document scanning. 409 if no source IFC."""
+    from .. import equipment as eq
+    sched = eq.schedule(open_source_ifc(db, pid))
+    return {**eq.spec_conflicts(sched.get("lines", []), requirements or {}),
+            "line_count": sched.get("line_count", 0), "unit_count": sched.get("unit_count", 0)}
+
+
 @router.get("/projects/{pid}/master-builder/brief")
 def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MASTER-BUILDER — the whole project in one view: runs the 8-step Master Builder Protocol (place →

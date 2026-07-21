@@ -45,6 +45,47 @@ def _first_spec(psets: dict[str, dict]) -> dict[str, Any]:
     return out
 
 
+def spec_conflicts(lines: list[dict], requirements: dict[str, dict]) -> dict[str, Any]:
+    """SPEC-CONFLICT — cross-check the scheduled equipment against a **specified-requirement set**, the
+    deterministic version of the "scheduled air-cooled unit vs. spec's water-cooled requirement" catch —
+    no doc-scanning, we compare the model's own Pset values.
+
+    ``requirements`` is ``{ifc_class: {spec_key: expected}}`` (e.g. ``{"IfcChiller": {"CondenserType":
+    "WaterCooled"}}``); ``spec_key`` matches the canonical labels the schedule surfaces (Manufacturer /
+    Model / Capacity / Power / FlowRate / Voltage / …). A conflict is a scheduled line whose spec carries
+    that key with a value that doesn't match the requirement (case-insensitive for strings). A line missing
+    the key entirely is reported as ``missing`` (specified but not modelled), not a hard conflict.
+    """
+    def _match(actual: Any, expected: Any) -> bool:
+        if isinstance(expected, (list, tuple, set)):
+            return any(_match(actual, e) for e in expected)
+        if isinstance(actual, str) and isinstance(expected, str):
+            return actual.strip().lower() == expected.strip().lower()
+        return actual == expected
+
+    conflicts: list[dict] = []
+    missing: list[dict] = []
+    for line in lines:
+        reqs = requirements.get(line["ifc_class"])
+        if not reqs:
+            continue
+        spec = line.get("spec") or {}
+        for key, expected in reqs.items():
+            actual = spec.get(key)
+            row = {"ifc_class": line["ifc_class"], "type": line["type"], "count": line["count"],
+                   "spec_key": key, "expected": expected, "actual": actual}
+            if actual in (None, ""):
+                missing.append(row)
+            elif not _match(actual, expected):
+                conflicts.append(row)
+    return {"conflict_count": len(conflicts), "missing_count": len(missing),
+            "units_in_conflict": sum(c["count"] for c in conflicts),
+            "conflicts": conflicts, "missing": missing,
+            "note": "Scheduled equipment cross-checked against the specified-requirement set: a conflict is "
+                    "a modelled Pset value that disagrees with the spec; 'missing' is a specified property "
+                    "the model doesn't carry. Deterministic — no spec-document scanning."}
+
+
 def schedule(model) -> dict[str, Any]:
     """Group the model's procurable equipment by (ifc_class, type) → RFQ line-items with a quantity + a
     representative spec pulled from the first unit, plus by-discipline / by-class tallies."""

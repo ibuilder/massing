@@ -14,7 +14,7 @@ What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runt
 decomposition/design carry-overs.
 
 **Status:** CodeQL 0 open alerts · full backend suite green (311 suites) · single-source version in
-`apps/web/package.json` (v0.3.580).
+`apps/web/package.json` (v0.3.581).
 
 ---
 
@@ -85,9 +85,11 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   (`IfcEnergyConversionDevice`/`IfcFlowMovingDevice`/`IfcFlowTerminal`… subtype-resolved) — **no
   doc-scanning, because we own the model** — grouping procurable units by (class, type) into **RFQ
   line-items with a quantity + representative spec** (from the Psets) + GUIDs; ducts/pipes/controls
-  excluded. Client `modelEquipment`. **Remaining:** tie into submittals + budget/GMP + QTO as an RFQ
-  package, and **SPEC-CONFLICT** — a `rule_library.py` cross-check of Pset values against a
-  specified-requirement set (the "air-cooled schedule vs water-cooled spec" mismatch catch), `/rules/run`.
+  excluded. Client `modelEquipment`. ✅ **SPEC-CONFLICT** *(phase-2 v0.3.581)* — `equipment.spec_conflicts`
+  + `POST /model/equipment/spec-check` cross-checks each scheduled line's Pset values against a
+  specified-requirement set (`{ifc_class: {spec_key: expected}}`) → conflicts + missing (the "air-cooled
+  schedule vs water-cooled spec" catch), deterministic. **Remaining:** tie into submittals + budget/GMP +
+  QTO as an RFQ package + a curated starter requirement set + a procurement panel.
 - **RECIPE-MACROS + headless `massing` CLI** *(M/L; three independent sources converge here).* Save a
   chained sequence of edit-recipes as a **named, parameterized,
   shareable command** with a typed-variable schema (`POST /macros`, `POST /macros/{key}/run`), executed as an

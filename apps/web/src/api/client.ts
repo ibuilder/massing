@@ -1962,6 +1962,14 @@ export class ApiClient extends HttpCore {
       lines: Line[]; note: string;
     }>(`/projects/${pid}/model/equipment`);
   }
+  /** MEP-EQUIP SPEC-CONFLICT — cross-check the scheduled equipment against a specified-requirement set. */
+  equipmentSpecCheck(pid: string, requirements: Record<string, Record<string, unknown>>) {
+    type Row = { ifc_class: string; type: string; count: number; spec_key: string; expected: unknown; actual: unknown };
+    return this.json<{
+      conflict_count: number; missing_count: number; units_in_conflict: number;
+      conflicts: Row[]; missing: Row[]; line_count: number; unit_count: number; note: string;
+    }>(`/projects/${pid}/model/equipment/spec-check`, { method: "POST", body: JSON.stringify({ requirements }) });
+  }
   /** MASTER-BUILDER — the 8-step Master Builder Protocol run over the project's own data, grounded in place. */
   masterBuilderBrief(pid: string) {
     type Step = { n: number; key: string; title: string; why: string; link: string;
