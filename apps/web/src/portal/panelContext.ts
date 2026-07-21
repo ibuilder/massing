@@ -25,4 +25,6 @@ export interface PanelContext {
   renderHome(): Promise<void>;
   /** Open a module's list/CRUD view in the content pane. */
   openModule(m: ModuleDef, filter?: { q?: string; state?: string; offset?: number }): Promise<void>;
+  /** Jump to a first-class portal destination by its `__key__` (SPRINT MB deep-links). */
+  navigate(key: string): void;
 }

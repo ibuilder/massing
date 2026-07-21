@@ -31,6 +31,11 @@ with TestClient(app) as c:
     # every step carries its "why" + a link to the tool that closes its gap, and lists its gaps
     for s in b0["steps"]:
         assert s["why"] and s["link"] and s["status"] == "gap" and s["gaps"], s
+        # SPRINT MB deep-links: every step points at a portal destination (__key__) that closes its gap
+        assert s["dest"].startswith("__") and s["dest"].endswith("__"), s
+    assert {s["dest"] for s in b0["steps"]} == {
+        "__modelanalysis__", "__program__", "__budget__", "__standards__",
+        "__modelqa__", "__schedule__", "__review__", "__turnover__"}, [s["dest"] for s in b0["steps"]]
     assert "not a substitute" in b0["disclaimer"].lower(), b0["disclaimer"]     # honest-status boundary
 
     # --- ground it in place + seed real signals across steps ------------------------------------------

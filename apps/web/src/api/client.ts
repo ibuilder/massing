@@ -1972,7 +1972,7 @@ export class ApiClient extends HttpCore {
   }
   /** MASTER-BUILDER — the 8-step Master Builder Protocol run over the project's own data, grounded in place. */
   masterBuilderBrief(pid: string) {
-    type Step = { n: number; key: string; title: string; why: string; link: string;
+    type Step = { n: number; key: string; title: string; why: string; link: string; dest: string;
       status: "ready" | "partial" | "gap";
       findings: { label: string; detail: string }[]; gaps: string[] };
     return this.json<{

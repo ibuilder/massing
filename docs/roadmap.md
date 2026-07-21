@@ -14,7 +14,7 @@ What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runt
 decomposition/design carry-overs.
 
 **Status:** CodeQL 0 open alerts · full backend suite green (311 suites) · single-source version in
-`apps/web/package.json` (v0.3.583).
+`apps/web/package.json` (v0.3.584).
 
 ---
 
@@ -48,8 +48,10 @@ are R16 Tier-1 picks (see the R16 ring below for full specifics).**
    over/under, per-category deltas, the over-allowance CO candidates + a push-to-change-events button.
 5. **SPRINT B phase-4b** — ✅ the Pareto-frontier **chart** (cost vs. duration scatter) shipped on the 🧮
    panel *(v0.3.571)*. Remaining: CPM-driven crew shifts off the critical path + scale the enumeration.
-6. **SPRINT MB — per-step deep-links** — wire each Master Builder brief step's gap to the portal
-   destination that closes it (nav-map the step keys to their tools).
+6. ✅ **SPRINT MB — per-step deep-links** *(v0.3.584)* — each Master Builder brief step now carries a
+   portal `dest`; the 🏛 panel renders a "→ Close this gap" button that jumps to the tool (nav-map:
+   place→model-analysis · program→program · feasibility→budget · regulatory→standards · design→model-QA ·
+   delivery→schedule · risk→risk-review · handover→turnover), via a new `PanelContext.navigate`.
 
 ## 🔬 R16 — external-scan upgrades (2026-07-21)
 

@@ -68,6 +68,18 @@ export async function renderMasterBuilder(ctx: PanelContext) {
         + `<div class="section-title" style="margin:0">${s.n}. ${esc(s.title)}</div>${pill(s.status)}</div>`
         + `<div class="meta" style="margin:2px 0 4px;opacity:.8">${esc(s.why)}</div>`
         + findings + gaps;
+      // SPRINT MB: a deep-link to the portal destination that closes this step — emphasized when there's
+      // a gap/partial, quiet when the step is already ready.
+      if (s.dest) {
+        const go = document.createElement("button");
+        const open = s.status !== "ready";
+        go.className = open ? "btn" : "tool-btn";
+        go.style.cssText = "margin-top:6px;font-size:11px;padding:2px 8px";
+        go.textContent = open ? "→ Close this gap" : "→ Open tool";
+        go.title = `Jump to the tool that closes step ${s.n}`;
+        go.onclick = () => ctx.navigate(s.dest);
+        card.appendChild(go);
+      }
       body.appendChild(card);
     }
 

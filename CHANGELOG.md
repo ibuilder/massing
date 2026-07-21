@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.584 — SPRINT MB: the Master Builder brief's gaps are now one click from the fix
+
+The 8-step Master Builder brief named a gap per step but left you to find the tool that closes it. Each
+step now deep-links to the portal destination that addresses it — the same diagnosis→action move as UX-ACT.
+
+- **`master_builder.py`** — each protocol step carries a portal `dest` (place→`__modelanalysis__` ·
+  program→`__program__` · feasibility→`__budget__` · regulatory→`__standards__` · design→`__modelqa__` ·
+  delivery→`__schedule__` · risk→`__review__` · handover→`__turnover__`), surfaced on every brief step.
+  `test_master_builder` asserts each step's dest is a valid `__key__` and the full set is present.
+- **Portal** — the `__key__`→render dispatch is hoisted out of `buildNav` into `destDispatch()`, and
+  `PanelContext` gains a `navigate(key)` method (a clean way for any panel to jump to a first-class
+  destination). The 🏛 Master Builder panel renders a **"→ Close this gap"** button per step (emphasized
+  on gaps/partials, quiet when ready) that navigates straight there. Client `Step` type gains `dest`.
+- Web typecheck + lint + build green.
+
 ## v0.3.583 — docs / Pages / demo refreshed to the R16 Tier-1 wave
 
 Marketing + docs surfaces were last refreshed at v0.3.567; this brings them current to the whole

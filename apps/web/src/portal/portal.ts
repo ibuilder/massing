@@ -96,6 +96,46 @@ export class PortalUI {
   constructor(private root: HTMLElement, private host: PortalHost) {}
 
   /** Build the PanelContext handed to extracted feature panels (portal/panels/*). */
+  /** The `__key__` → render map for first-class portal destinations. Hoisted out of buildNav so a panel
+   *  can programmatically jump to a destination (SPRINT MB deep-links) via `PanelContext.navigate`. */
+  private destDispatch(): Record<string, () => unknown> {
+    return {
+      __schedule__: () => { const m = this.mods.find((x) => x.key === "schedule_activity"); if (m) void this.renderScheduleViews(m); },
+      __budget__: () => this.renderBudget(), __review__: () => this.renderRiskReview(),
+      __aiassist__: () => this.renderAiAssist(), __riskcost__: () => this.renderRiskCost(),
+      __ids__: () => this.renderIds(), __turnover__: () => this.renderTurnover(),
+      __operations__: () => this.renderOperations(), __energy__: () => this.renderEnergy(),
+      __fca__: () => this.renderFca(), __resilience__: () => this.renderResilience(),
+      __spine__: () => this.renderSpine(),
+      __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
+      __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
+      __market__: () => this.renderMarket(), __conceptrender__: () => this.renderConceptRender(),
+      __materials__: () => this.renderMaterials(),
+      __modulegraph__: () => this.renderModuleGraph(),
+      __evm__: () => this.renderEvm(), __resload__: () => this.renderResourceLoading(),
+      __wip__: () => this.renderWip(), __ledger__: () => this.renderLedger(),
+      __traceability__: () => this.renderTraceability(),
+      __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
+      __masterbuilder__: () => this.renderMasterBuilder(), __selections__: () => this.renderSelections(),
+      __margin__: () => this.renderMargin(), __assets__: () => this.renderAssets(),
+      __equipment__: () => this.renderEquipment(), __massingopt__: () => this.renderMassingOpt(),
+      __responsibility__: () => this.renderResponsibility(),
+      __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
+      __modelanalysis__: () => this.renderModelAnalysis(),
+      __documents__: () => this.renderDocuments(),
+      __portfolio__: () => this.renderPortfolio(), __benchmarks__: () => this.renderBenchmarks(),
+    };
+  }
+
+  /** Jump to a first-class destination by its `__key__` (no-op for an unknown key). */
+  private goToDest(key: string): void {
+    const fn = this.destDispatch()[key];
+    if (!fn) return;
+    this.activeKey = key;
+    void fn();
+    this.buildNav();
+  }
+
   private panelCtx(): PanelContext {
     const self = this;
     return {
@@ -108,6 +148,7 @@ export class PortalUI {
       buildNav: () => self.buildNav(),
       renderHome: () => self.renderHome(),
       openModule: (m, f) => self.openModule(m, f),
+      navigate: (k) => self.goToDest(k),
     };
   }
 
@@ -146,32 +187,7 @@ export class PortalUI {
     // headers keep the rail scannable as destinations keep growing. Cross-project roll-ups get
     // their own group so single-project and portfolio views don't interleave.
     type Dest = { key: string; icon: string; label: string; go?: () => void };
-    const dests: Record<string, () => unknown> = {
-      __schedule__: () => { const m = this.mods.find((x) => x.key === "schedule_activity"); if (m) void this.renderScheduleViews(m); },
-      __budget__: () => this.renderBudget(), __review__: () => this.renderRiskReview(),
-      __aiassist__: () => this.renderAiAssist(), __riskcost__: () => this.renderRiskCost(),
-      __ids__: () => this.renderIds(), __turnover__: () => this.renderTurnover(),
-      __operations__: () => this.renderOperations(), __energy__: () => this.renderEnergy(),
-      __fca__: () => this.renderFca(), __resilience__: () => this.renderResilience(),
-      __spine__: () => this.renderSpine(),
-      __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
-      __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
-      __market__: () => this.renderMarket(), __conceptrender__: () => this.renderConceptRender(),
-      __materials__: () => this.renderMaterials(),
-      __modulegraph__: () => this.renderModuleGraph(),
-      __evm__: () => this.renderEvm(), __resload__: () => this.renderResourceLoading(),
-      __wip__: () => this.renderWip(), __ledger__: () => this.renderLedger(),
-      __traceability__: () => this.renderTraceability(),
-      __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
-      __masterbuilder__: () => this.renderMasterBuilder(), __selections__: () => this.renderSelections(),
-      __margin__: () => this.renderMargin(), __assets__: () => this.renderAssets(),
-      __equipment__: () => this.renderEquipment(), __massingopt__: () => this.renderMassingOpt(),
-      __responsibility__: () => this.renderResponsibility(),
-      __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
-      __modelanalysis__: () => this.renderModelAnalysis(),
-      __documents__: () => this.renderDocuments(),
-      __portfolio__: () => this.renderPortfolio(), __benchmarks__: () => this.renderBenchmarks(),
-    };
+    const dests = this.destDispatch();
     const stagesByWs: Record<string, [string, Dest[]][]> = {
       // GC / builder — plan → build → turn over. The design/standards destinations moved to the
       // Design workspace (still reachable here via "Show all modules").
