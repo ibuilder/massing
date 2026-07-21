@@ -3138,8 +3138,9 @@ export class ApiClient extends HttpCore {
   versionDiff(pid: string, a: number, b: number) {
     return this.json<{
       from: number; to: number; added: string[]; removed: string[];
-      modified: { guid: string; name: string | null; ifc_class: string | null; changes: string[] }[];
-      modified_available: boolean;
+      modified: { guid: string; name: string | null; ifc_class: string | null; changes: string[];
+        changed_properties?: { property: string; status: "added" | "removed" | "changed" }[] }[];
+      modified_available: boolean; property_detail_available?: boolean;
       added_count: number; removed_count: number; modified_count: number; unchanged_count: number;
     }>(`/projects/${pid}/versions/diff?a=${a}&b=${b}`);
   }

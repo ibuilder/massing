@@ -28,17 +28,35 @@ def _h(obj: Any) -> str:
                         usedforsecurity=False).hexdigest()[:12]
 
 
+def _prop_hashes(psets: dict | None, qtos: dict | None) -> dict[str, str]:
+    """Flat ``{"SetName.PropName": value_hash}`` over an element's Psets + Qtos — so a diff can name the
+    exact properties/quantities that changed (not just 'properties changed'), without storing the values
+    themselves (each is a short hash, so the version blob stays bounded)."""
+    out: dict[str, str] = {}
+    for group in (psets or {}, qtos or {}):
+        for set_name, props in group.items():
+            if not isinstance(props, dict):
+                continue
+            for prop, val in props.items():
+                if prop == "id":                        # ifcopenshell stashes the pset entity id here
+                    continue
+                out[f"{set_name}.{prop}"] = _h(val)
+    return out
+
+
 def _fingerprints(idx: dict) -> dict[str, list]:
-    """{guid: [name, ifc_class, type_name, storey, pset_hash, qto_hash]} — the diffable signature of every
-    element. Splitting Psets vs Qtos into separate hashes lets the diff say 'properties changed' vs
-    'quantities changed' without storing the full data."""
+    """{guid: [name, ifc_class, type_name, storey, pset_hash, qto_hash, prop_hashes]} — the diffable
+    signature of every element. Splitting Psets vs Qtos into separate hashes lets the diff say 'properties
+    changed' vs 'quantities changed'; position [6] carries per-property hashes so the diff can name which
+    keys changed. Older versions store only positions [0..5] and degrade gracefully."""
     fp: dict[str, list] = {}
     for e in (idx.get("elements") or []):
         g = e.get("guid")
         if not g:
             continue
         fp[g] = [e.get("name"), e.get("ifc_class"), e.get("type_name"), e.get("storey"),
-                 _h(e.get("psets") or {}), _h(e.get("qtos") or {})]
+                 _h(e.get("psets") or {}), _h(e.get("qtos") or {}),
+                 _prop_hashes(e.get("psets"), e.get("qtos"))]
     return fp
 
 
@@ -103,19 +121,34 @@ def diff(db: Session, pid: str, a: int, b: int) -> dict[str, Any]:
 
     modified: list[dict] = []
     modified_available = bool(fa) and bool(fb)
+    property_detail_available = False
     if modified_available:
         for g in (sa & sb):
             before, after = fa.get(g), fb.get(g)
             if not before or not after or before == after:
                 continue
             changes = _changes(before, after)
-            if changes:
-                modified.append({"guid": g, "name": after[0], "ifc_class": after[1], "changes": changes})
+            if not changes:
+                continue
+            entry = {"guid": g, "name": after[0], "ifc_class": after[1], "changes": changes}
+            # position [6] carries per-property hashes → name exactly which keys changed (added/removed/edited)
+            pb = before[6] if len(before) > 6 and isinstance(before[6], dict) else None
+            pa = after[6] if len(after) > 6 and isinstance(after[6], dict) else None
+            if pb is not None and pa is not None:
+                property_detail_available = True
+                keys = set(pb) | set(pa)
+                diffs = [{"property": k,
+                          "status": "added" if k not in pb else "removed" if k not in pa else "changed"}
+                         for k in sorted(keys) if pb.get(k) != pa.get(k)]
+                if diffs:
+                    entry["changed_properties"] = diffs
+            modified.append(entry)
         modified.sort(key=lambda m: (m["ifc_class"] or "", m["name"] or ""))
 
     return {"from": a, "to": b,
             "added": added, "removed": removed,
             "modified": modified, "modified_available": modified_available,
+            "property_detail_available": property_detail_available,
             "added_count": len(added), "removed_count": len(removed),
             "modified_count": len(modified),
             "unchanged_count": len(sa & sb) - len(modified)}

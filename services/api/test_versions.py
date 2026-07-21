@@ -73,12 +73,36 @@ with TestClient(app) as c:
     assert set(by["W1"]["changes"]) == {"properties changed", "quantities changed"}, by["W1"]
     assert set(by["D1"]["changes"]) == {"renamed", "retyped", "moved to another level"}, by["D1"]
     assert by["W1"]["ifc_class"] == "IfcWall" and by["W1"]["name"] == "Wall 1", by["W1"]
+    # VERSION-COMPARE per-property: the diff names the exact keys that changed, not just "properties changed"
+    assert dd["property_detail_available"] is True, dd
+    w1props = {p["property"]: p["status"] for p in by["W1"].get("changed_properties", [])}
+    assert w1props == {"Pset_WallCommon.FireRating": "changed", "Qto_WallBaseQuantities.NetSideArea": "changed"}, w1props
+    # D1 changed name/type/level but carries no psets/qtos → no per-property detail
+    assert "changed_properties" not in by["D1"] or by["D1"]["changed_properties"] == [], by["D1"]
     # unchanged_count excludes the modified ones (C1 is the only truly-unchanged common element)
     assert dd["unchanged_count"] == 1, dd
-    # a genuine no-op republish (identical fingerprints) is skipped
+    # a genuine no-op republish (identical fingerprints) is skipped — checked while v2 is still latest
     assert versions.snapshot(pid2, v2).get("skipped"), "identical republish skipped"
+
+    # added / removed property keys are named as such (not just "changed")
+    v3 = {"elements": [
+        el("W1", "Wall 1", "IfcWall", "Basic-200", "L1",
+           {"Pset_WallCommon": {"FireRating": "2HR", "IsExternal": True}},   # +IsExternal, FireRating kept
+           {}),                                                             # Qto set dropped entirely
+        el("D1", "Door 1A", "IfcDoor", "DBL-1800", "L2"),
+        el("C1", "Col 1", "IfcColumn", "W12", "L1"),
+        el("NEW", "New beam", "IfcBeam", "W16", "L1"),
+    ]}
+    versions.snapshot(pid2, v3)
+    d23 = c.get(f"/projects/{pid2}/versions/diff?a=2&b=3").json()
+    w1b = next(m for m in d23["modified"] if m["guid"] == "W1")
+    st = {p["property"]: p["status"] for p in w1b["changed_properties"]}
+    assert st.get("Pset_WallCommon.IsExternal") == "added", st                  # new property key → added
+    assert st.get("Qto_WallBaseQuantities.NetSideArea") == "removed", st         # dropped quantity → removed
 
     print("VERSIONS OK - snapshot per publish (A,B,C -> B,C,D), no-op skipped, history newest-first, diff "
           "+D/-A; MODEL-DIFF detects element-level modifications on GUID-stable elements: W1 (properties + "
           "quantities changed), D1 (renamed + retyped + re-leveled), +NEW/-OLD, C1 unchanged — with the "
-          "change labels, and an identical-fingerprint republish still skipped.")
+          "change labels; VERSION-COMPARE per-property names the exact keys (W1: Pset_WallCommon.FireRating "
+          "+ Qto_WallBaseQuantities.NetSideArea changed; then IsExternal added + NetSideArea removed); and an "
+          "identical-fingerprint republish still skipped.")

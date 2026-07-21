@@ -22,9 +22,9 @@ decomposition/design carry-overs.
 *Each is an S/M release: a pure engine leaf or a config-module tweak + a thin surface + a test, grounded
 in the model we own. Verifiable without the frontend. These are the cleanest next wins.*
 
-1. **VERSION-COMPARE per-property** — the iTwin-style old/new value list per element (needs richer
-   per-version property snapshots; the 3D overlay + change labels shipped v0.3.526). The tabular
-   per-property delta is the remaining slice.
+1. ~~**VERSION-COMPARE per-property**~~ — ✅ **changed-property *names*** shipped v0.3.570 (`diff` now
+   names the exact Pset/Qto keys that changed, tagged added/removed/changed). The old/new **values** still
+   need a richer per-version snapshot (a stored-column follow-up).
 2. **IFCPATCH-LIB** — rebase coordinates · unit-convert · merge/split recipes (the purge recipes +
    SUBSET-EXPORT shipped v0.3.527/533). Pure ifcopenshell transforms behind edit-recipe gating.
 3. **BCF-API-SRV depth** — attachments over the API + the **BCF 3.0** shape (2.1 core + viewpoints shipped

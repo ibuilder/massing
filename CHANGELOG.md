@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.570 — VERSION-COMPARE per-property (R15 tail)
+
+The model version diff now names the **exact** properties/quantities that changed, not just "properties
+changed".
+
+- `versions._fingerprints` gained a 7th position — a flat **per-property hash map**
+  (`{"SetName.PropName": value_hash}`) over each element's Psets + Qtos. Each is a short hash, so the
+  stored version blob stays bounded (no raw values), and it reuses the existing `fingerprints` JSON
+  column (**no migration**). Older versions store only positions [0..5] and degrade gracefully.
+- `versions.diff` now attaches **`changed_properties`** to each modified element — the sorted keys whose
+  hash differs, each tagged **added / removed / changed** — plus a top-level `property_detail_available`
+  flag. The viewer's version-compare list appends the named keys after the change labels (e.g. "properties
+  changed — Pset_WallCommon.FireRating, Qto_WallBaseQuantities.NetSideArea").
+- Names *which* properties changed (the remaining old/new *values* need a richer per-version snapshot, a
+  separate stored-column follow-up). `test_versions` extended.
+
 ## v0.3.569 — SELECTIONS money card (SPRINT D phase-3c)
 
 The selections & allowances rollup is now surfaced in the portal, completing the SPRINT D phase-3 thread

@@ -1385,11 +1385,17 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
               ctl.append(overlay, cost, reset); out.appendChild(ctl);
               if (d.modified_count) {
                 out.appendChild(resultNote("Modified elements (click to select in 3D):", ""));
-                out.appendChild(kvTable(d.modified.slice(0, 40).map((m) => ({
-                  k: `${(m.ifc_class || "").replace("Ifc", "")} · ${m.name || m.guid.slice(0, 8)}`,
-                  v: m.changes.join(", "),
-                  onClick: () => selectByGuid(m.guid, false),
-                }))));
+                out.appendChild(kvTable(d.modified.slice(0, 40).map((m) => {
+                  // name the exact properties/quantities that changed (VERSION-COMPARE per-property), if available
+                  const props = (m.changed_properties || []).slice(0, 6)
+                    .map((p) => `${p.property}${p.status !== "changed" ? ` (${p.status})` : ""}`).join(", ");
+                  const extra = (m.changed_properties && m.changed_properties.length > 6) ? "…" : "";
+                  return {
+                    k: `${(m.ifc_class || "").replace("Ifc", "")} · ${m.name || m.guid.slice(0, 8)}`,
+                    v: m.changes.join(", ") + (props ? ` — ${props}${extra}` : ""),
+                    onClick: () => selectByGuid(m.guid, false),
+                  };
+                })));
               }
             };
             cmp.onclick = () => void render();
