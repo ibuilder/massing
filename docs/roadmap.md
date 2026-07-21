@@ -143,8 +143,12 @@ reassess. Rough size + the "phase-1" that de-risks it are called out.*
   slip-sheeting, hyperlinked callouts. **Phase 1:** the service-worker offline cache + sheet sync over
   the existing markup/SSE infra; then the field-optimized nav + callout links.
 - **SPRINT D — CLIENT-PORTAL.** *(L)* Selections / allowances (choices → price deltas → CO/budget) +
-  external read-only stakeholder views. **Phase 1:** a tokenized read-only project digest (KPIs / model
-  health / schedule) — needs a share-token model + a public route + a minimal page.
+  external read-only stakeholder views.
+  - ✅ **Phase 1 — tokenized read-only digest** *(v0.3.563)* — `ShareToken` model + `client_portal.py` +
+    editor-gated `/projects/{pid}/share-tokens` mgmt + the PUBLIC `/shared/{token}/digest` (curated
+    readiness only — no record-level data / GUIDs / financials / PII) + a 🔗 Share section in the 🏛 panel.
+  - **Phase 2** *(next)* — a minimal public digest **page** (render the JSON as a branded read-only view);
+    then selections / allowances (choices → price deltas → CO/budget).
 - **SPRINT E — FAB-DELIVER.** *(M/L)* Fabrication outputs from the steel/rebar recipes — assembly/part
   marks, **DSTV-NC**, bolt lists, **BVBS** bending schedules.
   - ✅ **Phase 1 — bending detail** *(v0.3.560)* — the bar-bending schedule now carries per-mark leg

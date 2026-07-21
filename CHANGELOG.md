@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.563 — CLIENT-PORTAL: tokenized read-only project digest (SPRINT D phase-1)
+
+Opens the first external-stakeholder surface — a link an owner can hand out to see project readiness
+without a login, without touching any record.
+
+- **Share tokens** (`ShareToken` model + `client_portal.py`): an editor mints a **revocable, read-only
+  share token** (a strong `secrets.token_urlsafe` secret) for a project — `POST/GET/DELETE
+  /projects/{pid}/share-tokens` (editor-gated), bounded at 50 live tokens per project.
+- **Public digest** (`GET /shared/{token}/digest`, **no auth** — the token is the credential): returns a
+  **curated readiness digest** — project name, jurisdiction, the overall readiness score, and each
+  protocol step's title + status. **Nothing else**: no findings detail, no GUIDs, no financials, no
+  record-level data, no PII. An unknown or revoked token 404s (no enumeration signal); each view is
+  counted on the token.
+- **🔗 Share read-only** section in the 🏛 Master Builder panel: create a labeled link, see its view
+  count, open it, and revoke it.
+- Hard-railed by design (per the build-doctrine): the public surface is strictly read-only and exposes
+  only what's safe to share, so a leaked token reveals a readiness summary and nothing more.
+
 ## v0.3.562 — MASTER-BUILDER: shareable Markdown brief (SPRINT MB phase-2b)
 
 - `master_builder.to_markdown()` + `GET /projects/{pid}/master-builder/brief.md` (text/markdown): the

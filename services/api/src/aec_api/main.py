@@ -27,6 +27,7 @@ from .routers import (
     bidding,
     bim,
     carbon,
+    client_portal,
     closeout,
     codecheck,
     conceptual,
@@ -338,6 +339,7 @@ app.include_router(plugins.router, tags=["plugins"])
 app.include_router(jobs_router.router, tags=["jobs"])
 app.include_router(exports.router, tags=["exports"])
 app.include_router(analysis.router, tags=["analysis"])
+app.include_router(client_portal.router, tags=["client-portal"])
 app.include_router(drawings.router, tags=["drawings"])
 app.include_router(authoring.router, tags=["authoring"])
 app.include_router(modules.router, tags=["modules"])

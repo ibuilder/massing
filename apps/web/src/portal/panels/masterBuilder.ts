@@ -71,6 +71,41 @@ export async function renderMasterBuilder(ctx: PanelContext) {
       body.appendChild(card);
     }
 
+    // --- share read-only: mint / list / revoke tokens for the public readiness digest --------------
+    const share = document.createElement("div"); share.className = "dash-card"; share.style.marginTop = "10px";
+    share.innerHTML = `<div class="section-title">🔗 Share read-only</div>`
+      + `<div class="meta" style="margin:2px 0 6px">Give an owner or stakeholder a link to a <b>read-only readiness digest</b> — high-level only, no record-level data. Revoke anytime.</div>`;
+    const shareBody = document.createElement("div"); shareBody.innerHTML = `<div class="meta">loading…</div>`;
+    const mkRow = document.createElement("div"); mkRow.style.cssText = "display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap";
+    const labelI = document.createElement("input"); labelI.className = "portal-filter"; labelI.placeholder = "label (e.g. Owner review)"; labelI.style.cssText = "flex:1 1 160px;font-size:12px";
+    const mkBtn = document.createElement("button"); mkBtn.className = "tool-btn on"; mkBtn.textContent = "＋ Create link";
+    mkRow.append(labelI, mkBtn); share.append(mkRow, shareBody); body.appendChild(share);
+    const loadTokens = async () => {
+      shareBody.innerHTML = `<div class="meta">loading…</div>`;
+      try {
+        const { tokens } = await ctx.host.api.shareTokens(pid);
+        const live = tokens.filter((t) => !t.revoked);
+        if (!live.length) { shareBody.innerHTML = `<div class="meta">No active share links.</div>`; return; }
+        shareBody.innerHTML = "";
+        for (const t of live) {
+          const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;margin:2px 0;flex-wrap:wrap";
+          const link = document.createElement("a"); link.href = ctx.host.api.sharedDigestUrl(t.token); link.target = "_blank"; link.rel = "noopener";
+          link.className = "meta"; link.style.cssText = "flex:1 1 200px;word-break:break-all";
+          link.textContent = `🔗 ${t.label ? t.label + " · " : ""}…${t.token.slice(-8)} (${t.view_count} view${t.view_count === 1 ? "" : "s"})`;
+          const del = document.createElement("button"); del.className = "selset-del"; del.textContent = "✕ revoke"; del.title = "Revoke this link immediately";
+          del.onclick = async () => { try { await ctx.host.api.revokeShareToken(pid, t.token); void loadTokens(); } catch (e) { alert((e as Error).message); } };
+          row.append(link, del); shareBody.appendChild(row);
+        }
+      } catch (e) { shareBody.innerHTML = `<div class="meta">Share links unavailable: ${esc((e as Error).message)}</div>`; }
+    };
+    mkBtn.onclick = async () => {
+      mkBtn.disabled = true;
+      try { await ctx.host.api.createShareToken(pid, labelI.value.trim() || undefined); labelI.value = ""; await loadTokens(); }
+      catch (e) { alert((e as Error).message); }
+      finally { mkBtn.disabled = false; }
+    };
+    void loadTokens();
+
     const disc = document.createElement("div"); disc.className = "meta";
     disc.style.cssText = "margin-top:8px;opacity:.7;font-size:11px;line-height:1.4";
     disc.textContent = b.disclaimer;

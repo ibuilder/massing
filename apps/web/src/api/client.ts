@@ -1856,6 +1856,22 @@ export class ApiClient extends HttpCore {
   }
   /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
   masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
+  /** CLIENT-PORTAL — read-only share tokens for a public project-readiness digest. */
+  shareTokens(pid: string) {
+    type Tok = { token: string; label: string | null; revoked: boolean; created_at: string | null;
+      created_by: string | null; view_count: number; last_viewed_at: string | null; share_path: string };
+    return this.json<{ tokens: Tok[] }>(`/projects/${pid}/share-tokens`);
+  }
+  createShareToken(pid: string, label?: string) {
+    return this.json<{ token: string; label: string | null; share_path: string; revoked: boolean }>(
+      `/projects/${pid}/share-tokens`, { method: "POST", body: JSON.stringify({ label: label ?? "" }) });
+  }
+  revokeShareToken(pid: string, token: string) {
+    return this.json<{ revoked: boolean }>(`/projects/${pid}/share-tokens/${encodeURIComponent(token)}`,
+      { method: "DELETE" });
+  }
+  /** The public digest URL for a share token (opens with no login). */
+  sharedDigestUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}/digest`); }
   /** MASTER-BUILDER — the 8-step Master Builder Protocol run over the project's own data, grounded in place. */
   masterBuilderBrief(pid: string) {
     type Step = { n: number; key: string; title: string; why: string; link: string;

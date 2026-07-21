@@ -470,3 +470,19 @@ class ElementVerification(Base):
     verified_by: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     modified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class ShareToken(Base):
+    """CLIENT-PORTAL — a revocable, read-only share token that grants a non-authenticated external
+    stakeholder access to a *curated* project digest (readiness only; no record-level data). The token
+    string is a strong random secret and IS the credential; there is no per-token password. Revoking
+    (soft) stops access immediately. See client_portal.digest for exactly what a token can read."""
+    __tablename__ = "share_tokens"
+    token: Mapped[str] = mapped_column(String, primary_key=True)
+    project_id: Mapped[str] = mapped_column(String, index=True)
+    label: Mapped[str | None] = mapped_column(String, nullable=True)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    created_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    last_viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    view_count: Mapped[int] = mapped_column(Integer, default=0)
