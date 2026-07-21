@@ -31,8 +31,8 @@ in the model we own. Verifiable without the frontend. These are the cleanest nex
    v0.3.528–529).
 4. ✅ **SPRINT D phase-3c — selections money card** *(v0.3.569)* — a ◈ Selections destination: net
    over/under, per-category deltas, the over-allowance CO candidates + a push-to-change-events button.
-5. **SPRINT B phase-4b — CPM crew shifts + frontier chart** — CPM-driven crew shifts off the critical path;
-   scale the enumeration; a Pareto-frontier **chart** (cost vs. duration scatter) on the 🧮 panel.
+5. **SPRINT B phase-4b** — ✅ the Pareto-frontier **chart** (cost vs. duration scatter) shipped on the 🧮
+   panel *(v0.3.571)*. Remaining: CPM-driven crew shifts off the critical path + scale the enumeration.
 6. **SPRINT MB — per-step deep-links** — wire each Master Builder brief step's gap to the portal
    destination that closes it (nav-map the step keys to their tools).
 

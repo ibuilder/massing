@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.571 — SCHED-OPT: Pareto frontier chart (SPRINT B phase-4b, part 1)
+
+- The 🧮 Schedule-optioneering card now renders a compact **cost-vs-duration scatter**: every scenario is
+  a dot (faint off-frontier, filled on the Pareto frontier), the **recommended** option is ringed (⊙), the
+  **baseline** is a square (▢), and the frontier is drawn as a dashed line — so the time/cost tradeoff and
+  which options are non-dominated read at a glance, beside the ranked table. Pure SVG, theme-aware.
+- Frontend-only over the existing `/schedule/optioneer` data. *(CPM-driven crew shifts off the critical
+  path — the other half of phase-4b — remain a backend follow-up.)*
+
 ## v0.3.570 — VERSION-COMPARE per-property (R15 tail)
 
 The model version diff now names the **exact** properties/quantities that changed, not just "properties

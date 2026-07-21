@@ -275,6 +275,34 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       const recLine = document.createElement("div"); recLine.className = "meta"; recLine.style.marginBottom = "4px";
       const src = r.trade_source === "schedule" ? "your project schedule" : r.trade_source === "body" ? "the supplied trades" : "the default takt train";
       recLine.innerHTML = `<b>Recommended plan:</b> ${esc(recLevers)} <span style="opacity:.6">· ${r.trade_count} trades from ${src}</span>`;
+      // Pareto frontier chart — cost (x) vs duration (y, inverted so faster = higher); dots = scenarios,
+      // filled = on the frontier, ⊙ = recommended, ▢ = baseline. Pure SVG, theme-aware.
+      const chart = (() => {
+        const W = 340, H = 170, ml = 44, mr = 8, mt = 10, mb = 26;
+        const xs = r.scenarios.map((s) => s.cost), ys = r.scenarios.map((s) => s.duration_days);
+        const xlo = Math.min(...xs), xhi = Math.max(...xs), ylo = Math.min(...ys), yhi = Math.max(...ys);
+        const px = (c: number) => ml + (xhi > xlo ? (c - xlo) / (xhi - xlo) : 0.5) * (W - ml - mr);
+        const py = (d: number) => mt + (yhi > ylo ? (d - ylo) / (yhi - ylo) : 0.5) * (H - mt - mb); // faster (smaller d) → higher
+        const front = r.scenarios.filter((s) => s.pareto).slice().sort((a, b) => a.cost - b.cost);
+        const poly = front.map((s) => `${px(s.cost).toFixed(1)},${py(s.duration_days).toFixed(1)}`).join(" ");
+        const dots = r.scenarios.map((s) => {
+          const x = px(s.cost).toFixed(1), y = py(s.duration_days).toFixed(1);
+          if (s.rank === rec.rank) return `<circle cx="${x}" cy="${y}" r="5.5" fill="none" stroke="var(--status-good)" stroke-width="2"/><circle cx="${x}" cy="${y}" r="2" fill="var(--status-good)"/>`;
+          if (s.is_baseline) return `<rect x="${(+x - 3).toFixed(1)}" y="${(+y - 3).toFixed(1)}" width="6" height="6" fill="none" stroke="var(--fg)" stroke-width="1.4"/>`;
+          return `<circle cx="${x}" cy="${y}" r="${s.pareto ? 3 : 2}" fill="${s.pareto ? "var(--accent, #4a90d9)" : "var(--muted, #999)"}" ${s.pareto ? "" : 'opacity="0.5"'}/>`;
+        }).join("");
+        const svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;font-size:9px" role="img" aria-label="Cost vs duration scatter with Pareto frontier">`
+          + `<line x1="${ml}" y1="${H - mb}" x2="${W - mr}" y2="${H - mb}" stroke="var(--border,#ccc)"/>`
+          + `<line x1="${ml}" y1="${mt}" x2="${ml}" y2="${H - mb}" stroke="var(--border,#ccc)"/>`
+          + (poly ? `<polyline points="${poly}" fill="none" stroke="var(--accent,#4a90d9)" stroke-width="1" stroke-dasharray="3 2" opacity="0.6"/>` : "")
+          + dots
+          + `<text x="${(ml + W - mr) / 2}" y="${H - 4}" text-anchor="middle" fill="var(--muted,#888)">Cost →</text>`
+          + `<text x="10" y="${(mt + H - mb) / 2}" text-anchor="middle" fill="var(--muted,#888)" transform="rotate(-90 10 ${(mt + H - mb) / 2})">Faster →</text>`
+          + `</svg>`;
+        const box = document.createElement("div"); box.className = "dash-card"; box.style.cssText = "margin:6px 0;overflow-x:auto";
+        box.innerHTML = svg + `<div class="meta" style="opacity:.7;font-size:10px">⊙ recommended · ▢ baseline · ◆ filled = on the Pareto frontier (no option beats it on both time and cost)</div>`;
+        return box;
+      })();
       const wrap = document.createElement("div"); wrap.style.overflowX = "auto";
       const top = r.scenarios.slice(0, 12);
       const t = document.createElement("table"); t.className = "portal-table"; t.style.cssText = "width:100%;font-size:11px;margin-top:2px";
@@ -291,7 +319,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
             + `<td style="text-align:right">${s.crew_peak}</td><td style="text-align:center">${s.pareto ? "◆" : ""}</td></tr>`;
         }).join("") + `</tbody>`;
       wrap.appendChild(t);
-      optBody.replaceChildren(chips, recLine, wrap);
+      optBody.replaceChildren(chips, recLine, chart, wrap);
       if (r.truncated) optBody.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:3px;opacity:.7">Grid truncated at the scenario cap.</div>`);
     } catch (e) { optBody.innerHTML = `<div class="meta">Optioneering failed: ${esc((e as Error).message)}</div>`; }
     finally { runBtn.disabled = false; }
