@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.569 — SELECTIONS money card (SPRINT D phase-3c)
+
+The selections & allowances rollup is now surfaced in the portal, completing the SPRINT D phase-3 thread
+end to end.
+
+- A **◈ Selections** destination (in the Cost/Budget nav group, shown when the project uses the
+  `selection` module): a headline **net over/under** vs. allowance, totals + priced/approved counts, the
+  **per-category signed deltas**, and the over-allowance **change-order candidates** — with a one-click
+  **"→ Push overages to change events"** button wired to the idempotent `/selections/push-change-events`.
+- Frontend-only over the already-shipped, tested `/selections/summary` + `/selections/push-change-events`
+  endpoints (v0.3.565–566); build/typecheck-verified (the preview stall limits live click-testing).
+
 ## v0.3.568 — Docs & demo refresh to current state
 
 Brought every doc and the offline demo up to the v0.3.543–567 wave.
