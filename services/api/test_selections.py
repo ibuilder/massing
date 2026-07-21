@@ -54,6 +54,19 @@ with TestClient(app) as c:
     assert by["Fixtures"]["delta"] == 250.0 and by["Flooring"]["delta"] == -600.0, by
     assert by["Lighting"]["actual"] == 0.0, by                  # unpriced contributes allowance only
 
+    # --- push over-allowance selections to change events (idempotent) --------------------------------
+    p1 = c.post(f"/projects/{pid}/selections/push-change-events")
+    assert p1.status_code == 200 and p1.json()["created"] == 2 and p1.json()["skipped"] == 0, p1.json()
+    ces = c.get(f"/projects/{pid}/modules/change_event").json()
+    assert len(ces) == 2, ces
+    subs = {ce["data"]["subject"]: ce["data"] for ce in ces}
+    faucet = next(v for k, v in subs.items() if "Kitchen faucet" in k)
+    assert faucet["rom"] == 250.0 and faucet["reason"] == "Allowance Reconciliation", faucet
+    # re-running creates nothing new (idempotent by subject)
+    p2 = c.post(f"/projects/{pid}/selections/push-change-events")
+    assert p2.json()["created"] == 0 and p2.json()["skipped"] == 2, p2.json()
+    assert len(c.get(f"/projects/{pid}/modules/change_event").json()) == 2, "duplicate change events!"
+
     # empty project → zeroed summary, no crash
     pid2 = c.post("/projects", json={"name": "Empty"}).json()["id"]
     e = c.get(f"/projects/{pid2}/selections/summary").json()

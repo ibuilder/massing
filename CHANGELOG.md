@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.566 — SELECTIONS: push overages to change events (SPRINT D phase-3b)
+
+Closes the selections → change-order → budget thread.
+
+- **`POST /projects/{pid}/selections/push-change-events`** (`selections.push_to_change_events`): creates a
+  **`change_event`** (reason *Allowance Reconciliation*, ROM = the overage) for every over-allowance
+  selection that doesn't already have one — so the deltas flow into the change-order chain and the budget
+  (via the change_event PCO rollups). **Idempotent** by a deterministic subject (`Allowance overage —
+  {item} ({ref})`), so re-running only adds what's new — no duplicate change events.
+- Each summary CO-candidate now carries its `change_subject` (the idempotency key). Client method
+  `pushSelectionChangeEvents` wired.
+
 ## v0.3.565 — SELECTIONS: allowances → change-order candidates (SPRINT D phase-3)
 
 Turns the owner's selections log into the money picture a builder actually manages.

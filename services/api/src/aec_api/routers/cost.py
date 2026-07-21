@@ -66,6 +66,18 @@ def selections_summary(pid: str, db: Session = Depends(get_db), _: str = Depends
     return selections.summary(db, pid)
 
 
+@router.post("/projects/{pid}/selections/push-change-events")
+def selections_push_change_events(pid: str, db: Session = Depends(get_db),
+                                  actor: str = Depends(require_role("editor"))):
+    """Push the over-allowance selections into `change_event` records (reason 'Allowance Reconciliation',
+    ROM = the overage) so the deltas flow into the change-order/budget chain. Idempotent — an overage
+    already tracked as a change event is skipped."""
+    from .. import selections
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return selections.push_to_change_events(db, pid, actor)
+
+
 @router.get("/projects/{pid}/estimate/labor")
 def labor_estimate(pid: str, loading: str = "commercial", rate: float = 25.0, full: bool = False,
                    crews: int = 1, qto: bool = True,

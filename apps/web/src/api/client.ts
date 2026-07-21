@@ -1860,13 +1860,18 @@ export class ApiClient extends HttpCore {
   selectionsSummary(pid: string) {
     type Cat = { category: string; count: number; allowance: number; actual: number; delta: number };
     type Cand = { ref: string; item: string; category: string; allowance: number; actual: number;
-      delta: number; state: string };
+      delta: number; state: string; change_subject: string };
     return this.json<{
       count: number; priced: number; approved: number; total_allowance: number; total_actual: number;
       net_delta: number; direction: "over" | "under" | "on-allowance";
       over_count: number; under_count: number; on_count: number;
       by_category: Cat[]; co_candidate_count: number; co_candidates: Cand[]; note: string;
     }>(`/projects/${pid}/selections/summary`);
+  }
+  /** Push over-allowance selections into change events (reason 'Allowance Reconciliation'); idempotent. */
+  pushSelectionChangeEvents(pid: string) {
+    return this.json<{ created: number; skipped: number; created_refs: string[]; note: string }>(
+      `/projects/${pid}/selections/push-change-events`, { method: "POST", body: "{}" });
   }
   /** CLIENT-PORTAL — read-only share tokens for a public project-readiness digest. */
   shareTokens(pid: string) {

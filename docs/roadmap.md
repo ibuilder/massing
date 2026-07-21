@@ -151,7 +151,9 @@ reassess. Rough size + the "phase-1" that de-risks it are called out.*
     fully-escaped HTML readiness page (noindex).
   - ✅ **Phase 3 — selections & allowances** *(v0.3.565)* — `selections.py` + `/selections/summary`:
     allowance-vs-actual rollup, per-category deltas, and the over-allowance change-order candidates.
-  - **Phase 3b** *(next)* — a selections money card in the panel + a push-to-change-order action.
+  - ✅ **Phase 3b — push to change events** *(v0.3.566)* — `POST /selections/push-change-events` creates a
+    `change_event` (Allowance Reconciliation, ROM = overage) per over-allowance selection, idempotently.
+  - **Phase 3c** *(next)* — a selections money card in the panel (rollup + a push button).
 - **SPRINT E — FAB-DELIVER.** *(M/L)* Fabrication outputs from the steel/rebar recipes — assembly/part
   marks, **DSTV-NC**, bolt lists, **BVBS** bending schedules.
   - ✅ **Phase 1 — bending detail** *(v0.3.560)* — the bar-bending schedule now carries per-mark leg

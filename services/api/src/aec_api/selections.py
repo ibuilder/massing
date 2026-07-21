@@ -69,6 +69,8 @@ def summary(db: Session, pid: str) -> dict[str, Any]:
     for cb in by_cat.values():
         for k in ("allowance", "actual", "delta"):
             cb[k] = round(cb[k], 2)
+    for cnd in candidates:
+        cnd["change_subject"] = _co_subject(cnd)      # the idempotency key used by push_to_change_events
     candidates.sort(key=lambda x: -x["delta"])
     net = round(total_actual - total_allow, 2)
     return {
@@ -84,3 +86,33 @@ def summary(db: Session, pid: str) -> dict[str, Any]:
                 "to the owner (a change-order candidate), under is a credit. Priced = selections with an "
                 "actual cost entered; approved = owner-signed selections.",
     }
+
+
+def _co_subject(cnd: dict) -> str:
+    """Deterministic change-event subject for a selection overage — also the idempotency key."""
+    return f"Allowance overage — {cnd.get('item') or 'selection'} ({cnd.get('ref') or '?'})"
+
+
+def push_to_change_events(db: Session, pid: str, actor: str | None) -> dict[str, Any]:
+    """Create a ``change_event`` (reason 'Allowance Reconciliation') for every over-allowance selection
+    that doesn't already have one. Idempotent by the generated subject, so re-running only adds what's
+    new. The ROM is the overage (actual − allowance)."""
+    from . import modules as me
+
+    cands = summary(db, pid)["co_candidates"]
+    existing = {(r.get("data") or {}).get("subject", "") for r in me.list_records(db, "change_event", pid, limit=100_000)}
+    created: list[str] = []
+    skipped = 0
+    for cnd in cands:
+        subj = cnd["change_subject"]
+        if subj in existing:
+            skipped += 1
+            continue
+        rec = me.create_record(db, "change_event", pid, {"data": {
+            "subject": subj, "rom": cnd["delta"], "reason": "Allowance Reconciliation",
+            "scope_status": "In Scope"}}, actor, None)
+        existing.add(subj)
+        created.append(rec.get("ref"))
+    return {"created": len(created), "skipped": skipped, "created_refs": created,
+            "note": "Over-allowance selections pushed to change events (reason 'Allowance Reconciliation'); "
+                    "idempotent — an overage already tracked as a change event is skipped."}
