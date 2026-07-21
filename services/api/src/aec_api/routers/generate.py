@@ -109,8 +109,10 @@ def _proforma_seed(p: MassingIn, m: dict) -> dict:
     }
     try:
         result = solve(assumptions)
-    except Exception as e:  # noqa: BLE001 — proforma is a bonus; never fail the generate
-        return {"assumptions": assumptions, "solve_error": str(e)[:200]}
+    except Exception:  # noqa: BLE001 — proforma is a bonus; never fail the generate
+        # don't surface the raw exception text to the client (py/stack-trace-exposure); the proforma is a
+        # best-effort seed, so a fixed note is enough — the caller still gets the assumptions to edit.
+        return {"assumptions": assumptions, "solve_error": "the starter proforma could not be solved"}
     return {"assumptions": assumptions,
             "returns": result.get("returns"), "sources_uses": result.get("sources_uses")}
 
@@ -275,8 +277,8 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
 
     try:
         metrics = compute_massing(body.model_dump())
-    except ValueError as e:
-        raise HTTPException(422, str(e))
+    except ValueError:
+        raise HTTPException(422, _ENVELOPE_422) from None
 
     # R3: pick a plausible structural system + member sizes for the building's scale
     from .. import structure as st

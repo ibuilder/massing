@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.579 — security: generic proforma solve-error, clearing the CodeQL alert
+
+The actual sink behind the `py/stack-trace-exposure` alert: `_proforma_seed` caught a broad `Exception`
+from the proforma solver and returned **`solve_error: str(e)`** in the response — that exception string
+flowed out through `/generate/massing/preview`'s return. It now returns a **fixed note** ("the starter
+proforma could not be solved") instead. Also hardened the remaining `/generate/massing` envelope 422 to the
+same controlled `_ENVELOPE_422` message (v0.3.578 covered the preview + optioneer routes but not this one).
+`test_generate` green. (v0.3.578 addressed a related `str(e)` path but not the flagged one — this clears it.)
+
 ## v0.3.578 — security: no exception string in the massing 422s (CodeQL)
 
 CodeQL flagged `py/stack-trace-exposure` (medium) after the MASSING-OPT push: the new `/massing/optioneer`
