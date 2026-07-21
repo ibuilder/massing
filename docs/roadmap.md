@@ -13,8 +13,8 @@ are driven several phases deep; the **master-builder skill** is installed and co
 What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runtime/tooling ring, and the
 decomposition/design carry-overs.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (307 suites) · single-source version in
-`apps/web/package.json` (v0.3.573).
+**Status:** CodeQL 0 open alerts · full backend suite green (308 suites) · single-source version in
+`apps/web/package.json` (v0.3.574).
 
 ---
 
@@ -27,8 +27,9 @@ are R16 Tier-1 picks (see the R16 ring below for full specifics).**
 - ✅ **MARGIN-CBS** *(R16; v0.3.573)* — per-cost-code reconciliation (budget vs committed vs actual vs
   billed → buyout margin + variance, over-committed/over-budget flags) at `GET /margin/by-costcode` + the
   📒 Cost-code Margin money card.
-- **★ ASSET-REG** *(R16; M)* — derive the maintainable-asset register from the IFC (`GET /model/assets`,
-  `classification.py` + `query_dsl.py`) + a `pm_task` module — the concrete first slice of CMMS-OPS.
+- ✅ **ASSET-REG** *(R16; v0.3.574)* — the maintainable-asset register derived from the IFC
+  (`GET /model/assets` + a seed into the `asset_register` module) + the 🔧 Asset Register panel. Next: PM
+  scheduling depth off the shipped `pm_schedule` module.
 - **★ RECIPE-MACROS** *(R16; M)* — save chained edit-recipes as named, parameterized, shareable commands
   (`/macros`), mirrored across CADCMD/MCP + a headless `massing` CLI with `massing check` as a CI gate.
 
@@ -68,7 +69,7 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   from one quantity record, tying QTO → pay-apps → actuals. `GET /projects/{pid}/margin/by-costcode` (reuse
   the where-aggregate SQL-helper shape) surfaced as a portal money card like the selections card. Closest
   fit to the GC portal; highest-value GC item in the scan.
-- **ASSET-REG + PM-OPS — asset register + preventive maintenance** *(M; bimassetpro)* — the concrete first
+- ✅ **ASSET-REG** *(v0.3.574)* + **PM-OPS — asset register + preventive maintenance** *(bimassetpro)* — the concrete first
   slice of the deferred CMMS-OPS. `GET /model/assets` deterministically derives the maintainable-asset
   register from the IFC by class (`classification.py` + `query_dsl.py`), GUID-keyed; a `pm_task` config
   module (asset-GUID link, PPM interval, last/next-due, warranty, spares, O&M docs via `docmanager.py`); +

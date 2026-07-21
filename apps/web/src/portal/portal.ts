@@ -164,7 +164,7 @@ export class PortalUI {
       __traceability__: () => this.renderTraceability(),
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
       __masterbuilder__: () => this.renderMasterBuilder(), __selections__: () => this.renderSelections(),
-      __margin__: () => this.renderMargin(),
+      __margin__: () => this.renderMargin(), __assets__: () => this.renderAssets(),
       __responsibility__: () => this.renderResponsibility(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __modelanalysis__: () => this.renderModelAnalysis(),
@@ -199,6 +199,7 @@ export class PortalUI {
         ["Turn over & operate", [
           { key: "__turnover__", icon: "🏁", label: "Turnover" },
           { key: "__operations__", icon: "🔧", label: "Operations" },
+          ...(this.mods.some((x) => x.key === "asset_register") ? [{ key: "__assets__", icon: "🔧", label: "Asset Register" }] : []),  // maintainable assets derived from the IFC
           { key: "__fca__", icon: "🏥", label: "Facility Condition" },
           { key: "__energy__", icon: "⚡", label: "Energy" },
         ]],
@@ -582,6 +583,7 @@ export class PortalUI {
   private async renderMasterBuilder() { return (await import("./panels/masterBuilder")).renderMasterBuilder(this.panelCtx()); }
   private async renderSelections() { return (await import("./panels/selections")).renderSelections(this.panelCtx()); }
   private async renderMargin() { return (await import("./panels/margin")).renderMargin(this.panelCtx()); }
+  private async renderAssets() { return (await import("./panels/assets")).renderAssets(this.panelCtx()); }
   private async renderModelAnalysis() { return (await import("./panels/standards")).renderModelAnalysis(this.panelCtx()); }
   private async renderDocuments() { return (await import("./panels/documents")).renderDocuments(this.panelCtx()); }
   private async renderStandards() { return (await import("./panels/standards")).renderStandards(this.panelCtx()); }

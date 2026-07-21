@@ -443,6 +443,24 @@ def model_health_scorecard(pid: str, db: Session = Depends(get_db), _sec: str = 
     return model_health.scorecard(db, pid, model=model, elements=_index_elements(pid))
 
 
+@router.get("/projects/{pid}/model/assets")
+def model_assets(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """ASSET-REG — the maintainable-asset register derived straight from the IFC: serviceable equipment /
+    terminals / controls / transport (subtype-resolved; ducts/pipes/fittings excluded), GUID-keyed, tagged
+    with discipline + storey + type, with per-discipline / per-category / per-class tallies. 409 if the
+    project has no source IFC."""
+    from .. import model_assets as ma
+    return ma.assets(open_source_ifc(db, pid))
+
+
+@router.post("/projects/{pid}/model/assets/seed")
+def model_assets_seed(pid: str, db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """Seed the `asset_register` module from the model-derived assets (idempotent by tag) — turns the IFC
+    into a populated FM register in one call, ready for pm_schedule + warranty/serial per asset."""
+    from .. import model_assets as ma
+    return ma.seed(db, pid, ma.assets(open_source_ifc(db, pid)).get("assets", []), actor)
+
+
 @router.get("/projects/{pid}/master-builder/brief")
 def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MASTER-BUILDER — the whole project in one view: runs the 8-step Master Builder Protocol (place →

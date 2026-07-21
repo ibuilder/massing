@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.574 — ASSET-REG: maintainable-asset register from the IFC (R16 Tier-1)
+
+The second R16 build — derive the FM handover register straight from the model (BIMAssetPro's "model → full
+control in days", done deterministically because IFC is our source of truth), so it isn't hand-entered.
+
+- **`model_assets.py` + `GET /projects/{pid}/model/assets`**: selects the maintainable serviceable assets
+  from the IFC by class (subtype-resolved — `IfcEnergyConversionDevice` / `IfcFlowMovingDevice` /
+  `IfcFlowController` / `IfcFlowTerminal` / `IfcFlowStorageDevice` / `IfcFlowTreatmentDevice` /
+  `IfcDistributionControlElement` / `IfcTransportElement`, **excluding ducts/pipes/fittings** — you maintain
+  the unit, not the duct run), GUID-keyed with discipline (`classification.py`) + storey + type + a coarse
+  category, with per-discipline / per-category / per-class tallies.
+- **`POST /projects/{pid}/model/assets/seed`** (editor): populates the shipped `asset_register` module from
+  the derived assets, **idempotent by tag** (`{ifc_class}-{guid8}`) — one call turns the IFC into a
+  populated FM register, ready for `pm_schedule` preventive maintenance + warranty/serial per asset.
+- **🔧 Asset Register** portal destination (Operations nav, shown when the project uses the `asset_register`
+  module): count + by-category/discipline chips + a "seed from model" button + the asset list. Client
+  methods `modelAssets` / `seedModelAssets`. `test_model_assets` covers the class selection (terminals +
+  pump + elevator in, duct out), tallies, the 409, and the idempotent seed.
+
 ## v0.3.573 — MARGIN-CBS: per-cost-code margin reconciliation (R16 Tier-1)
 
 The first R16 build — the highest-value GC-portal item from the external scan (Beamstack's "per-lot margin"

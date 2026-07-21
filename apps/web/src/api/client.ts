@@ -1907,6 +1907,21 @@ export class ApiClient extends HttpCore {
   sharedDigestUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}/digest`); }
   /** The public read-only HTML page for a share token (opens with no login — the human share link). */
   sharedPageUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}`); }
+  /** ASSET-REG — maintainable-asset register derived from the IFC (equipment/terminals/controls/transport). */
+  modelAssets(pid: string) {
+    type Tally = { count: number } & Record<string, string | number>;
+    type Asset = { guid: string | null; name: string; ifc_class: string; type: string | null;
+      discipline: string; category: string; storey: string | null };
+    return this.json<{
+      count: number; by_discipline: Tally[]; by_category: Tally[]; by_class: Tally[];
+      assets: Asset[]; note: string;
+    }>(`/projects/${pid}/model/assets`);
+  }
+  /** Seed the asset_register module from the model-derived assets (idempotent by tag). */
+  seedModelAssets(pid: string) {
+    return this.json<{ created: number; skipped: number; created_refs: string[]; note: string }>(
+      `/projects/${pid}/model/assets/seed`, { method: "POST", body: "{}" });
+  }
   /** MASTER-BUILDER — the 8-step Master Builder Protocol run over the project's own data, grounded in place. */
   masterBuilderBrief(pid: string) {
     type Step = { n: number; key: string; title: string; why: string; link: string;
