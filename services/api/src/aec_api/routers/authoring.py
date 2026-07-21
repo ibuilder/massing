@@ -632,6 +632,99 @@ def edit_batch(pid: str, steps: list[dict] = Body(...), publish: bool = Body(def
     return result
 
 
+# ── RECIPE-MACROS ────────────────────────────────────────────────────────────────────────────────
+# Save a chained edit-recipe as a named, parameterized command; run it against the model as ONE version.
+@router.get("/projects/{pid}/macros")
+def macros_list(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The project's saved recipe-macros (falls back to the starter set until one is saved). Each macro =
+    a name + declared params + an ordered list of authoring-recipe steps referencing ``${param}``."""
+    from .. import macros as mac
+    _project(db, pid)
+    stored = mac.load(pid)
+    return {"macros": stored or mac.STARTER_MACROS, "seeded": not stored}
+
+
+@router.put("/projects/{pid}/macros")
+def macros_put(pid: str, macros: list[dict] = Body(..., embed=True),
+               db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Replace the project's macro library. Every step's recipe name is validated against the edit
+    engine's registry before anything is written — a bad macro rejects the whole save with 422."""
+    from .. import macros as mac
+    _project(db, pid)
+    try:
+        saved = mac.save(pid, macros)
+    except mac.MacroError as e:
+        raise HTTPException(422, str(e)) from e
+    return {"saved": len(saved), "macros": saved}
+
+
+@router.post("/projects/{pid}/macros/{macro_id}/expand")
+def macros_expand(pid: str, macro_id: str, args: dict = Body(default={}, embed=True),
+                  db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Preview a macro's concrete step list for the given args WITHOUT touching the model — defaults fill
+    omitted params, ``${name}`` placeholders resolve. Lets a client review/validate before running."""
+    from .. import macros as mac
+    _project(db, pid)
+    macro = mac.get(pid, macro_id) or next((m for m in mac.STARTER_MACROS if m["id"] == macro_id), None)
+    if macro is None:
+        raise HTTPException(404, f"macro '{macro_id}' not found")
+    try:
+        steps = mac.expand(macro, args)
+    except mac.MacroError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"macro": macro_id, "name": macro.get("name"), "steps": steps, "step_count": len(steps)}
+
+
+@router.post("/projects/{pid}/macros/{macro_id}/run")
+def macros_run(pid: str, macro_id: str, args: dict = Body(default={}, embed=True),
+               publish: bool = Body(default=False, embed=True),
+               base_source: str | None = Body(default=None, embed=True),
+               db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """Expand a saved macro with ``args`` and apply the whole chain as ONE GUID-stable version — the same
+    read→apply→pointer-swap the ``/edit/batch`` route uses (one edit-history entry, so the macro undoes as
+    a single step; honors the COLLAB-1 optimistic lock via ``base_source``)."""
+    from aec_data import edit as ed  # type: ignore
+
+    from .. import edit_history, pid_lock
+    from .. import macros as mac
+
+    _project(db, pid)
+    macro = mac.get(pid, macro_id) or next((m for m in mac.STARTER_MACROS if m["id"] == macro_id), None)
+    if macro is None:
+        raise HTTPException(404, f"macro '{macro_id}' not found")
+    try:
+        steps = mac.expand(macro, args)
+    except mac.MacroError as e:
+        raise HTTPException(400, str(e)) from e
+
+    with pid_lock.mutating(pid):
+        p = _project(db, pid)
+        db.refresh(p)
+        if base_source is not None and p.source_ifc and Path(base_source).name != Path(p.source_ifc).name:
+            raise HTTPException(409, "the model changed since you loaded it (another user published) — "
+                                     "reload before editing")
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+        base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+        out = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+        try:
+            result = ed.apply_recipes(p.source_ifc, steps, out)
+        except PermissionError as e:
+            raise HTTPException(403, str(e)) from e
+        except (ValueError, KeyError) as e:
+            raise HTTPException(400, str(e)) from e
+        edit_history.push(pid, p.source_ifc)                # ONE undo entry for the whole macro
+        p.source_ifc = out
+        audit.record(db, action="ifc.macro", actor=actor, method="POST",
+                     path=f"/projects/{pid}/macros/{macro_id}/run",
+                     detail={"macro": macro_id, "steps": [s.get("recipe") for s in steps]})
+        db.commit()
+    if publish:
+        _publish_bg(pid)
+        result["publish"] = "running"
+    result["macro"] = macro_id
+    return result
+
+
 @router.get("/content/catalog")
 def content_catalog(_: str = Depends(current_user)):
     """CONTENT-1: the curated content catalog — logistics / furniture / landscaping parts, each mapped to the

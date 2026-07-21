@@ -8,7 +8,7 @@ import { HttpCore } from "./httpCore";
 export * from "./types";
 import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
-  DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EscalationScan, EscalationRun, ElementProps, EnergyResult, FinancialStatements,
+  DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, FinancialStatements,
   IntegrationGroup, ModelCiReport, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   PreflightGate, PreflightSummary,
@@ -1689,6 +1689,24 @@ export class ApiClient extends HttpCore {
     return this.json<{ node_count: number; order: string[]; outputs: Record<string, unknown>; publish?: string }>(
       `/projects/${pid}/edit/graph`,
       { method: "POST", body: JSON.stringify({ graph, publish: opts?.publish ?? false, base_source: opts?.baseSource ?? null }) });
+  }
+
+  // RECIPE-MACROS: saved, parameterized chained edit-recipes runnable as one GUID-stable version
+  listMacros(pid: string) {
+    return this.json<{ macros: EditMacro[]; seeded: boolean }>(`/projects/${pid}/macros`);
+  }
+  saveMacros(pid: string, macros: EditMacro[]) {
+    return this.json<{ saved: number; macros: EditMacro[] }>(
+      `/projects/${pid}/macros`, { method: "PUT", body: JSON.stringify({ macros }) });
+  }
+  expandMacro(pid: string, macroId: string, args: Record<string, unknown>) {
+    return this.json<{ macro: string; name: string; steps: { recipe: string; params: Record<string, unknown> }[]; step_count: number }>(
+      `/projects/${pid}/macros/${encodeURIComponent(macroId)}/expand`, { method: "POST", body: JSON.stringify({ args }) });
+  }
+  runMacro(pid: string, macroId: string, args: Record<string, unknown>, opts?: { publish?: boolean; baseSource?: string }) {
+    return this.json<Record<string, unknown>>(
+      `/projects/${pid}/macros/${encodeURIComponent(macroId)}/run`,
+      { method: "POST", body: JSON.stringify({ args, publish: opts?.publish ?? false, base_source: opts?.baseSource ?? null }) });
   }
 
   // W9-3 IFC5-style property-override layers (non-destructive composition over the model)

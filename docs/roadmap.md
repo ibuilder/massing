@@ -13,8 +13,8 @@ are driven several phases deep; the **master-builder skill** is installed and co
 What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runtime/tooling ring, and the
 decomposition/design carry-overs.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (308 suites) · single-source version in
-`apps/web/package.json` (v0.3.574).
+**Status:** CodeQL 0 open alerts · full backend suite green (309 suites) · single-source version in
+`apps/web/package.json` (v0.3.575).
 
 ---
 
@@ -30,8 +30,12 @@ are R16 Tier-1 picks (see the R16 ring below for full specifics).**
 - ✅ **ASSET-REG** *(R16; v0.3.574)* — the maintainable-asset register derived from the IFC
   (`GET /model/assets` + a seed into the `asset_register` module) + the 🔧 Asset Register panel. Next: PM
   scheduling depth off the shipped `pm_schedule` module.
-- **★ RECIPE-MACROS** *(R16; M)* — save chained edit-recipes as named, parameterized, shareable commands
-  (`/macros`), mirrored across CADCMD/MCP + a headless `massing` CLI with `massing check` as a CI gate.
+- ◧ **★ RECIPE-MACROS** *(R16; phase-1 v0.3.575)* — ✅ save a chained edit-recipe as a named,
+  parameterized command: `macros.py` (`expand()` = model-free `${param}` substitution + defaults, type
+  preserving) + `GET/PUT /macros` (recipe names validated vs the edit registry at save) + `POST
+  .../{id}/expand` (preview) + `POST .../{id}/run` (whole chain as ONE GUID-stable version, single undo) +
+  client plumbing + `test_macros`. **Remaining:** mirror macro-run into CADCMD/MCP + a headless `massing`
+  CLI with `massing check` as a CI gate.
 
 1. ~~**VERSION-COMPARE per-property**~~ — ✅ **changed-property *names*** shipped v0.3.570 (`diff` now
    names the exact Pset/Qto keys that changed, tagged added/removed/changed). The old/new **values** still

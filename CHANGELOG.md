@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.575 — RECIPE-MACROS: save a chained edit-recipe as a named, parameterized command (R16 Tier-1)
+
+The reuse multiplier the GUID-stable edit-recipe spine was built for — capture your standard assemblies
+as commands instead of re-typing the same step sequence.
+
+- **`macros.py`** — a macro is an ordered list of authoring-recipe steps (the same `{recipe, params}`
+  shape `/edit/batch` runs) with **declared parameters** its steps reference as `${name}` placeholders.
+  `expand(macro, args)` resolves placeholders + declared defaults into a concrete step list — pure and
+  **model-free**, so a client can preview/validate before it ever touches the model. Type-preserving: a
+  bare `"${x0}"` keeps its numeric/list value (a `[x,y]` point survives, not just strings); embedded
+  placeholders string-interpolate. A required param with no value raises.
+- **Routes** on the authoring router: `GET /projects/{pid}/macros` (saved library, falls back to a
+  starter set), `PUT /projects/{pid}/macros` (validates **every step's recipe name against the edit
+  engine's registry** before writing — a bad macro rejects the whole save 422, no partial overwrite),
+  `POST .../macros/{id}/expand` (model-free preview), and `POST .../macros/{id}/run` (expands with args
+  and applies the whole chain as **ONE GUID-stable version** — the same read→apply→pointer-swap
+  `/edit/batch` uses, one edit-history entry so the macro undoes as a single step, honoring the COLLAB-1
+  optimistic lock via `base_source`).
+- Storage mirrors the rule library — one validated JSON blob per project with caps (≤100 macros, ≤60
+  steps, ≤40 params) so a stored macro can't be amplified into an unbounded apply. Client
+  `listMacros`/`saveMacros`/`expandMacro`/`runMacro` + the `EditMacro` type. `test_macros` covers
+  substitution, defaults, atomic bad-recipe rejection, and the list/expand/run round-trip.
+- *Next phases:* mirror macro-run into the CADCMD command line + MCP, and a headless `massing` CLI with
+  a `massing check` CI gate.
+
 ## v0.3.574 — ASSET-REG: maintainable-asset register from the IFC (R16 Tier-1)
 
 The second R16 build — derive the FM handover register straight from the model (BIMAssetPro's "model → full

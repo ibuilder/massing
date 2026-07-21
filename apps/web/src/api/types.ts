@@ -54,6 +54,16 @@ export interface PropLayer {
   overrides: { guid: string; pset: string; prop: string; value: unknown }[];
 }
 
+/** RECIPE-MACROS: a named, parameterized chain of authoring-recipe steps runnable as one version. */
+export interface EditMacroParam { name: string; label?: string; default?: unknown; required?: boolean }
+export interface EditMacro {
+  id: string;
+  name: string;
+  description?: string;
+  params: EditMacroParam[];
+  steps: { recipe: string; params: Record<string, unknown> }[];
+}
+
 /** Project-scoped capability role, least→most privileged. */
 export type ProjectRole = "viewer" | "reviewer" | "editor" | "admin";
 
