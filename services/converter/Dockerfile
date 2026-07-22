@@ -1,10 +1,10 @@
 # IFC→Fragments converter (Node). Build context = repo root.
-FROM node:20-slim
+FROM node:22-slim
 WORKDIR /app
 
 # install just what the converter needs; web-ifc ships its own WASM. Pin to the SAME versions as the
 # client parser (apps/web/package.json) — CI enforces this via scripts/check-fragments-version.mjs.
-ARG FRAGMENTS_VERSION=3.4.5
+ARG FRAGMENTS_VERSION=3.4.6
 ARG WEBIFC_VERSION=0.0.77
 RUN npm init -y >/dev/null 2>&1 \
     && npm install @thatopen/fragments@${FRAGMENTS_VERSION} web-ifc@${WEBIFC_VERSION}

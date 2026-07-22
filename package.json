@@ -11,7 +11,7 @@
     "build": "npm run build --workspace apps/web"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "overrides": {
     "eslint": "9.39.5"

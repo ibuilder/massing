@@ -5,9 +5,9 @@
 # Pin the fragments/web-ifc pair to the SAME versions as the client parser (apps/web/package.json).
 # CI enforces this (scripts/check-fragments-version.mjs) — a mismatch means the server emits .frag the
 # browser can't parse.
-FROM node:20-slim AS converter
+FROM node:22-slim AS converter
 WORKDIR /conv
-ARG FRAGMENTS_VERSION=3.4.5
+ARG FRAGMENTS_VERSION=3.4.6
 ARG WEBIFC_VERSION=0.0.77
 RUN npm init -y >/dev/null 2>&1 && npm install --no-audit --no-fund \
     @thatopen/fragments@${FRAGMENTS_VERSION} web-ifc@${WEBIFC_VERSION}

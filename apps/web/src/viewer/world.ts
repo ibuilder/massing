@@ -218,7 +218,7 @@ export function renderMode(world: World, on: boolean): void {
   }
 
   // (Re)apply cast/receive flags + the PBR material swap to all current model meshes.
-  s.traverse((o) => {
+  s.traverse((o: THREE.Object3D) => {
     const m = o as THREE.Mesh;
     if (m.isMesh && m.name !== GROUND) {
       m.castShadow = on;

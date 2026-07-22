@@ -117,12 +117,22 @@ return {
   },
   build: {
     chunkSizeWarningLimit: 4000,
-    rollupOptions: {
+    // Vite 8: build.rollupOptions was renamed to build.rolldownOptions (Rolldown bundler).
+    rolldownOptions: {
       output: {
-        // split heavy vendor libs into cacheable chunks (they change far less than app code)
-        manualChunks: {
-          three: ["three"],
-          thatopen: ["@thatopen/components", "@thatopen/components-front", "@thatopen/fragments"],
+        // split heavy vendor libs into cacheable chunks (they change far less than app code).
+        // NOTE: the object form of `manualChunks` was REMOVED in Vite 8; the function form still
+        // works (deprecated). Migrate to Rolldown's native `advancedChunks` as a follow-up:
+        //   build.rolldownOptions.output.advancedChunks = { groups: [{ name, test }] }
+        manualChunks(id) {
+          if (id.includes("node_modules/three")) return "three";
+          if (
+            id.includes("@thatopen/components") ||
+            id.includes("@thatopen/components-front") ||
+            id.includes("@thatopen/fragments")
+          ) {
+            return "thatopen";
+          }
         },
       },
     },

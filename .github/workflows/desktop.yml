@@ -98,7 +98,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -109,6 +109,16 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: apps/web/src-tauri -> target
+
+      # A stale/missing Cargo.lock has broken tagged desktop releases before (cargo silently
+      # re-resolved transitive deps). Fail the release build loudly if the committed lock is out
+      # of sync with Cargo.toml instead of letting it drift at build time.
+      - name: Verify Cargo.lock is committed and consistent (release build honors the committed lock)
+        working-directory: apps/web/src-tauri
+        run: |
+          git ls-files --error-unmatch Cargo.lock >/dev/null || { echo "Cargo.lock is not committed — run the 'Generate Cargo.lock' workflow"; exit 1; }
+          # --locked validates the committed lock against Cargo.toml WITHOUT upgrading transitive patches
+          cargo metadata --locked --format-version 1 >/dev/null || { echo "Cargo.lock out of sync — run 'cargo generate-lockfile' in apps/web/src-tauri and commit before releasing"; exit 1; }
 
       # npm workspace: install at the root so the web build (beforeBuildCommand) has its deps
       - name: Install web dependencies
