@@ -14,6 +14,7 @@ BIMcollab / ACC no longer silently drops its comments and labels."""
 from __future__ import annotations
 
 import io
+import os
 import xml.etree.ElementTree as ET  # for Element node types only — parsing goes through defusedxml
 import zipfile
 from datetime import datetime, timezone
@@ -23,9 +24,32 @@ from typing import Any
 # XXE / billion-laughs / external-entity attacks (same protection as citygml.py). Returns standard
 # ElementTree nodes, so the rest of the ET-based traversal is unchanged.
 from defusedxml.ElementTree import fromstring as _safe_fromstring
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from .models import Comment, Topic, Viewpoint
+
+# Decompression-bomb guard: the raw upload is capped by AEC_MAX_UPLOAD_MB, but a tiny zip can still
+# expand to gigabytes in RAM. Cap each entry AND the running total of uncompressed bytes.
+_MAX_UNZIP_MB = int(os.environ.get("AEC_MAX_UNZIP_MB", "512"))
+_MAX_UNZIP_BYTES = _MAX_UNZIP_MB * 1024 * 1024
+
+
+def _open_bcfzip(data: bytes) -> zipfile.ZipFile:
+    """Open a .bcfzip, rejecting decompression bombs by checking the declared uncompressed size of
+    each entry and the cumulative total against AEC_MAX_UNZIP_MB (default 512)."""
+    try:
+        z = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        raise HTTPException(422, "not a valid .bcfzip (bad zip archive)")
+    total = 0
+    for info in z.infolist():
+        total += info.file_size
+        if info.file_size > _MAX_UNZIP_BYTES or total > _MAX_UNZIP_BYTES:
+            z.close()
+            raise HTTPException(413, f"BCF zip exceeds the {_MAX_UNZIP_MB} MB uncompressed limit "
+                                     "(possible decompression bomb)")
+    return z
 
 _BCF_VERSION = "2.1"          # default export version
 _BCF_VERSIONS = ("2.1", "3.0")
@@ -294,7 +318,7 @@ def parse_records_bcfzip(data: bytes) -> list[dict]:
     """Parse a .bcfzip into record dicts {data:{subject,description,priority}, anchor, element_guids}
     suitable for creating module records. Pulls selected components + camera from any viewpoint."""
     out = []
-    with zipfile.ZipFile(io.BytesIO(data)) as z:
+    with _open_bcfzip(data) as z:
         names = z.namelist()
         for name in [n for n in names if n.endswith("markup.bcf")]:
             root = _safe_fromstring(z.read(name))
@@ -325,7 +349,7 @@ def parse_records_bcfzip(data: bytes) -> list[dict]:
 def import_bcfzip(db: Session, project_id: str, data: bytes) -> int:
     """Import topics from a .bcfzip. Returns the count imported."""
     count = 0
-    with zipfile.ZipFile(io.BytesIO(data)) as z:
+    with _open_bcfzip(data) as z:
         names = z.namelist()
         markups = [n for n in names if n.endswith("markup.bcf")]
         for name in markups:

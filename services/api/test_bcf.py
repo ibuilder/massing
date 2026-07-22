@@ -169,6 +169,36 @@ with TestClient(app) as c:
         assert topic.labels == ["NC-9"], topic.labels               # grouped <Labels><Label> read
         assert topic.comments and topic.comments[0].text == "please fix", topic.comments  # nested comment read
 
+    # --- SEC F9: decompression-bomb bounds — oversized uncompressed entries are rejected ----------
+    from fastapi import HTTPException as _HTTPExc  # noqa: E402
+
+    # a highly-compressible entry: ~2 MB of zeros -> tiny on disk, but declared file_size is real
+    bomb = io.BytesIO()
+    with zipfile.ZipFile(bomb, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("bcf.version", b'<?xml version="1.0"?><Version VersionId="2.1"/>')
+        z.writestr("big/markup.bcf", b"\x00" * (2 * 1024 * 1024))
+    orig_limit = bcf_io._MAX_UNZIP_BYTES
+    try:
+        bcf_io._MAX_UNZIP_BYTES = 1024                       # 1 KB ceiling for the test
+        threw = False
+        try:
+            bcf_io.import_bcfzip(SessionLocal(), src, bomb.getvalue())
+        except _HTTPExc as e:
+            threw = True
+            assert e.status_code == 413, e.status_code       # Payload Too Large, clear rejection
+        assert threw, "oversized zip entry must be rejected"
+        # parse_records_bcfzip shares the same guard
+        threw2 = False
+        try:
+            bcf_io.parse_records_bcfzip(bomb.getvalue())
+        except _HTTPExc as e:
+            threw2 = True and e.status_code == 413
+        assert threw2, "parse_records must also reject the bomb"
+    finally:
+        bcf_io._MAX_UNZIP_BYTES = orig_limit
+    # under the (restored) real 512 MB limit, a normal small bcfzip still imports fine
+    assert bcf_io.parse_records_bcfzip(blob) is not None, "normal bcfzip still parses under the limit"
+
     # empty project still exports a valid (topic-less) bcfzip — no crash
     empty = c.post("/projects", json={"name": "Empty"}).json()["id"]
     e = c.get(f"/projects/{empty}/bcf/export")
