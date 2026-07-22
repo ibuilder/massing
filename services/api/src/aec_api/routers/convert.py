@@ -98,7 +98,7 @@ async def convert(file: UploadFile = File(...), _: str = Depends(current_user),
             raise HTTPException(503, str(exc))
         except Exception as exc:  # noqa: BLE001 — bad/corrupt E57
             raise HTTPException(422, f"could not read E57: {exc}")
-        base = os.path.basename((file.filename or "scan.e57")).rsplit(".", 1)[0] or "scan"
+        base = os.path.basename(file.filename or "scan.e57").rsplit(".", 1)[0] or "scan"
         return Response(xyz, media_type="text/plain",
                         headers={"Content-Disposition": content_disposition(f"{base}.xyz")})
     if ext in ("dwg", "nwc"):

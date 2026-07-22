@@ -14,6 +14,7 @@ os.makedirs(_SUBSET_TMPDIR, exist_ok=True)
 _tempfile.tempdir = _SUBSET_TMPDIR
 
 import glob as _glob  # noqa: E402
+import shutil as _shutil  # noqa: E402
 
 import ifcopenshell  # noqa: E402
 
@@ -115,7 +116,6 @@ with TestClient(app) as c:
 
 if os.path.exists(TMP):
     os.remove(TMP)
-import shutil as _shutil  # noqa: E402
 _shutil.rmtree(_SUBSET_TMPDIR, ignore_errors=True)
 
 print("SUBSET-EXPORT OK - the keep-set prune drops the wall and keeps both columns (GUIDs unchanged) with the "
