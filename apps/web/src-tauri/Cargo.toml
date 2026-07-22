@@ -24,5 +24,6 @@ serde_json = "1"
 # Pin transitive `time` away from 0.3.52: that release changed the (sealed) Parsable trait's
 # parse signature, which `cookie` 0.18.1 (pulled in via tauri-plugin-updater -> reqwest) still
 # calls the old way, breaking the desktop build. 0.3.51 is the last version that compiles with it.
-# (We have no committed Cargo.lock, so CI resolves deps fresh each run and picked up the break.)
+# Cargo.lock IS committed and CI runs cargo with --locked (rust-ci.yml / desktop.yml verify the
+# lock is in sync), so this pin is now a belt-and-suspenders guard against an accidental `cargo update`.
 time = "=0.3.51"

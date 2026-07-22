@@ -53,8 +53,14 @@ jobs:
           chmod +x "binaries/aec-bim-server-${triple}"
           echo "stubbed binaries/aec-bim-server-${triple}"
 
+      - name: Verify Cargo.lock is committed and in sync
+        run: |
+          test -f Cargo.lock || { echo "Cargo.lock missing — run the 'Generate Cargo.lock' workflow"; exit 1; }
+          cargo generate-lockfile
+          git diff --exit-code Cargo.lock || { echo "Cargo.lock is out of sync with Cargo.toml — regenerate (cargo generate-lockfile here) and commit"; exit 1; }
+
       - name: Format check
         run: cargo fmt --all -- --check
 
       - name: Clippy (deny warnings)
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings

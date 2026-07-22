@@ -110,6 +110,16 @@ jobs:
         with:
           workspaces: apps/web/src-tauri -> target
 
+      # A stale/missing Cargo.lock has broken tagged desktop releases before (cargo silently
+      # re-resolved transitive deps). Fail the release build loudly if the committed lock is out
+      # of sync with Cargo.toml instead of letting it drift at build time.
+      - name: Verify Cargo.lock is in sync (release build honors the committed lock)
+        working-directory: apps/web/src-tauri
+        run: |
+          test -f Cargo.lock || { echo "Cargo.lock missing — run the 'Generate Cargo.lock' workflow"; exit 1; }
+          cargo generate-lockfile
+          git diff --exit-code Cargo.lock || { echo "Cargo.lock out of sync — regenerate (cargo generate-lockfile in apps/web/src-tauri) and commit before releasing"; exit 1; }
+
       # npm workspace: install at the root so the web build (beforeBuildCommand) has its deps
       - name: Install web dependencies
         run: npm ci
