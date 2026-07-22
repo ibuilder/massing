@@ -48,7 +48,7 @@ export function installSectionBox(d: Pick<MeasureSectionDeps, "viewer" | "loader
     const r = d.viewer.world.renderer!.three;
     if (sectionBox) { r.clippingPlanes = []; sectionBox = null; b.classList.remove("on"); void d.loader.fragments.core.update(true); return; }
     const box = new THREE.Box3();
-    d.viewer.world.scene.three.traverse((o) => { const msh = o as THREE.Mesh; if (msh.isMesh) box.expandByObject(msh); });
+    d.viewer.world.scene.three.traverse((o: THREE.Object3D) => { const msh = o as THREE.Mesh; if (msh.isMesh) box.expandByObject(msh); });
     if (box.isEmpty()) { d.notify("no model to clip", "error"); return; }
     const c = box.getCenter(new THREE.Vector3());
     const s = box.getSize(new THREE.Vector3()).multiplyScalar(0.35);   // keep the middle ~70%

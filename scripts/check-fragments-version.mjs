@@ -45,9 +45,9 @@ for (const df of DOCKERFILES) {
 const KNOWN_GOOD = {
   "@thatopen/components": "3.4.6",
   "@thatopen/components-front": "3.4.3",
-  "@thatopen/ui": "3.4.3",
-  "@thatopen/fragments": "3.4.5",
-  "three": "0.184.0",
+  "@thatopen/ui": "3.4.10",
+  "@thatopen/fragments": "3.4.6",
+  "three": "0.185.1",
   "web-ifc": "0.0.77",
 };
 for (const [dep, want] of Object.entries(KNOWN_GOOD)) {

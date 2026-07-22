@@ -163,7 +163,7 @@ export function installEnvTools(d: EnvToolsDeps): { isRenderOn: () => boolean } 
     let storeys: { name: string | null; elevation: number; guid: string }[] = [];
     try { storeys = await d.api.drawingStoreys(pid); } catch { d.notify("no storeys (needs source IFC)", "error"); return; }
     const box = new THREE.Box3();
-    d.viewer.world.scene.three.traverse((o) => { const msh = o as THREE.Mesh; if (msh.isMesh) box.expandByObject(msh); });
+    d.viewer.world.scene.three.traverse((o: THREE.Object3D) => { const msh = o as THREE.Mesh; if (msh.isMesh) box.expandByObject(msh); });
     const size = box.isEmpty() ? 20 : Math.max(box.getSize(new THREE.Vector3()).x, box.getSize(new THREE.Vector3()).z) * 1.1;
     const cx = box.isEmpty() ? 0 : box.getCenter(new THREE.Vector3()).x;
     const cz = box.isEmpty() ? 0 : box.getCenter(new THREE.Vector3()).z;

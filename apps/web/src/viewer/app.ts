@@ -478,7 +478,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (!projectId) { notify("connect a project first", "error"); return; }
     const r = viewer.world.renderer!.three;
     r.render(viewer.world.scene.three, viewer.world.camera.three);
-    r.domElement.toBlob(async (blob) => {
+    r.domElement.toBlob(async (blob: Blob | null) => {
       if (!blob) { notify("couldn't capture the canvas", "error"); return; }
       b.disabled = true;
       try {
@@ -810,7 +810,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   let fitPending = false;   // set when a fit was skipped because the viewport was hidden (0×0)
   async function fitToModels() {
     const box = new THREE.Box3();
-    viewer.world.scene.three.traverse((o) => {
+    viewer.world.scene.three.traverse((o: THREE.Object3D) => {
       const m = o as THREE.Mesh & THREE.Points;
       if (m.isMesh || m.isPoints) box.expandByObject(o);   // include reference point clouds, not just meshes
     });
