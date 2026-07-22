@@ -7,33 +7,33 @@
 # (services/data/requirements.txt) are a strict subset of the ones below, so they need no separate lock.
 
 # --- web / API framework ---
-fastapi>=0.115
-uvicorn[standard]>=0.30
-sqlalchemy>=2.0
-pydantic>=2.7
+fastapi>=0.139
+uvicorn[standard]>=0.51
+sqlalchemy>=2.0.50
+pydantic>=2.13
 python-multipart>=0.0.9   # file uploads (attachments)
-orjson>=3.10              # RT-ORJSON: Rust JSON for ORJSONResponse + hot blob paths (Apache-2.0/MIT)
-boto3>=1.34               # MinIO/S3 object storage (range reads); lazy-imported
-psycopg[binary]>=3.1      # Postgres driver (prod). Locked here so `--require-hashes` covers it too.
+orjson>=3.11              # RT-ORJSON: Rust JSON for ORJSONResponse + hot blob paths (Apache-2.0/MIT)
+boto3>=1.43               # MinIO/S3 object storage (range reads); lazy-imported
+psycopg[binary]>=3.3      # Postgres driver (prod). Locked here so `--require-hashes` covers it too.
 
 # --- analysis / QA + export bridge to the data service (services/data/src) ---
-ifcopenshell>=0.8.0,<0.9
+ifcopenshell>=0.8.5,<0.9
 openpyxl>=3.1
-numpy>=1.26
-ifctester>=0.8
-trimesh>=4.0
-manifold3d>=2.0
-scipy>=1.11
-networkx>=3.0
-shapely>=2.0
-reportlab>=4.0
-pyhanko>=0.25            # PAdES certificate-based PDF digital signatures (esign.py)
-pypdf>=4.0              # contract/spec text extraction for the review engine (review.py)
+numpy>=2.0
+ifctester>=0.8.5
+trimesh>=4.12
+manifold3d>=3.0
+scipy>=1.18
+networkx>=3.6
+shapely>=2.1
+reportlab>=5.0
+pyhanko>=0.35            # PAdES certificate-based PDF digital signatures (esign.py)
+pypdf>=6.0              # contract/spec text extraction for the review engine (review.py)
 defusedxml>=0.7        # XXE / billion-laughs hardening for untrusted CityGML parsing (citygml.py)
-pyarrow>=16.0          # columnar Parquet export of the model element set (model_query.to_parquet)
-signxml>=3.2           # SAML 2.0 assertion XML-DSig signature verification (saml.py)
-ezdxf>=1.1             # DXF quantity takeoff — 2D CAD estimating (dxf_takeoff.py); MIT, pure-Python
+pyarrow>=25.0          # columnar Parquet export of the model element set (model_query.to_parquet)
+signxml>=5.0           # SAML 2.0 assertion XML-DSig signature verification (saml.py)
+ezdxf>=1.4             # DXF quantity takeoff — 2D CAD estimating (dxf_takeoff.py); MIT, pure-Python
 
 # --- optional (lazy-imported, only when the matching env var is set) ---
-redis>=5.0             # shared rate-limit + login-lockout counters (AEC_REDIS_URL)
-anthropic>=0.69        # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY
+redis>=8.0             # shared rate-limit + login-lockout counters (AEC_REDIS_URL)
+anthropic>=0.116        # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY

@@ -1,14 +1,14 @@
 # Data service — IfcOpenShell extraction, QA & clash (guide §8 + analysis)
-ifcopenshell>=0.8.0,<0.9
+ifcopenshell>=0.8.5,<0.9
 openpyxl>=3.1          # XLSX export
-numpy>=1.26           # geometry-derived quantities, AABB clash
-ifctester>=0.8        # IDS / openBIM model validation
-trimesh>=4.0          # clash narrow phase (mesh booleans) + 2D section cuts
-manifold3d>=2.0       # boolean intersection engine for trimesh
-scipy>=1.11           # trimesh path assembly (section drawings)
-networkx>=3.0         # trimesh path traversal (section drawings)
-shapely>=2.0          # trimesh planar paths
-reportlab>=4.0        # PDF sheet composition
+numpy>=2.0           # geometry-derived quantities, AABB clash
+ifctester>=0.8.5        # IDS / openBIM model validation
+trimesh>=4.12          # clash narrow phase (mesh booleans) + 2D section cuts
+manifold3d>=3.0       # boolean intersection engine for trimesh
+scipy>=1.18           # trimesh path assembly (section drawings)
+networkx>=3.6         # trimesh path traversal (section drawings)
+shapely>=2.1          # trimesh planar paths
+reportlab>=5.0        # PDF sheet composition
 pillow>=12.3.0        # reportlab's image dep — floor over 8 CVEs in 12.2.x (PYSEC-2026-2253..3453)
 defusedxml>=0.7       # XXE-safe parser for untrusted P6 (PMXML) schedule uploads — schedule.py
 # svglib (SVG→PNG for docs gallery) is a dev-only tool — it pulls pycairo/cairo and is not
