@@ -4,6 +4,7 @@ clashes survive. This is the server-side / AI-driven path; the desktop path is B
 Bonsai driven over Bonsai-MCP (same ifcopenshell.api operations)."""
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import logging
 import os
@@ -11,7 +12,6 @@ import re
 import subprocess
 import sys
 import tempfile
-import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1275,12 +1275,22 @@ def run_publish(pid: str) -> None:
         _set_pub_status(pid, "error", {"error": str(e)[:300]})
 
 
+# Bounded pool for background publishes: a raw Thread per request lets N concurrent uploads spawn N
+# heavy ifcopenshell converts at once and exhaust CPU/RAM. Cap concurrency (AEC_PUBLISH_WORKERS,
+# default 2); excess publishes queue. All 13 call sites funnel through _publish_bg, so this one pool
+# governs the whole app.
+_PUBLISH_WORKERS = max(1, int(os.environ.get("AEC_PUBLISH_WORKERS", "2")))
+_publish_pool = concurrent.futures.ThreadPoolExecutor(
+    max_workers=_PUBLISH_WORKERS, thread_name_prefix="publish")
+
+
 def _publish_bg(pid: str) -> None:
     """Run run_publish off the request thread. A 50MB IFC convert takes minutes — doing it in-request
-    would tie up a worker; clients poll publish/status. (Swap this for `worker.enqueue(run_publish, pid)`
-    to move it onto a real queue without touching run_publish.)"""
+    would tie up a worker; clients poll publish/status. Submitted to a bounded pool so a burst of
+    uploads can't spawn unbounded converts. (Swap the pool for `worker.enqueue(run_publish, pid)` to
+    move it onto a real queue without touching run_publish.)"""
     _set_pub_status(pid, "running")
-    threading.Thread(target=run_publish, args=(pid,), daemon=True).start()
+    _publish_pool.submit(run_publish, pid)
 
 
 @router.get("/projects/{pid}/publish/status")
