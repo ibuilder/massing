@@ -8,6 +8,7 @@ import re
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from .. import audit, bcf_io, rbac, signing, storage
 from ..db import get_db
@@ -463,7 +464,8 @@ async def import_bundle(file: UploadFile = File(...), name: str | None = Form(No
                         db: Session = Depends(get_db)):
     """Open a .mmproj bundle as a new project (fresh id) — geometry, data, and blobs restored."""
     from .. import bundle as bundle_io
-    new_pid = bundle_io.import_bundle(db, await file.read(), new_name=name)
+    data = await file.read()
+    new_pid = await run_in_threadpool(bundle_io.import_bundle, db, data, new_name=name)   # zip unpack off-loop
     return _with_kind(_project(db, new_pid))
 
 
@@ -596,7 +598,7 @@ async def add_attachment(pid: str, tid: str, kind: str = Form("file"),
     safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename or "file")).lstrip(".") or "file"
     safe_name = safe_name.replace("..", "_")     # belt: no traversal sequences even inside the name
     key = f"{pid}/{tid}/{safe_name}"
-    storage.put(key, data)
+    await run_in_threadpool(storage.put, key, data)   # MinIO put off the event loop (PERF-1 pattern)
     a = Attachment(topic_id=tid, filename=file.filename, content_type=file.content_type,
                    size=len(data), kind=kind, storage_key=key)
     db.add(a)
@@ -714,10 +716,14 @@ def export_subset_ifc(pid: str, query: str = Query(..., min_length=1, max_length
     res = ifcpatch_lib.extract_subset(model, keep)  # the shared open_model() cache other endpoints use
     if not res["available"] or res["kept"] == 0:
         raise HTTPException(422, "selector matched no physical elements to export")
+    from starlette.background import BackgroundTask
+
     fd, out = tempfile.mkstemp(suffix=".ifc", prefix="subset-")  # server-chosen path — no user input in it
     os.close(fd)
     model.write(out)
-    return FileResponse(out, filename=f"subset-{pid}.ifc", media_type="application/octet-stream")
+    # FileResponse streams but never deletes — attach a cleanup task so the throwaway subset doesn't leak in /tmp
+    return FileResponse(out, filename=f"subset-{pid}.ifc", media_type="application/octet-stream",
+                        background=BackgroundTask(os.unlink, out))
 
 
 # --- BCF interoperability ----------------------------------------------------
@@ -735,7 +741,8 @@ def bcf_export(pid: str, version: str = Query("2.1", pattern="^(2\\.1|3\\.0)$"),
 async def bcf_import(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
                      _: str = Depends(require_role("editor"))):
     _project(db, pid)
-    count = bcf_io.import_bcfzip(db, pid, await file.read())
+    data = await file.read()
+    count = await run_in_threadpool(bcf_io.import_bcfzip, db, pid, data)   # zip+XML parse off the event loop
     audit.record(db, action="bcf.import", method="POST", path=f"/projects/{pid}/bcf/import",
                  detail={"topics": count})
     db.commit()
@@ -748,7 +755,8 @@ async def coordination_import_xlsx(pid: str, file: UploadFile = File(...), db: S
     """Import a Solibri / Navisworks (or any tabular) clash report XLSX -> one coordination_issue per
     row (GUIDs anchor it on the model; each round-trips to BCF). Sniffs the header + maps aliases."""
     from .. import clash_import
-    res = clash_import.import_clash_xlsx(db, pid, await file.read(), actor)
+    data = await file.read()
+    res = await run_in_threadpool(clash_import.import_clash_xlsx, db, pid, data, actor)   # XLSX parse off-loop
     audit.record(db, action="coordination.import_xlsx", method="POST",
                  path=f"/projects/{pid}/coordination/import-xlsx", detail={"imported": res.get("imported", 0)})
     db.commit()
@@ -762,7 +770,8 @@ async def coordination_import_xml(pid: str, file: UploadFile = File(...), db: Se
     clash (name → subject, its clash test → discipline, type/distance/status → description; GUIDs anchor
     it on the model and each round-trips to BCF). Untrusted XML parsed with defusedxml."""
     from .. import clash_import
-    res = clash_import.import_clash_xml(db, pid, await file.read(), actor)
+    data = await file.read()
+    res = await run_in_threadpool(clash_import.import_clash_xml, db, pid, data, actor)   # XML parse off-loop
     audit.record(db, action="coordination.import_xml", method="POST",
                  path=f"/projects/{pid}/coordination/import-xml", detail={"imported": res.get("imported", 0)})
     db.commit()

@@ -3,8 +3,17 @@ via remove_deep2, spatial skeleton preserved) + the /export/subset.ifc route (ga
 match, valid contained IFC out).
 Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_subset_export.py"""
 import os
+import tempfile as _tempfile
 
 TMP = os.path.join(os.path.dirname(__file__), "_subset_src.ifc")
+
+# PERF-B6 cleanup test: route the subset FileResponse's mkstemp into an isolated dir so we can assert
+# the throwaway .ifc is deleted by the response's BackgroundTask (no /tmp leak).
+_SUBSET_TMPDIR = os.path.join(os.path.dirname(__file__), "_subset_tmp")
+os.makedirs(_SUBSET_TMPDIR, exist_ok=True)
+_tempfile.tempdir = _SUBSET_TMPDIR
+
+import glob as _glob  # noqa: E402
 
 import ifcopenshell  # noqa: E402
 
@@ -98,10 +107,16 @@ with TestClient(app) as c:
     assert r.status_code == 200, (r.status_code, r.text[:200])
     body = r.content.decode("utf-8", "ignore")
     assert "IFCCOLUMN" in body.upper() and "IFCWALL" not in body.upper(), "subset content wrong"
-    assert r.headers["content-disposition"].endswith('subset.ifc"') or "subset" in r.headers.get("content-disposition", "")
+    assert "subset" in r.headers.get("content-disposition", "")
+    # PERF-B6: the FileResponse's BackgroundTask (TestClient runs it after the response) must delete
+    # the server-chosen temp file — no subset-*.ifc left behind in the temp dir.
+    leftovers = _glob.glob(os.path.join(_SUBSET_TMPDIR, "subset-*.ifc"))
+    assert not leftovers, f"subset temp file leaked: {leftovers}"
 
 if os.path.exists(TMP):
     os.remove(TMP)
+import shutil as _shutil  # noqa: E402
+_shutil.rmtree(_SUBSET_TMPDIR, ignore_errors=True)
 
 print("SUBSET-EXPORT OK - the keep-set prune drops the wall and keeps both columns (GUIDs unchanged) with the "
       "spatial skeleton intact; the pruned model round-trips as a valid IFC; empty keep-set prunes all, a bare "
