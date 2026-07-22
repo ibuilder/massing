@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
-        with: { node-version: "20", cache: npm, cache-dependency-path: package-lock.json }
+        with: { node-version: "22", cache: npm, cache-dependency-path: package-lock.json }
       - run: npm ci
       - name: npm audit (production deps)
         continue-on-error: true        # report-only
