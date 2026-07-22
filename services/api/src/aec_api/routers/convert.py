@@ -8,7 +8,9 @@ error otherwise — it never fakes a conversion. IFC, .frag (and glTF/OBJ/STL, f
 fully offline via the normal Open flow."""
 from __future__ import annotations
 
+import logging
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -17,9 +19,12 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from starlette.concurrency import run_in_threadpool
 
 from ..rbac import current_user
+from ..serving import content_disposition
 from ..throttle import rate_limited
 
 router = APIRouter()
+
+_log = logging.getLogger("aec.convert")
 
 # Conversions are heavy (subprocess / paid APS cloud translation) — cap per caller.
 _throttle = rate_limited("convert", 12)
@@ -60,7 +65,10 @@ async def convert(file: UploadFile = File(...), _: str = Depends(current_user),
                                      "APS_CLIENT_SECRET and retry — there is no open-source RVT reader.")
         # APS configured: RVT → IFC (Model Derivative) → .frag via the Node converter (cli --rvt).
         with tempfile.TemporaryDirectory() as td:
-            rvt = Path(td) / (file.filename or "model.rvt")
+            # UploadFile.filename is attacker-controlled — sanitize before joining so it can't escape
+            # the temp dir (path traversal). The .frag output path stays server-chosen.
+            safe = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename or "model.rvt")) or "model.rvt"
+            rvt = Path(td) / safe
             frag = Path(td) / "out.frag"
             rvt.write_bytes(await file.read())
             try:
@@ -69,13 +77,18 @@ async def convert(file: UploadFile = File(...), _: str = Depends(current_user),
                     lambda: subprocess.run(["node", str(_CONVERTER), "--rvt", str(rvt), str(frag)],
                                            check=True, capture_output=True, timeout=1800))
             except subprocess.CalledProcessError as e:
-                raise HTTPException(502, f"APS RVT→IFC translation failed: {(e.stderr or b'').decode()[:300]}")
+                # Log the subprocess stderr server-side for debugging; return a generic error so
+                # internal APS/converter detail never leaks to the caller.
+                _log.error("APS RVT→IFC translation failed (exit %s): %s",
+                           e.returncode, (e.stderr or b"").decode("utf-8", "replace"))
+                raise HTTPException(502, "APS RVT→IFC translation failed. Please retry; "
+                                         "contact an administrator if the problem persists.")
             except FileNotFoundError:
                 raise HTTPException(500, "Node is required for the RVT converter but isn't installed on the server.")
             if not frag.exists():
                 raise HTTPException(502, "APS translation produced no fragments output.")
             return Response(frag.read_bytes(), media_type="application/octet-stream",
-                            headers={"Content-Disposition": 'attachment; filename="model.frag"'})
+                            headers={"Content-Disposition": content_disposition("model.frag")})
     if ext == "e57":
         from .. import e57
         data = await file.read()
@@ -85,9 +98,9 @@ async def convert(file: UploadFile = File(...), _: str = Depends(current_user),
             raise HTTPException(503, str(exc))
         except Exception as exc:  # noqa: BLE001 — bad/corrupt E57
             raise HTTPException(422, f"could not read E57: {exc}")
-        base = (file.filename or "scan.e57").rsplit(".", 1)[0]
+        base = os.path.basename((file.filename or "scan.e57")).rsplit(".", 1)[0] or "scan"
         return Response(xyz, media_type="text/plain",
-                        headers={"Content-Disposition": f'attachment; filename="{base}.xyz"'})
+                        headers={"Content-Disposition": content_disposition(f"{base}.xyz")})
     if ext in ("dwg", "nwc"):
         raise HTTPException(501, f".{ext} is a closed Autodesk format with no open-source "
                                  f"converter. It requires the paid Autodesk APS / ODA SDK bridge. "
