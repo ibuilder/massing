@@ -2,6 +2,7 @@
 # but the CI gate (full backend suite + web build) decides whether they merge.
 version: 2
 updates:
+  # Python backend (single hashed requirements.lock covers api + the data-service subset)
   - package-ecosystem: pip
     directory: /services/api
     schedule: { interval: weekly }
@@ -10,6 +11,7 @@ updates:
     directory: /services/data
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+  # npm workspace — the only package-lock.json is at the repo root
   - package-ecosystem: npm
     directory: /                        # npm workspace — the only package-lock.json is at the repo root
     schedule: { interval: weekly }
@@ -17,11 +19,38 @@ updates:
     groups:
       thatopen:                       # keep the pinned viewer pair moving together
         patterns: ["@thatopen/*", "three", "web-ifc"]
+      vite:                           # keep the Vite 8 + Vitest 4 build/test stack moving together
+        patterns: ["vite", "vitest", "@vitejs/*", "rolldown", "@rolldown/*"]
+  # Tauri / Rust desktop app
   - package-ecosystem: cargo
     directory: /apps/web/src-tauri
     schedule: { interval: weekly }
     open-pull-requests-limit: 3
+  # CI workflow actions
   - package-ecosystem: github-actions
     directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+  # Container images pinned in the compose files (postgres, minio, nginx, caddy, redis). Without this,
+  # pinned tags silently drift — the exact gap the manual container PRs (MinIO/nginx pins, Postgres 16->17) closed.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      infra:                          # one PR for the dev/prod infra set, not five
+        patterns: ["postgres", "minio/minio", "nginx", "caddy", "redis"]
+  # Dockerfile FROM base images (node:22-slim, python:3.12-slim, nginx:1.31-alpine) — one entry per
+  # directory that holds a Dockerfile, since Dependabot scopes docker updates per directory.
+  - package-ecosystem: docker
+    directory: /services/converter
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+  - package-ecosystem: docker
+    directory: /services/api
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+  - package-ecosystem: docker
+    directory: /apps/web
     schedule: { interval: weekly }
     open-pull-requests-limit: 3
