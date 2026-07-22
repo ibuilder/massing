@@ -57,4 +57,22 @@ with TestClient(app) as c:
     # the matched route TEMPLATE is used, not the raw path (bounded label cardinality)
     assert "/projects/{pid}/model.frag" in body and pid not in body
 
-    print("SERVING OK — 200 full / 206 ranged / 416 unsatisfiable; Accept-Ranges; /metrics exposed")
+    # --- Content-Disposition hardening (SEC F8): header-injection-safe filenames ----------------
+    from aec_api.serving import content_disposition
+    # path components and CR/LF are stripped so a client filename can't traverse or inject headers
+    cd = content_disposition("../../etc/passwd")
+    assert "\r" not in cd and "\n" not in cd, cd
+    assert 'filename="passwd"' in cd, cd                 # basename only, no path
+    inj = content_disposition("evil\r\nSet-Cookie: x=1.frag")
+    assert "\r" not in inj and "\n" not in inj, inj      # CRLF injection neutralized
+    # a double-quote is stripped from the ASCII fallback so it can't break out of the quoted-string
+    assert 'filename="ab.ifc"' in content_disposition('a"b.ifc'), content_disposition('a"b.ifc')
+    # empty/blank falls back to the default
+    assert 'filename="download"' in content_disposition("   "), content_disposition("   ")
+    # non-ASCII gets an RFC 5987 filename* form and a safe ASCII fallback (never crashes latin-1 headers)
+    uni = content_disposition("план-façade.ifc")
+    assert "filename*=UTF-8''" in uni, uni
+    uni.encode("latin-1")                                # must be a legal HTTP header value
+
+    print("SERVING OK — 200 full / 206 ranged / 416 unsatisfiable; Accept-Ranges; /metrics exposed; "
+          "Content-Disposition strips traversal/CRLF and RFC-5987-encodes non-ASCII")

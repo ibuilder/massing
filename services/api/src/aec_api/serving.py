@@ -2,13 +2,29 @@
 the viewer/CDN can request partial content. Works over either storage backend."""
 from __future__ import annotations
 
+import os
 import re
+from urllib.parse import quote
 
 from fastapi import HTTPException, Request, Response
 
 from . import storage
 
 _RANGE = re.compile(r"bytes=(\d*)-(\d*)")
+
+
+def content_disposition(filename: str | None, disposition: str = "attachment",
+                        fallback: str = "download") -> str:
+    """Build a header-injection-safe Content-Disposition value from a (possibly attacker-controlled)
+    filename. Strips any path and CR/LF, quotes an ASCII fallback for `filename="..."`, and adds an
+    RFC 5987 `filename*=UTF-8''...` form so non-ASCII names survive without crashing latin-1 header
+    encoding. Used for attachment/model/export downloads where the name comes from the client."""
+    raw = os.path.basename(filename or "").replace("\r", "").replace("\n", "").strip()
+    raw = raw or fallback
+    # ASCII fallback: drop control chars and anything that could break the quoted-string / header
+    ascii_name = "".join(c for c in raw if 32 <= ord(c) < 127 and c not in '"\\').strip() or fallback
+    encoded = quote(raw, safe="")
+    return f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}"
 
 
 def range_response(request: Request, key: str, media_type: str,
@@ -26,7 +42,7 @@ def range_response(request: Request, key: str, media_type: str,
     headers = {"Accept-Ranges": "bytes", "Cache-Control": cache, "ETag": etag,
                "Cross-Origin-Resource-Policy": "cross-origin"}
     if filename:
-        headers["Content-Disposition"] = f'{disposition}; filename="{filename}"'
+        headers["Content-Disposition"] = content_disposition(filename, disposition)
 
     inm = request.headers.get("if-none-match") or request.headers.get("If-None-Match")
     if inm and etag in [t.strip() for t in inm.split(",")]:   # conditional GET → 304, no body re-sent
