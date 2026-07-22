@@ -10,7 +10,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -520,9 +520,30 @@ app.add_api_route("/healthz", health, methods=["GET"], include_in_schema=False)
 app.add_api_route("/readyz", ready, methods=["GET"], include_in_schema=False)
 
 
+def _metrics_auth_enabled() -> bool:
+    """Read per-request so operators can flip the gate without a code change / restart-only rebuild."""
+    return os.environ.get("AEC_METRICS_AUTH", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _guard_metrics(request: Request) -> None:
+    """Optional bearer gate for /metrics. OFF by default → open exactly as before (existing scrapers
+    keep working, no breaking change). Set AEC_METRICS_AUTH=1 to require the AEC_API_KEY bearer when
+    the scrape endpoint is reachable from an untrusted network. Reuses the same API-key credential as
+    the other protected paths."""
+    if not _metrics_auth_enabled():
+        return
+    from . import rbac as _rbac
+    key = _rbac.API_KEY or os.environ.get("AEC_API_KEY")
+    authz = request.headers.get("authorization", "")
+    tok = authz[len("Bearer "):] if authz.startswith("Bearer ") else ""
+    if not (key and tok == key):
+        raise HTTPException(status_code=401, detail="metrics authentication required")
+
+
 @app.get("/metrics")
-def prometheus_metrics() -> Response:
-    """Prometheus text exposition (request counts, latencies, in-flight, uptime)."""
+def prometheus_metrics(_: None = Depends(_guard_metrics)) -> Response:
+    """Prometheus text exposition (request counts, latencies, in-flight, uptime). Open by default;
+    gate behind the AEC_API_KEY bearer by setting AEC_METRICS_AUTH=1."""
     return Response(metrics.render(), media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
