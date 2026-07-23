@@ -5,7 +5,7 @@
 # Pin the fragments/web-ifc pair to the SAME versions as the client parser (apps/web/package.json).
 # CI enforces this (scripts/check-fragments-version.mjs) — a mismatch means the server emits .frag the
 # browser can't parse.
-FROM node:20-slim AS converter
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS converter
 WORKDIR /conv
 ARG FRAGMENTS_VERSION=3.4.5
 ARG WEBIFC_VERSION=0.0.77
@@ -15,7 +15,7 @@ RUN npm init -y >/dev/null 2>&1 && npm install --no-audit --no-fund \
 # --- python build stage (B3): a full toolchain compiles any source-only wheel HERE, then we lift only
 # the installed packages into the runtime image below. gcc + headers never ship to production, so the
 # runtime image is smaller and carries no compiler in its attack surface. ---
-FROM python:3.12-slim AS pybuild
+FROM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS pybuild
 # build toolchain + the same shared libs, so wheels that need to compile can link during install
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 libglib2.0-0 build-essential python3-dev \
@@ -29,7 +29,7 @@ COPY services/api/requirements.lock /tmp/req/requirements.lock
 # wholesale into the runtime stage.
 RUN pip install --prefix=/install --require-hashes -r /tmp/req/requirements.lock
 
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \

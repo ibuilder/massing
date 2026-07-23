@@ -25,3 +25,16 @@ updates:
     directory: /
     schedule: { interval: weekly }
     open-pull-requests-limit: 3
+  # Container base images: auto-bump the @sha256 digests pinned in each Dockerfile FROM line.
+  - package-ecosystem: docker
+    directory: /services/api
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+  - package-ecosystem: docker
+    directory: /apps/web
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+  - package-ecosystem: docker
+    directory: /services/converter
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
