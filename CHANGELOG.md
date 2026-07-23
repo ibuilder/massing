@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.602 — BUYOUT-SCHED: time-phased procurement schedule from QTO × the construction schedule
+
+Only we hold both the model *and* the CPM/Takt schedule, so we can answer the buyer's real question
+deterministically: what to buy, how much, and by when to order it.
+
+- **`buyout_schedule.py` + `POST /projects/{pid}/procurement/buyout-schedule`**: each QTO line is joined to
+  the schedule activity that installs it (by explicit activity id, then cost code, then trade — the earliest
+  matching install), and the **last-responsible-order date** = install start − lead time. Sorted
+  soonest-order-first.
+- With an `as_of` date, each line is classified **overdue / urgent (≤14 days) / upcoming (≤30 days) / ok**;
+  lines with no matching activity are surfaced as **unscheduled** (assign a cost code or trade to place them).
+  The rollup reports the overdue count, the next-30-day count, and the total value in the window.
+- Lead times come from a per-line `lead_time_days`, else a material/trade/cost-code `lead_times` map, else a
+  default. Pure arithmetic over the supplied lines + activities (no wall-clock — pass `as_of`).
+  `buyoutSchedule` client method + `test_buyout_schedule`. Backend suite green; CodeQL 0.
+
 ## v0.3.601 — EST-CONFIDENCE: per-line estimate maturity + confidence scoring
 
 A number should carry how much to trust it, not just its value — the continuity-of-cost idea, as pure

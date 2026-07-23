@@ -2054,6 +2054,22 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** BUYOUT-SCHED — time-phased buyout schedule from QTO joined to the install schedule → last-responsible
+   * -order dates (install − lead), soonest first, classified overdue/urgent/upcoming/ok vs an as_of date. */
+  buyoutSchedule(pid: string, body: {
+    qto_lines: Record<string, unknown>[]; activities: Record<string, unknown>[];
+    lead_times?: Record<string, number>; as_of?: string; default_lead_days?: number;
+  }) {
+    type Entry = {
+      material: string; cost_code: string | null; trade: string | null; qty: number | null; unit: string | null;
+      value: number | null; install_start: string | null; lead_time_days: number;
+      last_responsible_order: string | null; buffer_days: number | null; status: string;
+    };
+    return this.json<{
+      line_count: number; unscheduled: number; as_of: string | null; status_counts: Record<string, number>;
+      overdue: number; next_30_days: number; total_value: number; entries: Entry[]; note: string;
+    }>(`/projects/${pid}/procurement/buyout-schedule`, { method: "POST", body: JSON.stringify(body) });
+  }
   /** EST-CONFIDENCE — score each estimate line's maturity/confidence (source × phase) → cost-weighted
    * project confidence + '% of budget still assumption-based' + the worst-value least-grounded lines. */
   estimateConfidence(pid: string, lines: Record<string, unknown>[]) {

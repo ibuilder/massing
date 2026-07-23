@@ -40,6 +40,19 @@ def buyout_packages(pid: str, payload: dict = Body(default={}),
     return procurement.buyout_packages(payload.get("qto_lines") or [], payload.get("by") or "trade")
 
 
+@router.post("/projects/{pid}/procurement/buyout-schedule")
+def buyout_schedule(pid: str, payload: dict = Body(default={}),
+                    _: str = Depends(require_role("viewer"))):
+    """BUYOUT-SCHED — a time-phased buyout schedule joining QTO lines to their installing schedule activity
+    (by activity id / cost code / trade) → the **last-responsible-order date** (= install start − lead time),
+    sorted soonest-order first; with `as_of`, each line is overdue / urgent / upcoming / ok. Body:
+    `{qto_lines, activities, lead_times?, as_of?, default_lead_days?}`."""
+    from .. import buyout_schedule as bs
+    return bs.schedule(payload.get("qto_lines") or [], payload.get("activities") or [],
+                       payload.get("lead_times"), payload.get("as_of"),
+                       int(payload.get("default_lead_days") or 0))
+
+
 @router.post("/projects/{pid}/procurement/level")
 def level(pid: str, payload: dict = Body(...), _: str = Depends(require_role("viewer"))):
     """PROCURE-LEVEL: score returned quotes for one buyout package against its RFQ scope on a normalized

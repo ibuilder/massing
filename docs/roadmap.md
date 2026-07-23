@@ -78,9 +78,11 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
 - **BOE-LEDGER — Basis-of-Estimate assumption ledger** *(M).* Structured assumptions per line (unit source,
   quote ref, escalation %, contingency %, date), versioned across phases, diffed assumption→actual once
   commitments/actuals land. The traceability layer under the numbers; feeds EVM/WIP.
-- **BUYOUT-SCHED — time-phased procurement schedule** *(M; unique to us).* Join model QTO + CPM/Takt →
-  what materials, in what quantity, by when (**last-responsible-order = install date − lead time**). Only we
-  hold the model *and* the schedule.
+- ✅ **BUYOUT-SCHED — time-phased procurement schedule** *(M; v0.3.602; unique to us).* `buyout_schedule.py`
+  + `POST /procurement/buyout-schedule`: join QTO lines to their installing activity (by activity id / cost
+  code / trade) → **last-responsible-order = install start − lead time**, sorted soonest-order-first; with an
+  `as_of` date each line is overdue / urgent (≤14d) / upcoming (≤30d) / ok, unmatched lines flagged
+  'unscheduled'. Only we hold the model *and* the schedule. Client (`buyoutSchedule`) + `test_buyout_schedule`.
 - **CONCEPT-BUDGET — parametric conceptual budget** *(M).* Generate a budget from a handful of massing inputs
   (GFA-by-use · stories · envelope area, all from the IFC) against an own-history assembly library — the
   front-of-funnel that matches the "Massing" name.
