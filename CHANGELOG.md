@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.603 — SCOPE-REG: a first-class scope register + gap analysis (the connective spine)
+
+Ties the things we already hold *separately* — quantities, cost breakdown, responsibility, schedule — into
+one register, and surfaces the holes.
+
+- **`scope_register.py` + `POST /projects/{pid}/scope/register`**: each scope item resolves its
+  **quantity/value** (from the QTO by cost code), its **owner** (responsible party / buyout package), and its
+  **schedule window** (the activity that builds it, by id or cost code).
+- The payload is the **gap analysis**: which scope is **unquantified**, which is **unallocated** (nobody owns
+  it), which is **unscheduled** — the holes that sink a job — surfaced gaps-first, highest-value-first, with
+  % quantified / allocated / scheduled and a by-owner value rollup.
+- Deterministic over the supplied scope items + QTO lines + activities; the connective spine across QTO · CBS
+  · responsibility · schedule. `scopeRegister` client method + `test_scope_register`. Backend suite green;
+  CodeQL 0.
+
 ## v0.3.602 — BUYOUT-SCHED: time-phased procurement schedule from QTO × the construction schedule
 
 Only we hold both the model *and* the CPM/Takt schedule, so we can answer the buyer's real question

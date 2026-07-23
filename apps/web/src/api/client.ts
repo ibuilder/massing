@@ -2054,6 +2054,22 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** SCOPE-REG — the scope register + gap analysis: each scope item resolves quantity/value (QTO by cost
+   * code), owner, and schedule window; surfaces unquantified / unallocated / unscheduled scope. */
+  scopeRegister(pid: string, body: {
+    scope_items: Record<string, unknown>[]; qto_lines?: Record<string, unknown>[]; activities?: Record<string, unknown>[];
+  }) {
+    type Item = {
+      id: string | null; name: string; cost_code: string | null; qty: number | null; value: number | null;
+      responsible: string | null; package: string | null; start: string | null; finish: string | null;
+      quantified: boolean; allocated: boolean; scheduled: boolean; gaps: string[]; status: "complete" | "gap";
+    };
+    return this.json<{
+      item_count: number; complete: number; with_gaps: number; pct_quantified: number; pct_allocated: number;
+      pct_scheduled: number; total_value: number; by_owner: { owner: string; value: number }[];
+      gap_items: Item[]; items: Item[]; note: string;
+    }>(`/projects/${pid}/scope/register`, { method: "POST", body: JSON.stringify(body) });
+  }
   /** BUYOUT-SCHED — time-phased buyout schedule from QTO joined to the install schedule → last-responsible
    * -order dates (install − lead), soonest first, classified overdue/urgent/upcoming/ok vs an as_of date. */
   buyoutSchedule(pid: string, body: {

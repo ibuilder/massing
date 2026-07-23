@@ -88,9 +88,12 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   front-of-funnel that matches the "Massing" name.
 
 **Sprint D — Scope & 4D/5D spine (the connective structure):**
-- **★ SCOPE-REG — first-class Scope register** *(M).* A scope item → **quantify** (link QTO/CBS) → **allocate**
-  to responsible party/package → tie to a schedule activity. The connective spine across QTO/CPM/CBS/RACI/
-  pull-planning we already hold *separately*. The most novel structural gap in the scan.
+- ◧ **★ SCOPE-REG — first-class Scope register** *(M; v0.3.603).* `scope_register.py` +
+  `POST /projects/{pid}/scope/register`: each scope item resolves its **quantity/value** (QTO by cost code),
+  **owner** (responsible/package), and **schedule window** (activity by id/cost code) → a **gap analysis**
+  surfacing unquantified / unallocated / unscheduled scope (gaps first, highest-value first) + %
+  quantified/allocated/scheduled + by-owner rollup. The connective spine across QTO · CBS · responsibility ·
+  schedule. Client (`scopeRegister`) + `test_scope_register`. **Remaining:** persist as a `scope_item` module.
 - **4D5D-VIEWER — time + cost overlay scrubber** *(M/L, needs viewer).* Bind schedule activities + cost to
   GUIDs → a 4D timeline scrubber coloring elements by construction status/date with a running earned-value/
   cost readout. Deterministic, GUID-keyed.

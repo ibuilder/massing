@@ -39,6 +39,19 @@ def estimate_confidence(pid: str, payload: dict = Body(...), db: Session = Depen
     return est_confidence.score(payload.get("lines") or [])
 
 
+@router.post("/projects/{pid}/scope/register")
+def scope_register(pid: str, payload: dict = Body(...), db: Session = Depends(get_db),
+                   _: str = Depends(require_role("viewer"))):
+    """SCOPE-REG — the scope register + gap analysis: each scope item resolves its quantity/value (QTO by
+    cost code), owner (responsible/package), and schedule window (activity by id or cost code); the register
+    surfaces **unquantified / unallocated / unscheduled** scope, gaps first. The connective spine across
+    QTO · CBS · responsibility · schedule. Body: `{scope_items, qto_lines?, activities?}`."""
+    from .. import scope_register as sr
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return sr.register(payload.get("scope_items") or [], payload.get("qto_lines"), payload.get("activities"))
+
+
 @router.get("/estimate/assemblies")
 def estimate_assemblies(_: str = Depends(current_user)):
     """EST-ASSEMBLIES: the starter cost-assembly library — each a unit rate built up from labour /
