@@ -116,6 +116,61 @@ def add_roof(model: ifcopenshell.file, points, thickness: float = 0.3,
     return roof.GlobalId
 
 
+def add_roof_window(model: ifcopenshell.file, roof_guid: str, position, width: float = 0.9,
+                    length: float = 1.2, storey: str | None = None) -> str:
+    """DORMER slice (R17): a **roof window / skylight** — cut an opening through the host IfcRoof at an
+    [E, N] plan position (IfcOpeningElement voiding it, full-depth) and fill it with an IfcWindow of
+    PredefinedType SKYLIGHT (a thin glazed-panel proxy body). The flat-roof counterpart of the wall-hosted
+    `add_opening`; the pitched-roof dormer assembly follows when pitched roofs land. GUID-stable."""
+    import ifcopenshell.util.placement as uplace
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    host = next((e for e in model.by_type("IfcRoof") if e.GlobalId == roof_guid), None)
+    if host is None:
+        raise ValueError(f"host roof {roof_guid} not found (author a roof first)")
+    scale = uunit.calculate_unit_scale(model)
+    body = _body_context(model)
+    wm = np.array(uplace.get_local_placement(host.ObjectPlacement), dtype=float)
+    wm[0:3, 3] *= scale                                  # file units → metres
+    # opening origin: the requested plan point at the roof's elevation, slightly below so the
+    # vertical cut passes fully through the slab
+    opm = np.eye(4)
+    opm[0, 3], opm[1, 3], opm[2, 3] = float(position[0]), float(position[1]), wm[2, 3] - 0.1
+
+    opening = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcOpeningElement",
+                                   name="roof window opening")
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=opening, matrix=opm)
+    cut = _rect_profile(model, float(width), float(length))
+    crep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                profile=cut, depth=1.0)   # generous vertical cut through the roof build-up
+    ifcopenshell.api.run("geometry.assign_representation", model, product=opening, representation=crep)
+    ifcopenshell.api.run("feature.add_feature", model, feature=opening, element=host)
+
+    win = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcWindow", name="Roof window")
+    try:
+        win.PredefinedType = "SKYLIGHT"                   # IFC4 IfcWindowTypeEnum
+    except Exception:                                     # noqa: BLE001 — enum absent on IFC2x3
+        pass
+    try:
+        win.OverallWidth = float(width)
+        win.OverallHeight = float(length)                 # the roof-plane dimensions
+    except Exception:                                     # noqa: BLE001
+        pass
+    wpm = opm.copy()
+    wpm[2, 3] = wm[2, 3]                                  # the glazing sits at the roof plane
+    ifcopenshell.api.run("geometry.edit_object_placement", model, product=win, matrix=wpm)
+    panel = _rect_profile(model, float(width), float(length))
+    prep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                                profile=panel, depth=0.05)   # thin glazed panel proxy
+    ifcopenshell.api.run("geometry.assign_representation", model, product=win, representation=prep)
+    ifcopenshell.api.run("feature.add_filling", model, opening=opening, element=win)
+    st = _first_storey(model, storey)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[win], relating_structure=st)
+    return win.GlobalId
+
+
 def add_opening(model: ifcopenshell.file, host_guid: str, width: float = 0.9, height: float = 2.1,
                 sill: float = 0.0, kind: str = "door", storey: str | None = None,
                 position=None, operation: str | None = None, parametric: bool = True) -> str:

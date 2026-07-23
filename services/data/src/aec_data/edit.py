@@ -50,6 +50,7 @@ from .edit_enclosure import (  # noqa: F401 — re-exported: RECIPES/routers/gen
     add_opening,
     add_railing,
     add_roof,
+    add_roof_window,
 )
 from .edit_mep import (  # noqa: F401 — re-exported: routers/RECIPES/nodegraph reach these via edit
     add_comms_device,
@@ -656,6 +657,9 @@ RECIPES = {
     "add_beam": lambda m, p: add_beam(m, p["start"], p["end"], float(p.get("width", 0.3)),
                                       float(p.get("depth", 0.5)), p.get("storey")),
     "add_roof": lambda m, p: add_roof(m, p["points"], float(p.get("thickness", 0.3)), p.get("storey")),
+    "add_roof_window": lambda m, p: add_roof_window(m, p["roof_guid"], p["position"],
+                                                    float(p.get("width", 0.9)), float(p.get("length", 1.2)),
+                                                    p.get("storey")),
     "add_door": lambda m, p: add_opening(m, p["host_guid"], float(p.get("width", 0.9)),
                                          float(p.get("height", 2.1)), float(p.get("sill", 0.0)), "door",
                                          p.get("storey"), p.get("position"), p.get("operation")),

@@ -191,7 +191,11 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   Clients (`sharedDecision`/`clientDecisions`) + `test_portal_txn`. **Remaining:** per-item Sent/Viewed/
   Approved status labels on the shared items themselves · the deposit/payment **schedule** display (schedule
   only — the payment rail stays SKIP) · a scoped client comment thread (BCF round-trip).
-- **DORMER** *(S).* A GUID-stable parametric dormer/roof-window family recipe (roof-plane intersection geometry).
+- ◧ **DORMER** *(S; roof-window slice v0.3.620).* ✅ `add_roof_window` recipe (`edit_enclosure.py`, in the
+  RECIPES registry): cut a skylight opening through a flat `IfcRoof` at an [E,N] position (IfcOpeningElement
+  voiding, full-depth) + fill with an `IfcWindow` PredefinedType **SKYLIGHT** via the standard feature
+  relations; GUID-stable, round-trip-verified (`test_roof_window`). **Remaining:** the pitched-roof dormer
+  *assembly* (cheeks + face + mini-roof) when pitched roofs land.
 
 **Cross-cutting / substrate (interleave; larger, lower-urgency):**
 - **NODE-CANVAS — reusable connector/node canvas** *(L).* A canvas substrate (channels = state-derived animated

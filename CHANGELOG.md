@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.620 — roof windows: the add_roof_window authoring recipe (DORMER slice)
+
+The roof-penetration family the authoring suite lacked — the flat-roof half of the dormer item.
+
+- **`add_roof_window` recipe** (in the GUID-stable edit-recipe registry): cuts a skylight opening through a
+  host flat `IfcRoof` at an [E, N] plan position — an `IfcOpeningElement` voiding the roof full-depth via the
+  standard `feature.add_feature` relation — and fills it with an `IfcWindow` of PredefinedType **SKYLIGHT**
+  (`feature.add_filling`), with the glazing panel at the roof plane and `OverallWidth`/`OverallHeight`
+  carrying the roof-plane dimensions.
+- Multiple skylights coexist on one roof; a bad host GUID raises cleanly; the void/fill relations survive a
+  write/reopen round-trip — all asserted in `test_roof_window`. The pitched-roof dormer *assembly* follows
+  when pitched roofs land. Backend suite green; CodeQL 0.
+
 ## v0.3.619 — CLASH-WALKTHROUGH: every clash topic ships with a framed viewpoint
 
 Review clashes by standing next to them: each clash becomes a navigable place, not a row in a table.
