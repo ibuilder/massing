@@ -58,16 +58,32 @@ services:
       # back to the dev defaults (the base compose uses `${…:-bim}` / `${…:-minioadmin}` for local dev).
       DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-bim}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env for production}@postgres:5432/${POSTGRES_DB:-bim}"
       S3_SECRET_KEY: "${S3_SECRET_KEY:?set S3_SECRET_KEY in .env for production}"
+    # Resource limits (opt-in): same env vars as the base compose (see .env.example). Kept OFF by
+    # default so a too-low cap can't OOM-kill a legitimate large-IFC reconvert. Uncomment + size
+    # for the production host.
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: "${AEC_API_MEM_LIMIT:-4g}"
+    #       cpus: "${AEC_API_CPUS:-2}"
 
   postgres:
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env for production}"
+    # deploy:                              # opt-in cap — uncomment + size for your host
+    #   resources:
+    #     limits:
+    #       memory: "${AEC_PG_MEM_LIMIT:-2g}"
 
   minio:
     restart: unless-stopped
     environment:
       MINIO_ROOT_PASSWORD: "${S3_SECRET_KEY:?set S3_SECRET_KEY in .env for production}"
+    # deploy:                              # opt-in cap — uncomment + size for your host
+    #   resources:
+    #     limits:
+    #       memory: "${AEC_MINIO_MEM_LIMIT:-1g}"
 
 volumes:
   caddy-data:

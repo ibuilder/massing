@@ -1,5 +1,11 @@
 # Self-host / prod stack. Boot the core with:  docker compose --profile full up --build
 # Convert a model (job):       docker compose run --rm converter /data/model.ifc /data/model.frag
+#
+# Resource limits (opt-in): every service below has a commented-out `deploy.resources.limits`
+# block keyed off env vars (AEC_*_MEM_LIMIT / AEC_*_CPUS — see .env.example for sizing guidance).
+# They are OFF by default on purpose: a hard memory cap that is too low will OOM-kill a legitimate
+# large-IFC conversion mid-run. Uncomment and set values sized for YOUR host before enabling.
+# `deploy.resources.limits` is honored by `docker compose up` (v2); no Swarm required.
 services:
   postgres:
     image: postgres:16
@@ -14,6 +20,10 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    # deploy:                              # opt-in cap — uncomment + size for your host
+    #   resources:
+    #     limits:
+    #       memory: "${AEC_PG_MEM_LIMIT:-2g}"
 
   minio:
     image: minio/minio
@@ -28,6 +38,10 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    # deploy:                              # opt-in cap — uncomment + size for your host
+    #   resources:
+    #     limits:
+    #       memory: "${AEC_MINIO_MEM_LIMIT:-1g}"
 
   api:
     image: massing-api
@@ -58,6 +72,11 @@ services:
       timeout: 3s
       retries: 20
     profiles: ["full"]
+    # deploy:                              # opt-in cap — uncomment + size for your host
+    #   resources:                         # keep generous: UVICORN_WORKERS=4 + an in-process reconvert
+    #     limits:
+    #       memory: "${AEC_API_MEM_LIMIT:-4g}"
+    #       cpus: "${AEC_API_CPUS:-2}"
 
   # one-shot demo seeder (api must be enabled, so pass both profiles):
   #   docker compose --profile full --profile seed run --rm seed
@@ -78,6 +97,10 @@ services:
       api: { condition: service_started }
     ports: ["${WEB_PORT:-8080}:80"]
     profiles: ["full"]
+    # deploy:                              # opt-in cap — uncomment + size for your host
+    #   resources:                         # nginx serving static assets — modest footprint
+    #     limits:
+    #       memory: "${AEC_WEB_MEM_LIMIT:-256m}"
 
   converter:
     build:
@@ -85,6 +108,11 @@ services:
       dockerfile: services/converter/Dockerfile
     volumes: ["./data:/data"]            # drop IFCs here; .frag written here
     profiles: ["tools"]                  # job-style: `docker compose run --rm converter ...`
+    # deploy:                              # opt-in cap — uncomment + size for your host
+    #   resources:                         # IFC→Fragments is memory-hungry: size well above your
+    #     limits:                          # largest model and against AEC_PUBLISH_WORKERS (PR #70),
+    #       memory: "${AEC_CONVERTER_MEM_LIMIT:-8g}"   # since parallel jobs each hold a model in RAM.
+    #       cpus: "${AEC_CONVERTER_CPUS:-4}"
 
 volumes:
   postgres-data:
