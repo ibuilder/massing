@@ -126,10 +126,13 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   needs-wet-wall) as an `adjacency_score` term, and a room-program **dimensional-compliance** rule pack
   (min-room-dim · min-ceiling-height · egress-width · setback) via `rule_library.py`/`/rules/run` scoped to
   `IfcSpace`.
-- **DESIGN-METRICS + DAYLIGHT — live design-metrics panel** *(M).* On every edit recipe,
-  recompute GFA · net-to-gross · unit count · area-per-type · code-check (rule sets) + a **deterministic
-  daylight-factor / solar-exposure** metric per `IfcSpace` (analytical formula, not ray-traced) — turns
-  sustainability + program-validation into active constraints beside the model.
+- ◧ **DESIGN-METRICS + DAYLIGHT — live design-metrics engine** *(M; v0.3.591).* ✅ `design_metrics.py`
+  + `GET /model/design-metrics`: program efficiency (floors · GFA · net floor area · net-to-gross · unit
+  count · avg-unit · area-by-space-type) + a **deterministic average-daylight-factor ESTIMATE** from the
+  model's own `IfcWindow` glazed area vs net floor area (CIBSE formula with documented constants → banded
+  ≥2% good / 1–2% fair / <1% limited, clearly labelled an estimate, not ray-traced). Pure over an opened
+  model so it recomputes on every edit; client + `test_design_metrics`. **Remaining:** a portal KPI panel +
+  wiring per-`IfcSpace` code-check rule sets alongside the model-wide numbers.
 - **PROD-ACTUALS — productivity actuals loop** *(M).* A `{task_id, qto_line, material_class, qty,
   cycle_time, idle_time, ts}` actuals schema at `POST /progress/actuals`, mapped to QTO (`EST-1` link) +
   schedule, computing **installed-rate actual vs planned takt** on the LOB/4D views. (Crane/telematics sensor

@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.591 — DESIGN-METRICS + DAYLIGHT: live program-efficiency + daylight estimate over the model
+
+A new design-validation engine turns the model's own geometry into live design KPIs — recomputable on every
+edit, so program efficiency and daylight adequacy become active constraints beside the geometry, not a
+downstream report.
+
+- **`design_metrics.py` + `GET /projects/{pid}/model/design-metrics`** (409 without a source IFC): **program
+  efficiency** — floors, gross floor area (from the model's storey quantities, else net ÷ a typical
+  efficiency), net floor area, net-to-gross ratio, unit count + average unit area (residential-typed spaces),
+  and area rolled up by space type.
+- **Deterministic daylight estimate:** total glazed area from the model's actual `IfcWindow`s → a
+  window-to-floor ratio → an **average daylight factor** via the CIBSE formula with documented constants,
+  banded **≥2% good · 1–2% fair · <1% limited**. Clearly labelled an *estimate* (an honest analytical first
+  look before a real simulation — the ray-traced version rides the energy/daylight jobs lane), not a black box.
+- Pure over an opened model (reuses the SPACE-UTIL space extractor); `modelDesignMetrics` client method +
+  `test_design_metrics` (band thresholds, the CIBSE constant, metrics over a real authored model, route
+  409/200). Backend suite green; CodeQL 0.
+
 ## v0.3.588 — GitHub Pages: one branded theme across all pages + clearer CTA
 
 The landing + guide pages now share the **status.html design system** (the navy · cyan→violet "hologram

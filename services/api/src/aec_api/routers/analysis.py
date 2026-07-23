@@ -501,6 +501,16 @@ def model_space_demand(pid: str, program: dict = Body(default={}, embed=True),
     return su.demand(su._spaces_from_model(open_source_ifc(db, pid)), program or {}, area_per_person)
 
 
+@router.get("/projects/{pid}/model/design-metrics")
+def model_design_metrics(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """DESIGN-METRICS — program-efficiency numbers over the model (floors · GFA · net floor area ·
+    net-to-gross · unit count · area by space type) + a deterministic **average-daylight-factor estimate**
+    from the model's actual windows (glazed area vs net floor area, CIBSE formula — not ray-traced).
+    409 if the project has no source IFC."""
+    from .. import design_metrics as dm
+    return dm.metrics(open_source_ifc(db, pid))
+
+
 @router.get("/projects/{pid}/master-builder/brief")
 def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MASTER-BUILDER — the whole project in one view: runs the 8-step Master Builder Protocol (place →

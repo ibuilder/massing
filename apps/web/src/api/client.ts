@@ -1986,6 +1986,20 @@ export class ApiClient extends HttpCore {
       deficit_types: number; by_type: Row[]; note: string;
     }>(`/projects/${pid}/model/space-demand`, { method: "POST", body: JSON.stringify({ program, area_per_person: areaPerPerson }) });
   }
+  /** DESIGN-METRICS — program-efficiency (floors/GFA/net-to-gross/unit count/area-by-type) + a deterministic
+   * average-daylight-factor ESTIMATE from the model's own windows (CIBSE formula, not a ray-trace). */
+  modelDesignMetrics(pid: string) {
+    type TypeRow = { type: string; area_m2: number };
+    return this.json<{
+      floors: number; space_count: number; net_floor_area_m2: number; gross_floor_area_m2: number;
+      net_to_gross: number; unit_count: number; avg_unit_m2: number; by_type: TypeRow[];
+      daylight: {
+        window_count: number; glazed_area_m2: number; window_to_floor_ratio: number;
+        avg_daylight_factor_pct: number; band: "good" | "fair" | "limited"; estimate: boolean; note: string;
+      };
+      note: string;
+    }>(`/projects/${pid}/model/design-metrics`);
+  }
   /** MASTER-BUILDER — the 8-step Master Builder Protocol run over the project's own data, grounded in place. */
   masterBuilderBrief(pid: string) {
     type Step = { n: number; key: string; title: string; why: string; link: string; dest: string;
