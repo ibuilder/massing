@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.586 — merge the ready hardening PRs (#70 · #71 · #72)
+
+Sprint 1 of the open-PR cleanup — three additive, CI-green production-hardening branches, landed together
+after re-verifying the full suite on top of current main.
+
+- **#70 security + performance hardening** — from the production/enterprise audit: `serving.py`,
+  `bcf_io.py`, and the convert/authoring/bim routers, with an `nginx.conf` pass; covered by
+  `test_serving` / `test_subset_export` / extended `test_bcf`.
+- **#71 operational hardening** — opt-in `/metrics` auth + configurable compose resource limits
+  (`docker-compose*.yml`, `.env.example`, `main.py`); `test_metrics_auth`.
+- **#72 dependency hygiene** — pin the Dockerfile base images by digest (api/web/converter) + an
+  `npm audit fix` pass on `package-lock.json` + a `dependabot.yml` grouping tweak.
+
+No version/CHANGELOG conflicts (all three were branched off v0.3.584); merged clean, ruff + full suite green.
+
 ## v0.3.585 — SPACE-UTIL: space utilization + supply/demand planner (R16 Tier-2)
 
 Turn the model's `IfcSpace` inventory into a workplace-planning answer — deterministically, because we
