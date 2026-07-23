@@ -39,6 +39,25 @@ def estimate_confidence(pid: str, payload: dict = Body(...), db: Session = Depen
     return est_confidence.score(payload.get("lines") or [])
 
 
+@router.post("/projects/{pid}/estimate/boe")
+def estimate_boe(pid: str, payload: dict = Body(...), db: Session = Depends(get_db),
+                 _: str = Depends(require_role("viewer"))):
+    """BOE-LEDGER — the Basis-of-Estimate assumption ledger: the normalized BoE + documentation completeness;
+    with `prev`, the **assumption drift** between estimate versions (qty re-based · unit cost moved ·
+    escalation/contingency shifted · source upgraded); with `actuals`, the assumption→actual variance
+    **decomposed exactly** into qty vs price effects. Body: `{lines, prev?, actuals?}`."""
+    from .. import boe_ledger
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    lines = payload.get("lines") or []
+    out = {"ledger": boe_ledger.ledger(lines)}
+    if payload.get("prev"):
+        out["phase_diff"] = boe_ledger.phase_diff(payload["prev"], lines)
+    if payload.get("actuals"):
+        out["vs_actuals"] = boe_ledger.vs_actuals(lines, payload["actuals"])
+    return out
+
+
 @router.post("/projects/{pid}/scope/register")
 def scope_register(pid: str, payload: dict = Body(...), db: Session = Depends(get_db),
                    _: str = Depends(require_role("viewer"))):

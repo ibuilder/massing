@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.613 — BOE-LEDGER: the Basis-of-Estimate assumption ledger
+
+The traceability layer *under* the estimate numbers — an estimate you can defend line-by-line, pairing with
+EST-CONFIDENCE (which scores them).
+
+- **`boe_ledger.py` + `POST /projects/{pid}/estimate/boe`**, three deterministic reads:
+  - **ledger** — the normalized BoE (source · quote ref · escalation % · contingency % · basis date per
+    line) with **documentation completeness**: lines missing a source or basis date are surfaced, and a
+    quote-sourced line without a `quote_ref` is flagged. An undocumented basis is a dispute waiting to happen.
+  - **phase_diff** — assumption drift between estimate versions (SD → DD → CD): qty re-based, unit cost
+    moved, escalation/contingency shifted, source upgraded (allowance → quote), with the per-line total
+    impact, biggest movement first, plus added/removed lines.
+  - **vs_actuals** — once actuals land, the assumption→actual variance **decomposed exactly**: qty effect
+    (Δqty × assumed unit cost) + price effect (actual qty × Δunit cost) sum to the variance, so the ledger
+    says *which assumption* drove the miss, worst first.
+- `estimateBoe` client method + `test_boe_ledger` (hand-checked: an $8,800 miss decomposes into $5,200 qty +
+  $3,600 price). Backend suite green; CodeQL 0.
+
 ## v0.3.612 — PERSONA-ANSWER: persona lenses over the provenance contract (+ Sprint wrap-up)
 
 The same cited data answers differently per seat — deterministically, with the provenance intact.

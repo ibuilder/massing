@@ -77,9 +77,13 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   high/medium/low, cost-weighted to a project confidence + a **"% of budget still assumption-based"** KPI +
   avg contingency + the **worst-value least-grounded lines** to firm up. Client (`estimateConfidence`) +
   `test_est_confidence`. **Next:** BOE-LEDGER (the assumption ledger under these numbers).
-- **BOE-LEDGER — Basis-of-Estimate assumption ledger** *(M).* Structured assumptions per line (unit source,
-  quote ref, escalation %, contingency %, date), versioned across phases, diffed assumption→actual once
-  commitments/actuals land. The traceability layer under the numbers; feeds EVM/WIP.
+- ✅ **BOE-LEDGER — Basis-of-Estimate assumption ledger** *(M; v0.3.613).* `boe_ledger.py` +
+  `POST /projects/{pid}/estimate/boe`: **ledger** (normalized assumptions per line — source · quote ref ·
+  escalation · contingency · basis date — with the undocumented-basis lines surfaced; a quote without a
+  quote_ref is flagged), **phase_diff** (assumption drift SD→DD→CD: qty re-based · unit cost moved ·
+  source upgraded, biggest total impact first), and **vs_actuals** (assumption→actual variance **decomposed
+  exactly** into qty effect (Δq·uc) + price effect (aq·Δuc) — *which* assumption drove the miss). Pairs with
+  EST-CONFIDENCE. Client (`estimateBoe`) + `test_boe_ledger`.
 - ✅ **BUYOUT-SCHED — time-phased procurement schedule** *(M; v0.3.602; unique to us).* `buyout_schedule.py`
   + `POST /procurement/buyout-schedule`: join QTO lines to their installing activity (by activity id / cost
   code / trade) → **last-responsible-order = install start − lead time**, sorted soonest-order-first; with an

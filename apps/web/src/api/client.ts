@@ -2155,6 +2155,30 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/permits/timeline`, { method: "POST", body: JSON.stringify(body) });
   }
+  /** BOE-LEDGER — the Basis-of-Estimate assumption ledger: completeness + version drift + exact
+   * qty/price variance decomposition vs actuals. */
+  estimateBoe(pid: string, body: {
+    lines: Record<string, unknown>[]; prev?: Record<string, unknown>[]; actuals?: Record<string, unknown>[];
+  }) {
+    type Line = { key: string; cost_code: string | null; description: string; phase: string | null;
+      qty: number | null; unit: string | null; unit_cost: number | null; total: number | null;
+      source: string | null; quote_ref: string | null; escalation_pct: number | null;
+      contingency_pct: number | null; basis_date: string | null };
+    type Change = { key: string; description: string; changes: { field: string; from: unknown; to: unknown }[];
+      total_from: number | null; total_to: number | null; total_delta: number | null };
+    type VaRow = { key: string; description: string; assumed_qty: number | null; actual_qty: number | null;
+      assumed_unit_cost: number | null; actual_unit_cost: number | null; assumed_total: number;
+      actual_total: number; variance: number; qty_effect: number; price_effect: number; driver: string;
+      source: string | null; quote_ref: string | null };
+    return this.json<{
+      ledger: { line_count: number; documented: number; pct_documented: number;
+        undocumented: { key: string; description: string; missing: string[] }[]; lines: Line[]; note: string };
+      phase_diff?: { compared: number; changed: number; added: string[]; removed: string[];
+        changes: Change[]; note: string };
+      vs_actuals?: { matched: number; total_variance: number; qty_effect: number; price_effect: number;
+        rows: VaRow[]; note: string };
+    }>(`/projects/${pid}/estimate/boe`, { method: "POST", body: JSON.stringify(body) });
+  }
   /** SCOPE-REG — the scope register + gap analysis: each scope item resolves quantity/value (QTO by cost
    * code), owner, and schedule window; surfaces unquantified / unallocated / unscheduled scope. */
   scopeRegister(pid: string, body: {
