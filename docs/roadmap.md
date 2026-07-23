@@ -124,10 +124,12 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   **SCAN-4D** (diff two capture timestamps → change log + delta).
 
 **Sprint F — Model-QA & authoring depth:**
-- **FILL-MATRIX — property fill-rate pivot → bulk-edit loop** *(S/M).* A category × property fill-rate matrix
-  ("of all IfcWall, X% carry FireRating…") over the property index that pinpoints *which* pset field is
-  systematically blank, wired into query-DSL/rule-library selection → GUID-stable bulk edit. The analytics →
-  selection → bulk-write loop as one UX.
+- ◧ **FILL-MATRIX — property fill-rate pivot → bulk-edit loop** *(S/M; v0.3.607).* `fill_matrix.py` +
+  `GET /projects/{pid}/model/fill-matrix`: a category × property fill-rate pivot over the property index —
+  per IFC class, which `Pset::Prop` is systematically blank (`fill_rate`), with the **blank GUIDs** per
+  property (the exact selection a bulk edit fills in one pass) + a query-DSL scope + `worst_gaps` (biggest
+  partially-filled fields, most-blank-first). Client (`modelFillMatrix`) + `test_fill_matrix`. **Remaining:**
+  the frontend one-click "fill the blanks" that pipes `blank_guids` + a value into the edit recipe.
 - **WALL-ASSEMBLY — layered wall assemblies** *(M).* An `IfcMaterialLayerSet` library (material + thickness per
   layer) driving authoring + QTO + envelope/thermal, if walls are single-material today.
 - **PARCEL-IMPORT — cadastral parcel bound to permit/zoning docs** *(S/M).* Ingest a parcel (GeoJSON/WKT

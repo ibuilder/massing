@@ -201,6 +201,18 @@ def answer_cited_query(pid: str, payload: dict = Body(...), db: Session = Depend
         raise HTTPException(422, str(e))
 
 
+@router.get("/projects/{pid}/model/fill-matrix")
+def model_fill_matrix(pid: str, min_count: int = 1, db: Session = Depends(get_db),
+                      _: str = Depends(require_role("viewer"))):
+    """FILL-MATRIX — a category × property fill-rate pivot over the model: per IFC class, which pset field is
+    systematically blank, with the **blank GUIDs** per property (feed them + a value to a bulk edit — the
+    analytics → selection → bulk-write loop) + the worst partially-filled fields. Empty result without a
+    loaded model."""
+    from .. import fill_matrix as fm
+    _project(db, pid)
+    return fm.matrix(_idx_for(pid), min_count=max(1, min_count))
+
+
 @router.post("/projects/{pid}/progress/rollup")
 def progress_rollup(pid: str, payload: dict = Body(...), db: Session = Depends(get_db),
                     _: str = Depends(require_role("viewer"))):

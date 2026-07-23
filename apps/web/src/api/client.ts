@@ -2054,6 +2054,17 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** FILL-MATRIX — category × property fill-rate pivot over the model; each property carries the blank GUIDs
+   * (the selection a bulk edit fills) + worst_gaps (the biggest partially-filled fields). */
+  modelFillMatrix(pid: string, minCount = 1) {
+    type Prop = { pset: string; prop: string; filled: number; blank: number; fill_rate: number; blank_guids: string[]; selector: string };
+    type Gap = { ifc_class: string; pset: string; prop: string; blank: number; fill_rate: number; blank_guids: string[] };
+    return this.json<{
+      element_count: number; class_count: number;
+      classes: { ifc_class: string; count: number; property_count: number; properties: Prop[] }[];
+      worst_gaps: Gap[]; note: string;
+    }>(`/projects/${pid}/model/fill-matrix?min_count=${encodeURIComponent(minCount)}`);
+  }
   /** PROGRESS-ROLLUP — % complete from as-built element presence, by IFC class / discipline / level /
    * overall, by count AND by value. */
   progressRollup(pid: string, installedGuids: string[], elements?: Record<string, unknown>[]) {

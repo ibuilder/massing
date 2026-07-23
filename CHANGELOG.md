@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.607 — FILL-MATRIX: a property fill-rate pivot that feeds a bulk-edit loop
+
+Pinpoints *which* pset field is systematically blank and hands back the exact GUIDs to fix — the analytics →
+selection → bulk-write loop as one move.
+
+- **`fill_matrix.py` + `GET /projects/{pid}/model/fill-matrix`**: for each IFC class, the union of `Pset::Prop`
+  keys seen on its elements with, per property, how many carry a non-empty value (`fill_rate`) and the **GUIDs
+  that are blank** — the exact selection a `query_dsl` scope + edit recipe fills in one pass (each row also
+  carries a ready selector string).
+- **`worst_gaps`** surfaces the biggest partially-filled fields (present on some, missing on many) —
+  most-blank-first — the highest-leverage data-quality fixes. Fully-filled properties are excluded.
+- Pure over the property index we already hold; `modelFillMatrix` client method + `test_fill_matrix`. Backend
+  suite green; CodeQL 0.
+
 ## v0.3.606 — PROGRESS-ROLLUP: % complete from as-built element presence (by count and value)
 
 Turns element presence into a percent-complete rollup the GC portal and earned value can consume.
