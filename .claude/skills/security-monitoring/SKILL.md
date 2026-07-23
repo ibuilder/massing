@@ -56,6 +56,16 @@ produced a real finding in the v0.3.510 HARDEN-2 pass:
 - **External-format imports:** skip container/rollup rows (MSPDI `<Summary>1</Summary>`; XER non-TASK
   tables) — named+dated summary rows import as phantom records otherwise.
 
+## SEC-SUPPLY — license / SBOM audit (run before a hardening release)
+`aec_api.supply_chain` is a dependency-free (stdlib `importlib.metadata`) supply-chain tool:
+```
+cd services/api && PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe -m aec_api.supply_chain          # informational
+cd services/api && PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe -m aec_api.supply_chain --gate    # exit 1 on STRONG copyleft
+```
+- Classifies every installed distribution's license: **permitted** (MIT/BSD/Apache/ISC/PSF/Unlicense/Zlib) · **copyleft** · **unknown**, splitting **STRONG** (GPL/AGPL — the disallowed hard line) from **weak** (LGPL/MPL — accepted for the ifcopenshell/certifi core deps, but surfaced). Word-boundary matched (naive substring makes "EXE**MPL**ARY" false-match `mpl`).
+- `--gate` fails only on STRONG copyleft, so it never breaks CI over the known LGPL/MPL core deps. **Known strong hits are venv-incidental, NOT declared deps** (e.g. `pymupdf`/AGPL, `pyinstaller`/GPL build tool) — confirm a strong hit is absent from `services/*/requirements*` before acting; a declared strong-copyleft dep is a real violation to remove.
+- `supply_chain.sbom()` emits a minimal CycloneDX 1.5 component list. `supply_chain.pdf_sanity(bytes)` is a lightweight pre-ingest PDF check (header/EOF/size + active-content flags: JavaScript/Launch/EmbeddedFile/OpenAction) — NOT a full parser (no AGPL PyMuPDF).
+
 ## Not a vulnerability (don't manufacture fixes)
 Per the security-review exclusions: DoS/resource-exhaustion, secrets-on-disk (handled elsewhere), rate-limiting, SSRF that only controls the path, client-side authz, log-spoofing, outdated-dep advisories (handled separately). Fix concrete, exploitable HIGH/MED with a clear path.
 

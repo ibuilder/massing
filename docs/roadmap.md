@@ -169,12 +169,15 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   `.stack > * + *` owl utility (kill per-child margin hacks), flex `space-between` over nth-child, `:is()` to
   collapse selector lists, standardized `:focus-visible` outlines (a11y), `16px` inputs (stop iOS zoom on the
   PWA), `:empty` to hide blank containers, logical properties for future RTL. Pure-CSS, offline-safe.
-- **SEC-SUPPLY — supply-chain hardening** *(S).* Add an **SBOM (CycloneDX)
-  generation + license/CVE scan** step to CI (mechanically enforces the MIT/BSD/Apache-only, no-AGPL
-  constraint + catches supply-chain CVEs); an **MCP tool-poisoning self-audit** of our MCP server's tool
-  defs; a lightweight **uploaded-PDF sanity check** (we ingest/emit PDFs). Folds into the `security-monitoring`
-  skill. *(The pack is 90% blue/red-team off-topic — cherry-pick only these; it does NOT replace CodeQL or our
-  esc() XSS discipline.)*
+- ◧ **SEC-SUPPLY — supply-chain hardening** *(S; v0.3.598).* ✅ `supply_chain.py` (dependency-free,
+  stdlib `importlib.metadata`): a **license audit** classifying every installed distribution permitted /
+  copyleft / unknown (word-boundary matched; STRONG GPL/AGPL split from weak LGPL/MPL) — mechanically
+  enforces the no-AGPL constraint (`python -m aec_api.supply_chain --gate` fails only on strong copyleft); a
+  minimal **CycloneDX 1.5 SBOM**; and a lightweight **uploaded-PDF sanity check** (header/EOF/size +
+  JavaScript/Launch/EmbeddedFile/OpenAction active-content flags, no AGPL parser). Folded into the
+  `security-monitoring` skill; `test_supply_chain`. **Remaining:** the MCP tool-poisoning self-audit + wiring
+  the audit as a non-gating CI step. *(Cherry-picked from a mostly-off-topic pack; does NOT replace CodeQL or
+  the esc() XSS discipline.)*
 - **DX-HOOKS — Claude Code guardrails** *(S — needs the config path + an explicit OK,
   since hooks change harness behavior).* A `PreToolUse` secret-scan + destructive-command (`git reset --hard`
   / force-push / `rm -rf`) guard; a `Stop` hook that runs the `security-monitoring`/`backend-tests` skills so

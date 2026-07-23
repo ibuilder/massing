@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.598 — SEC-SUPPLY: license/SBOM audit + PDF sanity check (supply-chain hardening)
+
+Dependency-free supply-chain tooling (stdlib only), folded into the `security-monitoring` skill — it does
+not replace CodeQL or the `esc()` XSS discipline.
+
+- **License audit** (`supply_chain.license_audit`): classifies every installed Python distribution as
+  **permitted** (MIT/BSD/Apache/ISC/PSF/Unlicense/Zlib) · **copyleft** · **unknown**, splitting **strong**
+  copyleft (GPL/AGPL — the disallowed hard line) from **weak** (LGPL/MPL — accepted for the ifcopenshell /
+  certifi core deps but surfaced). Word-boundary matched, so a BSD licence text's "EXEMPLARY" no longer
+  false-matches "MPL". `python -m aec_api.supply_chain --gate` exits non-zero only on strong copyleft, so it
+  never breaks CI over the known weak-copyleft core deps.
+- **SBOM** (`supply_chain.sbom`): a minimal CycloneDX 1.5 component list (name · version · license).
+- **PDF sanity check** (`supply_chain.pdf_sanity`): a lightweight pre-ingest validator — header, EOF, size
+  cap, and active-content flags (JavaScript / Launch / EmbeddedFile / OpenAction). Not a full parser (no
+  AGPL PyMuPDF).
+- `test_supply_chain` + a SEC-SUPPLY section in the security-monitoring skill. Backend suite green; CodeQL 0.
+
 ## v0.3.597 — TESTFIT-ADJ: space adjacency graph + program-relation score + dimensional rule pack
 
 Turns the program brief into a live constraint beside the geometry — the last R16 Tier-2 engine.
