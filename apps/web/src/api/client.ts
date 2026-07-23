@@ -2054,6 +2054,17 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** PROGRESS-ROLLUP — % complete from as-built element presence, by IFC class / discipline / level /
+   * overall, by count AND by value. */
+  progressRollup(pid: string, installedGuids: string[], elements?: Record<string, unknown>[]) {
+    type Grp = { expected: number; installed: number; pct_complete: number; value_total: number; pct_complete_value: number | null };
+    return this.json<{
+      element_count: number; installed_count: number; pct_complete: number; value_total: number;
+      value_installed: number; pct_complete_value: number | null;
+      by_class: (Grp & { ifc_class: string })[]; by_discipline: (Grp & { discipline: string })[];
+      by_level: (Grp & { level: string })[]; note: string;
+    }>(`/projects/${pid}/progress/rollup`, { method: "POST", body: JSON.stringify({ installed_guids: installedGuids, elements }) });
+  }
   /** ABSORPTION-SELLOUT — phase revenue by absorption rate → the monthly sell-out curve + months-to-sellout
    * (the carry driver) + total revenue/carry. */
   feasibilitySellout(pid: string, body: {

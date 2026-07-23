@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.606 — PROGRESS-ROLLUP: % complete from as-built element presence (by count and value)
+
+Turns element presence into a percent-complete rollup the GC portal and earned value can consume.
+
+- **`progress_rollup.py` + `POST /projects/{pid}/progress/rollup`**: given the design model's expected element
+  set and the set of GUIDs verified **installed**, roll up percent-complete **by IFC class, by trade/
+  discipline, by level, and overall — by count AND by value**. Count and value diverge exactly where it
+  matters (many cheap elements up vs. a few expensive ones outstanding), so both are reported.
+- Elements derive from the model's property index when not supplied; discipline falls back to the
+  classification map. Deterministic over the elements + installed GUIDs. `progressRollup` client method +
+  `test_progress_rollup`. Backend suite green; CodeQL 0.
+
 ## v0.3.605 — ABSORPTION-SELLOUT + LOT-SUPPLY-INDEX: the revenue-side underwriting levers
 
 Our market work is cost-side (escalation); the biggest missing underwriting lever is *how fast the product

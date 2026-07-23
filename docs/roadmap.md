@@ -115,9 +115,13 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   equilibrium · >125 oversupplied · <75 undersupplied). Absorption input = user assumption offline; comparable
   = INTEGRATE. Clients (`feasibilitySellout`/`feasibilityLotSupply`) + `test_absorption`. **Remaining:** wire
   the sell-out revenue curve + carry into the pro-forma IRR.
-- **PROGRESS-ROLLUP — % complete per class/trade from scan deviation** *(M).* Roll the shipped `scan_deviation.py`
-  primitive up to **% complete per IFC class / trade / level** (as-built presence vs the design model's expected
-  set); feeds the GC portal + earned value. (+ **SCAN-4D**: diff two capture timestamps → change log + delta.)
+- ◧ **PROGRESS-ROLLUP — % complete per class/trade from as-built presence** *(M; v0.3.606).*
+  `progress_rollup.py` + `POST /projects/{pid}/progress/rollup`: given the design element set + the installed
+  GUIDs, roll up **% complete by IFC class · discipline · level · overall, by count AND by value** (the two
+  diverge where cheap elements are up but expensive ones are outstanding); elements derive from the model's
+  property index when not supplied. Feeds the GC portal + earned value. Client (`progressRollup`) +
+  `test_progress_rollup`. **Remaining:** wire the installed set from verified-progress / a scan match; +
+  **SCAN-4D** (diff two capture timestamps → change log + delta).
 
 **Sprint F — Model-QA & authoring depth:**
 - **FILL-MATRIX — property fill-rate pivot → bulk-edit loop** *(S/M).* A category × property fill-rate matrix

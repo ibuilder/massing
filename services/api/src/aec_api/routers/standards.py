@@ -201,6 +201,23 @@ def answer_cited_query(pid: str, payload: dict = Body(...), db: Session = Depend
         raise HTTPException(422, str(e))
 
 
+@router.post("/projects/{pid}/progress/rollup")
+def progress_rollup(pid: str, payload: dict = Body(...), db: Session = Depends(get_db),
+                    _: str = Depends(require_role("viewer"))):
+    """PROGRESS-ROLLUP — percent-complete from as-built element presence: given the design element set and
+    the installed GUIDs, roll up % complete by IFC class · discipline · level · overall, **by count and by
+    value**. Body: `{installed_guids, elements?}`; when `elements` is omitted the design set is derived from
+    the model's property index."""
+    from .. import progress_rollup as pr
+    _project(db, pid)
+    elements = payload.get("elements")
+    if not elements:
+        idx = _idx_for(pid) or {}
+        elements = [{"guid": g, "ifc_class": e.get("ifc_class"), "storey": e.get("storey")}
+                    for g, e in idx.items()]
+    return pr.rollup(elements, payload.get("installed_guids") or [])
+
+
 @router.get("/projects/{pid}/rules")
 def rules_get(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """RULE-LIB — the project's user-authored parametric rule library (falls back to the starter set
