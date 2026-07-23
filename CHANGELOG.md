@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.615 — docs: sync README / roadmap / status to the R17 backend wave (v0.3.600–614)
+
+Documentation refresh capturing the fifteen-release R17 backend wave — no code change.
+
+- **roadmap.md** status → 336 suites / v0.3.614 / CI on Node 22, with a shipped-wave summary (Sprint A
+  provenance flagship + Sprints C/E complete + D/F engines) and the remaining viewer-coupled items listed.
+- **README.md** lead highlight rewritten around the provenance-first AI (`CitedAnswer`) + the
+  estimating/feasibility engine spine. **status.md** watermark → v0.3.614.
+
 ## v0.3.614 — CONCEPT-BUDGET: a conceptual budget priced against your own completed projects
 
 The front-of-funnel that matches the "Massing" name: a defensible first number from massing inputs, priced

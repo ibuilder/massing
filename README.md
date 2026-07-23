@@ -283,7 +283,18 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **Design, MEP, field-productivity and buyout engines straight off the model (v0.3.591–v0.3.594, current).**
+- **Provenance-first AI + the estimating/feasibility spine (v0.3.600–v0.3.614, current).** The R17 wave:
+  **every AI answer now traces to its source** — a `CitedAnswer` contract where each claim cites the model
+  element (GlobalId), record, rule, or document + revision it derives from, with a deterministic coverage %,
+  an uncited-claim guard, source-conflict surfacing, and Exec/PM/Field persona lenses (no LLM in the loop for
+  any of it). Around it, a run of deterministic engines: per-line **estimate confidence** + a
+  **Basis-of-Estimate ledger** (exact qty/price variance decomposition), a **time-phased buyout schedule**
+  (last-responsible-order dates from QTO × CPM), a **scope register** with gap analysis, **permit
+  days-to-issue percentiles** and **absorption sell-out / lot-supply** underwriting levers, **% complete**
+  from as-built presence, a property **fill-rate pivot** feeding bulk edits, **parcel geometry → FAR/coverage**
+  compliance, **R/U-values computed from wall-assembly layers**, and a **transactional client portal**
+  (tokenized approve/acknowledge with hard public-endpoint caps). CI now runs Node 22.
+- **Design, MEP, field-productivity and buyout engines straight off the model (v0.3.591–v0.3.594).**
   Four deterministic engines, each computed from the model or the field data rather than reconstructed by AI:
   **design metrics** (floors · GFA · net-to-gross · unit count · area-by-type) plus a **daylight-factor
   estimate** from the model's own windows (CIBSE formula, clearly labelled an estimate); **MEP fittings**
