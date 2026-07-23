@@ -69,10 +69,12 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   centroid, offending GUIDs isolated); step the clash list in walk/VR marking accept/reject. Reuse of the above.
 
 **Sprint C — Estimating intelligence (deterministic, fills a real gap):**
-- **★ EST-CONFIDENCE — per-line estimate maturity/confidence** *(M).* Tag each QTO/estimate line with a
-  design-phase maturity (SD/DD/CD) and a confidence band derived from its **source** (model-derived quantity
-  vs. manual allowance vs. parametric assembly) + contingency; roll up to a project confidence score and a
-  **"% of budget still assumption-based"** KPI. Pure scoring on data we hold.
+- ✅ **★ EST-CONFIDENCE — per-line estimate maturity/confidence** *(M; v0.3.601).* `est_confidence.py` +
+  `POST /projects/{pid}/estimate/confidence`: each line's confidence = **source** firmness (measured/quote >
+  parametric/assembly > allowance/manual) modulated by **design phase** (CD > DD > SD > concept) → banded
+  high/medium/low, cost-weighted to a project confidence + a **"% of budget still assumption-based"** KPI +
+  avg contingency + the **worst-value least-grounded lines** to firm up. Client (`estimateConfidence`) +
+  `test_est_confidence`. **Next:** BOE-LEDGER (the assumption ledger under these numbers).
 - **BOE-LEDGER — Basis-of-Estimate assumption ledger** *(M).* Structured assumptions per line (unit source,
   quote ref, escalation %, contingency %, date), versioned across phases, diffed assumption→actual once
   commitments/actuals land. The traceability layer under the numbers; feeds EVM/WIP.

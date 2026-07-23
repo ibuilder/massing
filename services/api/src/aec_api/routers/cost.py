@@ -26,6 +26,19 @@ def labor_rates(_: str = Depends(current_user)):
     return productivity.catalog()
 
 
+@router.post("/projects/{pid}/estimate/confidence")
+def estimate_confidence(pid: str, payload: dict = Body(...), db: Session = Depends(get_db),
+                        _: str = Depends(require_role("viewer"))):
+    """EST-CONFIDENCE — score each estimate line's **maturity + confidence** from its source (measured/quote >
+    parametric/assembly > allowance/manual) modulated by design phase (CD > DD > SD) → a cost-weighted project
+    confidence, a **'% of budget still assumption-based'** KPI, and the worst-value least-grounded lines to
+    firm up. Body: `{lines:[{description, qty, unit_cost|cost, source, phase, contingency_pct, cost_code}]}`."""
+    from .. import est_confidence
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return est_confidence.score(payload.get("lines") or [])
+
+
 @router.get("/estimate/assemblies")
 def estimate_assemblies(_: str = Depends(current_user)):
     """EST-ASSEMBLIES: the starter cost-assembly library — each a unit rate built up from labour /

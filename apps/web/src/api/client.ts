@@ -2054,6 +2054,21 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** EST-CONFIDENCE — score each estimate line's maturity/confidence (source × phase) → cost-weighted
+   * project confidence + '% of budget still assumption-based' + the worst-value least-grounded lines. */
+  estimateConfidence(pid: string, lines: Record<string, unknown>[]) {
+    type Line = {
+      description: string; cost_code: string | null; cost: number; source: string; phase: string;
+      contingency_pct: number | null; confidence: number; band: "high" | "medium" | "low";
+      assumption_based: boolean; high_contingency: boolean;
+    };
+    return this.json<{
+      line_count: number; total_cost: number; confidence: number; band: "high" | "medium" | "low";
+      pct_assumption_based: number; assumption_based_cost: number; avg_contingency_pct: number;
+      cost_by_band: { high: number; medium: number; low: number };
+      cost_by_source: { source: string; cost: number }[]; worst_lines: Line[]; lines: Line[]; note: string;
+    }>(`/projects/${pid}/estimate/confidence`, { method: "POST", body: JSON.stringify({ lines }) });
+  }
   /** CITED-ANSWER — a deterministic model query returning a CitedAnswer: every claim traces to its source
    * (GUID/record/rule/doc+revision) with coverage %, an uncited-claim guard, and source-conflict surfacing. */
   citedQuery(pid: string, query: string, property?: string) {

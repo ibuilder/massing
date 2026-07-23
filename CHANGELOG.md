@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.601 — EST-CONFIDENCE: per-line estimate maturity + confidence scoring
+
+A number should carry how much to trust it, not just its value — the continuity-of-cost idea, as pure
+deterministic scoring over estimate lines we already hold.
+
+- **`est_confidence.py` + `POST /projects/{pid}/estimate/confidence`**: each line's confidence is a function
+  of its **source** (a quantity measured off the IFC or a returned quote is firm; a parametric assembly is
+  softer; a manual allowance is soft) modulated by **design phase** (CD > DD > SD > concept), banded
+  high / medium / low.
+- Cost-weighted rollup → a project **confidence** score and band, a **"% of budget still assumption-based"**
+  KPI (allowance / manual / parametric lines vs. measured / quoted), average contingency, cost-by-band and
+  cost-by-source breakdowns, and the **worst-value least-grounded lines** to firm up next. Lines carrying a
+  high contingency are flagged.
+- No model, no LLM — arithmetic over supplied lines. `estimateConfidence` client method +
+  `test_est_confidence`. Backend suite green; CodeQL 0.
+
 ## v0.3.600 — CITED-ANSWER: a provenance contract so every AI answer traces to its source
 
 The R17 flagship — the thesis made concrete. A regulated industry can't act on a black-box answer; because
