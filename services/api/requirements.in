@@ -10,6 +10,7 @@
 fastapi>=0.115
 uvicorn[standard]>=0.30
 sqlalchemy>=2.0
+alembic>=1.13             # DB schema migrations (source of truth going forward; see migrations/README.md)
 pydantic>=2.7
 python-multipart>=0.0.9   # file uploads (attachments)
 orjson>=3.10              # RT-ORJSON: Rust JSON for ORJSONResponse + hot blob paths (Apache-2.0/MIT)
