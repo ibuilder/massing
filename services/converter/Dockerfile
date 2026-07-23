@@ -1,5 +1,5 @@
 # IFC→Fragments converter (Node). Build context = repo root.
-FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+FROM node:26-slim@sha256:715e55e4b84e4bb0ff48e49b398a848f08e55daed8eb6a0ea1839ae53bc57583
 WORKDIR /app
 
 # install just what the converter needs; web-ifc ships its own WASM. Pin to the SAME versions as the
