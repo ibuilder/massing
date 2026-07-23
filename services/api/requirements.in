@@ -37,3 +37,4 @@ ezdxf>=1.1             # DXF quantity takeoff — 2D CAD estimating (dxf_takeoff
 # --- optional (lazy-imported, only when the matching env var is set) ---
 redis>=5.0             # shared rate-limit + login-lockout counters (AEC_REDIS_URL)
 anthropic>=0.69        # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY
+sentry-sdk[fastapi]>=2.0  # external error alerting (sentry.py); no-op unless AEC_SENTRY_DSN is set
