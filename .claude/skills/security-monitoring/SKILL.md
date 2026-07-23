@@ -30,6 +30,13 @@ cd services/api && ./.venv/Scripts/python.exe -m pip_audit --progress-spinner of
 ```
 Pin CVE'd transitive deps in `services/data/requirements.txt` (e.g. `pillow>=12.3.0`).
 
+## SEC-DATAFLOW — where to spend review effort (empirical, from vuln-localization research)
+Difficulty follows **structure, not severity**: multi-file / cross-import data flows are the hardest class to
+localize and the least covered by SAST pattern matching. Prioritize hand/agentic review on flows spanning
+**router → dependency helper → model/engine → storage** (request data crossing module boundaries), not
+single-file sinks CodeQL already patterns. SAST is coverage-limited by its rules; the search→verify→refine
+agentic review (the security-review subagent + this checklist) is the complement, not a duplicate.
+
 ## Hand-audit checklist (HARDEN passes — beyond CodeQL's reach)
 Run over a release range (`git diff vX..vY --stat`, then read the changed files). Every class below
 produced a real finding in the v0.3.510 HARDEN-2 pass:

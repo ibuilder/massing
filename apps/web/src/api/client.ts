@@ -2204,7 +2204,7 @@ export class ApiClient extends HttpCore {
   }
   /** CITED-ANSWER — a deterministic model query returning a CitedAnswer: every claim traces to its source
    * (GUID/record/rule/doc+revision) with coverage %, an uncited-claim guard, and source-conflict surfacing. */
-  citedQuery(pid: string, query: string, property?: string) {
+  citedQuery(pid: string, query: string, property?: string, persona?: "exec" | "pm" | "field") {
     type CitationRef = {
       source_type: "ifc" | "doc" | "record" | "rule"; document_id: string | null; revision: string | null;
       guid: string | null; sheet: string | null; page: number | null; bbox: number[] | null;
@@ -2216,7 +2216,8 @@ export class ApiClient extends HttpCore {
       answer: string; claims: Claim[]; conflicts: Conflict[]; coverage: number; fully_cited: boolean;
       uncited_claims: number[]; citation_count: number; source_types: Record<string, number>;
       note: string; query: string; matched: number; truncated: boolean;
-    }>(`/projects/${pid}/answer/cited-query`, { method: "POST", body: JSON.stringify({ query, property }) });
+      persona?: string; insight?: string; follow_ups?: string[]; persona_note?: string;
+    }>(`/projects/${pid}/answer/cited-query`, { method: "POST", body: JSON.stringify({ query, property, persona }) });
   }
   /** TESTFIT-ADJ — space adjacency graph + program-relation score + dimensional-compliance over IfcSpaces. */
   modelAdjacency(pid: string, program: {

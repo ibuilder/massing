@@ -189,16 +189,19 @@ def answer_cited_query(pid: str, payload: dict = Body(...), db: Session = Depend
     GUIDs it is derived from, with a coverage %, an uncited-claim guard, and source-conflict surfacing. The
     first producer of the provenance contract shared by the AI command bar / RFI-QA / KG answers. Body:
     `{query: <QUERY-DSL>, property?: <Pset.Prop>}`. Bad query → 422."""
-    from .. import cited_answer, query_dsl
+    from .. import cited_answer, persona_answer, query_dsl
     _project(db, pid)
     q = str(payload.get("query") or "").strip()
     if not q:
         raise HTTPException(422, "query is required")
     try:
-        return cited_answer.cited_query(_idx_for(pid), q, prop=payload.get("property") or None,
-                                        model_id=pid)
+        out = cited_answer.cited_query(_idx_for(pid), q, prop=payload.get("property") or None,
+                                       model_id=pid)
     except query_dsl.QueryError as e:
         raise HTTPException(422, str(e))
+    if payload.get("persona"):
+        out = persona_answer.shape(out, str(payload["persona"]))
+    return out
 
 
 @router.get("/projects/{pid}/model/fill-matrix")

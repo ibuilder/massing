@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.612 — PERSONA-ANSWER: persona lenses over the provenance contract (+ Sprint wrap-up)
+
+The same cited data answers differently per seat — deterministically, with the provenance intact.
+
+- **`persona_answer.py`**: Exec / PM / Field lenses over a `CitedAnswer` — the prose trims to the seat (exec
+  two sentences, field one line, pm the breakdown) while **claims and citations are never dropped**; a
+  deterministic one-line **insight** (priority: source conflicts > uncited claims > no-match > coverage) and
+  ≤4 **follow-up chips** derived from what the answer actually contains (a conflict yields "show the
+  conflicting sources", an exec match yields "what is the cost exposure…"). Template strings, no LLM.
+- Wired into `POST /projects/{pid}/answer/cited-query` via an optional `persona` — without it, the plain
+  CitedAnswer contract is byte-for-byte unchanged. The query-DSL scoping already serves as the
+  dataset-scoping toggle. Client updated + `test_persona_answer`.
+- **TRANSMITTALS verified already covered** (the numbered TR- `transmittal` module + workflow engine +
+  issuance/distribution; PORTAL-TXN added the client-acknowledge path) — marked on the roadmap, no duplicate
+  build. **SEC-DATAFLOW** folded into the security-monitoring skill: prioritize multi-file/cross-import
+  data-flow review (router → helper → engine → storage) — the empirically hardest class, least covered by
+  SAST patterns. Backend suite green; CodeQL 0.
+
 ## v0.3.611 — PORTAL-TXN phase 1: the client portal turns transactional (tokenized decisions)
 
 The read-only ShareToken digest becomes a lightweight decision surface — the client can act, not just look —

@@ -48,10 +48,12 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
 - **CITE-JUMP — "show your work" UI** *(S, needs viewer).* Every claim is click-to-expand → jumps the viewer
   to the cited GUID (reuses BCF-VIEWPOINT restore) and/or opens the cited record/sheet. Same interaction
   whether the source is geometry, a data record, or a code-check finding.
-- **PERSONA-ANSWER — persona answer modes + structured output** *(S).* Exec / PM / Field answer lenses
-  (swap answer-shaping + the visible-KPI set), a structured `{answer, insight (one line), follow_ups (chips)}`
-  envelope on top of `CitedAnswer`, and a **dataset-scoping** toggle (query-DSL narrows the source surface →
-  tighter, more citable answers). Reuses personas/workspaces we already have.
+- ✅ **PERSONA-ANSWER — persona answer modes + structured output** *(S; v0.3.612).* `persona_answer.py`:
+  Exec / PM / Field lenses over a `CitedAnswer` — persona-trimmed prose (claims/citations **never** dropped),
+  a deterministic one-line **insight** (priority: conflicts > uncited > no-match > coverage) and ≤4
+  **follow-up chips** derived from what the answer contains (all template strings, no LLM). Wired into
+  `POST /answer/cited-query` via an optional `persona`; the plain contract is unchanged without it. The
+  query-DSL scoping *is* the dataset-scoping toggle. Client + `test_persona_answer`.
 
 **Sprint B — Model-navigable coordination (BCF depth + viewer):**
 - **★ BCF-VIEWPOINT — capture/restore from the live viewer** *(M, needs viewer).* On new issue, serialize the
@@ -97,8 +99,10 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
 - **4D5D-VIEWER — time + cost overlay scrubber** *(M/L, needs viewer).* Bind schedule activities + cost to
   GUIDs → a 4D timeline scrubber coloring elements by construction status/date with a running earned-value/
   cost readout. Deterministic, GUID-keyed.
-- **TRANSMITTALS — formal transmittal record** *(S).* Numbered transmittal (recipient · issued-docs list ·
-  purpose · acknowledgement), round-trippable. (Verify the workflow-engine doesn't already cover it.)
+- ✅ **TRANSMITTALS — already covered** *(verified 2026-07-23).* The `transmittal` module ships numbered
+  TR- records (recipient · contents · purpose · method) with the workflow engine over them, plus the
+  `issuance.py`/`distribution.py` drawing-issuance engines; PORTAL-TXN (v0.3.611) added the client
+  **acknowledgement** path. No duplicate build needed.
 
 **Sprint E — Feasibility & progress (deterministic BUILDs on data we can hold):**
 - ✅ **PERMIT-TIMELINE — days-to-issue percentiles → pro-forma** *(M; v0.3.604).* `permit_timeline.py` +
