@@ -89,9 +89,13 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   code / trade) → **last-responsible-order = install start − lead time**, sorted soonest-order-first; with an
   `as_of` date each line is overdue / urgent (≤14d) / upcoming (≤30d) / ok, unmatched lines flagged
   'unscheduled'. Only we hold the model *and* the schedule. Client (`buyoutSchedule`) + `test_buyout_schedule`.
-- **CONCEPT-BUDGET — parametric conceptual budget** *(M).* Generate a budget from a handful of massing inputs
-  (GFA-by-use · stories · envelope area, all from the IFC) against an own-history assembly library — the
-  front-of-funnel that matches the "Massing" name.
+- ✅ **CONCEPT-BUDGET — parametric conceptual budget from own history** *(M; v0.3.614).* `concept_budget.py`
+  + `POST /projects/{pid}/estimate/concept-budget`: `derive_rates(history)` turns the firm's completed
+  projects into per-type $/area stats (n · p25 · median · p75, each project **escalated to the target year**
+  before aggregation), and `budget(program)` prices a massing program (use · GFA · stories) at the
+  own-history **median with a p25–p75 range** — default rate where a use has no history, **UNPRICED surfaced
+  rather than guessed**, every line source-tagged (composes with EST-CONFIDENCE + BOE-LEDGER). Client
+  (`estimateConceptBudget`) + `test_concept_budget`. Sprint C complete.
 
 **Sprint D — Scope & 4D/5D spine (the connective structure):**
 - ◧ **★ SCOPE-REG — first-class Scope register** *(M; v0.3.603).* `scope_register.py` +

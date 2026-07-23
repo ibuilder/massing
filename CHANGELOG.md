@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.614 — CONCEPT-BUDGET: a conceptual budget priced against your own completed projects
+
+The front-of-funnel that matches the "Massing" name: a defensible first number from massing inputs, priced
+against the firm's own history rather than an industry average. Completes the R17 estimating sprint.
+
+- **`concept_budget.py` + `POST /projects/{pid}/estimate/concept-budget`**:
+  - `derive_rates(history)` — the firm's completed projects (`building_type · gfa · actual_cost · year`) →
+    per-type **$/area statistics** (n · p25 · median · p75), each project's rate **escalated to the target
+    year** at a given annual rate before aggregation, so old jobs price forward honestly.
+  - `budget(program)` — a massing program (use · GFA · stories) priced at the own-history **median** with a
+    **p25–p75 range** per line and in total; a supplied default rate covers uses with no history, and a use
+    with neither is surfaced **UNPRICED** rather than guessed.
+- Every line carries its **source** ("own-history (n=…)" vs "default rate") — composing directly with
+  EST-CONFIDENCE (historical > manual) and the BOE-LEDGER assumption trail. Hand-checked: three office
+  projects at 300/350/400 $/SF → median 350, a 200k SF massing prices at $70M ($65–75M), +10% contingency.
+- `estimateConceptBudget` client method + `test_concept_budget`. Backend suite green; CodeQL 0.
+
 ## v0.3.613 — BOE-LEDGER: the Basis-of-Estimate assumption ledger
 
 The traceability layer *under* the estimate numbers — an estimate you can defend line-by-line, pairing with

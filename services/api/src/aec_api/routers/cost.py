@@ -39,6 +39,27 @@ def estimate_confidence(pid: str, payload: dict = Body(...), db: Session = Depen
     return est_confidence.score(payload.get("lines") or [])
 
 
+@router.post("/projects/{pid}/estimate/concept-budget")
+def estimate_concept_budget(pid: str, payload: dict = Body(...), db: Session = Depends(get_db),
+                            _: str = Depends(require_role("viewer"))):
+    """CONCEPT-BUDGET — a conceptual budget from massing inputs priced against the firm's OWN completed
+    -project history: `history` → per-type $/area rates (escalated to `to_year`), `program` (use · gfa ·
+    stories) priced at the own-history median with a p25–p75 range, `default_rate` where a use has no
+    history, UNPRICED surfaced rather than guessed. Body: `{program, history?, rates?, default_rate?,
+    to_year?, escalation_pct?, contingency_pct?}`."""
+    from .. import concept_budget as cb
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    rates = payload.get("rates")
+    if not rates:
+        rates = cb.derive_rates(payload.get("history") or [], payload.get("to_year"),
+                                float(payload.get("escalation_pct") or 0.0))
+    out = cb.budget(payload.get("program") or [], rates, payload.get("default_rate"),
+                    float(payload.get("contingency_pct") or 0.0))
+    out["rates"] = rates
+    return out
+
+
 @router.post("/projects/{pid}/estimate/boe")
 def estimate_boe(pid: str, payload: dict = Body(...), db: Session = Depends(get_db),
                  _: str = Depends(require_role("viewer"))):

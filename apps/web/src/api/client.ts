@@ -2155,6 +2155,23 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/permits/timeline`, { method: "POST", body: JSON.stringify(body) });
   }
+  /** CONCEPT-BUDGET — massing program × the firm's own-history $/area rates (escalated), p25–p75 range. */
+  estimateConceptBudget(pid: string, body: {
+    program: { use: string; gfa: number; stories?: number }[];
+    history?: Record<string, unknown>[]; rates?: Record<string, unknown>;
+    default_rate?: number; to_year?: number; escalation_pct?: number; contingency_pct?: number;
+  }) {
+    type Line = { use: string; gfa: number; rate: number | null; cost: number | null;
+      range: { low: number; high: number } | null; stories?: number | null; source: string };
+    type Rate = { n: number; p25: number; median: number; p75: number; min: number; max: number };
+    return this.json<{
+      line_count: number; unpriced: number; subtotal: number; contingency_pct: number | null;
+      contingency: number | null; total: number; range: { low: number; high: number }; lines: Line[];
+      rates: { projects_used: number; projects_skipped: number; escalated_to: number | null;
+        escalation_pct: number | null; rates: Record<string, Rate>; note: string };
+      note: string;
+    }>(`/projects/${pid}/estimate/concept-budget`, { method: "POST", body: JSON.stringify(body) });
+  }
   /** BOE-LEDGER — the Basis-of-Estimate assumption ledger: completeness + version drift + exact
    * qty/price variance decomposition vs actuals. */
   estimateBoe(pid: string, body: {
