@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.588 — GitHub Pages: one branded theme across all pages + clearer CTA
+
+The landing + guide pages now share the **status.html design system** (the navy · cyan→violet "hologram
+edges" theme that matches the brand marks), so the whole site reads as one branded product.
+
+- **index.html** re-skinned onto the shared tokens: navy gradient ground + grid backdrop, cyan→violet
+  gradient headline accent + primary buttons, mono eyebrows/pills, the Massing logo in the hero.
+- **guide.html** palette swapped to the same tokens (it already shared the CSS-variable names, so the
+  navy/cyan theme propagates), plus the logo mark added to its sticky header.
+- **Clearer CTA:** the vague **"Free IFC viewer →"** button is now the primary **"Open the live demo →"**
+  (and the in-page "Open the viewer →" matches); the download button steps back to secondary. Verified in
+  the browser — branded palette applied, no horizontal overflow.
+
 ## v0.3.587 — observability: DB migrations + error alerting + tracing (#74 · #75)
 
 Sprint 2 of the open-PR cleanup — the production observability stack, all env-gated and no-op until

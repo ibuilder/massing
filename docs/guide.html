@@ -6,16 +6,22 @@
 <title>Guides — Massing</title>
 <meta name="description" content="Beginner-friendly guides and tutorials for the Massing: explore a model, generate a building from zoning, underwrite a deal, run a project, and hand it over." />
 <style>
-  :root{ --bg:#16171a; --panel:#1e1f22; --panel2:#25272b; --line:#2b2d31; --text:#e7e7e7; --muted:#9aa0a6; --accent:#4a8cff; --green:#33d17a; --code:#0f1012; }
+  /* Massing design system — shared with index.html / status.html (navy · cyan→violet) */
+  :root{ --bg:#070A18; --navy-700:#0E1430; --panel:#0E1430; --panel2:#141B3A; --navy-500:#1B2450;
+    --line:#243066; --line-soft:#1a2350; --text:#EAEEFF; --muted:#AEB8E0; --ink-3:#7E8BB0;
+    --cyan:#2DE2E6; --violet:#B14CFF; --blue:#5B8CFF; --accent:#2DE2E6; --green:#2DE2E6; --code:#050813;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Consolas,monospace; }
   *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
-  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  html{-webkit-text-size-adjust:100%}
+  html,body{margin:0;color:var(--text);font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;
+    background:radial-gradient(1200px 600px at 80% -10%, rgba(177,76,255,.09), transparent 60%),linear-gradient(180deg,#0B1126,#070A18);}
+  a{color:var(--cyan);text-decoration:none} a:hover{text-decoration:underline}
   .wrap{max-width:880px;margin:0 auto;padding:0 20px}
-  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--code);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13.5px}
-  header.top{position:sticky;top:0;background:rgba(22,23,26,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);z-index:10}
+  code{font-family:var(--mono);background:var(--code);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13.5px}
+  header.top{position:sticky;top:0;background:rgba(7,10,24,.86);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:10}
   header.top .wrap{display:flex;align-items:center;gap:16px;padding:12px 20px}
   header.top b{font-size:15px} header.top nav{margin-left:auto;display:flex;gap:18px;font-size:14px}
-  h1{font-size:34px;letter-spacing:-.02em;margin:36px 0 6px}
+  h1{font-size:34px;letter-spacing:-.4px;margin:36px 0 6px;font-weight:650}
   .lede{color:var(--muted);font-size:18px;margin:0 0 8px}
   h2{font-size:23px;margin:40px 0 4px;letter-spacing:-.01em;scroll-margin-top:70px}
   h3{font-size:16px;margin:22px 0 4px}
@@ -44,7 +50,7 @@
 
 <header class="top">
   <div class="wrap">
-    <b>Massing</b>
+    <a href="index.html" style="display:flex;align-items:center;gap:9px;color:var(--text)"><img src="img/massing-icon.svg" alt="" style="height:26px;display:block" /><b>Massing</b></a>
     <nav>
       <a href="index.html">Home</a>
       <a href="app/">Live demo</a>

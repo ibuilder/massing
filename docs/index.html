@@ -20,64 +20,81 @@
 <meta name="twitter:description" content="Author real IFC in the browser, generate a permit-ready drawing set, pre-check code, underwrite the deal and hand it over — on one IFC model. Open, self-hosted." />
 <meta name="twitter:image" content="https://massing.build/img/og-image.png" />
 <style>
+  /* Massing design system — shared with status.html (navy · cyan→violet hologram edges) */
   :root{
-    --bg:#16171a; --panel:#1e1f22; --panel2:#25272b; --line:#2b2d31;
-    --text:#e7e7e7; --muted:#9aa0a6; --accent:#4a8cff; --green:#33d17a; --code:#0f1012;
+    --navy-900:#070A18; --navy-800:#0B1126; --navy-700:#0E1430; --navy-600:#141B3A;
+    --navy-500:#1B2450; --line:#243066; --line-soft:#1a2350;
+    --bg:#070A18; --panel:#0E1430; --panel2:#141B3A; --code:#070A18;
+    --text:#EAEEFF; --ink:#EAEEFF; --muted:#AEB8E0; --ink-3:#7E8BB0;
+    --cyan:#2DE2E6; --violet:#B14CFF; --blue:#5B8CFF; --accent:#2DE2E6; --green:#2DE2E6;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Consolas,monospace;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
-  a{color:var(--accent);text-decoration:none}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(1200px 600px at 75% -10%, rgba(177,76,255,.10), transparent 60%),
+      radial-gradient(1000px 500px at 10% 0%, rgba(45,226,230,.08), transparent 55%),
+      linear-gradient(180deg,var(--navy-800),var(--navy-900));}
+  a{color:var(--cyan);text-decoration:none}
   a:hover{text-decoration:underline}
-  .wrap{max-width:980px;margin:0 auto;padding:0 20px}
-  code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .wrap{position:relative;z-index:1;max-width:1000px;margin:0 auto;padding:0 22px}
+  code,pre{font-family:var(--mono)}
+  /* grid backdrop (matches status.html) */
+  .grid-bg{position:absolute;inset:0;height:1400px;z-index:0;pointer-events:none;opacity:.5;
+    background-image:linear-gradient(var(--line-soft) 1px,transparent 1px),linear-gradient(90deg,var(--line-soft) 1px,transparent 1px);
+    background-size:44px 44px;-webkit-mask-image:radial-gradient(circle at 50% 0%,#000,transparent 75%);mask-image:radial-gradient(circle at 50% 0%,#000,transparent 75%)}
   /* hero */
-  header.hero{padding:64px 0 40px;border-bottom:1px solid var(--line);background:radial-gradient(900px 300px at 70% -10%, #23304d 0%, transparent 60%)}
-  .badge{display:inline-block;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:20px;padding:3px 12px;margin-bottom:18px}
-  h1{font-size:40px;line-height:1.15;margin:0 0 12px;font-weight:650;letter-spacing:-.02em}
-  h1 .accent{color:var(--accent)}
-  .tag{font-size:19px;color:var(--muted);max-width:680px;margin:0 0 24px}
-  .cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
-  .btn{display:inline-block;padding:11px 20px;border-radius:8px;font-weight:550;font-size:15px}
-  .btn.primary{background:var(--accent);color:#fff}
-  .btn.primary:hover{filter:brightness(1.08);text-decoration:none}
-  .btn.ghost{border:1px solid var(--line);color:var(--text)}
-  .btn.ghost:hover{background:var(--panel2);text-decoration:none}
+  header.hero{position:relative;z-index:1;padding:60px 0 42px}
+  header.hero img{filter:drop-shadow(0 6px 22px rgba(45,226,230,.18))}
+  .badge{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--cyan);border:1px solid var(--line);background:rgba(45,226,230,.06);border-radius:999px;padding:5px 12px;margin-bottom:18px}
+  h1{font-size:clamp(34px,5vw,48px);line-height:1.1;margin:0 0 14px;font-weight:650;letter-spacing:-.5px;text-wrap:balance}
+  h1 .accent{background:linear-gradient(100deg,var(--cyan),var(--blue) 55%,var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .tag{font-size:18px;color:var(--muted);max-width:70ch;margin:0 0 24px}
+  .cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .btn{display:inline-block;padding:11px 20px;border-radius:9px;font-weight:600;font-size:15px;transition:transform .12s,filter .12s,background .12s}
+  .btn.primary{background:linear-gradient(100deg,var(--cyan),var(--blue));color:#04121A;box-shadow:0 6px 22px rgba(45,226,230,.18)}
+  .btn.primary:hover{filter:brightness(1.06);transform:translateY(-1px);text-decoration:none}
+  .btn.ghost{border:1px solid var(--line);color:var(--text);background:rgba(20,27,58,.4)}
+  .btn.ghost:hover{background:var(--navy-500);text-decoration:none}
   .pills{margin-top:26px;display:flex;gap:8px;flex-wrap:wrap}
-  .pill{font-size:13px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 11px}
-  .pill b{color:var(--green);font-weight:600}
+  .pill{font-size:12.5px;font-family:var(--mono);color:var(--text);background:var(--navy-600);border:1px solid var(--line);border-radius:8px;padding:6px 11px}
+  .pill b{color:var(--cyan);font-weight:600}
   /* sections */
-  section{padding:44px 0;border-bottom:1px solid var(--line)}
-  h2{font-size:24px;margin:0 0 6px;font-weight:600;letter-spacing:-.01em}
+  section{position:relative;z-index:1;padding:46px 0;border-top:1px solid var(--line-soft)}
+  h2{font-size:26px;margin:0 0 6px;font-weight:650;letter-spacing:-.3px}
   .sub{color:var(--muted);margin:0 0 24px}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 18px}
+  .card{background:var(--navy-700);border:1px solid var(--line);border-radius:12px;padding:18px}
   .card h3{margin:0 0 6px;font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
   .card p{margin:0;color:var(--muted);font-size:14px}
   a.card.dl{display:block;text-decoration:none;color:inherit;transition:border-color .12s,transform .12s}
-  a.card.dl:hover{border-color:var(--accent);transform:translateY(-2px)}
-  .dl-go{display:block;margin-top:8px;color:var(--accent);font-weight:600}
-  .ic{width:28px;height:28px;border-radius:7px;background:var(--panel2);display:inline-flex;align-items:center;justify-content:center;font-size:15px}
+  a.card.dl:hover{border-color:var(--cyan);transform:translateY(-2px)}
+  .dl-go{display:block;margin-top:8px;color:var(--cyan);font-weight:600}
+  .ic{width:28px;height:28px;border-radius:7px;background:var(--navy-500);display:inline-flex;align-items:center;justify-content:center;font-size:15px}
   /* code block */
-  pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow:auto;font-size:13.5px;line-height:1.7;color:#d7dbe0}
-  pre .c{color:#6b7280}
-  pre .g{color:var(--green)}
+  pre{background:#050813;border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow:auto;font-size:13.5px;line-height:1.7;color:#cfe3ff}
+  pre .c{color:var(--ink-3)}
+  pre .g{color:var(--cyan)}
   ol.steps{counter-reset:s;list-style:none;padding:0;margin:0 0 18px}
   ol.steps li{position:relative;padding:2px 0 2px 34px;margin-bottom:6px;color:var(--muted)}
-  ol.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);color:var(--text);font-size:12px;display:flex;align-items:center;justify-content:center}
+  ol.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;background:var(--navy-500);border:1px solid var(--line);color:var(--cyan);font-size:12px;display:flex;align-items:center;justify-content:center}
   ol.steps b{color:var(--text)}
-  .note{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:14px 16px;color:var(--muted);font-size:14px;margin-top:18px}
+  .note{background:var(--navy-700);border:1px solid var(--line);border-left:3px solid var(--cyan);border-radius:0 8px 8px 0;padding:14px 16px;color:var(--muted);font-size:14px;margin-top:18px}
   table.req{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
-  table.req td{padding:7px 10px;border-bottom:1px solid var(--line)}
+  table.req td{padding:7px 10px;border-bottom:1px solid var(--line-soft)}
   table.req td:first-child{color:var(--muted);white-space:nowrap;width:1%}
-  footer{padding:36px 0 60px;color:var(--muted);font-size:13px}
+  footer{position:relative;z-index:1;padding:36px 0 60px;color:var(--muted);font-size:13px;border-top:1px solid var(--line-soft)}
   @media(max-width:640px){h1{font-size:30px}.tag{font-size:17px}}
 </style>
 </head>
 <body>
 
+<div class="grid-bg" aria-hidden="true"></div>
+
 <header class="hero">
   <div class="wrap">
-    <img src="img/massing-logo.svg" alt="Massing" style="height:46px;display:block;margin:0 0 18px" />
+    <img src="img/massing-logo.svg" alt="Massing — open AEC platform" style="height:52px;display:block;margin:0 0 18px" />
     <span class="badge">Open · self-hosted · IFC-native</span>
     <h1>The whole building lifecycle,<br><span class="accent">on one model.</span></h1>
     <p class="tag">A genuine in-browser BIM authoring tool + data platform: <b>model from scratch</b>,
@@ -85,8 +102,8 @@
       verified as-built data</b> — plus generative design, a development proforma, and a general-contracting
       portal, all on a single IFC model. <b>No proprietary format, no per-seat license.</b></p>
     <div class="cta">
-      <a class="btn primary" href="#download">Download the app ↓</a>
-      <a class="btn ghost" href="app/">Free IFC viewer →</a>
+      <a class="btn ghost" href="#download">Download the app ↓</a>
+      <a class="btn primary" href="app/">Open the live demo →</a>
       <a class="btn ghost" href="guide.html">Guides &amp; tutorials</a>
       <a class="btn ghost" href="status.html">What's shipped →</a>
       <a class="btn ghost" href="#run">Run the full stack</a>
@@ -121,7 +138,7 @@
 
 <section id="viewer">
   <div class="wrap">
-    <h2>A free IFC viewer &amp; model checker, in your browser</h2>
+    <h2>The live demo — an IFC viewer &amp; model checker, in your browser</h2>
     <p class="sub">The live demo doubles as a standalone openBIM viewer — <b>no signup, no install, no
       upload</b>: small IFC files parse right in the browser (web-ifc/WASM), so your model never leaves
       your machine.</p>
@@ -136,7 +153,7 @@
         steel, MEP, drawings, code pre-check, 5D. <a href="#download">Download the free desktop app</a>
         or <a href="#run">run the full stack</a> — same viewer, whole platform.</p></div>
     </div>
-    <p style="margin:10px 0 0"><a class="btn primary" href="app/">Open the viewer →</a></p>
+    <p style="margin:10px 0 0"><a class="btn primary" href="app/">Open the live demo →</a></p>
   </div>
 </section>
 
