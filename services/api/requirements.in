@@ -7,7 +7,7 @@
 # (services/data/requirements.txt) are a strict subset of the ones below, so they need no separate lock.
 
 # --- web / API framework ---
-fastapi>=0.115
+fastapi>=0.139.2
 uvicorn[standard]>=0.30
 sqlalchemy>=2.0
 alembic>=1.13             # DB schema migrations (source of truth going forward; see migrations/README.md)
