@@ -25,4 +25,4 @@ serde_json = "1"
 # parse signature, which `cookie` 0.18.1 (pulled in via tauri-plugin-updater -> reqwest) still
 # calls the old way, breaking the desktop build. 0.3.51 is the last version that compiles with it.
 # (We have no committed Cargo.lock, so CI resolves deps fresh each run and picked up the break.)
-time = "=0.3.51"
+time = "=0.3.54"
