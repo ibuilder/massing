@@ -130,8 +130,13 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   property (the exact selection a bulk edit fills in one pass) + a query-DSL scope + `worst_gaps` (biggest
   partially-filled fields, most-blank-first). Client (`modelFillMatrix`) + `test_fill_matrix`. **Remaining:**
   the frontend one-click "fill the blanks" that pipes `blank_guids` + a value into the edit recipe.
-- **WALL-ASSEMBLY — layered wall assemblies** *(M).* An `IfcMaterialLayerSet` library (material + thickness per
-  layer) driving authoring + QTO + envelope/thermal, if walls are single-material today.
+- ✅ **WALL-ASSEMBLY — thermal from the layers** *(M; v0.3.610).* The layered-assembly *authoring* already
+  shipped (`material_layers.py` + `assign_material_set`); the missing bridge was thermal.
+  `assembly_thermal.py` + `GET /model/assembly-thermal`: every distinct `IfcMaterialLayerSet` → its
+  **R/U-value computed from the layers** (thickness ÷ design-k per material category + surface films; air
+  cavity at its fixed R; explicit k overrides), the elements using it, and a **per-layer material takeoff**
+  (thickness × face area from the base quantities). Feeds the envelope/COMcheck pre-check with a computed —
+  not asserted — U. Client (`modelAssemblyThermal`) + `test_assembly_thermal`.
 - ◧ **PARCEL-IMPORT — cadastral parcel geometry → FAR/coverage math** *(S/M; v0.3.609).*
   `parcel_geometry.py` + `POST /parcels/analyze`: parse an uploaded GeoJSON/WKT boundary (no gov scraping) →
   area / perimeter / centroid / bbox (shoelace; lon/lat projected equirectangularly at the centroid latitude),

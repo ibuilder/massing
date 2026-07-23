@@ -227,6 +227,19 @@ def mep_graph(pid: str, db: Session = Depends(get_db), _: str = Depends(require_
     return _mg.graph(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/model/assembly-thermal")
+def model_assembly_thermal(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """WALL-ASSEMBLY thermal: every distinct IfcMaterialLayerSet in the model → its **R/U-value computed
+    from the layers** (thickness ÷ design k per category + surface films), the elements using it, and a
+    per-layer material takeoff (thickness × face area). The bridge from the authored assemblies to the
+    envelope code-check. 409 without a source IFC."""
+    from aec_data import assembly_thermal as at  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return at.from_model(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/mep/fittings")
 def mep_fittings(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """MEP-FITTINGS: the **implied fittings** over the port graph — tee/cross at branch nodes, reducer at a

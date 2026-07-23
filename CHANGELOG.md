@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.610 — WALL-ASSEMBLY thermal: R/U-values computed from the layers themselves
+
+The model already carries genuine layered assemblies (`IfcMaterialLayerSet`), and the envelope code-check
+demands a U-value — but nothing bridged the two. Now the U is computed, not asserted.
+
+- **`assembly_thermal.py` + `GET /projects/{pid}/model/assembly-thermal`**: every distinct layer set in the
+  model → its **R/U** from the layers (R = thickness ÷ design k per material category, an air cavity at its
+  fixed R, standard surface films; an explicit per-layer k overrides the catalog), the elements using it, and
+  a **per-layer material takeoff** (thickness × face area from the base quantities).
+- Hand-checked: a brick / cavity / insulation / gypsum wall computes R 2.224 (R-12.6 imperial) → U 0.45, with
+  the insulation contributing 1.667 of it. Representative ASHRAE-style design k-values, clearly labelled an
+  analytical pre-check (not a hot-box test).
+- `modelAssemblyThermal` client method + `test_assembly_thermal` (pure math + an authored model with applied
+  layer sets + the 409 route guard). Backend suite green; CodeQL 0.
+
 ## v0.3.609 — PARCEL-IMPORT: cadastral parcel geometry → FAR / coverage / height compliance
 
 Upload-driven parcel ingest (no government scraping) that turns a boundary into the site math zoning and

@@ -2054,6 +2054,18 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** WALL-ASSEMBLY THERMAL — every IfcMaterialLayerSet → R/U computed from the layers + per-layer takeoff. */
+  modelAssemblyThermal(pid: string) {
+    type Layer = { name: string; category: string | null; thickness_m: number; r_value: number };
+    type Assembly = {
+      name: string | null; element_count: number; guids: string[]; face_area_m2: number | null;
+      layers: Layer[]; thickness_m: number; r_value: number; r_value_imperial: number; u_value: number | null;
+      surface_films_r: number; takeoff: { material: string | null; thickness_m: number; volume_m3: number | null }[];
+      note: string;
+    };
+    return this.json<{ assembly_count: number; assemblies: Assembly[]; note: string }>(
+      `/projects/${pid}/model/assembly-thermal`);
+  }
   /** PARCEL-IMPORT — cadastral parcel geometry (GeoJSON/WKT) → area/perimeter/centroid + FAR/coverage/
    * height compliance vs a zoning envelope. */
   parcelAnalyze(body: {
