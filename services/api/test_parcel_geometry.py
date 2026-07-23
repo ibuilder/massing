@@ -42,6 +42,22 @@ assert comp["ok"] is False and comp["violations"] == ["FAR"], comp
 n = pg.analyze(geojson=rect, proposal={"gfa_m2": 12_000})
 assert n["compliance"]["checks"][0]["ok"] is None and n["compliance"]["ok"] is None, n["compliance"]
 
+# --- ReDoS hardening (CodeQL py/polynomial-redos): crafted whitespace must return fast -------------
+import time as _time
+
+for evil in ("POLYGON ((" + " " * 90_000, "POLYGON" + " " * 19_000 + "((1 2, 3 4, 5 6))"):
+    t0 = _time.perf_counter()
+    try:
+        pg.analyze(wkt=evil)
+    except (ValueError, TypeError):
+        pass
+    assert _time.perf_counter() - t0 < 0.1, "crafted WKT must parse/reject in linear time"
+try:
+    pg.analyze(wkt="POLYGON ((" + "1 1, " * 10_000 + "1 1))" + "x" * 20_000)   # over the size cap
+    raise AssertionError("oversized WKT must raise")
+except ValueError as e:
+    assert "too large" in str(e)
+
 # --- bad input raises ------------------------------------------------------------------------------
 for bad in ({"type": "Point", "coordinates": [0, 0]}, "not json {", None):
     try:

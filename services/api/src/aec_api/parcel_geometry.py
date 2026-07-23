@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 from typing import Any
 
 _R_EARTH = 6_371_000.0
@@ -27,11 +26,18 @@ def parse_boundary(geojson: Any = None, wkt: str | None = None) -> list[tuple[fl
     """The outer ring [(x, y)…] from a GeoJSON Polygon/Feature(/dict or JSON string) or a WKT POLYGON.
     Raises ValueError on anything unparseable."""
     if wkt:
-        m = re.match(r"\s*POLYGON\s*\(\(\s*(.+?)\s*\)\)", str(wkt).strip(), re.I | re.S)
-        if not m:
+        # Structural parse, NO regex — a lazy `\s*(.+?)\s*\)\)` pattern here was polynomial on crafted
+        # whitespace (CodeQL py/polynomial-redos); find/rfind is linear and the input is size-capped.
+        w = str(wkt).strip()
+        if len(w) > 20_000:
+            raise ValueError("WKT too large (a parcel boundary should be well under 20k chars)")
+        if not w.upper().startswith("POLYGON"):
+            raise ValueError("WKT must be a POLYGON ((x y, x y, ...))")
+        i, j = w.find("(("), w.rfind("))")
+        if i < 0 or j <= i + 2:
             raise ValueError("WKT must be a POLYGON ((x y, x y, ...))")
         pts = []
-        for pair in m.group(1).split(","):
+        for pair in w[i + 2:j].split(","):
             xy = pair.split()
             if len(xy) < 2:
                 raise ValueError(f"bad WKT coordinate: {pair!r}")

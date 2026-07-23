@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.621 — security: WKT parser ReDoS fix (CodeQL HIGH → 0)
+
+The post-push CodeQL sweep flagged a HIGH `py/polynomial-redos` in the new parcel WKT parser
+(v0.3.609) — the lazy `\s*(.+?)\s*\)\)` pattern could backtrack polynomially on crafted whitespace.
+
+- **Fixed by removing the regex entirely**: the `POLYGON ((...))` envelope is now parsed structurally
+  (`find`/`rfind` — linear time), with a 20k-char input size cap (a real parcel boundary is far smaller).
+- **Regression-tested**: crafted 90k-whitespace and padded inputs must parse/reject in < 100 ms, the
+  oversized input raises the cap error, and every existing WKT case still parses byte-identically
+  (`test_parcel_geometry`). Backend suite green.
+
 ## v0.3.620 — roof windows: the add_roof_window authoring recipe (DORMER slice)
 
 The roof-penetration family the authoring suite lacked — the flat-roof half of the dormer item.
