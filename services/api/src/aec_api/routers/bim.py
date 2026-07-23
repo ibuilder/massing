@@ -517,6 +517,29 @@ def list_topics(pid: str, type: str | None = None, status: str | None = None,
     return rows
 
 
+@router.get("/projects/{pid}/topics/board")
+def topics_board(pid: str, group_by: str = "status", filter: str | None = None,
+                 db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """TOPIC-BOARD — a kanban board over the BCF topics: columns by `status` / `priority` / `assignee` /
+    `type` in stable workflow order, newest-modified first within a column; `filter` reuses the QUERY-DSL
+    grammar over topic fields (`status=open & priority=High`, `title~duct`). Bad group/filter → 422.
+    (Declared before /topics/{tid} so 'board' isn't captured as an id.)"""
+    from .. import query_dsl, topic_board
+
+    rows = (db.query(Topic).filter(Topic.project_id == pid)
+            .order_by(Topic.created_at.desc()).limit(2000).all())
+    dicts = [{"id": t.id, "guid": t.guid, "type": t.type, "title": t.title, "status": t.status,
+              "priority": t.priority, "assignee": t.assignee, "author": t.author,
+              "labels": t.labels, "element_guids": t.element_guids,
+              "due_date": t.due_date.isoformat() if t.due_date else None,
+              "created_at": t.created_at.isoformat() if t.created_at else None,
+              "modified_at": t.modified_at.isoformat() if t.modified_at else None} for t in rows]
+    try:
+        return topic_board.board(dicts, group_by, filter)
+    except (ValueError, query_dsl.QueryError) as e:
+        raise HTTPException(422, str(e)) from None
+
+
 @router.get("/projects/{pid}/topics/{tid}", response_model=TopicOut)
 def get_topic(pid: str, tid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     return _topic(db, pid, tid)

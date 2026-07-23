@@ -72,10 +72,14 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
 - **WALK-MODE — first-person walk + WebXR immersive** *(M, needs viewer).* WASD + pointer-lock eye-height
   camera over the loaded Fragments (desktop walk mode = higher ROI), plus `renderer.xr.enabled` + controller
   factory for any WebXR headset. Zero cloud, permissive-licensed on the three.js renderer we already ship.
-- **TOPIC-BOARD — BCF kanban + smart-filters + lifecycle** *(S/M).* A deterministic status kanban grouped by
-  `status`/`stage`/`assigned`, a `/topics?filter=<query-DSL>` endpoint reusing the selector spine, the
-  buildingSMART status/stage state machine, threaded comments (`reply_to`, degrades on export), and a
-  per-topic audit timeline. Data spine (`bcf_io.py`) exists — this is boards + lifecycle depth.
+- ◧ **TOPIC-BOARD — BCF kanban + smart-filters + lifecycle** *(S/M; backend v0.3.617).* ✅ `topic_board.py`
+  + `GET /projects/{pid}/topics/board`: kanban columns by `status`/`priority`/`assignee`/`type` in **stable
+  workflow order** (open → in progress → resolved → closed; unassigned last; newest-modified first within a
+  column) + **smart filters reusing the QUERY-DSL grammar over topic fields** (`status=open & priority=High`,
+  `title~duct`) — one selector grammar for model elements *and* topics; declared ahead of `/topics/{tid}` so
+  'board' isn't captured as an id; bad group/selector → 422. Client (`topicsBoard`) + `test_topic_board`.
+  **Remaining:** the frontend kanban panel · the buildingSMART status/stage state machine · threaded comments
+  (`reply_to`) · the per-topic audit timeline.
 - **CLASH-WALKTHROUGH** *(S).* Each existing clash → a saved BCF viewpoint (camera framed on the clash
   centroid, offending GUIDs isolated); step the clash list in walk/VR marking accept/reject. Reuse of the above.
 

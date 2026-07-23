@@ -2054,6 +2054,18 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** TOPIC-BOARD — a kanban board over the BCF topics with QUERY-DSL smart filters over topic fields. */
+  topicsBoard(pid: string, groupBy: "status" | "priority" | "assignee" | "type" = "status", filter?: string) {
+    type T = { id: string; guid: string; type: string; title: string; status: string;
+      priority: string | null; assignee: string | null; author: string | null; labels: string[] | null;
+      element_guids: string[] | null; due_date: string | null; created_at: string | null; modified_at: string | null };
+    const q = new URLSearchParams({ group_by: groupBy });
+    if (filter) q.set("filter", filter);
+    return this.json<{
+      group_by: string; filter: string | null; total: number; column_count: number;
+      columns: { key: string; count: number; topics: T[] }[]; note: string;
+    }>(`/projects/${pid}/topics/board?${q.toString()}`);
+  }
   /** PORTAL-TXN — record a client decision through a share token (public; approve/acknowledge/decline). */
   sharedDecision(token: string, body: {
     item_type: string; item_ref: string; action: "approved" | "acknowledged" | "declined";

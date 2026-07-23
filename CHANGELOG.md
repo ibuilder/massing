@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.617 — TOPIC-BOARD (backend): a BCF kanban with query-DSL smart filters
+
+The daily-driver view over the BCF topics we already store — deterministic boards, one selector grammar.
+
+- **`topic_board.py` + `GET /projects/{pid}/topics/board`**: kanban columns grouped by `status` / `priority` /
+  `assignee` / `type`, in **stable workflow order** (open → in progress → resolved → closed → reopened;
+  priority Critical → Low; unassigned always last; newest-modified first within a column) so the board renders
+  identically everywhere.
+- **Smart filters reuse the QUERY-DSL grammar over topic fields** — `status=open & priority=High`,
+  `title~duct`, `assignee` (field-exists) — the same selector spine that scopes model elements, clash runs,
+  and rules now scopes the issue log. Bad group/selector → 422; the route is declared ahead of
+  `/topics/{tid}` so "board" isn't captured as a topic id (regression-tested).
+- `topicsBoard` client method + `test_topic_board`. The frontend kanban panel, status/stage state machine,
+  threaded comments, and per-topic timeline remain as the follow-up. Backend suite green; CodeQL 0.
+
 ## v0.3.616 — SCAN-4D: the diff between two capture timestamps
 
 Completes the progress pair: PROGRESS-ROLLUP reads one capture; this reads the *change* between two.
