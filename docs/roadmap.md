@@ -135,11 +135,14 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   scope gaps (incomplete bids penalized, not dropped). Client (`buyoutPackages`/`procurementLevel`) +
   `test_procure_level`. **Remaining:** persist packages (a `procurement_package` module) + the send-RFQ bridge.
   (Supplier price/catalog feeds = INTEGRATE; placing the PO stays human.)
-- **TESTFIT-ADJ — adjacency + dimensional rule packs** *(S/M).* Extend the test-fit solver with a
-  declarative **adjacency matrix** (required-adjacent · must-not-be-adjacent · needs-daylight/exterior-wall ·
-  needs-wet-wall) as an `adjacency_score` term, and a room-program **dimensional-compliance** rule pack
-  (min-room-dim · min-ceiling-height · egress-width · setback) via `rule_library.py`/`/rules/run` scoped to
-  `IfcSpace`.
+- ◧ **TESTFIT-ADJ — adjacency + dimensional rule packs** *(S/M; v0.3.597).* ✅ `adjacency.py` +
+  `POST /model/adjacency`: an **adjacency graph** over the model's IfcSpaces (bboxes within a wall-thickness
+  gap on the same storey — deterministic, no OCC, footprints from the extruded profiles, corner-only touches
+  excluded) scored against a program's `required_adjacent` / `forbidden` type-pairs, plus a
+  **dimensional-compliance** rule pack (`min_room_dim` = the short side of the footprint · `min_area` ·
+  `min_ceiling_height`, global or `by_type`). Client (`modelAdjacency`) + `test_adjacency` over a relabelled
+  2×2 grid. **Remaining:** needs-daylight/exterior-wall + needs-wet-wall terms, and folding the dimensional
+  pack into `rule_library.py`/`/rules/run` for the property-based checks (egress-width · setback).
 - ◧ **DESIGN-METRICS + DAYLIGHT — live design-metrics engine** *(M; v0.3.591).* ✅ `design_metrics.py`
   + `GET /model/design-metrics`: program efficiency (floors · GFA · net floor area · net-to-gross · unit
   count · avg-unit · area-by-space-type) + a **deterministic average-daylight-factor ESTIMATE** from the

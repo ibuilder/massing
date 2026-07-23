@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.597 — TESTFIT-ADJ: space adjacency graph + program-relation score + dimensional rule pack
+
+Turns the program brief into a live constraint beside the geometry — the last R16 Tier-2 engine.
+
+- **`adjacency.py` + `POST /projects/{pid}/model/adjacency`** (409 without a source IFC): builds an
+  **adjacency graph** over the model's IfcSpaces — two spaces are adjacent when their footprints sit within a
+  wall-thickness gap on the same storey. Footprints come straight from each space's extruded profile +
+  placement (no OCC), and a corner-only touch is *not* counted as an adjacency.
+- **Program scoring:** the graph is scored against a program's `required_adjacent` type-pairs (a pair is met
+  if any A-type space touches a B-type space → satisfied ratio) and `forbidden` type-pairs (each violating
+  A↔B instance is listed).
+- **Dimensional compliance:** each space is checked against a rule pack — minimum room dimension (the short
+  side of its footprint), minimum floor area, minimum clear/ceiling height — global or per space type.
+- Pure over an opened model (recomputes on every edit); `modelAdjacency` client method + `test_adjacency`
+  over a relabelled 2×2 grid (4 shared-wall edges, diagonals excluded; a required pair met + one unmet + a
+  forbidden violation; the dimensional pack). Backend suite green; CodeQL 0.
+
 ## v0.3.596 — portal panels for the DESIGN-METRICS and MEP-FITTINGS engines
 
 The two model-derived R16 Tier-2 engines now have UI in the portal (both in the **design workspace →

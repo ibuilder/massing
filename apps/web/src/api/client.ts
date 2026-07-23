@@ -2054,6 +2054,27 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** TESTFIT-ADJ — space adjacency graph + program-relation score + dimensional-compliance over IfcSpaces. */
+  modelAdjacency(pid: string, program: {
+    required_adjacent?: [string, string][]; forbidden?: [string, string][];
+    dimensional?: { min_room_dim?: number; min_area?: number; min_ceiling_height?: number;
+      by_type?: Record<string, { min_room_dim?: number; min_area?: number; min_ceiling_height?: number }> };
+  } = {}) {
+    type Space = { guid: string; name: string; type: string; min_dim: number; area: number; height: number; neighbors: string[] };
+    return this.json<{
+      space_count: number;
+      adjacency: { edge_count: number; spaces: Space[] };
+      program: {
+        required_total: number; required_satisfied: number; required_pct: number | null;
+        required_results: { a: string; b: string; satisfied: boolean }[];
+        forbidden_violations: { rule: string; a: string; a_type: string; b: string; b_type: string }[];
+        forbidden_ok: boolean;
+      };
+      dimensional: { checked: number; passed: number;
+        violations: { guid: string; name: string; type: string; issues: string[] }[] };
+      note: string;
+    }>(`/projects/${pid}/model/adjacency`, { method: "POST", body: JSON.stringify(program) });
+  }
   /** MASTER-BUILDER — the 8-step Master Builder Protocol run over the project's own data, grounded in place. */
   masterBuilderBrief(pid: string) {
     type Step = { n: number; key: string; title: string; why: string; link: string; dest: string;

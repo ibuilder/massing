@@ -511,6 +511,18 @@ def model_design_metrics(pid: str, db: Session = Depends(get_db), _sec: str = De
     return dm.metrics(open_source_ifc(db, pid))
 
 
+@router.post("/projects/{pid}/model/adjacency")
+def model_adjacency(pid: str, program: dict = Body(default={}), db: Session = Depends(get_db),
+                    _sec: str = Depends(require_role("viewer"))):
+    """TESTFIT-ADJ — adjacency + dimensional-compliance over the model's IfcSpaces: which spaces physically
+    touch (bboxes within a wall gap on the same storey), scored against a program's `required_adjacent` /
+    `forbidden` type-pairs, plus a dimensional rule pack (`min_room_dim` · `min_area` · `min_ceiling_height`,
+    global or `by_type`). Deterministic, no OCC (footprints from the extruded profiles). 409 without a
+    source IFC. Body: {required_adjacent, forbidden, dimensional}."""
+    from aec_data import adjacency as adj  # type: ignore
+    return adj.evaluate(open_source_ifc(db, pid), program)
+
+
 @router.get("/projects/{pid}/master-builder/brief")
 def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MASTER-BUILDER — the whole project in one view: runs the 8-step Master Builder Protocol (place →
