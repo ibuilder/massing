@@ -283,7 +283,13 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **Deriving the deal, the buyout and the FM register straight from the model (v0.3.573–v0.3.582, current).**
+- **Production observability + operational hardening (v0.3.586–v0.3.589, current).** The production-readiness
+  stack landed, all **env-gated no-ops until configured**: **Alembic** DB migrations (a baseline schema
+  revision + a CI drift-guard), **OpenTelemetry** distributed tracing (FastAPI + SQLAlchemy, sampling
+  control), and **Sentry-compatible** error alerting (fail-open, with PII scrubbing). Alongside: opt-in
+  `/metrics` auth + configurable compose limits, digest-pinned Docker base images, and a re-skin of the
+  GitHub Pages onto one branded theme. Everything CI-green with CodeQL at 0.
+- **Deriving the deal, the buyout and the FM register straight from the model (v0.3.573–v0.3.582).**
   A wave of deterministic, IFC-native engines — because the model *is* the source of truth, each is computed,
   not reconstructed by AI. A **massing optioneer** sweeps the zoning-envelope levers (floor-to-floor, core
   efficiency, coverage, unit mix) over the program engine and ranks the options by yield-on-cost with a

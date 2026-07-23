@@ -13,8 +13,16 @@ are driven several phases deep; the **master-builder skill** is installed and co
 What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runtime/tooling ring, and the
 decomposition/design carry-overs.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (311 suites) · single-source version in
-`apps/web/package.json` (v0.3.585).
+**Status:** CodeQL 0 open alerts · full backend suite green (316 suites) · single-source version in
+`apps/web/package.json` (v0.3.589).
+
+**Recently merged (open-PR cleanup, v0.3.586–589):** the production-readiness PRs landed — **security +
+performance hardening**, **operational hardening** (opt-in `/metrics` auth), **dependency hygiene**
+(digest-pinned Docker base images), and the **observability stack**: **Alembic DB migrations** (C1,
+baseline + drift-guard CI), **OpenTelemetry tracing** (C2) and **Sentry error alerting** (C3), all
+env-gated no-ops until configured. The stale-branch backlog was cleaned (117 → 4 local branches; all work
+already in main) and the GitHub Pages were re-skinned to one branded theme. Risky major upgrades (runtime
+stack, thatopen/TS/Vite/ESLint/Capacitor majors, numpy 2.x) held for a deliberate later pass.
 
 ---
 
