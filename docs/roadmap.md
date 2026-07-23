@@ -35,15 +35,16 @@ flagship. BUILD = deterministic/offline/we-own-it · INTEGRATE = optional featur
 runtime dep) · SKIP = conflicts with a constraint/non-goal.
 
 **Sprint A — Provenance & AI trust (flagship; the thesis made concrete):**
-- **★ CITED-ANSWER — provenance contract for every AI answer** *(M).* A `CitedAnswer` schema emitted across the
-  AI command bar / RFI-QA / knowledge-graph answers: `{answer, claims:[{text, citations:[CitationRef],
-  confidence}], conflicts, coverage}` where `CitationRef = {source_type: ifc|doc|record|rule, document_id,
-  revision, guid?, sheet?/page?/bbox?, record_ref?, span?}`. Answers are *composed from* cited atomic facts;
-  we populate `guid`/`record_ref`/`rule_id` **deterministically** (we never lose provenance). Deterministic
-  **coverage %** (share of sentences with ≥1 citation) + a hard **uncited-claim guard** (< 100% → warn — a
-  hallucination check needing no model confidence); **conflict surfacing** (two sources disagree on the same
-  GUID property, via the model-diff/rule engine); **provenance-as-confidence** (independent-source count,
-  current-vs-stale revision, source-type rank rule/IFC-property > doc-text). The defensible differentiator.
+- ◧ **★ CITED-ANSWER — provenance contract for every AI answer** *(M; v0.3.600).* ✅ `cited_answer.py` — the
+  `CitedAnswer` contract: `{answer, claims:[{text, citations:[CitationRef], confidence}], conflicts, coverage,
+  fully_cited, uncited_claims, …}` with `CitationRef = {source_type: ifc|doc|record|rule, document_id,
+  revision, guid?, sheet?/page?/bbox?, record_ref?, rule_id?, span?}` + minters (`cite_ifc`/`cite_record`/
+  `cite_rule`/`cite_doc`). Deterministic **coverage %** + a hard **uncited-claim guard**, **conflict
+  surfacing** (two sources disagree on the same target → both provenances kept), and **provenance-as
+  -confidence** (independent-source count · current-vs-stale revision penalty · source-type rank
+  rule/IFC > record > doc). First producer `cited_query` + `POST /answer/cited-query` (every claim cites the
+  GUIDs it derives from, broken down by property); client `citedQuery` + `test_cited_answer`. **Remaining:**
+  emit the contract from the AI command bar / RFI-QA / KG answers; the CITE-JUMP show-your-work UI.
 - **CITE-JUMP — "show your work" UI** *(S, needs viewer).* Every claim is click-to-expand → jumps the viewer
   to the cited GUID (reuses BCF-VIEWPOINT restore) and/or opens the cited record/sheet. Same interaction
   whether the source is geometry, a data record, or a code-check finding.

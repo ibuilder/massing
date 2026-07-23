@@ -182,6 +182,25 @@ def model_select(pid: str, q: str, limit: int = 5000, db: Session = Depends(get_
         raise HTTPException(422, str(e))
 
 
+@router.post("/projects/{pid}/answer/cited-query")
+def answer_cited_query(pid: str, payload: dict = Body(...), db: Session = Depends(get_db),
+                       _: str = Depends(require_role("viewer"))):
+    """CITED-ANSWER — a deterministic model query that returns a **CitedAnswer**: every claim traces to the
+    GUIDs it is derived from, with a coverage %, an uncited-claim guard, and source-conflict surfacing. The
+    first producer of the provenance contract shared by the AI command bar / RFI-QA / KG answers. Body:
+    `{query: <QUERY-DSL>, property?: <Pset.Prop>}`. Bad query → 422."""
+    from .. import cited_answer, query_dsl
+    _project(db, pid)
+    q = str(payload.get("query") or "").strip()
+    if not q:
+        raise HTTPException(422, "query is required")
+    try:
+        return cited_answer.cited_query(_idx_for(pid), q, prop=payload.get("property") or None,
+                                        model_id=pid)
+    except query_dsl.QueryError as e:
+        raise HTTPException(422, str(e))
+
+
 @router.get("/projects/{pid}/rules")
 def rules_get(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """RULE-LIB — the project's user-authored parametric rule library (falls back to the starter set

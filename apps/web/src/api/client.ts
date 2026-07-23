@@ -2054,6 +2054,22 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** CITED-ANSWER — a deterministic model query returning a CitedAnswer: every claim traces to its source
+   * (GUID/record/rule/doc+revision) with coverage %, an uncited-claim guard, and source-conflict surfacing. */
+  citedQuery(pid: string, query: string, property?: string) {
+    type CitationRef = {
+      source_type: "ifc" | "doc" | "record" | "rule"; document_id: string | null; revision: string | null;
+      guid: string | null; sheet: string | null; page: number | null; bbox: number[] | null;
+      record_ref: string | null; rule_id: string | null; span: number[] | null;
+    };
+    type Claim = { text: string; citations: CitationRef[]; confidence: number };
+    type Conflict = { target: string; values: string[]; claims: { text: string; value: unknown; citations: CitationRef[] }[] };
+    return this.json<{
+      answer: string; claims: Claim[]; conflicts: Conflict[]; coverage: number; fully_cited: boolean;
+      uncited_claims: number[]; citation_count: number; source_types: Record<string, number>;
+      note: string; query: string; matched: number; truncated: boolean;
+    }>(`/projects/${pid}/answer/cited-query`, { method: "POST", body: JSON.stringify({ query, property }) });
+  }
   /** TESTFIT-ADJ — space adjacency graph + program-relation score + dimensional-compliance over IfcSpaces. */
   modelAdjacency(pid: string, program: {
     required_adjacent?: [string, string][]; forbidden?: [string, string][];

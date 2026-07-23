@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.600 — CITED-ANSWER: a provenance contract so every AI answer traces to its source
+
+The R17 flagship — the thesis made concrete. A regulated industry can't act on a black-box answer; because
+our data is GUID-first and structured we never *lose* provenance, we attach it deterministically.
+
+- **`cited_answer.py`** defines the **`CitedAnswer`** contract: an answer composed from cited atomic **claims**,
+  each carrying `CitationRef`s that point to a model element (IFC GlobalId), a data record (`module/{key}/{id}`),
+  a rule/code-check, or a document location — always with the **revision** it came from. Minters:
+  `cite_ifc` / `cite_record` / `cite_rule` / `cite_doc`.
+- Deterministic, no LLM and no model-emitted confidence: **coverage %** (share of claims with ≥1 citation)
+  with a hard **uncited-claim guard** (< 100% warns); **conflict surfacing** — when two claims assert
+  different values for the same target (e.g. the model says a wall is 2HR but a code rule requires 3HR), both
+  provenances are kept, never silently resolved; and **provenance-as-confidence** derived from the number of
+  independent sources, a stale-revision penalty, and source-type rank (rule / IFC-property > record > doc).
+- First producer: **`cited_query` + `POST /projects/{pid}/answer/cited-query`** — a model query whose every
+  claim cites the GUIDs it is derived from, optionally broken down by a property's value. `citedQuery` client
+  method + `test_cited_answer`. The AI command bar / RFI-QA / knowledge-graph answers adopt the contract next.
+- Backend suite green; CodeQL 0.
+
 ## v0.3.599 — roadmap: R17 field-research ring + R16 archived + re-prioritized (docs)
 
 A second broad field-research pass (14 external products across authoring / estimating / finance /
