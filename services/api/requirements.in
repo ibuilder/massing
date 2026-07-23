@@ -19,7 +19,7 @@ psycopg[binary]>=3.1      # Postgres driver (prod). Locked here so `--require-ha
 # --- analysis / QA + export bridge to the data service (services/data/src) ---
 ifcopenshell>=0.8.0,<0.9
 openpyxl>=3.1
-numpy>=1.26
+numpy>=2.5.1
 ifctester>=0.8
 trimesh>=4.0
 manifold3d>=2.0
