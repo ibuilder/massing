@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.623 — docs: roadmap status + R17 follow-through summary synced (docs)
+
+Status line → 338 backend suites / 128 vitest / v0.3.622 / CI on Node 22 / CodeQL 0; the R17 header now
+records the follow-through wave (SCAN-4D · TOPIC-BOARD + panel · WALK-MODE · CLASH-WALKTHROUGH · roof
+windows · the ReDoS fix) with the true remainder (CITE-JUMP · 4D5D-VIEWER · WebXR · NODE-CANVAS · carried
+sub-phases). No code change.
+
 ## v0.3.622 — 🗂 Issue Board: the BCF kanban panel
 
 The TOPIC-BOARD backend (v0.3.617) gets its face — the daily-driver issue view in the portal.

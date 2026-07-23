@@ -13,17 +13,18 @@ are driven several phases deep; the **master-builder skill** is installed and co
 What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runtime/tooling ring, and the
 decomposition/design carry-overs.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (336 suites) · single-source version in
-`apps/web/package.json` (v0.3.614) · CI on Node 22.
+**Status:** CodeQL 0 open alerts · full backend suite green (338 suites) · single-source version in
+`apps/web/package.json` (v0.3.622) · CI on Node 22 · vitest 128.
 
 **🧭 R17 backend wave — SHIPPED (v0.3.600–614).** Every backend-testable R17 engine is live: **Sprint A**
 CITED-ANSWER (the provenance flagship) + PERSONA-ANSWER · **Sprint C complete** EST-CONFIDENCE + BOE-LEDGER +
 BUYOUT-SCHED + CONCEPT-BUDGET · **Sprint D** SCOPE-REG (TRANSMITTALS verified already covered) · **Sprint E
 complete** PERMIT-TIMELINE + ABSORPTION-SELLOUT/LSI + PROGRESS-ROLLUP · **Sprint F** FILL-MATRIX +
 PARCEL-IMPORT + WALL-ASSEMBLY thermal + PORTAL-TXN phase 1 · plus the RUNTIME benchmarked pass (Node 20→22
-in CI + oxlint). **Remaining R17:** the viewer-coupled Sprint B/D features (BCF-VIEWPOINT · WALK-MODE ·
-CITE-JUMP · 4D5D-VIEWER · TOPIC-BOARD · CLASH-WALKTHROUGH), DORMER, SCAN-4D, NODE-CANVAS, and the carried
-◧ sub-phases noted per item.
+in CI + oxlint). **Follow-through shipped (v0.3.615–622):** SCAN-4D · TOPIC-BOARD backend + the 🗂 Issue
+Board panel · WALK-MODE desktop + richer BCF-viewpoint capture · CLASH-WALKTHROUGH framed viewpoints ·
+roof windows (DORMER slice) · the WKT ReDoS security fix (CodeQL back to 0). **Remaining R17:** CITE-JUMP ·
+4D5D-VIEWER · the WebXR pass · NODE-CANVAS (L) · the carried ◧ sub-phases noted per item.
 
 **🔬 R16 ring — COMPLETE (v0.3.573–598).** All Tier-1/Tier-2 engines shipped: MARGIN-CBS · ASSET-REG ·
 RECIPE-MACROS · MASSING-OPT · MEP-EQUIP+SPEC-CONFLICT · SPACE-UTIL · DESIGN-METRICS+DAYLIGHT · MEP-FITTINGS ·
