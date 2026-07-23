@@ -534,6 +534,12 @@ with TestClient(app) as c:
                  "/doc-graph", "/scene-digest", "/edit/history", "/collab",
                  "/mep/sizing", "/mep/sprinkler-coverage",
                  "/quantities/disciplines", "/verification/coverage",
+                 # R16 panels (margin money card, asset register, equipment schedule, selections,
+                 # space utilization, master-builder brief) + the escalations feed — capture so the
+                 # demo shows them with data (and no "no fixture" console warnings)
+                 "/escalations", "/margin/by-costcode", "/selections/summary",
+                 "/model/assets", "/model/equipment", "/model/space-utilization",
+                 "/master-builder/brief",
                  "/drawing-set/issuances", "/drawing-set/issuance-matrix",
                  "/drawing-set/issuance-purposes"):
         grab(c, f"{P}{path}")
