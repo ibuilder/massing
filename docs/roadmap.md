@@ -298,15 +298,15 @@ non-problem; only two items clear the "measured win" bar, and both need a depend
   compressed-JSON path.
 - ✗ **RT-VIRTUAL — NO-GO.** Largest DOM row-cap is `slice(0, 1000)`; nothing renders 100k+ rows and the API
   already returns `truncated` flags over server-bounded results — solves a problem the data shapes don't have.
-- ◧ **RT-OXLINT — GO, scoped (NEEDS-DEP-OK).** `npm run lint` is **37.7 s**, but that time is
-  typescript-eslint's type-aware rules, which oxlint doesn't implement — so oxlint can only be an *additive*
-  sub-second **local pre-filter**, not a replacement for or speed-up of the CI eslint gate. Worth a dev-dep OK
-  as a fast feedback lane; won't shrink CI.
-- ◧ **RT-NODE-LANE → RT-ROLLDOWN — staged (NEEDS-DEP-OK).** Local Node 20.3.1 is below Vite 7's floor
-  (20.19+ / 22.12+) — the same pin that forces eslint 9.39.5. Move **Node 20→22 first** (LTS, mechanical,
-  unblocks the eslint unpin; bump the four CI workflows too), *then* Vite 6→7 behind a build benchmark
-  (@thatopen are three.js peer-dep libs, bundler-agnostic; `vite-plugin-pwa ^1.3.0` supports v7), and
-  **defer** Vite 8 / rolldown until that lane is green.
+- ✅ **RT-OXLINT — added (v0.3.608).** `oxlint` (MIT) is a dev-dep + a `lint:fast` (`oxlint src`) script — an
+  *additive* sub-second pre-lint, NOT a replacement for the 37.7 s type-aware eslint gate. **Caveat:** oxlint
+  1.75's launcher needs Node ≥ 20.19, so it runs in CI (now 22) + local *after* the Node bump, **not** on a
+  local 20.3.1 (`ERR_UNKNOWN_FILE_EXTENSION`) — the same pin below.
+- ◧ **RT-NODE-LANE → RT-ROLLDOWN — CI half done (v0.3.608).** ✅ the four CI workflows bumped **Node 20→22**
+  (LTS, low-risk). **Remaining local + follow-ons:** the developer's local Node is still 20.3.1 (upgrade to run
+  eslint 10 / oxlint / Vite 7 locally); then **unpin eslint** (root `overrides`/`devDependencies` off 9.39.5),
+  then Vite 6→7 behind a build benchmark (@thatopen are three.js peer-dep libs, bundler-agnostic;
+  `vite-plugin-pwa ^1.3.0` supports v7), and **defer** Vite 8 / rolldown until that lane is green.
 - **Still to measure (not yet benchmarked):** **RT-BVH** (three-mesh-bvh for our raw-three raycast paths —
   snap / measure / draft-proxy picking) · **RT-KNIP** (unused-export / dead-dep scan for `apps/web`, feeds REL-7).
 

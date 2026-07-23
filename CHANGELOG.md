@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.608 — RUNTIME: Node 20→22 in CI + oxlint fast pre-lint (the two benchmarked GO items)
+
+The two RUNTIME-ring items that cleared the "measured win" bar (the other four were already solved or solved
+a non-problem — see the roadmap's benchmarked assessment).
+
+- **Node 20 → 22 in CI:** the four GitHub Actions workflows (ci · desktop · pages · security) now run on Node
+  22 LTS. Low-risk (Node 22 is a superset of 20 for our toolchain), and it's the prerequisite for later
+  unpinning eslint and moving to Vite 7. eslint stays pinned at 9.39.5 for now (the developer's local Node is
+  still 20.3.1); unpinning is a follow-up once local Node is bumped.
+- **oxlint (MIT) added** as `apps/web` dev-dep + a `lint:fast` (`oxlint src`) script — an *additive*
+  sub-second pre-lint for fast local feedback, **not** a replacement for the type-aware eslint gate (37.7 s;
+  oxlint doesn't implement typescript-eslint's type-aware rules, so it can't shrink CI). **Caveat:** oxlint
+  1.75's launcher requires Node ≥ 20.19, so it runs in CI (Node 22) and locally *after* a Node upgrade, but
+  not on a local Node 20.3.1. The existing eslint + build gates are unaffected.
+
 ## v0.3.607 — FILL-MATRIX: a property fill-rate pivot that feeds a bulk-edit loop
 
 Pinpoints *which* pset field is systematically blank and hands back the exact GUIDs to fix — the analytics →
