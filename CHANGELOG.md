@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.618 — WALK-MODE (desktop) + richer BCF viewpoint capture
+
+The first viewer slice of the R17 coordination sprint: review the model the way you'd walk the building.
+
+- **🚶 Walk mode** (`walkMode.ts`): a rail toggle that enters a pointer-lock **first-person WASD walkthrough**
+  from the current camera — mouse-look (pitch clamped ±85°, never flips), Shift to run, E/Q to raise/lower
+  eye height, forward always horizontal (walking, not flying), Esc exits back to the orbit camera exactly
+  where the walk ended. The movement math is a headless `WalkController` covered by **7 vitest unit tests**
+  (heading, strafe, run multiplier, pitch clamp, opposed keys cancel); the installer drives
+  `controls.setLookAt` per animation frame with long tab-away frames clamped.
+- **BCF viewpoint capture upgraded**: creating an issue now **always** captures the live view — previously a
+  viewpoint was only saved when a 3D point had been picked. The capture carries the camera position, the real
+  orbit target, and the **active section planes**, so reopening an issue lands in context; the `Viewpoint`
+  client type gains `clipping_planes` / `snapshot`.
+- Honest verification note: typecheck + lint + **128 vitest tests** + build all green; the pointer-lock walk
+  itself is geometry-coupled and not live-exercised under the known dev-preview stall. Backend unchanged.
+
 ## v0.3.617 — TOPIC-BOARD (backend): a BCF kanban with query-DSL smart filters
 
 The daily-driver view over the BCF topics we already store — deterministic boards, one selector grammar.

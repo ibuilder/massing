@@ -65,13 +65,20 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   query-DSL scoping *is* the dataset-scoping toggle. Client + `test_persona_answer`.
 
 **Sprint B — Model-navigable coordination (BCF depth + viewer):**
-- **★ BCF-VIEWPOINT — capture/restore from the live viewer** *(M, needs viewer).* On new issue, serialize the
-  camera (persp/ortho + FOV), the visible/hidden GUID sets, section/clipping planes, and a `toDataURL`
-  snapshot into a BCF `VisualizationInfo`; "reopen issue" restores the exact camera + visibility. Turns our
-  metadata-only BCF topics into navigable-in-context ones — and is the jump-to-citation mechanism for CITE-JUMP.
-- **WALK-MODE — first-person walk + WebXR immersive** *(M, needs viewer).* WASD + pointer-lock eye-height
-  camera over the loaded Fragments (desktop walk mode = higher ROI), plus `renderer.xr.enabled` + controller
-  factory for any WebXR headset. Zero cloud, permissive-licensed on the three.js renderer we already ship.
+- ◧ **★ BCF-VIEWPOINT — capture/restore from the live viewer** *(M; capture upgraded v0.3.618).* The
+  Viewpoint model already stored camera/components/clipping/visibility/snapshot and reopen already restores
+  the camera. ✅ v0.3.618: issue creation now **always** captures the live view (previously only when a point
+  was picked) — camera position + the real orbit target + the **active section planes**
+  (`section.serialize()`), so every issue is navigable-in-context; `Viewpoint` client type gains
+  `clipping_planes`/`snapshot`. **Remaining:** restore the section planes + visibility exceptions on reopen ·
+  the `toDataURL` snapshot thumbnail · this is the jump-to-citation mechanism for CITE-JUMP.
+- ◧ **WALK-MODE — first-person walk + WebXR immersive** *(M; desktop walk v0.3.618).* ✅ `walkMode.ts`: a
+  🚶 rail toggle → pointer-lock **WASD walkthrough** from the current camera (mouse-look with ±85° pitch
+  clamp · Shift run · E/Q eye height · Esc exits back to orbit exactly where the walk ended; forward stays
+  horizontal — walking, not flying). The math is a headless `WalkController` **unit-tested in vitest** (7
+  tests: heading/strafe/run/pitch-clamp/opposed-keys); the installer drives `controls.setLookAt` per rAF.
+  *Verified by typecheck/lint/vitest/build; the pointer-lock walk itself is geometry-coupled — not
+  live-exercised under the dev-preview stall.* **Remaining:** the WebXR (`renderer.xr`) headset pass.
 - ◧ **TOPIC-BOARD — BCF kanban + smart-filters + lifecycle** *(S/M; backend v0.3.617).* ✅ `topic_board.py`
   + `GET /projects/{pid}/topics/board`: kanban columns by `status`/`priority`/`assignee`/`type` in **stable
   workflow order** (open → in progress → resolved → closed; unassigned last; newest-modified first within a

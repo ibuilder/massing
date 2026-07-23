@@ -198,6 +198,9 @@ export interface Viewpoint {
   camera: { type?: string; position?: Vec3; target?: Vec3; fov?: number } | null;
   components: string[] | null;
   visibility: { default_visibility: boolean; exceptions: string[] } | null;
+  /** R17 BCF-VIEWPOINT: active section planes captured at issue creation (restored on reopen). */
+  clipping_planes?: { normal: Vec3; point: Vec3 }[] | null;
+  snapshot?: string | null;
 }
 
 export interface Vec3 { x: number; y: number; z: number; }

@@ -21,6 +21,7 @@ import { SelectionSets } from "./selectionSets";
 import { MeasureTool } from "../tools/measure";
 import { SectionTool } from "../tools/section";
 import { installMeasureTools, installSectionBox } from "./measureSection";
+import { installWalkMode } from "./walkMode";
 import { VisibilityTool } from "../tools/visibility";
 import { ColorizeTool } from "../tools/colorize";
 import { LayerManager } from "../tools/layers";
@@ -383,6 +384,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     selection: () => selection, visibility, colorize,
   };
   installMeasureTools(msDeps);
+  // R17 WALK-MODE — first-person WASD walkthrough (pointer-lock; Esc exits back to orbit)
+  installWalkMode({ viewer, canvas: viewer.world.renderer!.three.domElement, toolBtn, setStatus });
   toolBtn("✦", "Ask the model — plain-English questions about the data", () => {
     if (!connected || !projectId) { notify("open a project to ask about its model", "error"); return; }
     showResult("Ask the model", (body) => {
@@ -4309,10 +4312,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       anchor: lastPoint ? { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z } : undefined,
       element_guids: guid ? [guid] : undefined,
     });
-    if (lastPoint) {
+    // R17 BCF-VIEWPOINT: ALWAYS capture the live view (camera + selection + active section planes), not
+    // only when a point was picked — every issue becomes navigable-in-context on reopen.
+    {
+      const tgt = new THREE.Vector3();
+      viewer.world.camera.controls.getTarget(tgt);
+      const target = lastPoint ? { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z }
+        : { x: tgt.x, y: tgt.y, z: tgt.z };
+      const planes = section.serialize();
       await api.addViewpoint(projectId, topic.id, {
-        camera: { type: "perspective", position: cameraPos(), target: { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z }, fov: 60 },
+        camera: { type: "perspective", position: cameraPos(), target, fov: 60 },
         components: guid ? [guid] : [],
+        ...(planes.length ? { clipping_planes: planes } : {}),
       });
     }
     await refreshIssues();
