@@ -32,6 +32,8 @@ with TestClient(app) as c:
     assert c.get("/metrics").status_code == 401, "expected 401 without bearer when gate on"
     # wrong bearer → 401
     assert c.get("/metrics", headers=BEARER("nope")).status_code == 401, "expected 401 with wrong bearer"
+    # wrong bearer of the SAME length → 401 (exercises the constant-time hmac.compare_digest path)
+    assert c.get("/metrics", headers=BEARER("xcrape-secret")).status_code == 401, "expected 401 with same-length wrong bearer"
     # correct bearer → 200 and still Prometheus text
     ok = c.get("/metrics", headers=BEARER("scrape-secret"))
     assert ok.status_code == 200, ok.status_code

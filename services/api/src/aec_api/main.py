@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import hmac
 import json
 import logging
 import os
@@ -536,7 +537,7 @@ def _guard_metrics(request: Request) -> None:
     key = _rbac.API_KEY or os.environ.get("AEC_API_KEY")
     authz = request.headers.get("authorization", "")
     tok = authz[len("Bearer "):] if authz.startswith("Bearer ") else ""
-    if not (key and tok == key):
+    if not (key and hmac.compare_digest(tok, key)):
         raise HTTPException(status_code=401, detail="metrics authentication required")
 
 
