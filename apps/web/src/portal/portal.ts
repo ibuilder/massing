@@ -120,6 +120,7 @@ export class PortalUI {
       __margin__: () => this.renderMargin(), __assets__: () => this.renderAssets(),
       __equipment__: () => this.renderEquipment(), __massingopt__: () => this.renderMassingOpt(),
       __designmetrics__: () => this.renderDesignMetrics(), __mepfittings__: () => this.renderMepFittings(),
+      __topicboard__: () => this.renderTopicBoard(),
       __responsibility__: () => this.renderResponsibility(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __modelanalysis__: () => this.renderModelAnalysis(),
@@ -209,6 +210,7 @@ export class PortalUI {
           { key: "__ledger__", icon: "📒", label: "General Ledger" },        // balanced journal + trial balance + export
           { key: "__traceability__", icon: "🔗", label: "Cost Traceability" }, // model→cost→GL by GlobalId
           { key: "__equipment__", icon: "🔩", label: "Equipment" },          // MEP-EQUIP — procurement schedule from the IFC
+          { key: "__topicboard__", icon: "🗂", label: "Issue Board" },      // TOPIC-BOARD — BCF kanban + smart filters
           { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // weather-sequenced work + site hazards
           { key: "__aiassist__", icon: "✍️", label: "AI Assist" },
         ]],
@@ -610,6 +612,7 @@ export class PortalUI {
   private async renderMassingOpt() { return (await import("./panels/massingOpt")).renderMassingOpt(this.panelCtx()); }
   private async renderDesignMetrics() { return (await import("./panels/designMetrics")).renderDesignMetrics(this.panelCtx()); }
   private async renderMepFittings() { return (await import("./panels/mepFittings")).renderMepFittings(this.panelCtx()); }
+  private async renderTopicBoard() { return (await import("./panels/topicBoard")).renderTopicBoard(this.panelCtx()); }
   private async renderModelAnalysis() { return (await import("./panels/standards")).renderModelAnalysis(this.panelCtx()); }
   private async renderDocuments() { return (await import("./panels/documents")).renderDocuments(this.panelCtx()); }
   private async renderStandards() { return (await import("./panels/standards")).renderStandards(this.panelCtx()); }

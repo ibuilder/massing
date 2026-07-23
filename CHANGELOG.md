@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.622 — 🗂 Issue Board: the BCF kanban panel
+
+The TOPIC-BOARD backend (v0.3.617) gets its face — the daily-driver issue view in the portal.
+
+- **`topicBoard.ts` panel** (Build stage → "Issue Board"): a group-by selector (status / priority / assignee /
+  type), a **QUERY-DSL smart-filter box** (`status=open & priority=High`, `title~duct` — Enter or Apply), and
+  horizontally scrolling **kanban lanes** in the server's stable workflow order, each topic card carrying its
+  type / priority / assignee / due-date chips. Every topic value renders escaped (issue titles are free text);
+  columns cap at 50 visible cards with an explicit "+N more".
+- `/topics/board` added to the demo capture list so the hosted demo shows the board after the next snapshot
+  regen. Frontend-only (typecheck + lint + build green; backend unchanged at 338/338). **CodeQL confirmed
+  back to 0** — the v0.3.621 ReDoS fix auto-closed the alert on re-scan.
+
 ## v0.3.621 — security: WKT parser ReDoS fix (CodeQL HIGH → 0)
 
 The post-push CodeQL sweep flagged a HIGH `py/polynomial-redos` in the new parcel WKT parser

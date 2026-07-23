@@ -85,8 +85,10 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   column) + **smart filters reusing the QUERY-DSL grammar over topic fields** (`status=open & priority=High`,
   `title~duct`) — one selector grammar for model elements *and* topics; declared ahead of `/topics/{tid}` so
   'board' isn't captured as an id; bad group/selector → 422. Client (`topicsBoard`) + `test_topic_board`.
-  **Remaining:** the frontend kanban panel · the buildingSMART status/stage state machine · threaded comments
-  (`reply_to`) · the per-topic audit timeline.
+  ✅ the **🗂 Issue Board portal panel** *(v0.3.622)* — group-by selector + a QUERY-DSL filter box +
+  horizontal kanban lanes (server-ordered columns, escaped topic cards with type/priority/assignee/due
+  chips), in the Build stage; captured for the demo. **Remaining:** the buildingSMART status/stage state
+  machine · threaded comments (`reply_to`) · the per-topic audit timeline.
 - ◧ **CLASH-WALKTHROUGH** *(S; v0.3.619).* ✅ Every clash topic created by a clash run (single-model AND
   federated) now carries a **framed BCF viewpoint** — camera at a 4 m diagonal standoff, target = the clash
   point, components = the offending pair — so reopening the topic lands the reviewer at the clash, and walk
