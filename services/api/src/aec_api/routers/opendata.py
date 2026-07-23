@@ -15,9 +15,38 @@ from sqlalchemy.orm import Session
 from .. import modules as mod_engine
 from .. import opendata, rbac
 from ..db import get_db
+from ..models import Project
 from ..rbac import require_role
 
 router = APIRouter()
+
+
+@router.post("/projects/{pid}/permits/timeline")
+def permits_timeline(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                     _: str = Depends(require_role("viewer"))):
+    """PERMIT-TIMELINE — days-to-issue analytics (p25 / median / p75 by jurisdiction × type × valuation band)
+    + a seasonal profile over the cached permit records, and — with a `target` — the pro-forma estimate
+    (median = expected entitlement duration, p75 = the conservative carry). Body: `{permits?, target?:
+    {jurisdiction, type, valuation}}`; falls back to the project's `permit` records when `permits` is omitted.
+    409 without any permit data."""
+    from fastapi import HTTPException
+
+    from .. import permit_timeline as pt
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    permits = body.get("permits")
+    if not permits:
+        recs = mod_engine.list_records(db, "permit", pid, limit=1_000_000) if "permit" in mod_engine.TABLES else []
+        permits = []
+        for r in recs:
+            d = r.get("data") or {}
+            permits.append({**d, "filed": d.get("applied_date") or d.get("filed_date") or d.get("application_date"),
+                            "type": d.get("permit_type"),
+                            "jurisdiction": d.get("source_city") or d.get("authority"),
+                            "valuation": d.get("est_cost")})
+    if not permits:
+        raise HTTPException(409, "no permit data — supply `permits` or import permits into the project first")
+    return pt.analyze(permits, body.get("target"))
 
 
 @router.get("/opendata/permit-cities")

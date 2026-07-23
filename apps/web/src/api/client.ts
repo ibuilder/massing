@@ -2054,6 +2054,23 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** PERMIT-TIMELINE — days-to-issue percentiles (p25/median/p75) by jurisdiction × type × valuation band +
+   * a pro-forma estimate (median expected / p75 conservative), over cached permit records. */
+  permitsTimeline(pid: string, body: {
+    permits?: Record<string, unknown>[]; target?: { jurisdiction?: string; type?: string; valuation?: number };
+  } = {}) {
+    type Dist = { n: number; p25: number | null; median: number | null; p75: number | null; min: number | null; max: number | null; mean: number | null };
+    type Group = Dist & { jurisdiction: string; type: string; band: string };
+    return this.json<{
+      permit_count: number; measured: number; overall: Dist; groups: Group[];
+      seasonal: { month: number; issued: number; median_days: number | null }[];
+      estimate?: {
+        expected_days: number | null; conservative_days?: number | null; expected_months?: number | null;
+        conservative_months?: number | null; sample_size: number; basis: string; note?: string;
+      };
+      note: string;
+    }>(`/projects/${pid}/permits/timeline`, { method: "POST", body: JSON.stringify(body) });
+  }
   /** SCOPE-REG — the scope register + gap analysis: each scope item resolves quantity/value (QTO by cost
    * code), owner, and schedule window; surfaces unquantified / unallocated / unscheduled scope. */
   scopeRegister(pid: string, body: {

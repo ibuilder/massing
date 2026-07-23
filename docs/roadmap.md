@@ -101,10 +101,13 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   purpose · acknowledgement), round-trippable. (Verify the workflow-engine doesn't already cover it.)
 
 **Sprint E — Feasibility & progress (deterministic BUILDs on data we can hold):**
-- **PERMIT-TIMELINE — days-to-issue percentiles → pro-forma** *(M).* Over cached permit data (`opendata.py`),
-  compute the days-to-issue distribution (p25/median/p75) by jurisdiction × permit type × valuation band +
-  seasonal issuance rate; wire median/p75 into the pro-forma as the **entitlement duration / carry-cost driver**
-  and into `permit_check.py` as an expected-queue estimate.
+- ✅ **PERMIT-TIMELINE — days-to-issue percentiles → pro-forma** *(M; v0.3.604).* `permit_timeline.py` +
+  `POST /projects/{pid}/permits/timeline`: days-to-issue distribution (p25/median/p75) by jurisdiction ×
+  type × valuation band + a seasonal profile over cached permit records; `estimate()` returns **median**
+  (expected entitlement duration) + **p75** (conservative carry) for a target, broadening the cohort band →
+  type → jurisdiction until stable. Reads the project's `permit` records (or supplied permits). Client
+  (`permitsTimeline`) + `test_permit_timeline`. **Remaining:** wire the estimate into the pro-forma carry +
+  `permit_check` expected-queue (the connector could also start storing the filed/applied date).
 - **ABSORPTION-SELLOUT + LOT-SUPPLY-INDEX — the revenue-side underwriting levers** *(M).* A **sell-out schedule**
   engine (absorption rate → monthly revenue phasing → sell-out duration → IRR/carry — the biggest underwriting
   lever we lack) + the public **Lot Supply Index** (`months_of_supply = VDL / absorption_rate`, banded
@@ -273,22 +276,30 @@ the "autonomous event-driven AI agent" framing, QuickBooks/Stripe/Gmail as a **m
 *Rust/C-backed libs + toolchain moves; MIT/BSD/Apache only; each is its own benchmarked release — no
 adoption without a measured win. (RT-ORJSON shipped v0.3.511/550.)*
 
-- **Needs a dependency OK:** **RT-OXLINT** ([oxlint](https://oxc.rs), Rust MIT — sub-second pre-lint gate
-  beside the pinned eslint 9.39.5) · **RT-ZSTD** (zstandard BSD — transparent magic-prefix compression of
-  MB-scale storage blobs in `storage.py`) · **RT-KNIP** ([knip](https://knip.dev) ISC — unused-export /
-  dead-dep scan for `apps/web`, feeds REL-7).
-- **No new dep:** **RT-UVLOOP** (`--loop uvloop` + `httptools` in the Linux Docker entrypoint; pair with a
-  worker-count / keep-alive / `--limit-concurrency` / DB-pool alignment pass).
-- **RT-VIRTUAL** *(M · UX)* — [@tanstack/virtual](https://tanstack.com/virtual/latest) (MIT) to virtualize
-  the big DOM lists (module tables at 100k+ rows, my-work, boards, model-browser tree); removes the
-  "first 500" truncations.
-- **RT-BVH** *(S/M, investigate)* — [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh) (MIT) for
-  OUR raw-three raycast paths (snap, measure, draft-proxy picking; Fragments' picking stays vendor-managed).
-- **RT-MSGSPEC** *(S, investigate)* — msgspec (C, BSD-3) typed-Struct decode for the ONE hot blob (the
-  per-project property-index load) — only if profiling shows the parse matters; Pydantic v2 stays for API.
-- **RT-NODE-LANE → RT-ROLLDOWN** *(M, chain)* — upgrade local Node 20.3.1 → 22 LTS (unpins eslint, unlocks
-  Vite 7/8), then trial `rolldown-vite` / Vite 8 (Rust bundler) in a branch — verify the pinned @thatopen
-  pair + PWA/workbox survive before adopting.
+**Benchmarked 2026-07-23** (measured on this machine — most of the ring is already solved or solves a
+non-problem; only two items clear the "measured win" bar, and both need a dependency/toolchain OK):
+- ✅ **RT-UVLOOP — already active (no-op).** `uvloop==0.22.1` + `httptools==0.8.0` are already in
+  `requirements.lock` (via `uvicorn[standard]`) and the Docker CMD's `--loop auto`/`--http auto` already
+  selects them on Linux. Nothing to ship (optionally pin `--loop uvloop` for explicitness; zero perf delta).
+- ✗ **RT-MSGSPEC — NO-GO.** The one hot blob (`props.json`, the property index) is 262KB / 1,839 elems →
+  `json.loads` **3.71 ms** (orjson 2.07 ms), LRU-cached per project — the parse never dominates a request, and
+  RT-ORJSON already covers it; records are heterogeneous dicts, so msgspec's typed-Struct win doesn't apply.
+- ✗ **RT-ZSTD — NO-GO.** The only MB-scale blobs are `.frag` tiles served via **HTTP byte-range reads**
+  (compression breaks seeking) and already compact binary; the Redis scan cache already gzips. No hot
+  compressed-JSON path.
+- ✗ **RT-VIRTUAL — NO-GO.** Largest DOM row-cap is `slice(0, 1000)`; nothing renders 100k+ rows and the API
+  already returns `truncated` flags over server-bounded results — solves a problem the data shapes don't have.
+- ◧ **RT-OXLINT — GO, scoped (NEEDS-DEP-OK).** `npm run lint` is **37.7 s**, but that time is
+  typescript-eslint's type-aware rules, which oxlint doesn't implement — so oxlint can only be an *additive*
+  sub-second **local pre-filter**, not a replacement for or speed-up of the CI eslint gate. Worth a dev-dep OK
+  as a fast feedback lane; won't shrink CI.
+- ◧ **RT-NODE-LANE → RT-ROLLDOWN — staged (NEEDS-DEP-OK).** Local Node 20.3.1 is below Vite 7's floor
+  (20.19+ / 22.12+) — the same pin that forces eslint 9.39.5. Move **Node 20→22 first** (LTS, mechanical,
+  unblocks the eslint unpin; bump the four CI workflows too), *then* Vite 6→7 behind a build benchmark
+  (@thatopen are three.js peer-dep libs, bundler-agnostic; `vite-plugin-pwa ^1.3.0` supports v7), and
+  **defer** Vite 8 / rolldown until that lane is green.
+- **Still to measure (not yet benchmarked):** **RT-BVH** (three-mesh-bvh for our raw-three raycast paths —
+  snap / measure / draft-proxy picking) · **RT-KNIP** (unused-export / dead-dep scan for `apps/web`, feeds REL-7).
 
 *Evaluated, not adopting: Biome (churn > win while eslint pinned) · granian (no measured need) · wholesale
 msgspec/Pydantic swap (Pydantic v2 is Rust-core) · client-side comlink parsing (heavy parse is server-side

@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.604 — PERMIT-TIMELINE: days-to-issue analytics → a pro-forma entitlement driver
+
+We already ingest permit feeds; the missing bridge was the *timeline model* between the raw feed and the
+underwriting. This adds it — deterministically, no live fetch.
+
+- **`permit_timeline.py` + `POST /projects/{pid}/permits/timeline`**: over the cached permit records (or a
+  supplied set), days-to-issue = issued − filed, grouped by **jurisdiction × permit type × valuation band**
+  into a p25 / median / p75 distribution, plus a seasonal issuance profile.
+- **`estimate(target)`** returns the **median** (expected entitlement duration) and **p75** (the conservative
+  carry the pro-forma should underwrite) for a jurisdiction / type / valuation, automatically **broadening the
+  cohort** (band → type → jurisdiction → all) until the sample is statistically stable, and reporting which
+  basis it used.
+- Reads the project's `permit` module records when `permits` is omitted; 409 when there's no permit data.
+  `permitsTimeline` client method + `test_permit_timeline`. Backend suite green; CodeQL 0.
+
 ## v0.3.603 — SCOPE-REG: a first-class scope register + gap analysis (the connective spine)
 
 Ties the things we already hold *separately* — quantities, cost breakdown, responsibility, schedule — into
