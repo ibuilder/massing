@@ -54,6 +54,25 @@ def schedule_takt_progress(body: TaktProgressIn):
     return {"plan": plan, "progress": takt.progress(plan, body.actuals, body.as_of_day)}
 
 
+class ProdActualsIn(BaseModel):
+    actuals: list[dict] = Field(default_factory=list)   # [{task_id?, qto_line?, qty, cycle_time, idle_time, unit?}]
+    planned: dict | None = None                          # {group: {rate?|qty?+hours?}}
+
+
+@router.post("/projects/{pid}/progress/actuals")
+def project_prod_actuals(pid: str, body: ProdActualsIn, db: Session = Depends(get_db),
+                         _: str = Depends(require_role("viewer"))):
+    """PROD-ACTUALS: the productivity actuals loop — roll installed-quantity actuals up per activity into
+    the **installed rate** (qty ÷ productive/cycle hours) + **crew utilization** (productive ÷ productive+
+    idle), compared to the planned rate → ahead / on-track / behind + a remaining-hours projection at the
+    current rate. Pure over the supplied rows (field log / telematics CSV / manual entry)."""
+    from .. import prod_actuals as pa
+
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return pa.analyze(body.actuals, body.planned)
+
+
 def _takt_actuals_from_activities(acts: list[dict], floors: int) -> tuple[list[dict], int]:
     """Roll GC `schedule_activity` records up into per-trade actual floors-complete + an as-of day.
     A floor counts as done for a trade when its activity is 100% complete or carries an actual finish.

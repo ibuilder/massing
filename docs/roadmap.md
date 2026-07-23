@@ -136,10 +136,13 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   ≥2% good / 1–2% fair / <1% limited, clearly labelled an estimate, not ray-traced). Pure over an opened
   model so it recomputes on every edit; client + `test_design_metrics`. **Remaining:** a portal KPI panel +
   wiring per-`IfcSpace` code-check rule sets alongside the model-wide numbers.
-- **PROD-ACTUALS — productivity actuals loop** *(M).* A `{task_id, qto_line, material_class, qty,
-  cycle_time, idle_time, ts}` actuals schema at `POST /progress/actuals`, mapped to QTO (`EST-1` link) +
-  schedule, computing **installed-rate actual vs planned takt** on the LOB/4D views. (Crane/telematics sensor
-  = INTEGRATE CSV/webhook connector; on-hook CV = SKIP.)
+- ◧ **PROD-ACTUALS — productivity actuals loop** *(M; v0.3.593).* ✅ `prod_actuals.py` +
+  `POST /projects/{pid}/progress/actuals`: a `{task_id, qto_line, material_class, qty, cycle_time,
+  idle_time, unit}` actuals schema rolled up per activity into the **installed rate** (qty ÷ productive/
+  cycle hours) + **crew utilization** (productive ÷ productive+idle), compared to the **planned** rate →
+  ahead / on-track / behind (±5%) + a remaining-hours projection at the current rate; worst-variance first.
+  Pure over the supplied rows; client (`progressActuals`) + `test_prod_actuals`. **Remaining:** persist the
+  actuals (a `progress_actual` module) + a CSV/webhook telematics connector + surface on the LOB/4D views.
 - ◧ **SPACE-UTIL — utilization + supply/demand planner** *(S/M; v0.3.585).* ✅ `space_util.py` +
   `GET /model/space-utilization` (per-`IfcSpace` occupancy capacity at an area-per-person standard, by
   type) + `POST /model/space-demand` (headcount program → required-area-by-type → gap-vs-modelled-inventory,

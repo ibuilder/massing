@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.593 — PROD-ACTUALS: installed-rate actual vs planned + crew utilization
+
+The productivity actuals loop — so the line-of-balance / 4D view shows whether the field is gaining or
+losing ground against takt, not just what's planned.
+
+- **`prod_actuals.py` + `POST /projects/{pid}/progress/actuals`**: a `{task_id, qto_line, material_class,
+  qty, cycle_time, idle_time, unit}` actuals schema rolled up per activity into the **installed rate**
+  (qty ÷ productive/cycle hours) and **crew utilization** (productive ÷ (productive + idle)), then compared
+  to the **planned** rate → **ahead / on-track / behind** (±5% band). When a planned quantity is known it
+  also reports percent-complete, remaining quantity, and the hours projected to finish at the current rate.
+- Rates are compared *within* an activity only — units differ across trades, so the rollup surfaces overall
+  utilization (dimensionless) and per-group variance counts, worst-variance first, never a cross-trade rate.
+- Pure over the supplied rows (field log / telematics CSV / manual entry); `progressActuals` client method +
+  `test_prod_actuals`. Backend suite green; CodeQL 0.
+
 ## v0.3.592 — MEP-FITTINGS: implied tee / cross / reducer / elbow over the port graph → QTO
 
 Every junction and transition of a connected MEP run *implies* a fitting — a duct/pipe network can't branch,

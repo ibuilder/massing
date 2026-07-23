@@ -1246,6 +1246,22 @@ export class ApiClient extends HttpCore {
       citation: string; note: string; verify: string }>(
       `/projects/${pid}/mep/sprinkler-coverage?hazard=${encodeURIComponent(hazard)}`);
   }
+  /** PROD-ACTUALS: installed-rate actual vs planned + crew utilization over field productivity actuals. */
+  progressActuals(pid: string, actuals: Record<string, unknown>[], planned?: Record<string, unknown>) {
+    type Group = {
+      group: string; material_class: string; unit: string; entries: number;
+      installed_qty: number; productive_hours: number; idle_hours: number;
+      installed_rate: number | null; utilization: number | null; planned_rate: number | null;
+      variance_pct: number | null; status: "ahead" | "on_track" | "behind" | null;
+      planned_qty: number | null; pct_complete: number | null; remaining_qty: number | null;
+      projected_hours_at_rate: number | null;
+    };
+    return this.json<{
+      group_count: number; groups: Group[]; overall_utilization: number | null;
+      total_productive_hours: number; total_idle_hours: number; planned_compared: number;
+      ahead: number; on_track: number; behind: number; worst: string | null; note: string;
+    }>(`/projects/${pid}/progress/actuals`, { method: "POST", body: JSON.stringify({ actuals, planned }) });
+  }
   /** MEP-FITTINGS: implied tee/cross/reducer/elbow over the port graph → QTO EA lines (deterministic, no CV). */
   mepFittings(pid: string) {
     return this.json<{
