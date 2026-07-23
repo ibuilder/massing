@@ -512,6 +512,21 @@ with TestClient(app) as c:
                f"{P}/pull-plan/board", f"{P}/pull-plan/metrics", "/benchmarks/pull-planning?min_committed=1"]
     for s in singles:
         grab(c, s)
+    # 🗂 Issue Board (TOPIC-BOARD): seed representative BCF topics so the kanban shows real lanes
+    for t in ({"type": "clash", "title": "Duct vs beam clash — L3 corridor", "status": "open",
+               "priority": "High", "assignee": "coordination"},
+              {"type": "rfi", "title": "Confirm 2HR rating at stair shaft", "status": "open",
+               "priority": "Medium", "assignee": "arch"},
+              {"type": "rfi", "title": "Curtain-wall anchor detail at parapet", "status": "in progress",
+               "priority": "Medium", "assignee": "structural"},
+              {"type": "punch", "title": "Patch gypsum at L2 elevator lobby", "status": "in progress",
+               "assignee": "drywall"},
+              {"type": "punch", "title": "Missing door closer — Suite 210", "status": "closed"},
+              {"type": "info", "title": "Owner walkthrough notes 07/18", "status": "closed"}):
+        try:
+            c.post(f"{P}/topics", json=t)
+        except Exception as e:                 # noqa: BLE001 — a topic that won't seed shouldn't abort
+            print(f"  topic-seed skip: {e}")
     # Model Analysis 🔬 (needs the seeded model) + Documents 📁 + design/drawings — previously all empty
     import urllib.parse as _up
     for path in ("/model/capabilities", "/model/step-summary", "/model/query", "/model/query/views",

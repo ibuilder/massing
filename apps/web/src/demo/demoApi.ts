@@ -31,6 +31,14 @@ export function demoJson<T>(path: string, init?: RequestInit): T {
   if (method !== "GET") throw new Error(READONLY_MSG);
   const hit = MAP[`GET ${path}`];
   if (hit !== undefined) return hit as T;
+  // fall back to the query-stripped path: fixtures are captured without query strings, but panels
+  // often call with defaults (`/topics/board?group_by=status`) — serve the base capture rather than
+  // an empty state. Exact matches (captured WITH a query) still win above.
+  const q = path.indexOf("?");
+  if (q > 0) {
+    const base = MAP[`GET ${path.slice(0, q)}`];
+    if (base !== undefined) return base as T;
+  }
   if (import.meta.env.DEV) console.warn("[demo] no fixture for", path);
   return [] as unknown as T;
 }

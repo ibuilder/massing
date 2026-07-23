@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.624 — demo: seeded Issue Board + query-tolerant fixture matching (live-verified)
+
+The hosted demo now shows the new kanban with real lanes — verified live in the browser.
+
+- **Demo seed**: six representative BCF topics (an open High-priority clash, open/in-progress RFIs, punch
+  items, a closed info note) so the 🗂 Issue Board renders **Open (2) · In Progress (2) · Closed (2)** in
+  workflow order instead of an empty state; snapshot regenerated (978 fixtures).
+- **`demoApi` query fallback**: fixtures are captured without query strings, but panels call with defaults
+  (`/topics/board?group_by=status`) — on an exact-URL miss the matcher now serves the query-stripped base
+  capture (exact matches still win). Benefits every current and future query-parameterized panel.
+- **Live-verified in the demo preview**: the board renders "6 topic(s) · 3 column(s)" with type/priority/
+  assignee chips on each card (DOM-verified; screenshots stay blocked by the known render-loop limitation).
+  Typecheck + lint + build green; backend unchanged.
+
 ## v0.3.623 — docs: roadmap status + R17 follow-through summary synced (docs)
 
 Status line → 338 backend suites / 128 vitest / v0.3.622 / CI on Node 22 / CodeQL 0; the R17 header now
