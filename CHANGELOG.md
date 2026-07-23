@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.596 — portal panels for the DESIGN-METRICS and MEP-FITTINGS engines
+
+The two model-derived R16 Tier-2 engines now have UI in the portal (both in the **design workspace →
+Model & standards** stage), turning shipped compute into visible product.
+
+- **📐 Design Metrics panel** (`designMetrics.ts`): a program-efficiency KPI header (floors · net floor area ·
+  GFA · net-to-gross · units · avg unit · spaces), a **daylight card** with the average-daylight-factor
+  estimate colour-banded good/fair/limited (clearly labelled an estimate), and an area-by-space-type table
+  with each type's share of net area.
+- **🔩 MEP Fittings panel** (`mepFittings.ts`): the total implied-fitting count with per-type chips
+  (elbow/tee/cross/reducer), a **QTO-lines** table (EA), and an "inferred at" detail table showing where and
+  why each fitting was implied. Both 409 gracefully into a "needs a source IFC" message.
+- Frontend-only (backend unchanged); typecheck + lint + build green. Wired via nav destinations + lazy
+  importers, following the existing panel pattern. Input-form panels for the POST engines (PROD-ACTUALS,
+  PROCURE-LEVEL) are a separate follow-up.
+
 ## v0.3.595 — docs: sync README / roadmap / status to the R16 Tier-2 engine wave (v0.3.591–594)
 
 Documentation refresh capturing the four deterministic engines just shipped — no code change.

@@ -125,7 +125,8 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   branch nodes (degree ≥3), **reducer** at a segment-to-segment nominal-size step, and **elbow** at a
   direction change (sweep-axis angle from the placement) — deterministic geometry, no CV (IFC gives us what
   others infer from PDFs). Branch legs aren't double-counted; counts roll into **QTO** as EA `qto_lines`.
-  Client (`mepFittings`) + `test_mep_fittings` over three authored+connected mini-systems.
+  Client (`mepFittings`) + `test_mep_fittings` over three authored+connected mini-systems + ✅ the **🔩 MEP
+  Fittings portal panel** *(v0.3.596)* (fitting-type chips + QTO-lines table + inferred-at detail).
 - ◧ **PROCURE-LEVEL — RFQ / quote-leveling** *(M; v0.3.594).* ✅ `procurement.buyout_packages` +
   `POST /procurement/buyout-packages` groups QTO line items into buyout packages, each carrying a ready **RFQ
   scope** (item/qty/unit); `procurement.score_quotes` + `POST /procurement/level` scores returned quotes for a
@@ -144,8 +145,9 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   count · avg-unit · area-by-space-type) + a **deterministic average-daylight-factor ESTIMATE** from the
   model's own `IfcWindow` glazed area vs net floor area (CIBSE formula with documented constants → banded
   ≥2% good / 1–2% fair / <1% limited, clearly labelled an estimate, not ray-traced). Pure over an opened
-  model so it recomputes on every edit; client + `test_design_metrics`. **Remaining:** a portal KPI panel +
-  wiring per-`IfcSpace` code-check rule sets alongside the model-wide numbers.
+  model so it recomputes on every edit; client + `test_design_metrics` + ✅ the **📐 Design Metrics portal
+  panel** *(v0.3.596)* (KPI header + a banded daylight card + area-by-type table, in the design workspace).
+  **Remaining:** wiring per-`IfcSpace` code-check rule sets alongside the model-wide numbers.
 - ◧ **PROD-ACTUALS — productivity actuals loop** *(M; v0.3.593).* ✅ `prod_actuals.py` +
   `POST /projects/{pid}/progress/actuals`: a `{task_id, qto_line, material_class, qty, cycle_time,
   idle_time, unit}` actuals schema rolled up per activity into the **installed rate** (qty ÷ productive/

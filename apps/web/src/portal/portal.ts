@@ -119,6 +119,7 @@ export class PortalUI {
       __masterbuilder__: () => this.renderMasterBuilder(), __selections__: () => this.renderSelections(),
       __margin__: () => this.renderMargin(), __assets__: () => this.renderAssets(),
       __equipment__: () => this.renderEquipment(), __massingopt__: () => this.renderMassingOpt(),
+      __designmetrics__: () => this.renderDesignMetrics(), __mepfittings__: () => this.renderMepFittings(),
       __responsibility__: () => this.renderResponsibility(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __modelanalysis__: () => this.renderModelAnalysis(),
@@ -239,6 +240,8 @@ export class PortalUI {
           { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },             // 10-category information-mgmt scorecard
           { key: "__modelqa__", icon: "✅", label: "Model Health" },        // deep-links to the Model Tools checks
           { key: "__modelanalysis__", icon: "🔬", label: "Model Analysis" }, // query/LOD/envelope/MEP/naming/capabilities
+          { key: "__designmetrics__", icon: "📐", label: "Design Metrics" }, // DESIGN-METRICS — program efficiency + daylight estimate
+          { key: "__mepfittings__", icon: "🔩", label: "MEP Fittings" },     // MEP-FITTINGS — implied fittings over the port graph → QTO
           { key: "__materials__", icon: "🎨", label: "Materials" },          // per-project M1 palette editor + re-colour
           { key: "__modulegraph__", icon: "🕸", label: "Module Relations" }, // how the config modules wire together
           { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // flood DFE + stormwater sizing
@@ -605,6 +608,8 @@ export class PortalUI {
   private async renderAssets() { return (await import("./panels/assets")).renderAssets(this.panelCtx()); }
   private async renderEquipment() { return (await import("./panels/equipment")).renderEquipment(this.panelCtx()); }
   private async renderMassingOpt() { return (await import("./panels/massingOpt")).renderMassingOpt(this.panelCtx()); }
+  private async renderDesignMetrics() { return (await import("./panels/designMetrics")).renderDesignMetrics(this.panelCtx()); }
+  private async renderMepFittings() { return (await import("./panels/mepFittings")).renderMepFittings(this.panelCtx()); }
   private async renderModelAnalysis() { return (await import("./panels/standards")).renderModelAnalysis(this.panelCtx()); }
   private async renderDocuments() { return (await import("./panels/documents")).renderDocuments(this.panelCtx()); }
   private async renderStandards() { return (await import("./panels/standards")).renderStandards(this.panelCtx()); }
