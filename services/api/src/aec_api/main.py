@@ -15,7 +15,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import errorlog, metrics, sentry
+from . import errorlog, metrics, otel, sentry
 from .db import SessionLocal, init_db
 from .routers import (
     accounting,
@@ -169,6 +169,11 @@ async def lifespan(_app: FastAPI):
     # External error alerting: no-op unless AEC_SENTRY_DSN/SENTRY_DSN is set. Init early so a failure
     # in any later startup step is itself reported; fail-open so it can never block boot.
     sentry.init()
+    # Distributed tracing: no-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set. Independent of Sentry and
+    # equally fail-open. Configures the tracer provider/exporter + DB spans; the FastAPI request-span
+    # middleware was already attached at app construction (see below) since Starlette forbids adding
+    # middleware after startup.
+    otel.init()
     init_db()
     # Production safety: tokens signed with the public dev secret are forgeable. Warn loudly when
     # RBAC is on, and hard-fail when AEC_REQUIRE_SECRET=1 (set this in real deployments).
@@ -223,6 +228,12 @@ except ImportError:                                                    # pragma:
 app = FastAPI(title="Massing API", version="0.1.0", lifespan=lifespan,
               default_response_class=_DefaultResponse)
 
+# OTel FastAPI request-span instrumentation must be attached here, at construction, because Starlette
+# refuses to add middleware once the app has started serving (and lifespan runs after that point).
+# No-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set; fail-open. The tracer provider is configured later
+# in the lifespan (otel.init()) and resolves lazily at span time, so ordering is fine.
+otel.instrument_app(app)
+
 
 # Request-id: stamp every request with a short id (echo an inbound X-Request-ID if the client/proxy
 # set one), expose it on the response header, and stash it on request.state so the error logger and
@@ -231,6 +242,9 @@ app = FastAPI(title="Massing API", version="0.1.0", lifespan=lifespan,
 async def _request_id(request: Request, call_next):
     rid = (request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12])[:64]
     request.state.request_id = rid
+    # Correlate the trace with this request-id (no-op unless OTel tracing is enabled). Set here where
+    # the id is known and the current span is the FastAPI server span.
+    otel.set_request_id(rid)
     response = await call_next(request)
     response.headers["X-Request-ID"] = rid
     return response
