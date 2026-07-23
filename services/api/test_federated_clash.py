@@ -66,6 +66,23 @@ with TestClient(app) as c:
     topics = c.get(f"/projects/{pid}/pins").json()
     assert any(t.get("type") == "clash" for t in topics), "expected clash topics among pins"
 
+    # CLASH-WALKTHROUGH (R17): every created clash topic carries a FRAMED viewpoint — camera at a
+    # diagonal standoff, target = the clash point, components = the offending pair — so reopening the
+    # topic lands the reviewer at the clash (and the walk-mode clash list steps viewpoint to viewpoint).
+    clash_topics = [t for t in c.get(f"/projects/{pid}/topics").json() if t.get("type") == "clash"]
+    assert clash_topics, "expected clash topics on the topic log"
+    t0 = clash_topics[0]
+    vps = c.get(f"/projects/{pid}/topics/{t0['id']}/viewpoints").json()
+    assert vps, "a clash topic must carry its framed viewpoint"
+    cam = vps[0]["camera"]
+    anchor = t0["anchor"]
+    assert cam["target"]["x"] == anchor["x"] and cam["target"]["y"] == anchor["y"], (cam, anchor)
+    dx = cam["position"]["x"] - cam["target"]["x"]
+    dy = cam["position"]["y"] - cam["target"]["y"]
+    dz = cam["position"]["z"] - cam["target"]["z"]
+    assert abs((dx * dx + dy * dy + dz * dz) ** 0.5 - 4.0) < 1e-6, "camera stands 4 m off the clash"
+    assert set(vps[0]["components"]) == set(t0["element_guids"]), vps[0]
+
     # delete one discipline → back under the 2-model minimum → 409
     assert c.delete(f"/projects/{pid}/models/{mid_str}").json()["deleted"] is True
     assert len(c.get(f"/projects/{pid}/models").json()) == 1

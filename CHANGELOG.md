@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.619 — CLASH-WALKTHROUGH: every clash topic ships with a framed viewpoint
+
+Review clashes by standing next to them: each clash becomes a navigable place, not a row in a table.
+
+- Both clash runs (single-model `POST /clash` and federated `POST /clash/federated`) with
+  `create_topics=true` now attach a **framed BCF viewpoint** to every created clash topic — the camera at a
+  deterministic 4 m diagonal standoff, the target on the clash point, and the offending element pair as the
+  viewpoint components.
+- Reopening the topic in the viewer lands the reviewer right at the clash (the existing viewpoint-restore
+  flow), and walk mode (v0.3.618) starts from there — the clash list becomes a walkthrough. Asserted in
+  `test_federated_clash`: standoff distance exactly 4 m, target = anchor, components = the pair.
+- A step-through UI (next/prev + accept/reject) remains as the follow-up. Backend suite green; CodeQL 0.
+
 ## v0.3.618 — WALK-MODE (desktop) + richer BCF viewpoint capture
 
 The first viewer slice of the R17 coordination sprint: review the model the way you'd walk the building.

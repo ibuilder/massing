@@ -87,8 +87,11 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   'board' isn't captured as an id; bad group/selector → 422. Client (`topicsBoard`) + `test_topic_board`.
   **Remaining:** the frontend kanban panel · the buildingSMART status/stage state machine · threaded comments
   (`reply_to`) · the per-topic audit timeline.
-- **CLASH-WALKTHROUGH** *(S).* Each existing clash → a saved BCF viewpoint (camera framed on the clash
-  centroid, offending GUIDs isolated); step the clash list in walk/VR marking accept/reject. Reuse of the above.
+- ◧ **CLASH-WALKTHROUGH** *(S; v0.3.619).* ✅ Every clash topic created by a clash run (single-model AND
+  federated) now carries a **framed BCF viewpoint** — camera at a 4 m diagonal standoff, target = the clash
+  point, components = the offending pair — so reopening the topic lands the reviewer at the clash, and walk
+  mode (v0.3.618) starts from there. Asserted in `test_federated_clash` (standoff distance + target +
+  components). **Remaining:** a step-through UI (next/prev clash viewpoint + accept/reject marking).
 
 **Sprint C — Estimating intelligence (deterministic, fills a real gap):**
 - ✅ **★ EST-CONFIDENCE — per-line estimate maturity/confidence** *(M; v0.3.601).* `est_confidence.py` +

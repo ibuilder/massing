@@ -14,7 +14,22 @@ from .. import audit, bcf_io, storage
 from ..db import get_db
 from ..deps import open_source_ifc
 from ..deps import source_ifc_path as _source_ifc
-from ..models import Project, ProjectModel, Topic
+from ..models import Project, ProjectModel, Topic, Viewpoint
+
+
+def _clash_viewpoint(point: dict | None, guids: list[str]) -> Viewpoint | None:
+    """CLASH-WALKTHROUGH: a deterministic framed viewpoint for a clash — camera at a fixed diagonal
+    standoff from the clash point, target = the point, components = the offending pair. Reopening the
+    topic (or stepping the clash list in walk mode) lands the reviewer right at the clash."""
+    if not point or not all(k in point for k in ("x", "y", "z")):
+        return None
+    d = 4.0 / (3 ** 0.5)                     # 4 m diagonal standoff, slightly elevated
+    return Viewpoint(
+        camera={"type": "perspective",
+                "position": {"x": point["x"] + d, "y": point["y"] + d, "z": point["z"] + d},
+                "target": {"x": point["x"], "y": point["y"], "z": point["z"]}, "fov": 60},
+        components=[g for g in guids if g],
+    )
 from ..rbac import require_role
 
 _DATA_SRC = Path(__file__).resolve().parents[4] / "data" / "src"
@@ -75,6 +90,9 @@ def run_clash(
                 anchor=c["point"], element_guids=[c["a_guid"], c["b_guid"]],
             )
             db.add(t)
+            vp = _clash_viewpoint(c.get("point"), [c["a_guid"], c["b_guid"]])   # CLASH-WALKTHROUGH
+            if vp is not None:
+                t.viewpoints.append(vp)
             created += 1
         audit.record(db, action="clash.create_topics", actor=actor, method="POST",
                      path=f"/projects/{pid}/clash", detail={"created": created})
@@ -138,11 +156,15 @@ def run_clash_federated(
     created = 0
     if create_topics and not coordinate:
         for c in results[:limit]:
-            db.add(Topic(
+            t = Topic(
                 project_id=pid, type="clash", status="open",
                 title=f"Clash: {c['a_model']}:{c['a_class']} × {c['b_model']}:{c['b_class']} "
                       f"({c['method']} vol {c['volume']})",
-                anchor=c["point"], element_guids=[c["a_guid"], c["b_guid"]]))
+                anchor=c["point"], element_guids=[c["a_guid"], c["b_guid"]])
+            db.add(t)
+            vp = _clash_viewpoint(c.get("point"), [c["a_guid"], c["b_guid"]])   # CLASH-WALKTHROUGH
+            if vp is not None:
+                t.viewpoints.append(vp)
             created += 1
         audit.record(db, action="clash.federated", actor=actor, method="POST",
                      path=f"/projects/{pid}/clash/federated", detail={"created": created})
