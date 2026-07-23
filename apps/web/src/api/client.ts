@@ -1246,6 +1246,31 @@ export class ApiClient extends HttpCore {
       citation: string; note: string; verify: string }>(
       `/projects/${pid}/mep/sprinkler-coverage?hazard=${encodeURIComponent(hazard)}`);
   }
+  /** PROCURE-LEVEL: group QTO line items into buyout packages (each with an RFQ scope to send out). */
+  buyoutPackages(pid: string, qtoLines: Record<string, unknown>[], by = "trade") {
+    type Pkg = {
+      package: string; line_count: number; est_cost: number;
+      rfq_scope: { item: string; qty: number | null; unit: string }[];
+      lines: { item: string; qty: number | null; unit: string; unit_price: number | null }[];
+    };
+    return this.json<{ grouped_by: string; package_count: number; total_est_cost: number; packages: Pkg[]; note: string }>(
+      `/projects/${pid}/procurement/buyout-packages`, { method: "POST", body: JSON.stringify({ qto_lines: qtoLines, by }) });
+  }
+  /** PROCURE-LEVEL: score returned quotes for a buyout package on price + coverage completeness + lead time. */
+  procurementLevel(pid: string, scope: Record<string, unknown>[], quotes: Record<string, unknown>[],
+                   weights?: Record<string, number>) {
+    type Supplier = {
+      supplier: string; coverage_pct: number; covered_lines: number; scope_lines: number;
+      covered_ext: number; est_full_scope: number | null; lead_time_days: number | null;
+      scope_gaps: string[]; price_score: number; lead_score: number; score: number;
+    };
+    type Item = { item: string; qty: number; low_supplier: string | null; low_price: number | null; quoted_by: number };
+    return this.json<{
+      scope_lines: number; supplier_count: number; best_value_supplier: string | null;
+      weights: { price: number; coverage: number; lead_time: number };
+      suppliers: Supplier[]; items: Item[]; note: string;
+    }>(`/projects/${pid}/procurement/level`, { method: "POST", body: JSON.stringify({ scope, quotes, weights }) });
+  }
   /** PROD-ACTUALS: installed-rate actual vs planned + crew utilization over field productivity actuals. */
   progressActuals(pid: string, actuals: Record<string, unknown>[], planned?: Record<string, unknown>) {
     type Group = {

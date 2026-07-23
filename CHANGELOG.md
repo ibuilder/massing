@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.594 — PROCURE-LEVEL: QTO → buyout packages + coverage/lead-time-aware quote scoring
+
+The buyout loop on top of the estimate: turn the QTO into RFQ-ready packages, then score returned quotes on
+more than headline price.
+
+- **`buyout_packages` + `POST /projects/{pid}/procurement/buyout-packages`**: group QTO line items into
+  buyout packages (by trade / CSI / material class / discipline), each carrying an **RFQ scope** (item · qty ·
+  unit) the buyer can send out, ranked by estimated cost.
+- **`score_quotes` + `POST /projects/{pid}/procurement/level`**: score returned quotes for one package against
+  its RFQ scope on a normalized basis — **price** (extended over the scope quantities, with uncovered scope
+  extrapolated at the supplier's covered average), **coverage completeness** (how much of the scope they
+  priced), and **lead time** — into a composite [0,1] score that ranks the suppliers and lists each one's
+  scope gaps. Incomplete bids are penalized on coverage, never silently dropped; the lead-time weight folds
+  into price + coverage when no lead times are supplied. Per-item low prices are surfaced too.
+- Deterministic on top of the existing quote-leveling; `buyoutPackages` / `procurementLevel` client methods +
+  `test_procure_level`. Backend suite green; CodeQL 0.
+
 ## v0.3.593 — PROD-ACTUALS: installed-rate actual vs planned + crew utilization
 
 The productivity actuals loop — so the line-of-balance / 4D view shows whether the field is gaining or

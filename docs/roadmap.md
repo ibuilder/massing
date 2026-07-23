@@ -120,10 +120,14 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   direction change (sweep-axis angle from the placement) — deterministic geometry, no CV (IFC gives us what
   others infer from PDFs). Branch legs aren't double-counted; counts roll into **QTO** as EA `qto_lines`.
   Client (`mepFittings`) + `test_mep_fittings` over three authored+connected mini-systems.
-- **PROCURE-LEVEL — RFQ / quote-leveling** *(M).* Group QTO line items into buyout
-  packages, emit a structured RFQ, and score returned quotes on a normalized per-unit basis (price + lead-time
-  + coverage completeness) — `procurement.py` + a `procurement_package` module + `/procurement/level`, reusing
-  the shipped bid-leveling scorer. (Supplier price/catalog feeds = INTEGRATE; placing the PO stays human.)
+- ◧ **PROCURE-LEVEL — RFQ / quote-leveling** *(M; v0.3.594).* ✅ `procurement.buyout_packages` +
+  `POST /procurement/buyout-packages` groups QTO line items into buyout packages, each carrying a ready **RFQ
+  scope** (item/qty/unit); `procurement.score_quotes` + `POST /procurement/level` scores returned quotes for a
+  package against that scope on a normalized basis — **price** (extended over scope qty, uncovered scope
+  extrapolated), **coverage completeness**, and **lead time** → a composite [0,1] ranking with each supplier's
+  scope gaps (incomplete bids penalized, not dropped). Client (`buyoutPackages`/`procurementLevel`) +
+  `test_procure_level`. **Remaining:** persist packages (a `procurement_package` module) + the send-RFQ bridge.
+  (Supplier price/catalog feeds = INTEGRATE; placing the PO stays human.)
 - **TESTFIT-ADJ — adjacency + dimensional rule packs** *(S/M).* Extend the test-fit solver with a
   declarative **adjacency matrix** (required-adjacent · must-not-be-adjacent · needs-daylight/exterior-wall ·
   needs-wet-wall) as an `adjacency_score` term, and a room-program **dimensional-compliance** rule pack

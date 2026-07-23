@@ -71,6 +71,117 @@ def level_quotes(quotes: list[dict]) -> dict:
             "message": (None if rows else "No quote lines to level.")}
 
 
+_PKG_KEYS = ("package", "trade", "csi", "material_class", "discipline")
+_DEFAULT_W = {"price": 0.6, "coverage": 0.25, "lead_time": 0.15}
+
+
+def buyout_packages(qto_lines: list[dict], by: str = "trade") -> dict:
+    """PROCURE-LEVEL: group QTO line items into **buyout packages** for RFQ. `by` picks the grouping field
+    (trade / csi / material_class / discipline / package); each package carries its scope lines + a ready
+    RFQ scope (item · qty · unit) the buyer can send out. Deterministic — no side effects."""
+    by = by if by in _PKG_KEYS else "trade"
+    groups: dict[str, dict] = {}
+    for ln in qto_lines or []:
+        if not isinstance(ln, dict):
+            continue
+        key = str(ln.get(by) or ln.get("package") or "General").strip() or "General"
+        item = (ln.get("item") or ln.get("description") or ln.get("material") or "").strip()
+        if not item:
+            continue
+        g = groups.setdefault(key, {"package": key, "lines": [], "est_cost": 0.0})
+        qty, unit = _num(ln.get("qty")), ln.get("unit") or ln.get("uom") or ""
+        cost = _num(ln.get("cost")) or _num(ln.get("total")) or (qty * _num(ln.get("unit_price")))
+        g["lines"].append({"item": item, "qty": qty or None, "unit": unit,
+                           "unit_price": _num(ln.get("unit_price")) or None})
+        g["est_cost"] += cost
+    packages = []
+    for key, g in groups.items():
+        packages.append({
+            "package": key, "line_count": len(g["lines"]), "est_cost": round(g["est_cost"], 2),
+            "rfq_scope": [{"item": ln["item"], "qty": ln["qty"], "unit": ln["unit"]} for ln in g["lines"]],
+            "lines": g["lines"],
+        })
+    packages.sort(key=lambda p: -p["est_cost"])
+    return {"grouped_by": by, "package_count": len(packages),
+            "total_est_cost": round(sum(p["est_cost"] for p in packages), 2), "packages": packages,
+            "note": "QTO lines grouped into buyout packages; each carries an RFQ scope (item/qty/unit) to "
+                    "send to suppliers. Feed returned quotes to /procurement/level for a scored comparison."}
+
+
+def score_quotes(scope: list[dict], quotes: list[dict], weights: dict | None = None) -> dict:
+    """PROCURE-LEVEL: score returned quotes for **one package** against its RFQ `scope` on a normalized
+    basis — **price** (extended over the scope quantities), **coverage completeness** (how much of the
+    scope the supplier priced), and **lead time**. Combines into a composite [0,1] score and ranks the
+    suppliers, listing each one's scope gaps. Deterministic; lead-time weight folds into price+coverage
+    when no lead times are supplied."""
+    w = {**_DEFAULT_W, **(weights or {})}
+    scope_items = [(_canon(s.get("item", "")), s) for s in (scope or []) if _canon(s.get("item", ""))]
+    scope_qty = {k: (_num(s.get("qty")) or 1.0) for k, s in scope_items}
+    scope_keys = list(scope_qty)
+    n_scope = len(scope_keys)
+
+    graded = []
+    for i, q in enumerate(quotes or []):
+        supplier = q.get("supplier") or f"Supplier {i+1}"
+        priced: dict[str, float] = {}
+        for ln in q.get("lines", []):
+            k = _canon(ln.get("item", ""))
+            up = _num(ln.get("unit_price"))
+            if k and up > 0:
+                priced[k] = up
+        covered = [k for k in scope_keys if k in priced] if n_scope else list(priced)
+        coverage = round(len(covered) / n_scope, 4) if n_scope else (1.0 if priced else 0.0)
+        # price extended over the SCOPE quantities (apples-to-apples), only for covered items
+        covered_ext = round(sum(scope_qty.get(k, 1.0) * priced[k] for k in covered), 2)
+        # extrapolate the uncovered scope at the supplier's covered average → a full-scope estimate
+        est_full = round(covered_ext / coverage, 2) if coverage else None
+        lead = _num(q.get("lead_time_days")) or None
+        gaps = [s.get("item") for k, s in scope_items if k not in priced]
+        graded.append({"supplier": supplier, "coverage_pct": coverage, "covered_lines": len(covered),
+                       "scope_lines": n_scope, "covered_ext": covered_ext, "est_full_scope": est_full,
+                       "lead_time_days": lead, "scope_gaps": gaps})
+
+    # normalize each dimension across suppliers → composite
+    ests = [g["est_full_scope"] for g in graded if g["est_full_scope"]]
+    best_price = min(ests) if ests else None
+    leads = [g["lead_time_days"] for g in graded if g["lead_time_days"]]
+    best_lead = min(leads) if leads else None
+    have_leads = bool(leads)
+    wp, wc, wl = w["price"], w["coverage"], (w["lead_time"] if have_leads else 0.0)
+    wsum = wp + wc + wl or 1.0
+    for g in graded:
+        price_score = round(best_price / g["est_full_scope"], 4) if (best_price and g["est_full_scope"]) else 0.0
+        lead_score = round(best_lead / g["lead_time_days"], 4) if (have_leads and g["lead_time_days"]) else (
+            1.0 if have_leads else 0.0)
+        g["price_score"], g["lead_score"] = price_score, lead_score
+        g["score"] = round((wp * price_score + wc * g["coverage_pct"] + wl * lead_score) / wsum, 4)
+    graded.sort(key=lambda g: -g["score"])
+
+    # per-item low price across suppliers (union of scope + quoted)
+    item_rows = []
+    label = {k: s.get("item") for k, s in scope_items}
+    for k in scope_keys:
+        prices = {}
+        for i, q in enumerate(quotes or []):
+            for ln in q.get("lines", []):
+                if _canon(ln.get("item", "")) == k and _num(ln.get("unit_price")) > 0:
+                    prices[q.get("supplier") or f"Supplier {i+1}"] = _num(ln.get("unit_price"))
+        low_s = min(prices, key=lambda s: prices[s]) if prices else None
+        item_rows.append({"item": label[k], "qty": scope_qty[k], "low_supplier": low_s,
+                          "low_price": prices[low_s] if low_s else None, "quoted_by": len(prices)})
+
+    return {
+        "scope_lines": n_scope, "supplier_count": len(graded),
+        "best_value_supplier": graded[0]["supplier"] if graded else None,
+        "weights": {"price": wp, "coverage": wc, "lead_time": wl},
+        "suppliers": graded, "items": item_rows,
+        "note": "Quotes scored vs the RFQ scope on price (extended over scope qty, uncovered scope "
+                "extrapolated at the supplier's covered average), coverage completeness, and lead time → "
+                "composite [0,1]. Compare within one buyout package; incomplete bids are penalized on "
+                "coverage, not silently dropped.",
+    }
+
+
 def record_quote_observations(db: Session, project_id: str, quotes: list[dict],
                               actor: str = "system") -> int:
     """PROC-LOOP: every leveled quote line becomes a durable **price observation**

@@ -32,6 +32,24 @@ def level_quotes(pid: str, quotes: list[dict] = Body(..., embed=True), record: b
     return out
 
 
+@router.post("/projects/{pid}/procurement/buyout-packages")
+def buyout_packages(pid: str, payload: dict = Body(default={}),
+                    _: str = Depends(require_role("viewer"))):
+    """PROCURE-LEVEL: group QTO line items into buyout packages (each with an RFQ scope to send out).
+    Body: {qto_lines:[{item, qty, unit, trade?/csi?/material_class?, unit_price?, cost?}], by?}."""
+    return procurement.buyout_packages(payload.get("qto_lines") or [], payload.get("by") or "trade")
+
+
+@router.post("/projects/{pid}/procurement/level")
+def level(pid: str, payload: dict = Body(...), _: str = Depends(require_role("viewer"))):
+    """PROCURE-LEVEL: score returned quotes for one buyout package against its RFQ scope on a normalized
+    basis — price (extended over scope qty), coverage completeness, and lead time → a composite [0,1] score
+    ranking the suppliers, with each one's scope gaps. Body: {scope:[{item, qty, unit}],
+    quotes:[{supplier, lead_time_days?, lines:[{item, qty, unit, unit_price}]}], weights?}."""
+    return procurement.score_quotes(payload.get("scope") or [], payload.get("quotes") or [],
+                                    payload.get("weights"))
+
+
 @router.get("/projects/{pid}/procurement/price-history")
 def price_history(pid: str, material: str | None = None, db: Session = Depends(get_db),
                   _: str = Depends(require_role("viewer"))):
