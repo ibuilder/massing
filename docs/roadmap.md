@@ -13,8 +13,14 @@ are driven several phases deep; the **master-builder skill** is installed and co
 What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runtime/tooling ring, and the
 decomposition/design carry-overs.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (316 suites) · single-source version in
-`apps/web/package.json` (v0.3.589).
+**Status:** CodeQL 0 open alerts · full backend suite green (320 suites) · single-source version in
+`apps/web/package.json` (v0.3.594).
+
+**Recently shipped (R16 Tier-2 engine wave, v0.3.591–594):** four deterministic model/field engines —
+**DESIGN-METRICS + DAYLIGHT** (program efficiency + a CIBSE average-daylight-factor estimate from the model's
+own windows), **MEP-FITTINGS** (implied tee/cross/reducer/elbow over the port graph → QTO EA lines),
+**PROD-ACTUALS** (installed-rate actual vs planned + crew utilization), and **PROCURE-LEVEL** (QTO → buyout
+packages + coverage/lead-time-aware quote scoring). Each is engine + route + client + test, CI-green.
 
 **Recently merged (open-PR cleanup, v0.3.586–589):** the production-readiness PRs landed — **security +
 performance hardening**, **operational hardening** (opt-in `/metrics` auth), **dependency hygiene**

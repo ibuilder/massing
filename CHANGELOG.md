@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.595 — docs: sync README / roadmap / status to the R16 Tier-2 engine wave (v0.3.591–594)
+
+Documentation refresh capturing the four deterministic engines just shipped — no code change.
+
+- **roadmap.md** status line → 320 suites / v0.3.594, with a "recently shipped" summary of the
+  DESIGN-METRICS + DAYLIGHT, MEP-FITTINGS, PROD-ACTUALS, and PROCURE-LEVEL wave.
+- **README.md** lead highlight rewritten around the four model/field/buyout engines.
+- **status.md** point-in-time watermark advanced to v0.3.594.
+
 ## v0.3.594 — PROCURE-LEVEL: QTO → buyout packages + coverage/lead-time-aware quote scoring
 
 The buyout loop on top of the estimate: turn the QTO into RFQ-ready packages, then score returned quotes on

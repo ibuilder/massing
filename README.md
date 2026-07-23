@@ -283,7 +283,15 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **Production observability + operational hardening (v0.3.586–v0.3.589, current).** The production-readiness
+- **Design, MEP, field-productivity and buyout engines straight off the model (v0.3.591–v0.3.594, current).**
+  Four deterministic engines, each computed from the model or the field data rather than reconstructed by AI:
+  **design metrics** (floors · GFA · net-to-gross · unit count · area-by-type) plus a **daylight-factor
+  estimate** from the model's own windows (CIBSE formula, clearly labelled an estimate); **MEP fittings**
+  inferred over the port-connectivity graph (tee/cross at branches, reducer at a size step, elbow at a
+  direction change) rolled straight into QTO; a **productivity actuals loop** (installed rate + crew
+  utilization, actual vs planned takt); and **buyout packaging + quote scoring** (QTO → RFQ packages, quotes
+  ranked on price + coverage completeness + lead time). All CI-green with CodeQL at 0.
+- **Production observability + operational hardening (v0.3.586–v0.3.589).** The production-readiness
   stack landed, all **env-gated no-ops until configured**: **Alembic** DB migrations (a baseline schema
   revision + a CI drift-guard), **OpenTelemetry** distributed tracing (FastAPI + SQLAlchemy, sampling
   control), and **Sentry-compatible** error alerting (fail-open, with PII scrubbing). Alongside: opt-in
