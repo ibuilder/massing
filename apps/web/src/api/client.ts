@@ -2054,6 +2054,25 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** ABSORPTION-SELLOUT — phase revenue by absorption rate → the monthly sell-out curve + months-to-sellout
+   * (the carry driver) + total revenue/carry. */
+  feasibilitySellout(pid: string, body: {
+    units: number; absorption_per_month: number; avg_price: number; monthly_carry?: number; start_month?: number;
+  }) {
+    type Month = { month: number; units_sold: number; revenue: number; cumulative_units: number; cumulative_revenue: number; remaining_units: number };
+    return this.json<{
+      units: number; absorption_per_month: number; avg_price: number; months_to_sellout: number | null;
+      years_to_sellout: number; total_revenue: number; avg_monthly_revenue: number; total_carry: number;
+      monthly_carry: number | null; schedule: Month[]; note: string;
+    }>(`/projects/${pid}/feasibility/sellout`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** LOT-SUPPLY-INDEX — months of supply = VDL ÷ monthly absorption, indexed to equilibrium (100). */
+  feasibilityLotSupply(pid: string, body: { vdl: number; monthly_absorption: number; equilibrium_months?: number }) {
+    return this.json<{
+      vdl: number; monthly_absorption: number; equilibrium_months: number; months_of_supply: number | null;
+      lsi: number | null; band: "oversupplied" | "balanced" | "undersupplied" | "unknown"; note: string;
+    }>(`/projects/${pid}/feasibility/lot-supply`, { method: "POST", body: JSON.stringify(body) });
+  }
   /** PERMIT-TIMELINE — days-to-issue percentiles (p25/median/p75) by jurisdiction × type × valuation band +
    * a pro-forma estimate (median expected / p75 conservative), over cached permit records. */
   permitsTimeline(pid: string, body: {

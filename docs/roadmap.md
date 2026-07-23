@@ -108,10 +108,13 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   type → jurisdiction until stable. Reads the project's `permit` records (or supplied permits). Client
   (`permitsTimeline`) + `test_permit_timeline`. **Remaining:** wire the estimate into the pro-forma carry +
   `permit_check` expected-queue (the connector could also start storing the filed/applied date).
-- **ABSORPTION-SELLOUT + LOT-SUPPLY-INDEX — the revenue-side underwriting levers** *(M).* A **sell-out schedule**
-  engine (absorption rate → monthly revenue phasing → sell-out duration → IRR/carry — the biggest underwriting
-  lever we lack) + the public **Lot Supply Index** (`months_of_supply = VDL / absorption_rate`, banded
-  over/under-supplied) on land screening. Absorption input = user assumption offline, comparable = INTEGRATE.
+- ◧ **ABSORPTION-SELLOUT + LOT-SUPPLY-INDEX — the revenue-side underwriting levers** *(M; v0.3.605).*
+  `absorption.py` + `POST /projects/{pid}/feasibility/sellout` (absorption rate → monthly revenue phasing →
+  months-to-sellout = the carry driver + total revenue/carry) + `POST .../feasibility/lot-supply` (the public
+  Lot Supply Index: `months_of_supply = VDL / monthly_absorption`, indexed to a balanced-market target — 100
+  equilibrium · >125 oversupplied · <75 undersupplied). Absorption input = user assumption offline; comparable
+  = INTEGRATE. Clients (`feasibilitySellout`/`feasibilityLotSupply`) + `test_absorption`. **Remaining:** wire
+  the sell-out revenue curve + carry into the pro-forma IRR.
 - **PROGRESS-ROLLUP — % complete per class/trade from scan deviation** *(M).* Roll the shipped `scan_deviation.py`
   primitive up to **% complete per IFC class / trade / level** (as-built presence vs the design model's expected
   set); feeds the GC portal + earned value. (+ **SCAN-4D**: diff two capture timestamps → change log + delta.)

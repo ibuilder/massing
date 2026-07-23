@@ -5,7 +5,7 @@ cost to the construction midpoint for a project — reading the project's `marke
 one exists, else query parameters."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import market_intelligence as mi
@@ -15,6 +15,33 @@ from ..models import Project
 from ..rbac import current_user, require_role
 
 router = APIRouter()
+
+
+@router.post("/projects/{pid}/feasibility/sellout")
+def feasibility_sellout(pid: str, body: dict = Body(...), db: Session = Depends(get_db),
+                        _: str = Depends(require_role("viewer"))):
+    """ABSORPTION-SELLOUT — phase revenue by absorption rate → the monthly sell-out curve, months-to-sellout
+    (the carry driver), total revenue + carry. Body: `{units, absorption_per_month, avg_price,
+    monthly_carry?, start_month?}`. 404 for a missing project."""
+    from .. import absorption
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return absorption.sellout(body.get("units"), body.get("absorption_per_month"), body.get("avg_price"),
+                              monthly_carry=body.get("monthly_carry") or 0.0,
+                              start_month=int(body.get("start_month") or 1))
+
+
+@router.post("/projects/{pid}/feasibility/lot-supply")
+def feasibility_lot_supply(pid: str, body: dict = Body(...), db: Session = Depends(get_db),
+                           _: str = Depends(require_role("viewer"))):
+    """LOT-SUPPLY-INDEX — months of supply = VDL ÷ monthly absorption, as an index vs a balanced-market
+    target (100 = equilibrium · > 125 oversupplied · < 75 undersupplied). Body: `{vdl, monthly_absorption,
+    equilibrium_months?}`. 404 for a missing project."""
+    from .. import absorption
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return absorption.lot_supply_index(body.get("vdl"), body.get("monthly_absorption"),
+                                       equilibrium_months=float(body.get("equilibrium_months") or 6.0))
 
 
 @router.get("/market/snapshot")

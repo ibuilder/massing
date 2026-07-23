@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.605 — ABSORPTION-SELLOUT + LOT-SUPPLY-INDEX: the revenue-side underwriting levers
+
+Our market work is cost-side (escalation); the biggest missing underwriting lever is *how fast the product
+sells*. Two deterministic engines add it.
+
+- **`absorption.py` + `POST /projects/{pid}/feasibility/sellout`**: an absorption rate (sales/month) phases
+  revenue over time → the **monthly sell-out curve**, **months-to-sell-out** (the carry the pro-forma must
+  underwrite), total revenue, and carry over the window. The last month sells the remainder on an uneven mix.
+- **`POST /projects/{pid}/feasibility/lot-supply`**: the public **Lot Supply Index** —
+  `months_of_supply = VDL ÷ monthly absorption`, indexed to a balanced-market target (100 = equilibrium ·
+  > 125 oversupplied · < 75 undersupplied) — a defensible supply/demand read for land screening.
+- Absorption rate is an input (a comparable rate is an optional market feed — INTEGRATE). Deterministic
+  arithmetic; `feasibilitySellout` / `feasibilityLotSupply` client methods + `test_absorption`. Backend suite
+  green; CodeQL 0.
+
 ## v0.3.604 — PERMIT-TIMELINE: days-to-issue analytics → a pro-forma entitlement driver
 
 We already ingest permit feeds; the missing bridge was the *timeline model* between the raw feed and the
