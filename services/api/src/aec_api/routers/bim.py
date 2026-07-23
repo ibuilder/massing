@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from .. import audit, bcf_io, rbac, signing, storage
+from .. import audit, bcf_io, rbac, signing, storage, topic_lifecycle
 from ..db import get_db
 from ..models import Attachment, Comment, DrawingMarkup, Project, ProjectMember, Topic, Viewpoint
 from ..rbac import current_user, require_role
@@ -550,12 +550,25 @@ def patch_topic(pid: str, tid: str, body: TopicPatch, db: Session = Depends(get_
                 actor: str = Depends(require_role("reviewer"))):
     t = _topic(db, pid, tid)
     changes = body.model_dump(exclude_unset=True)
+    if "status" in changes:                      # TOPIC-LIFE: enforce the canonical state machine
+        err = topic_lifecycle.validate_transition(t.status, changes["status"])
+        if err:
+            raise HTTPException(422, err)
     for k, v in changes.items():
         setattr(t, k, v)
     audit.record(db, action="topic.update", actor=actor, method="PATCH", topic_id=t.id,
                  path=f"/projects/{pid}/topics/{tid}", detail=changes)
     db.commit()
     return t
+
+
+@router.get("/projects/{pid}/topics/{tid}/timeline")
+def topic_timeline(pid: str, tid: str, db: Session = Depends(get_db),
+                   _sec: str = Depends(require_role("viewer"))):
+    """TOPIC-LIFE — the topic's merged history (creation, status moves, edits, threaded comments,
+    viewpoints, attachments) assembled from the audit trail + comment rows, oldest→newest, plus the
+    canonical status list and this topic's allowed next transitions."""
+    return topic_lifecycle.timeline(db, _topic(db, pid, tid))
 
 
 # --- pins (topics with a 3D anchor) -----------------------------------------
@@ -576,6 +589,9 @@ def list_pins(pid: str, limit: int = 2000, db: Session = Depends(get_db),
 def add_comment(pid: str, tid: str, body: CommentIn, db: Session = Depends(get_db),
                 _: str = Depends(require_role("reviewer"))):
     _topic(db, pid, tid)
+    err = topic_lifecycle.validate_reply(db, tid, body.reply_to)   # TOPIC-LIFE threading
+    if err:
+        raise HTTPException(422, err)
     c = Comment(topic_id=tid, **body.model_dump())
     db.add(c)
     audit.record(db, action="comment.create", method="POST", topic_id=tid,

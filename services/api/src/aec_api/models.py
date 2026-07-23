@@ -269,6 +269,9 @@ class Comment(Base):
     author: Mapped[str | None] = mapped_column(String, nullable=True)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     viewpoint_id: Mapped[str | None] = mapped_column(ForeignKey("viewpoints.id"), nullable=True)
+    # TOPIC-LIFE threading: the parent comment's id (same topic; validated in the route — plain String,
+    # not a self-FK, so SQLite batch-alter stays trivial)
+    reply_to: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     topic: Mapped[Topic] = relationship(back_populates="comments")

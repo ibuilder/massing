@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.626 — TOPIC-LIFE: the BCF-topic lifecycle spine (state machine · threaded comments · timeline)
+
+Issues stop being flat rows — they get a real workflow, a conversation, and a history.
+
+- **The status state machine** (`topic_lifecycle.py`, enforced on `PATCH /topics/{tid}`): the four
+  canonical workflow statuses with real transition rules — resolved can't jump straight back to open,
+  closed only reopens to *in progress*, idempotent PATCHes pass, and **vendor statuses from imported BCF
+  files pass through unvalidated** (we enforce our workflow, we don't reject theirs).
+- **Threaded comments**: `reply_to` on comments (+ Alembic revision), validated to an existing comment
+  on the *same* topic (cross-topic threading 422s).
+- **The per-topic timeline** (`GET /topics/{tid}/timeline`): creation, every status move, field edits,
+  threaded comments, viewpoints and attachments merged from the audit trail oldest→newest, plus the
+  canonical status list and this topic's allowed next transitions.
+- **Issue Board click-through**: every kanban card now opens an inline timeline drawer (💬 threads shown
+  with ↳, "next:" transition chips) — live-verified in the demo, which now seeds a real clash history
+  and captures all six topic timelines.
+- `test_topic_lifecycle` (suite 339); drift-guard clean; typecheck/lint/build green.
+
 ## v0.3.625 — PORTAL-TXN phase 2: the client-facing payment schedule (opt-in per token)
 
 The client sees where the money stands — as a display, never a payment rail.

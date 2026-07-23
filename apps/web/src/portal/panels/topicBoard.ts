@@ -61,7 +61,8 @@ export async function renderTopicBoard(ctx: PanelContext) {
         list.style.cssText = "display:flex;flex-direction:column;gap:6px";
         for (const t of col.topics.slice(0, 50)) {
           const card = document.createElement("div");
-          card.style.cssText = "border:1px solid var(--border,#e5e7eb);border-radius:8px;padding:7px 9px;font-size:12px";
+          card.style.cssText = "border:1px solid var(--border,#e5e7eb);border-radius:8px;padding:7px 9px;font-size:12px;cursor:pointer";
+          card.title = "Click for the topic timeline";
           card.innerHTML = `<div style="font-weight:600">${esc(t.title)}</div>`
             + `<div class="meta" style="margin:2px 0 0;display:flex;gap:8px;flex-wrap:wrap">`
             + `<span>${esc(t.type)}</span>`
@@ -69,6 +70,27 @@ export async function renderTopicBoard(ctx: PanelContext) {
             + (t.assignee ? `<span>@${esc(t.assignee)}</span>` : "")
             + (t.due_date ? `<span>due ${esc(t.due_date.slice(0, 10))}</span>` : "")
             + `</div>`;
+          // TOPIC-LIFE: click toggles an inline timeline drawer (merged history, oldest→newest)
+          let drawer: HTMLElement | null = null;
+          card.onclick = async () => {
+            if (drawer) { drawer.remove(); drawer = null; return; }
+            drawer = document.createElement("div");
+            drawer.style.cssText = "margin-top:6px;border-top:1px dashed var(--border,#e5e7eb);padding-top:5px";
+            drawer.innerHTML = `<div class="meta">loading…</div>`;
+            card.appendChild(drawer);
+            try {
+              const tl = await ctx.host.api.topicTimeline(pid, t.id);
+              drawer.innerHTML = tl.events.slice(-12).map((e) =>
+                `<div style="display:flex;gap:6px;margin:2px 0;font-size:11px">`
+                + `<span class="meta" style="margin:0;white-space:nowrap">${e.ts ? esc(e.ts.slice(0, 16).replace("T", " ")) : ""}</span>`
+                + `<span>${e.kind === "comment" ? "💬 " : ""}${e.detail?.reply_to ? "↳ " : ""}${esc(e.summary)}${e.actor ? ` <i class="meta" style="margin:0">— ${esc(e.actor)}</i>` : ""}</span>`
+                + `</div>`).join("")
+                + (tl.event_count > 12 ? `<div class="meta" style="opacity:.7">…${tl.event_count - 12} earlier event(s)</div>` : "")
+                + (tl.allowed_next.length ? `<div class="meta" style="margin-top:3px;opacity:.8">next: ${tl.allowed_next.map(esc).join(" · ")}</div>` : "");
+            } catch (e) {
+              drawer.innerHTML = `<div class="meta">timeline unavailable: ${esc((e as Error).message)}</div>`;
+            }
+          };
           list.appendChild(card);
         }
         if (col.topics.length > 50) {

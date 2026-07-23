@@ -2069,6 +2069,25 @@ export class ApiClient extends HttpCore {
       columns: { key: string; count: number; topics: T[] }[]; note: string;
     }>(`/projects/${pid}/topics/board?${q.toString()}`);
   }
+  /** TOPIC-LIFE — the topic's merged history (creation, status moves, threaded comments, viewpoints,
+   * attachments) + the canonical status machine and this topic's allowed next transitions. */
+  topicTimeline(pid: string, tid: string) {
+    return this.json<{
+      topic_id: string; title: string; type: string; status: string;
+      events: { ts: string | null; kind: string; actor: string | null; summary: string;
+        detail?: Record<string, unknown> }[];
+      event_count: number; statuses: string[]; allowed_next: string[];
+    }>(`/projects/${pid}/topics/${tid}/timeline`);
+  }
+  topicComments(pid: string, tid: string) {
+    return this.json<{ id: string; topic_id: string; author: string | null; text: string;
+      viewpoint_id: string | null; reply_to: string | null; created_at: string }[]>(
+      `/projects/${pid}/topics/${tid}/comments`);
+  }
+  addTopicComment(pid: string, tid: string, body: { author?: string; text: string; reply_to?: string }) {
+    return this.json<{ id: string; reply_to: string | null }>(
+      `/projects/${pid}/topics/${tid}/comments`, { method: "POST", body: JSON.stringify(body) });
+  }
   /** PORTAL-TXN — record a client decision through a share token (public; approve/acknowledge/decline). */
   sharedDecision(token: string, body: {
     item_type: string; item_ref: string; action: "approved" | "acknowledged" | "declined";

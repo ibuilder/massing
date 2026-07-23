@@ -88,8 +88,13 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   'board' isn't captured as an id; bad group/selector → 422. Client (`topicsBoard`) + `test_topic_board`.
   ✅ the **🗂 Issue Board portal panel** *(v0.3.622)* — group-by selector + a QUERY-DSL filter box +
   horizontal kanban lanes (server-ordered columns, escaped topic cards with type/priority/assignee/due
-  chips), in the Build stage; captured for the demo. **Remaining:** the buildingSMART status/stage state
-  machine · threaded comments (`reply_to`) · the per-topic audit timeline.
+  chips), in the Build stage; captured for the demo. ✅ **TOPIC-LIFE (v0.3.626):** the **status state
+  machine** enforced on PATCH (`topic_lifecycle.py` — resolved can't jump back to open, closed only reopens
+  to *in progress*, idempotent passes, **vendor BCF-import statuses pass through** for round-trip compat) ·
+  **threaded comments** (`reply_to` + Alembic revision, validated same-topic) · the **per-topic timeline**
+  (`GET /topics/{tid}/timeline` — creation/status moves/edits/comments/viewpoints/attachments merged from
+  the audit trail, + allowed-next transitions) · board cards click open an inline timeline drawer
+  (live-verified in the demo, six topic timelines captured). `test_topic_lifecycle`.
 - ◧ **CLASH-WALKTHROUGH** *(S; v0.3.619).* ✅ Every clash topic created by a clash run (single-model AND
   federated) now carries a **framed BCF viewpoint** — camera at a 4 m diagonal standoff, target = the clash
   point, components = the offending pair — so reopening the topic lands the reviewer at the clash, and walk

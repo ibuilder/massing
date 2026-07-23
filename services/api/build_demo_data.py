@@ -524,9 +524,23 @@ with TestClient(app) as c:
               {"type": "punch", "title": "Missing door closer — Suite 210", "status": "closed"},
               {"type": "info", "title": "Owner walkthrough notes 07/18", "status": "closed"}):
         try:
-            c.post(f"{P}/topics", json=t)
+            r = c.post(f"{P}/topics", json=t)
+            # TOPIC-LIFE: give the clash topic a real history (status move + threaded comments) so the
+            # board's click-through timeline drawer has something to replay in the demo
+            if t["type"] == "clash" and r.status_code == 201:
+                _tid = r.json()["id"]
+                c.patch(f"{P}/topics/{_tid}", json={"status": "in progress"})
+                _root = c.post(f"{P}/topics/{_tid}/comments",
+                               json={"author": "coordination", "text": "Raised with structural — beam can't move."})
+                if _root.status_code == 201:
+                    c.post(f"{P}/topics/{_tid}/comments",
+                           json={"author": "mech", "text": "Rerouting the duct below; shop drawing to follow.",
+                                 "reply_to": _root.json()["id"]})
         except Exception as e:                 # noqa: BLE001 — a topic that won't seed shouldn't abort
             print(f"  topic-seed skip: {e}")
+    # capture every topic's TOPIC-LIFE timeline for the board's click-through drawer
+    for _t in grab(c, f"{P}/topics") or []:
+        grab(c, f"{P}/topics/{_t['id']}/timeline")
     # Model Analysis 🔬 (needs the seeded model) + Documents 📁 + design/drawings — previously all empty
     import urllib.parse as _up
     for path in ("/model/capabilities", "/model/step-summary", "/model/query", "/model/query/views",

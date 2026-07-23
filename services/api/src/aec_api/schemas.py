@@ -87,6 +87,7 @@ class CommentIn(BaseModel):
     author: str | None = None
     text: str
     viewpoint_id: str | None = None
+    reply_to: str | None = None      # TOPIC-LIFE threading: parent comment id on the same topic
 
 
 class CommentOut(BaseModel):
@@ -96,6 +97,7 @@ class CommentOut(BaseModel):
     author: str | None
     text: str
     viewpoint_id: str | None
+    reply_to: str | None = None
     created_at: datetime
 
 
