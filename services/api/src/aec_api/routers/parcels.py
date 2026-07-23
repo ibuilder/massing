@@ -21,3 +21,19 @@ def screen(parcels_in: list[dict] = Body(..., embed=True, alias="parcels"),
 def data_status(_: str = Depends(current_user)):
     """Whether a nationwide parcel/comps data provider is connected (else screening uses your parcels)."""
     return parcels_bridge.status()
+
+
+@router.post("/parcels/analyze")
+def analyze(body: dict = Body(...), _: str = Depends(current_user)):
+    """PARCEL-IMPORT — cadastral parcel geometry ingest (upload-driven GeoJSON/WKT, no gov scraping) →
+    area / perimeter / centroid / bbox, and — with `zoning` + `proposal` — FAR / lot-coverage / height
+    compliance with per-axis slack. Body: `{geojson?|wkt?, parcel_id?, zoning?: {max_far, max_coverage,
+    max_height_m}, proposal?: {gfa_m2, footprint_m2, height_m}}`. Bad boundary → 422."""
+    from fastapi import HTTPException
+
+    from .. import parcel_geometry as pg
+    try:
+        return pg.analyze(body.get("geojson"), body.get("wkt"), body.get("parcel_id"),
+                          body.get("zoning"), body.get("proposal"))
+    except (ValueError, TypeError, KeyError) as e:
+        raise HTTPException(422, f"could not parse the parcel boundary: {e}")

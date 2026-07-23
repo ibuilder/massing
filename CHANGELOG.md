@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.609 — PARCEL-IMPORT: cadastral parcel geometry → FAR / coverage / height compliance
+
+Upload-driven parcel ingest (no government scraping) that turns a boundary into the site math zoning and
+feasibility key on.
+
+- **`parcel_geometry.py` + `POST /parcels/analyze`**: parses a parcel boundary from **GeoJSON** (Polygon or
+  Feature) or **WKT POLYGON** → **area / perimeter / centroid / bbox** via the shoelace formula. Lon/lat
+  rings are projected equirectangularly at the centroid latitude (~0.1% accurate at parcel scale, verified
+  within 1% in the test); projected-metre rings compute exactly.
+- With a **zoning envelope** (`max_far` / `max_coverage` / `max_height_m`) and a **proposal** (`gfa_m2` /
+  `footprint_m2` / `height_m`), reports per-axis **compliance with slack** — including the max-buildable GFA
+  the FAR limit implies — and the overall violations list. Missing limits report `ok: null`, never guessed.
+- Bad boundaries (a Point, malformed JSON/WKT) → 422. `parcelAnalyze` client method + `test_parcel_geometry`.
+  Backend suite green; CodeQL 0.
+
 ## v0.3.608 — RUNTIME: Node 20→22 in CI + oxlint fast pre-lint (the two benchmarked GO items)
 
 The two RUNTIME-ring items that cleared the "measured win" bar (the other four were already solved or solved

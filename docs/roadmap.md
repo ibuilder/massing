@@ -132,9 +132,12 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   the frontend one-click "fill the blanks" that pipes `blank_guids` + a value into the edit recipe.
 - **WALL-ASSEMBLY — layered wall assemblies** *(M).* An `IfcMaterialLayerSet` library (material + thickness per
   layer) driving authoring + QTO + envelope/thermal, if walls are single-material today.
-- **PARCEL-IMPORT — cadastral parcel bound to permit/zoning docs** *(S/M).* Ingest a parcel (GeoJSON/WKT
-  boundary + parcel id), bind it to zoning/permit/administrative docs, feed FAR/coverage math. Upload-driven,
-  no gov scraping.
+- ◧ **PARCEL-IMPORT — cadastral parcel geometry → FAR/coverage math** *(S/M; v0.3.609).*
+  `parcel_geometry.py` + `POST /parcels/analyze`: parse an uploaded GeoJSON/WKT boundary (no gov scraping) →
+  area / perimeter / centroid / bbox (shoelace; lon/lat projected equirectangularly at the centroid latitude),
+  and — with a zoning envelope + a proposal — **FAR / lot-coverage / height compliance** with per-axis slack +
+  max-buildable GFA. Client (`parcelAnalyze`) + `test_parcel_geometry`. **Remaining:** bind the parcel to
+  zoning/permit/administrative docs (docmanager link) + persist as a site record.
 - **PORTAL-TXN — ShareToken read-only → transactional** *(M).* Tokenized approve/acknowledge actions (approve
   an estimate version · acknowledge a CO · sign off a selection) as timestamped, token-stamped records;
   per-item status labels (Sent/Viewed/Approved/Paid) + a client-facing activity feed; a deposit/payment

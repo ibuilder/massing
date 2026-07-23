@@ -2054,6 +2054,21 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** PARCEL-IMPORT — cadastral parcel geometry (GeoJSON/WKT) → area/perimeter/centroid + FAR/coverage/
+   * height compliance vs a zoning envelope. */
+  parcelAnalyze(body: {
+    geojson?: unknown; wkt?: string; parcel_id?: string;
+    zoning?: { max_far?: number; max_coverage?: number; max_height_m?: number };
+    proposal?: { gfa_m2?: number; footprint_m2?: number; height_m?: number };
+  }) {
+    type Check = { metric: string; value: number; limit: number | null; ok: boolean | null; slack: number | null; max_gfa_m2?: number | null };
+    return this.json<{
+      parcel_id: string | null; vertices: number; coordinates_were_lonlat: boolean;
+      area_m2: number; area_acres: number; perimeter_m: number;
+      centroid: { x: number; y: number }; bbox: { minx: number; miny: number; maxx: number; maxy: number };
+      compliance?: { checks: Check[]; ok: boolean | null; violations: string[] }; note: string;
+    }>(`/parcels/analyze`, { method: "POST", body: JSON.stringify(body) });
+  }
   /** FILL-MATRIX — category × property fill-rate pivot over the model; each property carries the blank GUIDs
    * (the selection a bulk edit fills) + worst_gaps (the biggest partially-filled fields). */
   modelFillMatrix(pid: string, minCount = 1) {
