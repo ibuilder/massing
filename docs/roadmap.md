@@ -1,8 +1,8 @@
 # Roadmap
 
-The single product roadmap — **open items only**, reconciled + re-prioritized **2026-07-21 at v0.3.571**
-(a broad research pass on the construction-software field added the 🔬 R16 ring and re-topped the NOW list).
-Everything ever shipped lives in
+The single product roadmap — **open items only**, reconciled + re-prioritized **2026-07-23 at v0.3.598**
+(a second field-research pass — 14 external products + a security paper — added the 🧭 R17 ring and re-topped
+the NOW list; the 🔬 R16 ring is now **complete** and archived). Everything ever shipped lives in
 [roadmap-completed.md](roadmap-completed.md); per-release detail is in [CHANGELOG.md](../CHANGELOG.md).
 Supporting detail: [production-readiness.md](production-readiness.md) · [gc-portal.md](gc-portal.md) ·
 [cost-db-import-plan.md](cost-db-import-plan.md) · [mobile.md](mobile.md).
@@ -13,198 +13,187 @@ are driven several phases deep; the **master-builder skill** is installed and co
 What remains is bounded R14/R15 tail depth, the big-ticket continuations, a runtime/tooling ring, and the
 decomposition/design carry-overs.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (320 suites) · single-source version in
-`apps/web/package.json` (v0.3.594).
+**Status:** CodeQL 0 open alerts · full backend suite green (322 suites) · single-source version in
+`apps/web/package.json` (v0.3.598).
 
-**Recently shipped (R16 Tier-2 engine wave, v0.3.591–594):** four deterministic model/field engines —
-**DESIGN-METRICS + DAYLIGHT** (program efficiency + a CIBSE average-daylight-factor estimate from the model's
-own windows), **MEP-FITTINGS** (implied tee/cross/reducer/elbow over the port graph → QTO EA lines),
-**PROD-ACTUALS** (installed-rate actual vs planned + crew utilization), and **PROCURE-LEVEL** (QTO → buyout
-packages + coverage/lead-time-aware quote scoring). Each is engine + route + client + test, CI-green.
-
-**Recently merged (open-PR cleanup, v0.3.586–589):** the production-readiness PRs landed — **security +
-performance hardening**, **operational hardening** (opt-in `/metrics` auth), **dependency hygiene**
-(digest-pinned Docker base images), and the **observability stack**: **Alembic DB migrations** (C1,
-baseline + drift-guard CI), **OpenTelemetry tracing** (C2) and **Sentry error alerting** (C3), all
-env-gated no-ops until configured. The stale-branch backlog was cleaned (117 → 4 local branches; all work
-already in main) and the GitHub Pages were re-skinned to one branded theme. Risky major upgrades (runtime
-stack, thatopen/TS/Vite/ESLint/Capacitor majors, numpy 2.x) held for a deliberate later pass.
+**🔬 R16 ring — COMPLETE (v0.3.573–598).** All Tier-1/Tier-2 engines shipped: MARGIN-CBS · ASSET-REG ·
+RECIPE-MACROS · MASSING-OPT · MEP-EQUIP+SPEC-CONFLICT · SPACE-UTIL · DESIGN-METRICS+DAYLIGHT · MEP-FITTINGS ·
+PROD-ACTUALS · PROCURE-LEVEL · TESTFIT-ADJ (+ Design-Metrics/MEP-Fittings portal panels); Tier-3 SEC-SUPPLY
+(license/SBOM audit + PDF sanity). Full item detail archived in [roadmap-completed.md](roadmap-completed.md);
+the ◧ items with a remaining sub-phase are carried into the lists below.
 
 ---
+
+## 🧭 R17 — field-research upgrades (2026-07-23)
+
+Second broad research pass (14 external products across authoring/estimating/finance/reality-capture/BCF/VR +
+a security paper). **Same strategic edge, sharpened:** the field keeps burning its budget reconstructing
+structured data from unstructured input, and — critically — shipping **black-box AI answers a regulated
+industry can't defend**. Because our data is **GUID-first and structured**, we both skip the reconstruction
+problem *and* can make every AI answer **trace to its source deterministically**. That provenance layer is the
+flagship. BUILD = deterministic/offline/we-own-it · INTEGRATE = optional feature-flagged connector (never a
+runtime dep) · SKIP = conflicts with a constraint/non-goal.
+
+**Sprint A — Provenance & AI trust (flagship; the thesis made concrete):**
+- **★ CITED-ANSWER — provenance contract for every AI answer** *(M).* A `CitedAnswer` schema emitted across the
+  AI command bar / RFI-QA / knowledge-graph answers: `{answer, claims:[{text, citations:[CitationRef],
+  confidence}], conflicts, coverage}` where `CitationRef = {source_type: ifc|doc|record|rule, document_id,
+  revision, guid?, sheet?/page?/bbox?, record_ref?, span?}`. Answers are *composed from* cited atomic facts;
+  we populate `guid`/`record_ref`/`rule_id` **deterministically** (we never lose provenance). Deterministic
+  **coverage %** (share of sentences with ≥1 citation) + a hard **uncited-claim guard** (< 100% → warn — a
+  hallucination check needing no model confidence); **conflict surfacing** (two sources disagree on the same
+  GUID property, via the model-diff/rule engine); **provenance-as-confidence** (independent-source count,
+  current-vs-stale revision, source-type rank rule/IFC-property > doc-text). The defensible differentiator.
+- **CITE-JUMP — "show your work" UI** *(S, needs viewer).* Every claim is click-to-expand → jumps the viewer
+  to the cited GUID (reuses BCF-VIEWPOINT restore) and/or opens the cited record/sheet. Same interaction
+  whether the source is geometry, a data record, or a code-check finding.
+- **PERSONA-ANSWER — persona answer modes + structured output** *(S).* Exec / PM / Field answer lenses
+  (swap answer-shaping + the visible-KPI set), a structured `{answer, insight (one line), follow_ups (chips)}`
+  envelope on top of `CitedAnswer`, and a **dataset-scoping** toggle (query-DSL narrows the source surface →
+  tighter, more citable answers). Reuses personas/workspaces we already have.
+
+**Sprint B — Model-navigable coordination (BCF depth + viewer):**
+- **★ BCF-VIEWPOINT — capture/restore from the live viewer** *(M, needs viewer).* On new issue, serialize the
+  camera (persp/ortho + FOV), the visible/hidden GUID sets, section/clipping planes, and a `toDataURL`
+  snapshot into a BCF `VisualizationInfo`; "reopen issue" restores the exact camera + visibility. Turns our
+  metadata-only BCF topics into navigable-in-context ones — and is the jump-to-citation mechanism for CITE-JUMP.
+- **WALK-MODE — first-person walk + WebXR immersive** *(M, needs viewer).* WASD + pointer-lock eye-height
+  camera over the loaded Fragments (desktop walk mode = higher ROI), plus `renderer.xr.enabled` + controller
+  factory for any WebXR headset. Zero cloud, permissive-licensed on the three.js renderer we already ship.
+- **TOPIC-BOARD — BCF kanban + smart-filters + lifecycle** *(S/M).* A deterministic status kanban grouped by
+  `status`/`stage`/`assigned`, a `/topics?filter=<query-DSL>` endpoint reusing the selector spine, the
+  buildingSMART status/stage state machine, threaded comments (`reply_to`, degrades on export), and a
+  per-topic audit timeline. Data spine (`bcf_io.py`) exists — this is boards + lifecycle depth.
+- **CLASH-WALKTHROUGH** *(S).* Each existing clash → a saved BCF viewpoint (camera framed on the clash
+  centroid, offending GUIDs isolated); step the clash list in walk/VR marking accept/reject. Reuse of the above.
+
+**Sprint C — Estimating intelligence (deterministic, fills a real gap):**
+- **★ EST-CONFIDENCE — per-line estimate maturity/confidence** *(M).* Tag each QTO/estimate line with a
+  design-phase maturity (SD/DD/CD) and a confidence band derived from its **source** (model-derived quantity
+  vs. manual allowance vs. parametric assembly) + contingency; roll up to a project confidence score and a
+  **"% of budget still assumption-based"** KPI. Pure scoring on data we hold.
+- **BOE-LEDGER — Basis-of-Estimate assumption ledger** *(M).* Structured assumptions per line (unit source,
+  quote ref, escalation %, contingency %, date), versioned across phases, diffed assumption→actual once
+  commitments/actuals land. The traceability layer under the numbers; feeds EVM/WIP.
+- **BUYOUT-SCHED — time-phased procurement schedule** *(M; unique to us).* Join model QTO + CPM/Takt →
+  what materials, in what quantity, by when (**last-responsible-order = install date − lead time**). Only we
+  hold the model *and* the schedule.
+- **CONCEPT-BUDGET — parametric conceptual budget** *(M).* Generate a budget from a handful of massing inputs
+  (GFA-by-use · stories · envelope area, all from the IFC) against an own-history assembly library — the
+  front-of-funnel that matches the "Massing" name.
+
+**Sprint D — Scope & 4D/5D spine (the connective structure):**
+- **★ SCOPE-REG — first-class Scope register** *(M).* A scope item → **quantify** (link QTO/CBS) → **allocate**
+  to responsible party/package → tie to a schedule activity. The connective spine across QTO/CPM/CBS/RACI/
+  pull-planning we already hold *separately*. The most novel structural gap in the scan.
+- **4D5D-VIEWER — time + cost overlay scrubber** *(M/L, needs viewer).* Bind schedule activities + cost to
+  GUIDs → a 4D timeline scrubber coloring elements by construction status/date with a running earned-value/
+  cost readout. Deterministic, GUID-keyed.
+- **TRANSMITTALS — formal transmittal record** *(S).* Numbered transmittal (recipient · issued-docs list ·
+  purpose · acknowledgement), round-trippable. (Verify the workflow-engine doesn't already cover it.)
+
+**Sprint E — Feasibility & progress (deterministic BUILDs on data we can hold):**
+- **PERMIT-TIMELINE — days-to-issue percentiles → pro-forma** *(M).* Over cached permit data (`opendata.py`),
+  compute the days-to-issue distribution (p25/median/p75) by jurisdiction × permit type × valuation band +
+  seasonal issuance rate; wire median/p75 into the pro-forma as the **entitlement duration / carry-cost driver**
+  and into `permit_check.py` as an expected-queue estimate.
+- **ABSORPTION-SELLOUT + LOT-SUPPLY-INDEX — the revenue-side underwriting levers** *(M).* A **sell-out schedule**
+  engine (absorption rate → monthly revenue phasing → sell-out duration → IRR/carry — the biggest underwriting
+  lever we lack) + the public **Lot Supply Index** (`months_of_supply = VDL / absorption_rate`, banded
+  over/under-supplied) on land screening. Absorption input = user assumption offline, comparable = INTEGRATE.
+- **PROGRESS-ROLLUP — % complete per class/trade from scan deviation** *(M).* Roll the shipped `scan_deviation.py`
+  primitive up to **% complete per IFC class / trade / level** (as-built presence vs the design model's expected
+  set); feeds the GC portal + earned value. (+ **SCAN-4D**: diff two capture timestamps → change log + delta.)
+
+**Sprint F — Model-QA & authoring depth:**
+- **FILL-MATRIX — property fill-rate pivot → bulk-edit loop** *(S/M).* A category × property fill-rate matrix
+  ("of all IfcWall, X% carry FireRating…") over the property index that pinpoints *which* pset field is
+  systematically blank, wired into query-DSL/rule-library selection → GUID-stable bulk edit. The analytics →
+  selection → bulk-write loop as one UX.
+- **WALL-ASSEMBLY — layered wall assemblies** *(M).* An `IfcMaterialLayerSet` library (material + thickness per
+  layer) driving authoring + QTO + envelope/thermal, if walls are single-material today.
+- **PARCEL-IMPORT — cadastral parcel bound to permit/zoning docs** *(S/M).* Ingest a parcel (GeoJSON/WKT
+  boundary + parcel id), bind it to zoning/permit/administrative docs, feed FAR/coverage math. Upload-driven,
+  no gov scraping.
+- **PORTAL-TXN — ShareToken read-only → transactional** *(M).* Tokenized approve/acknowledge actions (approve
+  an estimate version · acknowledge a CO · sign off a selection) as timestamped, token-stamped records;
+  per-item status labels (Sent/Viewed/Approved/Paid) + a client-facing activity feed; a deposit/payment
+  **schedule** display + reminders (schedule only — the payment rail stays SKIP); a scoped client comment
+  thread anchored to a pin/CO/selection (BCF round-trip). *(Payment execution, financing, e-sign-of-record: SKIP.)*
+- **DORMER** *(S).* A GUID-stable parametric dormer/roof-window family recipe (roof-plane intersection geometry).
+
+**Cross-cutting / substrate (interleave; larger, lower-urgency):**
+- **NODE-CANVAS — reusable connector/node canvas** *(L).* A canvas substrate (channels = state-derived animated
+  values via spring/ease · keyed reconciliation · anchor registry for wires · world/overlay/screen layers ·
+  headless `step(n,dt)` for golden tests) for the graph-shaped features (MEP-GRAPH · recipe-macros · schedule
+  dependencies · golden-thread). Borrow the *patterns*, not a canvas-only framework that would fight `@thatopen/ui`.
+- **SEC-DATAFLOW — security-review process note** *(XS; done as a skill edit).* The security paper's empirical
+  finding — *multi-file/cross-import data-flow vulnerabilities are the hardest and matter most* — folds into the
+  `security-monitoring` skill: prioritize dataflow spanning router→dep→model→storage; SAST (CodeQL) is
+  pattern-limited, so the agentic search→verify→refine review complements it. (SKIP running a local 350M model.)
+
+**INTEGRATE (optional, feature-flagged, offline-degrading — never a runtime dependency):**
+- Higher-coverage **permit backend** + **contractor license/history** feed (prequal/diligence) + **permit-density
+  market-activity** feed + **new-home starts/pricing** feed (revenue-side market intel, complementing our
+  cost-side escalation index). All behind the existing `opendata.py` `_fetch` indirection; degrade to
+  "unavailable" offline. Named BCF-hub connectors; national e-ID/e-sign; ERP (Oracle/SAP) connectors.
+
+**SKIP (reaffirmed non-goals):** LLM/OCR reconstruction of unstructured docs (bill/invoice/handwritten capture);
+owning capture hardware / 360-video photogrammetry / hosted digital-twin cloud; native VR-headset app +
+cloud multiuser co-presence sync; payment execution + financing rails; consumer marketplaces/listings;
+running a local security LLM as a product feature.
+
+> **Re-prioritization (top-down execution order):** Sprint A (**CITED-ANSWER** first — the flagship, pure
+> backend/deterministic, no viewer needed for the contract + coverage/conflict engine) → the backend-testable
+> estimating/scope engines that need no viewer (**EST-CONFIDENCE**, **BOE-LEDGER**, **BUYOUT-SCHED**,
+> **SCOPE-REG**, **PERMIT-TIMELINE**, **ABSORPTION-SELLOUT**, **PROGRESS-ROLLUP**, **FILL-MATRIX**) → then the
+> viewer-coupled coordination features (**BCF-VIEWPOINT**, **WALK-MODE**, **4D5D-VIEWER**, **CITE-JUMP**),
+> flagged honestly since the dev-preview geometry stall limits live verification. SEC-DATAFLOW rides along as a
+> skill edit. Each ships as its own CI-green, version-numbered release; group into the sprints above.
 
 ## ▶ NOW — bounded, backend-testable, no new dependency (ship top-down)
 
 *Each is an S/M release: a pure engine leaf or a config-module tweak + a thin surface + a test, grounded
-in the model we own. Verifiable without the frontend. These are the cleanest next wins.* **The top three
-are R16 Tier-1 picks (see the R16 ring below for full specifics).**
+in the model we own. Verifiable without the frontend. These are the cleanest next wins.* **The top of the
+list is now the 🧭 R17 backend-testable order (see the R17 ring above for full specifics).**
 
-- ✅ **MARGIN-CBS** *(R16; v0.3.573)* — per-cost-code reconciliation (budget vs committed vs actual vs
-  billed → buyout margin + variance, over-committed/over-budget flags) at `GET /margin/by-costcode` + the
-  📒 Cost-code Margin money card.
-- ✅ **ASSET-REG** *(R16; v0.3.574)* — the maintainable-asset register derived from the IFC
-  (`GET /model/assets` + a seed into the `asset_register` module) + the 🔧 Asset Register panel. Next: PM
-  scheduling depth off the shipped `pm_schedule` module.
-- ◧ **★ RECIPE-MACROS** *(R16; phase-1 v0.3.575)* — ✅ save a chained edit-recipe as a named,
-  parameterized command: `macros.py` (`expand()` = model-free `${param}` substitution + defaults, type
-  preserving) + `GET/PUT /macros` (recipe names validated vs the edit registry at save) + `POST
-  .../{id}/expand` (preview) + `POST .../{id}/run` (whole chain as ONE GUID-stable version, single undo) +
-  client plumbing + `test_macros`. **Remaining:** mirror macro-run into CADCMD/MCP + a headless `massing`
-  CLI with `massing check` as a CI gate.
+1. **★ CITED-ANSWER** *(R17 Sprint A)* — the provenance contract + deterministic coverage % / uncited-claim
+   guard / conflict surfacing over our GUID-first sources. Pure backend engine + schema; the flagship, no
+   viewer needed. **Build first.**
+2. **EST-CONFIDENCE + BOE-LEDGER** *(R17 Sprint C)* — per-line estimate maturity/confidence + the
+   Basis-of-Estimate assumption ledger. Deterministic scoring over QTO/estimate/commitment records.
+3. **BUYOUT-SCHED** *(R17 Sprint C)* — time-phased procurement from model QTO + CPM (last-responsible-order).
+4. **SCOPE-REG** *(R17 Sprint D)* — the first-class Scope register tying scope → QTO/CBS → responsible → activity.
+5. **PERMIT-TIMELINE** *(R17 Sprint E)* — days-to-issue percentiles over cached permit data → pro-forma carry.
+6. **ABSORPTION-SELLOUT + LOT-SUPPLY-INDEX** *(R17 Sprint E)* — sell-out revenue schedule + months-of-supply.
+7. **PROGRESS-ROLLUP** *(R17 Sprint E)* — % complete per IFC class/trade rolled up from `scan_deviation.py`.
+8. **FILL-MATRIX** *(R17 Sprint F)* — category × property fill-rate pivot → query-DSL selection → bulk edit.
+9. **PERSONA-ANSWER** *(R17 Sprint A)* — persona answer lenses + `{answer, insight, follow_ups}` + scoping.
+10. **SEC-DATAFLOW** *(R17)* — fold the security paper's multi-file/cross-import dataflow-review focus into the
+    `security-monitoring` skill (a skill edit, ride-along).
 
-1. ~~**VERSION-COMPARE per-property**~~ — ✅ **changed-property *names*** shipped v0.3.570 (`diff` now
-   names the exact Pset/Qto keys that changed, tagged added/removed/changed). The old/new **values** still
-   need a richer per-version snapshot (a stored-column follow-up).
-2. **IFCPATCH-LIB** — rebase coordinates · unit-convert · merge/split recipes (the purge recipes +
-   SUBSET-EXPORT shipped v0.3.527/533). Pure ifcopenshell transforms behind edit-recipe gating.
-3. **BCF-API-SRV depth** — attachments over the API + the **BCF 3.0** shape (2.1 core + viewpoints shipped
-   v0.3.528–529).
-4. ✅ **SPRINT D phase-3c — selections money card** *(v0.3.569)* — a ◈ Selections destination: net
-   over/under, per-category deltas, the over-allowance CO candidates + a push-to-change-events button.
-5. **SPRINT B phase-4b** — ✅ the Pareto-frontier **chart** (cost vs. duration scatter) shipped on the 🧮
-   panel *(v0.3.571)*. Remaining: CPM-driven crew shifts off the critical path + scale the enumeration.
-6. ✅ **SPRINT MB — per-step deep-links** *(v0.3.584)* — each Master Builder brief step now carries a
-   portal `dest`; the 🏛 panel renders a "→ Close this gap" button that jumps to the tool (nav-map:
-   place→model-analysis · program→program · feasibility→budget · regulatory→standards · design→model-QA ·
-   delivery→schedule · risk→risk-review · handover→turnover), via a new `PanelContext.navigate`.
+*Then the viewer-coupled R17 Sprint B/D features (**BCF-VIEWPOINT**, **WALK-MODE**, **CITE-JUMP**,
+**4D5D-VIEWER**, **TOPIC-BOARD**, **CLASH-WALKTHROUGH**), flagged for the dev-preview geometry-stall
+verification limit.*
 
-## 🔬 R16 — external-scan upgrades (2026-07-21)
+**Carry-over open remainders (small, sequence opportunistically):** VERSION-COMPARE per-property **values**
+(a stored per-version snapshot — names already ship) · **IFCPATCH-LIB** rebase/unit-convert/merge-split
+recipes · **BCF-API-SRV** BCF 3.0 shape + attachments-over-API · RECIPE-MACROS → CADCMD/MCP mirror + headless
+`massing` CLI · SPRINT B phase-4b → CPM-driven crew shifts + enumeration scale.
 
-Synthesized from a broad research pass on the construction-software field. **Recurring strategic
-edge:** a large share of the field spends its core AI budget *reconstructing structured data from
-unstructured inputs* (prose→plan, PDF→takeoff, email→line-items, bid-doc→equipment). Because **IFC is our
-source of truth**, we skip that whole problem and invest the same effort in deterministic
-scoring/optimization/validation on data we already hold — via the `rule_library.py` + `query_dsl.py`
-selector/rule spine and the `schedule_options.py` optioneer pattern, which recur as the implementation
-vehicle across almost every item. BUILD = deterministic/offline/we-own-it · INTEGRATE = optional
-feature-flagged connector (never a runtime dep) · SKIP = conflicts with a constraint/non-goal.
+## 🔬 R16 — external-scan upgrades (2026-07-21) — ✅ COMPLETE (archived)
 
-**Tier 1 — flagship, high-value, reuse proven engines:**
-- ◧ **MASSING-OPT — layout optioneer** *(L; phase-1 v0.3.576).* The literal "Massing" play. ✅
-  `layout_options.py` `optioneer()` deterministically sweeps envelope levers (floor-to-floor · core
-  efficiency · coverage strategy · unit size) over `massing.compute_massing`, scores each by a transparent
-  yield-on-cost proforma, and ranks by objective + a Pareto cost-vs-profit frontier → `POST
-  /massing/optioneer` (stateless) + client + ✅ the **🧮 Massing Optioneer portal panel** *(v0.3.582)*
-  (envelope form → ranked options + frontier). **Remaining:** emit each option as a **GUID-stable
-  edit-recipe chain** (blank IFC → levels/grid → walls/slabs).
-- **MARGIN-CBS — per-cost-code live margin rollup** *(M).* One reconciliation view keyed on the
-  CBS/cost-code (`CBS-1` shipped) that computes **committed vs. billed vs. earned margin** per cost code
-  from one quantity record, tying QTO → pay-apps → actuals. `GET /projects/{pid}/margin/by-costcode` (reuse
-  the where-aggregate SQL-helper shape) surfaced as a portal money card like the selections card. Closest
-  fit to the GC portal; highest-value GC item in the scan.
-- ✅ **ASSET-REG** *(v0.3.574)* + **PM-OPS — asset register + preventive maintenance** — the concrete first
-  slice of the deferred CMMS-OPS. `GET /model/assets` deterministically derives the maintainable-asset
-  register from the IFC by class (`classification.py` + `query_dsl.py`), GUID-keyed; a `pm_task` config
-  module (asset-GUID link, PPM interval, last/next-due, warranty, spares, O&M docs via `docmanager.py`); +
-  round-trip COBie export from the register. Extends the design-to-turnover lifecycle into operations, no
-  new infra. (IFC = source of truth: FM data derives from the model, never a parallel sheet.)
-- ◧ **MEP-EQUIP + SPEC-CONFLICT — equipment procurement + spec-vs-model conflict** *(M; phase-1 v0.3.580).*
-  ✅ `equipment.py` + `GET /model/equipment` derives the equipment schedule straight from the IFC
-  (`IfcEnergyConversionDevice`/`IfcFlowMovingDevice`/`IfcFlowTerminal`… subtype-resolved) — **no
-  doc-scanning, because we own the model** — grouping procurable units by (class, type) into **RFQ
-  line-items with a quantity + representative spec** (from the Psets) + GUIDs; ducts/pipes/controls
-  excluded. Client `modelEquipment`. ✅ **SPEC-CONFLICT** *(phase-2 v0.3.581)* — `equipment.spec_conflicts`
-  + `POST /model/equipment/spec-check` cross-checks each scheduled line's Pset values against a
-  specified-requirement set (`{ifc_class: {spec_key: expected}}`) → conflicts + missing (the "air-cooled
-  schedule vs water-cooled spec" catch), deterministic. ✅ the **🔩 Equipment schedule portal panel**
-  *(v0.3.582)*. **Remaining:** tie into submittals + budget/GMP + QTO as an RFQ package + a curated starter
-  requirement set + an in-panel spec-conflict view.
-- **RECIPE-MACROS + headless `massing` CLI** *(M/L; three independent sources converge here).* Save a
-  chained sequence of edit-recipes as a **named, parameterized,
-  shareable command** with a typed-variable schema (`POST /macros`, `POST /macros/{key}/run`), executed as an
-  **ordered, resumable background job** (reuse job-artifacts) through the **model-diff plan/preview/apply
-  gate**. Surface the SAME registry across three faces — the viewer **CADCMD** line, the **MCP** tools, and a
-  new headless **`massing` CLI** binary (structured-CLI contract: `--json` structured output, meaningful exit
-  codes, fully non-interactive; `massing convert|validate|diff|select|edit run|export`). Headline: **`massing
-  check`** runs model-CI (IDS/rule-library) and **exits non-zero on failure** so a CDE/repo pipeline fails
-  the build when a model breaks compliance — the single most valuable ISO-19650 CI pattern in the scan. Dual
-  auth (interactive session vs env-var CI token); an `eval`-against-the-running-model path (no cold re-convert).
+The full R16 ring shipped v0.3.573–598 (MARGIN-CBS · ASSET-REG · RECIPE-MACROS · MASSING-OPT ·
+MEP-EQUIP+SPEC-CONFLICT · SPACE-UTIL · DESIGN-METRICS+DAYLIGHT · MEP-FITTINGS · PROD-ACTUALS · PROCURE-LEVEL ·
+TESTFIT-ADJ · SEC-SUPPLY). Full spec archived in [roadmap-completed.md](roadmap-completed.md).
 
-**Tier 2 — solid, reuse engines:**
-- ✅ **MEP-FITTINGS — implied fitting inference** *(S/M; v0.3.592).* At each `MEP-GRAPH` node/joint a
-  direction/size change *implies* a fitting; `mep_fittings.py` + `GET /mep/fittings` infers **tee/cross** at
-  branch nodes (degree ≥3), **reducer** at a segment-to-segment nominal-size step, and **elbow** at a
-  direction change (sweep-axis angle from the placement) — deterministic geometry, no CV (IFC gives us what
-  others infer from PDFs). Branch legs aren't double-counted; counts roll into **QTO** as EA `qto_lines`.
-  Client (`mepFittings`) + `test_mep_fittings` over three authored+connected mini-systems + ✅ the **🔩 MEP
-  Fittings portal panel** *(v0.3.596)* (fitting-type chips + QTO-lines table + inferred-at detail).
-- ◧ **PROCURE-LEVEL — RFQ / quote-leveling** *(M; v0.3.594).* ✅ `procurement.buyout_packages` +
-  `POST /procurement/buyout-packages` groups QTO line items into buyout packages, each carrying a ready **RFQ
-  scope** (item/qty/unit); `procurement.score_quotes` + `POST /procurement/level` scores returned quotes for a
-  package against that scope on a normalized basis — **price** (extended over scope qty, uncovered scope
-  extrapolated), **coverage completeness**, and **lead time** → a composite [0,1] ranking with each supplier's
-  scope gaps (incomplete bids penalized, not dropped). Client (`buyoutPackages`/`procurementLevel`) +
-  `test_procure_level`. **Remaining:** persist packages (a `procurement_package` module) + the send-RFQ bridge.
-  (Supplier price/catalog feeds = INTEGRATE; placing the PO stays human.)
-- ◧ **TESTFIT-ADJ — adjacency + dimensional rule packs** *(S/M; v0.3.597).* ✅ `adjacency.py` +
-  `POST /model/adjacency`: an **adjacency graph** over the model's IfcSpaces (bboxes within a wall-thickness
-  gap on the same storey — deterministic, no OCC, footprints from the extruded profiles, corner-only touches
-  excluded) scored against a program's `required_adjacent` / `forbidden` type-pairs, plus a
-  **dimensional-compliance** rule pack (`min_room_dim` = the short side of the footprint · `min_area` ·
-  `min_ceiling_height`, global or `by_type`). Client (`modelAdjacency`) + `test_adjacency` over a relabelled
-  2×2 grid. **Remaining:** needs-daylight/exterior-wall + needs-wet-wall terms, and folding the dimensional
-  pack into `rule_library.py`/`/rules/run` for the property-based checks (egress-width · setback).
-- ◧ **DESIGN-METRICS + DAYLIGHT — live design-metrics engine** *(M; v0.3.591).* ✅ `design_metrics.py`
-  + `GET /model/design-metrics`: program efficiency (floors · GFA · net floor area · net-to-gross · unit
-  count · avg-unit · area-by-space-type) + a **deterministic average-daylight-factor ESTIMATE** from the
-  model's own `IfcWindow` glazed area vs net floor area (CIBSE formula with documented constants → banded
-  ≥2% good / 1–2% fair / <1% limited, clearly labelled an estimate, not ray-traced). Pure over an opened
-  model so it recomputes on every edit; client + `test_design_metrics` + ✅ the **📐 Design Metrics portal
-  panel** *(v0.3.596)* (KPI header + a banded daylight card + area-by-type table, in the design workspace).
-  **Remaining:** wiring per-`IfcSpace` code-check rule sets alongside the model-wide numbers.
-- ◧ **PROD-ACTUALS — productivity actuals loop** *(M; v0.3.593).* ✅ `prod_actuals.py` +
-  `POST /projects/{pid}/progress/actuals`: a `{task_id, qto_line, material_class, qty, cycle_time,
-  idle_time, unit}` actuals schema rolled up per activity into the **installed rate** (qty ÷ productive/
-  cycle hours) + **crew utilization** (productive ÷ productive+idle), compared to the **planned** rate →
-  ahead / on-track / behind (±5%) + a remaining-hours projection at the current rate; worst-variance first.
-  Pure over the supplied rows; client (`progressActuals`) + `test_prod_actuals`. **Remaining:** persist the
-  actuals (a `progress_actual` module) + a CSV/webhook telematics connector + surface on the LOB/4D views.
-- ◧ **SPACE-UTIL — utilization + supply/demand planner** *(S/M; v0.3.585).* ✅ `space_util.py` +
-  `GET /model/space-utilization` (per-`IfcSpace` occupancy capacity at an area-per-person standard, by
-  type) + `POST /model/space-demand` (headcount program → required-area-by-type → gap-vs-modelled-inventory,
-  worst-deficit first); pure arithmetic, no sensors/ML; client + `test_space_util`. **Remaining:** a portal
-  panel + extend the cross-project benchmarking (our own-projects analog to a large external dataset).
-
-**Tier 3 — tooling / DX / security (cross-cutting):**
-- **CSS-REFACTOR — panel CSS modernize** *(S).* Across the ~130-module panels: a shared
-  `.stack > * + *` owl utility (kill per-child margin hacks), flex `space-between` over nth-child, `:is()` to
-  collapse selector lists, standardized `:focus-visible` outlines (a11y), `16px` inputs (stop iOS zoom on the
-  PWA), `:empty` to hide blank containers, logical properties for future RTL. Pure-CSS, offline-safe.
-- ◧ **SEC-SUPPLY — supply-chain hardening** *(S; v0.3.598).* ✅ `supply_chain.py` (dependency-free,
-  stdlib `importlib.metadata`): a **license audit** classifying every installed distribution permitted /
-  copyleft / unknown (word-boundary matched; STRONG GPL/AGPL split from weak LGPL/MPL) — mechanically
-  enforces the no-AGPL constraint (`python -m aec_api.supply_chain --gate` fails only on strong copyleft); a
-  minimal **CycloneDX 1.5 SBOM**; and a lightweight **uploaded-PDF sanity check** (header/EOF/size +
-  JavaScript/Launch/EmbeddedFile/OpenAction active-content flags, no AGPL parser). Folded into the
-  `security-monitoring` skill; `test_supply_chain`. **Remaining:** the MCP tool-poisoning self-audit + wiring
-  the audit as a non-gating CI step. *(Cherry-picked from a mostly-off-topic pack; does NOT replace CodeQL or
-  the esc() XSS discipline.)*
-- **DX-HOOKS — Claude Code guardrails** *(S — needs the config path + an explicit OK,
-  since hooks change harness behavior).* A `PreToolUse` secret-scan + destructive-command (`git reset --hard`
-  / force-push / `rm -rf`) guard; a `Stop` hook that runs the `security-monitoring`/`backend-tests` skills so
-  the "check after every push" directive is enforced by the harness not memory; the **Anthropic Security-Review
-  GitHub Action** as an orthogonal second PR gate beside CodeQL; a SkillSpector-style scan of our own
-  `.claude/skills`.
-
-**INTEGRATE (optional, feature-flagged, never a runtime dependency):**
-- **MARKET-DATA connector.** A flagged/paid `propdata.py` connector feeding the pro-forma /
-  underwriting / valuation modules — parcel + rent-comps (ZORI/HUD FMR) + FHFA HPA + FEMA flood (ties into the
-  shipped `resilience.py` DFE) + Opportunity-Zone flags + FRED macro. Same posture as the APS/RVT bridge:
-  gate it, normalize to our inputs, never assume online. Also adopt two architecture-agnostic techniques from
-  it as BUILD: the **self-enriching cache** (local store → on-miss fetch from an authoritative source → cache
-  with source + fetched-at provenance) for our own reference/GIS lookups; and **weighted multi-source
-  estimates that expose each component value + its weight** (not just the blend) — fits the golden-thread ethos.
-
-**SKIP (reaffirmed non-goals — the scan's core-AI approaches we deliberately don't take):**
-LLM natural-language plan generation, CV takeoff from 2D PDFs, LLM bid-doc
-equipment extraction, on-sensor CV pick-classification, embedded-in-Revit agents — all reconstruct data we
-already hold as structured IFC. Owning sensors / a sourcing marketplace / placing POs or moving money.
-Skip-trace / owner-contact / foreclosure-lead (PII, off-mission).
-
-> **Re-prioritization:** the ▶ NOW list above gains three R16 Tier-1 items at the top —
-> **MARGIN-CBS** (small, high-value, closest GC fit), **ASSET-REG** (concrete CMMS-OPS first slice), and
-> **RECIPE-MACROS/CLI** (converged-on by 3 sources). **MASSING-OPT** and **MEP-EQUIP** are the next authoring/
-> MEP wins after those. Tier 3's **SEC-SUPPLY** + **CSS-REFACTOR** interleave as small hardening/quality
-> releases.
+**Carried remainders (minor sub-phases, sequence opportunistically):** RECIPE-MACROS → CADCMD/MCP mirror +
+headless `massing` CLI with `massing check` CI gate · MASSING-OPT → emit each option as a GUID-stable
+edit-recipe chain · MEP-EQUIP → tie into submittals + budget/GMP + a curated starter · DESIGN-METRICS →
+per-`IfcSpace` code-check rule sets · PROD-ACTUALS → persist a `progress_actual` module + LOB/4D surface ·
+PROCURE-LEVEL → persist a `procurement_package` module + the send-RFQ bridge · TESTFIT-ADJ →
+needs-daylight/exterior-wall + wet-wall terms + fold the dimensional pack into `rule_library` · SPACE-UTIL →
+portal panel + cross-project benchmarking · SEC-SUPPLY → MCP tool-poisoning self-audit + a non-gating CI step.
 
 ## 🎚 UX-POLISH — interaction-craft ring (2026-07-21)
 

@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.599 — roadmap: R17 field-research ring + R16 archived + re-prioritized (docs)
+
+A second broad field-research pass (14 external products across authoring / estimating / finance /
+reality-capture / BCF / VR, plus a security research paper) → a new **🧭 R17 ring** on the roadmap, with the
+completed **🔬 R16 ring archived** and the NOW list re-prioritized top-down. No code change.
+
+- **Sharpened thesis:** the field ships black-box AI answers a regulated industry can't defend; because our
+  data is GUID-first and structured, we can make every AI answer **trace to its source deterministically** —
+  the provenance layer is the R17 flagship (**CITED-ANSWER**), scheduled first.
+- **R17 sprints A–F** (backend-testable engines first, viewer-coupled after): provenance & AI trust
+  (CITED-ANSWER · PERSONA-ANSWER) · model-navigable coordination (BCF viewpoint capture/restore · first-person
+  walk + WebXR · topic kanban) · estimating intelligence (per-line confidence/maturity · basis-of-estimate
+  ledger · time-phased buyout schedule · parametric conceptual budget) · scope & 4D/5D spine (a first-class
+  Scope register · time+cost overlay scrubber) · feasibility (permit days-to-issue percentiles → pro-forma ·
+  absorption sell-out schedule + lot-supply index · % complete from scan deviation) · model-QA & authoring
+  (property fill-rate pivot → bulk edit · layered wall assemblies · cadastral parcel import · transactional
+  client portal). Every external data feed stays an optional offline-degrading connector; LLM/OCR doc
+  reconstruction, capture hardware, VR-headset app, and payment rails remain non-goals.
+- **R16 ring marked complete** (v0.3.573–598) and its full spec moved to `roadmap-completed.md`, with the
+  minor carried remainders kept on the open lists. The security paper's finding (multi-file/cross-import
+  data-flow vulnerabilities are the hardest and highest-value) folds into the security-review process.
+
 ## v0.3.598 — SEC-SUPPLY: license/SBOM audit + PDF sanity check (supply-chain hardening)
 
 Dependency-free supply-chain tooling (stdlib only), folded into the `security-monitoring` skill — it does

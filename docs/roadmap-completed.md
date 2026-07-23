@@ -1964,3 +1964,149 @@ closed this session marked:
 - **Server-rendered 3D hero** *(★3 · M)* — geometry streams client-side, so the project package has no 3D
   render (only a composed plan/section/elevation overview). Add a client screenshot-capture → upload path,
   or a headless render, to drop a hero image into the package.
+
+
+---
+
+## 🔬 R16 ring — COMPLETE (archived 2026-07-23, shipped v0.3.573–598)
+
+All Tier-1/Tier-2 engines + Tier-3 SEC-SUPPLY shipped. Full original spec below for provenance.
+
+## 🔬 R16 — external-scan upgrades (2026-07-21)
+
+Synthesized from a broad research pass on the construction-software field. **Recurring strategic
+edge:** a large share of the field spends its core AI budget *reconstructing structured data from
+unstructured inputs* (prose→plan, PDF→takeoff, email→line-items, bid-doc→equipment). Because **IFC is our
+source of truth**, we skip that whole problem and invest the same effort in deterministic
+scoring/optimization/validation on data we already hold — via the `rule_library.py` + `query_dsl.py`
+selector/rule spine and the `schedule_options.py` optioneer pattern, which recur as the implementation
+vehicle across almost every item. BUILD = deterministic/offline/we-own-it · INTEGRATE = optional
+feature-flagged connector (never a runtime dep) · SKIP = conflicts with a constraint/non-goal.
+
+**Tier 1 — flagship, high-value, reuse proven engines:**
+- ◧ **MASSING-OPT — layout optioneer** *(L; phase-1 v0.3.576).* The literal "Massing" play. ✅
+  `layout_options.py` `optioneer()` deterministically sweeps envelope levers (floor-to-floor · core
+  efficiency · coverage strategy · unit size) over `massing.compute_massing`, scores each by a transparent
+  yield-on-cost proforma, and ranks by objective + a Pareto cost-vs-profit frontier → `POST
+  /massing/optioneer` (stateless) + client + ✅ the **🧮 Massing Optioneer portal panel** *(v0.3.582)*
+  (envelope form → ranked options + frontier). **Remaining:** emit each option as a **GUID-stable
+  edit-recipe chain** (blank IFC → levels/grid → walls/slabs).
+- **MARGIN-CBS — per-cost-code live margin rollup** *(M).* One reconciliation view keyed on the
+  CBS/cost-code (`CBS-1` shipped) that computes **committed vs. billed vs. earned margin** per cost code
+  from one quantity record, tying QTO → pay-apps → actuals. `GET /projects/{pid}/margin/by-costcode` (reuse
+  the where-aggregate SQL-helper shape) surfaced as a portal money card like the selections card. Closest
+  fit to the GC portal; highest-value GC item in the scan.
+- ✅ **ASSET-REG** *(v0.3.574)* + **PM-OPS — asset register + preventive maintenance** — the concrete first
+  slice of the deferred CMMS-OPS. `GET /model/assets` deterministically derives the maintainable-asset
+  register from the IFC by class (`classification.py` + `query_dsl.py`), GUID-keyed; a `pm_task` config
+  module (asset-GUID link, PPM interval, last/next-due, warranty, spares, O&M docs via `docmanager.py`); +
+  round-trip COBie export from the register. Extends the design-to-turnover lifecycle into operations, no
+  new infra. (IFC = source of truth: FM data derives from the model, never a parallel sheet.)
+- ◧ **MEP-EQUIP + SPEC-CONFLICT — equipment procurement + spec-vs-model conflict** *(M; phase-1 v0.3.580).*
+  ✅ `equipment.py` + `GET /model/equipment` derives the equipment schedule straight from the IFC
+  (`IfcEnergyConversionDevice`/`IfcFlowMovingDevice`/`IfcFlowTerminal`… subtype-resolved) — **no
+  doc-scanning, because we own the model** — grouping procurable units by (class, type) into **RFQ
+  line-items with a quantity + representative spec** (from the Psets) + GUIDs; ducts/pipes/controls
+  excluded. Client `modelEquipment`. ✅ **SPEC-CONFLICT** *(phase-2 v0.3.581)* — `equipment.spec_conflicts`
+  + `POST /model/equipment/spec-check` cross-checks each scheduled line's Pset values against a
+  specified-requirement set (`{ifc_class: {spec_key: expected}}`) → conflicts + missing (the "air-cooled
+  schedule vs water-cooled spec" catch), deterministic. ✅ the **🔩 Equipment schedule portal panel**
+  *(v0.3.582)*. **Remaining:** tie into submittals + budget/GMP + QTO as an RFQ package + a curated starter
+  requirement set + an in-panel spec-conflict view.
+- **RECIPE-MACROS + headless `massing` CLI** *(M/L; three independent sources converge here).* Save a
+  chained sequence of edit-recipes as a **named, parameterized,
+  shareable command** with a typed-variable schema (`POST /macros`, `POST /macros/{key}/run`), executed as an
+  **ordered, resumable background job** (reuse job-artifacts) through the **model-diff plan/preview/apply
+  gate**. Surface the SAME registry across three faces — the viewer **CADCMD** line, the **MCP** tools, and a
+  new headless **`massing` CLI** binary (structured-CLI contract: `--json` structured output, meaningful exit
+  codes, fully non-interactive; `massing convert|validate|diff|select|edit run|export`). Headline: **`massing
+  check`** runs model-CI (IDS/rule-library) and **exits non-zero on failure** so a CDE/repo pipeline fails
+  the build when a model breaks compliance — the single most valuable ISO-19650 CI pattern in the scan. Dual
+  auth (interactive session vs env-var CI token); an `eval`-against-the-running-model path (no cold re-convert).
+
+**Tier 2 — solid, reuse engines:**
+- ✅ **MEP-FITTINGS — implied fitting inference** *(S/M; v0.3.592).* At each `MEP-GRAPH` node/joint a
+  direction/size change *implies* a fitting; `mep_fittings.py` + `GET /mep/fittings` infers **tee/cross** at
+  branch nodes (degree ≥3), **reducer** at a segment-to-segment nominal-size step, and **elbow** at a
+  direction change (sweep-axis angle from the placement) — deterministic geometry, no CV (IFC gives us what
+  others infer from PDFs). Branch legs aren't double-counted; counts roll into **QTO** as EA `qto_lines`.
+  Client (`mepFittings`) + `test_mep_fittings` over three authored+connected mini-systems + ✅ the **🔩 MEP
+  Fittings portal panel** *(v0.3.596)* (fitting-type chips + QTO-lines table + inferred-at detail).
+- ◧ **PROCURE-LEVEL — RFQ / quote-leveling** *(M; v0.3.594).* ✅ `procurement.buyout_packages` +
+  `POST /procurement/buyout-packages` groups QTO line items into buyout packages, each carrying a ready **RFQ
+  scope** (item/qty/unit); `procurement.score_quotes` + `POST /procurement/level` scores returned quotes for a
+  package against that scope on a normalized basis — **price** (extended over scope qty, uncovered scope
+  extrapolated), **coverage completeness**, and **lead time** → a composite [0,1] ranking with each supplier's
+  scope gaps (incomplete bids penalized, not dropped). Client (`buyoutPackages`/`procurementLevel`) +
+  `test_procure_level`. **Remaining:** persist packages (a `procurement_package` module) + the send-RFQ bridge.
+  (Supplier price/catalog feeds = INTEGRATE; placing the PO stays human.)
+- ◧ **TESTFIT-ADJ — adjacency + dimensional rule packs** *(S/M; v0.3.597).* ✅ `adjacency.py` +
+  `POST /model/adjacency`: an **adjacency graph** over the model's IfcSpaces (bboxes within a wall-thickness
+  gap on the same storey — deterministic, no OCC, footprints from the extruded profiles, corner-only touches
+  excluded) scored against a program's `required_adjacent` / `forbidden` type-pairs, plus a
+  **dimensional-compliance** rule pack (`min_room_dim` = the short side of the footprint · `min_area` ·
+  `min_ceiling_height`, global or `by_type`). Client (`modelAdjacency`) + `test_adjacency` over a relabelled
+  2×2 grid. **Remaining:** needs-daylight/exterior-wall + needs-wet-wall terms, and folding the dimensional
+  pack into `rule_library.py`/`/rules/run` for the property-based checks (egress-width · setback).
+- ◧ **DESIGN-METRICS + DAYLIGHT — live design-metrics engine** *(M; v0.3.591).* ✅ `design_metrics.py`
+  + `GET /model/design-metrics`: program efficiency (floors · GFA · net floor area · net-to-gross · unit
+  count · avg-unit · area-by-space-type) + a **deterministic average-daylight-factor ESTIMATE** from the
+  model's own `IfcWindow` glazed area vs net floor area (CIBSE formula with documented constants → banded
+  ≥2% good / 1–2% fair / <1% limited, clearly labelled an estimate, not ray-traced). Pure over an opened
+  model so it recomputes on every edit; client + `test_design_metrics` + ✅ the **📐 Design Metrics portal
+  panel** *(v0.3.596)* (KPI header + a banded daylight card + area-by-type table, in the design workspace).
+  **Remaining:** wiring per-`IfcSpace` code-check rule sets alongside the model-wide numbers.
+- ◧ **PROD-ACTUALS — productivity actuals loop** *(M; v0.3.593).* ✅ `prod_actuals.py` +
+  `POST /projects/{pid}/progress/actuals`: a `{task_id, qto_line, material_class, qty, cycle_time,
+  idle_time, unit}` actuals schema rolled up per activity into the **installed rate** (qty ÷ productive/
+  cycle hours) + **crew utilization** (productive ÷ productive+idle), compared to the **planned** rate →
+  ahead / on-track / behind (±5%) + a remaining-hours projection at the current rate; worst-variance first.
+  Pure over the supplied rows; client (`progressActuals`) + `test_prod_actuals`. **Remaining:** persist the
+  actuals (a `progress_actual` module) + a CSV/webhook telematics connector + surface on the LOB/4D views.
+- ◧ **SPACE-UTIL — utilization + supply/demand planner** *(S/M; v0.3.585).* ✅ `space_util.py` +
+  `GET /model/space-utilization` (per-`IfcSpace` occupancy capacity at an area-per-person standard, by
+  type) + `POST /model/space-demand` (headcount program → required-area-by-type → gap-vs-modelled-inventory,
+  worst-deficit first); pure arithmetic, no sensors/ML; client + `test_space_util`. **Remaining:** a portal
+  panel + extend the cross-project benchmarking (our own-projects analog to a large external dataset).
+
+**Tier 3 — tooling / DX / security (cross-cutting):**
+- **CSS-REFACTOR — panel CSS modernize** *(S).* Across the ~130-module panels: a shared
+  `.stack > * + *` owl utility (kill per-child margin hacks), flex `space-between` over nth-child, `:is()` to
+  collapse selector lists, standardized `:focus-visible` outlines (a11y), `16px` inputs (stop iOS zoom on the
+  PWA), `:empty` to hide blank containers, logical properties for future RTL. Pure-CSS, offline-safe.
+- ◧ **SEC-SUPPLY — supply-chain hardening** *(S; v0.3.598).* ✅ `supply_chain.py` (dependency-free,
+  stdlib `importlib.metadata`): a **license audit** classifying every installed distribution permitted /
+  copyleft / unknown (word-boundary matched; STRONG GPL/AGPL split from weak LGPL/MPL) — mechanically
+  enforces the no-AGPL constraint (`python -m aec_api.supply_chain --gate` fails only on strong copyleft); a
+  minimal **CycloneDX 1.5 SBOM**; and a lightweight **uploaded-PDF sanity check** (header/EOF/size +
+  JavaScript/Launch/EmbeddedFile/OpenAction active-content flags, no AGPL parser). Folded into the
+  `security-monitoring` skill; `test_supply_chain`. **Remaining:** the MCP tool-poisoning self-audit + wiring
+  the audit as a non-gating CI step. *(Cherry-picked from a mostly-off-topic pack; does NOT replace CodeQL or
+  the esc() XSS discipline.)*
+- **DX-HOOKS — Claude Code guardrails** *(S — needs the config path + an explicit OK,
+  since hooks change harness behavior).* A `PreToolUse` secret-scan + destructive-command (`git reset --hard`
+  / force-push / `rm -rf`) guard; a `Stop` hook that runs the `security-monitoring`/`backend-tests` skills so
+  the "check after every push" directive is enforced by the harness not memory; the **Anthropic Security-Review
+  GitHub Action** as an orthogonal second PR gate beside CodeQL; a SkillSpector-style scan of our own
+  `.claude/skills`.
+
+**INTEGRATE (optional, feature-flagged, never a runtime dependency):**
+- **MARKET-DATA connector.** A flagged/paid `propdata.py` connector feeding the pro-forma /
+  underwriting / valuation modules — parcel + rent-comps (ZORI/HUD FMR) + FHFA HPA + FEMA flood (ties into the
+  shipped `resilience.py` DFE) + Opportunity-Zone flags + FRED macro. Same posture as the APS/RVT bridge:
+  gate it, normalize to our inputs, never assume online. Also adopt two architecture-agnostic techniques from
+  it as BUILD: the **self-enriching cache** (local store → on-miss fetch from an authoritative source → cache
+  with source + fetched-at provenance) for our own reference/GIS lookups; and **weighted multi-source
+  estimates that expose each component value + its weight** (not just the blend) — fits the golden-thread ethos.
+
+**SKIP (reaffirmed non-goals — the scan's core-AI approaches we deliberately don't take):**
+LLM natural-language plan generation, CV takeoff from 2D PDFs, LLM bid-doc
+equipment extraction, on-sensor CV pick-classification, embedded-in-Revit agents — all reconstruct data we
+already hold as structured IFC. Owning sensors / a sourcing marketplace / placing POs or moving money.
+Skip-trace / owner-contact / foreclosure-lead (PII, off-mission).
+
+> **Re-prioritization:** the ▶ NOW list above gains three R16 Tier-1 items at the top —
+> **MARGIN-CBS** (small, high-value, closest GC fit), **ASSET-REG** (concrete CMMS-OPS first slice), and
+> **RECIPE-MACROS/CLI** (converged-on by 3 sources). **MASSING-OPT** and **MEP-EQUIP** are the next authoring/
+> MEP wins after those. Tier 3's **SEC-SUPPLY** + **CSS-REFACTOR** interleave as small hardening/quality
+> releases.
