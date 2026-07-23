@@ -15,7 +15,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import errorlog, metrics
+from . import errorlog, metrics, sentry
 from .db import SessionLocal, init_db
 from .routers import (
     accounting,
@@ -166,6 +166,9 @@ def _production_guard() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # External error alerting: no-op unless AEC_SENTRY_DSN/SENTRY_DSN is set. Init early so a failure
+    # in any later startup step is itself reported; fail-open so it can never block boot.
+    sentry.init()
     init_db()
     # Production safety: tokens signed with the public dev secret are forgeable. Warn loudly when
     # RBAC is on, and hard-fail when AEC_REQUIRE_SECRET=1 (set this in real deployments).
@@ -249,6 +252,9 @@ async def _unhandled_error(request: Request, exc: Exception):
             db.close()
     except Exception:                        # noqa: BLE001 — the logger must never mask the original
         logging.getLogger("aec").exception("error-log persist failed")
+    # Additive external alerting: this handler catches the exception before Sentry's auto-capture
+    # would, so report it explicitly. No-op when unconfigured; fail-open so it never affects the 500.
+    sentry.capture_exception(exc, request_id=rid)
     logging.getLogger("aec").exception("unhandled [%s] %s %s", rid, request.method, request.url.path)
     return JSONResponse(status_code=500, content={"detail": "internal server error", "request_id": rid},
                         headers={"X-Request-ID": rid or ""})

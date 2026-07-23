@@ -4,6 +4,10 @@
 #
 #    pip-compile --allow-unsafe --generate-hashes --output-file=services/api/requirements.lock services/api/requirements.in
 #
+alembic==1.18.5 \
+    --hash=sha256:06d8ba9d04558022f5395e9317de03d270f3dced49cee01f89fe7a13c26f14bc \
+    --hash=sha256:1554982221dd17e9a749b53902407578eb305e453f71999e8c7f0a48389fff8e
+    # via -r services/api/requirements.in
 annotated-doc==0.0.4 \
     --hash=sha256:571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320 \
     --hash=sha256:fbcda96e87e9c92ad167c2e53839e57503ecfda18804ea28102353485033faa4
@@ -55,6 +59,7 @@ certifi==2026.6.17 \
     #   httpcore
     #   httpx
     #   requests
+    #   sentry-sdk
     #   signxml
 cffi==2.1.0 \
     --hash=sha256:02cb7ff33ded4f1532476731f89ede53e2e488a8e6205515a82144246ffa7dcc \
@@ -373,7 +378,9 @@ ezdxf==1.4.4 \
 fastapi==0.139.0 \
     --hash=sha256:99ab7b2d92223c76d6cf10757ab3f89d45b38267fc20b2a136cf02f6beac3145 \
     --hash=sha256:cf15e1e9e667ddb0ad63811e60bd11390d1aac838ca4a7a23f421807b2308189
-    # via -r services/api/requirements.in
+    # via
+    #   -r services/api/requirements.in
+    #   sentry-sdk
 flask==3.1.3 \
     --hash=sha256:0ef0e52b8a9cd932855379197dd8f94047b359ca0a78695144304cb45f87c9eb \
     --hash=sha256:f4bcbefc124291925f1a26446da31a5178f9483862233b23c0c96a20701f670c
@@ -884,6 +891,10 @@ lxml==6.1.1 \
     # via
     #   pyhanko
     #   signxml
+mako==1.3.12 \
+    --hash=sha256:8f61569480282dbf557145ce441e4ba888be453c30989f879f0d652e39f53ea9 \
+    --hash=sha256:9f778e93289bd410bb35daadeb4fc66d95a746f0b75777b942088b7fd7af550a
+    # via alembic
 manifold3d==3.5.2 \
     --hash=sha256:10af126693c3da44bda9ff4dfc0e1426845e4e6c1afe953c2b23479cd0ac05ab \
     --hash=sha256:11c8824c311507b4adf854abfb828528c5efc2c90a9a17fd7c36cc60efe3f382 \
@@ -1022,6 +1033,7 @@ markupsafe==3.0.3 \
     # via
     #   flask
     #   jinja2
+    #   mako
     #   werkzeug
 networkx==3.6.1 \
     --hash=sha256:26b7c357accc0c8cde558ad486283728b65b6a95d85ee1cd66bafab4c8168509 \
@@ -1671,6 +1683,10 @@ scipy==1.18.0 \
     --hash=sha256:f2a6af57bd9e4a75d70e4117e78a1bbee84f79ae3fbb6d0111005d6ebcc4cb8d \
     --hash=sha256:f351e0dd702687d12a402b867a1b4146a256923e1c38317cbc472f6372b94707
     # via -r services/api/requirements.in
+sentry-sdk[fastapi]==2.66.1 \
+    --hash=sha256:86002793161d9a95ef04bdd8d442e9bfece5d989b755f05d6360215094a7aff6 \
+    --hash=sha256:f882fb08710c5f8bfc603aafa3e901b384009a19cc3f76a572b863392ee81cdc
+    # via -r services/api/requirements.in
 shapely==2.1.2 \
     --hash=sha256:0036ac886e0923417932c2e6369b6c52e38e0ff5d9120b90eef5cd9a5fc5cae9 \
     --hash=sha256:01d0d304b25634d60bd7cf291828119ab55a3bab87dc4af1e44b07fb225f188b \
@@ -1803,7 +1819,9 @@ sqlalchemy==2.0.51 \
     --hash=sha256:dc261707bf5739aea8a541593f3cc1d463c2701fb05fbcbba0ce031b69a21260 \
     --hash=sha256:e5ea1a213be1fcd5e49d9904c3b9939211ded90bc2a64e93f4c01963474285de \
     --hash=sha256:fa268106c8987639a17a18514cfe0cd9bf17420ab887e1e1bf486da8836135b1
-    # via -r services/api/requirements.in
+    # via
+    #   -r services/api/requirements.in
+    #   alembic
 starlette==1.3.1 \
     --hash=sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0 \
     --hash=sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6
@@ -1816,6 +1834,7 @@ typing-extensions==4.16.0 \
     --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8 \
     --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
     # via
+    #   alembic
     #   anthropic
     #   anyio
     #   ezdxf
@@ -1848,6 +1867,7 @@ urllib3==2.7.0 \
     # via
     #   botocore
     #   requests
+    #   sentry-sdk
 uvicorn[standard]==0.51.0 \
     --hash=sha256:5d38af6cd620f2ae3849fb44fd4879e0890aa1febe8d47eb355fb45d93fe6a5b \
     --hash=sha256:f6f4b69b657c312f516dd2d268ab9ae6f254b11e4bac504f37b2ab58b24dd0b0

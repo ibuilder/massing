@@ -10,6 +10,7 @@
 fastapi>=0.115
 uvicorn[standard]>=0.30
 sqlalchemy>=2.0
+alembic>=1.13             # DB schema migrations (source of truth going forward; see migrations/README.md)
 pydantic>=2.7
 python-multipart>=0.0.9   # file uploads (attachments)
 orjson>=3.10              # RT-ORJSON: Rust JSON for ORJSONResponse + hot blob paths (Apache-2.0/MIT)
@@ -37,3 +38,4 @@ ezdxf>=1.1             # DXF quantity takeoff — 2D CAD estimating (dxf_takeoff
 # --- optional (lazy-imported, only when the matching env var is set) ---
 redis>=5.0             # shared rate-limit + login-lockout counters (AEC_REDIS_URL)
 anthropic>=0.69        # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY
+sentry-sdk[fastapi]>=2.0  # external error alerting (sentry.py); no-op unless AEC_SENTRY_DSN is set

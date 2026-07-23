@@ -52,6 +52,11 @@ COPY services/data/src /app/services/data/src
 COPY services/api/modules /app/services/api/modules
 # demo seeder (stdlib-only) so the stack can self-populate via the compose `seed` profile
 COPY services/api/seed_demo.py /app/services/api/seed_demo.py
+# Alembic migrations + config, so operators can run `alembic stamp/upgrade head` from the running
+# container (see services/api/migrations/README.md). NOT run automatically at startup — the runtime
+# still builds the schema via create_all + _ensure_* (no cutover in this PR).
+COPY services/api/alembic.ini /app/services/api/alembic.ini
+COPY services/api/migrations /app/services/api/migrations
 
 # Node runtime + the IFC->Fragments converter so /publish can reconvert authored edits.
 # The API invokes the converter with `node <script>` (subprocess) — deps resolve from /app/node_modules

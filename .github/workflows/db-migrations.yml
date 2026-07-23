@@ -1,0 +1,108 @@
+name: DB migrations (Alembic drift guard)
+
+# C1 safety net. `create_all()` + additive `_ensure_*` remain the active runtime path (no cutover in
+# this PR), so Alembic can silently drift from the models. This job is what makes that safe: on a
+# throwaway Postgres it proves the baseline (a) applies to a fresh empty DB, (b) matches the models
+# (`alembic check` — no autogenerate diff), and (c) produces the SAME schema the runtime path builds
+# (indexes + columns), which catches drift autogenerate misses (the Postgres-only FTS GIN indexes).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/api/**"
+      - ".github/workflows/db-migrations.yml"
+  pull_request:
+    paths:
+      - "services/api/**"
+      - ".github/workflows/db-migrations.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  migrations:
+    name: alembic upgrade + check + runtime-parity (Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: aec
+          POSTGRES_PASSWORD: aec
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aec"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: aec
+      PGPASSWORD: aec
+      STORAGE_DIR: /tmp/aec_storage
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: System deps
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0 postgresql-client
+
+      - name: Python deps
+        run: |
+          python -m pip install --upgrade pip
+          # hash-pinned runtime lock — includes alembic + psycopg (the Postgres driver)
+          pip install --require-hashes -r services/api/requirements.lock
+
+      - name: Create throwaway databases
+        run: |
+          psql -c "CREATE DATABASE mig_alembic;"
+          psql -c "CREATE DATABASE mig_runtime;"
+
+      - name: alembic upgrade head (fresh empty DB must succeed)
+        working-directory: services/api
+        env:
+          DATABASE_URL: postgresql+psycopg://aec:aec@localhost:5432/mig_alembic
+        run: PYTHONPATH=src alembic upgrade head
+
+      - name: alembic check (models must match migrations — no drift)
+        working-directory: services/api
+        env:
+          DATABASE_URL: postgresql+psycopg://aec:aec@localhost:5432/mig_alembic
+        run: PYTHONPATH=src alembic check
+
+      - name: Build the runtime-path schema (create_all + _ensure_* + FTS GIN)
+        working-directory: services/api
+        env:
+          DATABASE_URL: postgresql+psycopg://aec:aec@localhost:5432/mig_runtime
+        run: PYTHONPATH=src:../data/src python -c "from aec_api import db; db.init_db()"
+
+      - name: Runtime-parity — alembic-built schema must equal create_all+_ensure_* schema
+        run: |
+          set -euo pipefail
+          # Dump indexes (catches the FTS GIN indexes + every metadata index) and columns for each DB,
+          # excluding alembic's own bookkeeping table, then diff. Any difference = drift → fail.
+          dump() {
+            psql -d "$1" -Atc \
+              "SELECT tablename||'|'||indexname||'|'||indexdef FROM pg_indexes
+               WHERE schemaname='public' AND tablename <> 'alembic_version' ORDER BY 1;" > "$2.idx"
+            psql -d "$1" -Atc \
+              "SELECT table_name||'|'||column_name||'|'||data_type||'|'||is_nullable
+               FROM information_schema.columns
+               WHERE table_schema='public' AND table_name <> 'alembic_version' ORDER BY 1;" > "$2.col"
+          }
+          dump mig_alembic alembic
+          dump mig_runtime runtime
+          echo "indexes: alembic=$(wc -l < alembic.idx) runtime=$(wc -l < runtime.idx)"
+          echo "columns: alembic=$(wc -l < alembic.col) runtime=$(wc -l < runtime.col)"
+          rc=0
+          if ! diff -u runtime.idx alembic.idx; then echo "::error::index drift between runtime path and Alembic"; rc=1; fi
+          if ! diff -u runtime.col alembic.col; then echo "::error::column drift between runtime path and Alembic"; rc=1; fi
+          [ "$rc" -eq 0 ] && echo "runtime-path schema and Alembic-upgraded schema are identical"
+          exit $rc
