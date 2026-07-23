@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.592 — MEP-FITTINGS: implied tee / cross / reducer / elbow over the port graph → QTO
+
+Every junction and transition of a connected MEP run *implies* a fitting — a duct/pipe network can't branch,
+change diameter, or turn a corner without one. This reads the MEP port-connectivity graph and infers those
+fittings deterministically (no CV — IFC already carries the connectivity others reconstruct from scans), so
+the fitting count feeds buyout and estimate instead of only the segments drawn.
+
+- **`mep_fittings.py` + `GET /projects/{pid}/mep/fittings`** (409 without a source IFC): **tee/cross** at each
+  branch node (degree ≥3 → a tee, degree 4 → a cross, an *n*-way manifold → *n*−2 tees), **reducer** at a
+  segment-to-segment joint with a nominal-size step, and **elbow** at a joint where the two segments change
+  direction (sweep-axis angle read from the placement, folded so antiparallel still reads as straight).
+- Reducer/elbow inference is confined to **segment↔segment** joints where neither element is a branch, so a
+  tee's own legs and authored fittings are never double-counted; a reducing elbow counts once (as the elbow).
+- Counts roll into a QTO **`qto_lines`** block (EA), plus a per-type breakdown and capped detail list.
+  `mepFittings` client method + `test_mep_fittings` over three authored+connected mini-systems (a 3-way
+  branch, a 300→200 mm in-line step, a 90° corner). Backend suite green; CodeQL 0.
+
 ## v0.3.591 — DESIGN-METRICS + DAYLIGHT: live program-efficiency + daylight estimate over the model
 
 A new design-validation engine turns the model's own geometry into live design KPIs — recomputable on every

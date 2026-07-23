@@ -1246,6 +1246,19 @@ export class ApiClient extends HttpCore {
       citation: string; note: string; verify: string }>(
       `/projects/${pid}/mep/sprinkler-coverage?hazard=${encodeURIComponent(hazard)}`);
   }
+  /** MEP-FITTINGS: implied tee/cross/reducer/elbow over the port graph → QTO EA lines (deterministic, no CV). */
+  mepFittings(pid: string) {
+    return this.json<{
+      element_count: number;
+      fittings: { tee: number; cross: number; reducer: number; elbow: number };
+      total_fittings: number;
+      by_type: { type: string; count: number }[];
+      qto_lines: { item: string; fitting: string; unit: string; qty: number }[];
+      unknown_size_joints: number;
+      details: { guid: string; ifc_class: string; fitting: string; count: number; reason: string }[];
+      note: string;
+    }>(`/projects/${pid}/mep/fittings`);
+  }
   /** W10-4: connect two MEP elements port-to-port (IfcRelConnectsPorts). */
   connectMep(pid: string, guidA: string, guidB: string, publish = true) {
     return this.editIfc(pid, "connect_mep", { guid_a: guidA, guid_b: guidB }, publish);

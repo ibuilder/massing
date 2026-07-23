@@ -114,9 +114,12 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   auth (interactive session vs env-var CI token); an `eval`-against-the-running-model path (no cold re-convert).
 
 **Tier 2 — solid, reuse engines:**
-- **MEP-FITTINGS — auto fitting insertion** *(S/M).* At each `MEP-GRAPH` node a direction/size
-  change *implies* a fitting (elbow/tee/reducer/transition); `mep_fittings.py` over the graph auto-inserts +
-  counts them into QTO — deterministic geometry, no CV (IFC gives us what others infer from PDFs).
+- ✅ **MEP-FITTINGS — implied fitting inference** *(S/M; v0.3.592).* At each `MEP-GRAPH` node/joint a
+  direction/size change *implies* a fitting; `mep_fittings.py` + `GET /mep/fittings` infers **tee/cross** at
+  branch nodes (degree ≥3), **reducer** at a segment-to-segment nominal-size step, and **elbow** at a
+  direction change (sweep-axis angle from the placement) — deterministic geometry, no CV (IFC gives us what
+  others infer from PDFs). Branch legs aren't double-counted; counts roll into **QTO** as EA `qto_lines`.
+  Client (`mepFittings`) + `test_mep_fittings` over three authored+connected mini-systems.
 - **PROCURE-LEVEL — RFQ / quote-leveling** *(M).* Group QTO line items into buyout
   packages, emit a structured RFQ, and score returned quotes on a normalized per-unit basis (price + lead-time
   + coverage completeness) — `procurement.py` + a `procurement_package` module + `/procurement/level`, reusing

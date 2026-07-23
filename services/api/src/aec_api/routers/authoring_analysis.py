@@ -227,6 +227,19 @@ def mep_graph(pid: str, db: Session = Depends(get_db), _: str = Depends(require_
     return _mg.graph(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/mep/fittings")
+def mep_fittings(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """MEP-FITTINGS: the **implied fittings** over the port graph — tee/cross at branch nodes, reducer at a
+    nominal-size step, elbow at a run direction change (from placement origins). Deterministic, no CV; the
+    counts roll into QTO as EA lines so buyout/estimate see the fittings the model implies, not just the
+    segments drawn. 409 without a source IFC."""
+    from aec_data import mep_fittings as _mf  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return _mf.fittings(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/mep/sprinkler-coverage")
 def sprinkler_coverage(pid: str, hazard: str = "light", db: Session = Depends(get_db),
                        _: str = Depends(require_role("viewer"))):
