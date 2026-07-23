@@ -233,6 +233,23 @@ def progress_rollup(pid: str, payload: dict = Body(...), db: Session = Depends(g
     return pr.rollup(elements, payload.get("installed_guids") or [])
 
 
+@router.post("/projects/{pid}/progress/capture-diff")
+def progress_capture_diff(pid: str, payload: dict = Body(...), db: Session = Depends(get_db),
+                          _: str = Depends(require_role("viewer"))):
+    """SCAN-4D — the diff between two capture timestamps: newly installed per class/level, elements that
+    *disappeared* (re-scan/rework flag), the progress delta and a daily rate. Body: `{installed_t1,
+    installed_t2, t1?, t2?, elements?}`; elements derive from the model's property index when omitted."""
+    from .. import progress_rollup as pr
+    _project(db, pid)
+    elements = payload.get("elements")
+    if not elements:
+        idx = _idx_for(pid) or {}
+        elements = [{"guid": g, "ifc_class": e.get("ifc_class"), "storey": e.get("storey")}
+                    for g, e in idx.items()]
+    return pr.capture_diff(elements, payload.get("installed_t1") or [], payload.get("installed_t2") or [],
+                           payload.get("t1"), payload.get("t2"))
+
+
 @router.get("/projects/{pid}/rules")
 def rules_get(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """RULE-LIB — the project's user-authored parametric rule library (falls back to the starter set

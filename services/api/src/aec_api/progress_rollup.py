@@ -54,6 +54,50 @@ def _finish(rows: dict, label: str) -> list[dict]:
     return sorted(out, key=lambda r: -r["expected"])
 
 
+def capture_diff(elements: list[dict], installed_t1: list | set, installed_t2: list | set,
+                 t1: str | None = None, t2: str | None = None) -> dict[str, Any]:
+    """SCAN-4D — the deterministic diff between two capture timestamps: what got installed between t1 and
+    t2 (per class / level), what *disappeared* (present at t1, absent at t2 — a re-scan or rework flag,
+    never silently dropped), and the progress delta + daily rate when dates are given."""
+    from datetime import date
+
+    s1 = {str(g) for g in (installed_t1 or [])}
+    s2 = {str(g) for g in (installed_t2 or [])}
+    known = {str(el.get("guid") or el.get("GlobalId") or ""): el for el in elements or [] if isinstance(el, dict)}
+    added = sorted(g for g in (s2 - s1) if g in known)
+    removed = sorted(g for g in (s1 - s2) if g in known)
+
+    def _grp(guids: list[str], key: str, fallback: str) -> list[dict]:
+        counts: dict[str, int] = {}
+        for g in guids:
+            k = str(known[g].get(key) or fallback)
+            counts[k] = counts.get(k, 0) + 1
+        return sorted(({key: k, "count": n} for k, n in counts.items()), key=lambda r: -r["count"])
+
+    r1 = rollup(elements, s1)
+    r2 = rollup(elements, s2)
+    days = None
+    try:
+        if t1 and t2:
+            days = (date.fromisoformat(str(t2)[:10]) - date.fromisoformat(str(t1)[:10])).days
+    except (TypeError, ValueError):
+        days = None
+    return {
+        "t1": t1, "t2": t2, "days": days,
+        "installed_t1": len(s1 & set(known)), "installed_t2": len(s2 & set(known)),
+        "newly_installed": len(added), "disappeared": len(removed),
+        "added_guids": added[:200], "disappeared_guids": removed[:200],
+        "added_by_class": _grp(added, "ifc_class", "Unclassified"),
+        "added_by_level": _grp(added, "storey", "—"),
+        "pct_complete_t1": r1["pct_complete"], "pct_complete_t2": r2["pct_complete"],
+        "pct_delta": round(r2["pct_complete"] - r1["pct_complete"], 3),
+        "elements_per_day": round(len(added) / days, 2) if days and days > 0 else None,
+        "note": "Capture-to-capture change log: newly installed per class/level + the progress delta (+ a "
+                "daily rate when dates are given). Elements present at t1 but absent at t2 are surfaced as "
+                "'disappeared' — a re-scan or rework flag, never silently dropped.",
+    }
+
+
 def rollup(elements: list[dict], installed_guids: list | set) -> dict[str, Any]:
     """Percent-complete by class / discipline / level / overall, by count and by value."""
     installed = {str(g) for g in (installed_guids or [])}

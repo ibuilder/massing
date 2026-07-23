@@ -38,6 +38,19 @@ assert r2["by_discipline"][0]["discipline"], r2["by_discipline"]
 
 assert pr.rollup([], [])["pct_complete"] == 0.0                          # empty is well-formed
 
+# --- SCAN-4D: capture-to-capture diff --------------------------------------------------------------
+d = pr.capture_diff(elements, ["w1", "w2"], ["w2", "w3", "w4", "s1"], t1="2026-07-01", t2="2026-07-11")
+assert d["days"] == 10 and d["installed_t1"] == 2 and d["installed_t2"] == 4, d
+assert d["newly_installed"] == 3 and d["added_guids"] == ["s1", "w3", "w4"], d
+assert d["disappeared"] == 1 and d["disappeared_guids"] == ["w1"], d      # present t1, absent t2 → flagged
+cls_add = {x["ifc_class"]: x["count"] for x in d["added_by_class"]}
+assert cls_add == {"IfcWall": 2, "IfcSlab": 1}, cls_add
+assert d["pct_complete_t1"] == 0.333 and d["pct_complete_t2"] == 0.667 and d["pct_delta"] == 0.334, d
+assert d["elements_per_day"] == 0.3, d
+# unknown GUIDs in a capture are ignored (only the design set counts)
+d2 = pr.capture_diff(elements, [], ["w1", "ghost-guid"])
+assert d2["newly_installed"] == 1 and d2["installed_t2"] == 1, d2
+
 # --- route: 404 missing project; 200 otherwise -----------------------------------------------------
 if os.path.exists("./test_progress_rollup.db"):
     os.remove("./test_progress_rollup.db")
@@ -52,6 +65,10 @@ with TestClient(app) as c:
     assert rr.status_code == 200, rr.text
     j = rr.json()
     assert j["pct_complete"] == 0.667 and j["pct_complete_value"] == 0.286, j
+    cd = c.post(f"/projects/{pid}/progress/capture-diff",
+                json={"elements": elements, "installed_t1": ["w1"], "installed_t2": ["w1", "w2"],
+                      "t1": "2026-07-01", "t2": "2026-07-02"})
+    assert cd.status_code == 200 and cd.json()["newly_installed"] == 1, cd.text
 
 print("PROGRESS-ROLLUP OK - as-built presence (all 4 walls installed, 0 of 2 slabs) rolls up to 4/6 = 66.7% "
       "complete by count but only $4k/$14k = 28.6% by value (the divergence that matters — cheap elements up, "

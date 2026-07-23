@@ -141,8 +141,11 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   GUIDs, roll up **% complete by IFC class · discipline · level · overall, by count AND by value** (the two
   diverge where cheap elements are up but expensive ones are outstanding); elements derive from the model's
   property index when not supplied. Feeds the GC portal + earned value. Client (`progressRollup`) +
-  `test_progress_rollup`. **Remaining:** wire the installed set from verified-progress / a scan match; +
-  **SCAN-4D** (diff two capture timestamps → change log + delta).
+  `test_progress_rollup`. ✅ **SCAN-4D** *(v0.3.616)* — `capture_diff` + `POST /progress/capture-diff`: the
+  diff between two capture timestamps — newly installed per class/level, **disappeared** elements (present
+  at t1, absent at t2 — a re-scan/rework flag, never silently dropped), the progress delta + a daily rate;
+  unknown GUIDs ignored (only the design set counts). Client (`progressCaptureDiff`). **Remaining:** wire
+  the installed set from verified-progress / a scan match.
 
 **Sprint F — Model-QA & authoring depth:**
 - ◧ **FILL-MATRIX — property fill-rate pivot → bulk-edit loop** *(S/M; v0.3.607).* `fill_matrix.py` +

@@ -2119,6 +2119,22 @@ export class ApiClient extends HttpCore {
       by_level: (Grp & { level: string })[]; note: string;
     }>(`/projects/${pid}/progress/rollup`, { method: "POST", body: JSON.stringify({ installed_guids: installedGuids, elements }) });
   }
+  /** SCAN-4D — the diff between two capture timestamps: newly installed per class/level, disappeared
+   * elements (re-scan/rework flag), progress delta + daily rate. */
+  progressCaptureDiff(pid: string, body: {
+    installed_t1: string[]; installed_t2: string[]; t1?: string; t2?: string;
+    elements?: Record<string, unknown>[];
+  }) {
+    return this.json<{
+      t1: string | null; t2: string | null; days: number | null;
+      installed_t1: number; installed_t2: number; newly_installed: number; disappeared: number;
+      added_guids: string[]; disappeared_guids: string[];
+      added_by_class: { ifc_class: string; count: number }[];
+      added_by_level: { storey: string; count: number }[];
+      pct_complete_t1: number; pct_complete_t2: number; pct_delta: number;
+      elements_per_day: number | null; note: string;
+    }>(`/projects/${pid}/progress/capture-diff`, { method: "POST", body: JSON.stringify(body) });
+  }
   /** ABSORPTION-SELLOUT — phase revenue by absorption rate → the monthly sell-out curve + months-to-sellout
    * (the carry driver) + total revenue/carry. */
   feasibilitySellout(pid: string, body: {

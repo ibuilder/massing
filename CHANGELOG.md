@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.616 — SCAN-4D: the diff between two capture timestamps
+
+Completes the progress pair: PROGRESS-ROLLUP reads one capture; this reads the *change* between two.
+
+- **`progress_rollup.capture_diff` + `POST /projects/{pid}/progress/capture-diff`**: given the design element
+  set and the installed GUIDs at two capture timestamps — what got **newly installed** (per IFC class and per
+  level), the **progress delta** (t1 vs t2 percent-complete), and a **daily installation rate** when dates
+  are supplied.
+- Elements present at t1 but absent at t2 are surfaced as **disappeared** — a re-scan or rework flag, never
+  silently dropped. GUIDs not in the design set are ignored (only real elements count). Elements derive from
+  the model's property index when not supplied.
+- `progressCaptureDiff` client method; covered in `test_progress_rollup` (hand-checked: 3 added over 10 days
+  = 0.3/day, w1 disappearing flagged). Backend suite green; CodeQL 0.
+
 ## v0.3.615 — docs: sync README / roadmap / status to the R17 backend wave (v0.3.600–614)
 
 Documentation refresh capturing the fifteen-release R17 backend wave — no code change.
