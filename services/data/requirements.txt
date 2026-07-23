@@ -1,5 +1,5 @@
 # Data service — IfcOpenShell extraction, QA & clash (guide §8 + analysis)
-ifcopenshell>=0.8.0,<0.9
+ifcopenshell>=0.8.5,<0.9
 openpyxl>=3.1          # XLSX export
 numpy>=1.26           # geometry-derived quantities, AABB clash
 ifctester>=0.8        # IDS / openBIM model validation
