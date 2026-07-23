@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.587 — observability: DB migrations + error alerting + tracing (#74 · #75)
+
+Sprint 2 of the open-PR cleanup — the production observability stack, all env-gated and no-op until
+configured. (#73 Sentry was already contained in #75, so it's closed as redundant.)
+
+- **#74 Alembic DB migrations (C1)** — `alembic.ini` + `migrations/` with a baseline-current-schema
+  revision (158 tables), an `env.py` wired to the app's metadata, and a `db-migrations` CI job that runs
+  `upgrade head` + `alembic check` (drift guard) against Postgres. `test_alembic_migrations` builds head +
+  asserts no drift. `alembic>=1.13` added to `requirements.in`/`.lock`.
+- **#75 OpenTelemetry tracing (C2) + Sentry error alerting (C3)** — `otel.py` (traces only; no-op unless
+  `OTEL_EXPORTER_OTLP_ENDPOINT` is set; FastAPI + SQLAlchemy instrumentation, sample-rate control,
+  request-id on the span) and `sentry.py` (external 500 alerting; no-op unless `AEC_SENTRY_DSN` is set;
+  **fail-open** — capture failure never affects the response; PII scrubbing of auth/cookie/api-key +
+  body). `test_otel` + `test_sentry` cover the enabled + disabled paths. Deps (`sentry-sdk[fastapi]`,
+  the explicit `opentelemetry-*` packages — Apache-2.0/MIT) added to `requirements.in`/`.lock`.
+
+Merged onto current main (run_tests test-list conflicts resolved to keep every test), ruff + full suite green.
+
 ## v0.3.586 — merge the ready hardening PRs (#70 · #71 · #72)
 
 Sprint 1 of the open-PR cleanup — three additive, CI-green production-hardening branches, landed together
