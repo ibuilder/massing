@@ -191,9 +191,13 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   (item-type/action whitelists · 120/500-char caps · a hard 200-decision-per-token cap · revoked-token 404) —
   NOT a payment and NOT an e-signature of record. The digest + public HTML page carry the newest-first
   **activity feed** (fully escaped); editors read the project-wide feed at `GET /client-decisions`.
-  Clients (`sharedDecision`/`clientDecisions`) + `test_portal_txn`. **Remaining:** per-item Sent/Viewed/
-  Approved status labels on the shared items themselves · the deposit/payment **schedule** display (schedule
-  only — the payment rail stays SKIP) · a scoped client comment thread (BCF round-trip).
+  Clients (`sharedDecision`/`clientDecisions`) + `test_portal_txn`. ✅ **phase 2 (v0.3.625):** the client
+  -facing **payment schedule** (display only) — an explicit per-token `show_payments` **opt-in** at mint
+  (+ Alembic revision; existing tokens stay financials-off): the digest + escaped HTML page carry the
+  owner-invoice milestones (number · period · amount · paid/submitted status) with billed/paid/**outstanding**
+  totals; the default digest still exposes no financials (asserted both ways). **Remaining:** per-item
+  Sent/Viewed/Approved status labels on shared items · a scoped client comment thread (BCF round-trip) ·
+  the payment *rail* stays SKIP.
 - ◧ **DORMER** *(S; roof-window slice v0.3.620).* ✅ `add_roof_window` recipe (`edit_enclosure.py`, in the
   RECIPES registry): cut a skylight opening through a flat `IfcRoof` at an [E,N] position (IfcOpeningElement
   voiding, full-depth) + fill with an `IfcWindow` PredefinedType **SKYLIGHT** via the standard feature

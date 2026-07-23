@@ -20,11 +20,14 @@ router = APIRouter()
 def create_share_token(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
                        actor: str = Depends(require_role("editor"))):
     """Mint a revocable, read-only share token for the project (owner/editor only). The returned token
-    string is the shareable credential — anyone with it can read the project's readiness digest."""
+    string is the shareable credential — anyone with it can read the project's readiness digest.
+    `show_payments: true` is the explicit OPT-IN for THIS token's digest to carry the owner-invoice
+    payment schedule (display only); the default digest exposes no financials."""
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
     try:
-        return client_portal.create_token(db, pid, body.get("label"), actor)
+        return client_portal.create_token(db, pid, body.get("label"), actor,
+                                          show_payments=bool(body.get("show_payments")))
     except ValueError as e:
         raise HTTPException(409, str(e)) from None
 

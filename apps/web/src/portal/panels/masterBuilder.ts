@@ -91,7 +91,11 @@ export async function renderMasterBuilder(ctx: PanelContext) {
     const mkRow = document.createElement("div"); mkRow.style.cssText = "display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap";
     const labelI = document.createElement("input"); labelI.className = "portal-filter"; labelI.placeholder = "label (e.g. Owner review)"; labelI.style.cssText = "flex:1 1 160px;font-size:12px";
     const mkBtn = document.createElement("button"); mkBtn.className = "tool-btn on"; mkBtn.textContent = "＋ Create link";
-    mkRow.append(labelI, mkBtn); share.append(mkRow, shareBody); body.appendChild(share);
+    const payLbl = document.createElement("label"); payLbl.className = "meta"; payLbl.style.cssText = "display:flex;align-items:center;gap:4px;font-size:12px";
+    payLbl.title = "Opt-in: this link's digest also shows the owner-invoice payment schedule (display only)";
+    const payCk = document.createElement("input"); payCk.type = "checkbox";
+    payLbl.append(payCk, document.createTextNode("💲 payment schedule"));
+    mkRow.append(labelI, payLbl, mkBtn); share.append(mkRow, shareBody); body.appendChild(share);
     const loadTokens = async () => {
       shareBody.innerHTML = `<div class="meta">loading…</div>`;
       try {
@@ -103,7 +107,7 @@ export async function renderMasterBuilder(ctx: PanelContext) {
           const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;margin:2px 0;flex-wrap:wrap";
           const link = document.createElement("a"); link.href = ctx.host.api.sharedPageUrl(t.token); link.target = "_blank"; link.rel = "noopener";
           link.className = "meta"; link.style.cssText = "flex:1 1 200px;word-break:break-all";
-          link.textContent = `🔗 ${t.label ? t.label + " · " : ""}…${t.token.slice(-8)} (${t.view_count} view${t.view_count === 1 ? "" : "s"})`;
+          link.textContent = `🔗 ${t.label ? t.label + " · " : ""}…${t.token.slice(-8)}${t.show_payments ? " · 💲" : ""} (${t.view_count} view${t.view_count === 1 ? "" : "s"})`;
           const del = document.createElement("button"); del.className = "selset-del"; del.textContent = "✕ revoke"; del.title = "Revoke this link immediately";
           del.onclick = async () => { try { await ctx.host.api.revokeShareToken(pid, t.token); void loadTokens(); } catch (e) { alert((e as Error).message); } };
           row.append(link, del); shareBody.appendChild(row);
@@ -112,7 +116,7 @@ export async function renderMasterBuilder(ctx: PanelContext) {
     };
     mkBtn.onclick = async () => {
       mkBtn.disabled = true;
-      try { await ctx.host.api.createShareToken(pid, labelI.value.trim() || undefined); labelI.value = ""; await loadTokens(); }
+      try { await ctx.host.api.createShareToken(pid, labelI.value.trim() || undefined, payCk.checked); labelI.value = ""; payCk.checked = false; await loadTokens(); }
       catch (e) { alert((e as Error).message); }
       finally { mkBtn.disabled = false; }
     };

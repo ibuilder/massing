@@ -67,6 +67,26 @@ with TestClient(app) as c:
     assert c.post(f"/shared/{tok}/decision", json={"item_type": "estimate", "item_ref": "x",
                                                    "action": "approved"}).status_code == 404
 
+    # --- PORTAL-TXN phase 2: the payment schedule is OPT-IN per token -----------------------------
+    for inv in ({"number": "INV-001", "amount": 250000, "period": "2026-05", "status": "paid"},
+                {"number": "INV-002", "amount": 300000, "period": "2026-06", "status": "submitted"}):
+        r = c.post(f"/projects/{pid}/modules/owner_invoice", json={"data": inv})
+        assert r.status_code in (200, 201), r.text
+    plain_tok = c.post(f"/projects/{pid}/share-tokens", json={"label": "no-financials"}).json()
+    assert plain_tok["show_payments"] is False
+    assert "payment_schedule" not in c.get(f"/shared/{plain_tok['token']}/digest").json(), \
+        "the DEFAULT digest must expose no financials"
+    pay_tok = c.post(f"/projects/{pid}/share-tokens",
+                     json={"label": "owner", "show_payments": True}).json()
+    assert pay_tok["show_payments"] is True
+    ps = c.get(f"/shared/{pay_tok['token']}/digest").json()["payment_schedule"]
+    assert ps["billed"] == 550000 and ps["paid"] == 250000 and ps["outstanding"] == 300000, ps
+    assert {i["number"] for i in ps["items"]} == {"INV-001", "INV-002"}, ps["items"]
+    pay_html = c.get(f"/shared/{pay_tok['token']}").text
+    assert "Payment schedule" in pay_html and "$300,000" in pay_html and "Outstanding" in pay_html, \
+        "the opt-in HTML page renders the schedule"
+    assert "Payment schedule" not in c.get(f"/shared/{plain_tok['token']}").text
+
     # --- the hard per-token cap (200) fires 409 ---------------------------------------------------
     tok2 = c.post(f"/projects/{pid}/share-tokens", json={"label": "cap"}).json()["token"]
     from aec_api.client_portal import _MAX_DECISIONS_PER_TOKEN

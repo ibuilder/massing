@@ -486,6 +486,9 @@ class ShareToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     last_viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     view_count: Mapped[int] = mapped_column(Integer, default=0)
+    # PORTAL-TXN phase 2: OPT-IN per token — the default digest exposes NO financials; only a token
+    # minted with show_payments=True carries the owner-invoice payment schedule (amounts/status).
+    show_payments: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class ClientDecision(Base):

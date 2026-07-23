@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.625 — PORTAL-TXN phase 2: the client-facing payment schedule (opt-in per token)
+
+The client sees where the money stands — as a display, never a payment rail.
+
+- **`show_payments` opt-in per share token** (a new ShareToken column + Alembic revision with a
+  `server_default=false`, so every existing token stays financials-off): only a token explicitly minted with
+  `show_payments: true` carries financials. The default digest's no-financials promise is asserted in both
+  directions in the test.
+- **The payment schedule** (digest + escaped HTML page): the project's owner invoices as milestones —
+  number · period · amount · paid/submitted status — with **billed / paid / outstanding** totals, rendered
+  with tabular numerals and a paid/unpaid colour code. Explicitly display-only; the payment rail remains a
+  non-goal.
+- Hand-checked in `test_portal_txn`: $550k billed / $250k paid / $300k outstanding; the plain token's digest
+  and HTML carry no schedule. Drift-guard clean (159 tables); backend suite green; CodeQL 0.
+
 ## v0.3.624 — demo: seeded Issue Board + query-tolerant fixture matching (live-verified)
 
 The hosted demo now shows the new kanban with real lanes — verified live in the browser.

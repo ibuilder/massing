@@ -24,8 +24,11 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def create_token(db: Session, pid: str, label: str | None, actor: str | None) -> dict[str, Any]:
-    """Mint a new read-only share token for a project. Bounded per project."""
+def create_token(db: Session, pid: str, label: str | None, actor: str | None,
+                 show_payments: bool = False) -> dict[str, Any]:
+    """Mint a new read-only share token for a project. Bounded per project. `show_payments` is the
+    explicit OPT-IN that lets THIS token's digest carry the owner-invoice payment schedule — the default
+    digest exposes no financials."""
     from .models import ShareToken
 
     live = db.execute(select(ShareToken).where(
@@ -34,10 +37,40 @@ def create_token(db: Session, pid: str, label: str | None, actor: str | None) ->
         raise ValueError(f"too many live share tokens (max {_MAX_TOKENS}); revoke one first")
     tok = secrets.token_urlsafe(_TOKEN_BYTES)
     row = ShareToken(token=tok, project_id=pid, label=(label or "").strip()[:120] or None,
-                     revoked=False, created_by=actor, created_at=_now(), view_count=0)
+                     revoked=False, created_by=actor, created_at=_now(), view_count=0,
+                     show_payments=bool(show_payments))
     db.add(row)
     db.commit()
     return _public_row(row)
+
+
+def _payment_schedule(db: Session, pid: str) -> dict[str, Any] | None:
+    """PORTAL-TXN phase 2: the client-facing payment SCHEDULE (display only — no payment rail): the
+    project's owner invoices as milestones with amount + status, plus billed/paid/outstanding totals."""
+    from . import modules as me
+
+    if "owner_invoice" not in me.TABLES:
+        return None
+    rows = me.list_records(db, "owner_invoice", pid, limit=500)
+    items = []
+    billed = paid = 0.0
+    for r in rows:
+        d = r.get("data") or {}
+        try:
+            amt = float(str(d.get("amount") or 0).replace(",", "").replace("$", ""))
+        except (TypeError, ValueError):
+            amt = 0.0
+        status = str(d.get("status") or "draft")
+        items.append({"number": d.get("number"), "period": d.get("period"),
+                      "amount": round(amt, 2), "status": status})
+        billed += amt
+        if status == "paid":
+            paid += amt
+    if not items:
+        return None
+    return {"items": items, "billed": round(billed, 2), "paid": round(paid, 2),
+            "outstanding": round(billed - paid, 2),
+            "note": "Payment schedule (display only — payments are handled outside this page)."}
 
 
 def list_tokens(db: Session, pid: str) -> list[dict[str, Any]]:
@@ -66,7 +99,9 @@ def digest(db: Session, token: str) -> dict[str, Any]:
     unknown or revoked token (the public route maps that to 404 — no enumeration signal). Records a view.
 
     SAFETY: only high-level readiness is exposed — the project name, the overall readiness score, and each
-    protocol step's title + status. No findings detail, no record contents, no GUIDs, no financials, no PII.
+    protocol step's title + status. No findings detail, no record contents, no GUIDs, no PII. Financials
+    (the owner-invoice payment schedule) appear ONLY on a token minted with the explicit show_payments
+    opt-in; the default stays financials-free.
     """
     from . import master_builder
     from .models import ShareToken
@@ -86,6 +121,7 @@ def digest(db: Session, token: str) -> dict[str, Any]:
         "step_count": b.get("step_count"),
         "steps": [{"n": s["n"], "title": s["title"], "status": s["status"]} for s in b.get("steps", [])],
         "activity": _activity_for_token(db, token),
+        **({"payment_schedule": _payment_schedule(db, row.project_id)} if row.show_payments else {}),
         "shared_label": row.label,
         "note": "Read-only shared project digest — high-level readiness only. No record-level data, "
                 "GUIDs, financial detail, or personal information is exposed. Not a substitute for the "
@@ -215,12 +251,36 @@ def to_html(d: dict[str, Any]) -> str:
                 f'<span class="muted">{esc((a.get("created_at") or "")[:10])}</span></li>'
                 for a in d.get("activity", []))
             + "</ul></div>" if d.get("activity") else "")
+        + (_payments_html(d["payment_schedule"], esc) if d.get("payment_schedule") else "")
         + f"<div class=\"muted\">{esc(d.get('note'))}</div>"
         "</main></body></html>")
 
 
+def _payments_html(ps: dict, esc) -> str:
+    """The escaped payment-schedule card for the public share page (display only)."""
+    rows = []
+    for it in ps.get("items", []):
+        amount = it.get("amount") or 0
+        color = "#1a7f37" if it.get("status") == "paid" else "#9a6700"
+        rows.append(
+            '<li style="display:flex;gap:8px;align-items:baseline;margin:6px 0">'
+            f'<span style="min-width:4em;color:#6b7280">{esc(it.get("number"))}</span>'
+            f'<span style="flex:1">{esc(it.get("period") or "")}</span>'
+            f'<span style="font-variant-numeric:tabular-nums">${esc(f"{amount:,.0f}")}</span>'
+            '<span style="font-size:11px;text-transform:uppercase;letter-spacing:.03em;'
+            f'color:{color}">{esc(it.get("status"))}</span></li>')
+    outstanding = ps.get("outstanding") or 0
+    return (
+        '<div class="card"><b>Payment schedule</b><ul>' + "".join(rows)
+        + '<li style="display:flex;justify-content:space-between;margin-top:8px;'
+          'border-top:1px solid #e5e7eb;padding-top:8px"><b>Outstanding</b>'
+        + f'<b style="font-variant-numeric:tabular-nums">${esc(f"{outstanding:,.0f}")}</b></li></ul>'
+        + f'<div class="muted">{esc(ps.get("note"))}</div></div>')
+
+
 def _public_row(r) -> dict[str, Any]:
     return {"token": r.token, "label": r.label, "revoked": bool(r.revoked),
+            "show_payments": bool(getattr(r, "show_payments", False)),
             "created_at": r.created_at.isoformat() if r.created_at else None,
             "created_by": r.created_by, "view_count": r.view_count or 0,
             "last_viewed_at": r.last_viewed_at.isoformat() if r.last_viewed_at else None,

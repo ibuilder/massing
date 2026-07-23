@@ -1976,12 +1976,15 @@ export class ApiClient extends HttpCore {
   /** CLIENT-PORTAL — read-only share tokens for a public project-readiness digest. */
   shareTokens(pid: string) {
     type Tok = { token: string; label: string | null; revoked: boolean; created_at: string | null;
-      created_by: string | null; view_count: number; last_viewed_at: string | null; share_path: string };
+      created_by: string | null; view_count: number; last_viewed_at: string | null; share_path: string;
+      show_payments: boolean };
     return this.json<{ tokens: Tok[] }>(`/projects/${pid}/share-tokens`);
   }
-  createShareToken(pid: string, label?: string) {
+  /** `showPayments` is the explicit opt-in for THIS token's digest to carry the payment schedule. */
+  createShareToken(pid: string, label?: string, showPayments?: boolean) {
     return this.json<{ token: string; label: string | null; share_path: string; revoked: boolean }>(
-      `/projects/${pid}/share-tokens`, { method: "POST", body: JSON.stringify({ label: label ?? "" }) });
+      `/projects/${pid}/share-tokens`,
+      { method: "POST", body: JSON.stringify({ label: label ?? "", show_payments: !!showPayments }) });
   }
   revokeShareToken(pid: string, token: string) {
     return this.json<{ revoked: boolean }>(`/projects/${pid}/share-tokens/${encodeURIComponent(token)}`,
