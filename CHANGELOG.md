@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.611 — PORTAL-TXN phase 1: the client portal turns transactional (tokenized decisions)
+
+The read-only ShareToken digest becomes a lightweight decision surface — the client can act, not just look —
+while staying deterministic and hard-capped for a public endpoint.
+
+- **`client_decisions` table** (+ an Alembic revision; the drift-guard stays clean) and a PUBLIC
+  **`POST /shared/{token}/decision`**: a timestamped, token-stamped **approve / acknowledge / decline** on a
+  shared item (estimate · proposal · change order · selection · invoice · document). Explicitly NOT a payment
+  and NOT an e-signature of record — a recorded client decision with status.
+- **Hardened for a public write path:** item-type and action whitelists (a `wire_transfer` or `paid` attempt
+  is a 422), 120/500-char caps on refs/notes, a **hard 200-decision-per-token cap** (409 — an unauthenticated
+  holder can't grow the table unbounded), and revoked/unknown tokens 404 with no enumeration signal.
+- The shared digest and the public HTML page now carry the newest-first **activity feed** — rendered fully
+  escaped (an injected `<script>` appears only as text). Editors read the project-wide decision feed at
+  `GET /projects/{pid}/client-decisions`.
+- `sharedDecision` / `clientDecisions` client methods + `test_portal_txn` (decisions, guards, caps, escape,
+  revocation, the cap 409). Backend suite green; CodeQL 0.
+
 ## v0.3.610 — WALL-ASSEMBLY thermal: R/U-values computed from the layers themselves
 
 The model already carries genuine layered assemblies (`IfcMaterialLayerSet`), and the envelope code-check

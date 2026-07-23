@@ -48,6 +48,31 @@ def revoke_share_token(pid: str, token: str, db: Session = Depends(get_db),
     return {"revoked": True}
 
 
+@router.get("/projects/{pid}/client-decisions")
+def list_client_decisions(pid: str, limit: int = 500, db: Session = Depends(get_db),
+                          _: str = Depends(require_role("editor"))):
+    """PORTAL-TXN — the project's client-decision feed (approve/acknowledge/decline recorded through share
+    tokens), newest first (editor only)."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return {"decisions": client_portal.decisions_for_project(db, pid, limit)}
+
+
+@router.post("/shared/{token}/decision")
+def shared_decision(token: str, body: dict = Body(...), db: Session = Depends(get_db)):
+    """PUBLIC (no auth) — PORTAL-TXN: record a client decision through a live share token — a timestamped,
+    token-stamped **approve / acknowledge / decline** on a shared item. NOT a payment and NOT an e-signature
+    of record. Inputs are whitelisted + length-capped and each token carries a hard decision cap. Body:
+    `{item_type, item_ref, action, client_name?, note?}`. Unknown/revoked token → 404."""
+    try:
+        return client_portal.record_decision(db, token, body.get("item_type"), body.get("item_ref"),
+                                             body.get("action"), body.get("client_name"), body.get("note"))
+    except KeyError:
+        raise HTTPException(404, "not found") from None
+    except ValueError as e:
+        raise HTTPException(409 if "limit" in str(e) else 422, str(e)) from None
+
+
 @router.get("/shared/{token}/digest")
 def shared_digest(token: str, db: Session = Depends(get_db)):
     """PUBLIC (no auth) — the curated read-only project digest for a valid share token. High-level

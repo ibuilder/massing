@@ -2054,6 +2054,22 @@ export class ApiClient extends HttpCore {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
+  /** PORTAL-TXN — record a client decision through a share token (public; approve/acknowledge/decline). */
+  sharedDecision(token: string, body: {
+    item_type: string; item_ref: string; action: "approved" | "acknowledged" | "declined";
+    client_name?: string; note?: string;
+  }) {
+    return this.json<{
+      id: number; item_type: string; item_ref: string; action: string;
+      client_name: string | null; note: string | null; created_at: string | null;
+    }>(`/shared/${encodeURIComponent(token)}/decision`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** PORTAL-TXN — the project's client-decision feed (editor only), newest first. */
+  clientDecisions(pid: string, limit = 500) {
+    type D = { id: number; item_type: string; item_ref: string; action: string; client_name: string | null;
+      note: string | null; created_at: string | null; token: string };
+    return this.json<{ decisions: D[] }>(`/projects/${pid}/client-decisions?limit=${encodeURIComponent(limit)}`);
+  }
   /** WALL-ASSEMBLY THERMAL — every IfcMaterialLayerSet → R/U computed from the layers + per-layer takeoff. */
   modelAssemblyThermal(pid: string) {
     type Layer = { name: string; category: string | null; thickness_m: number; r_value: number };

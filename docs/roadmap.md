@@ -143,11 +143,16 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   and — with a zoning envelope + a proposal — **FAR / lot-coverage / height compliance** with per-axis slack +
   max-buildable GFA. Client (`parcelAnalyze`) + `test_parcel_geometry`. **Remaining:** bind the parcel to
   zoning/permit/administrative docs (docmanager link) + persist as a site record.
-- **PORTAL-TXN — ShareToken read-only → transactional** *(M).* Tokenized approve/acknowledge actions (approve
-  an estimate version · acknowledge a CO · sign off a selection) as timestamped, token-stamped records;
-  per-item status labels (Sent/Viewed/Approved/Paid) + a client-facing activity feed; a deposit/payment
-  **schedule** display + reminders (schedule only — the payment rail stays SKIP); a scoped client comment
-  thread anchored to a pin/CO/selection (BCF round-trip). *(Payment execution, financing, e-sign-of-record: SKIP.)*
+- ◧ **PORTAL-TXN — ShareToken read-only → transactional** *(M; phase-1 v0.3.611).* ✅ the tokenized
+  **decision surface**: a `client_decisions` table (+ Alembic revision) and PUBLIC
+  `POST /shared/{token}/decision` — a timestamped, token-stamped **approve / acknowledge / decline** on a
+  shared item (estimate · proposal · CO · selection · invoice · document), hardened for a public endpoint
+  (item-type/action whitelists · 120/500-char caps · a hard 200-decision-per-token cap · revoked-token 404) —
+  NOT a payment and NOT an e-signature of record. The digest + public HTML page carry the newest-first
+  **activity feed** (fully escaped); editors read the project-wide feed at `GET /client-decisions`.
+  Clients (`sharedDecision`/`clientDecisions`) + `test_portal_txn`. **Remaining:** per-item Sent/Viewed/
+  Approved status labels on the shared items themselves · the deposit/payment **schedule** display (schedule
+  only — the payment rail stays SKIP) · a scoped client comment thread (BCF round-trip).
 - **DORMER** *(S).* A GUID-stable parametric dormer/roof-window family recipe (roof-plane intersection geometry).
 
 **Cross-cutting / substrate (interleave; larger, lower-urgency):**

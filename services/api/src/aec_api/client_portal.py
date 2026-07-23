@@ -85,11 +85,83 @@ def digest(db: Session, token: str) -> dict[str, Any]:
         "ready_steps": b.get("ready_steps"), "gap_steps": b.get("gap_steps"),
         "step_count": b.get("step_count"),
         "steps": [{"n": s["n"], "title": s["title"], "status": s["status"]} for s in b.get("steps", [])],
+        "activity": _activity_for_token(db, token),
         "shared_label": row.label,
         "note": "Read-only shared project digest — high-level readiness only. No record-level data, "
                 "GUIDs, financial detail, or personal information is exposed. Not a substitute for the "
                 "project record of authority.",
     }
+
+
+# PORTAL-TXN — the tokenized client-decision surface. Whitelists + hard caps because the endpoint is
+# PUBLIC: an unauthenticated token holder must not grow the table unbounded or inject markup.
+_ITEM_TYPES = ("estimate", "proposal", "change_order", "selection", "invoice", "document", "digest")
+_ACTIONS = ("approved", "acknowledged", "declined")
+_MAX_DECISIONS_PER_TOKEN = 200
+_CAPS = {"item_ref": 120, "client_name": 80, "note": 500}
+
+
+def record_decision(db: Session, token: str, item_type: str, item_ref: str, action: str,
+                    client_name: str | None = None, note: str | None = None) -> dict[str, Any]:
+    """Record a client decision through a live token. Raises KeyError (bad/revoked token → 404) or
+    ValueError (bad input / decision cap → 422/409). Timestamped + token-stamped; NOT a payment or an
+    e-signature of record."""
+    from sqlalchemy import func, select
+
+    from .models import ClientDecision, ShareToken
+
+    row = db.get(ShareToken, token)
+    if row is None or row.revoked:
+        raise KeyError("invalid or revoked token")
+    it, act = str(item_type or "").strip().lower(), str(action or "").strip().lower()
+    ref = str(item_ref or "").strip()
+    if it not in _ITEM_TYPES:
+        raise ValueError(f"item_type must be one of {', '.join(_ITEM_TYPES)}")
+    if act not in _ACTIONS:
+        raise ValueError(f"action must be one of {', '.join(_ACTIONS)}")
+    if not ref:
+        raise ValueError("item_ref is required")
+    n = db.execute(select(func.count()).select_from(ClientDecision)
+                   .where(ClientDecision.token == token)).scalar() or 0
+    if n >= _MAX_DECISIONS_PER_TOKEN:
+        raise ValueError("decision limit reached for this share link — ask the project team for a fresh link")
+    d = ClientDecision(token=token, project_id=row.project_id, item_type=it,
+                       item_ref=ref[:_CAPS["item_ref"]], action=act,
+                       client_name=(str(client_name).strip()[:_CAPS["client_name"]] or None) if client_name else None,
+                       note=(str(note).strip()[:_CAPS["note"]] or None) if note else None,
+                       created_at=_now())
+    db.add(d)
+    db.commit()
+    return _decision_row(d)
+
+
+def _decision_row(d) -> dict[str, Any]:
+    return {"id": d.id, "item_type": d.item_type, "item_ref": d.item_ref, "action": d.action,
+            "client_name": d.client_name, "note": d.note,
+            "created_at": d.created_at.isoformat() if d.created_at else None}
+
+
+def decisions_for_project(db: Session, pid: str, limit: int = 500) -> list[dict[str, Any]]:
+    """The project's client-decision feed, newest first (desc-limit keeps the NEWEST when capped)."""
+    from sqlalchemy import select
+
+    from .models import ClientDecision
+
+    rows = db.execute(select(ClientDecision).where(ClientDecision.project_id == pid)
+                      .order_by(ClientDecision.created_at.desc(), ClientDecision.id.desc())
+                      .limit(max(1, min(limit, 2000)))).scalars().all()
+    return [{**_decision_row(d), "token": d.token} for d in rows]
+
+
+def _activity_for_token(db: Session, token: str, limit: int = 20) -> list[dict[str, Any]]:
+    from sqlalchemy import select
+
+    from .models import ClientDecision
+
+    rows = db.execute(select(ClientDecision).where(ClientDecision.token == token)
+                      .order_by(ClientDecision.created_at.desc(), ClientDecision.id.desc())
+                      .limit(limit)).scalars().all()
+    return [_decision_row(d) for d in rows]
 
 
 def to_html(d: dict[str, Any]) -> str:
@@ -132,7 +204,18 @@ def to_html(d: dict[str, Any]) -> str:
         f"<div class=\"muted\" style=\"margin-top:6px\">{esc(d.get('ready_steps'))}/"
         f"{esc(d.get('step_count'))} steps ready · {esc(d.get('gap_steps'))} gap(s)</div></div>"
         f"<div class=\"card\"><b>Master Builder Protocol</b><ul>{rows}</ul></div>"
-        f"<div class=\"muted\">{esc(d.get('note'))}</div>"
+        + (
+            "<div class=\"card\"><b>Your activity</b><ul>"
+            + "".join(
+                f'<li style="display:flex;gap:8px;align-items:baseline;margin:6px 0">'
+                f'<span style="font-size:11px;text-transform:uppercase;letter-spacing:.03em;'
+                f'color:{"#1a7f37" if a.get("action") == "approved" else "#b3261e" if a.get("action") == "declined" else "#6b7280"}">'
+                f'{esc(a.get("action"))}</span>'
+                f'<span style="flex:1">{esc(a.get("item_type"))} · {esc(a.get("item_ref"))}</span>'
+                f'<span class="muted">{esc((a.get("created_at") or "")[:10])}</span></li>'
+                for a in d.get("activity", []))
+            + "</ul></div>" if d.get("activity") else "")
+        + f"<div class=\"muted\">{esc(d.get('note'))}</div>"
         "</main></body></html>")
 
 

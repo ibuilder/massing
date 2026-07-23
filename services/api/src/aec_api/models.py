@@ -486,3 +486,21 @@ class ShareToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     last_viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     view_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ClientDecision(Base):
+    """PORTAL-TXN — a client decision recorded through a share token: a timestamped, token-stamped
+    approve/acknowledge/decline on a shared item (an estimate version, a change order, a selection…).
+    NOT a payment and NOT an e-signature of record — a recorded client decision with status. Inputs are
+    whitelisted + length-capped at the engine (public endpoint), and each token carries a hard decision
+    cap so an unauthenticated holder can't grow the table unbounded."""
+    __tablename__ = "client_decisions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(String, index=True)
+    item_type: Mapped[str] = mapped_column(String)     # whitelisted: estimate|change_order|selection|…
+    item_ref: Mapped[str] = mapped_column(String)      # the shared item's label/ref (capped)
+    action: Mapped[str] = mapped_column(String)        # approved | acknowledged | declined
+    client_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
