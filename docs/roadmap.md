@@ -340,12 +340,14 @@ below** (kept; the rest of the document is superseded by shipped work):
   tarball); added **retention pruning** (`BACKUP_KEEP`, default 14) and **[docs/ops-dr.md](ops-dr.md)**
   — what-must-survive, RPO/RTO, the quarterly restore drill + verification checklist, retention &
   deletion posture, failure playbook. *(The drill itself is an operator action, run per the runbook.)*
-- **SDK-VERSIONING — versioned extension points** *(S).* The plugin registry exists; add **extension-point
-  versions + compatibility rules** (a plugin declares the contract version it targets; incompatible loads
-  are refused with a clear message).
-- **ADR-LITE — architecture decision records** *(S; process).* Adopt `docs/adr/` for *future* load-bearing
-  decisions (one page: context/decision/consequences). No retroactive backfill — the CHANGELOG + roadmap
-  already carry the history.
+- ✅ **SDK-VERSIONING — versioned extension points** *(verified ALREADY SHIPPED, 2026-07-24).* The plugin
+  registry has had this since it landed: the manifest must declare an `api_version` whose MAJOR matches
+  `PLUGIN_API_VERSION`, incompatible loads are **refused with a clear reason** (never loaded against a
+  different contract), recipes are namespaced `<plugin>.<name>`, and collisions are refused. Nothing to
+  build — the strategy doc's requirement was already the implementation.
+- ✅ **ADR-LITE — architecture decision records** *(v0.3.644).* `docs/adr/` adopted with the one-page
+  format ([README](adr/README.md)) and [ADR-0001](adr/0001-adopt-adr-lite.md) recording the adoption
+  itself. Future load-bearing decisions only; no retroactive backfill.
 
 *Sequencing: SCHED-CALC and OPS-DR are quick wins; AUTH-CONSTRAINTS ① and MODEL-PUBLISH's optimistic
 concurrency are the highest-value engineering slices; FAMILY-DEPTH follows the next authoring push.*

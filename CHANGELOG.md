@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.644 — ADR-LITE adopted + SDK-VERSIONING verified already shipped (R18)
+
+Two more R18 items resolve — one by a page of process, one by reading the code before building.
+
+- **ADR-LITE**: `docs/adr/` adopted — one page per load-bearing decision (context / decision /
+  consequences), sequential numbering, supersede-never-rewrite, **no retroactive backfill** (the
+  CHANGELOG already carries the history). [ADR-0001](docs/adr/0001-adopt-adr-lite.md) records the
+  adoption itself.
+- **SDK-VERSIONING**: verified **already shipped** in the plugin registry — the manifest's
+  `api_version` MAJOR must match the host's `PLUGIN_API_VERSION`, incompatible plugins are refused
+  with a clear reason (never loaded against a different recipe contract), recipes are namespaced,
+  collisions refused. The strategy doc's requirement was already the implementation; recorded, not
+  rebuilt.
+- Docs-only release; the R18 ring now has ONE engineering item open (FAMILY-DEPTH) plus
+  VIEW-TEMPLATES and AUTH-CONSTRAINTS ②③.
+
 ## v0.3.643 — the headless `massing` CLI + the `check` CI gate (the last NOW item)
 
 Author, edit, and GATE a model from a terminal or a CI runner — no server, no browser.
