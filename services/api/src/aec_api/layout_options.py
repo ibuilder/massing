@@ -87,6 +87,60 @@ def _pareto(scenarios: list[dict]) -> list[str]:
     return front
 
 
+def emit_recipes(scenario: dict, base: dict) -> dict[str, Any]:
+    """MASSING-OPT phase 2 — turn one ranked option into the **executable authoring chain**: the
+    blank-model bootstrap (levels at the option's floor-to-floor) + a GUID-stable edit-recipe step list
+    (floor slab, four perimeter walls, and a centered core box per storey, sized from the option's
+    plate and core efficiency). ``bootstrap`` feeds the blank-IFC generator; ``steps`` drops straight
+    into ``POST /projects/{pid}/edit/batch`` (ONE undoable version). Pure + deterministic — the same
+    option always emits the same chain."""
+    import math
+
+    floors = int(scenario.get("floors") or 0)
+    if floors < 1:
+        raise ValueError("scenario has no floors to author")
+    levers = scenario.get("levers") or {}
+    f2f = float(levers.get("floor_to_floor") or base.get("floor_to_floor", 3.5) or 3.5)
+    eff = float(levers.get("efficiency") or base.get("efficiency", 0.82) or 0.82)
+    gfa = float(scenario.get("gfa_m2") or 0.0)
+    plate = gfa / floors                                     # m² per floor plate
+    side = round(math.sqrt(max(plate, 1.0)), 2)              # square plate, centered at the origin
+    half = round(side / 2.0, 2)
+    core_area = max(plate * (1.0 - eff), 0.0)                # the non-net share becomes the core box
+    cside = round(math.sqrt(core_area), 2) if core_area >= 1.0 else 0.0
+    chalf = round(cside / 2.0, 2)
+
+    def _ring(h: float) -> list[list[list[float]]]:
+        c = [[-h, -h], [h, -h], [h, h], [-h, h]]
+        return [[c[i], c[(i + 1) % 4]] for i in range(4)]
+
+    steps: list[dict[str, Any]] = []
+    for i in range(1, floors + 1):
+        lvl = f"Level {i}"                                    # generate_blank_ifc's storey naming
+        steps.append({"recipe": "add_slab", "params": {
+            "points": [[-half, -half], [half, -half], [half, half], [-half, half]],
+            "thickness": 0.2, "storey": lvl}})
+        for a, b in _ring(half):                              # the perimeter
+            steps.append({"recipe": "add_wall", "params": {
+                "start": a, "end": b, "height": round(f2f, 2), "thickness": 0.2, "storey": lvl}})
+        if cside:                                             # the core box
+            for a, b in _ring(chalf):
+                steps.append({"recipe": "add_wall", "params": {
+                    "start": a, "end": b, "height": round(f2f, 2), "thickness": 0.15, "storey": lvl}})
+
+    return {
+        "option": scenario.get("id"), "floors": floors, "floor_to_floor": round(f2f, 2),
+        "plate_m2": round(plate, 1), "plate_side_m": side, "core_side_m": cside,
+        "bootstrap": {"name": f"Massing {scenario.get('id') or 'option'}", "storeys": floors,
+                      "storey_height": round(f2f, 2), "ground_size": round(max(30.0, side * 1.5), 1)},
+        "steps": steps, "step_count": len(steps),
+        "note": "Author this option: create the blank model from `bootstrap` (levels at the option's "
+                "floor-to-floor), then POST the `steps` to /projects/{pid}/edit/batch — one undoable "
+                "version; every recipe is GUID-stable. Square plate + centered core are the massing "
+                "STAND-IN the designer refines, not a floor plan.",
+    }
+
+
 def optioneer(base: dict, levers: dict[str, list] | None = None, *, objective: str = "yield_on_cost",
               limit: int = 24) -> dict[str, Any]:
     """Enumerate the lever grid over the envelope → scored, ranked massing options + a Pareto frontier.

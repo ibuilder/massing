@@ -441,6 +441,34 @@ def massing_optioneer(body: MassingOptioneerIn):
         raise HTTPException(422, _ENVELOPE_422) from None
 
 
+class MassingRecipesIn(MassingOptioneerIn):
+    option: str = Field(default="", description="the scenario id to author (empty = the best option)")
+
+
+@router.post("/massing/optioneer/recipes")
+def massing_option_recipes(body: MassingRecipesIn):
+    """MASSING-OPT phase 2 — emit ONE ranked option as the executable authoring chain: the blank-model
+    bootstrap (levels at the option's floor-to-floor) + a GUID-stable edit-recipe step list (slab +
+    perimeter walls + core box per storey) ready for POST /projects/{pid}/edit/batch. The optioneer is
+    re-run server-side (deterministic), so the emitted chain is authoritative for the given envelope +
+    levers; unknown option id → 404."""
+    from .. import layout_options as lo
+
+    try:
+        result = lo.optioneer(body.envelope.model_dump(), body.levers,
+                              objective=body.objective, limit=body.limit)
+    except ValueError:
+        raise HTTPException(422, _ENVELOPE_422) from None
+    want = body.option or result.get("best")
+    scen = next((s for s in result.get("scenarios", []) if s["id"] == want), None)
+    if scen is None:
+        raise HTTPException(404, f"option {want!r} not in the ranked set (see /massing/optioneer)")
+    try:
+        return lo.emit_recipes(scen, body.envelope.model_dump())
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from None
+
+
 def compute_massing_only(body: MassingIn) -> dict:
     from aec_data.massing import compute_massing  # type: ignore
     return compute_massing(body.model_dump())

@@ -61,6 +61,43 @@ if s0["units"]:
     assert abs(pf["noi"] - round(noi)) <= 1, (pf["noi"], noi)
     assert abs(pf["yield_on_cost"] - round(noi / pf["total_cost"], 4)) <= 0.001, pf
 
+# --- phase 2: emit ONE option as the executable authoring chain, and actually EXECUTE it -----------
+import math  # noqa: E402
+import tempfile  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+rec = lo.emit_recipes(s0, BASE)
+assert rec["option"] == s0["id"] and rec["floors"] == s0["floors"], rec
+assert rec["bootstrap"]["storeys"] == s0["floors"], rec["bootstrap"]
+assert rec["bootstrap"]["storey_height"] == round(s0["levers"]["floor_to_floor"], 2), rec["bootstrap"]
+# per storey: 1 slab + 4 perimeter walls (+4 core walls when a core box fits)
+per = 5 + (4 if rec["core_side_m"] else 0)
+assert rec["step_count"] == len(rec["steps"]) == s0["floors"] * per, (rec["step_count"], per)
+# the plate side derives from the option's own program (side² · floors ≈ gfa)
+assert abs(rec["plate_side_m"] ** 2 * rec["floors"] - s0["gfa_m2"]) / s0["gfa_m2"] < 0.02, rec
+# determinism: the same option emits the same chain
+assert lo.emit_recipes(s0, BASE) == rec
+
+# EXECUTE the chain: bootstrap the blank model, run every step through the real edit recipes
+from aec_data import edit, massing  # noqa: E402
+from aec_data.ifc_loader import open_model  # noqa: E402
+
+_ifc = Path(tempfile.gettempdir()) / "massing_opt_p2.ifc"
+b = rec["bootstrap"]
+massing.generate_blank_ifc(str(_ifc), name=b["name"], storeys=b["storeys"],
+                           storey_height=b["storey_height"], ground_size=b["ground_size"])
+m = open_model(str(_ifc))
+for st in rec["steps"]:
+    edit.RECIPES[st["recipe"]](m, st["params"])
+walls, slabs = m.by_type("IfcWall"), m.by_type("IfcSlab")
+want_walls = rec["floors"] * (4 + (4 if rec["core_side_m"] else 0))
+assert len(walls) == want_walls, (len(walls), want_walls)
+assert len(slabs) == rec["floors"] + 1, (len(slabs), rec["floors"])   # +1 ground-reference slab
+# the top slab actually sits at (floors-1)·f2f — the chain respects the level datum
+storeys = sorted(m.by_type("IfcBuildingStorey"), key=lambda s: float(s.Elevation or 0))
+assert math.isclose(float(storeys[-1].Elevation), (rec["floors"] - 1) * b["storey_height"],
+                    rel_tol=1e-6), storeys[-1].Elevation
+
 # --- route: stateless POST /massing/optioneer ------------------------------------------------------
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -77,10 +114,23 @@ with TestClient(app) as c:
     bad = c.post("/massing/optioneer", json={"envelope": {"use_type": "residential"}})
     assert bad.status_code == 422, bad.text
 
+    # phase-2 route: default = the best option; explicit id honored; unknown id 404
+    r2 = c.post("/massing/optioneer/recipes", json={"envelope": BASE})
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["option"] == res["best"] and r2.json()["steps"], r2.json()["option"]
+    pick = res["scenarios"][1]["id"]
+    r3 = c.post("/massing/optioneer/recipes", json={"envelope": BASE, "option": pick})
+    assert r3.status_code == 200 and r3.json()["option"] == pick, r3.text
+    assert c.post("/massing/optioneer/recipes",
+                  json={"envelope": BASE, "option": "opt-9999"}).status_code == 404
+
 print("MASSING-OPT OK - the layout optioneer sweeps the massing levers (floor-to-floor, core efficiency, "
       "coverage strategy, unit size) over the zoning envelope through compute_massing, scores each option "
       "with a transparent yield-on-cost proforma (NOI/total_cost), and returns them ranked by the chosen "
       "objective (yield_on_cost | profit | units | net_sellable) plus a real Pareto cost-vs-profit frontier "
       "(verified: no frontier option is beaten on both cost and profit; a tighter floor-to-floor fits more "
       "floors under the height cap); the stateless POST /massing/optioneer route ranks by objective and "
-      "422s an infeasible envelope.")
+      "422s an infeasible envelope. Phase 2: emit_recipes turns a ranked option into the blank-model "
+      "bootstrap + a deterministic GUID-stable slab/perimeter/core recipe chain that was EXECUTED on a "
+      "real blank IFC (wall/slab counts + the level datum verified); /massing/optioneer/recipes serves "
+      "the best or a chosen option and 404s an unknown id.")

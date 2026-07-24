@@ -282,8 +282,9 @@ MEP-EQUIP+SPEC-CONFLICT · SPACE-UTIL · DESIGN-METRICS+DAYLIGHT · MEP-FITTINGS
 TESTFIT-ADJ · SEC-SUPPLY). Full spec archived in [roadmap-completed.md](roadmap-completed.md).
 
 **Carried remainders (minor sub-phases, sequence opportunistically):** RECIPE-MACROS → CADCMD/MCP mirror +
-headless `massing` CLI with `massing check` CI gate · MASSING-OPT → emit each option as a GUID-stable
-edit-recipe chain · MEP-EQUIP → tie into submittals + budget/GMP + a curated starter · DESIGN-METRICS →
+headless `massing` CLI with `massing check` CI gate · ✅ MASSING-OPT → ~~emit each option as a GUID-stable
+edit-recipe chain~~ *(v0.3.630: `emit_recipes` + `POST /massing/optioneer/recipes` — bootstrap + slab/
+perimeter/core chain per storey, EXECUTED on a real blank IFC in the test)* · MEP-EQUIP → tie into submittals + budget/GMP + a curated starter · DESIGN-METRICS →
 per-`IfcSpace` code-check rule sets · PROD-ACTUALS → persist a `progress_actual` module + LOB/4D surface ·
 PROCURE-LEVEL → persist a `procurement_package` module + the send-RFQ bridge · TESTFIT-ADJ →
 needs-daylight/exterior-wall + wet-wall terms + fold the dimensional pack into `rule_library` · SPACE-UTIL →

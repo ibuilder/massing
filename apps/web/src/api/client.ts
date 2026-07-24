@@ -1942,6 +1942,19 @@ export class ApiClient extends HttpCore {
       count: number; shown: number; levers_swept: Record<string, number[]>; note: string;
     }>(`/massing/optioneer`, { method: "POST", body: JSON.stringify({ envelope, levers: opts?.levers ?? null, objective: opts?.objective ?? "yield_on_cost", limit: opts?.limit ?? 24 }) });
   }
+  /** MASSING-OPT phase 2 — emit a ranked option as the executable authoring chain: the blank-model
+   * bootstrap + GUID-stable edit-recipe steps for /edit/batch. Empty option = the best one. */
+  massingOptionRecipes(envelope: Record<string, unknown>, option?: string,
+                       opts?: { levers?: Record<string, number[]>; objective?: string; limit?: number }) {
+    return this.json<{
+      option: string; floors: number; floor_to_floor: number; plate_m2: number; plate_side_m: number;
+      core_side_m: number;
+      bootstrap: { name: string; storeys: number; storey_height: number; ground_size: number };
+      steps: { recipe: string; params: Record<string, unknown> }[]; step_count: number; note: string;
+    }>(`/massing/optioneer/recipes`, { method: "POST", body: JSON.stringify({
+      envelope, option: option ?? "", levers: opts?.levers ?? null,
+      objective: opts?.objective ?? "yield_on_cost", limit: opts?.limit ?? 24 }) });
+  }
   /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
   masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
   /** MARGIN-CBS — per-cost-code reconciliation: budget vs committed vs actual vs billed → buyout margin. */

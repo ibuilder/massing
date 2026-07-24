@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.630 — MASSING-OPT phase 2: emit the chosen option as an executable authoring chain
+
+The optimize→author loop closes: pick a ranked massing option, get the model.
+
+- **`layout_options.emit_recipes`**: one ranked option → the **blank-model bootstrap** (levels at the
+  option's floor-to-floor) + a deterministic, **GUID-stable edit-recipe chain** — floor slab, four
+  perimeter walls, and a centered core box per storey, sized from the option's own plate and core
+  efficiency (side²·floors ≈ GFA). The chain drops straight into `POST /projects/{pid}/edit/batch`
+  as one undoable version. Explicitly a massing *stand-in* the designer refines, not a floor plan.
+- **`POST /massing/optioneer/recipes`**: server-side deterministic re-run + emit — the best option by
+  default, an explicit `option` id honored, unknown id 404.
+- The test doesn't just inspect the chain — it **executes it**: blank IFC from the bootstrap, every
+  step through the real edit recipes, wall/slab counts and the top-level datum verified on the model.
+- `massingOptionRecipes` client method; the R16 MASSING-OPT carried remainder is closed.
+
 ## v0.3.629 — fix: Postgres FTS GIN indexes were never actually created (IMMUTABLE violation)
 
 The newly-working drift guard immediately earned its keep.
