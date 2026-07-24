@@ -65,12 +65,21 @@ def project_prod_actuals(pid: str, body: ProdActualsIn, db: Session = Depends(ge
     """PROD-ACTUALS: the productivity actuals loop — roll installed-quantity actuals up per activity into
     the **installed rate** (qty ÷ productive/cycle hours) + **crew utilization** (productive ÷ productive+
     idle), compared to the planned rate → ahead / on-track / behind + a remaining-hours projection at the
-    current rate. Pure over the supplied rows (field log / telematics CSV / manual entry)."""
+    current rate. With an empty `actuals` list, the project's stored **Productivity Actuals** module
+    records (`progress_actual` — the field crew's persisted log) are analyzed instead, so the loop runs
+    off the record of authority, not a one-shot payload."""
+    from .. import modules as me
     from .. import prod_actuals as pa
 
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
-    return pa.analyze(body.actuals, body.planned)
+    rows = body.actuals
+    source = "request"
+    if not rows and "progress_actual" in me.TABLES:
+        rows = [{**(r.get("data") or {}), "qto_line": (r.get("data") or {}).get("activity")}
+                for r in me.list_records(db, "progress_actual", pid, limit=5000)]
+        source = "progress_actual module"
+    return {**pa.analyze(rows, body.planned), "source": source}
 
 
 def _takt_actuals_from_activities(acts: list[dict], floors: int) -> tuple[list[dict], int]:

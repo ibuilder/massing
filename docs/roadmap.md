@@ -285,8 +285,12 @@ TESTFIT-ADJ · SEC-SUPPLY). Full spec archived in [roadmap-completed.md](roadmap
 headless `massing` CLI with `massing check` CI gate · ✅ MASSING-OPT → ~~emit each option as a GUID-stable
 edit-recipe chain~~ *(v0.3.630: `emit_recipes` + `POST /massing/optioneer/recipes` — bootstrap + slab/
 perimeter/core chain per storey, EXECUTED on a real blank IFC in the test)* · MEP-EQUIP → tie into submittals + budget/GMP + a curated starter · DESIGN-METRICS →
-per-`IfcSpace` code-check rule sets · PROD-ACTUALS → persist a `progress_actual` module + LOB/4D surface ·
-PROCURE-LEVEL → persist a `procurement_package` module + the send-RFQ bridge · TESTFIT-ADJ →
+per-`IfcSpace` code-check rule sets · ◧ PROD-ACTUALS → ✅ ~~persist a `progress_actual` module~~ *(v0.3.631:
+the ⏱ Productivity Actuals module + Alembic `37bd38285a84`; `/progress/actuals` analyzes the stored log when
+the request is empty)* — the LOB/4D overlay surface remains (viewer-coupled) ·
+✅ PROCURE-LEVEL → ~~persist a `procurement_package` module + the send-RFQ bridge~~ *(v0.3.631: the 📦
+Buyout Packages module + `/procurement/packages/save` + the `/send-rfq` bridge minting a Bid Solicitation
+and advancing draft→rfq_sent; Alembic `cdbb83e0cfe7`)* · TESTFIT-ADJ →
 needs-daylight/exterior-wall + wet-wall terms + fold the dimensional pack into `rule_library` · SPACE-UTIL →
 portal panel + cross-project benchmarking · SEC-SUPPLY → MCP tool-poisoning self-audit + a non-gating CI step.
 

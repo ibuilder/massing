@@ -62,10 +62,31 @@ with TestClient(app) as c:
     assert rr.status_code == 200, rr.text
     j = rr.json()
     assert j["ahead"] == 1 and j["behind"] == 1 and j["worst"] == "hang-doors", j
+    assert j["source"] == "request", j["source"]
+
+    # --- persistence: with an EMPTY actuals list, the stored progress_actual records are analyzed ---
+    for rec in ({"activity": "install-drywall", "qty": 60, "cycle_time": 6, "idle_time": 1, "unit": "SF"},
+                {"activity": "install-drywall", "qty": 40, "cycle_time": 4, "idle_time": 1, "unit": "SF"},
+                {"activity": "hang-doors", "qty": 40, "cycle_time": 10, "idle_time": 10, "unit": "EA",
+                 "crew": "Doors Inc."}):
+        cr = c.post(f"/projects/{pid}/modules/progress_actual", json={"data": rec})
+        assert cr.status_code in (200, 201), cr.text
+    stored = c.post(f"/projects/{pid}/progress/actuals", json={"actuals": [], "planned": planned})
+    assert stored.status_code == 200, stored.text
+    sj = stored.json()
+    assert sj["source"] == "progress_actual module", sj["source"]
+    sg = {x["group"]: x for x in sj["groups"]}
+    assert sg["install-drywall"]["installed_rate"] == 10.0, sg["install-drywall"]
+    assert sg["install-drywall"]["status"] == "ahead" and sg["hang-doors"]["status"] == "behind", sg
+    # an explicit payload still wins over the stored records
+    assert c.post(f"/projects/{pid}/progress/actuals",
+                  json={"actuals": actuals, "planned": planned}).json()["source"] == "request"
 
 print("PROD-ACTUALS OK - field actuals roll up per activity into installed rate (qty ÷ productive/cycle "
       "hours) + crew utilization (productive ÷ productive+idle), compared to the planned rate → drywall "
       "10 SF/hr is +25% ahead of an 8 SF/hr plan, doors 4 EA/hr is −20% behind a 5 EA/hr plan (50% complete, "
       "10 h projected to finish at rate), an unplanned activity has no status; the rollup counts 1 ahead / 1 "
       "behind, overall utilization 0.625, worst-variance first; the /progress/actuals route 404s on a "
-      "missing project and returns the analysis otherwise.")
+      "missing project and returns the analysis otherwise. Persistence: with an empty actuals list the "
+      "route analyzes the stored progress_actual module records (the field crew's persisted log; "
+      "source='progress_actual module'), and an explicit payload still wins.")

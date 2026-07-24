@@ -1,0 +1,83 @@
+{
+  "key": "procurement_package",
+  "name": "Buyout Packages",
+  "section": "Preconstruction",
+  "icon": "📦",
+  "ref_prefix": "BP",
+  "title_field": "name",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Package",
+      "type": "text",
+      "required": true,
+      "fieldset": "Package"
+    },
+    {
+      "name": "trade",
+      "label": "Trade",
+      "type": "text",
+      "fieldset": "Package"
+    },
+    {
+      "name": "csi",
+      "label": "CSI Section",
+      "type": "text",
+      "fieldset": "Package"
+    },
+    {
+      "name": "est_cost",
+      "label": "Estimated Cost",
+      "type": "number",
+      "fieldset": "Package"
+    },
+    {
+      "name": "line_count",
+      "label": "Scope Lines",
+      "type": "number",
+      "fieldset": "Package"
+    },
+    {
+      "name": "scope_json",
+      "label": "RFQ Scope (JSON)",
+      "type": "textarea",
+      "fieldset": "Scope"
+    },
+    {
+      "name": "rfq_due",
+      "label": "RFQ Due",
+      "type": "date",
+      "fieldset": "Award"
+    },
+    {
+      "name": "awarded_to",
+      "label": "Awarded To",
+      "type": "text",
+      "fieldset": "Award"
+    },
+    {
+      "name": "award_amount",
+      "label": "Award Amount",
+      "type": "number",
+      "fieldset": "Award"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "Award"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": ["draft", "rfq_sent", "quotes_in", "awarded"],
+    "transitions": [
+      {"from": "draft", "to": "rfq_sent", "action": "send_rfq", "party": ["GC"]},
+      {"from": "rfq_sent", "to": "quotes_in", "action": "receive_quotes", "party": ["GC"]},
+      {"from": "quotes_in", "to": "awarded", "action": "award", "party": ["GC"]}
+    ]
+  },
+  "list_columns": ["name", "trade", "est_cost", "line_count", "rfq_due", "awarded_to"],
+  "workspace": "construction"
+}

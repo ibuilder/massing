@@ -64,8 +64,37 @@ with TestClient(app) as c:
     assert lv.status_code == 200, lv.text
     assert lv.json()["best_value_supplier"] == "Ace", lv.json()
 
+    # --- persistence: packages saved as procurement_package records + the send-RFQ bridge ----------
+    import json as _json
+    sv = c.post(f"/projects/{pid}/procurement/packages/save",
+                json={"qto_lines": qto, "by": "trade", "rfq_due": "2026-08-15"})
+    assert sv.status_code == 200, sv.text
+    created = sv.json()["created"]
+    assert sv.json()["package_count"] == 2 and created[0]["name"] == "Concrete", sv.json()
+    conc = created[0]
+    rec = c.get(f"/projects/{pid}/modules/procurement_package/{conc['id']}").json()
+    assert rec["workflow_state"] == "draft" and rec["data"]["est_cost"] == 12500.0, rec
+    scope_back = _json.loads(rec["data"]["scope_json"])
+    assert {s["item"] for s in scope_back} == {"rebar #5", "3000psi concrete"}, scope_back
+    # send-RFQ: mints a Bid Solicitation carrying name/trade/due + moves the package to rfq_sent
+    rfq = c.post(f"/projects/{pid}/procurement/packages/{conc['id']}/send-rfq", json={})
+    assert rfq.status_code == 200, rfq.text
+    assert rfq.json()["package_state"] == "rfq_sent", rfq.json()
+    itb_id = rfq.json()["solicitation"]["id"]
+    itb = c.get(f"/projects/{pid}/modules/bid_solicitation/{itb_id}").json()
+    assert itb["data"]["name"] == "RFQ — Concrete" and itb["data"]["package"] == "Concrete", itb["data"]
+    assert itb["data"]["due_date"] == "2026-08-15", itb["data"]
+    # a second send on the already-sent package doesn't error and reports the current state
+    again = c.post(f"/projects/{pid}/procurement/packages/{conc['id']}/send-rfq", json={})
+    assert again.status_code == 200 and again.json()["package_state"] == "rfq_sent", again.text
+    assert c.post(f"/projects/{pid}/procurement/packages/nope/send-rfq", json={}).status_code == 404
+
 print("PROCURE-LEVEL OK - QTO line items group into buyout packages (Concrete $12.5k > HVAC $4k, each with "
       "an RFQ scope of item/qty/unit to send out); returned quotes for a package are scored against the RFQ "
       "scope on price (extended over scope qty), coverage completeness, and lead time → Ace (full coverage, "
       "cheaper, faster) beats BuildCo (misses formwork), with per-item low prices surfaced and lead-time "
-      "weight folding into price+coverage when no lead times are given; both routes return 200.")
+      "weight folding into price+coverage when no lead times are given; both routes return 200. "
+      "Persistence: /procurement/packages/save writes one Buyout Packages record per group (est cost, "
+      "line count, JSON scope, draft state) and /packages/{rid}/send-rfq mints a Bid Solicitation "
+      "carrying name/trade/due and advances the package draft → rfq_sent (idempotent on re-send; 404 "
+      "on an unknown package).")

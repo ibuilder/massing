@@ -1,0 +1,83 @@
+{
+  "key": "progress_actual",
+  "name": "Productivity Actuals",
+  "section": "Field",
+  "icon": "⏱",
+  "ref_prefix": "PA",
+  "title_field": "activity",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "activity",
+      "label": "Activity / QTO Line",
+      "type": "text",
+      "required": true,
+      "fieldset": "Work"
+    },
+    {
+      "name": "task_id",
+      "label": "Schedule Task",
+      "type": "text",
+      "fieldset": "Work"
+    },
+    {
+      "name": "material_class",
+      "label": "Material / Trade Class",
+      "type": "text",
+      "fieldset": "Work"
+    },
+    {
+      "name": "log_date",
+      "label": "Date",
+      "type": "date",
+      "fieldset": "Work"
+    },
+    {
+      "name": "qty",
+      "label": "Installed Quantity",
+      "type": "number",
+      "required": true,
+      "fieldset": "Production"
+    },
+    {
+      "name": "unit",
+      "label": "Unit",
+      "type": "text",
+      "fieldset": "Production"
+    },
+    {
+      "name": "cycle_time",
+      "label": "Productive Hours",
+      "type": "number",
+      "required": true,
+      "fieldset": "Production"
+    },
+    {
+      "name": "idle_time",
+      "label": "Idle Hours",
+      "type": "number",
+      "fieldset": "Production"
+    },
+    {
+      "name": "crew",
+      "label": "Crew",
+      "type": "text",
+      "fieldset": "Production"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "Production"
+    }
+  ],
+  "workflow": {
+    "initial": "logged",
+    "states": ["logged", "verified"],
+    "transitions": [
+      {"from": "logged", "to": "verified", "action": "verify", "party": ["GC"]}
+    ]
+  },
+  "list_columns": ["activity", "qty", "unit", "cycle_time", "idle_time", "log_date"],
+  "workspace": "construction"
+}

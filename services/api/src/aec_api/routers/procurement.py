@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends
 from sqlalchemy.orm import Session
 
-from .. import procurement, procurement_bridge
+from .. import procurement, procurement_bridge, rbac
 from ..db import get_db
 from ..rbac import current_user, require_role
 
@@ -38,6 +38,60 @@ def buyout_packages(pid: str, payload: dict = Body(default={}),
     """PROCURE-LEVEL: group QTO line items into buyout packages (each with an RFQ scope to send out).
     Body: {qto_lines:[{item, qty, unit, trade?/csi?/material_class?, unit_price?, cost?}], by?}."""
     return procurement.buyout_packages(payload.get("qto_lines") or [], payload.get("by") or "trade")
+
+
+@router.post("/projects/{pid}/procurement/packages/save")
+def save_buyout_packages(pid: str, payload: dict = Body(default={}), db: Session = Depends(get_db),
+                         actor: str = Depends(require_role("editor"))):
+    """PROCURE-LEVEL persistence: group the QTO lines into buyout packages AND persist each one as a
+    **Buyout Packages** (`procurement_package`) record — name/trade/CSI, estimated cost, line count and
+    the RFQ scope (JSON) — so buyout stops being a one-shot payload and becomes trackable through the
+    draft → rfq_sent → quotes_in → awarded workflow. Body: `{qto_lines, by?, rfq_due?}`."""
+    import json as _json
+
+    from .. import modules as me
+
+    pkgs = procurement.buyout_packages(payload.get("qto_lines") or [], payload.get("by") or "trade")
+    party = rbac.party_role_for(db, pid, actor)
+    created = []
+    for p in pkgs.get("packages", []):
+        rec = me.create_record(db, "procurement_package", pid, {"data": {
+            "name": p["package"], "trade": p["package"] if (payload.get("by") or "trade") == "trade" else None,
+            "csi": p["package"] if payload.get("by") == "csi" else None,
+            "est_cost": p.get("est_cost"), "line_count": len(p.get("lines") or []),
+            "scope_json": _json.dumps(p.get("rfq_scope") or p.get("lines") or []),
+            "rfq_due": payload.get("rfq_due"),
+        }}, actor, party)
+        created.append({"id": rec["id"], "ref": rec["ref"], "name": p["package"],
+                        "est_cost": p.get("est_cost"), "line_count": len(p.get("lines") or [])})
+    return {"created": created, "package_count": len(created),
+            "note": "One Buyout Packages record per group; send each RFQ via "
+                    "/procurement/packages/{rid}/send-rfq."}
+
+
+@router.post("/projects/{pid}/procurement/packages/{rid}/send-rfq")
+def send_rfq(pid: str, rid: str, payload: dict = Body(default={}), db: Session = Depends(get_db),
+             actor: str = Depends(require_role("editor"))):
+    """PROCURE-LEVEL send-RFQ bridge: mint a **Bid Solicitation** (ITB) record from a stored buyout
+    package (name/trade/due carried over) and advance the package's workflow draft → rfq_sent — the
+    procurement side and the bidding side stay one thread. Body: `{due_date?}`."""
+    from .. import modules as me
+
+    rec = me.get_record(db, "procurement_package", pid, rid)          # 404s if missing
+    data = rec.get("data") or {}
+    party = rbac.party_role_for(db, pid, actor)
+    itb = me.create_record(db, "bid_solicitation", pid, {"data": {
+        "name": f"RFQ — {data.get('name') or rec.get('title') or rec['ref']}",
+        "package": data.get("name"), "trade": data.get("trade"),
+        "due_date": payload.get("due_date") or data.get("rfq_due"),
+    }}, actor, party)
+    out = {"solicitation": {"id": itb["id"], "ref": itb["ref"]}, "package": rec["ref"]}
+    if rec.get("workflow_state") == "draft":
+        moved = me.transition(db, "procurement_package", pid, rid, "send_rfq", actor, party)
+        out["package_state"] = moved.get("workflow_state")
+    else:
+        out["package_state"] = rec.get("workflow_state")
+    return out
 
 
 @router.post("/projects/{pid}/procurement/buyout-schedule")

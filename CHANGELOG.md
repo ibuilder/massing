@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.631 — field + buyout persistence: Productivity Actuals & Buyout Packages modules
+
+Two R16 carried remainders close at once: the loops stop being one-shot payloads.
+
+- **New `progress_actual` module** (⏱ Field section, `PA-` refs, logged→verified workflow): activity /
+  QTO line · schedule task · installed qty + unit · productive vs idle hours · crew · date.
+  `POST /projects/{pid}/progress/actuals` now analyzes the **stored records** when the request carries
+  no actuals (`source: "progress_actual module"`); an explicit payload still wins.
+- **New `procurement_package` module** (📦 Preconstruction, `BP-` refs, draft → rfq_sent → quotes_in →
+  awarded): `POST /procurement/packages/save` groups the QTO lines into buyout packages AND persists
+  one record per package (est. cost, line count, the RFQ scope as JSON); the **send-RFQ bridge**
+  `POST /procurement/packages/{rid}/send-rfq` mints a **Bid Solicitation** (ITB) carrying
+  name/trade/due and advances the package to `rfq_sent` — procurement and bidding stay one thread
+  (idempotent on re-send, 404 on unknown package).
+- Alembic revisions `37bd38285a84` + `cdbb83e0cfe7`; drift guard green (161 tables, real Postgres);
+  `test_prod_actuals` + `test_procure_level` extended; suite green.
+
 ## v0.3.630 — MASSING-OPT phase 2: emit the chosen option as an executable authoring chain
 
 The optimize→author loop closes: pick a ranked massing option, get the model.
