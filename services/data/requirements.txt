@@ -2,7 +2,7 @@
 ifcopenshell>=0.8.5,<0.9
 openpyxl>=3.1          # XLSX export
 numpy>=1.26           # geometry-derived quantities, AABB clash
-ifctester>=0.8        # IDS / openBIM model validation
+ifctester>=0.8.5        # IDS / openBIM model validation
 trimesh>=4.0          # clash narrow phase (mesh booleans) + 2D section cuts
 manifold3d>=2.0       # boolean intersection engine for trimesh
 scipy>=1.11           # trimesh path assembly (section drawings)
