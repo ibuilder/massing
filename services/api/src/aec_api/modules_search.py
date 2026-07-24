@@ -35,9 +35,21 @@ def _pg_tsquery(q: str) -> str | None:
 def _pg_document(t: Table):
     """to_tsvector over ref + title + the whole field map (JSON cast to text). The regconfig is a
     `literal_column` (not a bind) so this exact expression can also be inlined into the GIN index DDL
-    (`index_ddl`) — a bare "english" string renders as a bind param, which a CREATE INDEX can't use."""
-    return func.to_tsvector(literal_column("'english'"), func.concat_ws(
-        " ", func.coalesce(t.c.ref, ""), func.coalesce(t.c.title, ""), cast(t.c.data, String)))
+    (`index_ddl`) — a bare "english" string renders as a bind param, which a CREATE INDEX can't use.
+
+    IMMUTABLE-safe: built from `coalesce` + the `||` operator (textcat, IMMUTABLE) — NOT `concat_ws`,
+    which Postgres marks only STABLE and therefore REJECTS inside an index expression. The concat_ws
+    version meant every runtime GIN CREATE INDEX silently failed (ensure_fts_indexes logs-and-continues),
+    leaving full-text search un-indexed on Postgres; caught the day the CI drift guard first ran.
+    Every operand is coalesced so a NULL column can't NULL out the whole `||` chain (concat_ws skipped
+    NULLs; `||` propagates them)."""
+    space = literal_column("' '")
+    doc = (func.coalesce(t.c.ref, literal_column("''"))
+           .concat(space)
+           .concat(func.coalesce(t.c.title, literal_column("''")))
+           .concat(space)
+           .concat(func.coalesce(cast(t.c.data, String), literal_column("''"))))
+    return func.to_tsvector(literal_column("'english'"), doc)
 
 
 def index_ddl(key: str, table: Table) -> str:

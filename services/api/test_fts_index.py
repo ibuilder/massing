@@ -52,7 +52,11 @@ with TestClient(app) as c:                          # startup runs init_db → T
     #    predicate (drift is impossible; this guards it anyway).
     t = modules.TABLES["rfi"]
     ddl = modules.fts_index_ddl("rfi")
-    assert "USING gin" in ddl and "to_tsvector" in ddl and "concat_ws" in ddl, ddl
+    # IMMUTABLE guard: the index expression must use coalesce + `||` (textcat, IMMUTABLE) — Postgres
+    # REJECTS concat_ws (only STABLE) inside an index expression, which silently killed every runtime
+    # GIN CREATE INDEX until the CI drift guard first actually ran (v0.3.628).
+    assert "USING gin" in ddl and "to_tsvector" in ddl, ddl
+    assert "concat_ws" not in ddl and "||" in ddl and "coalesce" in ddl, ddl
     assert 'CREATE INDEX IF NOT EXISTS "ix_mod_rfi_fts" ON "mod_rfi"' in ddl, ddl
 
     doc = _pg(modules._pg_document(t))                          # fully-inlined to_tsvector document

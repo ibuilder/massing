@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.629 — fix: Postgres FTS GIN indexes were never actually created (IMMUTABLE violation)
+
+The newly-working drift guard immediately earned its keep.
+
+- The module full-text GIN index expression used `concat_ws`, which Postgres marks only **STABLE** —
+  so `CREATE INDEX` was rejected with *"functions in index expression must be marked IMMUTABLE"* on
+  **every** module table. `ensure_fts_indexes` logs-and-continues by design (startup must not block),
+  so on a real Postgres deployment **full-text search has been running un-indexed** (per-row seq scans
+  recomputing `to_tsvector`) with only a startup warning as the trace.
+- `_pg_document` rebuilt on `coalesce` + the `||` operator (textcat, IMMUTABLE), every operand
+  coalesced so a NULL column can't NULL the chain (concat_ws skipped NULLs; `||` propagates).
+  Index and query still share the one builder, so they can't diverge.
+- `test_fts_index` now asserts the immutable shape (`||` + coalesce, **no** concat_ws); the CI drift
+  guard exercises the real `CREATE INDEX` on postgres:16 from here on. SQLite runtime is unaffected
+  (LIKE fallback). Suite green.
+
 ## v0.3.628 — CITED-ANSWER × RFI-QA: NL-QA answers now emit the provenance contract
 
 The flagship thesis follow-through: the NL question-answering surface speaks CitedAnswer.
