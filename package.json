@@ -2,7 +2,7 @@
   "name": "massing",
   "version": "0.0.0",
   "private": true,
-  "description": "In-browser IFC-native BIM authoring + construction docs + GC portal + development proforma — the whole building lifecycle on one model, self-hosted.",
+  "description": "In-browser IFC-native BIM authoring + construction docs + GC portal + development proforma \u2014 the whole building lifecycle on one model, self-hosted.",
   "workspaces": [
     "apps/web"
   ],
@@ -15,7 +15,8 @@
   },
   "overrides": {
     "eslint": "9.39.5",
-    "js-yaml": "^4.3.0"
+    "js-yaml": "^4.3.0",
+    "postcss": "^8.5.18"
   },
   "devDependencies": {
     "eslint": "9.39.5"

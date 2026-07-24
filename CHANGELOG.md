@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.656 — security: postcss >= 8.5.18 (transitive)
+
+- Root npm `overrides` pins **postcss to >= 8.5.18** (was 8.5.15 via Vite), clearing the HIGH
+  advisory for path traversal in previous-source-map auto-loading. Build-time toolchain only;
+  build and vitest re-verified on the bumped version.
+
 ## v0.3.655 — ENERGY phase 1: the gbXML / EnergyPlus envelope export + the 🏙 R20 CRE ring
 
 The first BIG-TICKET track opens — and it opens with the half that needed no solver binaries.
