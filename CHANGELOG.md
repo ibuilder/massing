@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.633 — the 🪑 Space Utilization panel (Design workspace)
+
+- **New portal panel** over the SPACE-UTIL engine: occupancy **capacity by space type** at an
+  adjustable area-per-person standard (recompute in place), and a **program-fit** card — type
+  `Office = 40` headcount lines and get required vs modelled area with the per-type gap and a
+  color-coded surplus/short status.
+- In the Design stage next to Design Metrics; every model-derived string escaped; live-verified in
+  the demo (6 spaces · 5,544 m² · capacity 552 @ 10 m²/person). Web-only release (typecheck / lint /
+  vitest 128 / build green); closes the SPACE-UTIL carried remainder's panel half.
+
 ## v0.3.632 — migration-chain fix (post-baseline module GIN indexes) + TESTFIT-ADJ daylight/wet-wall
 
 The newly-live drift guard caught its second real defect in a day — and the suite now guards the class.

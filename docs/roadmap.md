@@ -293,8 +293,9 @@ Buyout Packages module + `/procurement/packages/save` + the `/send-rfq` bridge m
 and advancing draft→rfq_sent; Alembic `cdbb83e0cfe7`)* · ◧ TESTFIT-ADJ →
 ✅ ~~needs-daylight/exterior-wall + wet-wall terms~~ *(v0.3.632: `needs_daylight` — every space of a listed
 type must sit on the storey envelope; `needs_wet_wall` — must share a wall with a wet space, `wet_types`
-overridable)* — folding the dimensional pack into `rule_library` remains · SPACE-UTIL →
-portal panel + cross-project benchmarking · SEC-SUPPLY → MCP tool-poisoning self-audit + a non-gating CI step.
+overridable)* — folding the dimensional pack into `rule_library` remains · ◧ SPACE-UTIL →
+✅ ~~portal panel~~ *(v0.3.633: the 🪑 Design-stage panel — capacity-by-type at an adjustable m²/person +
+the headcount program-fit gap table; live-verified)* — cross-project benchmarking remains · SEC-SUPPLY → MCP tool-poisoning self-audit + a non-gating CI step.
 
 ## 🎚 UX-POLISH — interaction-craft ring (2026-07-21)
 

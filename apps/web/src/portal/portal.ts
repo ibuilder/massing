@@ -121,6 +121,7 @@ export class PortalUI {
       __equipment__: () => this.renderEquipment(), __massingopt__: () => this.renderMassingOpt(),
       __designmetrics__: () => this.renderDesignMetrics(), __mepfittings__: () => this.renderMepFittings(),
       __topicboard__: () => this.renderTopicBoard(),
+      __spaceutil__: () => this.renderSpaceUtil(),
       __responsibility__: () => this.renderResponsibility(),
       __program__: () => this.renderProgram(), __modelqa__: () => this.renderModelQa(),
       __modelanalysis__: () => this.renderModelAnalysis(),
@@ -243,6 +244,7 @@ export class PortalUI {
           { key: "__modelqa__", icon: "✅", label: "Model Health" },        // deep-links to the Model Tools checks
           { key: "__modelanalysis__", icon: "🔬", label: "Model Analysis" }, // query/LOD/envelope/MEP/naming/capabilities
           { key: "__designmetrics__", icon: "📐", label: "Design Metrics" }, // DESIGN-METRICS — program efficiency + daylight estimate
+          { key: "__spaceutil__", icon: "🪑", label: "Space Utilization" },  // SPACE-UTIL — capacity by type + program fit
           { key: "__mepfittings__", icon: "🔩", label: "MEP Fittings" },     // MEP-FITTINGS — implied fittings over the port graph → QTO
           { key: "__materials__", icon: "🎨", label: "Materials" },          // per-project M1 palette editor + re-colour
           { key: "__modulegraph__", icon: "🕸", label: "Module Relations" }, // how the config modules wire together
@@ -613,6 +615,7 @@ export class PortalUI {
   private async renderDesignMetrics() { return (await import("./panels/designMetrics")).renderDesignMetrics(this.panelCtx()); }
   private async renderMepFittings() { return (await import("./panels/mepFittings")).renderMepFittings(this.panelCtx()); }
   private async renderTopicBoard() { return (await import("./panels/topicBoard")).renderTopicBoard(this.panelCtx()); }
+  private async renderSpaceUtil() { return (await import("./panels/spaceUtil")).renderSpaceUtil(this.panelCtx()); }
   private async renderModelAnalysis() { return (await import("./panels/standards")).renderModelAnalysis(this.panelCtx()); }
   private async renderDocuments() { return (await import("./panels/documents")).renderDocuments(this.panelCtx()); }
   private async renderStandards() { return (await import("./panels/standards")).renderStandards(this.panelCtx()); }
