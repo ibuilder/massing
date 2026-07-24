@@ -14,11 +14,11 @@
     "node": ">=20"
   },
   "overrides": {
-    "eslint": "9.39.5",
+    "eslint": "10.8.0",
     "js-yaml": "^4.3.0",
     "postcss": "^8.5.18"
   },
   "devDependencies": {
-    "eslint": "9.39.5"
+    "eslint": "10.8.0"
   }
 }
