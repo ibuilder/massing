@@ -2175,3 +2175,107 @@ FAMILY-DEPTH ① type catalogs (v0.3.646 — `TYPE_CATALOGS` + `catalog_types`/`
 **The reconciled NOW list (2026-07-24) shipped 10/10:** SCHED-CALC · OPS-DR · AUTH-CONSTRAINTS ① ·
 MODEL-PUBLISH · CITED-ANSWER producers resolved · RULE-PACK FOLD · MEP-EQUIP ties · SEC-SUPPLY CI ·
 RECIPE-MACROS CLI · SPACE-UTIL benchmarking.
+
+---
+
+## 🏢 R19 + 🏛 R18 tail + 🏙 R20 + the carry-overs — SHIPPED v0.3.647–661 (archived 2026-07-24)
+
+Fifteen releases in one continuous run, every one full-suite green with **CodeQL 0 open alerts**.
+Three complete rings, the last NOW-list carry-overs, and the backend suite grown 344 → **363**.
+Per-release detail in [CHANGELOG.md](../CHANGELOG.md).
+
+**🏢 R19 — enterprise & finance-platform readiness (COMPLETE).** From the 07-24 external planning
+pack. Its competitor-matrix deliverables were deliberately **not adopted** (standing directive); the
+authoring gap analysis was already R18 and most finance engines already shipped, so what was actually
+built is the program-formalization + governance layer:
+
+- **Enterprise track (v0.3.649 + v0.3.653):** SEC-THREAT — [threat-model.md](security/threat-model.md),
+  STRIDE over the real surfaces + a control→evidence verification matrix + a gap backlog, with gaps
+  G-2 (SBOM CI artifact) and G-5 (password deny-list, `weak_password_reason` + `test_password_policy`)
+  closed in-sprint · COMPLY-SOC2 — [soc2-readiness.md](compliance/soc2-readiness.md), the TSC matrix
+  CC1–CC8 + A1 + C1 with evidence sources · OPS-OBS — [runbooks.md](ops/runbooks.md), eight incident
+  runbooks + SLOs + the correlation-ID triage spine · ENG-STD —
+  [backend-standards.md](engineering/backend-standards.md) + [web-standards.md](engineering/web-standards.md)
+  · **INTEROP-RT** (v0.3.653) — `aec_data/roundtrip.py`: serialize → reparse → compare
+  (GUID/class/name/containment/type/psets, unmatched both ways, one `fidelity_ok` verdict) +
+  `GET /model/roundtrip` + `massing roundtrip --gate` + `test_roundtrip`.
+- **Finance track (v0.3.650):** FIN-GOV — `fin_gov.py` scenario review workflow (draft→in_review→
+  approved→published, immutable once approved, changed-assumption paths audit-logged; Alembic
+  `c6dcec8fe81d`) + locked reporting periods enforced in the modules **engine** (409 on create/update/
+  move/delete into a closed month, so imports are covered too) · FIN-CALC — `proforma/residual.py`
+  residual-land inverse solver (`POST /proforma/residual-land`, honest "not achievable even at $0
+  land") + golden reference fixtures +
+  [calculation-precision.md](engineering/calculation-precision.md) · FIN-PORTFOLIO —
+  `GET /proforma/portfolio/compare` + the `investor_pack` Report-Center preset · FIN-INGEST —
+  `fin_ingest.py` `/finance/reconcile` (budget↔actuals both ways + uncoded rows) + `/finance/imports`
+  lineage.
+
+**🏛 R18 tail — authoring parity (RING COMPLETE).** AUTH-CONSTRAINTS ② level-move re-derivation
+(v0.3.651 — `set_storey_elevation` shifts every root placement by Δz and detects non-riding hosted
+openings via a before/after Z snapshot) and ③ wall joins (v0.3.653 — `wall_joins.py` L/T detection +
+an idempotent butt-join `resolve`) · FAMILY-DEPTH ② instance-over-type overrides (v0.3.651 —
+`instance_props.py` `effective_properties()` with `source`/`overridden`/`type_value`, and
+`reset_property_to_type()` that refuses when there is no type backing), ③ composite families
+(v0.3.653 — `COMPOSITES` under `IfcElementAssembly`) and ④ shared parameters (v0.3.653 —
+`shared_params.py` registry → schedule columns reachable by SCHED-CALC). *Cross-project family-library
+versioning was deliberately deferred until a customer needs multi-firm libraries — the existing
+`import_types_from_ifc` + MODEL-PUBLISH review states cover the single-firm case.*
+
+**🏙 R20 — CRE deal-desk depth (RING COMPLETE, v0.3.657–660).** From two external field guides on
+running an AI assistant across CRE / ground-up-development workflows. **Read honestly, most of their
+content is prompting technique for reading messy documents — our documented non-goal.** What was worth
+taking is the deterministic discipline underneath, and each item was checked against what already
+ships before being built. The through-line: *every material number carries its source, and a stale or
+missing input stops the workflow instead of being filled in with something plausible.*
+
+- **Tier 1 (v0.3.657–658):** CRE-NER — `net_effective.py`, straight-line **and** discounted net
+  effective rent per lease and portfolio-wide, using the same active-lease filter as the rent roll so
+  the two surfaces can never describe different portfolios; un-computable leases are named, not
+  dropped · CRE-COMP-TIER — `comp_tier.py`, a ranked source tier (recorded sale → … → unknown) that
+  decides which comp wins, with every derived band reporting the **worst tier it depended on** ·
+  CRE-T12 — `t12.py` with its own OPERATING chart of accounts, and **the tie-out as a hard gate**
+  (`stopped: true`, `adjusted_noi: null` when totals disagree) plus add-back checks surfaced as
+  questions, never applied silently · CRE-RRSCRUB — `rent_scrub.py`, seven checks that report
+  `applicable: false` **with what they needed** rather than a silent pass.
+- **Tier 2 (v0.3.659):** CRE-COVENANT — `covenants.py`, day-count basis and clock start as
+  first-class fields, due dates that show their work, untested ≠ passing, cure windows tracked
+  separately · CRE-AUTHORITY — `deal_authority.py`, per-fact-type authority that **gates** on
+  missing/stale/superseded and refuses undated facts · CRE-SUPPLY — `supply_pipeline.py`,
+  evidence-weighted units (loan recorded 1.0 → announced 0.05) with rumored supply kept visibly
+  separate · CRE-DECISION-GATE — `decision_gate.py`, seven pre-committee gates where **unknown
+  blocks**, returning actions rather than just failures.
+- **Tier 3 (v0.3.660):** CRE-ICMEMO — the `ic_memo` Report-Center preset that **refuses to render**
+  on a missing basis/NOI/debt/equity/exit-cap, naming what is absent and what to do · CRE-HOLDSELL —
+  `hold_sell.py`, incremental hold-year cash flows against the proceeds declined today, explicit cap
+  drift, honest "no year clears the hurdle" · CRE-CLAUSE — `clause_playbook.py`, clause positions as
+  data with a **required red line per clause**, and unreviewed clauses reported as open risk rather
+  than assumed acceptable.
+
+**⚡ ENERGY phase 1 (v0.3.655).** `aec_data/energy_export.py` — the IFC becomes a thermal model (zones
+· zero-thickness mid-plane surfaces, each tagged `exact`/`bbox` by checking the mesh against its
+bounding box · constructions whose conductivities are back-derived from the platform's own R so the
+export cannot contradict it) with **gbXML** and **EnergyPlus IDF** writers over one intermediate, both
+byte-deterministic. `GET /energy/model` + `/energy/export.gbxml` + `/energy/export.idf`.
+
+**🔁 Carry-overs (COMPLETE).** VERSION-COMPARE per-property values (v0.3.654 — bounded `_prop_values()`
+at fingerprint position [7], with `_materially_differs` still comparing 0..6 so value drift never
+forges a structural change) · IFCPATCH-LIB rebase-origin / unit-convert / split-by-storey (v0.3.654;
+**merge deliberately skipped** — federation already covers multi-model work) · BCF-API-SRV 3.0 shape +
+attachments-over-API (v0.3.654) · **SPRINT B phase-4b** (v0.3.661 — crew shifts follow the CPM:
+`critical_path` as a list or `"auto"` off the project's own network; off-path trades are excluded from
+the crew grid **and named**, and a path matching nothing falls back to the slowest-trade heuristic and
+says so, because a second crew on a trade with float buys no days and still costs the premium) ·
+**NORM-VALID implementer-agreement depth** (v0.3.661 — MVD `ViewDefinition[…]` parse, unit-assignment
+completeness **and** unambiguity, and relationship cardinality: dangling relationships, single spatial
+container / whole / voided element, no double-placed part, unbroken spatial-aggregation chain).
+
+**Defects found and fixed en route (v0.3.661).** The NORM-VALID header lane read
+`model.wrapped_data.header` — a *method* on the C++ wrapper — inside a bare `except`, so **every header
+check had been silently reporting "empty" for every file ever validated**. Fixed to `model.header`.
+That exposed two more: our own generators assigned no `PLANEANGLEUNIT` and shipped an empty
+`FILE_NAME`/`FILE_DESCRIPTION` (now `massing.stamp_conformance()`, applied to all three generators);
+and `schedule_cpm.compute()` emitted record ids in `critical_path` but refused to *accept* an id as a
+predecessor token — its own output was not valid input.
+
+**Security.** Two HIGH dependabot advisories closed by root npm `overrides`: js-yaml ≥4.3.0
+(v0.3.648) and postcss ≥8.5.18 (v0.3.656).
