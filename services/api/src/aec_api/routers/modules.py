@@ -513,8 +513,11 @@ async def import_records(pid: str, key: str, file: UploadFile = File(...), mappi
     party = _party(pid, db, user)
     # PERF-1: openpyxl parse + row coercion off the event loop
     res = await run_in_threadpool(imports.do_import, db, key, pid, data, file.filename, m, user, party)
-    audit.record(db, action="module.import", method="POST", path=f"/projects/{pid}/modules/{key}/import",
-                 detail={"module": key, "imported": res.get("imported", 0)})
+    audit.record(db, action="module.import", actor=user, method="POST",
+                 path=f"/projects/{pid}/modules/{key}/import",
+                 detail={"module": key, "project_id": pid, "filename": file.filename,
+                         "imported": res.get("imported", 0),
+                         "error_count": res.get("error_count", 0)})
     db.commit()
     return res
 

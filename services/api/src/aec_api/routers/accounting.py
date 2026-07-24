@@ -77,3 +77,49 @@ def export_journal_batch(pid: str, bid: str, fmt: str = Query("gl"),
         raise HTTPException(404 if str(e) == "not found" else 409, str(e)) from e
     return Response(out, media_type=media,
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+# --- FIN-GOV / FIN-INGEST: locked reporting periods + reconciliation + lineage -------------------
+
+@router.get("/projects/{pid}/finance/lock")
+def get_finance_lock(pid: str, _: str = Depends(require_role("viewer"))):
+    """The project's locked reporting period (books closed through lock_date, or open)."""
+    from .. import fin_gov
+    return fin_gov.get_lock(pid)
+
+
+@router.put("/projects/{pid}/finance/lock")
+def put_finance_lock(pid: str, lock_date: str | None = Body(None, embed=True),
+                     note: str = Body("", embed=True), db: Session = Depends(get_db),
+                     user: str = Depends(require_role("editor"))):
+    """Close the books through a month (YYYY-MM / YYYY-MM-DD), or clear with null. Finance-module
+    mutations dated into a closed month are refused with a 409 everywhere (routes, imports,
+    internal flows) — adjustments post into open periods."""
+    from .. import audit, fin_gov
+    try:
+        out = fin_gov.set_lock(pid, lock_date, user, note)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    audit.record(db, action="finance.lock", actor=user, method="PUT",
+                 path=f"/projects/{pid}/finance/lock",
+                 detail={"project_id": pid, "lock_date": out["lock_date"], "note": out["note"]})
+    db.commit()
+    return out
+
+
+@router.get("/projects/{pid}/finance/reconcile")
+def finance_reconcile(pid: str, db: Session = Depends(get_db),
+                      _: str = Depends(require_role("viewer"))):
+    """FIN-INGEST: budget ↔ actuals matched BOTH ways on the cost-code spine (matched /
+    budget-only / actuals-only, never netted) + the uncoded actual records, highest value first."""
+    from .. import fin_ingest
+    return fin_ingest.reconcile(db, pid)
+
+
+@router.get("/projects/{pid}/finance/imports")
+def finance_imports(pid: str, limit: int = 100, db: Session = Depends(get_db),
+                    _: str = Depends(require_role("viewer"))):
+    """FIN-INGEST lineage: the project's audit-logged import batches (file, module, counts,
+    who, when), newest first — where the numbers came from."""
+    from .. import fin_ingest
+    return fin_ingest.import_history(db, pid, limit=limit)

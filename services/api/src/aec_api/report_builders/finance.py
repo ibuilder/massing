@@ -461,3 +461,60 @@ def _marketing_flyer(db: Session, pid: str, name: str) -> Report:
     if d.get("virtual_tour_url"):
         r.table("Take the 3D tour", ["", ""], [["Link", d["virtual_tour_url"]]])
     return r
+
+
+def _investor_pack(db: Session, pid: str, name: str) -> Report:
+    """FIN-PORTFOLIO: the investor/lender pack — the governed scenario's returns, Sources & Uses,
+    every saved scenario with its review state, and the cap-table summary, in one export."""
+    from ..models import Scenario
+    scenarios = (db.query(Scenario).filter(Scenario.project_id == pid)
+                 .order_by(Scenario.created_at).all())
+    # the reporting basis: prefer published > approved > the latest saved
+    rank = {"published": 2, "approved": 1}
+    basis = None
+    for s_ in scenarios:
+        st = getattr(s_, "review_status", None) or "draft"
+        if basis is None or rank.get(st, 0) >= rank.get(getattr(basis, "review_status", "") or "", 0):
+            basis = s_
+    r = Report("Investor Pack", name)
+    if basis is None:
+        r.kpi("Scenarios", 0)
+        r.table("Scenario Returns", ["(no saved scenarios)"], [[""]])
+        return r
+    res = basis.result or {}
+    rets, su = res.get("returns") or {}, res.get("sources_uses") or {}
+    st = getattr(basis, "review_status", None) or "draft"
+    r.subtitle = f"{name} — {basis.name} ({st})"
+    r.kpi("Basis scenario", f"{basis.name} [{st}]")
+    r.kpi("Equity IRR", f"{rets['equity_irr'] * 100:.2f}%" if rets.get("equity_irr") is not None else "—")
+    r.kpi("Equity multiple", f"{rets['equity_multiple']:.2f}x" if rets.get("equity_multiple") is not None else "—")
+    r.kpi("Yield on cost", f"{rets['yield_on_cost'] * 100:.2f}%" if rets.get("yield_on_cost") is not None else "—")
+    r.kpi("Total uses", _money(su.get("total_uses")))
+    r.kpi("Equity", _money(su.get("equity")))
+    r.table("Sources & Uses",
+            ["Item", "Amount"],
+            [["Total uses", _money(su.get("total_uses"))],
+             ["Loan amount", _money(su.get("loan_amount"))],
+             ["Loan fees", _money(su.get("loan_fees"))],
+             ["Interest reserve", _money(su.get("interest_reserve"))],
+             ["Equity — LP", _money(su.get("lp_contribution"))],
+             ["Equity — GP", _money(su.get("gp_contribution"))]])
+    r.table("Scenario Returns (all saved)",
+            ["Scenario", "Status", "Equity IRR", "Equity multiple", "Yield on cost"],
+            [[s_.name, getattr(s_, "review_status", None) or "draft",
+              f"{rr['equity_irr'] * 100:.2f}%" if (rr := ((s_.result or {}).get("returns") or {})).get("equity_irr") is not None else "—",
+              f"{rr['equity_multiple']:.2f}x" if rr.get("equity_multiple") is not None else "—",
+              f"{rr['yield_on_cost'] * 100:.2f}%" if rr.get("yield_on_cost") is not None else "—"]
+             for s_ in scenarios])
+    from .. import capital
+    ct = capital.cap_table(me.list_records(db, "investor", pid, limit=100000) if "investor" in me.TABLES else [])
+    if ct["investor_count"]:
+        r.table("Capital summary", ["Investors", "Commitment", "Contributed", "Distributed", "Unreturned"],
+                [[ct["investor_count"], _money(ct["total_commitment"]), _money(ct["total_contributed"]),
+                  _money(ct["total_distributed"]), _money(ct["total_unreturned"])]])
+    cf = res.get("cash_flow") or {}
+    if cf.get("dates"):
+        step = max(1, len(cf["dates"]) // 24)          # keep the PDF chart readable
+        r.chart("line", "Equity cash flow", cf["dates"][::step],
+                [{"name": "Equity", "values": cf["equity"][::step]}])
+    return r

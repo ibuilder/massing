@@ -47,25 +47,24 @@ need).
   compare: GUID stability, property/pset preservation, classification refs, spatial containment — as a
   suite-registered gate. The one open item from the interop program; the rest ships.
 
-**Finance track (Sprint 2 — the development-finance pillar deepened; trust before breadth):**
-- **FIN-GOV — financial governance** *(M).* Draft → in-review → approved → published workflow on
-  pro-forma/budget records (the MODEL-PUBLISH pattern reapplied to finance), **locked reporting
-  periods** (a per-project lock date; finance-module mutations dated into a locked period are
-  409-refused), and an assumption change log.
-- **FIN-CALC — calculation trust** *(M).* The **residual-land-value solver** (solve for land price at a
-  target return — the missing inverse of the pipeline), **golden reference tests** for XIRR/NPV/
-  equity-multiple/yield-on-cost/waterfall against hand-computed fixtures, and a documented **precision
-  policy** (the `money.py` Decimal boundary — where floats are permitted vs. not).
-- **FIN-PORTFOLIO — investor/lender reporting** *(S/M).* A reporting pack preset (reports.py) over the
-  portfolio rollups + benchmarks + funding/draw status, and portfolio-level scenario comparison.
-- **FIN-INGEST — actuals reconciliation** *(S).* Imported actuals vs. budget lines with
-  unmatched-both-ways surfaced, and import lineage stamps (source file + date) on imported records.
+**Finance track (Sprint 2 — ✅ SHIPPED v0.3.650):**
+- ✅ **FIN-GOV** *(v0.3.650)* — `fin_gov.py`: the scenario review workflow (draft→in_review→
+  approved→published, immutable once approved, changed-assumption paths audit-logged; Alembic
+  `c6dcec8fe81d`) + locked reporting periods enforced in the modules ENGINE (409 on create/update/
+  move/delete into a closed month; reaches imports too). `test_fin_gov`.
+- ✅ **FIN-CALC** *(v0.3.650)* — `proforma/residual.py` residual-land inverse solver
+  (`POST /proforma/residual-land`; honest "not achievable" on impossible targets) + the golden
+  reference fixtures (`test_fin_calc`) + [calculation-precision.md](engineering/calculation-precision.md).
+- ✅ **FIN-PORTFOLIO** *(v0.3.650)* — `GET /proforma/portfolio/compare` (latest scenario per
+  project + governance state + best/worst spread) + the `investor_pack` Report-Center preset.
+- ✅ **FIN-INGEST** *(v0.3.650)* — `fin_ingest.py`: `/finance/reconcile` (budget↔actuals both
+  ways + uncoded rows) + `/finance/imports` lineage over audit-logged batches. `test_fin_ingest`.
 
 ## ▶ NOW — priority order (sprints of large chunks; one full-suite release per sprint)
 
 1. ✅ **R19 Sprint 1 — enterprise readiness** *(shipped v0.3.649)*: SEC-THREAT · COMPLY-SOC2 ·
    OPS-OBS · ENG-STD + the G-2 SBOM and G-5 password-deny-list fixes.
-2. **R19 Sprint 2 — finance platform**: FIN-GOV → FIN-CALC → FIN-PORTFOLIO → FIN-INGEST.
+2. ✅ **R19 Sprint 2 — finance platform** *(shipped v0.3.650)*: FIN-GOV · FIN-CALC · FIN-PORTFOLIO · FIN-INGEST.
 3. **INTEROP-RT** — the round-trip fidelity gauntlet (rides with either sprint).
 4. **R18 tail — authoring depth**: FAMILY-DEPTH ② instance-level parameter overrides ·
    AUTH-CONSTRAINTS ② level-move re-derivation → then FAMILY-DEPTH ③④ · AUTH-CONSTRAINTS ③ wall joins.

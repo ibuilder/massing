@@ -112,6 +112,12 @@ class Scenario(Base):
     is_locked: Mapped[bool] = mapped_column(default=False)
     shared_with: Mapped[list | None] = mapped_column(JSON, nullable=True)  # LP read-access users
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    # FIN-GOV review workflow: draft → in_review → approved → published (fin_gov.REVIEW_ACTIONS).
+    # Approved/published assumptions are immutable in place — clone a revision to iterate.
+    review_status: Mapped[str] = mapped_column(String, server_default="draft")
+    reviewed_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    review_note: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class ProjectMember(Base):

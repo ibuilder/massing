@@ -4,6 +4,44 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.650 — R19 Sprint 2: the finance-platform pack (FIN-GOV · FIN-CALC · FIN-INGEST · FIN-PORTFOLIO)
+
+Trust before breadth: governance, golden-tested math, reconciliation, and investor reporting on
+the development-finance pillar.
+
+- **FIN-GOV — financial governance** (`fin_gov.py`). **Scenario review workflow**: every saved
+  pro-forma scenario runs draft → in-review → approved → published (`POST
+  /proforma/scenarios/{sid}/review`; reject/reopen walk back with a note; who/when/why persisted —
+  Alembic `c6dcec8fe81d`). Approved/published assumptions are **immutable in place** (409 — clone a
+  revision); draft edits return (and audit-log) the exact **changed assumption paths**
+  (`debt.ltc`). **Locked reporting periods**: `PUT /projects/{pid}/finance/lock` closes the books
+  through a month — owner-invoice / sub-invoice / direct-cost / journal-batch mutations dated into
+  a closed month are refused **409 in the modules engine**, so every path (routes, imports,
+  internal flows) hits the same gate; records can't be edited, deleted, or re-dated across the
+  line; adjustments post into open periods. `test_fin_gov`.
+- **FIN-CALC — calculation trust.** The **residual-land-value inverse solver**
+  (`proforma/residual.py` + `POST /proforma/residual-land`): the land price that hits a target
+  equity-IRR / project-IRR / equity-multiple / yield-on-cost / profit-margin, by deterministic
+  bisection over the same forward solve every other number comes from — an unreachable target says
+  "not achievable even at $0 land" instead of inventing a number. **Golden reference tests**
+  (`test_fin_calc`): closed-form XIRR fixtures, the hand-built NPV annuity, EM/YoC ratios, the
+  to-the-dollar waterfall reconciliation, and invert-then-forward-solve consistency. The precision
+  policy is documented in [calculation-precision.md](docs/engineering/calculation-precision.md).
+- **FIN-INGEST — actuals reconciliation + lineage** (`fin_ingest.py`).
+  `GET /projects/{pid}/finance/reconcile`: budget ↔ actuals matched **both ways** on the cost-code
+  spine (matched / budget-only / actuals-only, never netted) + uncoded actual records surfaced
+  with their refs, highest value first. Import batches are audit-logged with source filename +
+  counts (`GET /finance/imports`); the period lock reaches imports automatically — backdated rows
+  land in the batch's error list, not the ledger. `test_fin_ingest`.
+- **FIN-PORTFOLIO — investor reporting.** `GET /proforma/portfolio/compare`: the latest scenario
+  per project side-by-side (returns + governance state) with a best/worst spread per metric,
+  member-scoped under RBAC. The **Investor Pack** joins the Report Center (`investor_pack`):
+  basis scenario (published preferred) with return KPIs, Sources & Uses, every saved scenario
+  with its review state, capital summary, and the equity cash-flow chart — PDF/Excel like every
+  preset. `test_fin_portfolio`.
+- Clients: `reviewScenario` · `financeLock`/`setFinanceLock` · `residualLand` ·
+  `financeReconcile` · `financeImports` · `portfolioCompare`. Suite 349.
+
 ## v0.3.649 — R19 Sprint 1: the enterprise-readiness pack (SEC-THREAT · COMPLY-SOC2 · OPS-OBS · ENG-STD)
 
 The security/compliance/operations/engineering program layer, grounded in the shipped controls —

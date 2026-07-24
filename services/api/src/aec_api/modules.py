@@ -25,7 +25,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Session
 
-from . import rbac
+from . import fin_gov, rbac
 from .models import EnumOption, RecordActivity, RecordComment
 
 # the registry + table foundation is a leaf (imports only db.Base); re-exported so modules.get_module /
@@ -139,6 +139,8 @@ def create_record(db: Session, key: str, project_id: str, body: dict, actor: str
         data[title_field] = data["subject"]
     _validate_fields(mod, data)
     _validate_values(mod, data)
+    if (why := fin_gov.locked_reason(key, project_id, data)):     # FIN-GOV period lock
+        raise HTTPException(409, why)
     rid = str(uuid.uuid4())
     row = {
         "id": rid, "project_id": project_id,
@@ -572,6 +574,8 @@ def delete_record(db: Session, key: str, project_id: str, rid: str, actor: str,
     """Delete a record (and its activity/comments). Returns {deleted, ref}."""
     t = TABLES[key]
     rec = get_record(db, key, project_id, rid)  # 404 if missing
+    if (why := fin_gov.locked_reason(key, project_id, rec.get("data"))):  # FIN-GOV period lock
+        raise HTTPException(409, why)
     db.execute(t.delete().where(t.c.id == rid, t.c.project_id == project_id))
     db.query(RecordActivity).filter(RecordActivity.module == key,
                                     RecordActivity.record_id == rid).delete()
@@ -838,6 +842,11 @@ def update_record(db: Session, key: str, project_id: str, rid: str, data: dict,
                                       "modified_at": cur_iso})
     _validate_values(get_module(key), data)         # partial: only the fields being changed
     merged = {**(rec.get("data") or {}), **data}
+    # FIN-GOV period lock: a record already in a closed month is frozen, and an open-month record
+    # can't be re-dated INTO a closed month — both sides of the merge are checked.
+    if (why := fin_gov.locked_reason(key, project_id, rec.get("data"))
+            or fin_gov.locked_reason(key, project_id, merged)):
+        raise HTTPException(409, why)
     db.execute(update(t).where(t.c.id == rid).values(data=merged, modified_at=_now()))
     _log(db, project_id, key, rid, actor, party, "update", {"fields": list(data.keys())})
     db.commit()

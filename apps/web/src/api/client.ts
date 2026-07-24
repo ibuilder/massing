@@ -2540,6 +2540,50 @@ export class ApiClient extends HttpCore {
     return this.json<{ sov_lines_created: number; g702: Record<string, number>; g702_pdf: string }>(
       `/proforma/scenarios/${sid}/draw-package`, { method: "POST", body: JSON.stringify(body) });
   }
+  /** FIN-GOV — move a scenario through draft → in_review → approved → published (reject/reopen → draft). */
+  reviewScenario(sid: string, action: "submit" | "approve" | "reject" | "publish" | "reopen", note?: string) {
+    return this.json<{ id: string; review_status: string; reviewed_by: string; note: string }>(
+      `/proforma/scenarios/${sid}/review`, { method: "POST", body: JSON.stringify({ action, note: note ?? "" }) });
+  }
+  /** FIN-GOV — the project's locked reporting period (books closed through lock_date, or null). */
+  financeLock(pid: string) {
+    return this.json<{ lock_date: string | null; set_by?: string; set_at?: string; note?: string }>(
+      `/projects/${pid}/finance/lock`);
+  }
+  setFinanceLock(pid: string, lockDate: string | null, note?: string) {
+    return this.json<{ lock_date: string | null; set_by: string; note: string }>(
+      `/projects/${pid}/finance/lock`,
+      { method: "PUT", body: JSON.stringify({ lock_date: lockDate, note: note ?? "" }) });
+  }
+  /** FIN-CALC — residual land value: the land price that hits a target return (bisection over the solve). */
+  residualLand(assumptions: unknown, target: string, targetValue: number, maxLand?: number) {
+    return this.json<{ land_value: number | null; achieved: number | null; target: string;
+      target_value: number; iterations: number; converged: boolean; at_zero_land: number | null;
+      note?: string }>(
+      `/proforma/residual-land`, { method: "POST",
+        body: JSON.stringify({ assumptions, target, target_value: targetValue, max_land: maxLand ?? null }) });
+  }
+  /** FIN-INGEST — budget ↔ actuals two-way reconciliation on the cost-code spine. */
+  financeReconcile(pid: string) {
+    return this.json<{ matched: unknown[]; budget_only: unknown[]; actuals_only: unknown[];
+      uncoded: { module: string; ref: string; amount: number; vendor?: string }[];
+      counts: Record<string, number>; fully_reconciled: boolean }>(
+      `/projects/${pid}/finance/reconcile`);
+  }
+  /** FIN-INGEST — import lineage: the project's audit-logged import batches, newest first. */
+  financeImports(pid: string) {
+    return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
+      imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
+  }
+  /** FIN-PORTFOLIO — latest scenario per project side-by-side with governance state + the spread. */
+  portfolioCompare() {
+    return this.json<{ project_count: number; rows: { project_id: string; project_name: string;
+      scenario_id: string; scenario_name: string; review_status: string;
+      equity_irr: number | null; equity_multiple: number | null; yield_on_cost: number | null;
+      total_uses: number | null }[];
+      spread: Record<string, { best: string | null; worst: string | null;
+        min: number | null; max: number | null }> }>(`/proforma/portfolio/compare`);
+  }
 
   // GC portal modules + model pins
   modules() {

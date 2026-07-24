@@ -665,6 +665,7 @@ def list_scenarios(project_id: str | None = None, db: Session = Depends(get_db))
     if project_id:
         q = q.filter(Scenario.project_id == project_id)
     return [{"id": s.id, "name": s.name, "project_id": s.project_id,
+             "review_status": getattr(s, "review_status", None) or "draft",
              "returns": (s.result or {}).get("returns")} for s in q.order_by(Scenario.created_at).all()]
 
 
@@ -687,7 +688,10 @@ def get_scenario(sid: str, db: Session = Depends(get_db), user: str = Depends(cu
     if not _can_read(db, s, user):
         raise HTTPException(403, "not shared with you")
     return {"id": s.id, "name": s.name, "assumptions": s.assumptions, "result": s.result,
-            "shared_with": s.shared_with or []}
+            "shared_with": s.shared_with or [],
+            "review_status": getattr(s, "review_status", None) or "draft",
+            "reviewed_by": s.reviewed_by, "review_note": s.review_note,
+            "reviewed_at": s.reviewed_at.isoformat() if s.reviewed_at else None}
 
 
 @router.post("/proforma/scenarios/{sid}/share", status_code=201)
@@ -702,17 +706,29 @@ def share_scenario(sid: str, user: str = Body(..., embed=True), db: Session = De
 
 
 @router.put("/proforma/scenarios/{sid}")
-def update_scenario(sid: str, body: ScenarioIn, db: Session = Depends(get_db)):
+def update_scenario(sid: str, body: ScenarioIn, db: Session = Depends(get_db),
+                    user: str = Depends(current_user)):
+    from .. import audit, fin_gov
     s = db.get(Scenario, sid)
     if not s:
         raise HTTPException(404, "scenario not found")
     if s.is_locked:
         raise HTTPException(409, "scenario is locked")
-    s.assumptions = body.assumptions.model_dump()
+    if (getattr(s, "review_status", None) or "draft") in fin_gov.IMMUTABLE_STATES:
+        raise HTTPException(409, f"scenario is {s.review_status} and immutable in place — "
+                                 "clone a revision to iterate")
+    new_assumptions = body.assumptions.model_dump()
+    changed = fin_gov.assumption_diff(s.assumptions or {}, new_assumptions)
+    s.assumptions = new_assumptions
     s.name = body.name
     s.result = solve(s.assumptions)
     db.commit()
-    return {"id": s.id, "name": s.name, "result": s.result}
+    if changed:                                  # the assumption change log (FIN-GOV)
+        audit.record(db, action="scenario.assumptions_changed", actor=user, method="PUT",
+                     path=f"/proforma/scenarios/{sid}",
+                     detail={"scenario_id": sid, "project_id": s.project_id, "changed": changed})
+        db.commit()
+    return {"id": s.id, "name": s.name, "result": s.result, "changed_assumptions": changed}
 
 
 @router.post("/proforma/scenarios/{sid}/clone", status_code=201)
@@ -724,6 +740,79 @@ def clone_scenario(sid: str, name: str = Body(..., embed=True), db: Session = De
     db.add(c)
     db.commit()
     return {"id": c.id, "name": c.name}
+
+
+@router.post("/proforma/scenarios/{sid}/review")
+def review_scenario(sid: str, action: str = Body(..., embed=True),
+                    note: str = Body("", embed=True), db: Session = Depends(get_db),
+                    user: str = Depends(current_user)):
+    """FIN-GOV: move a scenario through draft → in_review → approved → published
+    (reject/reopen walk back to draft). Approved/published assumptions are immutable in place."""
+    from .. import audit, fin_gov
+    s = db.get(Scenario, sid)
+    if not s:
+        raise HTTPException(404, "scenario not found")
+    try:
+        out = fin_gov.review_scenario(s, action, user, note)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    db.commit()
+    audit.record(db, action=f"scenario.review.{action}", actor=user, method="POST",
+                 path=f"/proforma/scenarios/{sid}/review",
+                 detail={"scenario_id": sid, "project_id": s.project_id, **out})
+    db.commit()
+    return {"id": s.id, **out}
+
+
+@router.post("/proforma/residual-land")
+def residual_land(assumptions: Assumptions, target: str = Body("equity_irr", embed=True),
+                  target_value: float = Body(0.15, embed=True),
+                  max_land: float | None = Body(None, embed=True)):
+    """FIN-CALC: the residual-land inverse — the land price that hits a target return, by
+    deterministic bisection over the same forward solve every other number comes from."""
+    from ..proforma.residual import residual_land_value
+    try:
+        return residual_land_value(assumptions.model_dump(), target=target,
+                                   target_value=target_value, max_land=max_land)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/proforma/portfolio/compare")
+def portfolio_compare(db: Session = Depends(get_db), user: str = Depends(current_user)):
+    """FIN-PORTFOLIO: the latest scenario per project side by side — returns + governance state —
+    with a best/worst spread per metric. RBAC on → only the caller's member projects."""
+    from ..models import Project
+    rows = []
+    pids = rbac.member_project_ids(db, user) if rbac.RBAC_ON else None
+    q = db.query(Scenario).filter(Scenario.project_id.isnot(None)).order_by(Scenario.created_at)
+    latest: dict[str, Scenario] = {}
+    for s in q.all():
+        if pids is not None and s.project_id not in pids:
+            continue
+        latest[s.project_id] = s                       # created-ascending → last wins
+    for pid, s in latest.items():
+        proj = db.get(Project, pid)
+        r = (s.result or {}).get("returns") or {}
+        su = (s.result or {}).get("sources_uses") or {}
+        rows.append({
+            "project_id": pid, "project_name": proj.name if proj else pid,
+            "scenario_id": s.id, "scenario_name": s.name,
+            "review_status": getattr(s, "review_status", None) or "draft",
+            "equity_irr": r.get("equity_irr"), "equity_multiple": r.get("equity_multiple"),
+            "yield_on_cost": r.get("yield_on_cost"), "npv": r.get("npv"),
+            "total_uses": su.get("total_uses"),
+        })
+    rows.sort(key=lambda x: -(x["equity_irr"] or -9e9))
+    spread = {}
+    for metric in ("equity_irr", "equity_multiple", "yield_on_cost"):
+        vals = [(x[metric], x["project_name"]) for x in rows if x[metric] is not None]
+        spread[metric] = ({"best": max(vals)[1], "worst": min(vals)[1],
+                           "min": min(vals)[0], "max": max(vals)[0]} if vals else
+                          {"best": None, "worst": None, "min": None, "max": None})
+    return {"project_count": len(rows), "rows": rows, "spread": spread}
 
 
 class Actual(BaseModel):
