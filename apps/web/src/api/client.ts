@@ -2575,6 +2575,26 @@ export class ApiClient extends HttpCore {
     return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
       imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
   }
+  /** ENERGY phase 1 — the thermal model extracted from the IFC (zones · surfaces · constructions). */
+  energyModel(pid: string) {
+    return this.json<{ zone_source: string;
+      zones: { id: string; name: string; storey: string; area_m2: number; volume_m3: number }[];
+      surfaces: { id: string; name: string; ifc_class: string; idf_type: string; zone_id: string;
+        construction: string; orientation: string; area_m2: number; geometry: "exact" | "bbox";
+        corners: number[][] }[];
+      constructions: { name: string; u_value: number | null; source: string }[];
+      counts: Record<string, number>; note: string }>(`/projects/${pid}/energy/model`);
+  }
+  /** ENERGY phase 1 — the gbXML / IDF envelope export URLs (downloads, not JSON). */
+  energyExportUrl(pid: string, fmt: "gbxml" | "idf") {
+    return `${this.baseUrl}/projects/${pid}/energy/export.${fmt}`;
+  }
+  /** IFCPATCH-LIB — plan a per-storey split (feed a slice's GUIDs to the subset export). */
+  modelSplitPlan(pid: string) {
+    return this.json<{ storeys: Record<string, string[]>; counts: Record<string, number>;
+      unassigned: string[]; unassigned_count: number; note: string }>(
+      `/projects/${pid}/model/split-plan`);
+  }
   /** AUTH-CONSTRAINTS ③ — detect L/T wall joins (resolution = the resolve_wall_joins edit recipe). */
   wallJoins(pid: string, tol?: number) {
     return this.json<{ joins: { kind: "L" | "T"; corner: number[]; through: string; stub: string;

@@ -12,7 +12,7 @@ The R16/R17 rings are closed on the backend side, the R18 authoring-parity ring 
 slices, and the current push is **enterprise + finance-platform readiness** — the programs and governance
 layer that make the shipped engines defensible in enterprise diligence.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (358 suites) · single-source version in
+**Status:** CodeQL 0 open alerts · full backend suite green (359 suites) · single-source version in
 `apps/web/package.json` · CI on Node 22 · vitest 132.
 
 ---
@@ -75,6 +75,10 @@ need).
    multi-model work)* · ✅ BCF-API-SRV 3.0 shape + attachments-over-API. **Remaining:** SPRINT B
    phase-4b CPM crew shifts · NORM-VALID implementer-agreement depth.
 
+7. **🏙 R20 — CRE deal-desk depth** *(new)*: Tier 1 (CRE-NER · CRE-COMP-TIER · CRE-T12 ·
+   CRE-RRSCRUB) → Tier 2 (CRE-COVENANT · CRE-AUTHORITY · CRE-SUPPLY · CRE-DECISION-GATE) →
+   Tier 3 (CRE-ICMEMO · CRE-HOLDSELL · CRE-CLAUSE).
+
 *Then the viewer-coupled R17 tail (CITE-JUMP · 4D5D-VIEWER · WebXR · NODE-CANVAS · the clash
 step-through UI · BCF-VIEWPOINT restore depth), flagged for the dev-preview geometry-stall
 verification limit.*
@@ -93,6 +97,93 @@ VIEW-TEMPLATES · FAMILY-DEPTH ① · SDK-VERSIONING · ADR-LITE) are archived. 
   reachable by SCHED-CALC; `test_shared_params`). *Cross-project library versioning rides the
   existing `import_types_from_ifc` + MODEL-PUBLISH review states; a dedicated library-version
   registry is deferred until a customer needs multi-firm libraries.* **The R18 ring is complete.**
+
+## 🏙 R20 — CRE deal-desk depth (2026-07-24, from a two-guide field review)
+
+Two external field guides on running an AI assistant across commercial-real-estate and
+ground-up-development workflows (48 mapped workflows / 9 developer systems; vendor names omitted
+per the standing docs directive). **Read honestly, most of their content is *prompting technique*
+for reading messy documents — which is our documented non-goal** (LLM/OCR reconstruction of
+unstructured input; we take structured input through the shipped CSV/XLSX importer and the
+connectors). What IS worth taking is the layer underneath: a set of **CRE domain disciplines that
+are entirely deterministic**, that we mostly already hold the data for, and that sharpen the
+developer/finance pillar. Each item below was checked against what ships before being listed.
+
+The through-line matches our provenance thesis exactly: *every material number carries its source,
+nothing reaches a decision-maker un-sourced, and a stale or missing input stops the workflow
+instead of being filled in with something plausible.*
+
+**Tier 1 — the data is already there, the discipline isn't (S/M each):**
+- **CRE-NER — net effective rent.** The `lease` module already stores `free_rent_months`,
+  `ti_allowance_psf` and `recovery_psf`, but `rentroll.py` reports face rent only. Add NER — both
+  the straight-line form (gross rent − landlord costs ÷ term) and the **discounted** form
+  commercial underwriting actually uses — and carry it through the rent roll, the comps, and into
+  the pro forma's revenue line. Concessions are deducted before effective gross income, the way
+  agency underwriting does it. Deterministic arithmetic over data we hold.
+- **CRE-COMP-TIER — comp source hierarchy.** `comparable` has a free-text `source`; make it a
+  **ranked tier** (recorded sale > verified/confirmed > vendor estimate > listing > broker
+  package). The tier decides which number wins when two comps disagree, and every derived figure
+  (cap-rate band, $/SF) reports the **worst tier it depended on** — the CITED-ANSWER contract
+  applied to market data.
+- **CRE-T12 — trailing-12 normalization + a hard tie-out gate.** Map an imported T-12 to the house
+  chart of accounts (`accounting.COA` ships), classify each line recurring / one-time / capital /
+  reclass, and compute run-rate vs trailing. **The gate is the feature:** income, expense and NOI
+  must reconcile before *and* after mapping, or the engine stops and lists the reconciling items
+  rather than publishing an adjusted NOI. Plus the standard owner-operated add-back checks
+  (absent management fee, no payroll line, below-market R&M) surfaced as questions, never applied
+  silently.
+- **CRE-RRSCRUB — rent roll ↔ income reconciliation.** Cross-check two structured sources we
+  already hold: scheduled rent vs gross potential rent (industry practice treats >5% as a
+  diligence item), occupied units with no lease on file, rent ≠ executed lease terms, a vacant
+  unit carrying a receivable, arrears rising monthly, bad debt rising against flat occupancy.
+  Deterministic; composes with FIN-INGEST's reconciliation shape.
+
+**Tier 2 — new structure, high enterprise value (M each):**
+- **CRE-COVENANT — loan covenant & reporting-obligation register.** Each covenant with its test,
+  threshold, frequency and cure right; each reporting obligation with its **day-count basis
+  (calendar vs business days), clock start (lender's notice vs our receipt) and deadline** — the
+  two fields that cause missed filings — plus a forward calendar and an at-risk flag. Timing alone
+  can breach a loan even with clean financials underneath. Nothing like it ships today.
+- **CRE-AUTHORITY — deal-room authority table.** Per fact type (rent roll · T-12 · tax · insurance
+  · offering package), which document is **authoritative**, its date, its freshness threshold, and
+  what it supersedes — with a stale / missing / superseded report that **gates** downstream
+  analysis. The CRE analogue of the model-authority discipline we already run, over docmanager and
+  the golden thread.
+- **CRE-SUPPLY — evidence-tiered competitive supply.** Sharpen the shipped ABSORPTION / LOT-SUPPLY
+  engines: weight each pipeline project by *recorded evidence* (permit issued · GC mobilized ·
+  construction loan recorded) rather than status labels, filter to the subject's
+  delivery-and-lease-up window and competitive product type, and keep rumored supply visibly
+  separate from permitted supply instead of blending them into one count.
+- **CRE-DECISION-GATE — the pre-committee readiness gate.** A deterministic check before a deal
+  package reaches a committee: every material number sourced (reuse CITED-ANSWER coverage), every
+  comp tier-traced, every time-sensitive fact within its freshness policy, required exhibits
+  present, named sign-off recorded. Blocks with a reason list rather than producing a
+  confident-looking package. This is our provenance flagship pointed at the finance pillar.
+
+**Tier 3 — smaller, opportunistic (S each):**
+- **CRE-ICMEMO** — an IC-memo Report-Center preset that **refuses to render** when price, NOI,
+  debt, equity or exit cap is missing, rather than inventing one (the `investor_pack` pattern +
+  CONCEPT-BUDGET's UNPRICED doctrine).
+- **CRE-HOLDSELL** — hold-vs-sell: continue-and-sell-later IRR against net proceeds today, with
+  the breakeven hold period. A composition over the shipped returns/reversion engines.
+- **CRE-CLAUSE** — a clause-position playbook (accept / negotiate / refuse per clause, per
+  contract type) plus a structured deviation record per reviewed document. The *reading* stays
+  human/LLM and out of scope; the playbook and the deviation register are ours and deterministic.
+
+**Verified as ALREADY SHIPPING (listed so nobody rebuilds them):** pipeline/deal tracking
+(`listing`/`due_diligence` modules) · comp aggregation + appraisal (`comps.py`, tri-approach
+report) · rent roll + WALT + renewals/escalations/CAM (`rentroll.py`, `leasemgmt.py`) · the whole
+pro-forma pipeline with sensitivity, Monte Carlo and waterfalls · **residual land value**
+(v0.3.650) · draw packages + G702/G703 + WIP · variance analysis + budget↔actuals reconciliation
+with lineage (v0.3.650) · investor reporting pack + portfolio scenario compare (v0.3.650) ·
+scenario governance with locked periods (v0.3.650) · zoning/entitlement feasibility + permit
+timelines + absorption/lot-supply · escalation indices + market intelligence.
+
+**SKIP (unchanged doctrine):** LLM/OCR extraction from offering memoranda, scanned T-12s, rent-roll
+PDFs or leases — we ingest structured exports, and the deterministic engines above are what make
+the numbers defensible. Prompt-library / workflow-count framing is a way of using an assistant,
+not product surface. **INTEGRATE (flagged, offline-degrading, never a runtime dep):** paid comp /
+market-data feeds and county-recorder pulls behind the existing `opendata.py` indirection.
 
 ## 🧭 R17 — viewer-coupled tail (gated on the dev-preview geometry stall)
 
@@ -126,9 +217,14 @@ VIEW-TEMPLATES · FAMILY-DEPTH ① · SDK-VERSIONING · ADR-LITE) are archived. 
 
 ## 🏔 BIG-TICKET SPRINTS — multi-release initiatives (open ONE track; slice + reassess)
 
-- **SPRINT A — ENERGY & DAYLIGHT (via the jobs lane).** *(L)* EnergyPlus (BSD) + Radiance (LBNL).
-  **Phase 1 (no binaries):** the IDF/gbXML envelope export — model → surfaces/constructions/zones,
-  mirroring the shipped FEM-EXPORT pattern. **Phase 2+:** solver binaries through the durable job queue.
+- ◧ **SPRINT A — ENERGY & DAYLIGHT.** *(L)* ✅ **Phase 1 SHIPPED (v0.3.655)** —
+  `aec_data/energy_export.py`: the IFC becomes a thermal model (zones · zero-thickness mid-plane
+  surfaces, each tagged `exact`/`bbox` by checking the mesh against its bounding box ·
+  constructions whose conductivities are back-derived from the platform's own R so the export
+  can't contradict it) with **gbXML** and **EnergyPlus IDF** writers over one intermediate, both
+  byte-deterministic; `GET /energy/model` + `/energy/export.gbxml` + `/energy/export.idf`;
+  `test_energy_export`. **Phase 2+:** ship the EnergyPlus (BSD) / Radiance (LBNL) binaries through
+  the durable job queue and parse results back onto the model — the remaining gated half.
 - **SPRINT C — FIELD-PWA.** *(L, frontend)* Offline-first mobile PWA: service-worker sheet sync, auto
   slip-sheeting, hyperlinked callouts. *(Ships build/typecheck-verified under the preview-stall caveat.)*
 - **SPRINT E — FAB-DELIVER phase-2 (GATED).** Byte-exact BVBS BF2D / DSTV-NC held behind the

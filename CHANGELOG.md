@@ -4,6 +4,36 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.655 — ENERGY phase 1: the gbXML / EnergyPlus envelope export + the 🏙 R20 CRE ring
+
+The first BIG-TICKET track opens — and it opens with the half that needed no solver binaries.
+
+- **ENERGY phase 1** (`aec_data/energy_export.py`). The IFC becomes a **thermal model**:
+  - **Zones** from `IfcSpace` (area/volume from the base quantities); a model with no spaces
+    exports a single whole-building zone and says which it did, rather than exporting nothing.
+  - **Surfaces** — one per envelope element. Energy models use **zero-thickness** surfaces, so a
+    wall's mid-plane face is the correct representation, not an approximation; each surface is
+    tagged `exact` when the element's mesh provably **is** its bounding box (authored rectangular
+    extrusions — checked vertex by vertex, not assumed) or `bbox` when the geometry is irregular,
+    so a consumer knows exactly how far to trust each polygon.
+  - **Constructions** from the model's own `IfcMaterialLayerSet` assemblies, with each layer's
+    conductivity **back-derived from the R the platform already computed** — the export reproduces
+    our number instead of doing a second, silently-different catalog lookup.
+  - Two writers over one intermediate — **gbXML** (Campus/Building/Space/Surface + Construction/
+    Layer/Material) and **EnergyPlus IDF** (Building/Zone/Material/Construction/
+    BuildingSurface:Detailed) — so they can never disagree about the building; both
+    byte-deterministic. The IDF states its own scope ("no HVAC, schedules or loads") in the file.
+  - `GET /projects/{pid}/energy/model` + `/energy/export.gbxml` + `/energy/export.idf`; clients
+    `energyModel` / `energyExportUrl`. `test_energy_export` (suite 359). **Phase 2** — running the
+    solver binaries through the durable job queue — remains the gated half.
+- **The 🏙 R20 CRE deal-desk ring** joins the roadmap from a review of two external field guides on
+  AI-assisted CRE and development workflows. Most of their content is document-reading technique,
+  which stays our documented non-goal; what was taken is the deterministic discipline underneath —
+  net effective rent, comp source tiers, T-12 normalization with a hard tie-out gate, rent-roll
+  reconciliation, a loan covenant/reporting register with day-count and clock-start fields, the
+  deal-room authority table, evidence-tiered competitive supply, and a pre-committee readiness
+  gate. Items already shipping are listed explicitly so nothing gets rebuilt.
+
 ## v0.3.654 — Sprint 6: version diff values + model transforms + BCF 3.0
 
 The roadmap's long-standing carry-overs, closed.

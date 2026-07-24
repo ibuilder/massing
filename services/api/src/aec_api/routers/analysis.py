@@ -772,6 +772,45 @@ def energy(pid: str, u_wall: float | None = None, u_window: float | None = None,
     return en.analyze_file(_source_ifc(db, pid), overrides)
 
 
+@router.get("/projects/{pid}/energy/model")
+def energy_model(pid: str, db: Session = Depends(get_db),
+                 _sec: str = Depends(require_role("viewer"))):
+    """ENERGY phase 1 — the thermal model extracted from the IFC: zones, zero-thickness surfaces
+    (each tagged `exact` or `bbox` so a consumer knows how far to trust its polygon), and
+    constructions computed from the model's own layered assemblies. The intermediate both the
+    gbXML and IDF writers serialize, so the two exports can never disagree."""
+    from aec_data import energy_export  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    return energy_export.build(open_model(_source_ifc(db, pid)))
+
+
+@router.get("/projects/{pid}/energy/export.gbxml")
+def energy_gbxml(pid: str, db: Session = Depends(get_db),
+                 _sec: str = Depends(require_role("viewer"))):
+    """ENERGY phase 1 — gbXML envelope export (Campus / Building / Space / Surface + Construction /
+    Layer / Material). Geometry and constructions only: no HVAC, schedules or loads."""
+    from aec_data import energy_export  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    xml = energy_export.to_gbxml(open_model(_source_ifc(db, pid)))
+    return Response(xml, media_type="application/xml",
+                    headers={"Content-Disposition": 'attachment; filename="envelope.gbxml"'})
+
+
+@router.get("/projects/{pid}/energy/export.idf")
+def energy_idf(pid: str, db: Session = Depends(get_db),
+               _sec: str = Depends(require_role("viewer"))):
+    """ENERGY phase 1 — EnergyPlus IDF envelope export (Building / Zone / Material / Construction /
+    BuildingSurface:Detailed). Add HVAC, schedules and loads in the simulation setup."""
+    from aec_data import energy_export  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    idf = energy_export.to_idf(open_model(_source_ifc(db, pid)))
+    return Response(idf, media_type="text/plain",
+                    headers={"Content-Disposition": 'attachment; filename="envelope.idf"'})
+
+
 @router.get("/projects/{pid}/mep")
 def mep(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MEP systems inventory from the model."""
