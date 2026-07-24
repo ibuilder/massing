@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.648 — security: js-yaml ≥ 4.3.0 (transitive)
+
+- Root npm `overrides` pins **js-yaml to ≥ 4.3.0** (was 4.2.0 via the OpenAPI type-generation
+  toolchain), clearing the HIGH advisory for quadratic CPU consumption on YAML merge-key chains.
+  Dev-time toolchain only; no runtime surface.
+
 ## v0.3.647 — the 🏢 R19 ring: enterprise & finance-platform readiness (roadmap)
 
 An external planning pack (07-24) analyzed and folded into the roadmap; the shipped waves archived.
