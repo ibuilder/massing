@@ -2110,3 +2110,68 @@ Skip-trace / owner-contact / foreclosure-lead (PII, off-mission).
 > **RECIPE-MACROS/CLI** (converged-on by 3 sources). **MASSING-OPT** and **MEP-EQUIP** are the next authoring/
 > MEP wins after those. Tier 3's **SEC-SUPPLY** + **CSS-REFACTOR** interleave as small hardening/quality
 > releases.
+
+---
+
+## 🧭 R17 + 🏛 R18 + the reconciled NOW wave — SHIPPED v0.3.600–646 (archived 2026-07-24)
+
+The full R17 backend wave, the R18 authoring-parity ring's completed items, and the reconciled NOW
+list (10/10) — moved here from the live roadmap at the 07-24 cleanup. Per-release detail in CHANGELOG.
+
+**R17 Sprint A — provenance & AI trust:** ★ CITED-ANSWER (v0.3.600 — the `CitedAnswer` contract:
+claims → typed `CitationRef`s (ifc/doc/record/rule), deterministic coverage %, uncited-claim guard,
+conflict surfacing, provenance-as-confidence; `cited_query` + `POST /answer/cited-query`) + RFI-QA
+emission (v0.3.628 — every `/rfi/qa` answer carries `cited`; sourceless fallbacks honestly UNCITED) ·
+PERSONA-ANSWER (v0.3.612 — Exec/PM/Field lenses, deterministic insight + follow-up chips, no LLM).
+Producer disposition (2026-07-24): `POST /ask` + the Ask panel are LLM-phrased by design and stay
+outside the contract rather than faking coverage.
+
+**R17 Sprint B — model-navigable coordination:** BCF-VIEWPOINT capture upgrade (v0.3.618 — issue
+creation always captures camera + orbit target + active section planes) · WALK-MODE desktop
+(v0.3.618 — pointer-lock WASD walk, headless `WalkController` vitest-covered) · TOPIC-BOARD backend +
+🗂 Issue Board panel (v0.3.617/622 — kanban columns in stable workflow order + QUERY-DSL smart
+filters over topic fields) · TOPIC-LIFE (v0.3.626 — status state machine on PATCH w/ vendor-status
+round-trip passthrough, threaded comments, per-topic timeline + inline drawer) · CLASH-WALKTHROUGH
+(v0.3.619 — every clash topic carries a framed viewpoint at a 4 m standoff).
+
+**R17 Sprint C — estimating intelligence (complete):** EST-CONFIDENCE (v0.3.601 — per-line
+source×phase confidence, % of budget assumption-based) · BOE-LEDGER (v0.3.613 — assumption ledger +
+phase drift + qty/price variance decomposition) · BUYOUT-SCHED (v0.3.602 — last-responsible-order =
+install start − lead time) · CONCEPT-BUDGET (v0.3.614 — own-history $/area rates, escalated, p25–p75).
+
+**R17 Sprints D–F:** SCOPE-REG (v0.3.603 — the scope register + gap analysis) · TRANSMITTALS verified
+already covered · PERMIT-TIMELINE (v0.3.604) · ABSORPTION-SELLOUT + LOT-SUPPLY-INDEX (v0.3.605) ·
+PROGRESS-ROLLUP (v0.3.606) + SCAN-4D capture-diff (v0.3.616) · FILL-MATRIX (v0.3.607) · WALL-ASSEMBLY
+thermal (v0.3.610) · PARCEL-IMPORT (v0.3.609) · PORTAL-TXN phases 1–3 (v0.3.611/625/627 — public
+tokenized decisions, opt-in payment-schedule display, scoped client comment thread over a BCF feedback
+topic) · DORMER roof-window slice (v0.3.620 — `add_roof_window`, SKYLIGHT fill, GUID-stable) ·
+RUNTIME: Node 22 CI + oxlint (v0.3.608) · MASSING-OPT `emit_recipes` (v0.3.630) · PROD-ACTUALS module
+(v0.3.631) · PROCURE-LEVEL packages + send-RFQ (v0.3.631) · TESTFIT-ADJ daylight/wet-wall terms
+(v0.3.632) · WKT ReDoS fix (v0.3.621).
+
+**Drift-guard incident (v0.3.628–629/632):** the db-migrations workflow had never run (psql
+PGDATABASE defaulting) which hid that the Postgres FTS GIN indexes were never created in prod
+(`concat_ws` is STABLE → CREATE INDEX rejected; search was seq-scanning). Fixed: `PGDATABASE` in the
+job env; `_pg_document` rebuilt on all-coalesced `||`; fresh-DB migration-chain ordering (baseline
+`has_table` skip + per-migration GIN blocks + a static guard in `test_alembic_migrations`).
+
+**🏛 R18 completed items:** SCHED-CALC (v0.3.635 — `calc_fields.py` AST-whitelist formula evaluator +
+`/drawings/schedules/calc` + `/modules/{key}/calc`) · OPS-DR (v0.3.636 — `BACKUP_KEEP` retention +
+docs/ops-dr.md runbook) · AUTH-CONSTRAINTS ① (v0.3.637 — `aec_data/constraints.py` broken-host/
+illegal-placement checker + `GET /model/constraints`; host/level refs persist natively in IFC) ·
+MODEL-PUBLISH (v0.3.638 — `review_status` draft→in_review→approved on ModelVersion +
+`/versions/{v}/review`; the concurrency half was already live via COLLAB-1 `base_source`) · RULE-PACK
+FOLD (v0.3.639 — the space pack via `/rules/space-pack` folded into `/rules/run` as `space:*` rows) ·
+SEC-SUPPLY CI (v0.3.640 — `mcp_tool_audit()` + `mcp-audit` CLI + report-only workflow step) ·
+SPACE-UTIL benchmarking (v0.3.641 — `/benchmarks/space-utilization`, 12-model cap, portfolio median) ·
+MEP-EQUIP ties (v0.3.642 — `/model/equipment/to-submittals` idempotent + `/budget-lines` +
+`/starter-requirements`; `"*"` presence semantics) · RECIPE-MACROS CLI (v0.3.643 — the headless
+`massing` CLI: `new`/`run`/`check --gate --json`) · ADR-LITE (v0.3.644 — docs/adr/ + ADR-0001) ·
+SDK-VERSIONING verified already shipped (the plugin registry's `api_version` MAJOR gate) ·
+VIEW-TEMPLATES (v0.3.645 — layered view presets w/ deterministic resolve, byte-identical re-resolve) ·
+FAMILY-DEPTH ① type catalogs (v0.3.646 — `TYPE_CATALOGS` + `catalog_types`/`catalog_dims` +
+`type_name` on the add_family recipe/place route + `GET /families/{key}/types`).
+
+**The reconciled NOW list (2026-07-24) shipped 10/10:** SCHED-CALC · OPS-DR · AUTH-CONSTRAINTS ① ·
+MODEL-PUBLISH · CITED-ANSWER producers resolved · RULE-PACK FOLD · MEP-EQUIP ties · SEC-SUPPLY CI ·
+RECIPE-MACROS CLI · SPACE-UTIL benchmarking.

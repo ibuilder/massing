@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.647 — the 🏢 R19 ring: enterprise & finance-platform readiness (roadmap)
+
+An external planning pack (07-24) analyzed and folded into the roadmap; the shipped waves archived.
+
+- **The 🏢 R19 ring** joins the roadmap in two tracks. **Enterprise:** SEC-THREAT (threat model +
+  app-sec verification gap analysis) · COMPLY-SOC2 (Trust-Services-Criteria control matrix over the
+  shipped controls) · OPS-OBS (incident runbooks + SLOs) · ENG-STD (engineering standards codified
+  from the actual conventions) · INTEROP-RT (the automated IFC round-trip fidelity gauntlet).
+  **Finance:** FIN-GOV (approval workflow + locked reporting periods on financial records) ·
+  FIN-CALC (residual-land-value solver + golden reference tests + a documented precision policy) ·
+  FIN-PORTFOLIO (investor/lender reporting pack + portfolio scenario compare) · FIN-INGEST
+  (actuals reconciliation + lineage stamps).
+- **Analysis verdict recorded honestly:** the pack's authoring gap analysis was already done (R18);
+  its interop program is largely shipped (IDS/bSDD/COBie/BCF 3.0/IFC4.3); most of its finance
+  engines already ship (the pure pro-forma pipeline, XIRR/NPV/EM/YoC, sensitivity, Monte Carlo,
+  waterfalls, WIP/draws/reserve, portfolio benchmarking) — what's new is the governance +
+  program-formalization layer. Competitor-matrix deliverables not adopted (standing doc directive).
+- **Roadmap cleanup:** the 🧭 R17 backend wave, the 🏛 R18 completed items, and the 10/10 NOW list
+  moved to [roadmap-completed.md](docs/roadmap-completed.md); the live roadmap now carries open
+  items only, re-prioritized with a fresh sprint-ordered NOW list.
+
 ## v0.3.646 — FAMILY-DEPTH ①: named type catalogs (R18)
 
 One family, many cataloged sizes — "Desk 1600 × 800" instead of raw dims.
