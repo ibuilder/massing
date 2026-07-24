@@ -314,11 +314,12 @@ below** (kept; the rest of the document is superseded by shipped work):
   mismatches (warnings), bare openings/unhosted inserts (info); `test_constraints` breaks a model five
   ways. **Remaining:** ② level-move re-derivation (elements follow a storey elevation edit) · ③ wall-join
   resolution.
-- **FAMILY-DEPTH — type catalogs · instance overrides · nested families · shared parameters** *(M).*
-  The family library exists; the depth gap is **type catalogs** (one family, many cataloged types),
-  **instance-level parameter overrides**, **nested families**, and **shared parameters** that drive
-  computed schedules and tags — plus cross-project **library versioning** (which projects use which
-  library version).
+- ◧ **FAMILY-DEPTH — type catalogs · instance overrides · nested families · shared parameters** *(M).*
+  ✅ **slice ① type catalogs (v0.3.646):** `families.TYPE_CATALOGS` named sizes + `catalog_types`/
+  `catalog_dims` + `type_name` on the `add_family` recipe and place route + `GET /families/{key}/types`
+  — cataloged sizes resolve through the existing `ensure_type` variant machinery (deduped types).
+  **Remaining:** instance-level parameter overrides · nested families · shared parameters driving
+  schedules/tags · cross-project library versioning.
 - ✅ **VIEW-TEMPLATES — per-view visibility/graphics overrides** *(v0.3.645).* `view_templates.py`:
   a template = class visibility matrix + optional QUERY-DSL isolate scope + stacked color rules
   (later-wins); atomically-validated per-project storage (`GET/PUT /view-templates`) + deterministic

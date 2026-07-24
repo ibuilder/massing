@@ -365,6 +365,19 @@ def family_catalog(_: str = Depends(current_user)):
     return {"count": len(items), "categories": cats}
 
 
+@router.get("/families/{key}/types")
+def family_types(key: str, _: str = Depends(current_user)):
+    """FAMILY-DEPTH — the named type catalog for one family: the curated sizes a firm actually places
+    ("Desk 1600 × 800"), or the base dims as 'Standard'. Place one by passing `type_name` to the
+    `add_family` recipe / the place route. 404 unknown family."""
+    from aec_data import families  # type: ignore
+
+    try:
+        return {"family": key, "types": families.catalog_types(key)}
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from None
+
+
 @router.post("/projects/{pid}/families/import")
 async def import_families(pid: str, file: UploadFile = File(...), publish: bool = False,
                           db: Session = Depends(get_db),
@@ -418,6 +431,7 @@ def family_library(_: str = Depends(current_user)):
 def place_family(pid: str, family: str = Body(..., embed=True),
                  position: list[float] | None = Body(default=None, embed=True),
                  storey: str | None = Body(default=None, embed=True),
+                 type_name: str | None = Body(default=None, embed=True),
                  publish: bool = Body(default=False, embed=True),
                  db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
     """Place a library family into the project's source IFC (new GUID-stable occurrence, new version).
@@ -433,6 +447,8 @@ def place_family(pid: str, family: str = Body(..., embed=True),
         params["position"] = position
     if storey:
         params["storey"] = storey
+    if type_name:
+        params["type_name"] = type_name       # FAMILY-DEPTH: a named catalog size
     result = ed.apply_recipe(p.source_ifc, "add_family", params, out)
     p.source_ifc = out
     audit.record(db, action="ifc.place_family", actor=actor, method="POST",

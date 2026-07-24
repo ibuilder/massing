@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.646 — FAMILY-DEPTH ①: named type catalogs (R18)
+
+One family, many cataloged sizes — "Desk 1600 × 800" instead of raw dims.
+
+- **`families.TYPE_CATALOGS`** — curated named sizes for the common families (desk 1400/1600/1800,
+  table 4/6/8-seat, bed single/queen/king, wardrobe, kitchen-counter runs, bathtub, shower);
+  `catalog_types(key)` lists them (un-cataloged families fall back to their base dims as
+  *Standard*), `catalog_dims(key, name)` resolves case-insensitively with the available names in
+  the error message.
+- **The `add_family` recipe takes `type_name`** — a named catalog size resolves through the SAME
+  `ensure_type` variant machinery (placing "1600 × 800" twice dedupes to one IfcTypeProduct;
+  a second size adds another; explicit `dims` still win). The place route passes it through, and
+  **`GET /families/{key}/types`** serves the catalog.
+- `test_type_catalogs` (suite 344). FAMILY-DEPTH remaining: instance parameter overrides · nested
+  families · shared parameters driving schedules/tags · cross-project library versioning.
+
 ## v0.3.645 — VIEW-TEMPLATES: reusable layered view presets (R18)
 
 The graphics-override layer desktop suites call a view template — on the QUERY-DSL spine we already own.

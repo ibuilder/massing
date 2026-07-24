@@ -425,3 +425,56 @@ def import_types_from_ifc(model: ifcopenshell.file, source) -> list[dict[str, An
         have.add(sig)
         imported.append({"guid": new.GlobalId, "name": new.Name or sig[1], "ifc_class": new.is_a()})
     return imported
+
+
+# --- FAMILY-DEPTH ① (R18): named type catalogs — one family, many cataloged sizes -------------------
+# A catalog names the sizes a firm actually places ("Desk 1600 × 800") instead of raw dims; each
+# resolves through the SAME ensure_type variant machinery (deduped, parametric), so a cataloged type
+# and an ad-hoc dims variant are the same kind of IfcTypeProduct.
+TYPE_CATALOGS: dict[str, list[dict[str, Any]]] = {
+    "desk": [{"name": "1400 × 700", "dims": [1.4, 0.7, 0.75]},
+             {"name": "1600 × 800", "dims": [1.6, 0.8, 0.75]},
+             {"name": "1800 × 900", "dims": [1.8, 0.9, 0.75]}],
+    "table": [{"name": "4-seat 1200", "dims": [1.2, 0.9, 0.74]},
+              {"name": "6-seat 1800", "dims": [1.8, 0.9, 0.74]},
+              {"name": "8-seat 2400", "dims": [2.4, 1.1, 0.74]}],
+    "sofa": [{"name": "2-seat 1600", "dims": [1.6, 0.9, 0.85]},
+             {"name": "3-seat 2100", "dims": [2.1, 0.9, 0.85]}],
+    "bed": [{"name": "Single 900", "dims": [0.9, 2.0, 0.6]},
+            {"name": "Queen 1600", "dims": [1.6, 2.1, 0.6]},
+            {"name": "King 1800", "dims": [1.8, 2.1, 0.6]}],
+    "wardrobe": [{"name": "2-door 1200", "dims": [1.2, 0.6, 2.0]},
+                 {"name": "3-door 1800", "dims": [1.8, 0.6, 2.0]}],
+    "kitchen_counter": [{"name": "Run 1800", "dims": [1.8, 0.6, 0.9]},
+                        {"name": "Run 2400", "dims": [2.4, 0.6, 0.9]},
+                        {"name": "Run 3000", "dims": [3.0, 0.6, 0.9]}],
+    "bathtub": [{"name": "1500 compact", "dims": [1.5, 0.7, 0.6]},
+                {"name": "1700 standard", "dims": [1.7, 0.75, 0.6]}],
+    "shower": [{"name": "800 square", "dims": [0.8, 0.8, 2.1]},
+               {"name": "900 square", "dims": [0.9, 0.9, 2.1]},
+               {"name": "1200 walk-in", "dims": [1.2, 0.9, 2.1]}],
+}
+
+
+def catalog_types(key: str) -> list[dict[str, Any]]:
+    """The named type catalog for a family — the curated sizes, or the base dims as 'Standard' when
+    no catalog exists. Raises ValueError on an unknown family."""
+    spec = _BY_KEY.get(key)
+    if spec is None:
+        raise ValueError(f"unknown family {key!r}; have {sorted(_BY_KEY)}")
+    entries = TYPE_CATALOGS.get(key)
+    if not entries:
+        return [{"name": "Standard", "dims": list(spec["dims"])}]
+    return [{"name": e["name"], "dims": list(e["dims"])} for e in entries]
+
+
+def catalog_dims(key: str, type_name: str) -> list[float]:
+    """Resolve a cataloged type name → its dims (case-insensitive). Raises ValueError with the
+    available names so a typo comes back actionable."""
+    entries = catalog_types(key)
+    want = str(type_name or "").strip().lower()
+    for e in entries:
+        if e["name"].lower() == want:
+            return e["dims"]
+    raise ValueError(f"unknown type {type_name!r} for family {key!r}; "
+                     f"catalog: {', '.join(e['name'] for e in entries)}")
