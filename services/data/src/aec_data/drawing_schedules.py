@@ -15,10 +15,14 @@ def _esc(s: str) -> str:
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def schedules(model: ifcopenshell.file) -> dict:
+def schedules(model: ifcopenshell.file, extra: dict | None = None) -> dict:
     """W11 C4: compute door / window / room schedules from the model — the tabular half of a CD set.
     Values come straight from the elements (marks, sizes, types, levels, areas). Returns
-    {doors, windows, rooms} each {columns:[...], rows:[[...]]}."""
+    {doors, windows, rooms} each {columns:[...], rows:[[...]]}.
+
+    FAMILY-DEPTH ④: `extra` = {ifc_class: [{label, pset, prop}]} appends registered shared-parameter
+    columns per schedule kind — values read from each element's occurrence psets (blank when unset),
+    so a registered parameter IS a schedule column (and reachable by SCHED-CALC formulas)."""
     import ifcopenshell.util.element as ue
     import ifcopenshell.util.unit as uu
 
@@ -43,10 +47,19 @@ def schedules(model: ifcopenshell.file) -> dict:
     def _opening(el):                                         # marks default from GUID tail when unnamed
         return getattr(el, "Name", None) or (el.GlobalId[:8])
 
+    ex = extra or {}
+
+    def _shared(el, cls):                                 # registered shared-param cells, in order
+        cells = []
+        for col in ex.get(cls, []):
+            v = (ue.get_pset(el, col["pset"]) or {}).get(col["prop"])
+            cells.append("" if v is None else str(v))
+        return cells
+
     doors = [[_opening(d), _m(getattr(d, "OverallWidth", None)), _m(getattr(d, "OverallHeight", None)),
-              _type(d), _lvl(d)] for d in model.by_type("IfcDoor")]
+              _type(d), _lvl(d), *_shared(d, "IfcDoor")] for d in model.by_type("IfcDoor")]
     windows = [[_opening(w), _m(getattr(w, "OverallWidth", None)), _m(getattr(w, "OverallHeight", None)),
-                _type(w), _lvl(w)] for w in model.by_type("IfcWindow")]
+                _type(w), _lvl(w), *_shared(w, "IfcWindow")] for w in model.by_type("IfcWindow")]
     def _q(v):                                                # a numeric quantity → 2dp text, else blank
         try:
             return f"{float(v):.2f}" if v is not None else ""
@@ -60,14 +73,18 @@ def schedules(model: ifcopenshell.file) -> dict:
         perim = q.get("NetPerimeter") or q.get("GrossPerimeter")
         vol = q.get("NetVolume") or q.get("GrossVolume")
         rooms.append([getattr(s, "Name", None) or "", getattr(s, "LongName", None) or "",
-                      f"{float(area):.2f}" if area else "", _q(perim), _q(vol), _lvl(s)])
+                      f"{float(area):.2f}" if area else "", _q(perim), _q(vol), _lvl(s),
+                      *_shared(s, "IfcSpace")])
+
+    def _cols(base, cls):
+        return base + [c["label"] for c in ex.get(cls, [])]
 
     return {
-        "doors": {"columns": ["Mark", "Width (m)", "Height (m)", "Type", "Level"],
+        "doors": {"columns": _cols(["Mark", "Width (m)", "Height (m)", "Type", "Level"], "IfcDoor"),
                   "rows": sorted(doors, key=lambda r: r[0])},
-        "windows": {"columns": ["Mark", "Width (m)", "Height (m)", "Type", "Level"],
+        "windows": {"columns": _cols(["Mark", "Width (m)", "Height (m)", "Type", "Level"], "IfcWindow"),
                     "rows": sorted(windows, key=lambda r: r[0])},
-        "rooms": {"columns": ["No.", "Name", "Area (m²)", "Perimeter (m)", "Volume (m³)", "Level"],
+        "rooms": {"columns": _cols(["No.", "Name", "Area (m²)", "Perimeter (m)", "Volume (m³)", "Level"], "IfcSpace"),
                   "rows": sorted(rooms, key=lambda r: r[0])},
     }
 

@@ -478,3 +478,55 @@ def catalog_dims(key: str, type_name: str) -> list[float]:
             return e["dims"]
     raise ValueError(f"unknown type {type_name!r} for family {key!r}; "
                      f"catalog: {', '.join(e['name'] for e in entries)}")
+
+
+# --- FAMILY-DEPTH ③ (R18): composite (nested) families -------------------------------------------
+# A composite = named parts placed at offsets from one anchor, aggregated under an
+# IfcElementAssembly — so "workstation" is one placeable, movable, schedulable thing whose parts
+# stay real elements (each deduping through the normal type machinery). Offsets in metres [E, N],
+# optional per-part rotation is ignored for the box-proxy library (symmetric parts).
+COMPOSITES: dict[str, dict[str, Any]] = {
+    "workstation": {"name": "Workstation", "parts": [
+        ("desk", [0.0, 0.0]), ("chair", [0.0, -0.85])]},
+    "meeting_setup": {"name": "Meeting setup", "parts": [
+        ("table", [0.0, 0.0]), ("chair", [-0.9, -0.8]), ("chair", [0.0, -0.8]),
+        ("chair", [0.9, -0.8]), ("chair", [-0.9, 0.8]), ("chair", [0.0, 0.8]),
+        ("chair", [0.9, 0.8])]},
+    "bedroom_set": {"name": "Bedroom set", "parts": [
+        ("bed", [0.0, 0.0]), ("wardrobe", [1.6, 0.9])]},
+}
+
+
+def composite_keys() -> list[str]:
+    return sorted(COMPOSITES)
+
+
+def add_composite(model: ifcopenshell.file, key: str, storey: str | None = None,
+                  position=None) -> str:
+    """Place a composite family: parts at their catalog offsets from `position`, aggregated under
+    an IfcElementAssembly (contained in the storey like any element). Returns the assembly GUID;
+    part GUIDs ride the assembly's IsDecomposedBy for consumers that need them."""
+    import ifcopenshell.api
+
+    spec = COMPOSITES.get(key)
+    if spec is None:
+        raise ValueError(f"unknown composite {key!r} — one of {composite_keys()}")
+    px, py = (float(position[0]), float(position[1])) if position else (0.0, 0.0)
+    part_guids: list[str] = []
+    parts = []
+    for part_key, off in spec["parts"]:
+        g = add_family(model, part_key, storey, [px + float(off[0]), py + float(off[1])])
+        if g:
+            part_guids.append(g)
+            parts.append(model.by_guid(g))
+    assembly = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcElementAssembly",
+                                    name=spec["name"])
+    assembly.PredefinedType = "USERDEFINED"
+    ifcopenshell.api.run("aggregate.assign_object", model, products=parts,
+                         relating_object=assembly)
+    from .edit import _first_storey  # lazy — avoid import cycle
+    st = _first_storey(model, storey)
+    if st is not None:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[assembly],
+                             relating_structure=st)
+    return assembly.GlobalId

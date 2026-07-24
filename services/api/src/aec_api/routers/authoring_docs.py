@@ -48,6 +48,38 @@ def sheet_svg(pid: str, storey: str | None = None, scale: int = 100, number: str
                     headers={"X-Sheet-Number": result["number"]})
 
 
+def _shared_extras(pid: str) -> dict:
+    """FAMILY-DEPTH ④: the registered shared-parameter columns per schedule kind."""
+    from .. import shared_params
+    defs = shared_params.load(pid)
+    if not defs:
+        return {}
+    return {cls: shared_params.schedule_columns(defs, cls)
+            for cls in ("IfcDoor", "IfcWindow", "IfcSpace")}
+
+
+@router.get("/projects/{pid}/shared-params")
+def get_shared_params(pid: str, _: str = Depends(require_role("viewer"))):
+    """FAMILY-DEPTH ④ (R18): the project's shared-parameter registry — named, typed properties in
+    a declared pset applying to declared IFC classes. Registered parameters appear as columns on
+    the computed door/window/room schedules (and are therefore reachable by SCHED-CALC formulas);
+    values are written through the normal edit recipes."""
+    from .. import shared_params
+    return {"params": shared_params.load(pid), "max": shared_params.MAX_PARAMS}
+
+
+@router.put("/projects/{pid}/shared-params")
+def put_shared_params(pid: str, params: list = Body(..., embed=True),
+                      _: str = Depends(require_role("editor"))):
+    """Replace the registry (validated atomically: unique letter-first names, ptype text|number|bool,
+    1–20 IFC classes each, ≤100 definitions)."""
+    from .. import shared_params
+    try:
+        return {"params": shared_params.save(pid, params)}
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
 @router.get("/projects/{pid}/drawings/schedules")
 def drawing_schedules(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """W11 C4: computed door / window / room schedules from the model (marks, sizes, types, levels, areas)
@@ -56,7 +88,7 @@ def drawing_schedules(pid: str, db: Session = Depends(get_db), _: str = Depends(
     from aec_data.ifc_loader import open_model  # type: ignore
 
     p = _project(db, pid)
-    return drawing.schedules(open_model(p.source_ifc))
+    return drawing.schedules(open_model(p.source_ifc), extra=_shared_extras(pid))
 
 
 @router.post("/projects/{pid}/drawings/schedules/calc")
@@ -73,7 +105,7 @@ def drawing_schedules_calc(pid: str, body: dict = Body(default={}), db: Session 
     from .. import calc_fields
 
     p = _project(db, pid)
-    sched = drawing.schedules(open_model(p.source_ifc))
+    sched = drawing.schedules(open_model(p.source_ifc), extra=_shared_extras(pid))
     for kind in ("doors", "windows", "rooms"):
         calcs = body.get(kind)
         if calcs:

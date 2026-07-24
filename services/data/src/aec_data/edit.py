@@ -277,6 +277,14 @@ def rename_storey(model: ifcopenshell.file, guid: str, name: str) -> str:
     return guid
 
 
+def _resolve_wall_joins(model: ifcopenshell.file, tol: float = 0.05) -> list[str]:
+    """AUTH-CONSTRAINTS ③ — butt-join every detected L/T wall join (see aec_data.wall_joins).
+    Returns the stub GUIDs that were trimmed."""
+    from . import wall_joins
+    out = wall_joins.resolve(model, tol=tol)
+    return [r["stub"] for r in out["resolved"]]
+
+
 def _reset_prop_to_type(model: ifcopenshell.file, guid: str, pset: str, prop: str) -> str:
     """FAMILY-DEPTH ② — drop an occurrence-level property so the type's value shows through
     (refused when there is no type value to reset to). See aec_data.instance_props."""
@@ -480,6 +488,8 @@ def _recipe_add_family(model, p):
     `type_name` (FAMILY-DEPTH) resolves a NAMED catalog size ("Desk 1600 × 800") to its dims —
     explicit dims win when both are given."""
     from . import families  # lazy — families lazily imports edit, so this avoids an import cycle
+    if p["family"] in families.COMPOSITES:            # FAMILY-DEPTH ③: nested/composite families
+        return families.add_composite(model, p["family"], p.get("storey"), p.get("position"))
     dims = p.get("dims")
     if not dims and p.get("type_name"):
         dims = families.catalog_dims(p["family"], p["type_name"])
@@ -751,6 +761,7 @@ RECIPES = {
     "set_storey_elevation": lambda m, p: set_storey_elevation(m, p["guid"], float(p.get("elevation", 0.0)),
                                                               bool(p.get("move_elements", True))),
     "reset_prop_to_type": lambda m, p: _reset_prop_to_type(m, p["guid"], p["pset"], p["prop"]),
+    "resolve_wall_joins": lambda m, p: _resolve_wall_joins(m, float(p.get("tol", 0.05))),
     "add_steel_column": lambda m, p: add_steel_column(m, p["point"], float(p.get("height", 3.0)),
                                                        p.get("section", "W12x26"), p.get("storey")),
     "add_steel_beam": lambda m, p: add_steel_beam(m, p["start"], p["end"],

@@ -4,6 +4,38 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.653 — Sprint 5: round-trip fidelity + wall joins + composite families + shared parameters
+
+INTEROP-RT closes the R19 ring; AUTH-CONSTRAINTS ③ and FAMILY-DEPTH ③④ close the R18 ring.
+
+- **INTEROP-RT — the round-trip fidelity gauntlet** (`aec_data/roundtrip.py`). Serialize → fresh
+  parse → compare every product/type on GUID · class · name · containment · related type · full
+  occurrence psets; unmatched reported BOTH ways, one `fidelity_ok` verdict. Served at
+  `GET /projects/{pid}/model/roundtrip`, suite-gated by `test_roundtrip`, and CI-usable as
+  **`massing roundtrip <ifc> --gate`** (exit 1 on any loss). The R19 enterprise track is complete.
+- **AUTH-CONSTRAINTS ③ — wall-join resolution** (`aec_data/wall_joins.py`). `find` classifies
+  every L join (coincident endpoints) and T join (endpoint on another wall's axis) per storey;
+  the **`resolve_wall_joins` recipe** butt-joins them deterministically — the longer wall runs
+  through (extended past an L corner by half the stub's thickness to close the outside corner),
+  the stub trims back by half the through wall's thickness, geometry edits touch only the profile
+  length + placement slide (GUID-stable), world-anchored openings stay put to the millimetre, and
+  resolution is **idempotent** (a second pass finds nothing). `GET /model/wall-joins` +
+  `test_wall_joins`. The R18 AUTH-CONSTRAINTS item is fully closed.
+- **FAMILY-DEPTH ③ — composite (nested) families.** `families.COMPOSITES` — workstation
+  (desk + chair), meeting setup (table + 6 chairs), bedroom set — placed through the SAME
+  `add_family` recipe: parts at catalog offsets, aggregated under one `IfcElementAssembly`,
+  part types deduping through the normal `ensure_type` machinery, round-trip-lossless.
+  `test_composite_family`.
+- **FAMILY-DEPTH ④ — shared parameters** (`shared_params.py`). A validated project registry
+  (`GET/PUT /projects/{pid}/shared-params`: unique letter-first names, `text|number|bool`, 1–20
+  IFC classes each, ≤100 definitions, atomic saves) whose parameters **are schedule columns**:
+  the computed door/window/room schedules append registered columns scoped by `applies_to`
+  (values from each element's psets, blank when unset) — and therefore SCHED-CALC formulas reach
+  them by normalized name. Values write through the normal edit recipes; the registry defines
+  meaning, the edit pipeline owns mutation. `test_shared_params`.
+- Clients: `wallJoins` · `modelRoundtrip` · `sharedParams`/`saveSharedParams`. Authoring matrix:
+  89 recipes / 15 categories (regenerated). Suite 355.
+
 ## v0.3.652 — UX-POLISH: the shared chip vocabulary + KPI narrative + docs refresh
 
 - **UX-CHIPS** (`ui/chips.ts`): one status/delta chip component for every list and money card —

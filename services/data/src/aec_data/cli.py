@@ -45,6 +45,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--recipe", required=True)
     p.add_argument("--params", default="{}", help="JSON params for the recipe")
     p.add_argument("-o", "--out", default=None, help="output path (default <stem>_edited.ifc)")
+    p = sub.add_parser("roundtrip", help="serialize+reparse fidelity check; --gate exit 1 on loss")
+    p.add_argument("ifc")
+    p.add_argument("--gate", action="store_true", help="fail (exit 1) on any fidelity loss")
+    p.add_argument("--json", action="store_true", dest="as_json", help="print the full JSON report")
+
     p = sub.add_parser("check", help="constraint/QA check; with --gate exit 1 on errors")
     p.add_argument("ifc")
     p.add_argument("--gate", action="store_true", help="fail (exit 1) when errors are found")
@@ -75,6 +80,21 @@ def main(argv: list[str] | None = None) -> int:
         result = edit.apply_recipe(args.ifc, args.recipe, params, out)
         print(f"run: {args.recipe} -> {out}  {json.dumps(result, default=str)[:200]}")
         return 0
+
+    if args.command == "roundtrip":
+        from . import roundtrip as rt
+        r = rt.roundtrip_file(args.ifc)
+        if args.as_json:
+            print(json.dumps(r, indent=1))
+        else:
+            c = r["counts"]
+            verdict = "OK — lossless" if r["fidelity_ok"] else                 f"LOSS — {c['missing']} missing, {c['added']} added, {c['changed']} changed"
+            print(f"roundtrip: {r['element_count']} fingerprinted element(s): {verdict}")
+            for ch in r["changed"][:20]:
+                print(f"  CHANGED {ch['class']} {ch['guid']}: {', '.join(ch['aspects'])}")
+            for g in r["missing"][:20]:
+                print(f"  MISSING {g}")
+        return 1 if (args.gate and not r["fidelity_ok"]) else 0
 
     if args.command == "check":
         from . import constraints

@@ -609,6 +609,26 @@ def element_effective_props(pid: str, guid: str, db: Session = Depends(get_db),
         raise HTTPException(404, str(e))
 
 
+@router.get("/projects/{pid}/model/wall-joins")
+def model_wall_joins(pid: str, tol: float = 0.05, db: Session = Depends(get_db),
+                     _sec: str = Depends(require_role("viewer"))):
+    """AUTH-CONSTRAINTS ③ (R18) — detect L/T wall joins (endpoint coincidence / endpoint-on-axis,
+    same storey, non-parallel): the corner point, the through/stub classification, and counts.
+    Resolution is the `resolve_wall_joins` edit recipe (GUID-stable butt joins, idempotent)."""
+    from aec_data import wall_joins  # type: ignore
+    return wall_joins.find(open_source_ifc(db, pid), tol=max(0.005, min(float(tol), 0.5)))
+
+
+@router.get("/projects/{pid}/model/roundtrip")
+def model_roundtrip(pid: str, db: Session = Depends(get_db),
+                    _sec: str = Depends(require_role("viewer"))):
+    """INTEROP-RT (R19) — the round-trip fidelity gauntlet on the project model: serialize →
+    fresh parse → compare (GUID stability · class · name · containment · type · psets). Unmatched
+    reported both ways; `fidelity_ok` is the verdict."""
+    from aec_data import roundtrip  # type: ignore
+    return roundtrip.roundtrip(open_source_ifc(db, pid))
+
+
 @router.get("/projects/{pid}/master-builder/brief")
 def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MASTER-BUILDER — the whole project in one view: runs the 8-step Master Builder Protocol (place →

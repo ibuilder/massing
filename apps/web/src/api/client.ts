@@ -2575,6 +2575,29 @@ export class ApiClient extends HttpCore {
     return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
       imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
   }
+  /** AUTH-CONSTRAINTS ③ — detect L/T wall joins (resolution = the resolve_wall_joins edit recipe). */
+  wallJoins(pid: string, tol?: number) {
+    return this.json<{ joins: { kind: "L" | "T"; corner: number[]; through: string; stub: string;
+      walls: string[] }[]; wall_count: number; counts: { L: number; T: number } }>(
+      `/projects/${pid}/model/wall-joins${tol ? `?tol=${tol}` : ""}`);
+  }
+  /** INTEROP-RT — round-trip fidelity: serialize → reparse → compare, with a single verdict. */
+  modelRoundtrip(pid: string) {
+    return this.json<{ fidelity_ok: boolean; element_count: number;
+      counts: { missing: number; added: number; changed: number };
+      missing: string[]; added: string[];
+      changed: { guid: string; class: string; aspects: string[] }[] }>(
+      `/projects/${pid}/model/roundtrip`);
+  }
+  /** FAMILY-DEPTH ④ — the shared-parameter registry (registered params become schedule columns). */
+  sharedParams(pid: string) {
+    return this.json<{ params: { name: string; pset: string; ptype: string; applies_to: string[];
+      label: string; description: string }[]; max: number }>(`/projects/${pid}/shared-params`);
+  }
+  saveSharedParams(pid: string, params: unknown[]) {
+    return this.json<{ params: unknown[] }>(`/projects/${pid}/shared-params`,
+      { method: "PUT", body: JSON.stringify({ params }) });
+  }
   /** FAMILY-DEPTH ② — the effective (instance-over-type) property view for one element. */
   elementEffectiveProps(pid: string, guid: string) {
     return this.json<{ guid: string; type_guid: string | null; type_name: string | null;

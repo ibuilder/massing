@@ -12,7 +12,7 @@ The R16/R17 rings are closed on the backend side, the R18 authoring-parity ring 
 slices, and the current push is **enterprise + finance-platform readiness** — the programs and governance
 layer that make the shipped engines defensible in enterprise diligence.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (351 suites) · single-source version in
+**Status:** CodeQL 0 open alerts · full backend suite green (355 suites) · single-source version in
 `apps/web/package.json` · CI on Node 22 · vitest 132.
 
 ---
@@ -33,7 +33,7 @@ layer** below. Competitor-matrix deliverables from the pack are deliberately **n
 directive: no competitor analysis in repo docs; the neutral external-scan practice covers the research
 need).
 
-**Enterprise track (Sprint 1 — ✅ SHIPPED v0.3.649 except INTEROP-RT):**
+**Enterprise track — ✅ COMPLETE (Sprint 1 v0.3.649 + INTEROP-RT v0.3.653):**
 - ✅ **SEC-THREAT** *(v0.3.649)* — [threat-model.md](security/threat-model.md): STRIDE over the real
   surfaces + the control→evidence verification matrix + the gap backlog; gaps G-2 (SBOM CI artifact)
   and G-5 (the password deny-list, `test_password_policy`) closed in-sprint.
@@ -43,9 +43,10 @@ need).
   SLOs + the correlation-ID triage spine (verified: request-id → OTel → error log).
 - ✅ **ENG-STD** *(v0.3.649)* — [backend-standards.md](engineering/backend-standards.md) +
   [web-standards.md](engineering/web-standards.md): the actual conventions codified.
-- **INTEROP-RT — automated round-trip fidelity gauntlet** *(M).* Author → export IFC → re-import →
-  compare: GUID stability, property/pset preservation, classification refs, spatial containment — as a
-  suite-registered gate. The one open item from the interop program; the rest ships.
+- ✅ **INTEROP-RT** *(v0.3.653)* — `aec_data/roundtrip.py`: serialize → reparse → compare
+  (GUID/class/name/containment/type/psets, unmatched both ways, one `fidelity_ok` verdict);
+  `GET /model/roundtrip` + `massing roundtrip --gate` + `test_roundtrip`. **The R19 ring is
+  complete.**
 
 **Finance track (Sprint 2 — ✅ SHIPPED v0.3.650):**
 - ✅ **FIN-GOV** *(v0.3.650)* — `fin_gov.py`: the scenario review workflow (draft→in_review→
@@ -65,9 +66,9 @@ need).
 1. ✅ **R19 Sprint 1 — enterprise readiness** *(shipped v0.3.649)*: SEC-THREAT · COMPLY-SOC2 ·
    OPS-OBS · ENG-STD + the G-2 SBOM and G-5 password-deny-list fixes.
 2. ✅ **R19 Sprint 2 — finance platform** *(shipped v0.3.650)*: FIN-GOV · FIN-CALC · FIN-PORTFOLIO · FIN-INGEST.
-3. **INTEROP-RT** — the round-trip fidelity gauntlet (rides with either sprint).
-4. ◧ **R18 tail — authoring depth** *(② slices shipped v0.3.651)*: ~~FAMILY-DEPTH ② instance overrides ·
-   AUTH-CONSTRAINTS ② level-move~~ → next: FAMILY-DEPTH ③④ · AUTH-CONSTRAINTS ③ wall joins.
+3. ✅ **INTEROP-RT** *(shipped v0.3.653)* — the R19 ring is complete.
+4. ✅ **R18 tail — authoring depth** *(② v0.3.651 · ③④ + wall joins v0.3.653)* — the R18 ring is
+   complete.
 5. **UX-POLISH sprint**: UX-CHIPS · UX-KPI · UX-DEMO + the demo/docs/Pages refresh.
 6. **Carry-overs, opportunistically**: VERSION-COMPARE per-property snapshot values · IFCPATCH-LIB
    rebase/unit-convert/merge-split recipes · BCF-API-SRV 3.0 shape · SPRINT B phase-4b CPM crew shifts ·
@@ -82,14 +83,15 @@ verification limit.*
 Completed items (SCHED-CALC · OPS-DR · AUTH-CONSTRAINTS ① · MODEL-PUBLISH · RULE-PACK FOLD ·
 VIEW-TEMPLATES · FAMILY-DEPTH ① · SDK-VERSIONING · ADR-LITE) are archived. Remaining:
 
-- ◧ **AUTH-CONSTRAINTS** *(M).* ✅ ② level-move re-derivation *(v0.3.651 — `set_storey_elevation`
-  shifts contained elements + non-riding hosted openings/fills by Δz; `move_elements=false` opts
-  out and the ① checker flags the stranded; `test_level_move`)*. **Remaining:** ③ wall-join
-  resolution.
-- ◧ **FAMILY-DEPTH** *(M).* ✅ ② instance-level parameter overrides *(v0.3.651 —
-  `instance_props.py` effective instance-over-type view + `/model/element/{guid}/effective-props`
-  + the `reset_prop_to_type` recipe; `test_instance_props`)*. **Remaining:** ③ nested families ·
-  ④ shared parameters driving schedules/tags + cross-project library versioning.
+- ✅ **AUTH-CONSTRAINTS — COMPLETE** *(① v0.3.637 · ② v0.3.651 · ③ v0.3.653)* — the constraint
+  checker, level-move re-derivation, and wall-join resolution (`wall_joins.py`: L/T detection +
+  the idempotent `resolve_wall_joins` butt-join recipe; `test_wall_joins`).
+- ✅ **FAMILY-DEPTH — COMPLETE** *(① v0.3.646 · ② v0.3.651 · ③④ v0.3.653)* — type catalogs,
+  instance overrides, composite families (`COMPOSITES` under `IfcElementAssembly`;
+  `test_composite_family`), and shared parameters (`shared_params.py` registry → schedule columns
+  reachable by SCHED-CALC; `test_shared_params`). *Cross-project library versioning rides the
+  existing `import_types_from_ifc` + MODEL-PUBLISH review states; a dedicated library-version
+  registry is deferred until a customer needs multi-firm libraries.* **The R18 ring is complete.**
 
 ## 🧭 R17 — viewer-coupled tail (gated on the dev-preview geometry stall)
 

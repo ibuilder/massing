@@ -2,7 +2,7 @@
 
 > Generated from `edit.RECIPES` by `authoring_matrix.to_markdown()` — do not hand-edit; re-run the generator (or `GET /reference/authoring-matrix`) after adding a recipe.
 
-**88 authoring recipes** across **15 categories**. Every recipe is a GUID-stable server-side pass, dispatchable from the CAD command line, the AI command bar, the node canvas, or the tool panels.
+**89 authoring recipes** across **15 categories**. Every recipe is a GUID-stable server-side pass, dispatchable from the CAD command line, the AI command bar, the node canvas, or the tool panels.
 
 ### create-structure (13)
 
@@ -81,7 +81,7 @@
 | `add_revision_cloud` | IfcAnnotation (rev cloud) |
 | `add_tag` | IfcAnnotation (element tag) |
 
-### edit (10)
+### edit (11)
 
 | Recipe | Produces |
 | --- | --- |
@@ -91,6 +91,7 @@
 | `execute_ifc_code` | sandboxed ifcopenshell escape hatch |
 | `move_element` | translate |
 | `rename_storey` | rename level |
+| `resolve_wall_joins` | butt-join L/T wall joins |
 | `rotate_element` | rotate |
 | `set_extrusion_depth` | push/pull an extrusion depth |
 | `set_storey_elevation` | move level |

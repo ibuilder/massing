@@ -61,6 +61,7 @@ _MAP: dict[str, tuple[str, str]] = {
     "classify": ("data", "IfcClassificationReference"), "set_classification": ("data", "classification"),
     "set_element_pset": ("data", "Pset property"), "set_pset_on_class": ("data", "Pset (by class)"),
     "reset_prop_to_type": ("data", "Reset property to type"),
+    "resolve_wall_joins": ("edit", "butt-join L/T wall joins"),
     "set_props_by_guid": ("data", "Pset batch (XLSX round-trip)"),
     "purge_orphan_psets": ("maintenance", "purge orphaned property sets"),
     "purge_empty_groups": ("maintenance", "purge empty groups"),
