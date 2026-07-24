@@ -100,9 +100,34 @@ with TestClient(app) as c:
     assert st.get("Pset_WallCommon.IsExternal") == "added", st                  # new property key → added
     assert st.get("Qto_WallBaseQuantities.NetSideArea") == "removed", st         # dropped quantity → removed
 
+    # --- MODEL-PUBLISH (R18): the review gate over the publish history ----------------------------
+    hist = c.get(f"/projects/{pid2}/versions").json()
+    assert all(h["review_status"] == "draft" for h in hist), hist         # every snapshot starts draft
+    vno = hist[0]["version"]
+    # illegal first move: approve requires in_review
+    r = c.post(f"/projects/{pid2}/versions/{vno}/review", json={"action": "approve"})
+    assert r.status_code == 409 and "requires 'in_review'" in r.json()["detail"], r.text
+    assert c.post(f"/projects/{pid2}/versions/{vno}/review",
+                  json={"action": "submit"}).json()["review_status"] == "in_review"
+    rej = c.post(f"/projects/{pid2}/versions/{vno}/review",
+                 json={"action": "reject", "note": "missing fire ratings"}).json()
+    assert rej["review_status"] == "draft" and rej["review_note"] == "missing fire ratings", rej
+    c.post(f"/projects/{pid2}/versions/{vno}/review", json={"action": "submit"})
+    ap = c.post(f"/projects/{pid2}/versions/{vno}/review", json={"action": "approve"}).json()
+    assert ap["review_status"] == "approved" and ap["reviewed_by"], ap
+    # approved is terminal for these actions; unknown version 404s; bad action 409s
+    assert c.post(f"/projects/{pid2}/versions/{vno}/review", json={"action": "submit"}).status_code == 409
+    assert c.post(f"/projects/{pid2}/versions/999/review", json={"action": "submit"}).status_code == 404
+    assert c.post(f"/projects/{pid2}/versions/{vno}/review", json={"action": "sign"}).status_code == 409
+    hist2 = c.get(f"/projects/{pid2}/versions").json()
+    assert next(h for h in hist2 if h["version"] == vno)["review_status"] == "approved", hist2
+
     print("VERSIONS OK - snapshot per publish (A,B,C -> B,C,D), no-op skipped, history newest-first, diff "
           "+D/-A; MODEL-DIFF detects element-level modifications on GUID-stable elements: W1 (properties + "
           "quantities changed), D1 (renamed + retyped + re-leveled), +NEW/-OLD, C1 unchanged — with the "
           "change labels; VERSION-COMPARE per-property names the exact keys (W1: Pset_WallCommon.FireRating "
           "+ Qto_WallBaseQuantities.NetSideArea changed; then IsExternal added + NetSideArea removed); and an "
-          "identical-fingerprint republish still skipped.")
+          "identical-fingerprint republish still skipped. MODEL-PUBLISH: every snapshot starts draft; "
+          "submit -> in_review -> reject (back to draft, note kept) -> submit -> approve (who/when "
+          "recorded); illegal transitions and unknown actions 409, unknown versions 404, and the review "
+          "status rides the history feed.")

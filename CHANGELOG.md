@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.638 — MODEL-PUBLISH: the review gate over model versions (R18 #4)
+
+Draft → in-review → approved, on the publish history the platform already keeps.
+
+- **Review status on every model version** (`review_status` + who/when/note; Alembic `49640af8f9d8`,
+  existing snapshots backfill to `draft` = unreviewed): `POST /versions/{v}/review` with
+  `submit | approve | reject` — reject returns the snapshot to draft and keeps the reviewer's note;
+  illegal transitions 409, unknown versions 404; every action lands in the audit log. The model file
+  pointer is never touched — this is the QA record teams gate issuance on ("issue drawings only from
+  approved versions").
+- **Scope honesty**: the R18 item's other half — element-level optimistic concurrency — was found
+  ALREADY SHIPPED (the COLLAB-1 `base_source` 409 + per-project mutex on `/edit` and `/edit/batch`),
+  and rollback is the existing edit-undo path. This release adds the missing review workflow only.
+- `reviewModelVersion` client method; review status rides `GET /versions`; `test_versions` walks the
+  full submit→reject→submit→approve path. Drift guard clean.
+
 ## v0.3.637 — AUTH-CONSTRAINTS ①: the broken-host / illegal-placement checker (R18 #3)
 
 The biggest R18 gap opens: IFC already *persists* the constraint graph (RelVoids/RelFills hosts,

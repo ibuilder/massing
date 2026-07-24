@@ -397,6 +397,14 @@ class ModelVersion(Base):
     # added/removed-only. (_ensure_columns backfills the column on existing DBs.)
     fingerprints: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
     note: Mapped[str | None] = mapped_column(String, nullable=True)
+    # MODEL-PUBLISH (R18): the review gate ON TOP of the publish history — every snapshot starts
+    # 'draft' (unreviewed), moves draft → in_review → approved (or back to draft on reject), with
+    # who/when/why. The file pointer is untouched; this is the QA record ("issue drawings only from
+    # approved versions").
+    review_status: Mapped[str] = mapped_column(String, server_default="draft")
+    reviewed_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    review_note: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

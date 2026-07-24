@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -102,7 +103,39 @@ def history(db: Session, pid: str) -> list[dict]:
     rows = db.query(ModelVersion).filter(ModelVersion.project_id == pid) \
         .order_by(ModelVersion.version.desc()).all()
     return [{"version": r.version, "element_count": r.element_count, "note": r.note,
+             "review_status": getattr(r, "review_status", None) or "draft",
+             "reviewed_by": r.reviewed_by, "review_note": r.review_note,
+             "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None,
              "created_at": r.created_at.isoformat() if r.created_at else None} for r in rows]
+
+
+# MODEL-PUBLISH (R18): the canonical review transitions — submit sends a draft for review, approve
+# and reject resolve it. Anything else 409s. The model file pointer is never touched here.
+_REVIEW_ACTIONS = {"submit": ("draft", "in_review"), "approve": ("in_review", "approved"),
+                   "reject": ("in_review", "draft")}
+
+
+def review(db: Session, pid: str, version: int, action: str, actor: str,
+           note: str | None = None) -> dict:
+    """Apply a review action to one version. Raises KeyError (unknown version) or ValueError
+    (bad action / illegal transition — the caller maps to 404/409)."""
+    r = db.query(ModelVersion).filter(ModelVersion.project_id == pid,
+                                      ModelVersion.version == version).first()
+    if r is None:
+        raise KeyError(f"version {version} not found")
+    tr = _REVIEW_ACTIONS.get(str(action or "").strip().lower())
+    if tr is None:
+        raise ValueError(f"action must be one of {', '.join(sorted(_REVIEW_ACTIONS))}")
+    cur = getattr(r, "review_status", None) or "draft"
+    if cur != tr[0]:
+        raise ValueError(f"cannot {action} from {cur!r} (requires {tr[0]!r})")
+    r.review_status = tr[1]
+    r.reviewed_by = actor
+    r.reviewed_at = datetime.now(timezone.utc)
+    r.review_note = (str(note).strip()[:500] or None) if note else None
+    db.commit()
+    return {"version": r.version, "review_status": r.review_status, "reviewed_by": r.reviewed_by,
+            "reviewed_at": r.reviewed_at.isoformat(), "review_note": r.review_note}
 
 
 def diff(db: Session, pid: str, a: int, b: int) -> dict[str, Any]:

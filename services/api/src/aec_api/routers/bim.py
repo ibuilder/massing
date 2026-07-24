@@ -398,6 +398,28 @@ def list_versions(pid: str, db: Session = Depends(get_db), _sec: str = Depends(r
     return versions.history(db, pid)
 
 
+@router.post("/projects/{pid}/versions/{version}/review")
+def review_version(pid: str, version: int, body: dict = Body(default={}),
+                   db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """MODEL-PUBLISH (R18) — the review gate over the model's publish history: `submit` a draft
+    snapshot for review, `approve` or `reject` it (reject returns it to draft), with who/when and an
+    optional note. The model file pointer is never touched — this is the QA record teams gate issuance
+    on ("issue drawings only from approved versions"). Illegal transition → 409; unknown version → 404.
+    Body: `{action: submit|approve|reject, note?}`."""
+    from .. import versions
+    try:
+        out = versions.review(db, pid, version, body.get("action"), actor, body.get("note"))
+    except KeyError as e:
+        raise HTTPException(404, str(e)) from None
+    except ValueError as e:
+        raise HTTPException(409, str(e)) from None
+    audit.record(db, action=f"model_version.{body.get('action')}", actor=actor, method="POST",
+                 path=f"/projects/{pid}/versions/{version}/review",
+                 detail={"version": version, "status": out["review_status"]})
+    db.commit()
+    return out
+
+
 @router.get("/projects/{pid}/versions/diff")
 def diff_versions(pid: str, a: int, b: int, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Changed elements between two model versions — added / removed GUIDs + unchanged count."""

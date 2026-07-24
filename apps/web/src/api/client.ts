@@ -2089,6 +2089,14 @@ export class ApiClient extends HttpCore {
       columns: { key: string; count: number; topics: T[] }[]; note: string;
     }>(`/projects/${pid}/topics/board?${q.toString()}`);
   }
+  /** MODEL-PUBLISH — the review gate over model versions: submit | approve | reject (409 on an
+   * illegal transition). The file pointer is never touched — this is the QA record. */
+  reviewModelVersion(pid: string, version: number, action: "submit" | "approve" | "reject", note?: string) {
+    return this.json<{ version: number; review_status: string; reviewed_by: string | null;
+      reviewed_at: string; review_note: string | null }>(
+      `/projects/${pid}/versions/${version}/review`,
+      { method: "POST", body: JSON.stringify({ action, note }) });
+  }
   /** AUTH-CONSTRAINTS — validate the model's own constraint graph (broken hosts, dangling fills,
    * out-of-extent inserts, missing containment, level mismatches). */
   modelConstraints(pid: string) {

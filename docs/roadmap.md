@@ -255,9 +255,7 @@ is the fresh order: 🏛 R18 quick wins + slices first, then the open remainders
 1. ✅ **SCHED-CALC** *(shipped v0.3.635)* — see the R18 ring entry.
 2. ✅ **OPS-DR** *(shipped v0.3.636)* — see the R18 ring entry.
 3. ✅ **AUTH-CONSTRAINTS ①** *(shipped v0.3.637)* — see the R18 ring entry; ②/③ remain.
-4. **MODEL-PUBLISH — optimistic concurrency** *(R18 slice)* — a stale edit against a since-changed element
-   409s (the pull-plan stale-write pattern applied to edit recipes); then the draft→in-review→published
-   version workflow.
+4. ✅ **MODEL-PUBLISH** *(shipped v0.3.638; concurrency half was already live)* — see the R18 ring entry.
 5. **CITED-ANSWER — KG / command-bar emission** *(R17 remainder)* — the last two producers of the
    provenance contract (RFI-QA shipped v0.3.628).
 6. **RULE-PACK FOLD** *(DESIGN-METRICS + TESTFIT-ADJ shared remainder)* — per-`IfcSpace` code-check rule
@@ -316,11 +314,12 @@ below** (kept; the rest of the document is superseded by shipped work):
   auto-coercion) + `POST /drawings/schedules/calc` (formula columns on the computed door/window/room
   schedules) + `POST /modules/{key}/calc` (formulas over record field maps). Bad expr 422s at
   definition; bad row → empty cell. `test_calc_fields`.
-- **MODEL-PUBLISH — review → publish states over model versions** *(M).* Versions + real-time co-editing +
-  design options exist; the gap is a **reviewable publish workflow** (draft → in-review → published, with
-  who/when and a rollback path) and **element-level optimistic concurrency** on edit recipes (a stale edit
-  against a since-changed element 409s instead of silently overwriting) — the pull-plan stale-write
-  pattern, applied to the model.
+- ✅ **MODEL-PUBLISH — review → publish states over model versions** *(v0.3.638).* The optimistic-
+  concurrency half was ALREADY SHIPPED (COLLAB-1 `base_source` 409 + the per-project mutex on `/edit` +
+  `/edit/batch`; rollback = the edit-undo path). The missing review workflow now ships: `review_status`
+  on every ModelVersion (draft → in_review → approved, reject→draft w/ note; who/when; audit-logged;
+  Alembic `49640af8f9d8`) via `POST /versions/{v}/review`; status rides the history feed;
+  `reviewModelVersion` client. The file pointer is never touched — the QA record teams gate issuance on.
 - ✅ **OPS-DR — backup/restore + retention runbook** *(v0.3.636).* The backup/restore scripts already
   existed (`scripts/backup.sh`/`restore.sh` — Postgres dump + MinIO + IFC volumes, one manifest
   tarball); added **retention pruning** (`BACKUP_KEEP`, default 14) and **[docs/ops-dr.md](ops-dr.md)**
