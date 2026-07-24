@@ -37,6 +37,21 @@ assert "projects" in tables and "topics" in tables, f"baseline missing core tabl
 assert any(t.startswith("mod_") for t in tables), "baseline missing dynamic mod_<key> module tables"
 n_tables = len([t for t in tables if t != "alembic_version"])
 
+# 1b) STATIC guard (SQLite can't exercise Postgres GIN DDL): every POST-baseline migration that
+# creates a mod_<key> table must also create its FTS GIN index (the baseline only indexes tables that
+# exist at its own point in the chain — a later module without its own index breaks runtime parity).
+import re  # noqa: E402
+
+for f in sorted((HERE / "migrations" / "versions").glob("*.py")):
+    src = f.read_text(encoding="utf-8")
+    if "baseline" in f.name:
+        continue
+    made = re.findall(r"create_table\('(mod_[a-z0-9_]+)'", src)
+    for tbl in made:
+        assert "index_ddl(" in src, (
+            f"{f.name} creates {tbl} but never calls index_ddl() — a post-baseline module migration "
+            "must create its own Postgres FTS GIN index or the CI runtime-parity check fails")
+
 # 2) models must match migrations — no pending autogenerate diff (the drift guard)
 try:
     command.check(cfg)

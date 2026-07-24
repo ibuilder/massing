@@ -42,6 +42,30 @@ assert r["dimensional"]["checked"] == 4, r["dimensional"]
 r2 = adj.evaluate(m, {"dimensional": {"min_area": 1e9}})
 assert len(r2["dimensional"]["violations"]) == 4 and r2["dimensional"]["passed"] == 0, r2["dimensional"]
 
+# --- needs-daylight + needs-wet-wall program terms -------------------------------------------------
+# 2x2: every room sits on the envelope → daylight satisfied; Dining shares a wall with the (wet)
+# Kitchen → wet-wall met; Mechanical touches only Dining+Bedroom (no wet type) → a violation
+r4 = adj.evaluate(m, {"needs_daylight": ["Kitchen"], "needs_wet_wall": ["Dining", "Mechanical"]})
+p4 = r4["program"]
+assert p4["daylight_results"] == [{"type": "kitchen", "spaces": 1, "exterior": 1, "satisfied": True}], p4
+ww = {x["type"]: x for x in p4["wet_wall_results"]}
+assert ww["dining"]["satisfied"] is True, ww
+assert ww["mechanical"]["satisfied"] is False, ww
+assert len(p4["wet_wall_violations"]) == 1 and p4["wet_wall_violations"][0]["type"] == "Mechanical", p4
+
+# 3x3 grid of Offices: the CENTER room has no envelope face → exactly one daylight violation
+TMP9 = os.path.join(os.path.dirname(__file__), "_adj9.ifc")
+massing.generate_blank_ifc(TMP9, name="Adj9", storeys=1, storey_height=3.5, ground_size=30.0)
+m9 = open_model(TMP9)
+assert edit.add_spaces(m9, rooms_per_storey=9, ceiling_height=3.0) == 9
+for sp in m9.by_type("IfcSpace"):
+    sp.LongName = "Office"
+r9 = adj.evaluate(m9, {"needs_daylight": ["Office"]})
+d9 = r9["program"]["daylight_results"][0]
+assert d9["spaces"] == 9 and d9["exterior"] == 8 and d9["satisfied"] is False, d9
+assert len(r9["program"]["daylight_violations"]) == 1, r9["program"]["daylight_violations"]
+os.remove(TMP9)
+
 # empty program → adjacency graph still computed, no program/dimensional findings
 r3 = adj.evaluate(m, {})
 assert r3["adjacency"]["edge_count"] == 4 and r3["program"]["required_total"] == 0, r3

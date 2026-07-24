@@ -44,6 +44,14 @@ def upgrade() -> None:
         batch_op.create_index(batch_op.f('ix_mod_procurement_package_project_id'), ['project_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_mod_procurement_package_workflow_state'), ['workflow_state'], unique=False)
 
+    # Postgres-only FTS GIN index — every module table gets one at runtime; a post-baseline module
+    # migration must create its own (the baseline only indexes tables that exist at ITS point in the
+    # chain; the CI runtime-parity check enforces this).
+    if op.get_bind().dialect.name == "postgresql":
+        from aec_api import modules_registry
+        from aec_api.modules_search import index_ddl
+        modules_registry.load_registry()
+        op.execute(index_ddl("procurement_package", modules_registry.TABLES["procurement_package"]))
     # ### end Alembic commands ###
 
 

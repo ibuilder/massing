@@ -37,8 +37,13 @@ def _create_fts_indexes() -> None:
         return
     from aec_api import modules_registry
     from aec_api.modules_search import index_ddl
+    # the registry is LIVE — it also lists modules whose tables are created by LATER revisions, so on
+    # a fresh-DB upgrade this baseline must only index tables that exist at this point in the chain.
+    # (each post-baseline module migration creates its own GIN index; the parity check enforces it.)
+    insp = sa.inspect(bind)
     for key in _fts_index_keys():
-        op.execute(index_ddl(key, modules_registry.TABLES[key]))  # CREATE INDEX IF NOT EXISTS
+        if insp.has_table(f"mod_{key}"):
+            op.execute(index_ddl(key, modules_registry.TABLES[key]))  # CREATE INDEX IF NOT EXISTS
 
 
 def _drop_fts_indexes() -> None:

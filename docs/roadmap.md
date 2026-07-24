@@ -290,8 +290,10 @@ the ⏱ Productivity Actuals module + Alembic `37bd38285a84`; `/progress/actuals
 the request is empty)* — the LOB/4D overlay surface remains (viewer-coupled) ·
 ✅ PROCURE-LEVEL → ~~persist a `procurement_package` module + the send-RFQ bridge~~ *(v0.3.631: the 📦
 Buyout Packages module + `/procurement/packages/save` + the `/send-rfq` bridge minting a Bid Solicitation
-and advancing draft→rfq_sent; Alembic `cdbb83e0cfe7`)* · TESTFIT-ADJ →
-needs-daylight/exterior-wall + wet-wall terms + fold the dimensional pack into `rule_library` · SPACE-UTIL →
+and advancing draft→rfq_sent; Alembic `cdbb83e0cfe7`)* · ◧ TESTFIT-ADJ →
+✅ ~~needs-daylight/exterior-wall + wet-wall terms~~ *(v0.3.632: `needs_daylight` — every space of a listed
+type must sit on the storey envelope; `needs_wet_wall` — must share a wall with a wet space, `wet_types`
+overridable)* — folding the dimensional pack into `rule_library` remains · SPACE-UTIL →
 portal panel + cross-project benchmarking · SEC-SUPPLY → MCP tool-poisoning self-audit + a non-gating CI step.
 
 ## 🎚 UX-POLISH — interaction-craft ring (2026-07-21)

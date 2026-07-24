@@ -143,6 +143,46 @@ def evaluate(model, program: dict | None = None) -> dict[str, Any]:
     for a, b in forbidden:
         forb_violations.extend({"rule": f"{a} ✗ {b}", **h} for h in _pair_instances(a, b))
 
+    # needs-daylight (exterior-facing) — a space type that must sit on the building envelope. Exterior
+    # detection stays footprint-based (no walls needed): per storey, the envelope is the union bbox of
+    # all its spaces; a space is exterior-facing when any side of its own box lies within a wall
+    # thickness of that envelope. EVERY space of a listed type must qualify (daylight is per room).
+    env: dict[str | None, list[float]] = {}
+    for s in spaces:
+        e = env.setdefault(s["storey"], [s["minx"], s["miny"], s["maxx"], s["maxy"]])
+        e[0], e[1] = min(e[0], s["minx"]), min(e[1], s["miny"])
+        e[2], e[3] = max(e[2], s["maxx"]), max(e[3], s["maxy"])
+
+    def _exterior(s: dict) -> bool:
+        e = env[s["storey"]]
+        return (s["minx"] - e[0] <= _GAP or e[2] - s["maxx"] <= _GAP
+                or s["miny"] - e[1] <= _GAP or e[3] - s["maxy"] <= _GAP)
+
+    needs_daylight = [_tl(t) for t in (program.get("needs_daylight")
+                                       or program.get("needs_exterior") or [])]
+    daylight_results, daylight_violations = [], []
+    for t in needs_daylight:
+        rooms = [s for s in spaces if _tl(s["type"]) == t]
+        bad = [s for s in rooms if not _exterior(s)]
+        daylight_results.append({"type": t, "spaces": len(rooms), "exterior": len(rooms) - len(bad),
+                                 "satisfied": bool(rooms) and not bad})
+        daylight_violations.extend({"rule": f"{t} needs daylight/exterior", "guid": s["guid"],
+                                    "name": s["name"], "type": s["type"]} for s in bad)
+
+    # needs-wet-wall — a space type that must share a wall with another wet space (stacked plumbing).
+    _DEFAULT_WET = {"bathroom", "toilet", "wc", "restroom", "kitchen", "laundry"}
+    wet_types = {_tl(t) for t in (program.get("wet_types") or _DEFAULT_WET)}
+    needs_wet = [_tl(t) for t in (program.get("needs_wet_wall") or [])]
+    wet_results, wet_violations = [], []
+    for t in needs_wet:
+        rooms = [(i, s) for i, s in enumerate(spaces) if _tl(s["type"]) == t]
+        bad = [s for i, s in rooms
+               if not any(_tl(spaces[j]["type"]) in wet_types for j in neighbors[i])]
+        wet_results.append({"type": t, "spaces": len(rooms), "on_wet_wall": len(rooms) - len(bad),
+                            "satisfied": bool(rooms) and not bad})
+        wet_violations.extend({"rule": f"{t} needs a shared wet wall", "guid": s["guid"],
+                               "name": s["name"], "type": s["type"]} for s in bad)
+
     # dimensional compliance — global thresholds, optionally overridden per space type
     dim = program.get("dimensional") or {}
     per_type = {(_tl(k)): v for k, v in (dim.get("by_type") or {}).items()}
@@ -182,6 +222,8 @@ def evaluate(model, program: dict | None = None) -> dict[str, Any]:
             "required_pct": round(req_ok / len(required), 3) if required else None,
             "required_results": req_results,
             "forbidden_violations": forb_violations, "forbidden_ok": not forb_violations and bool(forbidden),
+            "daylight_results": daylight_results, "daylight_violations": daylight_violations,
+            "wet_wall_results": wet_results, "wet_wall_violations": wet_violations,
         },
         "dimensional": {"checked": checked, "passed": checked - len(dim_violations),
                         "violations": dim_violations},

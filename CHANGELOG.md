@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.632 — migration-chain fix (post-baseline module GIN indexes) + TESTFIT-ADJ daylight/wet-wall
+
+The newly-live drift guard caught its second real defect in a day — and the suite now guards the class.
+
+- **Fresh-DB upgrade was broken by v0.3.631's new modules**: the baseline migration's FTS helper reads
+  the *live* module registry, so on an empty database it tried to GIN-index `mod_procurement_package`
+  before the later revision created it (`UndefinedTable`). The baseline now indexes **only tables that
+  exist at its own point in the chain**, and each post-baseline module migration creates its **own**
+  GIN index (both v0.3.631 migrations amended) — runtime parity holds.
+- **Static guard**: `test_alembic_migrations` now fails any future migration that creates a `mod_<key>`
+  table without calling `index_ddl()` — SQLite can't exercise the Postgres DDL, so the shape is
+  enforced statically and the real DDL runs in the CI guard.
+- **TESTFIT-ADJ program terms** (`adjacency.py`): **needs-daylight** — every space of a listed type
+  must sit on the storey envelope (footprint-based, no walls needed; a 3×3 grid's center room is
+  correctly the one violation) — and **needs-wet-wall** — a listed type must share a wall with a wet
+  space (default set bathroom/WC/kitchen/laundry, overridable via `wet_types`). Closes the R16
+  TESTFIT-ADJ carried remainder's term half; the rule_library fold stays open.
+
 ## v0.3.631 — field + buyout persistence: Productivity Actuals & Buyout Packages modules
 
 Two R16 carried remainders close at once: the loops stop being one-shot payloads.
