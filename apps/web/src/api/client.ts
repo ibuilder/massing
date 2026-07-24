@@ -2575,6 +2575,45 @@ export class ApiClient extends HttpCore {
     return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
       imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
   }
+  /** CRE-COMP-TIER — comps ranked by source tier; bands report the weakest tier they rest on. */
+  tieredComps(pid: string, field = "price_psf") {
+    return this.json<{ comp_count: number; conflict_count: number;
+      comps: { tier: string; label: string; rank: number; address: string; source: string;
+        price_psf: number | null; cap_rate: number | null }[];
+      conflicts: { address: string; kept_tier: string;
+        outranked: { tier: string; source: string }[];
+        value_deltas: { field: string; kept: number; outranked: number }[] }[];
+      statistics: Record<string, { n: number; median: number | null; p25?: number; p75?: number;
+        worst_tier: string | null; worst_tier_label?: string; best_tier?: string;
+        tier_counts?: Record<string, number>; unattributed?: number; note?: string }>;
+      note: string }>(`/projects/${pid}/comps/tiered?field=${encodeURIComponent(field)}`);
+  }
+  /** CRE-T12 — normalize a trailing-twelve to the house chart; the tie-out is a GATE, not a report. */
+  normalizeT12(pid: string, t12: unknown, units?: number) {
+    return this.json<{ line_count: number; source_totals: Record<string, number>;
+      mapped_totals: Record<string, number>;
+      tie_out: { reconciles: boolean; deltas: Record<string, number>; tolerance: number };
+      stopped?: boolean; adjusted_noi: number | null;
+      reconciling_items?: { issue: string; description?: string; amount?: number }[];
+      unmapped_count: number; unmapped: { description: string; amount: number }[];
+      one_time_items?: { description: string; amount: number; kind: string }[];
+      capital_items?: { description: string; amount: number }[];
+      by_category?: { category: string; label: string; amount: number; run_rate: number }[];
+      run_rate_vs_trailing?: { category: string; trailing: number; run_rate: number; delta: number }[];
+      add_back_questions?: { check: string; severity: string; finding: string; question: string }[];
+      note: string }>(
+      `/projects/${pid}/t12/normalize`, { method: "POST", body: JSON.stringify({ t12, units }) });
+  }
+  /** CRE-RRSCRUB — rent roll vs income; a check without its inputs reports not-run, never a pass. */
+  rentRollScrub(pid: string, income?: unknown, units?: unknown[]) {
+    return this.json<{ lease_count: number; excluded_not_active: number; clean: boolean;
+      counts: { total: number; ran: number; not_applicable: number; passed: number; failed: number };
+      checks: { check: string; applicable: boolean; passed?: boolean; severity?: string;
+        finding: string; needs?: string }[];
+      findings: { check: string; severity: string; finding: string }[];
+      coverage_note: string }>(
+      `/projects/${pid}/rent-roll/scrub`, { method: "POST", body: JSON.stringify({ income, units }) });
+  }
   /** CRE-NER — net effective rent: the rent roll after concessions (straight-line + discounted). */
   netEffectiveRent(pid: string, opts: { discountRate?: number; lcPct?: number } = {}) {
     const q = new URLSearchParams();

@@ -148,6 +148,50 @@ def get_net_effective(pid: str, discount_rate: float = 0.08, lc_pct: float | Non
                                       lc_pct=lc_pct)
 
 
+@router.get("/projects/{pid}/comps/tiered")
+def get_tiered_comps(pid: str, field: str = "price_psf", db: Session = Depends(get_db),
+                     _: str = Depends(rbac.require_role("viewer"))):
+    """CRE-COMP-TIER (R20) — comps ranked by **source tier** (recorded sale > party-verified >
+    vendor-confirmed > vendor estimate > listing > broker package > unattributed).
+
+    Comps describing the same address are resolved by tier rather than averaged, with the overruled
+    values kept beside the winner; and every derived band reports the **weakest tier it rests on**,
+    so a median carried by one asking price can never read like one carried by six recorded sales."""
+    from .. import comp_tier
+    return comp_tier.from_project(db, pid, field=field)
+
+
+@router.post("/projects/{pid}/t12/normalize")
+def post_t12_normalize(pid: str, t12: dict = Body(..., embed=True), units: int | None = Body(None, embed=True),
+                       _: str = Depends(rbac.require_role("viewer"))):
+    """CRE-T12 (R20) — map a trailing-twelve to the house operating chart of accounts and reconcile.
+
+    Body: `{t12: {lines: [{description, amount | months[12]}], totals?: {income, expense, noi}},
+    units?: n}`. **The tie-out is a gate, not a report:** if source and mapped totals disagree the
+    response carries `stopped: true`, the reconciling items, and `adjusted_noi: null` — an adjusted
+    NOI on top of a lossy mapping is how a reclass disappears. Past the gate you get one-time items
+    separated from run-rate, capital below the line, a run-rate-vs-trailing view, and the standard
+    owner-operated add-back **questions** (never applied silently)."""
+    from .. import t12 as t12_engine
+    return t12_engine.normalize(t12 or {}, units=units)
+
+
+@router.post("/projects/{pid}/rent-roll/scrub")
+def post_rent_scrub(pid: str, income: dict | None = Body(None, embed=True),
+                    units: list | None = Body(None, embed=True),
+                    db: Session = Depends(get_db),
+                    _: str = Depends(rbac.require_role("viewer"))):
+    """CRE-RRSCRUB (R20) — reconcile the rent roll against the income statement and unit inventory.
+
+    Seven checks (scheduled rent vs gross potential rent at the 5% diligence threshold, occupied
+    units with no lease, vacant units carrying a receivable, monotonically rising arrears, bad debt
+    rising against flat occupancy, stated rent vs executed terms, expired leases still active).
+    **A check that lacks its inputs reports `applicable: false` with what it needed — never a
+    pass** — because a clean report built on absent data is worse than no report."""
+    from .. import rent_scrub
+    return rent_scrub.from_project(db, pid, income=income, units=units)
+
+
 @router.get("/projects/{pid}/leases/management")
 def lease_management(pid: str, years: int = 5, recoverable_opex: float | None = None,
                      db: Session = Depends(get_db), _: str = Depends(rbac.require_role("viewer"))):

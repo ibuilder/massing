@@ -12,7 +12,7 @@ The R16/R17 rings are closed on the backend side, the R18 authoring-parity ring 
 slices, and the current push is **enterprise + finance-platform readiness** — the programs and governance
 layer that make the shipped engines defensible in enterprise diligence.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (360 suites) · single-source version in
+**Status:** CodeQL 0 open alerts · full backend suite green (361 suites) · single-source version in
 `apps/web/package.json` · CI on Node 22 · vitest 132.
 
 ---
@@ -75,8 +75,7 @@ need).
    multi-model work)* · ✅ BCF-API-SRV 3.0 shape + attachments-over-API. **Remaining:** SPRINT B
    phase-4b CPM crew shifts · NORM-VALID implementer-agreement depth.
 
-7. ◧ **🏙 R20 — CRE deal-desk depth** *(CRE-NER shipped v0.3.657)*: Tier 1 (~~CRE-NER~~ · CRE-COMP-TIER · CRE-T12 ·
-   CRE-RRSCRUB) → Tier 2 (CRE-COVENANT · CRE-AUTHORITY · CRE-SUPPLY · CRE-DECISION-GATE) →
+7. ◧ **🏙 R20 — CRE deal-desk depth** *(**Tier 1 COMPLETE** v0.3.657–658)*: ~~Tier 1~~ → **next: Tier 2** (CRE-COVENANT · CRE-AUTHORITY · CRE-SUPPLY · CRE-DECISION-GATE) →
    Tier 3 (CRE-ICMEMO · CRE-HOLDSELL · CRE-CLAUSE).
 
 *Then the viewer-coupled R17 tail (CITE-JUMP · 4D5D-VIEWER · WebXR · NODE-CANVAS · the clash
@@ -125,19 +124,27 @@ instead of being filled in with something plausible.*
   commercial underwriting actually uses — and carry it through the rent roll, the comps, and into
   the pro forma's revenue line. Concessions are deducted before effective gross income, the way
   agency underwriting does it. Deterministic arithmetic over data we hold.
-- **CRE-COMP-TIER — comp source hierarchy.** `comparable` has a free-text `source`; make it a
+- ✅ **CRE-COMP-TIER** *(v0.3.658)* — `comp_tier.py` + `GET /comps/tiered`: same-address comps
+  resolved by tier (overruled values kept visible), every band reporting its weakest tier,
+  unrecognized sources landing in the weakest tier. `test_cre_deal_desk`.
+- ~~**CRE-COMP-TIER (original spec)**~~ `comparable` has a free-text `source`; make it a
   **ranked tier** (recorded sale > verified/confirmed > vendor estimate > listing > broker
   package). The tier decides which number wins when two comps disagree, and every derived figure
   (cap-rate band, $/SF) reports the **worst tier it depended on** — the CITED-ANSWER contract
   applied to market data.
-- **CRE-T12 — trailing-12 normalization + a hard tie-out gate.** Map an imported T-12 to the house
+- ✅ **CRE-T12** *(v0.3.658)* — `t12.py` + `POST /t12/normalize`: its own OPERATING chart of
+  accounts, treatment classification, and the tie-out as a GATE (`stopped: true`,
+  `adjusted_noi: null` when totals disagree) + run-rate view + add-back questions.
+- ~~**CRE-T12 (original spec)**~~ Map an imported T-12 to the house
   chart of accounts (`accounting.COA` ships), classify each line recurring / one-time / capital /
   reclass, and compute run-rate vs trailing. **The gate is the feature:** income, expense and NOI
   must reconcile before *and* after mapping, or the engine stops and lists the reconciling items
   rather than publishing an adjusted NOI. Plus the standard owner-operated add-back checks
   (absent management fee, no payroll line, below-market R&M) surfaced as questions, never applied
   silently.
-- **CRE-RRSCRUB — rent roll ↔ income reconciliation.** Cross-check two structured sources we
+- ✅ **CRE-RRSCRUB** *(v0.3.658)* — `rent_scrub.py` + `POST /rent-roll/scrub`: seven checks at the
+  5% threshold, each reporting `applicable: false` with what it needed rather than a silent pass.
+- ~~**CRE-RRSCRUB (original spec)**~~ Cross-check two structured sources we
   already hold: scheduled rent vs gross potential rent (industry practice treats >5% as a
   diligence item), occupied units with no lease on file, rent ≠ executed lease terms, a vacant
   unit carrying a receivable, arrears rising monthly, bad debt rising against flat occupancy.

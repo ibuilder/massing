@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.658 — R20 Tier 1 complete: comp tiers + T-12 tie-out gate + rent-roll scrub
+
+Three engines that all say the same thing in different ways: **a number is only as good as what
+it rests on, and missing inputs stop the work rather than quietly passing it.**
+
+- **CRE-COMP-TIER** (`comp_tier.py` + `GET /projects/{pid}/comps/tiered`). The `comparable`
+  module's free-text `source` becomes a ranked hierarchy — recorded sale > party-verified >
+  vendor-confirmed > vendor estimate > listing/asking > broker package > unattributed. Two things
+  follow: comps describing the **same address are resolved by tier rather than averaged** (the
+  county deed's $210/sf wins over the offering package's $250/sf, and the overruled figure stays
+  visible beside it), and **every derived band reports the weakest tier it rests on** — a median
+  carried by one asking price can no longer read like one carried by six recorded sales. An
+  unrecognized source lands in the *weakest* tier, never an optimistic middle.
+- **CRE-T12** (`t12.py` + `POST /projects/{pid}/t12/normalize`). Maps a trailing-twelve to a house
+  **operating** chart of accounts (deliberately separate from the shipped construction chart, which
+  cannot express vacancy loss or a management fee), classifying each line recurring / one-time /
+  capital / reclass. **The tie-out is a gate, not a report:** if source and mapped totals disagree
+  the response is `stopped: true` with the reconciling items and `adjusted_noi: null` — because an
+  adjusted NOI on top of a lossy mapping is exactly how a reclass disappears. Past the gate:
+  one-time expense added back, capital kept below the NOI line, a last-three-months-annualized
+  run-rate view, and the standard owner-operated tells (absent management fee, no payroll,
+  below-market R&M, missing taxes or insurance) raised as **questions with the numbers behind
+  them** — never applied silently.
+- **CRE-RRSCRUB** (`rent_scrub.py` + `POST /projects/{pid}/rent-roll/scrub`). Seven cross-checks
+  between the rent roll and the income statement: scheduled rent vs gross potential rent at the
+  industry 5% diligence threshold, occupied units with no lease on file, vacant units still
+  carrying a receivable, monotonically rising arrears, bad debt rising against flat occupancy,
+  stated rent vs executed terms, and expired leases still counted active. **A check that lacks its
+  inputs returns `applicable: false` with what it needed — never a pass** — because a clean report
+  built on absent data launders missing information into confidence.
+- All three use the same active-lease filter as the rent roll, so no two surfaces can describe
+  different portfolios. Clients: `tieredComps` · `normalizeT12` · `rentRollScrub`.
+  `test_cre_deal_desk` (suite 361). **R20 Tier 1 is complete.**
+
 ## v0.3.657 — R20: net effective rent (CRE-NER)
 
 The first R20 item, and it needed no new data — the `lease` module already stored the concessions.
