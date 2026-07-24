@@ -177,10 +177,74 @@ with TestClient(app) as c:
     # earliest-start ordering: Concrete (Jan) leads the derived train
     assert base_sc2["trades"][0]["name"] == "Concrete", base_sc2["trades"]
 
+    # ---- phase-4b: crew shifts follow the CPM, not the "slowest trade" proxy ------------------------
+    # Without a critical path the candidates are the slowest trades. Naming a critical path that
+    # excludes the slowest trade must move the crew lever OFF it — a second crew on a trade with float
+    # buys no days and still costs the premium.
+    slow = schedule_options.optimize(BASE, max_crew_trades=2)
+    assert slow["crew_selection"]["rule"] == "slowest", slow["crew_selection"]
+    assert slow["crew_selection"]["critical_path"] == [], slow["crew_selection"]
+    assert "MEP rough-in" in slow["crew_candidates"], slow["crew_candidates"]
+
+    cp = schedule_options.optimize(BASE, max_crew_trades=2, critical_path=["Structure", "Envelope"])
+    sel = cp["crew_selection"]
+    assert sel["rule"] == "critical_path", sel
+    assert set(cp["crew_candidates"]) == {"Structure", "Envelope"}, cp["crew_candidates"]
+    assert "MEP rough-in" in sel["off_path_excluded"], sel                # excluded and NAMED
+    assert "float" in sel["note"], sel["note"]
+    # matching is case/whitespace tolerant, and a name that matches nothing is reported not swallowed
+    fuzzy = schedule_options.optimize(BASE, critical_path=["  structure ", "Nonexistent trade"])
+    assert fuzzy["crew_selection"]["rule"] == "critical_path", fuzzy["crew_selection"]
+    assert fuzzy["crew_candidates"] == ["Structure"], fuzzy["crew_candidates"]
+    assert fuzzy["crew_selection"]["unmatched_critical_path"] == ["nonexistent trade"], fuzzy["crew_selection"]
+    # a critical path matching NOTHING falls back to the heuristic and says so — it does not optimise
+    # an imagined bottleneck, and it does not return an empty grid
+    none_match = schedule_options.optimize(BASE, max_crew_trades=2, critical_path=["Landscaping"])
+    assert none_match["crew_selection"]["rule"].startswith("slowest"), none_match["crew_selection"]
+    assert "MEP rough-in" in none_match["crew_candidates"], none_match["crew_candidates"]
+    assert none_match["scenario_count"] == slow["scenario_count"], none_match["scenario_count"]
+
+    # ---- route: explicit list, and "auto" off the project's own CPM --------------------------------
+    rb = c.post(f"/projects/{pid}/schedule/optioneer",
+                json={"floors": 6, "trades": BASE["trades"], "critical_path": ["Structure"]})
+    assert rb.status_code == 200, rb.text[:300]
+    assert rb.json()["crew_selection"]["source"] == "body", rb.json()["crew_selection"]
+    assert rb.json()["crew_candidates"] == ["Structure"], rb.json()["crew_candidates"]
+    assert c.post(f"/projects/{pid}/schedule/optioneer",
+                  json={"critical_path": "nonsense"}).status_code == 422
+
+    # pid2's activities form a chain: Foundations → Superstructure → Rough-in, with Drywall hanging
+    # off Foundations. The chain is the critical path, so Interiors (Drywall) has float.
+    recs = c.get(f"/projects/{pid2}/modules/schedule_activity").json()
+    ids = {r["data"]["name"]: r["id"] for r in recs}
+    chain = {"Superstructure": "Foundations", "Rough-in": "Superstructure", "Drywall": "Foundations"}
+    for name, pred in chain.items():
+        assert c.patch(f"/projects/{pid2}/modules/schedule_activity/{ids[name]}",
+                       json={"predecessors": ids[pred]}).status_code == 200
+    ra = c.post(f"/projects/{pid2}/schedule/optioneer", json={"floors": 4, "critical_path": "auto"})
+    assert ra.status_code == 200, ra.text[:300]
+    ja = ra.json()
+    assert ja["crew_selection"]["source"] == "cpm", ja["crew_selection"]
+    assert ja["crew_selection"]["rule"] == "critical_path", ja["crew_selection"]
+    assert set(ja["crew_candidates"]) == {"Concrete", "Mechanical"}, ja["crew_candidates"]
+    assert ja["crew_selection"]["off_path_excluded"] == ["Interiors"], ja["crew_selection"]
+    # a project with no schedule at all cannot produce a critical path — it says so rather than
+    # pretending the slowest trade is the bottleneck
+    pid3 = c.post("/projects", json={"name": "SchedOptNoCPM"}).json()["id"]
+    jn = c.post(f"/projects/{pid3}/schedule/optioneer", json={"floors": 3, "critical_path": "auto"}).json()
+    assert jn["crew_selection"]["source"] == "cpm" and jn["crew_selection"]["rule"] == "slowest", jn["crew_selection"]
+    assert "no critical activity" in jn["crew_selection"]["note"], jn["crew_selection"]["note"]
+
 print("SCHED-OPT OK - the optioneer enumerates a bounded crew/zoning grid over the Takt line-of-balance "
       "model: the 3 slowest trades are the bottleneck crew-doubling candidates, the baseline (single-crew, "
       "one zone) matches a direct takt.plan run and is Pareto-optimal (cheapest), a 2nd crew on the "
       "bottleneck compresses the schedule (the fastest option is also Pareto-optimal and costs more), "
       "scenarios rank by ascending time+cost score, weighting toward cost keeps the baseline while weighting "
       "toward time picks a compressed option, and the /schedule/optioneer route scores an explicit trade "
-      "train or falls back to the default takt train.")
+      "train or falls back to the default takt train. PHASE-4B: crew shifts follow the CPM — passing a "
+      "critical path moves the crew-doubling candidates onto it and NAMES the off-path trades it "
+      "excluded (a second crew on a trade with float buys no days and still costs the premium); "
+      "critical_path='auto' derives it from the project's own activity network (the Foundations→"
+      "Superstructure→Rough-in chain is critical, Drywall/Interiors has float and is excluded); and a "
+      "critical path that matches no trade — or a project with no schedule at all — falls back to the "
+      "slowest-trade heuristic and says so instead of optimising an imagined bottleneck.")

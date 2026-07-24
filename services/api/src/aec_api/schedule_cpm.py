@@ -45,6 +45,11 @@ def compute(activities: list[dict]) -> dict[str, Any]:
         for key in (a.get("ref"), data.get("wbs")):
             if key:
                 alias[str(key).strip()] = nid
+    # A record id is a legitimate predecessor token — `critical_path` below emits ids whenever an
+    # activity has no ref, so refusing to *consume* one would make the engine's output unusable as its
+    # own input. setdefault, so an explicit ref/wbs always wins over an id that happens to collide.
+    for nid in nodes:
+        alias.setdefault(str(nid), nid)
     for n in nodes.values():
         n["preds"] = [alias[t] for t in n["pred_tokens"] if t in alias and alias[t] != n["id"]]
     succ: dict[str, list[str]] = {nid: [] for nid in nodes}

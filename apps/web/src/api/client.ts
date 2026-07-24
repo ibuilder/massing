@@ -1914,6 +1914,9 @@ export class ApiClient extends HttpCore {
     floors?: number; trades?: { name: string; takt_days: number; reorderable?: boolean }[];
     crew_day_rate?: number; max_crew_trades?: number; zone_options?: number[];
     overlap_options?: number[]; permute_sequence?: boolean; weight_time?: number; weight_cost?: number;
+    /** Trade names on the critical path, or "auto" to derive them from the project's own CPM —
+     *  crew doubling is then only offered on trades that actually govern the finish. */
+    critical_path?: string[] | "auto";
   } = {}) {
     type Scenario = { zones: number; crews: number[]; crews_doubled: string[]; overlap: number;
       sequence: string[]; resequenced: boolean; duration_days: number;
@@ -1925,6 +1928,8 @@ export class ApiClient extends HttpCore {
       weights: { time: number; cost: number }; crew_candidates: string[]; pareto_count: number;
       levers: { zones: number[]; overlaps: number[]; sequence_variants: number; crew_candidates: string[] };
       trade_source: "body" | "schedule" | "default";
+      crew_selection: { rule: string; critical_path: string[]; off_path_excluded: string[];
+        unmatched_critical_path: string[]; note: string; source?: "body" | "cpm" };
       recommended: Scenario; baseline: Scenario | null; truncated: boolean;
       recommended_vs_baseline: { days: number; cost: number; pct_faster: number } | null;
       scenarios: Scenario[]; note: string;

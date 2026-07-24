@@ -70,10 +70,15 @@ need).
 4. ✅ **R18 tail — authoring depth** *(② v0.3.651 · ③④ + wall joins v0.3.653)* — the R18 ring is
    complete.
 5. **UX-POLISH sprint**: UX-CHIPS · UX-KPI · UX-DEMO + the demo/docs/Pages refresh.
-6. ◧ **Carry-overs** *(3 of 5 shipped v0.3.654)*: ✅ VERSION-COMPARE per-property values ·
-   ✅ IFCPATCH-LIB rebase / unit-convert / split *(merge deliberately skipped — federation covers
-   multi-model work)* · ✅ BCF-API-SRV 3.0 shape + attachments-over-API. **Remaining:** SPRINT B
-   phase-4b CPM crew shifts · NORM-VALID implementer-agreement depth.
+6. ✅ **Carry-overs — COMPLETE** *(3 of 5 v0.3.654 · the last 2 v0.3.661)*: ✅ VERSION-COMPARE
+   per-property values · ✅ IFCPATCH-LIB rebase / unit-convert / split *(merge deliberately skipped —
+   federation covers multi-model work)* · ✅ BCF-API-SRV 3.0 shape + attachments-over-API ·
+   ✅ **SPRINT B phase-4b** — crew shifts follow the CPM (`critical_path` list or `"auto"` off the
+   project's own network); off-path trades are excluded from the crew grid and named, and a path that
+   matches nothing falls back to the slowest-trade heuristic and says so · ✅ **NORM-VALID depth** —
+   MVD `ViewDefinition[…]` parse, unit-assignment completeness + unambiguity, and relationship
+   cardinality (dangling relationships, single spatial container / whole / voided element, no
+   double-placed part, unbroken spatial-aggregation chain).
 
 7. ✅ **🏙 R20 — CRE deal-desk depth — COMPLETE** *(v0.3.657–660)*: Tier 1 (NER · comp tiers ·
    T-12 gate · rent scrub) · Tier 2 (covenants · authority · supply · committee gate) · Tier 3

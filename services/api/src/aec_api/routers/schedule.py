@@ -117,7 +117,9 @@ def schedule_optioneer(pid: str, body: dict = Body(default={}), db: Session = De
     frontier + a recommended option.
 
     Body (all optional): `floors`, `trades:[{name,takt_days}]`, `crew_day_rate`, `max_crew_trades`,
-    `zone_options:[…]`, `overlap_options:[…]`, `permute_sequence`, `weight_time`, `weight_cost`. When
+    `zone_options:[…]`, `overlap_options:[…]`, `permute_sequence`, `weight_time`, `weight_cost`,
+    `critical_path` (a list of trade names, or `"auto"` to take it from the project's CPM — crew
+    doubling is then only offered on trades that actually govern the finish). When
     `trades` is absent the train is **derived from the project's own schedule** (trades = the activity
     trades, per-floor takt = each trade's total duration ÷ floors), falling back to the residential takt
     train; absent `floors` are derived from the model's storey count (else 1). The response's
@@ -161,8 +163,57 @@ def schedule_optioneer(pid: str, body: dict = Body(default={}), db: Session = De
             kw["overlap_options"] = tuple(float(o) for o in body["overlap_options"])
     except (TypeError, ValueError):
         raise HTTPException(422, "zone_options / overlap_options must be numeric") from None
+
+    # phase-4b — crew shifts follow the CPM. `critical_path` is either an explicit list of trade names
+    # or "auto", which runs CPM over the project's own activities and keeps the critical ones' trades.
+    cp = body.get("critical_path")
+    cp_source = None
+    if isinstance(cp, str) and cp.strip().lower() == "auto":
+        cp, cp_source = _critical_trades(db, pid), "cpm"
+    elif isinstance(cp, list):
+        cp_source = "body"
+    elif cp is not None:
+        raise HTTPException(422, 'critical_path must be a list of trade names or "auto"')
+    if cp:
+        kw["critical_path"] = cp
+
     out = schedule_options.optimize(base, **kw)
     out["trade_source"] = source
+    if cp_source:
+        out["crew_selection"]["source"] = cp_source
+        if cp_source == "cpm" and not cp:
+            out["crew_selection"]["note"] = (
+                "critical_path='auto' but the project's schedule yielded no critical activity with a "
+                "trade — the crew lever fell back to the slowest-trade heuristic")
+    return out
+
+
+def _critical_trades(db: Session, pid: str) -> list[str]:
+    """Trades sitting on the CPM critical path, in schedule order. Empty when there is no usable
+    schedule — the caller then says so rather than optimising an imagined bottleneck."""
+    from .. import schedule_cpm
+    try:
+        acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    except Exception:                                    # noqa: BLE001 — module absent
+        return []
+    rows = list(acts)
+    if not rows:
+        return []
+    try:
+        res = schedule_cpm.compute(rows)              # takes the record shape: {id, ref, title, data{}}
+    except Exception:                                    # noqa: BLE001 — malformed network
+        return []
+    by_key: dict[str, dict] = {}
+    for a in rows:
+        d = a.get("data") or {}
+        for k in (a.get("ref"), d.get("wbs"), a.get("id")):
+            if k:
+                by_key.setdefault(str(k), d)
+    out: list[str] = []
+    for key in (res.get("critical_path") or []):         # refs (or ids) of the zero-float activities
+        trade = ((by_key.get(str(key)) or {}).get("trade") or "").strip()
+        if trade and trade not in out:
+            out.append(trade)
     return out
 
 

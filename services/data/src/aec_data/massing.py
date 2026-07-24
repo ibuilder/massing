@@ -15,6 +15,48 @@ from typing import Any
 M2_TO_SF = 10.7639
 
 
+def stamp_conformance(model: Any, name: str, *, view: str = "DesignTransferView_V1.0") -> None:
+    """Bring a freshly generated file up to the IFC implementer agreements ``norm_valid`` checks — the
+    parts ``ifcopenshell.api`` does not fill in for us:
+
+      * a **PLANEANGLEUNIT** assignment. IFC angles are radians by definition, but a file that never
+        says so leaves every consumer of an ``IfcPlaneAngleMeasure`` (roof pitch, wall rotation, solar
+        azimuth) guessing between radians and degrees.
+      * a populated **FILE_DESCRIPTION** carrying the ``ViewDefinition[…]`` this file claims to satisfy
+        — an authoring model is a DesignTransferView (it is meant to be edited downstream), not a
+        read-only ReferenceView — and a **FILE_NAME** with a name + timestamp.
+
+    Idempotent: re-stamping an already-stamped model changes nothing.
+    """
+    import ifcopenshell
+
+    proj = next(iter(model.by_type("IfcProject")), None)
+    ctx = getattr(proj, "UnitsInContext", None) if proj is not None else None
+    if ctx is not None:
+        units = list(getattr(ctx, "Units", None) or [])
+        if not any(str(getattr(u, "UnitType", "") or "").upper() == "PLANEANGLEUNIT" for u in units):
+            units.append(model.create_entity("IfcSIUnit", UnitType="PLANEANGLEUNIT", Name="RADIAN"))
+            ctx.Units = units
+
+    header = model.header      # NB not `wrapped_data.header` — that is a method, not the header object
+    try:
+        if not any((d or "").strip() for d in (header.file_description.description or [])):
+            header.file_description.description = (f"ViewDefinition[{view}]",)
+    except Exception:                                # noqa: BLE001 — malformed header: leave it alone
+        pass
+    try:
+        fn = header.file_name
+        # ifcopenshell defaults the name to "/dev/null" — a placeholder, not a name, so treat it as absent
+        if (fn.name or "").strip() in ("", "/dev/null"):
+            fn.name = name
+        if not (fn.time_stamp or "").strip():
+            from datetime import datetime, timezone
+            fn.time_stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        fn.originating_system = f"Massing (ifcopenshell {ifcopenshell.version})"
+    except Exception:                                # noqa: BLE001
+        pass
+
+
 def _polygon_area(poly: list) -> float:
     """Shoelace area (m²) of a closed polygon given as [[x,y],...] in metres."""
     n = len(poly)
@@ -494,6 +536,7 @@ def generate_ifc(metrics: dict, out_path: str, name: str = "Massing Study",
     from . import material_layers, materials
     materials.apply_palette(model)               # real IFC materials + surface colours (M1)
     material_layers.apply_layer_sets(model)      # Revit-style layered assemblies on walls/slabs/roofs (M3)
+    stamp_conformance(model, name)   # units + header the implementer agreements expect
     model.write(out_path)
     return out_path
 
@@ -548,6 +591,7 @@ def generate_blank_ifc(out_path: str, name: str = "New Model", storeys: int = 3,
 
     from . import materials
     materials.apply_palette(model)               # so the ground slab renders shaded, not flat grey
+    stamp_conformance(model, name)   # units + header the implementer agreements expect
     model.write(out_path)
     return out_path
 
@@ -644,5 +688,6 @@ def generate_dome_ifc(out_path: str, name: str = "Earth Dome House", radius: flo
     from . import material_layers, materials
     materials.apply_palette(model)               # real IFC materials + surface colours (M1)
     material_layers.apply_layer_sets(model)      # Revit-style layered assemblies on walls/slabs/roofs (M3)
+    stamp_conformance(model, name)   # units + header the implementer agreements expect
     model.write(out_path)
     return out_path

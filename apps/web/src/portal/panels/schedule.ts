@@ -246,9 +246,13 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   const ovChk = document.createElement("label"); ovChk.className = "meta"; ovChk.style.cssText = "display:inline-flex;gap:3px;align-items:center;cursor:pointer";
   const ovBox = document.createElement("input"); ovBox.type = "checkbox"; ovBox.title = "Include fast-track (overlap) options";
   ovChk.append(ovBox, document.createTextNode("fast-track"));
+  const cpChk = document.createElement("label"); cpChk.className = "meta"; cpChk.style.cssText = "display:inline-flex;gap:3px;align-items:center;cursor:pointer";
+  const cpBox = document.createElement("input"); cpBox.type = "checkbox";
+  cpBox.title = "Draw the crew-doubling candidates from the CPM critical path — a 2nd crew on a trade with float buys no days and still costs the premium";
+  cpChk.append(cpBox, document.createTextNode("follow CPM"));
   const runBtn = document.createElement("button"); runBtn.className = "tool-btn on"; runBtn.textContent = "▶ Run";
   runBtn.title = "Enumerate the bounded crew/zoning/overlap option grid over the Takt model and rank the scenarios";
-  optCtl.append(wSel, ovChk, runBtn); optHead.append(optCtl); optCard.appendChild(optHead);
+  optCtl.append(wSel, ovChk, cpChk, runBtn); optHead.append(optCtl); optCard.appendChild(optHead);
   const optNote = document.createElement("div"); optNote.className = "meta"; optNote.style.margin = "2px 0 6px";
   optNote.innerHTML = "Deterministic — throws a 2nd crew at the bottleneck trades and splits work-face zones over the Takt line-of-balance; work content is conserved, so it trades schedule compression against a crew premium.";
   optCard.appendChild(optNote);
@@ -262,6 +266,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       const r = await ctx.host.api.scheduleOptioneer(pid, {
         weight_time: wt, weight_cost: 1 - wt,
         ...(ovBox.checked ? { overlap_options: [0, 0.5] } : {}),
+        ...(cpBox.checked ? { critical_path: "auto" as const } : {}),
       });
       if (!r.scenarios.length) { optBody.innerHTML = `<div class="meta">No trades to optimise.</div>`; return; }
       const rec = r.recommended, base = r.baseline, sv = r.recommended_vs_baseline;
@@ -269,6 +274,17 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       chips.innerHTML = `<span>Recommended <b style="color:var(--status-good)">${rec.duration_days}d</b> (${rec.duration_weeks} wk) · ${usd0(rec.cost)} · peak ${rec.crew_peak} crews</span>`
         + (base && sv ? `<span>vs baseline <b>${base.duration_days}d</b>: ${sv.days > 0 ? `<b style="color:var(--status-good)">${sv.days}d faster</b> (${sv.pct_faster}%)` : "no faster"}${sv.cost ? ` · ${sv.cost > 0 ? "+" : ""}${usd0(sv.cost)}` : ""}</span>` : "")
         + `<span>${r.scenario_count} scenarios · ${r.pareto_count} on the Pareto frontier</span>`;
+      // when the CPM lever is on, say which rule actually applied — a path that matched nothing falls
+      // back to the slowest-trade heuristic, and the user needs to know the difference
+      const cs = r.crew_selection;
+      if (cs && cpBox.checked) {
+        const onPath = cs.rule === "critical_path";
+        const cw = document.createElement("span");
+        cw.innerHTML = onPath
+          ? `Crews on the <b>critical path</b>${cs.off_path_excluded.length ? ` · excluded (has float): ${esc(cs.off_path_excluded.join(", "))}` : ""}`
+          : `<b style="color:var(--status-warn)">CPM lever did not apply</b> — ${esc(cs.note)}`;
+        chips.appendChild(cw);
+      }
       const recLevers = [rec.crews_doubled.length ? `2nd crew: ${esc(rec.crews_doubled.join(", "))}` : "single crews",
         `${rec.zones} zone${rec.zones > 1 ? "s" : ""}`, rec.overlap ? `${Math.round(rec.overlap * 100)}% fast-track` : "no overlap",
         rec.resequenced ? "resequenced" : ""].filter(Boolean).join(" · ");

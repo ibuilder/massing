@@ -4,6 +4,49 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.661 — Crew shifts follow the critical path; the conformance gauntlet gets teeth
+
+The last two roadmap carry-overs, and two real defects the second one found in our own code.
+
+**Schedule optioneering — crew shifts follow the CPM (SPRINT B phase-4b).** Crew doubling used to be
+offered on the *slowest* trades, which is a proxy for the bottleneck, not the bottleneck. A second
+crew on a trade that has float buys no days and still costs the premium. `POST /schedule/optioneer`
+now takes `critical_path` — either a list of trade names or `"auto"`, which derives it from the
+project's own activity network — and draws the crew-doubling candidates from it. Off-path trades are
+excluded from the grid **and named** in `crew_selection.off_path_excluded`. A supplied path that
+matches no trade, or a project with no schedule at all, falls back to the slowest-trade heuristic and
+reports that it did, rather than optimising an imagined bottleneck.
+
+**NORM-VALID — implementer-agreement depth.** The conformance gauntlet now checks the rules a
+consuming tool actually assumes:
+
+- **MVD declaration** — parses `ViewDefinition[…]` out of `FILE_DESCRIPTION`. A file that declares
+  none is telling the receiving tool nothing about which subset of IFC to expect; an unrecognised
+  view is named rather than swallowed.
+- **Unit completeness + unambiguity** — "has units" is not "has the units a take-off needs". Missing
+  length / area / volume / plane-angle assignments are named individually, and a unit type assigned
+  *twice* fails: a consumer has no way to know which one the values are in.
+- **Relationship cardinality** — a relationship with a null relating side or an empty related set
+  parses, validates against EXPRESS, and means nothing. Plus the single-parent agreements: at most one
+  spatial container per element, one whole per part, one voided element per opening, no part both
+  aggregated and directly contained (it is taken off twice), and an unbroken spatial-aggregation
+  chain.
+
+**Two defects the new checks found, fixed here:**
+
+- The header lane read `model.wrapped_data.header`, which is a *method* on the C++ wrapper — attribute
+  access on it raised into a bare `except`, so **every header check has been silently reporting
+  "empty" regardless of the file**. Now reads `model.header`, and the checks are live.
+- Our own generated models assigned no **PLANEANGLEUNIT** and shipped an empty `FILE_NAME` /
+  `FILE_DESCRIPTION`. `massing.stamp_conformance()` now stamps the plane-angle unit (IFC angles are
+  radians by definition, but a file that never says so leaves every `IfcPlaneAngleMeasure` consumer
+  guessing), the `DesignTransferView` MVD an authoring model actually satisfies, and a real name +
+  timestamp. Applied to all three generators.
+
+**Also:** `schedule_cpm.compute()` emitted record ids in `critical_path` but refused to *accept* an id
+as a predecessor token — its own output was not valid input. Ids now resolve, with explicit
+`ref`/`wbs` still winning on collision.
+
 ## v0.3.660 — R20 Tier 3 complete: the IC memo, hold-vs-sell, and the clause playbook
 
 **The 🏙 R20 ring is complete.** Three closing engines, same discipline as the rest.

@@ -143,12 +143,15 @@ def _score_one(floors: int, trades: list[dict], crews: tuple[int, ...], zone: in
 
 def optimize(base: dict, *, max_crew_trades: int = 3, zone_options: tuple[int, ...] = (1, 2),
              overlap_options: tuple[float, ...] = (0.0,), permute_sequence: bool = False,
-             weight_time: float = 0.6, weight_cost: float = 0.4) -> dict[str, Any]:
+             weight_time: float = 0.6, weight_cost: float = 0.4,
+             critical_path: list[str] | None = None) -> dict[str, Any]:
     """Enumerate the bounded option grid over ``base`` = ``{floors, trades:[{name,takt_days,reorderable?}],
     crew_day_rate?}`` and rank the scenarios.
 
-    Levers: **crews** — only the slowest ``max_crew_trades`` trades (the bottlenecks) are crew-doubling
-    candidates; **zoning** — ``zone_options`` work-face splits; **fast-track** — ``overlap_options`` (a
+    Levers: **crews** — only ``max_crew_trades`` trades are crew-doubling candidates; pass
+    ``critical_path`` (trade names, e.g. straight off the CPM engine) and the candidates are drawn from
+    the critical path instead of the slowest-N heuristic, because a second crew on a trade that has
+    float shortens nothing and still costs the premium; **zoning** — ``zone_options`` work-face splits; **fast-track** — ``overlap_options`` (a
     successor starts when its predecessor is ``1-overlap`` done, at a rework-risk premium); **sequence** —
     when ``permute_sequence`` is set, trades flagged ``reorderable`` are permuted among their slots (bounded).
     Score is a min-max-normalised weighted sum of duration + cost (lower is better); the Pareto-optimal
@@ -172,9 +175,25 @@ def optimize(base: dict, *, max_crew_trades: int = 3, zone_options: tuple[int, .
     if not trades:
         return {"scenarios": [], "note": "no trades to optimise"}
     nt = len(trades)
-    # bottleneck candidates for a 2nd crew: the slowest trades (ties broken by original order → deterministic)
+    # bottleneck candidates for a 2nd crew. Default: the slowest trades (ties broken by original order
+    # → deterministic). Phase-4b: when the caller passes the CPM critical path, that governs instead —
+    # a second crew on a trade with float shortens nothing and still costs the premium, so off-path
+    # trades are excluded from the grid and *named* rather than quietly dropped.
     by_takt = sorted(range(nt), key=lambda i: (-int(trades[i]["takt_days"]), i))
     crew_candidates = set(by_takt[: max(0, min(max_crew_trades, nt))])
+    cp_names = {str(n).strip().lower() for n in (critical_path or []) if str(n).strip()}
+    crew_rule, off_path, unmatched = "slowest", [], []
+    if cp_names:
+        on_path = [i for i in range(nt) if str(trades[i]["name"]).strip().lower() in cp_names]
+        matched = {str(trades[i]["name"]).strip().lower() for i in on_path}
+        unmatched = sorted(cp_names - matched)
+        off_path = [trades[i]["name"] for i in range(nt) if i not in set(on_path)]
+        if on_path:
+            crew_rule = "critical_path"
+            ranked = sorted(on_path, key=lambda i: (-int(trades[i]["takt_days"]), i))
+            crew_candidates = set(ranked[: max(0, min(max_crew_trades, len(ranked)))])
+        else:
+            crew_rule = "slowest (critical path matched no trade)"
     crew_axes = [[1, 2] if i in crew_candidates else [1] for i in range(nt)]
     zones = sorted({min(int(z), _MAX_ZONES) for z in zone_options if z >= 1}) or [1]
     overlaps = sorted({round(min(0.9, max(0.0, o)), 3) for o in overlap_options}) or [0.0]
@@ -237,6 +256,17 @@ def optimize(base: dict, *, max_crew_trades: int = 3, zone_options: tuple[int, .
         "levers": {"zones": zones, "overlaps": overlaps, "sequence_variants": len(sequences),
                    "crew_candidates": [trades[i]["name"] for i in sorted(crew_candidates)]},
         "crew_candidates": [trades[i]["name"] for i in sorted(crew_candidates)],
+        "crew_selection": {
+            "rule": crew_rule,
+            "critical_path": sorted(cp_names),
+            "off_path_excluded": off_path,
+            "unmatched_critical_path": unmatched,
+            "note": ("crew candidates drawn from the critical path — a second crew on a trade with "
+                     "float shortens nothing and still costs the premium" if crew_rule == "critical_path"
+                     else "no critical path supplied — candidates are the slowest trades, which is a "
+                          "proxy for the bottleneck, not the bottleneck itself" if not cp_names
+                     else "the supplied critical path matched no trade by name — fell back to the "
+                          "slowest-trade heuristic rather than silently optimising nothing")},
         "recommended": best, "baseline": baseline,
         "recommended_vs_baseline": saving,
         "pareto_count": sum(1 for s in scenarios if s["pareto"]),
