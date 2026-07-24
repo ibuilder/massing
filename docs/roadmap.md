@@ -12,7 +12,7 @@ The R16/R17 rings are closed on the backend side, the R18 authoring-parity ring 
 slices, and the current push is **enterprise + finance-platform readiness** — the programs and governance
 layer that make the shipped engines defensible in enterprise diligence.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (362 suites) · single-source version in
+**Status:** CodeQL 0 open alerts · full backend suite green (363 suites) · single-source version in
 `apps/web/package.json` · CI on Node 22 · vitest 132.
 
 ---
@@ -75,9 +75,9 @@ need).
    multi-model work)* · ✅ BCF-API-SRV 3.0 shape + attachments-over-API. **Remaining:** SPRINT B
    phase-4b CPM crew shifts · NORM-VALID implementer-agreement depth.
 
-7. ◧ **🏙 R20 — CRE deal-desk depth** *(**Tiers 1–2 COMPLETE**, v0.3.657–659)*: ~~Tier 1 (NER ·
-   comp tiers · T-12 gate · rent scrub)~~ · ~~Tier 2 (covenants · authority · supply · committee
-   gate)~~ → **next: Tier 3** (CRE-ICMEMO · CRE-HOLDSELL · CRE-CLAUSE).
+7. ✅ **🏙 R20 — CRE deal-desk depth — COMPLETE** *(v0.3.657–660)*: Tier 1 (NER · comp tiers ·
+   T-12 gate · rent scrub) · Tier 2 (covenants · authority · supply · committee gate) · Tier 3
+   (IC memo · hold-sell · clause playbook).
 
 *Then the viewer-coupled R17 tail (CITE-JUMP · 4D5D-VIEWER · WebXR · NODE-CANVAS · the clash
 step-through UI · BCF-VIEWPOINT restore depth), flagged for the dev-preview geometry-stall
@@ -180,7 +180,14 @@ just failures). `test_cre_governance`.
   present, named sign-off recorded. Blocks with a reason list rather than producing a
   confident-looking package. This is our provenance flagship pointed at the finance pillar.
 
-**Tier 3 — smaller, opportunistic (S each):**
+**Tier 3 — ✅ COMPLETE (v0.3.660):** CRE-ICMEMO (the `ic_memo` Report-Center preset that refuses to
+render on a missing basis/NOI/debt/equity/exit-cap, naming what is absent) · CRE-HOLDSELL
+(`hold_sell.py` — incremental-cash-flow hold years against the proceeds declined today, explicit cap
+drift, honest "no year clears the hurdle") · CRE-CLAUSE (`clause_playbook.py` — positions as data
+with a REQUIRED red line per clause; unreviewed clauses reported, never assumed acceptable).
+`test_cre_tier3`. **The 🏙 R20 ring is complete.**
+
+*Original Tier-3 specs, kept for reference:*
 - **CRE-ICMEMO** — an IC-memo Report-Center preset that **refuses to render** when price, NOI,
   debt, equity or exit cap is missing, rather than inventing one (the `investor_pack` pattern +
   CONCEPT-BUDGET's UNPRICED doctrine).

@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.660 — R20 Tier 3 complete: the IC memo, hold-vs-sell, and the clause playbook
+
+**The 🏙 R20 ring is complete.** Three closing engines, same discipline as the rest.
+
+- **CRE-ICMEMO** — the Investment Committee Memo joins the Report Center, assembled from the
+  *governed* scenario (published beats approved beats latest saved). Its one rule: **it refuses to
+  render the deal sections when a required input is missing** — basis, NOI, debt, equity, exit cap
+  — listing exactly what is absent and what to do about it, rather than filling the template with
+  a plausible number. A memo that quietly supplies a cap rate nobody chose is worse than one that
+  says the cap rate is missing. Renders the ask, the returns, and the governance trail (who
+  approved it, with what note) to PDF/Excel like any preset.
+- **CRE-HOLDSELL** (`hold_sell.py` + `POST /projects/{pid}/hold-sell`) — hold versus sell on one
+  engine instead of two spreadsheets. Sell-now is today's reversion net of costs and payoff; each
+  hold year is measured as **incremental** cash flows against the proceeds declined today, because
+  holding costs you the cheque you didn't take. **Cap drift is an explicit input** — "hold"
+  silently bets on the exit cap, and a bet nobody wrote down is the one that loses money. Returns
+  the breakeven hold period, or states plainly that nothing inside the horizon clears the hurdle.
+  Reuses the shipped reversion/returns primitives so it can't disagree with the pro forma.
+- **CRE-CLAUSE** (`clause_playbook.py` + `GET/PUT /contracts/playbook`, `POST /contracts/review`) —
+  the firm's contract standard as data rather than as a partner's memory: per contract type, each
+  clause with its accept / negotiate / **refuse** position, where **a clause with no red line is
+  rejected as not a standard**. A review records each clause's position into a deviation register
+  — and every playbook clause the review never addressed comes back **`not_reviewed`**, never
+  assumed acceptable, because an unread clause is an open risk. A ten-clause starter standard for
+  ground-up work ships with it. Reading the contract stays a human job; this makes two reviews
+  comparable. Not legal advice.
+- `test_cre_tier3` (suite 363). **R20 Tiers 1–3 are all complete.**
+
 ## v0.3.659 — R20 Tier 2 complete: covenants + deal-room authority + supply + the committee gate
 
 Four engines about **governance over deal facts** — and the one rule they share: absent evidence

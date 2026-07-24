@@ -2575,6 +2575,44 @@ export class ApiClient extends HttpCore {
     return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
       imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
   }
+  /** CRE-HOLDSELL — hold vs sell: incremental hold-year IRRs against the proceeds declined today. */
+  holdSell(pid: string, inputs: unknown, hurdleRate = 0.12, maxYears = 10) {
+    return this.json<{ computable: boolean; reason?: string;
+      sell_now: { gross_sale: number; selling_costs: number; loan_payoff: number;
+        net_proceeds: number; exit_cap: number };
+      hurdle_rate: number; assumptions: Record<string, number>;
+      years: { hold_years: number; exit_cap: number; noi_at_exit: number;
+        net_proceeds_at_exit: number; incremental_irr: number | null; beats_hurdle: boolean }[];
+      breakeven_hold_years: number | null; recommendation: "hold" | "sell";
+      best_year: unknown; note: string }>(
+      `/projects/${pid}/hold-sell`,
+      { method: "POST", body: JSON.stringify({ inputs, hurdle_rate: hurdleRate,
+                                               max_years: maxYears }) });
+  }
+  /** CRE-CLAUSE — the clause-position playbook (a clause with no red line is not a standard). */
+  clausePlaybook(pid: string) {
+    return this.json<{ playbook: Record<string, { clause: string; severity: string; accept: string;
+      negotiate: string; refuse: string; fallback: string }[]>;
+      starter: unknown[]; positions: string[] }>(`/projects/${pid}/contracts/playbook`);
+  }
+  saveClausePlaybook(pid: string, playbook: unknown) {
+    return this.json<{ playbook: unknown }>(`/projects/${pid}/contracts/playbook`,
+      { method: "PUT", body: JSON.stringify({ playbook }) });
+  }
+  /** CRE-CLAUSE — record a review against the PLAYBOOK (distinct from the AI `reviewContract`
+   *  above: this one takes findings a human already made and scores them against the standard).
+   *  Unreviewed playbook clauses come back as open risk. */
+  reviewContractClauses(pid: string, contractType: string, findings: unknown[], document = "") {
+    return this.json<{ verdict: string; document: string | null; reason?: string;
+      available_types?: string[];
+      clauses: { clause: string; severity: string; position: string; deviation: boolean;
+        note: string | null; reference: string | null; red_line: string }[];
+      deviations: unknown[]; negotiable: unknown[];
+      not_reviewed: { clause: string; severity: string }[]; unknown_clauses: string[];
+      counts: Record<string, number>; note: string }>(
+      `/projects/${pid}/contracts/review`,
+      { method: "POST", body: JSON.stringify({ contract_type: contractType, findings, document }) });
+  }
   /** CRE-COVENANT — the loan covenant + reporting register (day-count basis, clock start). */
   loanCovenants(pid: string, loan: unknown, actuals?: Record<string, number>) {
     return this.json<{ loan: { name: string; lender: string }; at_risk: boolean;

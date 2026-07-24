@@ -279,6 +279,59 @@ def post_decision_gate(pid: str, evidence: dict | None = Body(None, embed=True),
                                   required_exhibits=required_exhibits)
 
 
+@router.post("/projects/{pid}/hold-sell")
+def post_hold_sell(pid: str, inputs: dict = Body(..., embed=True),
+                   hurdle_rate: float = Body(0.12, embed=True),
+                   max_years: int = Body(10, embed=True),
+                   _: str = Depends(rbac.require_role("viewer"))):
+    """CRE-HOLDSELL (R20) — hold versus sell, decided on one engine.
+
+    Sell-now is today's reversion net of costs and payoff; each hold year is measured as
+    **incremental** cash flows against the proceeds declined today, because holding costs you the
+    cheque you did not take. Cap drift is an explicit input — "hold" silently bets on the exit cap,
+    and a bet nobody wrote down is the one that loses money. Returns the breakeven hold period, or
+    says plainly that none inside the horizon clears the hurdle."""
+    from .. import hold_sell
+    return hold_sell.analyze(inputs or {}, hurdle_rate=float(hurdle_rate),
+                             max_years=max(1, min(int(max_years), 30)))
+
+
+@router.get("/projects/{pid}/contracts/playbook")
+def get_clause_playbook(pid: str, _: str = Depends(rbac.require_role("viewer"))):
+    """CRE-CLAUSE (R20) — the stored clause-position playbook, plus the starter standard."""
+    from .. import clause_playbook
+    return {"playbook": clause_playbook.load(pid),
+            "starter": clause_playbook.STARTER_CLAUSES,
+            "positions": list(clause_playbook.POSITIONS)}
+
+
+@router.put("/projects/{pid}/contracts/playbook")
+def put_clause_playbook(pid: str, playbook: dict = Body(..., embed=True),
+                        _: str = Depends(rbac.require_role("editor"))):
+    """Replace the playbook (validated atomically: uniquely named clauses, a known severity, and a
+    REQUIRED red line per clause — a clause with no refuse position is not a standard)."""
+    from .. import clause_playbook
+    try:
+        return {"playbook": clause_playbook.save(pid, playbook)}
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@router.post("/projects/{pid}/contracts/review")
+def post_clause_review(pid: str, contract_type: str = Body(..., embed=True),
+                       findings: list = Body(..., embed=True),
+                       document: str = Body("", embed=True),
+                       db: Session = Depends(get_db),
+                       _: str = Depends(rbac.require_role("viewer"))):
+    """CRE-CLAUSE — record one document's review against the playbook.
+
+    Every playbook clause with no finding comes back **not_reviewed**, never assumed acceptable:
+    an unread clause is an open risk. Reading the contract stays a human job; this records what the
+    reading found so two reviews are comparable. Not legal advice."""
+    from .. import clause_playbook
+    return clause_playbook.from_project(db, pid, contract_type, findings or [], document)
+
+
 @router.get("/projects/{pid}/leases/management")
 def lease_management(pid: str, years: int = 5, recoverable_opex: float | None = None,
                      db: Session = Depends(get_db), _: str = Depends(rbac.require_role("viewer"))):

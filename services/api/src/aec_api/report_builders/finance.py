@@ -518,3 +518,90 @@ def _investor_pack(db: Session, pid: str, name: str) -> Report:
         r.chart("line", "Equity cash flow", cf["dates"][::step],
                 [{"name": "Equity", "values": cf["equity"][::step]}])
     return r
+
+
+def _ic_memo(db: Session, pid: str, name: str) -> Report:
+    """CRE-ICMEMO (R20) — the investment-committee memo, assembled from the governed scenario.
+
+    The rule that makes it trustworthy: **it refuses to render the deal sections when a required
+    input is missing** (basis, NOI, debt, equity, exit cap) rather than inventing a plausible
+    number to fill the template. A memo that quietly supplies a cap rate nobody chose is worse
+    than one that says the cap rate is missing.
+    """
+    from ..models import Scenario
+    scenarios = (db.query(Scenario).filter(Scenario.project_id == pid)
+                 .order_by(Scenario.created_at).all())
+    rank = {"published": 2, "approved": 1}
+    basis = None
+    for s_ in scenarios:                       # published > approved > latest saved
+        st_ = getattr(s_, "review_status", None) or "draft"
+        if basis is None or rank.get(st_, 0) >= rank.get(
+                getattr(basis, "review_status", "") or "", 0):
+            basis = s_
+
+    r = Report("Investment Committee Memo", name)
+    if basis is None:
+        r.kpi("Status", "CANNOT RENDER")
+        r.table("Missing required inputs", ["Input", "Why it is required"],
+                [["A saved scenario",
+                  "the memo is assembled from a solved pro forma, never typed in"]])
+        r.table("What to do", ["Action"],
+                [["Solve and save a scenario, then re-run this memo."]])
+        return r
+
+    res = basis.result or {}
+    rets = res.get("returns") or {}
+    su = res.get("sources_uses") or {}
+    ops = res.get("operations") or {}
+    required = [
+        ("Basis (total uses)", su.get("total_uses"), "there is no deal without a basis"),
+        ("Stabilized NOI", ops.get("stabilized_noi_annual"), "income drives value"),
+        ("Debt", su.get("loan_amount"), "the capital stack must be complete"),
+        ("Equity", su.get("equity"), "the capital stack must be complete"),
+        ("Exit cap", rets.get("exit_cap"), "the exit assumption is the single biggest lever"),
+    ]
+    missing = [(label, why) for label, value, why in required if value in (None, "")]
+    st = getattr(basis, "review_status", None) or "draft"
+    r.subtitle = f"{name} — {basis.name} ({st})"
+    if missing:
+        r.kpi("Status", "CANNOT RENDER")
+        r.kpi("Basis scenario", f"{basis.name} [{st}]")
+        r.table("Missing required inputs", ["Input", "Why it is required"],
+                [[label, why] for label, why in missing])
+        r.table("What to do", ["Action"],
+                [["Supply the inputs above and re-run — this memo will not invent them."]])
+        return r
+
+    def _pct(v, digits=2):
+        return f"{float(v) * 100:.{digits}f}%" if v is not None else "—"
+
+    r.kpi("Basis scenario", f"{basis.name} [{st}]")
+    r.kpi("Basis (total uses)", _money(su.get("total_uses")))
+    r.kpi("Equity", _money(su.get("equity")))
+    r.kpi("Stabilized NOI", _money(ops.get("stabilized_noi_annual")))
+    r.kpi("Exit cap", _pct(rets.get("exit_cap")))
+    r.kpi("Equity IRR", _pct(rets.get("equity_irr")))
+    r.table("The ask", ["Item", "Amount"],
+            [["Total uses", _money(su.get("total_uses"))],
+             ["Debt", _money(su.get("loan_amount"))],
+             ["Equity — LP", _money(su.get("lp_contribution"))],
+             ["Equity — GP", _money(su.get("gp_contribution"))]])
+    r.table("Returns", ["Metric", "Value"],
+            [["Equity IRR", _pct(rets.get("equity_irr"))],
+             ["Equity multiple",
+              f"{rets['equity_multiple']:.2f}x" if rets.get("equity_multiple") is not None else "—"],
+             ["Project IRR", _pct(rets.get("project_irr"))],
+             ["Yield on cost", _pct(rets.get("yield_on_cost"))],
+             ["Development spread",
+              f"{rets['dev_spread'] * 10000:.0f} bps" if rets.get("dev_spread") is not None else "—"]])
+    r.table("Governance", ["Item", "Value"],
+            [["Review status", st],
+             ["Reviewed by", getattr(basis, "reviewed_by", None) or "—"],
+             ["Review note", getattr(basis, "review_note", None) or "—"],
+             ["Scenarios on file", str(len(scenarios))]])
+    cf = res.get("cash_flow") or {}
+    if cf.get("dates"):
+        step = max(1, len(cf["dates"]) // 24)
+        r.chart("line", "Equity cash flow", cf["dates"][::step],
+                [{"name": "Equity", "values": cf["equity"][::step]}])
+    return r
