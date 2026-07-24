@@ -265,8 +265,10 @@ is the fresh order: 🏛 R18 quick wins + slices first, then the open remainders
    folded into `/rules/run` as `space:*` rows in the same by-severity rollup (geometric checks stay
    geometric — no silently-never-matching property selectors). Closes the TESTFIT-ADJ fold AND the
    DESIGN-METRICS per-`IfcSpace` rule-set remainders.
-7. **MEP-EQUIP ties** *(R16 remainder)* — equipment schedule → submittals + budget/GMP + a curated starter
-   requirement set.
+7. ✅ **MEP-EQUIP ties** *(shipped v0.3.642)* — `/model/equipment/to-submittals` (one product-data
+   submittal per type, idempotent) · `/budget-lines` (price-ledger-median suggestions, read-only) ·
+   `/starter-requirements` (curated presence-check pack; `"*"` semantics added to spec_conflicts).
+   The R16 MEP-EQUIP item is fully closed.
 8. ✅ **SEC-SUPPLY CI step** *(shipped v0.3.640)* — `supply_chain.mcp_tool_audit()` scans the MCP catalog
    (names + descriptions + param descriptions) for poisoning shapes (invisible unicode, injection
    phrasing, base64 blobs, outbound URLs); `mcp-audit` CLI (non-gating; `--gate` on highs) + a

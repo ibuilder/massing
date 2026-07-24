@@ -82,6 +82,40 @@ with TestClient(app) as c:
     assert sj["conflict_count"] + sj["missing_count"] >= 1 and sj["line_count"] == 2, sj
     assert c.post(f"/projects/{pid}/model/equipment/spec-check", json={"requirements": {}}).json()["conflict_count"] == 0
 
+    # --- MEP-EQUIP ties: curated starter + submittals + budget lines ------------------------------
+    st = c.get(f"/projects/{pid}/model/equipment/starter-requirements").json()
+    assert st["requirements"]["IfcPump"]["FlowRate"] == "*", st["requirements"].get("IfcPump")
+    # the starter's "*" = presence-required: our pump carries no FlowRate → reported MISSING, and a
+    # present value passes instead of conflicting
+    sc2 = c.post(f"/projects/{pid}/model/equipment/spec-check",
+                 json={"requirements": st["requirements"]}).json()
+    assert any(m["spec_key"] == "FlowRate" and m["ifc_class"] == "IfcPump"
+               for m in sc2["missing"]), sc2["missing"]
+    assert sc2["conflict_count"] == 0, sc2["conflicts"]              # "*" never conflicts, only misses
+
+    # to-submittals: one product-data submittal per type; a re-run creates nothing new
+    ts = c.post(f"/projects/{pid}/model/equipment/to-submittals")
+    assert ts.status_code == 200, ts.text
+    tj = ts.json()
+    assert tj["created_count"] == 2 and tj["skipped_existing"] == 0, tj
+    assert any("product data" in x["title"] for x in tj["created"]), tj["created"]
+    again = c.post(f"/projects/{pid}/model/equipment/to-submittals").json()
+    assert again["created_count"] == 0 and again["skipped_existing"] == 2, again
+    subs = c.get(f"/projects/{pid}/modules/submittal").json()
+    assert len(subs) >= 2, len(subs)
+
+    # budget-lines: unpriced until the price ledger has seen the type; then the median prices it
+    bl = c.get(f"/projects/{pid}/model/equipment/budget-lines").json()
+    assert bl["line_count"] == 2 and bl["priced_lines"] == 0, bl
+    pump_type = next(r["description"] for r in bl["rows"] if r["ifc_class"] == "IfcPump")
+    for price in (1000, 1200):
+        c.post(f"/projects/{pid}/modules/price_observation", json={"data": {
+            "material": pump_type, "unit_price": price, "unit": "EA", "date": "2026-07-01"}})
+    bl2 = c.get(f"/projects/{pid}/model/equipment/budget-lines").json()
+    pr = next(r for r in bl2["rows"] if r["ifc_class"] == "IfcPump")
+    assert pr["unit_cost"] == 1100 and pr["extended"] == 1100 * pr["qty"], pr
+    assert bl2["priced_lines"] == 1 and bl2["priced_total"] == pr["extended"], bl2
+
 if os.path.exists(TMP):
     os.remove(TMP)
 
@@ -89,4 +123,8 @@ print("MEP-EQUIP OK - the procurement equipment schedule derives from the IFC: t
       "same class+type collapse into ONE RFQ line-item (qty 2) and a pump forms its own line, each carrying "
       "a discipline + the unit GUIDs + a representative spec, while the duct segment is correctly EXCLUDED "
       "(installed material, not a scheduled unit); lines sort by descending quantity; the /model/equipment "
-      "route 409s without a model and returns 3 units across 2 lines with one.")
+      "route 409s without a model and returns 3 units across 2 lines with one. Ties: the curated starter's "
+      "presence checks ('*') report a pump with no FlowRate as missing without ever conflicting; "
+      "/to-submittals mints one product-data submittal per type and a re-run skips both (idempotent); "
+      "/budget-lines starts unpriced and picks up the price-ledger median (1000+1200 → 1100/EA) once the "
+      "ledger has seen the type.")

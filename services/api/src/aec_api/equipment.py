@@ -57,6 +57,8 @@ def spec_conflicts(lines: list[dict], requirements: dict[str, dict]) -> dict[str
     the key entirely is reported as ``missing`` (specified but not modelled), not a hard conflict.
     """
     def _match(actual: Any, expected: Any) -> bool:
+        if expected == "*":                                 # presence-required: any non-empty value
+            return True
         if isinstance(expected, (list, tuple, set)):
             return any(_match(actual, e) for e in expected)
         if isinstance(actual, str) and isinstance(expected, str):
@@ -144,3 +146,80 @@ def schedule(model) -> dict[str, Any]:
                 "type into RFQ line-items with a quantity + representative spec (from the model's Psets). "
                 "Ducts/pipes/fittings and controls are excluded. Feed this into a buyout package / RFQ.",
     }
+
+
+# --- MEP-EQUIP ties (R16 remainder): the schedule feeds submittals, budget lines, and a curated
+# starter requirement set for the spec-check ---------------------------------------------------------
+
+# Curated starter: the properties an engineer expects EVERY unit of these classes to carry before
+# buyout. "*" = presence-required (any non-empty value passes) — feed straight into spec_conflicts.
+STARTER_REQUIREMENTS: dict[str, dict[str, Any]] = {
+    "IfcChiller": {"Capacity": "*", "CondenserType": "*", "Power": "*"},
+    "IfcBoiler": {"Capacity": "*", "Power": "*"},
+    "IfcPump": {"FlowRate": "*", "Power": "*"},
+    "IfcFan": {"FlowRate": "*", "Power": "*"},
+    "IfcUnitaryEquipment": {"Capacity": "*", "Power": "*"},
+    "IfcAirTerminal": {"FlowRate": "*"},
+    "IfcCoolingTower": {"Capacity": "*"},
+    "IfcElectricGenerator": {"Power": "*", "Voltage": "*"},
+    "IfcTransformer": {"Power": "*", "Voltage": "*"},
+    "IfcAirToAirHeatRecovery": {"FlowRate": "*"},
+}
+
+
+def to_submittals(db, pid: str, lines: list[dict], actor: str, party: str | None) -> dict[str, Any]:
+    """Create one *product-data* submittal record per scheduled equipment type — idempotent (a line
+    whose title already exists as a submittal is skipped), so re-running after a model change only
+    adds the NEW types. Returns created + skipped."""
+    from . import modules as me
+
+    existing = {str(r.get("title") or "").strip().lower()
+                for r in me.list_records(db, "submittal", pid, limit=5000)}
+    created, skipped = [], 0
+    for ln in lines:
+        title = f"{ln['type']} — product data"
+        if title.lower() in existing:
+            skipped += 1
+            continue
+        div = {"Mechanical": "23 00 00", "Electrical": "26 00 00", "Plumbing": "22 00 00",
+               "Fire Protection": "21 00 00"}.get(str(ln.get("discipline") or ""), "20 00 00")
+        rec = me.create_record(db, "submittal", pid, {"data": {
+            "title": title, "type": "Product Data", "spec_section": div,
+            "responsible_contractor": ln.get("discipline"),
+        }}, actor, party)
+        existing.add(title.lower())
+        created.append({"id": rec["id"], "ref": rec["ref"], "title": title,
+                        "ifc_class": ln["ifc_class"], "count": ln["count"]})
+    return {"created": created, "created_count": len(created), "skipped_existing": skipped,
+            "note": "One product-data submittal per equipment type; idempotent by title."}
+
+
+def budget_lines(db, pid: str, lines: list[dict]) -> dict[str, Any]:
+    """The equipment schedule as budget-suggestion rows — qty EA per type, priced from the project's
+    own price-observation ledger when it has seen the type (median unit price), else unpriced for a
+    manual allowance. Read-only: nothing is written."""
+    from . import procurement
+
+    rows = []
+    priced_total = 0.0
+    for ln in lines:
+        med = None
+        try:
+            hist = procurement.price_history(db, pid, material=ln["type"])
+            mats = hist.get("materials") or []
+            if mats:
+                med = mats[0].get("median")
+        except Exception:                     # noqa: BLE001 — no ledger/table = unpriced suggestion
+            med = None
+        ext = round(med * ln["count"], 2) if med else None
+        if ext:
+            priced_total += ext
+        rows.append({"description": ln["type"], "ifc_class": ln["ifc_class"],
+                     "discipline": ln["discipline"], "qty": ln["count"], "unit": "EA",
+                     "unit_cost": med, "extended": ext})
+    return {"rows": rows, "line_count": len(rows),
+            "priced_lines": sum(1 for r in rows if r["unit_cost"]),
+            "priced_total": round(priced_total, 2),
+            "note": "Equipment as budget-suggestion lines — unit costs are the project's own "
+                    "price-ledger medians where seen; unpriced lines need a manual allowance. "
+                    "Nothing is written; post the rows you accept into the budget module."}

@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.642 — MEP-EQUIP ties: submittals · budget lines · the curated starter (R16 remainder closed)
+
+The equipment schedule stops being a report and starts driving the buyout thread.
+
+- **`POST /model/equipment/to-submittals`** — one *product-data* submittal per scheduled equipment
+  type (spec section derived from the discipline's MasterFormat division), **idempotent by title**:
+  re-running after a model change only adds the new types.
+- **`GET /model/equipment/budget-lines`** — the schedule as budget-suggestion rows (qty EA per type),
+  priced from the project's **own price-observation ledger** where it has seen the type (median unit
+  price), else unpriced for a manual allowance. Read-only; nothing is written.
+- **`GET /model/equipment/starter-requirements`** — the curated spec-check starter: the properties an
+  engineer expects every unit of the common classes to carry before buyout (chiller capacity/condenser
+  type, pump flow/power, transformer power/voltage, …). `"*"` = presence-required — `spec_conflicts`
+  now treats it as "any non-empty value passes", so the starter reports gaps as *missing* without
+  ever fabricating conflicts.
+- `test_equipment` extended (presence semantics, idempotent re-run, ledger-median pricing 1000+1200 →
+  1100/EA). Closes the R16 MEP-EQUIP carried remainder.
+
 ## v0.3.641 — SPACE-UTIL benchmarking: capacity across the portfolio (R16 remainder closed)
 
 - **`GET /benchmarks/space-utilization`** — capacity/utilization across your **modelled** projects,

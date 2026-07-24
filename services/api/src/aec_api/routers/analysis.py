@@ -504,6 +504,44 @@ def model_equipment_spec_check(pid: str, requirements: dict = Body(default={}, e
             "line_count": sched.get("line_count", 0), "unit_count": sched.get("unit_count", 0)}
 
 
+@router.get("/projects/{pid}/model/equipment/starter-requirements")
+def model_equipment_starter(pid: str, db: Session = Depends(get_db),
+                            _sec: str = Depends(require_role("viewer"))):
+    """MEP-EQUIP — the curated starter requirement set for the spec-check: the properties an engineer
+    expects every unit of the common equipment classes to carry before buyout (`"*"` = presence-required).
+    Feed it to `/model/equipment/spec-check` as-is or edited."""
+    from .. import equipment as eq
+    from ..models import Project
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return {"requirements": eq.STARTER_REQUIREMENTS,
+            "note": "\"*\" means the property must be present (any non-empty value passes); replace "
+                    "with a concrete value to require it."}
+
+
+@router.post("/projects/{pid}/model/equipment/to-submittals")
+def model_equipment_to_submittals(pid: str, db: Session = Depends(get_db),
+                                  actor: str = Depends(require_role("editor"))):
+    """MEP-EQUIP tie — mint one **product-data submittal** per scheduled equipment type (idempotent by
+    title: re-running after a model change only adds the NEW types). The procurement schedule and the
+    submittal log stay one thread. 409 if no source IFC."""
+    from .. import equipment as eq
+    from .. import rbac
+    sched = eq.schedule(open_source_ifc(db, pid))
+    return eq.to_submittals(db, pid, sched.get("lines", []), actor, rbac.party_role_for(db, pid, actor))
+
+
+@router.get("/projects/{pid}/model/equipment/budget-lines")
+def model_equipment_budget_lines(pid: str, db: Session = Depends(get_db),
+                                 _sec: str = Depends(require_role("viewer"))):
+    """MEP-EQUIP tie — the equipment schedule as **budget-suggestion rows** (qty EA per type), priced
+    from the project's own price-observation ledger where it has seen the type (median), else unpriced
+    for a manual allowance. Read-only. 409 if no source IFC."""
+    from .. import equipment as eq
+    sched = eq.schedule(open_source_ifc(db, pid))
+    return eq.budget_lines(db, pid, sched.get("lines", []))
+
+
 @router.get("/projects/{pid}/model/space-utilization")
 def model_space_utilization(pid: str, area_per_person: float = Query(default=10.0, gt=0, le=1000),
                             db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
