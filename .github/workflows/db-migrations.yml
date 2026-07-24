@@ -42,6 +42,9 @@ jobs:
       PGPORT: "5432"
       PGUSER: aec
       PGPASSWORD: aec
+      # psql defaults dbname to $PGUSER ("aec"), which the service container never creates
+      # (POSTGRES_DB is "postgres") — pin the maintenance DB or every psql call FATALs.
+      PGDATABASE: postgres
       STORAGE_DIR: /tmp/aec_storage
     steps:
       - uses: actions/checkout@v5

@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.628 — CITED-ANSWER × RFI-QA: NL-QA answers now emit the provenance contract
+
+The flagship thesis follow-through: the NL question-answering surface speaks CitedAnswer.
+
+- **`rfi_qa.to_cited()`**: every `/rfi/qa` answer now carries `cited` — the same answer on the
+  CitedAnswer contract. Element GUIDs become typed `ifc` CitationRefs, readiness gaps become
+  `rule` refs (`readiness/<category>` + the offending GUIDs), spec/detail/document refs become
+  `doc` refs — so **coverage, the uncited-claim guard, conflicts, and provenance-as-confidence**
+  apply to NL-QA exactly as to cited-query.
+- Honesty preserved: the fallback model *overview* (no sources) is emitted as **uncited** —
+  `fully_cited: false`, coverage 0 — instead of dressing it up.
+- Readiness answers emit **one claim per gap**, each independently cited; the legacy response
+  shape is unchanged (the contract rides alongside).
+- `test_rfi_qa` extended (typed refs, per-intent coverage, confidence > 0); suite green.
+- **CI fix:** the *DB migrations (Alembic drift guard)* workflow had never actually run its checks —
+  every run since it was authored died at `CREATE DATABASE` because `psql` defaults the database name
+  to `$PGUSER` (`aec`), which the service container doesn't create. Pinned `PGDATABASE: postgres`.
+
 ## v0.3.627 — PORTAL-TXN phase 3: the client conversation, backed by a real BCF topic
 
 The share link grows a two-way thread — without a login, an inbox, or a new data model.

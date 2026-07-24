@@ -84,6 +84,26 @@ with TestClient(app) as c:
     for qq in (q1, q2, q3, q4):
         assert "cited-source" in qq["disclaimer"], qq["disclaimer"]
 
+    # --- CITED-ANSWER emission: every NL-QA answer ALSO carries the provenance contract -----------
+    for qq in (q1, q2, q3, q4):
+        ca = qq["cited"]
+        assert {"answer", "claims", "coverage", "fully_cited", "conflicts"} <= set(ca), ca.keys()
+    # element answer: fully cited, the element GUID is a typed ifc CitationRef, confidence > 0
+    ca1 = q1["cited"]
+    assert ca1["fully_cited"] and ca1["coverage"] == 1.0, ca1
+    cites1 = ca1["claims"][0]["citations"]
+    assert any(x["source_type"] == "ifc" and x["guid"] == COL_GUID for x in cites1), cites1
+    assert any(x["source_type"] == "doc" for x in cites1), "spec/detail refs become doc citations"
+    assert ca1["claims"][0]["confidence"] > 0, ca1["claims"][0]
+    # readiness: one claim per gap, each backed by a readiness rule + the offending GUIDs
+    ca2 = q2["cited"]
+    assert len(ca2["claims"]) == len(q2["gaps"]) and ca2["fully_cited"], ca2
+    assert all(any(x["source_type"] == "rule" and (x["rule_id"] or "").startswith("readiness/")
+                   for x in cl["citations"]) for cl in ca2["claims"]), ca2["claims"]
+    # spec lookup: the governed GUIDs are ifc citations; overview: honestly UNCITED (coverage 0)
+    assert any(x["source_type"] == "ifc" for x in q3["cited"]["claims"][0]["citations"])
+    assert q4["cited"]["fully_cited"] is False and q4["cited"]["uncited_claims"] == [0], q4["cited"]
+
     # --- NL-QA "audit + suggest fixes": gaps + executable fix steps for /edit/batch ---------------
     au = c.post(f"/projects/{pid}/ai/audit")
     assert au.status_code == 200, au.text[:200]

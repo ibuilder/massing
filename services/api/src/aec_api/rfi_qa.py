@@ -159,9 +159,44 @@ def _overview_answer(model) -> dict[str, Any]:
             "counts": {"elements": n_el, **g["counts"]}}
 
 
+def to_cited(result: dict[str, Any]) -> dict[str, Any]:
+    """CITED-ANSWER emission (R17 flagship follow-through): map an NL-QA result onto the CitedAnswer
+    provenance contract. Every legacy citation becomes a typed CitationRef — element GUIDs → `cite_ifc`,
+    readiness gaps → `cite_rule` (+ the offending GUIDs), spec/document refs → `cite_doc` — so coverage,
+    the uncited-claim guard, and provenance-as-confidence apply to NL-QA exactly as to cited-query."""
+    from . import cited_answer as ca
+
+    claims: list[dict[str, Any]] = []
+    intent = result.get("intent")
+    if intent == "readiness" and result.get("gaps"):
+        for g in result["gaps"]:
+            cites = [ca.cite_rule(f"readiness/{g.get('category', 'gap')}")]
+            cites += [ca.cite_ifc(x) for x in (g.get("guids") or [])[:10]]
+            claims.append(ca.claim(f"{g['title']} ({g['severity']}, {g.get('count', 0)}×) — {g['fix']}",
+                                   cites))
+    else:
+        cites = []
+        for c in result.get("citations", []):
+            kind = c.get("kind")
+            if kind in ("spec", "document", "location"):
+                cites.append(ca.cite_doc(str(c.get("ref") or c.get("doc") or "document"),
+                                         page=c.get("page")))
+            elif kind == "gap":
+                cites.append(ca.cite_rule(f"readiness/{c.get('category', 'gap')}"))
+            for g in (c.get("guids") or [])[:10]:
+                cites.append(ca.cite_ifc(g))
+        if result.get("guid"):
+            cites.insert(0, ca.cite_ifc(result["guid"]))
+        claims.append(ca.claim(str(result.get("answer") or ""), cites))
+    out = ca.build(claims)
+    out["intent"] = intent
+    return out
+
+
 def ask(db, pid: str, model, question: str) -> dict[str, Any]:
     """Route a plain-language question to the doc-graph / decision-readiness and answer it with citations.
-    Deterministic: the cited facts are the answer. Returns {question, intent, answer, citations, ...}."""
+    Deterministic: the cited facts are the answer. Returns {question, intent, answer, citations, ...} plus
+    `cited` — the same answer emitted on the CitedAnswer provenance contract."""
     q = (question or "").strip()
     ql = q.lower()
     result: dict[str, Any]
@@ -195,6 +230,7 @@ def ask(db, pid: str, model, question: str) -> dict[str, Any]:
 
     result["question"] = q
     result.setdefault("citations", [])
+    result["cited"] = to_cited(result)          # the CitedAnswer provenance contract, alongside legacy
     result["disclaimer"] = ("A cited-source answer from the model's own data — spec sections, documents, "
                             "and readiness checks. Not a substitute for professional review or the AHJ.")
     return result

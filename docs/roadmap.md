@@ -53,8 +53,11 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   surfacing** (two sources disagree on the same target → both provenances kept), and **provenance-as
   -confidence** (independent-source count · current-vs-stale revision penalty · source-type rank
   rule/IFC > record > doc). First producer `cited_query` + `POST /answer/cited-query` (every claim cites the
-  GUIDs it derives from, broken down by property); client `citedQuery` + `test_cited_answer`. **Remaining:**
-  emit the contract from the AI command bar / RFI-QA / KG answers; the CITE-JUMP show-your-work UI.
+  GUIDs it derives from, broken down by property); client `citedQuery` + `test_cited_answer`.
+  ✅ **RFI-QA emission (v0.3.628):** every `/rfi/qa` answer carries `cited` — element GUIDs → typed `ifc`
+  refs, readiness gaps → `rule` refs + offending GUIDs, spec/doc refs → `doc` refs; the sourceless
+  overview fallback is emitted honestly UNCITED (coverage 0). **Remaining:** emit from the AI command
+  bar / KG answers; the CITE-JUMP show-your-work UI.
 - **CITE-JUMP — "show your work" UI** *(S, needs viewer).* Every claim is click-to-expand → jumps the viewer
   to the cited GUID (reuses BCF-VIEWPOINT restore) and/or opens the cited record/sheet. Same interaction
   whether the source is geometry, a data record, or a code-check finding.
