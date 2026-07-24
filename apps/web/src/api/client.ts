@@ -2575,6 +2575,57 @@ export class ApiClient extends HttpCore {
     return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
       imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
   }
+  /** CRE-COVENANT — the loan covenant + reporting register (day-count basis, clock start). */
+  loanCovenants(pid: string, loan: unknown, actuals?: Record<string, number>) {
+    return this.json<{ loan: { name: string; lender: string }; at_risk: boolean;
+      summary: Record<string, number>;
+      reporting: { obligations: { name: string; computable: boolean; due_date?: string;
+        day_basis?: string; clock_start?: string; anchor_source?: string; status?: string;
+        risk?: string; days_remaining?: number; clock_start_matters?: boolean;
+        alternate_reading?: { due_date: string; days_difference: number; warning: string } }[];
+        upcoming: unknown[]; overdue: unknown[]; not_computable: { name: string; reason: string }[];
+        counts: Record<string, number> };
+      financial: { covenants: { name: string; tested: boolean; passing?: boolean; status?: string;
+        headroom?: number; cure_ends?: string | null; reason?: string }[];
+        untested: { name: string; reason: string }[]; counts: Record<string, number>;
+        clean: boolean } }>(
+      `/projects/${pid}/loan/covenants`,
+      { method: "POST", body: JSON.stringify({ loan, actuals }) });
+  }
+  /** CRE-AUTHORITY — the deal-room authority table; required gaps BLOCK downstream analysis. */
+  dealAuthority(pid: string) {
+    return this.json<{ table: { fact_type: string; label: string; document: string; as_of: string;
+      age_days: number | null; freshness_days: number; fresh: boolean; required: boolean }[];
+      missing: { fact_type: string; label: string }[];
+      stale: { fact_type: string; days_over: number }[];
+      superseded_still_active: { fact_type: string; document: string; issue: string }[];
+      gate: { passes: boolean; blocking: { fact_type: string; why: string }[]; advisory: unknown[] };
+      counts: Record<string, number>; note: string }>(`/projects/${pid}/deal-room/authority`);
+  }
+  saveDealAuthority(pid: string, entries: unknown[]) {
+    return this.json<{ entries: unknown[]; assessment: { gate: { passes: boolean } } }>(
+      `/projects/${pid}/deal-room/authority`,
+      { method: "PUT", body: JSON.stringify({ entries }) });
+  }
+  /** CRE-SUPPLY — competitive supply weighted by recorded evidence, not by status label. */
+  competitiveSupply(pid: string, body: { projects: unknown[]; window_start?: string;
+                                         window_end?: string; product_type?: string;
+                                         monthly_absorption?: number }) {
+    return this.json<Record<string, unknown>>(
+      `/projects/${pid}/supply/competitive`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** CRE-DECISION-GATE — the pre-committee gate; a gate without evidence is unknown, and blocks. */
+  decisionGate(pid: string, evidence: unknown, requiredExhibits?: string[], minCoverage?: number) {
+    return this.json<{ verdict: "ready" | "blocked"; ready: boolean;
+      gates: { gate: string; label: string; status: "pass" | "fail" | "unknown"; detail: string;
+        action: string }[];
+      blocking: { gate: string; status: string; detail: string }[];
+      actions: { gate: string; action: string }[];
+      counts: Record<string, number>; note: string }>(
+      `/projects/${pid}/decision-gate`,
+      { method: "POST", body: JSON.stringify({ evidence, required_exhibits: requiredExhibits,
+                                               min_coverage: minCoverage ?? 0.9 }) });
+  }
   /** CRE-COMP-TIER — comps ranked by source tier; bands report the weakest tier they rest on. */
   tieredComps(pid: string, field = "price_psf") {
     return this.json<{ comp_count: number; conflict_count: number;

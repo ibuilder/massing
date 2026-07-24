@@ -12,7 +12,7 @@ The R16/R17 rings are closed on the backend side, the R18 authoring-parity ring 
 slices, and the current push is **enterprise + finance-platform readiness** — the programs and governance
 layer that make the shipped engines defensible in enterprise diligence.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (361 suites) · single-source version in
+**Status:** CodeQL 0 open alerts · full backend suite green (362 suites) · single-source version in
 `apps/web/package.json` · CI on Node 22 · vitest 132.
 
 ---
@@ -75,8 +75,9 @@ need).
    multi-model work)* · ✅ BCF-API-SRV 3.0 shape + attachments-over-API. **Remaining:** SPRINT B
    phase-4b CPM crew shifts · NORM-VALID implementer-agreement depth.
 
-7. ◧ **🏙 R20 — CRE deal-desk depth** *(**Tier 1 COMPLETE** v0.3.657–658)*: ~~Tier 1~~ → **next: Tier 2** (CRE-COVENANT · CRE-AUTHORITY · CRE-SUPPLY · CRE-DECISION-GATE) →
-   Tier 3 (CRE-ICMEMO · CRE-HOLDSELL · CRE-CLAUSE).
+7. ◧ **🏙 R20 — CRE deal-desk depth** *(**Tiers 1–2 COMPLETE**, v0.3.657–659)*: ~~Tier 1 (NER ·
+   comp tiers · T-12 gate · rent scrub)~~ · ~~Tier 2 (covenants · authority · supply · committee
+   gate)~~ → **next: Tier 3** (CRE-ICMEMO · CRE-HOLDSELL · CRE-CLAUSE).
 
 *Then the viewer-coupled R17 tail (CITE-JUMP · 4D5D-VIEWER · WebXR · NODE-CANVAS · the clash
 step-through UI · BCF-VIEWPOINT restore depth), flagged for the dev-preview geometry-stall
@@ -150,7 +151,14 @@ instead of being filled in with something plausible.*
   unit carrying a receivable, arrears rising monthly, bad debt rising against flat occupancy.
   Deterministic; composes with FIN-INGEST's reconciliation shape.
 
-**Tier 2 — new structure, high enterprise value (M each):**
+**Tier 2 — ✅ COMPLETE (v0.3.659):** CRE-COVENANT (`covenants.py` — day-count basis + clock start
+first-class, due dates that show their work, untested ≠ passing, cure windows separate) ·
+CRE-AUTHORITY (`deal_authority.py` — per-fact-type authority that GATES on missing/stale/superseded)
+· CRE-SUPPLY (`supply_pipeline.py` — evidence-weighted units, rumored kept separate, weighted vs raw
+months-of-supply) · CRE-DECISION-GATE (`decision_gate.py` — seven gates, unknown blocks, actions not
+just failures). `test_cre_governance`.
+
+*Original Tier-2 specs, kept for reference:*
 - **CRE-COVENANT — loan covenant & reporting-obligation register.** Each covenant with its test,
   threshold, frequency and cure right; each reporting obligation with its **day-count basis
   (calendar vs business days), clock start (lender's notice vs our receipt) and deadline** — the

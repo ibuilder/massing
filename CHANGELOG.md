@@ -4,6 +4,42 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.659 — R20 Tier 2 complete: covenants + deal-room authority + supply + the committee gate
+
+Four engines about **governance over deal facts** — and the one rule they share: absent evidence
+never reads as a pass.
+
+- **CRE-COVENANT** (`covenants.py` + `POST /projects/{pid}/loan/covenants`). Timing alone can
+  breach a loan, so the two fields that cause missed filings are first-class: **`day_basis`**
+  (calendar vs business days, with holidays) and **`clock_start`** (the lender's notice date vs
+  our receipt of it). Every due date shows its anchor, basis, count and each non-working day it
+  skipped, so a reviewer can re-derive it by hand — and when the two clock readings give
+  *different* dates, both are returned with a warning to confirm the basis with counsel. Financial
+  covenants report **untested** when no actual was supplied (an untested covenant is not a passing
+  one), and a breach inside an open cure window is reported separately from one past it.
+- **CRE-AUTHORITY** (`deal_authority.py` + `GET/PUT /projects/{pid}/deal-room/authority`).
+  Authority is declared **per fact type**, not per file: one authoritative rent roll, operating
+  statement, tax bill and so on, each with its date, its own freshness threshold, and its
+  supersedes chain. Two authoritative documents for one fact type are refused, as is any undated
+  entry — a document with no date cannot be judged fresh or stale. Required fact types that are
+  missing, stale, or superseded-but-still-active **block** downstream analysis rather than being
+  annotated after the fact.
+- **CRE-SUPPLY** (`supply_pipeline.py` + `POST /projects/{pid}/supply/competitive`). Competitive
+  supply weighted by **recorded evidence** rather than status label: a recorded construction loan
+  counts fully, an issued permit at 85%, a rendering at 5% — and rumored supply is reported
+  separately, never blended into the certain count. Filters to the subject's delivery-and-lease-up
+  window and product type, listing every exclusion with its reason so a thin competitive set is
+  visible rather than implied. Feeds the shipped Lot Supply Index, returning the weighted and raw
+  months-of-supply side by side because the gap between them is the argument.
+- **CRE-DECISION-GATE** (`decision_gate.py` + `POST /projects/{pid}/decision-gate`). Seven
+  deterministic gates over the evidence the other engines produce — citation coverage, comp source
+  tiers, the T-12 tie-out, the rent-roll scrub, the authority table, required exhibits, and a
+  **named** sign-off ("the team" is not a person). **A gate whose evidence was not supplied is
+  `unknown`, and unknown blocks.** The response carries the actions to take, not just a list of
+  what failed.
+- Clients: `loanCovenants` · `dealAuthority`/`saveDealAuthority` · `competitiveSupply` ·
+  `decisionGate`. `test_cre_governance` (suite 362). **R20 Tier 2 is complete.**
+
 ## v0.3.658 — R20 Tier 1 complete: comp tiers + T-12 tie-out gate + rent-roll scrub
 
 Three engines that all say the same thing in different ways: **a number is only as good as what

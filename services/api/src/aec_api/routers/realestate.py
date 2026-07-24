@@ -192,6 +192,93 @@ def post_rent_scrub(pid: str, income: dict | None = Body(None, embed=True),
     return rent_scrub.from_project(db, pid, income=income, units=units)
 
 
+@router.post("/projects/{pid}/loan/covenants")
+def post_loan_covenants(pid: str, loan: dict = Body(..., embed=True),
+                        actuals: dict | None = Body(None, embed=True),
+                        _: str = Depends(rbac.require_role("viewer"))):
+    """CRE-COVENANT (R20) — the loan covenant + reporting-obligation register.
+
+    Body: `{loan: {name, lender, holidays?, obligations: [{name, days, day_basis, clock_start,
+    lender_notice_date?, received_date?, period_end?, delivered_date?}], covenants: [{name, metric,
+    direction, threshold, cure_days?}]}, actuals?: {metric: value}}`.
+
+    **Timing alone can breach a loan**, so `day_basis` (calendar vs business days) and `clock_start`
+    (lender's notice vs our receipt) are first-class: every due date shows its anchor, basis, count
+    and the non-working days it skipped, and an obligation whose two clock readings disagree is
+    flagged with both dates. Covenants with no supplied actual are reported **untested**, never as
+    passing; a breach inside an open cure window is reported separately from one outside it."""
+    from .. import covenants
+    return covenants.register(loan or {}, actuals)
+
+
+@router.get("/projects/{pid}/deal-room/authority")
+def get_deal_authority(pid: str, db: Session = Depends(get_db),
+                       _: str = Depends(rbac.require_role("viewer"))):
+    """CRE-AUTHORITY (R20) — the deal-room authority table with its gate.
+
+    Authority is declared **per fact type**, not per file: one authoritative document each for the
+    rent roll, the operating statement, tax, insurance and so on, with its date, freshness
+    threshold and supersedes chain. Required fact types that are missing, stale, or
+    superseded-but-still-active **block** downstream analysis rather than being annotated after."""
+    from .. import deal_authority
+    return deal_authority.from_project(db, pid)
+
+
+@router.put("/projects/{pid}/deal-room/authority")
+def put_deal_authority(pid: str, entries: list = Body(..., embed=True),
+                       _: str = Depends(rbac.require_role("editor"))):
+    """Replace the authority table (validated atomically: known fact types, a real as_of date on
+    every entry, and exactly ONE authoritative document per fact type)."""
+    from .. import deal_authority
+    try:
+        saved = deal_authority.save(pid, entries)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return {"entries": saved, "assessment": deal_authority.assess(saved)}
+
+
+@router.post("/projects/{pid}/supply/competitive")
+def post_competitive_supply(pid: str, projects: list = Body(..., embed=True),
+                            window_start: str | None = Body(None, embed=True),
+                            window_end: str | None = Body(None, embed=True),
+                            product_type: str | None = Body(None, embed=True),
+                            monthly_absorption: float | None = Body(None, embed=True),
+                            _: str = Depends(rbac.require_role("viewer"))):
+    """CRE-SUPPLY (R20) — competitive supply weighted by **recorded evidence**, not status label.
+
+    Filters the pipeline to the subject's delivery-and-lease-up window and product type, then
+    discounts each project's units by what is actually recorded about it (construction loan
+    recorded > permit issued > planning filed > announced). Rumored supply is reported separately
+    and never blended into the certain count; excluded projects are listed with the reason, so a
+    thin competitive set is visible rather than implied. With `monthly_absorption` it also returns
+    the evidence-weighted months-of-supply index beside the raw one — the gap IS the argument."""
+    from .. import supply_pipeline
+    if monthly_absorption is not None:
+        return supply_pipeline.supply_index(
+            projects or [], float(monthly_absorption), window_start=window_start,
+            window_end=window_end, product_type=product_type)
+    return supply_pipeline.assess(projects or [], window_start=window_start,
+                                  window_end=window_end, product_type=product_type)
+
+
+@router.post("/projects/{pid}/decision-gate")
+def post_decision_gate(pid: str, evidence: dict | None = Body(None, embed=True),
+                       required_exhibits: list | None = Body(None, embed=True),
+                       min_coverage: float = Body(0.90, embed=True),
+                       _: str = Depends(rbac.require_role("viewer"))):
+    """CRE-DECISION-GATE (R20) — the pre-committee readiness gate.
+
+    Seven deterministic gates over evidence the other engines produce: citation coverage, comp
+    source tiers, the T-12 tie-out, the rent-roll scrub, the deal-room authority table, required
+    exhibits, and a **named** sign-off. **A gate whose evidence was not supplied is `unknown`, and
+    unknown blocks** — absent evidence must never read as a pass. The response carries the actions
+    to take, not merely the list of what failed."""
+    from .. import decision_gate
+    return decision_gate.evaluate(evidence or {},
+                                  min_coverage=max(0.0, min(float(min_coverage), 1.0)),
+                                  required_exhibits=required_exhibits)
+
+
 @router.get("/projects/{pid}/leases/management")
 def lease_management(pid: str, years: int = 5, recoverable_opex: float | None = None,
                      db: Session = Depends(get_db), _: str = Depends(rbac.require_role("viewer"))):
