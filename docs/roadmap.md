@@ -252,8 +252,7 @@ in the model we own. Verifiable without the frontend. These are the cleanest nex
 2026-07-24: the previous NOW list — the R17 backend order — shipped in full, v0.3.600–632. The list below
 is the fresh order: 🏛 R18 quick wins + slices first, then the open remainders.)**
 
-1. **SCHED-CALC** *(R18 quick win)* — calculated/formula fields in the computed schedules + saved module
-   views (deterministic expression evaluation, no scripting runtime).
+1. ✅ **SCHED-CALC** *(shipped v0.3.635)* — see the R18 ring entry.
 2. **OPS-DR** *(R18 quick win)* — backup/restore scripts + the tested DR runbook + retention controls.
 3. **AUTH-CONSTRAINTS ①** *(R18, flagship slice)* — persist host/level refs on authored elements + the
    broken-host / illegal-placement checker (rule_library-composable).
@@ -309,9 +308,12 @@ below** (kept; the rest of the document is superseded by shipped work):
   model (associativity by regeneration — stronger than reference-pinning). Gap: **reusable view templates**
   + per-view visibility/category/graphics overrides, persisted and deterministic (same template + same
   model = same drawing; testable).
-- **SCHED-CALC — calculated fields in computed schedules** *(S).* Formula fields (`=qty*unit_cost`,
-  concatenations, conditionals) in the computed door/window/room schedules and saved module views —
-  deterministic expression evaluation only, no scripting runtime.
+- ✅ **SCHED-CALC — calculated fields in computed schedules** *(v0.3.635).* `calc_fields.py` — the
+  AST-whitelist expression evaluator (arithmetic/concat/conditionals + round/min/max/abs/len/num/text;
+  no attribute access/subscripts/lambdas/`**`; length + node caps; normalized field names; text-table
+  auto-coercion) + `POST /drawings/schedules/calc` (formula columns on the computed door/window/room
+  schedules) + `POST /modules/{key}/calc` (formulas over record field maps). Bad expr 422s at
+  definition; bad row → empty cell. `test_calc_fields`.
 - **MODEL-PUBLISH — review → publish states over model versions** *(M).* Versions + real-time co-editing +
   design options exist; the gap is a **reviewable publish workflow** (draft → in-review → published, with
   who/when and a rollback path) and **element-level optimistic concurrency** on edit recipes (a stale edit

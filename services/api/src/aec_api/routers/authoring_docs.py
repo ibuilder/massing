@@ -59,6 +59,31 @@ def drawing_schedules(pid: str, db: Session = Depends(get_db), _: str = Depends(
     return drawing.schedules(open_model(p.source_ifc))
 
 
+@router.post("/projects/{pid}/drawings/schedules/calc")
+def drawing_schedules_calc(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                           _: str = Depends(require_role("viewer"))):
+    """SCHED-CALC (R18): the computed door/window/room schedules extended with **calculated fields** —
+    deterministic formula columns over the schedule's own values (`width * height`, `"D-" + mark`,
+    conditionals; field names are the normalized column titles, e.g. ``width_m``). Body:
+    `{doors|windows|rooms: [{name, expr}, …]}` (any subset). A bad expression 422s at definition time;
+    a bad ROW yields an empty cell, never a dead column. No scripting runtime — AST whitelist only."""
+    from aec_data import drawing  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import calc_fields
+
+    p = _project(db, pid)
+    sched = drawing.schedules(open_model(p.source_ifc))
+    for kind in ("doors", "windows", "rooms"):
+        calcs = body.get(kind)
+        if calcs:
+            try:
+                sched[kind] = calc_fields.add_calculated(sched[kind], calc_fields.check_calcs(calcs))
+            except ValueError as e:
+                raise HTTPException(422, f"{kind}: {e}") from None
+    return sched
+
+
 @router.get("/projects/{pid}/model/maintenance")
 def model_maintenance_scan(pid: str, db: Session = Depends(get_db),
                            _: str = Depends(require_role("viewer"))):

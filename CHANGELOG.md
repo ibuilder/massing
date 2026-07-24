@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.635 — SCHED-CALC: calculated fields in schedules + module records (R18 #1)
+
+Formula columns without a scripting runtime — the first R18 quick win.
+
+- **`calc_fields.py`** — a deterministic expression evaluator built on a strict Python-AST whitelist:
+  arithmetic, string concat via `+`, comparisons, conditionals, and a small function set
+  (`round/min/max/abs/len/num/text`). **No attribute access, no subscripts, no lambdas/comprehensions,
+  no `**`, no keyword args**, with expression-length and node-count caps — a stored formula can
+  compute, never reach. Field names are normalized column titles / data keys (``Width (m)`` →
+  ``width_m``); numeric-looking strings auto-coerce so arithmetic works over text tables; a bad ROW
+  yields an empty cell while a bad EXPRESSION 422s at definition time.
+- **`POST /drawings/schedules/calc`** — the computed door/window/room schedules extended with
+  validated formula columns (`round(num(width_m) * num(height_m), 2)` → an Area m² column).
+- **`POST /modules/{key}/calc`** — formulas over module-record field maps (+ ref/title/state):
+  `amount * 1.0825`, status-conditional flags; capped at 12 calcs / 2 000 records.
+- `drawingSchedulesCalc` + `moduleCalc` client methods; `test_calc_fields` (suite 340) covers the
+  evaluator, both routes, and eight hostile-expression rejections.
+
 ## v0.3.634 — roadmap: the 🏛 R18 authoring-platform parity ring + a fresh NOW list
 
 Analyzed an external strategy review (07-23) that frames the target as a full BIM **authoring platform**

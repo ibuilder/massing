@@ -411,6 +411,35 @@ def bulk_action(pid: str, key: str, ids: list[str] = Body(..., embed=True),
     return res
 
 
+@router.post("/projects/{pid}/modules/{key}/calc")
+def calc_records(pid: str, key: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                 _: str = Depends(require_role("viewer"))):
+    """SCHED-CALC (R18): **calculated fields over module records** — deterministic formula columns
+    evaluated against each record's field map (+ `ref`/`title`/`workflow_state`), e.g.
+    `qty * unit_cost`, `text(ref) + " — " + status`. Body: `{calcs: [{name, expr}, …], state?, q?,
+    limit?}`. AST-whitelist evaluation only (no attribute access, no scripting); a bad expression
+    422s; a bad record yields an empty cell. Returns `{columns, rows:[{id, ref, values}]}`."""
+    from fastapi import HTTPException
+
+    from .. import calc_fields
+
+    try:
+        calcs = calc_fields.check_calcs(body.get("calcs") or [])
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from None
+    limit = max(1, min(int(body.get("limit") or 500), 2000))
+    recs = mod_engine.list_records(db, key, pid, body.get("state"), body.get("q"), limit, 0)
+    rows = []
+    for r in recs:
+        row = {**(r.get("data") or {}), "ref": r.get("ref"), "title": r.get("title"),
+               "workflow_state": r.get("workflow_state")}
+        rows.append({"id": r["id"], "ref": r.get("ref"),
+                     "values": {c["name"]: calc_fields.evaluate(c["expr"], row) for c in calcs}})
+    return {"columns": [c["name"] for c in calcs], "rows": rows, "record_count": len(rows),
+            "note": "Deterministic calculated fields over the records' own values — field names are "
+                    "normalized data keys (plus ref/title/workflow_state)."}
+
+
 @router.get("/projects/{pid}/modules/{key}")
 def list_records(pid: str, key: str, state: str | None = None, q: str | None = None,
                  limit: int = 200, offset: int = 0, db: Session = Depends(get_db),

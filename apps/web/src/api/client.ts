@@ -2089,6 +2089,22 @@ export class ApiClient extends HttpCore {
       columns: { key: string; count: number; topics: T[] }[]; note: string;
     }>(`/projects/${pid}/topics/board?${q.toString()}`);
   }
+  /** SCHED-CALC — computed schedules extended with deterministic calculated-field columns. */
+  drawingSchedulesCalc(pid: string, calcs: { doors?: { name: string; expr: string }[];
+    windows?: { name: string; expr: string }[]; rooms?: { name: string; expr: string }[] }) {
+    type Table = { columns: string[]; rows: (string | number | null)[][]; calculated?: string[] };
+    return this.json<{ doors: Table; windows: Table; rooms: Table }>(
+      `/projects/${pid}/drawings/schedules/calc`, { method: "POST", body: JSON.stringify(calcs) });
+  }
+  /** SCHED-CALC — formula columns over module records ({name, expr}; fields = normalized data keys). */
+  moduleCalc(pid: string, key: string, calcs: { name: string; expr: string }[],
+             opts?: { state?: string; q?: string; limit?: number }) {
+    return this.json<{ columns: string[]; record_count: number;
+      rows: { id: string; ref: string | null; values: Record<string, string | number | boolean | null> }[];
+      note: string }>(
+      `/projects/${pid}/modules/${key}/calc`,
+      { method: "POST", body: JSON.stringify({ calcs, ...opts }) });
+  }
   /** TOPIC-LIFE — the topic's merged history (creation, status moves, threaded comments, viewpoints,
    * attachments) + the canonical status machine and this topic's allowed next transitions. */
   topicTimeline(pid: string, tid: string) {
