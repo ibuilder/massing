@@ -65,6 +65,8 @@ _MAP: dict[str, tuple[str, str]] = {
     "set_props_by_guid": ("data", "Pset batch (XLSX round-trip)"),
     "purge_orphan_psets": ("maintenance", "purge orphaned property sets"),
     "purge_empty_groups": ("maintenance", "purge empty groups"),
+    "rebase_origin": ("maintenance", "shift model origin (georeference-preserving)"),
+    "convert_length_unit": ("maintenance", "convert the project length unit"),
     "batch_tag": ("data", "AEC_Tags label"), "attach_document": ("data", "IfcRelAssociatesDocument"),
     "attach_om_document": ("data", "O&M document ref"), "apply_detailing_rules": ("data", "rule-driven details"),
     "apply_layers": ("data", "property-override layers"), "set_manufacturer_info": ("data", "manufacturer psets"),

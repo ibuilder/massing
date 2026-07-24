@@ -12,7 +12,7 @@ The R16/R17 rings are closed on the backend side, the R18 authoring-parity ring 
 slices, and the current push is **enterprise + finance-platform readiness** — the programs and governance
 layer that make the shipped engines defensible in enterprise diligence.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (355 suites) · single-source version in
+**Status:** CodeQL 0 open alerts · full backend suite green (358 suites) · single-source version in
 `apps/web/package.json` · CI on Node 22 · vitest 132.
 
 ---
@@ -70,9 +70,10 @@ need).
 4. ✅ **R18 tail — authoring depth** *(② v0.3.651 · ③④ + wall joins v0.3.653)* — the R18 ring is
    complete.
 5. **UX-POLISH sprint**: UX-CHIPS · UX-KPI · UX-DEMO + the demo/docs/Pages refresh.
-6. **Carry-overs, opportunistically**: VERSION-COMPARE per-property snapshot values · IFCPATCH-LIB
-   rebase/unit-convert/merge-split recipes · BCF-API-SRV 3.0 shape · SPRINT B phase-4b CPM crew shifts ·
-   NORM-VALID implementer-agreement depth.
+6. ◧ **Carry-overs** *(3 of 5 shipped v0.3.654)*: ✅ VERSION-COMPARE per-property values ·
+   ✅ IFCPATCH-LIB rebase / unit-convert / split *(merge deliberately skipped — federation covers
+   multi-model work)* · ✅ BCF-API-SRV 3.0 shape + attachments-over-API. **Remaining:** SPRINT B
+   phase-4b CPM crew shifts · NORM-VALID implementer-agreement depth.
 
 *Then the viewer-coupled R17 tail (CITE-JUMP · 4D5D-VIEWER · WebXR · NODE-CANVAS · the clash
 step-through UI · BCF-VIEWPOINT restore depth), flagged for the dev-preview geometry-stall

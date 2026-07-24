@@ -130,6 +130,18 @@ def model_maintenance_scan(pid: str, db: Session = Depends(get_db),
     return ifcpatch_lib.scan(open_model(p.source_ifc))
 
 
+@router.get("/projects/{pid}/model/split-plan")
+def model_split_plan(pid: str, db: Session = Depends(get_db),
+                     _: str = Depends(require_role("viewer"))):
+    """IFCPATCH-LIB — plan a per-storey split: which element GUIDs land in each storey slice, plus
+    the unassigned remainder. Read-only; hand a slice's GUIDs to the subset export to write it."""
+    from aec_data import ifcpatch_lib  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    return ifcpatch_lib.split_by_storey(open_model(p.source_ifc))
+
+
 @router.get("/projects/{pid}/rebar/bbs")
 def rebar_bbs(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """REBAR-RULES: the bar bending schedule — every authored IfcReinforcingBar grouped into marks

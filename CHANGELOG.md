@@ -4,6 +4,41 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.654 — Sprint 6: version diff values + model transforms + BCF 3.0
+
+The roadmap's long-standing carry-overs, closed.
+
+- **VERSION-COMPARE — per-property values.** A model diff now reports `FireRating: 2HR → 1HR`, not
+  just "FireRating changed". A bounded value snapshot rides fingerprint position [7] — capped at
+  20k elements × 40 sorted keys × 64 characters, containers summarized — so a large model's version
+  blob can't balloon, and when a cap bites the diff says `values_truncated` rather than implying it
+  has everything. Comparison of "did this element change" now reads only the meaning-bearing
+  positions, so the first snapshot after the upgrade doesn't report every element as modified.
+  `test_version_values`.
+- **IFCPATCH-LIB — three transform recipes** (`ifcpatch_lib.py`), all GUID-stable:
+  - **`rebase_origin`** — the georeferencing-correct answer to a model a million metres from the
+    origin. Shifts every *root* placement (plus the storey datums, so level and geometry never
+    disagree) and pushes the same offset **into the `IfcMapConversion`**, so the real-world survey
+    position of every element is unchanged; when a file carries no map conversion it says so
+    plainly instead of implying the georeference followed.
+  - **`convert_length_unit`** — rewrites the project length unit *and* rescales the length / area /
+    volume data, so a 3 m storey becomes 3000 mm at the same real elevation. The attribute
+    whitelist is explicit and the report names every entity type it touched, so the conversion is
+    auditable rather than a black box. Idempotent; an unknown unit is refused.
+  - **`split_by_storey`** + `GET /model/split-plan` — the per-storey slice plan (which GUIDs land
+    in each slice, plus the unassigned remainder) that pairs with the subset export. *Merging is
+    deliberately not added: federation — discipline models plus federated clash — already covers
+    multi-model work without destroying model identity.* `test_ifcpatch_transforms`.
+- **BCF-API-SRV — the BCF 3.0 surface + attachments over the API.** `/bcf/versions` now advertises
+  2.1 **and** 3.0, and a full `/bcf/3.0/…` surface serves topics in the newer shape:
+  `server_assigned_id` (the server's own stable handle), a role-derived **`authorization`** block
+  so an integration's UI matches what the server will actually permit, and `document_references`.
+  **Documents ride the API end to end** — a coordinator's tool uploads a markup PDF straight onto a
+  topic, lists documents project-wide, and downloads the bytes, all project-scoped (a guid from
+  another project 404s), reusing the shipped attachment storage and filename hardening. The 2.1
+  surface is untouched. `test_bcf3`.
+- Clients: `modelSplitPlan`. Authoring matrix: 91 recipes / 15 categories. Suite 358.
+
 ## v0.3.653 — Sprint 5: round-trip fidelity + wall joins + composite families + shared parameters
 
 INTEROP-RT closes the R19 ring; AUTH-CONSTRAINTS ③ and FAMILY-DEPTH ③④ close the R18 ring.

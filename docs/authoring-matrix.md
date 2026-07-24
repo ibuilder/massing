@@ -2,7 +2,7 @@
 
 > Generated from `edit.RECIPES` by `authoring_matrix.to_markdown()` — do not hand-edit; re-run the generator (or `GET /reference/authoring-matrix`) after adding a recipe.
 
-**89 authoring recipes** across **15 categories**. Every recipe is a GUID-stable server-side pass, dispatchable from the CAD command line, the AI command bar, the node canvas, or the tool panels.
+**91 authoring recipes** across **15 categories**. Every recipe is a GUID-stable server-side pass, dispatchable from the CAD command line, the AI command bar, the node canvas, or the tool panels.
 
 ### create-structure (13)
 
@@ -161,9 +161,11 @@
 | `apply_structural_supports` | IfcStructuralConnection |
 | `derive_analytical` | IfcStructuralAnalysisModel |
 
-### maintenance (2)
+### maintenance (4)
 
 | Recipe | Produces |
 | --- | --- |
+| `convert_length_unit` | convert the project length unit |
 | `purge_empty_groups` | purge empty groups |
 | `purge_orphan_psets` | purge orphaned property sets |
+| `rebase_origin` | shift model origin (georeference-preserving) |

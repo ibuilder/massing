@@ -45,6 +45,43 @@ def _prop_hashes(psets: dict | None, qtos: dict | None) -> dict[str, str]:
     return out
 
 
+# VERSION-COMPARE (values): a per-property VALUE snapshot rides position [7] so a diff can show
+# `FireRating: 1HR -> 2HR`, not just "FireRating changed". Bounded on three axes so the version blob
+# can never balloon on a large model: values only for the first _MAX_VALUE_ELEMENTS elements (stable
+# order), at most _MAX_VALUE_PROPS per element, each stringified value clipped to _MAX_VALUE_LEN.
+# When the caps bite, the diff says so (`values_truncated`) instead of pretending it has everything.
+_MAX_VALUE_ELEMENTS = 20_000
+_MAX_VALUE_PROPS = 40
+_MAX_VALUE_LEN = 64
+
+
+def _clip(v: Any) -> str:
+    """A short, display-ready string for one property value (scalars only; containers summarized)."""
+    if isinstance(v, (list, tuple, set)):
+        return f"[{len(v)} values]"
+    if isinstance(v, dict):
+        return f"{{{len(v)} keys}}"
+    text = str(v)
+    return text if len(text) <= _MAX_VALUE_LEN else text[:_MAX_VALUE_LEN - 1] + "\u2026"
+
+
+def _prop_values(psets: dict | None, qtos: dict | None) -> dict[str, str]:
+    """``{"SetName.PropName": "display value"}`` for one element, capped at _MAX_VALUE_PROPS keys
+    (sorted, so which keys survive the cap is deterministic)."""
+    out: dict[str, str] = {}
+    for group in (psets or {}, qtos or {}):
+        for set_name, props in group.items():
+            if not isinstance(props, dict):
+                continue
+            for prop, val in props.items():
+                if prop == "id":
+                    continue
+                out[f"{set_name}.{prop}"] = _clip(val)
+    if len(out) <= _MAX_VALUE_PROPS:
+        return out
+    return {k: out[k] for k in sorted(out)[:_MAX_VALUE_PROPS]}
+
+
 def _fingerprints(idx: dict) -> dict[str, list]:
     """{guid: [name, ifc_class, type_name, storey, pset_hash, qto_hash, prop_hashes]} — the diffable
     signature of every element. Splitting Psets vs Qtos into separate hashes lets the diff say 'properties
@@ -55,9 +92,12 @@ def _fingerprints(idx: dict) -> dict[str, list]:
         g = e.get("guid")
         if not g:
             continue
-        fp[g] = [e.get("name"), e.get("ifc_class"), e.get("type_name"), e.get("storey"),
-                 _h(e.get("psets") or {}), _h(e.get("qtos") or {}),
-                 _prop_hashes(e.get("psets"), e.get("qtos"))]
+        row = [e.get("name"), e.get("ifc_class"), e.get("type_name"), e.get("storey"),
+               _h(e.get("psets") or {}), _h(e.get("qtos") or {}),
+               _prop_hashes(e.get("psets"), e.get("qtos"))]
+        if len(fp) < _MAX_VALUE_ELEMENTS:                 # [7] = the bounded value snapshot
+            row.append(_prop_values(e.get("psets"), e.get("qtos")))
+        fp[g] = row
     return fp
 
 
@@ -69,6 +109,14 @@ _FIELD_LABELS = [(0, "renamed"), (1, "reclassified"), (2, "retyped"),
 def _changes(before: list, after: list) -> list[str]:
     """Which fingerprint fields differ between two versions of the same element → change labels."""
     return [label for i, label in _FIELD_LABELS if i < len(before) and i < len(after) and before[i] != after[i]]
+
+
+def _materially_differs(before: list, after: list) -> bool:
+    """Compare only the MEANING-bearing positions (0..6). Position [7] is a display-value cache
+    derived from the same data as the [4]/[5] hashes, so a change there is never independent — and
+    excluding it means the first snapshot after this feature landed doesn't report every element as
+    'modified' merely because the older version predates the value cache."""
+    return before[:7] != after[:7]
 
 
 def snapshot(pid: str, idx: dict, note: str | None = None) -> dict[str, Any]:
@@ -85,7 +133,8 @@ def snapshot(pid: str, idx: dict, note: str | None = None) -> dict[str, Any]:
         cur = set(guids)
         added, removed = cur - prev, prev - cur
         # modified = common guids whose fingerprint changed (only when both versions carry fingerprints)
-        modified = sum(1 for g in (cur & prev) if g in fps and g in prev_fp and fps[g] != prev_fp[g])
+        modified = sum(1 for g in (cur & prev)
+                       if g in fps and g in prev_fp and _materially_differs(prev_fp[g], fps[g]))
         # skip a true no-op republish (identical elements AND fingerprints) to keep history meaningful
         if last and not added and not removed and not modified and prev_fp:
             return {"version": last.version, "skipped": "no element change"}
@@ -155,6 +204,8 @@ def diff(db: Session, pid: str, a: int, b: int) -> dict[str, Any]:
     modified: list[dict] = []
     modified_available = bool(fa) and bool(fb)
     property_detail_available = False
+    property_values_available = False
+    values_truncated = False
     if modified_available:
         for g in (sa & sb):
             before, after = fa.get(g), fb.get(g)
@@ -167,12 +218,24 @@ def diff(db: Session, pid: str, a: int, b: int) -> dict[str, Any]:
             # position [6] carries per-property hashes → name exactly which keys changed (added/removed/edited)
             pb = before[6] if len(before) > 6 and isinstance(before[6], dict) else None
             pa = after[6] if len(after) > 6 and isinstance(after[6], dict) else None
+            # position [7] carries the bounded VALUE snapshot -> show old -> new, not just the key
+            vb = before[7] if len(before) > 7 and isinstance(before[7], dict) else None
+            va = after[7] if len(after) > 7 and isinstance(after[7], dict) else None
             if pb is not None and pa is not None:
                 property_detail_available = True
                 keys = set(pb) | set(pa)
-                diffs = [{"property": k,
-                          "status": "added" if k not in pb else "removed" if k not in pa else "changed"}
-                         for k in sorted(keys) if pb.get(k) != pa.get(k)]
+                diffs = []
+                for k in sorted(keys):
+                    if pb.get(k) == pa.get(k):
+                        continue
+                    d = {"property": k,
+                         "status": "added" if k not in pb else "removed" if k not in pa else "changed"}
+                    if vb is not None and va is not None:      # values stored for BOTH versions
+                        property_values_available = True
+                        d["from"], d["to"] = vb.get(k), va.get(k)
+                        if d["from"] is None and d["to"] is None:
+                            values_truncated = True            # capped out of the value snapshot
+                    diffs.append(d)
                 if diffs:
                     entry["changed_properties"] = diffs
             modified.append(entry)
@@ -182,6 +245,8 @@ def diff(db: Session, pid: str, a: int, b: int) -> dict[str, Any]:
             "added": added, "removed": removed,
             "modified": modified, "modified_available": modified_available,
             "property_detail_available": property_detail_available,
+            "property_values_available": property_values_available,
+            "values_truncated": values_truncated,
             "added_count": len(added), "removed_count": len(removed),
             "modified_count": len(modified),
             "unchanged_count": len(sa & sb) - len(modified)}

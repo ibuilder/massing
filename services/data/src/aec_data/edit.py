@@ -925,6 +925,8 @@ RECIPES = {
     # IFCPATCH-LIB — maintenance purges (no params; GUID-stable for kept elements)
     "purge_orphan_psets": lambda m, p: _ifcpatch().purge_orphan_psets(m),
     "purge_empty_groups": lambda m, p: _ifcpatch().purge_empty_groups(m),
+    "rebase_origin": lambda m, p: _ifcpatch().rebase_origin(m, p.get("point", [0, 0, 0])),
+    "convert_length_unit": lambda m, p: _ifcpatch().convert_length_unit(m, p.get("to", "MILLIMETRE")),
 }
 
 

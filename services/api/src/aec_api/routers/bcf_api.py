@@ -12,15 +12,19 @@ projects + topics (list/get/create) + comments (list/create) — the sync essent
 from __future__ import annotations
 
 import math
+import os
+import re
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
-from .. import audit
+from .. import audit, rbac, storage
 from ..db import get_db
-from ..models import Comment, Project, Topic, Viewpoint
+from ..models import Attachment, Comment, Project, Topic, Viewpoint
 from ..rbac import current_user, member_project_ids, require_role
+from ..serving import range_response
 
 router = APIRouter()
 
@@ -129,8 +133,9 @@ def _topic_or_404(db: Session, pid: str, guid: str) -> Topic:
 # --- version negotiation (unauthenticated — the first call a BCF manager makes) ---------------------
 @router.get("/bcf/versions")
 def bcf_versions():
-    """BCF-API version negotiation. Advertises 2.1 support."""
-    return {"versions": [{"version_id": "2.1", "detailed_version": "2.1"}]}
+    """BCF-API version negotiation. Advertises 2.1 and 3.0; a manager picks the newest it speaks."""
+    return {"versions": [{"version_id": "2.1", "detailed_version": "2.1"},
+                         {"version_id": "3.0", "detailed_version": "3.0"}]}
 
 
 @router.get("/bcf/2.1/auth")
@@ -254,3 +259,159 @@ def bcf_viewpoint_snapshot(pid: str, guid: str, vguid: str, db: Session = Depend
     except (binascii.Error, ValueError):
         raise HTTPException(404, "snapshot is not decodable PNG data")
     return Response(raw, media_type="image/png")
+
+
+# ===================================================================================================
+# BCF 3.0 — the newer wire shape + documents over the API (R15 carry-over)
+#
+# Same native rows, a second conformance mapping. What 3.0 adds over our 2.1 surface, and what we
+# therefore emit:
+#   * ``server_assigned_id`` — the server's own stable handle for a topic (ours is the row id, which
+#     is what every other Massing API addresses a topic by, so a BCF manager and our UI agree).
+#   * ``authorization`` — what THIS caller may do to the object, resolved from their project role,
+#     so a viewer-role integration greys out edit affordances instead of discovering a 403 on save.
+#   * **documents** — attachments over the API. BCF 3.0 models documents at project level with
+#     per-topic references; our attachments hang off a topic, so the project list is the union of
+#     its topics' attachments and an upload targets a topic's ``document_references`` (documented
+#     rather than faked — a project-level upload with no topic has nowhere to live in our model).
+# ===================================================================================================
+
+_EDIT_ROLES = ("reviewer", "editor", "admin")
+
+
+def _authorization(db: Session, pid: str, user: str) -> dict[str, Any]:
+    """What the caller may do here — role-derived, so the client's UI matches the server's answer."""
+    role = None if not rbac.RBAC_ON else rbac.role_for(db, pid, user)
+    may_edit = (not rbac.RBAC_ON) or (role in _EDIT_ROLES)
+    actions = ["createComment", "createViewpoint", "createDocumentReference"] if may_edit else []
+    return {"topic_actions": (["update", *actions] if may_edit else []),
+            "topic_status": sorted(_STATUS.values()) if may_edit else []}
+
+
+def topic_to_bcf3(t: Topic, authorization: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The 2.1 topic shape plus the 3.0 additions."""
+    out = topic_to_bcf(t)
+    out["server_assigned_id"] = t.id
+    out["reference_links"] = []
+    out["document_references"] = [a.id for a in (t.attachments or [])]
+    if authorization is not None:
+        out["authorization"] = authorization
+    return out
+
+
+def _document_to_bcf3(a: Attachment) -> dict[str, Any]:
+    return {"guid": a.id, "filename": a.filename, "content_type": a.content_type,
+            "size": int(a.size or 0), "date": _iso(a.created_at)}
+
+
+@router.get("/bcf/3.0/auth")
+def bcf3_auth():
+    """Auth discovery (3.0) — Bearer tokens via /auth/login; no separate OAuth flow."""
+    return {"oauth2_auth_url": None, "oauth2_token_url": "/auth/login",
+            "http_basic_supported": False, "supported_oauth2_flows": []}
+
+
+@router.get("/bcf/3.0/projects")
+def bcf3_projects(db: Session = Depends(get_db), user: str = Depends(current_user)):
+    allowed = member_project_ids(db, user)
+    q = db.query(Project)
+    if allowed is not None:
+        q = q.filter(Project.id.in_(allowed))
+    return [{"project_id": p.id, "name": p.name,
+             "authorization": {"project_actions": ["createTopic", "createDocument"]}}
+            for p in q.all()]
+
+
+@router.get("/bcf/3.0/projects/{pid}/topics")
+def bcf3_topics(pid: str, db: Session = Depends(get_db), user: str = Depends(require_role("viewer"))):
+    authz = _authorization(db, pid, user)
+    rows = (db.query(Topic).filter(Topic.project_id == pid)
+            .order_by(Topic.created_at.desc()).limit(2000).all())
+    return [topic_to_bcf3(t, authz) for t in rows]
+
+
+@router.post("/bcf/3.0/projects/{pid}/topics", status_code=201)
+def bcf3_create_topic(pid: str, body: dict = Body(...), db: Session = Depends(get_db),
+                      actor: str = Depends(require_role("reviewer"))):
+    """Create a topic from a 3.0 payload — the 2.1 creator, re-serialized in the 3.0 shape."""
+    created = bcf_create_topic(pid, body, db, actor)
+    t = db.query(Topic).filter(Topic.project_id == pid, Topic.guid == created["guid"]).first()
+    return topic_to_bcf3(t, _authorization(db, pid, actor)) if t else created
+
+
+@router.get("/bcf/3.0/projects/{pid}/topics/{guid}")
+def bcf3_topic(pid: str, guid: str, db: Session = Depends(get_db),
+               user: str = Depends(require_role("viewer"))):
+    return topic_to_bcf3(_topic_or_404(db, pid, guid), _authorization(db, pid, user))
+
+
+@router.get("/bcf/3.0/projects/{pid}/topics/{guid}/comments")
+def bcf3_comments(pid: str, guid: str, db: Session = Depends(get_db),
+                  _: str = Depends(require_role("viewer"))):
+    t = _topic_or_404(db, pid, guid)
+    return [comment_to_bcf(c, guid) for c in sorted(t.comments, key=lambda c: c.created_at or 0)]
+
+
+@router.post("/bcf/3.0/projects/{pid}/topics/{guid}/comments", status_code=201)
+def bcf3_create_comment(pid: str, guid: str, body: dict = Body(...), db: Session = Depends(get_db),
+                        actor: str = Depends(require_role("reviewer"))):
+    return bcf_create_comment(pid, guid, body, db, actor)
+
+
+@router.get("/bcf/3.0/projects/{pid}/topics/{guid}/viewpoints")
+def bcf3_viewpoints(pid: str, guid: str, db: Session = Depends(get_db),
+                    _: str = Depends(require_role("viewer"))):
+    t = _topic_or_404(db, pid, guid)
+    return [viewpoint_to_bcf(v) for v in t.viewpoints]
+
+
+# --- documents (3.0 attachments over the API) -------------------------------------------------------
+@router.get("/bcf/3.0/projects/{pid}/documents")
+def bcf3_documents(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Every document in the project — the union of its topics' attachments, newest first."""
+    rows = (db.query(Attachment).join(Topic, Attachment.topic_id == Topic.id)
+            .filter(Topic.project_id == pid)
+            .order_by(Attachment.created_at.desc()).limit(2000).all())
+    return [_document_to_bcf3(a) for a in rows]
+
+
+@router.get("/bcf/3.0/projects/{pid}/documents/{doc_guid}")
+def bcf3_document_download(pid: str, doc_guid: str, request: Request, db: Session = Depends(get_db),
+                           _: str = Depends(require_role("viewer"))):
+    """Download one document's bytes (project-scoped, so a guid from another project 404s)."""
+    a = (db.query(Attachment).join(Topic, Attachment.topic_id == Topic.id)
+         .filter(Topic.project_id == pid, Attachment.id == doc_guid).first())
+    if not a:
+        raise HTTPException(404, "no such document in this project")
+    return range_response(request, a.storage_key, a.content_type or "application/octet-stream",
+                          filename=a.filename, disposition="attachment")
+
+
+@router.get("/bcf/3.0/projects/{pid}/topics/{guid}/document_references")
+def bcf3_document_refs(pid: str, guid: str, db: Session = Depends(get_db),
+                       _: str = Depends(require_role("viewer"))):
+    t = _topic_or_404(db, pid, guid)
+    return [{"guid": a.id, "document_guid": a.id, "description": a.filename}
+            for a in (t.attachments or [])]
+
+
+@router.post("/bcf/3.0/projects/{pid}/topics/{guid}/document_references", status_code=201)
+async def bcf3_add_document(pid: str, guid: str, file: UploadFile = File(...),
+                            db: Session = Depends(get_db),
+                            _: str = Depends(require_role("reviewer"))):
+    """Attach a document to a topic over the BCF API (the coordinator's tool uploads the PDF/photo
+    directly). Same storage path and filename hardening as the native attachment route."""
+    t = _topic_or_404(db, pid, guid)
+    data = await file.read()
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename or "file")).lstrip(".") or "file"
+    safe = safe.replace("..", "_")
+    key = f"{pid}/{t.id}/{safe}"
+    await run_in_threadpool(storage.put, key, data)
+    a = Attachment(topic_id=t.id, filename=file.filename, content_type=file.content_type,
+                   size=len(data), kind="file", storage_key=key)
+    db.add(a)
+    audit.record(db, action="bcf.document.create", method="POST", topic_id=t.id,
+                 path=f"/bcf/3.0/projects/{pid}/topics/{guid}/document_references",
+                 detail={"filename": file.filename})
+    db.commit()
+    return {"guid": a.id, "document_guid": a.id, "description": a.filename}
