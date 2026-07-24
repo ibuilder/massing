@@ -137,10 +137,66 @@ def pdf_sanity(data: bytes, max_mb: int = 50) -> dict[str, Any]:
     }
 
 
+# --- SEC-SUPPLY: the MCP tool-poisoning self-audit --------------------------------------------------
+# "Tool poisoning" = hostile instructions smuggled into an MCP tool's name/description, which agents
+# read as trusted context. We audit OUR OWN catalog for the known smuggling shapes so a poisoned tool
+# (a bad merge, a compromised dependency regenerating the catalog) surfaces instead of shipping.
+_INVISIBLE = re.compile("[​-‏⁠-⁤﻿­]")
+_INJECTION = re.compile(
+    r"ignore\s+(all\s+|any\s+)?(previous|prior|above)\s+instructions|"
+    r"system\s+prompt|do\s+not\s+tell\s+the\s+user|"
+    r"<\s*(system|assistant)\s*>|<!--|"
+    r"exfiltrat|send\s+(the\s+)?(api\s+key|credentials|token)", re.IGNORECASE)
+_B64_RUN = re.compile(r"[A-Za-z0-9+/]{60,}={0,2}")
+_URL = re.compile(r"https?://", re.IGNORECASE)
+
+
+def mcp_tool_audit() -> dict[str, Any]:
+    """Scan the MCP tool catalog (names, descriptions, schema descriptions) for poisoning shapes:
+    invisible unicode, injection phrasing, HTML/system-tag smuggling, long base64 runs, and URLs
+    (a tool description has no business linking out). Deterministic; findings carry a snippet."""
+    from . import mcp_tools
+
+    def _texts(tool: dict) -> list[tuple[str, str]]:
+        out = [("name", str(tool.get("name") or "")), ("description", str(tool.get("description") or ""))]
+        props = ((tool.get("input_schema") or {}).get("properties") or {})
+        for pname, p in props.items():
+            if isinstance(p, dict) and p.get("description"):
+                out.append((f"param:{pname}", str(p["description"])))
+        return out
+
+    findings: list[dict[str, Any]] = []
+    tools = mcp_tools.TOOLS
+    for tool in tools:
+        for where, text in _texts(tool):
+            for kind, rx, sev in (("invisible_unicode", _INVISIBLE, "high"),
+                                  ("injection_phrase", _INJECTION, "high"),
+                                  ("base64_blob", _B64_RUN, "medium"),
+                                  ("url_in_description", _URL, "medium")):
+                m = rx.search(text)
+                if m:
+                    findings.append({"tool": tool.get("name"), "where": where, "kind": kind,
+                                     "severity": sev,
+                                     "snippet": text[max(0, m.start() - 20):m.end() + 20][:120]})
+    return {"tools_scanned": len(tools), "findings": findings, "clean": not findings,
+            "note": "Self-audit of the MCP catalog for tool-poisoning shapes (invisible unicode, "
+                    "injection phrasing, tag/comment smuggling, base64 blobs, outbound URLs)."}
+
+
 def _main(argv: list[str] | None = None) -> int:
     """Print the audit. With --gate, exit non-zero only on STRONG copyleft (GPL/AGPL) so a CI/skill gate
-    fails on the hard line but not on the accepted LGPL/MPL core deps. Default is informational (exit 0)."""
+    fails on the hard line but not on the accepted LGPL/MPL core deps. Default is informational (exit 0).
+    With `mcp-audit`, run the MCP tool-poisoning self-audit instead (always exit 0 — non-gating; add
+    --gate to fail on any high-severity finding)."""
     argv = argv if argv is not None else sys.argv[1:]
+    if "mcp-audit" in argv:
+        r = mcp_tool_audit()
+        print(f"SEC-SUPPLY MCP self-audit: {r['tools_scanned']} tools scanned · "
+              f"{len(r['findings'])} finding(s)")
+        for f in r["findings"]:
+            print(f"  {f['severity'].upper():6} {f['tool']}.{f['where']} [{f['kind']}]: {f['snippet']!r}")
+        highs = [f for f in r["findings"] if f["severity"] == "high"]
+        return 1 if ("--gate" in argv and highs) else 0
     a = license_audit()
     print(f"SEC-SUPPLY license audit: {a['total']} components · {a['permitted']} permitted · "
           f"{a['copyleft_count']} copyleft ({a['strong_copyleft_count']} strong GPL/AGPL) · "

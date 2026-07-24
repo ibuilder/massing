@@ -39,6 +39,13 @@ jobs:
         run: |
           echo "## bandit (services/api + services/data)" >> "$GITHUB_STEP_SUMMARY"
           bandit -q -r services/api/src services/data/src -ll -ii >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+      - name: MCP tool-poisoning self-audit (SEC-SUPPLY, report-only)
+        continue-on-error: true        # non-gating — surfaces catalog poisoning, never blocks
+        working-directory: services/api
+        run: |
+          pip install sqlalchemy pydantic >/dev/null 2>&1 || true
+          echo "## MCP tool-poisoning self-audit" >> "$GITHUB_STEP_SUMMARY"
+          PYTHONPATH=src python -m aec_api.supply_chain mcp-audit >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
 
   node:
     runs-on: ubuntu-latest

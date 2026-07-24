@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.640 — SEC-SUPPLY: the MCP tool-poisoning self-audit + non-gating CI step
+
+Tool poisoning — hostile instructions smuggled into MCP tool descriptions that agents read as trusted
+context — audited on OUR OWN catalog, so a bad merge or a compromised generator surfaces before it ships.
+
+- **`supply_chain.mcp_tool_audit()`** — scans every MCP tool's name, description AND per-parameter
+  schema descriptions for the known smuggling shapes: invisible unicode, injection phrasing
+  ("ignore previous instructions", system-prompt references, "do not tell the user", tag/comment
+  smuggling), long base64 runs, and outbound URLs (a tool description has no business linking out).
+  The real 18-tool catalog scans clean; five hostile fixtures each trip their detector in the test.
+- **`python -m aec_api.supply_chain mcp-audit`** — non-gating by default (report + exit 0); `--gate`
+  fails only on high-severity findings.
+- **CI**: a report-only step in the Dependency-scan workflow writes the audit to the run summary
+  (`continue-on-error` — surfaces, never blocks). Closes the last R16 SEC-SUPPLY carried remainder.
+
 ## v0.3.639 — RULE-PACK FOLD: per-IfcSpace checks join the rule library (R18/R16 remainder)
 
 One rule spine for elements AND spaces — without faking geometry as property selectors.

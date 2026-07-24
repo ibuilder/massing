@@ -267,7 +267,10 @@ is the fresh order: 🏛 R18 quick wins + slices first, then the open remainders
    DESIGN-METRICS per-`IfcSpace` rule-set remainders.
 7. **MEP-EQUIP ties** *(R16 remainder)* — equipment schedule → submittals + budget/GMP + a curated starter
    requirement set.
-8. **SEC-SUPPLY CI step** *(R16 remainder)* — the MCP tool-poisoning self-audit as a non-gating CI step.
+8. ✅ **SEC-SUPPLY CI step** *(shipped v0.3.640)* — `supply_chain.mcp_tool_audit()` scans the MCP catalog
+   (names + descriptions + param descriptions) for poisoning shapes (invisible unicode, injection
+   phrasing, base64 blobs, outbound URLs); `mcp-audit` CLI (non-gating; `--gate` on highs) + a
+   report-only step in the Dependency-scan workflow. Closes the last R16 SEC-SUPPLY remainder.
 9. **RECIPE-MACROS CLI** *(carry-over)* — the headless `massing` CLI + `massing check` CI gate.
 10. **SPACE-UTIL benchmarking** *(R16 remainder)* — cross-project capacity/utilization benchmarks
     (the panel shipped v0.3.633).
