@@ -111,3 +111,119 @@ def run(idx: dict[str, dict] | None, rules: list[dict]) -> dict:
             "failing_rules": sum(1 for r in results if r["status"] == "fail"),
             "total_violations": sum(r["failed"] for r in results),
             "by_severity": by_sev}
+
+
+# --- RULE-PACK FOLD (R18/R16 remainder): the per-IfcSpace pack, same library surface ----------------
+# Space checks are GEOMETRIC (footprints, envelopes, shared walls) — they can't be property-index
+# selectors without silently-never-matching rules (a false "pass"). So the pack keeps its own honest
+# shape, is stored beside the rule library, and /rules/run folds its results into the same rollup.
+_SPACE_KEY = "{pid}/space_rule_pack.json"
+_MAX_PACK_TYPES = 50
+
+
+def validate_space_pack(pack: dict) -> dict:
+    """Validate + normalize a space rule pack. Sections (all optional): ``dimensional``
+    ({min_room_dim/min_area/min_ceiling_height, by_type{}, severity}), ``daylight``
+    ({types[], severity}), ``wet_wall`` ({types[], wet_types[]?, severity}). Raises QueryError."""
+    if not isinstance(pack, dict):
+        raise QueryError("the space pack must be an object")
+    out: dict[str, Any] = {}
+    def _sev(section: dict, default: str = "medium") -> str:
+        s = str(section.get("severity") or default).lower()
+        if s not in SEVERITIES:
+            raise QueryError(f"severity must be one of {', '.join(SEVERITIES)}")
+        return s
+    dim = pack.get("dimensional")
+    if dim is not None:
+        if not isinstance(dim, dict):
+            raise QueryError("dimensional must be an object")
+        by_type = dim.get("by_type") or {}
+        if not isinstance(by_type, dict) or len(by_type) > _MAX_PACK_TYPES:
+            raise QueryError(f"by_type must be an object with at most {_MAX_PACK_TYPES} types")
+        for k in ("min_room_dim", "min_area", "min_ceiling_height"):
+            v = dim.get(k)
+            if v is not None and (not isinstance(v, (int, float)) or v < 0 or v > 1000):
+                raise QueryError(f"dimensional.{k} must be a number in [0, 1000]")
+        out["dimensional"] = {**{k: dim.get(k) for k in
+                                 ("min_room_dim", "min_area", "min_ceiling_height") if dim.get(k)},
+                              "by_type": by_type, "severity": _sev(dim)}
+    for key in ("daylight", "wet_wall"):
+        sec = pack.get(key)
+        if sec is None:
+            continue
+        if not isinstance(sec, dict):
+            raise QueryError(f"{key} must be an object")
+        types = sec.get("types") or []
+        if not isinstance(types, list) or not types or len(types) > _MAX_PACK_TYPES:
+            raise QueryError(f"{key}.types must be a non-empty list (max {_MAX_PACK_TYPES})")
+        out[key] = {"types": [str(t)[:60] for t in types], "severity": _sev(sec)}
+        if key == "wet_wall" and sec.get("wet_types"):
+            out[key]["wet_types"] = [str(t)[:60] for t in (sec["wet_types"] or [])][:_MAX_PACK_TYPES]
+    if not out:
+        raise QueryError("the space pack has no sections (dimensional / daylight / wet_wall)")
+    return out
+
+
+def load_space_pack(pid: str) -> dict | None:
+    try:
+        raw = storage.get(_SPACE_KEY.format(pid=pid))
+    except Exception:                                       # noqa: BLE001 — absent blob = no pack
+        return None
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return None
+
+
+def save_space_pack(pid: str, pack: dict) -> dict:
+    clean = validate_space_pack(pack)
+    storage.put(_SPACE_KEY.format(pid=pid), json.dumps(clean).encode("utf-8"))
+    return clean
+
+
+def run_space_pack(model, pack: dict) -> list[dict]:
+    """Run the stored space pack through the adjacency engine → rule-shaped rows (one per section)
+    that fold into the same by-severity rollup as the property rules."""
+    from aec_data import adjacency  # type: ignore
+
+    program: dict[str, Any] = {}
+    if pack.get("dimensional"):
+        d = pack["dimensional"]
+        program["dimensional"] = {k: d[k] for k in
+                                  ("min_room_dim", "min_area", "min_ceiling_height") if d.get(k)}
+        if d.get("by_type"):
+            program["dimensional"]["by_type"] = d["by_type"]
+    if pack.get("daylight"):
+        program["needs_daylight"] = pack["daylight"]["types"]
+    if pack.get("wet_wall"):
+        program["needs_wet_wall"] = pack["wet_wall"]["types"]
+        if pack["wet_wall"].get("wet_types"):
+            program["wet_types"] = pack["wet_wall"]["wet_types"]
+    r = adjacency.evaluate(model, program)
+    rows: list[dict] = []
+    if pack.get("dimensional"):
+        v = r["dimensional"]["violations"]
+        rows.append({"id": "space:dimensional", "name": "Space dimensional compliance",
+                     "severity": pack["dimensional"]["severity"], "scoped": r["dimensional"]["checked"],
+                     "passed": r["dimensional"]["passed"], "failed": len(v),
+                     "fail_guids": [x["guid"] for x in v][:500],
+                     "detail": [f"{x['name'] or x['guid']}: {'; '.join(x['issues'])}" for x in v][:50],
+                     "status": "n/a" if r["dimensional"]["checked"] == 0 else
+                               ("pass" if not v else "fail")})
+    if pack.get("daylight"):
+        v = r["program"]["daylight_violations"]
+        n = sum(x["spaces"] for x in r["program"]["daylight_results"])
+        rows.append({"id": "space:daylight", "name": "Spaces needing daylight sit on the envelope",
+                     "severity": pack["daylight"]["severity"], "scoped": n,
+                     "passed": n - len(v), "failed": len(v),
+                     "fail_guids": [x["guid"] for x in v][:500],
+                     "status": "n/a" if n == 0 else ("pass" if not v else "fail")})
+    if pack.get("wet_wall"):
+        v = r["program"]["wet_wall_violations"]
+        n = sum(x["spaces"] for x in r["program"]["wet_wall_results"])
+        rows.append({"id": "space:wet_wall", "name": "Spaces needing a shared wet wall",
+                     "severity": pack["wet_wall"]["severity"], "scoped": n,
+                     "passed": n - len(v), "failed": len(v),
+                     "fail_guids": [x["guid"] for x in v][:500],
+                     "status": "n/a" if n == 0 else ("pass" if not v else "fail")})
+    return rows

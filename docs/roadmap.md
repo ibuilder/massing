@@ -256,10 +256,15 @@ is the fresh order: 🏛 R18 quick wins + slices first, then the open remainders
 2. ✅ **OPS-DR** *(shipped v0.3.636)* — see the R18 ring entry.
 3. ✅ **AUTH-CONSTRAINTS ①** *(shipped v0.3.637)* — see the R18 ring entry; ②/③ remain.
 4. ✅ **MODEL-PUBLISH** *(shipped v0.3.638; concurrency half was already live)* — see the R18 ring entry.
-5. **CITED-ANSWER — KG / command-bar emission** *(R17 remainder)* — the last two producers of the
-   provenance contract (RFI-QA shipped v0.3.628).
-6. **RULE-PACK FOLD** *(DESIGN-METRICS + TESTFIT-ADJ shared remainder)* — per-`IfcSpace` code-check rule
-   sets folded into `rule_library` (one rule spine for elements AND spaces).
+5. ✅ **CITED-ANSWER — producer coverage resolved** *(2026-07-24)* — the deterministic answer surfaces
+   (`cited_query`, RFI-QA v0.3.628) emit the contract; `POST /ask` + the Ask panel are **LLM-phrased by
+   design** and cannot deterministically cite — they stay outside the contract rather than faking
+   coverage (the grounding snapshot carries no GUIDs to cite). Disposition recorded, not deferred.
+6. ✅ **RULE-PACK FOLD** *(shipped v0.3.639)* — the space rule pack (dimensional/daylight/wet-wall +
+   severities) stored beside the rule library (`GET/PUT /rules/space-pack`, validated atomically) and
+   folded into `/rules/run` as `space:*` rows in the same by-severity rollup (geometric checks stay
+   geometric — no silently-never-matching property selectors). Closes the TESTFIT-ADJ fold AND the
+   DESIGN-METRICS per-`IfcSpace` rule-set remainders.
 7. **MEP-EQUIP ties** *(R16 remainder)* — equipment schedule → submittals + budget/GMP + a curated starter
    requirement set.
 8. **SEC-SUPPLY CI step** *(R16 remainder)* — the MCP tool-poisoning self-audit as a non-gating CI step.

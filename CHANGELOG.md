@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.639 — RULE-PACK FOLD: per-IfcSpace checks join the rule library (R18/R16 remainder)
+
+One rule spine for elements AND spaces — without faking geometry as property selectors.
+
+- Space checks are **geometric** (footprints, envelopes, shared walls) — expressing them as
+  property-index selectors would create silently-never-matching rules (a false "pass", the exact trap
+  the security checklist warns about). So the **space rule pack** keeps its honest shape —
+  `dimensional` (min room dim / area / ceiling height, global or by type) · `daylight` (types that
+  must sit on the envelope) · `wet_wall` (types that must share a wall with a wet space) — each with
+  its own severity, stored beside the rule library.
+- **`GET/PUT /projects/{pid}/rules/space-pack`** — validated atomically (severities, numeric ranges
+  [0, 1000], type-list caps; a bad pack 422s without writing).
+- **`/rules/run` folds it in**: with a source IFC, the adjacency engine runs the pack and the results
+  join the same rollup as `space:*` rows (scoped/passed/failed/fail_guids/detail) — the by-severity
+  counts include space failures. Without a model, the run notes the skip instead of failing.
+- Closes BOTH carried R16 remainders at once (TESTFIT-ADJ "fold the dimensional pack into
+  rule_library" + DESIGN-METRICS "per-IfcSpace code-check rule sets"). `test_rule_library` extended
+  with a real authored-spaces model through the folded run.
+
 ## v0.3.638 — MODEL-PUBLISH: the review gate over model versions (R18 #4)
 
 Draft → in-review → approved, on the publish history the platform already keeps.

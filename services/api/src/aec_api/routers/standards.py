@@ -274,14 +274,56 @@ def rules_put(pid: str, rules: list[dict] = Body(..., embed=True),
     return {"saved": len(saved), "rules": saved}
 
 
+@router.get("/projects/{pid}/rules/space-pack")
+def space_pack_get(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """RULE-PACK FOLD — the project's per-IfcSpace rule pack (dimensional thresholds · needs-daylight ·
+    needs-wet-wall), stored beside the rule library and folded into /rules/run. Empty until saved."""
+    from .. import rule_library
+    _project(db, pid)
+    return {"pack": rule_library.load_space_pack(pid)}
+
+
+@router.put("/projects/{pid}/rules/space-pack")
+def space_pack_put(pid: str, pack: dict = Body(..., embed=True),
+                   db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Replace the space rule pack. Validated (sections, severities, numeric ranges, type caps)
+    before anything is written — a bad pack rejects the whole save with 422."""
+    from .. import rule_library
+    _project(db, pid)
+    try:
+        saved = rule_library.save_space_pack(pid, pack)
+    except rule_library.QueryError as e:
+        raise HTTPException(422, str(e))
+    return {"pack": saved}
+
+
 @router.get("/projects/{pid}/rules/run")
 def rules_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """Check the loaded model against the rule library → per-rule pass/fail + offending GUIDs +
-    a by-severity rollup."""
+    """Check the loaded model against the rule library → per-rule pass/fail + offending GUIDs + a
+    by-severity rollup. When a space rule pack is stored and the project has a source IFC, the
+    geometric space checks (dimensional / daylight / wet-wall, via the adjacency engine) run too and
+    fold into the SAME rollup as `space:*` rows — one rule spine for elements AND spaces."""
     from .. import rule_library
     _project(db, pid)
     stored = rule_library.load(pid) or rule_library.STARTER_RULES
-    return rule_library.run(_idx_for(pid), stored)
+    out = rule_library.run(_idx_for(pid), stored)
+    pack = rule_library.load_space_pack(pid)
+    if pack:
+        try:
+            from ..deps import open_source_ifc
+            space_rows = rule_library.run_space_pack(open_source_ifc(db, pid), pack)
+        except HTTPException:
+            out["space_rules_note"] = "space pack stored but no source IFC is loaded — space checks skipped"
+        else:
+            out["rules"] = (out.get("rules") or []) + space_rows
+            out["total_rules"] = len(out["rules"])
+            for row in space_rows:
+                if row["status"] == "fail":
+                    out["failing_rules"] = out.get("failing_rules", 0) + 1
+                    out["total_violations"] = out.get("total_violations", 0) + row["failed"]
+                    bs = out.setdefault("by_severity", {})
+                    bs[row["severity"]] = bs.get(row["severity"], 0) + 1
+    return out
 
 
 # SMART-VIEWS — user-authored saved view presets (name + QUERY-DSL selector + isolate/color/hide).

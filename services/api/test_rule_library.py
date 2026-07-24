@@ -83,5 +83,58 @@ with TestClient(app) as c:
     # run with no model loaded → not scored
     assert c.get(f"/projects/{pid}/rules/run").json()["model_scored"] is False
 
+    # --- RULE-PACK FOLD: the per-IfcSpace pack rides the same library + run surface ---------------
+    assert c.get(f"/projects/{pid}/rules/space-pack").json()["pack"] is None      # empty until saved
+    bad_pack = c.put(f"/projects/{pid}/rules/space-pack",
+                     json={"pack": {"dimensional": {"min_area": -5}}})
+    assert bad_pack.status_code == 422, bad_pack.text                              # validated atomically
+    assert c.put(f"/projects/{pid}/rules/space-pack",
+                 json={"pack": {"daylight": {"types": []}}}).status_code == 422    # empty types rejected
+    sp = c.put(f"/projects/{pid}/rules/space-pack", json={"pack": {
+        "dimensional": {"min_area": 1000, "severity": "high"},                     # everything fails
+        "daylight": {"types": ["Office"], "severity": "medium"}}})
+    assert sp.status_code == 200 and sp.json()["pack"]["dimensional"]["severity"] == "high", sp.text
+    assert c.get(f"/projects/{pid}/rules/space-pack").json()["pack"]["daylight"]["types"] == ["Office"]
+
+    # with a pack stored but NO source IFC, /rules/run notes the skip instead of failing
+    r_nomodel = c.get(f"/projects/{pid}/rules/run").json()
+    assert "no source IFC" in r_nomodel.get("space_rules_note", ""), r_nomodel
+
+    # author a model with spaces (all relabelled Office), attach it, and run the folded check
+    import tempfile
+    from pathlib import Path
+
+    from aec_api.db import SessionLocal
+    from aec_api.models import Project
+    from aec_data import edit, massing
+    from aec_data.ifc_loader import open_model
+
+    _ifc = Path(tempfile.gettempdir()) / "rule_pack_fold.ifc"
+    massing.generate_blank_ifc(str(_ifc), name="Fold", storeys=1, storey_height=3.5, ground_size=20.0)
+    m = open_model(str(_ifc))
+    assert edit.add_spaces(m, rooms_per_storey=4, ceiling_height=3.0) == 4
+    for spx in m.by_type("IfcSpace"):
+        spx.LongName = "Office"
+    m.write(str(_ifc))
+    with SessionLocal() as db:
+        db.get(Project, pid).source_ifc = str(_ifc)
+        db.commit()
+    rr = c.get(f"/projects/{pid}/rules/run").json()
+    rows = {r["id"]: r for r in rr["rules"] if str(r.get("id", "")).startswith("space:")}
+    dim = rows["space:dimensional"]
+    assert dim["status"] == "fail" and dim["failed"] == 4 and dim["severity"] == "high", dim
+    assert len(dim["fail_guids"]) == 4 and dim["detail"], dim
+    # a 2x2 grid: every Office touches the envelope → daylight passes
+    assert rows["space:daylight"]["status"] == "pass" and rows["space:daylight"]["scoped"] == 4, rows
+    # the space failure folds into the SAME severity rollup
+    assert rr["by_severity"].get("high", 0) >= 1 and rr["failing_rules"] >= 1, rr["by_severity"]
+    if _ifc.exists():
+        _ifc.unlink()
+
 print("RULE-LIB OK - starter set fails 1/severity (high+medium+low); scope+require selectors reuse "
-      "QUERY-DSL; n/a when nothing in scope; bad selector 422s atomically; CRUD + run endpoints")
+      "QUERY-DSL; n/a when nothing in scope; bad selector 422s atomically; CRUD + run endpoints. "
+      "RULE-PACK FOLD: the per-IfcSpace pack (dimensional/daylight/wet-wall) round-trips via "
+      "/rules/space-pack (negative numbers + empty type lists 422), /rules/run notes the skip without "
+      "a model, and WITH one the geometric space checks fold into the same rollup as space:* rows — "
+      "4 Offices all fail a 1000 m2 min-area (high, guids + details carried) while daylight passes on "
+      "a 2x2 grid, and the high-severity count includes the space failure.")
