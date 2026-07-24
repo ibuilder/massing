@@ -1,6 +1,7 @@
 import type { ApiClient, ModuleDef, ModuleRecord, RecordBrief } from "../api/client";
 import { escapeHtml as esc, toast } from "../ui/feedback";
 import { progressBar } from "../ui/charts";
+import { countNarrative } from "../ui/chips";
 import { confirmModal, modalShell, promptModal } from "../ui/modal";
 import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
@@ -422,6 +423,16 @@ export class PortalUI {
       + progressBar(bud.committed_pct ?? 0, 100, { label: "Bought out (committed)" })
       + progressBar(bud.spent_pct ?? 0, 100, { label: "Spent (actual / budget)" });
     card.appendChild(prog);
+    // UX-KPI: the one-line plain narrative — a template string over numbers we already hold
+    const parts: [number, string][] = [
+      [sched.milestones.late, "milestones late"],
+      [sched.milestones.due_soon, "due soon"],
+      [bud.variance_at_completion < 0 ? 1 : 0, "budget over at completion"],
+      [sched.lookahead_3wk, "activities in the 3-week lookahead"],
+    ];
+    const line = document.createElement("div"); line.className = "kpi-narrative";
+    line.textContent = countNarrative(parts, "On plan — no exceptions to chase");
+    card.appendChild(line);
     host.appendChild(card);
   }
 

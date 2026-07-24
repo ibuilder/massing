@@ -1,4 +1,5 @@
 import type { ResolveAction } from "../../api/types";
+import { statusChip } from "../../ui/chips";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 
@@ -67,8 +68,8 @@ export async function renderMargin(ctx: PanelContext) {
       + `<div style="font-size:20px;font-weight:800;color:${marginCol(m.total_buyout_margin)}">${usd(m.total_buyout_margin)}</div></div>`
       + `<div class="meta" style="margin-top:2px">Budget <b>${usd(m.total_budget)}</b> · committed <b>${usd(m.total_committed)}</b> · actual <b>${usd(m.total_actual)}</b> · billed <b>${usd(m.total_billed)}</b></div>`
       + `<div class="meta" style="margin-top:2px">${m.pct_committed ?? 0}% committed · ${m.pct_spent ?? 0}% spent · variance <b style="color:${marginCol(m.total_variance)}">${usd(m.total_variance)}</b>`
-      + (m.over_committed_codes ? ` · <b style="color:var(--status-crit)">${m.over_committed_codes} over-committed</b>` : "")
-      + (m.over_budget_codes ? ` · <b style="color:var(--status-crit)">${m.over_budget_codes} over-budget</b>` : "") + `</div>`;
+      + (m.over_committed_codes ? ` · ${statusChip(`${m.over_committed_codes} over-committed`, { tone: "bad" })}` : "")
+      + (m.over_budget_codes ? ` · ${statusChip(`${m.over_budget_codes} over-budget`, { tone: "bad" })}` : "") + `</div>`;
     body.appendChild(head);
 
     const wrap = document.createElement("div"); wrap.className = "dash-card"; wrap.style.overflowX = "auto";
@@ -78,7 +79,8 @@ export async function renderMargin(ctx: PanelContext) {
       + `<th scope="col" style="text-align:right">Actual</th><th scope="col" style="text-align:right">Buyout margin</th>`
       + `<th scope="col" style="text-align:right">Variance</th><th scope="col" style="text-align:left">Fix</th></tr></thead><tbody>`
       + m.rows.map((r, i) => {
-        const flag = r.over_committed || r.over_budget ? " ⚠" : "";
+        const flag = r.over_budget ? " " + statusChip("Over budget", { tone: "bad" })
+          : r.over_committed ? " " + statusChip("Over-committed", { tone: "warn" }) : "";
         return `<tr><td style="text-align:left">${esc(r.cost_code)}${flag}</td>`
           + `<td style="text-align:right;font-variant-numeric:tabular-nums">${usd(r.budget)}</td>`
           + `<td style="text-align:right;font-variant-numeric:tabular-nums">${usd(r.committed)}</td>`

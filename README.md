@@ -283,7 +283,22 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **Provenance-first AI + the estimating/feasibility spine (v0.3.600–v0.3.614, current).** The R17 wave:
+- **Enterprise & finance-platform readiness + authoring-parity depth (v0.3.615–v0.3.651, current).**
+  The enterprise program layer, grounded in shipped controls: a **STRIDE threat model** with a
+  control→evidence verification matrix, a **SOC 2 readiness** control matrix, **incident runbooks +
+  SLOs**, codified **engineering standards**, a per-release **SBOM artifact**, and a common-password
+  **deny-list** on every password path. On the finance pillar: a **scenario review workflow**
+  (draft → in-review → approved → published, immutable once approved, assumption changes audit-logged),
+  **locked reporting periods** enforced in the engine so a closed month refuses postings everywhere
+  (imports included), the **residual-land-value inverse solver**, **golden reference tests** for the
+  return metrics, budget↔actuals **reconciliation** with import lineage, and an **investor pack**
+  report preset + portfolio scenario compare. Authoring parity kept pace: **calculated schedule
+  fields** (AST-whitelist formulas), **view templates** with deterministic resolution, **named type
+  catalogs**, **instance parameter overrides** with reset-to-type, **level moves that carry their
+  elements**, a broken-host/illegal-placement **constraints checker**, model-version **review
+  states**, coordination depth (issue-board lifecycle + timelines, framed clash viewpoints, desktop
+  walk mode), and the headless **`massing` CLI** with a CI model gate.
+- **Provenance-first AI + the estimating/feasibility spine (v0.3.600–v0.3.614).** The R17 wave:
   **every AI answer now traces to its source** — a `CitedAnswer` contract where each claim cites the model
   element (GlobalId), record, rule, or document + revision it derives from, with a deterministic coverage %,
   an uncited-claim guard, source-conflict surfacing, and Exec/PM/Field persona lenses (no LLM in the loop for

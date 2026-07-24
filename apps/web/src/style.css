@@ -466,6 +466,27 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .ref-link { color: var(--accent); cursor: pointer; text-decoration: none; }
 .ref-link:hover { text-decoration: underline; }
 .chip { display: inline-block; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0 8px; font-size: 11px; margin: 1px 0; }
+
+/* UX-CHIPS — the shared status/delta chip vocabulary (ui/chips.ts) */
+.chip2 { display: inline-flex; align-items: center; gap: 4px; border-radius: 10px; padding: 0 7px;
+  font-size: 11px; line-height: 18px; border: 1px solid var(--line); background: var(--panel2);
+  color: var(--text); white-space: nowrap; vertical-align: middle; }
+.chip2-ok { color: var(--status-good); border-color: color-mix(in srgb, var(--status-good) 45%, var(--line)); }
+.chip2-warn { color: var(--status-warn); border-color: color-mix(in srgb, var(--status-warn) 45%, var(--line)); }
+.chip2-bad { color: var(--status-crit); border-color: color-mix(in srgb, var(--status-crit) 45%, var(--line)); }
+.chip2-info { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.chip2-neutral { color: var(--muted); }
+.chip2-ts { color: var(--muted); font-size: 10px; }
+.chip2-delta { font-variant-numeric: tabular-nums; }
+
+/* UX-KPI — dashboard KPI header (ui/chips.ts kpiHeader) */
+.kpi-header { margin: 4px 0 10px; }
+.kpi-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.kpi-tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 12px; min-width: 110px; }
+.kpi-value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kpi-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.kpi-narrative { margin-top: 6px; font-size: 12px; color: var(--muted); }
 .computed { font-style: italic; color: #b083d6; }
 .portal-filter { background: var(--control); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font-size: 12px; }
 .chart-box { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; margin: 6px 0; }
