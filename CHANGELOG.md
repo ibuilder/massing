@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.634 — roadmap: the 🏛 R18 authoring-platform parity ring + a fresh NOW list
+
+Analyzed an external strategy review (07-23) that frames the target as a full BIM **authoring platform**
+— semantic objects, families, coordinated documentation, model-driven schedules, versioned multi-user
+collaboration, enterprise controls, extensibility.
+
+- **Verdict: nearly everything in its 7 phases already ships here** — the review's target state is
+  largely our shipped state, and its wedge thesis (open standards, browser-native collaboration,
+  construction handoff over discipline-by-discipline parity) is the strategy we already run.
+- **What survives is the gap list**, now the 🏛 R18 ring: **AUTH-CONSTRAINTS** (a persisted host/level/
+  join constraint layer + broken-host validation — the biggest real gap) · **FAMILY-DEPTH** (type
+  catalogs, instance overrides, nested families, shared parameters) · **VIEW-TEMPLATES** (per-view
+  visibility/graphics overrides; associativity already comes from derive-from-model) · **SCHED-CALC**
+  (calculated fields) · **MODEL-PUBLISH** (review→publish states + element-level optimistic
+  concurrency) · **OPS-DR** (backup/restore + DR runbook) · **SDK-VERSIONING** · **ADR-LITE**.
+- **The NOW list is reconciled**: the previous top-10 (the R17 backend order) shipped in full
+  (v0.3.600–632); the fresh order leads with the R18 quick wins and slices.
+
 ## v0.3.633 — the 🪑 Space Utilization panel (Design workspace)
 
 - **New portal panel** over the SPACE-UTIL engine: occupancy **capacity by space type** at an

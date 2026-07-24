@@ -248,23 +248,28 @@ running a local security LLM as a product feature.
 ## ▶ NOW — bounded, backend-testable, no new dependency (ship top-down)
 
 *Each is an S/M release: a pure engine leaf or a config-module tweak + a thin surface + a test, grounded
-in the model we own. Verifiable without the frontend. These are the cleanest next wins.* **The top of the
-list is now the 🧭 R17 backend-testable order (see the R17 ring above for full specifics).**
+in the model we own. Verifiable without the frontend. These are the cleanest next wins.* **(Reconciled
+2026-07-24: the previous NOW list — the R17 backend order — shipped in full, v0.3.600–632. The list below
+is the fresh order: 🏛 R18 quick wins + slices first, then the open remainders.)**
 
-1. **★ CITED-ANSWER** *(R17 Sprint A)* — the provenance contract + deterministic coverage % / uncited-claim
-   guard / conflict surfacing over our GUID-first sources. Pure backend engine + schema; the flagship, no
-   viewer needed. **Build first.**
-2. **EST-CONFIDENCE + BOE-LEDGER** *(R17 Sprint C)* — per-line estimate maturity/confidence + the
-   Basis-of-Estimate assumption ledger. Deterministic scoring over QTO/estimate/commitment records.
-3. **BUYOUT-SCHED** *(R17 Sprint C)* — time-phased procurement from model QTO + CPM (last-responsible-order).
-4. **SCOPE-REG** *(R17 Sprint D)* — the first-class Scope register tying scope → QTO/CBS → responsible → activity.
-5. **PERMIT-TIMELINE** *(R17 Sprint E)* — days-to-issue percentiles over cached permit data → pro-forma carry.
-6. **ABSORPTION-SELLOUT + LOT-SUPPLY-INDEX** *(R17 Sprint E)* — sell-out revenue schedule + months-of-supply.
-7. **PROGRESS-ROLLUP** *(R17 Sprint E)* — % complete per IFC class/trade rolled up from `scan_deviation.py`.
-8. **FILL-MATRIX** *(R17 Sprint F)* — category × property fill-rate pivot → query-DSL selection → bulk edit.
-9. **PERSONA-ANSWER** *(R17 Sprint A)* — persona answer lenses + `{answer, insight, follow_ups}` + scoping.
-10. **SEC-DATAFLOW** *(R17)* — fold the security paper's multi-file/cross-import dataflow-review focus into the
-    `security-monitoring` skill (a skill edit, ride-along).
+1. **SCHED-CALC** *(R18 quick win)* — calculated/formula fields in the computed schedules + saved module
+   views (deterministic expression evaluation, no scripting runtime).
+2. **OPS-DR** *(R18 quick win)* — backup/restore scripts + the tested DR runbook + retention controls.
+3. **AUTH-CONSTRAINTS ①** *(R18, flagship slice)* — persist host/level refs on authored elements + the
+   broken-host / illegal-placement checker (rule_library-composable).
+4. **MODEL-PUBLISH — optimistic concurrency** *(R18 slice)* — a stale edit against a since-changed element
+   409s (the pull-plan stale-write pattern applied to edit recipes); then the draft→in-review→published
+   version workflow.
+5. **CITED-ANSWER — KG / command-bar emission** *(R17 remainder)* — the last two producers of the
+   provenance contract (RFI-QA shipped v0.3.628).
+6. **RULE-PACK FOLD** *(DESIGN-METRICS + TESTFIT-ADJ shared remainder)* — per-`IfcSpace` code-check rule
+   sets folded into `rule_library` (one rule spine for elements AND spaces).
+7. **MEP-EQUIP ties** *(R16 remainder)* — equipment schedule → submittals + budget/GMP + a curated starter
+   requirement set.
+8. **SEC-SUPPLY CI step** *(R16 remainder)* — the MCP tool-poisoning self-audit as a non-gating CI step.
+9. **RECIPE-MACROS CLI** *(carry-over)* — the headless `massing` CLI + `massing check` CI gate.
+10. **SPACE-UTIL benchmarking** *(R16 remainder)* — cross-project capacity/utilization benchmarks
+    (the panel shipped v0.3.633).
 
 *Then the viewer-coupled R17 Sprint B/D features (**BCF-VIEWPOINT**, **WALK-MODE**, **CITE-JUMP**,
 **4D5D-VIEWER**, **TOPIC-BOARD**, **CLASH-WALKTHROUGH**), flagged for the dev-preview geometry-stall
@@ -274,6 +279,56 @@ verification limit.*
 (a stored per-version snapshot — names already ship) · **IFCPATCH-LIB** rebase/unit-convert/merge-split
 recipes · **BCF-API-SRV** BCF 3.0 shape + attachments-over-API · RECIPE-MACROS → CADCMD/MCP mirror + headless
 `massing` CLI · SPRINT B phase-4b → CPM-driven crew shifts + enumeration scale.
+
+## 🏛 R18 — authoring-platform parity ring (2026-07-24, from the external strategy review)
+
+An external strategy document (07-23) framed the target as a full **BIM authoring platform** — semantic
+objects, families, coordinated documentation, model-driven schedules, multi-user versioning, enterprise
+controls, extensibility — benchmarked against desktop BIM authoring suites. **Analysis: ~everything in its
+7 phases already ships here** (the audit passes; the semantic core — levels/grids/walls/slabs/roofs/columns/
+beams/spaces/hosted openings, GUID-stable, one-undoable-version transactions; the family library +
+parametric generators; plan/section/elevation/sheet/PDF generation with revisions + issuance; computed
+schedules + QTO + the rule/IDS validation stack; real-time co-editing + versions + design options + audit
+trail; SAML/SCIM/MFA/RBAC/tenancy + Sentry/OTel; the API-first surface + plugin registry + MCP pack +
+webhooks + macros). Its wedge thesis — open standards, browser-native collaboration, construction handoff
+over discipline-by-discipline parity — is the strategy we already run. **What remains is the gap list
+below** (kept; the rest of the document is superseded by shipped work):
+
+- **AUTH-CONSTRAINTS — a persisted constraint/join layer** *(M/L; the biggest real gap).* Host / level /
+  offset relationships as first-class *data* (not just placement math at recipe time): wall joins, hosted
+  inserts that know their host, level-bound elements that re-derive on level moves — plus **validation for
+  illegal placements and broken hosts** (an insert whose host was deleted must surface, not dangle).
+  Foundation for edit-in-place depth; slices: ① persist host/level refs on authored elements ② the
+  broken-host/illegal-placement checker (rule_library-composable) ③ join resolution for walls.
+- **FAMILY-DEPTH — type catalogs · instance overrides · nested families · shared parameters** *(M).*
+  The family library exists; the depth gap is **type catalogs** (one family, many cataloged types),
+  **instance-level parameter overrides**, **nested families**, and **shared parameters** that drive
+  computed schedules and tags — plus cross-project **library versioning** (which projects use which
+  library version).
+- **VIEW-TEMPLATES — per-view visibility/graphics overrides** *(S/M).* Drawings already re-derive from the
+  model (associativity by regeneration — stronger than reference-pinning). Gap: **reusable view templates**
+  + per-view visibility/category/graphics overrides, persisted and deterministic (same template + same
+  model = same drawing; testable).
+- **SCHED-CALC — calculated fields in computed schedules** *(S).* Formula fields (`=qty*unit_cost`,
+  concatenations, conditionals) in the computed door/window/room schedules and saved module views —
+  deterministic expression evaluation only, no scripting runtime.
+- **MODEL-PUBLISH — review → publish states over model versions** *(M).* Versions + real-time co-editing +
+  design options exist; the gap is a **reviewable publish workflow** (draft → in-review → published, with
+  who/when and a rollback path) and **element-level optimistic concurrency** on edit recipes (a stale edit
+  against a since-changed element 409s instead of silently overwriting) — the pull-plan stale-write
+  pattern, applied to the model.
+- **OPS-DR — backup/restore + retention runbook** *(S; docs + scripts).* Postgres/MinIO backup + restore
+  scripts, a tested disaster-recovery runbook, and data-retention controls — the procurement-checklist
+  item that isn't a feature but blocks enterprise pilots.
+- **SDK-VERSIONING — versioned extension points** *(S).* The plugin registry exists; add **extension-point
+  versions + compatibility rules** (a plugin declares the contract version it targets; incompatible loads
+  are refused with a clear message).
+- **ADR-LITE — architecture decision records** *(S; process).* Adopt `docs/adr/` for *future* load-bearing
+  decisions (one page: context/decision/consequences). No retroactive backfill — the CHANGELOG + roadmap
+  already carry the history.
+
+*Sequencing: SCHED-CALC and OPS-DR are quick wins; AUTH-CONSTRAINTS ① and MODEL-PUBLISH's optimistic
+concurrency are the highest-value engineering slices; FAMILY-DEPTH follows the next authoring push.*
 
 ## 🔬 R16 — external-scan upgrades (2026-07-21) — ✅ COMPLETE (archived)
 
