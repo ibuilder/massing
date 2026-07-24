@@ -12,8 +12,8 @@ The R16/R17 rings are closed on the backend side, the R18 authoring-parity ring 
 slices, and the current push is **enterprise + finance-platform readiness** — the programs and governance
 layer that make the shipped engines defensible in enterprise diligence.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (344 suites) · single-source version in
-`apps/web/package.json` · CI on Node 22 · vitest 128.
+**Status:** CodeQL 0 open alerts · full backend suite green (351 suites) · single-source version in
+`apps/web/package.json` · CI on Node 22 · vitest 132.
 
 ---
 
@@ -66,8 +66,8 @@ need).
    OPS-OBS · ENG-STD + the G-2 SBOM and G-5 password-deny-list fixes.
 2. ✅ **R19 Sprint 2 — finance platform** *(shipped v0.3.650)*: FIN-GOV · FIN-CALC · FIN-PORTFOLIO · FIN-INGEST.
 3. **INTEROP-RT** — the round-trip fidelity gauntlet (rides with either sprint).
-4. **R18 tail — authoring depth**: FAMILY-DEPTH ② instance-level parameter overrides ·
-   AUTH-CONSTRAINTS ② level-move re-derivation → then FAMILY-DEPTH ③④ · AUTH-CONSTRAINTS ③ wall joins.
+4. ◧ **R18 tail — authoring depth** *(② slices shipped v0.3.651)*: ~~FAMILY-DEPTH ② instance overrides ·
+   AUTH-CONSTRAINTS ② level-move~~ → next: FAMILY-DEPTH ③④ · AUTH-CONSTRAINTS ③ wall joins.
 5. **UX-POLISH sprint**: UX-CHIPS · UX-KPI · UX-DEMO + the demo/docs/Pages refresh.
 6. **Carry-overs, opportunistically**: VERSION-COMPARE per-property snapshot values · IFCPATCH-LIB
    rebase/unit-convert/merge-split recipes · BCF-API-SRV 3.0 shape · SPRINT B phase-4b CPM crew shifts ·
@@ -82,11 +82,14 @@ verification limit.*
 Completed items (SCHED-CALC · OPS-DR · AUTH-CONSTRAINTS ① · MODEL-PUBLISH · RULE-PACK FOLD ·
 VIEW-TEMPLATES · FAMILY-DEPTH ① · SDK-VERSIONING · ADR-LITE) are archived. Remaining:
 
-- ◧ **AUTH-CONSTRAINTS ②③** *(M).* ② level-move re-derivation — level-bound elements follow a storey
-  elevation edit (the checker from slice ① validates the result) · ③ wall-join resolution.
-- ◧ **FAMILY-DEPTH ②–④** *(M).* ② instance-level parameter overrides (per-occurrence Pset overrides
-  layered over the type's values) · ③ nested families · ④ shared parameters driving schedules/tags +
-  cross-project library versioning.
+- ◧ **AUTH-CONSTRAINTS** *(M).* ✅ ② level-move re-derivation *(v0.3.651 — `set_storey_elevation`
+  shifts contained elements + non-riding hosted openings/fills by Δz; `move_elements=false` opts
+  out and the ① checker flags the stranded; `test_level_move`)*. **Remaining:** ③ wall-join
+  resolution.
+- ◧ **FAMILY-DEPTH** *(M).* ✅ ② instance-level parameter overrides *(v0.3.651 —
+  `instance_props.py` effective instance-over-type view + `/model/element/{guid}/effective-props`
+  + the `reset_prop_to_type` recipe; `test_instance_props`)*. **Remaining:** ③ nested families ·
+  ④ shared parameters driving schedules/tags + cross-project library versioning.
 
 ## 🧭 R17 — viewer-coupled tail (gated on the dev-preview geometry stall)
 
@@ -106,9 +109,11 @@ VIEW-TEMPLATES · FAMILY-DEPTH ① · SDK-VERSIONING · ADR-LITE) are archived. 
 
 - ◧ **UX-ACT** *(S; phase-1 shipped)* — extend the resolve-action descriptors to the `rule_library.py`
   violations and `schedule_options.py` conflict feeds.
-- **UX-CHIPS** *(S)* — one standardized status/delta chip component across the money cards, DRAW-STATUS,
-  and lifecycle feeds.
-- **UX-KPI** *(S)* — portal dashboard KPI header + a template-string one-line narrative (no LLM).
+- ◧ **UX-CHIPS** *(v0.3.652)* — ✅ `ui/chips.ts` (statusChip/deltaChip/kpiHeader/countNarrative,
+  vitest-covered) + first consumers (the margin card's exposure flags). **Remaining:** roll out to
+  DRAW-STATUS, the client-portal money cards, and the lifecycle feeds as they're touched.
+- ◧ **UX-KPI** *(v0.3.652)* — ✅ the PX executive band's template-string one-line narrative.
+  **Remaining:** the same header treatment on the developer/design homes.
 - **UX-DEMO** *(S)* — one richly-threaded demo project across every screen (kills empty states).
 - **COST-SPINE** *(M)* — one cost-code identity estimate→budget→invoice on the CBS spine (MARGIN-CBS
   follow-on).

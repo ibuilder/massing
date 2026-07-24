@@ -277,12 +277,65 @@ def rename_storey(model: ifcopenshell.file, guid: str, name: str) -> str:
     return guid
 
 
-def set_storey_elevation(model: ifcopenshell.file, guid: str, elevation: float = 0.0) -> str:
-    """Move a storey/level to a new elevation (metres)."""
+def _reset_prop_to_type(model: ifcopenshell.file, guid: str, pset: str, prop: str) -> str:
+    """FAMILY-DEPTH ② — drop an occurrence-level property so the type's value shows through
+    (refused when there is no type value to reset to). See aec_data.instance_props."""
+    from . import instance_props
+    instance_props.reset_property_to_type(model, guid, pset, prop)
+    return guid
+
+
+def set_storey_elevation(model: ifcopenshell.file, guid: str, elevation: float = 0.0,
+                         move_elements: bool = True) -> str:
+    """Move a storey/level to a new elevation (metres). AUTH-CONSTRAINTS ② — by default the
+    storey's CONTAINED ELEMENTS re-derive with it: every element's placement shifts by Δz, and
+    hosted openings/fills that did NOT ride along automatically (absolute placements) are shifted
+    too — so a level move never strands geometry. `move_elements=False` restores the old
+    attribute-only behaviour (the constraints checker will flag what gets left behind)."""
+    import ifcopenshell.api
+    import ifcopenshell.util.placement as uplace
     import ifcopenshell.util.unit as uunit
+    import numpy as np
     scale = uunit.calculate_unit_scale(model)
     st = model.by_guid(guid)
+    old_m = float(st.Elevation or 0.0) * scale
     st.Elevation = float(elevation) / scale
+    dz = float(elevation) - old_m
+    if not move_elements or abs(dz) < 1e-9:
+        return guid
+
+    def _abs(el):
+        return uplace.get_local_placement(el.ObjectPlacement)  # composed, file units
+
+    def _shift(el):
+        m = np.array(_abs(el), dtype=float)
+        m[:3, 3] *= scale                          # file units -> metres for edit_object_placement
+        m[2, 3] += dz
+        ifcopenshell.api.run("geometry.edit_object_placement", model, product=el, matrix=m)
+
+    contained = []
+    for rel in model.by_type("IfcRelContainedInSpatialStructure"):
+        if rel.RelatingStructure == st:
+            contained.extend(e for e in (rel.RelatedElements or []) if getattr(e, "ObjectPlacement", None))
+    # snapshot hosted openings/fills BEFORE moving hosts, so we can tell who rode along
+    hosted = {}
+    for host in contained:
+        for void in getattr(host, "HasOpenings", None) or []:
+            op = void.RelatedOpeningElement
+            if op is not None and getattr(op, "ObjectPlacement", None):
+                hosted[op.id()] = (op, float(_abs(op)[2, 3]))
+            for fill in [f.RelatedBuildingElement for f in (getattr(op, "HasFillings", None) or [])]:
+                if fill is not None and getattr(fill, "ObjectPlacement", None):
+                    hosted[fill.id()] = (fill, float(_abs(fill)[2, 3]))
+    contained_ids = {e.id() for e in contained}
+    for el in contained:
+        _shift(el)
+    tol = 1e-6 / max(scale, 1e-9)
+    for eid, (el, z_before) in hosted.items():
+        if eid in contained_ids:
+            continue                               # already moved directly
+        if abs(float(_abs(el)[2, 3]) - z_before) < tol:
+            _shift(el)                             # absolute placement — didn't ride its host
     return guid
 
 
@@ -695,7 +748,9 @@ RECIPES = {
     "program_fit": lambda m, p: program_fit(m, p["program"], p.get("item", "desk")),
     "add_storey": lambda m, p: add_storey(m, p["name"], float(p.get("elevation", 0.0))),
     "rename_storey": lambda m, p: rename_storey(m, p["guid"], p["name"]),
-    "set_storey_elevation": lambda m, p: set_storey_elevation(m, p["guid"], float(p.get("elevation", 0.0))),
+    "set_storey_elevation": lambda m, p: set_storey_elevation(m, p["guid"], float(p.get("elevation", 0.0)),
+                                                              bool(p.get("move_elements", True))),
+    "reset_prop_to_type": lambda m, p: _reset_prop_to_type(m, p["guid"], p["pset"], p["prop"]),
     "add_steel_column": lambda m, p: add_steel_column(m, p["point"], float(p.get("height", 3.0)),
                                                        p.get("section", "W12x26"), p.get("storey")),
     "add_steel_beam": lambda m, p: add_steel_beam(m, p["start"], p["end"],

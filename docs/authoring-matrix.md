@@ -2,15 +2,16 @@
 
 > Generated from `edit.RECIPES` by `authoring_matrix.to_markdown()` — do not hand-edit; re-run the generator (or `GET /reference/authoring-matrix`) after adding a recipe.
 
-**76 authoring recipes** across **14 categories**. Every recipe is a GUID-stable server-side pass, dispatchable from the CAD command line, the AI command bar, the node canvas, or the tool panels.
+**88 authoring recipes** across **15 categories**. Every recipe is a GUID-stable server-side pass, dispatchable from the CAD command line, the AI command bar, the node canvas, or the tool panels.
 
-### create-structure (11)
+### create-structure (13)
 
 | Recipe | Produces |
 | --- | --- |
 | `add_base_plate` | IfcPlate (base plate) |
 | `add_beam` | IfcBeam |
 | `add_column` | IfcColumn |
+| `add_connection_assembly` | connection plate+bolts + IfcRelConnectsWithRealizingElements |
 | `add_footing` | IfcFooting |
 | `add_rebar` | IfcReinforcingBar |
 | `add_rebar_cage` | IfcReinforcingBar (cage) |
@@ -19,8 +20,9 @@
 | `add_steel_beam` | IfcBeam (steel profile) |
 | `add_steel_column` | IfcColumn (steel profile) |
 | `add_wall` | IfcWall |
+| `extrude_profile` | sketch profile → extruded element |
 
-### create-enclosure (4)
+### create-enclosure (5)
 
 | Recipe | Produces |
 | --- | --- |
@@ -28,6 +30,7 @@
 | `add_curtain_wall` | IfcCurtainWall |
 | `add_railing` | IfcRailing |
 | `add_roof` | IfcRoof |
+| `add_roof_window` | IfcWindow (SKYLIGHT) voiding a roof |
 
 ### create-opening (2)
 
@@ -59,7 +62,7 @@
 | `add_sprinkler` | IfcFireSuppressionTerminal |
 | `add_wire` | IfcCableSegment |
 
-### create-content (4)
+### create-content (5)
 
 | Recipe | Produces |
 | --- | --- |
@@ -67,6 +70,7 @@
 | `add_mesh_representation` | IfcBuildingElementProxy (mesh) |
 | `furnish_spaces` | FF&E per room |
 | `place_content` | catalog content |
+| `program_fit` | headcount program → zones + seats |
 
 ### annotate (4)
 
@@ -77,7 +81,7 @@
 | `add_revision_cloud` | IfcAnnotation (rev cloud) |
 | `add_tag` | IfcAnnotation (element tag) |
 
-### edit (9)
+### edit (10)
 
 | Recipe | Produces |
 | --- | --- |
@@ -88,13 +92,15 @@
 | `move_element` | translate |
 | `rename_storey` | rename level |
 | `rotate_element` | rotate |
+| `set_extrusion_depth` | push/pull an extrusion depth |
 | `set_storey_elevation` | move level |
 | `set_wall_slope` | sloped-top wall |
 
-### edit-mep (2)
+### edit-mep (3)
 
 | Recipe | Produces |
 | --- | --- |
+| `auto_connect_mep` | coincident-port auto-connect sweep |
 | `connect_mep` | port-to-port connection |
 | `set_system_predefined` | system predefined type |
 
@@ -115,7 +121,7 @@
 | `create_group` | IfcGroup |
 | `ungroup` | dissolve a group |
 
-### data (14)
+### data (18)
 
 | Recipe | Produces |
 | --- | --- |
@@ -126,13 +132,17 @@
 | `attach_om_document` | O&M document ref |
 | `batch_tag` | AEC_Tags label |
 | `classify` | IfcClassificationReference |
+| `derive_representations` | coarse Box/Axis/FootPrint views |
 | `ensure_contexts` | representation contexts |
 | `map_properties` | vendor→IDS pset remap |
+| `reset_prop_to_type` | Reset property to type |
 | `set_classification` | classification |
 | `set_element_pset` | Pset property |
 | `set_lod` | LOD stage tag |
 | `set_manufacturer_info` | manufacturer psets |
+| `set_props_by_guid` | Pset batch (XLSX round-trip) |
 | `set_pset` | Pset property |
+| `set_spec_link` | Pset_Massing_SpecLink breadcrumb |
 
 ### lifecycle (3)
 
@@ -149,3 +159,10 @@
 | `apply_structural_loads` | IfcStructuralLoad |
 | `apply_structural_supports` | IfcStructuralConnection |
 | `derive_analytical` | IfcStructuralAnalysisModel |
+
+### maintenance (2)
+
+| Recipe | Produces |
+| --- | --- |
+| `purge_empty_groups` | purge empty groups |
+| `purge_orphan_psets` | purge orphaned property sets |

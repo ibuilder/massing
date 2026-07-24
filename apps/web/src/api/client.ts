@@ -2575,6 +2575,14 @@ export class ApiClient extends HttpCore {
     return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
       imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
   }
+  /** FAMILY-DEPTH ② — the effective (instance-over-type) property view for one element. */
+  elementEffectiveProps(pid: string, guid: string) {
+    return this.json<{ guid: string; type_guid: string | null; type_name: string | null;
+      override_count: number;
+      psets: Record<string, Record<string, { value: unknown; source: "instance" | "type";
+        overridden: boolean; type_value: unknown }>> }>(
+      `/projects/${pid}/model/element/${encodeURIComponent(guid)}/effective-props`);
+  }
   /** FIN-PORTFOLIO — latest scenario per project side-by-side with governance state + the spread. */
   portfolioCompare() {
     return this.json<{ project_count: number; rows: { project_id: string; project_name: string;

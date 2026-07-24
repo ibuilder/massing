@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.652 — UX-POLISH: the shared chip vocabulary + KPI narrative + docs refresh
+
+- **UX-CHIPS** (`ui/chips.ts`): one status/delta chip component for every list and money card —
+  `statusChip` (tone auto-mapped from the workflow word, optional timestamp), `deltaChip`
+  (sign-colored, `goodWhenNegative` flips for cost metrics, tabular numerals), `kpiHeader` +
+  `countNarrative`. Pure escaped-string builders; 4 vitest cases (suite 132). First consumers:
+  the 📒 margin card's over-budget/over-committed flags (header + per-row) now render as chips.
+- **UX-KPI**: the project-executive band closes with a one-line plain narrative — "2 milestones
+  late, 5 due soon, …" — a template string over numbers the card already holds, never an LLM;
+  "On plan — no exceptions to chase" when clean.
+- **Docs refresh**: the README's rolling highlights gain the v0.3.615–651 era (enterprise &
+  finance-platform readiness + authoring-parity depth); roadmap status counters brought current.
+
+## v0.3.651 — R18 tail: level-move re-derivation + instance parameter overrides
+
+The two deepest open authoring-parity slices (AUTH-CONSTRAINTS ② · FAMILY-DEPTH ②).
+
+- **Level moves carry their elements** (`set_storey_elevation`, AUTH-CONSTRAINTS ②). Editing a
+  storey's elevation now re-derives every CONTAINED element's placement by Δz — and hosted
+  openings/fills that did not ride along automatically (absolute placements) are detected via a
+  before/after snapshot and shifted too, so a level move never strands geometry. Opt out with
+  `move_elements: false` (the old attribute-only behaviour), in which case the v0.3.637
+  constraints checker flags exactly the stranded elements. `test_level_move` proves both
+  directions (wall + hosted door land at the new elevation to the millimetre; the opt-out wall is
+  flagged by GUID).
+- **Instance-level parameter overrides, first-class** (`aec_data/instance_props.py`,
+  FAMILY-DEPTH ②). `GET /projects/{pid}/model/element/{guid}/effective-props` returns the merged
+  properties-panel view: every pset/property with its **effective value**, its **source**
+  (`instance` | `type`), the shadowed type value where an occurrence override is in play, and the
+  override count. The **`reset_prop_to_type` recipe** removes the occurrence property so the
+  type's value shows through (refused when there's no type backing — that would delete data, not
+  reset it; the last property removed also drops the empty pset shell). `elementEffectiveProps`
+  client; `test_instance_props` (suite 351).
+
 ## v0.3.650 — R19 Sprint 2: the finance-platform pack (FIN-GOV · FIN-CALC · FIN-INGEST · FIN-PORTFOLIO)
 
 Trust before breadth: governance, golden-tested math, reconciliation, and investor reporting on

@@ -595,6 +595,20 @@ def model_constraints(pid: str, db: Session = Depends(get_db),
     return constraints.check(open_source_ifc(db, pid))
 
 
+@router.get("/projects/{pid}/model/element/{guid}/effective-props")
+def element_effective_props(pid: str, guid: str, db: Session = Depends(get_db),
+                            _sec: str = Depends(require_role("viewer"))):
+    """FAMILY-DEPTH ② (R18) — the effective property view for one element: every pset/property
+    with its effective value, its source (`instance` | `type`), the shadowed type value where an
+    occurrence override is in play, and the override count. The properties panel's type-vs-instance
+    answer, straight from the model."""
+    from aec_data import instance_props  # type: ignore
+    try:
+        return instance_props.effective_properties(open_source_ifc(db, pid), guid)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
 @router.get("/projects/{pid}/master-builder/brief")
 def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MASTER-BUILDER — the whole project in one view: runs the 8-step Master Builder Protocol (place →
