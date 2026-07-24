@@ -200,9 +200,13 @@ runtime dep) · SKIP = conflicts with a constraint/non-goal.
   -facing **payment schedule** (display only) — an explicit per-token `show_payments` **opt-in** at mint
   (+ Alembic revision; existing tokens stay financials-off): the digest + escaped HTML page carry the
   owner-invoice milestones (number · period · amount · paid/submitted status) with billed/paid/**outstanding**
-  totals; the default digest still exposes no financials (asserted both ways). **Remaining:** per-item
-  Sent/Viewed/Approved status labels on shared items · a scoped client comment thread (BCF round-trip) ·
-  the payment *rail* stays SKIP.
+  totals; the default digest still exposes no financials (asserted both ways). ✅ **phase 3 (v0.3.627):**
+  the **scoped client comment thread** — PUBLIC `POST /shared/{token}/comment` lands on the token's
+  dedicated **BCF feedback topic** (one thread per link; short label marker, never the full token), the
+  team answers from the 🗂 Issue Board, replies flow back into the digest/share-page **Conversation**
+  card (escaped), and the thread round-trips through BCF export; empty-text 422 / 404 / 1000-char +
+  200-comment caps. **Remaining:** per-item Sent/Viewed/Approved status labels on shared items · the
+  payment *rail* stays SKIP.
 - ◧ **DORMER** *(S; roof-window slice v0.3.620).* ✅ `add_roof_window` recipe (`edit_enclosure.py`, in the
   RECIPES registry): cut a skylight opening through a flat `IfcRoof` at an [E,N] position (IfcOpeningElement
   voiding, full-depth) + fill with an `IfcWindow` PredefinedType **SKYLIGHT** via the standard feature

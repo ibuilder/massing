@@ -121,6 +121,7 @@ def digest(db: Session, token: str) -> dict[str, Any]:
         "step_count": b.get("step_count"),
         "steps": [{"n": s["n"], "title": s["title"], "status": s["status"]} for s in b.get("steps", [])],
         "activity": _activity_for_token(db, token),
+        "conversation": thread_for_token(db, token),
         **({"payment_schedule": _payment_schedule(db, row.project_id)} if row.show_payments else {}),
         "shared_label": row.label,
         "note": "Read-only shared project digest — high-level readiness only. No record-level data, "
@@ -169,6 +170,84 @@ def record_decision(db: Session, token: str, item_type: str, item_ref: str, acti
     db.add(d)
     db.commit()
     return _decision_row(d)
+
+
+# PORTAL-TXN phase 3 — the scoped client comment thread. Each share token gets ONE dedicated BCF topic
+# ("Client feedback — <label>") in the project; client comments land as real topic comments, so the
+# project team sees + answers them in the 🗂 Issue Board (with the TOPIC-LIFE timeline) and they
+# round-trip through BCF export like any other topic. The topic is found via a short label marker
+# (`share:<token[:8]>`) — never the full token, which is the credential.
+_MAX_COMMENTS_PER_TOKEN = 200
+_COMMENT_CAP = 1000
+
+
+def _feedback_topic(db: Session, row, create: bool = False):
+    """The token's dedicated feedback Topic (or None). Matched by the short label marker."""
+    from .models import Topic
+
+    marker = f"share:{row.token[:8]}"
+    for t in db.execute(select(Topic).where(Topic.project_id == row.project_id,
+                                            Topic.type == "info",
+                                            Topic.labels.isnot(None))).scalars():
+        if marker in (t.labels or []):
+            return t
+    if not create:
+        return None
+    t = Topic(project_id=row.project_id, type="info", status="open",
+              title=f"Client feedback — {row.label or 'shared link'}",
+              author="client-portal", labels=["client-portal", marker])
+    db.add(t)
+    db.flush()
+    return t
+
+
+def client_comment(db: Session, token: str, text: str,
+                   client_name: str | None = None) -> dict[str, Any]:
+    """Post a client comment through a live token onto the token's feedback topic. Raises KeyError
+    (bad/revoked token → 404) or ValueError (empty text / comment cap → 422/409)."""
+    from sqlalchemy import func
+
+    from . import audit
+    from .models import Comment, ShareToken
+
+    row = db.get(ShareToken, token)
+    if row is None or row.revoked:
+        raise KeyError("invalid or revoked token")
+    body = str(text or "").strip()
+    if not body:
+        raise ValueError("text is required")
+    t = _feedback_topic(db, row, create=True)
+    n = db.execute(select(func.count()).select_from(Comment)
+                   .where(Comment.topic_id == t.id)).scalar() or 0
+    if n >= _MAX_COMMENTS_PER_TOKEN:
+        raise ValueError("comment limit reached for this share link — ask the project team for a fresh link")
+    author = (str(client_name).strip()[:_CAPS["client_name"]] or None) if client_name else None
+    c = Comment(topic_id=t.id, author=author or (row.label or "client"), text=body[:_COMMENT_CAP])
+    db.add(c)
+    audit.record(db, action="comment.create", actor="client-portal", method="POST", topic_id=t.id,
+                 path="/shared/…/comment", detail={"via": "share-token"})
+    db.commit()
+    return {"topic_id": t.id, "comment_id": c.id, "author": c.author, "text": c.text,
+            "created_at": c.created_at.isoformat() if c.created_at else None}
+
+
+def thread_for_token(db: Session, token: str, limit: int = 50) -> list[dict[str, Any]]:
+    """The token's conversation — client comments AND the team's replies on the feedback topic,
+    oldest→newest for reading (desc-limit keeps the NEWEST when capped)."""
+    from .models import Comment, ShareToken
+
+    row = db.get(ShareToken, token)
+    if row is None or row.revoked:
+        return []
+    t = _feedback_topic(db, row)
+    if t is None:
+        return []
+    rows = db.execute(select(Comment).where(Comment.topic_id == t.id)
+                      .order_by(Comment.created_at.desc(), Comment.id.desc())
+                      .limit(max(1, min(limit, 200)))).scalars().all()
+    rows.reverse()
+    return [{"author": c.author, "text": c.text,
+             "created_at": c.created_at.isoformat() if c.created_at else None} for c in rows]
 
 
 def _decision_row(d) -> dict[str, Any]:
@@ -252,8 +331,24 @@ def to_html(d: dict[str, Any]) -> str:
                 for a in d.get("activity", []))
             + "</ul></div>" if d.get("activity") else "")
         + (_payments_html(d["payment_schedule"], esc) if d.get("payment_schedule") else "")
+        + (_conversation_html(d["conversation"], esc) if d.get("conversation") else "")
         + f"<div class=\"muted\">{esc(d.get('note'))}</div>"
         "</main></body></html>")
+
+
+def _conversation_html(thread: list, esc) -> str:
+    """The escaped conversation card (PORTAL-TXN phase 3) — client comments + the team's replies on
+    the token's feedback topic, oldest→newest."""
+    rows = "".join(
+        '<li style="margin:8px 0">'
+        f'<div style="display:flex;gap:8px;align-items:baseline"><b style="font-size:13px">'
+        f'{esc(c.get("author") or "client")}</b>'
+        f'<span class="muted">{esc((c.get("created_at") or "")[:16].replace("T", " "))}</span></div>'
+        f'<div style="margin-top:2px;white-space:pre-wrap">{esc(c.get("text"))}</div></li>'
+        for c in thread)
+    return ('<div class="card"><b>Conversation</b><ul>' + rows
+            + '</ul><div class="muted">Messages posted through this link reach the project team; '
+              'their replies appear here.</div></div>')
 
 
 def _payments_html(ps: dict, esc) -> str:

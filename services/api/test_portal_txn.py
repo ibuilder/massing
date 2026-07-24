@@ -87,6 +87,30 @@ with TestClient(app) as c:
         "the opt-in HTML page renders the schedule"
     assert "Payment schedule" not in c.get(f"/shared/{plain_tok['token']}").text
 
+    # --- PORTAL-TXN phase 3: the scoped client comment thread (backed by a real BCF topic) --------
+    ct = c.post(f"/shared/{pay_tok['token']}/comment",
+                json={"text": "When does tile install start?", "client_name": "Pat Owner"})
+    assert ct.status_code == 200, ct.text
+    fb_tid = ct.json()["topic_id"]
+    # the comment landed on a real project topic the team can answer from the Issue Board
+    fb = c.get(f"/projects/{pid}/topics/{fb_tid}").json()
+    assert fb["type"] == "info" and "Client feedback" in fb["title"] and "client-portal" in fb["labels"], fb
+    c.post(f"/projects/{pid}/topics/{fb_tid}/comments",
+           json={"author": "pm", "text": "Tile starts the week of 8/10."})     # the team replies
+    conv = c.get(f"/shared/{pay_tok['token']}/digest").json()["conversation"]
+    assert [x["text"] for x in conv] == ["When does tile install start?", "Tile starts the week of 8/10."], conv
+    # a second comment through the token reuses the SAME feedback topic (one thread per link)
+    assert c.post(f"/shared/{pay_tok['token']}/comment",
+                  json={"text": "Great, thanks."}).json()["topic_id"] == fb_tid
+    # guards: empty text 422 · revoked/unknown token 404 · XSS-escaped on the public page
+    assert c.post(f"/shared/{pay_tok['token']}/comment", json={"text": "  "}).status_code == 422
+    assert c.post("/shared/nope/comment", json={"text": "x"}).status_code == 404
+    c.post(f"/shared/{pay_tok['token']}/comment", json={"text": "<img onerror=alert(1)>"})
+    page = c.get(f"/shared/{pay_tok['token']}").text
+    assert "Conversation" in page and "<img onerror" not in page and "&lt;img onerror" in page
+    assert "Conversation" not in c.get(f"/shared/{plain_tok['token']}").text, \
+        "a token with no comments shows no conversation card"
+
     # --- the hard per-token cap (200) fires 409 ---------------------------------------------------
     tok2 = c.post(f"/projects/{pid}/share-tokens", json={"label": "cap"}).json()["token"]
     from aec_api.client_portal import _MAX_DECISIONS_PER_TOKEN
@@ -101,9 +125,9 @@ with TestClient(app) as c:
                                                     "action": "approved"})
     assert over.status_code == 409 and "limit" in over.json()["detail"], over.text
 
-print("PORTAL-TXN OK - a share-token holder can approve an estimate, acknowledge a CO (with a note), and "
-      "decline a selection through the PUBLIC /shared/{token}/decision endpoint; item types + actions are "
-      "whitelisted (wire_transfer/paid → 422), refs/notes are length-capped (120/500), an unknown or revoked "
-      "token 404s, and the hard 200-decision-per-token cap 409s; the digest carries the newest-first activity "
-      "feed, the public HTML page renders it fully escaped (an injected <script> appears only as "
-      "&lt;script&gt;), and editors read the project-wide decision feed newest-first.")
+print("PORTAL-TXN OK - decisions (whitelisted, capped, escaped, 404-on-revoked, 409-on-cap) + the "
+      "phase-2 payment schedule (an explicit per-token show_payments opt-in; the default digest exposes "
+      "no financials, asserted both ways) + the phase-3 client comment thread: a token holder's comment "
+      "lands on the token's dedicated BCF feedback topic (one thread per link), the team's Issue-Board "
+      "reply flows back into the digest conversation, empty text 422s, unknown token 404s, and the "
+      "public page renders every message escaped.")

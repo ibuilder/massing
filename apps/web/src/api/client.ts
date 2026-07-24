@@ -1990,6 +1990,13 @@ export class ApiClient extends HttpCore {
     return this.json<{ revoked: boolean }>(`/projects/${pid}/share-tokens/${encodeURIComponent(token)}`,
       { method: "DELETE" });
   }
+  /** PORTAL-TXN phase 3 — post a client comment through a share token (public; lands on the token's
+   * BCF feedback topic, so the team answers from the Issue Board). */
+  sharedComment(token: string, body: { text: string; client_name?: string }) {
+    return this.json<{ topic_id: string; comment_id: string; author: string | null; text: string;
+      created_at: string | null }>(
+      `/shared/${encodeURIComponent(token)}/comment`, { method: "POST", body: JSON.stringify(body) });
+  }
   /** The public digest JSON URL for a share token. */
   sharedDigestUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}/digest`); }
   /** The public read-only HTML page for a share token (opens with no login — the human share link). */

@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.627 — PORTAL-TXN phase 3: the client conversation, backed by a real BCF topic
+
+The share link grows a two-way thread — without a login, an inbox, or a new data model.
+
+- **`POST /shared/{token}/comment`** (public): a client comment through a live share token lands on the
+  token's dedicated **feedback topic** — a real BCF topic ("Client feedback — *label*", one thread per
+  link, matched by a short label marker, never the full token). The project team reads and answers it
+  in the 🗂 Issue Board like any other issue, and it **round-trips through BCF export**.
+- **The digest + share page carry the conversation** both ways: the team's Issue-Board replies flow
+  back to the client, oldest→newest, every message escaped on the public page.
+- Public-surface rails: empty text 422, unknown/revoked token 404, 1 000-char message cap, a hard
+  200-comment per-thread cap (409), author name length-capped.
+- `sharedComment` client method; `test_portal_txn` extended (XSS-escape asserted, no-conversation
+  tokens show no card); suite green; CodeQL 0.
+
 ## v0.3.626 — TOPIC-LIFE: the BCF-topic lifecycle spine (state machine · threaded comments · timeline)
 
 Issues stop being flat rows — they get a real workflow, a conversation, and a history.

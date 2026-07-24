@@ -76,6 +76,20 @@ def shared_decision(token: str, body: dict = Body(...), db: Session = Depends(ge
         raise HTTPException(409 if "limit" in str(e) else 422, str(e)) from None
 
 
+@router.post("/shared/{token}/comment")
+def shared_comment(token: str, body: dict = Body(...), db: Session = Depends(get_db)):
+    """PUBLIC (no auth) — PORTAL-TXN phase 3: post a client comment through a live share token. The
+    comment lands on the token's dedicated **feedback topic** (a real BCF topic), so the project team
+    reads + answers it in the Issue Board and it round-trips through BCF export. Length-capped, hard
+    per-thread cap. Body: `{text, client_name?}`. Unknown/revoked token → 404."""
+    try:
+        return client_portal.client_comment(db, token, body.get("text"), body.get("client_name"))
+    except KeyError:
+        raise HTTPException(404, "not found") from None
+    except ValueError as e:
+        raise HTTPException(409 if "limit" in str(e) else 422, str(e)) from None
+
+
 @router.get("/shared/{token}/digest")
 def shared_digest(token: str, db: Session = Depends(get_db)):
     """PUBLIC (no auth) — the curated read-only project digest for a valid share token. High-level
