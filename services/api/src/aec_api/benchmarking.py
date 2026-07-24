@@ -189,3 +189,51 @@ def response_rates(db: Session, project_ids: set[str] | None = None) -> dict:
         "overdue_pct": round(sub_overdue / len(sub_open) * 100, 1) if sub_open else 0.0,
     }
     return {"rfi": rfi, "submittal": sub}
+
+
+def space_utilization(db: Session, area_per_person: float = 10.0,
+                      project_ids: set[str] | None = None, max_models: int = 12) -> dict:
+    """SPACE-UTIL benchmarking — capacity/utilization across the caller's projects, computed from each
+    project's OWN model (spaces are geometry, not records). Bounded: at most `max_models` models are
+    opened (newest projects first; `open_model` caches by path+mtime so repeat calls are cheap); the
+    projects skipped for the cap are counted, never silently dropped."""
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from . import space_util
+    from .models import Project
+
+    q = db.query(Project).filter(Project.source_ifc.isnot(None)).order_by(Project.created_at.desc())
+    rows = [p for p in q.all() if project_ids is None or p.id in project_ids]
+    scanned, skipped_cap, unreadable = [], 0, 0
+    for p in rows:
+        if len(scanned) >= max_models:
+            skipped_cap += 1
+            continue
+        try:
+            u = space_util.from_model(open_model(p.source_ifc), area_per_person)
+        except Exception:                       # noqa: BLE001 — a missing/corrupt file skips, not aborts
+            unreadable += 1
+            continue
+        if not u.get("space_count"):
+            continue
+        top = (u.get("by_type") or [{}])[0]
+        scanned.append({
+            "project_id": p.id, "project": p.name,
+            "space_count": u["space_count"], "total_area_m2": u["total_area_m2"],
+            "capacity": u["capacity_total"],
+            "m2_per_space": round(u["total_area_m2"] / u["space_count"], 1),
+            "top_type": top.get("type"), "top_type_area_m2": top.get("area_m2")})
+    scanned.sort(key=lambda r: -r["total_area_m2"])
+    areas = sorted(r["m2_per_space"] for r in scanned)
+    return {
+        "area_per_person": area_per_person, "projects": len(scanned),
+        "skipped_over_cap": skipped_cap, "unreadable_models": unreadable,
+        "rows": scanned,
+        "portfolio": {
+            "total_area_m2": round(sum(r["total_area_m2"] for r in scanned), 1),
+            "total_capacity": sum(r["capacity"] for r in scanned),
+            "median_m2_per_space": round(_pctile(areas, 0.5), 1) if areas else None,
+        },
+        "note": f"Space capacity at {area_per_person} m²/person across the portfolio's modelled "
+                "projects — compare a project's m²-per-space against the portfolio median.",
+    }

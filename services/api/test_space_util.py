@@ -77,6 +77,21 @@ with TestClient(app) as c:
                 json={"program": {"Room": 50}, "area_per_person": 12})
     assert dr.status_code == 200 and "total_gap_m2" in dr.json(), dr.text
 
+    # --- SPACE-UTIL benchmarking: cross-project capacity from each project's own model ------------
+    b = c.get("/benchmarks/space-utilization?area_per_person=10")
+    assert b.status_code == 200, b.text
+    bj = b.json()
+    assert bj["projects"] >= 1 and bj["area_per_person"] == 10.0, bj
+    row = next(r for r in bj["rows"] if r["project_id"] == pid)
+    assert row["space_count"] >= 3 and row["m2_per_space"] > 0 and row["capacity"] > 0, row
+    assert bj["portfolio"]["total_capacity"] >= row["capacity"], bj["portfolio"]
+    assert bj["portfolio"]["median_m2_per_space"] is not None, bj["portfolio"]
+    # the standard is clamped, and a project with no model simply isn't a row
+    assert c.get("/benchmarks/space-utilization?area_per_person=0.1").json()["area_per_person"] == 1.0
+    pid2 = c.post("/projects", json={"name": "No model"}).json()["id"]
+    assert all(r["project_id"] != pid2
+               for r in c.get("/benchmarks/space-utilization").json()["rows"])
+
 if os.path.exists(TMP):
     os.remove(TMP)
 
@@ -85,4 +100,6 @@ print("SPACE-UTIL OK - occupancy capacity per IfcSpace at an area-per-person sta
       "count; a bad standard falls back to the default), and a headcount program compares against the "
       "modelled inventory into a required-vs-supplied gap per type worst-deficit-first (Office needs 400 has "
       "305 → −95 deficit); the /model/space-utilization route 409s without a model and the /space-demand "
-      "route returns a gap plan.")
+      "route returns a gap plan. Benchmarking: /benchmarks/space-utilization aggregates capacity + "
+      "m²-per-space across the portfolio's modelled projects with a portfolio median, clamps the "
+      "standard, and model-less projects simply aren't rows.")

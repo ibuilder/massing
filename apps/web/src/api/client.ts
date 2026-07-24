@@ -2089,6 +2089,16 @@ export class ApiClient extends HttpCore {
       columns: { key: string; count: number; topics: T[] }[]; note: string;
     }>(`/projects/${pid}/topics/board?${q.toString()}`);
   }
+  /** SPACE-UTIL benchmarking — capacity + m²/space across the portfolio's modelled projects. */
+  spaceUtilBenchmarks(areaPerPerson = 10) {
+    return this.json<{
+      area_per_person: number; projects: number; skipped_over_cap: number; unreadable_models: number;
+      rows: { project_id: string; project: string; space_count: number; total_area_m2: number;
+        capacity: number; m2_per_space: number; top_type: string | null; top_type_area_m2: number | null }[];
+      portfolio: { total_area_m2: number; total_capacity: number; median_m2_per_space: number | null };
+      note: string;
+    }>(`/benchmarks/space-utilization?area_per_person=${encodeURIComponent(areaPerPerson)}`);
+  }
   /** MODEL-PUBLISH — the review gate over model versions: submit | approve | reject (409 on an
    * illegal transition). The file pointer is never touched — this is the QA record. */
   reviewModelVersion(pid: string, version: number, action: "submit" | "approve" | "reject", note?: string) {

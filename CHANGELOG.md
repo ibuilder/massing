@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.641 — SPACE-UTIL benchmarking: capacity across the portfolio (R16 remainder closed)
+
+- **`GET /benchmarks/space-utilization`** — capacity/utilization across your **modelled** projects,
+  computed from each project's own IFC (spaces are geometry, not records): space count, total area,
+  capacity at the given m²/person standard, and **m² per space vs the portfolio median**. Scoped to
+  the caller's projects; bounded to 12 models per call (newest first, `open_model`-cached; skips and
+  unreadable models are counted, never silent); the standard clamps to [1, 100].
+- `spaceUtilBenchmarks` client method; `test_space_util` extended (portfolio median, clamping,
+  model-less projects simply aren't rows). Closes the last R16 SPACE-UTIL carried remainder — and
+  with it, **every R16 carried remainder except MEP-EQUIP ties and the RECIPE-MACROS CLI**.
+
 ## v0.3.640 — SEC-SUPPLY: the MCP tool-poisoning self-audit + non-gating CI step
 
 Tool poisoning — hostile instructions smuggled into MCP tool descriptions that agents read as trusted

@@ -27,6 +27,16 @@ def response_rates(db: Session = Depends(get_db), user: str = Depends(current_us
     return benchmarking.response_rates(db, project_ids=member_project_ids(db, user))
 
 
+@router.get("/benchmarks/space-utilization")
+def space_utilization(area_per_person: float = 10.0, db: Session = Depends(get_db),
+                      user: str = Depends(current_user)):
+    """SPACE-UTIL benchmarking — capacity/utilization across your modelled projects (space count,
+    total area, capacity at the given m²/person standard, m² per space vs the portfolio median).
+    Bounded to 12 models per call (newest first; skips are counted, never silent)."""
+    return benchmarking.space_utilization(db, area_per_person=max(1.0, min(area_per_person, 100.0)),
+                                          project_ids=member_project_ids(db, user))
+
+
 @router.get("/benchmarks/pull-planning")
 def pull_planning(min_committed: int = 3, db: Session = Depends(get_db),
                   user: str = Depends(current_user)):
