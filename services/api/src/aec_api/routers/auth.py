@@ -79,6 +79,8 @@ def register(username: str = Body(..., embed=True), password: str = Body(..., em
             raise HTTPException(400, "role must be admin or user")
     if len(password) < 8:
         raise HTTPException(400, "password must be at least 8 characters")
+    if (why := auth.weak_password_reason(password, username)):
+        raise HTTPException(400, why)
     if db.get(User, username):
         raise HTTPException(409, "username already taken")
     db.add(User(username=username, password_hash=auth.hash_password(password), role=role))
@@ -378,6 +380,8 @@ def change_password(request: Request, response: Response,
         raise HTTPException(403, "current password is incorrect")
     if len(new) < 8:
         raise HTTPException(400, "password must be at least 8 characters")
+    if (why := auth.weak_password_reason(new, u.username)):
+        raise HTTPException(400, why)
     u.password_hash = auth.hash_password(new)
     u.token_epoch = int(time.time())            # revoke all sessions issued before now
     audit.record(db, action="auth.password_change", actor=user, method="POST", path="/auth/password")
@@ -425,6 +429,8 @@ def create_user(username: str = Body(..., embed=True), password: str = Body(...,
         raise HTTPException(400, "role must be admin or user")
     if len(password) < 8:
         raise HTTPException(400, "password must be at least 8 characters")
+    if (why := auth.weak_password_reason(password, username)):
+        raise HTTPException(400, why)
     if db.get(User, username):
         raise HTTPException(409, "username already taken")
     db.add(User(username=username, password_hash=auth.hash_password(password), role=role, email=email))
@@ -469,6 +475,8 @@ def reset_password(username: str, password: str = Body(..., embed=True),
         raise HTTPException(404, "no such user")
     if len(password) < 8:
         raise HTTPException(400, "password must be at least 8 characters")
+    if (why := auth.weak_password_reason(password, username)):
+        raise HTTPException(400, why)
     u.password_hash = auth.hash_password(password)
     u.token_epoch = int(time.time())            # an admin reset revokes the user's live sessions
     audit.record(db, action="user.password_reset", actor=admin.username, method="POST",
@@ -591,6 +599,8 @@ def reset_with_token(token: str = Body(..., embed=True), new: str = Body(..., em
     u = db.get(User, sub) if sub else None
     if not u or not auth.verify_reset_token(token, u.password_hash):
         raise HTTPException(403, "invalid or expired reset token")
+    if (why := auth.weak_password_reason(new, u.username)):
+        raise HTTPException(400, why)
     u.password_hash = auth.hash_password(new)
     u.token_epoch = int(time.time())            # a password reset revokes any live sessions
     db.commit()

@@ -33,24 +33,16 @@ layer** below. Competitor-matrix deliverables from the pack are deliberately **n
 directive: no competitor analysis in repo docs; the neutral external-scan practice covers the research
 need).
 
-**Enterprise track (Sprint 1 — docs + audit; findings become fix tickets, HIGHs fixed in-sprint):**
-- **SEC-THREAT — threat model + app-sec verification gap analysis** *(M).*
-  `docs/security/threat-model.md`: a STRIDE-organized threat model over the real surfaces — auth/session
-  (JWT epoch, MFA, SAML), RBAC/tenant boundaries, the upload + conversion pipeline, public share tokens,
-  API abuse/throttles, secrets/encryption, CI/CD supply chain — plus a verification checklist mapping
-  each shipped control to its evidence and each gap to a prioritized backlog entry.
-- **COMPLY-SOC2 — SOC 2 readiness control matrix** *(M).* `docs/compliance/soc2-readiness.md`:
-  Trust-Services-Criteria matrix mapping each criterion to the shipped control (RBAC/MFA/SSO/SCIM ·
-  audit log · session revocation · backups + the DR runbook · CI gates · dependency/secret scans),
-  the evidence source per control, and the honest gap list. Cloud-infra-only items stay P3-gated.
-- **OPS-OBS — incident runbooks + SLOs** *(S/M).* `docs/ops/runbooks.md`: incident playbooks beyond DR
-  (API down · DB restore · storage loss · bad-deploy rollback · license-bridge outage), SLO definitions
-  + alert thresholds over the shipped Sentry/OTel/health surfaces, and a correlation-ID audit.
-- **ENG-STD — engineering standards, codified from what exists** *(S/M).* `docs/engineering/`:
-  backend-standards.md + web-standards.md capturing the ACTUAL conventions — the engine-leaf/adapter/
-  one-gate pattern, `module_schema` SSOT, the Alembic discipline (incl. the per-migration GIN-index
-  rule), session/DI patterns, `run_tests.py` conventions, ruff/eslint/oxlint policy, the `esc()` XSS
-  discipline, the PanelContext seam. Drift found while writing becomes fix tickets, not aspiration.
+**Enterprise track (Sprint 1 — ✅ SHIPPED v0.3.649 except INTEROP-RT):**
+- ✅ **SEC-THREAT** *(v0.3.649)* — [threat-model.md](security/threat-model.md): STRIDE over the real
+  surfaces + the control→evidence verification matrix + the gap backlog; gaps G-2 (SBOM CI artifact)
+  and G-5 (the password deny-list, `test_password_policy`) closed in-sprint.
+- ✅ **COMPLY-SOC2** *(v0.3.649)* — [soc2-readiness.md](compliance/soc2-readiness.md): the TSC
+  control matrix (CC1–CC8 + A1 + C1) with evidence sources + the auditor-facing gap list.
+- ✅ **OPS-OBS** *(v0.3.649)* — [runbooks.md](ops/runbooks.md): eight incident runbooks + reference
+  SLOs + the correlation-ID triage spine (verified: request-id → OTel → error log).
+- ✅ **ENG-STD** *(v0.3.649)* — [backend-standards.md](engineering/backend-standards.md) +
+  [web-standards.md](engineering/web-standards.md): the actual conventions codified.
 - **INTEROP-RT — automated round-trip fidelity gauntlet** *(M).* Author → export IFC → re-import →
   compare: GUID stability, property/pset preservation, classification refs, spatial containment — as a
   suite-registered gate. The one open item from the interop program; the rest ships.
@@ -71,8 +63,8 @@ need).
 
 ## ▶ NOW — priority order (sprints of large chunks; one full-suite release per sprint)
 
-1. **R19 Sprint 1 — enterprise readiness**: SEC-THREAT · COMPLY-SOC2 · OPS-OBS · ENG-STD
-   (docs + audit; in-sprint fixes for anything HIGH the audit surfaces).
+1. ✅ **R19 Sprint 1 — enterprise readiness** *(shipped v0.3.649)*: SEC-THREAT · COMPLY-SOC2 ·
+   OPS-OBS · ENG-STD + the G-2 SBOM and G-5 password-deny-list fixes.
 2. **R19 Sprint 2 — finance platform**: FIN-GOV → FIN-CALC → FIN-PORTFOLIO → FIN-INGEST.
 3. **INTEROP-RT** — the round-trip fidelity gauntlet (rides with either sprint).
 4. **R18 tail — authoring depth**: FAMILY-DEPTH ② instance-level parameter overrides ·

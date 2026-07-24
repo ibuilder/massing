@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.649 — R19 Sprint 1: the enterprise-readiness pack (SEC-THREAT · COMPLY-SOC2 · OPS-OBS · ENG-STD)
+
+The security/compliance/operations/engineering program layer, grounded in the shipped controls —
+plus two gaps closed in-sprint.
+
+- **[docs/security/threat-model.md](docs/security/threat-model.md)** — a STRIDE-organized threat
+  model over the real surfaces (auth/session · RBAC/tenancy · upload+conversion · public share
+  tokens · API abuse · secrets · audit · supply chain/CI), a verification matrix mapping every
+  control to its evidence (test gates, workflow runs), and a prioritized honest gap backlog.
+- **[docs/compliance/soc2-readiness.md](docs/compliance/soc2-readiness.md)** — the
+  Trust-Services-Criteria control matrix for enterprise diligence: each criterion → the shipped
+  control → its evidence source (CC1–CC8, Availability, Confidentiality), with the auditor-facing
+  gap list and a sequencing recommendation. Readiness, not an audit.
+- **[docs/ops/runbooks.md](docs/ops/runbooks.md)** — eight incident runbooks (API down · Postgres ·
+  migration failure · storage loss · bad deploy · Redis · license bridge · stuck conversion),
+  reference SLOs with alert thresholds, the correlation-ID triage spine (request id → error log →
+  trace), and the postmortem format.
+- **[docs/engineering/backend-standards.md](docs/engineering/backend-standards.md)** +
+  **[web-standards.md](docs/engineering/web-standards.md)** — the actual conventions codified:
+  engine-leaf/adapter/one-gate, the GUID rule, the Alembic + Postgres-IMMUTABLE discipline, money/
+  determinism rules, the test-runner contract, the `esc()` discipline, the client.ts seam, gates.
+- **Password deny-list (threat-model G-5, closed):** `auth.weak_password_reason()` — the
+  breach-corpus head (case + trailing-punctuation normalized), a distinct-character floor, and
+  password≠username — enforced at register, self-service change, admin create/reset, and
+  token reset, each with a named 400 reason. `test_password_policy` (suite 345).
+- **SBOM artifact (threat-model G-2, closed):** the Dependency-scan workflow now publishes an
+  SPDX SBOM artifact per run.
+
 ## v0.3.648 — security: js-yaml ≥ 4.3.0 (transitive)
 
 - Root npm `overrides` pins **js-yaml to ≥ 4.3.0** (was 4.2.0 via the OpenAPI type-generation

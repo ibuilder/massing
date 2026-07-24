@@ -47,6 +47,19 @@ jobs:
           echo "## MCP tool-poisoning self-audit" >> "$GITHUB_STEP_SUMMARY"
           PYTHONPATH=src python -m aec_api.supply_chain mcp-audit >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
 
+  sbom:
+    # COMPLY-SOC2 / threat-model G-2: publish a per-run SPDX SBOM artifact for diligence.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Generate SPDX SBOM (repo filesystem)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          artifact-name: massing-sbom.spdx.json
+          upload-artifact: true
+
   node:
     runs-on: ubuntu-latest
     steps:

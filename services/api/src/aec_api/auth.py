@@ -39,6 +39,35 @@ def hash_password(password: str) -> str:
     return f"pbkdf2_sha256${salt.hex()}${dk.hex()}"
 
 
+# Deny-list of the most common passwords that survive the >=8-char length gate (lower-cased;
+# leet/suffix variants collapse via the normalization below). Offline, tiny, no dependency —
+# blocks the head of every breach corpus without a wordlist file. (threat-model gap G-5)
+_COMMON_PASSWORDS = frozenset({
+    "password", "password1", "password123", "passw0rd", "p@ssword", "p@ssw0rd",
+    "12345678", "123456789", "1234567890", "123123123", "987654321", "11111111",
+    "qwerty123", "qwertyuiop", "1q2w3e4r", "1qaz2wsx", "qazwsx123", "asdfghjkl",
+    "iloveyou", "sunshine", "princess", "football", "baseball", "superman", "batman123",
+    "trustno1", "letmein1", "welcome1", "welcome123", "admin123", "administrator",
+    "changeme", "changeme1", "internet", "computer", "whatever", "monkey123",
+    "dragon123", "master123", "shadow123", "michael1", "jennifer", "charlie1",
+    "aa123456", "abc12345", "abcd1234", "password!", "password1!", "starwars",
+})
+
+
+def weak_password_reason(password: str, username: str = "") -> str | None:
+    """Why a password (already >= 8 chars) is still rejected, or None if acceptable.
+    Normalizes case and a trailing punctuation run so 'Password123!' matches 'password123'."""
+    p = password.strip().lower()
+    stripped = p.rstrip("!@#$%^&*.?")
+    if p in _COMMON_PASSWORDS or stripped in _COMMON_PASSWORDS:
+        return "password is too common"
+    if len(set(p)) <= 2:
+        return "password uses too few distinct characters"
+    if username and p == username.strip().lower():
+        return "password must not equal the username"
+    return None
+
+
 def verify_password(password: str, stored: str) -> bool:
     try:
         _algo, salt_hex, dk_hex = stored.split("$")
