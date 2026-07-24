@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.636 — OPS-DR: backup retention + the disaster-recovery runbook (R18 #2)
+
+The procurement-checklist item: backups that age out, and a restore that is *proven*, not presumed.
+
+- **[docs/ops-dr.md](docs/ops-dr.md)** — the runbook: what must survive (Postgres · MinIO · uploaded
+  IFCs · operator secrets, which stay OUT of archives by design), backup/restore usage, **RPO/RTO**
+  framing, the **quarterly restore drill** (restore into a scratch stack + a concrete verification
+  checklist — "a backup is a rumor until restored"), the retention & deletion posture, and a short
+  failure playbook (bad deploy / lost volume / lost host / suspected corruption).
+- **`scripts/backup.sh` retention**: prunes archives beyond the newest `BACKUP_KEEP` (default 14) —
+  a daily cron now self-manages to two weeks of dailies instead of filling the disk.
+- The backup/restore scripts themselves already shipped (v0.3.x, `scripts/`); this closes the R18
+  OPS-DR quick win with the runbook + retention that were missing.
+
 ## v0.3.635 — SCHED-CALC: calculated fields in schedules + module records (R18 #1)
 
 Formula columns without a scripting runtime — the first R18 quick win.

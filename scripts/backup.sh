@@ -48,3 +48,12 @@ mkdir -p "$OUT_DIR"
 ARCHIVE="$OUT_DIR/aec-backup-$TS.tgz"
 tar czf "$ARCHIVE" -C "$STAGE" .
 echo "==> Wrote $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
+
+# Retention (OPS-DR): keep the newest $BACKUP_KEEP archives (default 14), prune the rest.
+# Timestamped names sort chronologically, so `ls -1 | sort` oldest-first is safe.
+KEEP="${BACKUP_KEEP:-14}"
+PRUNE="$(ls -1 "$OUT_DIR"/aec-backup-*.tgz 2>/dev/null | sort | head -n -"$KEEP" || true)"
+if [ -n "$PRUNE" ]; then
+  echo "==> Retention: pruning $(echo "$PRUNE" | wc -l) archive(s) beyond the newest $KEEP"
+  echo "$PRUNE" | xargs rm -f
+fi

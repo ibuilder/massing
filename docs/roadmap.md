@@ -253,7 +253,7 @@ in the model we own. Verifiable without the frontend. These are the cleanest nex
 is the fresh order: 🏛 R18 quick wins + slices first, then the open remainders.)**
 
 1. ✅ **SCHED-CALC** *(shipped v0.3.635)* — see the R18 ring entry.
-2. **OPS-DR** *(R18 quick win)* — backup/restore scripts + the tested DR runbook + retention controls.
+2. ✅ **OPS-DR** *(shipped v0.3.636)* — see the R18 ring entry.
 3. **AUTH-CONSTRAINTS ①** *(R18, flagship slice)* — persist host/level refs on authored elements + the
    broken-host / illegal-placement checker (rule_library-composable).
 4. **MODEL-PUBLISH — optimistic concurrency** *(R18 slice)* — a stale edit against a since-changed element
@@ -319,9 +319,11 @@ below** (kept; the rest of the document is superseded by shipped work):
   who/when and a rollback path) and **element-level optimistic concurrency** on edit recipes (a stale edit
   against a since-changed element 409s instead of silently overwriting) — the pull-plan stale-write
   pattern, applied to the model.
-- **OPS-DR — backup/restore + retention runbook** *(S; docs + scripts).* Postgres/MinIO backup + restore
-  scripts, a tested disaster-recovery runbook, and data-retention controls — the procurement-checklist
-  item that isn't a feature but blocks enterprise pilots.
+- ✅ **OPS-DR — backup/restore + retention runbook** *(v0.3.636).* The backup/restore scripts already
+  existed (`scripts/backup.sh`/`restore.sh` — Postgres dump + MinIO + IFC volumes, one manifest
+  tarball); added **retention pruning** (`BACKUP_KEEP`, default 14) and **[docs/ops-dr.md](ops-dr.md)**
+  — what-must-survive, RPO/RTO, the quarterly restore drill + verification checklist, retention &
+  deletion posture, failure playbook. *(The drill itself is an operator action, run per the runbook.)*
 - **SDK-VERSIONING — versioned extension points** *(S).* The plugin registry exists; add **extension-point
   versions + compatibility rules** (a plugin declares the contract version it targets; incompatible loads
   are refused with a clear message).
