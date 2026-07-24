@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.643 — the headless `massing` CLI + the `check` CI gate (the last NOW item)
+
+Author, edit, and GATE a model from a terminal or a CI runner — no server, no browser.
+
+- **`python -m aec_data.cli`** grows from an export tool into the full headless surface:
+  `new` (a blank authoring model — levels + ground reference, name/storeys/height/size),
+  `run` (apply any GUID-stable edit recipe with JSON params → `<stem>_edited.ifc`; unknown recipes
+  and bad JSON exit 2 with the known-recipe list on stderr), and
+  **`check`** — the constraint/QA report (broken hosts, dangling fills, out-of-extent inserts,
+  containment/level issues). Report-only by default; **`--gate` exits 1 on errors** — a firm can gate
+  every model commit in their own CI; `--json` emits the machine-readable report.
+- The pre-existing export commands (index/qto/spaces/cobie/schedule) survive the subparser rewrite
+  unchanged. Scope honesty: server-side macros stay server-side (they're storage-backed); the CLI
+  runs the recipe primitives macros compose from.
+- `test_cli` (suite 342) exercises new→run→check→gate end-to-end on real IFC files. Closes the last
+  NOW-list item — **the reconciled NOW list (v0.3.634) is now 10/10 shipped.**
+
 ## v0.3.642 — MEP-EQUIP ties: submittals · budget lines · the curated starter (R16 remainder closed)
 
 The equipment schedule stops being a report and starts driving the buyout thread.

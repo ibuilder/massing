@@ -273,7 +273,11 @@ is the fresh order: 🏛 R18 quick wins + slices first, then the open remainders
    (names + descriptions + param descriptions) for poisoning shapes (invisible unicode, injection
    phrasing, base64 blobs, outbound URLs); `mcp-audit` CLI (non-gating; `--gate` on highs) + a
    report-only step in the Dependency-scan workflow. Closes the last R16 SEC-SUPPLY remainder.
-9. **RECIPE-MACROS CLI** *(carry-over)* — the headless `massing` CLI + `massing check` CI gate.
+9. ✅ **RECIPE-MACROS CLI** *(shipped v0.3.643)* — `python -m aec_data.cli` now covers `new` / `run`
+   (any edit recipe, JSON params) / **`check --gate`** (the CI model gate over the constraint checker,
+   exit 1 on errors, `--json` machine-readable) alongside the exports. Server-side macros stay
+   server-side (storage-backed); the CLI runs the recipe primitives they compose from.
+   **The reconciled NOW list is 10/10 shipped.**
 10. ✅ **SPACE-UTIL benchmarking** *(shipped v0.3.641)* — `GET /benchmarks/space-utilization`:
     per-project capacity + m²/space from each project's own model (12-model cap, counted skips) with
     a portfolio median; `spaceUtilBenchmarks` client. The R16 SPACE-UTIL item is fully closed.
