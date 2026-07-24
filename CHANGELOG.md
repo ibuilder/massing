@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.657 — R20: net effective rent (CRE-NER)
+
+The first R20 item, and it needed no new data — the `lease` module already stored the concessions.
+
+- **`net_effective.py` + `GET /projects/{pid}/rent-roll/net-effective`.** Face rent is what a
+  broker quotes; **net effective rent** is what underwriting and agency lenders use, because
+  concessions come out of gross potential rent before effective gross income. Both standard forms
+  are reported because they answer different questions: **straight-line** (total base rent over the
+  term less landlord costs, ÷ term) and **discounted** (the level annual rent whose present value
+  equals the actual net cash-flow stream) — the latter prices *when* the free rent and the TI
+  cheque land, not just how big they are. A $50/sf TI on a five-year deal costs materially more
+  than the straight-line average admits.
+- Escalation steps on the **annual anniversary** the way a lease actually reads, not as a smooth
+  monthly curve. **Leasing commission is never invented** — it is included only when the caller
+  supplies a rate, and the result says whether it was. Leases missing the fields the maths needs
+  are **named in `skipped`**, never silently dropped.
+- The roll-up uses the **same active-lease filter as the rent roll**, so face GPR and net-effective
+  GPR always describe the same set of leases, and reports how many records it excluded — two
+  surfaces disagreeing about which leases count is worse than either number being slightly off.
+- `test_net_effective` ties the textbook case exactly ($1,200/mo with one free month → $13,200/yr
+  straight-line) and proves the draft-lease consistency end to end. Suite 360.
+
 ## v0.3.656 — security: postcss >= 8.5.18 (transitive)
 
 - Root npm `overrides` pins **postcss to >= 8.5.18** (was 8.5.15 via Vite), clearing the HIGH

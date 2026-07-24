@@ -131,6 +131,23 @@ def get_rent_roll(pid: str, db: Session = Depends(get_db),
     return rentroll.rent_roll(db, pid)
 
 
+@router.get("/projects/{pid}/rent-roll/net-effective")
+def get_net_effective(pid: str, discount_rate: float = 0.08, lc_pct: float | None = None,
+                      db: Session = Depends(get_db),
+                      _: str = Depends(rbac.require_role("viewer"))):
+    """CRE-NER (R20) — **net effective rent**: what the rent roll is worth after concessions.
+
+    Face rent is what a broker quotes; NER is what underwriting and agency lenders use, because
+    concessions come out of gross potential rent before effective gross income. Returns both the
+    straight-line and the **discounted** form (the latter prices *when* the free rent and the TI
+    cheque land, not just how big they are), the concession load, and the leases whose face rent
+    overstates them most. Leasing commission is only included when `lc_pct` is supplied — it is
+    never invented; leases missing the fields the maths needs are named, not silently dropped."""
+    from .. import net_effective
+    return net_effective.from_project(db, pid, discount_rate=max(0.0, min(discount_rate, 0.5)),
+                                      lc_pct=lc_pct)
+
+
 @router.get("/projects/{pid}/leases/management")
 def lease_management(pid: str, years: int = 5, recoverable_opex: float | None = None,
                      db: Session = Depends(get_db), _: str = Depends(rbac.require_role("viewer"))):

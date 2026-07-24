@@ -2575,6 +2575,23 @@ export class ApiClient extends HttpCore {
     return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
       imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
   }
+  /** CRE-NER — net effective rent: the rent roll after concessions (straight-line + discounted). */
+  netEffectiveRent(pid: string, opts: { discountRate?: number; lcPct?: number } = {}) {
+    const q = new URLSearchParams();
+    if (opts.discountRate !== undefined) q.set("discount_rate", String(opts.discountRate));
+    if (opts.lcPct !== undefined) q.set("lc_pct", String(opts.lcPct));
+    const qs = q.toString();
+    return this.json<{ lease_count: number; skipped_count: number; excluded_not_active: number;
+      face_gpr_annual: number; ner_gpr_annual_discounted: number;
+      ner_gpr_annual_straight_line: number; concession_total_term: number;
+      concession_load_pct: number; face_to_ner_delta_annual: number;
+      face_to_ner_delta_pct: number; lc_included: boolean; discount_rate: number;
+      skipped: { tenant: string; suite: string; reason: string }[];
+      leases: { tenant: string; suite: string; face_rent_annual: number;
+        ner_annual_discounted: number; ner_psf_discounted: number | null;
+        concession_load_pct: number }[]; note: string }>(
+      `/projects/${pid}/rent-roll/net-effective${qs ? `?${qs}` : ""}`);
+  }
   /** ENERGY phase 1 — the thermal model extracted from the IFC (zones · surfaces · constructions). */
   energyModel(pid: string) {
     return this.json<{ zone_source: string;

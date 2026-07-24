@@ -12,7 +12,7 @@ The R16/R17 rings are closed on the backend side, the R18 authoring-parity ring 
 slices, and the current push is **enterprise + finance-platform readiness** — the programs and governance
 layer that make the shipped engines defensible in enterprise diligence.
 
-**Status:** CodeQL 0 open alerts · full backend suite green (359 suites) · single-source version in
+**Status:** CodeQL 0 open alerts · full backend suite green (360 suites) · single-source version in
 `apps/web/package.json` · CI on Node 22 · vitest 132.
 
 ---
@@ -75,7 +75,7 @@ need).
    multi-model work)* · ✅ BCF-API-SRV 3.0 shape + attachments-over-API. **Remaining:** SPRINT B
    phase-4b CPM crew shifts · NORM-VALID implementer-agreement depth.
 
-7. **🏙 R20 — CRE deal-desk depth** *(new)*: Tier 1 (CRE-NER · CRE-COMP-TIER · CRE-T12 ·
+7. ◧ **🏙 R20 — CRE deal-desk depth** *(CRE-NER shipped v0.3.657)*: Tier 1 (~~CRE-NER~~ · CRE-COMP-TIER · CRE-T12 ·
    CRE-RRSCRUB) → Tier 2 (CRE-COVENANT · CRE-AUTHORITY · CRE-SUPPLY · CRE-DECISION-GATE) →
    Tier 3 (CRE-ICMEMO · CRE-HOLDSELL · CRE-CLAUSE).
 
@@ -114,7 +114,12 @@ nothing reaches a decision-maker un-sourced, and a stale or missing input stops 
 instead of being filled in with something plausible.*
 
 **Tier 1 — the data is already there, the discipline isn't (S/M each):**
-- **CRE-NER — net effective rent.** The `lease` module already stores `free_rent_months`,
+- ✅ **CRE-NER — net effective rent** *(v0.3.657)*. `net_effective.py` + `GET /rent-roll/
+  net-effective`: straight-line AND discounted NER per lease and portfolio-wide, concession load,
+  worst face-vs-NER gaps first; leasing commission only when a rate is supplied, un-computable
+  leases named not dropped, and the SAME active-lease filter as the rent roll so the two surfaces
+  can never describe different portfolios. `test_net_effective`.
+- ~~**CRE-NER (original spec)**~~ The `lease` module already stores `free_rent_months`,
   `ti_allowance_psf` and `recovery_psf`, but `rentroll.py` reports face rent only. Add NER — both
   the straight-line form (gross rent − landlord costs ÷ term) and the **discounted** form
   commercial underwriting actually uses — and carry it through the rent roll, the comps, and into
