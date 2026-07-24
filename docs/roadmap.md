@@ -319,10 +319,11 @@ below** (kept; the rest of the document is superseded by shipped work):
   **instance-level parameter overrides**, **nested families**, and **shared parameters** that drive
   computed schedules and tags — plus cross-project **library versioning** (which projects use which
   library version).
-- **VIEW-TEMPLATES — per-view visibility/graphics overrides** *(S/M).* Drawings already re-derive from the
-  model (associativity by regeneration — stronger than reference-pinning). Gap: **reusable view templates**
-  + per-view visibility/category/graphics overrides, persisted and deterministic (same template + same
-  model = same drawing; testable).
+- ✅ **VIEW-TEMPLATES — per-view visibility/graphics overrides** *(v0.3.645).* `view_templates.py`:
+  a template = class visibility matrix + optional QUERY-DSL isolate scope + stacked color rules
+  (later-wins); atomically-validated per-project storage (`GET/PUT /view-templates`) + deterministic
+  `GET /view-templates/{tid}/resolve` (same template + same model = byte-identical visible/hidden/color
+  sets — asserted). One resolved answer for the viewer AND the drawing generators. `test_view_templates`.
 - ✅ **SCHED-CALC — calculated fields in computed schedules** *(v0.3.635).* `calc_fields.py` — the
   AST-whitelist expression evaluator (arithmetic/concat/conditionals + round/min/max/abs/len/num/text;
   no attribute access/subscripts/lambdas/`**`; length + node caps; normalized field names; text-table

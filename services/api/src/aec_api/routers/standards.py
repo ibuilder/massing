@@ -326,6 +326,43 @@ def rules_run(pid: str, db: Session = Depends(get_db), _: str = Depends(require_
     return out
 
 
+# VIEW-TEMPLATES (R18) — reusable layered view presets: class visibility + isolate scope + stacked
+# color rules, deterministically resolvable.
+@router.get("/projects/{pid}/view-templates")
+def view_templates_get(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The project's saved view templates (empty until saved)."""
+    from .. import view_templates as vt
+    _project(db, pid)
+    return {"templates": vt.load(pid)}
+
+
+@router.put("/projects/{pid}/view-templates")
+def view_templates_put(pid: str, templates: list[dict] = Body(..., embed=True),
+                       db: Session = Depends(get_db), _: str = Depends(require_role("editor"))):
+    """Replace the project's view templates. Every template is validated (selectors parse, colors are
+    #rrggbb, caps hold) before anything is written — a bad template rejects the whole save with 422."""
+    from .. import view_templates as vt
+    _project(db, pid)
+    try:
+        saved = vt.save(pid, templates)
+    except vt.QueryError as e:
+        raise HTTPException(422, str(e))
+    return {"saved": len(saved), "templates": saved}
+
+
+@router.get("/projects/{pid}/view-templates/{tid}/resolve")
+def view_template_resolve(pid: str, tid: str, db: Session = Depends(get_db),
+                          _: str = Depends(require_role("viewer"))):
+    """Resolve one template against the loaded model → the deterministic visible GUID list + color map
+    (later rules win) — the one answer the viewer AND the drawing generators consume. 404 unknown id."""
+    from .. import view_templates as vt
+    _project(db, pid)
+    t = next((x for x in vt.load(pid) if x["id"] == tid), None)
+    if t is None:
+        raise HTTPException(404, f"view template {tid!r} not found")
+    return vt.resolve(_idx_for(pid), t)
+
+
 # SMART-VIEWS — user-authored saved view presets (name + QUERY-DSL selector + isolate/color/hide).
 @router.get("/projects/{pid}/smart-views")
 def smart_views_get(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):

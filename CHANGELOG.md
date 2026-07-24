@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.645 — VIEW-TEMPLATES: reusable layered view presets (R18)
+
+The graphics-override layer desktop suites call a view template — on the QUERY-DSL spine we already own.
+
+- **`view_templates.py`** — a template is a **class visibility matrix** (`hide_classes`), an optional
+  **isolate scope** (QUERY-DSL), and stacked **color rules** (selector → `#rrggbb`, later rules win).
+  Validated atomically on save (selectors parse, colors are hex, caps hold, empty templates rejected);
+  stored per project like smart views — no migration.
+- **Deterministic resolution** — `GET /view-templates/{tid}/resolve` maps the template + the loaded
+  model to sorted visible/hidden GUID sets + the color map: same template + same model = the same
+  answer, byte-identical (asserted), so the viewer and the drawing generators consume ONE result
+  instead of re-deriving visibility ad hoc.
+- Distinct from smart views by design: a smart view is one selector + one mode; a template is the
+  reusable *composition* — matrix + scope + n color layers.
+- `viewTemplates`/`saveViewTemplates`/`resolveViewTemplate` client methods; `test_view_templates`
+  (suite 343). The R18 ring is now down to FAMILY-DEPTH + AUTH-CONSTRAINTS ②③.
+
 ## v0.3.644 — ADR-LITE adopted + SDK-VERSIONING verified already shipped (R18)
 
 Two more R18 items resolve — one by a page of process, one by reading the code before building.

@@ -2089,6 +2089,22 @@ export class ApiClient extends HttpCore {
       columns: { key: string; count: number; topics: T[] }[]; note: string;
     }>(`/projects/${pid}/topics/board?${q.toString()}`);
   }
+  /** VIEW-TEMPLATES — reusable layered view presets (class visibility + isolate + stacked colors). */
+  viewTemplates(pid: string) {
+    return this.json<{ templates: { id: string; name: string; hide_classes: string[];
+      isolate: string | null; rules: { selector: string; color: string }[] }[] }>(
+      `/projects/${pid}/view-templates`);
+  }
+  saveViewTemplates(pid: string, templates: { id?: string; name: string; hide_classes?: string[];
+    isolate?: string | null; rules?: { selector: string; color: string }[] }[]) {
+    return this.json<{ saved: number }>(`/projects/${pid}/view-templates`,
+      { method: "PUT", body: JSON.stringify({ templates }) });
+  }
+  resolveViewTemplate(pid: string, tid: string) {
+    return this.json<{ template: string; name: string | null; visible: string[]; visible_count: number;
+      hidden_count: number; colors: Record<string, string>; colored_count: number; note: string }>(
+      `/projects/${pid}/view-templates/${encodeURIComponent(tid)}/resolve`);
+  }
   /** SPACE-UTIL benchmarking — capacity + m²/space across the portfolio's modelled projects. */
   spaceUtilBenchmarks(areaPerPerson = 10) {
     return this.json<{
