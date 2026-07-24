@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.637 — AUTH-CONSTRAINTS ①: the broken-host / illegal-placement checker (R18 #3)
+
+The biggest R18 gap opens: IFC already *persists* the constraint graph (RelVoids/RelFills hosts,
+storey containment) — this slice validates it, so a deleted host surfaces instead of dangling.
+
+- **`aec_data/constraints.py`** — seven checks, attribute + placement based, no OCC:
+  **errors** — `orphan_opening` (its host wall was deleted), `orphan_fill` (a door/window whose
+  opening is gone), `insert_outside_host` (an opening placed beyond its wall's extent, or taller
+  than it — measured in the wall's own frame via inverse placement);
+  **warnings** — `uncontained_element` (on no storey, not hosted, not in an assembly),
+  `level_mismatch` (contained on one storey, sitting at another's elevation, ±1 m grace);
+  **info** — `unfilled_opening`, `unhosted_insert` (legitimate cases surfaced, not judged).
+  Unmeasurable placements are skipped and counted — never guessed.
+- **`GET /projects/{pid}/model/constraints`** + `modelConstraints` client method; issues sort
+  errors → warnings → info and carry `{kind, severity, guid, name, detail}` — BCF/rule-composable.
+- `test_constraints` breaks a healthy model five ways and asserts each kind + severity (suite 341).
+
 ## v0.3.636 — OPS-DR: backup retention + the disaster-recovery runbook (R18 #2)
 
 The procurement-checklist item: backups that age out, and a restore that is *proven*, not presumed.

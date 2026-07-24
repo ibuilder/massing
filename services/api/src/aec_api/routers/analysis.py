@@ -545,6 +545,18 @@ def model_adjacency(pid: str, program: dict = Body(default={}), db: Session = De
     return adj.evaluate(open_source_ifc(db, pid), program)
 
 
+@router.get("/projects/{pid}/model/constraints")
+def model_constraints(pid: str, db: Session = Depends(get_db),
+                      _sec: str = Depends(require_role("viewer"))):
+    """AUTH-CONSTRAINTS ① (R18) — validate the model's OWN constraint graph (RelVoids/RelFills hosts,
+    storey containment): broken hosts and dangling fills are **errors**, missing containment and
+    level/elevation disagreements are **warnings**, bare openings and unhosted inserts informational.
+    Placement checks (an insert outside its host wall's extent) are attribute-based, no OCC; anything
+    unmeasurable is skipped and counted, never guessed. 409 without a source IFC."""
+    from aec_data import constraints  # type: ignore
+    return constraints.check(open_source_ifc(db, pid))
+
+
 @router.get("/projects/{pid}/master-builder/brief")
 def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MASTER-BUILDER — the whole project in one view: runs the 8-step Master Builder Protocol (place →

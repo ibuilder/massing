@@ -2089,6 +2089,15 @@ export class ApiClient extends HttpCore {
       columns: { key: string; count: number; topics: T[] }[]; note: string;
     }>(`/projects/${pid}/topics/board?${q.toString()}`);
   }
+  /** AUTH-CONSTRAINTS — validate the model's own constraint graph (broken hosts, dangling fills,
+   * out-of-extent inserts, missing containment, level mismatches). */
+  modelConstraints(pid: string) {
+    return this.json<{
+      issues: { kind: string; severity: string; guid: string; name: string; ifc_class: string; detail: string }[];
+      issue_count: number; counts: Record<string, number>; errors: number; warnings: number;
+      checked: { openings: number; elements_level_checked: number; storeys: number }; note: string;
+    }>(`/projects/${pid}/model/constraints`);
+  }
   /** SCHED-CALC — computed schedules extended with deterministic calculated-field columns. */
   drawingSchedulesCalc(pid: string, calcs: { doors?: { name: string; expr: string }[];
     windows?: { name: string; expr: string }[]; rooms?: { name: string; expr: string }[] }) {

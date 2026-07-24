@@ -254,8 +254,7 @@ is the fresh order: 🏛 R18 quick wins + slices first, then the open remainders
 
 1. ✅ **SCHED-CALC** *(shipped v0.3.635)* — see the R18 ring entry.
 2. ✅ **OPS-DR** *(shipped v0.3.636)* — see the R18 ring entry.
-3. **AUTH-CONSTRAINTS ①** *(R18, flagship slice)* — persist host/level refs on authored elements + the
-   broken-host / illegal-placement checker (rule_library-composable).
+3. ✅ **AUTH-CONSTRAINTS ①** *(shipped v0.3.637)* — see the R18 ring entry; ②/③ remain.
 4. **MODEL-PUBLISH — optimistic concurrency** *(R18 slice)* — a stale edit against a since-changed element
    409s (the pull-plan stale-write pattern applied to edit recipes); then the draft→in-review→published
    version workflow.
@@ -293,12 +292,15 @@ webhooks + macros). Its wedge thesis — open standards, browser-native collabor
 over discipline-by-discipline parity — is the strategy we already run. **What remains is the gap list
 below** (kept; the rest of the document is superseded by shipped work):
 
-- **AUTH-CONSTRAINTS — a persisted constraint/join layer** *(M/L; the biggest real gap).* Host / level /
-  offset relationships as first-class *data* (not just placement math at recipe time): wall joins, hosted
-  inserts that know their host, level-bound elements that re-derive on level moves — plus **validation for
-  illegal placements and broken hosts** (an insert whose host was deleted must surface, not dangle).
-  Foundation for edit-in-place depth; slices: ① persist host/level refs on authored elements ② the
-  broken-host/illegal-placement checker (rule_library-composable) ③ join resolution for walls.
+- ◧ **AUTH-CONSTRAINTS — a persisted constraint/join layer** *(M/L; the biggest real gap).* Host / level /
+  offset relationships as first-class *data*: wall joins, hosted inserts that know their host, level-bound
+  elements that re-derive on level moves. ✅ **slice ① (v0.3.637):** host/level refs verified to already
+  persist natively in IFC (RelVoids/RelFills + storey containment — no parallel store needed) and the
+  **broken-host / illegal-placement checker** ships: `aec_data/constraints.py` + `GET /model/constraints`
+  — orphan openings/fills + out-of-extent inserts (errors), uncontained elements + level/elevation
+  mismatches (warnings), bare openings/unhosted inserts (info); `test_constraints` breaks a model five
+  ways. **Remaining:** ② level-move re-derivation (elements follow a storey elevation edit) · ③ wall-join
+  resolution.
 - **FAMILY-DEPTH — type catalogs · instance overrides · nested families · shared parameters** *(M).*
   The family library exists; the depth gap is **type catalogs** (one family, many cataloged types),
   **instance-level parameter overrides**, **nested families**, and **shared parameters** that drive
