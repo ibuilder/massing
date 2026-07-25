@@ -13,8 +13,8 @@ authoring pillar closed its parity ring (R18). **What is thin now is the surface
 craft, the demo, and the cross-cutting cost identity that make the shipped depth legible — plus the
 structural carry-overs that keep the codebase workable.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**380** suites) · vitest 158 · single-source
-version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.680**.
+**Status:** CodeQL 0 open alerts · backend suite green (**381** suites) · vitest 158 · single-source
+version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.681**.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
@@ -137,7 +137,7 @@ These are the gaps between what the platform draws today and what that package c
 
 **Tier 2 — coordination depth the set implies**
 
-- **R21-SOFT-CLASH** *(M)* — **clearance (soft) clash + a clash matrix.** Hard clash exists; the
+- ✅ **R21-SOFT-CLASH** *(shipped v0.3.681)* — **clearance (soft) clash + a clash matrix.** Hard clash exists; the
   reference material distinguishes hard / soft-clearance / workflow-4D. Soft clash is a *rules* problem
   (NEC working space, valve access, coil pull, door swing) and the discipline-pair matrix declares
   which combinations are tested at all. Without it, "clash-free" overstates what was checked.

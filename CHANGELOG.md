@@ -4,6 +4,41 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.681 — R21-SOFT-CLASH: what a coordination report is allowed to claim
+
+Hard clash asks whether two solids overlap. Soft clash asks the question that actually stops work:
+**can a person reach this, service it, or pull it out?** A pump clearing every duct by 5 mm passes
+hard clash and cannot be maintained.
+
+Checking the premise narrowed this usefully — `geometric_rules.check_clearance` already existed, so
+the gap was not "no soft clash". It was two specific things.
+
+**Clearance is a rules problem, not a geometry one.** The existing primitive takes a distance from
+whoever calls it. Every rule now carries the code or manufacturer basis it came from — NEC 110.26(A)(1)
+working space, coil-withdrawal clearance, valve reach, pump seal access — so a finding can be argued
+with rather than merely asserted. A class with **no stated rule gets no rule**, never a default
+distance: a made-up clearance produces confident findings nobody can defend, which is worse than
+silence.
+
+**The matrix constrains the claim.** Every discipline pair is `clashes`, `clean`, or **`untested`**,
+and the third state is the whole point. Structural-vs-plumbing being clean means nothing if that pair
+was never run, so an untested pair is reported as untested and never folded into the clean count.
+`coordinated` is true only at full coverage with zero findings; an empty matrix reads as
+*uncoordinated* rather than vacuously perfect. Evidence outranks the declaration — a finding proves a
+pair was tested — but never the reverse, since a declaration with no findings cannot manufacture
+coverage. This is the same rule the scan verification follows: absence of evidence is not evidence of
+absence.
+
+**A limitation stated rather than hidden.** These evaluate against axis-aligned bounding boxes, which
+carry no facing. A working space is *directional* — NEC wants the space in front of the panel, and
+clear space behind it satisfies nothing. With an AABB the check can only ask whether some approach
+side is clear, which makes a **PASS weaker than a FAIL**: a violation is real, a clean result is
+"not disproved". That belongs next to the number, not in a footnote.
+
+Exposed at `POST /projects/{pid}/clash/matrix` and `GET /projects/{pid}/clash/clearance-rules`.
+
+381/381 backend suites green · 667 project routes all role-gated · ruff clean.
+
 ## v0.3.680 — the Revit bridge stops leaving our first non-negotiable to a default
 
 R23-REVIT-EXPORT-CFG. The bridge exported with a bare `IFCExportOptions()` — no configuration at all.

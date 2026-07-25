@@ -206,6 +206,29 @@ def clash_metrics(pid: str, db: Session = Depends(get_db), _: str = Depends(requ
     return clash_intel.metrics(db, pid)
 
 
+@router.post("/projects/{pid}/clash/matrix")
+def clash_matrix(pid: str, body: dict = Body(default={}), _: str = Depends(require_role("viewer"))):
+    """R21-SOFT-CLASH — the discipline-pair coordination matrix.
+
+    Every pair is `clashes`, `clean` or **`untested`**, and the third is the point: a pair nobody ran
+    is reported as untested and never folded into the clean count, so "clash-free" cannot be claimed
+    over a partial matrix. `coordinated` is true only at full coverage with zero findings.
+    """
+    from .. import soft_clash
+    pairs = [(p[0], p[1]) for p in (body.get("tested_pairs") or [])
+             if isinstance(p, (list, tuple)) and len(p) >= 2]
+    return soft_clash.matrix(body.get("disciplines") or [], pairs, body.get("findings") or [])
+
+
+@router.get("/projects/{pid}/clash/clearance-rules")
+def clash_clearance_rules(pid: str, _: str = Depends(require_role("viewer"))):
+    """The soft-clash clearance rules — each with the code or manufacturer basis it came from, so a
+    finding can be argued with rather than merely asserted."""
+    from .. import soft_clash
+    return {"rules": soft_clash.CLEARANCE_RULES, "classes": soft_clash.scoped_classes(),
+            "note": "A class with no stated rule gets NO clearance rather than a default distance."}
+
+
 # --- Wave 8 ②: model → field layout (PENZD CSV + DXF) + as-built verification --------------------
 def _layout_points(db: Session, pid: str, classes: str | None):
     from .. import layout
