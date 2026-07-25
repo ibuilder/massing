@@ -116,7 +116,7 @@ These are the gaps between what the platform draws today and what that package c
 
 **Tier 1 — the set cannot be issued without these**
 
-- **R21-HATCH** *(M)* — **material hatch patterns on cut geometry.** The reference details separate
+- ✅ **R21-HATCH** *(shipped v0.3.676)* — **material hatch patterns on cut geometry.** The reference details separate
   concrete (stipple), reinforced concrete (crosshatch), steel (diagonal), insulation, masonry and
   earth by *pattern*. `drawings.py` poché (v0.3.673) fills by class group with flat grey tones, which
   cannot make those distinctions at 1:10. Needs an SVG `<pattern>` library keyed to IFC material, and

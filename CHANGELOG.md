@@ -4,6 +4,45 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.676 — R21-HATCH: cut material says what it is cut *through*
+
+First item of the R21 ring, which was derived from a real issued shop-drawing package (13 sheets,
+1:100 → 1:10) rather than from a description of one. At 1:10 that set separates concrete, reinforced
+concrete, steel, masonry and insulation by **pattern**, and a reader identifies the assembly from the
+patterns alone.
+
+v0.3.673 filled cut geometry with flat grey tones grouped by IFC class. That is enough to say *"this
+is cut"* and structurally unable to say *"cut through what"* — the difference between a set that
+reads as a study and one that reads as construction documents. Nine conventional patterns now carry
+that distinction: concrete, reinforced concrete, steel, masonry, insulation, timber, earth, glass and
+finish.
+
+**The category comes from the model.** `material_by_class()` reads the IFC's own material assignments
+(including layer sets and constituent sets) and takes the dominant material per class; a stated class
+fallback covers models that carry none. An unfamiliar class hatches as the lightest category, never
+as structure. Keyword order is load-bearing and asserted — *reinforced concrete* must beat *concrete*.
+
+**Two properties that took the real work:**
+
+- **Hatch is defined in paper space, not model space.** That is the actual drafting convention —
+  spacing belongs to the sheet, so the same wall hatches identically at 1:100 and at 1:10. The
+  roadmap entry for this item had originally called for "scale-aware pattern density", which was
+  wrong.
+- Which forces the rule that earns the feature its keep: **an element thinner than a couple of tiles
+  cannot be hatched legibly.** Below that the tile is wider than the element and the result is stripes
+  nobody can resolve, so the fill degrades to the solid tone — exactly what a drafter does by hand. In
+  the test a 200 mm slab degrades while 400 mm walls hatch.
+
+Only the patterns actually referenced are emitted, so a two-material section does not carry nine
+unused `<pattern>` definitions. The linework is identical across hatch / tone / line, so the fill mode
+changes weight and never content. `hatch=false` returns the previous flat poché; `annotate=false`
+still returns bare linework for CAD hand-off; a misspelled `lod` is still refused rather than
+defaulted.
+
+Exposed at `GET /projects/{pid}/drawings/section.svg?hatch=true|false`.
+
+376/376 backend suites green.
+
 ## v0.3.675 — five modules were contradicting themselves about their own status
 
 `owner_invoice` offered **Draft / Submitted / Approved / Paid** on its status field while its workflow
