@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.683 — tags that do not land on each other, and views that admit where they stop
+
+Two marks from the same shop-drawing package, and the same underlying idea: a drawing must not assert
+something a reader cannot check.
+
+### R21-TAGS — the difficulty is placement, not wording
+
+`space_tags` already labelled rooms, but rooms are large and far apart. Element tags are the hard
+case because doors and windows **cluster**, and two tags sharing a baseline are worse than one tag:
+the drawing then carries a number nobody can attribute to an element.
+
+The rule: a tag sits **on** its element, and is displaced to the nearest free slot only when that
+position is taken — and displacement is exactly what earns it a leader. A leader on an undisplaced
+tag is noise; a displaced tag without one is an unattributable number. When every candidate slot is
+occupied the tag is pushed clear rather than dropped, because a silently omitted tag is an element
+that merely *looks* untagged.
+
+Placement is deterministic. The same plan tags identically on every run, so a drawing can be diffed
+and checked rather than re-read.
+
+### R21-BREAKLINE — a partial view that says so
+
+A detail running to the sheet edge tells a reader nothing about what happens beyond it: the element
+might stop there, or continue for thirty metres. The break line is the conventional mark that says
+*"this element continues; the drawing does not."* Without it a partial view is indistinguishable from
+a complete one — the same class of error as a clash report that never states which pairs it tested.
+
+Two details that matter: the zig is normal to the **run**, not to the page, so a vertical break reads
+correctly rather than zig-zagging along its own axis. And a short run still produces a mark instead of
+vanishing — a break line that disappeared because the view happened to be narrow would silently turn
+a partial view back into an apparently complete one.
+
+383/383 backend suites green.
+
 ## v0.3.682 — R21-4D-CLASH: two trades in one place at one time
 
 Hard clash finds two things in one space. Soft clash asks whether a person can reach them. This asks

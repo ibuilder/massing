@@ -917,6 +917,124 @@ def detail_title_bubble(x: float, y: float, number: str, title: str, scale: str,
             f'stroke="#111" stroke-width="1.4"/>')
 
 
+# ── R21-TAGS: element tags that do not sit on top of each other ─────────────────────────────────
+# A tag names an instance ("D2") and usually carries the number a reader came for ("900 × 2100").
+# `space_tags` already labels rooms, but rooms are large and far apart; element tags are the hard
+# case because doors and windows cluster, so the real problem is not "what does it say" but
+# **placement**. Two tags on one baseline are worse than one tag, because a reader cannot tell which
+# element either belongs to.
+#
+# The rule: a tag prefers to sit on its element. When that position is taken it is displaced to the
+# nearest free slot, and displacement is exactly what earns it a leader — a tag drawn away from its
+# element without a leader is an unattributed number.
+TAG_W, TAG_H = 30.0, 14.0     # paper-space tag box
+TAG_GAP = 3.0                 # minimum clear space between tag boxes
+MAX_TAGS = 400                # past this a plan is a grey mass; the largest elements win
+
+
+def _tag_hits(x: float, y: float, placed: list[tuple[float, float]]) -> bool:
+    for px, py in placed:
+        if abs(px - x) < TAG_W + TAG_GAP and abs(py - y) < TAG_H + TAG_GAP:
+            return True
+    return False
+
+
+def place_tags(anchors: list[tuple[float, float, str]],
+               max_tags: int = MAX_TAGS) -> list[dict]:
+    """Place a tag for each anchor, displacing collisions onto a ring of candidate offsets.
+
+    Deterministic: the same anchors in the same order always produce the same placement, because a
+    drawing that shuffles its tags between two runs cannot be diffed or checked.
+
+    Each result carries ``leader`` — True when the tag had to move off its element, which is the only
+    case where a leader line is warranted. Drawing a leader on an undisplaced tag is noise; omitting
+    one on a displaced tag is a number nobody can attribute.
+    """
+    # candidate offsets, nearest first: on the element, then the four sides, then the diagonals
+    ring = [(0.0, 0.0),
+            (0.0, -(TAG_H + TAG_GAP) * 1.6), (0.0, (TAG_H + TAG_GAP) * 1.6),
+            (-(TAG_W + TAG_GAP) * 1.1, 0.0), ((TAG_W + TAG_GAP) * 1.1, 0.0),
+            (-(TAG_W + TAG_GAP) * 1.1, -(TAG_H + TAG_GAP) * 1.6),
+            ((TAG_W + TAG_GAP) * 1.1, -(TAG_H + TAG_GAP) * 1.6),
+            (-(TAG_W + TAG_GAP) * 1.1, (TAG_H + TAG_GAP) * 1.6),
+            ((TAG_W + TAG_GAP) * 1.1, (TAG_H + TAG_GAP) * 1.6)]
+    placed: list[tuple[float, float]] = []
+    out: list[dict] = []
+    for ax, ay, text in anchors[:max_tags]:
+        spot = None
+        for k, (dx, dy) in enumerate(ring):
+            if not _tag_hits(ax + dx, ay + dy, placed):
+                spot = (ax + dx, ay + dy, k > 0)
+                break
+        if spot is None:
+            # every candidate is taken. Push straight up in whole steps until something is free
+            # rather than dropping the tag: a silently omitted tag is an element that looks untagged.
+            step, n = (TAG_H + TAG_GAP) * 1.6, 2
+            while _tag_hits(ax, ay - step * n, placed) and n < 60:
+                n += 1
+            spot = (ax, ay - step * n, True)
+        x, y, displaced = spot
+        placed.append((x, y))
+        out.append({"x": round(x, 2), "y": round(y, 2), "anchor": [round(ax, 2), round(ay, 2)],
+                    "text": text, "leader": bool(displaced)})
+    return out
+
+
+def tag_svg(tags: list[dict], color: str = "#111") -> str:
+    """Boxed tags plus a leader for every displaced one."""
+    out: list[str] = []
+    for t in tags:
+        x, y = t["x"], t["y"]
+        if t.get("leader"):
+            ax, ay = t["anchor"]
+            out.append(f'<line x1="{ax:.1f}" y1="{ay:.1f}" x2="{x:.1f}" y2="{y:.1f}" '
+                       f'stroke="{color}" stroke-width="0.5"/>'
+                       f'<circle cx="{ax:.1f}" cy="{ay:.1f}" r="1.6" fill="{color}"/>')
+        out.append(f'<rect x="{x - TAG_W / 2:.1f}" y="{y - TAG_H / 2:.1f}" width="{TAG_W}" '
+                   f'height="{TAG_H}" rx="2" fill="#fff" stroke="{color}" stroke-width="0.8"/>'
+                   f'<text x="{x:.1f}" y="{y + 3.5:.1f}" text-anchor="middle" '
+                   f'font-family="sans-serif" font-size="9">{_xesc(str(t["text"]))}</text>')
+    return "".join(out)
+
+
+# ── R21-BREAKLINE: stop a view mid-element, honestly ────────────────────────────────────────────
+# A detail that runs to the sheet edge tells the reader nothing about what happens beyond it — the
+# element might stop there, or continue for thirty metres. The break line is the conventional mark
+# that says "this element continues; the drawing does not". Without it, a partial view is
+# indistinguishable from a complete one, which is the same class of error as a clash report that
+# does not say which pairs it tested.
+BREAK_AMPLITUDE = 6.0         # paper-space depth of the zig
+BREAK_PERIOD = 22.0           # distance between zigs along the run
+
+
+def break_line(x1: float, y1: float, x2: float, y2: float,
+               amplitude: float = BREAK_AMPLITUDE, period: float = BREAK_PERIOD) -> str:
+    """The conventional zig-zag break across a run, as an SVG polyline.
+
+    Degenerate runs return a straight segment rather than nothing: a break line that vanishes because
+    the view happened to be narrow would silently turn a partial view back into an apparently
+    complete one.
+    """
+    dx, dy = x2 - x1, y2 - y1
+    length = (dx * dx + dy * dy) ** 0.5
+    if length < 1e-6:
+        return ""
+    ux, uy = dx / length, dy / length
+    nx, ny = -uy, ux                                   # unit normal: the zig direction
+    pts = [(x1, y1)]
+    n = max(1, int(length // max(period, 1.0)))
+    for i in range(n):
+        # one zig per period, centred in its span, alternating sides so the mark reads as a break
+        t = (i + 0.5) * (length / n)
+        s = amplitude if i % 2 == 0 else -amplitude
+        pts.append((x1 + ux * (t - length / (n * 4)), y1 + uy * (t - length / (n * 4))))
+        pts.append((x1 + ux * t + nx * s, y1 + uy * t + ny * s))
+        pts.append((x1 + ux * (t + length / (n * 4)), y1 + uy * (t + length / (n * 4))))
+    pts.append((x2, y2))
+    path = " ".join(f"{px:.1f},{py:.1f}" for px, py in pts)
+    return f'<polyline points="{path}" fill="none" stroke="#111" stroke-width="0.8"/>'
+
+
 KEYNOTE_GUTTER = 320          # paper-space room for the text column, left of the level datums
 MAX_KEYNOTES = 14             # past this a section stops being readable; the largest assemblies win
 
