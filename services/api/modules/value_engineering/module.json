@@ -2,7 +2,7 @@
   "key": "value_engineering",
   "name": "Value Engineering",
   "section": "Preconstruction",
-  "icon": "◆",
+  "icon": "\u25c6",
   "ref_prefix": "VE",
   "title_field": "subject",
   "pinnable": false,
@@ -40,7 +40,8 @@
     "states": [
       "accepted",
       "proposed",
-      "rejected"
+      "rejected",
+      "under_review"
     ],
     "transitions": [
       {
@@ -53,6 +54,30 @@
       },
       {
         "from": "proposed",
+        "to": "rejected",
+        "action": "reject",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "proposed",
+        "to": "under_review",
+        "action": "start_review",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "under_review",
+        "to": "accepted",
+        "action": "accept",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "under_review",
         "to": "rejected",
         "action": "reject",
         "party": [

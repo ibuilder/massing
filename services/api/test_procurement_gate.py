@@ -36,6 +36,7 @@ with TestClient(app) as c:
     # Vendor A — fully compliant: approved prequal + active COI + executed subcontract + waiver
     pqa = _create(c, pid, "prequalification", {"company": "Acme Concrete", "trade": "Concrete",
         "status": "Approved", "expires": future})
+    _act(c, pid, "prequalification", pqa["id"], "submit")     # invited -> submitted
     _act(c, pid, "prequalification", pqa["id"], "approve")
     coia = _create(c, pid, "coi", {"vendor": "Acme Concrete", "coverage_type": "General Liability",
         "carrier": "Travelers", "expires": future})
@@ -50,7 +51,9 @@ with TestClient(app) as c:
     assert ga["coi"]["status"] == "active" and ga["waiver_on_file"] is True, ga
 
     # Vendor B — expired COI, prequal submitted (not approved), no subcontract
-    _create(c, pid, "prequalification", {"company": "Bedrock LLC", "trade": "Earthwork", "status": "Submitted"})
+    pqb = _create(c, pid, "prequalification", {"company": "Bedrock LLC", "trade": "Earthwork",
+        "status": "Submitted"})
+    _act(c, pid, "prequalification", pqb["id"], "submit")     # submitted, deliberately NOT approved
     coib = _create(c, pid, "coi", {"vendor": "Bedrock LLC", "coverage_type": "General Liability",
         "carrier": "Hartford", "expires": past})
     _act(c, pid, "coi", coib["id"], "approve")
@@ -62,6 +65,7 @@ with TestClient(app) as c:
 
     # Vendor C — active but soon-expiring COI, approved prequal
     pqc = _create(c, pid, "prequalification", {"company": "Crane Co", "trade": "Steel", "status": "Approved", "expires": future})
+    _act(c, pid, "prequalification", pqc["id"], "submit")
     _act(c, pid, "prequalification", pqc["id"], "approve")
     coic = _create(c, pid, "coi", {"vendor": "Crane Co", "coverage_type": "General Liability",
         "carrier": "Chubb", "expires": soon})

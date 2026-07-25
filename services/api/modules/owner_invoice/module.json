@@ -37,6 +37,7 @@
         "Draft",
         "Submitted",
         "Approved",
+        "Rejected",
         "Paid"
       ]
     }
@@ -44,8 +45,10 @@
   "workflow": {
     "initial": "draft",
     "states": [
+      "approved",
       "draft",
       "paid",
+      "rejected",
       "submitted"
     ],
     "transitions": [
@@ -62,6 +65,32 @@
         "to": "paid",
         "action": "mark_paid",
         "party": "Owner"
+      },
+      {
+        "from": "submitted",
+        "to": "approved",
+        "action": "certify",
+        "party": "Owner"
+      },
+      {
+        "from": "submitted",
+        "to": "rejected",
+        "action": "reject",
+        "party": "Owner"
+      },
+      {
+        "from": "approved",
+        "to": "paid",
+        "action": "mark_paid",
+        "party": "Owner"
+      },
+      {
+        "from": "rejected",
+        "to": "draft",
+        "action": "revise",
+        "party": [
+          "GC"
+        ]
       }
     ]
   },

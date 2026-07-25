@@ -2,7 +2,7 @@
   "key": "document",
   "name": "Documents",
   "section": "Engineering",
-  "icon": "📄",
+  "icon": "\ud83d\udcc4",
   "ref_prefix": "DOC",
   "title_field": "title",
   "pinnable": false,
@@ -65,6 +65,7 @@
     "states": [
       "draft",
       "issued",
+      "superseded",
       "void"
     ],
     "transitions": [
@@ -80,6 +81,14 @@
         "from": "issued",
         "to": "void",
         "action": "void",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "issued",
+        "to": "superseded",
+        "action": "supersede",
         "party": [
           "GC"
         ]

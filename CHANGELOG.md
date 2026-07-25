@@ -4,6 +4,46 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.675 — five modules were contradicting themselves about their own status
+
+`owner_invoice` offered **Draft / Submitted / Approved / Paid** on its status field while its workflow
+had only `draft / submitted / paid`. Anyone who set the field to Approved produced a record whose two
+representations of the same fact disagreed — and because every count, filter, board column and report
+keys on `workflow_state`, that record silently reported as merely *submitted*. It is the
+two-tables-one-format failure: invisible until something downstream is quietly wrong.
+
+An audit found seventeen candidates, and **a rule that fixed all seventeen would have been worse than
+none.** Most status-ish selects are deliberately a different vocabulary: `company.dbe_status` is a
+DBE/MBE/WBE certification, `project_phase.iso_status` is an ISO 19650 suitability code (S0/S1/S2/A),
+`change_event.scope_status` is a determination. Forcing those to equal a workflow would merge
+unrelated concepts — a rigorous-looking check built on a false premise. Narrowing to fields literally
+named `status` whose options *mostly are* workflow states left **five genuine contradictions**:
+
+- **owner_invoice** — no `approved`, so the AIA G702 certification step (an owner certifies a pay
+  application before paying it) was unrepresentable. That is the state a real pay app sits in longest,
+  and the one a receivables question is actually about. Also gained `rejected` + a revise path.
+- **permit** — no `under_review` (the state that carries schedule risk) and no `expired` (a compliance
+  failure).
+- **prequalification** — no `invited`, so the pipeline had no beginning; `invited` is now the initial
+  state, because a prequalification starts when the invitation goes out, not when the sub responds.
+- **value_engineering** — no `under_review`.
+- **document** — `superseded` was offered but unreachable. It is a genuinely different end from
+  `void`: superseded was replaced, void was withdrawn.
+
+New `test_status_workflow_parity` locks the narrow invariant and also checks, by transitive closure
+from the initial state, that **every declared state is reachable** — a state nothing can enter is the
+same bug wearing different clothes. That check earned itself immediately by catching this change's own
+mistake: `invited` was added to prequalification while `initial` still said `submitted`.
+
+The pre-existing direct `submitted → paid` transition on owner invoices is kept deliberately. Some
+owners do pay without a separate certification, and removing it would strand every in-flight record.
+
+`test_procurement_gate` was approving a prequalification that had never been submitted — possible only
+because of the missing state. Its fixtures now walk the real pipeline; one of them also claimed to
+test "submitted, not approved" while sitting in a different state entirely.
+
+375/375 backend suites green.
+
 ## v0.3.674 — D2 routed egress: the travel-distance check was measuring the wrong thing
 
 `geometric_rules.check_escape_distance` reported **straight-line** distance to the nearest exit, and

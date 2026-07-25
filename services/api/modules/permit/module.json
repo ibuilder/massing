@@ -2,7 +2,7 @@
   "key": "permit",
   "name": "Permitting",
   "section": "Engineering",
-  "icon": "▣",
+  "icon": "\u25a3",
   "ref_prefix": "PMT",
   "title_field": "name",
   "pinnable": false,
@@ -88,8 +88,10 @@
     "initial": "applied",
     "states": [
       "applied",
+      "closed",
+      "expired",
       "issued",
-      "closed"
+      "under_review"
     ],
     "transitions": [
       {
@@ -105,6 +107,38 @@
         "from": "issued",
         "to": "closed",
         "action": "close",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "applied",
+        "to": "under_review",
+        "action": "start_review",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "under_review",
+        "to": "issued",
+        "action": "issue",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "issued",
+        "to": "expired",
+        "action": "expire",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "expired",
+        "to": "applied",
+        "action": "renew",
         "party": [
           "GC"
         ]

@@ -2,7 +2,7 @@
   "key": "prequalification",
   "name": "Prequalification",
   "section": "Preconstruction",
-  "icon": "✓",
+  "icon": "\u2713",
   "ref_prefix": "PQ",
   "title_field": "company",
   "pinnable": false,
@@ -88,9 +88,10 @@
     }
   ],
   "workflow": {
-    "initial": "submitted",
+    "initial": "invited",
     "states": [
       "approved",
+      "invited",
       "rejected",
       "submitted"
     ],
@@ -109,6 +110,14 @@
         "action": "reject",
         "party": [
           "GC"
+        ]
+      },
+      {
+        "from": "invited",
+        "to": "submitted",
+        "action": "submit",
+        "party": [
+          "Sub"
         ]
       }
     ]
