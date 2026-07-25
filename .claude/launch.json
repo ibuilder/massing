@@ -2,21 +2,60 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "api",
+      "runtimeExecutable": "services/api/.venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "aec_api.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8093",
+        "--app-dir",
+        "services/api/src"
+      ],
+      "port": 8093,
+      "env": {
+        "PYTHONPATH": "C:\\Server\\modelmaker\\services\\api\\src;C:\\Server\\modelmaker\\services\\data\\src",
+        "DATABASE_URL": "sqlite:///./preview.db",
+        "STORAGE_DIR": "./preview_storage",
+        "AEC_LOCAL_MODE": "1",
+        "PYTHONUTF8": "1"
+      }
+    },
+    {
       "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "apps/web"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "apps/web"
+      ],
       "port": 5173
     },
     {
       "name": "web-demo",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:demo", "--prefix", "apps/web"],
+      "runtimeArgs": [
+        "run",
+        "dev:demo",
+        "--prefix",
+        "apps/web"
+      ],
       "port": 5173
     },
     {
       "name": "docs",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8899", "--directory", "docs"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8899",
+        "--directory",
+        "docs"
+      ],
       "port": 8899
     }
   ]
