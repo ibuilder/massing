@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.671 — the option-scoring 400 stops deriving its text from a caught exception
+
+Follow-up to v0.3.670. The typed `OptionError` shipped there did not clear CodeQL
+`py/stack-trace-exposure`: the scanner re-scanned and re-raised the alert on the new line, because a
+caught exception is tainted regardless of its class. Typing it told the reader something it could not
+tell the analyzer.
+
+The fix is to look at what actually escapes. Every `OptionError` the takeoff raises is caught
+per-option inside `score_options` and turned into `basis="none"`, so exactly **one** refusal ever
+reaches the API. That message is now the module constant `option_score.EMPTY_OPTIONS`, which the two
+handlers answer with after their own precondition check; a test asserts the constant equals what the
+engine raises so the two cannot drift. Every other `ValueError` returns a fixed literal. No response
+text on that path derives from an exception object.
+
+370/370 backend suites green.
+
 ## v0.3.670 — FAMILY-COMPLETE: the shelf is now checked against what it takes to *build*
 
 Six batches of catalog content took the family shelf from **41 packs / 281 families / 2,370 types**
@@ -40,9 +56,10 @@ answered with an empty report that would read as a pass.
   source tree.
 - **Option-scoring errors no longer leak internals.** `score_options` grew a deep call path, so an
   incidental `ValueError` (a bad float cast, a library complaint) could reach the client verbatim
-  through the 400 handler. A typed `OptionError` now marks the messages the engine actually authored;
-  everything else returns a fixed message. (CodeQL `py/stack-trace-exposure`, medium — now zero open
-  alerts.)
+  through the 400 handler. Exactly one refusal escapes the engine, so it is now a module constant
+  (`option_score.EMPTY_OPTIONS`) the router answers with directly — nothing derived from a caught
+  exception reaches a response, and a test keeps the constant and the engine in step. Everything else
+  returns a fixed message. (CodeQL `py/stack-trace-exposure`, medium.)
 
 370 backend suites green.
 

@@ -21,6 +21,12 @@ from typing import Any
 from . import conceptual_estimate as ce
 from .option_takeoff import OptionError
 
+# The ONLY refusal that escapes score_options: every OptionError the takeoff raises is caught
+# per-option below and turned into basis="none". Exported as a constant so the API layer can
+# answer with it directly rather than stringifying a caught exception — the router cannot vouch
+# for where a caught exception's text came from, which is exactly what the scanner objects to.
+EMPTY_OPTIONS = "no options to score — pass at least one massing-params dict"
+
 # Whole-building embodied-carbon benchmarks, kgCO₂e/m² GFA (A1–A3 structure+envelope typicals from
 # published whole-building LCA studies; editable defaults, same spirit as ce.COST_PER_SF). Types align
 # with the conceptual estimator's catalog so one building_type drives both cost and carbon.
@@ -222,7 +228,7 @@ def score_options(options: list[dict], weights: dict[str, float] | None = None) 
     non-compliant option's composite is capped at 49 (never above any compliant one's floor) and it is
     excluded from `recommended`. Raises ValueError on an empty set."""
     if not options:
-        raise OptionError("no options to score — pass at least one massing-params dict")
+        raise OptionError(EMPTY_OPTIONS)
     w = {**DEFAULT_WEIGHTS, **(weights or {})}
     total_w = sum(w.values()) or 1.0
     rows = [_evaluate(o) for o in options]

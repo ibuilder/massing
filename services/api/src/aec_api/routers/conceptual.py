@@ -45,12 +45,11 @@ def design_options_score(pid: str, options: list[dict] = Body(..., embed=True),
     from fastapi import HTTPException
 
     from .. import option_score
+    if not options:
+        # the engine's own message, as a constant — never a stringified exception
+        raise HTTPException(400, option_score.EMPTY_OPTIONS)
     try:
         return option_score.score_options(options, weights)
-    except option_score.OptionError as e:
-        # OptionError carries a message the engine authored; a bare ValueError does not, and
-        # echoing one would hand the caller internal detail from wherever it happened to come from
-        raise HTTPException(400, str(e)) from e
     except ValueError as e:
         raise HTTPException(400, "invalid option set") from e
 
@@ -68,10 +67,11 @@ def design_options_board(pid: str, options: list[dict] = Body(..., embed=True),
     from ..models import Project
     p = db.get(Project, pid)
     name = (p.name if p else None) or pid
+    if not options:
+        # the engine's own message, as a constant — never a stringified exception
+        raise HTTPException(400, option_score.EMPTY_OPTIONS)
     try:
         scored = option_score.score_options(options, weights)
-    except option_score.OptionError as e:
-        raise HTTPException(400, str(e)) from e
     except ValueError as e:
         raise HTTPException(400, "invalid option set") from e
     pdf = option_score.board_pdf(name, scored)

@@ -105,6 +105,17 @@ for r in scored["options"]:
 assert scored["carbon_basis"] == ["hybrid"] and scored["carbon_basis_mixed"] is False, scored
 assert "like-for-like" in scored["note"], scored["note"]
 
+# ---- the one refusal that reaches the API is a constant, not a stringified exception -------------
+# Every OptionError the takeoff raises is caught per-option and turned into basis="none", so exactly
+# one message escapes score_options. The router answers with the constant rather than str(e): a
+# caught exception's text comes from wherever it was raised, and an API handler cannot vouch for that.
+try:
+    osc.score_options([])
+    raise AssertionError("empty option set must be refused")
+except osc.OptionError as e:
+    assert str(e) == osc.EMPTY_OPTIONS, (str(e), osc.EMPTY_OPTIONS)
+assert "at least one" in osc.EMPTY_OPTIONS, osc.EMPTY_OPTIONS
+
 # ---- THE HONESTY GATE: a mixed set says so, because the ranking isn't like-for-like -----------------
 rows = [dict(r) for r in scored["options"]]
 rows[1]["carbon_basis"] = "benchmark"                 # simulate one option falling back
