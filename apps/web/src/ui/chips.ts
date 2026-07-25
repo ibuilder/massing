@@ -9,13 +9,49 @@ import { esc } from "./charts";
 
 export type ChipTone = "ok" | "warn" | "bad" | "info" | "neutral";
 
+// The platform's modules define ~112 distinct workflow states between them. The phrase patterns
+// below only recognised 30 of those, so three quarters of every register rendered the same grey —
+// the chip vocabulary looking uniform precisely where it exists to differentiate. These exact-match
+// sets carry the real vocabulary; the patterns after them still catch multi-word phrases.
+//
+// The four meanings, kept deliberately distinct:
+//   ok      — reached a good terminal state
+//   info    — in flight, nothing wrong
+//   warn    — still live, needs attention
+//   bad     — refused, failed or missed
+//   neutral — NO LONGER CURRENT (archived / superseded / void), or a word we don't recognise
+const _OK = new Set(["accepted", "acknowledged", "adopted", "agreed", "approved", "awarded", "billed",
+  "cleared", "closed", "committed", "complete", "completed", "confirmed", "corrected", "decided",
+  "delivered", "done", "evidenced", "executed", "funded", "gc signed", "super signed", "installed",
+  "issued", "leased", "mitigated", "paid", "passed", "published", "received", "reconciled", "recorded",
+  "renewed", "resolved", "selected", "signed off", "sold", "tested", "under contract", "verified",
+  "active", "answered", "sent"]);
+const _INFO = new Set(["ae review", "agenda", "applied", "assessed", "assigned", "captured", "concept",
+  "coming soon", "controlled", "dispositioned", "exported", "fieldwork", "gc review", "hearing",
+  "identified", "in progress", "investigating", "logged", "made ready", "minutes", "ordered", "planned",
+  "priced", "programmed", "proposed", "prospect", "quotes in", "ready", "reported", "requested",
+  "reviewed", "returned", "rfq sent", "scheduled", "shared", "shortlisted", "sized", "wip"]);
+const _WARN = new Set(["appealed", "deviated", "flagged", "holdover", "mitigating", "paused",
+  "under revision"]);
+const _BAD = new Set(["denied", "excluded", "failed", "missed", "not done", "rejected", "terminated",
+  "withdrawn"]);
+// deliberately neutral — these are not failures, they are records that have left the live set
+const _RETIRED = new Set(["archived", "decommissioned", "demobilized", "exited", "inactive", "pulled",
+  "retired", "superseded", "void", "voided"]);
+
 /** Map a workflow-ish status word to a tone (shared vocabulary, override with `tone`). */
 export function toneFor(status: string): ChipTone {
-  const s = (status || "").toLowerCase().replace(/[_-]/g, " ").trim();
-  if (/(approved|paid|won|complete|completed|closed|resolved|published|active|on track|passed|ok|green)/.test(s)) return "ok";
-  if (/(pending|in review|in progress|submitted|sent|viewed|draft|open|rfq|upcoming|info)/.test(s)) return "info";
+  const s = (status || "").toLowerCase().replace(/[_-]/g, " ").replace(/\s+/g, " ").trim();
+  if (_RETIRED.has(s)) return "neutral";        // before the patterns: "void" must not read as bad
+  if (_OK.has(s)) return "ok";
+  if (_BAD.has(s)) return "bad";
+  if (_WARN.has(s)) return "warn";
+  if (_INFO.has(s)) return "info";
+  // multi-word / free-text phrases the exact sets can't enumerate ("3 days overdue", "on track")
   if (/(over budget|overdue|rejected|failed|blocked|critical|error|declined|expired|red)/.test(s)) return "bad";
   if (/(at risk|warning|urgent|due soon|hold|yellow|behind)/.test(s)) return "warn";
+  if (/(approved|paid|won|complete|closed|resolved|published|active|on track|passed|ok|green)/.test(s)) return "ok";
+  if (/(pending|in review|in progress|submitted|sent|viewed|draft|open|rfq|upcoming|info)/.test(s)) return "info";
   return "neutral";
 }
 

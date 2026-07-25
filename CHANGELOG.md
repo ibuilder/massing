@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.663 — Path resolution by enumeration; the chip vocabulary reaches the money cards
+
+**Security — four HIGH `py/path-injection` alerts closed** (CodeQL, on v0.3.662's new
+`family_packs.py`). The original guards were sound — a name carrying any separator, parent
+reference, drive or UNC prefix was rejected, and the resolved path was re-checked against the shelf
+root — but the path was still *built* by joining caller input onto a directory. It is now
+**selected out of the directory's own listing** instead: the server enumerates `*.ifc` and the
+caller's string is only ever compared against what it found. That inverts the trust rather than
+fencing it, so no encoding trick can steer the result, and the symlink containment check still runs
+on the resolved target. Alerts cleared; the traversal tests are unchanged and still pass.
+
+**UX-POLISH, first slice.**
+
+- **UX-KPI** — the one-line narrative band now sits above the register tiles on the **developer** and
+  **design** homes, matching the PX executive band. Deterministic template text, never an LLM; a
+  register with no records is absent from the sentence rather than reported as a zero.
+- **UX-CHIPS — the vocabulary actually had to learn the vocabulary.** Rolling chips onto the module
+  record grid meant measuring what states they'd see: the platform's modules define **112 distinct
+  workflow states**, and `toneFor` recognised **30**. Three quarters of every register would have
+  rendered the same grey — the chip system looking uniform precisely where it exists to
+  differentiate. `toneFor` now carries the real vocabulary as exact-match sets (phrase patterns
+  still handle free text), with a deliberate distinction the old version could not make: **neutral
+  means "left the live set"**, not "unrecognised". A voided or superseded drawing is withdrawn from
+  the set, not an error, so it reads grey; a rejected or missed one reads red. `chips.test.ts` pins
+  all 112 states, so adding a module state without a tone now fails the suite.
+- **UX-CHIPS rollout** — chips replace hand-rolled badges at the **module record grid** (the widest
+  site: every register, including the drawing lifecycle DRAW-STATUS), the **action-items feed** and
+  the **brief feed**.
+- **UX-CHIPS** — the shared vocabulary reaches the **selections money card**: a net-delta chip that
+  knows an overage is bad and a credit is good on a cost line, priced/approved status chips, and a
+  count narrative. It also now states the **unpriced remainder explicitly** — a rollup over
+  half-priced selections is not the same number as a finished one, and the reader should not have to
+  subtract to notice.
+
 ## v0.3.662 — Real family content: four geometry defects, and a shelf you can actually import from
 
 Analyzed the external `massing-families` content library (40 discipline packs · 270 families · 2,334

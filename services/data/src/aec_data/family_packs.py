@@ -85,19 +85,28 @@ def list_packs() -> dict[str, Any]:
 def resolve(name: str) -> Path:
     """Resolve a pack *name* to a path on the external shelf.
 
-    Name-only, never a path: the caller supplies `structural-steel-w.ifc`, and anything carrying a
-    separator, a parent reference, or a non-`.ifc` suffix is refused outright. The resolved path is
-    then re-checked against the shelf root, so a symlink cannot walk out of it either.
+    Name-only, never a path: anything carrying a separator, a parent reference, a drive or UNC
+    prefix, or a non-`.ifc` suffix is refused outright.
+
+    The returned path is then **selected out of the directory's own listing** rather than built by
+    joining the caller's string onto the root. That inverts the trust: the path is one the server
+    enumerated, and the caller's input only ever gets compared against it, so no amount of clever
+    encoding can steer the result outside the shelf — and a symlink cannot walk out either, because
+    the final containment check still runs on the resolved target.
     """
     raw = (name or "").strip()
     if not raw or raw != Path(raw).name or raw.startswith("."):
         raise ValueError(f"pack must be a plain file name on the shelf, got {name!r}")
     if not raw.lower().endswith(".ifc"):
         raise ValueError(f"pack must be an .ifc file, got {name!r}")
-    root = external_dir().resolve()
-    path = (root / raw).resolve()
-    if root not in path.parents or not path.is_file():
+    root = external_dir()
+    if not root.is_dir():
+        raise ValueError(f"no such pack {raw!r} — the external shelf does not exist")
+    path = next((p for p in root.glob("*.ifc") if p.name == raw and p.is_file()), None)
+    if path is None:
         raise ValueError(f"no such pack {raw!r} on the external shelf")
+    if root.resolve() not in path.resolve().parents:       # a symlink pointing off the shelf
+        raise ValueError(f"pack {raw!r} resolves outside the external shelf")
     size = path.stat().st_size
     if size > MAX_PACK_BYTES:
         raise ValueError(f"pack {raw!r} is {size} bytes, over the {MAX_PACK_BYTES}-byte ceiling")

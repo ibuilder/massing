@@ -1,7 +1,7 @@
 import type { ApiClient, ModuleDef, ModuleRecord, RecordBrief } from "../api/client";
 import { escapeHtml as esc, toast } from "../ui/feedback";
 import { progressBar } from "../ui/charts";
-import { countNarrative } from "../ui/chips";
+import { countNarrative, statusChip } from "../ui/chips";
 import { confirmModal, modalShell, promptModal } from "../ui/modal";
 import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
@@ -492,6 +492,15 @@ export class PortalUI {
         if (onClick) { c.onclick = onClick; c.tabIndex = 0; c.setAttribute("role", "button"); c.onkeydown = (e) => { if ((e as KeyboardEvent).key === "Enter") onClick(); }; }
         kpis.appendChild(c);
       }
+      // UX-KPI — the one-line narrative band above the tiles, so the home says what the numbers mean
+      // instead of leaving the reader to total them. Deterministic template text, never an LLM; a
+      // register with nothing in it is simply absent rather than reported as a zero.
+      const narrative = countNarrative(
+        cards.map(([label, val]) => [val, label.toLowerCase()] as [number, string]),
+        "No developer registers have records yet");
+      const band = el("div", "kpi-narrative"); band.style.margin = "2px 0 6px";
+      band.textContent = narrative;
+      root.appendChild(band);
       root.appendChild(kpis);
     } catch { /* dashboard unavailable — KPI grid just omitted */ }
 
@@ -611,7 +620,15 @@ export class PortalUI {
         tile.innerHTML = `<div style="font-size:20px;font-weight:600">${n}</div><div class="meta">${label}</div>`;
         tile.onclick = () => jump(key); cards.appendChild(tile);
       }
-      if (any) { const h = el("div", "section-title"); h.textContent = "Design registers"; h.style.marginBottom = "6px"; root.append(h, cards); }
+      if (any) {
+        const h = el("div", "section-title"); h.textContent = "Design registers"; h.style.marginBottom = "6px";
+        // UX-KPI — the same one-line narrative treatment as the developer home
+        const band = el("div", "kpi-narrative"); band.style.margin = "0 0 6px";
+        band.textContent = countNarrative(
+          regs.map(([key, label]) => [cnt(key), label.toLowerCase()] as [number, string]),
+          "No design registers have records yet");
+        root.append(h, band, cards);
+      }
     } catch { /* no dashboard yet — tiles above are enough */ }
   }
 
@@ -824,7 +841,7 @@ export class PortalUI {
       if (d.action_items.length) {
         for (const a of d.action_items.slice(0, 20)) {
           const row = el("button", "portal-mod") as HTMLButtonElement;
-          row.innerHTML = `<span class="ic">→</span> ${esc(a.ref)} ${esc(a.title ?? "")} <span class="badge">${esc(a.state)}</span>`;
+          row.innerHTML = `<span class="ic">→</span> ${esc(a.ref)} ${esc(a.title ?? "")} ${statusChip(a.state)}`;
           row.onclick = () => { const m = this.mods.find((x) => x.key === a.module); if (m) void this.openRecord(m, a.id); };
           main.appendChild(row);
         }
@@ -1603,7 +1620,10 @@ export class PortalUI {
    *  (terminal states stay read-only). Selecting one calls /transition; party gates apply server-side. */
   private statusCell(pid: string, m: ModuleDef, r: ModuleRecord): HTMLTableCellElement {
     const td = document.createElement("td");
-    const render = () => { td.innerHTML = `<span class="badge">${r.workflow_state}</span>`; };
+    // UX-CHIPS — one tone vocabulary for every module's lifecycle, so "approved" reads the same
+    // green in the drawing register (DRAW-STATUS), the submittal log and the RFI list. This is the
+    // single widest-reach chip site: every module record grid renders its state through here.
+    const render = () => { td.innerHTML = statusChip(r.workflow_state); };
     render();
     const nexts = (m.workflow.transitions ?? []).filter((t) => t.from === r.workflow_state);
     if (!nexts.length) return td;          // terminal — nothing to transition to
@@ -2448,7 +2468,7 @@ export class PortalUI {
       const cap = document.createElement("div"); cap.className = "meta"; cap.textContent = caption; box.appendChild(cap);
       for (const b of items) {
         const row = document.createElement("button"); row.className = "portal-mod";
-        row.innerHTML = `<span class="ic">${icon}</span> <b>${esc(labelOf(b))}</b> ${esc(b.ref)} ${esc(b.title ?? "")} <span class="badge">${esc(b.state)}</span>`;
+        row.innerHTML = `<span class="ic">${icon}</span> <b>${esc(labelOf(b))}</b> ${esc(b.ref)} ${esc(b.title ?? "")} ${statusChip(b.state)}`;
         row.onclick = () => this.openByBrief(b.module, b.id);
         box.appendChild(row);
       }

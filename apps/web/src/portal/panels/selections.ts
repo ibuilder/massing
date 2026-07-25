@@ -1,3 +1,4 @@
+import { countNarrative, deltaChip, statusChip } from "../../ui/chips";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 
@@ -26,12 +27,25 @@ export async function renderSelections(ctx: PanelContext) {
       const head = document.createElement("div"); head.className = "dash-card"; head.style.marginBottom = "10px";
       const dirCol = s.direction === "over" ? "var(--status-crit)" : s.direction === "under" ? "var(--status-good)" : "var(--fg)";
       const dirLabel = s.direction === "over" ? "over allowance" : s.direction === "under" ? "under allowance (credit)" : "on allowance";
+      // UX-CHIPS — the shared chip vocabulary rather than hand-rolled spans. On a cost line an
+      // overage is bad and a credit is good, hence goodWhenNegative. The unpriced remainder is
+      // stated explicitly: a rollup over half-priced selections is not the same number as a
+      // finished one, and the reader should not have to subtract to notice.
+      const unpriced = s.count - s.priced;
       head.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">`
         + `<div class="section-title" style="margin:0">Allowance vs. actual</div>`
         + `<div style="font-size:20px;font-weight:800;color:${dirCol}">${s.net_delta >= 0 ? "+" : "−"}${usd(Math.abs(s.net_delta))} <span style="font-size:12px;font-weight:500;opacity:.8">${dirLabel}</span></div></div>`
-        + `<div class="meta" style="margin-top:2px">Allowance <b>${usd(s.total_allowance)}</b> · Actual <b>${usd(s.total_actual)}</b> · `
-        + `<b>${s.priced}</b>/${s.count} priced · <b>${s.approved}</b> owner-approved</div>`
-        + `<div class="meta" style="margin-top:2px">${s.over_count} over · ${s.under_count} under · ${s.on_count} on-allowance</div>`;
+        + `<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">`
+        + deltaChip(s.net_delta, { currency: true, goodWhenNegative: true })
+        + statusChip(`${s.priced}/${s.count} priced`, { tone: unpriced ? "warn" : "ok" })
+        + statusChip(`${s.approved} owner-approved`, { tone: s.approved ? "ok" : "neutral" })
+        + `</div>`
+        + `<div class="meta" style="margin-top:4px">Allowance <b>${usd(s.total_allowance)}</b> · Actual <b>${usd(s.total_actual)}</b></div>`
+        + `<div class="meta" style="margin-top:2px">${countNarrative(
+            [[s.over_count, "over allowance"], [s.under_count, "under"], [s.on_count, "on allowance"]],
+            "No selections priced against an allowance yet")}`
+        + (unpriced ? ` · <b>${unpriced}</b> not yet priced, so this total is incomplete` : "")
+        + `</div>`;
       body.appendChild(head);
 
       // per-category deltas

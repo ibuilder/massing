@@ -32,14 +32,16 @@ non-gated work**.
    metadata on `GET /families/library`. See [families.md](families.md).
    **Remaining:** a browsable shelf UI in the Library palette *(UX-3 depth, below)*, and the
    content repo publishing a tagged release so `scripts/fetch_families.py` has something to fetch.
-1. **🎚 UX-POLISH sprint** *(M; the long-deferred one — do it first)*. The platform's backend surface
-   has outrun its front end; empty states and unrolled chips undercut shipped depth on every screen.
-   **UX-DEMO** — one richly-threaded demo project across every screen (this is what kills empty
-   states, and it feeds the Pages demo) · **UX-CHIPS rollout** — `ui/chips.ts` exists and is
-   vitest-covered; roll it to DRAW-STATUS, the client-portal money cards, and the lifecycle feeds ·
-   **UX-KPI rollout** — the PX executive band's one-line narrative header onto the developer/design
-   homes · **UX-ACT** — extend the resolve-action descriptors to `rule_library.py` violations and
-   `schedule_options.py` conflict feeds. Then the demo/docs/Pages refresh.
+1. ◧ **🎚 UX-POLISH sprint** *(M; the long-deferred one — in progress)*. The platform's backend
+   surface has outrun its front end; empty states and unrolled chips undercut shipped depth on every
+   screen.
+   ✅ **UX-KPI rollout** *(v0.3.663)* — the narrative band on the developer + design homes ·
+   ◧ **UX-CHIPS rollout** *(v0.3.663)* — reached the selections money card (with the unpriced
+   remainder stated explicitly); **remaining:** DRAW-STATUS and the lifecycle feeds as they're
+   touched. **Remaining:** **UX-DEMO** — one richly-threaded demo project across every screen (this
+   is what kills empty states, and it feeds the Pages demo) · **UX-ACT** — extend the resolve-action
+   descriptors to `rule_library.py` violations and `schedule_options.py` conflict feeds. Then the
+   demo/docs/Pages refresh.
 2. **💲 COST-SPINE** *(M; the highest-integrity item left)*. One cost-code identity carried
    estimate → budget → invoice on the CBS spine (the MARGIN-CBS follow-on). This is the cross-cutting
    correctness the 5D story rests on: today the same scope can wear different codes at different
