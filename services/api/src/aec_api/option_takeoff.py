@@ -29,13 +29,18 @@ from . import carbon
 
 
 class OptionError(ValueError):
-    """A caller's option is invalid, and the message is one WE wrote.
+    """A caller's option is invalid.
 
-    The distinction matters at the API edge: a curated message can be echoed back to the client,
-    while an incidental ``ValueError`` from deep inside (a bad float cast, a library complaint)
-    carries internal detail and must not be. Callers catch this to build a 400; everything else
-    stays a 500 with a generic message.
+    Carries a short ``code`` naming *which lever* was rejected. Callers that surface a refusal to a
+    client select a literal from their own table by that code rather than echoing ``str(exc)``: the
+    message is for a developer reading a traceback, and nothing derived from an exception object
+    should reach a response body. The code is the API-safe part; the message is not.
     """
+
+    def __init__(self, message: str, code: str = "invalid"):
+        super().__init__(message)
+        self.code = code
+
 
 # Structural system → m³ of concrete and kg of steel per m² of GFA. Massing-stage assemblies from
 # published concept-estimating ranges; overridable per call.
@@ -83,10 +88,11 @@ def quantities(massing: dict, structure: str | None = None, wwr: float | None = 
     key = (structure or DEFAULT_STRUCTURE).lower()
     sys = STRUCTURE.get(key)
     if sys is None:
-        raise OptionError(f"unknown structure {key!r}; have {', '.join(sorted(STRUCTURE))}")
+        raise OptionError(f"unknown structure {key!r}; have {', '.join(sorted(STRUCTURE))}",
+                          code="structure")
     ratio = DEFAULT_WWR if wwr is None else float(wwr)
     if not 0.0 <= ratio <= 0.95:
-        raise OptionError(f"wwr must be between 0 and 0.95, got {ratio}")
+        raise OptionError(f"wwr must be between 0 and 0.95, got {ratio}", code="wwr")
 
     facade = round(_perimeter(massing) * height, 1)
     core = round(gfa * CORE_FRACTION, 1)

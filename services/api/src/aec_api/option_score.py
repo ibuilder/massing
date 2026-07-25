@@ -27,6 +27,14 @@ from .option_takeoff import OptionError
 # for where a caught exception's text came from, which is exactly what the scanner objects to.
 EMPTY_OPTIONS = "no options to score — pass at least one massing-params dict"
 
+# Client-facing text for a takeoff refusal, keyed by OptionError.code. Literals, so the option a
+# caller reads back is text this module wrote and not text an exception happened to carry.
+TAKEOFF_REFUSALS = {
+    "structure": "unknown structural system — no takeoff; carbon falls back to the benchmark",
+    "wwr": "window-to-wall ratio out of range — no takeoff; carbon falls back to the benchmark",
+    "invalid": "option rejected by the takeoff; carbon falls back to the benchmark",
+}
+
 # Whole-building embodied-carbon benchmarks, kgCO₂e/m² GFA (A1–A3 structure+envelope typicals from
 # published whole-building LCA studies; editable defaults, same spirit as ce.COST_PER_SF). Types align
 # with the conceptual estimator's catalog so one building_type drives both cost and carbon.
@@ -185,8 +193,10 @@ def _evaluate(opt: dict) -> dict[str, Any]:
     try:
         to = option_takeoff.takeoff(m, structure=opt.get("structure"), wwr=opt.get("wwr"))
     except OptionError as e:
-        # only OUR message reaches the response; an incidental ValueError is a bug, not a note
-        to = {"basis": "none", "note": str(e)}
+        # The note goes into the RESPONSE BODY, so it is selected from the literal table below by the
+        # exception's `code` — never built from str(e). An exception's text is written for a
+        # traceback and can carry detail from wherever it was raised; a response should not.
+        to = {"basis": "none", "note": TAKEOFF_REFUSALS.get(e.code, TAKEOFF_REFUSALS["invalid"])}
     if to.get("basis") == "quantity" and to.get("carbon_intensity_kgco2e_m2"):
         # HYBRID, and it has to be. The takeoff sees only GEOMETRY — structure, envelope, partitions —
         # so on its own it gives a warehouse and a hospital with the same envelope identical carbon,

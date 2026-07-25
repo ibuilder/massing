@@ -105,6 +105,30 @@ for r in scored["options"]:
 assert scored["carbon_basis"] == ["hybrid"] and scored["carbon_basis_mixed"] is False, scored
 assert "like-for-like" in scored["note"], scored["note"]
 
+# ---- a refusal that reaches the RESPONSE BODY is a literal, not an exception's text ---------------
+# _evaluate catches the takeoff's OptionError and reports it as `note` in the scored option — which is
+# response body, not a log line. The note must therefore be selected from option_score's own table by
+# the exception's `code`; an exception's message is written for a traceback and can carry detail from
+# wherever it was raised.
+LEVERS = {"lot_width": 60.0, "lot_depth": 50.0, "far": 3.0, "height_limit": 60.0,
+          "floor_to_floor": 3.5, "efficiency": 0.82, "building_type": "multifamily",
+          "coverage_max": 0.6}
+row = osc.score_options([{**LEVERS, "structure": "unobtainium"}])["options"][0]
+assert row["takeoff"]["basis"] == "none", row["takeoff"]
+assert row["takeoff"]["note"] in osc.TAKEOFF_REFUSALS.values(), row["takeoff"]["note"]
+assert row["takeoff"]["note"] == osc.TAKEOFF_REFUSALS["structure"], row["takeoff"]["note"]
+assert "unobtainium" not in row["takeoff"]["note"], "the caller's raw token must not be echoed back"
+# the option still scores off the benchmark rather than being dropped
+assert row["carbon_basis"] == "benchmark" and row["composite"] >= 0, row
+
+for kw, code in ((("structure", "unobtainium"), "structure"), (("wwr", 1.4), "wwr")):
+    try:
+        ot.takeoff(M, **{kw[0]: kw[1]})
+        raise AssertionError(f"expected refusal for {kw[0]}")
+    except ot.OptionError as e:
+        assert e.code == code, (e.code, code)
+        assert code in osc.TAKEOFF_REFUSALS, code
+
 # ---- the one refusal that reaches the API is a constant, not a stringified exception -------------
 # Every OptionError the takeoff raises is caught per-option and turned into basis="none", so exactly
 # one message escapes score_options. The router answers with the constant rather than str(e): a

@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.672 — the option-scoring refusal note stops carrying an exception's text
+
+Third and correct pass at CodeQL `py/stack-trace-exposure` on the option scorer. The previous two
+releases hardened the wrong path: the alert's reported location was
+`return option_score.score_options(...)` — the *return of the engine result* — and it was read as
+though it pointed at the 400 handler. The 400 was never involved.
+
+The real flow is that `_evaluate` catches the takeoff's `OptionError` and puts `str(e)` into
+`takeoff.note`, which then travels out in the **response body** attached to every scored option.
+
+`OptionError` now carries a short `code` naming which lever was rejected (`structure`, `wwr`), and
+`option_score.TAKEOFF_REFUSALS` maps that code to client-facing literals. The note is selected from
+that table, so nothing derived from an exception object reaches a response. A test asserts the note
+is always a table value, that codes and table stay in step, and that a caller's raw token is never
+echoed back to them.
+
+The v0.3.670 typed exception and v0.3.671 message constant are kept — both are correct hardening of
+the 400 path — but neither could have closed this alert.
+
+370/370 backend suites green.
+
 ## v0.3.671 — the option-scoring 400 stops deriving its text from a caught exception
 
 Follow-up to v0.3.670. The typed `OptionError` shipped there did not clear CodeQL
