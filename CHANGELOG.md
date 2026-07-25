@@ -4,6 +4,59 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.673 — sections you can issue, and a route to LOD 500 that doesn't need a thousand clicks
+
+**W10-5 + C6 — the section becomes a drawing.** `section_svg` produced bare linework: every edge the
+same weight, no levels, no grid, no dimensions. That output is *correct* and unusable — a section
+exists to communicate vertical relationships, and the only way to get a floor-to-floor height out of
+it was to measure the screen.
+
+Sections now carry **poché** on cut material, grouped by what the material *is* (structure heavier
+than enclosure heavier than openings) — the one distinction pure linework cannot make, because every
+edge looks equally solid. The tone follows LOD: solid while the drawing is about mass, stepped back as
+the linework sharpens, absent at `line`. The linework is identical across all three, so LOD changes
+weight and never content, and a misspelled LOD is refused rather than defaulted to a plausible-looking
+weight. Plus **C6 reference-line datums** running the full width past the drawing, grid bubbles from
+the in-plane axis, and the **floor-to-floor dimension chain** with an overall height.
+
+**LOD 500 — the assertion existed and the reader ignored it.** `verify_asbuilt` has stamped
+`Massing_AsBuilt` into the IFC since the G1 work and `asbuilt_summary` counted it, but the LOD
+assessment read only LOIN facets. So a model with every element field-verified still reported "LOD
+400, capped". The evidence was in the file and nothing looked at it.
+
+Two things from the BIMForum specification are now encoded, both commonly got wrong:
+
+- **LOD 500 is not "more detail than 400".** It is a field-verified as-built condition, so an
+  information-complete element nobody looked at stops at 400 while a *thin* verified one reaches 500.
+  An element measured outside tolerance is **not** promoted — it has been verified as wrong, which is
+  a punch item rather than a handover.
+- **Accuracy must be stated by means other than the LOD number.** A bare VERIFIED flag asserts
+  nothing about how closely the model matches the building, and is reported as an incomplete
+  assertion rather than counted as a pass.
+
+`GET /projects/{pid}/lod/handover-readiness` returns the gap as a **work list**: every short element
+with a reason and the next action, grouped by discipline. A percentage cannot be worked — "62% ready"
+does not say which 38% or why.
+
+**Scan → LOD 500.** Verifying element by element is why LOD 500 stays aspirational on any real model.
+The existing `/scan/deviation` compares a cloud against every model vertex at once and returns one
+number: it can say how close a building is to its model, never which wall is wrong, so it cannot
+verify anything. `per_element_deviation` runs the query the other way — nearest **scan** point to each
+element's own surface — which makes the result attributable and, more importantly, makes an element
+the scanner never saw come back **uncovered with no verdict** instead of quietly passing. Absence of
+points is not evidence of correctness.
+
+`POST /projects/{pid}/scan/verify-lod500` turns that into three outcomes: within tolerance → stamped
+*with its measured deviation*, so the assertion states an accuracy; outside tolerance → returned as a
+finding and deliberately not stamped; uncovered → needs another scan position. `apply=false` shows
+exactly what a scan would assert before it touches the model.
+
+Sampling improvement found on the way: vertex-only sampling measures a box's eight **corners** — the
+worst case, and exactly where a scan sheet is thinnest. Element sampling now includes triangle
+centroids, which put sample points in the middle of each face where a scan actually lands.
+
+373/373 backend suites green.
+
 ## v0.3.672 — the option-scoring refusal note stops carrying an exception's text
 
 Third and correct pass at CodeQL `py/stack-trace-exposure` on the option scorer. The previous two

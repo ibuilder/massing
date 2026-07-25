@@ -696,17 +696,145 @@ def _axis_center(meshes: list[tuple[str, trimesh.Trimesh]], ax: int) -> float:
     return 0.0 if lo is None else (lo + hi) / 2.0
 
 
+# ── W10-5 / C6: section annotation ───────────────────────────────────────────────────────────────
+# Poché — the tone that fills what the cut plane passes THROUGH, so a reader can tell cut material
+# from what is merely visible beyond it. That distinction is the whole point of a section, and a
+# pure-linework section cannot make it: every edge looks equally solid.
+#
+# Grouped by what the material *is*, not by discipline, because poché answers "how heavy is this"
+# rather than "whose scope is this". Anything unlisted gets the light tone — an unfamiliar class is
+# drawn faintly rather than as if it were structure.
+_POCHE = {
+    "structure": (("ifcfooting", "ifcpile", "ifcslab", "ifccolumn", "ifcbeam", "ifcmember",
+                   "ifcplate"), "#4a4a4a"),
+    "enclosure": (("ifcwall", "ifcwallstandardcase", "ifccurtainwall", "ifcroof"), "#8a8a8a"),
+    "opening": (("ifcdoor", "ifcwindow", "ifcstair", "ifcstairflight", "ifcramp"), "#d8d8d8"),
+}
+_POCHE_LIGHT = "#e8e8e8"
+# LOD drives how much tone survives. At a coarse stage the drawing is about mass, so poché is solid;
+# as the model sharpens the fill steps back and lets the linework carry the drawing. "line" is the
+# historical behaviour — no fill at all.
+_POCHE_OPACITY = {"coarse": 1.0, "fine": 0.45, "line": 0.0}
+SECTION_LODS = frozenset(_POCHE_OPACITY)      # the API validates against this, not a second copy
+
+
+def _poche_fill(cls: str, lod: str) -> str:
+    if _POCHE_OPACITY.get(lod, 1.0) <= 0.0:
+        return "none"
+    low = (cls or "").lower()
+    for classes, colour in _POCHE.values():
+        if low in classes:
+            return colour
+    return _POCHE_LIGHT
+
+
+def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], title: str,
+                        grid: dict | None = None, lod: str = "coarse", width: int = 1300) -> str:
+    """An **annotated** section: poché, level datums, grid bubbles and a floor-to-floor dimension
+    chain — the things that make a cut issuable rather than merely correct.
+
+    A section exists to communicate vertical relationships, so the dimension chain is not decoration:
+    the floor-to-floor rises and the overall height are the numbers a reader came for, and until now
+    the only way to get them was to measure the screen.
+    """
+    if lod not in SECTION_LODS:
+        # refuse rather than fall back: a silently-defaulted LOD produces a plausible drawing at the
+        # wrong weight, and nothing downstream would show that the request was misspelled
+        raise ValueError(f"lod must be one of {sorted(SECTION_LODS)}, got {lod!r}")
+    view = "section-x" if axis == "x" else "section-y"
+    classed = cut_baked_classed(meshes, view, offset)
+    if not classed:
+        return to_svg([], title=title, subtitle=f"{axis.upper()} = {offset:.2f} m — no geometry on this cut")
+    polys = [p for _, p in classed]
+    allp = np.vstack(polys)
+    mn, mx = allp.min(axis=0), allp.max(axis=0)
+    span = np.maximum(mx - mn, 1e-6)
+    gutter, dim_col, pad, top = 130, 90, 30, 40
+    draw_w = width - 2 * pad - gutter - dim_col
+    scale = draw_w / span[0]
+    draw_h = span[1] * scale
+    height = int(draw_h + pad + top + 60)
+    ox, oy = pad + gutter, top
+
+    def T(u, v):
+        return ox + (u - mn[0]) * scale, oy + draw_h - (v - mn[1]) * scale
+
+    out = ['<?xml version="1.0" encoding="UTF-8"?>',
+           f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+           f'viewBox="0 0 {width} {height}"><rect width="{width}" height="{height}" fill="#fff"/>']
+
+    # cut material first, as filled loops — a section polyline from a solid IS a closed loop
+    opacity = _POCHE_OPACITY.get(lod, 1.0)
+    for cls, poly in classed:
+        pts = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
+        fill = _poche_fill(cls, lod)
+        fo = f' fill-opacity="{opacity:.2f}"' if fill != "none" else ""
+        out.append(f'<polygon points="{pts}" fill="{fill}"{fo} stroke="#111" stroke-width="1"/>')
+
+    # grid bubbles on the in-plane horizontal: a section on X draws world Y, and vice versa
+    if grid:
+        for g, label in (grid["y"] if axis == "x" else grid["x"]):
+            if g < mn[0] - 0.5 or g > mx[0] + 0.5:
+                continue
+            gx, _ = T(g, mn[1])
+            out.append(f'<line x1="{gx:.1f}" y1="{oy-24:.1f}" x2="{gx:.1f}" y2="{oy+draw_h:.1f}" '
+                       f'stroke="#bbb" stroke-width="0.5" stroke-dasharray="5 3"/>'
+                       f'<circle cx="{gx:.1f}" cy="{oy-24:.1f}" r="9" fill="#fff" stroke="#111"/>'
+                       f'<text x="{gx:.1f}" y="{oy-21:.1f}" text-anchor="middle" '
+                       f'font-family="sans-serif" font-size="10" font-weight="700">{_xesc(str(label))}</text>')
+
+    # C6 reference-line datums: the level line runs the full width and past the drawing on the left,
+    # because a datum is a reference for the whole drawing rather than a label on one element
+    shown = [lv for lv in levels if mn[1] - 0.1 <= lv["elevation"] <= mx[1] + 0.1]
+    for lv in shown:
+        _, ly = T(mn[0], lv["elevation"])
+        out.append(f'<line x1="{ox-100:.1f}" y1="{ly:.1f}" x2="{ox+draw_w:.1f}" y2="{ly:.1f}" '
+                   f'stroke="#0a6" stroke-width="0.6" stroke-dasharray="8 4"/>'
+                   f'<circle cx="{ox-100:.1f}" cy="{ly:.1f}" r="4" fill="#0a6"/>'
+                   f'<text x="{ox-92:.1f}" y="{ly-3:.1f}" font-family="sans-serif" font-size="10" '
+                   f'fill="#0a6">{_xesc(str(lv["name"] or ""))}  +{lv["elevation"]*1000:.0f}</text>')
+
+    # the floor-to-floor chain + an overall dimension, in the right-hand column
+    dx = ox + draw_w + 34
+    for a, b in zip(shown, shown[1:]):
+        _, ya = T(mn[0], a["elevation"])
+        _, yb = T(mn[0], b["elevation"])
+        out.append(_dim_v(dx, ya, yb, f'{(b["elevation"] - a["elevation"]) * 1000:.0f}'))
+    if len(shown) > 1:
+        _, y0 = T(mn[0], shown[0]["elevation"])
+        _, y1 = T(mn[0], shown[-1]["elevation"])
+        out.append(_dim_v(dx + 40, y0, y1,
+                          f'{(shown[-1]["elevation"] - shown[0]["elevation"]) * 1000:.0f} OVERALL'))
+
+    ty = height - 24
+    note = f'{axis.upper()} = {offset:.2f} m  ·  {len(classed)} cut elements  ·  poché {lod}'
+    out.append(f'<line x1="{pad}" y1="{ty-12}" x2="{width-pad}" y2="{ty-12}" stroke="#111" stroke-width="1"/>'
+               f'<text x="{pad}" y="{ty+8}" font-family="sans-serif" font-size="16" '
+               f'font-weight="700">{_xesc(title)}</text>'
+               f'<text x="{width-pad}" y="{ty+8}" text-anchor="end" font-family="sans-serif" '
+               f'font-size="12" fill="#555">{note}</text>')
+    out.append("</svg>")
+    return "".join(out)
+
+
 def section_svg(model: ifcopenshell.file, axis: str, offset: float | None = None,
-                title: str = "SECTION") -> str:
+                title: str = "SECTION", lod: str = "coarse", annotate: bool = True) -> str:
     """Cut the model on a vertical plane. `offset` is the world coordinate (metres) of the cut on the
     perpendicular axis; when None the cut auto-centres on the model so it lands through the building
-    regardless of where the model sits relative to the origin."""
+    regardless of where the model sits relative to the origin.
+
+    Annotated by default (poché + level datums + grid + dimension chain). `annotate=False` returns the
+    bare linework, which is what a CAD hand-off or a further-processing caller wants.
+    """
     view = "section-x" if axis == "x" else "section-y"
     meshes = bake(model)
     if offset is None:
         offset = _axis_center(meshes, 0 if axis == "x" else 1)
-    polys = cut_baked(meshes, view, offset)
-    return to_svg(polys, title=title, subtitle=f"{axis.upper()} = {offset:.2f} m")
+    if not annotate:
+        return to_svg(cut_baked(meshes, view, offset), title=title,
+                      subtitle=f"{axis.upper()} = {offset:.2f} m")
+    return section_drawing_svg(meshes, axis, offset, storey_elevations(model), title,
+                               grid=grid_from_meshes(meshes), lod=lod)
 
 
 def plan_file(ifc_path: str, elevation: float, cut_height: float = 1.2, title: str = "PLAN") -> str:

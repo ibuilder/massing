@@ -103,9 +103,42 @@ non-gated work**.
    table** so authored and imported content can't diverge, and every attribute name is validated
    against the real IFC4 schema. *(Meshes deliberately excluded — they can't be resized, scheduled
    or measured; that content belongs in an imported pack.)*
-   **Remaining:** **W10-5** section/elevation annotation views · **C6** reference-line datums +
-   LOD-following poché · **D2** routed egress / life-safety plans · **B3** wall Axis + clip planes ·
-   **E5** parametric handles.
+   **Remaining:** **D2** routed egress / life-safety plans · **B3** wall Axis + clip planes ·
+   **E5** parametric handles. *(The last two are viewer-coupled and gated on the preview stall; D2 is
+   server-side and is next.)*
+   ✅ **W10-5 + C6** *(v0.3.673)* — sections were bare linework: correct and unissuable. They now
+   carry **poché** grouped by what the material *is* (structure heavier than enclosure heavier than
+   openings — the one distinction linework cannot make), **LOD-following** so the tone steps back as
+   the linework sharpens while the linework itself stays identical, **C6 reference-line datums**, grid
+   bubbles, and the **floor-to-floor dimension chain**. A misspelled LOD is refused, not defaulted.
+
+0c. ◧ **🎯 LOD-500 — field verification as a workflow, not a thousand clicks** *(v0.3.673; the
+   ladder's top rung is now reachable)*.
+
+   LOD 500 is the level most often misread. Per BIMForum it is **not** "more detail than LOD 400" —
+   it is a *field-verified as-built* condition that applies to what exists rather than what was
+   designed, and it is earned by someone going and looking. The 2024 specification adds that an LOD
+   500 element's **accuracy must be stated by means other than the LOD number**.
+
+   **Shipped.** The verification stamp had been written into the IFC since G1 and the LOD assessment
+   never read it, so a fully verified model still reported "LOD 400, capped".
+   - `lod.achieved_lod` reaches 500 from the stamp; a *thin verified* element gets there and an
+     information-complete unverified one does not. Measured-outside-tolerance is **not** promoted.
+   - `GET /lod/handover-readiness` — the gap as a **work list** (reason + next action per element,
+     by discipline), because "62% ready" cannot be scheduled.
+   - `scan_deviation.per_element_deviation` + `POST /scan/verify-lod500` — attribute a point cloud to
+     individual elements and stamp the ones that verify, **with their measured deviation** so the
+     assertion states an accuracy. Uncovered elements get no verdict: absence of points is not
+     evidence. `apply=false` is a dry run.
+
+   **Next rungs:**
+   - **Verification evidence** — attach the scan/photo/report that backs each stamp, so an assertion
+     is auditable rather than merely present.
+   - **Verification-aware handover** — gate the turnover package on readiness, and carry the
+     verification into COBie.
+   - **Registered scan alignment** — today the cloud is assumed to be in model coordinates; a real
+     survey needs a registration step before deviation means anything.
+
 5. ✅ **⚙️ WFE-3 — COMPLETE** *(v0.3.668)* — per-project workflow overrides (`workflow_config.py` +
    `GET/PUT/DELETE /workflow/{key}`). A save that would **strand live records** — an occupied state
    with no way out — is refused with the state and count named, because a stranded record looks

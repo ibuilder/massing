@@ -113,6 +113,26 @@ def lod_assessment(pid: str, db: Session = Depends(get_db), _: str = Depends(req
     return lod.assess(db, pid, _INDEX.get(pid))
 
 
+@router.get("/projects/{pid}/lod/handover-readiness")
+def lod_handover_readiness(pid: str, limit: int = 200, db: Session = Depends(get_db),
+                           _: str = Depends(require_role("viewer"))):
+    """LOD 500 handover readiness as a **work list**, not a percentage.
+
+    LOD 500 is a field-verified as-built assertion — it is earned by someone going and looking, never
+    by adding geometry. This reports which elements are short of it and what to do about each:
+    unverified, verified-but-outside-tolerance (a finding, not a handover), verified with no stated
+    accuracy, or thin on information for turnover.
+    """
+    _project(db, pid)
+    from .. import lod
+    from .properties import _INDEX, _ensure_loaded
+    try:
+        _ensure_loaded(pid)
+    except Exception:                     # noqa: BLE001 — no model loaded is a valid (empty) state
+        pass
+    return lod.handover_readiness(db, pid, _INDEX.get(pid), limit=max(1, min(limit, 2000)))
+
+
 @router.get("/projects/{pid}/naming/conventions")
 def naming_conventions(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The document/container filename + drawing sheet-ID naming conventions the validator enforces."""

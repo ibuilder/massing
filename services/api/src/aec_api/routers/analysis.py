@@ -400,6 +400,49 @@ async def scan_deviation(pid: str, file: UploadFile = File(...), tolerance: floa
     return await run_in_threadpool(lambda: sd.analyze(pts, ref, tolerance))
 
 
+@router.post("/projects/{pid}/scan/verify-lod500")
+async def scan_verify_lod500(pid: str, file: UploadFile = File(...),
+                             tolerance: float = Query(0.05, gt=0),
+                             apply: bool = Query(True),
+                             verified_by: str = Query(""),
+                             db: Session = Depends(get_db),
+                             _sec: str = Depends(require_role("editor"))):
+    """Scan → **LOD 500**: attribute an uploaded point cloud to individual elements and stamp the ones
+    that verify.
+
+    `/scan/deviation` compares the cloud to the whole model and returns one aggregate — useful for QA,
+    useless for verification, because it cannot say *which* element is right. This runs the query per
+    element and turns the result into three outcomes: within tolerance → stamped as field-verified with
+    its measured deviation (so the assertion states an accuracy); outside tolerance → returned as a
+    finding and deliberately not stamped; never scanned → reported uncovered, because absence of
+    points is not evidence.
+
+    `apply=false` returns the same plan without writing, so a team can see what a scan would assert.
+    """
+    import ifcopenshell  # type: ignore
+    from starlette.concurrency import run_in_threadpool
+
+    from .. import scan_deviation as sd
+    ifc_path = _source_ifc(db, pid)
+    raw = await file.read()
+    pts = await run_in_threadpool(lambda: sd.parse_point_cloud(raw.decode("utf-8", "ignore")))
+    if len(pts) == 0:
+        raise HTTPException(400, "no readable XYZ points in the upload")
+    try:
+        model = await run_in_threadpool(lambda: ifcopenshell.open(ifc_path))
+        dev = await run_in_threadpool(lambda: sd.per_element_deviation(model, pts, tolerance))
+    except Exception as e:  # noqa: BLE001 — geometry failure is a 4xx, not a 500
+        raise HTTPException(400, f"could not build model geometry: {e}") from e
+    if dev.get("error"):
+        raise HTTPException(409, str(dev["error"]))
+    result = await run_in_threadpool(
+        lambda: sd.verify_from_scan(model, dev, verified_by=verified_by, apply=apply))
+    if apply and result["stamped"]:
+        await run_in_threadpool(lambda: model.write(ifc_path))
+    return {**result, "deviation": {k: v for k, v in dev.items() if k != "elements"},
+            "elements": dev["elements"][:500]}
+
+
 @router.get("/projects/{pid}/ai-readiness")
 def ai_readiness_scorecard(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """AI / data-readiness scorecard — grades the project 0-100 on single-source-of-truth, information
