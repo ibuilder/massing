@@ -118,3 +118,7 @@ services/api/_store_dev/
 services/api/_ifc_dev/
 services/api/aec_dev.db
 *.stackdump
+
+# local dev-API preview state (created by the .claude/launch.json `api` target)
+preview_storage/
+preview.db
