@@ -3,6 +3,7 @@ import * as FRAGS from "@thatopen/fragments";
 // Local worker (offline). The package's getWorker() fetches from unpkg — we must NOT use
 // it, per the offline non-negotiable in CLAUDE.md. Vite serves this from node_modules.
 import workerUrl from "@thatopen/fragments/worker?url";
+import { coalesced } from "./raf";
 import type { Viewer } from "./world";
 
 /**
@@ -22,8 +23,18 @@ export class ModelLoader {
     this.fragments.init(workerUrl);
 
     const { controls, three: camera } = viewer.world.camera;
-    controls.addEventListener("rest", () => this.fragments.core.update(true));
-    controls.addEventListener("update", () => this.fragments.core.update());
+    // R23-UPDATE-COALESCE: `update` fires many times per frame while the camera moves, and this used
+    // to run a full fragments pass on EVERY one — the textbook expensive-work-per-event mistake, and
+    // strictly wasted since only the last one before the paint can affect what the user sees.
+    // Coalescing to one pass per animation frame keeps the visual result identical while cutting the
+    // work to at most once per painted frame. `rest` keeps its immediate full-quality pass: it fires
+    // once when motion stops, which is exactly when the expensive version is worth paying for.
+    const cheapPass = coalesced(() => void this.fragments.core.update());
+    controls.addEventListener("rest", () => {
+      cheapPass.cancel();                           // the full pass supersedes any pending cheap one
+      void this.fragments.core.update(true);
+    });
+    controls.addEventListener("update", () => cheapPass.trigger());
 
     // when any model is registered, hook it to the camera and add it to the scene
     this.fragments.list.onItemSet.add(({ value: model }) => {

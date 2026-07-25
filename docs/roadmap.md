@@ -13,8 +13,8 @@ authoring pillar closed its parity ring (R18). **What is thin now is the surface
 craft, the demo, and the cross-cutting cost identity that make the shipped depth legible — plus the
 structural carry-overs that keep the codebase workable.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**379** suites) · vitest 134 · single-source
-version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.677**.
+**Status:** CodeQL 0 open alerts · backend suite green (**379** suites) · vitest 153 · single-source
+version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.678**.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
@@ -267,18 +267,24 @@ a gate is a hypothesis until someone tests it.* See [[check-the-blocker-premise]
 **Tier 1 — measure, then take the cheap wins.** *Every item below is unverifiable until R23-PERF-TEST
 exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions.*
 
-- **R23-PERF-TEST** *(M)* — runtime perf budget in vitest: assert `renderer.info.render.calls` under a
+- ✅ **R23-PERF-TEST** *(shipped v0.3.678)* — runtime perf budget in vitest: assert `renderer.info.render.calls` under a
   threshold, and that `renderer.info.memory.geometries/textures` returns to baseline after dispose.
   The leak assertion is the one that pays — there is already a confirmed leak (below).
-- **R23-RENDERER-FLAGS** *(S)* — `viewer/world.ts:32` constructs `SimpleRenderer` with **no
+- ✅ **R23-RENDERER-FLAGS** *(shipped v0.3.678)* — `viewer/world.ts:32` constructs `SimpleRenderer` with **no
   parameters**, so it silently inherits `antialias: true` always and sets no `powerPreference`.
   `antialias` is a context attribute — construction-only, so this cannot be fixed after the fact.
-- **R23-UPDATE-COALESCE** *(S)* — `viewer/loader.ts:25-26` fires `fragments.core.update()` on **every**
+  **Correction on implementation:** this entry's implied fix — drop `antialias` because the composer
+  already resolves 4× MSAA — was **wrong**, and the source disproved it before it shipped.
+  `setPresentationFx` is opt-in, so the ordinary BIM view renders straight to the canvas; disabling it
+  would have put jagged edges on every model to save work in a mode most users never enter. Shipped
+  as `powerPreference: "high-performance"` + `stencil: false`, with `antialias` kept on — all four
+  attributes verified on the live WebGL context.
+- ✅ **R23-UPDATE-COALESCE** *(shipped v0.3.678)* — `viewer/loader.ts:25-26` fires `fragments.core.update()` on **every**
   camera-controls update event, unthrottled: the textbook expensive-pass-per-event mistake. Coalesce
   to one per rAF, keeping the rest → `update(true)` full-quality pass.
-- **R23-RAF-LEAK** *(S)* — `pins/pins.ts:29-30` starts a **second permanent rAF with no cancellation
+- ✅ **R23-RAF-LEAK** *(shipped v0.3.678)* — `pins/pins.ts:29-30` starts a **second permanent rAF with no cancellation
   path**, alongside the engine's own uncapped loop. It survives viewer teardown.
-- **R23-PIXEL-GOVERNOR** *(M)* — pixel ratio is pinned at `min(dpr, 2)` with no adaptive downscale
+- ✅ **R23-PIXEL-GOVERNOR** *(shipped v0.3.678)* — pixel ratio is pinned at `min(dpr, 2)` with no adaptive downscale
   under load. A frame-time-EMA governor is the cheapest large win on a 4K display with a tall tower.
 
 **Tier 2 — real work, high payoff**

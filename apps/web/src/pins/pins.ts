@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import * as OBC from "@thatopen/components";
+import { frameLoop } from "../viewer/raf";
 import type { World } from "../viewer/world";
 import type { ApiClient, ModulePin, Topic, Viewpoint } from "../api/client";
 
@@ -14,6 +15,7 @@ interface PinMarker { el: HTMLElement; point: THREE.Vector3; }
 export class PinOverlay {
   private overlay: HTMLElement;
   private markers: PinMarker[] = [];
+  private stopLoop: (() => void) | null = null;
 
   constructor(
     _components: OBC.Components,
@@ -26,8 +28,21 @@ export class PinOverlay {
     this.overlay.className = "pin-overlay";
     this.overlay.style.cssText = "position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:5";
     container.appendChild(this.overlay);
-    const tick = () => { this.update(); requestAnimationFrame(tick); };
-    requestAnimationFrame(tick);
+    // R23-RAF-LEAK: this is a SECOND permanent animation loop alongside the engine's own, and it had
+    // no cancellation path at all — it survived viewer teardown and kept projecting pins for a world
+    // nobody was looking at. Two guards, because either alone is insufficient:
+    //   * `dispose()` for the ordinary case, where a caller tears the overlay down;
+    //   * a detached-node check for the case that actually leaked, where the container is dropped and
+    //     `dispose()` is never called — the loop then stops itself rather than running until reload.
+    this.stopLoop = frameLoop(() => this.update(), () => this.overlay.isConnected);
+  }
+
+  /** Stop the projection loop and remove the overlay. Safe to call more than once. */
+  dispose() {
+    this.stopLoop?.();
+    this.stopLoop = null;
+    this.markers = [];
+    this.overlay.remove();
   }
 
   private addMarker(el: HTMLElement, point: THREE.Vector3) {

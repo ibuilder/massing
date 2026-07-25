@@ -4,6 +4,70 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.678 — the viewer stops doing work nobody asked for
+
+R23 Tier 1: a leak, a per-event waste, two context flags that could only ever be set once, and the
+runtime test budget that made all of it checkable. Each defect was verified in the source before being
+fixed — one of the four turned out to be misdiagnosed, which is exactly why that step exists.
+
+### An animation loop that could not be stopped
+
+The pin overlay started a **second** permanent `requestAnimationFrame` loop, alongside the engine's
+own, with **no cancellation path anywhere** — the class had no `dispose()` at all. It survived viewer
+teardown and went on projecting pins for a world nobody was looking at, until the page reloaded.
+
+Fixed with two guards, because either alone is insufficient. `dispose()` covers the ordinary case
+where a caller tears the overlay down; a detached-node check covers the case that actually leaked,
+where the container is dropped and `dispose()` is never called — the loop then stops **itself**.
+
+### One expensive pass per frame, not one per event
+
+Camera controls emit `update` many times per frame, and a full fragments pass ran on every one. Only
+the last before the paint can affect what the user sees, so the rest was strictly wasted. Coalesced to
+one pass per animation frame; the visual result is identical. The `rest` event keeps its immediate
+full-quality pass, since it fires once when motion stops — precisely when the expensive version earns
+its cost.
+
+### Renderer flags, and one that should NOT change
+
+WebGL context attributes are fixed at construction; there is no setter to reach for afterwards, so
+passing nothing locked in the defaults permanently. Now set explicitly, and **verified on the live
+context**: `powerPreference: "high-performance"` (was unset, which lets a dual-GPU laptop hand a BIM
+model to the integrated chip) and `stencil: false` (nothing in the pipeline uses it).
+
+`antialias` deliberately **stays on**. The tempting saving was to drop it because the post-processing
+composer resolves 4× MSAA — but that composer is opt-in presentation mode, so the ordinary BIM view
+renders straight to this canvas. Turning it off would have put jagged edges on every model, for a
+saving that only applies in a mode most users never enter. The reasoning is recorded in the source so
+the next reader does not re-derive the wrong answer.
+
+### Resolution that responds to the frame rate
+
+The engine pins the pixel ratio once in its constructor and never revisits it, so a 4K display shades
+every pixel of a thirty-storey tower at 2× regardless of how the frame rate is doing. Dropping to 1× is
+a 4× cut in fragment work — the cheapest large win available on a heavy model.
+
+The hard part is not measuring, it is **not oscillating**: a governor that flips between two ratios
+every few frames looks worse than one that never adjusts, because the resolution visibly pulses. So
+there is a dead band between the degrade and recover thresholds, recovery additionally requires a
+sustained run of good frames, and a single large hitch is discarded rather than averaged in — a GC
+pause is not a rendering problem. Degrade fast, recover slow.
+
+### The budget that makes perf claims checkable
+
+The repo had a bundle-size budget and **zero** runtime assertions, so none of the above could be
+verified. Asserting `renderer.info` needs a real WebGL context, which the test environment does not
+have — so the scheduling logic was extracted behind an injectable frame clock and tested directly:
+a burst of 50 triggers costs exactly one pass, a stopped loop leaves nothing queued, a detached loop
+terminates permanently rather than pausing, and the governor never reverses direction under
+alternating load.
+
+**One of those assertions was wrong when first written** and the failure was informative: it treated
+"visited several ratios" as oscillation, when a monotonic walk downward under sustained pressure is
+the correct response. The assertion now checks what pulsing actually is — a reversal of direction.
+
+153 vitest (up from 134) · 379 backend suites · CodeQL 0 open alerts.
+
 ## v0.3.677 — R21 Tier 1 closes: sections that annotate, sets that can be checked, drawings that read as drawings
 
 Three items, one sprint, all derived from the same issued shop-drawing package as v0.3.676. With

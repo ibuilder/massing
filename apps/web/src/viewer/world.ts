@@ -5,6 +5,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { attachPixelGovernor } from "./pixelGovernor";
 
 export type World = OBC.SimpleWorld<OBC.SimpleScene, OBC.OrthoPerspectiveCamera, OBC.SimpleRenderer>;
 
@@ -13,6 +14,10 @@ export interface Viewer {
   world: World;
   container: HTMLElement;
   grid: OBC.SimpleGrid;
+  /** Stops the pixel governor's frame loop. Exposed rather than discarded — dropping the handle is
+   *  exactly the un-stoppable-loop mistake R23-RAF-LEAK was about, and it does not stop being one
+   *  because the loop happens to be ours. */
+  stopPixelGovernor: () => void;
 }
 
 /**
@@ -29,18 +34,45 @@ export function createViewer(container: HTMLElement): Viewer {
   world.scene.setup();
   world.scene.three.background = null;
 
-  world.renderer = new OBC.SimpleRenderer(components, container);
+  // R23-RENDERER-FLAGS: these are WebGL CONTEXT attributes, fixed at construction — there is no
+  // setter to reach for later, so passing nothing here silently locked in the defaults forever.
+  //
+  //  * `powerPreference` was unset, which lets a dual-GPU laptop hand a BIM model to the integrated
+  //    chip. This is the actual win here and it costs nothing.
+  //  * `antialias` STAYS ON. The tempting saving is to drop it on the theory that the
+  //    post-processing composer already resolves 4× MSAA — but `setPresentationFx` is opt-in
+  //    (VIZ-2 presentation mode), so the ordinary BIM view renders straight to this canvas. Turning
+  //    it off would put jagged edges on every model for a saving that only applies in a mode most
+  //    users never enter. Stated explicitly so the next reader doesn't re-derive the wrong answer.
+  //  * `alpha` must stay true — the scene background is deliberately null so the page shows through.
+  //  * `stencil: false` is a genuine saving: nothing in the pipeline uses the stencil buffer, and
+  //    the default allocates one per frame-buffer.
+  world.renderer = new OBC.SimpleRenderer(components, container, {
+    antialias: true,
+    powerPreference: "high-performance",
+    alpha: true,
+    stencil: false,
+  });
   world.camera = new OBC.OrthoPerspectiveCamera(components);
 
   components.init();
 
   void world.camera.controls.setLookAt(12, 8, 12, 0, 0, 0);
 
+  // R23-PIXEL-GOVERNOR: the engine pins the pixel ratio in its constructor and never revisits it, so
+  // a 4K display shades every pixel of a tall tower at 2x for ever regardless of how the frame rate is
+  // actually doing. Dropping to 1x is a 4x cut in fragment work — the cheapest large win available on
+  // a heavy model. Degrades quickly (the user is suffering now) and recovers slowly (be sure it holds).
+  const stopPixelGovernor = attachPixelGovernor(world.renderer.three, {
+    raf: (cb) => requestAnimationFrame(cb),
+    caf: (h) => cancelAnimationFrame(h),
+  }, () => performance.now(), Math.min(window.devicePixelRatio || 1, 2));
+
   // light reference grid (toggled from the bottom settings bar)
   const grids = components.get(OBC.Grids);
   const grid = grids.create(world);
 
-  return { components, world, container, grid };
+  return { components, world, container, grid, stopPixelGovernor };
 }
 
 const SUN = "aec-sun", HEMI = "aec-hemi", FILL = "aec-fill", GROUND = "aec-shadow-ground";
