@@ -13,8 +13,8 @@ authoring pillar closed its parity ring (R18). **What is thin now is the surface
 craft, the demo, and the cross-cutting cost identity that make the shipped depth legible — plus the
 structural carry-overs that keep the codebase workable.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**383** suites) · vitest 158 · single-source
-version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.683**.
+**Status:** CodeQL 0 open alerts · backend suite green (**385** suites) · vitest 158 · single-source
+version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.684**.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
@@ -295,6 +295,10 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
 **Tier 2 — real work, high payoff**
 
 - ⭐ **R23-CONSTRAINTS** *(L)* — W10-9 via kiwisolver + least_squares, per the unblock above.
+  **Dependency taken 2026-07-25.** `kiwisolver` is **Modified BSD-3** — squarely on the approved
+  licence list — a ~60–100 KB prebuilt wheel, and already a transitive dependency of matplotlib, so
+  it adds a *declaration* rather than new surface area. Trivially reversible. Proceeding on the
+  standing delegation; flagged here so it can be objected to in one line.
 - ✅ **R23-SHADOW-COST** *(shipped v0.3.679)* — `viewer/world.ts:182-192` puts a 2048² shadow map over a **±140 m ortho
   frustum** — catastrophic texel density on a 30-storey tower — on top of hemisphere + fill lights and
   SSAO+Bloom through a 4× MSAA composer. Set `shadowMap.autoUpdate = false` with manual invalidation,
@@ -346,11 +350,119 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
 — 2–3 year horizon) · browser-side IFC parsing (a streaming WASM parser now exists; server-side
 pre-conversion still buys caching, GUID-stable recipes and offline tiles, so the non-negotiable holds).
 
-**Needs an explicit OK before any work starts:** `ifclite-geom` as an *accelerator only* for
+**DECLINED 2026-07-25 — do not revisit without a new reason.** `ifclite-geom` is **MPL-2.0**, which
+is off the stated MIT/BSD/Apache list, and its **99.9% agreement is not bit-identical**. It could only
+ever have accelerated `world_bounds` and the clash AABB pre-pass — a narrow win — while adding a
+file-level-copyleft Rust binary wheel and a second geometry answer that must be reconciled against the
+first. A determinism guarantee is worth more than a bounds speed-up. *Original note kept below for the
+record:* `ifclite-geom` as an *accelerator only* for
 `world_bounds` and the clash AABB pre-pass. It is **MPL-2.0 (file-level copyleft, not on our
 MIT/BSD/Apache list)**, a new Rust binary wheel, and **99.9% agreement is not bit-identical** — so it
 must never touch drawing generation, which has to stay deterministic. Would ship behind a flag with a
 per-GlobalId AABB cross-check against the ifcopenshell path.
+
+## 💵 R25 — 5D: the model IS the estimate *(research 2026-07-25; phase 1 shipped v0.3.684)*
+
+**The research changed the architecture before any code was written.** The plan was a bespoke
+task→element join table. But IFC already carries both bindings natively — `IfcRelAssignsToProcess`
+(products → task, the 4D link) and `IfcRelAssignsToControl` → `IfcCostItem` (elements → priced line,
+the 5D link), grouped by `IfcCostSchedule`. A join table would have put the 5D spine **outside** the
+model: unable to travel with the file, unreadable by any other tool, and drifting on every re-export —
+a direct breach of *IFC is the source of truth*. The industry guidance agrees on the other half:
+elements map to a WBS/CBS, and **model-based measurement rules must state how each quantity is
+derived**.
+
+**✅ Shipped (v0.3.684)**
+- `aec_data/cost_ifc.py` — cost written into the model as `IfcCostItem` + `IfcRelAssignsToControl`,
+  read back through a real re-parse from disk. Every quantity carries its **basis** as the quantity's
+  own description, because *"120 m²"* is not a measurement and *"120 m², net area, openings deducted"*
+  is. An unmatched GlobalId is **reported** while the line is still written — dropping it would make
+  the estimate quietly cheaper than the project.
+- `aec_api/fived.py` — a cost rule is **a stored `query_dsl` selector plus a rate**, not a new engine,
+  which is what lets `IfcWall & FireRating=2HR` on the podium be a different line from a level-12
+  partition. Later rules win (layering is how estimates are built) and each element records **which**
+  rule priced it. An element no rule matched is **unpriced and reported**, never silently zero — the
+  same failure mode as a clash matrix calling an untested pair clean.
+- `POST /projects/{pid}/cost/estimate`.
+
+**Next rungs, in order**
+- ⭐ **R25-TASK-BIND** *(M)* — the 4D half. `schedule_activity` still carries **no element GlobalId**,
+  so nothing knows what a task installs; this also blocks R21-4D-CLASH phase 2. Write
+  `IfcRelAssignsToProcess` the same way cost now writes its relationship, and read it back through the
+  path `schedule.from_ifc` already uses.
+- **R25-QTO-WIRE** *(S)* — feed `qto.takeoff`'s measured quantities straight into `fived.estimate`, so
+  the quantity argument is the model's own rather than the caller's.
+- **R25-COST-VINTAGE** *(M)* — bind rules to the vintage-versioned cost database (COST-DB) so a rate
+  carries its source and date, not just a number.
+- **R25-ESTIMATE-DIFF** *(M)* — two estimates over two model versions, diffed by GlobalId: what
+  changed, what it cost, and which elements moved. The provenance thesis, applied to money.
+- **R25-TRACE-UI** *(M)* — *(same surface as R24-TRACE-UI)* the chain made visible: figure → cost line
+  → rule → selector → element.
+
+
+## 🎛 R24 — INTERFACE RING *(external design audit 2026-07-25; see [design-audit.md](design-audit.md))*
+
+**The thesis, and it is not "add features".** Adoption is the binding constraint, not capability.
+**47%** of contractors name *getting people to use new technology* their biggest challenge (AGC 2024);
+**12%** of features carry 80% of daily use (Pendo, 615 subscriptions). With ~130 modules shipped, about
+**ten** matter to any one person on a given day — and which ten depends entirely on who they are. A
+catalog with favourites and a filter treats that as a **browsing** problem. It is a **routing** problem.
+
+The payoff is specific to us: every record, geometry and cost line shares one IFC GlobalId, so the
+platform can answer *"where did this number come from"* in one hop. **The interface does not cash that
+in.** R24 is about making the engine's one real advantage visible.
+
+*Two findings were already partly closed by the independent live audit in v0.3.677 (nav density
+14 → 7, and 0 unlabelled controls) — recorded in design-audit.md so they are not re-litigated.*
+
+**Tier 1 — the front door**
+
+- ⭐ **R24-SPINE** *(L)* — replace the catalog *as the entry point* with a persona-scoped rail of ~7
+  destinations carrying live **ball-in-your-court** counts (not totals — a badge you cannot act on is
+  noise). Nothing is deleted: the catalog stays behind "All modules" and ⌘K. Builds directly on the
+  Build/Money · Standards/Analyse split already shipped.
+- ⭐ **R24-CMDK-VERBS** *(M)* — the ⌘K palette exists and covers workspaces/modules/records. Extend it
+  to **authoring verbs**, **element lookup by GlobalId**, and **reports**, grouped by
+  *verb / record / element / report* rather than a flat list. The existing `/assistant` ask box becomes
+  the fallback row, not a separate feature to find.
+- ⭐ **R24-READINESS-HOME** *(M)* — *(supersedes UX-READINESS-EVERYWHERE)* home becomes a queue with a
+  horizon: work queue left, health right, one banded verdict on top, rows actionable inline. The
+  dashboard already computes ball-in-your-court and the SLA feed; Master Builder already computes the
+  verdict. This is promotion and shaping, not new engines.
+- **R24-ROLE-EXPLAIN** *(S)* — **never hide, explain.** Two role dimensions (capability × party) gate
+  controls invisibly today. A disabled control that states *needs Engineer* converts a support ticket
+  into onboarding. Cheap, and it makes the permission model legible.
+
+**Tier 2 — the object and its numbers**
+
+- ⭐ **R24-ELEMENT-CARD** *(L)* — one card wherever an element is named (viewer, RFI, estimate line,
+  pay app, COBie row), with a six-state lifecycle strip: **designed · checked · priced · scheduled ·
+  installed · verified**. The data for all six already exists on one key. *Note: `priced` is now real
+  in the model itself — see the 5D cost binding — and `verified` is the LOD-500 stamp.*
+- ⭐ **R24-TRACE-UI** *(M)* — every figure expands into the chain that produced it, tagged
+  **model-derived / overridden / market assumption**, ending in a clickable element. `traceability.py`
+  already walks model→cost→GL by GlobalId; this is the surface for it.
+- **R24-RUNS-INBOX** *(M)* — clash, IDS, cost and energy results are modals, so they have **no
+  history**. A modal cannot be diffed against last week, and for an engineer the delta between two
+  runs *is* the work product. Make each a durable **Run** (inputs, timestamp, author, artifact, diff)
+  with a per-project inbox.
+- **R24-JOB-TRAY** *(M)* — convert / reindex / republish are background work with foreground UI.
+  A global named-job tray, leaveable and resumable; the SSE feed already carries the events.
+
+**Tier 3 — density, field, and the long tail**
+
+- **R24-DENSITY** *(M)* — a three-step density scale (Field 56 px / Default 36 px / Compact 28 px),
+  one switch, per user, persisted. A superintendent and a scheduler should not get the same row height.
+- **R24-FIELD-MODE** *(L)* — a field *mode*, not a responsive breakpoint: capture-first home, 56 px
+  targets, 7:1 outdoor contrast, permanently visible sync queue, voice-to-text on notes.
+- **R24-MONO-DATA** *(S)* — a mono face for everything machine-produced (GlobalIds, quantities,
+  currency, dates, statuses) and a sans for language. The fastest available signal for
+  *"this is data, not prose"*, and nearly free.
+- **R24-EMPTY-GUIDE** *(S)* — empty states were hardened for robustness, not guidance. The viewer's
+  empty state (shipped v0.3.677) is the pattern to copy across.
+- **R24-TERMS** *(S)* — three vocabularies (BIM · GC · real-estate) collide in one shell; pick one per
+  persona rather than showing all three to everyone.
+
 
 ## 🎚 UX-POLISH — interaction-craft ring (remainder beyond the NOW sprint)
 
@@ -363,7 +475,7 @@ which 7 were project accounting, and `Model & standards` held 14 mixing project 
 findings. Split into Build/Money and Model & standards/Analyse & check — **max group 14 → 7**, nothing
 removed. Remaining, in priority order:
 
-- ⭐ **UX-READINESS-EVERYWHERE** *(M)* — **the app already contains its own "simple stupid" front door
+- ⭐ **UX-READINESS-EVERYWHERE** *(M; superseded by **R24-READINESS-HOME**, kept for its evidence)* — **the app already contains its own "simple stupid" front door
   and hides it.** The Master Builder panel is a live 8-step readiness synthesis: each step reads
   ready / partial / gap against real project data, names exactly what is missing ("needs: Jurisdiction
   so code editions + loads resolve"), and offers **→ Close this gap** straight to the tool that fixes

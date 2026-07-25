@@ -20,6 +20,15 @@
 > acquisition through operations.** Generate a building from a zoning envelope, or model it by hand; then
 > coordinate, schedule, underwrite & operate it. Built on **That Open + IfcOpenShell**. **$0 to run.**
 
+> ### Making the most powerful thing in AEC feel like the simplest.
+>
+> Breadth is the asset; it is also the risk. **47%** of contractors name getting people to *use* new
+> technology their single biggest challenge — ahead of cost or integration ([AGC, 2024](docs/design-audit.md)) —
+> and **12%** of features carry 80% of daily use across 615 measured subscriptions (Pendo, 2019). So the
+> design rule is **defer, never delete**: route each person to the ten things they touch today, keep the
+> rest one keystroke away. See the [design audit & interface plan](docs/design-audit.md) and the **R24
+> interface ring** in [the roadmap](docs/roadmap.md).
+
 **What it is** — three pillars on one IFC-keyed model, switched by a Model / Construction / Finance bar:
 
 - 🧊 **BIM platform** — a genuine **in-browser authoring tool** on That Open Fragments, from a blank model

@@ -4,6 +4,76 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.684 — 5D: the money moves into the model
+
+Cost has always been computed *about* the model and stored *beside* it. That is the thing that stopped
+it being 5D — a cost in a sidecar cannot travel with the file, cannot be read by another tool, and
+drifts the moment the model is re-exported. IFC is our stated source of truth, and a cost sitting
+next to the IFC is not in it.
+
+**The research changed the design before any code was written.** The plan was a bespoke task→element
+join table. IFC already carries both bindings natively: `IfcRelAssignsToProcess` (products → task, the
+4D link) and `IfcRelAssignsToControl` → `IfcCostItem` (elements → priced line, the 5D link), grouped
+by `IfcCostSchedule`. A join table would have put the whole spine outside the model. Checking the
+schema first turned a violation of the source-of-truth rule into an implementation of it.
+
+### Cost, written into the IFC and read back out
+
+`IfcCostItem` carries the rate, `IfcRelAssignsToControl` binds the elements it prices — by GlobalId,
+inside the file — and `IfcCostSchedule` groups an estimate so one model can hold a bid and a GMP
+without them merging. The round trip is asserted through a real re-parse from disk, not the in-memory
+file: a cost that cannot be read back is a sidecar with extra steps.
+
+**Every quantity states its basis.** "120 m²" is not a measurement; *"120 m², net area, openings
+deducted"* is. Two estimators measuring the same wall gross and net disagree by the openings, and an
+unstated basis gives nobody a way to find out which happened — so the basis is written into the model
+as the quantity's own description. An **absent** basis defaults to `count` (a lump sum genuinely is
+"one of these"); an **empty** one is refused, because that is a caller who tried to state one and
+failed, and letting it become `count` would silently turn 57.6 m² into a count of 57.6.
+
+A GlobalId that is not in the model is **reported** while the cost line is still written — dropping it
+would make the estimate quietly *cheaper* than the project, the worst possible direction for an error
+in a bid.
+
+### Cost rules on the selector spine
+
+The takeoff mapped IFC class → cost code and nothing else, so every wall got one rate regardless of
+type, storey, fire rating or phase. `query_dsl` is already **the** element selector here — clash
+scopes, view filters, smart views and the rule library all compose on it — so a cost rule is now
+**a stored selector plus a rate**, not a new engine. That is what lets a fire-rated podium wall be a
+different line from a level-12 partition.
+
+- **Later rules win, and every element records which rule priced it.** Layering is how estimates are
+  actually built: price all concrete, then override the podium. A line nobody can trace back to its
+  selector is a number taken on faith.
+- **An element no rule matched is UNPRICED and reported**, never silently zero — the most expensive
+  defect an estimate can carry, because the total still looks like a total.
+- **A rate with no quantity is an unknown cost, not a cost of nothing.**
+
+`complete` is false whenever either gap exists, which makes the total explicitly a **floor** rather
+than an estimate. Exposed at `POST /projects/{pid}/cost/estimate`.
+
+### Design audit implemented
+
+An external interface audit landed with 18 findings, and its thesis reframes the roadmap: **adoption
+is the binding constraint, not capability.** 47% of contractors name getting people to *use* new
+technology their biggest challenge; 12% of features carry 80% of daily use. With ~130 modules, about
+ten matter to any one person — and which ten is role-dependent. A catalog with favourites treats that
+as a browsing problem; it is a routing problem.
+
+Recorded in [design-audit.md](docs/design-audit.md), with the actionable work as the **R24 interface
+ring** (14 items) and the 5D follow-ons as **R25** (5 rungs). The landing page and README now carry the
+promise the audit named — *making the most powerful thing in AEC feel like the simplest* — and a
+"four people, four clocks" section, because a developer checking whether it pencils and a
+superintendent logging a punch item in the sun are not one user with different permissions.
+
+Two dependency decisions recorded rather than left open: **`ifclite-geom` declined** (MPL-2.0, off the
+approved licence list, and 99.9% geometry agreement is not bit-identical — a determinism guarantee is
+worth more than a bounds speed-up), and **`kiwisolver` taken** (Modified BSD-3, on the list, already a
+transitive dependency, trivially reversible), which unblocks W10-9 dimensional constraints.
+
+385/385 backend suites green · 669 project routes role-gated · ruff clean.
+
 ## v0.3.683 — tags that do not land on each other, and views that admit where they stop
 
 Two marks from the same shop-drawing package, and the same underlying idea: a drawing must not assert

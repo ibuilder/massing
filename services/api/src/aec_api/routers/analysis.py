@@ -375,6 +375,30 @@ def loads_takedown(pid: str, body: dict = Body(default={}), db: Session = Depend
                           column_count=int(col or 12))
 
 
+@router.post("/projects/{pid}/cost/estimate")
+def cost_estimate(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                  _: str = Depends(require_role("viewer"))):
+    """5D — price the model through the QUERY-DSL selector spine.
+
+    Body: `{rules: [{selector, code, description?, basis, unit_cost}], quantities?: {guid: {basis: n}}}`.
+    Rules layer: **later rules win**, and every element records which rule priced it, so a line traces
+    back to the selector that produced it.
+
+    Two numbers matter as much as the total: `unpriced` (elements no rule matched — never silently
+    zeroed, because the total would still look like a total) and `missing_quantity` (a rate with
+    nothing to multiply is an unknown cost, not a cost of nothing). `complete` is false whenever
+    either is non-empty, which makes the total a floor rather than an estimate.
+    """
+    from .. import fived
+    from ..query_dsl import QueryError
+    from .standards import _idx_for
+    try:
+        return fived.estimate(_idx_for(pid), body.get("rules") or [],
+                              body.get("quantities") or {})
+    except QueryError as e:
+        raise HTTPException(422, str(e)) from None
+
+
 @router.post("/projects/{pid}/takeoff/2d")
 def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
                _sec: str = Depends(require_role("viewer"))):

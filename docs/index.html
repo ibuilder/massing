@@ -65,6 +65,15 @@
   .proof-item{background:var(--navy-600);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
   .proof-item b{display:block;color:var(--cyan);font-size:26px;line-height:1.15;font-weight:700}
   .proof-item span{display:block;margin-top:5px;font-size:12.5px;color:var(--muted);line-height:1.45}
+  /* the promise line — the audit's headline, stated once, directly under the tag */
+  .promise{margin:12px 0 0;font-size:16.5px;line-height:1.45;color:var(--cyan);font-weight:600;
+           letter-spacing:-.2px}
+  /* four people, four clocks — each visitor should find themselves in one line */
+  .who{margin-top:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+  .who-card{background:var(--navy-600);border:1px solid var(--line);border-radius:10px;padding:13px 15px}
+  .who-card b{display:block;font-size:13.5px;color:var(--cyan);letter-spacing:.02em}
+  .who-card q{display:block;margin:6px 0 7px;font-size:15px;color:var(--text);font-style:normal}
+  .who-card span{display:block;font-size:12.5px;color:var(--muted);line-height:1.5}
   /* sections */
   section{position:relative;z-index:1;padding:46px 0;border-top:1px solid var(--line-soft)}
   h2{font-size:26px;margin:0 0 6px;font-weight:650;letter-spacing:-.3px}
@@ -105,6 +114,7 @@
     <p class="tag">Feasibility, design, construction, turnover and operations — on <b>one open IFC
       model</b>. Author it in the browser, issue the drawings, run the job, hand over verified
       as-built data. <b>No proprietary format. No per-seat licence. Runs offline.</b></p>
+    <p class="promise">Making the most powerful thing in AEC feel like the simplest.</p>
     <div class="cta">
       <a class="btn primary" href="#download">Download free — Win · macOS · Linux ↓</a>
       <a class="btn ghost" href="app/">Try it in your browser →</a>
@@ -133,6 +143,32 @@
       <a href="https://github.com/ibuilder/massing">GitHub</a></p>
   </div>
 </header>
+
+<section id="who">
+  <div class="wrap">
+    <h2>Four people, four clocks — one model</h2>
+    <p class="sub">A developer checking whether it pencils and a superintendent logging a punch item
+      in the sun are not the same user with different permissions. They are different products that
+      happen to share a model. Massing routes to the ten things <b>you</b> touch today, and keeps the
+      rest one keystroke away — <b>deferred, not deleted</b>.</p>
+    <div class="who">
+      <div class="who-card"><b>DEVELOPER</b><q>Does it pencil, by Friday?</q>
+        <span>Zoning → scheme → returns. One number, and the chain back to the slab it came from.</span></div>
+      <div class="who-card"><b>ARCHITECT / ENGINEER</b><q>Is the model clean and issued?</q>
+        <span>Model, IDS and clash, drawing set. Density, keyboard, and an undo you trust.</span></div>
+      <div class="who-card"><b>GC / PROJECT MANAGER</b><q>What's in my court today?</q>
+        <span>RFIs, submittals, change orders, pay apps — as a queue, not a catalog.</span></div>
+      <div class="who-card"><b>SUPERINTENDENT</b><q>Log it before I forget it.</q>
+        <span>Photo → punch or observation. Three taps, one thumb, offline, with a visible queue.</span></div>
+    </div>
+    <p style="margin:14px 0 0;font-size:12.5px;color:var(--muted)">
+      Why this shapes the product: <b>47%</b> of contractors name getting people to <i>use</i> new
+      technology their single biggest challenge — ahead of cost or integration (AGC, 2024) — and
+      <b>12%</b> of features drive 80% of daily use across 615 measured subscriptions (Pendo, 2019).
+      Deferring advanced features rather than deleting them measures <b>30–50%</b> faster first-task
+      completion (Nielsen Norman Group). <a href="design-audit.md">The full design audit →</a></p>
+  </div>
+</section>
 
 <section id="viewer">
   <div class="wrap">
