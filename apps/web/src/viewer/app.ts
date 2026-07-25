@@ -906,7 +906,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
   async function buildPanels() {
     if (!projectId) return;
-    const elements: ElementProps[] = await api.elements(projectId, { limit: 5000 });
+    // A project with no model 404s here. Fetching BEFORE rendering meant the throw escaped to a
+    // console.warn at the call site and left the Project Browser — the rail's default panel —
+    // completely blank, with the AUTHOR tools sitting one unmarked click away. An empty panel reads
+    // as a broken app, not as an empty project, so the empty state is rendered first and the
+    // elements are layered on only if they arrive.
+    let elements: ElementProps[] = [];
+    let noModel = false;
+    try {
+      elements = await api.elements(projectId, { limit: 5000 });
+    } catch {
+      noModel = true;
+    }
     const treePanel = $("panel-tree");
     treePanel.innerHTML = "";
     // UX-4 Project-Browser spine: a Views · Sheets · Schedules nav strip above the spatial/element tree,
@@ -932,7 +943,36 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     treeHead.className = "section-title"; treeHead.textContent = "Model";
     treeHead.style.cssText = "padding:0 6px";
     treePanel.append(spine, treeHead);
-    treePanel.appendChild(buildTree(elements, (guid) => selectByGuid(guid, false)));
+    if (noModel || !elements.length) {
+      // Name the state and give it the two things that resolve it. Without this the panel is blank
+      // and a reader cannot tell an empty project from a failed load.
+      const empty = document.createElement("div");
+      empty.className = "browser-empty";
+      empty.style.cssText = "padding:10px 8px;font-size:11.5px;line-height:1.55;color:var(--muted,#94a3b8)";
+      const msg = document.createElement("div");
+      msg.textContent = noModel
+        ? "No model in this project yet."
+        : "This model published with no elements.";
+      const hint = document.createElement("div");
+      hint.style.cssText = "margin-top:6px";
+      hint.textContent = "Open an IFC to browse it here — or start authoring from the AUTHOR group in the rail.";
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:6px;margin-top:9px;flex-wrap:wrap";
+      const openBtn = document.createElement("button");
+      openBtn.className = "mini-btn"; openBtn.textContent = "📂 Open IFC";
+      openBtn.title = "Load an IFC into this project";
+      openBtn.onclick = () => ($("ifc-input") as HTMLInputElement | null)?.click();
+      const authorBtn = document.createElement("button");
+      authorBtn.className = "mini-btn"; authorBtn.textContent = "✎ Authoring tools";
+      authorBtn.title = "Jump to the AUTHOR tools — create levels, grids, walls without a model";
+      authorBtn.onclick = () => document.querySelector<HTMLElement>('[data-panel="tools"]')?.click();
+      row.append(openBtn, authorBtn);
+      empty.append(msg, hint, row);
+      treePanel.appendChild(empty);
+    } else {
+      treePanel.appendChild(buildTree(elements, (guid) => selectByGuid(guid, false)));
+    }
+    if (noModel) return;   // meta/discipline calls below all need a published model
 
     const meta = await api.meta(projectId);
     discTree ??= await api.disciplineTree().catch(() => null);

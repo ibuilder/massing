@@ -374,7 +374,11 @@ railExpand.onclick = () => {
   localStorage.setItem("rail-labeled", appEl.classList.contains("rail-labeled") ? "1" : "0");
   syncExpand();
 };
-if (localStorage.getItem("rail-labeled") === "1") appEl.classList.add("rail-labeled");
+// Labels are ON unless the user has explicitly collapsed the rail. This used to be opt-in, which
+// meant a first-run user saw six anonymous icons and had no way to know one of them ("Author ·
+// Model tools & authoring") opens 150+ authoring tools. Discoverability of the primary authoring
+// surface is worth ~100px of canvas; anyone who disagrees collapses it once and that sticks.
+if (localStorage.getItem("rail-labeled") !== "0") appEl.classList.add("rail-labeled");
 syncExpand();
 railEl.appendChild(railExpand);
 

@@ -603,6 +603,41 @@ export class PortalUI {
     }
     root.appendChild(grid);
 
+    // MODEL SNAPSHOT — the design home's substance. The register KPIs below only render when a
+    // register already has records, so on a real project with an authored model and empty registers
+    // this pane collapsed to the tiles alone: ~200px of content beside a 30-item nav rail, which
+    // reads as an empty workspace. Model health comes from the MODEL, so it populates exactly when
+    // the design workspace is being used for what it is for.
+    try {
+      const [health, qa] = await Promise.all([
+        this.host.api.modelHealth(pid).catch(() => null),
+        this.host.api.modelQa(pid).catch(() => null),
+      ]);
+      if (health?.model_available || qa) {
+        const h = el("div", "section-title"); h.textContent = "Model snapshot"; h.style.marginBottom = "6px";
+        const row = el("div"); row.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px";
+        const tile = (big: string, small: string, go?: () => void, title?: string) => {
+          const c = el("div", "dash-card" + (go ? " kpi-click" : "")); c.style.minWidth = "128px";
+          if (go) { c.style.cursor = "pointer"; c.onclick = go; }
+          if (title) c.title = title;
+          c.innerHTML = `<div style="font-size:20px;font-weight:600">${big}</div><div class="meta">${small}</div>`;
+          row.appendChild(c);
+        };
+        if (health?.overall_score != null) {
+          tile(`${Math.round(health.overall_score)}`, `Model health · ${health.band}`,
+            () => goDest("__modelqa__", () => this.renderModelQa()),
+            `${health.scored_lenses} lenses scored`);
+        }
+        if (qa) {
+          tile(qa.element_count.toLocaleString(), "Elements");
+          // a clean model says so rather than showing a bare 0 that reads as "not run"
+          tile(qa.clean ? "Clean" : String(qa.total_issues), qa.clean ? "Integrity" : "Integrity issues",
+            () => goDest("__modelqa__", () => this.renderModelQa()));
+        }
+        if (row.childElementCount) root.append(h, row);
+      }
+    } catch { /* model snapshot is additive — its absence must never blank the home */ }
+
     // register-count KPIs for the design-owned registers (from the dashboard's per-module counts)
     try {
       const d = await this.host.api.dashboard(pid);
