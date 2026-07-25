@@ -4,6 +4,36 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.679 — R23-SHADOW-COST: shadows stop re-rendering for a camera that cannot change them
+
+Two changes that are really one, because each is what makes the other safe.
+
+**The frustum now fits the model.** The sun's shadow camera was a fixed ±140 m box. Across a 2048²
+map that is ~13.7 cm per texel — for *every* model, so a house's shadows were quantised to about a
+brick course while a small site wasted nearly the whole map on empty ground. It now fits the scene's
+own bounds, so a 30 m building gets roughly a centimetre per texel and a 200 m tower still gets a
+frustum that contains it. The fit uses the bounding **sphere**, not a per-axis extent: a tighter box
+looks better on paper and a low sun shears the model straight out the side of it.
+
+**Per-frame shadow re-rendering is off.** This is the expensive half and almost all of it was wasted:
+a directional light's shadow depends on the geometry and the sun, and **not on where the camera is**.
+Because the frustum is fitted in world space rather than to the view, orbiting cannot change a single
+shadow texel — so the per-frame pass bought nothing. That property is precisely what makes disabling
+it safe, which is why the two changes ship together rather than separately.
+
+With automatic updates off, an invalidation is the only thing that refreshes a shadow, so a missed one
+is a stale shadow — a worse defect than the cost being saved. There are exactly four inputs that can
+change a shadow and all four invalidate: the sun moves, geometry loads, render mode turns on, and the
+frustum is refitted.
+
+The frustum maths is a pure function, tested directly: it scales with the model, gives a small
+building a finer shadow than the old fixed box did, holds the bounding sphere, clears both model and
+sun on the far plane, and never collapses to zero on a degenerate or empty model.
+
+Presentation mode only — the ordinary BIM view casts no shadows and is unaffected.
+
+158 vitest · backend untouched since the 379/379 run at v0.3.678.
+
 ## v0.3.678 — the viewer stops doing work nobody asked for
 
 R23 Tier 1: a leak, a per-event waste, two context flags that could only ever be set once, and the

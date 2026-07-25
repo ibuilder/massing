@@ -39,6 +39,31 @@ export function snapRatio(r: number, max: number): number {
   return allowed.reduce((best, s) => (Math.abs(s - r) < Math.abs(best - r) ? s : best), allowed[0]!);
 }
 
+/**
+ * R23-SHADOW-COST — the shadow camera extents for a model of a given size.
+ *
+ * Lives here beside the other perf maths so it can be tested without a scene graph. The old frustum
+ * was a fixed ±140 m box: 280 m across a 2048² map is ~13.7 cm per texel, so shadows were quantised
+ * to about a brick course whatever the building's size, and a small model wasted nearly the whole map
+ * on empty space.
+ *
+ * `diagonal` is the model's bounding-box diagonal, and the **bounding sphere** is what the frustum has
+ * to hold: a per-axis extent looks tighter but a low sun shears the model straight out the side of it.
+ */
+export function shadowFrustum(diagonal: number, sunDistance: number) {
+  const radius = Math.max(diagonal * 0.5, 1) * 1.05;      // 5% margin for soft-shadow spread
+  return {
+    left: -radius, right: radius, top: radius, bottom: -radius,
+    near: 0.5, far: radius * 4 + Math.max(sunDistance, 0),
+  };
+}
+
+/** Shadow-map metres per texel — the number that decides whether a shadow edge reads as an edge. */
+export function texelSize(diagonal: number, mapSize = 2048): number {
+  const f = shadowFrustum(diagonal, 0);
+  return (f.right - f.left) / mapSize;
+}
+
 /** The steps usable on this display, never empty — a device below the smallest step still gets one. */
 function allowedSteps(max: number): number[] {
   const a = RATIO_STEPS.filter((s) => s <= max + 1e-9);

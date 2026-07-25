@@ -4,6 +4,7 @@ import * as FRAGS from "@thatopen/fragments";
 // it, per the offline non-negotiable in CLAUDE.md. Vite serves this from node_modules.
 import workerUrl from "@thatopen/fragments/worker?url";
 import { coalesced } from "./raf";
+import { fitShadowFrustum } from "./world";
 import type { Viewer } from "./world";
 
 /**
@@ -41,6 +42,10 @@ export class ModelLoader {
       model.useCamera(camera);
       viewer.world.scene.three.add(model.object);
       void this.fragments.core.update(true);
+      // R23-SHADOW-COST: geometry is one of only two things that can change a shadow (the other is
+      // the sun). With per-frame shadow updates off, refitting here is what keeps them correct — and
+      // it also re-spends the shadow map's texels on the model that just arrived.
+      fitShadowFrustum(viewer.world);
     });
   }
 

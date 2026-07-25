@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_OPTS, RATIO_STEPS, attachPixelGovernor, initialState, snapRatio, step,
+  DEFAULT_OPTS, RATIO_STEPS, attachPixelGovernor, initialState, shadowFrustum, snapRatio,
+  step, texelSize,
 } from "./pixelGovernor";
 
 /** Feed n identical frame samples through the governor. */
@@ -112,5 +113,40 @@ describe("attachPixelGovernor", () => {
     stop();
     q.forEach((cb) => cb(0));
     expect(calls.length).toBe(before);            // nothing runs after stop
+  });
+});
+
+describe("shadowFrustum — spend the shadow map on the model, not on empty space", () => {
+  it("scales with the model instead of a fixed ±140 m box", () => {
+    const house = shadowFrustum(30, 160);      // ~30 m diagonal
+    const tower = shadowFrustum(220, 160);
+    expect(house.right).toBeLessThan(tower.right);
+    expect(tower.right).toBeGreaterThan(110);  // a 220 m diagonal must still fit inside
+  });
+
+  it("gives a small building a far finer shadow than the old fixed frustum did", () => {
+    // the old box was ±140 m → 280 m / 2048 ≈ 13.7 cm per texel for EVERY model
+    expect(texelSize(30)).toBeLessThan(0.137);
+    expect(texelSize(30)).toBeLessThan(texelSize(220));
+  });
+
+  it("holds the bounding SPHERE, not a per-axis extent a low sun would shear out of", () => {
+    // a long flat site: the diagonal, not the height, is what has to fit
+    const f = shadowFrustum(200, 160);
+    expect(f.right).toBeGreaterThanOrEqual(100);
+  });
+
+  it("never collapses to zero on a degenerate or empty model", () => {
+    for (const d of [0, 0.001, -5, Number.NaN]) {
+      const f = shadowFrustum(Number.isNaN(d) ? 0 : d, 0);
+      expect(f.right).toBeGreaterThan(0);
+      expect(f.far).toBeGreaterThan(f.near);
+    }
+  });
+
+  it("far plane clears both the model and the sun's distance", () => {
+    const f = shadowFrustum(100, 500);
+    expect(f.far).toBeGreaterThan(500);
+    expect(f.near).toBeGreaterThan(0);
   });
 });

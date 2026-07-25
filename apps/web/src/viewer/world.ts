@@ -5,7 +5,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
-import { attachPixelGovernor } from "./pixelGovernor";
+import { attachPixelGovernor, shadowFrustum } from "./pixelGovernor";
 
 export type World = OBC.SimpleWorld<OBC.SimpleScene, OBC.OrthoPerspectiveCamera, OBC.SimpleRenderer>;
 
@@ -205,6 +205,12 @@ export function renderMode(world: World, on: boolean): void {
 
   r.shadowMap.enabled = on;
   r.shadowMap.type = THREE.PCFSoftShadowMap;
+  // R23-SHADOW-COST: re-rendering the shadow map every frame is the expensive half, and almost all
+  // of it is wasted — a DIRECTIONAL light's shadow depends on the geometry and the sun, NOT on where
+  // the camera is. Because `fitShadowFrustum` fits the shadow camera to the MODEL rather than to the
+  // view, orbiting cannot change a single shadow texel, so the per-frame re-render buys nothing.
+  // Switching it off is only safe given that property; the two changes are one change.
+  r.shadowMap.autoUpdate = false;
   r.toneMapping = on ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
   r.toneMappingExposure = on ? 1.05 : 1;
   r.outputColorSpace = THREE.SRGBColorSpace;
@@ -216,13 +222,10 @@ export function renderMode(world: World, on: boolean): void {
     sun.position.set(45, 90, 35);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 500;
-    const d = 140;
-    Object.assign(sun.shadow.camera, { left: -d, right: d, top: d, bottom: -d });
     sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = 0.04;
     s.add(sun);
+    fitShadowFrustum(world);       // replaces the fixed ±140 m box — see below
 
     const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x556070, 0.55); // sky / ground bounce
     hemi.name = HEMI;
@@ -258,6 +261,59 @@ export function renderMode(world: World, on: boolean): void {
       setMeshPbr(m, on);
     }
   });
+
+  // the cast/receive flags just changed on every mesh, and `shadowMap.enabled` with them — the
+  // fourth and last input that can alter a shadow, so it gets the fourth invalidation
+  if (on) { fitShadowFrustum(world); }
+}
+
+/**
+ * R23-SHADOW-COST — mark the shadow map for one re-render.
+ *
+ * With `autoUpdate` off, this is the ONLY thing that refreshes shadows, so every caller that changes
+ * either input must call it: the sun moved, or the geometry did. Missing one leaves a stale shadow,
+ * which is a worse defect than the cost this saves — hence the deliberately small number of inputs.
+ */
+export function invalidateShadows(world: World): void {
+  const r = world.renderer?.three;
+  if (r?.shadowMap.enabled) r.shadowMap.needsUpdate = true;
+}
+
+/**
+ * Fit the sun's shadow camera to what is actually in the scene.
+ *
+ * The old frustum was a fixed ±140 m box: 280 m across a 2048² map is ~13.7 cm per texel, so a
+ * building's shadows were quantised to roughly a brick course whatever its size — and a small model
+ * wasted almost the whole map on empty space. Fitting to the model's own bounds spends every texel on
+ * geometry, so a 20 m house gets ~1 cm texels and a 200 m tower still gets a frustum that contains it.
+ *
+ * Fitted in WORLD space, deliberately: a camera-fitted shadow frustum would have to re-render on every
+ * orbit, which is exactly the cost being removed.
+ */
+export function fitShadowFrustum(world: World): void {
+  const s = world.scene.three;
+  const sun = s.getObjectByName(SUN) as THREE.DirectionalLight | null;
+  if (!sun) return;
+  const box = new THREE.Box3();
+  s.traverse((o) => {
+    // the shadow-catching ground is 1 km across and would swallow the fit; the lights have no extent
+    if (o.name === GROUND || (o as THREE.Light).isLight) return;
+    if ((o as THREE.Mesh).isMesh) box.expandByObject(o);
+  });
+  const c = sun.shadow.camera;
+  if (box.isEmpty()) {
+    const d = 140;                                   // nothing loaded yet — keep the old default
+    Object.assign(c, { left: -d, right: d, top: d, bottom: -d, near: 1, far: 500 });
+  } else {
+    const size = box.getSize(new THREE.Vector3());
+    const centre = box.getCenter(new THREE.Vector3());
+    Object.assign(c, shadowFrustum(size.length(), sun.position.length()));
+    sun.target.position.copy(centre);
+    if (!sun.target.parent) s.add(sun.target);
+    sun.target.updateMatrixWorld();
+  }
+  c.updateProjectionMatrix();
+  invalidateShadows(world);
 }
 
 /**
@@ -269,6 +325,7 @@ export function positionSun(world: World, dir: { x: number; y: number; z: number
   const sun = world.scene.three.getObjectByName(SUN) as THREE.DirectionalLight | null;
   if (!sun) return false;
   sun.position.set(dir.x * distance, Math.max(dir.y, -0.2) * distance, dir.z * distance);
+  invalidateShadows(world);      // the sun moved — one of the two things that can change a shadow
   const up = dir.y > 0;
   // intensity fades to 0 at/below the horizon; warmer + softer when low in the sky
   const t = Math.max(0, Math.min(1, dir.y / 0.25));            // 0 at horizon → 1 once well up

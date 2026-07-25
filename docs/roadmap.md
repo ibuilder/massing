@@ -13,8 +13,8 @@ authoring pillar closed its parity ring (R18). **What is thin now is the surface
 craft, the demo, and the cross-cutting cost identity that make the shipped depth legible — plus the
 structural carry-overs that keep the codebase workable.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**379** suites) · vitest 153 · single-source
-version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.678**.
+**Status:** CodeQL 0 open alerts · backend suite green (**379** suites) · vitest 158 · single-source
+version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.679**.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
@@ -290,7 +290,7 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
 **Tier 2 — real work, high payoff**
 
 - ⭐ **R23-CONSTRAINTS** *(L)* — W10-9 via kiwisolver + least_squares, per the unblock above.
-- **R23-SHADOW-COST** *(M)* — `viewer/world.ts:182-192` puts a 2048² shadow map over a **±140 m ortho
+- ✅ **R23-SHADOW-COST** *(shipped v0.3.679)* — `viewer/world.ts:182-192` puts a 2048² shadow map over a **±140 m ortho
   frustum** — catastrophic texel density on a 30-storey tower — on top of hemisphere + fill lights and
   SSAO+Bloom through a 4× MSAA composer. Set `shadowMap.autoUpdate = false` with manual invalidation,
   fit the frustum to visible bounds, and run post only on camera rest.
