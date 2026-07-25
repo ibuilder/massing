@@ -2279,3 +2279,57 @@ predecessor token — its own output was not valid input.
 
 **Security.** Two HIGH dependabot advisories closed by root npm `overrides`: js-yaml ≥4.3.0
 (v0.3.648) and postcss ≥8.5.18 (v0.3.656).
+
+## ▶ NOW list closed out — v0.3.662–v0.3.675 *(archived 2026-07-25)*
+
+The 07-24 NOW list, finished. Per-release detail in [CHANGELOG.md](../CHANGELOG.md).
+
+0. ✅ **FAMILY-CONTENT** *(shipped v0.3.662)* — the platform can now hold a real family library.
+   Four verified geometry defects fixed (sizeless real sections · resize appending a second solid ·
+   hollow sections silently reshaped as boxes while keeping their catalog name · metric-hardcoded
+   variant names) plus the external **pack shelf**: `family_packs.py` +
+   `POST /families/import-pack` (name-only resolution, sha256 in the audit trail) and manifest
+   metadata on `GET /families/library`. See [families.md](families.md).
+   ✅ **Shelf stocked** *(v0.3.668)* — the 40 packs (270 families · 2,334 types · 6.1 MB) are built
+   from the catalog and **committed**, so a fresh clone has a stocked shelf with no build step.
+   **Remaining:** a browsable shelf UI in the Library palette *(UX-3 depth, below)* · the content
+   repo publishing a **tagged release** so `scripts/fetch_families.py` can fetch rather than needing
+   a local build *(user/upstream action)* · the upstream manifest declaring a **licence** — it
+   currently declares none, so the shelf honestly reports `unlicensed`.
+1. ✅ **🎚 UX-POLISH sprint — COMPLETE** *(v0.3.663–664)*. The backend surface had outrun the front
+   end; this closed the gap.
+   ✅ **UX-KPI** — the narrative band on the developer + design homes · ✅ **UX-CHIPS** — `toneFor`
+   taught the *real* vocabulary (112 module workflow states; 30 were recognised, so 73% of every
+   register rendered grey), then rolled to the module record grid (incl. DRAW-STATUS), the
+   action-items and brief feeds, and the selections money card · ✅ **UX-ACT** — the
+   `select_elements` action kind for diagnostics that name geometry (rule violations), the
+   optioneer's caveats paired with resolving buttons, and the `navigate` kind wired ·
+   ✅ **UX-DEMO** — `demo_seed.py` generates schema-valid records from each module's own field
+   defs, so the 108 previously-empty registers fill (`seed_demo.py --all-modules`); references are
+   refused rather than faked.
+   **Remaining:** the demo/docs/Pages refresh — regenerate `demoData.json` off the fuller seed.
+2. ✅ **💲 COST-SPINE — COMPLETE** *(v0.3.665)*. `cost_spine.py` + `GET /cost-spine` traces cost-code
+   identity across budget → commitment → actual → invoice, reporting **presence** rather than only
+   amounts: the stages each code reaches, where the chain first breaks, spend on codes nobody
+   budgeted, invoices over their commitment, records with *no* code at all (which no per-code report
+   can show), and off-register codes. `traceability_pct` is surfaced **on the margin card**, because
+   that is the number that inherits the coverage.
+3. ✅ **🧱 REL-3 — `modules.py` split — COMPLETE** *(v0.3.666)*. **It never needed dependency
+   injection.** The read + workflow-evaluation functions call nothing else in the module, so the
+   graph was already acyclic and the fix was a layering cut: `modules_query.py` takes the
+   self-contained base, `modules.py` keeps the write path and re-exports everything, so none of its
+   **114 importers** change. 975 → 859 lines.
+   **Remaining REL-3 slices**, to interleave one per few releases:
+   `main.py` · `codecheck.py` · `connectors.py` residue · `auth.py` ·
+   `data/drawing.py`/`drawings.py`/`massing.py` · `bcf_io.py` · `routers/generate.py`.
+5. ✅ **⚙️ WFE-3 — COMPLETE** *(v0.3.668)* — per-project workflow overrides (`workflow_config.py` +
+   `GET/PUT/DELETE /workflow/{key}`). A save that would **strand live records** — an occupied state
+   with no way out — is refused with the state and count named, because a stranded record looks
+   exactly like one nobody has got to yet. Rewires declared states only; never invents new ones.
+6. ✅ **📈 GEN-SCORE depth — COMPLETE** *(v0.3.669)* — `option_takeoff.py`: elemental quantities off
+   the massing geometry → per-element cost + embodied carbon through the platform's own EPD factors.
+   A benchmark can't see geometry (a plate and a tower with equal GFA score identically); a takeoff
+   can. Uncovered elements are named rather than counted as carbon-free, and a set that **mixes**
+   quantity-derived with benchmark carbon is flagged as not like-for-like.
+
+*Reassess after sprint 3. Items 4–6 are genuinely optional ordering; 1–3 are not.*

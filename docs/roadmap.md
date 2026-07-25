@@ -13,8 +13,8 @@ authoring pillar closed its parity ring (R18). **What is thin now is the surface
 craft, the demo, and the cross-cutting cost identity that make the shipped depth legible — plus the
 structural carry-overs that keep the codebase workable.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**363** suites) · vitest 132 · single-source
-version in `apps/web/package.json` · CI on Node 22.
+**Status:** CodeQL 0 open alerts · backend suite green (**375** suites) · vitest 134 · single-source
+version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.675**.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
@@ -24,18 +24,6 @@ non-gated work**.
 
 ## ▶ NOW — priority order (sprints of large chunks; one full-suite release per sprint)
 
-0. ✅ **FAMILY-CONTENT** *(shipped v0.3.662)* — the platform can now hold a real family library.
-   Four verified geometry defects fixed (sizeless real sections · resize appending a second solid ·
-   hollow sections silently reshaped as boxes while keeping their catalog name · metric-hardcoded
-   variant names) plus the external **pack shelf**: `family_packs.py` +
-   `POST /families/import-pack` (name-only resolution, sha256 in the audit trail) and manifest
-   metadata on `GET /families/library`. See [families.md](families.md).
-   ✅ **Shelf stocked** *(v0.3.668)* — the 40 packs (270 families · 2,334 types · 6.1 MB) are built
-   from the catalog and **committed**, so a fresh clone has a stocked shelf with no build step.
-   **Remaining:** a browsable shelf UI in the Library palette *(UX-3 depth, below)* · the content
-   repo publishing a **tagged release** so `scripts/fetch_families.py` can fetch rather than needing
-   a local build *(user/upstream action)* · the upstream manifest declaring a **licence** — it
-   currently declares none, so the shelf honestly reports `unlicensed`.
 0b. ◧ **🧱 FAMILY-COMPLETE — enough content to actually build a building** *(all six batches shipped
    v0.3.668–670; the completeness gate is green, depth-within-system continues)*.
 
@@ -71,32 +59,6 @@ non-gated work**.
      reports `unlicensed` for every pack because the generator's manifest carries no `licence` field.
      Needs a tagged release upstream and a licence declaration. *(user action)*
 
-1. ✅ **🎚 UX-POLISH sprint — COMPLETE** *(v0.3.663–664)*. The backend surface had outrun the front
-   end; this closed the gap.
-   ✅ **UX-KPI** — the narrative band on the developer + design homes · ✅ **UX-CHIPS** — `toneFor`
-   taught the *real* vocabulary (112 module workflow states; 30 were recognised, so 73% of every
-   register rendered grey), then rolled to the module record grid (incl. DRAW-STATUS), the
-   action-items and brief feeds, and the selections money card · ✅ **UX-ACT** — the
-   `select_elements` action kind for diagnostics that name geometry (rule violations), the
-   optioneer's caveats paired with resolving buttons, and the `navigate` kind wired ·
-   ✅ **UX-DEMO** — `demo_seed.py` generates schema-valid records from each module's own field
-   defs, so the 108 previously-empty registers fill (`seed_demo.py --all-modules`); references are
-   refused rather than faked.
-   **Remaining:** the demo/docs/Pages refresh — regenerate `demoData.json` off the fuller seed.
-2. ✅ **💲 COST-SPINE — COMPLETE** *(v0.3.665)*. `cost_spine.py` + `GET /cost-spine` traces cost-code
-   identity across budget → commitment → actual → invoice, reporting **presence** rather than only
-   amounts: the stages each code reaches, where the chain first breaks, spend on codes nobody
-   budgeted, invoices over their commitment, records with *no* code at all (which no per-code report
-   can show), and off-register codes. `traceability_pct` is surfaced **on the margin card**, because
-   that is the number that inherits the coverage.
-3. ✅ **🧱 REL-3 — `modules.py` split — COMPLETE** *(v0.3.666)*. **It never needed dependency
-   injection.** The read + workflow-evaluation functions call nothing else in the module, so the
-   graph was already acyclic and the fix was a layering cut: `modules_query.py` takes the
-   self-contained base, `modules.py` keeps the write path and re-exports everything, so none of its
-   **114 importers** change. 975 → 859 lines.
-   **Remaining REL-3 slices**, to interleave one per few releases:
-   `main.py` · `codecheck.py` · `connectors.py` residue · `auth.py` ·
-   `data/drawing.py`/`drawings.py`/`massing.py` · `bcf_io.py` · `routers/generate.py`.
 4. ◧ **🎨 P2 authoring & document depth** *(L; slice it, reassess after two)*.
    ✅ **W10-2** *(v0.3.667)* — `family_shapes.py`: 14 parameterised profiles built as native IFC,
    swept or revolved, with boolean cut-outs. The write table is asserted **symmetric with the read
@@ -144,17 +106,63 @@ non-gated work**.
    - **Registered scan alignment** — today the cloud is assumed to be in model coordinates; a real
      survey needs a registration step before deviation means anything.
 
-5. ✅ **⚙️ WFE-3 — COMPLETE** *(v0.3.668)* — per-project workflow overrides (`workflow_config.py` +
-   `GET/PUT/DELETE /workflow/{key}`). A save that would **strand live records** — an occupied state
-   with no way out — is refused with the state and count named, because a stranded record looks
-   exactly like one nobody has got to yet. Rewires declared states only; never invents new ones.
-6. ✅ **📈 GEN-SCORE depth — COMPLETE** *(v0.3.669)* — `option_takeoff.py`: elemental quantities off
-   the massing geometry → per-element cost + embodied carbon through the platform's own EPD factors.
-   A benchmark can't see geometry (a plate and a tower with equal GFA score identically); a takeoff
-   can. Uncovered elements are named rather than counted as carbon-free, and a set that **mixes**
-   quantity-derived with benchmark carbon is flagged as not like-for-like.
 
-*Reassess after sprint 3. Items 4–6 are genuinely optional ordering; 1–3 are not.*
+## 🏗 R21 — LOD 400→500 DOCUMENTATION RING *(from a real LOD 400 shop-drawing set, 2026-07-25)*
+
+Measured against an actual issued wall-section + detail package (13 sheets, 1:100 → 1:10) rather than
+against a description of one. The mission is **acquisition → turnover at LOD 500**, and LOD 500 is
+field-verified as-built — but a project only *reaches* verification through an issuable LOD 400 set.
+These are the gaps between what the platform draws today and what that package contains.
+
+**Tier 1 — the set cannot be issued without these**
+
+- **R21-HATCH** *(M)* — **material hatch patterns on cut geometry.** The reference details separate
+  concrete (stipple), reinforced concrete (crosshatch), steel (diagonal), insulation, masonry and
+  earth by *pattern*. `drawings.py` poché (v0.3.673) fills by class group with flat grey tones, which
+  cannot make those distinctions at 1:10. Needs an SVG `<pattern>` library keyed to IFC material, and
+  a scale-aware pattern density so a 1:100 section and a 1:10 detail do not use the same spacing.
+- **R21-KEYNOTE-SECT** *(M)* — **keynote leaders with dot terminators on sections/details.** The
+  package annotates every layer of the assembly ("60mm MINERAL-GLASS WOOL BOARD INSULATION",
+  "RC SLAB AS PER STRUCTURAL DRAWINGS") in a left-hand text column with leaders to a dot on the
+  component. `drawing.py` has `_leader_callout` for PLANS only; sections have no annotation layer.
+- **R21-DETAIL-REF** *(M)* — **detail callout bubbles + the section↔detail cross-reference graph.**
+  Numbered bubbles on the wall section point at enlarged details on other sheets; each detail carries
+  its own bubble, title and scale ("12 / BRIDGE TOP DETAIL / 1:10"). Today nothing links a section to
+  its details, so a set cannot be navigated or checked for orphaned/dangling references.
+- **R21-VG-OVERRIDES** *(L)* — **object styles + rule-based view filters.** Per-category **cut vs
+  projection** line weight, colour and pattern, plus filters that override graphics by rule
+  ("fire rating ≠ None", "width > 900"). This is what makes output look like a drawing instead of a
+  dump. **Compose on `query_dsl.py`** — it is already THE element selector; a view filter is a stored
+  selector plus an override, not a new engine.
+
+**Tier 2 — coordination depth the set implies**
+
+- **R21-SOFT-CLASH** *(M)* — **clearance (soft) clash + a clash matrix.** Hard clash exists; the
+  reference material distinguishes hard / soft-clearance / workflow-4D. Soft clash is a *rules* problem
+  (NEC working space, valve access, coil pull, door swing) and the discipline-pair matrix declares
+  which combinations are tested at all. Without it, "clash-free" overstates what was checked.
+- **R21-4D-CLASH** *(M)* — **sequence clash**: two trades occupying one space in the same schedule
+  window, or an install ordered before its support. The 4D timeline and CPM both exist; this reads
+  them together.
+- **R21-TAGS** *(M)* — **element tags on drawings** (a door tagged `D2` carrying `900 x 2100`),
+  auto-placed with leader avoidance, driven by the same type data the schedules already read.
+- **R21-BREAKLINE** *(S)* — break lines + partial views, so a detail can stop mid-element honestly
+  instead of running to the sheet edge.
+
+**Tier 3 — set-level assembly**
+
+- **R21-MULTISCALE** *(S)* — several viewports at **different scales** on one sheet (1:100 overall +
+  1:50 parts), each with its own title/scale block. `sheet_layout.py` composes viewports; per-viewport
+  scale is the missing parameter.
+- **R21-SPACE-TAG-SECT** *(S)* — room names on sections (CLINIC 1, IP RM., DAY CASE RM.). `space_tags`
+  exists for plans; sections need the same treatment against the cut plane.
+- **R21-DIM-COMPONENT** *(M)* — component-level dimension strings beside the floor-to-floor chain
+  (cladding offsets, insulation thickness, canopy projections), which is what a fabricator measures.
+
+*Why this ring and not more content:* the family shelf now clears every typology (v0.3.670), so the
+binding constraint on "can a user take this to LOD 500" moved from **what can be modelled** to
+**what can be issued and then verified**. R21 is the issuable half; the LOD-500 verification half
+shipped in v0.3.673.
 
 ## 🎚 UX-POLISH — interaction-craft ring (remainder beyond the NOW sprint)
 
@@ -183,8 +191,14 @@ non-gated work**.
 
 ## ⛔ Gated — each entry names its unblocking event
 
-**Verification-gated (the dev-preview geometry stall — `buildPanels` never runs, so none of this can
-be honestly verified live):** 🧭 **R17 viewer tail** — CITE-JUMP *(S; click-to-expand claims jump the
+**~~Verification-gated~~ — THE GATE WAS FALSE (corrected 2026-07-25).** This block was held for
+months on the claim that a "dev-preview geometry stall" stopped `buildPanels` from ever running. Two
+things were actually true: `.claude/launch.json` had **no API entry**, so the dev backend was never
+started; and `buildPanels` fetched elements *before* rendering, so a project with no model threw a
+swallowed 404 and left the panel blank. With the `api` launch target and a published 52 MB IFC, the
+Project Browser builds completely (Floor 0: 151 elements, Floor 1: 3). **Nobody had tested the
+blocker.** Each item below is now to be re-verified against the live stack and moved to ▶ NOW as it
+passes — not assumed blocked: 🧭 **R17 viewer tail** — CITE-JUMP *(S; click-to-expand claims jump the
 viewer to the cited GUID)* · 4D5D-VIEWER *(M/L; schedule + cost bound to GUIDs → a 4D scrubber with a
 running earned-value readout)* · WALK-MODE WebXR pass *(M; the `renderer.xr` headset half of the
 shipped desktop walk)* · BCF-VIEWPOINT restore depth *(S; section planes + visibility exceptions +
