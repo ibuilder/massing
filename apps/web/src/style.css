@@ -582,11 +582,28 @@ kbd {
 .sens-table th { color: var(--muted); font-weight: 600; padding: 3px; }
 .sens-table td { text-align: center; padding: 4px 2px; color: #fff; font-variant-numeric: tabular-nums; }
 
-/* RBAC capability gating — hide actions above the caller's project role. The API still
-   enforces; this removes the "click → 403" rough edge. Set on <body> by applyCapabilities(). */
+/* R24-ROLE-EXPLAIN — RBAC capability gating: DISABLE with a reason, never hide.
+   These used to be `display:none`, which did remove the "click → 403" rough edge but bought that
+   with a worse problem: a control you cannot see is one you cannot learn exists, or ask to be given.
+   A missing button is a support ticket; a dimmed button that says "needs Editor" is onboarding.
+   The API remains the enforcement point — this is legibility, not security. Set on <body> by
+   applyCapabilities(); the click is intercepted and explained in main.ts. */
 body[data-cap-review="off"] [data-cap="review"],
 body[data-cap-edit="off"] [data-cap="edit"],
-body[data-cap-admin="off"] [data-cap="admin"] { display: none !important; }
+body[data-cap-admin="off"] [data-cap="admin"] {
+  opacity: .48; cursor: not-allowed; filter: saturate(.35);
+}
+/* the padlock is what makes the state readable at a glance, without reading the label */
+body[data-cap-review="off"] [data-cap="review"]::after,
+body[data-cap-edit="off"] [data-cap="edit"]::after,
+body[data-cap-admin="off"] [data-cap="admin"]::after {
+  content: " 🔒"; font-size: .85em; opacity: .8;
+}
+/* keep the control focusable so the reason is reachable by keyboard, but stop inner elements
+   swallowing the click before the explain handler sees it */
+body[data-cap-review="off"] [data-cap="review"] *,
+body[data-cap-edit="off"] [data-cap="edit"] *,
+body[data-cap-admin="off"] [data-cap="admin"] * { pointer-events: none; }
 
 /* Proforma Monte Carlo histogram */
 .pf-hist { display: flex; align-items: flex-end; gap: 1px; height: 52px; margin: 8px 0 4px;

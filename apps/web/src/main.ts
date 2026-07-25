@@ -1018,10 +1018,70 @@ function settingsModal() {
 
 
 // ---- per-project RBAC capability gating -------------------------------------
-// Reflect the caller's project role in the UI: tag actionable controls with data-cap
-// ("review" | "edit") and hide those above the caller's role. The API still enforces;
-// this just removes the "click → 403" rough edge. Fully open when RBAC is off / offline.
+// R24-ROLE-EXPLAIN. Controls above the caller's project role are tagged `data-cap`
+// ("review" | "edit" | "admin"). They used to be hidden outright, which removed the
+// "click → 403" rough edge but bought it with a worse one: a control nobody can see is a
+// control nobody can learn exists, or ask to be granted. They are now DISABLED AND EXPLAINED —
+// a missing button is a support ticket; a dimmed button that says what it needs is onboarding.
+// The API remains the enforcement point; this is legibility, not security.
 const CAP_RANK: Record<string, number> = { viewer: 0, reviewer: 1, editor: 2, admin: 3 };
+
+/** The project role a capability requires, in the words the invite dialog uses. */
+const CAP_NEEDS: Record<string, string> = {
+  review: "Reviewer", edit: "Editor", admin: "Project admin",
+};
+let capParty: string | null = null;
+
+/** True when `cap` is currently withheld. Read from the SAME `<body>` attribute the CSS uses — a
+ *  parallel JS copy would be a second source of truth for one fact, and the two would eventually
+ *  disagree about whether a control is disabled while it still looks disabled. */
+function capOff(cap: string): boolean {
+  const key = `cap${cap.charAt(0).toUpperCase()}${cap.slice(1)}`;
+  return document.body.dataset[key] === "off";
+}
+
+/** Which capability, if any, is currently blocking this element. */
+function blockedCap(el: Element | null): string | null {
+  const host = (el as HTMLElement | null)?.closest?.("[data-cap]") as HTMLElement | null;
+  const cap = host?.dataset.cap;
+  return cap && capOff(cap) ? cap : null;
+}
+
+// One capture-phase listener covers every gated control, including ones rendered later — cheaper
+// and more reliable than annotating each on creation and re-annotating on every panel rebuild.
+document.addEventListener("click", (e) => {
+  const cap = blockedCap(e.target as Element);
+  if (!cap) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const needs = CAP_NEEDS[cap] ?? cap;
+  // name the party too when we know it — "who do I ask" is the actual question behind the click
+  const who = capParty ? ` You are on this project as ${capParty}.` : "";
+  toast(`Needs ${needs} on this project.${who} Ask a project admin to change your role.`,
+        "info", 5200);
+}, true);
+
+// Panels render long after applyCapabilities() runs, so a control created later would carry no
+// aria-disabled — and a screen-reader user needs that BEFORE they act, not after. Annotating on
+// focus is the cheapest way to be correct at the only moment it matters.
+document.addEventListener("focusin", (e) => {
+  const host = (e.target as HTMLElement | null)?.closest?.("[data-cap]") as HTMLElement | null;
+  if (host) annotateCap(host);
+}, true);
+
+/** Mark one capability-gated control as disabled-with-a-reason (or clear it when granted). */
+function annotateCap(el: HTMLElement): void {
+  const cap = el.dataset.cap;
+  if (!cap) return;
+  if (capOff(cap)) {
+    el.setAttribute("aria-disabled", "true");
+    el.title = `Needs ${CAP_NEEDS[cap] ?? cap} on this project`;
+  } else {
+    el.setAttribute("aria-disabled", "false");
+    if (el.title.startsWith("Needs ")) el.removeAttribute("title");
+  }
+}
+
 let isProjectAdmin = false;   // gates the "Project members…" account-menu item
 // a member's workflow party → the persona (view) they land in, so their project role shapes what
 // they see when they open the project (the point of multi-user). They can still switch it manually.
@@ -1044,10 +1104,14 @@ async function applyCapabilities() {
     } catch { /* keep defaults (don't hide on a transient error) */ }
   }
   isProjectAdmin = admin && !!projectId;
+  capParty = party;
   const b = document.body;
   b.dataset.capReview = review ? "on" : "off";
   b.dataset.capEdit = edit ? "on" : "off";
   b.dataset.capAdmin = admin ? "on" : "off";
+  // aria-disabled, not `disabled`: a disabled button is removed from the tab order, which would put
+  // the explanation out of reach of exactly the keyboard user most likely to need it
+  for (const el of document.querySelectorAll<HTMLElement>("[data-cap]")) annotateCap(el);
   // first time we see this project's membership, land the member in their party's view
   if (rbac && party && projectId && projectId !== lastMembershipProject) {
     const persona = PARTY_TO_PERSONA[party];

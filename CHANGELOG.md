@@ -4,6 +4,37 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.685 — R24-ROLE-EXPLAIN: a refusal becomes a lesson
+
+Controls above the caller's project role were `display: none`. The intent was good and is recorded in
+the CSS comment — it removed the "click → 403" rough edge — but it bought that with a worse problem:
+**a control you cannot see is one you cannot learn exists, or ask to be given.** A missing button is a
+support ticket; a dimmed button that says what it needs is onboarding.
+
+Nineteen controls across the app were hidden this way. They are now **disabled and explained**:
+dimmed, padlocked, and — when clicked — answering the question actually behind the click, which is
+not *"why didn't that work"* but *"who do I ask"*:
+
+> Needs Editor on this project. You are on this project as GC. Ask a project admin to change your role.
+
+The API remains the enforcement point throughout. This is legibility, not security.
+
+**Three implementation choices worth stating.** The click is intercepted in the capture phase by a
+single document-level listener, so it covers every gated control including ones rendered later —
+cheaper and more reliable than annotating each on creation and re-annotating on every panel rebuild.
+`aria-disabled` is used rather than `disabled`, because a disabled button leaves the tab order, which
+would put the explanation out of reach of exactly the keyboard user most likely to need it. And the
+annotation is applied on **focus**, since panels render long after capabilities resolve and a screen
+reader needs the state *before* the user acts, not after.
+
+**One flaw the live test caught in this change itself:** the click handler read a JS copy of the
+capability state while the CSS read the `<body>` attribute — two sources of truth for one fact, which
+would eventually disagree about whether a control is disabled while it still *looks* disabled. Both
+now derive from the same attribute.
+
+158 vitest · web build green · verified live: the click is suppressed, the reason is shown, and the
+control stays visible.
+
 ## v0.3.684 — 5D: the money moves into the model
 
 Cost has always been computed *about* the model and stored *beside* it. That is the thing that stopped

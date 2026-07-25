@@ -14,7 +14,7 @@ craft, the demo, and the cross-cutting cost identity that make the shipped depth
 structural carry-overs that keep the codebase workable.
 
 **Status:** CodeQL 0 open alerts · backend suite green (**385** suites) · vitest 158 · single-source
-version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.684**.
+version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.685**.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
@@ -429,7 +429,7 @@ in.** R24 is about making the engine's one real advantage visible.
   horizon: work queue left, health right, one banded verdict on top, rows actionable inline. The
   dashboard already computes ball-in-your-court and the SLA feed; Master Builder already computes the
   verdict. This is promotion and shaping, not new engines.
-- **R24-ROLE-EXPLAIN** *(S)* — **never hide, explain.** Two role dimensions (capability × party) gate
+- ✅ **R24-ROLE-EXPLAIN** *(shipped v0.3.685)* — **never hide, explain.** Two role dimensions (capability × party) gate
   controls invisibly today. A disabled control that states *needs Engineer* converts a support ticket
   into onboarding. Cheap, and it makes the permission model legible.
 
