@@ -739,7 +739,10 @@ def update_record(db: Session, key: str, project_id: str, rid: str, data: dict,
 
 def transition(db: Session, key: str, project_id: str, rid: str, action: str,
                actor: str, party: str | None, note: str | None = None) -> dict:
-    mod = get_module(key)
+    # WFE-3: evaluate the project's own workflow, not just the shipped default. `effective` returns
+    # the module unchanged when there is no override, so the common path is untouched.
+    from . import workflow_config
+    mod = workflow_config.effective(get_module(key), project_id)
     t = TABLES[key]
     rec = get_record(db, key, project_id, rid)
     tr = _transition(mod, rec["workflow_state"], action)

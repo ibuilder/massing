@@ -30,8 +30,12 @@ non-gated work**.
    variant names) plus the external **pack shelf**: `family_packs.py` +
    `POST /families/import-pack` (name-only resolution, sha256 in the audit trail) and manifest
    metadata on `GET /families/library`. See [families.md](families.md).
-   **Remaining:** a browsable shelf UI in the Library palette *(UX-3 depth, below)*, and the
-   content repo publishing a tagged release so `scripts/fetch_families.py` has something to fetch.
+   ✅ **Shelf stocked** *(v0.3.668)* — the 40 packs (270 families · 2,334 types · 6.1 MB) are built
+   from the catalog and **committed**, so a fresh clone has a stocked shelf with no build step.
+   **Remaining:** a browsable shelf UI in the Library palette *(UX-3 depth, below)* · the content
+   repo publishing a **tagged release** so `scripts/fetch_families.py` can fetch rather than needing
+   a local build *(user/upstream action)* · the upstream manifest declaring a **licence** — it
+   currently declares none, so the shelf honestly reports `unlicensed`.
 1. ✅ **🎚 UX-POLISH sprint — COMPLETE** *(v0.3.663–664)*. The backend surface had outrun the front
    end; this closed the gap.
    ✅ **UX-KPI** — the narrative band on the developer + design homes · ✅ **UX-CHIPS** — `toneFor`
@@ -67,7 +71,10 @@ non-gated work**.
    **Remaining:** **W10-5** section/elevation annotation views · **C6** reference-line datums +
    LOD-following poché · **D2** routed egress / life-safety plans · **B3** wall Axis + clip planes ·
    **E5** parametric handles.
-5. **⚙️ WFE-3** *(S; deferred-by-choice, now cheap)* — per-project configurable workflow transitions.
+5. ✅ **⚙️ WFE-3 — COMPLETE** *(v0.3.668)* — per-project workflow overrides (`workflow_config.py` +
+   `GET/PUT/DELETE /workflow/{key}`). A save that would **strand live records** — an occupied state
+   with no way out — is refused with the state and count named, because a stranded record looks
+   exactly like one nobody has got to yet. Rewires declared states only; never invents new ones.
 6. **📈 GEN-SCORE depth** *(M)* — per-option 5D takeoffs + EPD carbon on the generative option scorer.
 
 *Reassess after sprint 3. Items 4–6 are genuinely optional ordering; 1–3 are not.*

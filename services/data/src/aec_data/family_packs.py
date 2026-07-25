@@ -78,6 +78,10 @@ def list_packs() -> dict[str, Any]:
         "types": sum(int(p.get("types") or 0) for p in packs),
         "size_bytes": sum(int(p["size_bytes"]) for p in packs),
         "undescribed": sum(1 for p in packs if not p["described"]),
+        # Content you redistribute needs a licence you can point at. A pack whose manifest declares
+        # none is counted here rather than shown blank: absent is not the same as permissive, and a
+        # reader scanning a shelf will not notice an empty column.
+        "unlicensed": sum(1 for p in packs if not p.get("licence")),
     }
     return {"packs": packs, "count": len(packs), "totals": totals, "manifest": bool(meta)}
 

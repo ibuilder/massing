@@ -1,4 +1,9 @@
 # The root .gitignore ignores *.ifc (they're usually large build artifacts / project models),
 # but this folder is the SHIPPED family library — track the generated core + curated externals.
+#
+# That includes the massing-families packs: they're first-party content, so they ship with the repo
+# and a fresh clone has a stocked shelf with no build or fetch step. `scripts/fetch_families.py`
+# refreshes them from a release when one is published.
 !library.ifc
 !external/*.ifc
+!external/manifest.json

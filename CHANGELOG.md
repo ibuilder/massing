@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.668 — WFE-3 per-project workflows, and the family shelf actually stocked
+
+**WFE-3 — per-project workflow overrides.** Module workflows ship as `module.json` defaults:
+sensible for most jobs, wrong for some. One owner wants a second approval before a change order is
+executed; another runs submittals without a consultant review. Until now that meant editing the
+shipped module, which changes it for every project. `workflow_config.py` stores a per-project
+transition list (a blob, no migration), and `GET/PUT/DELETE /projects/{pid}/workflow/{key}` manages
+it.
+
+**The validation is the feature.** A workflow is not just a schema — records are *sitting in* its
+states right now. An override that removes the last way out of an occupied state doesn't fail
+loudly; it silently strands every record already there, and a stranded record looks exactly like one
+nobody has got to yet, so it goes unnoticed for as long as anyone is willing to wait. So a save that
+would strand live records is **refused**, naming the state and the count (`1 in 'answered'`) rather
+than filing a warning. A state that is genuinely terminal in the shipped workflow is correctly not
+treated as stranding.
+
+Both halves read the same effective workflow — the actions the UI offers and the transitions the
+engine honours — so there is no button that 409s. An override may rewire which of a module's
+**declared** states connect; it can never invent new ones. Unreachable states are reported rather
+than silently ignored, and admin-gated saves are audited.
+
+**The family shelf is stocked.** `fetch_families.py` still can't fetch (no release published
+upstream), so the 40 packs were built from the catalog and installed: **270 families · 2,334 types ·
+6.1 MB**, importing cleanly with every sampled type measurable.
+
+They **ship with the repo**: this is first-party content, so a fresh clone gets a stocked shelf with
+no build or fetch step, and `fetch_families.py` becomes a refresh path rather than a prerequisite.
+`.gitignore` tracks `external/*.ifc` and the manifest alongside the generated core library.
+
+One honest gap surfaced by real content: the upstream manifest declares **no licence**, so the shelf
+reports `unlicensed: 40` rather than assuming the README's CC0. Absent is not the same as
+permissive, and an empty column is not something a reader scanning a shelf will notice.
+
 ## v0.3.667 — W10-2: a family can be a real section, not a box
 
 v0.3.662 taught the platform to *read* fourteen parameterised IFC4 profiles, so imported manufacturer

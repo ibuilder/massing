@@ -191,6 +191,21 @@ try:
     assert entry["described"] is True and entry["discipline"] == "test-structural", entry
     assert entry["licence"] == "CC0-1.0" and entry["types"] == 2, entry
     assert shelf["manifest"] is True and shelf["totals"]["packs"] >= 1
+    # NB assert about THIS pack, never shelf-wide totals: the shelf is a real directory an operator
+    # installs into (40 generated packs live there in a working checkout), so any absolute count here
+    # would be asserting on the environment rather than on behaviour.
+    # Content you redistribute needs a licence you can point at, so a pack declaring none is COUNTED
+    # rather than shown as a blank column nobody notices — checked as a delta.
+    before = family_packs.list_packs()["totals"]["unlicensed"]
+    MANIFEST.write_text(json.dumps({"packs": [{"file": PACK.name, "discipline": "test-structural",
+                                               "types": 2}]}), encoding="utf-8")
+    after = family_packs.list_packs()["totals"]
+    assert after["unlicensed"] == before + 1, (before, after["unlicensed"])
+    assert not next(p for p in family_packs.list_packs()["packs"]
+                    if p["name"] == PACK.name).get("licence")
+    MANIFEST.write_text(json.dumps({"packs": [
+        {"file": PACK.name, "discipline": "test-structural", "families": 2, "types": 2,
+         "licence": "CC0-1.0", "tiers": ["L300"]}]}), encoding="utf-8")
 
     data, prov = family_packs.read(PACK.name)
     assert len(data) == PACK.stat().st_size and len(prov["sha256"]) == 64

@@ -548,10 +548,15 @@ def module_board(pid: str, key: str, db: Session = Depends(get_db),
 @router.get("/projects/{pid}/modules/{key}/{rid}")
 def get_record(pid: str, key: str, rid: str, db: Session = Depends(get_db),
                _: str = Depends(require_role("viewer"))):
+    from .. import workflow_config
     rec = mod_engine.get_record(db, key, pid, rid)
-    mod = mod_engine.get_module(key)
+    # WFE-3: the actions offered must be the ones the ENGINE will honour, or the UI shows a button
+    # that 409s. Same effective workflow on both sides.
+    mod = workflow_config.effective(mod_engine.get_module(key), pid)
     rec["available_actions"] = mod_engine.available_actions(
         mod, rec["workflow_state"], _party(pid, db, _))
+    if mod.get("workflow_overridden"):
+        rec["workflow_overridden"] = True
     return rec
 
 
@@ -778,3 +783,52 @@ def record_pdf(pid: str, key: str, rid: str, db: Session = Depends(get_db),
 def module_pins(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Every anchored GC record across pinnable modules — for the 3D viewer overlay."""
     return mod_engine.project_pins(db, pid)
+
+
+@router.get("/projects/{pid}/workflow/{key}")
+def get_workflow(pid: str, key: str, db: Session = Depends(get_db),
+                 _: str = Depends(require_role("viewer"))):
+    """WFE-3 — this project's effective workflow for a module: the shipped transitions, or its own
+    override. `overridden` says which you're looking at, and `record_counts` shows where records
+    actually sit, because that is what constrains any change you make."""
+    from .. import workflow_config
+    mod = mod_engine.get_module(key)
+    eff = workflow_config.effective(mod, pid)
+    return {"module": key, "overridden": bool(eff.get("workflow_overridden")),
+            "states": (eff.get("workflow") or {}).get("states") or [],
+            "initial": (eff.get("workflow") or {}).get("initial"),
+            "transitions": (eff.get("workflow") or {}).get("transitions") or [],
+            "shipped_transitions": (mod.get("workflow") or {}).get("transitions") or [],
+            "record_counts": mod_engine.state_counts(db, key, pid)}
+
+
+@router.put("/projects/{pid}/workflow/{key}")
+def put_workflow(pid: str, key: str, transitions: list = Body(..., embed=True),
+                 db: Session = Depends(get_db), actor: str = Depends(require_role("admin"))):
+    """Replace this project's workflow for a module. **Refused** (422) when the override would strand
+    records that already exist — a state holding live records with no transition out. Rewiring which
+    of the module's *declared* states connect is allowed; inventing new states is not."""
+    from .. import audit, workflow_config
+    from ..query_dsl import QueryError
+    try:
+        result = workflow_config.save(db, pid, key, transitions)
+    except QueryError as e:
+        raise HTTPException(422, str(e)) from None
+    audit.record(db, action="workflow.override", actor=actor, method="PUT",
+                 path=f"/projects/{pid}/workflow/{key}",
+                 detail={"module": key, "transitions": len(result["transitions"])})
+    db.commit()
+    return {"module": key, "saved": len(result["transitions"]), **result}
+
+
+@router.delete("/projects/{pid}/workflow/{key}")
+def delete_workflow(pid: str, key: str, db: Session = Depends(get_db),
+                    actor: str = Depends(require_role("admin"))):
+    """Drop the override — back to the shipped workflow."""
+    from .. import audit, workflow_config
+    removed = workflow_config.clear(pid, key)
+    if removed:
+        audit.record(db, action="workflow.reset", actor=actor, method="DELETE",
+                     path=f"/projects/{pid}/workflow/{key}", detail={"module": key})
+        db.commit()
+    return {"module": key, "removed": removed, "overridden": False}
