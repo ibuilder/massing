@@ -13,8 +13,8 @@ authoring pillar closed its parity ring (R18). **What is thin now is the surface
 craft, the demo, and the cross-cutting cost identity that make the shipped depth legible — plus the
 structural carry-overs that keep the codebase workable.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**387** suites) · vitest 158 · single-source
-version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.686**.
+**Status:** CodeQL 0 open alerts · backend suite green (**388** suites) · vitest 158 · single-source
+version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.687**.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
@@ -410,7 +410,7 @@ once it beats the old one.
 
 ### Sprint C — the Inspector *(where the last two rings become visible)*
 
-- ⭐ **R26-INSPECTOR** *(L)* — select an element → **Properties · Cost · Schedule · Field** in one panel.
+- ◧ **R26-INSPECTOR** *(lifecycle strip shipped v0.3.687; the panel UI is next)* — select an element → **Properties · Cost · Schedule · Field** in one panel.
   This is the payoff surface for work already shipped: the **5D cost binding** (v0.3.684) puts a real
   rate and quantity on the Cost tab, and the **LOD-500 verification stamp** puts a real state on Field.
   It is what makes "one model, one key" tangible in the first thirty seconds instead of requiring three

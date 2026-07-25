@@ -4,6 +4,38 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.687 — R26 Sprint C: the lifecycle strip, where one model on one key becomes visible
+
+**designed · checked · priced · scheduled · installed · verified**, read left to right, for any element.
+
+Every one of those six facts was already held against the *same GlobalId* — the model, the QA lenses,
+the 5D cost binding (v0.3.684), the schedule, the field record, the LOD-500 stamp. The audit's point
+was that they live in six panels across different workspaces, so the one genuinely unusual thing about
+this product is invisible in the interface. This is the surface that fixes that, at
+`GET /projects/{pid}/elements/{guid}/lifecycle`.
+
+Three rules decide whether a strip like this is worth having, and each of them is a place where the
+easy implementation is the wrong one.
+
+**Unknown is not "no".** An element nobody priced and an element priced at zero are different facts.
+A state the platform could not consult reads **`unknown`**, never `none` — because a strip that
+colours the unexamined as failed is a strip people learn to ignore. For the same reason an amount of
+**zero still counts as priced**: free is a price, and conflating it with unpriced is the identical
+error one level down.
+
+**`reached` is contiguous.** An element that is verified but was never priced reports as having
+reached only *checked*. A later state must never flatter an incomplete earlier one, or the strip
+becomes a way of overstating progress rather than measuring it.
+
+**An out-of-order strip reports the inconsistency rather than smoothing it.** "Verified but not
+installed" is a real data defect, and quietly downgrading it destroys the only signal that says so.
+
+Every incomplete state names what would advance it — a strip showing six greys and no next step is a
+diagnosis with no prescription — and every complete one stays quiet, because telling someone how to
+finish what they have finished is noise.
+
+388/388 backend suites green · 670 project routes role-gated.
+
 ## v0.3.686 — R26 Sprint A: one room per module, and a project that stops contradicting itself
 
 An external app audit landed with a blunt verdict: *"You built a platform. The UI is presenting it as

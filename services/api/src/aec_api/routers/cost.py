@@ -519,6 +519,52 @@ def subcontractor_billing(pid: str, db: Session = Depends(get_db), _: str = Depe
     return {"subs": out, "totals": tot, "subcontract_count": len(subs), "invoice_count": len(invs)}
 
 
+@router.get("/projects/{pid}/elements/{guid}/lifecycle")
+def element_lifecycle(pid: str, guid: str, db: Session = Depends(get_db),
+                      _: str = Depends(require_role("viewer"))):
+    """R26-INSPECTOR — the six-state strip for one element: designed · checked · priced · scheduled ·
+    installed · verified.
+
+    Every state is a fact the platform already holds against this same GlobalId; the strip is what
+    makes "one model, one key" visible instead of spread across six panels.
+
+    A state the platform was not able to consult reads **`unknown`**, never `none` — an unpriced
+    element and an unexamined one are different facts. `reached` is the furthest CONTIGUOUS state, so
+    a later one cannot flatter an incomplete earlier one, and any out-of-order combination is reported
+    in `inconsistencies` rather than smoothed away.
+    """
+    from .. import lifecycle_strip
+    from ..deps import open_source_ifc  # noqa: F401  (kept for parity with sibling routes)
+    from .standards import _idx_for
+
+    idx = _idx_for(pid) or {}
+    el = idx.get(guid)
+    if el is not None:
+        el = {**el, "guid": guid}
+
+    # cost: the 5D binding writes IfcCostItem, and element_5d resolves a cost code per element
+    priced = None
+    try:
+        five = element_5d(pid, guid, db=db, _="viewer")            # reuse, never re-derive
+        cost = (five or {}).get("cost") or {}
+        if cost:
+            priced = {"code": cost.get("cost_code"), "amount": cost.get("budget")}
+    except Exception:                       # noqa: BLE001 — an absent cost engine is `unknown`, not `none`
+        priced = None
+
+    # verification: the LOD-500 stamp carries its own measured accuracy
+    verified = None
+    if el is not None:
+        try:
+            from .. import lod
+            v = lod.verification(el)
+            verified = {"verified": bool(v.get("verified")), "deviation_m": v.get("deviation_m")}
+        except Exception:                   # noqa: BLE001
+            verified = None
+
+    return lifecycle_strip.strip(el, priced=priced, verified=verified)
+
+
 @router.get("/projects/{pid}/elements/{guid}/5d")
 def element_5d(pid: str, guid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """5D for a model element: click a GUID in the 3D view → its schedule activity (with %-complete,
