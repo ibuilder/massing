@@ -164,6 +164,88 @@ binding constraint on "can a user take this to LOD 500" moved from **what can be
 **what can be issued and then verified**. R21 is the issuable half; the LOD-500 verification half
 shipped in v0.3.673.
 
+## 🎯 R22 — COMPETITIVE GAP RING *(13 platforms scanned 2026-07-25; acquisition→turnover mission)*
+
+**The finding that orders this ring:** across every platform scanned — agent bureaus, procurement AI,
+document intelligence, field capture, ERP, and the category leader's twenty-agent library — **not one
+competitor's AI touches geometry.** They all read documents *about* the building. Massing's agents can
+read the building. Items marked ⭐ are the ones that convert that into product; the rest are table
+stakes we are missing.
+
+**Tier 1 — closes the mission's own gaps**
+
+- ⭐ **R22-PRODUCTION** *(L)* — **field production tracking against model quantities.** Crews claim
+  installed quantity against an element GUID; percent-complete, pay-app line, 4D status and EAC all
+  update from that one entry. Field-capture competitors do this *without* a model, reconciling to
+  cost codes by hand. This is the specific feature that makes LOD 500 pay for itself, and it closes
+  the loop between the QTO we already generate and the EAC we already compute.
+- **R22-ENTITLEMENT** *(M/L)* — **permit & entitlement workflow**: jurisdiction submittal packages,
+  review cycles, comment responses, and **conditions of approval carried into the model as
+  constraints**. Today there is a hole between "acquisition" and "construction" in our own mission
+  statement — we underwrite the deal and we build it, and nothing spans approval.
+- **R22-GOLDEN-THREAD** *(M)* — **design freeze + immutable approval log.** Named baseline model
+  states, who approved what and when, and a diff of everything after. Legally mandated in the UK
+  (Building Safety Act 2022). Our GUID-stable single-IFC architecture makes this *cheaper to build
+  here than anywhere else* — a federated-file competitor cannot emit it automatically.
+- ⭐ **R22-AGENT-PACKS** *(M)* — **named agent packs + org "Skills" + a governance console** over the
+  MCP layer we already ship. We expose raw capability; the market ships "Submittal Review Agent",
+  which a superintendent understands. Pure packaging of existing tools, plus per-run audit logging —
+  the gating factor for enterprise adoption. Our version reads the IFC, so a submittal check can test
+  the submitted product against the element's *specified properties* rather than against a PDF.
+
+**Tier 2 — evidence, provenance and procurement**
+
+- **R22-ITP-NCR** *(M)* — **quality module: ITPs, hold/witness points, NCR lifecycle**, attached to
+  elements. This is precisely the evidence chain COBie turnover is meant to hand over and currently
+  cannot assemble — and it is the natural feeder for LOD-500 verification.
+- **R22-PROVENANCE** *(L)* — **cite to file, page and revision.** Every proforma assumption, estimate
+  line and agent answer traceable to a source page. Three of thirteen platforms *lead* with this; it
+  is what makes AI output admissible in an IC memo or a claim.
+- **R22-NOTICE-CLOCK** *(S/M)* — **contractual notice clocks / time-bar tracking.** Detect a
+  triggering event in a daily log or RFI, start the contract's notice period, draft the notice.
+  Highest dollar-per-line-of-code feature in construction administration; we already hold the
+  contract calendar and the daily record.
+- ⭐ **R22-CLASSIFY-AI** *(M)* — **assisted classification of *imported* IFC.** We have a canonical
+  discipline tree and a rule that a Uniclass code is never guessed — correct, and it means a client's
+  unclassified model (which is nearly every real model) gets nothing. Propose codes, human confirms.
+  Without this, QTO/cost/FCI/COBie only work on models we authored.
+- **R22-PROCURE-DEPTH** *(M)* — sub **prequalification** (bonding/EMR/capacity), **contract-clause
+  risk extraction**, and **vendor scorecards persisting across projects**. Bid leveling covers one
+  step of five.
+- **R22-MEMORY** *(M/L)* — **cross-project cost + decision memory** keyed to our own quantity codes.
+  The only item here that *compounds*: every bid result makes the next estimate better, and our
+  structured QTO makes it cleaner than any document-scraping competitor's.
+
+**Tier 3 — on-ramps and reach**
+
+- **R22-CAD-IMPORT** *(M)* — **DWG/DXF/PDF base-plan import.** The existing building stock is legacy
+  CAD; today feasibility and test-fit only run on models we authored. This is the on-ramp for every
+  non-BIM firm.
+- ⭐ **R22-CARBON-OPTION** *(M)* — **embodied carbon per design option**, on the option card beside
+  cost and area, computed from model quantities we already have. Increasingly a hard requirement in
+  institutional underwriting.
+- **R22-ACCT-SEAM** *(M)* — **AP/GL/cost-code export + ERP connectors.** Do *not* build a ledger;
+  build the seam so actuals stop being hand-fed into EAC.
+- **R22-OPTION-OBJECT** *(S/M)* — make **option the primary object**: geometry + unit mix + cost +
+  carbon + IRR as one comparable record, so no massing is ever evaluated without its returns.
+- **R22-ENTITLE-RISK** *(S/M)* — **approval probability + entitlement duration into the existing
+  Monte Carlo.** The largest unmodelled uncertainty in any acquisition proforma.
+- **R22-REPORT-BUILDER** *(M)* — no-code report/dashboard builder. 132 modules of structured data
+  with no end-user query surface means every custom report is an engineering ticket.
+- **R22-PIPELINE** *(M)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
+  is a funnel, not a project.
+- **R22-ROUTINES** *(S)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
+  scan) rather than on-demand only. Turns AI from a tool you remember to use into infrastructure.
+- **R22-PM-CONTRACTS** *(M)* — **preventative-maintenance contracts from turnover data.** The COBie
+  asset register, warranties and service intervals become billable recurring PM contracts. Extends
+  past turnover without breaking the mission; nobody in the scanned set does it from model data.
+- **R22-PUBLIC-VIEWER** *(S)* — zero-signup public model viewer + shareable option links. Cheapest
+  possible top-of-funnel for an open-source product.
+
+**Deliberately NOT taken:** crew/equipment dispatch, payroll, inventory, and a general ledger. Those
+are mature, crowded, low-margin categories with a decade of incumbency. **Prefer seams to
+reimplementation** — R22-ACCT-SEAM exists precisely so we never write a GL.
+
 ## 🎚 UX-POLISH — interaction-craft ring (remainder beyond the NOW sprint)
 
 - **UX-GANTT** *(M)* — weekly Gantt/calendar hybrid with inline % + crew coloring + a metric strip.
