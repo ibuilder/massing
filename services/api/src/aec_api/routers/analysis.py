@@ -443,6 +443,48 @@ async def scan_verify_lod500(pid: str, file: UploadFile = File(...),
             "elements": dev["elements"][:500]}
 
 
+@router.get("/projects/{pid}/egress/routes")
+def egress_routes(pid: str, elevation: float = 0.0, max_travel_m: float = Query(61.0, gt=0),
+                  cell: float = Query(0.3, gt=0.05, le=2.0),
+                  db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """D2 — **routed** travel distance to the nearest exit, per space.
+
+    IBC 1017 limits travel distance measured *along the path of egress travel*. The existing
+    straight-line check ignores every wall between a space and its exit, so it reports a shorter
+    distance than anyone can walk and passes plans that do not comply. This routes over the actual
+    floor plate and reports both numbers plus their ratio, so the understatement is visible.
+
+    `max_travel_m` defaults to 61 m (200 ft, IBC 1017.2 sprinklered Business) — occupancy- and
+    sprinkler-dependent, so it is a parameter rather than a constant.
+    """
+    import ifcopenshell  # type: ignore
+
+    from .. import egress_route
+    ifc_path = _source_ifc(db, pid)
+    try:
+        return egress_route.analyze(ifcopenshell.open(ifc_path), elevation, max_travel_m, cell=cell)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@router.get("/projects/{pid}/egress/plan.svg")
+def egress_plan_svg(pid: str, elevation: float = 0.0, max_travel_m: float = Query(61.0, gt=0),
+                    cell: float = Query(0.3, gt=0.05, le=2.0),
+                    db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """The routed egress / life-safety plan as SVG — walls, exits, and each space's actual path to its
+    nearest exit, coloured by outcome so a failing space is findable at a glance."""
+    import ifcopenshell  # type: ignore
+    from fastapi import Response
+
+    from .. import egress_route
+    ifc_path = _source_ifc(db, pid)
+    try:
+        svg = egress_route.plan_svg(ifcopenshell.open(ifc_path), elevation, max_travel_m, cell=cell)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return Response(svg, media_type="image/svg+xml")
+
+
 @router.get("/projects/{pid}/ai-readiness")
 def ai_readiness_scorecard(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """AI / data-readiness scorecard — grades the project 0-100 on single-source-of-truth, information

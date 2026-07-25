@@ -4,6 +4,44 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.674 — D2 routed egress: the travel-distance check was measuring the wrong thing
+
+`geometric_rules.check_escape_distance` reported **straight-line** distance to the nearest exit, and
+said so plainly. That candour is what makes it worth fixing rather than tuning: IBC 1017 limits travel
+distance measured *along the path of egress travel*, and a straight line ignores every wall between a
+space and its exit. It is therefore always shorter than the real walk, which means the error runs in
+the **unsafe direction** — it passes plans that do not comply. Reading the output carefully cannot
+recover that, because the number itself is the wrong measurement.
+
+New `egress_route.py` routes over the actual floor plate: rasterise at the cut height, mark the cells
+anything the cut passes through, run a multi-source Dijkstra outward from every exit, and read each
+space's distance off the resulting field — which doubles as the route polyline to draw. Deterministic
+and offline, no new dependencies. Eight-connected with a √2 diagonal cost, so an open-floor run is not
+overstated by ~41% the way a four-connected grid would be.
+
+- `GET /projects/{pid}/egress/routes` — per space: routed distance, the straight-line distance the old
+  check used, and their **detour ratio**, so the understatement is visible per space rather than
+  asserted in general.
+- `GET /projects/{pid}/egress/plan.svg` — the life-safety plan: walls, exits, and every space's actual
+  path, coloured by outcome. A reviewer opens this drawing to find the failures, so a compliant route
+  in green beside an over-limit one in red makes the finding visible at a glance; one uniform colour
+  would hide the finding inside the evidence for it.
+
+Judgement calls the engine makes explicit:
+
+- **No route at all** is reported as unreachable, never folded in with the merely too-long. It is the
+  worst finding a plan can carry and deserves its own outcome.
+- **No exterior door marked** → the analysis refuses outright rather than routing to an arbitrary
+  door, which would produce confident and meaningless distances.
+- **Grid resolution is stated** on the drawing and in the payload rather than implied away — a 0.5 m
+  grid cannot resolve a 0.4 m gap, and hiding that would repeat the original mistake in a new place.
+  A grid too fine to compute is refused with its cell count instead of attempted.
+- `max_travel_m` is a **parameter**, defaulting to 61 m (200 ft, IBC 1017.2 sprinklered Business),
+  because the limit is occupancy- and sprinkler-dependent and a hard-coded one would be wrong for most
+  buildings that used it.
+
+374/374 backend suites green.
+
 ## v0.3.673 — sections you can issue, and a route to LOD 500 that doesn't need a thousand clicks
 
 **W10-5 + C6 — the section becomes a drawing.** `section_svg` produced bare linework: every edge the

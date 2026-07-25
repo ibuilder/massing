@@ -103,9 +103,14 @@ non-gated work**.
    table** so authored and imported content can't diverge, and every attribute name is validated
    against the real IFC4 schema. *(Meshes deliberately excluded — they can't be resized, scheduled
    or measured; that content belongs in an imported pack.)*
-   **Remaining:** **D2** routed egress / life-safety plans · **B3** wall Axis + clip planes ·
-   **E5** parametric handles. *(The last two are viewer-coupled and gated on the preview stall; D2 is
-   server-side and is next.)*
+   **Remaining:** **B3** wall Axis + clip planes · **E5** parametric handles — both viewer-coupled
+   and gated on the preview stall. *Every server-side item in this ring is now shipped.*
+   ✅ **D2** *(v0.3.674)* — routed egress. The old check measured **straight-line** distance and said
+   so; IBC 1017 limits distance *along the path of travel*, so the old number was always short and
+   the error ran in the **unsafe** direction — it passed plans that do not comply. `egress_route.py`
+   rasterises the plate and runs a multi-source Dijkstra from every exit; each space reports the
+   routed distance, the straight-line one, and their **detour ratio**. No-route is its own outcome,
+   an unmarked exit refuses rather than guessing, and the grid resolution is stated, not implied.
    ✅ **W10-5 + C6** *(v0.3.673)* — sections were bare linework: correct and unissuable. They now
    carry **poché** grouped by what the material *is* (structure heavier than enclosure heavier than
    openings — the one distinction linework cannot make), **LOD-following** so the tone steps back as
