@@ -50,9 +50,12 @@ non-gated work**.
    budgeted, invoices over their commitment, records with *no* code at all (which no per-code report
    can show), and off-register codes. `traceability_pct` is surfaced **on the margin card**, because
    that is the number that inherits the coverage.
-3. **🧱 REL-3 — `modules.py` DI split** *(M; unblocks work that has been stuck for several cycles)*.
-   The CRUD/feeds leaves cannot be extracted until the dependency seam exists. Pure backend refactor
-   with the full suite as the gate. Then the rest of the REL-3 remainder as interleaved slices:
+3. ✅ **🧱 REL-3 — `modules.py` split — COMPLETE** *(v0.3.666)*. **It never needed dependency
+   injection.** The read + workflow-evaluation functions call nothing else in the module, so the
+   graph was already acyclic and the fix was a layering cut: `modules_query.py` takes the
+   self-contained base, `modules.py` keeps the write path and re-exports everything, so none of its
+   **114 importers** change. 975 → 859 lines.
+   **Remaining REL-3 slices**, to interleave one per few releases:
    `main.py` · `codecheck.py` · `connectors.py` residue · `auth.py` ·
    `data/drawing.py`/`drawings.py`/`massing.py` · `bcf_io.py` · `routers/generate.py`.
 4. **🎨 P2 authoring & document depth** *(L; slice it, reassess after two)*. The authoring pillar's

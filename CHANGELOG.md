@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.666 — REL-3: modules.py didn't need dependency injection, it needed a layering cut
+
+`modules.py` is imported by **114 files** — the most-depended-on module in the codebase, and the one
+carried longest on the decomposition backlog. It sat there because the plan said it needed a
+**dependency-injection seam** before its read/feed leaves could come out.
+
+Checking that premise before building to it: the read and workflow-evaluation functions call
+**nothing else in the module**. The dependency graph was already acyclic, so no seam was required —
+only a cut at the right place. `modules_query.py` now holds the self-contained base (the pure
+workflow evaluators `_transition` / `available_actions` / `court_party`, and the read queries
+`list_records` / `count_records` / `state_counts` / `state_counts_all` / `active_records` /
+`_json_text`), leaving `modules.py` the write path: create, revise, transition, attach, comment,
+notify.
+
+`modules.py` re-exports every moved name, exactly as it already does for `modules_registry` and
+`modules_search`, so **none of the 114 importers change**. `modules.py` 975 → 859 lines. Full suite
+green — which for a change of this shape is the whole verification, since the risk is a missing
+re-export rather than a logic error.
+
+The `_pg_document` / `_pg_tsquery` / `search_filter` re-exports are now marked `noqa: F401` with a
+note: the linter reads them as dead because nothing in `modules.py` calls them, but they are public
+surface — `test_fts_index` and other engines reach them as `modules._pg_document`. Deleting them
+would have been a lint-clean way to break the FTS index-vs-query drift check.
+
 ## v0.3.665 — COST-SPINE: is it the same scope at every stage?
 
 `margin/by-costcode` totals budget vs committed vs actual vs billed per code. It answers *what is the
