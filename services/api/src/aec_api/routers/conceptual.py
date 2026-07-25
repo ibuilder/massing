@@ -47,8 +47,12 @@ def design_options_score(pid: str, options: list[dict] = Body(..., embed=True),
     from .. import option_score
     try:
         return option_score.score_options(options, weights)
-    except ValueError as e:
+    except option_score.OptionError as e:
+        # OptionError carries a message the engine authored; a bare ValueError does not, and
+        # echoing one would hand the caller internal detail from wherever it happened to come from
         raise HTTPException(400, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(400, "invalid option set") from e
 
 
 @router.post("/projects/{pid}/design/options/board.pdf")
@@ -66,8 +70,10 @@ def design_options_board(pid: str, options: list[dict] = Body(..., embed=True),
     name = (p.name if p else None) or pid
     try:
         scored = option_score.score_options(options, weights)
-    except ValueError as e:
+    except option_score.OptionError as e:
         raise HTTPException(400, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(400, "invalid option set") from e
     pdf = option_score.board_pdf(name, scored)
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{name}-options-board.pdf"'})

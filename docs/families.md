@@ -58,6 +58,42 @@ The [`massing-families`](https://github.com/MassingCloud/massing-families) gener
 CC0 packs from a YAML catalog. Until it publishes a tagged release, build them from a checkout —
 `fetch_families.py` prints the exact commands.
 
+## Can the shelf build a building?
+
+Pack and family counts say how much content is on the shelf, not whether it is *enough*. A modeller's
+question is "can I build a hospital with this", and `GET /families/coverage` answers that one.
+
+```
+GET /families/coverage                 → every typology
+GET /families/coverage?typology=hotel  → one
+```
+
+Coverage checks the installed shelf against the IFC **type classes** each building system needs.
+Class-level rather than family-level on purpose: a shelf holding some `IfcPumpType` provably *can*
+place a pump, whereas asserting on family keys would only prove that some catalog happened to name
+something `fire_pump`. Nine base systems apply to every building — structure, envelope, openings,
+circulation, HVAC, plumbing, electrical, fire protection, site — and each typology
+(residential · commercial · hotel · hospital · industrial · airport) adds the systems that
+distinguish it.
+
+A system is **satisfied only when every required class is present**. An HVAC package with terminals
+and no duct is not half an HVAC package; it is one that cannot be issued. So a short system lists its
+missing classes rather than reporting a comfortable percentage, and an unknown typology raises rather
+than returning an empty report that would read as a pass.
+
+```json
+{ "buildable": ["airport", "commercial", "hospital", "hotel", "industrial", "residential"],
+  "not_buildable": [], "shelf_classes": 72 }
+```
+
+This check is why `structural-foundations` exists. Before it, 413 families across 56 packs contained
+**zero `IfcFootingType`** — W-shapes, HSS, precast, timber, rebar and post-tensioning, and nothing to
+stand any of it on. Every typology was unbuildable for the same reason, and the shelf's size had
+hidden it. `test_family_coverage` keeps it that way.
+
+> The shelf directory can be relocated with `AEC_FAMILY_SHELF`. Tests that write packs use it so they
+> never mutate the shipped content directory — two that did raced under the parallel runner.
+
 ## What the platform reads from a type
 
 `type_detail` reports a type's bounding `[w, d, h]` in metres from its swept solid. This works for

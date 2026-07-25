@@ -1,23 +1,35 @@
 {
   "library": "massing-families",
   "version": "0.1.0",
-  "generated_utc": "2026-07-25T05:02:41+00:00",
+  "license": "CC0-1.0",
+  "licensing": {
+    "content": "CC0-1.0",
+    "content_licenses": [
+      "CC0-1.0"
+    ],
+    "code": "MIT",
+    "attribution": "massing-families (https://github.com/MassingCloud/massing-families)",
+    "url": "https://github.com/MassingCloud/massing-families/blob/main/LICENSE-CONTENT",
+    "notice": "https://github.com/MassingCloud/massing-families/blob/main/NOTICE.md"
+  },
+  "repository": "https://github.com/MassingCloud/massing-families",
+  "generated_utc": "2026-07-25T06:16:14+00:00",
   "ifc_schema": "IFC4",
   "units": {
     "authored": "US imperial nominal",
     "stored": "metres (exact)"
   },
   "totals": {
-    "packs": 41,
-    "families": 281,
-    "types": 2370,
-    "size_bytes": 6160817
+    "packs": 57,
+    "families": 426,
+    "types": 2796,
+    "size_bytes": 7251118
   },
   "packs": [
     {
       "file": "massing-families-architectural-v0.1.0.ifc",
       "discipline": "architectural",
-      "sha256": "16443c7fd91420a8aedd27f6f34defaac84236f45637a392620ce6660d11df97",
+      "sha256": "ebeddb4937fbb2c88cf4bad09c9f8112dc408002652e646bee4986adac6f3886",
       "size_bytes": 63905,
       "ifc_schema": "IFC4",
       "families": 8,
@@ -222,7 +234,7 @@
     {
       "file": "massing-families-architectural-assemblies-v0.1.0.ifc",
       "discipline": "architectural-assemblies",
-      "sha256": "4798113d5aac33566447c5e926be84aeb89652c415759d9494d22de6bb7079be",
+      "sha256": "f4cbffef89effc883f009918c38ee89dd3d6bc7f3b6f6432403ffa66e6928438",
       "size_bytes": 56986,
       "ifc_schema": "IFC4",
       "families": 9,
@@ -440,12 +452,13 @@
     {
       "file": "massing-families-architectural-circulation-v0.1.0.ifc",
       "discipline": "architectural-circulation",
-      "sha256": "e09129ca496ffd1f0155debf8426be385008197c7e79d0b622274cfa2c8306fb",
-      "size_bytes": 50397,
+      "sha256": "87ffd4ba89419f80ae50d246e5a1923c101f2866e9cb77521e2e92befdfaf1ec",
+      "size_bytes": 60081,
       "ifc_schema": "IFC4",
-      "families": 9,
-      "types": 21,
+      "families": 11,
+      "types": 25,
       "categories": [
+        "Circulation",
         "Floors",
         "Railings",
         "Ramps",
@@ -462,6 +475,48 @@
         "L300"
       ],
       "index": [
+        {
+          "key": "stair_monumental",
+          "label": "Monumental / Feature Stair",
+          "category": "Circulation",
+          "discipline": "architectural",
+          "ifc_class": "IfcStairFlightType",
+          "predefined": "STRAIGHT",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_35_10"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Monumental / Feature Stair - Feature Flight 8' Wide",
+            "Monumental / Feature Stair - Feature Flight 12' Wide"
+          ]
+        },
+        {
+          "key": "stair_spiral",
+          "label": "Spiral Stair",
+          "category": "Circulation",
+          "discipline": "architectural",
+          "ifc_class": "IfcStairType",
+          "predefined": "SPIRAL_STAIR",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Ss_35_10"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Spiral Stair - 5'-0\" Diameter",
+            "Spiral Stair - 6'-0\" Diameter"
+          ]
+        },
         {
           "key": "floor_grating",
           "label": "Floor Grating",
@@ -657,14 +712,169 @@
       ]
     },
     {
+      "file": "massing-families-architectural-doors-v0.1.0.ifc",
+      "discipline": "architectural-doors",
+      "sha256": "6dc7e0b11dfcffbdab6f4a2793a380a4f9c4adcca675fd336bd3df714843da7f",
+      "size_bytes": 42305,
+      "ifc_schema": "IFC4",
+      "families": 6,
+      "types": 17,
+      "categories": [
+        "Doors"
+      ],
+      "disciplines": [
+        "architectural"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "door_acoustic",
+          "label": "Acoustic-Rated Door",
+          "category": "Doors",
+          "discipline": "architectural",
+          "ifc_class": "IfcDoorType",
+          "predefined": "DOOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_30_59_24"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Acoustic-Rated Door - STC 45 Single 3'-0\" x 7'-0\"",
+            "Acoustic-Rated Door - STC 50 Single 3'-0\" x 7'-0\""
+          ]
+        },
+        {
+          "key": "door_sliding_automatic",
+          "label": "Automatic Sliding Entrance",
+          "category": "Doors",
+          "discipline": "architectural",
+          "ifc_class": "IfcDoorType",
+          "predefined": "DOOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_30_59_24"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Automatic Sliding Entrance - Bi-Parting 6'-0\" x 7'-0\"",
+            "Automatic Sliding Entrance - Bi-Parting 8'-0\" x 8'-0\"",
+            "Automatic Sliding Entrance - Single Slide 3'-6\" x 7'-0\""
+          ]
+        },
+        {
+          "key": "door_frame",
+          "label": "Door Frame",
+          "category": "Doors",
+          "discipline": "architectural",
+          "ifc_class": "IfcMemberType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_30_59_23"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Door Frame - HM Frame 4-3/4\" Jamb",
+            "Door Frame - HM Frame 8-3/4\" Jamb",
+            "Door Frame - Wood Frame 4-9/16\" Jamb"
+          ]
+        },
+        {
+          "key": "door_hardware_set",
+          "label": "Door Hardware Set",
+          "category": "Doors",
+          "discipline": "architectural",
+          "ifc_class": "IfcDiscreteAccessoryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_30_36"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Door Hardware Set - Set 1 \u2014 Passage Lever",
+            "Door Hardware Set - Set 2 \u2014 Office Lock + Closer",
+            "Door Hardware Set - Set 3 \u2014 Exit Device + Closer",
+            "Door Hardware Set - Set 4 \u2014 Exit Device + Card Reader"
+          ]
+        },
+        {
+          "key": "door_revolving",
+          "label": "Revolving Door",
+          "category": "Doors",
+          "discipline": "architectural",
+          "ifc_class": "IfcDoorType",
+          "predefined": "DOOR",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_30_59_24"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Revolving Door - 3-Wing 7'-0\" Dia",
+            "Revolving Door - 4-Wing 8'-0\" Dia"
+          ]
+        },
+        {
+          "key": "door_sliding_pocket",
+          "label": "Sliding / Pocket Door",
+          "category": "Doors",
+          "discipline": "architectural",
+          "ifc_class": "IfcDoorType",
+          "predefined": "DOOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_30_59_24"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Sliding / Pocket Door - Pocket 2'-8\" x 6'-8\"",
+            "Sliding / Pocket Door - Pocket 3'-0\" x 7'-0\"",
+            "Sliding / Pocket Door - Barn Slide 3'-6\" x 7'-0\""
+          ]
+        }
+      ]
+    },
+    {
       "file": "massing-families-architectural-finishes-v0.1.0.ifc",
       "discipline": "architectural-finishes",
-      "sha256": "057b46d2059999d38739e35a0186ef10ddb319e6e799f38e041ca27787daaf97",
-      "size_bytes": 56301,
+      "sha256": "256a54fa0c446038cc903f87e227fb4ddd8705927a19cbb64bfe2db8b8ccd293",
+      "size_bytes": 96112,
       "ifc_schema": "IFC4",
-      "families": 11,
-      "types": 23,
+      "families": 19,
+      "types": 39,
       "categories": [
+        "Finishes",
         "Floor Finishes",
         "Trim",
         "Wall Finishes"
@@ -679,6 +889,174 @@
         "L200"
       ],
       "index": [
+        {
+          "key": "ceiling_cloud",
+          "label": "Acoustic Ceiling Cloud",
+          "category": "Finishes",
+          "discipline": "architectural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "CEILING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_30_25_22"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Acoustic Ceiling Cloud - Cloud 4' x 8' Rectangular",
+            "Acoustic Ceiling Cloud - Cloud 6' Round"
+          ]
+        },
+        {
+          "key": "ceiling_cleanroom",
+          "label": "Cleanroom / Washable Ceiling",
+          "category": "Finishes",
+          "discipline": "architectural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "CEILING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_30_25_10"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Cleanroom / Washable Ceiling - Gasketed Grid 2x2",
+            "Cleanroom / Washable Ceiling - Gasketed Grid 2x4"
+          ]
+        },
+        {
+          "key": "ceiling_linear_metal",
+          "label": "Linear Metal Ceiling",
+          "category": "Finishes",
+          "discipline": "architectural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "CEILING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_30_25_22"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Linear Metal Ceiling - Linear Plank 4\" Wide",
+            "Linear Metal Ceiling - Baffle 6\" Deep"
+          ]
+        },
+        {
+          "key": "flooring_rubber",
+          "label": "Rubber Sheet Flooring",
+          "category": "Finishes",
+          "discipline": "architectural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "FLOORING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_35_57"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Rubber Sheet Flooring - Sheet Rubber 1/8\"",
+            "Rubber Sheet Flooring - Studded Rubber Tile"
+          ]
+        },
+        {
+          "key": "flooring_sealed_concrete",
+          "label": "Sealed / Polished Concrete",
+          "category": "Finishes",
+          "discipline": "architectural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "FLOORING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_35_31"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Sealed / Polished Concrete - Polished + Densified",
+            "Sealed / Polished Concrete - Sealed Concrete"
+          ]
+        },
+        {
+          "key": "flooring_terrazzo",
+          "label": "Terrazzo Flooring",
+          "category": "Finishes",
+          "discipline": "architectural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "FLOORING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_35_31"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Terrazzo Flooring - Epoxy Terrazzo 3/8\"",
+            "Terrazzo Flooring - Cementitious Terrazzo 1/2\""
+          ]
+        },
+        {
+          "key": "ceiling_wood",
+          "label": "Wood Ceiling",
+          "category": "Finishes",
+          "discipline": "architectural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "CEILING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_30_25_22"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Wood Ceiling - Linear Slat 2\" x 2\"",
+            "Wood Ceiling - Acoustic Perforated Panel 2x8"
+          ]
+        },
+        {
+          "key": "flooring_wood",
+          "label": "Wood Flooring",
+          "category": "Finishes",
+          "discipline": "architectural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "FLOORING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_35_93"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Wood Flooring - Engineered Plank 5/8\"",
+            "Wood Flooring - Maple Gym Floor 25/32\""
+          ]
+        },
         {
           "key": "flooring_carpet_tile",
           "label": "Carpet Tile",
@@ -916,7 +1294,7 @@
     {
       "file": "massing-families-architectural-roofing-v0.1.0.ifc",
       "discipline": "architectural-roofing",
-      "sha256": "1357a1176dbf66d000ea5cd4fd995cb143b48010ca2d45fe6ac9efea067f72f0",
+      "sha256": "0df0cab7e8f4c5c4f46ef575e331d6909c965e15847da30b8913cb011fd8373a",
       "size_bytes": 54985,
       "ifc_schema": "IFC4",
       "families": 9,
@@ -1135,11 +1513,11 @@
     {
       "file": "massing-families-architectural-specialties-v0.1.0.ifc",
       "discipline": "architectural-specialties",
-      "sha256": "abb13642ffc7a7e52467c329ce15d929862df21e761713df9850d0666f172365",
-      "size_bytes": 90910,
+      "sha256": "5ef05fe34624f2bb9d0052b6e015dd351b635f1e8a3a2331d9852bba2780f512",
+      "size_bytes": 156205,
       "ifc_schema": "IFC4",
-      "families": 13,
-      "types": 38,
+      "families": 21,
+      "types": 65,
       "categories": [
         "Casework",
         "Doors",
@@ -1377,6 +1755,139 @@
           ]
         },
         {
+          "key": "access_panel",
+          "label": "Access Panel",
+          "category": "Specialties",
+          "discipline": "architectural",
+          "ifc_class": "IfcDoorType",
+          "predefined": "DOOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_30_59_36"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Access Panel - 12\" x 12\" Wall",
+            "Access Panel - 24\" x 24\" Wall",
+            "Access Panel - 24\" x 24\" Fire-Rated Ceiling"
+          ]
+        },
+        {
+          "key": "column_cover",
+          "label": "Column Cover / Enclosure",
+          "category": "Specialties",
+          "discipline": "architectural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "CLADDING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_35_93"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Column Cover / Enclosure - Round Cover 24\" Dia",
+            "Column Cover / Enclosure - Square Cover 24\" x 24\"",
+            "Column Cover / Enclosure - Gypsum Furred Enclosure 30\""
+          ]
+        },
+        {
+          "key": "crash_rail",
+          "label": "Crash Rail / Wall Protection",
+          "category": "Specialties",
+          "discipline": "architectural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "CLADDING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_35_90"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Crash Rail / Wall Protection - Crash Rail 6\" High",
+            "Crash Rail / Wall Protection - Handrail / Crash Rail Combined",
+            "Crash Rail / Wall Protection - Corner Guard 3\" x 3\"",
+            "Crash Rail / Wall Protection - Wall Protection Sheet 4'x8'"
+          ]
+        },
+        {
+          "key": "canopy",
+          "label": "Entrance Canopy",
+          "category": "Specialties",
+          "discipline": "architectural",
+          "ifc_class": "IfcBuildingElementProxyType",
+          "predefined": "ELEMENT",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_20_65"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Entrance Canopy - Glass Canopy 8' x 4'",
+            "Entrance Canopy - Metal Canopy 20' x 8'",
+            "Entrance Canopy - Drive-Under Canopy 40' x 20'"
+          ]
+        },
+        {
+          "key": "expansion_joint_cover",
+          "label": "Expansion Joint Cover",
+          "category": "Specialties",
+          "discipline": "architectural",
+          "ifc_class": "IfcDiscreteAccessoryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_35_90_27"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Expansion Joint Cover - Floor Cover 4\" Joint",
+            "Expansion Joint Cover - Wall Cover 4\" Joint",
+            "Expansion Joint Cover - Ceiling Cover 4\" Joint"
+          ]
+        },
+        {
+          "key": "grab_bar",
+          "label": "Grab Bar",
+          "category": "Specialties",
+          "discipline": "architectural",
+          "ifc_class": "IfcDiscreteAccessoryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_40_20"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Grab Bar - 36\" Straight",
+            "Grab Bar - 42\" Straight",
+            "Grab Bar - 18\" Vertical"
+          ]
+        },
+        {
           "key": "locker",
           "label": "Locker",
           "category": "Specialties",
@@ -1399,6 +1910,28 @@
           ]
         },
         {
+          "key": "marker_board",
+          "label": "Marker / Tack Board",
+          "category": "Specialties",
+          "discipline": "architectural",
+          "ifc_class": "IfcDiscreteAccessoryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Marker / Tack Board - Marker Board 4' x 8'",
+            "Marker / Tack Board - Marker Board 4' x 12'",
+            "Marker / Tack Board - Tack Board 4' x 6'"
+          ]
+        },
+        {
           "key": "signage",
           "label": "Signage",
           "category": "Specialties",
@@ -1418,6 +1951,30 @@
             "Signage - Room ID 6\" x 8\"",
             "Signage - Exit sign",
             "Signage - Directory 24\" x 36\""
+          ]
+        },
+        {
+          "key": "toilet_accessory",
+          "label": "Toilet Accessory",
+          "category": "Specialties",
+          "discipline": "architectural",
+          "ifc_class": "IfcDiscreteAccessoryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_20"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 5,
+          "types": [
+            "Toilet Accessory - Paper Towel Dispenser / Waste",
+            "Toilet Accessory - Soap Dispenser",
+            "Toilet Accessory - Hand Dryer",
+            "Toilet Accessory - Mirror 24\" x 36\"",
+            "Toilet Accessory - Baby Changing Station"
           ]
         },
         {
@@ -1445,9 +2002,359 @@
       ]
     },
     {
+      "file": "massing-families-architectural-walls-v0.1.0.ifc",
+      "discipline": "architectural-walls",
+      "sha256": "2ff8118bca667513d3daa1dd473a6f1a88049196e4bebc451d885e1695409ceb",
+      "size_bytes": 79521,
+      "ifc_schema": "IFC4",
+      "families": 12,
+      "types": 31,
+      "categories": [
+        "Curtain Wall",
+        "Wall Assemblies"
+      ],
+      "disciplines": [
+        "architectural"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200",
+        "L300"
+      ],
+      "index": [
+        {
+          "key": "mullion",
+          "label": "Curtain Wall Mullion",
+          "category": "Curtain Wall",
+          "discipline": "architectural",
+          "ifc_class": "IfcMemberType",
+          "predefined": "MULLION",
+          "tier": "L300",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_20_76_51"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Curtain Wall Mullion - 2-1/2\" x 6\" Vertical",
+            "Curtain Wall Mullion - 2-1/2\" x 7-1/2\" Vertical",
+            "Curtain Wall Mullion - 2-1/2\" x 4\" Horizontal"
+          ]
+        },
+        {
+          "key": "spandrel_panel",
+          "label": "Spandrel Panel",
+          "category": "Curtain Wall",
+          "discipline": "architectural",
+          "ifc_class": "IfcPlateType",
+          "predefined": "SHEET",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_25_10_20"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Spandrel Panel - 5'-0\" x 3'-6\"",
+            "Spandrel Panel - 5'-0\" x 4'-6\""
+          ]
+        },
+        {
+          "key": "storefront",
+          "label": "Storefront System",
+          "category": "Curtain Wall",
+          "discipline": "architectural",
+          "ifc_class": "IfcCurtainWallType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_25_10_20"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Storefront System - Bay 5'-0\" x 10'-0\"",
+            "Storefront System - Bay 10'-0\" x 12'-0\""
+          ]
+        },
+        {
+          "key": "window_wall",
+          "label": "Window Wall (Slab-to-Slab)",
+          "category": "Curtain Wall",
+          "discipline": "architectural",
+          "ifc_class": "IfcCurtainWallType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_30_59_99"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Window Wall (Slab-to-Slab) - Unit 5'-0\" x 9'-0\"",
+            "Window Wall (Slab-to-Slab) - Unit 5'-0\" x 10'-6\""
+          ]
+        },
+        {
+          "key": "air_barrier",
+          "label": "Air / Weather Barrier",
+          "category": "Wall Assemblies",
+          "discipline": "architectural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "MEMBRANE",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_35_57"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Air / Weather Barrier - Fluid-Applied Air Barrier",
+            "Air / Weather Barrier - Self-Adhered Sheet Membrane"
+          ]
+        },
+        {
+          "key": "wall_demountable",
+          "label": "Demountable Glass Partition",
+          "category": "Wall Assemblies",
+          "discipline": "architectural",
+          "ifc_class": "IfcWallType",
+          "predefined": "PARTITIONING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_25_10_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Demountable Glass Partition - Single-Glazed Full-Height",
+            "Demountable Glass Partition - Double-Glazed Full-Height STC 45"
+          ]
+        },
+        {
+          "key": "wall_masonry_veneer",
+          "label": "Masonry Veneer",
+          "category": "Wall Assemblies",
+          "discipline": "architectural",
+          "ifc_class": "IfcWallType",
+          "predefined": "SOLIDWALL",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_25_13_50"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Masonry Veneer - Brick Veneer 3-5/8\"",
+            "Masonry Veneer - Stone Veneer 4\""
+          ]
+        },
+        {
+          "key": "wall_metal_stud",
+          "label": "Metal Stud Framing",
+          "category": "Wall Assemblies",
+          "discipline": "architectural",
+          "ifc_class": "IfcMemberType",
+          "predefined": "STUD",
+          "tier": "L300",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_20_76_51_21"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Metal Stud Framing - 3-5/8\" 20 GA Stud",
+            "Metal Stud Framing - 6\" 20 GA Stud",
+            "Metal Stud Framing - 6\" 16 GA Structural Stud",
+            "Metal Stud Framing - 8\" 16 GA Structural Stud"
+          ]
+        },
+        {
+          "key": "wall_metal_panel",
+          "label": "Metal Wall Panel",
+          "category": "Wall Assemblies",
+          "discipline": "architectural",
+          "ifc_class": "IfcWallType",
+          "predefined": "SOLIDWALL",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_25_10_20"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Metal Wall Panel - ACM Rainscreen 4mm",
+            "Metal Wall Panel - Insulated Metal Panel 3\"",
+            "Metal Wall Panel - Insulated Metal Panel 6\""
+          ]
+        },
+        {
+          "key": "wall_operable_partition",
+          "label": "Operable Partition",
+          "category": "Wall Assemblies",
+          "discipline": "architectural",
+          "ifc_class": "IfcWallType",
+          "predefined": "MOVABLE",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_25_10_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Operable Partition - Paired Panel STC 50, 12' High",
+            "Operable Partition - Paired Panel STC 52, 20' High"
+          ]
+        },
+        {
+          "key": "wall_precast_panel",
+          "label": "Precast Concrete Panel",
+          "category": "Wall Assemblies",
+          "discipline": "architectural",
+          "ifc_class": "IfcWallType",
+          "predefined": "SOLIDWALL",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_20_93_85"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Precast Concrete Panel - Architectural Panel 8\" x 10'",
+            "Precast Concrete Panel - Insulated Sandwich Panel 10\"",
+            "Precast Concrete Panel - Tilt-Up Panel 8\""
+          ]
+        },
+        {
+          "key": "wall_insulation",
+          "label": "Wall Insulation",
+          "category": "Wall Assemblies",
+          "discipline": "architectural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "INSULATION",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_35_57"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Wall Insulation - Mineral Wool 2\" (R-8)",
+            "Wall Insulation - Mineral Wool 3\" (R-12)",
+            "Wall Insulation - Polyiso 2\" (R-12)",
+            "Wall Insulation - Batt R-21 in 6\" Cavity"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "massing-families-architectural-windows-v0.1.0.ifc",
+      "discipline": "architectural-windows",
+      "sha256": "96d4376cd194c6f5508014d5a1295260d7fbdc15f135540f0b7d56df13408fb5",
+      "size_bytes": 13005,
+      "ifc_schema": "IFC4",
+      "families": 2,
+      "types": 5,
+      "categories": [
+        "Windows"
+      ],
+      "disciplines": [
+        "architectural"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "window_interior",
+          "label": "Interior Glazed Panel / Borrowed Light",
+          "category": "Windows",
+          "discipline": "architectural",
+          "ifc_class": "IfcWindowType",
+          "predefined": "WINDOW",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_30_59_98"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Interior Glazed Panel / Borrowed Light - 3'-0\" x 3'-0\" Borrowed Light",
+            "Interior Glazed Panel / Borrowed Light - 4'-0\" x 7'-0\" Sidelight",
+            "Interior Glazed Panel / Borrowed Light - Nurse Station Vision Panel 6'-0\""
+          ]
+        },
+        {
+          "key": "window_sliding",
+          "label": "Sliding Window",
+          "category": "Windows",
+          "discipline": "architectural",
+          "ifc_class": "IfcWindowType",
+          "predefined": "WINDOW",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_30_59_98"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Sliding Window - 4'-0\" x 3'-0\"",
+            "Sliding Window - 6'-0\" x 4'-0\""
+          ]
+        }
+      ]
+    },
+    {
       "file": "massing-families-construction-temporary-v0.1.0.ifc",
       "discipline": "construction-temporary",
-      "sha256": "f1ef01819a6deb2f9373a620935b7ee67b83f17aa663eff8661373b0557af290",
+      "sha256": "4448ae282ba6d568a6704496aefc32fb1dbc6fac35e00d6acf410f4e54c65fe6",
       "size_bytes": 75076,
       "ifc_schema": "IFC4",
       "families": 14,
@@ -1773,7 +2680,7 @@
     {
       "file": "massing-families-conveying-v0.1.0.ifc",
       "discipline": "conveying",
-      "sha256": "56df8c6ea276f0c997b8f75c5b97887262641f2597f7061df98ab6a7a8cde6a3",
+      "sha256": "0d72fc15d50f0ee3f9925c7004f61bb7bd9b6ceff5517cd97dddf7c0c0dd4262",
       "size_bytes": 26800,
       "ifc_schema": "IFC4",
       "families": 5,
@@ -1902,7 +2809,7 @@
     {
       "file": "massing-families-conveying-airport-v0.1.0.ifc",
       "discipline": "conveying-airport",
-      "sha256": "b299186767b2ff94bdf3fcde7600dd9bf5dc46da3c4cf456048b73b0795158d5",
+      "sha256": "04043fc53991119e7389515dc4c275cfdf94464a29b8774cbecfded86998a1f3",
       "size_bytes": 14947,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -1987,9 +2894,165 @@
       ]
     },
     {
+      "file": "massing-families-conveying-elevators-v0.1.0.ifc",
+      "discipline": "conveying-elevators",
+      "sha256": "5ee502d458f122fcce10d07bfa60a3ac6d078000f297a4ab0a08bccc8218b297",
+      "size_bytes": 50137,
+      "ifc_schema": "IFC4",
+      "families": 6,
+      "types": 19,
+      "categories": [
+        "Elevators"
+      ],
+      "disciplines": [
+        "conveying"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "elevator_hoistway_door",
+          "label": "Elevator Hoistway Entrance",
+          "category": "Elevators",
+          "discipline": "conveying",
+          "ifc_class": "IfcDoorType",
+          "predefined": "DOOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_80_49"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Elevator Hoistway Entrance - Centre-Opening 3'-6\" x 7'-0\"",
+            "Elevator Hoistway Entrance - Centre-Opening 4'-0\" x 7'-0\"",
+            "Elevator Hoistway Entrance - Two-Speed Side 4'-0\" x 8'-0\"",
+            "Elevator Hoistway Entrance - Vertical Bi-Parting 6'-0\" x 8'-0\""
+          ]
+        },
+        {
+          "key": "elevator_machine",
+          "label": "Elevator Machine / Controller",
+          "category": "Elevators",
+          "discipline": "conveying",
+          "ifc_class": "IfcTransportElementType",
+          "predefined": "LIFTINGGEAR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_80_49"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Elevator Machine / Controller - Gearless Machine (MRL)",
+            "Elevator Machine / Controller - Controller Cabinet",
+            "Elevator Machine / Controller - Hydraulic Power Unit"
+          ]
+        },
+        {
+          "key": "elevator_pit_equipment",
+          "label": "Elevator Pit Equipment",
+          "category": "Elevators",
+          "discipline": "conveying",
+          "ifc_class": "IfcTransportElementType",
+          "predefined": "LIFTINGGEAR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_80_49"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Elevator Pit Equipment - Buffer (Spring)",
+            "Elevator Pit Equipment - Buffer (Oil)",
+            "Elevator Pit Equipment - Pit Ladder",
+            "Elevator Pit Equipment - Counterweight Assembly"
+          ]
+        },
+        {
+          "key": "elevator_freight",
+          "label": "Freight / Service Elevator",
+          "category": "Elevators",
+          "discipline": "conveying",
+          "ifc_class": "IfcTransportElementType",
+          "predefined": "ELEVATOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_80_49"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Freight / Service Elevator - 4000 lb Service \u2014 9'x10'",
+            "Freight / Service Elevator - 6000 lb Freight \u2014 10'x12'",
+            "Freight / Service Elevator - Hospital Bed Car 5000 lb \u2014 8'x10'"
+          ]
+        },
+        {
+          "key": "elevator_hydraulic",
+          "label": "Hydraulic Elevator",
+          "category": "Elevators",
+          "discipline": "conveying",
+          "ifc_class": "IfcTransportElementType",
+          "predefined": "ELEVATOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_80_49"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Hydraulic Elevator - 2100 lb \u2014 7'x7' Hoistway",
+            "Hydraulic Elevator - 3000 lb \u2014 8'x8' Hoistway"
+          ]
+        },
+        {
+          "key": "elevator_traction",
+          "label": "Traction Elevator (Machine-Room-Less)",
+          "category": "Elevators",
+          "discipline": "conveying",
+          "ifc_class": "IfcTransportElementType",
+          "predefined": "ELEVATOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_80_49"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Traction Elevator (Machine-Room-Less) - 2500 lb \u2014 8'x8' Hoistway",
+            "Traction Elevator (Machine-Room-Less) - 3500 lb \u2014 9'x9' Hoistway",
+            "Traction Elevator (Machine-Room-Less) - 4500 lb \u2014 9'x10' Hoistway"
+          ]
+        }
+      ]
+    },
+    {
       "file": "massing-families-conveying-industrial-v0.1.0.ifc",
       "discipline": "conveying-industrial",
-      "sha256": "05508847b132e2ed80cf57f5a598ec0937dd70637d8957b586720dfbb8d49349",
+      "sha256": "c2a5f3a606027d9805b695ee9b6d3f4d9adb1bc4d7509c407c8954a4a73c8b43",
       "size_bytes": 21256,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -2077,9 +3140,96 @@
       ]
     },
     {
+      "file": "massing-families-conveying-material-v0.1.0.ifc",
+      "discipline": "conveying-material",
+      "sha256": "d31971867c214972d7329e530b06759be363bc2b6246ac3c063b13b3402769c1",
+      "size_bytes": 18684,
+      "ifc_schema": "IFC4",
+      "families": 3,
+      "types": 7,
+      "categories": [
+        "Material Handling"
+      ],
+      "disciplines": [
+        "conveying"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "cart_lift",
+          "label": "Cart / Dumbwaiter Lift (Service)",
+          "category": "Material Handling",
+          "discipline": "conveying",
+          "ifc_class": "IfcTransportElementType",
+          "predefined": "LIFTINGGEAR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_80_47"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Cart / Dumbwaiter Lift (Service) - Cart Lift 500 lb \u2014 4'x4'",
+            "Cart / Dumbwaiter Lift (Service) - Cart Lift 1000 lb \u2014 5'x5'"
+          ]
+        },
+        {
+          "key": "pneumatic_tube_station",
+          "label": "Pneumatic Tube Station",
+          "category": "Material Handling",
+          "discipline": "conveying",
+          "ifc_class": "IfcTransportElementType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_80_65"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Pneumatic Tube Station - Send/Receive Station",
+            "Pneumatic Tube Station - Blower / Transfer Unit",
+            "Pneumatic Tube Station - Tube Run 6\" Diameter"
+          ]
+        },
+        {
+          "key": "vertical_reciprocating_conveyor",
+          "label": "Vertical Reciprocating Conveyor / Material Lift",
+          "category": "Material Handling",
+          "discipline": "conveying",
+          "ifc_class": "IfcTransportElementType",
+          "predefined": "LIFTINGGEAR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_80_47"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Vertical Reciprocating Conveyor / Material Lift - VRC 2000 lb \u2014 6'x6' Carriage",
+            "Vertical Reciprocating Conveyor / Material Lift - VRC 6000 lb \u2014 8'x10' Carriage"
+          ]
+        }
+      ]
+    },
+    {
       "file": "massing-families-electrical-v0.1.0.ifc",
       "discipline": "electrical",
-      "sha256": "fe4cd9b55cd89540e0daa17ae16923a09ea6bfa674ee8eb8bace97605a092915",
+      "sha256": "d64bec799082417b0966d997e87bebe5470445e6b0d7028c74724fd8d76fa329",
       "size_bytes": 24612,
       "ifc_schema": "IFC4",
       "families": 5,
@@ -2209,11 +3359,11 @@
     {
       "file": "massing-families-electrical-devices-v0.1.0.ifc",
       "discipline": "electrical-devices",
-      "sha256": "c60dac5e7211e7b7cd4f32392a0b47712bca0c587e2f2780d3cdeaf14c571a60",
-      "size_bytes": 15673,
+      "sha256": "7063fa4e9fb9b15da0b30881e26c563278d44d293ff499f8f9a4beb75ce37d7d",
+      "size_bytes": 36929,
       "ifc_schema": "IFC4",
-      "families": 2,
-      "types": 7,
+      "families": 6,
+      "types": 16,
       "categories": [
         "Devices"
       ],
@@ -2227,6 +3377,69 @@
         "L200"
       ],
       "index": [
+        {
+          "key": "data_outlet",
+          "label": "Data / Communications Outlet",
+          "category": "Devices",
+          "discipline": "electrical",
+          "ifc_class": "IfcOutletType",
+          "predefined": "DATAOUTLET",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_70_15"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Data / Communications Outlet - Single-Gang 2-Port",
+            "Data / Communications Outlet - Single-Gang 4-Port"
+          ]
+        },
+        {
+          "key": "dimmer_switch",
+          "label": "Dimmer Switch",
+          "category": "Devices",
+          "discipline": "electrical",
+          "ifc_class": "IfcSwitchingDeviceType",
+          "predefined": "DIMMERSWITCH",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_70_47"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Dimmer Switch - Single-Pole 0-10V Dimmer",
+            "Dimmer Switch - Three-Way Dimmer"
+          ]
+        },
+        {
+          "key": "floor_box",
+          "label": "Floor Box",
+          "category": "Devices",
+          "discipline": "electrical",
+          "ifc_class": "IfcOutletType",
+          "predefined": "POWEROUTLET",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_70_11"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Floor Box - 4\" Poke-Through Power/Data",
+            "Floor Box - Rectangular Multi-Service Box"
+          ]
+        },
         {
           "key": "light_switch",
           "label": "Light Switch",
@@ -2247,6 +3460,28 @@
             "Light Switch - Single pole",
             "Light Switch - Three way",
             "Light Switch - Dimmer"
+          ]
+        },
+        {
+          "key": "occupancy_sensor",
+          "label": "Occupancy / Vacancy Sensor",
+          "category": "Devices",
+          "discipline": "electrical",
+          "ifc_class": "IfcSensorType",
+          "predefined": "MOVEMENTSENSOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_70_47"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Occupancy / Vacancy Sensor - Ceiling 360\u00b0 Dual-Tech",
+            "Occupancy / Vacancy Sensor - Wall-Switch Occupancy Sensor",
+            "Occupancy / Vacancy Sensor - Daylight Photosensor"
           ]
         },
         {
@@ -2277,11 +3512,11 @@
     {
       "file": "massing-families-electrical-distribution-v0.1.0.ifc",
       "discipline": "electrical-distribution",
-      "sha256": "8648cf06e2ffa57531f797ac8ca1832a1fae17646a084be55087dcb38b0e0d45",
-      "size_bytes": 26049,
+      "sha256": "007132a41088817b1f2a13b5fd63381c99e3c470a4049a8a5be3d55fcb02be48",
+      "size_bytes": 59392,
       "ifc_schema": "IFC4",
-      "families": 3,
-      "types": 11,
+      "families": 9,
+      "types": 25,
       "categories": [
         "Distribution"
       ],
@@ -2295,6 +3530,28 @@
         "L200"
       ],
       "index": [
+        {
+          "key": "transfer_switch",
+          "label": "Automatic Transfer Switch",
+          "category": "Distribution",
+          "discipline": "electrical",
+          "ifc_class": "IfcSwitchingDeviceType",
+          "predefined": "CONTACTOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_60_70_48"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Automatic Transfer Switch - ATS 200A",
+            "Automatic Transfer Switch - ATS 600A",
+            "Automatic Transfer Switch - ATS 1200A"
+          ]
+        },
         {
           "key": "transformer_dry",
           "label": "Dry-Type Transformer",
@@ -2342,6 +3599,91 @@
           ]
         },
         {
+          "key": "ground_bar",
+          "label": "Ground Bar / Grounding Electrode",
+          "category": "Distribution",
+          "discipline": "electrical",
+          "ifc_class": "IfcElectricDistributionBoardType",
+          "predefined": "DISTRIBUTIONBOARD",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_70_46"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Ground Bar / Grounding Electrode - Ground Bar 12-Hole",
+            "Ground Bar / Grounding Electrode - Ground Bar 24-Hole"
+          ]
+        },
+        {
+          "key": "meter_cabinet",
+          "label": "Metering / CT Cabinet",
+          "category": "Distribution",
+          "discipline": "electrical",
+          "ifc_class": "IfcElectricDistributionBoardType",
+          "predefined": "DISTRIBUTIONBOARD",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_60_70_22"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Metering / CT Cabinet - CT Cabinet 400A",
+            "Metering / CT Cabinet - Meter Stack 6-Position"
+          ]
+        },
+        {
+          "key": "motor_control_center",
+          "label": "Motor Control Center",
+          "category": "Distribution",
+          "discipline": "electrical",
+          "ifc_class": "IfcElectricDistributionBoardType",
+          "predefined": "MOTORCONTROLCENTRE",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_60_70_22"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Motor Control Center - MCC 3-Section 600A",
+            "Motor Control Center - MCC 5-Section 1200A"
+          ]
+        },
+        {
+          "key": "safety_switch",
+          "label": "Safety / Disconnect Switch",
+          "category": "Distribution",
+          "discipline": "electrical",
+          "ifc_class": "IfcSwitchingDeviceType",
+          "predefined": "SWITCHDISCONNECTOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_60_70_48"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Safety / Disconnect Switch - 30A NEMA 1 Fusible",
+            "Safety / Disconnect Switch - 100A NEMA 3R Fusible",
+            "Safety / Disconnect Switch - 200A NEMA 3R Non-Fusible"
+          ]
+        },
+        {
           "key": "switchboard",
           "label": "Switchboard",
           "category": "Distribution",
@@ -2362,17 +3704,190 @@
             "Switchboard - 1600A section",
             "Switchboard - 3000A section"
           ]
+        },
+        {
+          "key": "ups_unit",
+          "label": "Uninterruptible Power Supply",
+          "category": "Distribution",
+          "discipline": "electrical",
+          "ifc_class": "IfcElectricFlowStorageDeviceType",
+          "predefined": "UPS",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_60_70_64"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Uninterruptible Power Supply - UPS 20 kVA",
+            "Uninterruptible Power Supply - UPS 100 kVA"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "massing-families-electrical-lighting-v0.1.0.ifc",
+      "discipline": "electrical-lighting",
+      "sha256": "b72b888634f2995b031992cee780600ba7fb0e310b77000d73a9bca08299070a",
+      "size_bytes": 37820,
+      "ifc_schema": "IFC4",
+      "families": 6,
+      "types": 15,
+      "categories": [
+        "Lighting"
+      ],
+      "disciplines": [
+        "electrical"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "emergency_light",
+          "label": "Emergency Egress Luminaire",
+          "category": "Lighting",
+          "discipline": "electrical",
+          "ifc_class": "IfcLightFixtureType",
+          "predefined": "SECURITYLIGHTING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_70_48"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Emergency Egress Luminaire - Twin-Head Emergency Unit",
+            "Emergency Egress Luminaire - Recessed Emergency Downlight"
+          ]
+        },
+        {
+          "key": "exit_sign",
+          "label": "Exit Sign",
+          "category": "Lighting",
+          "discipline": "electrical",
+          "ifc_class": "IfcLightFixtureType",
+          "predefined": "SECURITYLIGHTING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_70_48"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Exit Sign - Edge-Lit Single Face",
+            "Exit Sign - Edge-Lit Double Face",
+            "Exit Sign - Combo Exit / Emergency"
+          ]
+        },
+        {
+          "key": "linear_pendant",
+          "label": "Linear Pendant Luminaire",
+          "category": "Lighting",
+          "discipline": "electrical",
+          "ifc_class": "IfcLightFixtureType",
+          "predefined": "DIRECTIONSOURCE",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_70_48_62"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Linear Pendant Luminaire - 4ft Linear 40W 4400lm",
+            "Linear Pendant Luminaire - 8ft Linear 80W 8800lm",
+            "Linear Pendant Luminaire - 4ft Linear Direct/Indirect 50W"
+          ]
+        },
+        {
+          "key": "strip_light",
+          "label": "Strip / Utility Luminaire",
+          "category": "Lighting",
+          "discipline": "electrical",
+          "ifc_class": "IfcLightFixtureType",
+          "predefined": "DIRECTIONSOURCE",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_70_48"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Strip / Utility Luminaire - 4ft Strip 32W",
+            "Strip / Utility Luminaire - 8ft Strip 64W",
+            "Strip / Utility Luminaire - 4ft Vaportight 36W"
+          ]
+        },
+        {
+          "key": "track_light",
+          "label": "Track Lighting",
+          "category": "Lighting",
+          "discipline": "electrical",
+          "ifc_class": "IfcLightFixtureType",
+          "predefined": "DIRECTIONSOURCE",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_70_48"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Track Lighting - 4ft Track with 3 Heads",
+            "Track Lighting - 8ft Track with 6 Heads"
+          ]
+        },
+        {
+          "key": "wall_pack",
+          "label": "Wall Pack / Exterior Luminaire",
+          "category": "Lighting",
+          "discipline": "electrical",
+          "ifc_class": "IfcLightFixtureType",
+          "predefined": "DIRECTIONSOURCE",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_70_48"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Wall Pack / Exterior Luminaire - Full-Cutoff Wall Pack 40W",
+            "Wall Pack / Exterior Luminaire - Full-Cutoff Wall Pack 80W"
+          ]
         }
       ]
     },
     {
       "file": "massing-families-electrical-raceway-v0.1.0.ifc",
       "discipline": "electrical-raceway",
-      "sha256": "92d6d5b3f81b679ac42d2bbcc5b7b4264e3f465c6832bc663b44dcc0451d72ba",
-      "size_bytes": 95786,
+      "sha256": "ec2e8adcc7bfcb09eca1c133e319214d25b8e95ecdd48c27b492abdd6b7bb5a4",
+      "size_bytes": 115181,
       "ifc_schema": "IFC4",
-      "families": 5,
-      "types": 37,
+      "families": 6,
+      "types": 44,
       "categories": [
         "Devices",
         "Raceway"
@@ -2494,6 +4009,32 @@
           ]
         },
         {
+          "key": "conduit_pvc",
+          "label": "PVC Conduit (Schedule 40)",
+          "category": "Raceway",
+          "discipline": "electrical",
+          "ifc_class": "IfcCableCarrierSegmentType",
+          "predefined": "CONDUITSEGMENT",
+          "tier": "L300",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_65_70_11"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 7,
+          "types": [
+            "PVC Conduit (Schedule 40) - 1/2\" PVC Sch 40 Conduit",
+            "PVC Conduit (Schedule 40) - 3/4\" PVC Sch 40 Conduit",
+            "PVC Conduit (Schedule 40) - 1\" PVC Sch 40 Conduit",
+            "PVC Conduit (Schedule 40) - 1-1/2\" PVC Sch 40 Conduit",
+            "PVC Conduit (Schedule 40) - 2\" PVC Sch 40 Conduit",
+            "PVC Conduit (Schedule 40) - 3\" PVC Sch 40 Conduit",
+            "PVC Conduit (Schedule 40) - 4\" PVC Sch 40 Conduit"
+          ]
+        },
+        {
           "key": "conduit_rmc",
           "label": "Rigid Metal Conduit",
           "category": "Raceway",
@@ -2525,11 +4066,11 @@
     {
       "file": "massing-families-fire-alarm-v0.1.0.ifc",
       "discipline": "fire-alarm",
-      "sha256": "00f76c1a52895c1514885352cf17933dc59f615f092c67939c1852e62670f575",
-      "size_bytes": 16473,
+      "sha256": "906a32477963a75e3784d1c965e78ebee1ec21bf1dbb864d57ccd28e9d9bbb26",
+      "size_bytes": 45379,
       "ifc_schema": "IFC4",
-      "families": 2,
-      "types": 7,
+      "families": 7,
+      "types": 19,
       "categories": [
         "Fire Alarm"
       ],
@@ -2544,6 +4085,48 @@
         "L300"
       ],
       "index": [
+        {
+          "key": "duct_smoke_detector",
+          "label": "Duct Smoke Detector",
+          "category": "Fire Alarm",
+          "discipline": "fire",
+          "ifc_class": "IfcSensorType",
+          "predefined": "SMOKESENSOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_75_80_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 1,
+          "types": [
+            "Duct Smoke Detector - Duct Detector with Sampling Tube"
+          ]
+        },
+        {
+          "key": "fire_alarm_panel",
+          "label": "Fire Alarm Control Panel",
+          "category": "Fire Alarm",
+          "discipline": "fire",
+          "ifc_class": "IfcAlarmType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_75_80_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Fire Alarm Control Panel - FACP Addressable 2-Loop",
+            "Fire Alarm Control Panel - FACP Addressable 8-Loop",
+            "Fire Alarm Control Panel - Remote Annunciator"
+          ]
+        },
         {
           "key": "fire_alarm_device",
           "label": "Fire Alarm Device",
@@ -2588,13 +4171,78 @@
             "Fire Detector - Heat detector",
             "Fire Detector - Duct smoke detector"
           ]
+        },
+        {
+          "key": "heat_detector",
+          "label": "Heat Detector",
+          "category": "Fire Alarm",
+          "discipline": "fire",
+          "ifc_class": "IfcSensorType",
+          "predefined": "TEMPERATURESENSOR",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_75_80_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Heat Detector - Fixed 135\u00b0F Rate-of-Rise",
+            "Heat Detector - Fixed 190\u00b0F High-Temp"
+          ]
+        },
+        {
+          "key": "manual_pull_station",
+          "label": "Manual Pull Station",
+          "category": "Fire Alarm",
+          "discipline": "fire",
+          "ifc_class": "IfcAlarmType",
+          "predefined": "MANUALPULLBOX",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_75_80_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Manual Pull Station - Single-Action Addressable",
+            "Manual Pull Station - Dual-Action Addressable"
+          ]
+        },
+        {
+          "key": "notification_appliance",
+          "label": "Notification Appliance (Horn / Strobe)",
+          "category": "Fire Alarm",
+          "discipline": "fire",
+          "ifc_class": "IfcAlarmType",
+          "predefined": "SIREN",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_75_80_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Notification Appliance (Horn / Strobe) - Wall Horn/Strobe 75cd",
+            "Notification Appliance (Horn / Strobe) - Wall Strobe 110cd",
+            "Notification Appliance (Horn / Strobe) - Ceiling Horn/Strobe",
+            "Notification Appliance (Horn / Strobe) - Speaker/Strobe (Voice Evac)"
+          ]
         }
       ]
     },
     {
       "file": "massing-families-fire-equipment-v0.1.0.ifc",
       "discipline": "fire-equipment",
-      "sha256": "10e4b1775a7fb79e6d4c5743537a021badadeba3965a835e71ac6440175b39c9",
+      "sha256": "ba0ddb3c7357b553a4ed6b74ea26d923d9175ad5e7e565d90c7cae954eb4e4aa",
       "size_bytes": 36472,
       "ifc_schema": "IFC4",
       "families": 4,
@@ -2708,13 +4356,186 @@
       ]
     },
     {
-      "file": "massing-families-fire-sprinkler-v0.1.0.ifc",
-      "discipline": "fire-sprinkler",
-      "sha256": "7790bd8d2db0d54f2799aaaa76bb0de9424bc8b416e367e075448ac1efee2016",
-      "size_bytes": 66183,
+      "file": "massing-families-fire-protection-v0.1.0.ifc",
+      "discipline": "fire-protection",
+      "sha256": "c9108ba5f402608a68eaef8491be73cdcd10828a0586af4c7ea6ee2fd4bbb31b",
+      "size_bytes": 36404,
       "ifc_schema": "IFC4",
       "families": 7,
-      "types": 25,
+      "types": 14,
+      "categories": [
+        "Fire Damper",
+        "Fire Equipment",
+        "Fire Pump",
+        "Standpipe"
+      ],
+      "disciplines": [
+        "fire"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "smoke_damper",
+          "label": "Smoke / Combination Fire-Smoke Damper",
+          "category": "Fire Damper",
+          "discipline": "fire",
+          "ifc_class": "IfcDamperType",
+          "predefined": "SMOKEDAMPER",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_65_24"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Smoke / Combination Fire-Smoke Damper - 12x12 Combination Fire/Smoke",
+            "Smoke / Combination Fire-Smoke Damper - 24x24 Combination Fire/Smoke",
+            "Smoke / Combination Fire-Smoke Damper - 36x24 Smoke Damper"
+          ]
+        },
+        {
+          "key": "clean_agent_system",
+          "label": "Clean Agent Suppression",
+          "category": "Fire Equipment",
+          "discipline": "fire",
+          "ifc_class": "IfcFireSuppressionTerminalType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_70_55_33"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Clean Agent Suppression - Agent Cylinder 200 lb",
+            "Clean Agent Suppression - Discharge Nozzle"
+          ]
+        },
+        {
+          "key": "fire_extinguisher",
+          "label": "Fire Extinguisher",
+          "category": "Fire Equipment",
+          "discipline": "fire",
+          "ifc_class": "IfcFireSuppressionTerminalType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_40_50_28"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Fire Extinguisher - 10 lb ABC Dry Chemical",
+            "Fire Extinguisher - 20 lb ABC Dry Chemical",
+            "Fire Extinguisher - 10 lb CO2"
+          ]
+        },
+        {
+          "key": "kitchen_suppression",
+          "label": "Kitchen Hood Suppression System",
+          "category": "Fire Equipment",
+          "discipline": "fire",
+          "ifc_class": "IfcFireSuppressionTerminalType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_55_33"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 1,
+          "types": [
+            "Kitchen Hood Suppression System - Wet-Chemical Tank + Nozzles"
+          ]
+        },
+        {
+          "key": "jockey_pump",
+          "label": "Jockey / Pressure-Maintenance Pump",
+          "category": "Fire Pump",
+          "discipline": "fire",
+          "ifc_class": "IfcPumpType",
+          "predefined": "CIRCULATOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_53_86"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 1,
+          "types": [
+            "Jockey / Pressure-Maintenance Pump - Jockey Pump 10 GPM 3 HP"
+          ]
+        },
+        {
+          "key": "hose_cabinet",
+          "label": "Fire Hose / Valve Cabinet",
+          "category": "Standpipe",
+          "discipline": "fire",
+          "ifc_class": "IfcDiscreteAccessoryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_52_38"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Fire Hose / Valve Cabinet - Recessed Valve Cabinet",
+            "Fire Hose / Valve Cabinet - Surface Hose Cabinet"
+          ]
+        },
+        {
+          "key": "hose_valve",
+          "label": "Fire Hose Valve",
+          "category": "Standpipe",
+          "discipline": "fire",
+          "ifc_class": "IfcValveType",
+          "predefined": "ISOLATING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_54_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Fire Hose Valve - 2-1/2\" Angle Hose Valve",
+            "Fire Hose Valve - 2-1/2\" Pressure-Reducing Hose Valve"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "massing-families-fire-sprinkler-v0.1.0.ifc",
+      "discipline": "fire-sprinkler",
+      "sha256": "d2291c15500c25fe58a46b62079e8cf3e5ceb2b0c773d2ed42bec9b56fc42c92",
+      "size_bytes": 96045,
+      "ifc_schema": "IFC4",
+      "families": 12,
+      "types": 36,
       "categories": [
         "Sprinkler",
         "Sprinkler Piping",
@@ -2840,6 +4661,90 @@
           ]
         },
         {
+          "key": "sprinkler_alarm_valve",
+          "label": "Alarm Check / Riser Valve",
+          "category": "Sprinkler Piping",
+          "discipline": "fire",
+          "ifc_class": "IfcValveType",
+          "predefined": "CHECK",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_54_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Alarm Check / Riser Valve - 4\" Alarm Check Valve",
+            "Alarm Check / Riser Valve - 6\" Alarm Check Valve"
+          ]
+        },
+        {
+          "key": "sprinkler_dry_valve",
+          "label": "Dry Pipe Valve Assembly",
+          "category": "Sprinkler Piping",
+          "discipline": "fire",
+          "ifc_class": "IfcValveType",
+          "predefined": "CHECK",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_54_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Dry Pipe Valve Assembly - 4\" Dry Valve with Trim",
+            "Dry Pipe Valve Assembly - 6\" Dry Valve with Trim"
+          ]
+        },
+        {
+          "key": "preaction_valve",
+          "label": "Pre-Action Valve Assembly",
+          "category": "Sprinkler Piping",
+          "discipline": "fire",
+          "ifc_class": "IfcValveType",
+          "predefined": "CHECK",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_54_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 1,
+          "types": [
+            "Pre-Action Valve Assembly - 4\" Double-Interlock Pre-Action"
+          ]
+        },
+        {
+          "key": "sprinkler_control_valve",
+          "label": "Sprinkler Control Valve (OS&Y)",
+          "category": "Sprinkler Piping",
+          "discipline": "fire",
+          "ifc_class": "IfcValveType",
+          "predefined": "ISOLATING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_54_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "Sprinkler Control Valve (OS&Y) - 4\" OS&Y Gate",
+            "Sprinkler Control Valve (OS&Y) - 6\" OS&Y Gate",
+            "Sprinkler Control Valve (OS&Y) - 8\" OS&Y Gate"
+          ]
+        },
+        {
           "key": "sprinkler_pipe",
           "label": "Sprinkler Pipe",
           "category": "Sprinkler Piping",
@@ -2865,6 +4770,28 @@
             "Sprinkler Pipe - 4\" Sprinkler Pipe",
             "Sprinkler Pipe - 6\" Sprinkler Pipe",
             "Sprinkler Pipe - 8\" Sprinkler Pipe"
+          ]
+        },
+        {
+          "key": "sprinkler_hanger",
+          "label": "Sprinkler Pipe Hanger",
+          "category": "Sprinkler Piping",
+          "discipline": "fire",
+          "ifc_class": "IfcDiscreteAccessoryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_20_85"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Sprinkler Pipe Hanger - 1\" Adjustable Swivel Ring",
+            "Sprinkler Pipe Hanger - 2\" Adjustable Swivel Ring",
+            "Sprinkler Pipe Hanger - Seismic Sway Brace"
           ]
         },
         {
@@ -2894,7 +4821,7 @@
     {
       "file": "massing-families-interiors-v0.1.0.ifc",
       "discipline": "interiors",
-      "sha256": "2ce500866dbddcfc95b15c1c239dfd09f76258d599273ff9ebd0bb515647b635",
+      "sha256": "ef5ef72943cd291460d9efb13d190e0783da3c0b9b2836c1a71c938a954c559c",
       "size_bytes": 90155,
       "ifc_schema": "IFC4",
       "families": 17,
@@ -3279,9 +5206,303 @@
       ]
     },
     {
+      "file": "massing-families-interiors-furniture-v0.1.0.ifc",
+      "discipline": "interiors-furniture",
+      "sha256": "307e528fc35d9b0a13f51a3a618feca322c0205caab87e1b295455561e3cdef6",
+      "size_bytes": 60525,
+      "ifc_schema": "IFC4",
+      "families": 8,
+      "types": 26,
+      "categories": [
+        "AV",
+        "Furniture",
+        "Public Seating"
+      ],
+      "disciplines": [
+        "interiors"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "display_monitor",
+          "label": "Display / Monitor",
+          "category": "AV",
+          "discipline": "interiors",
+          "ifc_class": "IfcAudioVisualApplianceType",
+          "predefined": "DISPLAY",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_70"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Display / Monitor - 55\" Wall Display",
+            "Display / Monitor - 86\" Wall Display",
+            "Display / Monitor - 98\" Video Wall"
+          ]
+        },
+        {
+          "key": "conference_table",
+          "label": "Conference Table",
+          "category": "Furniture",
+          "discipline": "interiors",
+          "ifc_class": "IfcFurnitureType",
+          "predefined": "TABLE",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_50_21"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Conference Table - Boat 8' \u2014 6 Seats",
+            "Conference Table - Boat 12' \u2014 10 Seats",
+            "Conference Table - Boardroom 20' \u2014 16 Seats",
+            "Conference Table - Round 4'-0\" \u2014 4 Seats"
+          ]
+        },
+        {
+          "key": "credenza",
+          "label": "Credenza / Storage Unit",
+          "category": "Furniture",
+          "discipline": "interiors",
+          "ifc_class": "IfcFurnitureType",
+          "predefined": "FILECABINET",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_30_87"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Credenza / Storage Unit - Credenza 6'-0\"",
+            "Credenza / Storage Unit - Bookcase 3' x 6'",
+            "Credenza / Storage Unit - Lateral File 42\" 4-Drawer"
+          ]
+        },
+        {
+          "key": "lounge_seating",
+          "label": "Lounge Seating",
+          "category": "Furniture",
+          "discipline": "interiors",
+          "ifc_class": "IfcFurnitureType",
+          "predefined": "CHAIR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_50_12"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Lounge Seating - Lounge Chair",
+            "Lounge Seating - Two-Seat Settee",
+            "Lounge Seating - Banquette 6'-0\"",
+            "Lounge Seating - Ottoman 24\""
+          ]
+        },
+        {
+          "key": "reception_desk",
+          "label": "Reception Desk",
+          "category": "Furniture",
+          "discipline": "interiors",
+          "ifc_class": "IfcFurnitureType",
+          "predefined": "DESK",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_50_21"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Reception Desk - Straight 8'-0\"",
+            "Reception Desk - L-Shaped 10' x 6'",
+            "Reception Desk - Curved 12'-0\""
+          ]
+        },
+        {
+          "key": "systems_panel",
+          "label": "Systems Furniture Panel",
+          "category": "Furniture",
+          "discipline": "interiors",
+          "ifc_class": "IfcSystemFurnitureElementType",
+          "predefined": "PANEL",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_50"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Systems Furniture Panel - Panel 4' x 42\" High",
+            "Systems Furniture Panel - Panel 4' x 54\" High",
+            "Systems Furniture Panel - Panel 6' x 66\" High"
+          ]
+        },
+        {
+          "key": "task_chair",
+          "label": "Task / Conference Chair",
+          "category": "Furniture",
+          "discipline": "interiors",
+          "ifc_class": "IfcFurnitureType",
+          "predefined": "CHAIR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_50_12"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Task / Conference Chair - Task Chair (Casters)",
+            "Task / Conference Chair - Conference Chair",
+            "Task / Conference Chair - Stool 30\" Seat"
+          ]
+        },
+        {
+          "key": "fixed_seating",
+          "label": "Fixed Auditorium Seating",
+          "category": "Public Seating",
+          "discipline": "interiors",
+          "ifc_class": "IfcFurnitureType",
+          "predefined": "CHAIR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_50_12"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Fixed Auditorium Seating - Fixed Seat 22\" Wide",
+            "Fixed Auditorium Seating - Fixed Seat 24\" Wide (Tablet Arm)",
+            "Fixed Auditorium Seating - Telescopic Bleacher Row"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "massing-families-interiors-industrial-v0.1.0.ifc",
+      "discipline": "interiors-industrial",
+      "sha256": "bef51b1e75457e8316c9a594b85d0ffffc17ffa691a6fa26c2c391c7a8fe21c0",
+      "size_bytes": 7585,
+      "ifc_schema": "IFC4",
+      "families": 1,
+      "types": 3,
+      "categories": [
+        "Industrial"
+      ],
+      "disciplines": [
+        "interiors"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "workbench",
+          "label": "Workbench / Industrial Shelving",
+          "category": "Industrial",
+          "discipline": "interiors",
+          "ifc_class": "IfcFurnitureType",
+          "predefined": "TABLE",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_30_30_96"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Workbench / Industrial Shelving - Workbench 6'-0\"",
+            "Workbench / Industrial Shelving - Workbench 8'-0\" with Riser",
+            "Workbench / Industrial Shelving - Wire Shelving 4' x 18\" x 6'"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "massing-families-interiors-medical-v0.1.0.ifc",
+      "discipline": "interiors-medical",
+      "sha256": "34af200c83b4671c1a5bab0b939d830ee3806367dceb8cc45a52ddc250387971",
+      "size_bytes": 9733,
+      "ifc_schema": "IFC4",
+      "families": 1,
+      "types": 4,
+      "categories": [
+        "Medical"
+      ],
+      "disciplines": [
+        "interiors"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "medical_cart",
+          "label": "Medical Cart / Cabinet",
+          "category": "Medical",
+          "discipline": "interiors",
+          "ifc_class": "IfcFurnitureType",
+          "predefined": "FILECABINET",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_30_87"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Medical Cart / Cabinet - Crash Cart",
+            "Medical Cart / Cabinet - Supply Cart",
+            "Medical Cart / Cabinet - Medication Dispensing Cabinet",
+            "Medical Cart / Cabinet - Mobile Workstation (WOW)"
+          ]
+        }
+      ]
+    },
+    {
       "file": "massing-families-mechanical-v0.1.0.ifc",
       "discipline": "mechanical",
-      "sha256": "6ab189de18708032380dacf7be7b302190dfffa26d6648ca768ea9d5fa7a9d70",
+      "sha256": "a34ec71f5f5c7580cfd1640b9c58a51d656a82913679fb1db3fa0de2b31e75f4",
       "size_bytes": 21637,
       "ifc_schema": "IFC4",
       "families": 4,
@@ -3389,12 +5610,13 @@
     {
       "file": "massing-families-mechanical-ductwork-v0.1.0.ifc",
       "discipline": "mechanical-ductwork",
-      "sha256": "ae4956d115d1ef691228c7413c33b22b3798678b469d5143d713ab8258021433",
-      "size_bytes": 237439,
+      "sha256": "a65c5e8dbcdd8782009da61d3dbc6c2f045ce9cb48a7d1344571eb6a5ee8a651",
+      "size_bytes": 309660,
       "ifc_schema": "IFC4",
-      "families": 6,
-      "types": 91,
+      "families": 16,
+      "types": 118,
       "categories": [
+        "Duct Accessories",
         "Duct Fittings",
         "Ductwork"
       ],
@@ -3405,9 +5627,227 @@
         "CC0-1.0"
       ],
       "tiers": [
+        "L200",
         "L300"
       ],
       "index": [
+        {
+          "key": "backdraft_damper",
+          "label": "Backdraft / Gravity Damper",
+          "category": "Duct Accessories",
+          "discipline": "mechanical",
+          "ifc_class": "IfcDamperType",
+          "predefined": "BACKDRAFTDAMPER",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_65_24"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Backdraft / Gravity Damper - 12x12 Gravity Backdraft",
+            "Backdraft / Gravity Damper - 24x24 Gravity Backdraft"
+          ]
+        },
+        {
+          "key": "duct_access_door",
+          "label": "Duct Access Door",
+          "category": "Duct Accessories",
+          "discipline": "mechanical",
+          "ifc_class": "IfcDiscreteAccessoryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_65_23"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Duct Access Door - 12\" x 12\" Hinged",
+            "Duct Access Door - 18\" x 18\" Hinged"
+          ]
+        },
+        {
+          "key": "sound_attenuator",
+          "label": "Duct Silencer / Sound Attenuator",
+          "category": "Duct Accessories",
+          "discipline": "mechanical",
+          "ifc_class": "IfcDuctSilencerType",
+          "predefined": "RECTANGULAR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_67_78"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "Duct Silencer / Sound Attenuator - 24x24 x 5'-0\" Rectangular",
+            "Duct Silencer / Sound Attenuator - 36x24 x 7'-0\" Rectangular",
+            "Duct Silencer / Sound Attenuator - 20\" Round x 5'-0\""
+          ]
+        },
+        {
+          "key": "control_damper",
+          "label": "Motorized Control Damper",
+          "category": "Duct Accessories",
+          "discipline": "mechanical",
+          "ifc_class": "IfcDamperType",
+          "predefined": "CONTROLDAMPER",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_65_24"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "Motorized Control Damper - 24x24 Low-Leakage OA Damper",
+            "Motorized Control Damper - 48x36 Low-Leakage OA Damper",
+            "Motorized Control Damper - 24x24 Isolation Damper (Bubble-Tight)"
+          ]
+        },
+        {
+          "key": "volume_damper",
+          "label": "Volume / Balancing Damper",
+          "category": "Duct Accessories",
+          "discipline": "mechanical",
+          "ifc_class": "IfcDamperType",
+          "predefined": "BALANCINGDAMPER",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_65_24"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "Volume / Balancing Damper - 12x8 Manual Volume Damper",
+            "Volume / Balancing Damper - 24x12 Manual Volume Damper",
+            "Volume / Balancing Damper - 10\" Round Butterfly Damper"
+          ]
+        },
+        {
+          "key": "duct_cap",
+          "label": "Duct End Cap",
+          "category": "Duct Fittings",
+          "discipline": "mechanical",
+          "ifc_class": "IfcDuctFittingType",
+          "predefined": "ENTRY",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_65_25"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Duct End Cap - 24x12 Cap",
+            "Duct End Cap - 14\" Round Cap"
+          ]
+        },
+        {
+          "key": "duct_offset",
+          "label": "Duct Offset",
+          "category": "Duct Fittings",
+          "discipline": "mechanical",
+          "ifc_class": "IfcDuctFittingType",
+          "predefined": "OBSTRUCTION",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_65_25"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Duct Offset - 24x12 Offset 12\"",
+            "Duct Offset - 36x18 Offset 18\""
+          ]
+        },
+        {
+          "key": "duct_transition",
+          "label": "Duct Transition (Rect \u2194 Round)",
+          "category": "Duct Fittings",
+          "discipline": "mechanical",
+          "ifc_class": "IfcDuctFittingType",
+          "predefined": "TRANSITION",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_65_25"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "Duct Transition (Rect \u2194 Round) - 24x12 to 14\" Round",
+            "Duct Transition (Rect \u2194 Round) - 36x18 to 20\" Round",
+            "Duct Transition (Rect \u2194 Round) - 24x12 to 18x10 Reducer"
+          ]
+        },
+        {
+          "key": "duct_elbow_rect",
+          "label": "Rectangular Duct Elbow",
+          "category": "Duct Fittings",
+          "discipline": "mechanical",
+          "ifc_class": "IfcDuctFittingType",
+          "predefined": "BEND",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_65_25"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 4,
+          "types": [
+            "Rectangular Duct Elbow - 12x8 90\u00b0 Vaned Elbow",
+            "Rectangular Duct Elbow - 24x12 90\u00b0 Vaned Elbow",
+            "Rectangular Duct Elbow - 36x18 90\u00b0 Vaned Elbow",
+            "Rectangular Duct Elbow - 48x24 90\u00b0 Vaned Elbow"
+          ]
+        },
+        {
+          "key": "duct_tee_rect",
+          "label": "Rectangular Duct Tee / Takeoff",
+          "category": "Duct Fittings",
+          "discipline": "mechanical",
+          "ifc_class": "IfcDuctFittingType",
+          "predefined": "JUNCTION",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_65_25"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "Rectangular Duct Tee / Takeoff - 24x12 with 12x8 Branch",
+            "Rectangular Duct Tee / Takeoff - 36x18 with 16x10 Branch",
+            "Rectangular Duct Tee / Takeoff - Conical Spin-In Takeoff 10\""
+          ]
+        },
         {
           "key": "duct_elbow_round",
           "label": "Round Duct Elbow",
@@ -3616,9 +6056,328 @@
       ]
     },
     {
+      "file": "massing-families-mechanical-equipment-v0.1.0.ifc",
+      "discipline": "mechanical-equipment",
+      "sha256": "c9956e86c1f3496f0e9ba6448283539fd2be6ba1c0b2df4b0f6f385d0240804e",
+      "size_bytes": 47813,
+      "ifc_schema": "IFC4",
+      "families": 7,
+      "types": 18,
+      "categories": [
+        "Air Handling",
+        "Equipment",
+        "Terminals"
+      ],
+      "disciplines": [
+        "mechanical"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "filter_housing",
+          "label": "Filter Housing / Bank",
+          "category": "Air Handling",
+          "discipline": "mechanical",
+          "ifc_class": "IfcFilterType",
+          "predefined": "AIRPARTICLEFILTER",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_65_23"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "Filter Housing / Bank - Side-Access MERV 13, 2000 CFM",
+            "Filter Housing / Bank - Side-Access MERV 13, 8000 CFM",
+            "Filter Housing / Bank - HEPA Terminal Housing 2x4"
+          ]
+        },
+        {
+          "key": "destratification_fan",
+          "label": "Destratification / HVLS Fan",
+          "category": "Equipment",
+          "discipline": "mechanical",
+          "ifc_class": "IfcFanType",
+          "predefined": "PROPELLORAXIAL",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_65_67_29"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Destratification / HVLS Fan - HVLS 14' Diameter",
+            "Destratification / HVLS Fan - HVLS 20' Diameter"
+          ]
+        },
+        {
+          "key": "humidifier",
+          "label": "Humidifier",
+          "category": "Equipment",
+          "discipline": "mechanical",
+          "ifc_class": "IfcHumidifierType",
+          "predefined": "STEAMINJECTION",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_67_39"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Humidifier - Electrode Steam 50 lb/hr",
+            "Humidifier - Duct Dispersion Manifold 24\""
+          ]
+        },
+        {
+          "key": "makeup_air_unit",
+          "label": "Makeup Air Unit",
+          "category": "Equipment",
+          "discipline": "mechanical",
+          "ifc_class": "IfcAirToAirHeatRecoveryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_60_65_03"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Makeup Air Unit - 4000 CFM Direct-Fired",
+            "Makeup Air Unit - 12000 CFM Direct-Fired"
+          ]
+        },
+        {
+          "key": "vrf_indoor_unit",
+          "label": "VRF Indoor Unit",
+          "category": "Equipment",
+          "discipline": "mechanical",
+          "ifc_class": "IfcUnitaryEquipmentType",
+          "predefined": "SPLITSYSTEM",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_65_03"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "VRF Indoor Unit - Ceiling Cassette 4-Way 1-Ton",
+            "VRF Indoor Unit - Ducted Concealed 1.5-Ton",
+            "VRF Indoor Unit - Wall-Mounted 0.75-Ton"
+          ]
+        },
+        {
+          "key": "vrf_outdoor_unit",
+          "label": "VRF Outdoor Unit",
+          "category": "Equipment",
+          "discipline": "mechanical",
+          "ifc_class": "IfcUnitaryEquipmentType",
+          "predefined": "SPLITSYSTEM",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_65_03"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "VRF Outdoor Unit - 6-Ton Heat Recovery",
+            "VRF Outdoor Unit - 12-Ton Heat Recovery",
+            "VRF Outdoor Unit - 20-Ton Heat Recovery"
+          ]
+        },
+        {
+          "key": "chilled_beam",
+          "label": "Chilled Beam",
+          "category": "Terminals",
+          "discipline": "mechanical",
+          "ifc_class": "IfcAirTerminalType",
+          "predefined": "DIFFUSER",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_65_04"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "Chilled Beam - Active 4' Linear",
+            "Chilled Beam - Active 8' Linear",
+            "Chilled Beam - Passive 6' Linear"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "massing-families-mechanical-piping-v0.1.0.ifc",
+      "discipline": "mechanical-piping",
+      "sha256": "2e49695b2739d02ebb8d338b72d4dc56636150d9f0d420abfa45cff78f5f621b",
+      "size_bytes": 66167,
+      "ifc_schema": "IFC4",
+      "families": 5,
+      "types": 24,
+      "categories": [
+        "Hydronic"
+      ],
+      "disciplines": [
+        "mechanical"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200",
+        "L300"
+      ],
+      "index": [
+        {
+          "key": "air_separator",
+          "label": "Air Separator / Dirt Separator",
+          "category": "Hydronic",
+          "discipline": "mechanical",
+          "ifc_class": "IfcFilterType",
+          "predefined": "STRAINER",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_65_55_76"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Air Separator / Dirt Separator - 4\" Coalescing Separator",
+            "Air Separator / Dirt Separator - 8\" Coalescing Separator"
+          ]
+        },
+        {
+          "key": "expansion_tank",
+          "label": "Expansion Tank",
+          "category": "Hydronic",
+          "discipline": "mechanical",
+          "ifc_class": "IfcTankType",
+          "predefined": "EXPANSION",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_60_50"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "Expansion Tank - Bladder 30 gal",
+            "Expansion Tank - Bladder 80 gal",
+            "Expansion Tank - Bladder 200 gal"
+          ]
+        },
+        {
+          "key": "pipe_hydronic",
+          "label": "Hydronic Pipe (Schedule 40 Steel)",
+          "category": "Hydronic",
+          "discipline": "mechanical",
+          "ifc_class": "IfcPipeSegmentType",
+          "predefined": "RIGIDSEGMENT",
+          "tier": "L300",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_65_52_63"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 10,
+          "types": [
+            "Hydronic Pipe (Schedule 40 Steel) - 3/4\" Sch 40 Steel",
+            "Hydronic Pipe (Schedule 40 Steel) - 1\" Sch 40 Steel",
+            "Hydronic Pipe (Schedule 40 Steel) - 1-1/2\" Sch 40 Steel",
+            "Hydronic Pipe (Schedule 40 Steel) - 2\" Sch 40 Steel",
+            "Hydronic Pipe (Schedule 40 Steel) - 3\" Sch 40 Steel",
+            "Hydronic Pipe (Schedule 40 Steel) - 4\" Sch 40 Steel",
+            "Hydronic Pipe (Schedule 40 Steel) - 6\" Sch 40 Steel",
+            "Hydronic Pipe (Schedule 40 Steel) - 8\" Sch 40 Steel",
+            "Hydronic Pipe (Schedule 40 Steel) - 10\" Sch 40 Steel",
+            "Hydronic Pipe (Schedule 40 Steel) - 12\" Sch 40 Steel"
+          ]
+        },
+        {
+          "key": "valve_hydronic",
+          "label": "Hydronic Valve",
+          "category": "Hydronic",
+          "discipline": "mechanical",
+          "ifc_class": "IfcValveType",
+          "predefined": "ISOLATING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_54_95"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 5,
+          "types": [
+            "Hydronic Valve - 4\" Butterfly Valve",
+            "Hydronic Valve - 8\" Butterfly Valve",
+            "Hydronic Valve - 2\" Control Valve (2-Way)",
+            "Hydronic Valve - 2\" Control Valve (3-Way)",
+            "Hydronic Valve - 4\" Triple-Duty Valve"
+          ]
+        },
+        {
+          "key": "pipe_insulation",
+          "label": "Pipe Insulation",
+          "category": "Hydronic",
+          "discipline": "mechanical",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "INSULATION",
+          "tier": "L300",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_65_52_61"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Pipe Insulation - 1\" pipe, 1\" wall Pipe Insulation",
+            "Pipe Insulation - 2\" pipe, 1-1/2\" wall Pipe Insulation",
+            "Pipe Insulation - 4\" pipe, 2\" wall Pipe Insulation",
+            "Pipe Insulation - 8\" pipe, 2\" wall Pipe Insulation"
+          ]
+        }
+      ]
+    },
+    {
       "file": "massing-families-mechanical-plant-v0.1.0.ifc",
       "discipline": "mechanical-plant",
-      "sha256": "885a60a429defac6aef1efc53e331ed6f0dabc9feac9ff8e8f44d0312f7f921b",
+      "sha256": "14ec9808d1d923bd9482736229e1a33a7736eac05253f043a848c6a9e4576f6a",
       "size_bytes": 115837,
       "ifc_schema": "IFC4",
       "families": 16,
@@ -3995,7 +6754,7 @@
     {
       "file": "massing-families-plumbing-v0.1.0.ifc",
       "discipline": "plumbing",
-      "sha256": "568482d601ae487981e15daefff6ac8f25d9e6649656ee465837890c2420fb0d",
+      "sha256": "38dc9ca64f198e1350a8aec3ba9f3e537382a9c9386ee7b7dbf2ee7eebfdcc1f",
       "size_bytes": 38918,
       "ifc_schema": "IFC4",
       "families": 6,
@@ -4149,8 +6908,8 @@
     {
       "file": "massing-families-plumbing-equipment-v0.1.0.ifc",
       "discipline": "plumbing-equipment",
-      "sha256": "b4d946c76b4d37b88e181a1a3da164b3356bc6ef4c99e0a255b284c595e1f321",
-      "size_bytes": 19959,
+      "sha256": "cd1204af7e99f817cb0a955f6a8dfe4b263e969944e61d01b9c365ba1200899c",
+      "size_bytes": 20430,
       "ifc_schema": "IFC4",
       "families": 3,
       "types": 8,
@@ -4177,7 +6936,9 @@
           "predefined": "CIRCULATOR",
           "tier": "L200",
           "geometry": "proxy",
-          "classification": {},
+          "classification": {
+            "uniclass": "Pr_65_53_86"
+          },
           "license": "CC0-1.0",
           "massing_key": null,
           "has_ports": true,
@@ -4196,7 +6957,9 @@
           "predefined": "DOUBLECHECK",
           "tier": "L200",
           "geometry": "proxy",
-          "classification": {},
+          "classification": {
+            "uniclass": "Pr_65_54_95"
+          },
           "license": "CC0-1.0",
           "massing_key": null,
           "has_ports": true,
@@ -4215,7 +6978,9 @@
           "predefined": "ISOLATING",
           "tier": "L200",
           "geometry": "proxy",
-          "classification": {},
+          "classification": {
+            "uniclass": "Pr_65_54_95"
+          },
           "license": "CC0-1.0",
           "massing_key": null,
           "has_ports": true,
@@ -4232,8 +6997,8 @@
     {
       "file": "massing-families-plumbing-fixtures-v0.1.0.ifc",
       "discipline": "plumbing-fixtures",
-      "sha256": "aa81ae100facb4c6111daeed234fcb64f2e38c2f84e8d9415a14b1387ab64501",
-      "size_bytes": 63014,
+      "sha256": "585211c2f8adf28f84f1386e246a104057b1d5be815c367d3cecc01863fb1dd0",
+      "size_bytes": 63827,
       "ifc_schema": "IFC4",
       "families": 9,
       "types": 24,
@@ -4329,7 +7094,9 @@
           "predefined": "NOTDEFINED",
           "tier": "L200",
           "geometry": "proxy",
-          "classification": {},
+          "classification": {
+            "uniclass": "Pr_40_70_15_24"
+          },
           "license": "CC0-1.0",
           "massing_key": null,
           "has_ports": true,
@@ -4348,7 +7115,9 @@
           "predefined": "SINK",
           "tier": "L200",
           "geometry": "proxy",
-          "classification": {},
+          "classification": {
+            "uniclass": "Pr_40_20_96"
+          },
           "license": "CC0-1.0",
           "massing_key": null,
           "has_ports": true,
@@ -4367,7 +7136,9 @@
           "predefined": "SINK",
           "tier": "L200",
           "geometry": "proxy",
-          "classification": {},
+          "classification": {
+            "uniclass": "Pr_40_20_96"
+          },
           "license": "CC0-1.0",
           "massing_key": null,
           "has_ports": true,
@@ -4386,7 +7157,9 @@
           "predefined": "SHOWER",
           "tier": "L200",
           "geometry": "proxy",
-          "classification": {},
+          "classification": {
+            "uniclass": "Pr_40_20_06_79"
+          },
           "license": "CC0-1.0",
           "massing_key": null,
           "has_ports": true,
@@ -4406,7 +7179,9 @@
           "predefined": "URINAL",
           "tier": "L200",
           "geometry": "proxy",
-          "classification": {},
+          "classification": {
+            "uniclass": "Pr_40_20_93"
+          },
           "license": "CC0-1.0",
           "massing_key": null,
           "has_ports": true,
@@ -4425,7 +7200,9 @@
           "predefined": "WCSEAT",
           "tier": "L200",
           "geometry": "proxy",
-          "classification": {},
+          "classification": {
+            "uniclass": "Pr_40_20_93_94"
+          },
           "license": "CC0-1.0",
           "massing_key": null,
           "has_ports": true,
@@ -4441,8 +7218,8 @@
     {
       "file": "massing-families-plumbing-piping-v0.1.0.ifc",
       "discipline": "plumbing-piping",
-      "sha256": "693a7a1e94f1b4928b662bf44f029be1897608fd78b5583d8abc114fabecabb5",
-      "size_bytes": 165513,
+      "sha256": "1250aa7c6fd0eabc661af18991160710d3c7d090ed384dcf8885171b5533c22b",
+      "size_bytes": 165583,
       "ifc_schema": "IFC4",
       "families": 9,
       "types": 61,
@@ -4471,7 +7248,9 @@
           "predefined": "RIGIDSEGMENT",
           "tier": "L300",
           "geometry": "parametric",
-          "classification": {},
+          "classification": {
+            "uniclass": "Pr_65_52_63"
+          },
           "license": "CC0-1.0",
           "massing_key": null,
           "has_ports": true,
@@ -4572,7 +7351,9 @@
           "predefined": "RIGIDSEGMENT",
           "tier": "L300",
           "geometry": "parametric",
-          "classification": {},
+          "classification": {
+            "uniclass": "Pr_65_52_03"
+          },
           "license": "CC0-1.0",
           "massing_key": null,
           "has_ports": true,
@@ -4695,7 +7476,7 @@
     {
       "file": "massing-families-site-v0.1.0.ifc",
       "discipline": "site",
-      "sha256": "6ef0000c566b345a2384b188a7bc218d5619e1d93e03f431f6300427fbbda720",
+      "sha256": "33c57d627fcad882516a22cc0c8b4afe8462ab3d7c5801ad54c7388b4d5384bd",
       "size_bytes": 16887,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -4784,7 +7565,7 @@
     {
       "file": "massing-families-site-civil-v0.1.0.ifc",
       "discipline": "site-civil",
-      "sha256": "a8e5bd9463937a874db104919c932f2a116ae4d4ff4ed6ee94d1d20e92368499",
+      "sha256": "81eca8c88aa10c02a9b146b2b44b1c3dd15784845927f79e783dd9e703d34ba6",
       "size_bytes": 71989,
       "ifc_schema": "IFC4",
       "families": 12,
@@ -5071,9 +7852,502 @@
       ]
     },
     {
+      "file": "massing-families-site-parking-v0.1.0.ifc",
+      "discipline": "site-parking",
+      "sha256": "1033552cab154e5848d3bcf382ff4939c408f8465ebb1228b3867b57aea2e548",
+      "size_bytes": 20090,
+      "ifc_schema": "IFC4",
+      "families": 3,
+      "types": 8,
+      "categories": [
+        "Parking"
+      ],
+      "disciplines": [
+        "site"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "ev_charger",
+          "label": "EV Charging Station",
+          "category": "Parking",
+          "discipline": "site",
+          "ifc_class": "IfcElectricApplianceType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_60_70_10"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "EV Charging Station - Level 2 Dual-Port Pedestal",
+            "EV Charging Station - DC Fast Charger"
+          ]
+        },
+        {
+          "key": "parking_stall",
+          "label": "Parking Stall",
+          "category": "Parking",
+          "discipline": "site",
+          "ifc_class": "IfcBuildingElementProxyType",
+          "predefined": "ELEMENT",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_35_31"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 5,
+          "types": [
+            "Parking Stall - Standard 9' x 18'",
+            "Parking Stall - Compact 8' x 16'",
+            "Parking Stall - Accessible 8' + 5' Aisle",
+            "Parking Stall - Van Accessible 11' + 5' Aisle",
+            "Parking Stall - Parallel 8' x 22'"
+          ]
+        },
+        {
+          "key": "wheel_stop",
+          "label": "Wheel Stop",
+          "category": "Parking",
+          "discipline": "site",
+          "ifc_class": "IfcDiscreteAccessoryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_20_76_08"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 1,
+          "types": [
+            "Wheel Stop - Precast 6'-0\""
+          ]
+        }
+      ]
+    },
+    {
+      "file": "massing-families-site-structures-v0.1.0.ifc",
+      "discipline": "site-structures",
+      "sha256": "5f34786b1f2c4b4ee4823e2c53b3748ee3e71195b62d788466e8c37464557ca3",
+      "size_bytes": 59794,
+      "ifc_schema": "IFC4",
+      "families": 8,
+      "types": 25,
+      "categories": [
+        "Site Amenity",
+        "Site Structures"
+      ],
+      "disciplines": [
+        "site"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "bike_rack",
+          "label": "Bicycle Rack / Shelter",
+          "category": "Site Amenity",
+          "discipline": "site",
+          "ifc_class": "IfcDiscreteAccessoryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_30_78"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Bicycle Rack / Shelter - Inverted-U (2 Bikes)",
+            "Bicycle Rack / Shelter - Rack 7-Loop (14 Bikes)",
+            "Bicycle Rack / Shelter - Covered Shelter 10' x 20'"
+          ]
+        },
+        {
+          "key": "flagpole",
+          "label": "Flagpole",
+          "category": "Site Amenity",
+          "discipline": "site",
+          "ifc_class": "IfcDiscreteAccessoryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_40_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Flagpole - 25'-0\" Ground-Set",
+            "Flagpole - 40'-0\" Ground-Set"
+          ]
+        },
+        {
+          "key": "site_shelter",
+          "label": "Site Shelter / Pavilion",
+          "category": "Site Amenity",
+          "discipline": "site",
+          "ifc_class": "IfcBuildingElementProxyType",
+          "predefined": "ELEMENT",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_20_65"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Site Shelter / Pavilion - Bus / Transit Shelter 5' x 12'",
+            "Site Shelter / Pavilion - Picnic Pavilion 20' x 20'",
+            "Site Shelter / Pavilion - Smoking Shelter 8' x 12'"
+          ]
+        },
+        {
+          "key": "trash_enclosure",
+          "label": "Refuse / Recycling Enclosure",
+          "category": "Site Structures",
+          "discipline": "site",
+          "ifc_class": "IfcBuildingElementProxyType",
+          "predefined": "ELEMENT",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_20_65"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Refuse / Recycling Enclosure - Single 12' x 12'",
+            "Refuse / Recycling Enclosure - Double 24' x 12'",
+            "Refuse / Recycling Enclosure - Compactor Enclosure 30' x 14'"
+          ]
+        },
+        {
+          "key": "guardrail_site",
+          "label": "Site Guardrail / Barrier",
+          "category": "Site Structures",
+          "discipline": "site",
+          "ifc_class": "IfcRailingType",
+          "predefined": "GUARDRAIL",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_30_59_59"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Site Guardrail / Barrier - W-Beam Guardrail",
+            "Site Guardrail / Barrier - Pipe Bollard Rail",
+            "Site Guardrail / Barrier - Concrete Barrier (Jersey)"
+          ]
+        },
+        {
+          "key": "site_sign",
+          "label": "Site Signage",
+          "category": "Site Structures",
+          "discipline": "site",
+          "ifc_class": "IfcDiscreteAccessoryType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_40_10"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 5,
+          "types": [
+            "Site Signage - Accessible Parking Sign",
+            "Site Signage - Fire Lane \u2014 No Parking",
+            "Site Signage - Stop Sign",
+            "Site Signage - Monument Sign 8' x 4'",
+            "Site Signage - Directional Post Sign"
+          ]
+        },
+        {
+          "key": "site_stair",
+          "label": "Site Stair",
+          "category": "Site Structures",
+          "discipline": "site",
+          "ifc_class": "IfcStairType",
+          "predefined": "STRAIGHT_RUN_STAIR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_35_10"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Site Stair - 4'-0\" Wide, 5 Risers",
+            "Site Stair - 6'-0\" Wide, 8 Risers"
+          ]
+        },
+        {
+          "key": "transformer_pad",
+          "label": "Transformer / Generator Pad",
+          "category": "Site Structures",
+          "discipline": "site",
+          "ifc_class": "IfcSlabType",
+          "predefined": "BASESLAB",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_20_05_50"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Transformer / Generator Pad - Pad-Mount Transformer 8' x 8'",
+            "Transformer / Generator Pad - Pad-Mount Transformer 10' x 12'",
+            "Transformer / Generator Pad - Generator Pad 12' x 30'",
+            "Transformer / Generator Pad - Chiller Pad 12' x 30'"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "massing-families-site-utilities-v0.1.0.ifc",
+      "discipline": "site-utilities",
+      "sha256": "73cf8230b1447ea871350f0fc80e07987c35538e53fb2ca946eb0a70449d2bc4",
+      "size_bytes": 73121,
+      "ifc_schema": "IFC4",
+      "families": 8,
+      "types": 27,
+      "categories": [
+        "Site Amenity",
+        "Site Utilities"
+      ],
+      "disciplines": [
+        "site"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200",
+        "L300"
+      ],
+      "index": [
+        {
+          "key": "irrigation_head",
+          "label": "Irrigation Head / Controller",
+          "category": "Site Amenity",
+          "discipline": "site",
+          "ifc_class": "IfcFlowInstrumentType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_70_55_42"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Irrigation Head / Controller - Pop-Up Rotor",
+            "Irrigation Head / Controller - Pop-Up Spray",
+            "Irrigation Head / Controller - Controller Cabinet"
+          ]
+        },
+        {
+          "key": "detention_structure",
+          "label": "Detention / Infiltration Structure",
+          "category": "Site Utilities",
+          "discipline": "site",
+          "ifc_class": "IfcDistributionChamberElementType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_52_01"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Detention / Infiltration Structure - Precast Chamber 8' x 20'",
+            "Detention / Infiltration Structure - Outlet Control Structure",
+            "Detention / Infiltration Structure - Water Quality Unit"
+          ]
+        },
+        {
+          "key": "fire_hydrant",
+          "label": "Fire Hydrant",
+          "category": "Site Utilities",
+          "discipline": "site",
+          "ifc_class": "IfcFireSuppressionTerminalType",
+          "predefined": "FIREHYDRANT",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_54_30"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Fire Hydrant - Dry-Barrel 5-1/4\" Valve",
+            "Fire Hydrant - Wall Hydrant"
+          ]
+        },
+        {
+          "key": "pipe_sanitary_site",
+          "label": "Sanitary Sewer Pipe",
+          "category": "Site Utilities",
+          "discipline": "site",
+          "ifc_class": "IfcPipeSegmentType",
+          "predefined": "RIGIDSEGMENT",
+          "tier": "L300",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_65_52_07"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 5,
+          "types": [
+            "Sanitary Sewer Pipe - 4\" PVC SDR 35",
+            "Sanitary Sewer Pipe - 6\" PVC SDR 35",
+            "Sanitary Sewer Pipe - 8\" PVC SDR 35",
+            "Sanitary Sewer Pipe - 10\" PVC SDR 35",
+            "Sanitary Sewer Pipe - 12\" PVC SDR 35"
+          ]
+        },
+        {
+          "key": "site_cleanout",
+          "label": "Site Cleanout",
+          "category": "Site Utilities",
+          "discipline": "site",
+          "ifc_class": "IfcDistributionChamberElementType",
+          "predefined": "INSPECTIONCHAMBER",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_65_52_01"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Site Cleanout - 6\" Cleanout at Grade",
+            "Site Cleanout - 8\" Cleanout at Grade"
+          ]
+        },
+        {
+          "key": "pipe_storm",
+          "label": "Storm Drainage Pipe",
+          "category": "Site Utilities",
+          "discipline": "site",
+          "ifc_class": "IfcPipeSegmentType",
+          "predefined": "RIGIDSEGMENT",
+          "tier": "L300",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_65_52_07"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 5,
+          "types": [
+            "Storm Drainage Pipe - 12\" RCP Storm",
+            "Storm Drainage Pipe - 18\" RCP Storm",
+            "Storm Drainage Pipe - 24\" RCP Storm",
+            "Storm Drainage Pipe - 36\" RCP Storm",
+            "Storm Drainage Pipe - 48\" RCP Storm"
+          ]
+        },
+        {
+          "key": "valve_box",
+          "label": "Utility Valve Box / Vault",
+          "category": "Site Utilities",
+          "discipline": "site",
+          "ifc_class": "IfcDistributionChamberElementType",
+          "predefined": "VALVECHAMBER",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_65_52_01"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Utility Valve Box / Vault - Valve Box (Cast Iron Lid)",
+            "Utility Valve Box / Vault - Meter Vault 4' x 6'",
+            "Utility Valve Box / Vault - Backflow Vault 6' x 10'"
+          ]
+        },
+        {
+          "key": "pipe_water_main",
+          "label": "Water Main (Ductile Iron)",
+          "category": "Site Utilities",
+          "discipline": "site",
+          "ifc_class": "IfcPipeSegmentType",
+          "predefined": "RIGIDSEGMENT",
+          "tier": "L300",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Pr_65_52_63"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 4,
+          "types": [
+            "Water Main (Ductile Iron) - 4\" DI Water Main",
+            "Water Main (Ductile Iron) - 6\" DI Water Main",
+            "Water Main (Ductile Iron) - 8\" DI Water Main",
+            "Water Main (Ductile Iron) - 12\" DI Water Main"
+          ]
+        }
+      ]
+    },
+    {
       "file": "massing-families-structural-concrete-v0.1.0.ifc",
       "discipline": "structural-concrete",
-      "sha256": "9e0d8a0403e12b51a7e087058818115ac1f9c36e7fbf14e205f98804f36ad2f6",
+      "sha256": "e4c49f806def77fc4f53a3aef5f8f21d6cb7b2a82181ea709e37790e3419aee0",
       "size_bytes": 24046,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -5161,9 +8435,335 @@
       ]
     },
     {
+      "file": "massing-families-structural-foundations-v0.1.0.ifc",
+      "discipline": "structural-foundations",
+      "sha256": "63b7f075b1bc93476871fdf3e6017d175466c014e1655e6d43a86857acc7d1a0",
+      "size_bytes": 146470,
+      "ifc_schema": "IFC4",
+      "families": 13,
+      "types": 56,
+      "categories": [
+        "Foundations"
+      ],
+      "disciplines": [
+        "structural"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "footing_combined",
+          "label": "Combined / Eccentric Footing",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcFootingType",
+          "predefined": "PAD_FOOTING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_20_05_15"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Combined / Eccentric Footing - 6'-0\" x 12'-0\" x 24\"",
+            "Combined / Eccentric Footing - 8'-0\" x 16'-0\" x 30\"",
+            "Combined / Eccentric Footing - Strap Footing 6'-0\" x 20'-0\""
+          ]
+        },
+        {
+          "key": "pier_concrete",
+          "label": "Concrete Pier / Pedestal",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcColumnType",
+          "predefined": "COLUMN",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_20_30_75"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Concrete Pier / Pedestal - 18\" x 18\" Pedestal",
+            "Concrete Pier / Pedestal - 24\" x 24\" Pedestal",
+            "Concrete Pier / Pedestal - 30\" x 30\" Pier",
+            "Concrete Pier / Pedestal - 36\" Round Pier"
+          ]
+        },
+        {
+          "key": "pile_concrete",
+          "label": "Concrete Pile",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcPileType",
+          "predefined": "BORED",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Ss_20_05_65"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 5,
+          "types": [
+            "Concrete Pile - 18\" Auger-Cast x 40'",
+            "Concrete Pile - 24\" Auger-Cast x 50'",
+            "Concrete Pile - 30\" Drilled Shaft x 60'",
+            "Concrete Pile - 48\" Drilled Shaft x 80'",
+            "Concrete Pile - 72\" Drilled Shaft x 100'"
+          ]
+        },
+        {
+          "key": "pile_driven",
+          "label": "Driven Pile",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcPileType",
+          "predefined": "DRIVEN",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_20_05_65"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 5,
+          "types": [
+            "Driven Pile - 14\" Precast Square x 50'",
+            "Driven Pile - 16\" Precast Square x 60'",
+            "Driven Pile - HP12x53 Steel x 50'",
+            "Driven Pile - HP14x89 Steel x 70'",
+            "Driven Pile - 12-3/4\" Pipe Pile x 60'"
+          ]
+        },
+        {
+          "key": "foundation_wall",
+          "label": "Foundation / Basement Wall",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcWallType",
+          "predefined": "SOLIDWALL",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_20_60"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Foundation / Basement Wall - 8\" Frost Wall",
+            "Foundation / Basement Wall - 10\" Basement Wall",
+            "Foundation / Basement Wall - 12\" Basement Wall",
+            "Foundation / Basement Wall - 16\" Basement Wall (Deep)"
+          ]
+        },
+        {
+          "key": "grade_beam",
+          "label": "Grade Beam",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcFootingType",
+          "predefined": "FOOTING_BEAM",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_20_05_15"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Grade Beam - 12\" x 24\"",
+            "Grade Beam - 16\" x 30\"",
+            "Grade Beam - 18\" x 36\"",
+            "Grade Beam - 24\" x 48\""
+          ]
+        },
+        {
+          "key": "pile_helical",
+          "label": "Helical / Micropile",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcPileType",
+          "predefined": "FRICTION",
+          "tier": "L200",
+          "geometry": "parametric",
+          "classification": {
+            "uniclass": "Ss_20_05_90"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 2,
+          "types": [
+            "Helical / Micropile - Helical 2-7/8\" Shaft x 30'",
+            "Helical / Micropile - Micropile 7\" Cased x 50'"
+          ]
+        },
+        {
+          "key": "mat_foundation",
+          "label": "Mat / Raft Foundation",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcFootingType",
+          "predefined": "PAD_FOOTING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_20_05_15"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 4,
+          "types": [
+            "Mat / Raft Foundation - Mat 36\" Thick",
+            "Mat / Raft Foundation - Mat 48\" Thick",
+            "Mat / Raft Foundation - Mat 72\" Thick",
+            "Mat / Raft Foundation - Core Mat 96\" Thick"
+          ]
+        },
+        {
+          "key": "pile_cap",
+          "label": "Pile Cap",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcFootingType",
+          "predefined": "PILE_CAP",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_20_05_15"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 5,
+          "types": [
+            "Pile Cap - 2-Pile Cap 3'x6'x30\"",
+            "Pile Cap - 3-Pile Cap 7'x6'x36\"",
+            "Pile Cap - 4-Pile Cap 7'x7'x36\"",
+            "Pile Cap - 6-Pile Cap 10'x7'x42\"",
+            "Pile Cap - 9-Pile Cap 10'x10'x48\""
+          ]
+        },
+        {
+          "key": "slab_on_grade",
+          "label": "Slab on Grade",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcSlabType",
+          "predefined": "BASESLAB",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_20_05_50"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 5,
+          "types": [
+            "Slab on Grade - 4\" SOG (Residential)",
+            "Slab on Grade - 5\" SOG (Commercial)",
+            "Slab on Grade - 6\" SOG (Light Industrial)",
+            "Slab on Grade - 8\" SOG (Heavy Industrial / Rack)",
+            "Slab on Grade - 12\" SOG (Airport Apron / Dock)"
+          ]
+        },
+        {
+          "key": "footing_spread",
+          "label": "Spread / Pad Footing",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcFootingType",
+          "predefined": "PAD_FOOTING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_20_05_15"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 7,
+          "types": [
+            "Spread / Pad Footing - 3'-0\" x 3'-0\" x 12\"",
+            "Spread / Pad Footing - 4'-0\" x 4'-0\" x 12\"",
+            "Spread / Pad Footing - 5'-0\" x 5'-0\" x 15\"",
+            "Spread / Pad Footing - 6'-0\" x 6'-0\" x 18\"",
+            "Spread / Pad Footing - 8'-0\" x 8'-0\" x 24\"",
+            "Spread / Pad Footing - 10'-0\" x 10'-0\" x 30\"",
+            "Spread / Pad Footing - 12'-0\" x 12'-0\" x 36\""
+          ]
+        },
+        {
+          "key": "footing_strip",
+          "label": "Strip / Continuous Wall Footing",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcFootingType",
+          "predefined": "STRIP_FOOTING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Ss_20_05_15"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 5,
+          "types": [
+            "Strip / Continuous Wall Footing - 16\" Wide x 8\" Deep",
+            "Strip / Continuous Wall Footing - 24\" Wide x 10\" Deep",
+            "Strip / Continuous Wall Footing - 30\" Wide x 12\" Deep",
+            "Strip / Continuous Wall Footing - 36\" Wide x 12\" Deep",
+            "Strip / Continuous Wall Footing - 48\" Wide x 18\" Deep"
+          ]
+        },
+        {
+          "key": "underslab_drainage",
+          "label": "Under-Slab Drainage / Waterproofing",
+          "category": "Foundations",
+          "discipline": "structural",
+          "ifc_class": "IfcCoveringType",
+          "predefined": "MEMBRANE",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {
+            "uniclass": "Pr_35_57"
+          },
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": false,
+          "type_count": 3,
+          "types": [
+            "Under-Slab Drainage / Waterproofing - Blindside Waterproofing Sheet",
+            "Under-Slab Drainage / Waterproofing - Drainage Composite Board",
+            "Under-Slab Drainage / Waterproofing - Perimeter Drain 4\" Perforated"
+          ]
+        }
+      ]
+    },
+    {
       "file": "massing-families-structural-precast-v0.1.0.ifc",
       "discipline": "structural-precast",
-      "sha256": "c9fa39380db503bd0450a8a4ddaea514dde6b7ab7d9f0f739a2683ddf493f4c7",
+      "sha256": "9a9189de81ed4dec74fe8d4d7485771651172d5e9656dd6e70048b96b2288b8a",
       "size_bytes": 24263,
       "ifc_schema": "IFC4",
       "families": 4,
@@ -5273,7 +8873,7 @@
     {
       "file": "massing-families-structural-rebar-v0.1.0.ifc",
       "discipline": "structural-rebar",
-      "sha256": "0cf43064d901cf81323c1db8c2c3d4f74fa4a2875c804d0a251ed8c39569b1ff",
+      "sha256": "a535f3d187422d43d8faba279a323d8f3c3752c1212371c324721cdc1432a3a3",
       "size_bytes": 78975,
       "ifc_schema": "IFC4",
       "families": 8,
@@ -5483,7 +9083,7 @@
     {
       "file": "massing-families-structural-secondary-v0.1.0.ifc",
       "discipline": "structural-secondary",
-      "sha256": "77506f8cd1aa7a835920b723805e7a0d9aa9e19f37b03b597353059f4efd5a36",
+      "sha256": "110fac6865967a22a52d42dad4f025aa3b36c10de319173c5dd879d52bcaa912",
       "size_bytes": 36440,
       "ifc_schema": "IFC4",
       "families": 5,
@@ -5621,7 +9221,7 @@
     {
       "file": "massing-families-structural-steel-channel-angle-v0.1.0.ifc",
       "discipline": "structural-steel-channel-angle",
-      "sha256": "a1487a468fc2ab86c5fc50beeb428bfa18b498aac899a9c28604056772d54b70",
+      "sha256": "ff435a0da00a6d38169b0eb829835b67ebfbbb5472c4dcdff6827697c315b73c",
       "size_bytes": 518000,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -5823,7 +9423,7 @@
     {
       "file": "massing-families-structural-steel-hss-v0.1.0.ifc",
       "discipline": "structural-steel-hss",
-      "sha256": "35588cbe27b6b573c5ff93b52adc2520daae0aef100499be2e1c31ad069021c8",
+      "sha256": "93aedacbd45e79392737c5252eb80cff90eb377400f2db8539b3adaa3b393316",
       "size_bytes": 1533347,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -6053,7 +9653,7 @@
     {
       "file": "massing-families-structural-steel-tee-v0.1.0.ifc",
       "discipline": "structural-steel-tee",
-      "sha256": "2f2f94f564233c349dd0a376692d3b3df0bd3a886566ad388bd07009d8c4f831",
+      "sha256": "e6c8ca851ae15844ddaf75ce28d1b63532640293566ea8693b43b5a03189aa73",
       "size_bytes": 830585,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -6230,7 +9830,7 @@
     {
       "file": "massing-families-structural-steel-w-v0.1.0.ifc",
       "discipline": "structural-steel-w",
-      "sha256": "9f08954f4b7dc74aca16684e6a12fc61bf907a53ccea924022a4fe3757e5f6b1",
+      "sha256": "5b7a74c287807d6dd783ac5b9efb3afc1b47c28f0348e8a96f0f4d71d5bc25d4",
       "size_bytes": 1136349,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -6434,7 +10034,7 @@
     {
       "file": "massing-families-structural-timber-v0.1.0.ifc",
       "discipline": "structural-timber",
-      "sha256": "e1d08eff3f44e655cb61e095ce71d43193937048134c44399507be6b0f154087",
+      "sha256": "e914f9c2385f8dbcaf0233910b701f64cf696468ce22c2e8af8948de58b0953f",
       "size_bytes": 69974,
       "ifc_schema": "IFC4",
       "families": 7,
@@ -6624,7 +10224,7 @@
     {
       "file": "massing-families-typology-airport-v0.1.0.ifc",
       "discipline": "typology-airport",
-      "sha256": "aa082b381f2d42cac74f4ae4e138b3326f2397d53a23cd5383a76c4d1df42e50",
+      "sha256": "62511a8548f632e7dea4f29b8b30206ef9c9c0d934d40946c53fa9d0e92cbbc8",
       "size_bytes": 38593,
       "ifc_schema": "IFC4",
       "families": 6,
@@ -6778,7 +10378,7 @@
     {
       "file": "massing-families-typology-healthcare-v0.1.0.ifc",
       "discipline": "typology-healthcare",
-      "sha256": "609cf033a43cb3313975228b16b0452e65bf7dbd7166a9ac20c9073d6e75799d",
+      "sha256": "f589d41ececa943a01f81d1d54038e26f56da63b2db14664cb2c883f9a3d799b",
       "size_bytes": 83208,
       "ifc_schema": "IFC4",
       "families": 13,
@@ -7090,7 +10690,7 @@
     {
       "file": "massing-families-typology-hospitality-v0.1.0.ifc",
       "discipline": "typology-hospitality",
-      "sha256": "f8bf1373afbe4c79a1b0a126850bf497ccdc55498bc5fab6e95d0e554acc96da",
+      "sha256": "1d6c793431e0a8a383aa4dd4220b741729db4c1c629462d669286d50c35cd638",
       "size_bytes": 60294,
       "ifc_schema": "IFC4",
       "families": 9,
@@ -7314,7 +10914,7 @@
     {
       "file": "massing-families-typology-industrial-v0.1.0.ifc",
       "discipline": "typology-industrial",
-      "sha256": "6184db3e9a92b49714d6ccbd0cb352a0b665e7e56110acff8b0b47050de7dd97",
+      "sha256": "cd7c156adce28fccb5c4d8f18df11dbc104d678330fd995f85178050c627bd82",
       "size_bytes": 39280,
       "ifc_schema": "IFC4",
       "families": 8,
@@ -7510,7 +11110,7 @@
     {
       "file": "massing-families-typology-residential-v0.1.0.ifc",
       "discipline": "typology-residential",
-      "sha256": "fb8220c347d834a9e3c5dc40725dec1eca12ebeb7dae1c0da48ee41b2c6c7d7b",
+      "sha256": "3c1a12cdf9a1e8f349aa655350ea5af53dbe382693541dc4999c78d1cd28ebe1",
       "size_bytes": 53304,
       "ifc_schema": "IFC4",
       "families": 9,

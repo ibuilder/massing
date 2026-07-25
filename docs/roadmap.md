@@ -36,52 +36,40 @@ non-gated work**.
    repo publishing a **tagged release** so `scripts/fetch_families.py` can fetch rather than needing
    a local build *(user/upstream action)* · the upstream manifest declaring a **licence** — it
    currently declares none, so the shelf honestly reports `unlicensed`.
-0b. ▶ **🧱 FAMILY-COMPLETE — enough content to actually build a building** *(L, multi-release; the
-   new top priority)*. The shelf holds **270 families / 2,334 types**, and the content repo's own
-   plan is explicit that this is a **completeness floor** — one family per system a typology cannot
-   be built without — not the depth to model a real project. Measured coverage today:
+0b. ◧ **🧱 FAMILY-COMPLETE — enough content to actually build a building** *(all six batches shipped
+   v0.3.668–670; the completeness gate is green, depth-within-system continues)*.
 
-   | discipline | families | assessment |
-   |---|---|---|
-   | structural | 39 *(1,299 steel types via AISC generators)* | **deep** — W/HSS/tee/pipe series |
-   | architectural | 59 | moderate; finishes + enclosure need breadth |
-   | typology | 45 | one pass per typology |
-   | mechanical | 26 | thin for a real MEP model |
-   | interiors | 17 | thin |
-   | plumbing | 16 fam / **20 types** | **critically thin** |
-   | electrical | 15 fam / **32 types** | **critically thin** |
-   | fire | 13 fam / **14 types** | **critically thin** |
-   | conveying · site · construction | 11–15 each | thin |
+   **Shipped.** The shelf went **41 packs / 281 families / 2,370 types → 57 / 426 / 2,796** across six
+   catalog batches — plumbing, electrical, fire protection + alarm, mechanical, architectural +
+   interiors, conveying + site — plus a `structural-foundations` pack the coverage gate forced.
 
-   The gap is **breadth-within-system**, and it is concentrated where a building stops functioning:
-   you cannot plumb, power or sprinkler a project from 66 types. Target the content plan's own
-   §8e figure: **~800 families / ~7,500 types**.
+   **The gate.** `family_packs.coverage()` (`GET /families/coverage`, `test_family_coverage`) checks
+   the installed shelf against the IFC *type classes* each building system needs, per typology.
+   Class-level, not family-count: it proves the shelf can place a pump, not that some catalog named
+   something `fire_pump`. A system counts as satisfied only when **every** required class is present —
+   terminals with no duct is not half an HVAC package — and a short system names its missing classes.
 
-   **Approach — generate, don't scrape.** Every family is parametric YAML in the content catalog
-   expanded by size-series generators (the AISC path already proves it: 3 catalog families → 1,299
-   real types). Where no source exists, **fabricate** the geometry: v0.3.667 gave us 14 native IFC
-   profiles swept/revolved/booleaned, so any section, tube, fitting or fixture massing can be built
-   rather than boxed. Licensing stays clean because nothing is scraped from object portals.
+   **What it caught.** Zero `IfcFootingType` across 413 families: the catalog held W-shapes, HSS,
+   precast, timber, rebar and PT, and no foundations, so all six typologies were unbuildable while
+   the shelf looked enormous. Breadth had hidden it; only a mechanical check found it. All six —
+   residential, commercial, hotel, hospital, industrial, airport — now clear every system.
 
-   **Batches, thinnest-first** (each = catalog YAML → rebuild → shelf → release):
-   1. **Plumbing** — fixtures (WC/lav/urinal/shower/sink/EWC/mop), pipe by material × size
-      (copper L, PVC DWV, cast iron), fittings, valves, water heaters, pumps, backflow, drains,
-      cleanouts, traps, hangers.
-   2. **Electrical** — panelboards, switchboards, dry-type transformers by kVA, wiring devices,
-      luminaires by type, conduit by trade size, cable tray, busway, generator, ATS, disconnects.
-   3. **Fire protection + sprinkler** — heads by K-factor/orientation/temperature, pipe + hangers,
-      control/check/alarm/dry valves, FDC, hose valves and cabinets, extinguishers, detection
-      (smoke/heat/duct), notification, fire + jockey pumps.
-   4. **Mechanical depth** — AHUs/RTUs by tonnage, VAV boxes, FCUs, chillers/boilers/cooling towers,
-      pumps, duct by size + full fitting set, diffusers/registers/grilles, dampers, louvres.
-   5. **Architectural + interiors depth** — door/window families by type and size series, hardware,
-      partitions by assembly, ceilings, floor/wall finishes, casework, specialties, railings, stairs.
-   6. **Conveying · site · construction depth**, then a **per-typology completeness pass** proving
-      each of the six can be modelled end-to-end.
-
-   **Definition of done:** a completeness test per typology that fails if any system needed to build
-   it has no family — the existing `tests/test_completeness.py` shape, raised from "one family per
-   system" to "enough types to model the system".
+   **What remains** *(the reason this is ◧ and not ✅)*:
+   - **Depth-within-system.** The content plan's §8e target is **~800 families / ~7,500 types**;
+     we are at 426 / 2,796. The gate proves each system is *representable*, not that it has the size
+     series a real project schedules from. Size-series generators are the lever (3 AISC catalog
+     families already expand to 1,299 real types) — apply the same to duct, pipe, luminaires,
+     panelboards and door/window families.
+   - **Raise the gate as the content grows.** Today it asks "is every system's class present". The
+     next rung is "does every system have enough *types* to model it", which is the shape
+     `tests/test_completeness.py` upstream already hints at.
+   - **Duplicate families from batch 1.** The upstream review flagged overlaps introduced by the
+     plumbing batch (`pipe_copper_type_l`/`pipe_copper_l`, `wc_flush_valve`/`toilet`,
+     `sink_kitchen`+`sink_service`/`sink`, and three more). Key uniqueness did not catch them because
+     the keys differ. Needs a merge decision, not a unilateral edit.
+   - **Content repo release + licence.** The packs are consumed from a working tree; the shelf still
+     reports `unlicensed` for every pack because the generator's manifest carries no `licence` field.
+     Needs a tagged release upstream and a licence declaration. *(user action)*
 
 1. ✅ **🎚 UX-POLISH sprint — COMPLETE** *(v0.3.663–664)*. The backend surface had outrun the front
    end; this closed the gap.

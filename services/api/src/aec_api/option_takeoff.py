@@ -27,6 +27,16 @@ from typing import Any
 
 from . import carbon
 
+
+class OptionError(ValueError):
+    """A caller's option is invalid, and the message is one WE wrote.
+
+    The distinction matters at the API edge: a curated message can be echoed back to the client,
+    while an incidental ``ValueError`` from deep inside (a bad float cast, a library complaint)
+    carries internal detail and must not be. Callers catch this to build a 400; everything else
+    stays a 500 with a generic message.
+    """
+
 # Structural system → m³ of concrete and kg of steel per m² of GFA. Massing-stage assemblies from
 # published concept-estimating ranges; overridable per call.
 STRUCTURE: dict[str, dict[str, float]] = {
@@ -73,10 +83,10 @@ def quantities(massing: dict, structure: str | None = None, wwr: float | None = 
     key = (structure or DEFAULT_STRUCTURE).lower()
     sys = STRUCTURE.get(key)
     if sys is None:
-        raise ValueError(f"unknown structure {key!r}; have {', '.join(sorted(STRUCTURE))}")
+        raise OptionError(f"unknown structure {key!r}; have {', '.join(sorted(STRUCTURE))}")
     ratio = DEFAULT_WWR if wwr is None else float(wwr)
     if not 0.0 <= ratio <= 0.95:
-        raise ValueError(f"wwr must be between 0 and 0.95, got {ratio}")
+        raise OptionError(f"wwr must be between 0 and 0.95, got {ratio}")
 
     facade = round(_perimeter(massing) * height, 1)
     core = round(gfa * CORE_FRACTION, 1)

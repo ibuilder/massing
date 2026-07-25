@@ -4,6 +4,48 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.670 — FAMILY-COMPLETE: the shelf is now checked against what it takes to *build*
+
+Six batches of catalog content took the family shelf from **41 packs / 281 families / 2,370 types**
+to **57 / 426 / 2,796** — foundations, fire protection and alarm, electrical distribution and
+lighting, mechanical fittings and hydronics, architectural openings and envelope layers, interiors,
+conveying and site utilities. The content lives in the external catalog and is generated, never
+scraped, so the licensing story stays clean.
+
+The more useful change is the one that made the content necessary. "How many families do we have"
+is not the question a modeller cares about; "can I build a hospital with this" is. New
+`family_packs.coverage()` answers the second by checking the installed shelf against the IFC **type
+classes** each building system needs — structure, envelope, openings, circulation, HVAC, plumbing,
+electrical, fire and site for every building, plus what distinguishes a hospital from a warehouse —
+and it is exposed at `GET /families/coverage`.
+
+**Writing that check immediately found a hole 413 families had hidden: not one `IfcFootingType`
+anywhere.** The catalog carried W-shapes, HSS, tees, channels, precast, timber, rebar and
+post-tensioning, and no foundations at all — so every one of the six target typologies was
+unbuildable, while the shelf looked enormous. A new `structural-foundations` pack fixes it (spread,
+strip, combined and mat footings, grade beams, pile caps, bored/driven/helical piles, piers,
+slab-on-grade, foundation walls, below-grade waterproofing), and residential, commercial, hotel,
+hospital, industrial and airport now all clear every system.
+
+Coverage is deliberately all-or-nothing per system. An HVAC package with terminals and no duct is
+not half an HVAC package — it is one that cannot be issued — so a short system names its missing
+classes rather than reporting a comfortable percentage, and an unknown typology is refused instead of
+answered with an empty report that would read as a pass.
+
+**Also in this release**
+
+- **Shelf isolation.** `AEC_FAMILY_SHELF` relocates the shelf directory. Two tests that both mutated
+  the shipped `families/external/` raced under the parallel runner — the loser read a half-written
+  manifest and the failure looked like a bug in the reader rather than shared mutable state in the
+  source tree.
+- **Option-scoring errors no longer leak internals.** `score_options` grew a deep call path, so an
+  incidental `ValueError` (a bad float cast, a library complaint) could reach the client verbatim
+  through the 400 handler. A typed `OptionError` now marks the messages the engine actually authored;
+  everything else returns a fixed message. (CodeQL `py/stack-trace-exposure`, medium — now zero open
+  alerts.)
+
+370 backend suites green.
+
 ## v0.3.669 — GEN-SCORE depth: carbon from quantities, and an honest word when the bases differ
 
 The option scorer priced each massing variant at one blended conceptual $/SF and rated its carbon

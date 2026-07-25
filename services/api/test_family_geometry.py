@@ -165,12 +165,14 @@ assert "'-" in (d_imp.Name or ""), d_imp.Name
 import json  # noqa: E402
 import shutil  # noqa: E402
 
+# Use a PRIVATE shelf, not the shipped one. This test writes a pack and rewrites manifest.json;
+# doing that in `services/data/families/external/` races any other test that reads the real shelf
+# under the parallel runner, and the loser sees a half-written manifest.
+os.environ["AEC_FAMILY_SHELF"] = os.path.abspath("./_shelf_famgeom")
 ext = family_packs.external_dir()
 ext.mkdir(parents=True, exist_ok=True)
 PACK = ext / "_test_pack_famgeom.ifc"
 MANIFEST = ext / "manifest.json"
-had_manifest = MANIFEST.exists()
-manifest_backup = MANIFEST.read_bytes() if had_manifest else None
 
 # a small real pack: two types with genuine section geometry
 pm = _model()
@@ -277,11 +279,8 @@ try:
     if os.path.exists(HOST):
         os.remove(HOST)
 finally:
-    PACK.unlink(missing_ok=True)
-    if had_manifest:
-        MANIFEST.write_bytes(manifest_backup)
-    else:
-        MANIFEST.unlink(missing_ok=True)
+    shutil.rmtree(ext, ignore_errors=True)
+    os.environ.pop("AEC_FAMILY_SHELF", None)
 
 print("FAMILY-GEOM OK - type sizes now read from ANY swept section (13 parameterised profiles + "
       "arbitrary polyline bounds), so imported W-shapes, tubes and pipes are no longer sizeless; a "

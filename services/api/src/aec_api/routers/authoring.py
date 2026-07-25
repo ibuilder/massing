@@ -473,6 +473,24 @@ def family_library(_: str = Depends(current_user)):
             "shelf": shelf}
 
 
+@router.get("/families/coverage")
+def family_coverage(typology: str | None = None, _: str = Depends(current_user)):
+    """FAMILY-COMPLETE: can the installed shelf actually model a building of each kind?
+
+    Pack and family counts say how much content there is, not whether it is *enough*. This checks the
+    shelf against the IFC type classes each building system needs — structure, envelope, openings,
+    circulation, HVAC, plumbing, electrical, fire and site for every building, plus what distinguishes
+    a hospital from a warehouse — and names the missing classes when a system is short.
+    """
+    from fastapi import HTTPException
+
+    from aec_data import family_packs  # type: ignore
+    try:
+        return family_packs.coverage(typology)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
 @router.post("/projects/{pid}/families/place")
 def place_family(pid: str, family: str = Body(..., embed=True),
                  position: list[float] | None = Body(default=None, embed=True),
