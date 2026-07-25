@@ -58,11 +58,15 @@ non-gated work**.
    **Remaining REL-3 slices**, to interleave one per few releases:
    `main.py` · `codecheck.py` · `connectors.py` residue · `auth.py` ·
    `data/drawing.py`/`drawings.py`/`massing.py` · `bcf_io.py` · `routers/generate.py`.
-4. **🎨 P2 authoring & document depth** *(L; slice it, reassess after two)*. The authoring pillar's
-   remaining deterministic depth — all backend-testable: **W10-2** parametric family generators
-   (profiles + swept/boolean) · **W10-5** section/elevation annotation views · **C6** reference-line
-   datums + LOD-following poché · **D2** routed egress / life-safety plans · **B3** wall Axis + clip
-   planes · **E5** parametric handles.
+4. ◧ **🎨 P2 authoring & document depth** *(L; slice it, reassess after two)*.
+   ✅ **W10-2** *(v0.3.667)* — `family_shapes.py`: 14 parameterised profiles built as native IFC,
+   swept or revolved, with boolean cut-outs. The write table is asserted **symmetric with the read
+   table** so authored and imported content can't diverge, and every attribute name is validated
+   against the real IFC4 schema. *(Meshes deliberately excluded — they can't be resized, scheduled
+   or measured; that content belongs in an imported pack.)*
+   **Remaining:** **W10-5** section/elevation annotation views · **C6** reference-line datums +
+   LOD-following poché · **D2** routed egress / life-safety plans · **B3** wall Axis + clip planes ·
+   **E5** parametric handles.
 5. **⚙️ WFE-3** *(S; deferred-by-choice, now cheap)* — per-project configurable workflow transitions.
 6. **📈 GEN-SCORE depth** *(M)* — per-option 5D takeoffs + EPD carbon on the generative option scorer.
 

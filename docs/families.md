@@ -108,6 +108,41 @@ model's `IfcUnitAssignment`:
 
 Geometry is unaffected — lengths always convert through `IfcUnitAssignment`. Only the label changes.
 
+## Authoring a parametric shape (W10-2)
+
+`create_type(..., shape={…})` builds a real section instead of a box. Fourteen profiles are
+available — the same set the reader measures, asserted symmetric by the test suite:
+
+`rectangle` · `rect_hollow` · `rounded_rect` · `ishape` · `asym_ishape` · `tshape` · `ushape` ·
+`cshape` · `zshape` · `lshape` · `circle` · `circle_hollow` · `ellipse` · `trapezium`
+
+```python
+create_type(model, "IfcBeamType", "W16x40", shape={
+    "profile": "ishape", "overall_width": 0.178, "overall_depth": 0.407,
+    "web_thickness": 0.0079, "flange_thickness": 0.0131,
+    "length": 6.0,                       # the SWEEP — see the trap below
+})
+```
+
+**`length` is the sweep; `depth` is a profile parameter.** On the T/U/C/Z/L sections `depth` is the
+*section* depth. If you pass the sweep as `depth` on a tee you get a member as long as its own web —
+geometry that parses and is simply wrong. The builder refuses an extrusion with no `length`.
+
+- **Revolve** instead of extruding with `{"revolve_angle": 360, "axis_x": 0.05}`. Angles outside
+  (0, 360] are refused, and a *partial* revolve reports no bounding box rather than one it would
+  overstate.
+- **Cut holes** with `{"holes": [{"shape": "cylinder", "radius": .011, "height": .05, "at": [x,y,z]}]}`
+  — `box` cutters too, capped at 32. A boolean result is written with `RepresentationType: "CSG"`;
+  labelling it `SweptSolid` makes conformance checkers and some viewers drop the geometry.
+- **`family_shapes.area(spec)`** gives the cross-sectional area only where it is exact. Sections that
+  would need approximating return `None` — an approximate area silently feeds an inaccurate take-off.
+- Every parameter must be positive. A zero web thickness produces a profile that parses, renders as
+  nothing, and takes off as zero, so it is refused at build time.
+
+**Meshes are deliberately not supported here.** A mesh can't be resized, scheduled by section, or
+read back as dimensions — parametric authoring dies at that boundary. Content that genuinely needs
+one belongs in an imported pack, above.
+
 ## Authoring a pack
 
 Nominal size does not survive unit conversion: a 3'-0" door is 0.9144 m, and 0.9 m is 2'-11 7/16",

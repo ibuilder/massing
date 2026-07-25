@@ -4,6 +4,47 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.667 — W10-2: a family can be a real section, not a box
+
+v0.3.662 taught the platform to *read* fourteen parameterised IFC4 profiles, so imported manufacturer
+content stopped reporting `dims: null`. The catalog could still only *make* rectangles — so anything
+authored in-app was a box regardless of what it represented, and authored content was structurally
+poorer than imported content.
+
+New `aec_data/family_shapes.py` closes that. `create_type(..., shape={...})` builds a real
+parameterised section, swept or revolved, optionally with boolean cut-outs:
+
+```
+{"profile": "ishape", "overall_width": 0.2, "overall_depth": 0.4,
+ "web_thickness": 0.01, "flange_thickness": 0.015, "length": 4.0}
+```
+
+The result is **native IFC** — the section stays *parameters*, so it round-trips, measures and
+schedules exactly like imported content instead of degrading to a mesh. Meshes are deliberately out
+of scope: a mesh cannot be resized, scheduled by section, or read back as dimensions, so a family
+needing one belongs in an imported pack.
+
+**The write table is asserted symmetric with the read table.** If one grows without the other,
+authored content silently stops being measurable — the exact defect class fixed in v0.3.662. That
+assertion earned its place immediately: it caught `IfcAsymmetricIShapeProfileDef` as readable but not
+writable, now added (bounded by the *wider* flange, matching the reader).
+
+**Three things caught during the build rather than after:**
+
+- **`depth` collides.** It is a *profile* parameter on the T/U/C/Z/L sections. Had the sweep also
+  been called `depth`, a 0.2 m-deep tee swept 4 m would have been built **0.2 m long** — geometry
+  that parses and is simply wrong. The sweep is `length`, and the error message names the trap.
+- **Hand-mapped attribute names are a guessing game.** `round_radius` looked right; IFC4 calls it
+  `RoundingRadius`, and ifcopenshell only objects at create time. The test now validates every
+  generated attribute name against the real IFC4 schema, so the whole table is checked at once
+  instead of one failure at a time.
+- **A boolean result is a CSG item, not a SweptSolid.** Mislabelling the `RepresentationType` makes
+  conformance checkers and some viewers drop the geometry entirely.
+
+Degenerate parameters — zero web thickness, negative radius, missing, non-numeric — are refused
+rather than written as shapes that render as nothing and take off as zero. `area()` is offered only
+where it is exact; the sections needing approximation return `None` instead of a plausible guess.
+
 ## v0.3.666 — REL-3: modules.py didn't need dependency injection, it needed a layering cut
 
 `modules.py` is imported by **114 files** — the most-depended-on module in the codebase, and the one

@@ -373,11 +373,21 @@ def _apply_psets(model: ifcopenshell.file, product, psets) -> None:
 
 
 def create_type(model: ifcopenshell.file, ifc_class: str, name: str, dims=None,
-                predefined: str | None = None, psets=None) -> str:
+                predefined: str | None = None, psets=None, shape=None) -> str:
     """W10-1: author a *custom* IfcTypeProduct ("family type") from scratch — any type class, an
-    optional sized box representation ([w, d, h] m), an optional PredefinedType, and type-level
-    property sets. Returns the new type's GUID. Deduped by (class, name): re-creating returns the
-    existing type (and still applies psets), so it's idempotent."""
+    optional PredefinedType, and type-level property sets. Returns the new type's GUID. Deduped by
+    (class, name): re-creating returns the existing type (and still applies psets), so it's idempotent.
+
+    Geometry, either:
+      * ``dims`` — a sized box ``[w, d, h]`` in metres (the minimal representation), or
+      * ``shape`` — a **W10-2 parametric shape spec** (`family_shapes.build_solid`): a real
+        parameterised section swept or revolved, optionally with boolean cut-outs, e.g.
+        ``{"profile": "ishape", "overall_width": .2, "overall_depth": .4, "web_thickness": .01,
+        "flange_thickness": .015, "length": 4.0}``.
+
+    A shape is native IFC — the section stays *parameters*, so it round-trips, measures and schedules
+    exactly like imported manufacturer content instead of degrading to a box. ``shape`` wins if both
+    are supplied."""
     if not ifc_class or not ifc_class.startswith("Ifc") or not ifc_class.endswith("Type"):
         raise ValueError(f"ifc_class must be an IfcXxxType, got {ifc_class!r}")
     name = (name or "").strip()
@@ -392,7 +402,18 @@ def create_type(model: ifcopenshell.file, ifc_class: str, name: str, dims=None,
 
     typ = ifcopenshell.api.run("root.create_entity", model, ifc_class=ifc_class, name=name)
     _set_predefined(typ, predefined)
-    if dims:
+    if shape:
+        from . import family_shapes
+        from .edit import _body_context
+        solid = family_shapes.build_solid(model, shape)
+        rep = model.create_entity("IfcShapeRepresentation", ContextOfItems=_body_context(model),
+                                  RepresentationIdentifier="Body",
+                                  # a boolean result is a CSG item, not a SweptSolid — mislabelling
+                                  # it makes conformance checkers and some viewers drop the geometry
+                                  RepresentationType="CSG" if solid.is_a("IfcBooleanResult") else "SweptSolid",
+                                  Items=[solid])
+        ifcopenshell.api.run("geometry.assign_representation", model, product=typ, representation=rep)
+    elif dims:
         d = [float(x) for x in dims]
         if len(d) != 3 or any(v <= 0 for v in d):
             raise ValueError(f"dims must be three positive [w, d, h] metres, got {dims!r}")
