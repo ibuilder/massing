@@ -850,9 +850,122 @@ def hatch_defs(categories) -> str:
     return "".join(out)
 
 
+# ── R21-KEYNOTE-SECT: assembly annotation on sections ───────────────────────────────────────────
+# Sections had NO annotation layer at all. `_leader_callout` above serves plans, and its boxed label
+# is the right mark there — a plan tag names an object. A section keynote does something different:
+# it names the MATERIAL of a layer in an assembly, so the convention is a left-hand text column with
+# a leader to a dot on the component, unboxed. Reproducing the boxed plan tag here would be the wrong
+# drawing.
+#
+# Keynotes annotate each DISTINCT assembly once, not every polygon. A wall cut at eight storeys is
+# one keynote, not eight — annotating every instance is how a section becomes unreadable.
+_KEYNOTE_NAME = {
+    "reinforced_concrete": "RC {kind} AS PER STRUCTURAL DRAWINGS",
+    "concrete": "{t}CONCRETE {kind}",
+    "steel": "STEEL {kind}",
+    "masonry": "{t}MASONRY {kind}",
+    "insulation": "{t}INSULATION",
+    "timber": "TIMBER {kind}",
+    "earth": "COMPACTED FILL",
+    "glass": "GLAZED {kind}",
+    "finish": "{kind} FINISH",
+}
+_KEYNOTE_KIND = {
+    "ifcwall": "WALL", "ifcwallstandardcase": "WALL", "ifcslab": "SLAB", "ifcbeam": "BEAM",
+    "ifccolumn": "COLUMN", "ifcfooting": "FOOTING", "ifcpile": "PILE", "ifcroof": "ROOF",
+    "ifcmember": "MEMBER", "ifcplate": "PLATE", "ifccurtainwall": "CURTAIN WALL",
+    "ifcwindow": "WINDOW", "ifcdoor": "DOOR", "ifccovering": "COVERING",
+    "ifcstair": "STAIR", "ifcstairflight": "STAIR FLIGHT", "ifcrailing": "RAILING",
+}
+
+
+def callout_bubble(cx: float, cy: float, detail: str, sheet: str, r: float = 15.0) -> str:
+    """The reference bubble: detail number over sheet number, split by a horizontal rule.
+
+    This is the mark that makes a set navigable — it is read as "go to detail 12 on sheet A-501". The
+    split circle is not decoration: the two halves are two different identifiers, and a reader relies on
+    the position to tell which is which.
+    """
+    return (f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}" fill="#fff" stroke="#111" '
+            f'stroke-width="1.1"/>'
+            f'<line x1="{cx-r:.1f}" y1="{cy:.1f}" x2="{cx+r:.1f}" y2="{cy:.1f}" stroke="#111" '
+            f'stroke-width="1.1"/>'
+            f'<text x="{cx:.1f}" y="{cy-3:.1f}" text-anchor="middle" font-family="sans-serif" '
+            f'font-size="{r*0.72:.1f}" font-weight="700">{_xesc(str(detail))}</text>'
+            f'<text x="{cx:.1f}" y="{cy+r*0.72:.1f}" text-anchor="middle" font-family="sans-serif" '
+            f'font-size="{r*0.6:.1f}">{_xesc(str(sheet))}</text>')
+
+
+def detail_title_bubble(x: float, y: float, number: str, title: str, scale: str,
+                        r: float = 13.0) -> str:
+    """A detail's OWN identity, under the drawing: number in a bubble, then title and scale on a rule.
+
+    Deliberately not the same mark as `callout_bubble` — a callout points AWAY and needs the
+    destination sheet; a title bubble says "you have arrived" and names what this is and at what scale.
+    Drawing them alike is how readers end up chasing a reference back to the drawing they are on.
+    """
+    tx = x + r + 10
+    return (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" fill="#fff" stroke="#111" '
+            f'stroke-width="1.4"/>'
+            f'<text x="{x:.1f}" y="{y + r*0.36:.1f}" text-anchor="middle" font-family="sans-serif" '
+            f'font-size="{r*1.0:.1f}" font-weight="700">{_xesc(str(number))}</text>'
+            f'<text x="{tx:.1f}" y="{y - 2:.1f}" font-family="sans-serif" font-size="13" '
+            f'font-weight="700">{_xesc(str(title).upper())}</text>'
+            f'<text x="{tx:.1f}" y="{y + 13:.1f}" font-family="sans-serif" font-size="11" '
+            f'fill="#555">{_xesc(str(scale))}</text>'
+            f'<line x1="{x - r:.1f}" y1="{y + r + 5:.1f}" x2="{tx + 190:.1f}" y2="{y + r + 5:.1f}" '
+            f'stroke="#111" stroke-width="1.4"/>')
+
+
+KEYNOTE_GUTTER = 320          # paper-space room for the text column, left of the level datums
+MAX_KEYNOTES = 14             # past this a section stops being readable; the largest assemblies win
+
+
+def keynote_text(cls: str, material: str, thickness_m: float | None = None) -> str:
+    """The keynote for one cut assembly, built from what the MODEL knows: its material, its class and
+    its measured thickness. Nothing is invented — an unrecognised class falls back to the class name
+    with the IFC prefix stripped, which is still true, rather than to a guess that reads as authored."""
+    kind = _KEYNOTE_KIND.get((cls or "").lower())
+    if not kind:
+        kind = (cls or "ELEMENT").upper().removeprefix("IFC") or "ELEMENT"
+    t = ""
+    if thickness_m and thickness_m > 0.001:
+        t = f"{round(thickness_m * 1000):d}mm "
+    return _KEYNOTE_NAME.get(material, "{t}{kind}").format(t=t, kind=kind).strip()
+
+
+def _keynote_leaders(entries, col_x: float, top: float, bottom: float,
+                     anchor_right: bool) -> str:
+    """Stack keynotes in a column and lead each to its component.
+
+    Rows are pushed apart so text never overlaps — an annotation layer that collides is worse than
+    none, because a reader cannot tell which label belongs to which leader.
+    """
+    if not entries:
+        return ""
+    rows = sorted(entries, key=lambda e: e[1])          # by target y, so leaders rarely cross
+    step = 15.0
+    out: list[str] = []
+    last_y = -1e9
+    for tx, ty, text in rows:
+        ly = max(ty, last_y + step, top)
+        ly = min(ly, bottom)
+        last_y = ly
+        a = "end" if anchor_right else "start"
+        lx = col_x
+        out.append(
+            f'<circle cx="{tx:.1f}" cy="{ty:.1f}" r="1.9" fill="#111"/>'
+            f'<polyline points="{tx:.1f},{ty:.1f} {(lx + (14 if not anchor_right else -14)):.1f},{ly:.1f} '
+            f'{lx:.1f},{ly:.1f}" fill="none" stroke="#111" stroke-width="0.5"/>'
+            f'<text x="{lx + (-4 if anchor_right else 4):.1f}" y="{ly + 3:.1f}" text-anchor="{a}" '
+            f'font-family="sans-serif" font-size="9.5" fill="#111">{_xesc(text)}</text>')
+    return "".join(out)
+
+
 def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], title: str,
                         grid: dict | None = None, lod: str = "coarse", width: int = 1300,
-                        hatch: bool = True, materials: dict[str, str] | None = None) -> str:
+                        hatch: bool = True, materials: dict[str, str] | None = None,
+                        keynotes: bool = True) -> str:
     """An **annotated** section: poché, level datums, grid bubbles and a floor-to-floor dimension
     chain — the things that make a cut issuable rather than merely correct.
 
@@ -872,7 +985,9 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
     allp = np.vstack(polys)
     mn, mx = allp.min(axis=0), allp.max(axis=0)
     span = np.maximum(mx - mn, 1e-6)
-    gutter, dim_col, pad, top = 130, 90, 30, 40
+    # the keynote column needs its own room: the existing 130 gutter is already spoken for by the
+    # level-datum labels, and letting the two share it would overlap annotation with annotation
+    gutter, dim_col, pad, top = (KEYNOTE_GUTTER if keynotes else 130), 90, 30, 40
     draw_w = width - 2 * pad - gutter - dim_col
     scale = draw_w / span[0]
     draw_h = span[1] * scale
@@ -935,6 +1050,29 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
                    f'<text x="{ox-92:.1f}" y="{ly-3:.1f}" font-family="sans-serif" font-size="10" '
                    f'fill="#0a6">{_xesc(str(lv["name"] or ""))}  +{lv["elevation"]*1000:.0f}</text>')
 
+    # R21-KEYNOTE-SECT: annotate each DISTINCT assembly once.
+    # Grouping is what makes this readable rather than noise — a wall cut at eight storeys is ONE
+    # keynote, not eight. Where a group has several instances the largest carries the leader, because
+    # a dot on a sliver is a dot the reader cannot associate with anything.
+    if keynotes and lod != "line":
+        groups: dict[tuple, list] = {}
+        for cls, poly in classed:
+            p = np.asarray(poly, dtype=float)
+            w, h = p[:, 0].max() - p[:, 0].min(), p[:, 1].max() - p[:, 1].min()
+            thick = min(w, h)
+            mat = hatch_material(cls, materials)
+            # round the thickness so 199 mm and 201 mm of the same wall are ONE assembly, not two
+            key = (cls, mat, round(thick, 2))
+            groups.setdefault(key, []).append((w * h, p))
+        picked = []
+        for (cls, mat, thick), members in groups.items():
+            area, p = max(members, key=lambda m: m[0])
+            cx, cy = T(float(p[:, 0].mean()), float(p[:, 1].mean()))
+            picked.append((area, cx, cy, keynote_text(cls, mat, thick)))
+        picked.sort(key=lambda e: -e[0])
+        entries = [(cx, cy, txt) for _, cx, cy, txt in picked[:MAX_KEYNOTES]]
+        out.append(_keynote_leaders(entries, ox - 118, top, oy + draw_h, anchor_right=True))
+
     # the floor-to-floor chain + an overall dimension, in the right-hand column
     dx = ox + draw_w + 34
     for a, b in zip(shown, shown[1:]):
@@ -960,7 +1098,7 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
 
 def section_svg(model: ifcopenshell.file, axis: str, offset: float | None = None,
                 title: str = "SECTION", lod: str = "coarse", annotate: bool = True,
-                hatch: bool = True) -> str:
+                hatch: bool = True, keynotes: bool = True) -> str:
     """Cut the model on a vertical plane. `offset` is the world coordinate (metres) of the cut on the
     perpendicular axis; when None the cut auto-centres on the model so it lands through the building
     regardless of where the model sits relative to the origin.
@@ -975,9 +1113,12 @@ def section_svg(model: ifcopenshell.file, axis: str, offset: float | None = None
     if not annotate:
         return to_svg(cut_baked(meshes, view, offset), title=title,
                       subtitle=f"{axis.upper()} = {offset:.2f} m")
+    # the material map serves BOTH the hatch and the keynote text, so read it when either wants it —
+    # scoping it to `hatch` alone would make hatch=false silently downgrade keynotes to class defaults
     return section_drawing_svg(meshes, axis, offset, storey_elevations(model), title,
                                grid=grid_from_meshes(meshes), lod=lod, hatch=hatch,
-                               materials=material_by_class(model) if hatch else None)
+                               keynotes=keynotes,
+                               materials=material_by_class(model) if (hatch or keynotes) else None)
 
 
 def plan_file(ifc_path: str, elevation: float, cut_height: float = 1.2, title: str = "PLAN") -> str:

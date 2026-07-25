@@ -49,6 +49,20 @@ def get_drawing_set(pid: str, db: Session = Depends(get_db), _: str = Depends(re
     return drawingset.drawing_set(db, pid)
 
 
+@router.get("/projects/{pid}/drawing-set/references")
+def get_detail_references(pid: str, db: Session = Depends(get_db),
+                          _: str = Depends(require_role("viewer"))):
+    """The section↔detail cross-reference graph, with its two defects reported separately.
+
+    `dangling` = a callout points at a detail that does not exist (the reader follows it and finds
+    nothing); `orphans` = a detail nothing points at. They are split further by reason because the fix
+    differs — an unknown sheet is a typo or an unissued sheet, while a known sheet missing the detail
+    number is almost always a renumber that was not propagated.
+    """
+    from .. import detail_refs
+    return detail_refs.graph(db, pid)
+
+
 @router.get("/projects/{pid}/drawing-set/transmittal.pdf")
 def drawing_set_transmittal(pid: str, to: str = "", note: str = "", db: Session = Depends(get_db),
                             _: str = Depends(require_role("viewer"))):
@@ -478,6 +492,7 @@ def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str =
 @router.get("/projects/{pid}/drawings/section.svg")
 def section(pid: str, axis: str = "x", offset: float | None = None, title: str = "SECTION",
             lod: str = "coarse", annotate: bool = True, hatch: bool = True,
+            keynotes: bool = True,
             db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Vertical section SVG. `offset` = world coordinate (m) of the cut on the axis perpendicular to
     `axis` (x|y); omit it to auto-centre the cut through the model.
@@ -486,6 +501,9 @@ def section(pid: str, axis: str = "x", offset: float | None = None, title: str =
     floor-to-floor dimension chain. `lod` (coarse|fine|line) sets how much tone survives when an
     element is too thin to hatch; `hatch=false` falls back to flat poché tones; `annotate=false`
     returns bare linework for CAD hand-off.
+
+    `keynotes` (default on) adds the assembly-annotation column: one leader per DISTINCT assembly,
+    not per cut polygon, so a wall repeated at every storey is named once.
     """
     from fastapi import HTTPException
 
@@ -494,7 +512,7 @@ def section(pid: str, axis: str = "x", offset: float | None = None, title: str =
     if lod not in drawings.SECTION_LODS:
         raise HTTPException(400, f"lod must be one of {sorted(drawings.SECTION_LODS)}")
     svg = drawings.section_svg(open_model(_source_ifc(db, pid)), axis, offset, title,
-                               lod=lod, annotate=annotate, hatch=hatch)
+                               lod=lod, annotate=annotate, hatch=hatch, keynotes=keynotes)
     return _svg(svg)
 
 

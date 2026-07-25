@@ -24,7 +24,124 @@ MAX_RULES = 20
 MAX_HIDE_CLASSES = 100
 MAX_SELECTOR_LEN = 500
 MAX_NAME_LEN = 120
+MAX_STYLES = 60
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+# ── R21-VG-OVERRIDES: object styles — CUT vs PROJECTION ──────────────────────────────────────────
+# The single distinction that separates a drawing from a dump. The same element draws two ways in one
+# view: heavy where the view plane cuts it, light where it is merely seen beyond the cut. Colour alone
+# — which is all this module carried before — cannot express that, because it is not a colour
+# difference. It is a LINE WEIGHT difference, and it is the first thing a reader's eye uses to read
+# depth off a flat sheet.
+#
+# Weights are millimetres ON THE SHEET. Same reasoning as the hatch patterns in `drawings.py`: pen
+# weight is a paper-space property, so a wall reads with the same weight at 1:100 and at 1:10.
+LINE_PATTERNS = ("solid", "dashed", "dotted", "dash_dot", "hidden", "center")
+MIN_WEIGHT, MAX_WEIGHT = 0.05, 4.0
+_APPLIES = ("both", "cut", "projection")
+
+# Category defaults, cut heavier than projection in every case. Grouped by what a drafter actually
+# distinguishes: structure reads heaviest, then enclosure, then fittings, then annotation-weight stuff.
+_STYLE_GROUPS: dict[str, tuple[float, float]] = {
+    "structure": (0.70, 0.25),
+    "enclosure": (0.50, 0.18),
+    "interior": (0.35, 0.13),
+    "opening": (0.35, 0.18),
+    "mep": (0.25, 0.13),
+    "site": (0.25, 0.10),
+    "other": (0.35, 0.13),
+}
+_CLASS_GROUP: dict[str, str] = {
+    "ifcfooting": "structure", "ifcpile": "structure", "ifccolumn": "structure",
+    "ifcbeam": "structure", "ifcslab": "structure", "ifcmember": "structure",
+    "ifcplate": "structure", "ifcreinforcingbar": "structure",
+    "ifcwall": "enclosure", "ifcwallstandardcase": "enclosure", "ifccurtainwall": "enclosure",
+    "ifcroof": "enclosure",
+    "ifcdoor": "opening", "ifcwindow": "opening",
+    "ifccovering": "interior", "ifcfurnishingelement": "interior", "ifcfurniture": "interior",
+    "ifcrailing": "interior", "ifcstair": "interior", "ifcstairflight": "interior",
+    "ifcramp": "interior", "ifcspace": "interior",
+    "ifcductsegment": "mep", "ifcductfitting": "mep", "ifcpipesegment": "mep",
+    "ifcpipefitting": "mep", "ifcflowterminal": "mep", "ifccablecarriersegment": "mep",
+    "ifcairterminal": "mep", "ifcsanitaryterminal": "mep", "ifclightfixture": "mep",
+    "ifcsite": "site", "ifcgeographicelement": "site",
+}
+
+
+def default_style(ifc_class: str) -> dict[str, Any]:
+    """The out-of-the-box graphics for a category: cut weight, projection weight, colour, pattern.
+
+    An unrecognised class gets the neutral "other" group rather than the heaviest one — guessing heavy
+    would make an unfamiliar element shout on every sheet it appears in.
+    """
+    grp = _CLASS_GROUP.get(str(ifc_class or "").lower(), "other")
+    cut_w, proj_w = _STYLE_GROUPS[grp]
+    return {"group": grp,
+            "cut": {"weight": cut_w, "color": "#111111", "pattern": "solid", "halftone": False},
+            "projection": {"weight": proj_w, "color": "#444444", "pattern": "solid",
+                           "halftone": False}}
+
+
+def _norm_override(o: Any, where: str) -> dict[str, Any]:
+    """A graphic override is a PARTIAL: it names only what it changes.
+
+    This is load-bearing. A rule that sets colour alone must leave weight and pattern exactly as the
+    object style had them — if an override were a full replacement, every colour rule would silently
+    flatten the cut/projection weight distinction it knows nothing about, which is the whole feature.
+    """
+    # only None means "not set". An explicitly-supplied {} is a caller who thinks they configured
+    # something and did not, so it must reach the "sets nothing" refusal below rather than short-circuit
+    # to an empty override that is silently stored and silently does nothing.
+    if o is None:
+        return {}
+    if not isinstance(o, dict):
+        raise QueryError(f"{where} must be an object")
+    out: dict[str, Any] = {}
+    if "color" in o and o["color"] is not None:
+        col = str(o["color"]).strip()
+        if not _HEX.match(col):
+            raise QueryError(f"{where}.color must be #rrggbb (got {col!r})")
+        out["color"] = col.lower()
+    if "weight" in o and o["weight"] is not None:
+        try:
+            w = float(o["weight"])
+        except (TypeError, ValueError):
+            raise QueryError(f"{where}.weight must be a number (mm)") from None
+        if not (MIN_WEIGHT <= w <= MAX_WEIGHT):
+            raise QueryError(f"{where}.weight must be {MIN_WEIGHT}–{MAX_WEIGHT} mm (got {w})")
+        out["weight"] = round(w, 3)
+    if "pattern" in o and o["pattern"] is not None:
+        p = str(o["pattern"]).strip().lower()
+        if p not in LINE_PATTERNS:
+            raise QueryError(f"{where}.pattern must be one of {list(LINE_PATTERNS)} (got {p!r})")
+        out["pattern"] = p
+    if "halftone" in o and o["halftone"] is not None:
+        out["halftone"] = bool(o["halftone"])
+    if not out:
+        raise QueryError(f"{where} sets nothing — omit it instead of storing an empty override")
+    return out
+
+
+def _norm_styles(styles: Any) -> dict[str, dict]:
+    if styles in (None, {}):
+        return {}
+    if not isinstance(styles, dict) or len(styles) > MAX_STYLES:
+        raise QueryError(f"object_styles must be an object (max {MAX_STYLES} categories)")
+    out: dict[str, dict] = {}
+    for cls, spec in styles.items():
+        key = str(cls or "").strip().lower()
+        if not key:
+            raise QueryError("object_styles keys must be IFC class names")
+        if not isinstance(spec, dict):
+            raise QueryError(f"object_styles[{key}] must be an object")
+        entry = {}
+        for side in ("cut", "projection"):
+            if spec.get(side) is not None:
+                entry[side] = _norm_override(spec[side], f"object_styles[{key}].{side}")
+        if not entry:
+            raise QueryError(f"object_styles[{key}] must set cut and/or projection")
+        out[key] = entry
+    return out
 
 
 def _norm(t: dict) -> dict:
@@ -46,18 +163,33 @@ def _norm(t: dict) -> dict:
         raise QueryError(f"rules must be a list (max {MAX_RULES})")
     clean_rules = []
     for r in rules:
-        sel = str((r or {}).get("selector") or "").strip()
-        col = str((r or {}).get("color") or "").strip()
+        r = r or {}
+        sel = str(r.get("selector") or "").strip()
         if not sel or len(sel) > MAX_SELECTOR_LEN:
             raise QueryError("every color rule needs a selector (bounded)")
         query_dsl.parse(sel)
+        # R21-VG-OVERRIDES: a rule may now override weight/pattern/halftone as well as colour, and may
+        # scope itself to the cut or the projection side. `color` stays REQUIRED and keeps its exact
+        # old meaning so every template saved before this change still validates and still resolves
+        # identically — the new expressiveness is additive.
+        col = str(r.get("color") or "").strip()
         if not _HEX.match(col):
             raise QueryError(f"color must be #rrggbb (got {col!r})")
-        clean_rules.append({"selector": sel, "color": col.lower()})
-    if not hide and not isolate and not clean_rules:
-        raise QueryError("a template needs at least one of hide_classes / isolate / rules")
+        applies = str(r.get("applies") or "both").strip().lower()
+        if applies not in _APPLIES:
+            raise QueryError(f"applies must be one of {list(_APPLIES)} (got {applies!r})")
+        rule = {"selector": sel, "color": col.lower(), "applies": applies}
+        extra = _norm_override({k: r[k] for k in ("weight", "pattern", "halftone") if k in r},
+                               "rule") if any(k in r for k in ("weight", "pattern", "halftone")) else {}
+        rule.update(extra)
+        clean_rules.append(rule)
+    styles = _norm_styles(t.get("object_styles"))
+    if not hide and not isolate and not clean_rules and not styles:
+        raise QueryError("a template needs at least one of hide_classes / isolate / rules / "
+                         "object_styles")
     return {"id": str(t.get("id") or uuid.uuid4().hex[:12])[:40], "name": name,
-            "hide_classes": hide, "isolate": isolate, "rules": clean_rules}
+            "hide_classes": hide, "isolate": isolate, "rules": clean_rules,
+            "object_styles": styles}
 
 
 def load(pid: str) -> list[dict]:
@@ -105,3 +237,61 @@ def resolve(idx: dict[str, dict] | None, template: dict) -> dict[str, Any]:
             "visible_count": len(visible), "colors": colors, "colored_count": len(colors),
             "note": "Deterministic: the same template + the same model resolves to the same "
                     "visible/hidden/color sets — the viewer and the drawing generators consume one answer."}
+
+
+def graphics(idx: dict[str, dict] | None, template: dict, cut_guids: set[str] | None = None,
+             limit: int = 200000) -> dict[str, Any]:
+    """Resolve the FULL graphic state of every visible element: weight, colour, pattern, halftone —
+    separately for the cut side and the projection side.
+
+    Precedence, lowest to highest:
+
+    1. the category default (`default_style`) — cut heavy, projection light;
+    2. the template's `object_styles` for that category;
+    3. the template's rules in order, later winning, each applied only to the side it declares.
+
+    Every layer above the first is a PARTIAL. A rule that names only a colour changes only the colour
+    and leaves the weight the object style gave it. Treating an override as a full replacement would
+    make any colour rule silently erase the cut/projection weight difference for everything it touched
+    — which is precisely the distinction this exists to express.
+
+    `cut_guids` names the elements the view plane actually cuts. When it is None nothing is cut, which
+    is the honest answer for a 3D view: the cut side is still resolved and reported so a caller can
+    apply it later, but no element is claimed to be cut.
+    """
+    idx = idx or {}
+    base = resolve(idx, template)
+    styles = template.get("object_styles") or {}
+    cut_set = cut_guids or set()
+
+    # rule → matching guids, evaluated once per rule rather than once per element
+    rule_hits: list[tuple[dict, set[str]]] = []
+    for rule in (template.get("rules") or []):
+        hits = set(query_dsl.select(idx, rule["selector"], limit=limit)["guids"])
+        rule_hits.append((rule, hits))
+
+    out: dict[str, dict] = {}
+    for g in base["visible"]:
+        cls = str((idx.get(g) or {}).get("ifc_class") or "").lower()
+        style = default_style(cls)
+        sides = {"cut": dict(style["cut"]), "projection": dict(style["projection"])}
+        for side in ("cut", "projection"):
+            sides[side].update((styles.get(cls) or {}).get(side) or {})
+        for rule, hits in rule_hits:
+            if g not in hits:
+                continue
+            patch = {k: v for k, v in rule.items()
+                     if k in ("color", "weight", "pattern", "halftone")}
+            for side in ("cut", "projection"):
+                if rule["applies"] in ("both", side):
+                    sides[side].update(patch)
+        out[g] = {"group": style["group"], "cut": sides["cut"], "projection": sides["projection"],
+                  "is_cut": g in cut_set}
+
+    return {"template": template["id"], "name": template.get("name"),
+            "visible_count": base["visible_count"], "hidden_count": base["hidden_count"],
+            "cut_count": sum(1 for g in out if out[g]["is_cut"]),
+            "graphics": out,
+            "note": "Cut lines are heavier than projection lines — that weight difference, not "
+                    "colour, is how a reader reads depth off a flat sheet. Overrides layer as "
+                    "partials, so a colour rule never flattens the weights beneath it."}

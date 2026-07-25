@@ -383,6 +383,27 @@ def view_template_resolve(pid: str, tid: str, db: Session = Depends(get_db),
     return vt.resolve(_idx_for(pid), t)
 
 
+@router.get("/projects/{pid}/view-templates/{tid}/graphics")
+def view_template_graphics(pid: str, tid: str, cut: str = "",
+                           db: Session = Depends(get_db),
+                           _: str = Depends(require_role("viewer"))):
+    """R21-VG-OVERRIDES — the full graphic state per visible element: weight, colour, pattern and
+    halftone, resolved SEPARATELY for the cut side and the projection side.
+
+    Cut lines are heavier than projection lines; that weight difference — not colour — is how a reader
+    reads depth off a flat sheet, and it is what makes output look like a drawing rather than a dump.
+    Overrides layer as partials, so a rule that names only a colour never flattens the weights beneath
+    it. `cut` is an optional comma-separated GUID list naming what the view plane actually cuts.
+    """
+    from .. import view_templates as vt
+    _project(db, pid)
+    t = next((x for x in vt.load(pid) if x["id"] == tid), None)
+    if t is None:
+        raise HTTPException(404, f"view template {tid!r} not found")
+    cut_guids = {g.strip() for g in cut.split(",") if g.strip()} or None
+    return vt.graphics(_idx_for(pid), t, cut_guids)
+
+
 # SMART-VIEWS — user-authored saved view presets (name + QUERY-DSL selector + isolate/color/hide).
 @router.get("/projects/{pid}/smart-views")
 def smart_views_get(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):

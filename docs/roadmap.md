@@ -13,8 +13,8 @@ authoring pillar closed its parity ring (R18). **What is thin now is the surface
 craft, the demo, and the cross-cutting cost identity that make the shipped depth legible — plus the
 structural carry-overs that keep the codebase workable.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**375** suites) · vitest 134 · single-source
-version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.675**.
+**Status:** CodeQL 0 open alerts · backend suite green (**379** suites) · vitest 134 · single-source
+version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.677**.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
@@ -121,15 +121,15 @@ These are the gaps between what the platform draws today and what that package c
   earth by *pattern*. `drawings.py` poché (v0.3.673) fills by class group with flat grey tones, which
   cannot make those distinctions at 1:10. Needs an SVG `<pattern>` library keyed to IFC material, and
   a scale-aware pattern density so a 1:100 section and a 1:10 detail do not use the same spacing.
-- **R21-KEYNOTE-SECT** *(M)* — **keynote leaders with dot terminators on sections/details.** The
+- ✅ **R21-KEYNOTE-SECT** *(shipped v0.3.677)* — **keynote leaders with dot terminators on sections/details.** The
   package annotates every layer of the assembly ("60mm MINERAL-GLASS WOOL BOARD INSULATION",
   "RC SLAB AS PER STRUCTURAL DRAWINGS") in a left-hand text column with leaders to a dot on the
   component. `drawing.py` has `_leader_callout` for PLANS only; sections have no annotation layer.
-- **R21-DETAIL-REF** *(M)* — **detail callout bubbles + the section↔detail cross-reference graph.**
+- ✅ **R21-DETAIL-REF** *(shipped v0.3.677)* — **detail callout bubbles + the section↔detail cross-reference graph.**
   Numbered bubbles on the wall section point at enlarged details on other sheets; each detail carries
   its own bubble, title and scale ("12 / BRIDGE TOP DETAIL / 1:10"). Today nothing links a section to
   its details, so a set cannot be navigated or checked for orphaned/dangling references.
-- **R21-VG-OVERRIDES** *(L)* — **object styles + rule-based view filters.** Per-category **cut vs
+- ✅ **R21-VG-OVERRIDES** *(shipped v0.3.677)* — **object styles + rule-based view filters.** Per-category **cut vs
   projection** line weight, colour and pattern, plus filters that override graphics by rule
   ("fire rating ≠ None", "width > 900"). This is what makes output look like a drawing instead of a
   dump. **Compose on `query_dsl.py`** — it is already THE element selector; a view filter is a stored
@@ -337,6 +337,26 @@ per-GlobalId AABB cross-check against the ifcopenshell path.
 
 ## 🎚 UX-POLISH — interaction-craft ring (remainder beyond the NOW sprint)
 
+**Audit 2026-07-25 (live, against the running stack).** Measured rather than opined: 170 visible
+controls, **0 unlabelled**; **0 console errors**; **20/20** first-class Design destinations render real
+content (the "Design tab is blank" report was a measurement error on my side, not a defect — `innerText`
+returns empty for anything not laid out, and clicking rebuilds the nav, detaching the node being
+measured). Two density defects were real and are **fixed in v0.3.677**: `Build` held 13 entries of
+which 7 were project accounting, and `Model & standards` held 14 mixing project rules with model
+findings. Split into Build/Money and Model & standards/Analyse & check — **max group 14 → 7**, nothing
+removed. Remaining, in priority order:
+
+- ⭐ **UX-READINESS-EVERYWHERE** *(M)* — **the app already contains its own "simple stupid" front door
+  and hides it.** The Master Builder panel is a live 8-step readiness synthesis: each step reads
+  ready / partial / gap against real project data, names exactly what is missing ("needs: Jurisdiction
+  so code editions + loads resolve"), and offers **→ Close this gap** straight to the tool that fixes
+  it — plus an honest disclaimer that labels reflect what is *present*, not what is *correct*. That is
+  precisely the "tell me what to do next" surface a builder/developer/architect/engineer wants on
+  opening a project, and it is reachable from exactly ONE destination inside ONE workspace (Design).
+  Promote the readiness strip to every workspace dashboard, scoped per persona.
+- **UX-DUP-DESTINATIONS** *(S)* — `Model Health`, `Model Analysis` and `BIM KPIs` are three
+  destinations whose names do not tell a user which answers their question; all three now sit together
+  under `Analyse & check`, which makes the overlap visible and worth resolving rather than hiding it.
 - **UX-GANTT** *(M)* — weekly Gantt/calendar hybrid with inline % + crew coloring + a metric strip.
 - **UX-VIEWED** *(S)* — ShareToken page view-timestamps → Sent/Viewed/Paid chips, self-hosted.
 - **UX-AR** *(S)* — Sent→Approved→Paid manual status pipeline on invoices/bills (no payment rails).

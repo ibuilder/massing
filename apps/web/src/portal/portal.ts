@@ -201,9 +201,23 @@ export class PortalUI {
           { key: "__riskcost__", icon: "⚖️", label: "Risk & Cost" },        // prequal, lien exposure, carbon, takeoff
           { key: "__responsibility__", icon: "🧭", label: "Responsibility" }, // RACI/DACI matrix — who owns each deliverable
         ]],
+        // Field execution. Deliberately does NOT contain the money destinations: "Build" had grown to
+        // 13 entries of which 7 were project accounting, so a superintendent looking for today's
+        // schedule scanned past the general ledger to find it. A super and a controller are different
+        // people doing different jobs, and one drawer holding both tools serves neither. Nothing was
+        // removed — the accounting set moved to its own stage below, which is also where a controller
+        // now finds all of it together instead of hunting it out of a build list.
         ["Build", [
           ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__schedule__", icon: "📅", label: "Schedule" }] : []),
           ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__resload__", icon: "👷", label: "Resource Loading" }] : []),
+          { key: "__equipment__", icon: "🔩", label: "Equipment" },          // MEP-EQUIP — procurement schedule from the IFC
+          { key: "__topicboard__", icon: "🗂", label: "Issue Board" },      // TOPIC-BOARD — BCF kanban + smart filters
+          { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // weather-sequenced work + site hazards
+          { key: "__aiassist__", icon: "✍️", label: "AI Assist" },
+        ]],
+        // Money, ordered the way the question is actually asked: what did we plan, what is it costing,
+        // are we ahead or behind, what do we bill, what does accounting see.
+        ["Money", [
           { key: "__budget__", icon: "💰", label: "Budget" },
           ...(this.mods.some((x) => x.key === "cost_code") ? [{ key: "__margin__", icon: "📒", label: "Cost-code Margin" }] : []),  // budget vs committed vs actual → buyout margin
           ...(this.mods.some((x) => x.key === "selection") ? [{ key: "__selections__", icon: "◈", label: "Selections" }] : []),  // allowance vs actual → change events
@@ -211,10 +225,6 @@ export class PortalUI {
           { key: "__wip__", icon: "📄", label: "WIP Schedule" },            // POC + over/under-billing (accounting twin)
           { key: "__ledger__", icon: "📒", label: "General Ledger" },        // balanced journal + trial balance + export
           { key: "__traceability__", icon: "🔗", label: "Cost Traceability" }, // model→cost→GL by GlobalId
-          { key: "__equipment__", icon: "🔩", label: "Equipment" },          // MEP-EQUIP — procurement schedule from the IFC
-          { key: "__topicboard__", icon: "🗂", label: "Issue Board" },      // TOPIC-BOARD — BCF kanban + smart filters
-          { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // weather-sequenced work + site hazards
-          { key: "__aiassist__", icon: "✍️", label: "AI Assist" },
         ]],
         ["Documents", [
           { key: "__documents__", icon: "📁", label: "Documents" },        // role-based standard folder tree
@@ -236,21 +246,27 @@ export class PortalUI {
           { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" },
           { key: "__masterbuilder__", icon: "🏛", label: "Master Builder" },  // 8-step protocol brief over the whole project
         ]],
+        // Same split as the builder's Build/Money, for the same reason: this stage had grown to 14
+        // entries mixing "what are the rules for this project" with "what does the model actually
+        // say". Those are two different sittings — you set standards once and check the model
+        // continuously — so they are two stages.
         ["Model & standards", [
           { key: "__ids__", icon: "📋", label: "IDS Requirements" },
           { key: "__standards__", icon: "🗂", label: "CDE / Standards" },   // ISO 19650 container discipline + reqs
           { key: "__responsibility__", icon: "🧭", label: "Responsibility" }, // MIDP/TIDP task-team responsibility (RACI)
           { key: "__documents__", icon: "📁", label: "Documents" },          // role-based standard folder tree
-          { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },             // 10-category information-mgmt scorecard
+          { key: "__materials__", icon: "🎨", label: "Materials" },          // per-project M1 palette editor + re-colour
+          { key: "__modulegraph__", icon: "🕸", label: "Module Relations" }, // how the config modules wire together
+          { key: "__spine__", icon: "🔗", label: "Discipline Spine" },       // sheets→specs→bid→budget trace
+        ]],
+        ["Analyse & check", [
           { key: "__modelqa__", icon: "✅", label: "Model Health" },        // deep-links to the Model Tools checks
           { key: "__modelanalysis__", icon: "🔬", label: "Model Analysis" }, // query/LOD/envelope/MEP/naming/capabilities
+          { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },             // 10-category information-mgmt scorecard
           { key: "__designmetrics__", icon: "📐", label: "Design Metrics" }, // DESIGN-METRICS — program efficiency + daylight estimate
           { key: "__spaceutil__", icon: "🪑", label: "Space Utilization" },  // SPACE-UTIL — capacity by type + program fit
           { key: "__mepfittings__", icon: "🔩", label: "MEP Fittings" },     // MEP-FITTINGS — implied fittings over the port graph → QTO
-          { key: "__materials__", icon: "🎨", label: "Materials" },          // per-project M1 palette editor + re-colour
-          { key: "__modulegraph__", icon: "🕸", label: "Module Relations" }, // how the config modules wire together
           { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // flood DFE + stormwater sizing
-          { key: "__spine__", icon: "🔗", label: "Discipline Spine" },       // sheets→specs→bid→budget trace
         ]],
       ],
       // Owner / developer — acquire → design & build (phase gates) → operate.

@@ -4,6 +4,89 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.677 — R21 Tier 1 closes: sections that annotate, sets that can be checked, drawings that read as drawings
+
+Three items, one sprint, all derived from the same issued shop-drawing package as v0.3.676. With
+R21-HATCH, Tier 1 of the ring is complete.
+
+### Sections get an annotation layer — they had none
+
+`_leader_callout` has served plans for a long time, and its boxed label is the right mark there: a
+plan tag names an **object**. A section keynote does a different job — it names the **material of a
+layer in an assembly** — so the convention is a left-hand text column with an unboxed leader to a dot.
+Reusing the plan tag would have produced the wrong drawing, which is why this is a separate mark
+rather than a parameter on the existing one.
+
+The keynote text is built from what the model knows: its material, its class, its measured thickness
+in millimetres. An unfamiliar class degrades to its own name with the `Ifc` prefix stripped — still
+true, rather than a guess that would read as authored.
+
+**The rule that earns it its keep is grouping.** A wall cut at four storeys is **one** keynote, not
+four. An annotation layer that repeats itself makes a section *less* readable than no annotation at
+all, and rows are pushed apart so labels never collide — a reader who cannot tell which label belongs
+to which leader has no annotation either. Linework is unchanged with keynotes on or off.
+
+### A drawing set becomes a graph that can be checked
+
+A wall section carries numbered bubbles pointing at enlarged details elsewhere; each detail carries
+its own bubble, title and scale. Nothing linked the two, so a set could not be navigated and — the
+part that costs money — could not be **checked**.
+
+Two defects, reported apart because they have different owners and different fixes:
+
+- **dangling** — a callout points at a detail that does not exist. The reader follows the reference
+  and finds nothing. This is the one that surfaces in the field.
+- **orphan** — a detail nothing points at: drawn, paid for, never reached.
+
+Dangling splits again by reason. An unknown **sheet** is a typo or a sheet that was never issued; a
+known sheet missing the detail **number** is almost always a renumber nobody propagated — so the
+report names what *is* on that sheet. The inverse form `A-501/12` is **refused rather than guessed**,
+because silently inverting detail-over-sheet would corrupt half a set with no signal. Free text that
+merely contains a slash is reported as unparseable rather than counted as broken, and sheet numbers
+are normalised so `A501` and `A-501` are one sheet — which is what stops the check manufacturing
+defects out of punctuation.
+
+Exposed at `GET /projects/{pid}/drawing-set/references`.
+
+### Cut vs projection — the distinction that separates a drawing from a dump
+
+View templates already carried hide / isolate / colour rules on the query spine, so the gap was
+narrower and more specific than "graphics overrides": there was no line **weight**, no line pattern,
+and no **cut-vs-projection** distinction at all.
+
+That last one is the whole feature. The same element draws two ways in one view — heavy where the view
+plane cuts it, light where it is only seen beyond the cut — and that weight difference, not colour, is
+how a reader reads depth off a flat sheet. Colour rules alone structurally could not express it.
+
+Weights are millimetres **on the sheet** — the same paper-space reasoning the hatch patterns use, so a
+wall reads at one weight at 1:100 and at 1:10. Category defaults keep cut heavier than projection for
+every class, structure reads heavier than MEP, and an unfamiliar class lands in the neutral group
+rather than the heaviest, so it never shouts.
+
+**An override is a partial**, and that is what makes it composable: a rule naming only a colour leaves
+the weights exactly as the object style set them. A full-replacement override would let any colour
+rule silently erase the cut/projection difference for everything it touched. Rules may scope
+themselves to one side, later rules win, and every template saved before this change still validates
+and resolves identically.
+
+Exposed at `GET /projects/{pid}/view-templates/{tid}/graphics`.
+
+### Navigation: two drawers holding two people's tools
+
+A live audit against the running stack — measured, not opined: **170** visible controls with **0**
+unlabelled, **0** console errors, and **20/20** first-class Design destinations rendering real content.
+Two density defects were real. `Build` had grown to **13** entries of which **7** were project
+accounting, so a superintendent looking for today's schedule scanned past the general ledger to find
+it; `Model & standards` held **14**, mixing "what are the rules for this project" with "what does the
+model actually say". A superintendent and a controller are different people, and one drawer holding
+both tools serves neither.
+
+Split into **Build / Money** and **Model & standards / Analyse & check**. Largest group **14 → 7**.
+Nothing was removed, and the controller now finds the whole accounting set together instead of
+hunting it out of a build list.
+
+379 backend suites green · 134 vitest · CodeQL 0 open alerts.
+
 ## v0.3.676 — R21-HATCH: cut material says what it is cut *through*
 
 First item of the R21 ring, which was derived from a real issued shop-drawing package (13 sheets,
