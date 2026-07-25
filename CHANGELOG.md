@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.680 — the Revit bridge stops leaving our first non-negotiable to a default
+
+R23-REVIT-EXPORT-CFG. The bridge exported with a bare `IFCExportOptions()` — no configuration at all.
+One consequence of that outranks every other.
+
+**GlobalId stability is the platform's first non-negotiable.** Pins, RFIs, clash results, cost lines,
+the 4D links and the as-built verification stamp all key off IFC GlobalId. Revit only guarantees
+stable GlobalIds across a re-export when **`StoreIFCGUID`** is on: it writes the generated GUID back
+onto the element as the `IfcGUID` shared parameter so the next export re-uses it rather than deriving
+a fresh one. Under the bare default, a republish could silently re-key the model and detach all of
+that from the geometry it described — and nothing would raise an error. The data would simply stop
+meaning anything.
+
+The export is now configured, and the button **refuses to publish** if the configuration it is about
+to apply would not preserve GlobalIds — checked against the map being applied, not trusted from a
+constant that someone might later edit.
+
+**Every option carries a stated reason**, asserted in the test, because a curated set is the point;
+a pile of everything available is not. Beyond the GUID option: base quantities and schedules-as-psets
+(the takeoff and 5D paths read these rather than re-deriving from geometry), site elevation
+(georeferencing is its own non-negotiable), and — quietly important — **whole-model export forced on**.
+Defaulting to the active view is how a coordination model ships with three-quarters of the building
+missing and nobody notices until a clash meeting.
+
+**A pre-publish audit** now names the conditions that reliably produce IFC nobody can coordinate
+against: unplaced or unbounded rooms, in-place families, imported CAD instances, and unresolved Revit
+warnings. Each finding says *why* it matters. It reports and never enforces — a partial model is often
+exactly what someone means to publish — and it lists **only what it actually found**, because an audit
+that also lists its clean checks is one people learn to skip.
+
+The Revit API cannot run in CI, so the option map and the audit are pure functions in a library the
+button merely applies. That puts the part most likely to be wrong — which options, spelled how — under
+test, including that the guard rejects a missing or false GUID option rather than only passing the
+happy case. Both files are IronPython-2.7 clean, which is what pyRevit actually runs.
+
+380 backend suites green.
+
 ## v0.3.679 — R23-SHADOW-COST: shadows stop re-rendering for a camera that cannot change them
 
 Two changes that are really one, because each is what makes the other safe.

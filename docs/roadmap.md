@@ -13,8 +13,8 @@ authoring pillar closed its parity ring (R18). **What is thin now is the surface
 craft, the demo, and the cross-cutting cost identity that make the shipped depth legible — plus the
 structural carry-overs that keep the codebase workable.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**379** suites) · vitest 158 · single-source
-version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.679**.
+**Status:** CodeQL 0 open alerts · backend suite green (**380** suites) · vitest 158 · single-source
+version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.680**.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
@@ -298,11 +298,17 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   small parts, MEP and furniture, swapping to real fragments on demand. Server-side keeps it
   deterministic, offline and $0. *`docs/phase2-large-models.md` claims no custom LOD is needed and is
   itself marked superseded — that claim is the thing to retire.*
-- **R23-PICKING** *(M)* — `viewer/app.ts:337` wraps `fragments.raycast` in a **1500 ms Promise.race
-  against a stalled worker**, which is an admission that picking latency already hurts. GPU ID-buffer
-  picking (scissored 1×1 target) is O(1) in polygon count. three-mesh-bvh is already present
-  transitively (MIT) — instrument it first.
-- **R23-REVIT-EXPORT-CFG** *(M)* — script `IFCExportConfiguration` from the pyRevit bridge instead of
+- **R23-PICKING** *(M)* — ⚠️ **premise corrected 2026-07-25; do NOT build this on the stated evidence.**
+  The scan read the 1500 ms `Promise.race` at `viewer/app.ts:337` as "an admission that picking latency
+  already hurts". The source says the opposite, in its own comment: the race guards against *a stalled
+  Fragments worker (hidden tab / heavy load)* silently eating clicks, and states plainly that **normal
+  raycasts answer in ms**. It is a resilience guard, not a latency workaround, and there is currently
+  **no measurement showing picking is slow at all**.
+  GPU ID-buffer picking (scissored 1×1 target, O(1) in polygon count) remains a real technique and
+  three-mesh-bvh is present transitively (MIT) — but this is now gated on **measuring raycast latency
+  on a genuinely large model first**. If the measurement does not justify it, the correct outcome is to
+  close this item unbuilt. *Fourth false premise found this session; see [[check-the-blocker-premise]].*
+- ✅ **R23-REVIT-EXPORT-CFG** *(shipped v0.3.680)* — script `IFCExportConfiguration` from the pyRevit bridge instead of
   trusting the export dialog, and **enforce the `IfcGUID` shared parameter** so GlobalIds survive
   re-export. That is our first non-negotiable (reference by GUID, never transient ids) and it is
   currently left to a checkbox someone else ticks. Add a pre-publish model audit (warnings, unplaced
