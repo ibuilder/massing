@@ -30,6 +30,11 @@ CARBON_KGCO2E_M2: dict[str, float] = {
     "senior_living": 430.0, "lab": 700.0,
 }
 _DEFAULT_CARBON = 450.0                      # unknown type → mid-range placeholder, flagged in the row
+# Share of whole-building embodied carbon attributable to MEP + interior fit-out rather than to shell
+# (structure + envelope). Whole-building LCA studies put shell at roughly two thirds; the rest is the
+# part that varies with PROGRAMME, not geometry — a hospital's MEP against a warehouse's. Kept as one
+# named constant so the split is a stated assumption rather than a number buried in a formula.
+FITOUT_CARBON_SHARE = 0.35
 
 DEFAULT_WEIGHTS = {"cost": 0.35, "carbon": 0.25, "yield": 0.25, "compliance": 0.15}
 M2_TO_SF = 10.7639
@@ -164,9 +169,41 @@ def _evaluate(opt: dict) -> dict[str, Any]:
     if hl is not None and float(m.get("building_height_m") or 0) > float(hl) + 1e-6:
         violations.append(f"height {m['building_height_m']}m exceeds limit {hl}m")
 
+    # GEN-SCORE depth: an elemental takeoff behind the option, so carbon comes from QUANTITIES rather
+    # than a typology benchmark. A benchmark gives two options the same intensity even when one is a
+    # squat plate and the other a slender tower with twice the façade per m² — the exact trade-off
+    # this scorer exists to expose. The benchmark stays the fallback, and `carbon_basis` says which
+    # one you are reading.
+    from . import option_takeoff
+    try:
+        to = option_takeoff.takeoff(m, structure=opt.get("structure"), wwr=opt.get("wwr"))
+    except ValueError as e:
+        to = {"basis": "none", "note": str(e)}
+    if to.get("basis") == "quantity" and to.get("carbon_intensity_kgco2e_m2"):
+        # HYBRID, and it has to be. The takeoff sees only GEOMETRY — structure, envelope, partitions —
+        # so on its own it gives a warehouse and a hospital with the same envelope identical carbon,
+        # which is false: the difference between them lives in MEP and fit-out. Those are precisely
+        # the elements the takeoff reports as uncovered (no EPD factor). So the geometry-driven part
+        # comes from quantities and the type-driven remainder from the benchmark, and BOTH axes reach
+        # the score. Using either alone loses one of them.
+        shell = to["carbon_intensity_kgco2e_m2"]
+        fitout = round(CARBON_KGCO2E_M2.get(btype, _DEFAULT_CARBON) * FITOUT_CARBON_SHARE, 1)
+        carbon_int = round(shell + fitout, 1)
+        carbon_t = round(gfa_m2 * carbon_int / 1000.0, 1)
+        carbon_basis = "hybrid"
+        to["carbon_split"] = {"shell_kgco2e_m2": shell, "fitout_kgco2e_m2": fitout,
+                              "shell_pct": round(100.0 * shell / carbon_int, 1) if carbon_int else None,
+                              "note": "shell from elemental quantities; fit-out (MEP + finishes) from "
+                                      "the type benchmark, because no geometry at massing stage "
+                                      "predicts it"}
+    else:
+        carbon_basis = "benchmark"
+
     return {
         "label": opt.get("label") or f"{btype} FAR {far_allowed:g}",
         "building_type": btype,
+        "carbon_basis": carbon_basis,
+        "takeoff": to,
         "massing": {k: m.get(k) for k in ("floors", "building_height_m", "buildable_gfa_m2",
                                           "buildable_gfa_sf", "net_sellable_m2", "units",
                                           "far_achieved", "binding_constraint")},
@@ -205,12 +242,30 @@ def score_options(options: list[dict], weights: dict[str, float] | None = None) 
         r["composite"] = composite
     rows.sort(key=lambda r: -r["composite"])
     compliant = [r for r in rows if r["compliant"]]
+
+    # A quantity-derived carbon figure and a typology benchmark are different claims about the world.
+    # Ranking options whose carbon came from different bases is comparing unlike things, and the
+    # carbon weight is doing work it hasn't earned — so say so rather than averaging over it.
+    bases = {r.get("carbon_basis") for r in rows}
+    mixed = len(bases) > 1
+    carbon_note = ""
+    if mixed:
+        n_q = sum(1 for r in rows if r.get("carbon_basis") in ("quantity", "hybrid"))
+        carbon_note = (f" ⚠ CARBON BASES ARE MIXED: {n_q} of {len(rows)} option(s) are quantity-derived, "
+                       f"the rest are typology benchmarks. Those are different claims — the carbon "
+                       f"ranking across this set is not like-for-like.")
+    elif bases <= {"quantity", "hybrid"}:
+        carbon_note = (" Carbon is quantity-derived for every option (elemental takeoff → EPD factors), "
+                       "so the carbon ranking IS like-for-like.")
+
     return {
         "options": rows, "weights": w,
         "recommended": (compliant[0]["label"] if compliant else None),
+        "carbon_basis": sorted(b for b in bases if b),
+        "carbon_basis_mixed": mixed,
         "note": ("Deterministic scoring through the platform's own engines: conceptual $/SF (cost), "
-                 "whole-building embodied-carbon benchmarks (carbon), net sellable area (yield), and "
-                 "zoning FAR/height checks (compliance). Normalized within THIS option set — scores "
-                 "compare options to each other, not to an absolute standard. Editable defaults; refine "
-                 "with a detailed takeoff + EPDs as the design develops."),
+                 "embodied carbon (carbon), net sellable area (yield), and zoning FAR/height checks "
+                 "(compliance). Normalized within THIS option set — scores compare options to each "
+                 "other, not to an absolute standard. Editable defaults; refine with a detailed "
+                 "takeoff + EPDs as the design develops.") + carbon_note,
     }

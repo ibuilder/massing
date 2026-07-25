@@ -1,23 +1,23 @@
 {
   "library": "massing-families",
   "version": "0.1.0",
-  "generated_utc": "2026-07-24T23:53:33+00:00",
+  "generated_utc": "2026-07-25T05:02:41+00:00",
   "ifc_schema": "IFC4",
   "units": {
     "authored": "US imperial nominal",
     "stored": "metres (exact)"
   },
   "totals": {
-    "packs": 40,
-    "families": 270,
-    "types": 2334,
-    "size_bytes": 6061947
+    "packs": 41,
+    "families": 281,
+    "types": 2370,
+    "size_bytes": 6160817
   },
   "packs": [
     {
       "file": "massing-families-architectural-v0.1.0.ifc",
       "discipline": "architectural",
-      "sha256": "e6e61c74f99b781c372988d7b596f5ce0d83883c997eb4a6c8d9849e887c80fc",
+      "sha256": "16443c7fd91420a8aedd27f6f34defaac84236f45637a392620ce6660d11df97",
       "size_bytes": 63905,
       "ifc_schema": "IFC4",
       "families": 8,
@@ -222,7 +222,7 @@
     {
       "file": "massing-families-architectural-assemblies-v0.1.0.ifc",
       "discipline": "architectural-assemblies",
-      "sha256": "045f274a10f6515551c612216e8f99a3af9837f96e6be9c6795df11e9e5beb6f",
+      "sha256": "4798113d5aac33566447c5e926be84aeb89652c415759d9494d22de6bb7079be",
       "size_bytes": 56986,
       "ifc_schema": "IFC4",
       "families": 9,
@@ -440,7 +440,7 @@
     {
       "file": "massing-families-architectural-circulation-v0.1.0.ifc",
       "discipline": "architectural-circulation",
-      "sha256": "0a5f98dc513a9605f317be0daf0940170f01621336cd338036e40e8218152711",
+      "sha256": "e09129ca496ffd1f0155debf8426be385008197c7e79d0b622274cfa2c8306fb",
       "size_bytes": 50397,
       "ifc_schema": "IFC4",
       "families": 9,
@@ -659,7 +659,7 @@
     {
       "file": "massing-families-architectural-finishes-v0.1.0.ifc",
       "discipline": "architectural-finishes",
-      "sha256": "3161d407c46e89e240dd6fbb05d2ad6cb33de91985dbc3203d9af5f374589b01",
+      "sha256": "057b46d2059999d38739e35a0186ef10ddb319e6e799f38e041ca27787daaf97",
       "size_bytes": 56301,
       "ifc_schema": "IFC4",
       "families": 11,
@@ -916,7 +916,7 @@
     {
       "file": "massing-families-architectural-roofing-v0.1.0.ifc",
       "discipline": "architectural-roofing",
-      "sha256": "ddc50fbf7e9aa24a0184b0a7f939efb3925fe3402866f506298205371d95e696",
+      "sha256": "1357a1176dbf66d000ea5cd4fd995cb143b48010ca2d45fe6ac9efea067f72f0",
       "size_bytes": 54985,
       "ifc_schema": "IFC4",
       "families": 9,
@@ -1135,7 +1135,7 @@
     {
       "file": "massing-families-architectural-specialties-v0.1.0.ifc",
       "discipline": "architectural-specialties",
-      "sha256": "df922a5d93d110eb5a67f26a6c561a84dc5cfe2f4f8dbcb39670df87d17160c4",
+      "sha256": "abb13642ffc7a7e52467c329ce15d929862df21e761713df9850d0666f172365",
       "size_bytes": 90910,
       "ifc_schema": "IFC4",
       "families": 13,
@@ -1447,7 +1447,7 @@
     {
       "file": "massing-families-construction-temporary-v0.1.0.ifc",
       "discipline": "construction-temporary",
-      "sha256": "6ac40fd4cb24c92fc53453740f1af0984f760f15c444db26d867151ff397d4f4",
+      "sha256": "f1ef01819a6deb2f9373a620935b7ee67b83f17aa663eff8661373b0557af290",
       "size_bytes": 75076,
       "ifc_schema": "IFC4",
       "families": 14,
@@ -1773,7 +1773,7 @@
     {
       "file": "massing-families-conveying-v0.1.0.ifc",
       "discipline": "conveying",
-      "sha256": "6cd0c6c383b71c4621739bcbcc5b4f2d4ba710e7e6f27aed7cb0326e53bb7145",
+      "sha256": "56df8c6ea276f0c997b8f75c5b97887262641f2597f7061df98ab6a7a8cde6a3",
       "size_bytes": 26800,
       "ifc_schema": "IFC4",
       "families": 5,
@@ -1902,7 +1902,7 @@
     {
       "file": "massing-families-conveying-airport-v0.1.0.ifc",
       "discipline": "conveying-airport",
-      "sha256": "ae5e5bca1d9fd244ec7eddc1303f5ec2169e8b70383d28e5bd5ea179cea783ea",
+      "sha256": "b299186767b2ff94bdf3fcde7600dd9bf5dc46da3c4cf456048b73b0795158d5",
       "size_bytes": 14947,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -1989,7 +1989,7 @@
     {
       "file": "massing-families-conveying-industrial-v0.1.0.ifc",
       "discipline": "conveying-industrial",
-      "sha256": "eb818a40ed8aad741e4aeca6149f95008fde017ea52b4648d70b03551b7f82c5",
+      "sha256": "05508847b132e2ed80cf57f5a598ec0937dd70637d8957b586720dfbb8d49349",
       "size_bytes": 21256,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -2079,7 +2079,7 @@
     {
       "file": "massing-families-electrical-v0.1.0.ifc",
       "discipline": "electrical",
-      "sha256": "6c382d2ff214685882a1e47f9be26f7e654acd9e2e28a3718b2691a66a08028c",
+      "sha256": "fe4cd9b55cd89540e0daa17ae16923a09ea6bfa674ee8eb8bace97605a092915",
       "size_bytes": 24612,
       "ifc_schema": "IFC4",
       "families": 5,
@@ -2209,7 +2209,7 @@
     {
       "file": "massing-families-electrical-devices-v0.1.0.ifc",
       "discipline": "electrical-devices",
-      "sha256": "66797818687635227be5d696f406cb6cc26b99715ac5adfa4fc44548981d0cf2",
+      "sha256": "c60dac5e7211e7b7cd4f32392a0b47712bca0c587e2f2780d3cdeaf14c571a60",
       "size_bytes": 15673,
       "ifc_schema": "IFC4",
       "families": 2,
@@ -2277,7 +2277,7 @@
     {
       "file": "massing-families-electrical-distribution-v0.1.0.ifc",
       "discipline": "electrical-distribution",
-      "sha256": "7597df26013d4231ced828522d14839f22b9054cd7d2085240aadb1a831ddaa2",
+      "sha256": "8648cf06e2ffa57531f797ac8ca1832a1fae17646a084be55087dcb38b0e0d45",
       "size_bytes": 26049,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -2368,7 +2368,7 @@
     {
       "file": "massing-families-electrical-raceway-v0.1.0.ifc",
       "discipline": "electrical-raceway",
-      "sha256": "932b0def4a632e076ad9493f183850611f78676bf124dd20d43fc9ba1a3422bc",
+      "sha256": "92d6d5b3f81b679ac42d2bbcc5b7b4264e3f465c6832bc663b44dcc0451d72ba",
       "size_bytes": 95786,
       "ifc_schema": "IFC4",
       "families": 5,
@@ -2525,7 +2525,7 @@
     {
       "file": "massing-families-fire-alarm-v0.1.0.ifc",
       "discipline": "fire-alarm",
-      "sha256": "9639911f096e027c9e1065cf85eeb5004b941e34620701871ab512867f412b21",
+      "sha256": "00f76c1a52895c1514885352cf17933dc59f615f092c67939c1852e62670f575",
       "size_bytes": 16473,
       "ifc_schema": "IFC4",
       "families": 2,
@@ -2594,7 +2594,7 @@
     {
       "file": "massing-families-fire-equipment-v0.1.0.ifc",
       "discipline": "fire-equipment",
-      "sha256": "d02a24b712ecdf9c386e1c8df876cca2f2986cb05955a4aa3c8421c4bdacdadc",
+      "sha256": "10e4b1775a7fb79e6d4c5743537a021badadeba3965a835e71ac6440175b39c9",
       "size_bytes": 36472,
       "ifc_schema": "IFC4",
       "families": 4,
@@ -2710,7 +2710,7 @@
     {
       "file": "massing-families-fire-sprinkler-v0.1.0.ifc",
       "discipline": "fire-sprinkler",
-      "sha256": "2d6f25f9757c9c32e7e275dc7a61de5371599f8f22de0bd6f2a157a3bec7d690",
+      "sha256": "7790bd8d2db0d54f2799aaaa76bb0de9424bc8b416e367e075448ac1efee2016",
       "size_bytes": 66183,
       "ifc_schema": "IFC4",
       "families": 7,
@@ -2894,7 +2894,7 @@
     {
       "file": "massing-families-interiors-v0.1.0.ifc",
       "discipline": "interiors",
-      "sha256": "91a558aa72794cb447f834996bc03a912bb1b56f40a58becfa2802785b921784",
+      "sha256": "2ce500866dbddcfc95b15c1c239dfd09f76258d599273ff9ebd0bb515647b635",
       "size_bytes": 90155,
       "ifc_schema": "IFC4",
       "families": 17,
@@ -3281,7 +3281,7 @@
     {
       "file": "massing-families-mechanical-v0.1.0.ifc",
       "discipline": "mechanical",
-      "sha256": "34b445b037b88a5c7d9c663da5be55f1ffa9940f60d870d8322f29ad03f2f407",
+      "sha256": "6ab189de18708032380dacf7be7b302190dfffa26d6648ca768ea9d5fa7a9d70",
       "size_bytes": 21637,
       "ifc_schema": "IFC4",
       "families": 4,
@@ -3389,7 +3389,7 @@
     {
       "file": "massing-families-mechanical-ductwork-v0.1.0.ifc",
       "discipline": "mechanical-ductwork",
-      "sha256": "f8dcc64f0e645159786e8f8a8c4f984745e7a28f866234890d77d7dee9492c71",
+      "sha256": "ae4956d115d1ef691228c7413c33b22b3798678b469d5143d713ab8258021433",
       "size_bytes": 237439,
       "ifc_schema": "IFC4",
       "families": 6,
@@ -3618,7 +3618,7 @@
     {
       "file": "massing-families-mechanical-plant-v0.1.0.ifc",
       "discipline": "mechanical-plant",
-      "sha256": "7e44010fac2d8f87a5d5d90b774e5e34098c01198d9a3634fb769c94200f6f0c",
+      "sha256": "885a60a429defac6aef1efc53e331ed6f0dabc9feac9ff8e8f44d0312f7f921b",
       "size_bytes": 115837,
       "ifc_schema": "IFC4",
       "families": 16,
@@ -3995,7 +3995,7 @@
     {
       "file": "massing-families-plumbing-v0.1.0.ifc",
       "discipline": "plumbing",
-      "sha256": "5109ca7cd87d809010b7dfba2c95fa49947c7a470670636bbdfc3a3e99af891f",
+      "sha256": "568482d601ae487981e15daefff6ac8f25d9e6649656ee465837890c2420fb0d",
       "size_bytes": 38918,
       "ifc_schema": "IFC4",
       "families": 6,
@@ -4147,16 +4147,16 @@
       ]
     },
     {
-      "file": "massing-families-plumbing-fixtures-v0.1.0.ifc",
-      "discipline": "plumbing-fixtures",
-      "sha256": "cd3a67f225b17bcbba47670112e3ddc55efd8fbf3a0f1805e1ad3d8707a84884",
-      "size_bytes": 25663,
+      "file": "massing-families-plumbing-equipment-v0.1.0.ifc",
+      "discipline": "plumbing-equipment",
+      "sha256": "b4d946c76b4d37b88e181a1a3da164b3356bc6ef4c99e0a255b284c595e1f321",
+      "size_bytes": 19959,
       "ifc_schema": "IFC4",
       "families": 3,
-      "types": 10,
+      "types": 8,
       "categories": [
-        "Drainage",
-        "Equipment"
+        "Equipment",
+        "Valves"
       ],
       "disciplines": [
         "plumbing"
@@ -4165,6 +4165,91 @@
         "CC0-1.0"
       ],
       "tiers": [
+        "L200"
+      ],
+      "index": [
+        {
+          "key": "pump_domestic_booster",
+          "label": "Domestic Booster Pump",
+          "category": "Equipment",
+          "discipline": "plumbing",
+          "ifc_class": "IfcPumpType",
+          "predefined": "CIRCULATOR",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {},
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Domestic Booster Pump - Duplex 50 GPM",
+            "Domestic Booster Pump - Triplex 150 GPM"
+          ]
+        },
+        {
+          "key": "backflow_preventer",
+          "label": "Backflow Preventer (RPZ)",
+          "category": "Valves",
+          "discipline": "plumbing",
+          "ifc_class": "IfcValveType",
+          "predefined": "DOUBLECHECK",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {},
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Backflow Preventer (RPZ) - 2\" RPZ",
+            "Backflow Preventer (RPZ) - 4\" RPZ"
+          ]
+        },
+        {
+          "key": "valve_plumbing",
+          "label": "Plumbing Valve",
+          "category": "Valves",
+          "discipline": "plumbing",
+          "ifc_class": "IfcValveType",
+          "predefined": "ISOLATING",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {},
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 4,
+          "types": [
+            "Plumbing Valve - 1\" Ball Valve",
+            "Plumbing Valve - 2\" Ball Valve",
+            "Plumbing Valve - 4\" Gate Valve",
+            "Plumbing Valve - 2\" Balancing Valve"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "massing-families-plumbing-fixtures-v0.1.0.ifc",
+      "discipline": "plumbing-fixtures",
+      "sha256": "aa81ae100facb4c6111daeed234fcb64f2e38c2f84e8d9415a14b1387ab64501",
+      "size_bytes": 63014,
+      "ifc_schema": "IFC4",
+      "families": 9,
+      "types": 24,
+      "categories": [
+        "Drainage",
+        "Equipment",
+        "Sanitary"
+      ],
+      "disciplines": [
+        "plumbing"
+      ],
+      "licenses": [
+        "CC0-1.0"
+      ],
+      "tiers": [
+        "L200",
         "L300"
       ],
       "index": [
@@ -4234,17 +4319,133 @@
             "Water Heater - 50 gal (22\" dia)",
             "Water Heater - 80 gal (26\" dia)"
           ]
+        },
+        {
+          "key": "drinking_fountain",
+          "label": "Drinking Fountain / Bottle Filler",
+          "category": "Sanitary",
+          "discipline": "plumbing",
+          "ifc_class": "IfcSanitaryTerminalType",
+          "predefined": "NOTDEFINED",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {},
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Drinking Fountain / Bottle Filler - Bi-Level ADA",
+            "Drinking Fountain / Bottle Filler - Bi-Level with Bottle Filler"
+          ]
+        },
+        {
+          "key": "sink_kitchen",
+          "label": "Kitchen Sink",
+          "category": "Sanitary",
+          "discipline": "plumbing",
+          "ifc_class": "IfcSanitaryTerminalType",
+          "predefined": "SINK",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {},
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Kitchen Sink - Single Bowl 25\" x 22\"",
+            "Kitchen Sink - Double Bowl 33\" x 22\""
+          ]
+        },
+        {
+          "key": "sink_service",
+          "label": "Service / Mop Sink",
+          "category": "Sanitary",
+          "discipline": "plumbing",
+          "ifc_class": "IfcSanitaryTerminalType",
+          "predefined": "SINK",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {},
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Service / Mop Sink - Floor Mop Basin 24\" x 24\"",
+            "Service / Mop Sink - Wall Service Sink 22\" x 18\""
+          ]
+        },
+        {
+          "key": "shower_receptor",
+          "label": "Shower Receptor",
+          "category": "Sanitary",
+          "discipline": "plumbing",
+          "ifc_class": "IfcSanitaryTerminalType",
+          "predefined": "SHOWER",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {},
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "Shower Receptor - 36\" x 36\"",
+            "Shower Receptor - 60\" x 32\" ADA Roll-In",
+            "Shower Receptor - 48\" x 36\" Transfer"
+          ]
+        },
+        {
+          "key": "urinal_wall",
+          "label": "Urinal (Wall-Hung)",
+          "category": "Sanitary",
+          "discipline": "plumbing",
+          "ifc_class": "IfcSanitaryTerminalType",
+          "predefined": "URINAL",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {},
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 2,
+          "types": [
+            "Urinal (Wall-Hung) - Washout 0.125 GPF",
+            "Urinal (Wall-Hung) - ADA 0.125 GPF"
+          ]
+        },
+        {
+          "key": "wc_flush_valve",
+          "label": "Water Closet (Flush Valve)",
+          "category": "Sanitary",
+          "discipline": "plumbing",
+          "ifc_class": "IfcSanitaryTerminalType",
+          "predefined": "WCSEAT",
+          "tier": "L200",
+          "geometry": "proxy",
+          "classification": {},
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 3,
+          "types": [
+            "Water Closet (Flush Valve) - Floor-Mounted 1.28 GPF",
+            "Water Closet (Flush Valve) - Wall-Hung 1.28 GPF",
+            "Water Closet (Flush Valve) - Floor-Mounted ADA 1.28 GPF"
+          ]
         }
       ]
     },
     {
       "file": "massing-families-plumbing-piping-v0.1.0.ifc",
       "discipline": "plumbing-piping",
-      "sha256": "cfb9c56d63c7b353bc1cf018635a9838c6d4f70e6a4c3723760349cc893da314",
-      "size_bytes": 123953,
+      "sha256": "693a7a1e94f1b4928b662bf44f029be1897608fd78b5583d8abc114fabecabb5",
+      "size_bytes": 165513,
       "ifc_schema": "IFC4",
-      "families": 7,
-      "types": 47,
+      "families": 9,
+      "types": 61,
       "categories": [
         "Domestic Water",
         "Drainage",
@@ -4261,6 +4462,32 @@
         "L300"
       ],
       "index": [
+        {
+          "key": "pipe_copper_type_l",
+          "label": "Copper Pipe (Type L)",
+          "category": "Domestic Water",
+          "discipline": "plumbing",
+          "ifc_class": "IfcPipeSegmentType",
+          "predefined": "RIGIDSEGMENT",
+          "tier": "L300",
+          "geometry": "parametric",
+          "classification": {},
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 9,
+          "types": [
+            "Copper Pipe (Type L) - 1/2\" Copper Type L",
+            "Copper Pipe (Type L) - 3/4\" Copper Type L",
+            "Copper Pipe (Type L) - 1\" Copper Type L",
+            "Copper Pipe (Type L) - 1-1/4\" Copper Type L",
+            "Copper Pipe (Type L) - 1-1/2\" Copper Type L",
+            "Copper Pipe (Type L) - 2\" Copper Type L",
+            "Copper Pipe (Type L) - 2-1/2\" Copper Type L",
+            "Copper Pipe (Type L) - 3\" Copper Type L",
+            "Copper Pipe (Type L) - 4\" Copper Type L"
+          ]
+        },
         {
           "key": "pipe_copper_l",
           "label": "Copper Pipe Type L",
@@ -4334,6 +4561,28 @@
             "Cast Iron Pipe (No-Hub) - 4\" Cast Iron",
             "Cast Iron Pipe (No-Hub) - 6\" Cast Iron",
             "Cast Iron Pipe (No-Hub) - 8\" Cast Iron"
+          ]
+        },
+        {
+          "key": "pipe_cast_iron_nohub",
+          "label": "Cast Iron Pipe (No-Hub, DWV)",
+          "category": "Drainage",
+          "discipline": "plumbing",
+          "ifc_class": "IfcPipeSegmentType",
+          "predefined": "RIGIDSEGMENT",
+          "tier": "L300",
+          "geometry": "parametric",
+          "classification": {},
+          "license": "CC0-1.0",
+          "massing_key": null,
+          "has_ports": true,
+          "type_count": 5,
+          "types": [
+            "Cast Iron Pipe (No-Hub, DWV) - 2\" CI No-Hub",
+            "Cast Iron Pipe (No-Hub, DWV) - 3\" CI No-Hub",
+            "Cast Iron Pipe (No-Hub, DWV) - 4\" CI No-Hub",
+            "Cast Iron Pipe (No-Hub, DWV) - 6\" CI No-Hub",
+            "Cast Iron Pipe (No-Hub, DWV) - 8\" CI No-Hub"
           ]
         },
         {
@@ -4446,7 +4695,7 @@
     {
       "file": "massing-families-site-v0.1.0.ifc",
       "discipline": "site",
-      "sha256": "295530a4509fb3afe5796a248700bb88b070234e569e3cca4e19fb6807643d19",
+      "sha256": "6ef0000c566b345a2384b188a7bc218d5619e1d93e03f431f6300427fbbda720",
       "size_bytes": 16887,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -4535,7 +4784,7 @@
     {
       "file": "massing-families-site-civil-v0.1.0.ifc",
       "discipline": "site-civil",
-      "sha256": "ba01ae13c3bfd399442bf2a0dd89bdd193f249e0142d9b3496f8e5728565e0cb",
+      "sha256": "a8e5bd9463937a874db104919c932f2a116ae4d4ff4ed6ee94d1d20e92368499",
       "size_bytes": 71989,
       "ifc_schema": "IFC4",
       "families": 12,
@@ -4824,7 +5073,7 @@
     {
       "file": "massing-families-structural-concrete-v0.1.0.ifc",
       "discipline": "structural-concrete",
-      "sha256": "3c7726e7d225a20e2d57e733f88b8cd11fb307a4fa9b8e41c214d84d5e3ebdf3",
+      "sha256": "9e0d8a0403e12b51a7e087058818115ac1f9c36e7fbf14e205f98804f36ad2f6",
       "size_bytes": 24046,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -4914,7 +5163,7 @@
     {
       "file": "massing-families-structural-precast-v0.1.0.ifc",
       "discipline": "structural-precast",
-      "sha256": "1c76309c31c3d01b80c0c2f083bd20422b150d68835ca37f2358554883e1d79f",
+      "sha256": "c9fa39380db503bd0450a8a4ddaea514dde6b7ab7d9f0f739a2683ddf493f4c7",
       "size_bytes": 24263,
       "ifc_schema": "IFC4",
       "families": 4,
@@ -5024,7 +5273,7 @@
     {
       "file": "massing-families-structural-rebar-v0.1.0.ifc",
       "discipline": "structural-rebar",
-      "sha256": "0d1f9df7bfbd4fbbec1392c05f7af96c47c6032027bcd38cb7e438c3b40a973e",
+      "sha256": "0cf43064d901cf81323c1db8c2c3d4f74fa4a2875c804d0a251ed8c39569b1ff",
       "size_bytes": 78975,
       "ifc_schema": "IFC4",
       "families": 8,
@@ -5234,7 +5483,7 @@
     {
       "file": "massing-families-structural-secondary-v0.1.0.ifc",
       "discipline": "structural-secondary",
-      "sha256": "091c3aebabc1e05ee1259cba282af1e7fef25a85b589cf20e61b7c83f2cf60a5",
+      "sha256": "77506f8cd1aa7a835920b723805e7a0d9aa9e19f37b03b597353059f4efd5a36",
       "size_bytes": 36440,
       "ifc_schema": "IFC4",
       "families": 5,
@@ -5372,7 +5621,7 @@
     {
       "file": "massing-families-structural-steel-channel-angle-v0.1.0.ifc",
       "discipline": "structural-steel-channel-angle",
-      "sha256": "9a652862aa84d727b4d27e6c2c6732de9ea65caa2d78bed3e60aaff59344e307",
+      "sha256": "a1487a468fc2ab86c5fc50beeb428bfa18b498aac899a9c28604056772d54b70",
       "size_bytes": 518000,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -5574,7 +5823,7 @@
     {
       "file": "massing-families-structural-steel-hss-v0.1.0.ifc",
       "discipline": "structural-steel-hss",
-      "sha256": "5c152fbc11d6e3b7143953c5ceb4ad3e5bd9c836a8f5723407f606f21a133a7e",
+      "sha256": "35588cbe27b6b573c5ff93b52adc2520daae0aef100499be2e1c31ad069021c8",
       "size_bytes": 1533347,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -5804,7 +6053,7 @@
     {
       "file": "massing-families-structural-steel-tee-v0.1.0.ifc",
       "discipline": "structural-steel-tee",
-      "sha256": "4c46c79efbc518f0a84607e05ff2a3566414e0795f8051828a20d3694bef8881",
+      "sha256": "2f2f94f564233c349dd0a376692d3b3df0bd3a886566ad388bd07009d8c4f831",
       "size_bytes": 830585,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -5981,7 +6230,7 @@
     {
       "file": "massing-families-structural-steel-w-v0.1.0.ifc",
       "discipline": "structural-steel-w",
-      "sha256": "4a6d196b8441c8944d207953de00e01e73c68f5085d2a6187378e36fe834fbe3",
+      "sha256": "9f08954f4b7dc74aca16684e6a12fc61bf907a53ccea924022a4fe3757e5f6b1",
       "size_bytes": 1136349,
       "ifc_schema": "IFC4",
       "families": 3,
@@ -6185,7 +6434,7 @@
     {
       "file": "massing-families-structural-timber-v0.1.0.ifc",
       "discipline": "structural-timber",
-      "sha256": "0c1b1d425d66ed0b084197659aceeb61ed50b41ab92d01b88cbe7b5b65985d2d",
+      "sha256": "e1d08eff3f44e655cb61e095ce71d43193937048134c44399507be6b0f154087",
       "size_bytes": 69974,
       "ifc_schema": "IFC4",
       "families": 7,
@@ -6375,7 +6624,7 @@
     {
       "file": "massing-families-typology-airport-v0.1.0.ifc",
       "discipline": "typology-airport",
-      "sha256": "c86ba1a031f9b4f92e1d4404fe7b2e1df62ae03a691a40aa5ce224cacd537aeb",
+      "sha256": "aa082b381f2d42cac74f4ae4e138b3326f2397d53a23cd5383a76c4d1df42e50",
       "size_bytes": 38593,
       "ifc_schema": "IFC4",
       "families": 6,
@@ -6529,7 +6778,7 @@
     {
       "file": "massing-families-typology-healthcare-v0.1.0.ifc",
       "discipline": "typology-healthcare",
-      "sha256": "e86517613fb89c46eb11bd9400ae95c388a4cf537fe326bc30fe609b9ab90578",
+      "sha256": "609cf033a43cb3313975228b16b0452e65bf7dbd7166a9ac20c9073d6e75799d",
       "size_bytes": 83208,
       "ifc_schema": "IFC4",
       "families": 13,
@@ -6841,7 +7090,7 @@
     {
       "file": "massing-families-typology-hospitality-v0.1.0.ifc",
       "discipline": "typology-hospitality",
-      "sha256": "1a3838adee6439e5399ba115e52d0173d6bee50f180446d58e727daf92bff345",
+      "sha256": "f8bf1373afbe4c79a1b0a126850bf497ccdc55498bc5fab6e95d0e554acc96da",
       "size_bytes": 60294,
       "ifc_schema": "IFC4",
       "families": 9,
@@ -7065,7 +7314,7 @@
     {
       "file": "massing-families-typology-industrial-v0.1.0.ifc",
       "discipline": "typology-industrial",
-      "sha256": "d64abb40e54c35d282c333de971518ae02ac4765c3f5aa3b9da111bee1b6e028",
+      "sha256": "6184db3e9a92b49714d6ccbd0cb352a0b665e7e56110acff8b0b47050de7dd97",
       "size_bytes": 39280,
       "ifc_schema": "IFC4",
       "families": 8,
@@ -7261,7 +7510,7 @@
     {
       "file": "massing-families-typology-residential-v0.1.0.ifc",
       "discipline": "typology-residential",
-      "sha256": "049320b97703ca2b8f1688233a8c14a8a210fc7ddb15d77a38552d60565bd473",
+      "sha256": "fb8220c347d834a9e3c5dc40725dec1eca12ebeb7dae1c0da48ee41b2c6c7d7b",
       "size_bytes": 53304,
       "ifc_schema": "IFC4",
       "families": 9,

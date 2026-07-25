@@ -39,8 +39,18 @@ assert w_row["scores"]["yield"] == h_row["scores"]["yield"] == 100.0, "flat crit
 assert w_row["scores"]["cost"] == 100.0 and h_row["scores"]["cost"] == 0.0
 assert w_row["scores"]["carbon"] == 100.0 and h_row["scores"]["carbon"] == 0.0
 assert osc.CARBON_KGCO2E_M2["warehouse"] < osc.CARBON_KGCO2E_M2["hospital"]
+# Carbon is HYBRID since v0.3.669: the shell comes from an elemental takeoff (geometry), the fit-out
+# from the type benchmark (programme). Either alone loses an axis — a pure takeoff would give these
+# two identical carbon on the same envelope, which is exactly the assertion above that would break.
+assert w_row["carbon_basis"] == "hybrid" and h_row["carbon_basis"] == "hybrid"
+split = w_row["takeoff"]["carbon_split"]
+assert split["fitout_kgco2e_m2"] == round(
+    osc.CARBON_KGCO2E_M2["warehouse"] * osc.FITOUT_CARBON_SHARE, 1), split
+# same envelope → identical SHELL carbon; the whole difference is programme-driven fit-out
+assert w_row["takeoff"]["carbon_intensity_kgco2e_m2"] == h_row["takeoff"]["carbon_intensity_kgco2e_m2"]
+assert split["fitout_kgco2e_m2"] < h_row["takeoff"]["carbon_split"]["fitout_kgco2e_m2"]
 assert w_row["carbon_total_tco2e"] == round(
-    w_row["massing"]["buildable_gfa_m2"] * osc.CARBON_KGCO2E_M2["warehouse"] / 1000.0, 1)
+    w_row["massing"]["buildable_gfa_m2"] * w_row["carbon_intensity_kgco2e_m2"] / 1000.0, 1)
 
 # --- weights steer the ranking: an all-yield weighting ties them (equal yield → equal composite) ---
 ry = osc.score_options(opts, weights={"cost": 0.0, "carbon": 0.0, "yield": 1.0, "compliance": 0.0})

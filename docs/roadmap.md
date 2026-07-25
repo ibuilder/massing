@@ -36,6 +36,53 @@ non-gated work**.
    repo publishing a **tagged release** so `scripts/fetch_families.py` can fetch rather than needing
    a local build *(user/upstream action)* · the upstream manifest declaring a **licence** — it
    currently declares none, so the shelf honestly reports `unlicensed`.
+0b. ▶ **🧱 FAMILY-COMPLETE — enough content to actually build a building** *(L, multi-release; the
+   new top priority)*. The shelf holds **270 families / 2,334 types**, and the content repo's own
+   plan is explicit that this is a **completeness floor** — one family per system a typology cannot
+   be built without — not the depth to model a real project. Measured coverage today:
+
+   | discipline | families | assessment |
+   |---|---|---|
+   | structural | 39 *(1,299 steel types via AISC generators)* | **deep** — W/HSS/tee/pipe series |
+   | architectural | 59 | moderate; finishes + enclosure need breadth |
+   | typology | 45 | one pass per typology |
+   | mechanical | 26 | thin for a real MEP model |
+   | interiors | 17 | thin |
+   | plumbing | 16 fam / **20 types** | **critically thin** |
+   | electrical | 15 fam / **32 types** | **critically thin** |
+   | fire | 13 fam / **14 types** | **critically thin** |
+   | conveying · site · construction | 11–15 each | thin |
+
+   The gap is **breadth-within-system**, and it is concentrated where a building stops functioning:
+   you cannot plumb, power or sprinkler a project from 66 types. Target the content plan's own
+   §8e figure: **~800 families / ~7,500 types**.
+
+   **Approach — generate, don't scrape.** Every family is parametric YAML in the content catalog
+   expanded by size-series generators (the AISC path already proves it: 3 catalog families → 1,299
+   real types). Where no source exists, **fabricate** the geometry: v0.3.667 gave us 14 native IFC
+   profiles swept/revolved/booleaned, so any section, tube, fitting or fixture massing can be built
+   rather than boxed. Licensing stays clean because nothing is scraped from object portals.
+
+   **Batches, thinnest-first** (each = catalog YAML → rebuild → shelf → release):
+   1. **Plumbing** — fixtures (WC/lav/urinal/shower/sink/EWC/mop), pipe by material × size
+      (copper L, PVC DWV, cast iron), fittings, valves, water heaters, pumps, backflow, drains,
+      cleanouts, traps, hangers.
+   2. **Electrical** — panelboards, switchboards, dry-type transformers by kVA, wiring devices,
+      luminaires by type, conduit by trade size, cable tray, busway, generator, ATS, disconnects.
+   3. **Fire protection + sprinkler** — heads by K-factor/orientation/temperature, pipe + hangers,
+      control/check/alarm/dry valves, FDC, hose valves and cabinets, extinguishers, detection
+      (smoke/heat/duct), notification, fire + jockey pumps.
+   4. **Mechanical depth** — AHUs/RTUs by tonnage, VAV boxes, FCUs, chillers/boilers/cooling towers,
+      pumps, duct by size + full fitting set, diffusers/registers/grilles, dampers, louvres.
+   5. **Architectural + interiors depth** — door/window families by type and size series, hardware,
+      partitions by assembly, ceilings, floor/wall finishes, casework, specialties, railings, stairs.
+   6. **Conveying · site · construction depth**, then a **per-typology completeness pass** proving
+      each of the six can be modelled end-to-end.
+
+   **Definition of done:** a completeness test per typology that fails if any system needed to build
+   it has no family — the existing `tests/test_completeness.py` shape, raised from "one family per
+   system" to "enough types to model the system".
+
 1. ✅ **🎚 UX-POLISH sprint — COMPLETE** *(v0.3.663–664)*. The backend surface had outrun the front
    end; this closed the gap.
    ✅ **UX-KPI** — the narrative band on the developer + design homes · ✅ **UX-CHIPS** — `toneFor`
@@ -75,7 +122,11 @@ non-gated work**.
    `GET/PUT/DELETE /workflow/{key}`). A save that would **strand live records** — an occupied state
    with no way out — is refused with the state and count named, because a stranded record looks
    exactly like one nobody has got to yet. Rewires declared states only; never invents new ones.
-6. **📈 GEN-SCORE depth** *(M)* — per-option 5D takeoffs + EPD carbon on the generative option scorer.
+6. ✅ **📈 GEN-SCORE depth — COMPLETE** *(v0.3.669)* — `option_takeoff.py`: elemental quantities off
+   the massing geometry → per-element cost + embodied carbon through the platform's own EPD factors.
+   A benchmark can't see geometry (a plate and a tower with equal GFA score identically); a takeoff
+   can. Uncovered elements are named rather than counted as carbon-free, and a set that **mixes**
+   quantity-derived with benchmark carbon is flagged as not like-for-like.
 
 *Reassess after sprint 3. Items 4–6 are genuinely optional ordering; 1–3 are not.*
 

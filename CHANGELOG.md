@@ -4,6 +4,67 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.669 — GEN-SCORE depth: carbon from quantities, and an honest word when the bases differ
+
+The option scorer priced each massing variant at one blended conceptual $/SF and rated its carbon
+from a whole-building kgCO₂e/m² benchmark by building type. Both are defensible at concept stage, and
+both share a weakness: **a benchmark cannot see geometry.** Two options with the same GFA and the
+same building type get an identical carbon intensity even when one is a squat plate and the other a
+slender tower carrying twice the façade per square metre — which is precisely the trade-off the
+scorer exists to expose.
+
+New `option_takeoff.py` derives elemental quantities from the massing itself (perimeter × height for
+façade, not GFA alone), prices them element by element, and runs the same quantities through the
+platform's **own** EPD factor table (`carbon.FACTORS` — composed on, not copied). Structural system
+and window-to-wall ratio are levers; every rate is overridable. In the test, a tower and a plate with
+identical GFA and type now differ in both carbon and cost, as they should.
+
+**What it refuses to do:**
+
+- **Elements with no EPD factor are named, not folded in at zero.** MEP, finishes and core carry no
+  factor in the table; counting them as carbon-free would flatter every option equally and silently.
+  `covered_elements` and `uncovered_elements` are reported, because a bottom-up number over 60% of a
+  building is not the same claim as one over 95%.
+- **A takeoff is refused rather than faked** when the massing carries no usable geometry —
+  `basis: "none"`, and the caller falls back to the benchmark *and says so*.
+- **An unpriced element is named**, not dropped into a total that looks complete.
+
+**The model is deliberately hybrid — and the existing test is what proved it had to be.** Replacing
+the benchmark wholesale broke `test_option_score`, and the failure was right: the takeoff sees only
+*geometry*, so a warehouse and a hospital on the same envelope came out with identical carbon. That
+is false, and the difference between them lives in MEP and fit-out — **precisely the elements the
+takeoff already reports as uncovered.** So the shell comes from quantities and the programme-driven
+remainder from the type benchmark (`FITOUT_CARBON_SHARE`, one named constant rather than a number
+buried in a formula). Both axes now reach the score; either source alone loses one.
+
+**The honesty gate.** A hybrid figure and a pure typology benchmark are still different claims.
+Ranking options whose carbon came from different bases compares unlike things, and the carbon weight
+is then doing work it hasn't earned. `score_options` reports `carbon_basis`, and a mixed set is
+flagged — *"1 of 2 option(s) are quantity-derived, the rest are typology benchmarks… not
+like-for-like"* — rather than being quietly averaged over. The fallback option is flagged, never
+dropped.
+
+**FAMILY-COMPLETE batch 1 — plumbing.** The clarified bar is that a user can model a *complete*
+building across six typologies and every discipline, fabricating geometry where no source exists. The
+shelf's 270 families were a **completeness floor** — one family per system, which proves a typology
+*can* be plumbed but cannot model a real one. Measured, the thinnest disciplines were plumbing
+(20 types), electrical (32) and fire (14): you cannot plumb, power or sprinkler a project from 66
+types.
+
+Plumbing is now **27 families / 110 types** (16/20 before), pushed to the content repo and rebuilt
+into the shelf: copper Type L and Schedule 40 PVC and no-hub cast iron at real ASTM ODs and wall
+thicknesses, plus WCs, lavatories, urinals, showers, sinks, drinking fountains with ADA variants and
+drainage/supply fixture units, water heaters, booster pumps, RPZ backflow, drains, cleanouts and
+valves. Six families were **deliberately not added** — the base catalog already carries them at
+equivalent depth, and forking one system across two families is worse than a thinner catalog.
+
+The generator's own schema validation caught two invalid `PredefinedType` enums mid-write
+(`WATERHEATER` is not legal on `IfcElectricApplianceType`; `CHECKVALVE` is not legal on
+`IfcValveType`) and a guessed Uniclass code was removed rather than shipped unverified.
+
+The full plan — six batches, thinnest-first, targeting the content plan's own ~800 families / ~7,500
+types — is the new top item on the roadmap.
+
 ## v0.3.668 — WFE-3 per-project workflows, and the family shelf actually stocked
 
 **WFE-3 — per-project workflow overrides.** Module workflows ship as `module.json` defaults:
