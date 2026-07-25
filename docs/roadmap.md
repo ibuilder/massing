@@ -44,10 +44,12 @@ non-gated work**.
    defs, so the 108 previously-empty registers fill (`seed_demo.py --all-modules`); references are
    refused rather than faked.
    **Remaining:** the demo/docs/Pages refresh — regenerate `demoData.json` off the fuller seed.
-2. **💲 COST-SPINE** *(M; the highest-integrity item left)*. One cost-code identity carried
-   estimate → budget → invoice on the CBS spine (the MARGIN-CBS follow-on). This is the cross-cutting
-   correctness the 5D story rests on: today the same scope can wear different codes at different
-   stages, so margin erosion can hide in the seam. Backend-first, fully testable.
+2. ✅ **💲 COST-SPINE — COMPLETE** *(v0.3.665)*. `cost_spine.py` + `GET /cost-spine` traces cost-code
+   identity across budget → commitment → actual → invoice, reporting **presence** rather than only
+   amounts: the stages each code reaches, where the chain first breaks, spend on codes nobody
+   budgeted, invoices over their commitment, records with *no* code at all (which no per-code report
+   can show), and off-register codes. `traceability_pct` is surfaced **on the margin card**, because
+   that is the number that inherits the coverage.
 3. **🧱 REL-3 — `modules.py` DI split** *(M; unblocks work that has been stuck for several cycles)*.
    The CRUD/feeds leaves cannot be extracted until the dependency seam exists. Pure backend refactor
    with the full suite as the gate. Then the rest of the REL-3 remainder as interleaved slices:

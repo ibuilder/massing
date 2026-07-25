@@ -132,6 +132,21 @@ def margin_by_costcode(pid: str, db: Session = Depends(get_db), _: str = Depends
     return margin.by_cost_code(db, pid)
 
 
+@router.get("/projects/{pid}/cost-spine")
+def cost_spine_trace(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """COST-SPINE — does one cost code carry the same scope from budget through commitment, actual and
+    invoice? Reports **presence, not just amounts**: which stages each code reaches, where its chain
+    first breaks, spend booked against codes nobody budgeted, records carrying no cost code at all,
+    and codes used on records but missing from the project's cost-code register.
+
+    The headline is `traceability_pct` — the share of committed+actual money sitting on a budgeted
+    code. The margin report at /margin/by-costcode inherits that coverage, so read this first."""
+    from .. import cost_spine
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return cost_spine.trace(db, pid)
+
+
 @router.get("/projects/{pid}/selections/summary")
 def selections_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """SELECTIONS — the owner selections & allowances money rollup: total allowance vs. actual, the net

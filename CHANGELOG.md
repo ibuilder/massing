@@ -4,6 +4,33 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.665 — COST-SPINE: is it the same scope at every stage?
+
+`margin/by-costcode` totals budget vs committed vs actual vs billed per code. It answers *what is the
+margin on 03-3000*. It structurally cannot answer the question underneath: **is 03-3000 the same
+scope at every stage** — because a code that appears at one stage and not the next still produces a
+row that looks fine. Scope re-coded between the estimate and the buyout, or spend booked against a
+code nobody budgeted, hides in exactly that seam.
+
+New `cost_spine.py` + `GET /projects/{pid}/cost-spine` reports **presence, not just amounts**:
+
+- **Which stages each code reaches**, and where its chain *first* breaks — rendered as a stage strip
+  so a gap reads at a glance instead of being inferred from four numbers.
+- **Spend without budget** — named outright rather than left to surface as a large negative variance.
+- **Budget with nothing behind it** — fine early, a re-coding smell late.
+- **Invoices exceeding their commitment.**
+- **Records carrying no cost code at all** — the worst case, and the one a per-code report can never
+  show: that spend appears in no row anywhere. Surfaced separately, with its own total.
+- **Codes used on records but missing from the project's register** (free-typed, so two spellings of
+  one code silently become two scopes), and register codes nobody ever used.
+
+The headline is `traceability_pct` — the share of committed+actual money sitting on a budgeted code —
+and it is stated **on the margin card itself**, because that is the number inheriting the coverage. A
+buyout margin computed over 55%-traceable spend is a different claim from one computed over 100%, and
+the reader shouldn't have to work that out on another screen. An empty project refuses to report a
+percentage at all rather than showing a comfortable 0% or 100%. Flagged rows carry the resolve-action
+that fixes them, filtered to the code.
+
 ## v0.3.664 — UX-POLISH complete: actions that resolve, and 108 registers that are no longer empty
 
 **UX-DEMO — the empty-state problem, measured then closed.** The hand-written relation-chain seeder

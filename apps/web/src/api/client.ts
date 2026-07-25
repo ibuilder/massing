@@ -1974,6 +1974,23 @@ export class ApiClient extends HttpCore {
       over_committed_codes: number; over_budget_codes: number; rows: Row[]; note: string;
     }>(`/projects/${pid}/margin/by-costcode`);
   }
+  /** COST-SPINE — does one cost code carry the same scope across budget → commitment → actual →
+   *  invoice? Reports presence, not just amounts; `traceability_pct` is the share of committed+actual
+   *  money on a budgeted code, which is the coverage the margin report above inherits. */
+  costSpine(pid: string) {
+    type SpineRow = { cost_code: string; code: string; ref: string;
+      budget: number; committed: number; actual: number; billed: number;
+      counts: Record<string, number>; stages_present: string[]; stage_count: number;
+      first_break: string | null; traceable: boolean; flags: string[]; actions: ResolveAction[] };
+    return this.json<{
+      rows: SpineRow[]; code_count: number; stages: string[];
+      unassigned: Record<string, { amount: number; count: number }>;
+      unassigned_total: number; unassigned_count: number;
+      codes_not_in_register: string[]; unused_register_codes: string[];
+      traceability_pct: number | null; traceable_spend: number; total_spend: number;
+      broken: string[]; note: string;
+    }>(`/projects/${pid}/cost-spine`);
+  }
   /** SELECTIONS — owner selections & allowances rollup (allowance vs actual → change-order candidates). */
   selectionsSummary(pid: string) {
     type Cat = { category: string; count: number; allowance: number; actual: number; delta: number };

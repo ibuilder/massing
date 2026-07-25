@@ -93,6 +93,30 @@ export async function renderMargin(ctx: PanelContext) {
       + (m.over_budget_codes ? ` · ${statusChip(`${m.over_budget_codes} over-budget`, { tone: "bad" })}` : "") + `</div>`;
     body.appendChild(head);
 
+    // COST-SPINE — the coverage caveat belongs next to the number that inherits it. A buyout margin
+    // computed over 55%-traceable spend is a different claim from one computed over 100%, and the
+    // reader should not have to go and work that out on another screen. Loaded separately so a slow
+    // or failing trace never blocks the margin table.
+    void ctx.host.api.costSpine(pid).then((sp) => {
+      if (sp.traceability_pct === null) return;              // nothing spent yet — no caveat to make
+      const clean = sp.traceability_pct === 100 && !sp.unassigned_count;
+      const band = document.createElement("div");
+      band.className = "dash-card";
+      band.style.cssText = "margin:-4px 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap";
+      band.innerHTML = statusChip(`${sp.traceability_pct}% traceable`, { tone: clean ? "ok" : "warn" })
+        + (sp.unassigned_count
+          ? statusChip(`${sp.unassigned_count} uncoded · ${usd(sp.unassigned_total)}`, { tone: "bad" })
+          : "")
+        + (sp.broken.length ? statusChip(`${sp.broken.length} broken chain${sp.broken.length === 1 ? "" : "s"}`, { tone: "warn" }) : "")
+        + `<span class="meta" style="flex:1;min-width:220px">${esc(sp.note)}</span>`;
+      const open = document.createElement("button");
+      open.className = "ux-act"; open.type = "button"; open.textContent = "Cost spine →";
+      open.style.cssText = "font-size:10px;padding:1px 6px;border:1px solid var(--border,#3a3a3a);border-radius:4px;background:transparent;color:var(--accent,#5b9);cursor:pointer";
+      open.onclick = () => { void renderCostSpine(ctx); };
+      band.appendChild(open);
+      head.insertAdjacentElement("afterend", band);
+    }).catch(() => { /* the trace is a caveat on the table, never a blocker for it */ });
+
     const wrap = document.createElement("div"); wrap.className = "dash-card"; wrap.style.overflowX = "auto";
     const t = document.createElement("table"); t.className = "portal-table"; t.style.cssText = "width:100%;font-size:11px";
     t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Cost code</th>`
@@ -120,5 +144,89 @@ export async function renderMargin(ctx: PanelContext) {
     body.appendChild(wrap);
   } catch (e) {
     body.innerHTML = `<div class="meta">Cost-code margin unavailable: ${esc((e as Error).message)}</div>`;
+  }
+}
+
+/**
+ * COST-SPINE panel — cost-code identity across budget → commitment → actual → invoice.
+ *
+ * The margin table answers "what is the margin on 03-3000". This answers the question underneath it:
+ * is 03-3000 the same scope at every stage? A code that appears at one stage and not the next still
+ * produces a margin row that looks fine, so this shows PRESENCE — a stage strip per code, where the
+ * chain first breaks, and the spend that carries no code at all and therefore appears in no per-code
+ * row anywhere.
+ */
+export async function renderCostSpine(ctx: PanelContext) {
+  const pid = ctx.host.projectId()!;
+  ctx.root.innerHTML = "";
+  ctx.root.appendChild(ctx.bar("🧬 Cost spine", () => { void renderMargin(ctx); }));
+
+  const body = document.createElement("div");
+  body.innerHTML = `<div class="meta">Tracing cost-code identity across the stages…</div>`;
+  ctx.root.appendChild(body);
+  const usd = (n: number) => (n < 0 ? "−$" : "$") + Math.round(Math.abs(n)).toLocaleString();
+
+  try {
+    const sp = await ctx.host.api.costSpine(pid);
+    body.replaceChildren();
+
+    const head = document.createElement("div"); head.className = "dash-card"; head.style.marginBottom = "10px";
+    const clean = sp.traceability_pct === 100 && !sp.unassigned_count;
+    head.innerHTML = `<div class="section-title" style="margin:0 0 4px">Traceability</div>`
+      + `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:4px">`
+      + (sp.traceability_pct === null ? statusChip("nothing spent yet", { tone: "neutral" })
+        : statusChip(`${sp.traceability_pct}% of spend on a budgeted code`, { tone: clean ? "ok" : "warn" }))
+      + (sp.unassigned_count ? statusChip(`${sp.unassigned_count} record(s) with no cost code · ${usd(sp.unassigned_total)}`, { tone: "bad" }) : "")
+      + (sp.codes_not_in_register.length ? statusChip(`${sp.codes_not_in_register.length} off-register code(s)`, { tone: "warn" }) : "")
+      + `</div><div class="meta">${esc(sp.note)}</div>`;
+    body.appendChild(head);
+
+    if (!sp.code_count) {
+      const none = document.createElement("div"); none.className = "meta";
+      none.textContent = "No cost-coded budget or spend records yet — nothing to trace.";
+      body.appendChild(none);
+      return;
+    }
+
+    const wrap = document.createElement("div"); wrap.className = "dash-card"; wrap.style.overflowX = "auto";
+    const t = document.createElement("table"); t.className = "tbl"; t.style.width = "100%";
+    t.innerHTML = `<thead><tr><th>Cost code</th><th>Chain</th>`
+      + sp.stages.map((s) => `<th style="text-align:right">${esc(s)}</th>`).join("")
+      + `<th>Issue</th><th></th></tr></thead>`;
+    const tb = document.createElement("tbody");
+    for (const r of sp.rows) {
+      const tr = document.createElement("tr");
+      // the stage strip: a filled pip per stage the code actually reaches, so a broken chain is
+      // visible at a glance rather than inferred from four numbers
+      const strip = sp.stages.map((s) => {
+        const on = (r.counts[s] ?? 0) > 0;
+        const broke = r.first_break === s;
+        return `<span title="${esc(s)}${on ? "" : " — absent"}" style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;`
+          + `background:${on ? "var(--status-good)" : broke ? "var(--status-crit)" : "var(--border,#3a3a3a)"}"></span>`;
+      }).join("");
+      tr.innerHTML = `<td>${esc(r.cost_code)}</td><td style="white-space:nowrap">${strip}</td>`
+        + sp.stages.map((s) => {
+          const v = (r as unknown as Record<string, number>)[s] ?? 0;
+          return `<td style="text-align:right;font-variant-numeric:tabular-nums">${v ? usd(v) : "—"}</td>`;
+        }).join("")
+        + `<td>${r.flags.map((f) => statusChip(f.replace(/_/g, " "),
+             { tone: f === "budget_without_spend" ? "info" : "bad" })).join(" ")}</td>`;
+      const act = document.createElement("td");
+      const btns = resolveActionButtons(ctx, r.actions);
+      if (btns) act.appendChild(btns);
+      tr.appendChild(act);
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb); wrap.appendChild(t); body.appendChild(wrap);
+
+    if (sp.unused_register_codes.length) {
+      const un = document.createElement("div"); un.className = "dash-card"; un.style.marginTop = "10px";
+      un.innerHTML = `<div class="section-title" style="margin:0 0 4px">Register codes never used (${sp.unused_register_codes.length})</div>`
+        + `<div class="meta">Normal early on. Late in a job it means the estimate's scope breakdown and the actual buyout have drifted apart.</div>`
+        + `<div class="meta" style="margin-top:4px">${sp.unused_register_codes.map(esc).join(" · ")}</div>`;
+      body.appendChild(un);
+    }
+  } catch (e) {
+    body.innerHTML = `<div class="meta">Cost spine unavailable: ${esc((e as Error).message)}</div>`;
   }
 }
