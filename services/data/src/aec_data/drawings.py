@@ -728,8 +728,131 @@ def _poche_fill(cls: str, lod: str) -> str:
     return _POCHE_LIGHT
 
 
+# ── R21-HATCH: material hatch patterns on cut material ───────────────────────────────────────────
+# A tone says "this is cut". A HATCH says what it is cut *through*. An issued detail separates
+# concrete from reinforced concrete from steel from insulation from masonry by pattern, and a reader
+# identifies the assembly from the patterns alone — which is why a set drawn in flat greys reads as a
+# study and a set drawn with hatches reads as construction documents.
+#
+# Patterns are defined in PAPER space, not model space. That is the drafting convention: hatch
+# spacing is a property of the sheet, so the same wall hatches identically at 1:100 and 1:10. The
+# consequence is handled explicitly in `_hatch_for` below rather than ignored.
+HATCH_MATERIALS = ("concrete", "reinforced_concrete", "steel", "masonry", "insulation",
+                   "timber", "earth", "glass", "finish")
+
+# keyword → category. Ordered: the first hit wins, so "reinforced concrete" must precede "concrete".
+_MATERIAL_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("reinforced concrete", "rc ", "r.c.", "cast-in-place", "cast in place", "precast"), "reinforced_concrete"),
+    (("concrete", "grout", "screed", "mortar"), "concrete"),
+    (("steel", "metal", "aluminium", "aluminum", "iron", "galvan"), "steel"),
+    (("masonry", "brick", "block", "cmu", "stone"), "masonry"),
+    (("insulat", "mineral wool", "glass wool", "polyiso", "rockwool", "eps", "xps"), "insulation"),
+    (("timber", "wood", "lumber", "plywood", "glulam", "clt"), "timber"),
+    (("earth", "soil", "gravel", "sand", "hardcore", "fill"), "earth"),
+    (("glass", "glazing", "glaz"), "glass"),
+    (("gypsum", "plaster", "paint", "render", "tile", "carpet", "vinyl", "finish"), "finish"),
+)
+
+# When a model carries no material at all, fall back to what the class almost certainly is. Stated as
+# a fallback rather than presented as fact — an unknown class hatches as `finish` (the lightest),
+# never as structure.
+_CLASS_MATERIAL_FALLBACK = {
+    "ifcfooting": "reinforced_concrete", "ifcpile": "reinforced_concrete",
+    "ifcslab": "reinforced_concrete", "ifccolumn": "reinforced_concrete",
+    "ifcbeam": "reinforced_concrete", "ifcwall": "masonry", "ifcwallstandardcase": "masonry",
+    "ifcmember": "steel", "ifcplate": "steel", "ifcrailing": "steel",
+    "ifccurtainwall": "glass", "ifcwindow": "glass", "ifcdoor": "timber",
+    "ifcroof": "concrete", "ifccovering": "finish",
+}
+
+# SVG <pattern> bodies, drawn on a `_HATCH_TILE`-unit tile in paper units. Deliberately conventional:
+# 45° single for concrete, 45° cross for reinforced concrete, tight 45° for steel, horizontal courses
+# for masonry, a soft batt zigzag for insulation, grain for timber, dots for earth.
+_HATCH_TILE = 8
+_HATCH_BODY: dict[str, str] = {
+    "concrete": '<path d="M0,8 L8,0" stroke="{c}" stroke-width="0.6"/>'
+                '<circle cx="2.5" cy="2.5" r="0.5" fill="{c}"/>'
+                '<circle cx="6" cy="5.5" r="0.45" fill="{c}"/>',
+    "reinforced_concrete": '<path d="M0,8 L8,0 M0,0 L8,8" stroke="{c}" stroke-width="0.6"/>',
+    "steel": '<path d="M0,8 L8,0 M-2,2 L2,-2 M6,10 L10,6" stroke="{c}" stroke-width="0.9"/>',
+    "masonry": '<path d="M0,2.6 H8 M0,5.3 H8" stroke="{c}" stroke-width="0.55"/>'
+               '<path d="M4,0 V2.6 M0,2.6 V5.3 M4,5.3 V8" stroke="{c}" stroke-width="0.55"/>',
+    "insulation": '<path d="M0,4 q2,-3 4,0 t4,0" fill="none" stroke="{c}" stroke-width="0.7"/>',
+    "timber": '<path d="M0,2 H8 M0,6 H8" stroke="{c}" stroke-width="0.5"/>'
+              '<path d="M1,0 q1.5,4 0,8 M5,0 q1.5,4 0,8" fill="none" stroke="{c}" stroke-width="0.45"/>',
+    "earth": '<circle cx="2" cy="2" r="0.6" fill="{c}"/><circle cx="6" cy="4" r="0.55" fill="{c}"/>'
+             '<circle cx="3.5" cy="6.5" r="0.5" fill="{c}"/>',
+    "glass": '<path d="M0,8 L8,0" stroke="{c}" stroke-width="0.35"/>',
+    "finish": '<path d="M0,8 L8,0" stroke="{c}" stroke-width="0.3" stroke-dasharray="1.5 2.5"/>',
+}
+_HATCH_INK = "#333"
+# below this paper-space thickness a hatch is unreadable — the tile is wider than the element — so
+# the fill degrades to the solid tone rather than emitting stripes nobody can resolve
+MIN_HATCH_PX = 6.0
+
+
+def material_by_class(model: ifcopenshell.file) -> dict[str, str]:
+    """Dominant hatch material per IFC class, read from the model's OWN materials.
+
+    Class-level rather than element-level because the cut pipeline carries a class, not a GUID — and
+    for a section that is the distinction that matters: the slab hatches as reinforced concrete and
+    the wall as masonry. Where a class genuinely mixes materials the majority wins, which is a stated
+    approximation, not a silent one.
+    """
+    import collections
+
+    import ifcopenshell.util.element as ue
+    votes: dict[str, collections.Counter] = {}
+    for el in model.by_type("IfcElement"):
+        try:
+            mat = ue.get_material(el)
+        except Exception:                     # noqa: BLE001 — a broken material must not stop the map
+            continue
+        names: list[str] = []
+        for attr in ("Name", "ForLayerSet", "MaterialLayers", "Materials"):
+            v = getattr(mat, attr, None)
+            if isinstance(v, str):
+                names.append(v)
+        # layer sets / constituent sets: collect every layer's material name
+        for holder in (getattr(mat, "MaterialLayers", None) or getattr(mat, "Materials", None) or []):
+            n = getattr(getattr(holder, "Material", holder), "Name", None)
+            if isinstance(n, str):
+                names.append(n)
+        blob = " ".join(names).lower()
+        if not blob:
+            continue
+        cat = next((c for keys, c in _MATERIAL_KEYWORDS if any(k in blob for k in keys)), None)
+        if cat:
+            votes.setdefault(el.is_a().lower(), collections.Counter())[cat] += 1
+    return {cls: c.most_common(1)[0][0] for cls, c in votes.items() if c}
+
+
+def hatch_material(cls: str, materials: dict[str, str] | None) -> str:
+    """The hatch category for an IFC class — the model's own material first, the class fallback next."""
+    low = (cls or "").lower()
+    if materials and low in materials:
+        return materials[low]
+    return _CLASS_MATERIAL_FALLBACK.get(low, "finish")
+
+
+def hatch_defs(categories) -> str:
+    """`<defs>` for exactly the categories used. Emitting only what is referenced keeps a section of
+    three materials from carrying nine unused pattern definitions."""
+    want = [c for c in HATCH_MATERIALS if c in set(categories)]
+    if not want:
+        return ""
+    out = ["<defs>"]
+    for cat in want:
+        body = _HATCH_BODY[cat].format(c=_HATCH_INK)
+        out.append(f'<pattern id="hatch-{cat}" width="{_HATCH_TILE}" height="{_HATCH_TILE}" '
+                   f'patternUnits="userSpaceOnUse">{body}</pattern>')
+    out.append("</defs>")
+    return "".join(out)
+
+
 def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], title: str,
-                        grid: dict | None = None, lod: str = "coarse", width: int = 1300) -> str:
+                        grid: dict | None = None, lod: str = "coarse", width: int = 1300,
+                        hatch: bool = True, materials: dict[str, str] | None = None) -> str:
     """An **annotated** section: poché, level datums, grid bubbles and a floor-to-floor dimension
     chain — the things that make a cut issuable rather than merely correct.
 
@@ -765,11 +888,29 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
 
     # cut material first, as filled loops — a section polyline from a solid IS a closed loop
     opacity = _POCHE_OPACITY.get(lod, 1.0)
+    used_hatch: set[str] = set()
+    poly_svg: list[str] = []
     for cls, poly in classed:
         pts = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
         fill = _poche_fill(cls, lod)
+        # R21-HATCH: hatch the cut when we can READ it. A hatch tile is a fixed size on the sheet, so
+        # an element thinner than a couple of tiles would emit stripes nobody can resolve — at that
+        # size the honest mark is the solid tone. This is why the same wall hatches at 1:10 and reads
+        # as a filled sliver at 1:100, which is exactly what a drafter would do by hand.
+        if hatch and fill != "none":
+            p = np.asarray(poly, dtype=float)
+            paper = min((p[:, 0].max() - p[:, 0].min()), (p[:, 1].max() - p[:, 1].min())) * scale
+            if paper >= MIN_HATCH_PX:
+                cat = hatch_material(cls, materials)
+                used_hatch.add(cat)
+                poly_svg.append(f'<polygon points="{pts}" fill="url(#hatch-{cat})" '
+                                f'stroke="#111" stroke-width="1"/>')
+                continue
         fo = f' fill-opacity="{opacity:.2f}"' if fill != "none" else ""
-        out.append(f'<polygon points="{pts}" fill="{fill}"{fo} stroke="#111" stroke-width="1"/>')
+        poly_svg.append(f'<polygon points="{pts}" fill="{fill}"{fo} stroke="#111" stroke-width="1"/>')
+    if used_hatch:
+        out.append(hatch_defs(used_hatch))
+    out.extend(poly_svg)
 
     # grid bubbles on the in-plane horizontal: a section on X draws world Y, and vice versa
     if grid:
@@ -818,7 +959,8 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
 
 
 def section_svg(model: ifcopenshell.file, axis: str, offset: float | None = None,
-                title: str = "SECTION", lod: str = "coarse", annotate: bool = True) -> str:
+                title: str = "SECTION", lod: str = "coarse", annotate: bool = True,
+                hatch: bool = True) -> str:
     """Cut the model on a vertical plane. `offset` is the world coordinate (metres) of the cut on the
     perpendicular axis; when None the cut auto-centres on the model so it lands through the building
     regardless of where the model sits relative to the origin.
@@ -834,7 +976,8 @@ def section_svg(model: ifcopenshell.file, axis: str, offset: float | None = None
         return to_svg(cut_baked(meshes, view, offset), title=title,
                       subtitle=f"{axis.upper()} = {offset:.2f} m")
     return section_drawing_svg(meshes, axis, offset, storey_elevations(model), title,
-                               grid=grid_from_meshes(meshes), lod=lod)
+                               grid=grid_from_meshes(meshes), lod=lod, hatch=hatch,
+                               materials=material_by_class(model) if hatch else None)
 
 
 def plan_file(ifc_path: str, elevation: float, cut_height: float = 1.2, title: str = "PLAN") -> str:

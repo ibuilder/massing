@@ -477,13 +477,14 @@ def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str =
 
 @router.get("/projects/{pid}/drawings/section.svg")
 def section(pid: str, axis: str = "x", offset: float | None = None, title: str = "SECTION",
-            lod: str = "coarse", annotate: bool = True,
+            lod: str = "coarse", annotate: bool = True, hatch: bool = True,
             db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Vertical section SVG. `offset` = world coordinate (m) of the cut on the axis perpendicular to
     `axis` (x|y); omit it to auto-centre the cut through the model.
 
-    Annotated by default — poché on cut material, level datums, grid bubbles and a floor-to-floor
-    dimension chain. `lod` (coarse|fine|line) sets how much poché tone survives; `annotate=false`
+    Annotated by default — material hatch on cut material, level datums, grid bubbles and a
+    floor-to-floor dimension chain. `lod` (coarse|fine|line) sets how much tone survives when an
+    element is too thin to hatch; `hatch=false` falls back to flat poché tones; `annotate=false`
     returns bare linework for CAD hand-off.
     """
     from fastapi import HTTPException
@@ -493,7 +494,7 @@ def section(pid: str, axis: str = "x", offset: float | None = None, title: str =
     if lod not in drawings.SECTION_LODS:
         raise HTTPException(400, f"lod must be one of {sorted(drawings.SECTION_LODS)}")
     svg = drawings.section_svg(open_model(_source_ifc(db, pid)), axis, offset, title,
-                               lod=lod, annotate=annotate)
+                               lod=lod, annotate=annotate, hatch=hatch)
     return _svg(svg)
 
 

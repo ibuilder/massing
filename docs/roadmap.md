@@ -246,6 +246,95 @@ stakes we are missing.
 are mature, crowded, low-margin categories with a decade of incumbency. **Prefer seams to
 reimplementation** — R22-ACCT-SEAM exists precisely so we never write a GL.
 
+## ⚡ R23 — ENGINEERING UPGRADE RING *(technical scan 2026-07-25; file:line evidence)*
+
+**A THIRD false blocker, and the biggest one.** **W10-9 dimensional constraints** has sat gated for
+months behind *"planegcs, LGPL — sidecar-solved, baked to IFC"*. The licence survey confirms the hard
+blocks (CAD_Sketcher and py-slvs/SolveSpace are **GPL-3**, correctly excluded) — but it also found
+that **we never needed a full geometric constraint solver.** `kiwisolver` (Cassowary) is
+**Modified BSD-3**, a ~60–100 KB prebuilt wheel, already a transitive dependency of matplotlib, and
+its inequalities-plus-strengths model covers what BIM dimensional locks actually are: axis distance
+locks, alignment, offsets, equal spacing of grids/columns/mullions, level-height chains, sill/head
+heights — **and clearance minimums as ≥ constraints**, which wires straight into code-check.
+Over-constrained models degrade gracefully and unsatisfiable constraints are named, which is the DOF
+feedback the UX needs. The nonlinear tail (angles, tangency, arcs) is residuals through
+`scipy.optimize.least_squares` (**BSD-3**, already present) — structurally what planegcs does inside.
+**W10-9 moves out of Gated and becomes ordinary work with a BSD-3 dependency.**
+
+*Three gates disproved in one day — dev API, geometry stall, and now this. The lesson is now a rule:
+a gate is a hypothesis until someone tests it.* See [[check-the-blocker-premise]].
+
+**Tier 1 — measure, then take the cheap wins.** *Every item below is unverifiable until R23-PERF-TEST
+exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions.*
+
+- **R23-PERF-TEST** *(M)* — runtime perf budget in vitest: assert `renderer.info.render.calls` under a
+  threshold, and that `renderer.info.memory.geometries/textures` returns to baseline after dispose.
+  The leak assertion is the one that pays — there is already a confirmed leak (below).
+- **R23-RENDERER-FLAGS** *(S)* — `viewer/world.ts:32` constructs `SimpleRenderer` with **no
+  parameters**, so it silently inherits `antialias: true` always and sets no `powerPreference`.
+  `antialias` is a context attribute — construction-only, so this cannot be fixed after the fact.
+- **R23-UPDATE-COALESCE** *(S)* — `viewer/loader.ts:25-26` fires `fragments.core.update()` on **every**
+  camera-controls update event, unthrottled: the textbook expensive-pass-per-event mistake. Coalesce
+  to one per rAF, keeping the rest → `update(true)` full-quality pass.
+- **R23-RAF-LEAK** *(S)* — `pins/pins.ts:29-30` starts a **second permanent rAF with no cancellation
+  path**, alongside the engine's own uncapped loop. It survives viewer teardown.
+- **R23-PIXEL-GOVERNOR** *(M)* — pixel ratio is pinned at `min(dpr, 2)` with no adaptive downscale
+  under load. A frame-time-EMA governor is the cheapest large win on a 4K display with a tall tower.
+
+**Tier 2 — real work, high payoff**
+
+- ⭐ **R23-CONSTRAINTS** *(L)* — W10-9 via kiwisolver + least_squares, per the unblock above.
+- **R23-SHADOW-COST** *(M)* — `viewer/world.ts:182-192` puts a 2048² shadow map over a **±140 m ortho
+  frustum** — catastrophic texel density on a 30-storey tower — on top of hemisphere + fill lights and
+  SSAO+Bloom through a 4× MSAA composer. Set `shadowMap.autoUpdate = false` with manual invalidation,
+  fit the frustum to visible bounds, and run post only on camera rest.
+- **R23-STOREY-LOD** *(L)* — server-side coarse proxies per storey (extruded footprint / AABB) for
+  small parts, MEP and furniture, swapping to real fragments on demand. Server-side keeps it
+  deterministic, offline and $0. *`docs/phase2-large-models.md` claims no custom LOD is needed and is
+  itself marked superseded — that claim is the thing to retire.*
+- **R23-PICKING** *(M)* — `viewer/app.ts:337` wraps `fragments.raycast` in a **1500 ms Promise.race
+  against a stalled worker**, which is an admission that picking latency already hurts. GPU ID-buffer
+  picking (scissored 1×1 target) is O(1) in polygon count. three-mesh-bvh is already present
+  transitively (MIT) — instrument it first.
+- **R23-REVIT-EXPORT-CFG** *(M)* — script `IFCExportConfiguration` from the pyRevit bridge instead of
+  trusting the export dialog, and **enforce the `IfcGUID` shared parameter** so GlobalIds survive
+  re-export. That is our first non-negotiable (reference by GUID, never transient ids) and it is
+  currently left to a checkbox someone else ticks. Add a pre-publish model audit (warnings, unplaced
+  rooms, in-place families, imported CAD) — exactly the conditions that produce garbage IFC.
+
+**Tier 3 — worthwhile, lower urgency**
+
+- **R23-DIGEST** *(M)* — a deterministic multi-scale model digest (project → storey → zone → system →
+  element) as compact JSON. Immediate non-AI value as a **diffable change-detection snapshot** between
+  IFC versions; becomes the retrieval index if AI features land.
+- **R23-RECIPE-ARTIFACT** *(M)* — make the edit-recipe log first-class: versioned, diffable,
+  exportable, replayable against a fresh IFC. It already *is* a CAD operation timeline; formalising it
+  serves provenance, the as-built audit trail, and AI consumption in one move.
+- **R23-BATCH-OVERLAYS** *(S)* — app-authored overlays (pins, grid, snap markers, dimensions, clash
+  markers) use **zero** instancing; `three@0.184.0` has `BatchedMesh`. Keep the default BIM pass off
+  `MeshStandardMaterial` (presentation mode only); make FOV/FAR responsive by viewport class.
+- **R23-GLTF-COMPRESS** *(S/M)* — Draco or meshopt on the server-side glTF export path (permissive,
+  server-side only, no browser dependency added). 90–95% size reduction.
+- **R23-SYMBOL-COUNT** *(M)* — deterministic template-match symbol counting in the **existing** pdf.js
+  takeoff worker: mark one instance, normalised cross-correlation, non-maximum suppression.
+  **Zero new dependencies**, offline, auditable — which matters for quantities that feed a bid.
+- **R23-PREFAB-KIT** *(M)* — a prefab kit is a `query_dsl.select()` scope + BOM + pull-plan task +
+  delivery date. A join across spines we already have, not a new engine. Strong LOD-500 fit: kits are
+  what actually get field-verified.
+- **R23-JURISDICTION-PACKS** *(M)* — jurisdiction-scoped data-requirement rule packs (a regulator
+  defines a pset spec a submitted model must satisfy). `query_dsl` + `rule_library` + IDS already carry
+  this shape; turnover data requirements are the same problem.
+
+**Watch, not work:** WebGPU (`WebGPURenderer` exists in the pinned three, but Fragments targets WebGL
+— 2–3 year horizon) · browser-side IFC parsing (a streaming WASM parser now exists; server-side
+pre-conversion still buys caching, GUID-stable recipes and offline tiles, so the non-negotiable holds).
+
+**Needs an explicit OK before any work starts:** `ifclite-geom` as an *accelerator only* for
+`world_bounds` and the clash AABB pre-pass. It is **MPL-2.0 (file-level copyleft, not on our
+MIT/BSD/Apache list)**, a new Rust binary wheel, and **99.9% agreement is not bit-identical** — so it
+must never touch drawing generation, which has to stay deterministic. Would ship behind a flag with a
+per-GlobalId AABB cross-check against the ifcopenshell path.
+
 ## 🎚 UX-POLISH — interaction-craft ring (remainder beyond the NOW sprint)
 
 - **UX-GANTT** *(M)* — weekly Gantt/calendar hybrid with inline % + crew coloring + a metric strip.
@@ -293,9 +382,13 @@ gbXML + IDF export — shipped v0.3.655)* · **RT-NODE-LANE** — CI is on Node 
 still 20.3.1 *(user action)*, then unpin eslint off 9.39.5, then Vite 6→7 behind a build benchmark
 *(defer Vite 8/rolldown)*.
 
-**New-dependency-gated (needs an explicit OK):** **RT-BVH** — three-mesh-bvh for the raw-three raycast
-paths · **RT-KNIP** — unused-export / dead-dep scan *(feeds REL-7)* · **W10-9** dimensional
-constraints *(planegcs, LGPL — sidecar-solved, baked to IFC)*.
+**New-dependency-gated (needs an explicit OK):** **RT-BVH** — three-mesh-bvh for the raw-three
+raycast paths *(already present transitively, MIT — instrument before adding)* · **RT-KNIP** —
+unused-export / dead-dep scan *(feeds REL-7)* · **ifclite-geom** *(MPL-2.0, Rust wheel — see R23)*.
+**~~W10-9 dimensional constraints~~ — UNGATED 2026-07-25.** It was held on *planegcs, LGPL*; the
+licence survey found we never needed a full geometric constraint solver. `kiwisolver` (Cassowary,
+**BSD-3**) covers the linear/alignment/equal-spacing/clearance set and `scipy.optimize.least_squares`
+(**BSD-3**) the nonlinear tail. Now ordinary work — see **R23-CONSTRAINTS**.
 
 **Spec-gated:** **SPRINT E — FAB-DELIVER phase 2** — byte-exact BVBS BF2D / DSTV-NC, held behind the
 authoritative spec + a real importer/validator. *A wrong file mis-bends real steel.*
