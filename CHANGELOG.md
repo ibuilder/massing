@@ -4,6 +4,38 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.682 — R21-4D-CLASH: two trades in one place at one time
+
+Hard clash finds two things in one space. Soft clash asks whether a person can reach them. This asks
+the third question, and it is the one that reaches site as two foremen arguing in a corridor: **are
+two crews scheduled into the same place in the same week?**
+
+Nothing in the model is wrong when this happens. Every element clears every other element. The clash
+is entirely in the *schedule*, which is exactly why a geometric clash run cannot find it however
+thoroughly it runs.
+
+**What is deliberately not a finding.** Same-trade overlap is planning, not contention — one trade
+sequencing its own crews through a zone is how work gets done. Adjacent windows are fine, one crew
+leaving as another arrives; a single shared day is not. Location matching ignores case and spacing,
+so `L3 North` and `l3  north` are one place rather than two clean ones.
+
+**Unreadable activities are counted, never dropped.** An activity with no location, or missing dates,
+or finishing before it starts, is reported as skipped with the reason. An empty or entirely
+unreadable schedule reports **not clean** rather than vacuously perfect — the same rule the clash
+matrix follows, where a matrix that tested nothing is not "coordinated". A clean result over a
+half-readable schedule would overstate what was checked.
+
+**Half of this item is named as unbuilt rather than approximated.** The roadmap describes 4D clash as
+two things: space contention, and an install sequenced before the support it hangs from. Only the
+first is answerable from the data that exists — `schedule_activity` carries location, trade, dates
+and crew size, but **no element GlobalId**, so there is no way to know what a task installs. That
+half needs a real task→element binding, not a guess, and the response says so in its own payload
+rather than in a comment nobody reads.
+
+Exposed at `GET /projects/{pid}/clash/sequence`, with `min_overlap_days` and `crew_threshold` bars.
+
+382/382 backend suites · 668 project routes all role-gated · ruff clean.
+
 ## v0.3.681 — R21-SOFT-CLASH: what a coordination report is allowed to claim
 
 Hard clash asks whether two solids overlap. Soft clash asks the question that actually stops work:

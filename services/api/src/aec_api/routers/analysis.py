@@ -220,6 +220,24 @@ def clash_matrix(pid: str, body: dict = Body(default={}), _: str = Depends(requi
     return soft_clash.matrix(body.get("disciplines") or [], pairs, body.get("findings") or [])
 
 
+@router.get("/projects/{pid}/clash/sequence")
+def clash_sequence(pid: str, min_overlap_days: int = 1, crew_threshold: int = 0,
+                   db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """R21-4D-CLASH — space contention: two trades scheduled into one location in one window.
+
+    Nothing in the model is wrong when this happens — every element clears every other — which is why
+    a geometric clash run cannot find it. Same-trade overlap is not a finding (one trade sequencing
+    its own crews is planning). Activities without a location or dates are skipped and counted, so a
+    clean result is never claimed over a schedule that was half unreadable.
+    """
+    from .. import modules as me
+    from .. import sequence_clash
+    acts = me.list_records(db, "schedule_activity", pid, limit=sequence_clash.MAX_ACTIVITIES) \
+        if "schedule_activity" in me.TABLES else []
+    return sequence_clash.analyze(acts, min_overlap_days=min_overlap_days,
+                                  crew_threshold=crew_threshold)
+
+
 @router.get("/projects/{pid}/clash/clearance-rules")
 def clash_clearance_rules(pid: str, _: str = Depends(require_role("viewer"))):
     """The soft-clash clearance rules — each with the code or manufacturer basis it came from, so a

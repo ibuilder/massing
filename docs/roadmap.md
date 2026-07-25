@@ -13,8 +13,8 @@ authoring pillar closed its parity ring (R18). **What is thin now is the surface
 craft, the demo, and the cross-cutting cost identity that make the shipped depth legible — plus the
 structural carry-overs that keep the codebase workable.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**381** suites) · vitest 158 · single-source
-version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.681**.
+**Status:** CodeQL 0 open alerts · backend suite green (**382** suites) · vitest 158 · single-source
+version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.682**.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
@@ -141,9 +141,14 @@ These are the gaps between what the platform draws today and what that package c
   reference material distinguishes hard / soft-clearance / workflow-4D. Soft clash is a *rules* problem
   (NEC working space, valve access, coil pull, door swing) and the discipline-pair matrix declares
   which combinations are tested at all. Without it, "clash-free" overstates what was checked.
-- **R21-4D-CLASH** *(M)* — **sequence clash**: two trades occupying one space in the same schedule
+- ◧ **R21-4D-CLASH** *(phase 1 shipped v0.3.682; install-before-support still open)* — **sequence clash**: two trades occupying one space in the same schedule
   window, or an install ordered before its support. The 4D timeline and CPM both exist; this reads
   them together.
+
+  **Phase 2 needs a prerequisite that does not exist**: `schedule_activity` carries no element
+  GlobalId, so nothing knows *what a task installs*. Install-before-support cannot be computed
+  without a real **task→element binding** — that binding is the actual next piece of work, and
+  approximating it (by trade, by name match) would produce confident findings nobody can trust.
 - **R21-TAGS** *(M)* — **element tags on drawings** (a door tagged `D2` carrying `900 x 2100`),
   auto-placed with leader avoidance, driven by the same type data the schedules already read.
 - **R21-BREAKLINE** *(S)* — break lines + partial views, so a detail can stop mid-element honestly
