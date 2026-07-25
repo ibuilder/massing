@@ -84,6 +84,12 @@ def project_health(db, pid: str) -> dict[str, Any]:
         pu["open_count"], pu["overdue_count"])
 
     # --- Score ---------------------------------------------------------------
+    # R26-ONE-HEALTH. These are two DIFFERENT aggregations of the same domains, and showing them side
+    # by side without saying so is what makes the app look like it disagrees with itself: the score is
+    # a MEAN ("most things are fine") while the band is WORST-OF ("one thing is blocking"). Six green
+    # domains and one red reads as "88/100 · RED", which is correct twice over and confusing once.
+    # Both are worth keeping — a PM needs the average and the blocker — so the fix is to name the
+    # domain that governs the band, turning an apparent contradiction into an explanation.
     scored = [_STATUS_SCORE[d["status"]] for d in domains if _STATUS_SCORE[d["status"]] is not None]
     health_score = round(sum(scored) / len(scored)) if scored else None
     overall = "green"
@@ -91,11 +97,17 @@ def project_health(db, pid: str) -> dict[str, Any]:
         overall = "red"
     elif any(d["status"] == "amber" for d in domains):
         overall = "amber"
+    governing = next((d for d in domains if d["status"] == overall), None) if overall != "green" else None
     rank = {"red": 0, "amber": 1}
     attention.sort(key=lambda a: rank.get(a["status"], 2))
     return {
         "health_score": health_score,
         "overall_status": overall,
+        # what each number MEANS, so a caller never has to guess why 88/100 can read RED
+        "score_basis": "mean of scored domains",
+        "status_basis": "worst domain governs",
+        "governing_domain": governing["label"] if governing else None,
+        "governing_detail": governing["headline"] if governing else None,
         "open_items_total": sum(d["open_count"] for d in domains),
         "overdue_items_total": sum(d["overdue_count"] for d in domains),
         "domains": domains,

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import ai, audit, mailer, rbac
+from .. import ai, audit, mailer, rbac, rooms
 from .. import modules as mod_engine
 from .. import sync as sync_engine
 from ..db import get_db
@@ -49,9 +49,27 @@ def list_modules():
          "icon": m.get("icon"), "pinnable": m.get("pinnable", False),
          "title_field": m.get("title_field"), "ref_prefix": m.get("ref_prefix"),
          "fields": m.get("fields", []), "workflow": m.get("workflow", {}),
-         "relations": m.get("relations", []), "list_columns": m.get("list_columns")}
+         "relations": m.get("relations", []), "list_columns": m.get("list_columns"),
+         # R26-MODULE-HOME: the ONE canonical room this module lives in. Derived from its section by
+         # a single table so a module cannot end up in two rooms, and served here so the shell never
+         # has to invent its own taxonomy — which is how four different rails came to exist.
+         "room": rooms.room_of(m)}
         for m in mod_engine.REGISTRY.values()
     ]
+
+
+@router.get("/rooms")
+def list_rooms():
+    """R26 — the five-room spine, and the allocation of every module to exactly one room.
+
+    Constant for every role: a workspace *weights* the spine, it never replaces it. `unplaced` must
+    always be empty — a module with no room is one a user can no longer reach, which is the failure an
+    IA restructure is most likely to cause and least likely to notice (`test_module_rooms` gates it).
+    """
+    return rooms.allocate([
+        {"key": m["key"], "name": m.get("name"), "section": m.get("section")}
+        for m in mod_engine.REGISTRY.values()
+    ])
 
 
 @router.get("/modules/graph")

@@ -4,6 +4,67 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.686 — R26 Sprint A: one room per module, and a project that stops contradicting itself
+
+An external app audit landed with a blunt verdict: *"You built a platform. The UI is presenting it as
+a filing cabinet."* Seven workspaces carry **four different left-rail taxonomies**, so nothing learned
+in one transfers to the next, and modules land in more than one — Facility Condition twice in the
+Developer rail alone, Model Health three times on a single screen.
+
+**This ring changes the front door, not the building.** Every engine survives untouched — the selector
+spine, the 130-module config engine, the drawing generators, the 5D cost binding, LOD-500. What
+changes is that a module stops being a destination you hunt for in a catalog.
+
+### The app no longer appears to disagree with itself
+
+The audit reported a contradiction: model health *77/100* in one workspace, *24 · at risk* in another.
+Investigating narrowed it to something more precise, and the narrower answer is the right one.
+
+The two engines measure **genuinely different subjects** — one scores the *model* (GUID hygiene, ISO
+19650 delivery, clash resolution, verified as-built), the other scores the *job* (RFIs, submittals,
+T&M, quality, safety, field reporting, closeout). They are already labelled distinctly, and merging
+them would produce a number answering neither question.
+
+The real defect sat **inside one engine**: `health_score` is a **mean** across domains while
+`overall_status` is **worst-of**, and both render together. Six green domains and one red shows as
+*"88/100 · RED"* — each number correct, the pair baffling. A user who catches the app disagreeing with
+itself stops trusting every other number on the screen, which is the expensive part.
+
+Both aggregations are worth keeping — a PM needs the average *and* the blocker — so the payload now
+declares each basis and **names the domain that governs the band**. An apparent contradiction becomes
+the one sentence that was missing.
+
+### One canonical room per module, and a gate that makes the restructure safe
+
+All **132 modules** now resolve to exactly one room — **Model 38 · Cost 37 · Schedule 41 · Deal 16** —
+served at `GET /rooms`, with the room carried on every module in `GET /modules`.
+
+The allocation is derived from the `section` each module already declares, through **one readable
+table**, rather than stored per module. A new module inherits a room automatically and an editing slip
+cannot put one in two rooms. A section with **no** room is a hard build failure, never a default,
+because defaulting is precisely what would hide an unreachable module.
+
+**The verification gate ships before the restructure it protects.** `test_module_rooms` reads the
+`module.json` files from disk — not a hand-maintained list — and asserts every module has exactly one
+home. Losing a module is what an IA change is most likely to do and least likely to notice; this makes
+it impossible rather than unlikely.
+
+### The spine, behind a flag
+
+`Model · Cost · Schedule · Deal · Work`, constant for every role. Professional terms are primary and
+there is deliberately no second string table — the users are builders, developers, architects and
+engineers who already own the vocabulary.
+
+The property that separates a spine from another mode switch is asserted: a workspace **weights** it
+and never **replaces** it, so all five rooms survive every workspace including unknown ones. Room
+badges are ball-in-*your*-court rather than totals, because a badge you cannot act on is noise. The
+flag has a **way back** (`?shell=classic`) — a flag you cannot leave is a migration.
+
+Also: external design bundles can now be dropped into a git-ignored `_prototypes/` **inside** the repo
+and actually run, instead of rendering as dead snapshots from outside it.
+
+387/387 backend suites green · 167 vitest · 669 project routes role-gated.
+
 ## v0.3.685 — R24-ROLE-EXPLAIN: a refusal becomes a lesson
 
 Controls above the caller's project role were `display: none`. The intent was good and is recorded in

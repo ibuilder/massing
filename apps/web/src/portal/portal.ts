@@ -864,7 +864,14 @@ export class PortalUI {
           + `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">`
           + `<div style="font-size:30px;font-weight:800;color:${c};line-height:1">${h.health_score ?? "—"}<span style="font-size:13px;font-weight:600;opacity:.6">/100</span></div>`
           + `<div><div style="font-weight:700">Project health · <span style="color:${c};text-transform:uppercase">${h.overall_status}</span></div>`
-          + `<div class="meta">${h.open_items_total} open · ${h.overdue_items_total} overdue across ${h.domains.length} domains</div></div></div>`
+          // R26-ONE-HEALTH: the score is a MEAN and the band is WORST-OF, so a high score can carry a
+          // red band. Naming the domain that governs turns "88/100 · RED" from an apparent
+          // self-contradiction into the one sentence a PM actually needs.
+          + (h.governing_domain
+              ? `<div class="meta">${esc(h.governing_domain)} sets the band · score is the mean of `
+                + `${h.domains.length} domains</div>`
+              : `<div class="meta">all ${h.domains.length} domains clear</div>`)
+          + `<div class="meta">${h.open_items_total} open · ${h.overdue_items_total} overdue</div></div></div>`
           + `<div style="margin:8px 0 4px">${chips}</div>`
           + (att ? `<div style="margin-top:6px">${att}</div>` : "")
           + `</div>`;

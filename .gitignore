@@ -122,3 +122,8 @@ services/api/aec_dev.db
 # local dev-API preview state (created by the .claude/launch.json `api` target)
 preview_storage/
 preview.db
+
+# design prototypes / external audit bundles dropped in for interactive review.
+# Inside the repo so the browser preview will actually RUN them (files outside the project folder
+# only render as static snapshots); ignored so they never reach a commit.
+_prototypes/

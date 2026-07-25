@@ -225,6 +225,17 @@ export interface ModuleDef {
   relations?: { label: string; module: string }[];
   list_columns?: string[];
   revisable?: boolean;
+  /** R26 — the ONE canonical room this module lives in ("model" | "cost" | "schedule" | "deal").
+   *  Served by the API from a single section→room table, so no shell has to invent its own
+   *  taxonomy — inventing one per workspace is how four different rails came to exist. */
+  room?: string | null;
+}
+/** R26 — the five-room spine. Constant for every role; a workspace weights it, never replaces it. */
+export interface RoomDef { id: string; label: string; job: string; count: number; modules: string[] }
+export interface RoomAllocation {
+  rooms: RoomDef[]; placed: number;
+  /** Must always be empty — a module with no room is one nobody can reach. */
+  unplaced: { key: string; section: string }[]; unplaced_count: number;
 }
 export interface WorkflowTransition { from: string; to: string; action: string; party: string[] }
 export interface RecordBrief {

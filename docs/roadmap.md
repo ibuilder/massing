@@ -13,8 +13,8 @@ authoring pillar closed its parity ring (R18). **What is thin now is the surface
 craft, the demo, and the cross-cutting cost identity that make the shipped depth legible — plus the
 structural carry-overs that keep the codebase workable.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**385** suites) · vitest 158 · single-source
-version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.685**.
+**Status:** CodeQL 0 open alerts · backend suite green (**387** suites) · vitest 158 · single-source
+version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.686**.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
@@ -360,6 +360,85 @@ record:* `ifclite-geom` as an *accelerator only* for
 MIT/BSD/Apache list)**, a new Rust binary wheel, and **99.9% agreement is not bit-identical** — so it
 must never touch drawing generation, which has to stay deterministic. Would ship behind a flag with a
 per-GlobalId AABB cross-check against the ifcopenshell path.
+
+## 🏛 R26 — THE SPINE: five rooms, one project *(app audit + redesign, 2026-07-25)*
+
+**The finding, in one line:** *"You built a platform. The UI is presenting it as a filing cabinet."*
+Seven workspaces carry **four different left-rail taxonomies**, so nothing a user learns in one
+transfers to the next, and modules land in more than one — Facility Condition appears twice in the
+Developer rail alone; Model Health appears three times on the Design screen at once. The app has no
+**spine**: nothing says what this project is, where it stands, or what to touch next.
+
+**This ring changes the front door, not the building.** Every engine, module, selector spine and
+format written to date survives untouched — `query_dsl`, the 130-module config engine, the drawing
+generators, the 5D cost binding, LOD-500 verification, the workflow state machines. What changes is
+that a module stops being *a destination you must find in a catalog* and becomes **reachable four
+ways**: from the room it belongs to, from the element it is anchored to, from your work queue when it
+is your turn, and from ⌘K by name. The catalog survives as the fourth path rather than the only one.
+
+**Decisions taken 2026-07-25** *(asked and answered, so they are not re-litigated)*:
+professional terms are primary and there is **no Lay mode** — the rooms are **Model · Cost · Schedule ·
+Deal · Work**, because the users are builders, developers, architects and engineers who already own the
+vocabulary. The new shell lands **behind a flag with both shells live**, and the default flips only
+once it beats the old one.
+
+### Sprint A — foundations *(no flag needed; these improve the current shell too)*
+
+- ✅ **R26-ONE-HEALTH** *(shipped v0.3.686)* — **the app currently contradicts itself and it is verified.**
+  `portal.ts:643` renders `/models/health → overall_score` ("24 · at risk") and `portal.ts:865` renders
+  `/health → health_score` ("77/100") — two engines, one word, same session. Once a user catches the app
+  disagreeing with itself, every other number becomes suspect. **One score, computed once, referenced
+  everywhere**: establish which engine is canonical, have the other reference rather than recompute.
+- ✅ **R26-MODULE-HOME** *(shipped v0.3.686)* — one canonical **room** per module across all 130, plus references. The
+  16-section map in the audit is the starting allocation. Ships with the reachability gate below, so a
+  restructure cannot silently lose a module.
+- **R26-OFFER-NOT-ERROR** *(S)* — a failure becomes an **offer with a button**. `"(404) — needs a
+  published model"` becomes *"No published model yet"* + **Publish now**. The viewer empty state
+  (v0.3.677) is the pattern to copy; the audit found 12 drawings all returning a raw 404 string.
+
+### Sprint B — the shell, behind a flag
+
+- ◧ **R26-SHELL** *(foundation shipped v0.3.686: `/rooms`, the flag, room ordering + badges; the rendered rail is next)* — the five-room spine, constant for every role; a **workspace weights and
+  preselects** it but never replaces it. Drawings and Studio become tools inside **Model**; Developer
+  and Finance merge into **Deal**. Behind `?shell=spine` / a per-user preference, with the current
+  shell untouched beside it.
+- **R26-VITALS** *(M)* — six numbers along the bottom — LOD, area, $/sf, float, IRR, health — replacing
+  the 10 viewport controls currently pinned to every workspace whether or not it has a viewport. This
+  is the "one model" claim, continuously proven. Viewport controls move into **Model** where they apply.
+- **R26-NEXT-ACTION** *(S)* — one line stating what to do next. Master Builder already computes exactly
+  this (8-step readiness with *→ Close this gap*); this is promotion, not a new engine.
+
+### Sprint C — the Inspector *(where the last two rings become visible)*
+
+- ⭐ **R26-INSPECTOR** *(L)* — select an element → **Properties · Cost · Schedule · Field** in one panel.
+  This is the payoff surface for work already shipped: the **5D cost binding** (v0.3.684) puts a real
+  rate and quantity on the Cost tab, and the **LOD-500 verification stamp** puts a real state on Field.
+  It is what makes "one model, one key" tangible in the first thirty seconds instead of requiring three
+  tabs and prior knowledge.
+
+### Sprint D — work, tools, and the visual system
+
+- **R26-WORK-QUEUE** *(M)* — the ball-in-court queue as the daily home, acted on inline. The dashboard
+  already computes ball-in-court and the SLA feed.
+- **R26-TOOLBAR** *(M)* — the model toolbar carries **24 unlabeled glyphs, all of them, always**. Replace
+  with 5–8 **labeled** contextual verbs + **More**.
+- **R26-ICONS** *(S)* — one monoline icon set at a single weight, state-tinted, replacing coloured emoji.
+- **R26-COLOUR-DISCIPLINE** *(S)* — the primary blue currently marks Open, Save, the selected tab, the
+  selected rail item, every KPI number, PDF Takeoff, Paper space and Zoom-to-cursor. **When one colour
+  means eight things it means nothing.** Blue = interactive/model-derived; green = solved; amber =
+  attention; red = blocking; nothing else is coloured.
+
+### Sprint E — verification *(all four gates were requested; none is optional)*
+
+- ✅ **R26-V-REACH** *(shipped v0.3.686 — deliberately BEFORE the restructure it protects)* — assert **every module has exactly one canonical home and is reachable**. The
+  single biggest risk in an IA change is silently losing a module; this makes that impossible.
+- **R26-V-CONSISTENT** *(M)* — assert single-sourced numbers so the contradiction defect **cannot
+  regress**. Same shape as `assert-read-write-symmetry`: two surfaces showing one concept must agree.
+- **R26-V-LIVE** *(M)* — drive the real app and confirm every room, inspector tab and vitals figure
+  renders real data — the method that found the nav-density defects and disproved three false gates.
+- **R26-V-TIMING** *(M)* — instrument first-task completion per persona against the audit's baseline, so
+  the redesign's claim is **measured rather than asserted**.
+
 
 ## 💵 R25 — 5D: the model IS the estimate *(research 2026-07-25; phase 1 shipped v0.3.684)*
 

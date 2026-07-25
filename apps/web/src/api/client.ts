@@ -9,7 +9,7 @@ export * from "./types";
 import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, FinancialStatements,
-  IntegrationGroup, ModelCiReport, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult,
+  IntegrationGroup, ModelCiReport, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   PreflightGate, PreflightSummary,
   RecordAttachmentMeta, RelatedRecords, ResolveAction, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
@@ -569,6 +569,10 @@ export class ApiClient extends HttpCore {
   projectHealth(pid: string) {
     return this.json<{
       health_score: number | null; overall_status: string;
+      // the score is a MEAN across domains, the status is WORST-OF — so a high score can carry a red
+      // band, and `governing_domain` names the one that set it
+      score_basis: string; status_basis: string;
+      governing_domain: string | null; governing_detail: string | null;
       open_items_total: number; overdue_items_total: number;
       domains: { key: string; label: string; status: string; headline: string;
         open_count: number; overdue_count: number }[];
@@ -2806,6 +2810,10 @@ export class ApiClient extends HttpCore {
   // GC portal modules + model pins
   modules() {
     return this.json<ModuleDef[]>(`/modules`);
+  }
+  /** R26 — the five-room spine plus the allocation of every module to exactly one room. */
+  rooms() {
+    return this.json<RoomAllocation>(`/rooms`);
   }
   modulePins(pid: string) {
     return this.json<ModulePin[]>(`/projects/${pid}/module-pins`);
