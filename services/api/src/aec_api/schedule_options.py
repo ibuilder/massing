@@ -22,6 +22,8 @@ from __future__ import annotations
 import itertools
 from typing import Any
 
+from . import resolve_hint
+
 _DEFAULT_RATE = 2000.0          # $ per crew-day (a blended trade crew) — overridable per call
 _CREW2_PREMIUM = 0.15           # a 2nd crew carries a 15% coordination/overtime premium on its trade
 _ZONE_SETUP_CREWDAYS = 3.0      # crew-days of mobilisation per extra work-face zone
@@ -173,7 +175,11 @@ def optimize(base: dict, *, max_crew_trades: int = 3, zone_options: tuple[int, .
         if td > 0:
             trades.append({**t, "takt_days": td})
     if not trades:
-        return {"scenarios": [], "note": "no trades to optimise"}
+        # UX-ACT: an empty result is a dead end unless it also says where to go. The optioneer needs
+        # a takt train, so hand back the button that opens the register you'd build one in.
+        return {"scenarios": [], "note": "no trades to optimise",
+                "actions": [resolve_hint.open_module(
+                    "schedule_activity", "Add schedule activities to optimise")]}
     nt = len(trades)
     # bottleneck candidates for a 2nd crew. Default: the slowest trades (ties broken by original order
     # → deterministic). Phase-4b: when the caller passes the CPM critical path, that governs instead —
@@ -267,6 +273,13 @@ def optimize(base: dict, *, max_crew_trades: int = 3, zone_options: tuple[int, .
                           "proxy for the bottleneck, not the bottleneck itself" if not cp_names
                      else "the supplied critical path matched no trade by name — fell back to the "
                           "slowest-trade heuristic rather than silently optimising nothing")},
+        # UX-ACT: the run's own caveats, each paired with the button that resolves it. A caveat the
+        # reader has to act on is only useful if the next step is one click away.
+        "actions": ([resolve_hint.open_module(
+            "schedule_activity", "Fix the trade names on the critical path",
+            ", ".join(unmatched[:3]))] if unmatched else [])
+            + ([resolve_hint.navigate("__schedule__", "Narrow the levers — the grid was capped")]
+               if truncated else []),
         "recommended": best, "baseline": baseline,
         "recommended_vs_baseline": saving,
         "pareto_count": sum(1 for s in scenarios if s["pareto"]),

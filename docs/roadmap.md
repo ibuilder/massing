@@ -32,16 +32,18 @@ non-gated work**.
    metadata on `GET /families/library`. See [families.md](families.md).
    **Remaining:** a browsable shelf UI in the Library palette *(UX-3 depth, below)*, and the
    content repo publishing a tagged release so `scripts/fetch_families.py` has something to fetch.
-1. ◧ **🎚 UX-POLISH sprint** *(M; the long-deferred one — in progress)*. The platform's backend
-   surface has outrun its front end; empty states and unrolled chips undercut shipped depth on every
-   screen.
-   ✅ **UX-KPI rollout** *(v0.3.663)* — the narrative band on the developer + design homes ·
-   ◧ **UX-CHIPS rollout** *(v0.3.663)* — reached the selections money card (with the unpriced
-   remainder stated explicitly); **remaining:** DRAW-STATUS and the lifecycle feeds as they're
-   touched. **Remaining:** **UX-DEMO** — one richly-threaded demo project across every screen (this
-   is what kills empty states, and it feeds the Pages demo) · **UX-ACT** — extend the resolve-action
-   descriptors to `rule_library.py` violations and `schedule_options.py` conflict feeds. Then the
-   demo/docs/Pages refresh.
+1. ✅ **🎚 UX-POLISH sprint — COMPLETE** *(v0.3.663–664)*. The backend surface had outrun the front
+   end; this closed the gap.
+   ✅ **UX-KPI** — the narrative band on the developer + design homes · ✅ **UX-CHIPS** — `toneFor`
+   taught the *real* vocabulary (112 module workflow states; 30 were recognised, so 73% of every
+   register rendered grey), then rolled to the module record grid (incl. DRAW-STATUS), the
+   action-items and brief feeds, and the selections money card · ✅ **UX-ACT** — the
+   `select_elements` action kind for diagnostics that name geometry (rule violations), the
+   optioneer's caveats paired with resolving buttons, and the `navigate` kind wired ·
+   ✅ **UX-DEMO** — `demo_seed.py` generates schema-valid records from each module's own field
+   defs, so the 108 previously-empty registers fill (`seed_demo.py --all-modules`); references are
+   refused rather than faked.
+   **Remaining:** the demo/docs/Pages refresh — regenerate `demoData.json` off the fuller seed.
 2. **💲 COST-SPINE** *(M; the highest-integrity item left)*. One cost-code identity carried
    estimate → budget → invoice on the CBS spine (the MARGIN-CBS follow-on). This is the cross-cutting
    correctness the 5D story rests on: today the same scope can wear different codes at different

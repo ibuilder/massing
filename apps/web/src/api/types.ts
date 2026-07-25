@@ -66,12 +66,16 @@ export interface EditMacro {
 
 /** UX-ACT: a one-click resolve-action descriptor paired with a computed diagnostic (over-budget code, etc). */
 export interface ResolveAction {
-  kind: "open_module" | "navigate" | "open_record";
+  kind: "open_module" | "navigate" | "open_record" | "select_elements";
   label: string;
   module?: string;   // open_module | open_record
   q?: string;        // open_module free-text filter
   target?: string;   // navigate destination key
   ref?: string;      // open_record record id
+  guids?: string[];  // select_elements — capped; see `total` / `truncated`
+  total?: number;    // select_elements — the TRUE count, which may exceed guids.length
+  truncated?: boolean;
+  selector?: string; // select_elements — the QUERY-DSL the guids came from, for re-evaluation
 }
 
 /** Project-scoped capability role, least→most privileged. */

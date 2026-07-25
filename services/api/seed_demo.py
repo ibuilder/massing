@@ -20,6 +20,9 @@ ARGS = argparse.ArgumentParser()
 ARGS.add_argument("--url", default="http://localhost:8000")
 ARGS.add_argument("--project", default=None, help="existing project id (else creates one)")
 ARGS.add_argument("--user", default="gc", help="X-User to act as")
+ARGS.add_argument("--all-modules", action="store_true",
+                  help="also fill EVERY other registered module with schema-driven demo records, so "
+                       "no register in the app renders an empty state (see aec_api.demo_seed)")
 ARGS.add_argument("--force", action="store_true",
                   help="seed even if the target already has projects (guard against seeding prod)")
 opts = ARGS.parse_args()
@@ -175,5 +178,45 @@ for d, weather, crews in [("2026-06-13", "Clear", [12, 8]), ("2026-06-14", "Rain
 # --- safety ------------------------------------------------------------------
 new("incident", {"subject": "Near miss — dropped tool", "description": "No injury",
                  "date": "2026-06-13", "classification": "Near Miss", "severity": "Near Miss"}, "safety")
+
+# --- UX-DEMO: fill every remaining register --------------------------------------
+# The chains above thread the ~24 modules the dashboards and rollups read. The other ~108 registered
+# modules would still render empty, which is what makes the product look thinner than it is. This
+# pass generates schema-valid records from each module's own field definitions (aec_api.demo_seed),
+# skipping anything the chains already populated so the hand-authored, related records stay the ones
+# on screen.
+if opts.all_modules:
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+    from aec_api import demo_seed, modules_registry
+
+    modules_registry.load_registry()
+    filled = skipped = gated = failed = 0
+    for key, mod in sorted(modules_registry.REGISTRY.items()):
+        if demo_seed.needs_references(mod):
+            gated += 1                      # needs a real parent record — the chains above own those
+            continue
+        try:
+            existing = call("GET", f"/projects/{pid}/modules/{key}")
+        except SystemExit:
+            failed += 1
+            continue
+        if existing:                        # already populated by a chain above — leave it alone
+            skipped += 1
+            continue
+        rows = demo_seed.records(mod, count=4)
+        if not rows or not any(rows):
+            continue
+        for row in rows:
+            try:
+                call("POST", f"/projects/{pid}/modules/{key}", {"data": row})
+            except SystemExit:
+                failed += 1
+                break
+        else:
+            filled += 1
+    print(f"all-modules: filled {filled}, left {skipped} already-seeded alone, "
+          f"{gated} need a parent record first" + (f", {failed} failed" if failed else ""))
 
 print("seed complete — open the Construction workspace to see populated dashboard / board / search")

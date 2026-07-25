@@ -22,7 +22,7 @@ import json
 import uuid
 from typing import Any
 
-from . import query_dsl, storage
+from . import query_dsl, resolve_hint, storage
 from .query_dsl import QueryError
 
 SEVERITIES = ("low", "medium", "high")
@@ -89,12 +89,22 @@ def evaluate(idx: dict[str, dict], rule: dict) -> dict:
             scoped += 1
             if not query_dsl.matches(e, req_preds):
                 fails.append(g)
+    status = "n/a" if scoped == 0 else ("pass" if not fails else "fail")
+    # UX-ACT: a failing rule hands back the button that shows you the offending elements, rather
+    # than a count you then have to go hunting for. The scope selector rides along so the client can
+    # re-evaluate against the live model instead of a snapshot of GUIDs.
+    actions: list[dict] = []
+    if fails:
+        actions.append(resolve_hint.select_elements(
+            fails, f"Show {len(fails)} failing element{'' if len(fails) == 1 else 's'}",
+            selector=rule["scope"]))
     return {"id": rule.get("id"), "name": rule.get("name"),
             "severity": rule.get("severity", "medium"),
             "scope": rule["scope"], "require": rule["require"],
             "scoped": scoped, "passed": scoped - len(fails), "failed": len(fails),
             "fail_guids": fails[:500], "truncated": len(fails) > 500,
-            "status": "n/a" if scoped == 0 else ("pass" if not fails else "fail")}
+            "actions": actions,
+            "status": status}
 
 
 def run(idx: dict[str, dict] | None, rules: list[dict]) -> dict:

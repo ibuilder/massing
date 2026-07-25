@@ -304,6 +304,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     await selectMap(await sets.fromGuids([guid]), { guid, fit });
   }
 
+  /** UX-ACT: select a whole set of GUIDs at once — the target of a `select_elements` resolve action
+   *  (a rule's failing elements, a clash set). The properties panel keys off a single element, so it
+   *  shows the first; the highlight covers them all. */
+  async function selectByGuids(guids: string[], fit = true) {
+    const list = (guids || []).filter(Boolean);
+    if (!list.length) return;
+    selectedGuid = list[0]!;
+    await selectMap(await sets.fromGuids(list), { guid: list[0]!, fit });
+  }
+
   $("props-close").addEventListener("click", () => void selectMap(null));
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
@@ -4356,7 +4366,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
 
   // debug hook for automated/preview testing
-  (window as unknown as Record<string, unknown>).__viewer = { viewer, loader, fitToModels, selectByGuid, openFile, referenceModels, THREE };
+  (window as unknown as Record<string, unknown>).__viewer = { viewer, loader, fitToModels, selectByGuid, selectByGuids, openFile, referenceModels, THREE };
 
   // ---- self-initialise: load the project model + build panels --------------
   void (async () => {

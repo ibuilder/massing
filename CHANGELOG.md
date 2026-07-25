@@ -4,6 +4,39 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.664 — UX-POLISH complete: actions that resolve, and 108 registers that are no longer empty
+
+**UX-DEMO — the empty-state problem, measured then closed.** The hand-written relation-chain seeder
+threads ~24 modules — the ones the dashboards and rollups read. **132 modules ship**, so 108
+registers rendered nothing: a customer clicking through the nav hit blank screen after blank screen
+even though the engine behind each one works. Hand-authoring 108 more registers would be filler, so
+`demo_seed.py` generates records **from each module's own field definitions** — `module.json` is
+already the single source of truth, so a module added tomorrow gets demo content for free and nothing
+drifts. `seed_demo.py --all-modules` fills every register the chains didn't, leaving the
+hand-authored related records untouched where they exist.
+
+What it deliberately does **not** do:
+
+- **It never invents a reference, upload or signature.** Two modules have a *required* reference, so
+  they are refused outright rather than seeded with a fabricated id — a dangling link renders as
+  broken, not as content. `needs_references()` names them so the caller seeds the parent first.
+  130 of 132 generate; the test asserts the refused set stays under 20% or the fix isn't landing.
+- **It doesn't look suspiciously complete.** Optional fields are filled about two thirds of the time,
+  because a grid with every cell populated reads as fake.
+- **It isn't random.** Values are hash-seeded per module + row, so two runs are byte-identical and a
+  captured demo snapshot stays stable — while distinct rows genuinely differ. Dates straddle today,
+  so "overdue" and "upcoming" filters both have members instead of one side always being empty.
+
+**UX-ACT phase-2 — diagnostics that name geometry.** A rule violation points at *elements*, which the
+three existing action kinds couldn't express. New `select_elements` kind: a failing rule now hands
+back the button that shows the offending elements, and the viewer gained `selectByGuids` to receive
+it. The payload is a button, not a data feed — capped at 200 GUIDs, carrying the **true** total and
+an explicit `truncated`, so a client can never select a subset while looking like it selected
+everything. The scope selector rides along so it can re-evaluate against the live model rather than a
+snapshot. The schedule optioneer likewise pairs its caveats with the button that resolves them — an
+empty result says which register to go populate; an unmatched critical-path trade opens the schedule
+filtered to it. The `navigate` action kind, previously reserved, is now wired.
+
 ## v0.3.663 — Path resolution by enumeration; the chip vocabulary reaches the money cards
 
 **Security — four HIGH `py/path-injection` alerts closed** (CodeQL, on v0.3.662's new

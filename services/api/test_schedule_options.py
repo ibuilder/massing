@@ -67,8 +67,18 @@ assert cost_heavy["recommended"]["is_baseline"], cost_heavy["recommended"]   # c
 time_heavy = schedule_options.optimize(BASE, weight_time=1.0, weight_cost=0.0)
 assert time_heavy["recommended"]["duration_days"] <= base_sc["duration_days"], time_heavy["recommended"]
 
-# empty / degenerate input is handled
-assert schedule_options.optimize({"floors": 5, "trades": []})["scenarios"] == []
+# empty / degenerate input is handled — and UX-ACT: a dead end still says where to go next
+empty = schedule_options.optimize({"floors": 5, "trades": []})
+assert empty["scenarios"] == []
+assert empty["actions"][0]["kind"] == "open_module", empty["actions"]
+assert empty["actions"][0]["module"] == "schedule_activity", empty["actions"]
+
+# UX-ACT: a caveat the reader has to act on comes with the button that resolves it
+assert res.get("actions") == [], res.get("actions")      # a clean run raises nothing to act on
+unmatched_run = schedule_options.optimize(BASE, critical_path=["Nonexistent trade"])
+ua = unmatched_run["actions"]
+assert ua and ua[0]["kind"] == "open_module" and ua[0]["module"] == "schedule_activity", ua
+assert "nonexistent trade" in ua[0]["q"], ua[0]
 
 # --- phase-2 levers: fast-track overlap + sequence permutation -------------------------------------
 # overlap=0 must reproduce phase-1 exactly (backward-compatible); adding overlap widens the grid

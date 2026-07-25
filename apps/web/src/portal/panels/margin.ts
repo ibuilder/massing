@@ -9,14 +9,35 @@ import type { PanelContext } from "../panelContext";
  * (optionally filtered) — the one-click jump from a flagged row to the records behind it.
  */
 export function dispatchResolveAction(ctx: PanelContext, a: ResolveAction) {
-  // open_module / open_record: jump to that module's records view, optionally pre-filtered. (The
-  // `navigate` kind is reserved for future feeds; only module-opens are wired today.)
+  // open_module / open_record: jump to that module's records view, optionally pre-filtered.
   if ((a.kind === "open_module" || a.kind === "open_record") && a.module) {
     const m = ctx.mods.find((x) => x.key === a.module);
     if (!m) return;
     ctx.activeKey = a.module;
     void ctx.openModule(m, a.q ? { q: a.q } : undefined);
     ctx.buildNav();
+    return;
+  }
+  // navigate: jump to a portal nav-destination (a `__key__` in the destination map).
+  if (a.kind === "navigate" && a.target) {
+    ctx.navigate(a.target);
+    return;
+  }
+  // select_elements: the diagnostic named geometry, not records — switch to the model workspace and
+  // highlight the offending elements. The viewer owns selection, so this hands off through the same
+  // window event the rest of the portal uses and calls the viewer's own multi-select.
+  if (a.kind === "select_elements" && a.guids?.length) {
+    window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "model" }));
+    const v = (window as unknown as { __viewer?: { selectByGuids?: (g: string[], fit?: boolean) => Promise<void> } }).__viewer;
+    // the workspace switch is async (the viewer may still be mounting) — retry briefly, then give up
+    // quietly rather than throwing into a click handler
+    let tries = 0;
+    const attempt = () => {
+      const api = v ?? (window as unknown as { __viewer?: { selectByGuids?: (g: string[], fit?: boolean) => Promise<void> } }).__viewer;
+      if (api?.selectByGuids) { void api.selectByGuids(a.guids!, true); return; }
+      if (++tries < 20) setTimeout(attempt, 100);
+    };
+    attempt();
   }
 }
 

@@ -131,10 +131,48 @@ with TestClient(app) as c:
     if _ifc.exists():
         _ifc.unlink()
 
+# ---- UX-ACT phase-2: a failing rule hands back the button that shows the offending elements -------
+from aec_api import resolve_hint  # noqa: E402
+from aec_api import rule_library as _rl
+
+RATED = {"ifc_class": "IfcDoor", "psets": {"Pset_DoorCommon": {"FireRating": "90"}}}
+UNRATED = {"ifc_class": "IfcDoor", "psets": {"Pset_DoorCommon": {}}}
+BIG = {f"guid{i:04d}": dict(UNRATED) for i in range(250)}
+BIG["ok0001"] = RATED
+res = _rl.evaluate(BIG, {"id": "r", "name": "Doors rated", "severity": "high",
+                         "scope": "IfcDoor", "require": "Pset_DoorCommon.FireRating"})
+assert res["status"] == "fail" and res["failed"] == 250, (res["status"], res["failed"])
+act = res["actions"][0]
+assert act["kind"] == "select_elements" and act["label"] == "Show 250 failing elements", act
+# the payload is a button, not a data feed: capped, with the TRUE total and an explicit truncation
+assert len(act["guids"]) == resolve_hint.MAX_ACTION_GUIDS and act["total"] == 250, act
+assert act["truncated"] is True, act
+assert act["selector"] == "IfcDoor", act          # the scope rides along so the client can re-evaluate
+
+# a passing rule offers no action — there is nothing to go and look at
+ok = _rl.evaluate({"ok0001": RATED},
+                  {"id": "r", "name": "n", "scope": "IfcDoor", "require": "Pset_DoorCommon.FireRating"})
+assert ok["status"] == "pass" and ok["actions"] == [], ok
+# …and neither does a rule nothing is in scope for
+na = _rl.evaluate({"x": {"ifc_class": "IfcWall", "psets": {}}},
+                  {"id": "r", "name": "n", "scope": "IfcDoor", "require": "Pset_DoorCommon.FireRating"})
+assert na["status"] == "n/a" and na["actions"] == [], na
+
+# a single failure reads as singular, and an uncapped list carries no truncation flag
+one = _rl.evaluate({"g1": UNRATED},
+                   {"id": "r", "name": "n", "scope": "IfcDoor", "require": "Pset_DoorCommon.FireRating"})
+a1 = one["actions"][0]
+assert a1["label"] == "Show 1 failing element" and a1["total"] == 1 and "truncated" not in a1, a1
+
 print("RULE-LIB OK - starter set fails 1/severity (high+medium+low); scope+require selectors reuse "
       "QUERY-DSL; n/a when nothing in scope; bad selector 422s atomically; CRUD + run endpoints. "
       "RULE-PACK FOLD: the per-IfcSpace pack (dimensional/daylight/wet-wall) round-trips via "
       "/rules/space-pack (negative numbers + empty type lists 422), /rules/run notes the skip without "
       "a model, and WITH one the geometric space checks fold into the same rollup as space:* rows — "
       "4 Offices all fail a 1000 m2 min-area (high, guids + details carried) while daylight passes on "
-      "a 2x2 grid, and the high-severity count includes the space failure.")
+      "a 2x2 grid, and the high-severity count includes the space failure. UX-ACT phase-2: a failing "
+      "rule now carries a select_elements action — the button that shows the offending geometry "
+      "instead of a count you go hunting for. It is a button payload, not a data feed: 250 failures "
+      "yield 200 guids with total=250 and truncated=true, so a client can never select a subset while "
+      "looking like it selected everything, and the scope selector rides along so it can re-evaluate "
+      "against the live model. Passing and out-of-scope rules offer no action at all.")
