@@ -144,10 +144,47 @@ def _set_predefined(typ, predefined: str | None) -> None:
         pass
 
 
-def _variant_name(label: str, dims) -> str:
-    """A Revit-style type name: the base label, plus the size for a parametric variant so distinct
-    sizes are distinct types (e.g. "Desk 1.8×0.8×0.75 m")."""
+def _feet_inches(m: float) -> str:
+    """Metres → a builder's feet-and-inches string, to the nearest 1/16" with the fraction reduced."""
+    sixteenths = round(m / 0.0254 * 16)
+    feet, rem16 = divmod(sixteenths, 192)                  # 192 sixteenths = 12"
+    inches, frac16 = divmod(rem16, 16)
+    out = f"{feet}'-{inches}"
+    if frac16:
+        num, den = frac16, 16
+        while num % 2 == 0:                                # reduce 8/16 → 1/2
+            num //= 2
+            den //= 2
+        out += f" {num}/{den}"
+    return out + '"'
+
+
+def _length_unit(model) -> tuple[str, str]:
+    """The project's (unit name, prefix) for LENGTHUNIT, upper-cased; ("", "") when undeclared."""
+    proj = next(iter(model.by_type("IfcProject")), None) if model is not None else None
+    ctx = getattr(proj, "UnitsInContext", None) if proj is not None else None
+    for u in (getattr(ctx, "Units", None) or []):
+        if str(getattr(u, "UnitType", "") or "").upper() == "LENGTHUNIT":
+            return ((getattr(u, "Name", "") or "").upper(), (getattr(u, "Prefix", "") or "").upper())
+    return ("", "")
+
+
+def _variant_name(label: str, dims, model=None) -> str:
+    """A Revit-style type name: the base label plus the size, so distinct sizes are distinct types.
+
+    The size is formatted in the **project's own unit system**, because this string is what appears
+    in schedules, the type picker and drawings. In an imperial project a 3'-0" × 7'-0" door should
+    read as such, not as "0.9144×0.0508×2.1336 m" — a number nobody can act on. Geometry is
+    unaffected: only the label changes, and lengths still convert through `IfcUnitAssignment`.
+    """
     w, d, h = (float(x) for x in dims)
+    name, prefix = _length_unit(model)
+    if name in ("INCH", "FOOT"):
+        return f"{label} {_feet_inches(w)} × {_feet_inches(d)} × {_feet_inches(h)}"
+    if prefix == "MILLI":
+        return f"{label} {w * 1000:g}×{d * 1000:g}×{h * 1000:g} mm"
+    if prefix == "CENTI":
+        return f"{label} {w * 100:g}×{d * 100:g}×{h * 100:g} cm"
     return f"{label} {w:g}×{d:g}×{h:g} m"
 
 
@@ -162,7 +199,7 @@ def ensure_type(model: ifcopenshell.file, key: str, dims=None):
     use_dims = [float(x) for x in dims] if dims else [float(x) for x in spec["dims"]]
     if len(use_dims) != 3 or any(v <= 0 for v in use_dims):
         raise ValueError(f"dims must be three positive [w, d, h] metres, got {dims!r}")
-    name = spec["label"] if not dims else _variant_name(spec["label"], use_dims)
+    name = spec["label"] if not dims else _variant_name(spec["label"], use_dims, model)
 
     existing = next((t for t in model.by_type(spec["ifc_class"])
                      if (getattr(t, "Name", None) or "") == name), None)
@@ -207,29 +244,113 @@ def _assign_box_representation(model: ifcopenshell.file, typ, dims) -> None:
     ifcopenshell.api.run("geometry.assign_representation", model, product=typ, representation=rep)
 
 
-def _rep_solid(typ):
-    """The rectangular IfcExtrudedAreaSolid inside a type's mapped body representation (or None).
+# Bounding (width, depth) per parameterised IFC4 profile, in file units. Imported library and
+# manufacturer content sweeps real sections — W-shapes, hollow tubes, pipes — not rectangles, and a
+# type whose size reads as `null` is a type nothing downstream can schedule or take off.
+_PROFILE_BOUNDS = {
+    "IfcRectangleProfileDef": lambda p: (p.XDim, p.YDim),
+    "IfcRectangleHollowProfileDef": lambda p: (p.XDim, p.YDim),
+    "IfcRoundedRectangleProfileDef": lambda p: (p.XDim, p.YDim),
+    "IfcIShapeProfileDef": lambda p: (p.OverallWidth, p.OverallDepth),
+    # an asymmetric I may be wider at the top flange — the bound is the wider of the two
+    "IfcAsymmetricIShapeProfileDef": lambda p: (max(float(p.BottomFlangeWidth),
+                                                   float(p.TopFlangeWidth or p.BottomFlangeWidth)),
+                                                p.OverallDepth),
+    "IfcTShapeProfileDef": lambda p: (p.FlangeWidth, p.Depth),
+    "IfcUShapeProfileDef": lambda p: (p.FlangeWidth, p.Depth),
+    "IfcCShapeProfileDef": lambda p: (p.Width, p.Depth),
+    "IfcZShapeProfileDef": lambda p: (p.FlangeWidth, p.Depth),
+    "IfcLShapeProfileDef": lambda p: (p.Width or p.Depth, p.Depth),   # equal-leg omits Width
+    "IfcCircleProfileDef": lambda p: (p.Radius * 2, p.Radius * 2),
+    "IfcCircleHollowProfileDef": lambda p: (p.Radius * 2, p.Radius * 2),
+    "IfcEllipseProfileDef": lambda p: (p.SemiAxis1 * 2, p.SemiAxis2 * 2),
+    "IfcTrapeziumProfileDef": lambda p: (max(float(p.BottomXDim), float(p.TopXDim)), p.YDim),
+}
+
+
+def _polyline_bounds(profile):
+    """(width, depth) of an arbitrary closed profile, from the bounding box of its polyline points.
+    Much third-party content sweeps an `IfcArbitraryClosedProfileDef` rather than a parameterised
+    section, so without this those types would still read as sizeless."""
+    curve = getattr(profile, "OuterCurve", None)
+    pts = [tuple(p.Coordinates) for p in (getattr(curve, "Points", None) or [])
+           if getattr(p, "Coordinates", None) and len(p.Coordinates) >= 2]
+    if len(pts) < 2:
+        return None
+    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+    w, d = max(xs) - min(xs), max(ys) - min(ys)
+    return (w, d) if w > 0 and d > 0 else None
+
+
+def _profile_bounds(profile):
+    """(width, depth) in file units for any profile we can measure, else None."""
+    if profile is None:
+        return None
+    fn = _PROFILE_BOUNDS.get(profile.is_a())               # exact class — subtypes are listed above
+    try:
+        if fn is None:
+            return _polyline_bounds(profile) if profile.is_a("IfcArbitraryClosedProfileDef") else None
+        w, d = fn(profile)
+        return (float(w), float(d)) if w and d else None
+    except (AttributeError, TypeError, ValueError):        # incomplete/partial profile → unmeasurable
+        return None
+
+
+def _clear_representation_maps(model: ifcopenshell.file, typ) -> list[str]:
+    """Drop a type's existing RepresentationMaps so a newly assigned representation **replaces**
+    rather than adds. Returns the profile kinds that were discarded, so the caller can report a
+    real section having been swapped for a box instead of letting it pass silently."""
+    discarded: list[str] = []
+    for rm in list(getattr(typ, "RepresentationMaps", None) or []):
+        for it in (getattr(getattr(rm, "MappedRepresentation", None), "Items", None) or []):
+            kind = it.SweptArea.is_a() if it.is_a("IfcExtrudedAreaSolid") and it.SweptArea else it.is_a()
+            if kind not in discarded:
+                discarded.append(kind)
+        try:
+            model.remove(rm)
+        except Exception:                                  # noqa: BLE001 — already detached
+            pass
+    if hasattr(typ, "RepresentationMaps"):
+        typ.RepresentationMaps = None
+    return discarded
+
+
+def _rep_solid(typ, box_only: bool = True):
+    """The IfcExtrudedAreaSolid inside a type's mapped body representation (or None).
+
     Mutating THIS in place changes every occurrence at once — occurrences share the RepresentationMap
-    via IfcMappedItem, which is exactly how parametric type edits propagate GUID-stably."""
+    via IfcMappedItem, which is exactly how parametric type edits propagate GUID-stably.
+
+    ``box_only`` (the default, for the *edit* path) matches only a **plain** rectangle, because that
+    is the only profile a [w, d, h] resize can express. Note `is_a("IfcRectangleProfileDef")` is true
+    for `IfcRectangleHollowProfileDef` too, so the exact-class test matters: resizing an HSS tube
+    through the box path would rewrite its outer dimensions, keep its wall thickness, and leave it
+    carrying a catalog name like "HSS24X12X3/4" that no longer describes it.
+
+    ``box_only=False`` finds any extruded solid, for *reading* dimensions.
+    """
     for rm in (getattr(typ, "RepresentationMaps", None) or []):
         rep = getattr(rm, "MappedRepresentation", None)
         for it in (getattr(rep, "Items", None) or []):
-            if it.is_a("IfcExtrudedAreaSolid") and it.SweptArea and \
-                    it.SweptArea.is_a("IfcRectangleProfileDef"):
+            if not (it.is_a("IfcExtrudedAreaSolid") and it.SweptArea):
+                continue
+            if not box_only or it.SweptArea.is_a() == "IfcRectangleProfileDef":
                 return it
     return None
 
 
 def _type_dims(typ):
-    """Read back a box type's [w, d, h] in metres from its extruded-solid rep, or None."""
+    """Read back a type's bounding [w, d, h] in metres from its extruded-solid rep, or None.
+    Works for real sections, not just boxes — see `_profile_bounds`."""
     import ifcopenshell.util.unit as uunit
 
-    solid = _rep_solid(typ)
-    if solid is None:
+    solid = _rep_solid(typ, box_only=False)
+    bounds = _profile_bounds(getattr(solid, "SweptArea", None)) if solid is not None else None
+    if bounds is None:
         return None
     scale = uunit.calculate_unit_scale(typ.file)           # metres per file unit, from the owning file
-    return [round(float(solid.SweptArea.XDim) * scale, 4),
-            round(float(solid.SweptArea.YDim) * scale, 4),
+    return [round(bounds[0] * scale, 4),
+            round(bounds[1] * scale, 4),
             round(float(solid.Depth) * scale, 4)]
 
 
@@ -301,15 +422,25 @@ def edit_type_params(model: ifcopenshell.file, type_guid: str, name: str | None 
         d = [float(x) for x in dims]
         if len(d) != 3 or any(v <= 0 for v in d):
             raise ValueError(f"dims must be three positive [w, d, h] metres, got {dims!r}")
-        solid = _rep_solid(typ)
+        solid = _rep_solid(typ)                            # plain-rectangle box only — see _rep_solid
         scale = uunit.calculate_unit_scale(model)
         if solid is not None:                              # mutate in place → propagates to occurrences
             w, dd, h = d
             solid.SweptArea.XDim = w / scale
             solid.SweptArea.YDim = dd / scale
             solid.Depth = h / scale
-        else:                                              # no box solid yet — build one
+        else:
+            # No editable box. The type either has no geometry yet, or carries a real section (a
+            # W-shape, a hollow tube, a pipe) that a [w, d, h] resize cannot express. Either way the
+            # new box must REPLACE what is there: `geometry.assign_representation` appends, so
+            # without clearing first the type would render the original section AND a box through
+            # it, and every downstream take-off would count both.
+            discarded = _clear_representation_maps(model, typ)
             _assign_box_representation(model, typ, d)
+            if discarded:
+                # say so — silently swapping a catalog section for a box is exactly the kind of
+                # change that later reads as if the section had always been a box
+                changed["geometry_replaced"] = discarded
         changed["dims"] = d
         changed["occurrences_updated"] = _occurrence_count(typ)
     if psets:

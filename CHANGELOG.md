@@ -4,6 +4,62 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.662 — Real family content: four geometry defects, and a shelf you can actually import from
+
+Analyzed the external `massing-families` content library (40 discipline packs · 270 families · 2,334
+types · CC0, generated parametrically) and made the platform able to hold it. Its own README claimed
+"no platform changes needed" — that turned out to be nearly true for *ingest* and not true at all for
+what happens to the content afterwards.
+
+**Four defects, each verified against real content before being fixed.** They share one root
+assumption: that a type's geometry is always the box our own builder makes. That held while every
+family was a box. Real content ends it.
+
+1. **Type sizes read as `null` for any real section.** `_type_dims` only understood
+   `IfcRectangleProfileDef`, so every imported W-shape, tube and pipe reported no size — measured:
+   **403 of 403** types in the steel-W pack, 52 of 91 in ductwork. Nothing downstream could schedule
+   or take off imported content. Now `_profile_bounds()` measures 13 parameterised IFC4 profiles
+   plus the bounding box of an `IfcArbitraryClosedProfileDef` polyline (much third-party content
+   sweeps arbitrary profiles). After: 400/400 steel, 91/91 ductwork, 47/47 piping.
+2. **Resizing *appended* a box instead of replacing.** `geometry.assign_representation` appends, and
+   the resize path fell through to it whenever no editable box was found — so the type kept its
+   original section **and** gained a box drawn through it. It rendered both, and every take-off
+   counted both. `edit_type_params` now clears the representation maps first, and **reports the
+   section it discarded** (`geometry_replaced`) rather than letting a catalog section quietly become
+   a box.
+3. **Hollow sections were silently reshaped as boxes.** `is_a("IfcRectangleProfileDef")` is true for
+   `IfcRectangleHollowProfileDef`, so the box path grabbed HSS tubes: it rewrote the outer
+   dimensions, kept the wall thickness, and left the type carrying a catalog name that no longer
+   described it. A real `HSS24X12X3/4` became a 500×500 tube still called `HSS24X12X3/4` — a section
+   in no steel catalog, presented as a standard one. A null is honest; that was a plausible wrong
+   answer. The box path now matches the exact class only.
+4. **Variant names were hardcoded metric.** The type name is what appears in schedules, the picker
+   and drawings, and `Single door 0.9144×0.0508×2.1336 m` is not a size anyone can act on. Names now
+   follow the project's `IfcUnitAssignment` — `Door 3'-0" × 0'-2" × 7'-0"` in an imperial job, mm in
+   a millimetre job. Geometry is untouched; only the label changes.
+
+**A shelf you can import from.** The platform had both halves of a content story and no bridge:
+`GET /families/library` *listed* `services/data/families/external/`, and `/families/import` imported
+an IFC the caller **uploaded** — so a pack already sitting on the server had to be downloaded and
+uploaded back to be used. New `aec_data/family_packs.py` + `POST /projects/{pid}/families/import-pack`
+close that. Packs resolve by **name only** (separators, parent references and non-`.ifc` suffixes are
+refused, and the resolved path is re-checked against the shelf root so a symlink cannot walk out
+either), carry a size ceiling, and record a **sha256 in the audit trail** so an import can be tied to
+exact content later. `GET /families/library` gains a `shelf` block with manifest-derived metadata —
+discipline, family/type counts, licence — because forty opaque filenames is not a picker. A pack the
+manifest does not describe is still listed and importable, marked `described: false`, claiming
+nothing. And when a manifest declares more types than actually arrive, the response says so instead
+of smoothing it over.
+
+**`scripts/fetch_families.py`** fetches packs onto the shelf, verifying each sha256 against the
+release manifest — which detects a corrupted download, not a compromised release; both come from the
+same place. Build/ops-time only, never a runtime dependency. No release is published yet, so it
+currently exits with the local-build instructions instead of failing obscurely.
+
+*The upstream repo shipped a patch for defects 1, 2 and 4. It was reviewed rather than applied:
+defect 3 is not in it, and its profile table misses arbitrary profiles, trapeziums, and the wider
+flange of an asymmetric I. The implementation here is ours, with the reproductions kept as tests.*
+
 ## v0.3.661 — Crew shifts follow the critical path; the conformance gauntlet gets teeth
 
 The last two roadmap carry-overs, and two real defects the second one found in our own code.

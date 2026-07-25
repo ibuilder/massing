@@ -4641,7 +4641,19 @@ export class ApiClient extends HttpCore {
   familyLibrary() {
     return this.json<{ count: number; categories: Record<string, FamilyItem[]>;
       generated_library: { exists: boolean; size_bytes: number };
-      external: { name: string; size_bytes: number }[] }>("/families/library");
+      external: { name: string; size_bytes: number }[];
+      shelf: { count: number; manifest: boolean;
+        totals: { packs: number; families: number; types: number; size_bytes: number; undescribed: number };
+        packs: FamilyPack[] } }>("/families/library");
+  }
+  /** Import a family pack already on the server's external shelf — no download-and-re-upload round
+   *  trip. `pack` is a plain file name from `familyLibrary().shelf.packs`. */
+  importFamilyPack(pid: string, pack: string, publish = false) {
+    return this.json<{ imported: string[]; count: number; pack: string; sha256: string;
+      described: boolean; discipline?: string | null; declared_types?: number | null;
+      note?: string; publish?: string }>(
+      `/projects/${pid}/families/import-pack`,
+      { method: "POST", body: JSON.stringify({ pack, publish }) });
   }
   /** Place a library family (thin wrapper over the add_family recipe). */
   placeFamily(pid: string, family: string, position?: [number, number] | null) {
@@ -4791,6 +4803,13 @@ export interface SpecialtyBlended {
 }
 export interface FamilyItem {
   key: string; label: string; ifc_class: string; category: string; dims: [number, number, number];
+}
+/** An IFC pack on the external family shelf. `described` is false when no manifest row covers it —
+ *  the pack is still importable, but nothing is claimed about its contents. */
+export interface FamilyPack {
+  name: string; size_bytes: number; described: boolean;
+  discipline?: string; families?: number; types?: number; tiers?: string[];
+  licence?: string; version?: string;
 }
 /** A family type row (W10-1 type browser) — placeable IfcTypeProduct with its occurrence count. */
 export interface TypeRow {

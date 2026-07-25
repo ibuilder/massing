@@ -407,24 +407,70 @@ async def import_families(pid: str, file: UploadFile = File(...), publish: bool 
     return result
 
 
+@router.post("/projects/{pid}/families/import-pack")
+def import_family_pack(pid: str, pack: str = Body(..., embed=True),
+                       publish: bool = Body(default=False, embed=True),
+                       db: Session = Depends(get_db),
+                       actor: str = Depends(require_role("editor"))):
+    """Import a family pack **already on the server's external shelf** (services/data/families/external)
+    into the project's source IFC — the same `import_types_from_ifc` path as the upload endpoint, minus
+    the download-and-re-upload round trip that was previously the only way to use a shipped pack.
+
+    `pack` is a plain file name on the shelf (see GET /families/library → `external.packs`); paths and
+    parent references are refused. The audit record carries the pack's sha256, so an import can be tied
+    back to exact content later."""
+    from aec_data import families, family_packs  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    p = _project(db, pid)
+    try:
+        data, provenance = family_packs.read(pack)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from None
+
+    model = open_model(p.source_ifc)
+    imported = families.import_types_from_ifc(model, data)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
+    out_path = str(Path(p.source_ifc).with_name(f"{base_stem}_{stamp}.ifc"))
+    model.write(out_path)
+    p.source_ifc = out_path
+    result = {"imported": imported, "count": len(imported), **provenance}
+    # a pack whose manifest promised more types than arrived is worth seeing, not smoothing over
+    declared = provenance.get("declared_types")
+    if declared and int(declared) != len(imported):
+        result["note"] = (f"manifest declares {declared} types, {len(imported)} imported — "
+                          f"the pack and its manifest row disagree")
+    audit.record(db, action="ifc.import_family_pack", actor=actor, method="POST",
+                 path=f"/projects/{pid}/families/import-pack", detail=result)
+    db.commit()
+    if publish and imported:
+        _publish_bg(pid)
+        result["publish"] = "running"
+    return result
+
+
 @router.get("/families/library")
 def family_library(_: str = Depends(current_user)):
     """The shippable IFC family library: the generated parametric catalog (grouped by category) plus
     any curated external `.ifc` files dropped in services/data/families/external. The generated
     `library.ifc` is real openBIM content that also imports into any project via /families/import."""
-    from aec_data import families  # type: ignore
-    from aec_data.build_family_library import LIBRARY_DIR, LIBRARY_PATH  # type: ignore
+    from aec_data import families, family_packs  # type: ignore
+    from aec_data.build_family_library import LIBRARY_PATH  # type: ignore
 
     items = families.catalog()
     cats: dict[str, list] = {}
     for it in items:
         cats.setdefault(it["category"], []).append(it)
-    ext_dir = LIBRARY_DIR / "external"
-    external = [{"name": p.name, "size_bytes": p.stat().st_size}
-                for p in sorted(ext_dir.glob("*.ifc"))] if ext_dir.exists() else []
+    shelf = family_packs.list_packs()
     lib = {"exists": LIBRARY_PATH.exists(),
            "size_bytes": LIBRARY_PATH.stat().st_size if LIBRARY_PATH.exists() else 0}
-    return {"count": len(items), "categories": cats, "generated_library": lib, "external": external}
+    return {"count": len(items), "categories": cats, "generated_library": lib,
+            # `external` keeps the historical filename+size shape for existing callers; `shelf` adds
+            # the manifest-derived metadata (discipline / families / types / licence) a browsable
+            # picker needs once the shelf holds dozens of discipline packs rather than one or two.
+            "external": [{"name": p["name"], "size_bytes": p["size_bytes"]} for p in shelf["packs"]],
+            "shelf": shelf}
 
 
 @router.post("/projects/{pid}/families/place")

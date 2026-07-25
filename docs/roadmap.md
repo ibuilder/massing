@@ -24,6 +24,14 @@ non-gated work**.
 
 ## ▶ NOW — priority order (sprints of large chunks; one full-suite release per sprint)
 
+0. ✅ **FAMILY-CONTENT** *(shipped v0.3.662)* — the platform can now hold a real family library.
+   Four verified geometry defects fixed (sizeless real sections · resize appending a second solid ·
+   hollow sections silently reshaped as boxes while keeping their catalog name · metric-hardcoded
+   variant names) plus the external **pack shelf**: `family_packs.py` +
+   `POST /families/import-pack` (name-only resolution, sha256 in the audit trail) and manifest
+   metadata on `GET /families/library`. See [families.md](families.md).
+   **Remaining:** a browsable shelf UI in the Library palette *(UX-3 depth, below)*, and the
+   content repo publishing a tagged release so `scripts/fetch_families.py` has something to fetch.
 1. **🎚 UX-POLISH sprint** *(M; the long-deferred one — do it first)*. The platform's backend surface
    has outrun its front end; empty states and unrolled chips undercut shipped depth on every screen.
    **UX-DEMO** — one richly-threaded demo project across every screen (this is what kills empty
