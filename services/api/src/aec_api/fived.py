@@ -102,15 +102,24 @@ def bind(idx: dict[str, dict] | None, rules: list[dict], limit: int = 200_000) -
 
 def estimate(idx: dict[str, dict] | None, rules: list[dict],
              quantities: dict[str, dict[str, float]] | None = None,
-             limit: int = 200_000) -> dict[str, Any]:
+             limit: int = 200_000,
+             sources: dict[str, dict[str, str]] | None = None) -> dict[str, Any]:
     """Roll the binding up into cost lines ready for `cost_ifc.write_cost_schedule`.
 
-    `quantities` maps GlobalId → {basis: value} (the takeoff's output). An element whose rule prices a
-    basis it has no quantity for is reported in `missing_quantity` rather than billed as zero: a rate
-    with nothing to multiply is not a cost of nothing, it is an unknown cost.
+    `quantities` maps GlobalId → {basis: value} — normally `qto.measure()`'s output, so the estimate
+    prices the **model's own** quantities. An element whose rule prices a basis it has no quantity for
+    is reported in `missing_quantity` rather than billed as zero: a rate with nothing to multiply is
+    not a cost of nothing, it is an unknown cost.
+
+    `sources` is the parallel provenance map, GlobalId → {basis: "declared"|"computed"}. Each line
+    reports how its quantity was obtained, because a quantity the model **declared** and one this
+    platform **measured off a mesh** are different claims. They are usually close; the difference is
+    exactly the sort of thing an estimator wants to know before signing, and a line that cannot say
+    which it rests on cannot be checked.
     """
     b = bind(idx, rules, limit=limit)
     q = quantities or {}
+    src = sources or {}
     lines: dict[tuple, dict] = {}
     missing: list[dict] = []
 
@@ -124,15 +133,25 @@ def estimate(idx: dict[str, dict] | None, rules: list[dict],
         key = (a["code"], a["basis"], a["unit_cost"])
         ln = lines.setdefault(key, {"code": a["code"], "description": a["description"],
                                     "basis": a["basis"], "unit_cost": a["unit_cost"],
-                                    "quantity": 0.0, "guids": [], "rule": a["rule"]})
+                                    "quantity": 0.0, "guids": [], "rule": a["rule"],
+                                    "_sources": set()})
         ln["quantity"] += float(have)
         ln["guids"].append(guid)
+        # An absent source is `unknown`, not `declared`. A legacy caller that supplies quantities and
+        # no provenance has told us nothing about where they came from, and answering "the model
+        # declared these" on its behalf is the exact overclaim this field exists to prevent.
+        ln["_sources"].add((src.get(guid) or {}).get(a["basis"]) or "unknown")
 
     out = []
     for ln in lines.values():
         ln["quantity"] = round(ln["quantity"], 4)
         ln["amount"] = round(ln["quantity"] * ln["unit_cost"], 2)
         ln["guids"] = sorted(ln["guids"])
+        # A line is only `declared` when EVERY element in it was. One measured element in fifty still
+        # means the line rests partly on our arithmetic rather than on the model's own assertion, and
+        # rounding that away to "declared" is the sort of small lie an estimate cannot afford.
+        kinds = ln.pop("_sources")
+        ln["quantity_source"] = kinds.pop() if len(kinds) == 1 else "mixed"
         out.append(ln)
     out.sort(key=lambda x: (-x["amount"], x["code"]))
 
@@ -145,6 +164,12 @@ def estimate(idx: dict[str, dict] | None, rules: list[dict],
         "unpriced_count": b["unpriced_count"],
         "missing_quantity": missing,
         "missing_quantity_count": len(missing),
+        # How much of the total rests on quantities this platform measured rather than the model
+        # declared. Not a fault — often the model simply carries no Qto pset — but it is the number
+        # an estimator wants before signing, and it is invisible unless it is stated.
+        "computed_quantity_lines": sum(1 for x in out if x["quantity_source"] != "declared"),
+        "computed_quantity_amount": round(
+            sum(x["amount"] for x in out if x["quantity_source"] != "declared"), 2),
         "coverage_pct": b["coverage_pct"],
         # the only honest headline: a total over a partly-unpriced model is not the project's cost
         "complete": bool(out) and not b["unpriced_count"] and not missing,

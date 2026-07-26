@@ -393,8 +393,28 @@ def cost_estimate(pid: str, body: dict = Body(default={}), db: Session = Depends
     from ..query_dsl import QueryError
     from .standards import _idx_for
     try:
-        return fived.estimate(_idx_for(pid), body.get("rules") or [],
-                              body.get("quantities") or {})
+        # R25-QTO-WIRE: measure the MODEL. A rate is only as good as what it multiplies, and an
+        # estimate whose quantities arrive in the request body can be internally consistent while
+        # describing a different building. A caller-supplied `quantities` is still honoured — an
+        # estimator legitimately overrides a measured quantity — but it now *overrides* the model's
+        # own number rather than being the only source of one, and each line reports which it used.
+        measured, sources = {}, {}
+        try:
+            from aec_data import qto
+
+            from ..db import SessionLocal
+            from ..deps import open_source_ifc
+            with SessionLocal() as db:
+                m = qto.measure(open_source_ifc(db, pid))
+            measured, sources = m["quantities"], m["sources"]
+        except Exception:                # noqa: BLE001 — no model yet: fall back to what was sent
+            measured, sources = {}, {}
+        override = body.get("quantities") or {}
+        for guid, qs in override.items():
+            measured.setdefault(guid, {}).update(qs)
+            # an overridden quantity is neither declared by the model nor measured from it
+            sources.setdefault(guid, {}).update(dict.fromkeys(qs, "override"))
+        return fived.estimate(_idx_for(pid), body.get("rules") or [], measured, sources=sources)
     except QueryError as e:
         raise HTTPException(422, str(e)) from None
 

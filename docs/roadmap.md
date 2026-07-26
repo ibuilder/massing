@@ -578,8 +578,20 @@ derived**.
   range writes no dates at all (a duration resting on one supplied end reads as authoritative and is
   not) · an *absent* task type defaults to CONSTRUCTION but an *empty* one is refused, the same
   distinction `cost_ifc` draws for `basis`.
-- **R25-QTO-WIRE** *(S)* — feed `qto.takeoff`'s measured quantities straight into `fived.estimate`, so
-  the quantity argument is the model's own rather than the caller's.
+- ✅ **R25-QTO-WIRE** *(shipped v0.3.697)* — `qto.measure()` returns every element's quantities by
+  GlobalId, and the estimate route composes it, so a 5D estimate prices the **model's own** numbers.
+  This is the actual content of "the model IS the estimate": every rule, rate and roll-up could be
+  right while the quantities described a different building — an estimate internally consistent and
+  externally wrong, which is the worst kind because nothing in it looks off.
+  The substance is **provenance**. `declared` is the model's own `IfcElementQuantity`; `computed` is
+  our measurement off the meshed solid; `override` is the caller replacing both; and an **absent**
+  provenance reads `unknown`, never `declared` — a caller who sends quantities with no provenance has
+  said nothing about where they came from. A line is only `declared` when *every* element in it was;
+  one measured element in fifty makes it `mixed`, because rounding that away would have the reader
+  believe the model asserted a number we partly made up. `computed_quantity_lines` /
+  `computed_quantity_amount` say how much of the total rests on our arithmetic.
+  Provenance annotates and never moves a number — the totals are asserted identical across all four
+  labellings, so the label cannot quietly start doing arithmetic.
 - **R25-COST-VINTAGE** *(M)* — bind rules to the vintage-versioned cost database (COST-DB) so a rate
   carries its source and date, not just a number.
 - **R25-ESTIMATE-DIFF** *(M)* — two estimates over two model versions, diffed by GlobalId: what

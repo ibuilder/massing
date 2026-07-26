@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.697 — the estimate measures the model, and says what each number rests on
+
+`fived.estimate` took its quantities from whatever the caller passed in. Every rule, every rate and
+every roll-up could be correct while the numbers described a different building — an estimate that is
+internally consistent and externally wrong, which is the worst kind, because nothing in it looks off.
+
+`qto.measure()` now returns every element's quantities keyed by GlobalId, and the estimate route
+composes it. A caller can still override a quantity — an estimator legitimately does — but an
+override now *replaces* the model's own number rather than being the only source of one.
+
+**The substance is provenance.** Quantities arrive by different routes and they are not the same
+claim, even when the numbers nearly agree:
+
+- **declared** — the model's own `IfcElementQuantity`. An authoring tool asserted this wall is 12.4 m².
+- **computed** — we meshed the solid and measured it here. Our approximation of the same thing.
+- **override** — the caller supplied it in place of the model's.
+- **unknown** — quantities arrived carrying no provenance at all.
+
+A line is only `declared` when **every** element in it was. One measured element in fifty makes the
+line `mixed`, because rounding that to "declared" would have the reader believe the model asserted a
+number we partly made up — the kind of small lie an estimate cannot afford. An absent provenance
+reads `unknown`, never `declared`: a caller who sends quantities without saying where they came from
+has told us nothing, and answering "the model declared these" on their behalf is exactly the overclaim
+the field exists to prevent. `computed_quantity_lines` and `computed_quantity_amount` state how much
+of the total rests on our arithmetic rather than the model's assertion — not a fault, often the model
+simply carries no Qto pset, but it is what an estimator wants to know before signing.
+
+Provenance annotates and never moves a number. The totals are asserted identical across all four
+labellings, so the label cannot quietly start doing arithmetic.
+
+An element with no readable quantity lands in `unmeasured` rather than getting zeros. Zero is a
+measurement; "we could not measure it" is not, and billing the second as the first is how an estimate
+ends up confidently missing a floor.
+
 ## v0.3.696 — the 4D binding goes into the model, and the plan named the wrong relation
 
 v0.3.684 put cost into the file: a priced element carries its price via `IfcRelAssignsToControl` →

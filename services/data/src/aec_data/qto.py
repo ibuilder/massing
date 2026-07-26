@@ -224,6 +224,71 @@ def takeoff(
     return rows
 
 
+#: R25-QTO-WIRE — how a quantity was obtained. The distinction is the point of this function.
+#:
+#: `declared` came from an `IfcElementQuantity` the authoring tool wrote: somebody's software asserted
+#: that this wall is 12.4 m². `computed` came from meshing the solid and measuring it here: our
+#: approximation of the same thing. They are usually close and they are not the same claim, and an
+#: estimate that cannot say which is resting on what has lost the ability to be checked.
+#:
+#: The API layer adds a third, `override`, for a quantity the caller supplied in place of the model's.
+#: `fived.estimate` treats an ABSENT source as `unknown` rather than assuming `declared` — a caller
+#: who sends quantities with no provenance has said nothing about where they came from, and answering
+#: "the model declared these" on their behalf is the overclaim the field exists to prevent.
+QUANTITY_SOURCES = ("declared", "computed")
+
+
+def measure(model: ifcopenshell.file, force_geometry: bool = True) -> dict[str, Any]:
+    """Every element's measurable quantities, keyed by GlobalId — the input `fived.estimate` needs.
+
+    Returns ``{quantities: {guid: {basis: value}}, sources: {guid: {basis: "declared"|"computed"}},
+    measured, unmeasured}``.
+
+    This exists so an estimate prices the **model's own** quantities rather than numbers a caller
+    passed in. A rate is only as good as what it multiplies: an estimate whose quantities arrive from
+    the request body can be internally consistent and still describe a different building.
+
+    An element with no readable quantity is listed in `unmeasured` rather than given zeros. Zero is a
+    measurement; "we could not measure it" is not, and billing the second as the first is how an
+    estimate ends up confidently missing a floor.
+    """
+    settings = _geom.settings() if (force_geometry and _GEOM_OK) else None
+    quantities: dict[str, dict[str, float]] = {}
+    sources: dict[str, dict[str, str]] = {}
+    unmeasured: list[dict[str, str]] = []
+
+    for el in physical_elements(model):
+        if el.is_a("IfcOpeningElement"):
+            continue
+        gid = getattr(el, "GlobalId", None)
+        if not gid:
+            continue
+        declared = _quantities(el)
+        q: dict[str, float] = dict(declared)
+        src = dict.fromkeys(declared, "declared")
+        if settings is not None:
+            for k, v in _geom_quantities(el, settings).items():
+                # `setdefault`: a quantity the model DECLARES always beats one we computed. The
+                # authoring tool knows what it drew; we know what its triangles came out to.
+                if k not in q:
+                    q[k] = v
+                    src[k] = "computed"
+        # `count` is the one basis that needs no measurement — one of a thing is one of a thing — so
+        # it is declared, not computed, and never lands in `unmeasured`.
+        q["count"] = 1.0
+        src["count"] = "declared"
+        if len(q) == 1:                       # count only: nothing about this element was measurable
+            unmeasured.append({"guid": gid, "ifc_class": el.is_a()})
+        quantities[gid] = q
+        sources[gid] = src
+
+    return {"quantities": quantities, "sources": sources,
+            "measured": len(quantities), "unmeasured": unmeasured,
+            "unmeasured_count": len(unmeasured),
+            "note": ("`declared` quantities come from the model's own IfcElementQuantity; `computed` "
+                     "ones were measured off the meshed solid here. A declared value always wins.")}
+
+
 # Takeoff is expensive (geometry meshing with force_geometry) and the same published model is hit
 # repeatedly (estimate + QTO export + closeout package). Cache by (path, mtime, …) — a new published
 # version writes a new file path, and any in-place change bumps mtime, so the cache is content-safe.
