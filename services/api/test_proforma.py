@@ -155,4 +155,65 @@ print(f"  S&U: uses ${su_r['total_uses']:,.0f} = loan ${su_r['loan_amount']:,.0f
 print(f"  returns: project IRR {res['returns']['project_irr']*100:.1f}% | equity IRR {res['returns']['equity_irr']*100:.1f}%"
       f" | EM {res['returns']['equity_multiple']} | YoC {res['returns']['yield_on_cost']*100:.2f}%"
       f" | spread {res['returns']['dev_spread']*1e4:.0f} bps")
+import numpy as np  # noqa: E402
+
+# ---- REVIEW FIX: P[metric >= target] counts EVERY solved draw ----------------------------------------
+# `_summary` stripped NaNs and then took the probability over what was left, which silently answers
+# "P[metric >= target | metric is defined]". An undefined equity IRR is a draw where the deal never
+# returned capital -- the worst outcome, not a missing one -- so dropping those flattered a deal
+# exactly when it was riskiest. The tests only ever range-checked this value, so nothing caught it.
+from aec_api.proforma.monte_carlo import _summary as _mc_summary  # noqa: E402
+
+_nan = float("nan")
+_mixed = np.array([_nan] * 400 + [0.18] * 600, dtype=float)
+_s = _mc_summary(_mixed, target=0.15)
+assert _s["n"] == 600 and _s["undefined"] == 400, _s
+# 600 of 1000 draws clear 15% -- not 600 of 600
+assert abs(_s["prob_at_least"] - 0.60) < 1e-9, _s["prob_at_least"]
+# the conditional figure is still reported, so the gap between the two is visible rather than lost
+assert abs(_s["prob_at_least_of_defined"] - 1.00) < 1e-9, _s
+# with nothing undefined the number is unchanged and the extra key stays away
+_all_def = _mc_summary(np.array([0.10, 0.20, 0.30]), target=0.15)
+assert abs(_all_def["prob_at_least"] - 2 / 3) < 1e-4, _all_def   # reported at 4dp
+assert _all_def["undefined"] == 0 and "prob_at_least_of_defined" not in _all_def, _all_def
+# every draw undefined: no stats to invent, and the count is still stated
+assert _mc_summary(np.array([_nan, _nan]), target=0.15) == {"n": 0, "undefined": 2}
+
+# ---- REVIEW FIX: `loan_first` actually deploys the equity it sizes -----------------------------------
+# `loan_first` set from_equity = 0.0 on EVERY draw and never switched, so the loan funded 100% of the
+# job forever: equity was sized and never used, and the balance ran past its own sizing by exactly the
+# undeployed equity ($26.2M drawn against an $18.3M loan on a $24M project) while `effective_ltc` still
+# reported the requested 0.70. It is a public schema value (proforma_schemas.Debt.funding) and had no
+# test at all. The loan now funds only up to its commitment, then equity.
+from aec_api.proforma.sources_uses import solve_sources_uses as _ssu  # noqa: E402
+
+_uses = np.array([1_000_000.0] * 24)
+_modes = {f: _ssu(_uses, ltc=0.70, annual_rate=0.09, funding=f)
+          for f in ("equity_first", "pari_passu", "loan_first")}
+
+# every mode must fund every draw -- a schedule that funds less describes a project that stopped
+for _f, _r in _modes.items():
+    _funded = sum(_r["loan"]["equity_draws"]) + sum(_r["loan"]["loan_draws"])
+    assert abs(_funded - float(_uses.sum())) < 1.0, (_f, _funded)
+
+# THE REGRESSION: loan_first must put the sized equity to work rather than leaving it on the table
+_lf = _modes["loan_first"]
+assert _lf["loan"]["equity_deployed"] > 0.0, "loan_first deployed no equity at all"
+assert _lf["loan"]["equity_deployed"] > 0.8 * _lf["equity"], (
+    _lf["loan"]["equity_deployed"], _lf["equity"])
+# and the balance must no longer overrun by the whole undeployed equity (was +7.86M on this fixture)
+assert _lf["loan"]["ending_balance"] - _lf["loan_amount"] < 0.10 * _lf["loan_amount"], _lf
+# NOTE: a residual overrun remains under loan_first -- interest capitalizing after the commitment is
+# reached. Whether that interest may capitalize or must be paid in cash is a loan-terms question, so it
+# is deliberately NOT asserted here as correct. See the review notes.
+
+# the two modes that were already right are UNCHANGED -- the loop was restructured to capitalize
+# interest before apportioning a draw, which must be arithmetically identical for these
+for _f in ("equity_first", "pari_passu"):
+    _r = _modes[_f]
+    assert abs(_r["loan"]["ending_balance"] - _r["loan_amount"]) < 1000.0, (_f, _r["loan_amount"])
+    assert abs(_r["loan"]["equity_deployed"] - _r["equity"]) < 1.0, (_f, _r["equity"])
+assert abs(_modes["equity_first"]["interest_reserve"] - 995_933) < 500, _modes["equity_first"]
+assert abs(_modes["pari_passu"]["interest_reserve"] - 1_491_138) < 500, _modes["pari_passu"]
+
 print(f"  waterfall: LP IRR {wfr['lp_irr']*100:.1f}% EM {wfr['lp_equity_multiple']} | GP IRR {wfr['gp_irr']*100:.1f}% EM {wfr['gp_equity_multiple']}")

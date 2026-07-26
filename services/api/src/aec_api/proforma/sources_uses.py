@@ -25,7 +25,11 @@ def solve_sources_uses(uses_ex_interest: np.ndarray, ltc: float, annual_rate: fl
         if max_loan is not None:
             loan_amount = min(loan_amount, max_loan)
         equity = total_uses - loan_amount
-        loan = run_construction_loan(uses_ex_interest, equity, annual_rate, funding)
+        # Pass the sized loan as the COMMITMENT, so `loan_first` funds from the loan only up to what
+        # was actually sized and then turns to equity. The fixed-point iteration re-sizes it each pass,
+        # so handing over this pass's figure converges the same way the interest reserve does.
+        loan = run_construction_loan(uses_ex_interest, equity, annual_rate, funding,
+                                     loan_available=loan_amount)
         new_reserve = loan["accrued_interest"]
         if abs(new_reserve - interest_reserve) < tol:
             interest_reserve = new_reserve

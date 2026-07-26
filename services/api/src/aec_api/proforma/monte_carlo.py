@@ -40,20 +40,39 @@ def _sample(rng: np.random.Generator, dist: dict, n: int) -> np.ndarray:
 
 
 def _summary(vals: np.ndarray, target: float | None) -> dict:
-    vals = vals[~np.isnan(vals)]
-    if vals.size == 0:
-        return {"n": 0}
+    """Distribution stats for one metric across the solved draws.
+
+    `vals` carries NaN for a draw that solved but produced no value for this metric. Those draws are
+    **counted, not dropped**: an undefined equity IRR is a scenario where the deal never returned
+    capital, which is the worst outcome rather than a missing one. Averaging and percentiles are
+    necessarily taken over the defined draws only — there is no number to average otherwise — but
+    `prob_at_least` is taken over ALL of them, because that is the question it claims to answer.
+    """
+    total = int(vals.size)
+    defined = vals[~np.isnan(vals)]
+    if defined.size == 0:
+        return {"n": 0, "undefined": total}
     out: dict[str, Any] = {
-        "mean": round(float(vals.mean()), 6), "std": round(float(vals.std()), 6),
-        "min": round(float(vals.min()), 6), "max": round(float(vals.max()), 6),
-        "n": int(vals.size),
+        "mean": round(float(defined.mean()), 6), "std": round(float(defined.std()), 6),
+        "min": round(float(defined.min()), 6), "max": round(float(defined.max()), 6),
+        "n": int(defined.size),
+        # Stated so nothing is hidden: mean/std/min/max/percentiles above describe THESE draws only.
+        "undefined": total - int(defined.size),
     }
-    for p, v in zip(_PCTS, np.percentile(vals, _PCTS)):
+    for p, v in zip(_PCTS, np.percentile(defined, _PCTS)):
         out[f"p{p}"] = round(float(v), 6)
     if target is not None:
         out["target"] = target
-        out["prob_at_least"] = round(float((vals >= target).mean()), 4)
-    counts, edges = np.histogram(vals, bins=20)
+        # Denominator is every solved draw. Dividing by the DEFINED ones instead answers
+        # "P[metric ≥ target | metric is defined]", which flatters a deal exactly when it is at its
+        # riskiest: 400 of 1000 scenarios never returning capital came back as a 100% clearing rate.
+        # An undefined metric cannot clear a target, so it counts against.
+        out["prob_at_least"] = round(float((defined >= target).sum() / total), 4)
+        if out["undefined"]:
+            # The conditional figure is still meaningful — it just is not the headline. Reported
+            # alongside rather than instead, so a reader can see the gap between the two.
+            out["prob_at_least_of_defined"] = round(float((defined >= target).mean()), 4)
+    counts, edges = np.histogram(defined, bins=20)
     out["histogram"] = {"counts": counts.tolist(), "edges": [round(float(e), 6) for e in edges]}
     return out
 
