@@ -598,13 +598,24 @@ function openPortalTab() { if (portalReady) return; portalReady = true; void por
 const developerPortal = new PortalUI($("panel-portal-dev"), portalHost);
 developerPortal.setWorkspace("developer");
 let developerReady = false;
-function openDeveloperTab() { if (developerReady) return; developerReady = true; void developerPortal.init(); }
+function openDeveloperTab() {
+  // Latch on a SUCCESSFUL init, never on "we called it once". Visiting this tab before the
+  // project has loaded used to set the latch anyway, freezing "No project open" in place for
+  // the rest of the session even though the project arrived moments later — a workspace that
+  // is permanently empty because it was opened half a second too early.
+  if (developerReady) return;
+  void developerPortal.init().then((ok) => { developerReady = ok; });
+}
 
 // Design workspace (architect / engineer) — same config-driven engine, "design" workspace filter.
 const designPortal = new PortalUI($("panel-portal-design"), portalHost);
 designPortal.setWorkspace("design");
 let designReady = false;
-function openDesignTab() { if (designReady) return; designReady = true; void designPortal.init(); }
+function openDesignTab() {
+  // Same latch-only-on-success rule as openDeveloperTab.
+  if (designReady) return;
+  void designPortal.init().then((ok) => { designReady = ok; });
+}
 
 // Developer portal's "Underwriting" shortcut → the proforma workspace
 window.addEventListener("aec:goto-workspace", (e) => setWorkspace((e as CustomEvent).detail as string));

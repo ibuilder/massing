@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MIN_CHARS, auditWorkspaces, compareShells, isDisplayed, judgePane, judgeRoom, realText, summarise } from "./liveAudit";
+import { MIN_CHARS, auditRooms, auditWorkspaces, compareShells, isDisplayed, judgePane, judgeRoom, realText, summarise } from "./liveAudit";
 
 /**
  * R26-V-LIVE. The audit that started R26 was a click-through, and click-throughs do not survive —
@@ -277,5 +277,88 @@ describe("compareShells — the gate on making the new shell the default", () =>
     const d = compareShells(rep("classic", [["a", "ok"], ["b", "ok"]]),
                             rep("spine", [["a", "ok"], ["b", "ok"]]));
     expect(d).toMatchObject({ regressions: [], gains: [], incomparable: [], same: 2 });
+  });
+});
+
+// --- the guard's own unknown-vs-none bug, found by running it against the real app ----------------
+// auditRooms() reported every room `missing` whenever the nav had not been built — the landing page,
+// before a project opens, the portal's empty state. That reads as "the spine rail is broken" when the
+// truth is "there was nothing here to judge". Same confusion the audit exists to prevent, committed
+// one level up inside the guard itself.
+describe("auditRooms — no rail is not a broken rail", () => {
+  afterEach(() => { document.body.innerHTML = ""; localStorage.clear(); });
+
+  it("reports UNKNOWN, not missing, when no nav was rendered at all", () => {
+    const r = auditRooms(["model", "cost"]);
+    expect(r.rooms.every((x) => x.verdict === "unknown")).toBe(true);
+    expect(r.missing).toEqual([]);          // nothing may be blamed on the rail
+    expect(r.empty).toEqual([]);
+    expect(r.note).toContain("NO NAV RENDERED");
+    expect(r.rooms[0]!.detail).toContain("not the same as a rail that omitted this room");
+  });
+
+  it("only calls a room MISSING when a rail exists and omits it", () => {
+    const nav = document.createElement("div");
+    nav.className = "pnav";
+    nav.innerHTML = '<details class="pnav-room" data-room="model">'
+                  + "<summary>Model</summary><button>Viewer</button></details>";
+    document.body.appendChild(nav);
+    const r = auditRooms(["model", "cost"]);
+    expect(r.rooms.find((x) => x.id === "model")!.verdict).toBe("ok");
+    expect(r.missing).toEqual(["cost"]);    // the rail is there and genuinely lacks this room
+  });
+
+  it("looks for rooms INSIDE the nav, not anywhere in the document", () => {
+    // A stray .pnav-room outside the rail would otherwise launder a missing room into a pass.
+    const stray = document.createElement("details");
+    stray.className = "pnav-room";
+    stray.dataset.room = "cost";
+    stray.innerHTML = "<summary>Cost</summary><button>Budget</button>";
+    document.body.appendChild(stray);
+    const nav = document.createElement("div");
+    nav.className = "pnav";
+    document.body.appendChild(nav);
+    expect(auditRooms(["cost"]).missing).toEqual(["cost"]);
+  });
+});
+
+// --- the direction this file never guarded, and the one that actually bit ---------------------------
+// Every other trap here is about a false BLANK. This is a false PASS: the app's "No project open"
+// placeholder runs to 123 characters — three times MIN_CHARS — so a workspace showing nothing but
+// that placeholder scored `ok`, and was reported as rendering fine while being, to a user, empty.
+// A false blank gets investigated; a false pass gets shipped.
+describe("an empty-state placeholder is not content", () => {
+  afterEach(() => { document.body.innerHTML = ""; });
+
+  const pane = (inner: string) => {
+    const host = document.createElement("div");
+    host.innerHTML = `<div class="portal-content">${inner}</div>`;
+    document.body.appendChild(host);
+    return { host, content: host.querySelector<HTMLElement>(".portal-content") };
+  };
+
+  it("scores EMPTY even when the placeholder text is far longer than MIN_CHARS", () => {
+    const long = "No project open. Create one with + New in the top bar (or pick an existing "
+               + "project), then the developer workspace loads here.";
+    expect(long.length).toBeGreaterThan(MIN_CHARS * 2);   // the real message really is this long
+    const { host, content } = pane(`<div class="empty-state">${long}</div>`);
+    const r = judgePane("ws:Developer", host, content);
+    expect(r.verdict).toBe("empty");
+    expect(r.detail).toContain("empty-state placeholder");
+  });
+
+  it("still scores OK when real content sits ALONGSIDE a placeholder", () => {
+    // A page may legitimately show an empty state for one card while the rest is populated.
+    const { host, content } = pane(
+      '<div class="empty-state">No cost data yet</div>'
+      + "<div>Schedule of values, budget, commitments and forecast for this project.</div>");
+    expect(judgePane("ws:Cost", host, content).verdict).toBe("ok");
+  });
+
+  it("a pane with a placeholder AND controls is still judged on the placeholder alone", () => {
+    // Guard against the inverse cheat: the placeholder's own "+ New" button must not rescue it.
+    const { host, content } = pane(
+      '<div class="empty-state">No project open <button>+ New</button></div>');
+    expect(judgePane("ws:Design", host, content).verdict).toBe("empty");
   });
 });

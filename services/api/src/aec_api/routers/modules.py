@@ -331,15 +331,27 @@ async def notifications_stream(pid: str, request: Request, user: str = Depends(r
     import json as _json
 
     from fastapi.responses import StreamingResponse
+    from starlette.concurrency import run_in_threadpool
 
     from ..db import SessionLocal
+
+    # THE POLL RUNS IN A THREAD, NOT ON THE EVENT LOOP. This generator is `async`, so every
+    # synchronous statement inside it executes *on the loop* — and `mod_engine.notifications` opens a
+    # session and queries across every module the party can see. For the duration of that query the
+    # loop cannot serve anything else: not another request, not another stream, not the health check.
+    # With a couple of tabs open the server spends most of its time blocked and every endpoint times
+    # out, which reads as "the dev server is wedged" rather than as a bug in one handler. That is the
+    # preview stall this repo has been working around for weeks. `run_in_threadpool` puts the blocking
+    # work where blocking work belongs; the `await` genuinely yields.
+    def _poll():
+        with SessionLocal() as db:
+            party = _party(pid, db, user)
+            return mod_engine.notifications(db, pid, user, party)
 
     async def gen():
         last = None
         while not await request.is_disconnected():
-            with SessionLocal() as db:
-                party = _party(pid, db, user)
-                items = mod_engine.notifications(db, pid, user, party)
+            items = await run_in_threadpool(_poll)
             sig = len(items), (items[0]["ts"] if items else None)
             if sig != last:
                 last = sig

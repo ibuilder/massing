@@ -402,14 +402,19 @@ async def pull_plan_stream(pid: str, request: Request, _: str = Depends(require_
     import json as _json
 
     from fastapi.responses import StreamingResponse
+    from starlette.concurrency import run_in_threadpool
 
     from ..db import SessionLocal
+
+    # The DB poll runs in a THREAD, not on the event loop — see `modules.notifications_stream`.
+    def _poll():
+        with SessionLocal() as db:
+            return pull_plan.signature(db, pid)
 
     async def gen():
         last = None
         while not await request.is_disconnected():
-            with SessionLocal() as db:
-                sig = pull_plan.signature(db, pid)
+            sig = await run_in_threadpool(_poll)
             key = (sig["count"], sig["latest"])
             if key != last:
                 last = key

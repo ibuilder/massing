@@ -637,6 +637,70 @@ you have thrown the vectors away; we mostly have not. Rasters fall back to "unkn
   visible as an override. Deliberately **not** an AI feature: the sources selling "institutional
   memory" all reduce to clean extraction plus safe write-back, both of which we have.
 
+### ⚙ PERF triage *(external static analysis, 2026-07-26 — verified against the code)*
+
+An external analyser produced eight performance findings. Most of its **facts** check out; two of its
+headline **recommendations** are backwards, and one finding examined nothing. Recorded so the wrong
+fix does not get made later from the same report.
+
+* **PERF-WORKERS ① — the cache story is duplication, not size.** Verified: `ifc_loader` caches 8 models
+  (`@lru_cache(maxsize=8)`), `drawings._BAKE_CACHE_MAX` is 4, and `UVICORN_WORKERS` defaults to **4**.
+  The analyser's advice was to *raise* both caches. **That makes the problem it identifies worse**: the
+  caches are per-worker, so raising them multiplies resident memory by the worker count — its own
+  finding ③ contradicts its finding ①. The real options are a bounded **shared** cache (a loader
+  process or Redis-backed handle), or worker affinity so one model lives in one worker. Sizing is the
+  last lever, not the first.
+* **PERF-RATE ② — the rate limit is per-worker and only warns.** Verified at `main.py:155-162`: with
+  `AEC_RATE_LIMIT_RPM>0`, multiple workers and no `AEC_REDIS_URL`, each worker counts independently, so
+  the effective limit is N× the configured one. It logs `CRITICAL` and **starts anyway**. A security
+  control that announces it is not working and then runs is worse than one that is absent, because the
+  operator believes it is on. Refuse to start, or drop to one worker.
+* **PERF-THREADS ③ — cap the pool, but the stated mechanism is wrong.** The claim was "unbounded
+  threads → resource exhaustion". Starlette/anyio's default pool is **40 threads, not unbounded**. The
+  genuine risk is different and worth fixing: 40 concurrent *IFC* operations at hundreds of MB each is
+  an OOM, so the cap wants to be small and explicit for model work specifically — not because threads
+  are unbounded but because each one is expensive.
+
+**Not adopted.** "No evidence of query batching" is an absence of evidence offered as a finding — the
+report did not examine the ORM layer and does not name an endpoint. It is the inverse of this repo's
+own rule: *a check that examined nothing must not report anything*, clean **or** dirty. Lazy imports
+are also deliberate — they keep cold start cheap for the paths a deployment never touches — and the
+bake cache's `id()` key is already sound: it holds a strong model reference and re-checks identity.
+
+---
+
+### 🐍 DDC ecosystem scan *(2026-07-26 — a Python construction-data org, 30 repos)*
+
+Scanned at the user's request. The headline is a **licence trap worth recording**, because the
+repository's own README states the wrong licence for its most valuable asset.
+
+**The CWICR cost database — 55,719 work items, 27k resources, 30 regions, 21–31 languages — is
+`CC BY-NC 4.0`, NOT `CC BY 4.0`.** The skills repo's README advertises it as CC BY 4.0; the actual
+`LICENSE-DATA.txt` in the data repo is **NonCommercial**. That is the same exclusion class as the
+PolyForm-NC library already refused above, and taking the README at its word would have put a
+non-commercial dataset inside a commercial product. The repo's *code* is Apache-2.0 and fine; only the
+data is encumbered. **Check the LICENSE file, never the README's summary of it.**
+
+**⛔ Not usable:** the CWICR **data** (CC BY-NC 4.0) · the `cad2data` RVT/DWG/DGN converters
+(**proprietary** — an explicit commercial licence, despite the repo reading as open) · an
+open-source construction ERP (**AGPL-3.0**) · and roughly ten GPL-3.0 notebooks covering embodied
+carbon, ML price prediction, quantity takeoff and estimation.
+
+**✅ Permissive and worth reading:** a 221-file **skills corpus for construction AI agents** (MIT), a
+**4D–5D pipeline** (Apache-2.0), **Revit/IFC project quality checking** (MIT), a CAD/BIM-to-code
+pipeline (MIT), and an IFC/Revit ETL collector (MIT).
+
+**What is actually worth taking, and it is not code.** We already have `.claude/skills/` and the
+master-builder skill, and we already have `model_qa`, `qto`, `fived` and the 4D/5D spine — so none of
+those repos closes a capability gap. What the 221-skill corpus *is* good for is a **map of what
+construction teams actually automate**, at a granularity nobody publishes otherwise. Read as a
+coverage checklist against our 130 modules it is a gap-analysis input, not an import.
+
+* **R27-SKILL-GAP** *(S — reading, not building)* — diff the MIT skills taxonomy against our module
+  catalog and the master-builder skill; record only the gaps that fit the mission. Explicitly **not**
+  a bulk import: 221 generated skill files would bloat the repo and duplicate engines we already have
+  tested. The output is a short list of missing *capabilities*, not files.
+
 **⛔ Licence exclusions recorded from this scan (evaluated, refused, do not re-litigate).** Two
 otherwise-relevant OSS projects are unusable under the standing MIT/BSD/Apache-only rule: a GPU map-
 rendering library under **PolyForm Noncommercial 1.0.0** (non-commercial only — incompatible with a

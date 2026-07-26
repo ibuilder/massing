@@ -161,8 +161,12 @@ export class PortalUI {
     };
   }
 
-  async init() {
-    if (!this.host.projectId()) { this.root.innerHTML = noProjectHtml(this.wsFilter === "developer" ? "the developer workspace" : this.wsFilter === "design" ? "the design workspace" : "the GC portal"); return; }
+  /** Returns whether the portal actually initialised. A caller that latches "already done" MUST key
+   *  that latch off this and not off "we called init once" — see `openDeveloperTab` in main.ts. The
+   *  no-project branch below is a *deferral*, not a completion: the project usually arrives moments
+   *  later, and a latch set here freezes the empty state in place for the rest of the session. */
+  async init(): Promise<boolean> {
+    if (!this.host.projectId()) { this.root.innerHTML = noProjectHtml(this.wsFilter === "developer" ? "the developer workspace" : this.wsFilter === "design" ? "the design workspace" : "the GC portal"); return false; }
     this.mods = await this.host.api.modules();
     // build the persistent shell once: [nav rail | content]. `this.root` is redirected to the
     // content pane, so every existing render path writes into it while the nav rail stays put.
@@ -183,6 +187,7 @@ export class PortalUI {
     // drain any uploads queued offline in a previous session, and keep watching for reconnect
     this.hookOnline(); void this.flushUploads();
     await this.renderHome();
+    return true;
   }
 
   /** The always-visible left nav: Dashboard + a filter + favorites + collapsible sections of modules.

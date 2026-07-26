@@ -103,15 +103,20 @@ async def model_stream(pid: str, request: Request, user: str = Depends(require_r
     import json as _json
 
     from fastapi.responses import StreamingResponse
+    from starlette.concurrency import run_in_threadpool
 
     from .. import collab
     from ..db import SessionLocal
 
+    # The DB poll runs in a THREAD, not on the event loop — see `modules.notifications_stream`.
+    def _poll():
+        with SessionLocal() as db:
+            return collab.snapshot(db, pid, user)
+
     async def gen():
         last = None
         while not await request.is_disconnected():
-            with SessionLocal() as db:
-                snap = collab.snapshot(db, pid, user)
+            snap = await run_in_threadpool(_poll)
             if snap is None:
                 break
             sig = collab.stream_signature(snap)
@@ -243,15 +248,23 @@ async def markup_stream(pid: str, request: Request, _: str = Depends(require_rol
 
     from fastapi.responses import StreamingResponse
     from sqlalchemy import func as _f
+    from starlette.concurrency import run_in_threadpool
 
     from ..db import SessionLocal
+
+    # The DB poll runs in a THREAD, not on the event loop. See `modules.notifications_stream` for the
+    # full reasoning: an `async` generator executes its synchronous statements on the loop, so a
+    # per-tick query blocks every other request for its duration — which presents as a wedged server
+    # rather than as a slow endpoint.
+    def _poll():
+        with SessionLocal() as db:
+            return db.query(_f.count(DrawingMarkup.id), _f.max(DrawingMarkup.created_at)) \
+                     .filter(DrawingMarkup.project_id == pid).one()
 
     async def gen():
         last = None
         while not await request.is_disconnected():
-            with SessionLocal() as db:
-                n, latest = db.query(_f.count(DrawingMarkup.id), _f.max(DrawingMarkup.created_at)) \
-                              .filter(DrawingMarkup.project_id == pid).one()
+            n, latest = await run_in_threadpool(_poll)
             key = (int(n or 0), latest.isoformat() if latest else None)
             if key != last:
                 last = key

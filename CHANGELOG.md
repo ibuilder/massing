@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.703 — the stall was never the geometry
+
+The dev preview has stalled for weeks, and the workaround was written into a checklist as a known
+limitation of loading models in a browser. It was none of those things.
+
+**Five event-stream endpoints ran their database polls directly on the event loop.** An `async`
+generator executes its ordinary statements on the loop, so every four or five seconds each open stream
+stopped the entire server for as long as its query took — and one of those queries walks every module
+a user can see. Two browser tabs were enough to leave the server blocked more than it was running, so
+*every* request timed out. That reads as "the server is wedged", not as "one handler is slow", which is
+why it survived so long: the symptom pointed nowhere near the cause. Measured with three streams open,
+before and after: **every endpoint timing out beyond eight seconds → all of them answering in about
+twenty milliseconds.**
+
+That one fix cascaded. The app could not reach its health check, so it never learned which project was
+open, so the portal showed "No project open" while the model sat rendered on screen behind it — the
+split between opening a *model* and opening a *project* that made the whole app look half-connected.
+
+**A workspace could be permanently empty because it was opened half a second too early.** Visiting the
+Developer or Design tab before the project had loaded ran their setup, saw no project, painted the
+placeholder — and then set a latch saying "already initialised". The project arrived moments later and
+neither tab ever tried again for the rest of the session. They now latch only on a setup that actually
+succeeded.
+
+**And the audit that was supposed to catch all of this was scoring the placeholder as content.** The
+"No project open" message runs to 123 characters, three times the threshold for "this pane has
+something in it", so a workspace showing nothing but that message was reported as rendering fine. Every
+other guard in that file defends against calling a working pane blank; this was the opposite, and it is
+the worse direction — a false blank gets investigated, a false pass gets shipped. With it fixed, the
+new shell now audits **7 of 7 workspaces clean**, which is the first time that claim has been true
+rather than assumed.
+
+Also in this release: the audit no longer reports "this room is missing" when no navigation was
+rendered at all — an unbuilt rail is nothing to judge, not a broken rail — plus a verified triage of an
+external performance report, and a scan of a construction-data toolset whose published licence for its
+headline dataset does not match the licence file in the repository.
+
 ## v0.3.702 — the audit had never looked at the thing it was built to check
 
 Four pieces, and the one worth leading with is a defect in our own evidence.

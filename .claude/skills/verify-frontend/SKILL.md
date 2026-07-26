@@ -5,7 +5,15 @@ description: How to verify Massing web/viewer UI changes given that the dev-prev
 
 # Verify a Massing frontend change
 
-The dev-preview geometry loader **stalls at "preparing geometry"** for all model sizes, which blocks `loadProjectModel` and therefore `buildPanels` (the `panel-tree` model browser). But `buildToolsPanel` (the rail tools) can be forced. Verify what you can; flag what you can't.
+**The "preview stall" was diagnosed and FIXED in v0.3.703 — it was never the geometry loader.** Five
+SSE endpoints polled the database inside `async def gen()`, blocking the event loop for every other
+client; two open tabs left the server wedged and *every* request timed out, including the app's boot
+`api.health()`. That left `projectId` unset, so the portal showed "No project open" while a model sat
+rendered on screen. Fixed with `run_in_threadpool`; measured >8s timeouts → ~20 ms. **Full live
+verification now works** — start both servers and drive the real app.
+
+If the app ever looks stalled again, check the SERVER first (`curl /health` with a stream open), not
+the geometry.
 
 ## Always
 ```
@@ -25,7 +33,10 @@ This verifies: new rail tools/buttons/inputs, the ribbon tabs, the Library palet
 
 ## What you CAN'T verify live (flag it honestly)
 - `panel-tree` UI (the Project-Browser spine) — `buildPanels` never runs behind the stall. Verify its DOM-construction logic by reproducing it in the console instead, and say so.
-- End-to-end calls to NEW API routes against the dev API on **:8093** — that server is often a **stale process** predating your new routes → 404 there even though the client hits the right URL. Confirm via `read_network_requests` that the URL/payload is correct; the backend itself is covered by CI. (Restarting :8093 is the user's call.)
+- Nothing, if both servers are current. **Start them yourself**: `.claude/launch.json` has `api`
+  (:8093) and `web` (:5173) configs — use `preview_start` with `{name: "api"}` / `{name: "web"}`. A
+  previous note here said a stale :8093 process was "the user's call"; there was usually **no process
+  at all**, and the config to start one has always been in the repo. Check before assuming.
 - Anything geometry-coupled (placing an element, section cuts, camera).
 
 ## Report

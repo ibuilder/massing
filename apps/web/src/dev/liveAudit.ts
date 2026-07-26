@@ -55,6 +55,10 @@ export interface LiveAuditReport {
 /** Minimum real text before a pane counts as populated rather than a spinner or a stub. */
 export const MIN_CHARS = 40;
 
+/** The app's own "nothing to show here" placeholder. A pane containing only this is empty no matter
+ *  how many characters the message runs to — see `judgePane`. */
+export const EMPTY_SEL = ".empty-state";
+
 /**
  * Is this element displayed?
  *
@@ -114,6 +118,17 @@ export function judgePane(id: string, host: HTMLElement | null, content?: HTMLEl
              detail: "expected a content element and found none — structure differs, or it is broken" };
   }
   const target = content ?? host;
+  // AN EMPTY STATE IS NOT CONTENT. Everything else in this file guards against a false *blank*; this
+  // guards the opposite direction, which turned out to be the one that actually bit. The app's
+  // "No project open" placeholder is 123 characters — three times MIN_CHARS — so a pane showing
+  // nothing but that placeholder was scored `ok`, and the workspace it described was reported as
+  // rendering fine while being, to a user, completely empty. A false pass is worse than a false
+  // blank: a false blank gets investigated, a false pass gets shipped.
+  const placeholder = target.querySelector(EMPTY_SEL);
+  if (placeholder && realText(target) === realText(placeholder as HTMLElement)) {
+    return { id, verdict: "empty", chars: 0, controls: 0,
+             detail: "renders only an empty-state placeholder — displayed, and with nothing in it" };
+  }
   const chars = realText(target).length;
   const controls = target.querySelectorAll("button, a[href], input, select, textarea").length;
   if (chars >= MIN_CHARS || controls > 0) {
@@ -197,10 +212,35 @@ export function judgeRoom(det: HTMLElement | null, id: string): RoomReport {
  * `auditWorkspaces` walks workspace tabs, which both shells share; it therefore says nothing about
  * the rail itself. This is the part that only exists under the spine, and it was entirely unmeasured.
  */
+/** Selector for the nav container that HOLDS the rail. Its absence and a room's absence are
+ *  different facts, and conflating them is the bug this constant exists to prevent. */
+export const NAV_SEL = ".portal-nav, .pnav";
+
 export function auditRooms(expected: readonly string[] = ROOM_IDS): RoomAuditReport {
   const shell = currentShell();
+  // WAS THE RAIL BUILT AT ALL? The first version of this function skipped this and reported every
+  // room `missing` whenever the nav had not been constructed — which is what happens on the landing
+  // page, before a project opens, and any time the portal shows its empty state. That verdict reads
+  // as "the spine rail is broken" when the truth is "there was nothing here to judge", and it is the
+  // exact `unknown` ≠ `none` confusion this whole audit exists to prevent, committed one level up
+  // inside the guard itself. Found by running it against the real app, which is the only way this
+  // class of bug ever surfaces.
+  const nav = document.querySelector<HTMLElement>(NAV_SEL);
+  if (!nav) {
+    const rooms = expected.map<RoomReport>((id) => ({
+      id, verdict: "unknown", destinations: 0, open: false,
+      detail: "no nav was rendered — there is no rail to judge, which is not the same as a rail "
+            + "that omitted this room",
+    }));
+    return {
+      shell, rooms, missing: [], empty: [],
+      note: "NO NAV RENDERED — the portal has not built its rail (no project open, or an empty "
+          + "state). Every room is `unknown`; none of this is evidence about the rail. Open a "
+          + "project first, then re-run.",
+    };
+  }
   const rooms = expected.map((id) =>
-    judgeRoom(document.querySelector<HTMLElement>(`.pnav-room[data-room="${id}"]`), id));
+    judgeRoom(nav.querySelector<HTMLElement>(`.pnav-room[data-room="${id}"]`), id));
   return {
     shell,
     rooms,
