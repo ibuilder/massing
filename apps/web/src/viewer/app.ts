@@ -14,6 +14,7 @@ import { parseDynConstraint } from "./dynInput";
 import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
 import { buildElementProps, buildRawProps } from "./propsView";
+import { buildInspectorTabs, type InspectorData, type TabKey } from "./inspectorTabs";
 import { buildLifecycleStrip } from "./lifecycleStrip";
 import { type ModelIdMap } from "./modelIds";
 import { askText } from "../ui/prompt";
@@ -301,20 +302,41 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       + `<div class="meta" style="font-size:11px;margin-top:2px">Type: <b>${escapeHtml(el.type_name || "—")}</b></div>`
       + `<div class="meta" style="font-size:11px">Class: ${escapeHtml(cls)}${el.storey ? ` · Level: ${escapeHtml(el.storey)}` : ""}</div>`;
     const wrap = document.createElement("div");
-    wrap.append(head, buildElementProps(el, hooks));
+    const propsView = buildElementProps(el, hooks);
+    // R26-INSPECTOR ② — the strip is the SPINE of this panel, so it sits above the tabs rather than
+    // inside one of them: it summarises all four, and burying it in Properties would make the summary
+    // a peer of the things it summarises.
+    //
+    // Properties renders IMMEDIATELY and never waits on a fetch. The other three tabs start
+    // `unknown` — which is exactly true, because nothing has been requested yet — and fill in as
+    // their data lands. Starting them at "empty" would state an absence nobody had checked for.
+    let insp: InspectorData = { fived: null, lifecycle: null };
+    let activeTab: TabKey = "properties";
+    const paint = () => {
+      const kids: HTMLElement[] = [head];
+      if (insp.lifecycle) kids.push(buildLifecycleStrip(insp.lifecycle));
+      kids.push(buildInspectorTabs(propsView, insp,
+                                   { active: activeTab, onSelect: (k) => { activeTab = k; } }));
+      wrap.replaceChildren(...kids);
+    };
+    paint();
     propsBody.replaceChildren(wrap);
     updateInfoBox(el);
-    // R26-INSPECTOR — the six-state lifecycle strip. Fetched separately and grafted in when it
-    // arrives, so a slow or absent lifecycle route never delays the properties the user asked for.
-    // A failure leaves the panel exactly as it is: no strip is honest, an empty strip is not.
     if (connected && projectId) {
       const forGuid = el.guid;
+      // Two independent fetches, each repainting on arrival. A failure leaves its tab `unknown`
+      // rather than `none`: an older server with no such route has told us nothing about this
+      // element, and rendering that as "no cost" would be an absence we invented.
       void api.elementLifecycle(projectId, forGuid).then((lc) => {
         if (selectedGuid !== forGuid) return;              // selection moved on while we waited
-        const host = propsBody.querySelector(".props-view");
-        if (!host || host.querySelector(".lcstrip")) return;
-        host.insertBefore(buildLifecycleStrip(lc), host.children[1] ?? null);
-      }).catch(() => { /* no lifecycle route (older server): show properties without the strip */ });
+        insp = { ...insp, lifecycle: lc };
+        paint();
+      }).catch(() => { /* no lifecycle route (older server): strip stays absent, tabs stay unknown */ });
+      void api.element5d(projectId, forGuid).then((f) => {
+        if (selectedGuid !== forGuid) return;
+        insp = { ...insp, fived: f };
+        paint();
+      }).catch(() => { /* no 5D route: Cost and Schedule stay `unknown`, never `none` */ });
     }
   }
 

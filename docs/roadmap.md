@@ -1,20 +1,23 @@
 # Roadmap
 
-The single product roadmap — **open items only**, reconciled + re-prioritized **2026-07-24 at
-v0.3.661**. The 🏢 R19, 🏛 R18 and 🏙 R20 rings and the whole 07-24 NOW list are **complete and
-archived**. Everything ever shipped lives in [roadmap-completed.md](roadmap-completed.md); per-release
+The single product roadmap — **open items only**, reconciled + re-prioritized **2026-07-26 at
+v0.3.702**. The 🏛 R26, 💵 R25, 🏢 R19, 🏛 R18 and 🏙 R20 rings and the whole 07-24 NOW list are
+**complete and archived**. Everything ever shipped lives in [roadmap-completed.md](roadmap-completed.md); per-release
 detail is in [CHANGELOG.md](../CHANGELOG.md). Supporting detail:
 [production-readiness.md](production-readiness.md) · [gc-portal.md](gc-portal.md) ·
 [ops-dr.md](ops-dr.md) · [mobile.md](mobile.md).
 
 Three pillars on one IFC-keyed model: **BIM authoring/viewer** · **GC portal** ·
-**developer/finance**. The finance and CRE pillars just took deep investment (R19 + R20) and the
-authoring pillar closed its parity ring (R18). **What is thin now is the surface** — the interaction
-craft, the demo, and the cross-cutting cost identity that make the shipped depth legible — plus the
-structural carry-overs that keep the codebase workable.
+**developer/finance**. All three now have depth: finance and CRE from R19 + R20, authoring from R18,
+the 5D/4D spine from R25, and the interaction surface from R26. **What is thin now is the drawing** —
+the sheet is still handled as an image with text behind it rather than as data (📐 R27), and the
+structural carry-overs that keep the codebase workable are still outstanding.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**388** suites) · vitest 158 · single-source
-version in `apps/web/package.json` · CI on Node 22. Reconciled **2026-07-25 at v0.3.687**.
+**Status:** CodeQL 0 open alerts · backend suite green (**397** suites) · vitest **269** · single-source version in
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-26 at v0.3.702**.
+
+**The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
+reverts. R26 is otherwise complete — what gates making it the default is named in that section.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
@@ -23,6 +26,27 @@ non-gated work**.
 ---
 
 ## ▶ NOW — priority order (sprints of large chunks; one full-suite release per sprint)
+
+**Re-prioritized 2026-07-26 at v0.3.702.** Two rings closed (R26, R25) and R27 opened with its two
+cheapest items already shipped. The ordering below reflects what is now actually next — and the top of
+the list is deliberately *not* new capability, because the platform's depth has outrun the evidence
+that it renders:
+
+1. **🏛 Flip the new look on** — the only code-shaped work left is re-running the render audit under
+   the spine and acting on any `compareShells()` regression. R26-ICONS and R26-V-TIMING do **not**
+   gate it (one is polish needing a source decision, the other is an *after* measurement).
+2. **📐 R27-LAYOUT ②③** — takeoff scoped to its viewport, notes attached to what they govern. ①(a)
+   shipped, so the exact scale and region are already available to build on.
+3. **📐 R27-CLAIM-TYPE** — intent / embodiment / evidence / inference as a field the fact spine
+   carries. Generalises what `element_facts` already does for one engine.
+4. **📐 R27-RISK-CALIBRATE** — schedule risk from the project's own baseline-vs-actual instead of a
+   three-point guess, and honest about `n` when there is not enough history.
+5. **🧱 Decomposition & reliability carry-overs** — interleave one per few releases; these have been
+   deferred longest.
+6. **📐 R27-FIRM-MEMORY** — org-scoped standards a project inherits and may override visibly.
+
+Everything else below keeps its existing position.
+
 
 0b. ◧ **🧱 FAMILY-COMPLETE — enough content to actually build a building** *(all six batches shipped
    v0.3.668–670; the completeness gate is green, depth-within-system continues)*.
@@ -375,251 +399,54 @@ MIT/BSD/Apache list)**, a new Rust binary wheel, and **99.9% agreement is not bi
 must never touch drawing generation, which has to stay deterministic. Would ship behind a flag with a
 per-GlobalId AABB cross-check against the ifcopenshell path.
 
-## 🏛 R26 — THE SPINE: five rooms, one project *(app audit + redesign, 2026-07-25)*
+## 🏛 R26 — THE SPINE *(ring COMPLETE except two items; archived 2026-07-26 at v0.3.702)*
 
-**The finding, in one line:** *"You built a platform. The UI is presenting it as a filing cabinet."*
-Seven workspaces carry **four different left-rail taxonomies**, so nothing a user learns in one
-transfers to the next, and modules land in more than one — Facility Condition appears twice in the
-Developer rail alone; Model Health appears three times on the Design screen at once. The app has no
-**spine**: nothing says what this project is, where it stands, or what to touch next.
+Sprints A–E are **shipped and archived** — see
+[roadmap-completed.md](roadmap-completed.md#-session-v03684702-2026-0725/26--the-spine-the-5d4d-rings-and-the-drawing-layer).
+One health source · one canonical room per module across all 130 · the five-room rail · the Inspector
+strip **and its four tabs** · the ball-in-court work queue · 27 unlabeled glyphs replaced by labeled
+contextual verbs · the enforced colour contract · and all four verification gates.
 
-**This ring changes the front door, not the building.** Every engine, module, selector spine and
-format written to date survives untouched — `query_dsl`, the 130-module config engine, the drawing
-generators, the 5D cost binding, LOD-500 verification, the workflow state machines. What changes is
-that a module stops being *a destination you must find in a catalog* and becomes **reachable four
-ways**: from the room it belongs to, from the element it is anchored to, from your work queue when it
-is your turn, and from ⌘K by name. The catalog survives as the fourth path rather than the only one.
+**The new look is opt-in today** at `?shell=spine` (off by default; `?shell=classic` reverts). Making
+it the **default** is the remaining decision, and it is now gated on judgement rather than on code:
 
-**Decisions taken 2026-07-25** *(asked and answered, so they are not re-litigated)*:
-professional terms are primary and there is **no Lay mode** — the rooms are **Model · Cost · Schedule ·
-Deal · Work**, because the users are builders, developers, architects and engineers who already own the
-vocabulary. The new shell lands **behind a flag with both shells live**, and the default flips only
-once it beats the old one.
+- **R26-ICONS** *(S — needs a decision from the user)* — one monoline icon set at a single weight,
+  state-tinted, replacing coloured emoji. **Blocked on a source**: hand-authoring ~100 inline SVGs is
+  a sprint of its own, and any licensed set is a new dependency needing an explicit OK (MIT/BSD/
+  Apache only). Explicitly **not** a release blocker — the emoji stopped being a legibility problem
+  once the toolbar carried words, so this is polish and should not jump the queue on that basis.
+- **R26-V-TIMING** *(M — needs real users)* — instrument first-task completion per persona against
+  the audit's baseline, so the redesign's claim is **measured rather than asserted**. Deliberately
+  left open: it is an *after* measurement and cannot gate the thing it measures.
 
-### Sprint A — foundations *(no flag needed; these improve the current shell too)*
+**What the release gate actually was, and how it was found.** `liveAudit.ts` shipped in v0.3.695 with
+**zero references to the spine** — so its headline result, *all 7 workspaces ok, 0 problems, 0
+unknown*, was measured against the **classic** shell and then read as evidence for the redesign it had
+never touched. An audit that does not state its configuration produces results that migrate to the
+wrong claim. Fixed in v0.3.702: every report now carries `shell`, `auditRooms()` judges the five-room
+rail itself, and `compareShells()` names a **regression** — a pane that renders in classic and not
+under the spine — which is the actual gate on flipping the default.
 
-- ✅ **R26-ONE-HEALTH** *(shipped v0.3.686)* — **the app currently contradicts itself and it is verified.**
-  `portal.ts:643` renders `/models/health → overall_score` ("24 · at risk") and `portal.ts:865` renders
-  `/health → health_score` ("77/100") — two engines, one word, same session. Once a user catches the app
-  disagreeing with itself, every other number becomes suspect. **One score, computed once, referenced
-  everywhere**: establish which engine is canonical, have the other reference rather than recompute.
-- ✅ **R26-MODULE-HOME** *(shipped v0.3.686)* — one canonical **room** per module across all 130, plus references. The
-  16-section map in the audit is the starting allocation. Ships with the reachability gate below, so a
-  restructure cannot silently lose a module.
-- **R26-OFFER-NOT-ERROR** *(S)* — a failure becomes an **offer with a button**. `"(404) — needs a
-  published model"` becomes *"No published model yet"* + **Publish now**. The viewer empty state
-  (v0.3.677) is the pattern to copy; the audit found 12 drawings all returning a raw 404 string.
+---
 
-### Sprint B — the shell, behind a flag
+## 💵 R25 — 5D *(ring COMPLETE; archived 2026-07-26 at v0.3.702)*
 
-- ✅ **R26-SHELL** *(shipped v0.3.686 + v0.3.689)* — the five-room spine, constant for every role; a
-  **workspace weights and preselects** it but never replaces it. Behind `?shell=spine`, with the
-  current shell untouched beside it, and a `/rooms` failure falling back to the classic rail rather
-  than to an empty one — a shell experiment must not be able to strand a user.
-  The rail is now rendered, and building it forced the destination catalog out of `buildNav()` into
-  `shell/destinations.ts`. That is where the value was: as a literal inside a render function, nobody
-  could check it, which is how a destination came to appear twice in one rail. It is now asserted in
-  **both directions** — every destination has a room, and every room entry names a real destination —
-  so an unplaced destination is a build failure rather than something a user finds missing.
-  Rooms also needed a **tri-state** open/closed memory, unlike stages. A stage defaults to open, so
-  recording only collapses suffices; a room defaults to *closed* unless it is the workspace's own,
-  because five rooms holding 45 destinations all expanded is the wall of options the spine exists to
-  end. Live: Construction opens on Schedule with 5 entries showing and 45 one click away.
-- **R26-VITALS** *(M)* — six numbers along the bottom — LOD, area, $/sf, float, IRR, health — replacing
-  the 10 viewport controls currently pinned to every workspace whether or not it has a viewport. This
-  is the "one model" claim, continuously proven. Viewport controls move into **Model** where they apply.
-- **R26-NEXT-ACTION** *(S)* — one line stating what to do next. Master Builder already computes exactly
-  this (8-step readiness with *→ Close this gap*); this is promotion, not a new engine.
+The model **is** the estimate, end to end: cost and 4D bindings written natively into IFC
+(`IfcRelAssignsToControl`→`IfcCostItem`, `IfcRelAssignsToProduct` for tasks), quantities measured from
+the model rather than supplied by the caller, rates carrying their source and vintage year, and two
+estimates diffable by GlobalId with every dollar attributed to a cause. Archived in full — see
+[roadmap-completed.md](roadmap-completed.md#-session-v03684702-2026-0725/26--the-spine-the-5d4d-rings-and-the-drawing-layer).
 
-### Sprint C — the Inspector *(where the last two rings become visible)*
+The chain's last missing link closed in v0.3.702 as **R27-SOV-LOOP**: nothing had built a schedule of
+values *from* an estimate, so the numbers were re-keyed by hand at exactly the seam where somebody
+asks to be paid.
 
-- ✅ **R26-INSPECTOR** *(shipped v0.3.687 + v0.3.690)* — select an element and the six-state strip sits
-  directly under the identity header: **designed · checked · priced · scheduled · installed · verified**.
-  This is the payoff surface for work already shipped — the 5D binding (v0.3.684) supplies the rate,
-  the LOD-500 stamp supplies the accuracy — and it is what makes "one model, one key" tangible in the
-  first thirty seconds instead of requiring three tabs and prior knowledge.
-  Wiring the three remaining states was where the care went, because each had its own way of turning
-  *we did not ask* into a confident answer. `model_qa` caps every offender list at 20, so answering
-  "is this element clean" from that sample would report **clean for the 21st duplicate** — a check
-  that examined a different element, answering about this one; the rules are now re-evaluated exactly
-  per GUID (`model_qa.element_findings`), and that specific case is what the test asserts. An element
-  no activity claims looks unscheduled, but where **nothing** in the project binds tasks to elements
-  that is a missing capability dressed up as a finding about the building — so the project-wide
-  binding is checked first, and only a project that uses it can return a real "no". And verification
-  can come from the IFC stamp or a field record: the stamp wins, the record is the fallback, and
-  `source` says which, because they are not the same evidence even when they agree.
-  ◧ *Still open:* the Properties/Cost/Schedule/Field **tabs** — the strip is the spine of that panel,
-  not the whole of it.
+Only one item remains, and it is tracked in R24 rather than duplicated here:
 
-### Sprint D — work, tools, and the visual system
+- **R25/R24-TRACE-UI** *(M)* — the chain made visible in the UI: figure → cost line → the elements
+  behind it. The data is complete; this is the surface that shows it.
 
-- ✅ **R26-WORK-QUEUE** *(shipped v0.3.694)* — the ball-in-court feed is now a queue: dated, bucketed
-  by urgency, and carrying the actions this caller can actually run, at `GET /projects/{pid}/work-queue`
-  and as **My Work** in every rail's first stage (Work room under the spine).
-  Two properties make it worth having. **`undated` is not `later`** — an item nobody dated is a gap
-  somebody should close, so it gets its own bucket *above* `later`; folding it in would sort an urgent
-  dateless RFI below a routine item due next month and hide the gap that caused it. Absent, blank and
-  **unparseable** dates all land there, because an unreadable date means the same thing as a missing
-  one. And the actions offered are the ones the **engine will honour** for this party from this state —
-  proved by running one against the API, not asserted — because a queue offering a button the server
-  rejects spends the user's trust before their time. An action gated behind required fields is shown
-  as a link into the record: it needs a form, not a click.
-  Built **on** `my_work`, and asserted to return exactly that feed — a second definition of "in my
-  court" is how two screens come to disagree, which is the defect one layer up.
-- ✅ **R26-TOOLBAR** *(shipped v0.3.691)* — the model toolbar carried **27 unlabeled glyphs, all of
-  them, always**. It is now **Levels · Section · Measure · Ask** — four labeled verbs on one row —
-  with the other 23 under **More**, grouped and described. Verified live in the running viewer.
-  Nothing removed: the layout pass only moves buttons between two containers, so it *cannot* drop a
-  tool, and one the table does not describe appears under More tagged `data-unlaid` rather than
-  vanishing. Live `unlaid` is 0.
-  The design error worth remembering: treating "always visible" as a predicate that returns true let
-  contextual verbs push **Ask** past the cap the moment you selected something. A verb you learn the
-  position of and then cannot find is worse than one that was never on the bar — pinned verbs now
-  hold fixed positions and contextual ones append.
-- **R26-WALK-DUP** *(S, found by the above)* — there are **two** first-person walk tools, both 🚶,
-  both installed: `envTools` drives the camera per frame and you drag to look; the later R17
-  `walkMode` takes a pointer lock and exits on Esc. Labelling made the duplication legible
-  (*Walk (drag)* / *Walk (locked)*); deciding which survives is a behaviour change and needs one.
-- ✅ **R26-COLOUR-DISCIPLINE** *(shipped v0.3.692)* — blue now means **you can act on this**; green =
-  solved, amber = attention, red = blocking, everything else including data is plain text. Five things
-  stopped being blue: KPI numbers, the IFC-class badge, form section headings, the ball-in-court pill,
-  and node-graph output values. None was ever a control.
-  The KPI case is the instructive one, because the tempting fix is wrong both ways: colouring every
-  number is what made dashboards unreadable, colouring none loses the cue that some are links. So
-  `.kpi-v` is plain and `.kpi-click .kpi-v` stays blue — the colour now asserts something true.
-  Verified live: 4 clickable KPIs blue, 2 plain ones in text colour.
-  Enforced, not merely stated: `ui/colorContract.ts` lists every selector allowed to paint with the
-  accent and its test asserts that list against `style.css` in **both directions**. Writing the list
-  by hand first was instructive — most guesses were wrong, because they used the accent only on
-  borders, which the gate deliberately exempts.
-- **R26-ICONS** *(S — needs a decision)* — one monoline icon set at a single weight, state-tinted,
-  replacing coloured emoji. **Blocked on a source**: hand-authoring ~100 inline SVGs is a sprint of
-  its own, and any licensed set is a new dependency needing an explicit OK (MIT/BSD/Apache only).
-  Worth noting the emoji are not currently a *legibility* failure now that the toolbar carries words —
-  this is polish, not a defect, so it should not jump the queue on that basis.
-
-### Sprint E — verification *(all four gates were requested; none is optional)*
-
-- ✅ **R26-V-REACH** *(shipped v0.3.686 — deliberately BEFORE the restructure it protects)* — assert **every module has exactly one canonical home and is reachable**. The
-  single biggest risk in an IA change is silently losing a module; this makes that impossible.
-- ✅ **R26-V-CONSISTENT** *(shipped v0.3.693)* — six cross-surface identities asserted **between the
-  endpoints that render them**, not against arithmetic restated in the test: comparing an endpoint to
-  a local recomputation only proves the test can add up, and it was *agreement between screens* that
-  was the defect. Open RFIs (dashboard vs board) · total records (KPI vs its own breakdown) · budget
-  (cost summary vs the dashboard's snapshot) · my action items · health score (headline vs the
-  domains it is a mean of) · module catalog vs room allocation. Confirmed to bite by perturbing the
-  dashboard and watching it fail.
-  Every check runs on a **seeded, non-zero** project, because zero equals zero on every surface and a
-  gate run against an empty project passes while proving nothing. Two mistakes are recorded in the
-  file: the health check originally read a `score` field the domains do not have, so it skipped
-  silently and passed having tested nothing; and the seed for one module failed without being
-  asserted, leaving three identities comparing two views of the same absence.
-  Coverage is **declared** in `IDENTITIES` and is explicitly not a claim of global consistency — six
-  pairs are pinned, and saying more would be the same defect one level up.
-- ✅ **R26-V-LIVE** *(shipped v0.3.695)* — a **repeatable** render audit (`window.__liveAudit()`, dev
-  only), not a click-through. Click-throughs do not survive: the next person redoes the whole thing,
-  and afterwards nobody can tell whether a pane was blank or merely unmeasured. Live result: **all 7
-  workspaces ok, 0 problems, 0 unknown.**
-  What is tested is not "does the app render" but **does the auditor lie**. Four traps, all of which
-  fail toward a false blank — the expensive direction, because it invents defects that then get
-  "fixed": `innerText` is empty for anything not laid out · a click rebuilds the nav and detaches held
-  nodes · the shell is not the content pane · **and a pane that is still booting is not an empty
-  pane**. The fourth was found by running the auditor against the real app: it reported Model, Design
-  and Developer blank, and all three were mid-boot and fully populated seconds later. An empty verdict
-  is now never final on first look.
-  Two bugs in the auditor were caught by its own tests: `offsetParent` reports every `position:fixed`
-  element as hidden (so the floating toolbar and every modal would have read as invisible), and it is
-  untestable without a layout engine — a guard against the audit's worst failure mode has to be the
-  best-tested thing in the file, not the least.
-- **R26-V-TIMING** *(M)* — instrument first-task completion per persona against the audit's baseline, so
-  the redesign's claim is **measured rather than asserted**.
-
-
-## 💵 R25 — 5D: the model IS the estimate *(research 2026-07-25; phase 1 shipped v0.3.684)*
-
-**The research changed the architecture before any code was written.** The plan was a bespoke
-task→element join table. But IFC already carries both bindings natively — `IfcRelAssignsToProcess`
-(products → task, the 4D link) and `IfcRelAssignsToControl` → `IfcCostItem` (elements → priced line,
-the 5D link), grouped by `IfcCostSchedule`. A join table would have put the 5D spine **outside** the
-model: unable to travel with the file, unreadable by any other tool, and drifting on every re-export —
-a direct breach of *IFC is the source of truth*. The industry guidance agrees on the other half:
-elements map to a WBS/CBS, and **model-based measurement rules must state how each quantity is
-derived**.
-
-**✅ Shipped (v0.3.684)**
-- `aec_data/cost_ifc.py` — cost written into the model as `IfcCostItem` + `IfcRelAssignsToControl`,
-  read back through a real re-parse from disk. Every quantity carries its **basis** as the quantity's
-  own description, because *"120 m²"* is not a measurement and *"120 m², net area, openings deducted"*
-  is. An unmatched GlobalId is **reported** while the line is still written — dropping it would make
-  the estimate quietly cheaper than the project.
-- `aec_api/fived.py` — a cost rule is **a stored `query_dsl` selector plus a rate**, not a new engine,
-  which is what lets `IfcWall & FireRating=2HR` on the podium be a different line from a level-12
-  partition. Later rules win (layering is how estimates are built) and each element records **which**
-  rule priced it. An element no rule matched is **unpriced and reported**, never silently zero — the
-  same failure mode as a clash matrix calling an untested pair clean.
-- `POST /projects/{pid}/cost/estimate`.
-
-**Next rungs, in order**
-- ✅ **R25-TASK-BIND** *(shipped v0.3.696)* — the 4D half, in `aec_data/fourd_ifc.py`:
-  `write_work_schedule` / `read_work_schedule` over `IfcWorkSchedule` + `IfcTask`, mirroring
-  `cost_ifc`. The asymmetry it closes is the point — `schedule.from_ifc` could always *read* tasks and
-  their outputs, but nothing could *write* them, so a schedule authored elsewhere could be consumed
-  while the platform's own lived only in its database. A read half with no write half is a one-way
-  door. This also unblocks R21-4D-CLASH phase 2 and turns the Inspector's `scheduled` state from
-  structurally unanswerable into answerable.
-  **This entry named the wrong relation, and so did the first implementation.** `IfcRelAssignsToProcess`
-  is the task's *input* (`task.OperatesOn` — "operates on that product"). The link for "this task
-  builds this element" is `IfcRelAssignsToProduct`, the task's **output**. Both are real IFC and both
-  round-trip cleanly through a reader written to match, so the error is invisible to any test that
-  only checks its own writer — what caught it was asserting the binding against `schedule.from_ifc`,
-  which like every tool asking "what does this task build" reads outputs.
-  Three deliberate behaviours: an unmatched GlobalId is **reported** and its task still written (the
-  work is real; dropping it makes a programme quietly shorter than the project) · **half** a date
-  range writes no dates at all (a duration resting on one supplied end reads as authoritative and is
-  not) · an *absent* task type defaults to CONSTRUCTION but an *empty* one is refused, the same
-  distinction `cost_ifc` draws for `basis`.
-- ✅ **R25-QTO-WIRE** *(shipped v0.3.697)* — `qto.measure()` returns every element's quantities by
-  GlobalId, and the estimate route composes it, so a 5D estimate prices the **model's own** numbers.
-  This is the actual content of "the model IS the estimate": every rule, rate and roll-up could be
-  right while the quantities described a different building — an estimate internally consistent and
-  externally wrong, which is the worst kind because nothing in it looks off.
-  The substance is **provenance**. `declared` is the model's own `IfcElementQuantity`; `computed` is
-  our measurement off the meshed solid; `override` is the caller replacing both; and an **absent**
-  provenance reads `unknown`, never `declared` — a caller who sends quantities with no provenance has
-  said nothing about where they came from. A line is only `declared` when *every* element in it was;
-  one measured element in fifty makes it `mixed`, because rounding that away would have the reader
-  believe the model asserted a number we partly made up. `computed_quantity_lines` /
-  `computed_quantity_amount` say how much of the total rests on our arithmetic.
-  Provenance annotates and never moves a number — the totals are asserted identical across all four
-  labellings, so the label cannot quietly start doing arithmetic.
-- ✅ **R25-COST-VINTAGE** *(shipped v0.3.699)* — a cost rule may now set `rate_from: "vintage"` and
-  draw its rate from the project's pinned cost database, localized and escalated, so the number
-  arrives with a **year** attached. Each line reports `rate_source` (`quoted` · `vintage` · `mixed`)
-  and the payload carries the vintage metadata. This is the other half of v0.3.697's quantity
-  provenance: an estimate is a rate times a quantity, and a line that can answer for one half and not
-  the other is only half checkable. Two estimates differing 40% because one priced off a 2019 vintage
-  is a question somebody can answer; the same gap with bare numbers on both sides is not.
-  **A vintage rule whose class the database does not price gets its own state, `no_rate`.** The rule
-  matched the element, so it is not *unpriced*; there is no number, so it is not *priced*. Folding it
-  into either would make the estimate silently short or silently free, and `complete` is false while
-  any remain. Layering still wins: a later rule that can price the element clears the flag, because
-  reporting a gap a subsequent rule already closed sends an estimator to check something that is fine.
-- ✅ **R25-ESTIMATE-DIFF** *(shipped v0.3.700)* — `estimate_diff.py` +
-  `POST /projects/{pid}/estimate/diff`. "The estimate went up $340k" is not information; *which
-  elements* moved it and *why* is — and because both estimates key on GlobalId, the diff can say.
-  That is the whole reason this platform refuses to identify elements any other way.
-  **Four causes, because they are four different questions.** `added`/`removed` are scope;
-  `requantified` is a design event; `repriced` is a commercial decision. A number that moved because a
-  rate was updated and one that moved because a wall got longer must never sit in the same row —
-  collapsing them into "the total changed" is how an estimate review becomes an argument.
-  **`both` is not a leftover bucket.** When quantity and rate move together, apportioning the delta
-  across the other two yields two numbers that sum correctly and neither of which describes what
-  happened, so it is one change with both pairs shown.
-  **The parts add back to the whole,** and `reconciles` says so. A diff that looks authoritative while
-  quietly losing money is worse than no diff, so the residual is computed and reported, not assumed.
-- **R25-TRACE-UI** *(M)* — *(same surface as R24-TRACE-UI)* the chain made visible: figure → cost line
-  → rule → selector → element.
-
+---
 
 ## 🎛 R24 — INTERFACE RING *(external design audit 2026-07-25; see [design-audit.md](design-audit.md))*
 
@@ -716,15 +543,36 @@ viewport frames, table rules are **paths**, not inferred shapes. So the first im
 deterministic geometry over `pypdf`'s content stream, not detection. Detection is what you need when
 you have thrown the vectors away; we mostly have not. Rasters fall back to "unknown", stated.
 
-* **R27-LAYOUT ① — a sheet has regions, and we can say where.** `sheet_extract.py` reads the text
-  layer only (`extract_from_text` regexes a drawing index; `extract_pdf` walks pages via `pypdf`) —
-  there is no notion of *where on the sheet* anything sits. Add `sheet_layout.py`: recover rectangles
-  from the page content stream, classify by the ADIRO-style vocabulary (titleblock · revision table ·
-  legend · general notes · view/viewport · key plan · scale bar), and return regions in page
-  coordinates with a per-region `basis` of `vector` | `text` | `unknown`. **A sheet whose vectors are
-  gone returns `unknown`, never an empty region list** — the same unknown ≠ none rule that ten
-  engines now enforce. Evidence: arXiv:2607.18997 §layout-layer; gap confirmed in
-  [sheet_extract.py](../services/api/src/aec_api/sheet_extract.py).
+* **R27-LAYOUT ① — the layout is written but never read back.** *(Corrected after checking the code:
+  the first draft of this item said "add `sheet_layout.py`". That module already exists —
+  [sheet_layout.py](../services/data/src/aec_data/sheet_layout.py), and it is good — but it runs in
+  the **write** direction: it composes viewport rectangles, fixed 1:N paper scales, per-viewport class
+  freezes and titleblocks onto sheets we generate. Nothing reads that structure back out of a PDF.)*
+
+  So this is the **same asymmetry R25-TASK-BIND closed for the 4D binding**: a platform that can write
+  a structure but not read it has a one-way door, and the structure stops existing the moment the file
+  leaves. Two halves, and the first is nearly free:
+
+  ✅ **(a) Our own sheets** *(shipped v0.3.702)*. Detection was never required here, only persistence:
+  `compose_viewports` already computes the exact page←world affine in order to place the geometry, so
+  `sheet_regions()` now keeps it. Each region reports `basis: "authored"` — these *are* the numbers the
+  sheet was drawn with, not a recovery from the rendered output — and the **measurable** rect is the
+  inner one, not the cell, because the cell includes padding and the label band and scoping a takeoff
+  to it would accept a trace that is not on the drawing. `to_world()` inverts the affine; an
+  unmeasurable viewport reports **`to_page: null`, never identity**, since an identity would silently
+  report page points as metres. The transform is asserted by **inverting an actual rendered vertex**
+  rather than against a second implementation of the same arithmetic — the 4D binding round-tripped
+  perfectly through its own writer+reader pair while encoding the wrong IFC relation.
+
+  **(b) Received sheets.** Recover rectangles from the page content stream via `pypdf` and classify
+  them with the ADIRO-style vocabulary (titleblock · revision table · legend · general notes ·
+  view/viewport · key plan · scale bar), returning page coordinates with a per-region `basis` of
+  `sidecar` | `vector` | `unknown`. **A sheet whose vectors are gone returns `unknown`, never an empty
+  region list** — the unknown ≠ none rule that ten engines now enforce.
+
+  Evidence: arXiv:2607.18997 §layout-layer. Read-side gap confirmed in
+  [sheet_extract.py](../services/api/src/aec_api/sheet_extract.py), which walks pages via `pypdf` and
+  regexes the text layer with no notion of *where on the sheet* anything sits.
 
 * **R27-LAYOUT ② — a takeoff scoped to the view it belongs to.**
   [takeoff2d.py](../services/api/src/aec_api/takeoff2d.py) takes `regions` **from the caller** and a
@@ -747,13 +595,30 @@ you have thrown the vectors away; we mostly have not. Rasters fall back to "unkn
   is concrete: "this wall is fire-rated" sourced from a *specification* and from a *field
   observation* are different claims, and today they render identically.
 
-* **R27-SOV-LOOP — close takeoff → estimate → SOV → pay app.** Confirmed gap, not a suspicion: the
+* ✅ **R27-SOV-LOOP** *(shipped v0.3.702)* — **close takeoff → estimate → SOV → pay app.** Confirmed gap, not a suspicion: the
   `estimate` and `sov` modules both exist, `cost.py` reads a G703, and **nothing anywhere builds an
   SOV from an estimate**. The chain the whole cost pillar implies is broken at exactly one seam, and
   it is currently bridged by re-keying. Build `sov_from_estimate()`: estimate lines → SOV line items,
   carrying `quantity_source`/`rate_source` (shipped v0.3.699) forward so a pay-app line can be traced
-  back to the model element it was measured from. Highest value-per-line-of-code in this ring —
-  every piece already exists.
+  back to the model element it was measured from.
+
+  **Shipped as `sov_build.from_estimate()` + `POST /projects/{pid}/cost/sov`.** The transformation is a
+  **regrouping** — an estimate is keyed by (code, basis, rate) because those price differently; a
+  contract bills the code — and the whole risk of a regrouping is money going missing inside it. Four
+  refusals: unpriced scope is **excluded and named**, never dropped (an SOV built only from the lines
+  that happened to price is smaller than the job and looks complete, because every line in it is
+  right); the **rounding residual is placed on the largest item and reported**, because rounding each
+  item then summing ≠ rounding the total once and that penny is what gets a G703 rejected; a
+  zero-markup result carries **`at_cost: true`**, since scheduled values are *contract* values while an
+  estimate is *cost*, and billing lump-sum off unmarked-up cost under-bills by the entire fee every
+  month; and each item keeps its **GlobalIds and quantity/rate sources**, collapsing to `mixed` rather
+  than rounding one measured element among fifty up to `declared`.
+
+  `/cost/estimate` and `/cost/sov` were also collapsed onto one shared `_run_estimate` helper — two
+  code paths computing "the estimate" is how a billed number stops matching the priced one.
+  `reconciles` is named honestly as a **conservation** check (it proves the regrouping lost no money,
+  not that the estimate was right) and is verified against **two independently-built accumulations** in
+  the source.
 
 * **R27-RISK-CALIBRATE — the distribution comes from your own history, not a guess.**
   [schedule_risk.py](../services/api/src/aec_api/schedule_risk.py) already runs Monte Carlo over the CPM

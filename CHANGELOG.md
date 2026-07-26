@@ -4,6 +4,48 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.702 — the audit had never looked at the thing it was built to check
+
+Four pieces, and the one worth leading with is a defect in our own evidence.
+
+**The render audit shipped without ever pointing at the new shell.** It was written to verify the app's
+redesign, and its headline result — *all seven workspaces render, no problems, nothing unmeasured* —
+was produced against the **old** shell, because the file contained no reference to the new one at all.
+That number was then available to be read as proof of a redesign it had never touched. An audit that
+does not state its configuration produces results that migrate to the wrong claim. Every report now
+carries which shell it measured; the five-room rail is judged directly, including the case of a room
+that renders with nothing in it — worse than an absent room, because it looks like a place to go; and
+a comparison names a **regression**, meaning a pane that renders in the old shell and not the new one.
+That comparison is the actual gate on making the new look the default, so it is a pure function with
+tests rather than something observed once by hand.
+
+**The Inspector's tabs.** Selecting an element showed a six-state strip that could say a cost state was
+complete while offering nowhere to go and see the number — a summary with no detail behind it is a
+claim you cannot check. Properties, Cost, Schedule and Field now sit under that strip, which stays
+above them because it summarises all four. Each tab states **before you click** whether it has
+anything, using the strip's own three marks rather than a second symbol language meaning the same
+things. A tab whose data never loaded and a tab whose data loaded and was empty are **different**, and
+say so in different words: the first is not a finding, and rendering it as *nothing here* would invent
+an absence nobody checked for.
+
+**A schedule of values built from the estimate instead of typed in again.** Every other link in that
+chain already existed — the estimate prices the model, the continuation sheet reads the schedule of
+values, the payment application renders it — and nothing joined the first to the second, so the numbers
+were re-keyed by hand at exactly the seam where somebody asks to be paid. The transformation is a
+regrouping, and the whole risk of a regrouping is money going missing inside it. So unpriced scope is
+excluded **and named** rather than dropped; the rounding residual is placed on the largest item and
+reported, because rounding each line then adding is not the same as rounding the total once and that
+penny is what gets a payment application rejected; a result with no markup says **at cost**, since
+billing a lump-sum contract off unmarked-up cost under-bills it by the entire fee every month; and each
+item keeps the model elements behind it, so a billed line traces back to what it pays for.
+
+**A drawing's layout, readable at last.** Sheet composition could place a viewport, fix its paper scale
+and crop to it — and none of that survived the finished PDF, so a takeoff on a sheet this platform
+produced still had to be traced blind and calibrated by hand against a scale we had already computed.
+The exact page-to-world transform is now kept, so measuring on our own sheets needs no calibration step.
+A viewport with no geometry reports its mapping as **unknown**, never as an identity, because an
+identity would quietly report page points as metres.
+
 ## v0.3.701 — a lock that holds, or names what stopped it
 
 Dimensional constraints — keep this wall 3000 off that grid, keep these mullions evenly spaced, keep

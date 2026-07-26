@@ -292,7 +292,25 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **Enterprise & finance-platform readiness + authoring-parity depth (v0.3.615–v0.3.651, current).**
+- **A new shell you can turn on today — and the 5D chain closed (v0.3.684–v0.3.702, current).**
+  The app was restructured around **five rooms constant for every role**, so a module lives in one
+  canonical place instead of a different one per persona. It ships **opt-in**: append **`?shell=spine`**
+  to turn it on (it persists), **`?shell=classic`** to revert. Alongside it: an **Inspector** that
+  puts a six-state lifecycle strip over four tabs (Properties · Cost · Schedule · Field), 27 unlabeled
+  toolbar glyphs replaced by labeled contextual verbs, a **ball-in-court work queue** you act on
+  inline, and a **colour contract** — one meaning per colour, enforced by a test that reads the
+  stylesheet in both directions.
+
+  The 5D chain also closed end to end: quantities **measured from the model** rather than supplied by
+  the caller, rates carrying their **source and vintage year**, the 4D and 5D bindings written
+  **natively into IFC**, two estimates **diffable by GlobalId**, and — the link that never existed —
+  a **schedule of values built from the estimate** instead of re-keyed from it, carrying each item's
+  GlobalIds through to the pay application.
+
+  A recurring rule shaped all of it: **a check that examined nothing must not report clean** — and its
+  sharper sibling, *a self-consistency check is not a correctness check*.
+
+- **Enterprise & finance-platform readiness + authoring-parity depth (v0.3.615–v0.3.651).**
   The enterprise program layer, grounded in shipped controls: a **STRIDE threat model** with a
   control→evidence verification matrix, a **SOC 2 readiness** control matrix, **incident runbooks +
   SLOs**, codified **engineering standards**, a per-release **SBOM artifact**, and a common-password
@@ -580,6 +598,11 @@ GET    /projects/{id}/spec/manual[.txt]        3-part MasterFormat project manua
 GET    /projects/{id}/query                    power selection (IfcOpenShell selector DSL)
 GET    /projects/{id}/lod                       LOD-stage distribution (representation/LOD spine)
 GET    /projects/{id}/lod500                     LOD-500 field-verified as-built readiness
+POST   /projects/{id}/cost/estimate              5D — price the model through the selector spine
+POST   /projects/{id}/cost/sov                   schedule of values built FROM that estimate (not re-keyed)
+POST   /projects/{id}/estimate/diff              two estimates diffed by GlobalId, every delta attributed
+GET    /projects/{id}/elements/{guid}/lifecycle  the six-state strip behind the Inspector
+GET    /projects/{id}/elements/{guid}/5d         one element's cost-code budget + schedule activity
 GET    /projects/{id}/codecheck/{analysis,occupancy,approvability}   IBC code-analysis · edition-aware egress · permit-readiness
 GET    /projects/{id}/rfi/readiness            decision-readiness (RFI-prevention) audit — ranked gaps
 GET    /projects/{id}/mep/connectivity         MEP port connectivity + dangling-element report

@@ -24,7 +24,12 @@
  * not examine is `unknown`, never `ok` and never `empty`.
  */
 
+import { ROOM_IDS, spineEnabled } from "../shell/spine";
+
 export type Verdict = "ok" | "empty" | "slow" | "hidden" | "missing" | "unknown";
+
+/** Which shell a report was measured under. Never inferred — a result carries its configuration. */
+export type Shell = "spine" | "classic";
 
 export interface PaneReport {
   id: string;
@@ -38,6 +43,8 @@ export interface PaneReport {
 
 export interface LiveAuditReport {
   panes: PaneReport[];
+  /** The shell this run measured. A green result from one shell says nothing about the other. */
+  shell: Shell;
   ok: number;
   problems: PaneReport[];
   /** Verdicts the audit could not reach. Reported, never counted as passes. */
@@ -116,16 +123,143 @@ export function judgePane(id: string, host: HTMLElement | null, content?: HTMLEl
            detail: `only ${chars} chars and no controls — displayed but with nothing in it` };
 }
 
-export function summarise(panes: PaneReport[]): LiveAuditReport {
+export function summarise(panes: PaneReport[], shell: Shell = "classic"): LiveAuditReport {
   return {
     panes,
+    // WHICH SHELL THIS RESULT BELONGS TO. Recorded because its absence was a real defect: this file
+    // shipped with no reference to the spine at all, so its "all 7 workspaces ok, 0 problems" was
+    // measured against the CLASSIC shell — and was then read as evidence for the redesign it never
+    // touched. An audit that does not state its configuration produces results that migrate.
+    shell,
     // `slow` is a pass: the pane rendered, it just took a second look to see it.
     ok: panes.filter((p) => p.verdict === "ok" || p.verdict === "slow").length,
     problems: panes.filter((p) => p.verdict === "empty" || p.verdict === "missing"),
     unknown: panes.filter((p) => p.verdict === "unknown" || p.verdict === "hidden"),
     note: ("`hidden` and `unknown` are NOT passes and NOT failures — they are panes this run could "
            + "not judge. Counting them either way is how an audit invents defects or hides them. "
-           + "`slow` IS a pass: the pane rendered, it just needed a second look."),
+           + "`slow` IS a pass: the pane rendered, it just needed a second look. `shell` names the "
+           + "configuration measured — a result from one shell is not evidence about the other."),
+  };
+}
+
+/** Which shell the app is currently running. Read from the live flag, not assumed. */
+export function currentShell(): Shell {
+  return spineEnabled() ? "spine" : "classic";
+}
+
+export interface RoomReport {
+  id: string;
+  verdict: Verdict;
+  /** Destinations filed into this room. A room with none is a rail entry that leads nowhere. */
+  destinations: number;
+  open: boolean;
+  detail: string;
+}
+
+export interface RoomAuditReport {
+  shell: Shell;
+  rooms: RoomReport[];
+  /** Rooms the spine promises but the rail did not render. */
+  missing: string[];
+  /** Rooms rendered with nothing in them — visible, clickable, and useless. */
+  empty: string[];
+  note: string;
+}
+
+/**
+ * Judge one room of the five-room rail.
+ *
+ * A room is judged by what it *contains*, not by whether its `<details>` exists: a rendered room with
+ * no destinations is worse than an absent one, because it looks like a place to go. `open` is
+ * reported but never scored — a collapsed room is a preference, and counting it as a defect would
+ * make the audit fail on a user's own choice.
+ */
+export function judgeRoom(det: HTMLElement | null, id: string): RoomReport {
+  if (!det) return { id, verdict: "missing", destinations: 0, open: false,
+                     detail: "the spine promises this room and the rail did not render it" };
+  if (!isDisplayed(det)) {
+    return { id, verdict: "hidden", destinations: 0, open: false,
+             detail: "not displayed — cannot be judged from here, which is not the same as empty" };
+  }
+  // The room's own summary is a <summary>, not a <button>, so it is not miscounted as a destination.
+  const destinations = det.querySelectorAll("button").length;
+  const open = (det as HTMLDetailsElement).open === true;
+  if (destinations <= 0) {
+    return { id, verdict: "empty", destinations: 0, open,
+             detail: "rendered with no destinations — a rail entry that leads nowhere" };
+  }
+  return { id, verdict: "ok", destinations, open, detail: `${destinations} destinations` };
+}
+
+/**
+ * Audit the five-room rail — the surface the redesign actually introduced.
+ *
+ * `auditWorkspaces` walks workspace tabs, which both shells share; it therefore says nothing about
+ * the rail itself. This is the part that only exists under the spine, and it was entirely unmeasured.
+ */
+export function auditRooms(expected: readonly string[] = ROOM_IDS): RoomAuditReport {
+  const shell = currentShell();
+  const rooms = expected.map((id) =>
+    judgeRoom(document.querySelector<HTMLElement>(`.pnav-room[data-room="${id}"]`), id));
+  return {
+    shell,
+    rooms,
+    missing: rooms.filter((r) => r.verdict === "missing").map((r) => r.id),
+    empty: rooms.filter((r) => r.verdict === "empty").map((r) => r.id),
+    note: (shell === "spine"
+      ? "Measured under the spine — the rail this ring introduced."
+      : "Measured under the CLASSIC shell, where the room rail does not exist: every room reads as "
+        + "`missing` and that is correct, not a defect. Re-run with ?shell=spine to judge the rail."),
+  };
+}
+
+export interface ShellDiff {
+  /** Panes that render in the classic shell and do NOT under the spine. The release gate. */
+  regressions: string[];
+  /** Panes that render under the spine and did not before. */
+  gains: string[];
+  /** Panes present in one report and absent from the other — not comparable, so not scored. */
+  incomparable: string[];
+  same: number;
+  note: string;
+}
+
+/**
+ * Diff two runs: does the new shell render everything the old one did?
+ *
+ * Pure on purpose. The browser-dependent half of this file is thin and the judgment half is where the
+ * mistakes live, so the comparison that decides whether the redesign can ship by default is a
+ * function a unit test can drive without a layout engine.
+ *
+ * A pane in one report and not the other is **incomparable**, never a regression: the two runs may
+ * have walked different tab sets, and calling that a defect would block a release on a measurement
+ * artifact.
+ */
+export function compareShells(classic: LiveAuditReport, spine: LiveAuditReport): ShellDiff {
+  const pass = (r: LiveAuditReport) => new Map(r.panes.map((p) => [p.id, p.verdict === "ok" || p.verdict === "slow"]));
+  const a = pass(classic);
+  const b = pass(spine);
+  const regressions: string[] = [];
+  const gains: string[] = [];
+  const incomparable: string[] = [];
+  let same = 0;
+  for (const [id, okA] of a) {
+    if (!b.has(id)) { incomparable.push(id); continue; }
+    const okB = b.get(id)!;
+    if (okA && !okB) regressions.push(id);
+    else if (!okA && okB) gains.push(id);
+    else same++;
+  }
+  for (const id of b.keys()) if (!a.has(id)) incomparable.push(id);
+  return {
+    regressions: regressions.sort(),
+    gains: gains.sort(),
+    incomparable: [...new Set(incomparable)].sort(),
+    same,
+    note: ("A REGRESSION is a pane that renders in the classic shell and not under the spine — that "
+           + "is the gate on making the new shell the default. `incomparable` panes appeared in only "
+           + "one run and are deliberately unscored: the runs may have walked different tabs, and "
+           + "treating that as a defect would block a release on a measurement artifact."),
   };
 }
 
@@ -176,14 +310,20 @@ export async function auditWorkspaces(
     }
     panes.push(r);
   }
-  return summarise(panes);
+  return summarise(panes, currentShell());
 }
 
 declare global {
-  interface Window { __liveAudit?: typeof auditWorkspaces }
+  interface Window {
+    __liveAudit?: typeof auditWorkspaces;
+    __auditRooms?: typeof auditRooms;
+    __compareShells?: typeof compareShells;
+  }
 }
 
 /** Expose for a console run. Dev affordance only — no behaviour attaches to it. */
 export function installLiveAudit(): void {
   window.__liveAudit = auditWorkspaces;
+  window.__auditRooms = auditRooms;
+  window.__compareShells = compareShells;
 }

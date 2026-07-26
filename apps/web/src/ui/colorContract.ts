@@ -37,6 +37,10 @@ export const ACCENT_ALLOWED: string[] = [
   ".ws-btn.active",
   ".rail-btn.active",
   ".pnav-item.active",
+  // R26-INSPECTOR ② — the selected Inspector tab. Same meaning as every other `.active` above:
+  // "this is where you are". The tab MARKS deliberately carry no colour — they mean ready/none/
+  // unknown, and that is a second axis; giving it colour too would put two meanings on one channel.
+  ".insp-tab.active",
   ".pnav-showall.active",
   ".sb-toggle.on",
   ".tool-btn.on",

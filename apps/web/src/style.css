@@ -940,3 +940,27 @@ body.embed #workspaces { display: none; }
     scroll-behavior: auto !important;
   }
 }
+
+/* R26-INSPECTOR ② — the Inspector's tabs, beneath the lifecycle strip that summarises them.
+   The tab MARKS (● ○ –) carry ready/none/unknown and are deliberately UNCOLOURED: colour already
+   means "you can act on this" (R26-COLOUR-DISCIPLINE), and putting a second meaning on the same
+   channel is what made the old surfaces unreadable. Only `.active` takes the accent, with the same
+   sense every other `.active` in this stylesheet has — this is where you are. */
+.insp-tabbar { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.insp-tab { display: flex; align-items: baseline; gap: 5px; background: none; border: 0;
+  border-bottom: 2px solid transparent; padding: 6px 9px; font-size: 12px; cursor: pointer;
+  color: var(--muted); }
+.insp-tab:hover { color: var(--text); }
+.insp-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.insp-tab-mark { font-size: 9px; color: var(--muted); }
+.insp-tab[data-state="unknown"] .insp-tab-l { opacity: .7; }
+.insp-tabbody { min-height: 40px; }
+.insp-row { display: flex; gap: 8px; font-size: 12px; line-height: 1.7;
+  border-bottom: 1px dotted var(--line); }
+.insp-row:last-child { border-bottom: 0; }
+.insp-k { color: var(--muted); min-width: 108px; }
+.insp-v { font-variant-numeric: tabular-nums; }
+.insp-empty { padding: 10px 2px; }
+.insp-empty-t { font-weight: 600; font-size: 12px; margin-bottom: 3px; }
+.insp-warn { margin-top: 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel2); }

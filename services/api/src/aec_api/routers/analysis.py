@@ -375,6 +375,89 @@ def loads_takedown(pid: str, body: dict = Body(default={}), db: Session = Depend
                           column_count=int(col or 12))
 
 
+def _run_estimate(pid: str, body: dict) -> dict:
+    """Price the model. Shared by `/cost/estimate` and `/cost/sov` so the schedule of values can never
+    be built from a *different* estimate than the one the estimate endpoint returns — two code paths
+    computing "the estimate" is exactly how a billed number stops matching the priced one."""
+    from .. import fived
+    from .standards import _idx_for
+    # R25-QTO-WIRE: measure the MODEL. A rate is only as good as what it multiplies, and an
+    # estimate whose quantities arrive in the request body can be internally consistent while
+    # describing a different building. A caller-supplied `quantities` is still honoured — an
+    # estimator legitimately overrides a measured quantity — but it now *overrides* the model's
+    # own number rather than being the only source of one, and each line reports which it used.
+    measured, sources = {}, {}
+    try:
+        from aec_data import qto
+
+        from ..db import SessionLocal
+        from ..deps import open_source_ifc
+        with SessionLocal() as db:
+            m = qto.measure(open_source_ifc(db, pid))
+        measured, sources = m["quantities"], m["sources"]
+    except Exception:                    # noqa: BLE001 — no model yet: fall back to what was sent
+        measured, sources = {}, {}
+    override = body.get("quantities") or {}
+    for guid, qs in override.items():
+        measured.setdefault(guid, {}).update(qs)
+        # an overridden quantity is neither declared by the model nor measured from it
+        sources.setdefault(guid, {}).update(dict.fromkeys(qs, "override"))
+    # R25-COST-VINTAGE: resolve the project's pinned cost database, localized and escalated, so a
+    # `rate_from: "vintage"` rule prices off a dated source rather than a bare number. Absent a
+    # pinned vintage the map is empty — and a rule that asked for one then lands in `no_rate`
+    # rather than being quietly priced from somewhere else.
+    vintage_rates, vintage_meta = {}, None
+    try:
+        from .. import cost_db
+        from ..db import SessionLocal
+        from ..models import Project
+        with SessionLocal() as db2:
+            proj = db2.get(Project, pid)
+            if proj is not None:
+                rates, meta = cost_db.rates_for_project(db2, proj)
+                vintage_rates, vintage_meta = rates or {}, meta
+    except Exception:                    # noqa: BLE001 — no cost database installed is a valid state
+        vintage_rates, vintage_meta = {}, None
+    return fived.estimate(_idx_for(pid), body.get("rules") or [], measured, sources=sources,
+                          vintage_rates=vintage_rates, vintage=vintage_meta)
+
+
+@router.post("/projects/{pid}/cost/sov")
+def cost_sov(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+             _: str = Depends(require_role("viewer"))):
+    """R27-SOV-LOOP — build a schedule of values **from** the estimate rather than re-keying it.
+
+    Body: the same `{rules, quantities?}` as `/cost/estimate`, plus `markup_pct` (default 0) and
+    `grouping` (`code` | `division` | `line`).
+
+    Every other link in this chain already existed — the estimate measures and prices the model,
+    `cost.g703` reads SOV records into a continuation sheet, and the pay-app PDF renders them — but
+    nothing joined the first to the second, so the numbers were typed in again and the trace from a
+    billed line back to a model element was lost at the one seam where somebody is asking to be paid.
+
+    Read three fields before using the result. `covers_whole_model` is false whenever any scope could
+    not be priced, and those elements are listed in `excluded` rather than dropped. `at_cost` is true
+    when no markup was supplied — correct for cost-plus, an under-bill on lump sum. And `reconciles`
+    proves the regrouping lost no money, **not** that the estimate was right.
+
+    This does not write records: it returns the items for review. Committing them is a separate,
+    deliberate act — an SOV that appeared in the register as a side effect of pricing is one nobody
+    decided to sign.
+    """
+    from .. import sov_build
+    from ..query_dsl import QueryError
+    try:
+        est = _run_estimate(pid, body)
+        return {"estimate_lines": est["line_count"],
+                **sov_build.from_estimate(est,
+                                          markup_pct=body.get("markup_pct", 0.0),
+                                          grouping=str(body.get("grouping") or "code"))}
+    except QueryError as e:
+        raise HTTPException(422, str(e)) from None
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from None
+
+
 @router.post("/projects/{pid}/cost/estimate")
 def cost_estimate(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
                   _: str = Depends(require_role("viewer"))):
@@ -389,49 +472,9 @@ def cost_estimate(pid: str, body: dict = Body(default={}), db: Session = Depends
     nothing to multiply is an unknown cost, not a cost of nothing). `complete` is false whenever
     either is non-empty, which makes the total a floor rather than an estimate.
     """
-    from .. import fived
     from ..query_dsl import QueryError
-    from .standards import _idx_for
     try:
-        # R25-QTO-WIRE: measure the MODEL. A rate is only as good as what it multiplies, and an
-        # estimate whose quantities arrive in the request body can be internally consistent while
-        # describing a different building. A caller-supplied `quantities` is still honoured — an
-        # estimator legitimately overrides a measured quantity — but it now *overrides* the model's
-        # own number rather than being the only source of one, and each line reports which it used.
-        measured, sources = {}, {}
-        try:
-            from aec_data import qto
-
-            from ..db import SessionLocal
-            from ..deps import open_source_ifc
-            with SessionLocal() as db:
-                m = qto.measure(open_source_ifc(db, pid))
-            measured, sources = m["quantities"], m["sources"]
-        except Exception:                # noqa: BLE001 — no model yet: fall back to what was sent
-            measured, sources = {}, {}
-        override = body.get("quantities") or {}
-        for guid, qs in override.items():
-            measured.setdefault(guid, {}).update(qs)
-            # an overridden quantity is neither declared by the model nor measured from it
-            sources.setdefault(guid, {}).update(dict.fromkeys(qs, "override"))
-        # R25-COST-VINTAGE: resolve the project's pinned cost database, localized and escalated, so a
-        # `rate_from: "vintage"` rule prices off a dated source rather than a bare number. Absent a
-        # pinned vintage the map is empty — and a rule that asked for one then lands in `no_rate`
-        # rather than being quietly priced from somewhere else.
-        vintage_rates, vintage_meta = {}, None
-        try:
-            from .. import cost_db
-            from ..db import SessionLocal
-            from ..models import Project
-            with SessionLocal() as db2:
-                proj = db2.get(Project, pid)
-                if proj is not None:
-                    rates, meta = cost_db.rates_for_project(db2, proj)
-                    vintage_rates, vintage_meta = rates or {}, meta
-        except Exception:                # noqa: BLE001 — no cost database installed is a valid state
-            vintage_rates, vintage_meta = {}, None
-        return fived.estimate(_idx_for(pid), body.get("rules") or [], measured, sources=sources,
-                              vintage_rates=vintage_rates, vintage=vintage_meta)
+        return _run_estimate(pid, body)
     except QueryError as e:
         raise HTTPException(422, str(e)) from None
 

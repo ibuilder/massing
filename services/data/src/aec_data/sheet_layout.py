@@ -139,6 +139,13 @@ def compose_viewports(meshes, viewports: list[dict], page: str = "A1",
         polys, label, sub = _view_polys(meshes, vp)
         placed: list[np.ndarray] = []
         scale_text = "no geometry"
+        # R27-LAYOUT: the page←world affine, captured where it is EXACT rather than re-derived later.
+        # `px = sx*wx + tx`, `py = sy*wy + ty` (sy is negative: page space is y-down). Both branches
+        # below already compute this transform in order to place geometry; keeping it is what lets a
+        # point picked on the finished sheet be mapped back to world coordinates with no calibration
+        # step at all. It stays None when there is no geometry — an unknown mapping, not an identity
+        # one, because an identity would silently report page points as metres.
+        to_page: dict[str, float] | None = None
         if polys:
             allp = np.vstack(polys)
             mn, mx = allp.min(axis=0), allp.max(axis=0)
@@ -156,6 +163,7 @@ def compose_viewports(meshes, viewports: list[dict], page: str = "A1",
                     pts[:, 1] = vcy - (poly[:, 1] - wcy) * s
                     placed.extend(clip_polyline(pts, clip_rect))
                 scale_text = f"1:{int(denom)}"
+                to_page = {"sx": s, "tx": vcx - wcx * s, "sy": -s, "ty": vcy + wcy * s}
             else:                                  # fit (legacy compose behaviour)
                 s = min(iw / span[0], ih / span[1])
                 dh = span[1] * s
@@ -166,10 +174,79 @@ def compose_viewports(meshes, viewports: list[dict], page: str = "A1",
                     pts[:, 1] = oy + dh - (poly[:, 1] - mn[1]) * s
                     placed.append(pts)
                 scale_text = f"1:{round(1.0 / (s * 0.000352778))}"
+                to_page = {"sx": s, "tx": fox - mn[0] * s, "sy": -s, "ty": oy + dh + mn[1] * s}
         views.append({"label": vp.get("title") or label, "sub": sub, "scale_text": scale_text,
                       "kind": vp.get("kind", "plan"), "filled": vp.get("kind") == "elevation",
-                      "rect": (cx, cy, cw, ch), "polys": placed, "extras": []})
+                      "rect": (cx, cy, cw, ch), "polys": placed, "extras": [],
+                      # R27-LAYOUT: the drawn region is the INNER rect, not the cell — the cell
+                      # includes padding and the label band, and a takeoff scoped to the cell would
+                      # accept a trace that is not on the drawing.
+                      "inner": (ox, oy, iw, ih),
+                      "scale_denom": int(vp["scale"]) if vp.get("scale") else None,
+                      "to_page": to_page})
     return {"page": (pw, ph), "tb_h": tb_h, "margin": margin, "views": views}
+
+
+def to_world(to_page: dict[str, float] | None, px: float, py: float) -> tuple[float, float] | None:
+    """Invert a viewport's `to_page` affine: a point on the sheet → world coordinates.
+
+    Returns None when the mapping is unknown (a viewport with no geometry). **Not** a fallback to the
+    identity: reporting page points as world units would hand back a confident wrong measurement,
+    which is worse than refusing, and this whole item exists so a takeoff need not guess its scale.
+    """
+    if not to_page:
+        return None
+    sx, sy = to_page["sx"], to_page["sy"]
+    if not sx or not sy:
+        return None
+    return ((px - to_page["tx"]) / sx, (py - to_page["ty"]) / sy)
+
+
+def sheet_regions(layout: dict) -> dict:
+    """The sheet's layout layer: what occupies which rectangle, in page points.
+
+    This is the **read** half of a module that until now could only write. `compose_viewports` places
+    viewports, fixes their paper scale and clips to their rectangles — and none of that survived past
+    the rendered PDF, so a takeoff on a sheet this platform produced still had to be traced blind and
+    calibrated by hand against a drawing whose exact scale we had computed ourselves. Same asymmetry
+    `R25-TASK-BIND` closed for the 4D binding: writing a structure you cannot read back is a one-way
+    door.
+
+    Regions carry `basis: "authored"` — these are the numbers used to draw the sheet, not a guess
+    recovered from one. A region for a viewport with no geometry carries `to_page: None`, so the
+    caller learns the mapping is **unknown** rather than receiving an identity that would silently
+    report points as metres.
+    """
+    pw, ph = layout["page"]
+    margin, tb_h = layout["margin"], layout["tb_h"]
+    regions: list[dict] = [
+        # The titleblock band and the drawable area are structural, not drawn — but they are exactly
+        # what a reader of a received sheet has to *infer*, so stating them here gives the two paths a
+        # common shape to be compared against.
+        {"kind": "titleblock", "label": "Titleblock", "rect": (margin, margin, pw - 2 * margin, tb_h),
+         "basis": "authored", "scale_denom": None, "to_page": None},
+        {"kind": "drawable", "label": "Drawable area",
+         "rect": (margin, margin + tb_h, pw - 2 * margin, ph - 2 * margin - tb_h),
+         "basis": "authored", "scale_denom": None, "to_page": None},
+    ]
+    for i, v in enumerate(layout["views"]):
+        regions.append({
+            "kind": "viewport", "index": i, "label": v["label"], "view_kind": v["kind"],
+            "rect": tuple(v["inner"]), "cell": tuple(v["rect"]),
+            "scale_text": v["scale_text"], "scale_denom": v.get("scale_denom"),
+            "to_page": v.get("to_page"), "basis": "authored",
+            # An honest per-region statement of whether a measurement is possible here at all.
+            "measurable": bool(v.get("to_page")),
+        })
+    return {"page": (pw, ph), "regions": regions, "region_count": len(regions),
+            "viewport_count": sum(1 for r in regions if r["kind"] == "viewport"),
+            "unmeasurable": [r["label"] for r in regions
+                             if r["kind"] == "viewport" and not r["measurable"]],
+            "note": ("`basis: authored` means these rectangles ARE the numbers the sheet was drawn "
+                     "with, not a recovery from the rendered output — so a takeoff scoped to a "
+                     "viewport needs no calibration step. `to_page: null` means the mapping is "
+                     "unknown for that viewport; it is never defaulted to identity."),
+            }
 
 
 def layout_sheet(model, viewports: list[dict], meta: dict, page: str = "A1", fmt: str = "svg"):
@@ -186,4 +263,5 @@ def layout_sheet_file(ifc_path: str, viewports: list[dict], meta: dict,
     return layout_sheet(open_model(ifc_path), viewports, meta, page, fmt)
 
 
-__all__ = ["presets", "compose_viewports", "layout_sheet", "layout_sheet_file", "clip_polyline"]
+__all__ = ["presets", "compose_viewports", "layout_sheet", "layout_sheet_file", "clip_polyline",
+           "sheet_regions", "to_world"]
