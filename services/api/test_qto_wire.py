@@ -93,6 +93,51 @@ assert short["missing_quantity_count"] == 2, short["missing_quantity"]
 assert not short["complete"], short
 assert short["total"] == round(10.0 * 90.0, 2)
 
+# ---- R25-COST-VINTAGE: the RATE says where it came from too ----------------------------------------
+# An estimate is a rate times a quantity. v0.3.697 made the quantity say what it rests on; a line that
+# can answer for one half and not the other is only half checkable.
+V_RULES = [
+    {"selector": "class=IfcWall", "code": "09 21 16", "basis": "area", "rate_from": "vintage"},
+    {"selector": "class=IfcSlab", "code": "03 30 00", "basis": "volume", "unit_cost": 220.0},
+]
+V_RATES = {"IfcWall": 75.0}                       # the vintage knows walls, and not slabs
+
+v = fived.estimate(IDX, V_RULES, qty, sources=src, vintage_rates=V_RATES)
+v_by = {ln["code"]: ln for ln in v["lines"]}
+assert v_by["09 21 16"]["rate_source"] == "vintage", v_by["09 21 16"]
+assert v_by["09 21 16"]["unit_cost"] == 75.0, v_by["09 21 16"]
+assert v_by["03 30 00"]["rate_source"] == "quoted", v_by["03 30 00"]
+assert v["vintage_rate_lines"] == 1, v
+
+# a `vintage` rule whose class the database does not price is its OWN state — not unpriced (a rule
+# DID match it) and not priced (there is no number). Folding it into either would make the estimate
+# silently short or silently free.
+V2 = [{"selector": "class=IfcSlab", "code": "03 30 00", "basis": "volume", "rate_from": "vintage"}]
+v2 = fived.estimate(IDX, V2, qty, sources=src, vintage_rates=V_RATES)
+assert v2["no_rate_count"] == 1, v2["no_rate"]
+assert v2["no_rate"][0]["ifc_class"] == "IfcSlab", v2["no_rate"]
+assert "g-slab-1" not in v2["unpriced"], v2["unpriced"]      # matched, so NOT unpriced
+assert not v2["complete"], v2                                 # ...and the estimate is not complete
+assert v2["total"] == 0.0, v2["total"]                        # nothing was billed for it
+
+# LAYERING: a later rule that can price it clears the flag. Reporting a gap a subsequent rule already
+# closed sends an estimator to look at something that is fine.
+V3 = [*V2, {"selector": "class=IfcSlab", "code": "03 30 00", "basis": "volume", "unit_cost": 200.0}]
+v3 = fived.estimate(IDX, V3, qty, sources=src, vintage_rates=V_RATES)
+assert v3["no_rate_count"] == 0, v3["no_rate"]
+assert v3["total"] == round(4.0 * 200.0, 2), v3["total"]
+
+# a rule asking for a vintage needs no unit_cost, and an unknown rate_from is REFUSED
+fived.validate_rules([{"selector": "class=IfcWall", "code": "X", "basis": "area",
+                       "rate_from": "vintage"}])
+for bad in ("market", "", "guess"):
+    try:
+        fived.validate_rules([{"selector": "class=IfcWall", "code": "X", "basis": "area",
+                               "rate_from": bad, "unit_cost": 1.0}])
+        raise AssertionError(f"accepted rate_from {bad!r}")
+    except Exception as e:                     # noqa: BLE001 — QueryError
+        assert "rate_from" in str(e), (bad, e)
+
 # ---- qto.measure: the model's own quantities, with their provenance --------------------------------
 try:
     import ifcopenshell

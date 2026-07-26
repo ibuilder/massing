@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.699 — a rate carries its year, and "no rate" is not "no charge"
+
+v0.3.697 made a quantity say where it came from. An estimate is a rate times a quantity, and a line
+that can answer for one half and not the other is only half checkable — so this is the other half.
+
+A cost rule may now set `rate_from: "vintage"` and draw its rate from the project's pinned cost
+database, localized by region index and escalated to the construction midpoint. The number arrives
+with a **year** attached. Each line reports `rate_source` — `quoted`, `vintage`, or `mixed` — and the
+payload carries the vintage's own metadata. Two estimates differing by 40% because one priced off a
+2019 vintage is a question somebody can answer; the same gap with bare numbers on both sides is not.
+
+**A vintage rule whose class the cost database does not price gets its own state.** It is not
+*unpriced* — a rule matched the element. It is not *priced* — there is no number. Calling it either
+would make the estimate silently short or silently free, so it is `no_rate`, reported against the
+rule that wanted it (so the fix is actionable: either the vintage needs that class, or the rule should
+quote a rate), and `complete` is false while any remain.
+
+Layering still wins. A later rule that *can* price the element clears the flag, because reporting a
+gap a subsequent rule already closed sends an estimator to check something that is fine. Two things
+in that filter were wrong in the first draft and fixed before shipping: it left successfully-priced
+elements in `no_rate`, and it scanned the list per element, which is quadratic on a real model.
+
+A rule that asks for a vintage needs no `unit_cost`; an unrecognised `rate_from` is refused rather
+than quietly treated as quoted.
+
 ## v0.3.698 — hardening: an N+1 on the daily home page, and an uncapped mesh behind an estimate
 
 A hand-audit over everything shipped in v0.3.688–697. Two real defects, both introduced by that work.

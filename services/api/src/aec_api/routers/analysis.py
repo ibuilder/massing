@@ -414,7 +414,24 @@ def cost_estimate(pid: str, body: dict = Body(default={}), db: Session = Depends
             measured.setdefault(guid, {}).update(qs)
             # an overridden quantity is neither declared by the model nor measured from it
             sources.setdefault(guid, {}).update(dict.fromkeys(qs, "override"))
-        return fived.estimate(_idx_for(pid), body.get("rules") or [], measured, sources=sources)
+        # R25-COST-VINTAGE: resolve the project's pinned cost database, localized and escalated, so a
+        # `rate_from: "vintage"` rule prices off a dated source rather than a bare number. Absent a
+        # pinned vintage the map is empty — and a rule that asked for one then lands in `no_rate`
+        # rather than being quietly priced from somewhere else.
+        vintage_rates, vintage_meta = {}, None
+        try:
+            from .. import cost_db
+            from ..db import SessionLocal
+            from ..models import Project
+            with SessionLocal() as db2:
+                proj = db2.get(Project, pid)
+                if proj is not None:
+                    rates, meta = cost_db.rates_for_project(db2, proj)
+                    vintage_rates, vintage_meta = rates or {}, meta
+        except Exception:                # noqa: BLE001 — no cost database installed is a valid state
+            vintage_rates, vintage_meta = {}, None
+        return fived.estimate(_idx_for(pid), body.get("rules") or [], measured, sources=sources,
+                              vintage_rates=vintage_rates, vintage=vintage_meta)
     except QueryError as e:
         raise HTTPException(422, str(e)) from None
 

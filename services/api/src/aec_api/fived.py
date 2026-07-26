@@ -36,6 +36,17 @@ from .query_dsl import QueryError
 # two tables encoding one vocabulary WILL drift silently.
 BASES = ("length", "area", "volume", "weight", "count")
 
+#: Where a rate came from. The other half of v0.3.697's quantity provenance: an estimate is a rate
+#: times a quantity, and both halves need to say what they rest on.
+#:
+#: `quoted`  — the rule carries the number. Somebody typed it; it may be a real subcontractor quote
+#:             or a placeholder, and the estimate cannot tell those apart.
+#: `vintage` — resolved from the project's pinned cost database, so the rate arrives with a YEAR and
+#:             the localisation/escalation applied to it. Two estimates that differ by 40% because one
+#:             priced off a 2019 vintage is a question somebody can answer; the same gap with bare
+#:             numbers on both sides is not.
+RATE_SOURCES = ("quoted", "vintage")
+
 MAX_RULES = 500
 MAX_SELECTOR_LEN = 500
 
@@ -58,40 +69,75 @@ def validate_rules(rules: list[dict]) -> list[dict]:
         basis = str(r.get("basis") or "").strip().lower()
         if basis not in BASES:
             raise QueryError(f"rule {i}: basis must be one of {list(BASES)}, got {basis!r}")
-        try:
-            rate = float(r.get("unit_cost"))
-        except (TypeError, ValueError):
-            raise QueryError(f"rule {i} needs a numeric unit_cost") from None
-        if rate < 0:
-            raise QueryError(f"rule {i}: unit_cost cannot be negative")
+        # R25-COST-VINTAGE: a rule may carry its own rate, or draw it from the project's pinned cost
+        # vintage. `vintage` is not a fallback for a missing number — it is a different, better
+        # provenance, and a rule that asks for it and cannot have it is REFUSED rather than quietly
+        # priced from somewhere else.
+        rate_from = str(r.get("rate_from") or "quoted").strip().lower()
+        if rate_from not in RATE_SOURCES:
+            raise QueryError(f"rule {i}: rate_from must be one of {list(RATE_SOURCES)}, got {rate_from!r}")
+        rate = 0.0
+        if rate_from == "quoted":
+            try:
+                rate = float(r.get("unit_cost"))
+            except (TypeError, ValueError):
+                raise QueryError(f"rule {i} needs a numeric unit_cost") from None
+            if rate < 0:
+                raise QueryError(f"rule {i}: unit_cost cannot be negative")
         out.append({"selector": sel, "code": code, "basis": basis, "unit_cost": rate,
+                    "rate_from": rate_from,
                     "description": str(r.get("description") or code)})
     return out
 
 
-def bind(idx: dict[str, dict] | None, rules: list[dict], limit: int = 200_000) -> dict[str, Any]:
-    """Resolve which rule prices each element.
+def bind(idx: dict[str, dict] | None, rules: list[dict], limit: int = 200_000,
+         vintage_rates: dict[str, float] | None = None) -> dict[str, Any]:
+    """Resolve which rule prices each element, and at what rate.
 
     Returns the per-element assignment plus the **unpriced** list, which is the number an estimator
-    should look at first.
+    should look at first, and **no_rate** — elements a `vintage` rule matched but the installed cost
+    database has no rate for. That is a third state and it needs its own name: the rule found the
+    element, so it is not unpriced; there is no number, so it is not priced either. Folding it into
+    one of the two would make an estimate either silently short or silently free.
     """
     idx = idx or {}
     clean = validate_rules(rules)
+    vr = vintage_rates or {}
     assigned: dict[str, dict] = {}
+    no_rate: list[dict] = []
     for n, rule in enumerate(clean):
         hits = query_dsl.select(idx, rule["selector"], limit=limit)["guids"]
         for g in hits:
+            rate, source = rule["unit_cost"], rule["rate_from"]
+            if rule["rate_from"] == "vintage":
+                cls = str((idx.get(g) or {}).get("ifc_class") or "")
+                found = vr.get(cls)
+                if found is None:
+                    # Recorded against the RULE that wanted it, so the fix is actionable: either the
+                    # vintage needs that class or the rule should quote a rate.
+                    no_rate.append({"guid": g, "code": rule["code"], "rule": n, "ifc_class": cls})
+                    assigned.pop(g, None)
+                    continue
+                rate = float(found)
             # later rules win — layering is how estimates are actually built
             assigned[g] = {"rule": n, "code": rule["code"], "basis": rule["basis"],
-                           "unit_cost": rule["unit_cost"], "description": rule["description"],
-                           "selector": rule["selector"]}
-    unpriced = sorted(g for g in idx if g not in assigned)
+                           "unit_cost": rate, "rate_source": source,
+                           "description": rule["description"], "selector": rule["selector"]}
+    # Layering means a later rule can price an element an earlier vintage rule could not. Such an
+    # element IS priced, so it must not stay in `no_rate` — reporting a gap that a subsequent rule
+    # already closed sends an estimator to look at something that is fine. Filtered at the end,
+    # against a SET: scanning the list per element is quadratic on a real model.
+    no_rate = [x for x in no_rate if x["guid"] not in assigned]
+    flagged = {x["guid"] for x in no_rate}
+    unpriced = sorted(g for g in idx if g not in assigned and g not in flagged)
     return {
         "rules": clean,
         "assigned": assigned,
         "priced_count": len(assigned),
         "unpriced": unpriced[:5000],
         "unpriced_count": len(unpriced),
+        "no_rate": no_rate[:5000],
+        "no_rate_count": len(no_rate),
         "element_count": len(idx),
         "coverage_pct": round(100.0 * len(assigned) / len(idx), 1) if idx else 0.0,
         "note": ("An element matched by no rule is UNPRICED, never silently zero — the total would "
@@ -103,7 +149,9 @@ def bind(idx: dict[str, dict] | None, rules: list[dict], limit: int = 200_000) -
 def estimate(idx: dict[str, dict] | None, rules: list[dict],
              quantities: dict[str, dict[str, float]] | None = None,
              limit: int = 200_000,
-             sources: dict[str, dict[str, str]] | None = None) -> dict[str, Any]:
+             sources: dict[str, dict[str, str]] | None = None,
+             vintage_rates: dict[str, float] | None = None,
+             vintage: dict[str, Any] | None = None) -> dict[str, Any]:
     """Roll the binding up into cost lines ready for `cost_ifc.write_cost_schedule`.
 
     `quantities` maps GlobalId → {basis: value} — normally `qto.measure()`'s output, so the estimate
@@ -117,7 +165,7 @@ def estimate(idx: dict[str, dict] | None, rules: list[dict],
     exactly the sort of thing an estimator wants to know before signing, and a line that cannot say
     which it rests on cannot be checked.
     """
-    b = bind(idx, rules, limit=limit)
+    b = bind(idx, rules, limit=limit, vintage_rates=vintage_rates)
     q = quantities or {}
     src = sources or {}
     lines: dict[tuple, dict] = {}
@@ -134,13 +182,14 @@ def estimate(idx: dict[str, dict] | None, rules: list[dict],
         ln = lines.setdefault(key, {"code": a["code"], "description": a["description"],
                                     "basis": a["basis"], "unit_cost": a["unit_cost"],
                                     "quantity": 0.0, "guids": [], "rule": a["rule"],
-                                    "_sources": set()})
+                                    "_sources": set(), "_rates": set()})
         ln["quantity"] += float(have)
         ln["guids"].append(guid)
         # An absent source is `unknown`, not `declared`. A legacy caller that supplies quantities and
         # no provenance has told us nothing about where they came from, and answering "the model
         # declared these" on its behalf is the exact overclaim this field exists to prevent.
         ln["_sources"].add((src.get(guid) or {}).get(a["basis"]) or "unknown")
+        ln["_rates"].add(a.get("rate_source") or "quoted")
 
     out = []
     for ln in lines.values():
@@ -152,6 +201,10 @@ def estimate(idx: dict[str, dict] | None, rules: list[dict],
         # rounding that away to "declared" is the sort of small lie an estimate cannot afford.
         kinds = ln.pop("_sources")
         ln["quantity_source"] = kinds.pop() if len(kinds) == 1 else "mixed"
+        # The other half of the multiplication. An estimate is a rate times a quantity; a line that
+        # can say where the quantity came from but not the rate is only half checkable.
+        rates = ln.pop("_rates")
+        ln["rate_source"] = rates.pop() if len(rates) == 1 else "mixed"
         out.append(ln)
     out.sort(key=lambda x: (-x["amount"], x["code"]))
 
@@ -167,12 +220,20 @@ def estimate(idx: dict[str, dict] | None, rules: list[dict],
         # How much of the total rests on quantities this platform measured rather than the model
         # declared. Not a fault — often the model simply carries no Qto pset — but it is the number
         # an estimator wants before signing, and it is invisible unless it is stated.
+        "no_rate": b["no_rate"],
+        "no_rate_count": b["no_rate_count"],
+        "vintage_rate_lines": sum(1 for x in out if x["rate_source"] == "vintage"),
+        # The vintage's own metadata — year, region index, escalation. A rate sourced from a cost
+        # database is only checkable if the database says which one it was.
+        "vintage": vintage,
         "computed_quantity_lines": sum(1 for x in out if x["quantity_source"] != "declared"),
         "computed_quantity_amount": round(
             sum(x["amount"] for x in out if x["quantity_source"] != "declared"), 2),
         "coverage_pct": b["coverage_pct"],
         # the only honest headline: a total over a partly-unpriced model is not the project's cost
-        "complete": bool(out) and not b["unpriced_count"] and not missing,
+        # A matched element with no rate is neither priced nor unpriced, and an estimate carrying any
+        # of them is not complete either — the total would be short by an amount nobody stated.
+        "complete": bool(out) and not b["unpriced_count"] and not missing and not b["no_rate_count"],
         "note": ("`total` covers the priced lines only. With unpriced elements or missing quantities "
                  "it is a floor, not an estimate — `complete` says which."),
     }

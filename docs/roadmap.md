@@ -592,8 +592,18 @@ derived**.
   `computed_quantity_amount` say how much of the total rests on our arithmetic.
   Provenance annotates and never moves a number — the totals are asserted identical across all four
   labellings, so the label cannot quietly start doing arithmetic.
-- **R25-COST-VINTAGE** *(M)* — bind rules to the vintage-versioned cost database (COST-DB) so a rate
-  carries its source and date, not just a number.
+- ✅ **R25-COST-VINTAGE** *(shipped v0.3.699)* — a cost rule may now set `rate_from: "vintage"` and
+  draw its rate from the project's pinned cost database, localized and escalated, so the number
+  arrives with a **year** attached. Each line reports `rate_source` (`quoted` · `vintage` · `mixed`)
+  and the payload carries the vintage metadata. This is the other half of v0.3.697's quantity
+  provenance: an estimate is a rate times a quantity, and a line that can answer for one half and not
+  the other is only half checkable. Two estimates differing 40% because one priced off a 2019 vintage
+  is a question somebody can answer; the same gap with bare numbers on both sides is not.
+  **A vintage rule whose class the database does not price gets its own state, `no_rate`.** The rule
+  matched the element, so it is not *unpriced*; there is no number, so it is not *priced*. Folding it
+  into either would make the estimate silently short or silently free, and `complete` is false while
+  any remain. Layering still wins: a later rule that can price the element clears the flag, because
+  reporting a gap a subsequent rule already closed sends an estimator to check something that is fine.
 - **R25-ESTIMATE-DIFF** *(M)* — two estimates over two model versions, diffed by GlobalId: what
   changed, what it cost, and which elements moved. The provenance thesis, applied to money.
 - **R25-TRACE-UI** *(M)* — *(same surface as R24-TRACE-UI)* the chain made visible: figure → cost line
