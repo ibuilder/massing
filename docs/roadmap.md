@@ -412,10 +412,19 @@ once it beats the old one.
 
 ### Sprint B — the shell, behind a flag
 
-- ◧ **R26-SHELL** *(foundation shipped v0.3.686: `/rooms`, the flag, room ordering + badges; the rendered rail is next)* — the five-room spine, constant for every role; a **workspace weights and
-  preselects** it but never replaces it. Drawings and Studio become tools inside **Model**; Developer
-  and Finance merge into **Deal**. Behind `?shell=spine` / a per-user preference, with the current
-  shell untouched beside it.
+- ✅ **R26-SHELL** *(shipped v0.3.686 + v0.3.689)* — the five-room spine, constant for every role; a
+  **workspace weights and preselects** it but never replaces it. Behind `?shell=spine`, with the
+  current shell untouched beside it, and a `/rooms` failure falling back to the classic rail rather
+  than to an empty one — a shell experiment must not be able to strand a user.
+  The rail is now rendered, and building it forced the destination catalog out of `buildNav()` into
+  `shell/destinations.ts`. That is where the value was: as a literal inside a render function, nobody
+  could check it, which is how a destination came to appear twice in one rail. It is now asserted in
+  **both directions** — every destination has a room, and every room entry names a real destination —
+  so an unplaced destination is a build failure rather than something a user finds missing.
+  Rooms also needed a **tri-state** open/closed memory, unlike stages. A stage defaults to open, so
+  recording only collapses suffices; a room defaults to *closed* unless it is the workspace's own,
+  because five rooms holding 45 destinations all expanded is the wall of options the spine exists to
+  end. Live: Construction opens on Schedule with 5 entries showing and 45 one click away.
 - **R26-VITALS** *(M)* — six numbers along the bottom — LOD, area, $/sf, float, IRR, health — replacing
   the 10 viewport controls currently pinned to every workspace whether or not it has a viewport. This
   is the "one model" claim, continuously proven. Viewport controls move into **Model** where they apply.

@@ -40,6 +40,31 @@ export function setStageCollapsed(key: string, collapsed: boolean): void {
   localStorage.setItem("portal-collapsed-stages", JSON.stringify([...s]));
 }
 
+/**
+ * Spine rooms need a **tri-state** memory, which is why they do not reuse the stage store.
+ *
+ * A stage defaults to open, so recording only what the user collapsed is enough. A room defaults to
+ * *closed* unless it is the workspace's own room — five rooms holding 45 destinations all expanded is
+ * the same wall of options the spine exists to end. That means three distinct states: the user opened
+ * it, the user closed it, and the user has said nothing yet. Collapsing that to a single set would
+ * make "I have never touched this" indistinguishable from one of the two answers, and the rail would
+ * either forget an explicit collapse or override an explicit expansion.
+ */
+export function readRoomOpen(key: string): boolean | null {
+  try {
+    const m = JSON.parse(localStorage.getItem("portal-room-open") || "{}") as Record<string, boolean>;
+    return typeof m[key] === "boolean" ? m[key]! : null;
+  } catch { return null; }
+}
+
+export function setRoomOpen(key: string, open: boolean): void {
+  let m: Record<string, boolean> = {};
+  try { m = JSON.parse(localStorage.getItem("portal-room-open") || "{}") as Record<string, boolean>; }
+  catch { m = {}; }
+  m[key] = open;
+  localStorage.setItem("portal-room-open", JSON.stringify(m));
+}
+
 /** Command-center density: "compact" tightens the multi-card home dashboards (less padding, smaller
  *  type, secondary meta/progress lines hidden) for users who want more on screen at once. Default
  *  "comfortable". Persisted globally (a personal viewing preference, not per project/persona). */

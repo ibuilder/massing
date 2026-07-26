@@ -751,6 +751,13 @@ body[data-cap-admin="off"] [data-cap="admin"] * { pointer-events: none; }
 .pnav-stage-group > summary.pnav-stage::before { content: "▾"; font-size: 8px; opacity: .55; }
 .pnav-stage-group:not([open]) > summary.pnav-stage::before { content: "▸"; }
 .pnav-stage-group > summary.pnav-stage:hover { color: var(--text); }
+/* R26 spine rooms — a room header reads as a place, not a category, so it is set larger and in
+   sentence case with its job on a second line. A stage header labels a drawer; a room header
+   answers "is this where I do the thing I came to do", which needs more than a 10px caps word. */
+.pnav-room > summary.pnav-stage { font-size: 12px; text-transform: none; letter-spacing: 0;
+  color: var(--text); font-weight: 600; flex-wrap: wrap; padding-top: 10px; }
+.pnav-room > summary.pnav-stage .meta { flex: 1 0 100%; font-size: 10px; font-weight: 400;
+  text-transform: none; letter-spacing: 0; color: var(--muted); padding-left: 12px; }
 .pnav-khint { font-size: 11px; color: var(--muted); padding: 8px 4px 4px; user-select: none; }
 .pnav-khint kbd { font: inherit; border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; }
 .pnav-showall { margin-top: 8px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); border-radius: 0; padding-top: 8px; }

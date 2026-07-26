@@ -4,6 +4,37 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.689 — R26 Sprint B: the five-room rail, and the catalog that could finally be checked
+
+**Model · Cost · Schedule · Deal · Work** — the same five rooms for every role, rendered behind
+`?shell=spine`. A workspace *weights* the spine: its room comes first and opens. It never removes one,
+because a room that disappears in one workspace is a room the user has to relearn where to find, and
+that is the failure the spine exists to end.
+
+Building the rail turned out to be worth less than what building it forced. The 40-odd first-class
+destinations lived as a literal **inside `buildNav()`** — which is why nobody had noticed that
+Facility Condition appeared twice in the Developer rail alone. A catalog you can only read by
+scrolling through the function that renders it is a catalog nobody audits. It now lives in
+`shell/destinations.ts`, and both rails read it, so the two shells cannot drift on what exists.
+
+That move bought the check that matters: **every destination has exactly one room**, asserted in both
+directions — no destination without a room, and no room entry naming a destination that no longer
+exists. Both halves were verified to actually fail when broken rather than trusted to. An unplaced
+destination is now a build failure instead of something a user discovers by not finding it. Anything
+that still slips through is *shown* in the rail as unplaced rather than filed somewhere plausible;
+defaulting is how four competing taxonomies came to exist.
+
+Rooms also needed a memory that stages do not. A stage defaults to open, so recording only what the
+user collapsed is enough. A room defaults to **closed** unless it is the workspace's own — five rooms
+holding 45 destinations, all expanded, is exactly the wall of options this replaces. That makes three
+states, not two: opened, closed, and *never touched*. Collapsing them would make the rail either
+forget an explicit collapse or override an explicit expansion.
+
+Verified live in the running app: the Construction rail opens on **Schedule** with 5 entries visible
+and the other 45 one click away; an explicit collapse of the workspace's own room survives a rebuild,
+and so does an explicit expansion of another. A `/rooms` failure falls back to the classic rail rather
+than to an empty one — confirmed against a server that genuinely lacks the route.
+
 ## v0.3.688 — the family shelf: one real duplicate merged, and 57 packs that were licensed all along
 
 Two backlog items about the family content shelf. Checking the premise of each changed what the work

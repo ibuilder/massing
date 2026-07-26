@@ -72,3 +72,52 @@ export async function loadSpine(api: ApiClient): Promise<SpineState> {
 export function roomBadge(room: RoomDef, inCourt: Record<string, number>): number {
   return room.modules.reduce((n, key) => n + (inCourt[key] ?? 0), 0);
 }
+
+/** The five room ids, in canonical order. Mirrors `rooms.ROOMS` server-side. */
+export const ROOM_IDS = ["model", "cost", "schedule", "deal", "work"] as const;
+
+/**
+ * Destination `__key__` → room.
+ *
+ * The API already rooms every *module*, by section. First-class destinations are panels rather than
+ * modules, so they need their own table — and it follows the backend's rule exactly: a destination
+ * with no room is **reported**, never filed somewhere plausible. Defaulting is what produced four
+ * competing taxonomies in the first place; a mis-placed destination is invisible precisely because
+ * it looks fine.
+ *
+ * Note `__uw__` is deliberately absent from `deal`'s panels and present here: it hops workspaces
+ * rather than rendering, but the spine still has to say where it lives.
+ */
+export const DEST_ROOM: Record<string, string> = {
+  // ── Model: the building and everything that describes it ──────────────────────────────────────
+  __ids__: "model", __standards__: "model", __materials__: "model", __modulegraph__: "model",
+  __spine__: "model", __modelqa__: "model", __modelanalysis__: "model", __bimkpi__: "model",
+  __designmetrics__: "model", __spaceutil__: "model", __mepfittings__: "model",
+  __program__: "model", __conceptrender__: "model", __documents__: "model",
+  __masterbuilder__: "model", __responsibility__: "model", __resilience__: "model",
+  // ── Cost: money against the building ──────────────────────────────────────────────────────────
+  __budget__: "cost", __margin__: "cost", __selections__: "cost", __evm__: "cost",
+  __wip__: "cost", __ledger__: "cost", __traceability__: "cost", __riskcost__: "cost",
+  __benchmarks__: "cost",
+  // ── Schedule: time, and the field that consumes it ────────────────────────────────────────────
+  __schedule__: "schedule", __resload__: "schedule", __equipment__: "schedule",
+  __topicboard__: "schedule", __turnover__: "schedule",
+  // ── Deal: the asset as an investment ──────────────────────────────────────────────────────────
+  __uw__: "deal", __land__: "deal", __massingopt__: "deal", __diligence__: "deal",
+  __market__: "deal", __lifecycle__: "deal", __portfolio__: "deal",
+  __operations__: "deal", __fca__: "deal", __energy__: "deal", __esg__: "deal",
+  __assets__: "deal",
+  // ── Work: whatever is in your court ───────────────────────────────────────────────────────────
+  __review__: "work", __aiassist__: "work",
+};
+
+/** The room a destination belongs to, or null when it is unmapped — which is a defect, not a default. */
+export function destRoom(key: string): string | null {
+  const room = DEST_ROOM[key];
+  return room && (ROOM_IDS as readonly string[]).includes(room) ? room : null;
+}
+
+/** Destination keys with no room. Must be empty; surfaced in the rail rather than swallowed. */
+export function unroomedDests(keys: string[]): string[] {
+  return keys.filter((k) => !destRoom(k));
+}

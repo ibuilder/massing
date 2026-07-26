@@ -6,8 +6,10 @@ import { confirmModal, modalShell, promptModal } from "../ui/modal";
 import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
 import type { PanelContext } from "./panelContext";
-import { SECTIONS_BY_PERSONA, pushRecent, readCollapsedStages, readDensity, readFavs, readRecents, setDensity, setStageCollapsed, toggleFav } from "./prefs";
+import { SECTIONS_BY_PERSONA, pushRecent, readCollapsedStages, readDensity, readFavs, readRecents, readRoomOpen, setDensity, setRoomOpen, setStageCollapsed, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
+import { ALL_DESTS, type Dest, stagesFor } from "../shell/destinations";
+import { type SpineState, destRoom, loadSpine, orderRooms, preselectedRoom, spineEnabled, unroomedDests } from "../shell/spine";
 // PANEL-LAZY (PERF): the ~30 secondary portal panels are DYNAMICALLY imported at first render
 // (see the wrapper methods below), not eagerly bundled into the app shell — each panel file (and
 // its heavy deps: charts, tables, module-graph, etc.) becomes its own chunk fetched only when the
@@ -40,6 +42,8 @@ interface Conversion {
 export class PortalUI {
   private mods: ModuleDef[] = [];
   private nav?: HTMLElement;          // persistent left module-nav rail (built once)
+  /** R26 spine allocation, loaded only when the flag is on. Null = render the classic stage rail. */
+  private spine: SpineState | null = null;
   private activeKey: string | null = null;
   // R2 — workspace split: this portal serves the "construction" (GC build), "developer"
   // (real-estate), or "design" (architect/engineer) module set. `showAll` is the escape hatch so
@@ -167,6 +171,11 @@ export class PortalUI {
     const content = document.createElement("div"); content.className = "portal-content";
     outer.append(this.nav, content);
     this.root = content;
+    // The spine costs one request, and only when someone opted in. A failure falls back to the
+    // classic rail rather than to an empty one: a shell experiment must not be able to strand a user.
+    if (spineEnabled()) {
+      try { this.spine = await loadSpine(this.host.api); } catch { this.spine = null; }
+    }
     this.buildNav();
     // re-order the module catalog's default-open sections when the persona changes
     window.addEventListener("aec:persona", () => { this.refreshCatalog(); this.buildNav(); });
@@ -186,140 +195,12 @@ export class PortalUI {
     home.onclick = () => { this.activeKey = null; void this.renderHome(); this.buildNav(); };
     nav.appendChild(home);
 
-    // First-class destinations, grouped by lifecycle stage — journey-based IA: people think in
-    // project phases (plan → build → turn over → operate), not in a flat feature list, and stage
-    // headers keep the rail scannable as destinations keep growing. Cross-project roll-ups get
-    // their own group so single-project and portfolio views don't interleave.
-    type Dest = { key: string; icon: string; label: string; go?: () => void };
+    // The rail's upper half is either the lifecycle-stage grouping (journey-based IA: people think
+    // in project phases, not in a flat feature list) or — behind `?shell=spine` — the five-room
+    // spine. Both read the SAME destination catalog, so the two shells cannot drift on what exists.
     const dests = this.destDispatch();
-    const stagesByWs: Record<string, [string, Dest[]][]> = {
-      // GC / builder — plan → build → turn over. The design/standards destinations moved to the
-      // Design workspace (still reachable here via "Show all modules").
-      construction: [
-        ["Plan & derisk", [
-          { key: "__review__", icon: "🛡", label: "Risk Review" },          // contract clauses / scope gaps / doc Q&A
-          { key: "__riskcost__", icon: "⚖️", label: "Risk & Cost" },        // prequal, lien exposure, carbon, takeoff
-          { key: "__responsibility__", icon: "🧭", label: "Responsibility" }, // RACI/DACI matrix — who owns each deliverable
-        ]],
-        // Field execution. Deliberately does NOT contain the money destinations: "Build" had grown to
-        // 13 entries of which 7 were project accounting, so a superintendent looking for today's
-        // schedule scanned past the general ledger to find it. A super and a controller are different
-        // people doing different jobs, and one drawer holding both tools serves neither. Nothing was
-        // removed — the accounting set moved to its own stage below, which is also where a controller
-        // now finds all of it together instead of hunting it out of a build list.
-        ["Build", [
-          ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__schedule__", icon: "📅", label: "Schedule" }] : []),
-          ...(this.mods.some((x) => x.key === "schedule_activity") ? [{ key: "__resload__", icon: "👷", label: "Resource Loading" }] : []),
-          { key: "__equipment__", icon: "🔩", label: "Equipment" },          // MEP-EQUIP — procurement schedule from the IFC
-          { key: "__topicboard__", icon: "🗂", label: "Issue Board" },      // TOPIC-BOARD — BCF kanban + smart filters
-          { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // weather-sequenced work + site hazards
-          { key: "__aiassist__", icon: "✍️", label: "AI Assist" },
-        ]],
-        // Money, ordered the way the question is actually asked: what did we plan, what is it costing,
-        // are we ahead or behind, what do we bill, what does accounting see.
-        ["Money", [
-          { key: "__budget__", icon: "💰", label: "Budget" },
-          ...(this.mods.some((x) => x.key === "cost_code") ? [{ key: "__margin__", icon: "📒", label: "Cost-code Margin" }] : []),  // budget vs committed vs actual → buyout margin
-          ...(this.mods.some((x) => x.key === "selection") ? [{ key: "__selections__", icon: "◈", label: "Selections" }] : []),  // allowance vs actual → change events
-          { key: "__evm__", icon: "📊", label: "Earned Value" },            // EVM: CPI/SPI/forecast + S-curve
-          { key: "__wip__", icon: "📄", label: "WIP Schedule" },            // POC + over/under-billing (accounting twin)
-          { key: "__ledger__", icon: "📒", label: "General Ledger" },        // balanced journal + trial balance + export
-          { key: "__traceability__", icon: "🔗", label: "Cost Traceability" }, // model→cost→GL by GlobalId
-        ]],
-        ["Documents", [
-          { key: "__documents__", icon: "📁", label: "Documents" },        // role-based standard folder tree
-        ]],
-        ["Turn over & operate", [
-          { key: "__turnover__", icon: "🏁", label: "Turnover" },
-          { key: "__operations__", icon: "🔧", label: "Operations" },
-          ...(this.mods.some((x) => x.key === "asset_register") ? [{ key: "__assets__", icon: "🔧", label: "Asset Register" }] : []),  // maintainable assets derived from the IFC
-          { key: "__fca__", icon: "🏥", label: "Facility Condition" },
-          { key: "__energy__", icon: "⚡", label: "Energy" },
-        ]],
-      ],
-      // Architect / engineer — the design-phase seat (AIA SD/DD/CD · RIBA stages 2–4): brief &
-      // program, then model authoring against the ISO 19650 information requirements + standards.
-      design: [
-        ["Brief & program", [
-          { key: "__program__", icon: "🧩", label: "Space Program" },       // adjacency graph → massing
-          { key: "__conceptrender__", icon: "🖼", label: "Concept Renders" }, // AI concept visuals (feature-flagged)
-          { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" },
-          { key: "__masterbuilder__", icon: "🏛", label: "Master Builder" },  // 8-step protocol brief over the whole project
-        ]],
-        // Same split as the builder's Build/Money, for the same reason: this stage had grown to 14
-        // entries mixing "what are the rules for this project" with "what does the model actually
-        // say". Those are two different sittings — you set standards once and check the model
-        // continuously — so they are two stages.
-        ["Model & standards", [
-          { key: "__ids__", icon: "📋", label: "IDS Requirements" },
-          { key: "__standards__", icon: "🗂", label: "CDE / Standards" },   // ISO 19650 container discipline + reqs
-          { key: "__responsibility__", icon: "🧭", label: "Responsibility" }, // MIDP/TIDP task-team responsibility (RACI)
-          { key: "__documents__", icon: "📁", label: "Documents" },          // role-based standard folder tree
-          { key: "__materials__", icon: "🎨", label: "Materials" },          // per-project M1 palette editor + re-colour
-          { key: "__modulegraph__", icon: "🕸", label: "Module Relations" }, // how the config modules wire together
-          { key: "__spine__", icon: "🔗", label: "Discipline Spine" },       // sheets→specs→bid→budget trace
-        ]],
-        ["Analyse & check", [
-          { key: "__modelqa__", icon: "✅", label: "Model Health" },        // deep-links to the Model Tools checks
-          { key: "__modelanalysis__", icon: "🔬", label: "Model Analysis" }, // query/LOD/envelope/MEP/naming/capabilities
-          { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },             // 10-category information-mgmt scorecard
-          { key: "__designmetrics__", icon: "📐", label: "Design Metrics" }, // DESIGN-METRICS — program efficiency + daylight estimate
-          { key: "__spaceutil__", icon: "🪑", label: "Space Utilization" },  // SPACE-UTIL — capacity by type + program fit
-          { key: "__mepfittings__", icon: "🔩", label: "MEP Fittings" },     // MEP-FITTINGS — implied fittings over the port graph → QTO
-          { key: "__resilience__", icon: "🌊", label: "Climate Resilience" }, // flood DFE + stormwater sizing
-        ]],
-      ],
-      // Owner / developer — acquire → design & build (phase gates) → operate.
-      developer: [
-        ["Acquire", [
-          { key: "__uw__", icon: "📊", label: "Underwriting",
-            go: () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "finance" })) },
-          { key: "__land__", icon: "🗺️", label: "Land Screening" },
-          { key: "__massingopt__", icon: "🧮", label: "Massing Optioneer" }, // MASSING-OPT — sweep the envelope for yield
-          { key: "__diligence__", icon: "📜", label: "Diligence & Entitlements" },
-          { key: "__market__", icon: "💹", label: "Market Intelligence" },   // regional escalation + warm/cold sectors
-        ]],
-        ["Design & build", [
-          { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" }, // owner phase-gate tracking
-        ]],
-        ["Operate", [
-          { key: "__fca__", icon: "🏥", label: "Facility Condition" },
-          { key: "__resilience__", icon: "🌊", label: "Climate Resilience" },
-          { key: "__esg__", icon: "🌱", label: "ESG & POE" },
-        ]],
-        ["Documents & model", [
-          { key: "__documents__", icon: "📁", label: "Documents" },
-          { key: "__modelanalysis__", icon: "🔬", label: "Model Analysis" },
-        ]],
-      ],
-    };
-    const stages: [string, Dest[]][] = stagesByWs[this.wsFilter] ?? stagesByWs.construction ?? [];
-    stages.push(["Across projects", [
-      { key: "__portfolio__", icon: "🏢", label: "Portfolio" },
-      { key: "__benchmarks__", icon: "📈", label: "Benchmarks" },
-    ]]);
-    // Stage groups are collapsible with per-workspace memory, so the rail stays scannable as
-    // destinations grow — a stage the user folds stays folded next time they're in that workspace.
-    const collapsed = readCollapsedStages();
-    for (const [stage, items] of stages) {
-      if (!items.length) continue;
-      const det = document.createElement("details"); det.className = "pnav-stage-group";
-      const skey = `${this.wsFilter}:${stage}`;
-      // keep the active destination's stage open even if the user had folded it
-      const hasActive = items.some((d) => d.key === this.activeKey);
-      det.open = hasActive || !collapsed.has(skey);
-      det.ontoggle = () => setStageCollapsed(skey, !det.open);
-      const sum = document.createElement("summary"); sum.className = "pnav-stage"; sum.textContent = stage;
-      det.appendChild(sum);
-      for (const d of items) {
-        const b = document.createElement("button");
-        b.className = "pnav-item pnav-home" + (this.activeKey === d.key ? " active" : "");
-        b.innerHTML = `<span class="ic">${d.icon}</span> ${d.label.replace(/&/g, "&amp;").replace(/</g, "&lt;")}`;
-        b.onclick = d.go ?? (() => { this.activeKey = d.key; void dests[d.key]?.(); this.buildNav(); });
-        det.appendChild(b);
-      }
-      nav.appendChild(det);
-    }
+    if (spineEnabled()) this.buildRoomRail(nav, dests);
+    else this.buildStageRail(nav, dests);
 
     const filter = document.createElement("input");
     filter.type = "search"; filter.placeholder = "Filter…"; filter.className = "portal-filter pnav-filter";
@@ -394,6 +275,101 @@ export class PortalUI {
       });
     };
   }
+
+  /** A rail button for a first-class destination. Shared by both shells so they cannot diverge. */
+  private destButton(d: Dest, dests: Record<string, () => unknown>): HTMLButtonElement {
+    const b = document.createElement("button");
+    b.className = "pnav-item pnav-home" + (this.activeKey === d.key ? " active" : "");
+    b.innerHTML = `<span class="ic">${d.icon}</span> ${d.label.replace(/&/g, "&amp;").replace(/</g, "&lt;")}`;
+    b.onclick = d.goto
+      ? () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: d.goto }))
+      : () => { this.activeKey = d.key; void dests[d.key]?.(); this.buildNav(); };
+    return b;
+  }
+
+  /**
+   * The classic rail: destinations grouped by lifecycle stage, collapsible with per-workspace
+   * memory so a stage the user folds stays folded next time they are in that workspace.
+   */
+  private buildStageRail(nav: HTMLElement, dests: Record<string, () => unknown>) {
+    const stages = stagesFor(this.wsFilter, (k) => this.mods.some((x) => x.key === k));
+    const collapsed = readCollapsedStages();
+    for (const [stage, items] of stages) {
+      const det = document.createElement("details"); det.className = "pnav-stage-group";
+      const skey = `${this.wsFilter}:${stage}`;
+      // keep the active destination's stage open even if the user had folded it
+      det.open = items.some((d) => d.key === this.activeKey) || !collapsed.has(skey);
+      det.ontoggle = () => setStageCollapsed(skey, !det.open);
+      const sum = document.createElement("summary"); sum.className = "pnav-stage"; sum.textContent = stage;
+      det.appendChild(sum);
+      for (const d of items) det.appendChild(this.destButton(d, dests));
+      nav.appendChild(det);
+    }
+  }
+
+  /**
+   * The five-room spine: **Model · Cost · Schedule · Deal · Work**, the same five for every role.
+   *
+   * A workspace *weights* the spine — its room comes first and opens — but never removes a room. A
+   * room that disappears in one workspace is a room the user has to relearn where to find, which is
+   * the failure the spine exists to end.
+   *
+   * Two things are deliberately visible rather than tidied away: a destination with no room, and a
+   * module the API could not place. Both are defects, and an IA restructure's characteristic failure
+   * is making something unreachable in a way that looks perfectly fine.
+   */
+  private buildRoomRail(nav: HTMLElement, dests: Record<string, () => unknown>) {
+    const rooms = this.spine?.alloc.rooms ?? [];
+    if (!rooms.length) { this.buildStageRail(nav, dests); return; }   // spine not loaded: no blank rail
+    const byRoom = new Map<string, Dest[]>();
+    const shown = stagesFor(this.wsFilter, (k) => this.mods.some((x) => x.key === k))
+      .flatMap(([, items]) => items);
+    // Every destination the platform HAS, not just this workspace's slice: the spine's promise is
+    // that all of it stays reachable, so a destination only the Developer rail used to show is
+    // placed in its room here rather than lost.
+    const seen = new Set<string>();
+    for (const d of [...shown, ...ALL_DESTS]) {
+      if (seen.has(d.key)) continue;
+      if (d.needs && !this.mods.some((x) => x.key === d.needs)) continue;
+      seen.add(d.key);
+      const room = destRoom(d.key);
+      if (!room) continue;                                            // reported below, not filed
+      (byRoom.get(room) ?? byRoom.set(room, []).get(room)!).push(d);
+    }
+    const home = preselectedRoom(this.wsFilter);
+    for (const room of orderRooms(rooms, this.wsFilter)) {
+      const det = document.createElement("details"); det.className = "pnav-stage-group pnav-room";
+      det.dataset.room = room.id;
+      const skey = `${this.wsFilter}:${room.id}`;
+      const items = byRoom.get(room.id) ?? [];
+      // Only the workspace's own room opens by default. Five rooms expanded is 45 destinations on
+      // screen at once — the same wall the spine exists to replace. The other four are one click
+      // away and stay wherever the user last put them.
+      const said = readRoomOpen(skey);
+      det.open = items.some((d) => d.key === this.activeKey) || (said ?? room.id === home);
+      det.ontoggle = () => setRoomOpen(skey, det.open);
+      const sum = document.createElement("summary"); sum.className = "pnav-stage";
+      // The job line is the room's whole justification — "Cost" alone is a noun, "price it, buy it
+      // out, change it and pay for it" is what you came here to do.
+      sum.innerHTML = `${esc(room.label)} <span class="meta">${esc(room.job)}</span>`;
+      sum.title = room.job;
+      det.appendChild(sum);
+      for (const d of items) det.appendChild(this.destButton(d, dests));
+      nav.appendChild(det);
+    }
+    const orphans = unroomedDests([...seen]);
+    if (orphans.length || this.spine?.unplaced.length) {
+      const warn = document.createElement("div");
+      warn.className = "pnav-khint meta";
+      const bits: string[] = [];
+      if (orphans.length) bits.push(`${orphans.length} destination${orphans.length > 1 ? "s" : ""} with no room`);
+      if (this.spine?.unplaced.length) bits.push(`${this.spine.unplaced.length} module(s) unplaced`);
+      warn.textContent = `⚠ ${bits.join(" · ")} — reachable below, but not filed`;
+      warn.title = [...orphans, ...(this.spine?.unplaced ?? []).map((u) => u.key)].join(", ");
+      nav.appendChild(warn);
+    }
+  }
+
 
   // --- role-tailored dashboard (command center; the left rail handles module nav) -----
   /** The PX executive band: on-schedule (SPI / % complete / lookahead / milestones) next to
