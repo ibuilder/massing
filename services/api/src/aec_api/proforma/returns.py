@@ -26,11 +26,42 @@ def sign_changes(cashflows: Cashflow) -> int:
     return sum(1 for a, b in zip(vals, vals[1:]) if (a < 0) != (b < 0))
 
 
+#: Range the discount factor `(1 + rate) ** years` must stay inside. Both ends sit comfortably within
+#: float64's normal range (~2.2e-308 … 1.8e308), so `xnpv` neither divides by an underflowed zero nor
+#: overflows the exponentiation itself.
+_MIN_FACTOR = 1e-290
+_MAX_FACTOR = 1e290
+
+
+def _bracket(cashflows: Cashflow) -> tuple[float, float]:
+    """Rate bounds it is SAFE to evaluate `xnpv` at for these flows.
+
+    The fixed bounds this used to carry — (-0.9999, 100.0) for bisection and 1e6 for Newton — both
+    break on long-dated flows, in opposite directions. `(1e-4) ** 82` is exactly 0.0 in float64, after
+    which `xnpv` divides by zero; `101 ** 155` overflows the power outright. Neither is hypothetical:
+    a 99-year ground lease is a two-point cash flow spanning a century, and nothing in the platform
+    caps a horizon. So the bracket is derived from the span.
+
+    Narrowing the bracket cannot hide a real IRR — the rates excluded are beyond ±2,700% on a
+    two-century flow — and a bracket that no longer straddles a root already returns None rather than
+    guessing. Refusing to evaluate outside float64's range is the only correct option available.
+    """
+    if not cashflows:
+        return -0.9999, 100.0
+    t0 = cashflows[0][0]
+    span = max(abs((d - t0).days) for d, _ in cashflows) / 365.0
+    if span < 1.0:
+        return -0.9999, 100.0
+    return (max(-0.9999, _MIN_FACTOR ** (1.0 / span) - 1.0),
+            min(100.0, _MAX_FACTOR ** (1.0 / span) - 1.0))
+
+
 def xirr(cashflows: Cashflow, guess: float = 0.10) -> float | None:
     """Annualized IRR for dated cash flows. Returns None if there's no sign change
     (no IRR) — caller should surface that rather than trust a garbage root."""
     if sign_changes(cashflows) == 0:
         return None
+    lo, hi = _bracket(cashflows)
     # Newton-Raphson
     rate = guess
     for _ in range(100):
@@ -39,13 +70,14 @@ def xirr(cashflows: Cashflow, guess: float = 0.10) -> float | None:
         if abs(df) < 1e-12:
             break
         nxt = rate - f / df
-        if not (-0.9999 < nxt < 1e6):
+        # The span-derived bracket, not (-0.9999, 1e6): accepting a rate outside it would blow up the
+        # discount factor on the NEXT iteration's xnpv call, which is where it actually raised.
+        if not (lo < nxt < hi):
             break
         if abs(nxt - rate) < 1e-7:
             return nxt
         rate = nxt
     # Bisection fallback (guaranteed if a sign change brackets a root)
-    lo, hi = -0.9999, 100.0
     flo, fhi = xnpv(lo, cashflows), xnpv(hi, cashflows)
     if (flo < 0) == (fhi < 0):
         return None

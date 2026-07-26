@@ -156,6 +156,19 @@ assert abs(back["quantity"] - 51.2) < 1e-6 and abs(back["unit_cost"] - 185.0) < 
 assert back["guids"] == [gw], "the cost is bound to the element it priced, by GlobalId, in the model"
 os.remove(PATH)
 
+# ---- REVIEW FIX: summing `by_element` must reproduce `total` --------------------------------------
+# A per-element amount is an intermediate fact, not money as presented. Rounding each one to a cent
+# before summing drifts one-directionally away from the line that rounds its sum once -- -$150 across
+# 50,000 elements at a fractional rate. Since `by_element` is part of the response, anything totalling
+# it disagreed with `total` and nothing said which was authoritative.
+_N = 5000
+_pe_est = fived.estimate(
+    {f"g{i:06d}": {"ifc_class": "IfcWall"} for i in range(_N)},
+    [{"selector": "IfcWall", "code": "A", "description": "w", "basis": "area", "unit_cost": 3.333}],
+    quantities={f"g{i:06d}": {"area": 1.0} for i in range(_N)})
+_summed = round(sum(v["amount"] for v in _pe_est["by_element"].values()), 2)
+assert _summed == _pe_est["total"], (_summed, _pe_est["total"], "by_element must sum to total")
+
 print("5D-BIND OK - the model now ties to the money through the selector spine rather than a "
       "class-to-code lookup: a cost rule is a stored query_dsl selector plus a rate, which is the "
       "same spine clash scopes, view filters and the rule library already compose on, so no new "

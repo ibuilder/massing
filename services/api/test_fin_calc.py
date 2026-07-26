@@ -99,6 +99,29 @@ with TestClient(app) as c:
     assert c.post("/proforma/residual-land",
                   json={"assumptions": DEAL, "target": "nope", "target_value": 0.1}).status_code == 400
 
+# ---- REVIEW FIX: a century-long cash flow returns a rate, it does not crash --------------------------
+# `xirr` bracketed its bisection fallback at a fixed -0.9999, which raises (1e-4) to the power of the
+# flow's span in years. At ~82 years that is exactly 0.0 in float64, and `xnpv` then divided by it:
+# ZeroDivisionError instead of a rate. A 99-year ground lease IS a two-point cash flow spanning a
+# century, and nothing caps the horizon (`/specialty/proforma?years=` is an uncapped query param), so
+# the bracket is now derived from the span. Newton-Raphson converges for most shapes, which is why this
+# only ever surfaced on the flows that fall through to bisection.
+_gl = ret.xirr([(date(2026, 1, 1), -1_000_000.0), (date(2125, 1, 1), 5_000_000.0)])
+assert _gl is not None, "a 99-year ground lease must yield an IRR, not raise"
+# closed form: 5x over 99 years -> 5 ** (1/99) - 1
+assert abs(_gl - (5.0 ** (1 / 99.0) - 1.0)) < 1e-4, _gl
+assert abs(ret.xnpv(_gl, [(date(2026, 1, 1), -1_000_000.0),
+                          (date(2125, 1, 1), 5_000_000.0)])) < 1e-2, "the root must actually be a root"
+# 200 years still resolves, and the chosen floor never underflows the discount factor
+for _yrs in (82, 99, 150, 200):
+    _cf = [(date(2026, 1, 1), -1.0), (date(2026 + _yrs, 1, 1), 4.0)]
+    assert ret.xirr(_cf) is not None, _yrs
+    _lo, _hi = ret._bracket(_cf)
+    assert (1.0 + _lo) ** _yrs > 0.0, ("lower bound underflows at", _yrs)
+    assert (1.0 + _hi) ** _yrs < float("inf"), ("upper bound overflows at", _yrs)
+# short-dated flows are untouched by the adaptive floor
+assert ret._bracket([(date(2026, 1, 1), -1.0), (date(2046, 1, 1), 2.0)]) == (-0.9999, 100.0)
+
 print("FIN-CALC OK - golden references hold: 2-year XIRR closed-form 10.00%, the quadratic "
       "two-flow XIRR 6.394%, monthly NPV vs the hand-built annuity sum, EM 1.85x, YoC 6.5%, the "
       "1100-on-1000 waterfall reconciles to the dollar; residual land value inverts the forward "
