@@ -484,20 +484,24 @@ def coordination_stale_recheck(pid: str, a: int = Body(..., embed=True), b: int 
 
 @router.get("/projects/{pid}/bundle")
 def export_bundle(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
-    """Download the whole project as a portable .mmproj bundle (geometry + all data + blobs)."""
+    """Download the whole project as a portable **`.mass` container** (geometry + all data +
+    blobs). It is a ZIP that documents itself: a README inside explains the layout, and the
+    manifest inventories every entry and names what was deliberately excluded."""
     from .. import bundle as bundle_io
     p = _project(db, pid)
     data = bundle_io.export_bundle(db, pid)
     # latin-1-safe (HTTP headers can't carry CJK/emoji — see exports.safe_filename)
     safe = "".join(c if (c.isalnum() and ord(c) < 128) or c in "-_ " else "_" for c in p.name).strip() or "project"
     return Response(data, media_type="application/zip",
-                    headers={"Content-Disposition": f'attachment; filename="{safe}.mmproj"'})
+                    headers={"Content-Disposition": f'attachment; filename="{safe}.mass"'})
 
 
 @router.post("/projects/import-bundle", response_model=ProjectOut, status_code=201)
 async def import_bundle(file: UploadFile = File(...), name: str | None = Form(None),
                         db: Session = Depends(get_db)):
-    """Open a .mmproj bundle as a new project (fresh id) — geometry, data, and blobs restored."""
+    """Open a **`.mass`** container as a new project (fresh id) — geometry, data and blobs
+    restored. Legacy `.mmproj` files (format v1) are still accepted; a container written by a
+    NEWER build is refused rather than imported partially."""
     from .. import bundle as bundle_io
     data = await file.read()
     new_pid = await run_in_threadpool(bundle_io.import_bundle, db, data, new_name=name)   # zip unpack off-loop

@@ -919,7 +919,7 @@ export class ApiClient extends HttpCore {
     return this.json<{ id: string; name: string; model_kind?: string | null; has_source_ifc?: boolean }>(
       `/projects/${pid}`);
   }
-  /** Download URL for a project's portable .mmproj bundle (geometry + all data + blobs). */
+  /** Download URL for a project's portable `.mass` container (geometry + all data + blobs). */
   bundleUrl(pid: string) {
     return this.url(`/projects/${pid}/bundle`);
   }
@@ -932,7 +932,7 @@ export class ApiClient extends HttpCore {
     return this.json<{ deleted: boolean; id: string; rows: Record<string, number> }>(
       `/projects/${pid}`, { method: "DELETE" });
   }
-  /** Open a .mmproj bundle as a new project (fresh id). */
+  /** Open a `.mass` container as a new project (fresh id). Legacy `.mmproj` (v1) still works. */
   async importBundle(file: File, name?: string) {
     const fd = new FormData();
     fd.append("file", file);

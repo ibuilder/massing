@@ -4,6 +4,36 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.705 — a project is one file, and the file explains itself
+
+The project container is now **`.mass`**. It was `.mmproj`, a name that read as *Microsoft Project*
+to anyone who had not seen it before — the opposite of what it is. This container has never held a
+byte of XML or any vendor format: it is a ZIP of JSON plus a standard IFC. An extension that misleads
+about its own contents is a defect, so it got a name that does not.
+
+**Nothing anyone already saved is orphaned.** Version 1 `.mmproj` files still open, and always will.
+A rename that abandons existing work is not a rename.
+
+**The container explains itself.** A plain-English README now travels *inside* the archive, because
+documentation that lives in a source repository is documentation the person holding the file does not
+have. Unzip a `.mass` in ten years with none of our software and you can still work out what you are
+holding: where the model is, how the data is laid out, and that building elements are referenced by
+IFC GlobalId throughout — so any row can be tied back to an element in any tool.
+
+**It is honest about what it does not contain.** The manifest lists every entry with its size, and
+names the tables that deliberately did *not* travel — user accounts, the audit log, application
+settings, saved connections — together with the reason: those belong to an installation, not to a
+project, and importing them would overwrite the destination's own. A container that drops them
+silently looks complete and is not.
+
+**And it refuses rather than guesses.** A container written by a newer build is declined outright
+instead of being partially read, because a half-imported project is worse than a rejected one — the
+user believes they have their data. An unrecognised format is refused too, and the message says what
+was expected.
+
+The format is documented in full, including how to read one without any of our code, and the intended
+path to becoming a standards-conformant ISO 21597 container rather than one only we can open.
+
 ## v0.3.704 — opening a model and opening a project are one act
 
 Until now, opening an IFC ended at the viewer. The model rendered, and every data panel went on

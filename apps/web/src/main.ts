@@ -254,7 +254,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenus
 // pre-warm the viewer when the file menus open so triggerOpen/export resolve promptly
 buildMenu("open-menu", "Open ▾", [
   { label: "✏️ New model from scratch…", onClick: () => void startModeling() },
-  { label: "Open Project (.mmproj)…", onClick: () => void openProjectBundle() },
+  { label: "Open Project (.mass)…", onClick: () => void openProjectBundle() },
   { label: "Open IFC…", onClick: () => openModelFile("ifc") },
   { label: "Open Fragments (.frag)…", onClick: () => openModelFile("frag") },
   { label: "Open mesh / point cloud / GIS / reality capture…", onClick: () => openModelFile("ref") },
@@ -271,7 +271,7 @@ buildMenu("open-menu", "Open ▾", [
   { label: "Navisworks (.nwc) — paid bridge…", onClick: () => openModelFile("convert") },
 ], () => void ensureViewer());
 buildMenu("save-menu", "Save ▾", [
-  { label: "Save Project (.mmproj)", onClick: () => saveProjectBundle() },
+  { label: "Save Project (.mass)", onClick: () => saveProjectBundle() },
   { label: "Turnover", sep: true },
   { label: "Closeout package (.zip)", onClick: () => exportCloseoutPackage() },
   { label: "Geometry", sep: true },
@@ -347,19 +347,20 @@ async function importRvtFlow() {
   inp.click();
 }
 
-/** Save the whole project (geometry + all data + blobs) as a portable .mmproj bundle. */
+/** Save the whole project (geometry + all data + blobs) as a portable `.mass` container. */
 function saveProjectBundle() {
   if (!projectId) { toast("Open a project first", "info"); return; }
   const a = document.createElement("a");
-  a.href = api.bundleUrl(projectId); a.download = `${projectName || "project"}.mmproj`;
+  a.href = api.bundleUrl(projectId); a.download = `${projectName || "project"}.mass`;
   document.body.appendChild(a); a.click(); a.remove();
   toast("Saving project bundle…", "info");
 }
 
-/** Open a .mmproj bundle as a new project, then switch to it. */
+/** Open a `.mass` container as a new project, then switch to it. Legacy `.mmproj` files (the
+ *  container's name through v1) are still accepted — a rename must not orphan saved work. */
 function openProjectBundle() {
   const inp = document.createElement("input");
-  inp.type = "file"; inp.accept = ".mmproj,.zip,application/zip";
+  inp.type = "file"; inp.accept = ".mass,.mmproj,.zip,application/zip";
   inp.onchange = async () => {
     const f = inp.files?.[0]; if (!f) return;
     toast(`Opening ${f.name}…`, "info");
