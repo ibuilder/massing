@@ -51,13 +51,27 @@ non-gated work**.
    - **Raise the gate as the content grows.** Today it asks "is every system's class present". The
      next rung is "does every system have enough *types* to model it", which is the shape
      `tests/test_completeness.py` upstream already hints at.
-   - **Duplicate families from batch 1.** The upstream review flagged overlaps introduced by the
-     plumbing batch (`pipe_copper_type_l`/`pipe_copper_l`, `wc_flush_valve`/`toilet`,
-     `sink_kitchen`+`sink_service`/`sink`, and three more). Key uniqueness did not catch them because
-     the keys differ. Needs a merge decision, not a unilateral edit.
-   - **Content repo release + licence.** The packs are consumed from a working tree; the shelf still
-     reports `unlicensed` for every pack because the generator's manifest carries no `licence` field.
-     Needs a tagged release upstream and a licence declaration. *(user action)*
+   - ✅ **Duplicate families from batch 1** *(merged v0.3.688)*. Checking first changed what the merge
+     meant: of the six keys the review flagged, **only one is a genuine duplicate**.
+     `pipe_copper_l` → `pipe_copper_type_l` (one product, two names, one pack — the ASTM B88
+     designation carries the wall thickness and wins). The other five are a **generic tier and a
+     specific tier**: `wc_flush_valve` is one *kind* of toilet and the fixtures pack has no tank-type
+     WC, `shower_receptor` is a *part* of a shower, `sink_kitchen` is not what "sink" means. Merging
+     those would assert fixture types nobody specified — so the two-tier relation is now **recorded**
+     (`FAMILY_TIERS`) instead of left implicit, and the next reviewer will not re-flag it. Done by
+     **alias, not deletion**, because deleting a key breaks every model that already placed one; the
+     generated packs are untouched since they are build output from the upstream generator.
+   - ✅ **Pack licence** *(fixed v0.3.688)*. The premise was wrong and worth recording: the shelf
+     reported `unlicensed` for all 57 packs, and the entry above blamed a manifest that "carries no
+     `licence` field" — but `manifest.json` declares `CC0-1.0` for the library **and** on every pack
+     row, alongside `code: MIT`. Nothing was unlicensed; our **reader** looked only for a singular
+     per-pack `licence` key, so it missed both the library-level declaration and the plural
+     `"licenses": [...]` list the rows actually use. A shape mismatch had been sitting in the backlog
+     as a compliance problem. `unlicensed` is now 0, `licence_source` distinguishes a pack's own claim
+     from an inherited one, and the terms follow the content into the import audit trail. The packs
+     are licensed the same way as the rest of the platform: **code MIT, content CC0-1.0**.
+   - **Content repo release.** The packs are still consumed from a working tree; a tagged upstream
+     release would let the shelf pin a version. *(user action)*
 
 4. ◧ **🎨 P2 authoring & document depth** *(L; slice it, reassess after two)*.
    ✅ **W10-2** *(v0.3.667)* — `family_shapes.py`: 14 parameterised profiles built as native IFC,

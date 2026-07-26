@@ -205,6 +205,48 @@ try:
     assert after["unlicensed"] == before + 1, (before, after["unlicensed"])
     assert not next(p for p in family_packs.list_packs()["packs"]
                     if p["name"] == PACK.name).get("licence")
+    # ---- a licence declared for the LIBRARY covers the packs in it ---------------------------------
+    # A library states its terms once at the top; repeating them on every row is the exception, not
+    # the rule. Reading only the per-pack key made 57 packs that were licensed the whole time report
+    # as `unlicensed` — a shape mismatch presented as a compliance problem. `licence_source` keeps the
+    # two claims distinguishable, because "this pack says CC0" and "the library it came from says CC0"
+    # are different assurances even when the string matches.
+    MANIFEST.write_text(json.dumps({
+        "library": "test-lib", "version": "9.9.9",
+        "licensing": {"content": "CC0-1.0", "code": "MIT",
+                      "attribution": "test-lib", "url": "https://example.invalid/LICENSE",
+                      "notice": "https://example.invalid/NOTICE"},
+        "packs": [{"file": PACK.name, "discipline": "test-structural", "types": 2}],
+    }), encoding="utf-8")
+    inherited = next(p for p in family_packs.list_packs()["packs"] if p["name"] == PACK.name)
+    assert inherited["licence"] == "CC0-1.0", inherited
+    assert inherited["licence_source"] == "library", inherited
+    assert inherited["attribution"] == "test-lib" and inherited["licence_url"], inherited
+    assert family_packs.list_packs()["totals"]["unlicensed"] == before, "inheritance clears the count"
+    # the terms follow the content into the audit trail — reconstructing them after an import means
+    # re-reading a manifest that may since have moved on
+    assert family_packs.read(PACK.name)[1]["licence"] == "CC0-1.0"
+    assert family_packs.read(PACK.name)[1]["code_licence"] == "MIT"
+
+    # a pack's OWN claim wins over the library's, and is labelled as its own
+    MANIFEST.write_text(json.dumps({
+        "licensing": {"content": "CC0-1.0"},
+        "packs": [{"file": PACK.name, "types": 2, "license": "Apache-2.0"}],
+    }), encoding="utf-8")
+    own = next(p for p in family_packs.list_packs()["packs"] if p["name"] == PACK.name)
+    assert own["licence"] == "Apache-2.0" and own["licence_source"] == "pack", own
+
+    # SPDX gets written singular or plural; a LIST is alternatives, so keep all of them. Collapsing
+    # to the first would quietly drop terms a redistributor is entitled to choose.
+    MANIFEST.write_text(json.dumps({"packs": [
+        {"file": PACK.name, "types": 2, "licenses": ["CC0-1.0", "MIT", "CC0-1.0"]}]}), encoding="utf-8")
+    plural = next(p for p in family_packs.list_packs()["packs"] if p["name"] == PACK.name)
+    assert plural["licence"] == "CC0-1.0 OR MIT", plural           # deduped, order preserved
+    # an empty list is not a licence — it must not read as one
+    MANIFEST.write_text(json.dumps({"packs": [
+        {"file": PACK.name, "types": 2, "licenses": [], "license": "  "}]}), encoding="utf-8")
+    assert family_packs.list_packs()["totals"]["unlicensed"] == before + 1
+
     MANIFEST.write_text(json.dumps({"packs": [
         {"file": PACK.name, "discipline": "test-structural", "families": 2, "types": 2,
          "licence": "CC0-1.0", "tiers": ["L300"]}]}), encoding="utf-8")

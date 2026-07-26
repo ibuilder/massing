@@ -32,8 +32,9 @@ can be tied back to exact content later.
 Drop a `manifest.json` beside the packs and the shelf listing gains real metadata:
 
 ```json
-{"packs": [{"file": "structural-steel-w.ifc", "discipline": "structural-steel-w",
-            "families": 3, "types": 403, "licence": "CC0-1.0", "tiers": ["L300"]}]}
+{"licensing": {"content": "CC0-1.0", "code": "MIT", "attribution": "…", "url": "…", "notice": "…"},
+ "packs": [{"file": "structural-steel-w.ifc", "discipline": "structural-steel-w",
+            "families": 3, "types": 403, "licenses": ["CC0-1.0"], "tiers": ["L300"]}]}
 ```
 
 Two honesty rules hold here:
@@ -42,6 +43,13 @@ Two honesty rules hold here:
   `described: false`. It claims nothing rather than inheriting a neighbour's metadata.
 - If a manifest declares more types than actually arrive, the import response says so. A count that
   silently disagrees with its own manifest is the kind of thing that later reads as fact.
+
+**Licence.** A licence may be stated on the pack row or once for the whole library, and either
+spelling — `licence`/`license` for a single expression, `licences`/`licenses` for a list. A list is
+read as *alternatives* and reported joined with SPDX `OR`; a pack that states nothing inherits the
+library's declaration and is marked `licence_source: "library"` so an inherited claim is never
+mistaken for the pack's own. Whatever applies travels with the content into the import audit record.
+The shipped packs are **content CC0-1.0, code MIT** — the same terms as the rest of the platform.
 
 ### Getting packs
 

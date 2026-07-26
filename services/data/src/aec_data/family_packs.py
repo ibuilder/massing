@@ -45,28 +45,87 @@ def external_dir() -> Path:
     return Path(override) if override else library_dir() / "external"
 
 
-def _manifest(root: Path) -> dict[str, dict]:
-    """Per-file metadata from a sibling ``manifest.json``, keyed by filename. Absent or malformed
-    manifest → empty, never an error: the shelf must still list its files."""
+#: SPDX expressions get written both ways in the wild: a single `license` string, or a `licenses`
+#: **list** when content is dual-licensed. Reading only the singular form is why 57 packs that each
+#: declared `"licenses": ["CC0-1.0"]` all reported as unlicensed — a shape mismatch presented as a
+#: compliance problem. Multiple entries are joined with SPDX `OR`, which is what a list of
+#: alternatives means; collapsing it to the first would silently drop terms a redistributor may rely on.
+_LICENCE_KEYS = ("licence", "license", "licences", "licenses")
+
+
+def _licence_value(val: Any) -> str | None:
+    if isinstance(val, str) and val.strip():
+        return val.strip()
+    if isinstance(val, (list, tuple)):
+        parts = [str(v).strip() for v in val if str(v).strip()]
+        if parts:
+            return " OR ".join(dict.fromkeys(parts))
+    return None
+
+
+def _licence_of(d: Any, *keys: str) -> str | None:
+    """The licence `d` declares under any of `keys` (default: the four spellings above)."""
+    if not isinstance(d, dict):
+        return None
+    for key in (keys or _LICENCE_KEYS):
+        got = _licence_value(d.get(key))
+        if got:
+            return got
+    return None
+
+
+def _manifest(root: Path) -> tuple[dict[str, dict], dict[str, Any]]:
+    """Per-file metadata from a sibling ``manifest.json``, plus the **library-level** metadata.
+
+    Absent or malformed manifest → empty, never an error: the shelf must still list its files.
+
+    Returning the library level matters. A licence is normally declared **once for the library**, not
+    repeated on every pack — reading only the per-pack rows made all 57 packs report as `unlicensed`
+    while the manifest had said `CC0-1.0` at the top the whole time. Absent and
+    declared-somewhere-else are different, and only one of them is a problem.
+    """
     path = root / "manifest.json"
     if not path.is_file():
-        return {}
+        return {}, {}
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError, UnicodeDecodeError):
-        return {}
+        return {}, {}
     out: dict[str, dict] = {}
     for p in (raw.get("packs") or []):
         if isinstance(p, dict) and p.get("file"):
             out[str(p["file"])] = p
-    return out
+    lic = raw.get("licensing") if isinstance(raw.get("licensing"), dict) else {}
+    library = {
+        "licence": _licence_of(lic, "content", "content_licenses") or _licence_of(raw),
+        "code_licence": _licence_of(lic, "code", "code_licenses"),
+        "attribution": lic.get("attribution"),
+        "licence_url": lic.get("url"),
+        "notice_url": lic.get("notice"),
+        "library": raw.get("library"),
+        "version": raw.get("version"),
+    }
+    return out, {k: v for k, v in library.items() if v}
 
 
-def _pack_entry(path: Path, meta: dict[str, Any]) -> dict[str, Any]:
+def _pack_entry(path: Path, meta: dict[str, Any], library: dict[str, Any] | None = None) -> dict[str, Any]:
     entry: dict[str, Any] = {"name": path.name, "size_bytes": path.stat().st_size}
-    for key in ("discipline", "families", "types", "tiers", "licence", "license", "version"):
+    for key in ("discipline", "families", "types", "tiers", "version"):
         if key in meta:
-            entry[key if key != "license" else "licence"] = meta[key]
+            entry[key] = meta[key]
+    own = _licence_of(meta)
+    if own:
+        entry["licence"] = own
+        entry["licence_source"] = "pack"
+    # a pack inherits the library's licence unless it states its own — that is what a library-level
+    # declaration MEANS, and refusing to read it is how content that is licensed reads as if it isn't
+    lib = library or {}
+    if not entry.get("licence") and lib.get("licence"):
+        entry["licence"] = lib["licence"]
+        entry["licence_source"] = "library"     # stated, so nobody mistakes it for a per-pack claim
+    for k in ("attribution", "licence_url", "notice_url"):
+        if lib.get(k) and k not in entry:
+            entry[k] = lib[k]
     entry["described"] = bool(meta)          # a pack with no manifest row is listed, but says so
     return entry
 
@@ -80,8 +139,8 @@ def list_packs() -> dict[str, Any]:
     root = external_dir()
     if not root.is_dir():
         return {"packs": [], "count": 0, "totals": {}, "manifest": False}
-    meta = _manifest(root)
-    packs = [_pack_entry(p, meta.get(p.name, {})) for p in sorted(root.glob("*.ifc"))]
+    meta, library = _manifest(root)
+    packs = [_pack_entry(p, meta.get(p.name, {}), library) for p in sorted(root.glob("*.ifc"))]
     totals = {
         "packs": len(packs),
         "families": sum(int(p.get("families") or 0) for p in packs),
@@ -94,6 +153,52 @@ def list_packs() -> dict[str, Any]:
         "unlicensed": sum(1 for p in packs if not p.get("licence")),
     }
     return {"packs": packs, "count": len(packs), "totals": totals, "manifest": bool(meta)}
+
+
+# ── Batch-1 duplicate merge ─────────────────────────────────────────────────────────────────────
+# The upstream review flagged six "overlapping" family keys from the plumbing batch. Reading the packs
+# showed only ONE is a genuine duplicate — the rest are a *generic* tier and a *specific* tier, and
+# merging those would invent information rather than remove it:
+#
+#   base `plumbing`:            bathtub · lavatory · shower · sink · toilet · urinal
+#   `plumbing-fixtures`:        shower_receptor · sink_kitchen · sink_service · urinal_wall · wc_flush_valve
+#
+# `wc_flush_valve` is one *kind* of toilet — the fixtures pack carries no tank-type WC, so aliasing
+# `toilet` onto it would assert a fixture type nobody specified. `shower_receptor` is a *part* of a
+# shower. `sink_kitchen` is not what "sink" means. Those pairs are a legitimate two-tier catalog: you
+# schedule the generic at concept and the specific at procurement.
+#
+# `pipe_copper_l` and `pipe_copper_type_l` ARE the same product under two names, in the same pack.
+#
+# The merge is done by ALIAS, not deletion. Deleting a key breaks every model that already placed one;
+# aliasing keeps those references resolving while the shelf reports a single canonical family.
+FAMILY_ALIASES: dict[str, str] = {
+    # "Type L" is the ASTM B88 designation for the wall thickness, so it is the name that carries
+    # information; the short form is the one that gets retired.
+    "pipe_copper_l": "pipe_copper_type_l",
+}
+
+#: Generic families that a more specific one *narrows* but does NOT replace. Recorded so the duplicate
+#: check stops flagging them and nobody merges them by mistake later.
+FAMILY_TIERS: dict[str, tuple[str, ...]] = {
+    "toilet": ("wc_flush_valve",),
+    "sink": ("sink_kitchen", "sink_service"),
+    "shower": ("shower_receptor",),
+    "urinal": ("urinal_wall",),
+}
+
+
+def canonical_family(key: str) -> str:
+    """The canonical key for a family, following the batch-1 merge.
+
+    An unknown key returns unchanged — this resolves aliases, it does not validate existence.
+    """
+    return FAMILY_ALIASES.get(str(key or "").strip().lower(), str(key or "").strip().lower())
+
+
+def is_narrowing(generic: str, specific: str) -> bool:
+    """True when `specific` narrows `generic` — a two-tier pair, never a duplicate to merge."""
+    return specific in FAMILY_TIERS.get(str(generic or "").strip().lower(), ())
 
 
 def resolve(name: str) -> Path:
@@ -247,12 +352,23 @@ def coverage(typology: str | None = None) -> dict[str, Any]:
 
 def read(name: str) -> tuple[bytes, dict[str, Any]]:
     """Pack bytes + a provenance record (name, size, sha256, and its manifest row if described).
-    The digest goes into the audit trail so an import can later be tied to exact content."""
+
+    The digest goes into the audit trail so an import can later be tied to exact content — and so
+    does the **licence**, taken from the pack's own row or inherited from the library declaration.
+    The terms under which content entered a model are the part of provenance an operator is most
+    likely to be asked about later, and reconstructing them after the fact means re-reading a
+    manifest that may have moved on.
+    """
     path = resolve(name)
     data = path.read_bytes()
-    meta = _manifest(external_dir()).get(path.name, {})
+    rows, library = _manifest(external_dir())
+    meta = rows.get(path.name, {})
+    licence = _licence_of(meta) or library.get("licence")
     return data, {"pack": path.name, "size_bytes": len(data),
                   "sha256": hashlib.sha256(data).hexdigest(),
                   "described": bool(meta),
                   "discipline": meta.get("discipline"),
-                  "declared_types": meta.get("types")}
+                  "declared_types": meta.get("types"),
+                  "licence": licence,
+                  "code_licence": library.get("code_licence"),
+                  "attribution": library.get("attribution")}

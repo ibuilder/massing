@@ -4,6 +4,49 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.688 — the family shelf: one real duplicate merged, and 57 packs that were licensed all along
+
+Two backlog items about the family content shelf. Checking the premise of each changed what the work
+was — in one case from a merge into a merge-plus-a-refusal, and in the other from a compliance gap
+into a reader bug.
+
+**The batch-1 duplicates.** The upstream review flagged six overlapping family keys from the plumbing
+batch. Reading the packs showed **only one is a genuine duplicate**: `pipe_copper_l` and
+`pipe_copper_type_l` are one product under two names inside one pack, so the short form is retired in
+favour of the ASTM B88 designation — the one that actually carries the wall thickness.
+
+The other five are not duplicates. They are a **generic tier and a specific tier**: `wc_flush_valve`
+is one *kind* of toilet, and the fixtures pack ships no tank-type WC, so aliasing `toilet` onto it
+would assert a fixture type nobody specified. `shower_receptor` is a *part* of a shower.
+`sink_kitchen` is not what "sink" means. That is a two-tier catalog working as designed — you
+schedule the generic at concept and the specific at procurement — and merging it would destroy
+information under the banner of removing it. So the tier relation is now **recorded** (`FAMILY_TIERS`,
+`is_narrowing()`) rather than left implicit, and the next reviewer will not re-flag it.
+
+The merge is by **alias, not deletion**. Deleting a key breaks every model that already placed one;
+an alias keeps those references resolving while still reporting a single canonical family. Aliases
+are asserted never to chain, so the canonical answer cannot depend on how many times it is asked. The
+generated packs themselves are untouched — they are build output from the upstream generator, and an
+edit here would be undone by the next release.
+
+**The "unlicensed" packs.** The shelf reported `unlicensed` for all 57 packs, and the backlog entry
+blamed a manifest that "carries no licence field". It does carry one. `manifest.json` declares
+`CC0-1.0` for the library *and* on every pack row, next to `code: MIT`. Nothing was ever unlicensed —
+**our reader** looked only for a singular per-pack `licence` key, so it missed both the library-level
+declaration and the plural `"licenses": [...]` form the rows actually use. A shape mismatch had been
+sitting in the backlog as a compliance problem, which is the more expensive kind of wrong.
+
+The reader now understands both spellings and both levels. A list is treated as **alternatives** and
+joined with SPDX `OR` rather than collapsed to its first entry, because dropping terms silently
+removes a choice a redistributor is entitled to make. An empty list is still not a licence.
+`licence_source` distinguishes a pack's own claim from an inherited one — "this pack says CC0" and
+"the library it came from says CC0" are different assurances even when the string matches. And the
+licence now travels with the content into the import audit trail, so the terms under which content
+entered a model do not have to be reconstructed later from a manifest that may have moved on.
+
+The shelf's `unlicensed` count is 0. The packs are licensed the same way as the rest of the platform:
+**code MIT, content CC0-1.0**.
+
 ## v0.3.687 — R26 Sprint C: the lifecycle strip, where one model on one key becomes visible
 
 **designed · checked · priced · scheduled · installed · verified**, read left to right, for any element.
