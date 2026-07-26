@@ -4,6 +4,35 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.693 — the app can no longer disagree with itself about six numbers
+
+The audit's most damaging class of defect was never a missing feature; it was two screens showing
+different values for the same thing. A user who catches the app contradicting itself stops trusting
+every other number on it, and the loss is not confined to the number that was wrong.
+
+v0.3.686 fixed one instance. A fix is not a guarantee, so this is the gate: six identities asserted
+**between the surfaces that actually render them** — open RFIs (dashboard KPI vs the RFI board),
+total records (KPI vs its own per-module breakdown), budget (cost summary vs the dashboard's embedded
+snapshot), my action items, the health score against the domains it is a mean of, and the module
+catalog against the room allocation that files it. Confirmed to bite by perturbing the dashboard and
+watching the gate fail.
+
+Comparing an endpoint to arithmetic restated in the test would prove only that the test can add up.
+It was agreement *between screens* that was the defect, so the comparison is screen-to-screen, and
+where a shared constant is unavoidable (the status→score mapping) it is imported from the engine
+rather than copied — a copy is exactly the drift this file exists to catch.
+
+**Every check runs on a seeded, non-zero project.** Zero equals zero on every surface, so a gate run
+against an empty project passes while proving nothing. Two mistakes on the way there are recorded in
+the file rather than quietly corrected, because both are the same failure the gate is for: the health
+identity originally read a `score` field the domains do not carry, so it skipped in silence and
+passed having tested nothing; and one module's seed was failing without being asserted, which left
+three identities comparing two views of the same absence.
+
+Coverage is **declared**, not implied. `IDENTITIES` names exactly what is pinned. This is not a claim
+that the app is globally consistent — six pairs cannot drift apart without failing the build, and
+saying more than that would be the same defect one level up.
+
 ## v0.3.692 — one meaning per colour, and something that keeps it that way
 
 The audit found the primary blue marking Open, Save, the selected tab, the selected rail item, **every

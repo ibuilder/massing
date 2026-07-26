@@ -491,8 +491,20 @@ once it beats the old one.
 
 - ✅ **R26-V-REACH** *(shipped v0.3.686 — deliberately BEFORE the restructure it protects)* — assert **every module has exactly one canonical home and is reachable**. The
   single biggest risk in an IA change is silently losing a module; this makes that impossible.
-- **R26-V-CONSISTENT** *(M)* — assert single-sourced numbers so the contradiction defect **cannot
-  regress**. Same shape as `assert-read-write-symmetry`: two surfaces showing one concept must agree.
+- ✅ **R26-V-CONSISTENT** *(shipped v0.3.693)* — six cross-surface identities asserted **between the
+  endpoints that render them**, not against arithmetic restated in the test: comparing an endpoint to
+  a local recomputation only proves the test can add up, and it was *agreement between screens* that
+  was the defect. Open RFIs (dashboard vs board) · total records (KPI vs its own breakdown) · budget
+  (cost summary vs the dashboard's snapshot) · my action items · health score (headline vs the
+  domains it is a mean of) · module catalog vs room allocation. Confirmed to bite by perturbing the
+  dashboard and watching it fail.
+  Every check runs on a **seeded, non-zero** project, because zero equals zero on every surface and a
+  gate run against an empty project passes while proving nothing. Two mistakes are recorded in the
+  file: the health check originally read a `score` field the domains do not have, so it skipped
+  silently and passed having tested nothing; and the seed for one module failed without being
+  asserted, leaving three identities comparing two views of the same absence.
+  Coverage is **declared** in `IDENTITIES` and is explicitly not a claim of global consistency — six
+  pairs are pinned, and saying more would be the same defect one level up.
 - **R26-V-LIVE** *(M)* — drive the real app and confirm every room, inspector tab and vitals figure
   renders real data — the method that found the nav-density defects and disproved three false gates.
 - **R26-V-TIMING** *(M)* — instrument first-task completion per persona against the audit's baseline, so
