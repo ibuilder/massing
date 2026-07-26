@@ -229,6 +229,18 @@ def my_work(pid: str, db: Session = Depends(get_db), user: str = Depends(require
     return mod_engine.my_work(db, pid, user, _party(pid, db, user))
 
 
+@router.get("/projects/{pid}/work-queue")
+def work_queue(pid: str, db: Session = Depends(get_db), user: str = Depends(require_role("viewer"))):
+    """R26-WORK-QUEUE — `my-work`, dated, bucketed by urgency, with the actions this caller can run.
+
+    Built ON `my_work` rather than beside it: a second definition of "in my court" is how two screens
+    come to disagree. `undated` is a bucket of its own, above `later`, because an item nobody dated is
+    a gap somebody should close, not a low priority.
+    """
+    from .. import work_queue as wq
+    return wq.queue(db, pid, user, _party(pid, db, user))
+
+
 @router.get("/projects/{pid}/notifications")
 def notifications(pid: str, db: Session = Depends(get_db), user: str = Depends(require_role("viewer"))):
     """Recent activity relevant to the caller (assigned / ball-in-court), newest first."""

@@ -33,6 +33,7 @@ export const STAGES_BY_WS: Record<string, [string, Dest[]][]> = {
   // schedule scanned past the general ledger to find it.
   construction: [
     ["Plan & derisk", [
+      { key: "__workqueue__", icon: "✅", label: "My Work" },
       { key: "__review__", icon: "🛡", label: "Risk Review" },
       { key: "__riskcost__", icon: "⚖️", label: "Risk & Cost" },
       { key: "__responsibility__", icon: "🧭", label: "Responsibility" },
@@ -70,6 +71,7 @@ export const STAGES_BY_WS: Record<string, [string, Dest[]][]> = {
   // Architect / engineer — the design-phase seat (AIA SD/DD/CD · RIBA 2–4).
   design: [
     ["Brief & program", [
+      { key: "__workqueue__", icon: "✅", label: "My Work" },
       { key: "__program__", icon: "🧩", label: "Space Program" },
       { key: "__conceptrender__", icon: "🖼", label: "Concept Renders" },
       { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" },
@@ -99,6 +101,7 @@ export const STAGES_BY_WS: Record<string, [string, Dest[]][]> = {
   // Owner / developer — acquire → design & build (phase gates) → operate.
   developer: [
     ["Acquire", [
+      { key: "__workqueue__", icon: "✅", label: "My Work" },
       { key: "__uw__", icon: "📊", label: "Underwriting", goto: "finance" },
       { key: "__land__", icon: "🗺️", label: "Land Screening" },
       { key: "__massingopt__", icon: "🧮", label: "Massing Optioneer" },

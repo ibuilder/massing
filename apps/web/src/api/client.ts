@@ -9,7 +9,7 @@ export * from "./types";
 import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, FinancialStatements,
-  IntegrationGroup, LifecycleStrip, ModelCiReport, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult, RoomAllocation,
+  IntegrationGroup, LifecycleStrip, ModelCiReport, WorkQueue, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   PreflightGate, PreflightSummary,
   RecordAttachmentMeta, RelatedRecords, ResolveAction, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
@@ -3745,6 +3745,11 @@ export class ApiClient extends HttpCore {
   }
   moduleBoard(pid: string, key: string) {
     return this.json<ModuleBoard>(`/projects/${pid}/modules/${key}/board`);
+  }
+  /** R26-WORK-QUEUE — `myWork`, dated and bucketed by urgency, each item carrying the actions this
+   *  caller can actually run. `undated` is its own bucket, above `later`. */
+  workQueue(pid: string) {
+    return this.json<WorkQueue>(`/projects/${pid}/work-queue`);
   }
   myWork(pid: string) {
     return this.json<WorkItem[]>(`/projects/${pid}/my-work`);

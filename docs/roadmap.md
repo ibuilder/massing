@@ -453,8 +453,19 @@ once it beats the old one.
 
 ### Sprint D — work, tools, and the visual system
 
-- **R26-WORK-QUEUE** *(M)* — the ball-in-court queue as the daily home, acted on inline. The dashboard
-  already computes ball-in-court and the SLA feed.
+- ✅ **R26-WORK-QUEUE** *(shipped v0.3.694)* — the ball-in-court feed is now a queue: dated, bucketed
+  by urgency, and carrying the actions this caller can actually run, at `GET /projects/{pid}/work-queue`
+  and as **My Work** in every rail's first stage (Work room under the spine).
+  Two properties make it worth having. **`undated` is not `later`** — an item nobody dated is a gap
+  somebody should close, so it gets its own bucket *above* `later`; folding it in would sort an urgent
+  dateless RFI below a routine item due next month and hide the gap that caused it. Absent, blank and
+  **unparseable** dates all land there, because an unreadable date means the same thing as a missing
+  one. And the actions offered are the ones the **engine will honour** for this party from this state —
+  proved by running one against the API, not asserted — because a queue offering a button the server
+  rejects spends the user's trust before their time. An action gated behind required fields is shown
+  as a link into the record: it needs a form, not a click.
+  Built **on** `my_work`, and asserted to return exactly that feed — a second definition of "in my
+  court" is how two screens come to disagree, which is the defect one layer up.
 - ✅ **R26-TOOLBAR** *(shipped v0.3.691)* — the model toolbar carried **27 unlabeled glyphs, all of
   them, always**. It is now **Levels · Section · Measure · Ask** — four labeled verbs on one row —
   with the other 23 under **More**, grouped and described. Verified live in the running viewer.

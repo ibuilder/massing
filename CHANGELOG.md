@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.694 — the work queue: what is in your court, in the order it needs you
+
+The **Work** room's whole job, and the last open item in R26 Sprint D. Both halves already existed —
+the platform knew what was in your court (`my_work`) and what was late (`due_feed`) — but as separate
+lists on separate screens, neither carrying the thing that turns a list into a queue: what you can do
+about each item without leaving it. **My Work** now leads every rail's first stage.
+
+**`undated` is not `later`.** An item nobody dated is a gap somebody should close, not a low priority.
+Folding it into "later" would sort an urgent dateless RFI below a routine item due next month, and
+would hide the gap that caused it — so it gets its own bucket, *above* `later`, with its reason on
+screen. Absent, blank and **unparseable** dates all land there, because an unreadable date means the
+same thing as a missing one, and treating it as far-future would bury the defect along with the item.
+
+**Every action offered is one the engine will honour** — this party, from this state. Proved by
+running one against the API rather than asserted, because a queue that offers a button the server
+then rejects spends the user's trust before it spends their time. An action the module gates behind
+required fields is shown as a link into the record instead: it needs a form, not a click, and
+pretending otherwise is how a one-click button becomes a dead end.
+
+Counts are split: "14 items" and "14 items, 3 of them waiting on somebody else" are different
+statements, and only the second lets someone plan a day. The queue is built **on** `my_work` rather
+than beside it, and is asserted to return exactly that feed — a second definition of "in my court" is
+precisely how two screens come to disagree, which is the defect v0.3.693 exists to catch one layer up.
+
+One mistake is recorded in the test: it originally wrote a plausible-looking `response_due` field the
+RFI module does not define, so every record came back undated and the queue dutifully reported four
+undated items — correct behaviour, useless test. The due-date field is now asked of the engine.
+
 ## v0.3.693 — the app can no longer disagree with itself about six numbers
 
 The audit's most damaging class of defect was never a missing feature; it was two screens showing

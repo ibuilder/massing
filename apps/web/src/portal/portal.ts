@@ -123,6 +123,7 @@ export class PortalUI {
       __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
       __masterbuilder__: () => this.renderMasterBuilder(), __selections__: () => this.renderSelections(),
       __margin__: () => this.renderMargin(), __assets__: () => this.renderAssets(),
+      __workqueue__: () => this.renderWorkQueue(),
       __equipment__: () => this.renderEquipment(), __massingopt__: () => this.renderMassingOpt(),
       __designmetrics__: () => this.renderDesignMetrics(), __mepfittings__: () => this.renderMepFittings(),
       __topicboard__: () => this.renderTopicBoard(),
@@ -665,6 +666,7 @@ export class PortalUI {
   private async renderSelections() { return (await import("./panels/selections")).renderSelections(this.panelCtx()); }
   private async renderMargin() { return (await import("./panels/margin")).renderMargin(this.panelCtx()); }
   private async renderAssets() { return (await import("./panels/assets")).renderAssets(this.panelCtx()); }
+  private async renderWorkQueue() { return (await import("./panels/workQueue")).renderWorkQueue(this.panelCtx()); }
   private async renderEquipment() { return (await import("./panels/equipment")).renderEquipment(this.panelCtx()); }
   private async renderMassingOpt() { return (await import("./panels/massingOpt")).renderMassingOpt(this.panelCtx()); }
   private async renderDesignMetrics() { return (await import("./panels/designMetrics")).renderDesignMetrics(this.panelCtx()); }

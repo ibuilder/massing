@@ -797,6 +797,24 @@ body[data-cap-admin="off"] [data-cap="admin"] * { pointer-events: none; }
 .pnav-stage-group > summary.pnav-stage::before { content: "▾"; font-size: 8px; opacity: .55; }
 .pnav-stage-group:not([open]) > summary.pnav-stage::before { content: "▸"; }
 .pnav-stage-group > summary.pnav-stage:hover { color: var(--text); }
+/* R26 work queue — one row per item: what it is on the left, what you can do on the right.
+   The action buttons stay neutral and take an accent BORDER on hover: they are interactive, but a
+   row of filled blue buttons would put the emphasis on the verbs rather than on the work. */
+.wq-row { display: flex; align-items: center; gap: 8px; padding: 4px 0;
+  border-top: 1px solid var(--line); }
+.wq-row:first-of-type { border-top: none; }
+.wq-open { flex: 1 1 auto; min-width: 0; text-align: left; background: none; border: none;
+  color: var(--text); font: inherit; font-size: 12px; cursor: pointer; padding: 2px 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wq-open:hover { text-decoration: underline; }
+.wq-acts { flex: 0 0 auto; display: flex; gap: 4px; align-items: center; font-size: 11px; }
+.wq-act { font-size: 11px; padding: 2px 8px; border-radius: 4px; cursor: pointer;
+  background: var(--control); color: var(--text); border: 1px solid var(--line); }
+.wq-act:hover { border-color: var(--accent); background: var(--control-hover); }
+.wq-act[disabled] { opacity: .5; cursor: default; }
+/* an action gated behind required fields needs a form, not a click — the ellipsis says so */
+.wq-act-form { font-style: italic; color: var(--muted); }
+
 /* R26 lifecycle strip — six states for the selected element, left to right.
    `unknown` is styled as a NEUTRAL state, not a paler failure: an element nobody checked and one
    that failed are different facts, and colouring the first as a fault is how a strip becomes

@@ -108,7 +108,7 @@ export const DEST_ROOM: Record<string, string> = {
   __operations__: "deal", __fca__: "deal", __energy__: "deal", __esg__: "deal",
   __assets__: "deal",
   // ── Work: whatever is in your court ───────────────────────────────────────────────────────────
-  __review__: "work", __aiassist__: "work",
+  __workqueue__: "work", __review__: "work", __aiassist__: "work",
 };
 
 /** The room a destination belongs to, or null when it is unmapped — which is a defect, not a default. */

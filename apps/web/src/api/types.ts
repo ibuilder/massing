@@ -293,6 +293,22 @@ export interface WorkItem {
   module: string; module_name: string; icon: string; id: string; ref: string;
   title: string | null; state: string; assignee: string | null; reason: string;
 }
+/** R26-WORK-QUEUE — a work item with its due date, urgency bucket and the actions this caller can run. */
+export interface QueueItem extends WorkItem {
+  due: string | null;
+  bucket: string;
+  actions: string[];
+  /** Actions the module gates behind required fields — they need the record, not one click. */
+  blocked_actions: string[];
+}
+export interface WorkQueue {
+  buckets: { key: string; label: string; means: string; count: number; items: QueueItem[] }[];
+  total: number;
+  /** Items you can move. `no_action` is the rest — in your court but waiting on someone else. */
+  actionable: number;
+  no_action: number;
+  note?: string;
+}
 export interface NotifItem {
   module: string; module_name: string; icon: string; record_id: string; ref: string;
   title: string | null; action: string; actor: string | null; ts: string | null; reason: string;
