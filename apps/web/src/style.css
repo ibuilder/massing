@@ -1,3 +1,21 @@
+/* R26-COLOUR-DISCIPLINE — one meaning per colour.
+ *
+ *   --accent        you can ACT on this: controls, selection, focus, links
+ *   --status-good   solved / passing
+ *   --status-warn   needs attention
+ *   --status-crit   blocking
+ *   --text/--muted  everything else, INCLUDING data
+ *
+ * The audit found the accent marking Open, Save, the selected tab, the selected rail item, every KPI
+ * number, PDF Takeoff, Paper space and Zoom-to-cursor at the same time. When one colour means eight
+ * things it means nothing, and a dashboard of blue numbers has no emphasis left for the one figure
+ * that needs it.
+ *
+ * This is enforced, not merely stated: `ui/colorContract.ts` lists every selector allowed to paint
+ * text or background with `--accent`, and its test asserts that list against this file in both
+ * directions. Colouring something blue is a decision somebody makes on purpose. Borders, outlines
+ * and shadows are exempt — there the colour is doing exactly its job.
+ */
 :root {
   --bg: #1e1f22;
   --panel: #2b2d31;
@@ -387,7 +405,7 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .pv-head2 { display: flex; flex-direction: column; gap: 4px; }
 .pv-title { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .pv-class { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
-  background: var(--accent); color: #fff; padding: 1px 6px; border-radius: 4px; }
+  background: var(--control); color: var(--text); padding: 1px 6px; border-radius: 4px; }
 .pv-name { font-weight: 600; word-break: break-word; }
 .pv-guid { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
 .pv-guid-v { font-family: ui-monospace, monospace; font-size: 10.5px; word-break: break-all; flex: 1; }
@@ -535,7 +553,10 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .kc-asg { font-size: 10px; color: var(--muted); margin-top: 2px; }
 .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0; }
 .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 6px; text-align: center; }
-.kpi-v { font-size: 20px; font-weight: 800; color: var(--accent); }
+.kpi-v { font-size: 20px; font-weight: 800; color: var(--text); }
+/* ...except one you CAN click through to. Same colour, but now it says something true: this
+   figure goes somewhere. That is the whole of the discipline — blue survives where it is honest. */
+.kpi-click .kpi-v { color: var(--accent); }
 .kpi-l { font-size: 10px; color: var(--muted); margin-top: 2px; }
 
 /* toasts */
@@ -745,7 +766,7 @@ body[data-cap-admin="off"] [data-cap="admin"] * { pointer-events: none; }
 .studio-row-out .studio-port-label { flex: 0 0 auto; }
 .studio-field { width: 64px; background: var(--control); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; }
 .studio-field:disabled { opacity: .5; }
-.studio-out-val { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: auto; }
+.studio-out-val { color: var(--text); font-variant-numeric: tabular-nums; margin-right: auto; }
 .studio-dot { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--accent); background: var(--panel); cursor: pointer; flex: 0 0 auto; }
 .studio-dot-in { margin-left: -13px; }
 .studio-dot-out { margin-right: -13px; background: var(--accent); }
@@ -845,12 +866,12 @@ body[data-cap-admin="off"] [data-cap="admin"] * { pointer-events: none; }
 
 /* ball-in-court party pill (who owes the next action) */
 .ball-badge { display: inline-block; font-size: 10px; font-weight: 600; line-height: 15px;
-  padding: 0 7px; border-radius: 9px; background: var(--accent-soft); color: var(--accent);
-  border: 1px solid var(--accent); white-space: nowrap; }
+  padding: 0 7px; border-radius: 9px; background: var(--panel2); color: var(--text);
+  border: 1px solid var(--line); white-space: nowrap; }
 
 /* F1 — labeled fieldset header inside a module form (groups long forms) */
 .portal-fieldset-head { margin: 14px 0 4px; padding-bottom: 3px; font-size: 11px; font-weight: 700;
-  letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent);
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted);
   border-bottom: 1px solid var(--border); }
 .portal-fieldset-head:first-child { margin-top: 2px; }
 

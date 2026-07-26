@@ -469,11 +469,23 @@ once it beats the old one.
   both installed: `envTools` drives the camera per frame and you drag to look; the later R17
   `walkMode` takes a pointer lock and exits on Esc. Labelling made the duplication legible
   (*Walk (drag)* / *Walk (locked)*); deciding which survives is a behaviour change and needs one.
-- **R26-ICONS** *(S)* — one monoline icon set at a single weight, state-tinted, replacing coloured emoji.
-- **R26-COLOUR-DISCIPLINE** *(S)* — the primary blue currently marks Open, Save, the selected tab, the
-  selected rail item, every KPI number, PDF Takeoff, Paper space and Zoom-to-cursor. **When one colour
-  means eight things it means nothing.** Blue = interactive/model-derived; green = solved; amber =
-  attention; red = blocking; nothing else is coloured.
+- ✅ **R26-COLOUR-DISCIPLINE** *(shipped v0.3.692)* — blue now means **you can act on this**; green =
+  solved, amber = attention, red = blocking, everything else including data is plain text. Five things
+  stopped being blue: KPI numbers, the IFC-class badge, form section headings, the ball-in-court pill,
+  and node-graph output values. None was ever a control.
+  The KPI case is the instructive one, because the tempting fix is wrong both ways: colouring every
+  number is what made dashboards unreadable, colouring none loses the cue that some are links. So
+  `.kpi-v` is plain and `.kpi-click .kpi-v` stays blue — the colour now asserts something true.
+  Verified live: 4 clickable KPIs blue, 2 plain ones in text colour.
+  Enforced, not merely stated: `ui/colorContract.ts` lists every selector allowed to paint with the
+  accent and its test asserts that list against `style.css` in **both directions**. Writing the list
+  by hand first was instructive — most guesses were wrong, because they used the accent only on
+  borders, which the gate deliberately exempts.
+- **R26-ICONS** *(S — needs a decision)* — one monoline icon set at a single weight, state-tinted,
+  replacing coloured emoji. **Blocked on a source**: hand-authoring ~100 inline SVGs is a sprint of
+  its own, and any licensed set is a new dependency needing an explicit OK (MIT/BSD/Apache only).
+  Worth noting the emoji are not currently a *legibility* failure now that the toolbar carries words —
+  this is polish, not a defect, so it should not jump the queue on that basis.
 
 ### Sprint E — verification *(all four gates were requested; none is optional)*
 

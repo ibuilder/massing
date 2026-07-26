@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.692 — one meaning per colour, and something that keeps it that way
+
+The audit found the primary blue marking Open, Save, the selected tab, the selected rail item, **every
+KPI number**, PDF Takeoff, Paper space and Zoom-to-cursor — all at once. When one colour means eight
+things it means nothing, and a dashboard of blue numbers has no emphasis left for the one figure that
+needs it.
+
+Blue now means **you can act on this**. Green is solved, amber needs attention, red is blocking, and
+everything else — including data — is plain text. Five things stopped being blue: KPI numbers, the
+IFC-class badge in the properties header, form section headings, the ball-in-court party pill, and
+the value at a node-graph output socket. None of them was ever a control.
+
+The KPI case is the one worth describing, because the tempting fix is wrong in both directions.
+Painting every number blue is what made dashboards unreadable; painting none of them loses the cue
+that some figures are links. So `.kpi-v` is plain text and `.kpi-click .kpi-v` stays blue — same
+colour, but now it asserts something true: **this figure goes somewhere.** Verified live on the
+Construction dashboard: four clickable KPIs blue, two plain ones in text colour.
+
+A rule with no enforcement is a comment, so this one has a gate. `ui/colorContract.ts` lists every
+selector permitted to paint text or background with the accent, and its test asserts that list
+against `style.css` **in both directions** — a new accent-coloured selector fails the build, and a
+stale allowance fails it too. Writing the list by hand first was instructive: most of my guesses were
+wrong, because they used the accent only on borders. Borders, outlines and shadows are exempt; there
+the colour is doing exactly its job, and gating them would be noise with no signal.
+
 ## v0.3.691 — the model toolbar: 27 glyphs, always, becomes four words
 
 The audit's most concrete finding was a floating toolbar carrying **27 unlabeled glyphs, all of them,
