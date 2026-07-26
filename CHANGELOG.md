@@ -4,6 +4,35 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.696 — the 4D binding goes into the model, and the plan named the wrong relation
+
+v0.3.684 put cost into the file: a priced element carries its price via `IfcRelAssignsToControl` →
+`IfcCostItem`. This is the time half — `IfcWorkSchedule` + `IfcTask`, in `aec_data/fourd_ifc.py`.
+
+The asymmetry it closes is the interesting part. `schedule.from_ifc` could always **read** tasks and
+their outputs, but nothing in the platform could **write** them. So a schedule authored in another
+tool could be consumed, while the platform's own schedule lived only in its database: unable to
+travel with the file, invisible to every other tool, re-derived on each export. A read half with no
+write half is not a partial feature; it is a one-way door. This also unblocks 4D clash phase 2, and
+turns the Inspector's `scheduled` state from structurally unanswerable into answerable.
+
+**The roadmap entry specified the wrong IFC relation, and the first implementation followed it.**
+`IfcRelAssignsToProcess` is the task's *input* — `task.OperatesOn`, "this task operates on that
+product". The link for "this task builds this element" is `IfcRelAssignsToProduct`, the task's
+**output**. Both are real IFC and both round-trip cleanly through a reader written to match, so the
+mistake is invisible to any test that only checks its own writer. What caught it was asserting the
+new binding against this repo's **pre-existing** reader — which, like every tool that asks what a
+task builds, reads outputs. A test that had only checked the round trip would have shipped a 4D
+binding no other tool could see.
+
+Three behaviours are deliberate, each with a test. An unmatched GlobalId is **reported** and its task
+still written — the work is real, and dropping it makes a programme quietly shorter than the project,
+discovered from a missed date rather than a report. **Half** a date range writes no dates at all,
+because a duration resting on one supplied end reads as authoritative and is not. And an *absent*
+task type defaults to CONSTRUCTION while an *empty* one is refused — somebody who tried to state a
+type and failed should not have CONSTRUCTION written over them. That last one the code got wrong
+first; the same distinction `cost_ifc` draws for `basis` is what settled it.
+
 ## v0.3.695 — the live audit, and the four ways a render audit lies
 
 R26 began with a click-through of the app. Click-throughs do not survive: the next person redoes the

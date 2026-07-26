@@ -560,10 +560,24 @@ derived**.
 - `POST /projects/{pid}/cost/estimate`.
 
 **Next rungs, in order**
-- ⭐ **R25-TASK-BIND** *(M)* — the 4D half. `schedule_activity` still carries **no element GlobalId**,
-  so nothing knows what a task installs; this also blocks R21-4D-CLASH phase 2. Write
-  `IfcRelAssignsToProcess` the same way cost now writes its relationship, and read it back through the
-  path `schedule.from_ifc` already uses.
+- ✅ **R25-TASK-BIND** *(shipped v0.3.696)* — the 4D half, in `aec_data/fourd_ifc.py`:
+  `write_work_schedule` / `read_work_schedule` over `IfcWorkSchedule` + `IfcTask`, mirroring
+  `cost_ifc`. The asymmetry it closes is the point — `schedule.from_ifc` could always *read* tasks and
+  their outputs, but nothing could *write* them, so a schedule authored elsewhere could be consumed
+  while the platform's own lived only in its database. A read half with no write half is a one-way
+  door. This also unblocks R21-4D-CLASH phase 2 and turns the Inspector's `scheduled` state from
+  structurally unanswerable into answerable.
+  **This entry named the wrong relation, and so did the first implementation.** `IfcRelAssignsToProcess`
+  is the task's *input* (`task.OperatesOn` — "operates on that product"). The link for "this task
+  builds this element" is `IfcRelAssignsToProduct`, the task's **output**. Both are real IFC and both
+  round-trip cleanly through a reader written to match, so the error is invisible to any test that
+  only checks its own writer — what caught it was asserting the binding against `schedule.from_ifc`,
+  which like every tool asking "what does this task build" reads outputs.
+  Three deliberate behaviours: an unmatched GlobalId is **reported** and its task still written (the
+  work is real; dropping it makes a programme quietly shorter than the project) · **half** a date
+  range writes no dates at all (a duration resting on one supplied end reads as authoritative and is
+  not) · an *absent* task type defaults to CONSTRUCTION but an *empty* one is refused, the same
+  distinction `cost_ifc` draws for `basis`.
 - **R25-QTO-WIRE** *(S)* — feed `qto.takeoff`'s measured quantities straight into `fived.estimate`, so
   the quantity argument is the model's own rather than the caller's.
 - **R25-COST-VINTAGE** *(M)* — bind rules to the vintage-versioned cost database (COST-DB) so a rate
