@@ -751,6 +751,29 @@ body[data-cap-admin="off"] [data-cap="admin"] * { pointer-events: none; }
 .pnav-stage-group > summary.pnav-stage::before { content: "▾"; font-size: 8px; opacity: .55; }
 .pnav-stage-group:not([open]) > summary.pnav-stage::before { content: "▸"; }
 .pnav-stage-group > summary.pnav-stage:hover { color: var(--text); }
+/* R26 lifecycle strip — six states for the selected element, left to right.
+   `unknown` is styled as a NEUTRAL state, not a paler failure: an element nobody checked and one
+   that failed are different facts, and colouring the first as a fault is how a strip becomes
+   something people learn to ignore. */
+.lcstrip { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px;
+  background: var(--panel2); }
+.lcstrip-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.lcstrip-title { font-weight: 700; font-size: 12px; }
+.lcstrip-reached, .lcstrip-unk { font-size: 11px; color: var(--muted); }
+.lcstrip-unk { margin-left: auto; }
+.lcstrip-track { display: flex; flex-wrap: wrap; gap: 4px; }
+.lcstrip-pill { display: flex; align-items: baseline; gap: 4px; font-size: 11px; line-height: 1.5;
+  padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.lcstrip-mark { font-size: 9px; }
+.lcstrip-detail { color: var(--muted); font-size: 10px; }
+.lcstrip-pill.is-done { border-color: var(--ok, #3fa66a); color: var(--ok, #3fa66a); }
+.lcstrip-pill.is-none { border-color: var(--line); color: var(--muted); }
+.lcstrip-pill.is-unknown { border-style: dashed; color: var(--muted); opacity: .75; }
+/* individually true, but past the contiguous reach — a tick that must not read as progress made */
+.lcstrip-pill.is-detached { border-style: dotted; }
+.lcstrip-bad { margin-top: 6px; font-size: 11px; color: var(--warn, #d08b2c); }
+.lcstrip-next { margin-top: 6px; font-size: 11px; color: var(--muted); }
+
 /* R26 spine rooms — a room header reads as a place, not a category, so it is set larger and in
    sentence case with its job on a second line. A stage header labels a drawer; a room header
    answers "is this where I do the thing I came to do", which needs more than a 10px caps word. */

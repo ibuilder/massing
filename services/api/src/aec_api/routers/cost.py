@@ -533,8 +533,8 @@ def element_lifecycle(pid: str, guid: str, db: Session = Depends(get_db),
     a later one cannot flatter an incomplete earlier one, and any out-of-order combination is reported
     in `inconsistencies` rather than smoothed away.
     """
-    from .. import lifecycle_strip
-    from ..deps import open_source_ifc  # noqa: F401  (kept for parity with sibling routes)
+    from .. import element_facts, lifecycle_strip
+    from ..deps import open_source_ifc
     from .standards import _idx_for
 
     idx = _idx_for(pid) or {}
@@ -552,17 +552,19 @@ def element_lifecycle(pid: str, guid: str, db: Session = Depends(get_db),
     except Exception:                       # noqa: BLE001 — an absent cost engine is `unknown`, not `none`
         priced = None
 
-    # verification: the LOD-500 stamp carries its own measured accuracy
-    verified = None
-    if el is not None:
-        try:
-            from .. import lod
-            v = lod.verification(el)
-            verified = {"verified": bool(v.get("verified")), "deviation_m": v.get("deviation_m")}
-        except Exception:                   # noqa: BLE001
-            verified = None
+    # The integrity lenses need the model itself, not the property index: `model_qa` samples its
+    # offender lists at 20, so answering "is this one clean" from that sample would report clean for
+    # the 21st duplicate. An unreadable model stays `unknown`.
+    model = None
+    try:
+        model = open_source_ifc(db, pid)
+    except Exception:                       # noqa: BLE001
+        model = None
 
-    return lifecycle_strip.strip(el, priced=priced, verified=verified)
+    facts = element_facts.gather(db, pid, guid, model=model, element=el, priced=priced)
+    out = lifecycle_strip.strip(el, **facts)
+    out["evidence"] = {k: facts[k] for k in ("scheduled", "installed", "verified") if facts[k]}
+    return out
 
 
 @router.get("/projects/{pid}/elements/{guid}/5d")

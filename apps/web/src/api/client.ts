@@ -9,7 +9,7 @@ export * from "./types";
 import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, FinancialStatements,
-  IntegrationGroup, ModelCiReport, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult, RoomAllocation,
+  IntegrationGroup, LifecycleStrip, ModelCiReport, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   PreflightGate, PreflightSummary,
   RecordAttachmentMeta, RelatedRecords, ResolveAction, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
@@ -980,6 +980,11 @@ export class ApiClient extends HttpCore {
   // properties index (Phase 1 data)
   element(pid: string, guid: string) {
     return this.json<ElementProps>(`/projects/${pid}/elements/${guid}`);
+  }
+  /** R26-INSPECTOR — the six-state lifecycle strip for one element (designed → verified). A state
+   *  the server could not consult comes back `unknown`, which is NOT the same as `none`. */
+  elementLifecycle(pid: string, guid: string) {
+    return this.json<LifecycleStrip>(`/projects/${pid}/elements/${guid}/lifecycle`);
   }
   /** 5D for an element: its schedule activity (%-complete, dates, hard-tied?) + cost-code budget. */
   element5d(pid: string, guid: string) {

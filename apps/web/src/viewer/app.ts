@@ -14,6 +14,7 @@ import { parseDynConstraint } from "./dynInput";
 import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
 import { buildElementProps, buildRawProps } from "./propsView";
+import { buildLifecycleStrip } from "./lifecycleStrip";
 import { type ModelIdMap } from "./modelIds";
 import { askText } from "../ui/prompt";
 import { confirmModal, promptModal } from "../ui/modal";
@@ -297,6 +298,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     wrap.append(head, buildElementProps(el, hooks));
     propsBody.replaceChildren(wrap);
     updateInfoBox(el);
+    // R26-INSPECTOR — the six-state lifecycle strip. Fetched separately and grafted in when it
+    // arrives, so a slow or absent lifecycle route never delays the properties the user asked for.
+    // A failure leaves the panel exactly as it is: no strip is honest, an empty strip is not.
+    if (connected && projectId) {
+      const forGuid = el.guid;
+      void api.elementLifecycle(projectId, forGuid).then((lc) => {
+        if (selectedGuid !== forGuid) return;              // selection moved on while we waited
+        const host = propsBody.querySelector(".props-view");
+        if (!host || host.querySelector(".lcstrip")) return;
+        host.insertBefore(buildLifecycleStrip(lc), host.children[1] ?? null);
+      }).catch(() => { /* no lifecycle route (older server): show properties without the strip */ });
+    }
   }
 
   async function selectByGuid(guid: string, fit = false) {

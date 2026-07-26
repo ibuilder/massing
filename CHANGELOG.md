@@ -4,6 +4,45 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.690 — the Inspector: six states on one key, and three ways of not knowing
+
+Select an element and the lifecycle strip now sits directly under the identity header —
+**designed · checked · priced · scheduled · installed · verified**, left to right. Every one of those
+facts was already held against the *same GlobalId*; they simply lived in six panels across different
+workspaces, which is why the one genuinely unusual thing about this product was invisible.
+
+v0.3.687 shipped the engine that decides how those states *read*. This release answers what they
+**are** — and the work was almost entirely in keeping three answers apart: the platform looked and it
+is yes, it looked and it is no, and **it could not look**. Each of the three states being wired had
+its own way of collapsing that distinction.
+
+**Checked.** The integrity lenses cap every offender list at 20 for payload size. Looking this
+element up in that sample would report *clean* for the 21st duplicate — a check that examined a
+different element, answering about this one, which is worse than declining to answer. So the rules
+are re-evaluated exactly for the GUID, and an element absent from the model reads *unknown* rather
+than clean. The test builds a model with 25 orphans specifically to assert that the ones past the cap
+still report as findings.
+
+**Scheduled.** An element no activity claims looks unscheduled. But where **nothing** in the project
+binds tasks to elements, that is a missing capability dressed up as a finding about the building — so
+the project-wide binding is checked first, and only a project that actually uses it can return a real
+"no". This is the same rule as "a check that examined nothing must not report clean", applied to the
+negative side, where it is easier to miss.
+
+**Verified.** The IFC LOD-500 stamp and a field record can both assert it. The stamp wins, because
+IFC is the source of truth; the record is the fallback; and `source` states which, because they are
+not the same evidence even when they agree. A verification carries its accuracy either way —
+millimetres from the field record convert to metres — since a tick without a tolerance is not a
+measurement.
+
+The rendering keeps the distinctions the engine draws. `unknown` is a neutral dashed state, not a
+paler failure: colour the unexamined as failed and people learn to ignore the strip, at which point
+it is worse than nothing because it looks like something was checked. A state that is individually
+true but sits past the contiguous reach is marked as detached, so a tick can never read as progress
+the element has not made. Inconsistencies are shown. The strip is fetched after the properties and
+grafted in, so a slow or absent lifecycle route never delays what the user asked for — and a failure
+leaves no strip at all, because an empty strip is a claim and no strip is not.
+
 ## v0.3.689 — R26 Sprint B: the five-room rail, and the catalog that could finally be checked
 
 **Model · Cost · Schedule · Deal · Work** — the same five rooms for every role, rendered behind

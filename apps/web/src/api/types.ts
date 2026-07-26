@@ -231,6 +231,27 @@ export interface ModuleDef {
   room?: string | null;
 }
 /** R26 — the five-room spine. Constant for every role; a workspace weights it, never replaces it. */
+/** R26-INSPECTOR — one state of the six-state element lifecycle strip.
+ *  `unknown` means the platform could not consult that state. It is NOT `none`: an element nobody
+ *  priced and an element priced at zero are different facts, and so are "no" and "we did not ask". */
+export type StripStatus = "done" | "none" | "unknown";
+export interface StripState {
+  key: string; label: string; status: StripStatus;
+  means: string; detail: string; advance: string | null;
+}
+export interface LifecycleStrip {
+  guid: string | null;
+  states: StripState[];
+  /** The furthest CONTIGUOUS state — a later state cannot flatter an incomplete earlier one. */
+  reached: string | null;
+  done_count: number; unknown_count: number;
+  next: { key: string; advance: string | null } | null;
+  /** Out-of-order combinations ("verified but never installed") — real data defects, reported. */
+  inconsistencies: string[];
+  note?: string;
+  evidence?: Record<string, unknown>;
+}
+
 export interface RoomDef { id: string; label: string; job: string; count: number; modules: string[] }
 export interface RoomAllocation {
   rooms: RoomDef[]; placed: number;

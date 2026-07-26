@@ -113,3 +113,87 @@ def model_qa(model) -> dict[str, Any]:
     return {"element_count": len(elements), "total_issues": total, "clean": total == 0, "checks": checks,
             "note": "Model integrity (complementary to LOIN/IDS data checks): duplicate GUIDs, orphaned "
                     "elements, overlapping duplicates, unenclosed spaces, blank names, wrong-storey placement."}
+
+
+#: Checks `element_findings` evaluates. Same rules as `model_qa`, asked of one element.
+ELEMENT_CHECKS = ("duplicate_guids", "orphaned_elements", "overlapping_duplicates",
+                  "unenclosed_spaces", "blank_names", "wrong_storey")
+
+
+def element_findings(model, guid: str) -> dict[str, Any]:
+    """The integrity findings for **one** GlobalId — exact, not sampled.
+
+    This exists because `model_qa` caps each check's offender list at 20 for payload size. Asking
+    "is this element clean?" by looking it up in that sample would answer *clean* for the 21st
+    duplicate — a check that examined a different element reporting on this one, which is worse than
+    not answering. So the rules are evaluated directly against the element instead.
+
+    `found` is False when the GUID is not in the model at all: that is *unknown*, not clean. The
+    caller (the lifecycle strip) depends on that distinction — an element nobody checked and an
+    element that passed are different facts, and colouring the first as a pass is how a strip stops
+    being worth reading.
+    """
+    target = None
+    dupes = 0
+    for e in model.by_type("IfcRoot"):
+        if getattr(e, "GlobalId", None) == guid:
+            dupes += 1
+            if target is None or e.is_a("IfcElement"):
+                target = e
+    if target is None:
+        return {"guid": guid, "found": False, "findings": [], "checked": False}
+
+    findings: list[dict[str, Any]] = []
+    if dupes > 1:
+        findings.append({"check": "duplicate_guids",
+                         "detail": f"{dupes} entities share this GlobalId"})
+
+    is_element = target.is_a("IfcElement")
+    if is_element:
+        contained = any(target in (rel.RelatedElements or [])
+                        for rel in model.by_type("IfcRelContainedInSpatialStructure"))
+        nested = any(target in (rel.RelatedObjects or [])
+                     for rel in (*model.by_type("IfcRelAggregates"), *model.by_type("IfcRelNests")))
+        filled = any(getattr(rel, "RelatedBuildingElement", None) is not None
+                     and rel.RelatedBuildingElement.id() == target.id()
+                     for rel in model.by_type("IfcRelFillsElement"))
+        if not (contained or nested or filled):
+            findings.append({"check": "orphaned_elements", "detail": "not placed in any spatial structure"})
+
+        loc = _loc(target)
+        if loc is not None:
+            stacked = sum(1 for e in model.by_type("IfcElement")
+                          if e.id() != target.id() and e.is_a() == target.is_a() and _loc(e) == loc)
+            if stacked:
+                findings.append({"check": "overlapping_duplicates",
+                                 "detail": f"{stacked} other {target.is_a()} at the same placement"})
+
+        if not (getattr(target, "Name", None) or "").strip():
+            findings.append({"check": "blank_names", "detail": "no Name"})
+
+        try:
+            storeys = [(s, float(s.Elevation)) for s in model.by_type("IfcBuildingStorey")
+                       if getattr(s, "Elevation", None) is not None]
+            assigned = next((rel.RelatingStructure for rel in model.by_type("IfcRelContainedInSpatialStructure")
+                             if target in (rel.RelatedElements or [])
+                             and getattr(rel, "RelatingStructure", None) is not None
+                             and rel.RelatingStructure.is_a("IfcBuildingStorey")), None)
+            if assigned is not None and loc is not None and len(storeys) >= 2:
+                a_elev = float(assigned.Elevation)
+                z = loc[2]
+                nearest_s, nearest_elev = min(storeys, key=lambda se: abs(z - se[1]))
+                if nearest_s.id() != assigned.id() and (abs(z - a_elev) - abs(z - nearest_elev)) > 1.0:
+                    findings.append({"check": "wrong_storey",
+                                     "detail": f"assigned to {assigned.Name}, sits at {nearest_s.Name}"})
+        except Exception:            # noqa: BLE001 — malformed storeys: skip the check, don't fail the lookup
+            pass
+
+    if target.is_a("IfcSpace"):
+        bounded = any(getattr(rel, "RelatingSpace", None) is not None
+                      and rel.RelatingSpace.id() == target.id()
+                      for rel in model.by_type("IfcRelSpaceBoundary"))
+        if not bounded:
+            findings.append({"check": "unenclosed_spaces", "detail": "no space boundaries"})
+
+    return {"guid": guid, "found": True, "checked": True, "findings": findings,
+            "clean": not findings, "ifc_class": target.is_a()}

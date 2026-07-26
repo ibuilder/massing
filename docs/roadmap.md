@@ -433,11 +433,23 @@ once it beats the old one.
 
 ### Sprint C — the Inspector *(where the last two rings become visible)*
 
-- ◧ **R26-INSPECTOR** *(lifecycle strip shipped v0.3.687; the panel UI is next)* — select an element → **Properties · Cost · Schedule · Field** in one panel.
-  This is the payoff surface for work already shipped: the **5D cost binding** (v0.3.684) puts a real
-  rate and quantity on the Cost tab, and the **LOD-500 verification stamp** puts a real state on Field.
-  It is what makes "one model, one key" tangible in the first thirty seconds instead of requiring three
-  tabs and prior knowledge.
+- ✅ **R26-INSPECTOR** *(shipped v0.3.687 + v0.3.690)* — select an element and the six-state strip sits
+  directly under the identity header: **designed · checked · priced · scheduled · installed · verified**.
+  This is the payoff surface for work already shipped — the 5D binding (v0.3.684) supplies the rate,
+  the LOD-500 stamp supplies the accuracy — and it is what makes "one model, one key" tangible in the
+  first thirty seconds instead of requiring three tabs and prior knowledge.
+  Wiring the three remaining states was where the care went, because each had its own way of turning
+  *we did not ask* into a confident answer. `model_qa` caps every offender list at 20, so answering
+  "is this element clean" from that sample would report **clean for the 21st duplicate** — a check
+  that examined a different element, answering about this one; the rules are now re-evaluated exactly
+  per GUID (`model_qa.element_findings`), and that specific case is what the test asserts. An element
+  no activity claims looks unscheduled, but where **nothing** in the project binds tasks to elements
+  that is a missing capability dressed up as a finding about the building — so the project-wide
+  binding is checked first, and only a project that uses it can return a real "no". And verification
+  can come from the IFC stamp or a field record: the stamp wins, the record is the fallback, and
+  `source` says which, because they are not the same evidence even when they agree.
+  ◧ *Still open:* the Properties/Cost/Schedule/Field **tabs** — the strip is the spine of that panel,
+  not the whole of it.
 
 ### Sprint D — work, tools, and the visual system
 
