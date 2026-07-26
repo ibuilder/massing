@@ -4,6 +4,35 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.698 — hardening: an N+1 on the daily home page, and an uncapped mesh behind an estimate
+
+A hand-audit over everything shipped in v0.3.688–697. Two real defects, both introduced by that work.
+
+**The work queue did an N+1, and it was on the page people would open every morning.**
+`work_queue.queue()` called `get_record()` once per item — and `get_record` is not a row read: it
+pulls the activity log, the comments, every attachment, resolves reference fields to briefs and
+evaluates rollups. At `MY_WORK_LIMIT` that is ~500 items × ~5 queries with their joins, to read **one
+date field**. It is now one query per *module*.
+
+The test asserts the property rather than a number. An absolute statement count would be asserting on
+the size of the module registry, which is not what broke; what matters is that **cost must not scale
+with item count**. Measured: 3 items → 134 statements, 12 items → 134 statements. Delta zero.
+
+That measurement also surfaced something **not** fixed here, and the test pins it rather than letting
+it pass unnoticed: `my_work` issues one query per *registered module* (~130), so the floor scales with
+the catalog rather than the caller's workload. It is pre-existing, the dashboard depends on it too,
+and quietly absorbing it into a "the queue is cheap now" claim would be the wrong kind of tidy.
+
+**An uncapped geometry pass sat behind a request-serving route.** `qto.measure` meshes every element
+with `create_shape`; the estimate route previously did no geometry work at all, so v0.3.697 put
+minutes of meshing on a large model behind one request. It is now capped at 20,000 elements — and the
+cap is **reported** (`geometry_capped`), never silent, because a quantity nobody measured for want of
+budget looks exactly like one the model never carried, and only one of those is worth chasing. Every
+element is still present in the payload: the cap bounds the measuring, not the reporting.
+
+The rest of the checklist came back clean. All three new routes carry `require_role`; both new panels
+escape every interpolated string; `element_facts` caps newest-first rather than hiding recent rows.
+
 ## v0.3.697 — the estimate measures the model, and says what each number rests on
 
 `fived.estimate` took its quantities from whatever the caller passed in. Every rule, every rate and

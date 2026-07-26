@@ -125,6 +125,59 @@ with TestClient(app) as c:
     assert q2["total"] == len(feed), (q2["total"], len(feed))
     assert {i["id"] for b in q2["buckets"] for i in b["items"]} == {i["id"] for i in feed}
 
+# ---- HARDEN: the queue costs a query per MODULE, not per ITEM ------------------------------------
+# The first version called `get_record` for every item — and `get_record` is not a row read: it pulls
+# the activity log, the comments, every attachment, resolves reference fields to briefs and evaluates
+# rollups. At MY_WORK_LIMIT that is ~500 items x ~5 queries to read one date field, which made the
+# daily home page the most expensive request in the app. Counting statements is the only way that
+# regression stays fixed; a timing assertion would be flaky and a comment would be ignored.
+from sqlalchemy import event  # noqa: E402
+
+from aec_api.db import engine  # noqa: E402
+
+_stmts = []
+
+
+def _count(conn, cursor, statement, params, context, executemany):  # noqa: ANN001, ARG001
+    _stmts.append(statement)
+
+
+with TestClient(app) as c:
+    pid2 = c.post("/projects", json={"name": "Cost"}, headers=HDR).json()["id"]
+    for i in range(12):
+        c.post(f"/projects/{pid2}/modules/rfi",
+               json={"data": {"subject": f"R{i}", "question": "?", due_field: past}}, headers=HDR)
+
+    def _measure(project):
+        _stmts.clear()
+        event.listen(engine, "before_cursor_execute", _count)
+        try:
+            r = c.get(f"/projects/{project}/work-queue", headers=HDR).json()
+        finally:
+            event.remove(engine, "before_cursor_execute", _count)
+        return len(_stmts), r
+
+    # An absolute ceiling would be asserting on the size of the module registry, which is not what
+    # broke. The property that matters is that the cost does NOT SCALE WITH THE ITEM COUNT: a queue
+    # of 12 must cost about the same as a queue of 3.
+    small = c.post("/projects", json={"name": "Small"}, headers=HDR).json()["id"]
+    for i in range(3):
+        c.post(f"/projects/{small}/modules/rfi",
+               json={"data": {"subject": f"S{i}", "question": "?", due_field: past}}, headers=HDR)
+
+    n_small, q_small = _measure(small)
+    n_big, q3 = _measure(pid2)
+    assert q_small["total"] == 3 and q3["total"] == 12, (q_small["total"], q3["total"])
+    # 9 extra items must not cost more than a handful of extra statements. Through the old per-item
+    # path they cost ~45. The slack absorbs a per-module fetch or two without being brittle.
+    assert n_big - n_small <= 5, (n_small, n_big)
+
+    # ...and the pre-existing fixed cost is REPORTED rather than absorbed: `my_work` scans one query
+    # per registered module, so the floor scales with the CATALOG, not with the caller's workload.
+    # That is a real cost and it is not this file's to fix — but a silent assertion here would let a
+    # future reader believe the request is cheap.
+    assert n_small > 50, ("if this dropped, my_work stopped scanning per module — good, retune", n_small)
+
 print("R26-WORK-QUEUE OK - the ball-in-court feed is now a queue: dated, bucketed by urgency, and "
       "carrying the actions this caller can actually run. Two properties make it worth having. "
       "UNDATED IS NOT LATER - an item nobody dated is a gap somebody should close, not a low "
@@ -136,4 +189,9 @@ print("R26-WORK-QUEUE OK - the ball-in-court feed is now a queue: dated, buckete
       "running one against the API rather than asserted - because a queue that offers a button the "
       "server then rejects spends the user's trust before it spends their time. The queue is built ON "
       "my_work rather than beside it and is asserted to return exactly that feed: a second definition "
-      "of 'in my court' is how two screens come to disagree.")
+      "of 'in my court' is how two screens come to disagree. The queue also costs a query per "
+      "MODULE rather than per ITEM - the first version called get_record for each of up to 500 items, "
+      "and get_record pulls the activity log, comments, attachments, reference briefs and rollups to "
+      "read ONE date field, which made the daily home page the most expensive request in the app. The "
+      "statement count is asserted, because a timing assertion would be flaky and a comment would be "
+      "ignored.")

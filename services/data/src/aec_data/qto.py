@@ -237,8 +237,18 @@ def takeoff(
 #: "the model declared these" on their behalf is the overclaim the field exists to prevent.
 QUANTITY_SOURCES = ("declared", "computed")
 
+#: Elements meshed in one `measure` call before the geometry pass stops.
+#:
+#: Meshing is the expensive part — `create_shape` per element — and `measure` is now reachable from a
+#: request-serving estimate route that previously did no geometry work at all. On a large tower an
+#: uncapped pass is minutes, which turns one estimate into a stalled worker. The cap is REPORTED
+#: (`geometry_capped`), never silent: a quantity nobody measured because we ran out of budget looks
+#: exactly like one the model never carried, and only one of those is worth chasing.
+MAX_GEOMETRY = 20_000
 
-def measure(model: ifcopenshell.file, force_geometry: bool = True) -> dict[str, Any]:
+
+def measure(model: ifcopenshell.file, force_geometry: bool = True,
+            max_geometry: int = MAX_GEOMETRY) -> dict[str, Any]:
     """Every element's measurable quantities, keyed by GlobalId — the input `fived.estimate` needs.
 
     Returns ``{quantities: {guid: {basis: value}}, sources: {guid: {basis: "declared"|"computed"}},
@@ -256,6 +266,8 @@ def measure(model: ifcopenshell.file, force_geometry: bool = True) -> dict[str, 
     quantities: dict[str, dict[str, float]] = {}
     sources: dict[str, dict[str, str]] = {}
     unmeasured: list[dict[str, str]] = []
+    meshed = 0
+    capped = 0
 
     for el in physical_elements(model):
         if el.is_a("IfcOpeningElement"):
@@ -266,7 +278,10 @@ def measure(model: ifcopenshell.file, force_geometry: bool = True) -> dict[str, 
         declared = _quantities(el)
         q: dict[str, float] = dict(declared)
         src = dict.fromkeys(declared, "declared")
-        if settings is not None:
+        if settings is not None and meshed >= max_geometry:
+            capped += 1                       # counted, not skipped in silence — see MAX_GEOMETRY
+        elif settings is not None:
+            meshed += 1
             for k, v in _geom_quantities(el, settings).items():
                 # `setdefault`: a quantity the model DECLARES always beats one we computed. The
                 # authoring tool knows what it drew; we know what its triangles came out to.
@@ -285,6 +300,7 @@ def measure(model: ifcopenshell.file, force_geometry: bool = True) -> dict[str, 
     return {"quantities": quantities, "sources": sources,
             "measured": len(quantities), "unmeasured": unmeasured,
             "unmeasured_count": len(unmeasured),
+            "meshed": meshed, "geometry_capped": capped,
             "note": ("`declared` quantities come from the model's own IfcElementQuantity; `computed` "
                      "ones were measured off the meshed solid here. A declared value always wins.")}
 

@@ -23,6 +23,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 #: Buckets, in the order they should be worked. `undated` sits ABOVE `later` on purpose.
@@ -88,17 +89,33 @@ def queue(db: Session, project_id: str, user: str, party: str | None,
     from .modules_query import available_actions
 
     items = me.my_work(db, project_id, user, party)
+
+    # HARDEN: one query per MODULE, not one per item. The first version called `get_record` for each
+    # of up to MY_WORK_LIMIT (500) items — and `get_record` is not a row read: it pulls the activity
+    # log, the comments, every attachment, resolves reference fields to briefs and evaluates rollups.
+    # That is roughly five queries and a fan-out of joins per item, to read ONE date field. On a busy
+    # project the daily home page was the most expensive request in the app.
+    due_by_id: dict[str, Any] = {}
+    wanted: dict[str, list[str]] = {}
+    for it in items:
+        wanted.setdefault(it["module"], []).append(it["id"])
+    for key, ids in wanted.items():
+        df = me._due_field_name(me.get_module(key))
+        if not df:
+            continue                          # this module has no due-date field: nothing to fetch
+        t = me.TABLES.get(key)
+        if t is None:
+            continue
+        rows = db.execute(select(t.c.id, t.c.data).where(
+            t.c.project_id == project_id, t.c.id.in_(ids))).all()
+        for row in rows:
+            m = row._mapping
+            due_by_id[m["id"]] = (m["data"] or {}).get(df)
+
     out: list[dict[str, Any]] = []
     for it in items:
         mod = me.get_module(it["module"])
-        due = None
-        df = me._due_field_name(mod)
-        if df:
-            try:
-                rec = me.get_record(db, it["module"], project_id, it["id"])
-                due = (rec.get("data") or {}).get(df)
-            except Exception:                 # noqa: BLE001 — a record that vanished is not a crash
-                due = None
+        due = due_by_id.get(it["id"])
         acts = available_actions(mod, it["state"], party)
         out.append({**it, "due": due, "bucket": bucket(due, today, soon_days),
                     "actions": [a["action"] for a in acts],

@@ -116,6 +116,24 @@ try:
     assert out["unmeasured_count"] == 1, out
     assert "area" not in out["quantities"][gid], out["quantities"][gid]
     assert set(qto.QUANTITY_SOURCES) == {"declared", "computed"}
+
+    # HARDEN — the geometry pass is CAPPED, and the cap is REPORTED. Meshing is the expensive part,
+    # and `measure` is reachable from a request-serving estimate route that previously did no
+    # geometry work at all; an uncapped pass on a large tower is minutes of a stalled worker. A
+    # quantity nobody measured because the budget ran out looks exactly like one the model never
+    # carried, and only one of those is worth chasing — so the count is in the payload.
+    m2 = ifcopenshell.file(schema="IFC4")
+    m2.create_entity("IfcOwnerHistory")
+    for i in range(5):
+        m2.create_entity("IfcWall", GlobalId=ifcopenshell.guid.new(), Name=f"W{i}")
+    capped = qto.measure(m2, force_geometry=True, max_geometry=2)
+    assert capped["meshed"] + capped["geometry_capped"] == 5, capped
+    assert capped["geometry_capped"] == 3, capped
+    # every element is still PRESENT — the cap bounds the measuring, not the reporting
+    assert capped["measured"] == 5, capped
+    # and with no cap in play nothing is reported as capped
+    assert qto.measure(m2, force_geometry=False)["geometry_capped"] == 0
+    assert qto.MAX_GEOMETRY >= 1000, "a cap this low would silently degrade real models"
     measured_ok = True
 except ImportError:                    # pragma: no cover — ifcopenshell absent in a lean env
     measured_ok = False
@@ -132,5 +150,7 @@ print("R25-QTO-WIRE OK - the estimate now prices the MODEL's own quantities rath
       "made up. An ABSENT provenance reads `unknown`, never `declared` - a caller who sends quantities "
       "with no provenance has said nothing about where they came from. Provenance annotates and never "
       "moves a number: the totals are asserted identical across all four labellings, so the label "
-      "cannot quietly start doing arithmetic."
+      "cannot quietly start doing arithmetic. The geometry pass is CAPPED and the cap is "
+      "REPORTED (`geometry_capped`), because measure() is reachable from a request-serving route and a "
+      "quantity nobody measured for want of budget looks exactly like one the model never carried."
       + ("" if measured_ok else " (qto.measure assertions skipped: ifcopenshell unavailable)"))
