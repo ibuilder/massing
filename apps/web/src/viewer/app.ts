@@ -23,6 +23,7 @@ import { MeasureTool } from "../tools/measure";
 import { SectionTool } from "../tools/section";
 import { installMeasureTools, installSectionBox } from "./measureSection";
 import { installWalkMode } from "./walkMode";
+import { installToolbarView } from "./toolbarView";
 import { VisibilityTool } from "../tools/visibility";
 import { ColorizeTool } from "../tools/colorize";
 import { LayerManager } from "../tools/layers";
@@ -155,9 +156,14 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   });
 
   // ---- selection -----------------------------------------------------------
+  /** R26-TOOLBAR: re-lay the floating toolbar for the current context. Assigned once every tool has
+   *  registered (the layout pass runs last), so selection changes before then are harmless no-ops. */
+  let relayoutTools: () => void = () => {};
+
   async function selectMap(map: ModelIdMap | null, opts: { guid?: string; fit?: boolean } = {}) {
     if (selection) await loader.fragments.resetHighlight(selection);
     selection = map;
+    relayoutTools();          // what you can do depends on what you have selected
     if (!map) { gizmo?.hide(); propsHint(); updateInfoBox(null); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); return; }
     await loader.fragments.highlight(SELECT_MAT(), map);
     await loader.fragments.core.update(true);
@@ -606,6 +612,25 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       setStatus("edit-in-place off");
     }
   }, "edit");
+
+  // R26-TOOLBAR — every tool is installed by now, so lay the bar out: a handful of LABELED verbs for
+  // the current context, the rest under More. Runs last on purpose; a layout pass that only moves
+  // nodes between two containers cannot lose a tool, which is the risk in a toolbar change.
+  const toolbarView = installToolbarView(viewerTools);
+  // Author verbs are promoted only when they are *usable*. Below Editor they stay in More, where the
+  // existing capability styling still shows them dimmed with a padlock — the house rule is "a dimmed
+  // button that says 'needs Editor' is onboarding, a missing one is a support ticket", and neither is
+  // served by spending one of eight primary slots on something the caller cannot do.
+  relayoutTools = () => toolbarView.update({
+    selection: !!selectedGuid,
+    canEdit: document.body.dataset.capEdit !== "off",
+  });
+  relayoutTools();
+  if (toolbarView.unlaid().length) {
+    // Not fatal — the tools are all still reachable under More — but it means the layout table has
+    // fallen behind the toolbar, and a silent version of that is how a tool goes missing.
+    console.warn("[toolbar] not described by toolbarLayout:", toolbarView.unlaid());
+  }
 
   /** Round a point's plan coords (x,z) to the grid-snap increment; leave height (y). */
   function snapPoint(p: THREE.Vector3): THREE.Vector3 {

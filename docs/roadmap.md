@@ -455,8 +455,20 @@ once it beats the old one.
 
 - **R26-WORK-QUEUE** *(M)* — the ball-in-court queue as the daily home, acted on inline. The dashboard
   already computes ball-in-court and the SLA feed.
-- **R26-TOOLBAR** *(M)* — the model toolbar carries **24 unlabeled glyphs, all of them, always**. Replace
-  with 5–8 **labeled** contextual verbs + **More**.
+- ✅ **R26-TOOLBAR** *(shipped v0.3.691)* — the model toolbar carried **27 unlabeled glyphs, all of
+  them, always**. It is now **Levels · Section · Measure · Ask** — four labeled verbs on one row —
+  with the other 23 under **More**, grouped and described. Verified live in the running viewer.
+  Nothing removed: the layout pass only moves buttons between two containers, so it *cannot* drop a
+  tool, and one the table does not describe appears under More tagged `data-unlaid` rather than
+  vanishing. Live `unlaid` is 0.
+  The design error worth remembering: treating "always visible" as a predicate that returns true let
+  contextual verbs push **Ask** past the cap the moment you selected something. A verb you learn the
+  position of and then cannot find is worse than one that was never on the bar — pinned verbs now
+  hold fixed positions and contextual ones append.
+- **R26-WALK-DUP** *(S, found by the above)* — there are **two** first-person walk tools, both 🚶,
+  both installed: `envTools` drives the camera per frame and you drag to look; the later R17
+  `walkMode` takes a pointer lock and exits on Esc. Labelling made the duplication legible
+  (*Walk (drag)* / *Walk (locked)*); deciding which survives is a behaviour change and needs one.
 - **R26-ICONS** *(S)* — one monoline icon set at a single weight, state-tinted, replacing coloured emoji.
 - **R26-COLOUR-DISCIPLINE** *(S)* — the primary blue currently marks Open, Save, the selected tab, the
   selected rail item, every KPI number, PDF Takeoff, Paper space and Zoom-to-cursor. **When one colour

@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.691 — the model toolbar: 27 glyphs, always, becomes four words
+
+The audit's most concrete finding was a floating toolbar carrying **27 unlabeled glyphs, all of them,
+always**. Live in the running viewer it is now **Levels · Section · Measure · Ask** — four labeled
+verbs on one 305×24 row — with the other 23 tools under **More**, grouped and described. Nothing was
+removed; every button is still there and still one click away.
+
+Two wrong fixes were available and both were declined. Deleting tools nobody could identify would
+have removed things people use — they were never unusable, only unlabelled. Labelling all 27 would
+have produced a wider wall, and a wall is a wall. What helps is fewer things visible at once, each of
+them readable.
+
+**A glyph without a word is a puzzle.** `⧉`, `✥`, `◧`, `⬚`, `⊞` are not guessable, and a tooltip only
+helps someone who already suspects what the button does. Primary buttons now show a short verb beside
+the glyph — the glyph stays, because it is what a returning user recognises — and More lists the
+label *and* the description, so the long tail is scannable as text rather than as a second grid.
+
+**The bar is contextual, but its pinned verbs never move.** Move, Copy and Edit-in-place appear when
+something is selected and are meaningless otherwise. The first version of the layout table treated
+"always visible" as merely a predicate returning true, which let contextual verbs push **Ask** past
+the cap the moment you selected an element — a verb you learn the position of and then cannot find is
+worse than one that was never on the bar. Pinned verbs now hold fixed positions and contextual ones
+append after them. The test that caught this is the one that asserts it.
+
+**A layout pass cannot lose a tool.** The buttons are still created by the modules that own their
+behaviour; this only moves them between two containers. A button the layout table does not describe
+still appears — under More, tagged `data-unlaid` and logged — because a tool that quietly vanishes
+from a toolbar is indistinguishable from one that was deliberately removed, and the person who
+notices is a user who needed it. Live, `unlaid` is zero: all 27 are accounted for.
+
+Labelling also **surfaced a real duplicate**: two first-person walk tools, both 🚶, both installed,
+sitting next to each other — one drives the camera per frame and you drag to look, the other takes a
+pointer lock and exits on Esc. As two identical glyphs they read as a rendering bug. They are now
+labelled *Walk (drag)* and *Walk (locked)* so the duplication is legible. Which one should survive is
+a behaviour decision, not a layout one, so it is recorded in the roadmap rather than settled here by
+whichever one I happened to keep.
+
 ## v0.3.690 — the Inspector: six states on one key, and three ways of not knowing
 
 Select an element and the lifecycle strip now sits directly under the identity header —

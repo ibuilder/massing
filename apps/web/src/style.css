@@ -164,6 +164,31 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 /* separator between functional groups of toolbar buttons */
 .tool-sep { width: 1px; align-self: stretch; margin: 2px 3px; background: var(--line); flex: 0 0 auto; }
 
+/* R26-TOOLBAR — a handful of LABELED verbs, the rest under More. The glyph is kept beside the word
+   because it is what a returning user recognises; the word is added because ⧉ ✥ ◧ ⬚ are not
+   guessable, and a tooltip only helps someone who already suspects what the button does. */
+#viewer-tools { align-items: flex-start; }
+.vt-primary { display: flex; flex-wrap: wrap; gap: 4px; }
+#viewer-tools .tool-btn { display: inline-flex; align-items: center; gap: 5px; }
+.vt-glyph { font-size: 14px; line-height: 1; }
+.vt-label { font-size: 12px; }
+.vt-more { font-size: 12px; }
+/* the overflow menu: label AND description, so the long tail is scannable as text rather than as a
+   second grid of glyphs — a wider wall of options is still a wall */
+.vt-menu { position: absolute; top: 100%; right: 5px; margin-top: 4px; z-index: 20;
+  min-width: 260px; max-width: 340px; max-height: 60vh; overflow: auto;
+  padding: 6px; border-radius: 8px; border: 1px solid var(--line);
+  background: rgba(43, 45, 49, 0.97); backdrop-filter: blur(4px); box-shadow: 0 6px 20px #0008; }
+.vt-menu[hidden] { display: none; }
+.vt-group + .vt-group { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 6px; }
+.vt-group-h { font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); padding: 2px 4px 4px; }
+#viewer-tools .vt-row { width: 100%; justify-content: flex-start; text-align: left;
+  background: transparent; border-color: transparent; padding: 4px 6px; }
+#viewer-tools .vt-row:hover { background: rgba(255, 255, 255, 0.12); }
+.vt-note { flex: 1 0 100%; padding-left: 19px; font-size: 10px; color: var(--muted);
+  white-space: normal; }
+
 /* CONSTRUCTION / FINANCE: full-width workspaces */
 #ws-construction.active, #ws-finance.active { display: block; }
 #ws-construction { overflow: auto; }
