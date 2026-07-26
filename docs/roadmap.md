@@ -574,7 +574,7 @@ you have thrown the vectors away; we mostly have not. Rasters fall back to "unkn
   [sheet_extract.py](../services/api/src/aec_api/sheet_extract.py), which walks pages via `pypdf` and
   regexes the text layer with no notion of *where on the sheet* anything sits.
 
-* **R27-LAYOUT ② — a takeoff scoped to the view it belongs to.**
+* ✅ **R27-LAYOUT ②** *(shipped v0.3.706)* — **a takeoff scoped to the view it belongs to.**
   [takeoff2d.py](../services/api/src/aec_api/takeoff2d.py) takes `regions` **from the caller** and a
   `scale_units_per_px` **from the caller** — every quantity on a sheet is hand-traced and hand-
   calibrated, and nothing checks that a traced polygon sits inside the view it is being priced

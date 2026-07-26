@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.706 — a measurement belongs to the drawing it was taken from
+
+Quantity takeoff applied **one scale to a whole sheet**. That is correct for a sheet carrying a single
+drawing, and quietly wrong for every other one — a floor plan at 1:100 sitting beside a detail at 1:20
+means the detail gets billed at five times its size. Nothing checked that a traced outline was even on
+a drawing rather than over the titleblock.
+
+Each trace now resolves to one of three things, and **only one of them can be priced**. Inside exactly
+one drawing: measured at *that* drawing's scale. Off every drawing: reported, never quietly billed —
+an area measured across a legend is not an area. Crossing two drawings: reported as ambiguous, because
+two different scales apply to one outline and there is no single right answer, so choosing one would
+be a coin toss dressed as a measurement.
+
+**Screen pixels are not paper points**, and the release turns on not pretending otherwise. Traces come
+from a rendered image; drawing frames are measured on the page. Relating the two needs to know what
+zoom the sheet was rendered at, and that belongs to the caller. Without it, this **refuses to place
+anything** rather than assuming they are the same — an assumption that would drop every trace into the
+corner of the page and report it with complete confidence.
+
+And on a sheet this platform drew, the scale is not something to measure — it is something already
+known. A hand calibration that disagrees with it is now **reported**, so an estimator can see they
+clicked the wrong drawing. The known number is deliberately **not** substituted: the image may
+genuinely have been rescaled on its way in, and replacing somebody's measurement without telling them
+would bury that.
+
 ## v0.3.705 — a project is one file, and the file explains itself
 
 The project container is now **`.mass`**. It was `.mmproj`, a name that read as *Microsoft Project*
