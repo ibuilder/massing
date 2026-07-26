@@ -4,6 +4,33 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.704 — opening a model and opening a project are one act
+
+Until now, opening an IFC ended at the viewer. The model rendered, and every data panel went on
+saying "No project open" — because nothing tied the two together. That split has produced real bugs
+twice in as many releases, so this release closes it rather than patching another instance.
+
+Open a model now and the app works out what that means: **join the project that already holds it**,
+bringing its RFIs, costs, schedule and documents along; **propose a new project** when the server has
+nothing matching; or **stay in the viewer and say why**, when there is no server to talk to at all.
+Opening a model while a project is already open loads it into that project rather than starting a
+rival.
+
+Three deliberate restraints. **Nothing is created silently** — a project is a durable, shared record,
+and minting one for every file somebody previews fills the register with things nobody meant to make,
+so a new project is proposed and confirmed. **A weak match says it is weak**: models are matched by
+file name, and two firms' `Building.ifc` are not the same building, so the prompt states exactly what
+it matched on and asks you to check. And **a failed lookup is never read as "no projects exist"** —
+that would offer to create a project on top of one already there; it falls back to the viewer and
+explains itself.
+
+The decision — join, create, or view — is a pure function with its own tests, kept apart from the
+part that talks to the user and the server, because that is where this kind of thing goes wrong.
+
+Also in this release: the ISO 21597 container format and the RDF library approved for it are now
+recorded in the attributions file, including that the container is implemented from the published
+standard and that no specification text is redistributed.
+
 ## v0.3.703 — the stall was never the geometry
 
 The dev preview has stalled for weeks, and the workaround was written into a checklist as a known

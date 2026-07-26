@@ -120,8 +120,65 @@ for (const kind of ["ifc", "frag", "convert", "ref"] as const) {
       })();
       return;
     }
-    void ensureViewer().then((v) => v.openFile(kind, file));
+    void ensureViewer().then(async (v) => {
+      await v.openFile(kind, file);
+      // R28-UNIFY: a model and a project are one act. Until now this line was the end of the story —
+      // the model rendered and every data panel still said "No project open", which is the split the
+      // whole ring exists to close. Reference models ("ref") are overlays on someone else's project
+      // and deliberately do NOT trigger it.
+      if (kind === "ifc" || kind === "frag") await unifyAfterModelOpen(file.name);
+    });
   });
+}
+
+/**
+ * Tie the model just opened to a project — join an existing one, propose a new one, or explain why
+ * neither is possible. The DECISION lives in `shell/openUnify` as a pure function with its own tests;
+ * this is only the part that talks to the user and the server, so the logic that is easy to get wrong
+ * is not tangled with the part that needs a browser to exercise.
+ */
+async function unifyAfterModelOpen(fileName: string): Promise<void> {
+  const [{ decideModelOpen }, { toast }, { askConfirm }] = await Promise.all([
+    import("./shell/openUnify"), import("./ui/feedback"), import("./ui/prompt"),
+  ]);
+  let known: { id: string; name: string; source_ifc?: string | null }[] = [];
+  if (connected) {
+    // A failed lookup must not be read as "the server has no projects" — that would propose a new
+    // project over the top of an existing one. Fall back to viewer-only and say so.
+    try { known = await api.projects(); } catch {
+      toast("Opened in the viewer — could not reach the project list, so nothing was created", "info");
+      return;
+    }
+  }
+  const d = decideModelOpen({ connected, openProjectId: projectId, fileName, projects: known });
+  if (d.intent === "viewer-only") { toast(`Viewer only — ${d.reason}`, "info"); return; }
+  if (d.intent === "load-into-open") return;                    // already where it belongs; stay quiet
+  if (d.intent === "attach-existing" && d.projectId) {
+    const hit = known.find((p) => p.id === d.projectId);
+    const ok = await askConfirm("Open the project for this model?", {
+      body: `${d.reason}.
+
+Opening “${hit?.name ?? d.projectId}” brings its RFIs, costs, schedule `
+          + "and documents with the model.",
+      okLabel: "Open project", cancelLabel: "Just view the model",
+    });
+    if (ok) window.location.search = `?project=${d.projectId}`;
+    return;
+  }
+  const ok = await askConfirm("Create a project for this model?", {
+    body: `${d.reason}.
+
+A project is where this model's RFIs, costs, schedule and documents live. `
+        + `It will be called “${d.suggestedName}” — you can rename it later.`,
+    okLabel: "Create project", cancelLabel: "Just view the model",
+  });
+  if (!ok) return;
+  try {
+    const p = await api.createProject(d.suggestedName || "Untitled project");
+    window.location.search = `?project=${p.id}`;
+  } catch (err) {
+    toast(`Could not create the project: ${(err as Error).message}`, "error");
+  }
 }
 
 /**

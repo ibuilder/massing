@@ -3,6 +3,25 @@
 Massing is built on open-source work. This file records third-party code or formats we have
 re-implemented or adapted, beyond the dependencies pinned in `requirements.txt` / `package.json`.
 
+## ISO 21597 (ICDD) container format — implemented from the published standard
+
+The project package (`.mmproj` today, an **ISO 21597-1** *Information Container for linked Document
+Delivery* once R28-ICDD lands) is implemented from the **published specification**, not from any
+vendor's code: the container layout (`/Payload documents/`, `/Payload triples/`,
+`/Ontology resources/`, `index.rdf`) and the Part 2 link types are defined by
+[ISO 21597-1:2020](https://www.iso.org/standard/74389.html) and
+[ISO 21597-2:2020](https://www.iso.org/standard/74390.html).
+
+A published standard may be implemented freely; the ISO *documents* are copyrighted and are **not**
+redistributed here — no specification text is copied into this repository, and no clause is
+reproduced beyond the structural names any implementation must use.
+
+**`rdflib` (BSD-3-Clause)** is the RDF library approved for the linkset half of that work. It is
+permissive and compatible with this project's MIT/BSD/Apache-only dependency rule. It is pinned in
+`services/api/requirements.in` **in the change that first uses it** — a dependency carried ahead of
+its code is supply-chain surface with no offsetting benefit, and the lockfile gate requires
+`requirements.lock` to be regenerated in the same commit.
+
 ## Ara3D SDK — format inspiration (MIT)
 
 The columnar BIM data layer and the BFAST/G3D/VIM reader draw on the **[Ara3D SDK](https://github.com/ara3d/ara3d-sdk)**

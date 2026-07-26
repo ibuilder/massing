@@ -34,3 +34,43 @@ export function askText(title: string, opts: {
     setTimeout(() => field.focus(), 0);
   });
 }
+
+/**
+ * A yes/no confirm. Returns true only on the affirmative button — backdrop, Esc and Cancel all
+ * resolve `false`.
+ *
+ * Exists because R28-UNIFY needs to *propose* creating a project rather than minting one silently:
+ * a project is a durable, shared, server-side object, and auto-creating one for every stray file a
+ * user previews fills the register with records nobody meant to make. `askText` was the nearest
+ * existing surface and is the wrong one here — it offers an editable field where there is nothing to
+ * edit, which reads as "change this" when the only real choices are yes and no.
+ */
+export function askConfirm(title: string, opts: {
+  body?: string; okLabel?: string; cancelLabel?: string;
+} = {}): Promise<boolean> {
+  return new Promise((resolve) => {
+    const { card, ov } = modalShell(title, 420);
+    let settled = false;
+    const finish = (v: boolean) => { if (settled) return; settled = true; ov.remove(); resolve(v); };
+    if (opts.body) {
+      const p = document.createElement("div");
+      p.className = "meta"; p.style.cssText = "line-height:1.5;white-space:pre-wrap";
+      p.textContent = opts.body;                       // textContent: the body carries server text
+      card.append(p);
+    }
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:12px";
+    const cancel = document.createElement("button");
+    cancel.className = "tool-btn"; cancel.textContent = opts.cancelLabel ?? "Cancel";
+    cancel.onclick = () => finish(false);
+    const ok = document.createElement("button");
+    ok.className = "file-btn"; ok.textContent = opts.okLabel ?? "OK";
+    ok.onclick = () => finish(true);
+    row.append(cancel, ok); card.append(row);
+    ov.addEventListener("pointerdown", (e) => { if (e.target === ov) finish(false); });
+    document.addEventListener("keydown", function esc(e) {
+      if (e.key === "Escape") { document.removeEventListener("keydown", esc); finish(false); }
+    });
+    setTimeout(() => ok.focus(), 0);
+  });
+}

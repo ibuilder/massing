@@ -637,6 +637,70 @@ you have thrown the vectors away; we mostly have not. Rasters fall back to "unkn
   visible as an override. Deliberately **not** an AI feature: the sources selling "institutional
   memory" all reduce to clean extraction plus safe write-back, both of which we have.
 
+## 📦 R28 — ONE PROJECT, ONE FILE *(research 2026-07-26; the model/project split)*
+
+**The premise check first, because it changes the whole question.** The ask was "should we invent a
+`.mass` file — a zip with everything inside, like a markup tool's bundle?" **We already ship one.**
+`aec_api/bundle.py` defines `.mmproj` (`FORMAT = "aec.mmproj"`): one zip carrying the published
+Fragments tile, the source IFC, **every project-scoped database row** — which is all 130 CRUD modules
+*and* the proforma, since those are `project_id` tables — plus attachment blobs. Import mints a fresh
+project id and remaps foreign keys, so a bundle clones or moves machines cleanly. The app's Open menu
+already lists it. So the container is not the gap; **nobody could tell it existed** is the gap.
+
+**And a standard already defines this shape: ISO 21597 (ICDD).** *Information Container for linked
+Document Delivery* is a zip with `/Payload documents/` (the heterogeneous files), `/Payload triples/`
+(RDF linksets joining them, at document **or object** level), `/Ontology resources/`, and an
+`index.rdf`. Part 2 standardises the link types. That is precisely "model + construction data +
+proforma in one file, with the relationships preserved" — and adopting it is the same bet this
+platform already made with BCF: **a bespoke container round-trips with nothing; a standard one
+round-trips with everyone.** ([ISO 21597-1](https://www.iso.org/standard/74389.html) ·
+[Part 2: link types](https://www.iso.org/standard/74390.html))
+
+**The real defect is conceptual, and it produced two shipped bugs.** Opening a *model* does not open a
+*project*, and opening a *project* does not guarantee a *model*. In v0.3.703 that split surfaced twice:
+the portal rendered "No project open" **while a model sat visibly loaded**, and the Developer tab
+latched itself permanently empty. Both were repaired at the symptom. The cause is that "project" and
+"model" are two states the app keeps having to re-marry, and every feature built on top inherits the
+seam.
+
+* **R28-UNIFY ①** — **one open, one save.** Opening any model creates or attaches a project (with its
+  API data if it exists); opening a project ensures a model exists — **a blank authorable one if
+  there is none**, so a user can start drawing immediately rather than meeting an empty viewer. This
+  is the item that removes the class of bug, not the two instances of it.
+* **R28-BUNDLE ② — make `.mmproj` legible.** It already carries the data; nothing says so. Name it in
+  the UI, show what a bundle contains before import, and state on export what was included and what
+  was **left out** (`_SKIP_TABLES` drops users, audit log, settings and connections — correct, and
+  currently silent). The same unknown ≠ none rule the engines follow.
+* **R28-ICDD ③ — a standards-conformant envelope.** Emit and read ISO 21597 containers, with our
+  payloads as documents and the GlobalId-keyed relationships as RDF linksets. `.mass` can then simply
+  **be** an ICDD container with our extension — the branding without the lock-in.
+  ✅ **`rdflib` (BSD-3) is APPROVED** *(user, 2026-07-26)* — no longer gated. Licensing is recorded in
+  [ATTRIBUTIONS.md](ATTRIBUTIONS.md), which also states that the container is implemented from the
+  **published standard** and that no ISO specification text is redistributed. The dependency is pinned
+  in `requirements.in` **in the change that first uses it**, with `requirements.lock` regenerated in the
+  same commit — the lockfile gate fails any push that leaves the two out of step, and a dependency
+  carried ahead of its code is supply-chain surface for no benefit.
+* **R28-VIEWER ④** — the future viewer opens a **container**, not a file. **This is now live and
+  external**: the kernel rebuild is `MassingCloud/massingifc` (private), first commit 2026-07-26 —
+  a framework-agnostic kernel + plugin host with **all fourteen capability families still contracts
+  only**. That is the cheap moment to settle this, and the window closes as families get implemented.
+
+  Its persistence is per-**document** (`{schema, version, savedAt, data}`); there is no **container**
+  concept, so "open a project package" would land as a plugin concern and be retrofitted. A container
+  is a *mechanism*, which by that repo's own first design rule puts it in the kernel, with `.mmproj`
+  and ICDD as adapters. Three further contract-level notes: **project↔model unity** wants to be a
+  kernel contract or the v0.3.703 bug class returns; **selection and markup anchors must key on
+  GlobalId**, never fragment-local ids, or every capability above inherits transient identity; and the
+  **5D/4D contracts should carry provenance** (`quantity_source`/`rate_source`, and the 4D link being
+  the task's *output*) rather than bare values. Also: that repo has **no LICENSE**, which needs
+  settling before this public repo can depend on it.
+
+**Sequencing.** ① first — it is the bug class, needs no dependency and no standard. Then ② which is
+mostly surfacing what exists. ③ is now unblocked and is the interop play, not a prerequisite. ④ falls
+out of ① and ③ and should gate the viewer rebuild.
+
+---
+
 ### ⚙ PERF triage *(external static analysis, 2026-07-26 — verified against the code)*
 
 An external analyser produced eight performance findings. Most of its **facts** check out; two of its
