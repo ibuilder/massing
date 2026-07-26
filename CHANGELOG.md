@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.707 — a note belongs to the drawing it is about
+
+A general note about the floor plan and a note about the section sit centimetres apart on the same
+sheet. Attached to a sheet number, they are indistinguishable, and somebody has to read them to work
+out which drawing each one is talking about — which is exactly why annotations on received drawings
+never reach any downstream tool.
+
+Notes, keynotes and revision clouds now attach to the **view** they govern.
+
+The interesting part is what was *not* built. An annotation and a traced outline ask the identical
+question — which drawing is this on — so this reuses the placement engine that shipped last release
+rather than growing a second one beside it. Two routines answering one question is a guarantee they
+will eventually disagree, and then nobody can say which is right.
+
+A sheet-wide stamp comes back as belonging to **no view**, and that is the correct answer rather than
+a failure: a drawing-number stamp governs the sheet, not any drawing on it. Saying so plainly is the
+difference between a result and a shrug.
+
 ## v0.3.706 — a measurement belongs to the drawing it was taken from
 
 Quantity takeoff applied **one scale to a whole sheet**. That is correct for a sheet carrying a single

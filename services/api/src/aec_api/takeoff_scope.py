@@ -166,3 +166,38 @@ def check_calibration(user_scale_units_per_px: float, scale_denom: int | None, *
                    "substituted automatically: the raster may genuinely have been rescaled on import, "
                    "and overriding a measurement without saying so would hide that."),
     }
+
+
+def scope_annotations(annotations: list[dict[str, Any]], layout: dict[str, Any], *,
+                      px_per_point: float | None = None) -> dict[str, Any]:
+    """R27-LAYOUT ③ — attach each note, keynote or revision cloud to the view it governs.
+
+    A general note that applies to the plan and a note that applies to the section sit centimetres
+    apart on the same sheet, and page number is not enough to tell them apart. Anything anchored to a
+    *sheet* rather than a *view* has to be re-read by a human to know what it is about, which is what
+    keeps received drawings out of every downstream engine.
+
+    **This is deliberately not a new engine.** An annotation and a traced polygon pose the identical
+    question — which drawing is this on — so this maps annotations onto the same region shape and
+    calls `scope`. A point annotation is a one-point region and falls out of the existing ratio test
+    without a special case. Writing a second placement routine would give two answers to one question
+    and guarantee they drift.
+
+    Each annotation is ``{id?, kind?, x, y}`` or ``{id?, kind?, points:[[x,y],…]}`` (a cloud), in
+    **screen pixels**. An annotation over the titleblock comes back `unscoped` — which is correct and
+    common: a drawing-number stamp governs the sheet, not a view.
+    """
+    regions: list[dict[str, Any]] = []
+    for a in (annotations or []):
+        pts = a.get("points")
+        if not pts and a.get("x") is not None and a.get("y") is not None:
+            pts = [[a["x"], a["y"]]]
+        regions.append({"category": a.get("kind") or "note", "points": pts or []})
+    res = scope(regions, layout, px_per_point=px_per_point)
+    for row, a in zip(res["regions"], annotations or [], strict=False):
+        row["annotation_id"] = a.get("id")
+        row["kind"] = a.get("kind") or "note"
+    res["note"] = ("Each annotation is attached to the view it governs, not to the sheet. `unscoped` "
+                   "is a legitimate answer, not a failure: a titleblock stamp or a sheet-wide note "
+                   "governs the sheet rather than any one view. " + res["note"])
+    return res

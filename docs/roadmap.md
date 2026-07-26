@@ -583,7 +583,7 @@ you have thrown the vectors away; we mostly have not. Rasters fall back to "unkn
   rather than only something to accept. **The scale is proposed, never silently applied** — a takeoff
   calibrated by a machine that was wrong is worse than one nobody calibrated, because it looks done.
 
-* **R27-LAYOUT ③ — a note attaches to what it governs.** Once regions exist, a general note, a
+* ✅ **R27-LAYOUT ③** *(shipped v0.3.707)* — **a note attaches to what it governs.** Once regions exist, a general note, a
   keynote and a revision cloud each belong to a *view*, not to a page number. This is what makes
   `keynotes`/`DETAIL-REF` (R21) round-trip against received sheets rather than only our own.
 

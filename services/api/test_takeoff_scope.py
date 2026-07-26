@@ -131,11 +131,48 @@ def test_without_the_render_factor_no_comparison_is_possible():
     assert c["checked"] is False and c["agrees"] is None, c
 
 
+# --- R27-LAYOUT (3): a note attaches to the view it governs -------------------------------------------
+def test_a_note_is_attached_to_the_view_it_governs_not_the_sheet():
+    # A note about the plan and a note about the section sit centimetres apart on one page; a sheet
+    # number cannot tell them apart, which is what keeps received drawings out of every engine.
+    r = ts.scope_annotations(
+        [{"id": "N1", "kind": "keynote", "x": 400, "y": 700},      # → pt (200,350), in the plan
+         {"id": "N2", "kind": "keynote", "x": 2600, "y": 700}],    # → pt (1300,350), in the detail
+        LAYOUT, px_per_point=PPP)
+    assert r["regions"][0]["viewport"] == 0 and r["regions"][0]["annotation_id"] == "N1", r["regions"]
+    assert r["regions"][1]["viewport"] == 1 and r["regions"][1]["kind"] == "keynote", r["regions"]
+
+def test_a_revision_cloud_scopes_by_its_outline():
+    cloud = {"id": "R1", "kind": "cloud",
+             "points": [[400, 700], [800, 700], [800, 900], [400, 900]]}
+    assert ts.scope_annotations([cloud], LAYOUT, px_per_point=PPP)["regions"][0]["viewport"] == 0
+
+def test_a_sheet_wide_stamp_is_UNSCOPED_and_that_is_correct_not_a_failure():
+    # A drawing-number stamp governs the sheet, not any one view. `unscoped` is the right answer here.
+    r = ts.scope_annotations([{"id": "S1", "kind": "stamp", "x": 400, "y": 120}],
+                             LAYOUT, px_per_point=PPP)
+    assert r["regions"][0]["scope"] == "unscoped", r["regions"]
+    assert "governs the sheet rather than any one view" in r["note"], r["note"]
+
+def test_annotation_scoping_reuses_the_SAME_engine_as_traces():
+    # An annotation and a traced polygon pose the identical question -- which drawing is this on. A
+    # second placement routine would give two answers to one question and guarantee they drift.
+    note = {"id": "N", "x": 400, "y": 700}
+    as_region = box(400, 700, 0, 0)
+    a = ts.scope_annotations([note], LAYOUT, px_per_point=PPP)["regions"][0]
+    b = ts.scope([as_region], LAYOUT, px_per_point=PPP)["regions"][0]
+    assert a["scope"] == b["scope"] and a["viewport"] == b["viewport"], (a, b)
+
+def test_annotations_without_the_render_factor_are_unknown_too():
+    r = ts.scope_annotations([{"id": "N", "x": 400, "y": 700}], LAYOUT)
+    assert r["regions"][0]["scope"] == "unknown" and r["priceable"] == 0, r["regions"]
+
+
 for name, fn in sorted(list(globals().items())):
     if name.startswith("test_") and callable(fn):
         fn()
 
-print("R27-LAYOUT (2) OK - a takeoff now belongs to the VIEW it was traced on. takeoff2d applies ONE "
+print("R27-LAYOUT (2)+(3) OK - a takeoff now belongs to the VIEW it was traced on. takeoff2d applies ONE "
       "scale to a whole sheet, which is right for a sheet holding one drawing and quietly wrong for "
       "every other: a plan at 1:100 beside a detail at 1:20 prices the detail fivefold, and nothing "
       "checked a polygon was even ON a drawing rather than in the titleblock. PIXELS ARE NOT POINTS - "
@@ -150,4 +187,10 @@ print("R27-LAYOUT (2) OK - a takeoff now belongs to the VIEW it was traced on. t
       "worth nothing. And on a sheet WE drew, the scale is not something to measure but something we "
       "already know: a calibration that disagrees is REPORTED, and the authored number is NOT "
       "substituted automatically - the raster may genuinely have been rescaled on import, and "
-      "overriding a measurement without saying so would hide that.")
+      "overriding a measurement without saying so would hide that. AND (3): notes, keynotes "
+      "and revision clouds now attach to the VIEW they govern rather than to a sheet number - "
+      "a note about the plan and a note about the section sit centimetres apart on one page. "
+      "That reuses the SAME engine as traces rather than growing a parallel one, because an "
+      "annotation and a polygon pose the identical question and two placement routines would "
+      "give two answers to it and drift. A sheet-wide stamp comes back `unscoped`, which is "
+      "the correct answer and not a failure: it governs the sheet, not any one view.")
