@@ -129,6 +129,25 @@ for bad in ("BUILDING", "", "  ", "construction!"):
         raise AssertionError(f"accepted task_type {bad!r}")
     except ValueError:
         pass
+# A REJECTED WRITE LEAVES THE MODEL AS IT FOUND IT. `model` belongs to the caller, so raising
+# part-way through left an IfcWorkSchedule with no assignment relationship and orphan IfcTasks
+# belonging to no schedule — and a caller following this repo's convention of turning ValueError into
+# a 422 would then save that model. Validation runs over the whole batch before anything is created.
+m5b, w5b = model_with(1)
+before_ids = {e.id() for e in m5b.by_type("IfcRoot")}
+try:
+    fourd_ifc.write_work_schedule(m5b, [
+        {"id": "GOOD", "name": "Fine", "guids": [w5b[0].GlobalId]},
+        {"id": "BAD", "name": "Bad type", "task_type": "NOPE", "guids": []},
+    ])
+    raise AssertionError("accepted a batch containing an invalid task_type")
+except ValueError:
+    pass
+assert {e.id() for e in m5b.by_type("IfcRoot")} == before_ids, "a refused write must create nothing"
+assert not m5b.by_type("IfcWorkSchedule"), m5b.by_type("IfcWorkSchedule")
+assert not m5b.by_type("IfcTask"), m5b.by_type("IfcTask")
+assert fourd_ifc.read_work_schedule(m5b) == []
+
 # ...but the canonical values are accepted, in any case
 m6, _ = model_with(0)
 fourd_ifc.write_work_schedule(m6, [{"id": "X", "name": "X", "task_type": "demolition", "guids": []}])
@@ -156,6 +175,62 @@ for t in src:
 m8, _ = model_with(0)
 res8 = fourd_ifc.write_work_schedule(m8, [])
 assert res8["written"] == 0 and fourd_ifc.read_work_schedule(m8) == []
+
+# ---- REVIEW FIX: a REJECTED write leaves the model exactly as it found it -------------------------
+# task_type was validated INSIDE the write loop, after the IfcWorkSchedule and the earlier IfcTasks
+# had already been created -- so a ValueError left an orphaned schedule carrying no
+# IfcRelAssignsToControl plus tasks belonging to no schedule. `model` is the caller's, and this repo's
+# convention is to turn ValueError into a 422, after which the caller may well go on to save it.
+m10, walls10 = model_with(3)
+g10 = [w.GlobalId for w in walls10]
+try:
+    fourd_ifc.write_work_schedule(m10, [
+        {"id": "R-1", "name": "fine", "start": "2026-09-01", "finish": "2026-09-04",
+         "guids": [g10[0]]},
+        {"id": "R-2", "name": "bad type", "task_type": "NOT_A_REAL_TYPE", "guids": [g10[1]]},
+    ])
+    raise AssertionError("an unrecognised task_type must be refused")
+except ValueError:
+    pass
+assert m10.by_type("IfcTask") == [], "a refused write must not leave tasks behind"
+assert m10.by_type("IfcWorkSchedule") == [], "nor an orphaned schedule"
+assert m10.by_type("IfcRelAssignsToProduct") == [], "nor dangling 4D bindings"
+
+# ---- REVIEW FIX: the MAX_TASKS cap is stated, never silent ----------------------------------------
+# This module argues that dropping work "would make a programme quietly shorter than the project" --
+# and `tasks[:MAX_TASKS]` then did exactly that, with nothing in the return saying so. A caller could
+# only notice by comparing `written` against its own input length. `qto.measure` reports
+# `geometry_capped` and `estimate_diff` reports `truncated` for the same reason.
+m11, _ = model_with(1)
+_over = fourd_ifc.MAX_TASKS + 7
+r11 = fourd_ifc.write_work_schedule(m11, [{"id": f"T{i}"} for i in range(_over)])
+assert r11["written"] == fourd_ifc.MAX_TASKS, r11["written"]
+assert r11["truncated"] == 7, r11["truncated"]
+m12, _ = model_with(1)
+assert fourd_ifc.write_work_schedule(m12, [{"id": "T1"}])["truncated"] == 0, "no cap, no alarm"
+
+# ---- REVIEW FIX: two schedules in one model stay TOLD APART ---------------------------------------
+# The writer groups tasks under a named IfcWorkSchedule via IfcRelAssignsToControl; the reader ignored
+# that relation entirely, so a model holding a baseline AND a current programme -- the ordinary case,
+# the platform has schedule baselines -- read back as one flat list with the two interleaved and no
+# way to separate them. A reader that discards the grouping its own writer created is the one-way door
+# this module exists to close.
+m13, walls13 = model_with(2)
+g13 = [w.GlobalId for w in walls13]
+fourd_ifc.write_work_schedule(m13, [{"id": "B-1", "name": "base", "start": "2026-01-05",
+                                     "finish": "2026-01-09", "guids": [g13[0]]}], name="Baseline")
+fourd_ifc.write_work_schedule(m13, [{"id": "C-1", "name": "curr", "start": "2026-02-02",
+                                     "finish": "2026-02-06", "guids": [g13[1]]}], name="Current")
+back13 = {t["id"]: t for t in fourd_ifc.read_work_schedule(m13)}
+assert set(back13) == {"B-1", "C-1"}, back13
+assert back13["B-1"]["schedule"] == "Baseline", back13["B-1"]
+assert back13["C-1"]["schedule"] == "Current", back13["C-1"]
+assert back13["B-1"]["schedule_id"] != back13["C-1"]["schedule_id"], "distinct schedule GlobalIds"
+# a task written by another tool with no schedule grouping is still reported, not hidden
+m14, _ = model_with(1)
+m14.create_entity("IfcTask", GlobalId=ifcopenshell.guid.new(), Identification="FOREIGN", Name="ext")
+_loose = [t for t in fourd_ifc.read_work_schedule(m14) if t["id"] == "FOREIGN"]
+assert len(_loose) == 1 and _loose[0]["schedule"] is None, _loose
 
 print("R25-TASK-BIND OK - the 4D binding is now written INTO the model rather than held beside it. "
       "The asymmetry this closes is the point: schedule.from_ifc could always READ IfcTask and its "

@@ -4,6 +4,67 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.700 — two estimates, diffed by GlobalId, with every dollar attributed
+
+A code review caught this module lying, and the most useful thing about it is *how* it lied.
+
+**It reconstructed per-element quantities by dividing a line's total evenly across its GlobalIds.**
+Add one wall to an existing line and every *other* wall in it reported as a design change, while the
+new wall took the average rather than its own quantity — on the most ordinary edit an estimate ever
+sees. And `reconciles`, the check written specifically to make this module trustworthy, stayed
+**true** the whole time, because invented numbers sum just as correctly as real ones. A
+self-consistency check is not a correctness check.
+
+`fived.estimate` now emits `by_element` with the exact figures it already had and was discarding, and
+the diff consumes them. Where an input lacks it, the diff **does not fall back to apportionment** — it
+diffs whole cost lines and reports `granularity: "line"`. A coarser true answer beats a finer invented
+one.
+
+"The estimate went up $340k" is not information. *Which elements* moved it, and *why*, is — and
+because both estimates key on GlobalId, the diff can say. That is the whole reason this platform
+refuses to identify elements any other way, and this is the payoff.
+
+**Four causes, because they are four different questions.** `added` and `removed` are scope.
+`requantified` is a design event — the same element and rate, a different quantity. `repriced` is a
+commercial decision — the same element and quantity, a different rate. A number that moved because a
+rate was updated and one that moved because a wall got longer should never sit in the same row;
+collapsing them into "the total changed" is how an estimate review turns into an argument.
+
+**`both` is not a leftover bucket.** When quantity *and* rate move together, apportioning the delta
+across `requantified` and `repriced` produces two numbers that add up correctly and neither of which
+describes what happened. It is reported as one change, with both pairs shown, so the reader can see
+exactly what moved.
+
+**The parts add back to the whole** — and that check is a floor, not a proof. The residual is stated
+either way rather than asserted away. A diff whose parts do not sum to the whole is definitely wrong;
+one that passes has merely not lost money, which the original version demonstrated is compatible with
+being entirely fabricated.
+
+**Five more findings from the same review, all fixed and pinned:** a *quantity* was compared against
+the *money* epsilon with `repriced` as the fall-through, so a pure design change with identical rates
+came back labelled commercial; the small-delta skip ran *before* classification, so a compensating
+change (quantity doubled, rate halved) was asserted to be no change at all; the route 500'd on
+malformed input where its sibling returns 422; duplicate keys overwrote rather than accumulated; and
+`items` was capped at 500 with no truncation flag, so any UI totalling them would disagree with the
+reported delta and have no way to tell why. That last one stings — "no silent caps, say what was
+dropped" is a rule applied three times elsewhere in this session and then broken here.
+
+**Two further bugs surfaced while fixing those.** A code priced at several rates merges into one line
+group, and reporting `unit_cost: None` for it looked conservative while hiding the change entirely —
+no rate movement, no quantity movement, real money unattributed. Putting the rate in the key made the
+money reconcile but reclassified a repricing as a removal plus an addition: scope change, the one
+distinction this module exists to draw. It now compares the *set* of rates, so a shift in the mix at
+unchanged rates reads as a design change. And `write_work_schedule` (v0.3.696) raised part-way through
+on a bad task type, leaving an `IfcWorkSchedule` with no assignment and orphan `IfcTask`s — which a
+caller turning `ValueError` into a 422 would then save. Validation now runs over the whole batch
+before anything is created.
+
+Rounding noise is not a change: the epsilon is a named constant, because an unstated one turns float
+jitter into a line item on a change report. Degenerate inputs are answers rather than crashes — a
+first estimate is all `added`, an abandoned one all `removed`, and every cause is listed with its
+meaning even at zero, so nobody has to wonder whether "removed" was absent because nothing was
+removed or because the key was dropped.
+
 ## v0.3.699 — a rate carries its year, and "no rate" is not "no charge"
 
 v0.3.697 made a quantity say where it came from. An estimate is a rate times a quantity, and a line

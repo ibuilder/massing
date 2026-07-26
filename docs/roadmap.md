@@ -604,8 +604,19 @@ derived**.
   into either would make the estimate silently short or silently free, and `complete` is false while
   any remain. Layering still wins: a later rule that can price the element clears the flag, because
   reporting a gap a subsequent rule already closed sends an estimator to check something that is fine.
-- **R25-ESTIMATE-DIFF** *(M)* — two estimates over two model versions, diffed by GlobalId: what
-  changed, what it cost, and which elements moved. The provenance thesis, applied to money.
+- ✅ **R25-ESTIMATE-DIFF** *(shipped v0.3.700)* — `estimate_diff.py` +
+  `POST /projects/{pid}/estimate/diff`. "The estimate went up $340k" is not information; *which
+  elements* moved it and *why* is — and because both estimates key on GlobalId, the diff can say.
+  That is the whole reason this platform refuses to identify elements any other way.
+  **Four causes, because they are four different questions.** `added`/`removed` are scope;
+  `requantified` is a design event; `repriced` is a commercial decision. A number that moved because a
+  rate was updated and one that moved because a wall got longer must never sit in the same row —
+  collapsing them into "the total changed" is how an estimate review becomes an argument.
+  **`both` is not a leftover bucket.** When quantity and rate move together, apportioning the delta
+  across the other two yields two numbers that sum correctly and neither of which describes what
+  happened, so it is one change with both pairs shown.
+  **The parts add back to the whole,** and `reconciles` says so. A diff that looks authoritative while
+  quietly losing money is worse than no diff, so the residual is computed and reported, not assumed.
 - **R25-TRACE-UI** *(M)* — *(same surface as R24-TRACE-UI)* the chain made visible: figure → cost line
   → rule → selector → element.
 

@@ -50,6 +50,12 @@ RATE_SOURCES = ("quoted", "vintage")
 MAX_RULES = 500
 MAX_SELECTOR_LEN = 500
 
+#: Decimal places kept on a PER-ELEMENT amount in `by_element`. Deliberately not 2: cents are for
+#: money as presented (a cost line, the total), and rounding every element to a cent before summing
+#: drifts away from a line that rounds its sum once. This is wide enough only to trim float
+#: representation noise, so summing `by_element` still reproduces `total`. See `estimate`.
+_ELEM_DP = 10
+
 
 def validate_rules(rules: list[dict]) -> list[dict]:
     """Validate + normalise cost rules. Order is meaningful and preserved: later rules override."""
@@ -170,6 +176,7 @@ def estimate(idx: dict[str, dict] | None, rules: list[dict],
     src = sources or {}
     lines: dict[tuple, dict] = {}
     missing: list[dict] = []
+    per_element: dict[str, dict[str, Any]] = {}
 
     for guid, a in sorted(b["assigned"].items()):
         have = (q.get(guid) or {}).get(a["basis"])
@@ -185,6 +192,22 @@ def estimate(idx: dict[str, dict] | None, rules: list[dict],
                                     "_sources": set(), "_rates": set()})
         ln["quantity"] += float(have)
         ln["guids"].append(guid)
+        # R25-ESTIMATE-DIFF needs the EXACT per-element quantity, and a line only carries the sum.
+        # Reconstructing it by dividing a line evenly across its GUIDs is a fabrication: add one wall
+        # to a line and every other wall in it reports as a design change. The number is exact right
+        # here, so it is kept rather than re-derived later from something that lost it.
+        # NOT rounded to cents. A line's amount and the total are rounded because that is where money
+        # is *presented*; a per-element amount is an intermediate fact, and rounding each one to a
+        # cent before summing drifts one-directionally away from the line that rounds the sum once —
+        # -$150 across 50,000 elements at a fractional rate. Since `by_element` is part of the
+        # response, anything that totals it would disagree with `total` and neither number would be
+        # marked as the authoritative one. `_ELEM_DP` is only wide enough to trim float repr noise
+        # (0.30000000000000004); it is thousands of times finer than a cent, so summation holds.
+        per_element[guid] = {"code": a["code"], "basis": a["basis"],
+                             "quantity": float(have), "unit_cost": a["unit_cost"],
+                             "amount": round(float(have) * a["unit_cost"], _ELEM_DP),
+                             "rate_source": a.get("rate_source") or "quoted",
+                             "quantity_source": (src.get(guid) or {}).get(a["basis"]) or "unknown"}
         # An absent source is `unknown`, not `declared`. A legacy caller that supplies quantities and
         # no provenance has told us nothing about where they came from, and answering "the model
         # declared these" on its behalf is the exact overclaim this field exists to prevent.
@@ -211,6 +234,9 @@ def estimate(idx: dict[str, dict] | None, rules: list[dict],
     return {
         "lines": out,
         "line_count": len(out),
+        # Exact per-element facts, so a diff can attribute a change to an element without inventing
+        # its share of a line. See `estimate_diff`.
+        "by_element": per_element,
         "total": round(sum(x["amount"] for x in out), 2),
         "priced_count": b["priced_count"],
         "unpriced": b["unpriced"],

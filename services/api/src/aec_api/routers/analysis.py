@@ -436,6 +436,37 @@ def cost_estimate(pid: str, body: dict = Body(default={}), db: Session = Depends
         raise HTTPException(422, str(e)) from None
 
 
+@router.post("/projects/{pid}/estimate/diff")
+def estimate_diff_route(pid: str, body: dict = Body(default={}),
+                        _: str = Depends(require_role("viewer"))):
+    """R25-ESTIMATE-DIFF — diff two `/estimate` payloads by GlobalId.
+
+    Body: `{before: <estimate>, after: <estimate>}`. Every dollar of the change is attributed to one
+    of four causes — `added` / `removed` (scope), `requantified` (the design changed) and `repriced`
+    (the estimate changed, not the building) — plus `both` when quantity and rate moved together,
+    which is reported as one change rather than split into two half-truths.
+
+    `reconciles` says whether the attributed deltas add back to the difference in totals. A diff whose
+    parts do not sum to the whole is worse than no diff: it looks authoritative while losing money.
+    """
+    from .. import estimate_diff
+    before, after = body.get("before") or {}, body.get("after") or {}
+    # Validate the shape here rather than letting a malformed payload raise into the global 500
+    # handler and land in the error-log feed. The sibling estimate route converts bad input to 422;
+    # a diff of two things that are not estimates is a caller error, not a server fault.
+    for name, side in (("before", before), ("after", after)):
+        if not isinstance(side, dict):
+            raise HTTPException(422, f"{name} must be an estimate object")
+        if side.get("lines") is not None and not isinstance(side["lines"], list):
+            raise HTTPException(422, f"{name}.lines must be a list")
+        if side.get("by_element") is not None and not isinstance(side["by_element"], dict):
+            raise HTTPException(422, f"{name}.by_element must be an object keyed by GlobalId")
+    try:
+        return estimate_diff.diff(before, after)
+    except (TypeError, ValueError, AttributeError) as e:
+        raise HTTPException(422, f"could not diff these estimates: {e}") from None
+
+
 @router.post("/projects/{pid}/takeoff/2d")
 def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
                _sec: str = Depends(require_role("viewer"))):

@@ -92,20 +92,31 @@ def write_work_schedule(model: ifcopenshell.file, tasks: list[dict[str, Any]],
         if gid:
             by_guid[gid] = e
 
+    batch = tasks[:MAX_TASKS]
+    # VALIDATE EVERYTHING BEFORE CREATING ANYTHING. `model` is owned by the caller, not by this
+    # function, so a ValueError raised part-way through left the file holding an IfcWorkSchedule with
+    # no IfcRelAssignsToControl and a handful of IfcTasks belonging to no schedule — and the caller,
+    # following this repo's own convention of turning ValueError into a 422, would then go on to save
+    # that model. A rejected write must leave the model exactly as it found it.
+    #
+    # ABSENT defaults to CONSTRUCTION — most tasks on a building programme build something, and making
+    # every caller repeat it adds no information. EMPTY does not default: that is somebody who tried
+    # to state a type and failed, and quietly writing CONSTRUCTION over it would put a confident wrong
+    # label in the file. Same distinction `cost_ifc` draws for `basis`.
+    types: list[str] = []
+    for t in batch:
+        raw_type = t.get("task_type")
+        ttype = "CONSTRUCTION" if raw_type is None else str(raw_type).strip().upper()
+        if ttype not in TASK_TYPES:
+            raise ValueError(f"task_type must be one of {sorted(TASK_TYPES)}, got {ttype!r}")
+        types.append(ttype)
+
     schedule = model.create_entity(
         "IfcWorkSchedule", GlobalId=ifcopenshell.guid.new(), OwnerHistory=owner,
         Name=name, PredefinedType=predefined_type)
 
     written, missing, undated = [], [], []
-    for t in tasks[:MAX_TASKS]:
-        # ABSENT defaults to CONSTRUCTION — most tasks on a building programme build something, and
-        # making every caller repeat it adds no information. EMPTY does not default: that is somebody
-        # who tried to state a type and failed, and quietly writing CONSTRUCTION over it would put a
-        # confident wrong label in the file. Same distinction `cost_ifc` draws for `basis`.
-        raw_type = t.get("task_type")
-        ttype = "CONSTRUCTION" if raw_type is None else str(raw_type).strip().upper()
-        if ttype not in TASK_TYPES:
-            raise ValueError(f"task_type must be one of {sorted(TASK_TYPES)}, got {ttype!r}")
+    for t, ttype in zip(batch, types, strict=True):
         task = model.create_entity(
             "IfcTask", GlobalId=ifcopenshell.guid.new(), OwnerHistory=owner,
             Name=str(t.get("name") or t.get("id") or "Task"),
@@ -140,7 +151,14 @@ def write_work_schedule(model: ifcopenshell.file, tasks: list[dict[str, Any]],
 
     return {"schedule": schedule, "tasks": written, "written": len(written),
             "missing_guids": sorted({g for g in missing if g}),
-            "partial_dates": sorted(str(u) for u in undated)}
+            "partial_dates": sorted(str(u) for u in undated),
+            # STATED, not silent. This module argues two paragraphs up that dropping work "would make
+            # a programme quietly shorter than the project, and the caller would find out from a
+            # missed date rather than from a report" — and then `tasks[:MAX_TASKS]` did exactly that.
+            # A caller could only notice by comparing `written` against its own input length, which
+            # nothing prompted it to do. `qto.measure` reports `geometry_capped` and `estimate_diff`
+            # reports `truncated` for the same reason.
+            "truncated": max(0, len(tasks) - MAX_TASKS)}
 
 
 def read_work_schedule(model: ifcopenshell.file) -> list[dict[str, Any]]:
@@ -160,9 +178,28 @@ def read_work_schedule(model: ifcopenshell.file) -> list[dict[str, Any]]:
             if o.is_a("IfcTask"):
                 by_task.setdefault(o.id(), []).append(gid)
 
+    # WHICH programme each task belongs to. `write_work_schedule` groups tasks under a named
+    # IfcWorkSchedule, and this reader used to ignore that relation entirely — so a model holding a
+    # baseline and a current programme (the ordinary case; the platform has schedule baselines) read
+    # back as one flat list with the two interleaved and no way to separate them. A reader that drops
+    # the grouping the writer created is the same one-way door this module was written to close.
+    schedule_of: dict[int, dict[str, Any]] = {}
+    for rel in model.by_type("IfcRelAssignsToControl"):
+        control = getattr(rel, "RelatingControl", None)
+        if control is None or not control.is_a("IfcWorkSchedule"):
+            continue
+        ident = {"schedule": control.Name or "", "schedule_id": control.GlobalId}
+        for o in (rel.RelatedObjects or []):
+            if o.is_a("IfcTask"):
+                schedule_of[o.id()] = ident
+
     out: list[dict[str, Any]] = []
     for task in model.by_type("IfcTask"):
         time = task.TaskTime
+        # A task with no IfcWorkSchedule is reported with schedule=None rather than skipped: a task
+        # written by another tool without grouping is still real work, and hiding it would understate
+        # the programme exactly as truncation would.
+        owner = schedule_of.get(task.id()) or {"schedule": None, "schedule_id": None}
         out.append({
             "id": task.Identification or "",
             "name": task.Name or "",
@@ -170,5 +207,6 @@ def read_work_schedule(model: ifcopenshell.file) -> list[dict[str, Any]]:
             "start": getattr(time, "ScheduleStart", None) if time else None,
             "finish": getattr(time, "ScheduleFinish", None) if time else None,
             "guids": sorted(set(by_task.get(task.id(), []))),
+            **owner,
         })
     return out
