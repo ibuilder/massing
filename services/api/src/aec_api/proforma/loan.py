@@ -24,14 +24,24 @@ def run_construction_loan(monthly_draws: np.ndarray, equity_available: float,
     equity_left = equity_available
     cap = float("inf") if loan_available is None else float(loan_available)
     total_draws = float(monthly_draws.sum()) or 1.0
-    balances, equity_drawn, loan_drawn = [], [], []
+    cash_paid = 0.0
+    balances, equity_drawn, loan_drawn, cash_interest_paid = [], [], [], []
     for draw in monthly_draws:
         # Interest is capitalized BEFORE this month's draw is apportioned: it accrues on the prior
         # month-end balance, and it consumes loan headroom just as a draw does. Splitting it out of
         # the old `balance += interest + from_loan` leaves equity_first/pari_passu bit-identical.
         interest = balance * mrate            # on prior balance (begin-of-period)
-        accrued += interest
-        balance += interest
+        # A commitment is a commitment: interest may only CAPITALIZE while there is headroom under
+        # it. Once the loan is fully drawn the lender does not advance more, so the balance of the
+        # interest is paid in cash by the borrower — which in this model means equity. Without this
+        # the balance ran past its own sizing purely on compounding (~$835k on a $24M/24-month job),
+        # and `effective_ltc` still reported the requested ratio.
+        cap_interest = min(interest, max(0.0, cap - balance))
+        cash_interest = interest - cap_interest
+        accrued += cap_interest               # the reserve funds only what is capitalized
+        cash_paid += cash_interest
+        equity_left -= cash_interest
+        balance += cap_interest
         if funding == "loan_first":
             from_loan = min(draw, max(0.0, cap - balance))
             from_equity = min(draw - from_loan, equity_left)
@@ -50,6 +60,7 @@ def run_construction_loan(monthly_draws: np.ndarray, equity_available: float,
         balances.append(balance)
         equity_drawn.append(from_equity)
         loan_drawn.append(from_loan)
+        cash_interest_paid.append(cash_interest)
     return {
         "ending_balance": balance,
         "accrued_interest": accrued,
@@ -57,4 +68,8 @@ def run_construction_loan(monthly_draws: np.ndarray, equity_available: float,
         "equity_draws": equity_drawn,
         "loan_draws": loan_drawn,
         "equity_deployed": float(sum(equity_drawn)),
+        # Interest that could NOT capitalize because the commitment was full, so the borrower paid it
+        # in cash. Zero on a normally-sized deal; non-zero means the reserve was not big enough.
+        "cash_interest_paid": round(cash_paid, 2),
+        "cash_interest_schedule": cash_interest_paid,
     }

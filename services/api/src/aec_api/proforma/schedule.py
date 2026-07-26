@@ -40,6 +40,17 @@ def spread_line(amount: float, start_month: int, end_month: int, curve: str,
     return sched
 
 
+def _end_month(ln: dict, total_months: int) -> int:
+    """A line's end month, where absent/None means 'runs to the end of construction'.
+
+    Kept in one place because there used to be two answers to this question — the Pydantic schema
+    defaulted `end_month` to 0 while this module defaulted it to `total_months - 1`, and the schema's
+    won for every API caller. A line with start_month > 0 and no end_month was silently zeroed.
+    """
+    e = ln.get("end_month")
+    return total_months - 1 if e is None else int(e)
+
+
 def monthly_uses(cost_lines: list[dict], total_months: int) -> np.ndarray:
     """Sum every cost line's monthly schedule into one uses vector (length total_months)."""
     total = np.zeros(total_months)
@@ -47,8 +58,33 @@ def monthly_uses(cost_lines: list[dict], total_months: int) -> np.ndarray:
         total += spread_line(
             float(ln.get("amount", 0)),
             int(ln.get("start_month", 0)),
-            int(ln.get("end_month", total_months - 1)),
+            _end_month(ln, total_months),
             ln.get("curve", "scurve"),
             total_months,
         )
     return total
+
+
+def unscheduled(cost_lines: list[dict], total_months: int) -> list[dict]:
+    """Lines whose window falls wholly outside the construction period, and the money they carry.
+
+    `spread_line` returns zeros for these, so the amount disappears from the uses vector, from
+    `total_uses`, from the loan sizing and from every return metric — the proforma then reports an IRR
+    for a cheaper project than the one that was entered, and the total still looks like a total. This
+    is the same refusal `fived` makes for an element no rule prices: report it, never silently zero.
+    """
+    out = []
+    for ln in cost_lines:
+        amount = float(ln.get("amount", 0) or 0)
+        if not amount:
+            continue
+        s = max(0, int(ln.get("start_month", 0)))
+        e = min(total_months - 1, _end_month(ln, total_months))
+        if e < s:
+            out.append({"name": ln.get("name"), "category": ln.get("category"),
+                        "amount": round(amount, 2),
+                        "start_month": int(ln.get("start_month", 0)),
+                        "end_month": _end_month(ln, total_months),
+                        "reason": ("window falls outside the construction period "
+                                   f"(0–{total_months - 1})")})
+    return out

@@ -216,4 +216,168 @@ for _f in ("equity_first", "pari_passu"):
 assert abs(_modes["equity_first"]["interest_reserve"] - 995_933) < 500, _modes["equity_first"]
 assert abs(_modes["pari_passu"]["interest_reserve"] - 1_491_138) < 500, _modes["pari_passu"]
 
+# ---- REVIEW FIX: loan fees are charged to the equity CASH FLOW, not just to the S&U table ------------
+# `equity_total = su["equity"] + loan_fees` and lp/gp_contribution both carried the fee, and
+# `total_dev_cost` counted it -- but the equity cash flow never did, so `returns.equity_irr` ignored a
+# cost this model explicitly says the equity funds. The invariant that catches it: the construction
+# leg of the equity cash flow must reconcile to `sources_uses.equity` to the cent.
+_fee_deal = copy.deepcopy(deal)
+_fee_deal["debt"]["points"] = 0.01
+_fr = solve(_fee_deal)
+_C = int(_fee_deal["timing"]["construction_months"])
+_constr_leg = -sum(x for x in _fr["cash_flow"]["equity"][:_C] if x < 0)
+assert _fr["sources_uses"]["loan_fees"] > 0, _fr["sources_uses"]
+assert abs(_constr_leg - _fr["sources_uses"]["equity"]) < 0.02, (
+    _constr_leg, _fr["sources_uses"]["equity"], "construction equity leg must include the loan fee")
+
+# charging a real cost can only LOWER the levered return
+_nofee = copy.deepcopy(_fee_deal)
+_nofee["debt"]["points"] = 0.0
+_nr = solve(_nofee)
+assert _fr["returns"]["equity_irr"] < _nr["returns"]["equity_irr"], (
+    _fr["returns"]["equity_irr"], _nr["returns"]["equity_irr"])
+assert _fr["returns"]["equity_multiple"] < _nr["returns"]["equity_multiple"]
+
+# ...and must NOT move the unlevered return: a financing cost is not a project cost, so the fee
+# belongs in eq_cf and never in proj_cf.
+assert abs(_fr["returns"]["project_irr"] - _nr["returns"]["project_irr"]) < 1e-9, (
+    _fr["returns"]["project_irr"], _nr["returns"]["project_irr"])
+
+# NOTE: `returns.equity_irr` and `waterfall.lp_irr` still rest on DIFFERENT capital bases -- the
+# equity cash flow carries lease-up operating deficits as capital calls, while run_waterfall discards
+# negative distributable via max(cash, 0.0), so the waterfall never sees them. Whether those deficits
+# are additional LP/GP contributions that accrue pref is a JV-terms question and is deliberately NOT
+# asserted here. See the review notes.
+
+# ---- REVIEW FIX: a cost line's money is never silently dropped ---------------------------------------
+# TWO defaults answered one question and disagreed: the Pydantic schema had end_month=0 while the
+# engine's own dict default was total_months-1 ("runs to the end of construction"). The schema's won
+# for every API caller, so a line posted with start_month>0 and no end_month got end_month=0,
+# spread_line saw e < s, returned zeros, and the WHOLE line vanished -- from the uses vector, from
+# total_uses, from the loan sizing and from every return metric, with nothing reporting it.
+from aec_api.proforma.schedule import monthly_uses, unscheduled  # noqa: E402
+from aec_api.routers.proforma_schemas import CostLine  # noqa: E402
+
+_cl = CostLine(category="hard", name="Structure", amount=8_000_000, curve="scurve", start_month=3)
+assert _cl.end_month is None, "absent end_month must mean 'to the end of construction', not month 0"
+assert abs(monthly_uses([_cl.model_dump()], 18).sum() - 8_000_000) < 1.0, "line was silently zeroed"
+assert unscheduled([_cl.model_dump()], 18) == [], "a schedulable line is not 'unscheduled'"
+
+# money that genuinely cannot be scheduled (window wholly outside construction) is REPORTED, not
+# dropped -- the same refusal fived makes for an element no rule prices.
+_outside = [{"category": "land", "name": "Land", "amount": 4_000_000, "curve": "upfront",
+             "start_month": 0, "end_month": 0},
+            {"category": "soft", "name": "FF&E", "amount": 2_500_000, "curve": "linear",
+             "start_month": 20, "end_month": 24}]
+_un = unscheduled(_outside, 18)
+assert len(_un) == 1 and _un[0]["name"] == "FF&E", _un
+assert _un[0]["amount"] == 2_500_000, _un
+assert abs(monthly_uses(_outside, 18).sum() - 4_000_000) < 1.0   # it really is excluded
+# ...and solve() surfaces it rather than underwriting a cheaper project in silence
+_deal_out = copy.deepcopy(deal)
+_deal_out["cost_lines"] = _deal_out["cost_lines"] + [
+    {"category": "soft", "name": "Post-completion FF&E", "amount": 2_500_000, "curve": "linear",
+     "start_month": 40, "end_month": 44}]
+_ro = solve(_deal_out)
+assert _ro["sources_uses"]["unscheduled_amount"] == 2_500_000, _ro["sources_uses"]
+assert len(_ro["sources_uses"]["unscheduled_lines"]) == 1, _ro["sources_uses"]
+# a well-formed deal stays quiet -- the signal is only worth having if it is not always on
+assert solve(deal)["sources_uses"]["unscheduled_amount"] == 0
+assert solve(deal)["sources_uses"]["unscheduled_lines"] == []
+
+# ---- RESOLVED #1: preferred return accrual is STATED, not assumed --------------------------------
+# The module documented "compounding" twice and implemented simple accrual on unreturned capital.
+# Both are real deal terms, so it is now an explicit input echoed in the result, defaulted to the
+# documented behaviour. Three unpaid periods on $1,000 @ 10%: simple 300, compounding 331.
+from datetime import date as _d  # noqa: E402
+
+from aec_api.proforma.waterfall import run_waterfall as _rw  # noqa: E402
+
+_pd = [_d(2021, 1, 1), _d(2022, 1, 1), _d(2023, 1, 1), _d(2024, 1, 1)]
+
+
+def _pref_paid(mode):
+    r = _rw([0.0, 0.0, 3000.0], _pd, 1000.0, 0.0, 0.10,
+            [{"hurdle": None, "lp": 0.5, "gp": 0.5}], "american", False, mode)
+    assert r["pref_accrual"] == mode, r["pref_accrual"]
+    return 2 * (r["lp_distributions"] - 2000)        # back out the pref actually paid
+
+
+assert abs(_pref_paid("simple") - 300.0) < 0.01, _pref_paid("simple")
+assert abs(_pref_paid("compounding") - 331.0) < 0.01, _pref_paid("compounding")
+assert _pref_paid("compounding") > _pref_paid("simple"), "compounding must owe the LP more"
+try:
+    _rw([0.0], _pd[:2], 1000.0, 0.0, 0.10, [{"hurdle": None, "lp": 1.0, "gp": 0.0}],
+        "american", False, "nonsense")
+    raise AssertionError("an unknown pref_accrual must be refused, not silently defaulted")
+except ValueError:
+    pass
+
+# ---- RESOLVED #4: an operating shortfall is a CAPITAL CALL that earns pref -----------------------
+# run_waterfall did `remaining = max(cash, 0.0)`, so a negative period vanished: the LP's extra
+# capital never entered the waterfall, pref never accrued on it, and waterfall.lp_irr rested on a
+# smaller base than the deal-level equity IRR computed from the very same deal.
+_call = _rw([-500.0, 0.0, 4000.0], _pd, 900.0, 100.0, 0.08,
+            [{"hurdle": None, "lp": 0.8, "gp": 0.2}], "american", False, "compounding")
+assert abs(_call["lp_capital_calls"] - 450.0) < 0.01, _call["lp_capital_calls"]   # 500 split 90/10
+assert abs(_call["gp_capital_calls"] - 50.0) < 0.01, _call["gp_capital_calls"]
+assert abs(_call["lp_invested"] - 1350.0) < 0.01, _call["lp_invested"]            # 900 + 450
+# the pre-existing invariant must still hold: distributions reconcile to POSITIVE distributable
+assert abs((_call["lp_distributions"] + _call["gp_distributions"])
+           - sum(max(p["distributable"], 0) for p in _call["periods"])) < 5.0, _call
+# a deal with no shortfall reports no calls, so the signal stays meaningful
+_nocall = _rw([100.0, 100.0, 4000.0], _pd, 900.0, 100.0, 0.08,
+              [{"hurdle": None, "lp": 0.8, "gp": 0.2}], "american", False, "compounding")
+assert _nocall["lp_capital_calls"] == 0 and _nocall["gp_capital_calls"] == 0, _nocall
+
+# ---- RESOLVED #2: capitalized interest may not exceed the loan COMMITMENT ------------------------
+# Interest kept capitalizing after the loan was fully drawn, so the balance ran past its own sizing
+# on compounding alone. It is now cash-paid once headroom is gone, and — the part that actually made
+# it converge — the sources & uses fixed point sizes on TOTAL interest, since cash interest is a use
+# that must be funded too.
+from aec_api.proforma.sources_uses import solve_sources_uses as _ssu2  # noqa: E402
+
+_u = np.array([1_000_000.0] * 24)
+for _f in ("equity_first", "pari_passu", "loan_first"):
+    _r = _ssu2(_u, ltc=0.70, annual_rate=0.09, funding=_f)
+    assert _r["loan"]["ending_balance"] <= _r["loan_amount"] + 1000.0, (
+        _f, _r["loan"]["ending_balance"], _r["loan_amount"])
+    # sources must equal uses to the dollar
+    assert abs((_r["loan_amount"] + _r["equity"]) - _r["total_uses"]) < 2.0, (_f, _r["total_uses"])
+    assert abs(_r["interest_reserve"] + _r["cash_interest"] - _r["total_interest"]) < 1.0, _f
+# only the front-loaded profile needs cash-pay interest; the other two fund it from the reserve
+assert _ssu2(_u, ltc=0.70, annual_rate=0.09, funding="equity_first")["cash_interest"] == 0
+assert _ssu2(_u, ltc=0.70, annual_rate=0.09, funding="loan_first")["cash_interest"] > 0
+
+# ---- RESOLVED #3: the re-forecast actually re-forecasts ------------------------------------------
+# `max(budget, actual)` returned the ORIGINAL budget for any line not yet over it, so a line 20% over
+# at the halfway point forecast no overrun at all -- in the module whose stated purpose is to surface
+# exactly that.
+_fc_deal = copy.deepcopy(deal)
+_fc_deal["cost_lines"] = [
+    {"category": "land", "name": "Land", "amount": 4_000_000, "curve": "upfront",
+     "start_month": 0, "end_month": 0},
+    {"category": "hard", "name": "Construction", "amount": 20_000_000, "curve": "scurve",
+     "start_month": 1, "end_month": 17}]
+_hot = reforecast(_fc_deal, [{"actual_to_date": 4_000_000}, {"actual_to_date": 9_000_000}],
+                  as_of_month=6)
+_h = next(L for L in _hot["lines"] if L["category"] == "hard")
+assert _h["actual_to_date"] > _h["budget_to_date"], "fixture must actually be running hot"
+assert _h["variance_to_budget"] > 5_000_000, _h        # old code reported exactly 0 here
+assert _h["forecast_basis"] == "remaining_budget", _h
+assert _hot["irr_delta"] < 0, "a forecast overrun must lower the IRR"
+
+# CPI is available but refuses to speak too early: dividing by a near-zero percent-complete turned a
+# $9M spend against a $1.9M plan into a $96M forecast.
+_cpi = reforecast(_fc_deal, [{"actual_to_date": 4_000_000}, {"actual_to_date": 9_000_000}],
+                  as_of_month=6, method="cpi")
+_hc = next(L for L in _cpi["lines"] if L["category"] == "hard")
+assert _hc["forecast_basis"] == "remaining_budget", "too early for CPI — must fall back"
+assert _hc["forecast_at_completion"] < 40_000_000, _hc["forecast_at_completion"]
+# late enough in the curve, CPI is used and is stated per line
+_late = reforecast(_fc_deal, [{"actual_to_date": 4_000_000}, {"actual_to_date": 22_000_000}],
+                   as_of_month=14, method="cpi")
+_hl = next(L for L in _late["lines"] if L["category"] == "hard")
+assert _hl["forecast_basis"] == "cpi", _hl
+
 print(f"  waterfall: LP IRR {wfr['lp_irr']*100:.1f}% EM {wfr['lp_equity_multiple']} | GP IRR {wfr['gp_irr']*100:.1f}% EM {wfr['gp_equity_multiple']}")

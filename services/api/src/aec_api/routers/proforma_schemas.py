@@ -21,7 +21,13 @@ class CostLine(BaseModel):
     amount: float = 0
     curve: Literal["scurve", "linear", "upfront"] = "scurve"
     start_month: int = 0
-    end_month: int = 0
+    # None = "runs to the end of construction", which is what the engine's own default has always
+    # meant (`monthly_uses` reads `ln.get("end_month", total_months - 1)`). This used to default to 0,
+    # so the two defaults for one field disagreed and the schema's won for every API caller: a line
+    # posted with start_month=3 and no end_month got end_month=0, spread_line saw e < s and returned
+    # zeros, and the whole line vanished from the uses vector, total_uses, the loan sizing and every
+    # return metric — with nothing reporting it. Same line as a raw dict scheduled correctly.
+    end_month: int | None = None
     csi_code: str | None = None
 
 
@@ -65,6 +71,10 @@ class Waterfall(BaseModel):
     pref_rate: float = 0.08
     style: Literal["american", "european"] = "american"
     clawback: bool = False
+    # Whether unpaid preferred return itself earns pref. Both are real deal terms and the difference
+    # is money — over three unpaid periods at 10% it is ~10% more owed to the LP — so it is stated
+    # rather than assumed. Defaults to the behaviour the waterfall has always documented.
+    pref_accrual: Literal["compounding", "simple"] = "compounding"
     tiers: list[Tier]
 
 

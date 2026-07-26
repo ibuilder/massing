@@ -10,7 +10,7 @@ from datetime import date
 
 from . import operations as ops
 from . import returns as ret
-from .schedule import monthly_uses
+from .schedule import monthly_uses, unscheduled
 from .sources_uses import solve_sources_uses
 from .waterfall import run_waterfall
 
@@ -54,6 +54,10 @@ def solve(a: dict) -> dict:
 
     # 1-2-3. cost schedule + sources & uses (resolves interest-reserve circularity)
     uses_ex_int = monthly_uses(a["cost_lines"], C)
+    # Money that could not be scheduled at all is REPORTED, never silently dropped. It is excluded
+    # from the uses vector by construction, so without this the deal would be underwritten on a
+    # smaller budget than was entered and the total would still look like a total.
+    unscheduled_lines = unscheduled(a["cost_lines"], C)
     su = solve_sources_uses(uses_ex_int, float(debt["ltc"]), rate,
                             debt.get("funding", "equity_first"), max_loan=max_loan)
     # which constraint actually bound the loan (LTC if no cap undercut it)
@@ -89,7 +93,17 @@ def solve(a: dict) -> dict:
     for t in range(C):
         d = _add_months(start, t)
         proj_cf.append((d, -float(uses_ex_int[t])))
-        eq_cf.append((d, -float(su["loan"]["equity_draws"][t])))
+        draw = float(su["loan"]["equity_draws"][t])
+        # Loan fees are paid in cash at closing and this model funds them from equity (see
+        # `equity_total`), so they belong in the equity cash flow. They were counted in
+        # `total_dev_cost` and in lp/gp_contribution but never charged to any cash flow, which left
+        # `returns.equity_irr` ignoring a cost the model says the equity paid. They stay OUT of
+        # `proj_cf` on purpose: that flow is unlevered, and a financing cost is not a project cost.
+        if t == 0:
+            draw += loan_fees
+        eq_cf.append((d, -draw))
+    if C == 0 and loan_fees:                 # no construction period: still charge the fee at close
+        eq_cf.append((start, -loan_fees))
     for t in range(ops_m):
         d = _add_months(start, C + t)
         noi = float(noi_monthly[t])
@@ -114,7 +128,8 @@ def solve(a: dict) -> dict:
     wf_dates = [start] + op_dates
     waterfall = run_waterfall(distributable, wf_dates, lp_contrib, gp_contrib,
                               float(wf["pref_rate"]), wf["tiers"],
-                              wf.get("style", "american"), bool(wf.get("clawback", False)))
+                              wf.get("style", "american"), bool(wf.get("clawback", False)),
+                              wf.get("pref_accrual", "compounding"))
 
     return {
         "sources_uses": {
@@ -127,6 +142,11 @@ def solve(a: dict) -> dict:
             "effective_ltc": su["effective_ltc"],
             "lp_contribution": round(lp_contrib, 2),
             "gp_contribution": round(gp_contrib, 2),
+            # Cost lines whose window falls outside construction: their money is NOT in any figure
+            # above. Empty on a well-formed deal; non-empty means the deal is being underwritten on
+            # less than was entered, which is worth seeing rather than discovering from a shortfall.
+            "unscheduled_lines": unscheduled_lines,
+            "unscheduled_amount": round(sum(x["amount"] for x in unscheduled_lines), 2),
         },
         "debt_sizing": {
             # which constraint set the loan, plus the dollar cap each one implies

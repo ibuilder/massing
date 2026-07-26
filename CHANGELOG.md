@@ -4,6 +4,38 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.701 — a lock that holds, or names what stopped it
+
+Dimensional constraints — keep this wall 3000 off that grid, keep these mullions evenly spaced, keep
+this level chain aligned — plus the research ring behind the next stretch of work.
+
+**No new dependency was added.** The backlog had unblocked this item by choosing a Cassowary
+constraint-solver package, reasoning that its inequalities-and-strengths model fits BIM locks. That
+reasoning is right about the *shape* and wrong about the *need*: numpy and scipy are already here, and
+this is a linear least-squares problem with priority tiers, where `lstsq`'s **rank** is the degrees of
+freedom and its **residual** is whether a tier is satisfiable — exactly the two numbers the interface
+wants. The package installs fine; checking whether it was necessary first is the cheaper habit.
+
+**Strength is a tier, not a weight.** A `required` lock is not "a very heavy preference". The first
+implementation blended them into one solve, and a strong preference duly bent a hard lock: a 3000
+constraint came out at 7666. Least squares has no notion of a non-negotiable row — the only way to say
+it is to remove those directions from the search. Each tier is now solved exactly, then frozen into a
+null-space basis that weaker tiers may move within and cannot escape. A preference yielding is the
+system working; a hard lock yielding by a millimetre is what makes people stop trusting locks at all.
+
+**Three things it refuses to do quietly.** An over-constrained system **names** the constraints that
+cannot both hold, rather than satisfying whichever was reached first and leaving geometry that looks
+deliberate. An under-constrained one **reports its degrees of freedom** instead of silently picking one
+of infinitely many solutions — that is how a "solved" sketch drifts on the next edit. And clearances
+are **checked, never enforced**: sliding geometry to satisfy a code minimum would move something a
+person placed on purpose. A conflicted row is also never frozen, since that propagates one modelling
+error into every weaker tier as a phantom lock.
+
+Also in this release: proforma fixes where a loan-first funding order never actually drew on the loan
+and the risk simulation flattered the riskiest deals, and a new research ring covering drawing layout,
+claim provenance, the estimate-to-schedule-of-values gap, and calibrating schedule risk from a
+project's own history rather than from a three-point guess.
+
 ## v0.3.700 — two estimates, diffed by GlobalId, with every dollar attributed
 
 A code review caught this module lying, and the most useful thing about it is *how* it lied.
