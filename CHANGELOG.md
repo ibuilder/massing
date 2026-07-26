@@ -4,6 +4,39 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.695 — the live audit, and the four ways a render audit lies
+
+R26 began with a click-through of the app. Click-throughs do not survive: the next person redoes the
+whole thing, and afterwards nobody can tell whether a pane was blank or merely unmeasured. This turns
+it into an artifact you can run and re-run — `window.__liveAudit()`, dev-only, no behaviour attached.
+
+**Live result: all 7 workspaces render, 0 problems, 0 unknown.**
+
+What is tested here is not "does the app render". It is **does the auditor lie** — and every trap
+below fails in the same direction, toward a false blank, which is the expensive direction because it
+invents defects that then get "fixed".
+
+1. **`innerText` is empty for anything not laid out.** A hidden workspace, a collapsed `<details>`, a
+   pane behind `display:none` — all report no text while perfectly populated. Content is read from
+   `textContent`, and a pane that is not displayed reads **`hidden`**, never `empty`.
+2. **A click rebuilds the nav, detaching any node you were holding.** A reference captured before a
+   click points at nothing, and clicking a detached node silently does nothing — so every workspace
+   after the first would read blank. Everything re-queries by name after every interaction.
+3. **The shell is not the content.** A populated rail beside an empty pane still measures as "has
+   content". The content pane is measured separately, and its absence reads `unknown` — the audit does
+   not know whether that pane has a different structure or is broken, and guessing is worse.
+4. **A pane that is still booting is not an empty pane.** This one was found by running the auditor
+   against the real app: it reported Model, Design and Developer blank, and all three were mid-boot
+   and fully populated seconds later. An empty verdict is now never final on first look — the pane is
+   re-examined, and one that fills reads `slow`, which is a pass.
+
+Two bugs in the auditor itself were caught by its own tests. It first used `offsetParent` to decide
+what was displayed — which is null for every `position: fixed` element, so the floating toolbar and
+every modal would have been reported as invisible by the tool whose entire job is not producing false
+negatives. And `offsetParent` needs a real layout engine, so the guard could not be tested at all. A
+guard against the audit's worst failure mode has to be the best-tested thing in the file, not the
+least; it now walks computed style up the ancestor chain, which is both correct and testable.
+
 ## v0.3.694 — the work queue: what is in your court, in the order it needs you
 
 The **Work** room's whole job, and the last open item in R26 Sprint D. Both halves already existed —

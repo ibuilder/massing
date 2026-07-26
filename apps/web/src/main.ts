@@ -10,6 +10,9 @@ import { modalShell, confirmModal } from "./ui/modal";
 import { openReportCenter } from "./reportCenter";
 import { askText } from "./ui/prompt";
 import { buildMenu, closeMenus } from "./ui/menus";
+// R26-V-LIVE: the repeatable render audit. Lazy + dev-only — it attaches window.__liveAudit() and
+// nothing else; no app behaviour depends on it, and it stays out of the production bundle.
+if (import.meta.env.DEV) void import("./dev/liveAudit").then((m) => m.installLiveAudit());
 import { initCommandPalette, type Command } from "./ui/palette";
 import { buildAuthControl } from "./account/accountUI";
 import { installErrorReporting } from "./errorReporting";

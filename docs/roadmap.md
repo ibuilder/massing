@@ -516,8 +516,21 @@ once it beats the old one.
   asserted, leaving three identities comparing two views of the same absence.
   Coverage is **declared** in `IDENTITIES` and is explicitly not a claim of global consistency — six
   pairs are pinned, and saying more would be the same defect one level up.
-- **R26-V-LIVE** *(M)* — drive the real app and confirm every room, inspector tab and vitals figure
-  renders real data — the method that found the nav-density defects and disproved three false gates.
+- ✅ **R26-V-LIVE** *(shipped v0.3.695)* — a **repeatable** render audit (`window.__liveAudit()`, dev
+  only), not a click-through. Click-throughs do not survive: the next person redoes the whole thing,
+  and afterwards nobody can tell whether a pane was blank or merely unmeasured. Live result: **all 7
+  workspaces ok, 0 problems, 0 unknown.**
+  What is tested is not "does the app render" but **does the auditor lie**. Four traps, all of which
+  fail toward a false blank — the expensive direction, because it invents defects that then get
+  "fixed": `innerText` is empty for anything not laid out · a click rebuilds the nav and detaches held
+  nodes · the shell is not the content pane · **and a pane that is still booting is not an empty
+  pane**. The fourth was found by running the auditor against the real app: it reported Model, Design
+  and Developer blank, and all three were mid-boot and fully populated seconds later. An empty verdict
+  is now never final on first look.
+  Two bugs in the auditor were caught by its own tests: `offsetParent` reports every `position:fixed`
+  element as hidden (so the floating toolbar and every modal would have read as invisible), and it is
+  untestable without a layout engine — a guard against the audit's worst failure mode has to be the
+  best-tested thing in the file, not the least.
 - **R26-V-TIMING** *(M)* — instrument first-task completion per persona against the audit's baseline, so
   the redesign's claim is **measured rather than asserted**.
 
