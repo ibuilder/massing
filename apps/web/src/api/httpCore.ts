@@ -17,9 +17,22 @@ export class HttpCore {
    *  send an Authorization header, so without the cookie every live stream (model/notifications/
    *  pull-plan) resolves anonymous under RBAC and dies in a reconnect loop. Same-origin only (the
    *  nginx prod layout); in cross-origin dev RBAC is off and streams work without it. */
+  /** The current bearer token. Exposed to subclasses so cache keys can be scoped to the identity
+   *  that wrote them — see `recordCache.identityScope`. */
+  protected get authToken() { return this.token; }
+
   setToken(t: string) {
+    const hadSession = !!this.token;
     this.token = t;
     if (t) localStorage.setItem("aec-token", t); else localStorage.removeItem("aec-token");
+    // Signing out must not leave one person's project data readable on the device by whoever signs
+    // in next — a real case here, where a browser is a shared kiosk in a site trailer. Record lists
+    // are the first thing this product persists locally, so this is the first sign-out that has had
+    // anything to erase. Fire-and-forget: a failed clear must never block a sign-out, and the keys
+    // are identity-scoped so leftovers stay unreadable under a different session either way.
+    if (hadSession && !t) {
+      void import("./recordCache").then((m) => m.clearRecordCache()).catch(() => { /* best effort */ });
+    }
     try {
       const secure = location.protocol === "https:" ? "; Secure" : "";
       document.cookie = t

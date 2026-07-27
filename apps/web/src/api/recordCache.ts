@@ -151,7 +151,57 @@ export function freshnessLabel(c: Cached<unknown>): string {
   return `cached ${Math.round(c.ageSeconds / 86400)} d ago`;
 }
 
-/** Cache key for a module's record list. Project-scoped, so two projects never share an entry. */
-export function recordsKey(pid: string, moduleKey: string): string {
-  return `records:${pid}:${moduleKey}`;
+/**
+ * A short, stable, non-reversible tag for the signed-in identity, derived from the session token.
+ *
+ * This exists because record lists are now the first thing in this product that **persists project
+ * data on the device**, and the machine is often shared — a kiosk in a site trailer, a tablet passed
+ * between trades. Keys are scoped by this tag so a cached entry written by one person can never be
+ * *read* by the next, even before any network call has happened to authorize them.
+ *
+ * FNV-1a, not a cryptographic hash: the security boundary is the server, which authorizes every real
+ * fetch. This is defence-in-depth for the offline read path, and the input is a high-entropy token,
+ * so a digest in an enumerable key is not a second place the token can leak from.
+ */
+export function identityScope(token: string): string {
+  if (!token) return "anon";
+  let h = 0x811c9dc5;
+  for (let i = 0; i < token.length; i++) {
+    h ^= token.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
+
+/**
+ * Cache key for a module's record list.
+ *
+ * Scoped by project AND identity: two projects never share an entry, and neither do two people on
+ * one browser. `scope` defaults to "anon" only so tests and unauthenticated demo reads stay simple —
+ * every authenticated caller passes a real one.
+ */
+export function recordsKey(pid: string, moduleKey: string, scope = "anon"): string {
+  return `records:${scope}:${pid}:${moduleKey}`;
+}
+
+/**
+ * Drop every cached record list. Called on sign-out: revoking the session must not leave one
+ * person's project data readable on the device by whoever signs in next.
+ *
+ * Never throws — a failed clear must not block a sign-out, which is the one action a user takes
+ * *because* they want to stop being signed in. The identity scoping above is what makes that safe:
+ * if this fails, the leftover entries are still unreadable under a different session.
+ */
+export async function clearRecordCache(idb?: IDBFactory): Promise<void> {
+  const factory = idb ?? (globalThis as { indexedDB?: IDBFactory }).indexedDB;
+  if (!factory) return;
+  const db = await openDb(factory);
+  if (!db) return;
+  await new Promise<void>((resolve) => {
+    try {
+      const tx = db.transaction(STORE, "readwrite");
+      tx.objectStore(STORE).clear();
+      tx.oncomplete = tx.onerror = tx.onabort = () => resolve();
+    } catch { resolve(); }
+  });
 }

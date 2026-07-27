@@ -2846,9 +2846,9 @@ export class ApiClient extends HttpCore {
   async moduleRecordsCached(
     pid: string, key: string, onFresh?: (rows: ModuleRecord[]) => void,
   ): Promise<Cached<ModuleRecord[]>> {
-    const { recordsKey, swr } = await import("./recordCache");
+    const { identityScope, recordsKey, swr } = await import("./recordCache");
     return swr<ModuleRecord[]>(
-      recordsKey(pid, key),
+      recordsKey(pid, key, identityScope(this.authToken)),
       () => this.json<ModuleRecord[]>(`/projects/${pid}/modules/${key}`),
       onFresh ? { onFresh } : {},
     );

@@ -13,8 +13,8 @@ the 5D/4D spine from R25, and the interaction surface from R26. **What is thin n
 the sheet is still handled as an image with text behind it rather than as data (📐 R27), and the
 structural carry-overs that keep the codebase workable are still outstanding.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**408** suites) · vitest **520** (incl. 152 vendored kernel tests) · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.723**.
+**Status:** CodeQL 0 open alerts · backend suite green (**408** suites) · vitest **525** (incl. 152 vendored kernel tests) · single-source version in
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.724**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
 reverts. R26 is otherwise complete — what gates making it the default is named in that section.
@@ -64,7 +64,19 @@ recently true.
    whole-list readers (`aiassist`, `design`, `ledger`, portal:1850). Deliberately NOT the paged
    `moduleRecordsFiltered` register — every filter permutation is its own key and staleness matters
    more when someone is narrowing a search.
-4. **⚙ PERF-THREADS — bound concurrent MODEL work.** *Build, design settled.* One small semaphore
+4. **🔐 QUEUE-SCOPE — the two offline queues are not identity-scoped.** *Found by the v0.3.724 debug
+   pass; PRE-EXISTING, not new.* `field/field.ts` (`QueuedCapture`: pid, module, data, photo dataURL)
+   and `portal/offlineQueue.ts` (`QueuedUpload`: pid, key, rid, files) both hold **unsent** work keyed
+   only by project. On a shared device the next person sees the previous person's pending captures and
+   uploads — and flushing them posts that work under the *wrong* credentials, which is worse than the
+   read itself. **The naive fix is wrong:** clearing these on sign-out destroys unsent field work.
+   Correct shape is the v0.3.724 one — tag each entry with the identity that created it, so it is
+   inert under anyone else's session and survives until its owner returns. **One open question, and
+   it is a judgement call, not a detail:** what happens to entries already queued at upgrade time,
+   which carry no owner tag. Recommended default — leave legacy entries readable (status quo, no data
+   loss, no new exposure) and scope only new ones, so the unscoped set drains naturally as queues
+   flush. Assigning them to the first session seen after upgrade would be exactly the bug.
+5. **⚙ PERF-THREADS — bound concurrent MODEL work.** *Build, design settled.* One small semaphore
    around the IFC sites only, NOT a global cap — that would throttle ~70 cheap I/O calls to protect
    ~10 expensive ones. Wants a session with room to think about starvation, not an appended hour.
 5. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** *Build.* `rdflib` approved; pin it in the

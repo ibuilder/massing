@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.724 — signing out now clears what was cached, and no two people share a cache
+
+Yesterday's release started keeping record lists on the device so they appear instantly. That was the
+first time this product stored project data locally, and it needed one more thing that was missing:
+signing out did not erase it.
+
+On a shared machine — the tablet in a site trailer, passed between trades — the next person to sign in
+could be shown the previous person's lists, labelled as merely a few minutes old, before any request
+reached the server to check whether they were allowed to see them.
+
+Two changes, and both matter. Signing out now clears the stored lists. And each cached entry is tagged
+with the session that wrote it, so even if that clearing is prevented — a locked-down browser, a crash,
+another tab holding the database — one person's data still cannot be read under someone else's sign-in.
+The second is what makes the first safe to fail.
+
+Clearing never blocks signing out. Stopping being signed in is the one thing that has to work even when
+everything else does not.
+
 ## v0.3.723 — lists that appear at once, and admit when they are from a moment ago
 
 Record lists now show what was there last time immediately, and refresh behind you. Opening a

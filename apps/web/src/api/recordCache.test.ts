@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { freshnessLabel, recordsKey, swr } from "./recordCache";
+import { clearRecordCache, freshnessLabel, identityScope, recordsKey, swr } from "./recordCache";
 
 /** An in-memory stand-in for IndexedDB — enough of the surface that `swr` exercises its real paths. */
 function fakeIdb() {
@@ -12,6 +12,7 @@ function fakeIdb() {
       return req;
     },
     put: (row: { key: string; value: unknown; storedAt: number }) => void rows.set(row.key, row),
+    clear: () => rows.clear(),
   };
   const db = {
     objectStoreNames: { contains: () => true },
@@ -145,5 +146,49 @@ describe("degrading and scoping", () => {
   it("keys are project-scoped, so two projects never share an entry", () => {
     expect(recordsKey("p1", "rfi")).not.toBe(recordsKey("p2", "rfi"));
     expect(recordsKey("p1", "rfi")).not.toBe(recordsKey("p1", "submittal"));
+  });
+});
+
+describe("a shared device", () => {
+  // Record lists are the first thing this product persists on the device, and the device is often a
+  // kiosk in a site trailer. Both halves below are load-bearing: the scoping stops a cross-read, the
+  // clear removes the data. Either alone would leave a real hole.
+
+  it("two identities never share an entry, so a cached read cannot cross users", () => {
+    expect(identityScope("token-A")).not.toBe(identityScope("token-B"));
+    expect(recordsKey("p1", "rfi", identityScope("token-A")))
+      .not.toBe(recordsKey("p1", "rfi", identityScope("token-B")));
+  });
+
+  it("the same session keeps its cache across reloads — scoping must not defeat caching", () => {
+    expect(identityScope("token-A")).toBe(identityScope("token-A"));
+  });
+
+  it("the NEXT person does not get served the last person's records", async () => {
+    const { factory } = fakeIdb();
+    const a = identityScope("token-A"), b = identityScope("token-B");
+    await swr(recordsKey("p1", "rfi", a), async () => ["A's confidential RFI"], { idb: factory });
+    await flush();
+
+    const bFetch = vi.fn(async () => ["B's own data"]);
+    const r = await swr(recordsKey("p1", "rfi", b), bFetch, { idb: factory });
+    expect(r.value).toEqual(["B's own data"]);
+    expect(r.fresh).toBe(true);                       // went to the server, which authorized it
+    expect(bFetch).toHaveBeenCalled();                // NOT served from A's cached copy
+  });
+
+  it("signing out erases the cached records, not just the token", async () => {
+    const { factory, rows } = fakeIdb();
+    await swr(recordsKey("p1", "rfi", identityScope("t")), async () => ["x"], { idb: factory });
+    await flush();
+    expect(rows.size).toBe(1);
+    await clearRecordCache(factory);
+    expect(rows.size).toBe(0);
+  });
+
+  it("a clear that cannot run does not throw — sign-out must never be blocked", async () => {
+    const broken = { open: () => { throw new Error("denied by policy"); } } as unknown as IDBFactory;
+    await expect(clearRecordCache(broken)).resolves.toBeUndefined();
+    await expect(clearRecordCache(undefined as unknown as IDBFactory)).resolves.toBeUndefined();
   });
 });
