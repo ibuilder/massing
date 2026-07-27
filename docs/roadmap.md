@@ -13,8 +13,8 @@ the 5D/4D spine from R25, and the interaction surface from R26. **What is thin n
 the sheet is still handled as an image with text behind it rather than as data (📐 R27), and the
 structural carry-overs that keep the codebase workable are still outstanding.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**403** suites) · vitest **475** (incl. 152 vendored kernel tests) · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.716**.
+**Status:** CodeQL 0 open alerts · backend suite green (**403** suites) · vitest **482** (incl. 152 vendored kernel tests) · single-source version in
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.717**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
 reverts. R26 is otherwise complete — what gates making it the default is named in that section.
@@ -42,13 +42,15 @@ request can arrive.
 So the ordering below puts **reachability and evidence above new capability**, and will stay that way
 until the backlog of built-but-uncallable work is zero.
 
-1. **🧩 KERNEL-ADOPT ② — the next capability onto the kernel.** ① shipped v0.3.713: the **identity
+1. **🧩 KERNEL-ADOPT ③ — the next capability onto the kernel.** ① shipped v0.3.713: the **identity
    boundary** (`src/kernel/elementRef.ts`), on the vendored `ElementRef` contract, called by
    `selectionSets` and surfaced by the viewer. It closed a real defect — GlobalIds that resolved to
    nothing were dropped silently — and it is the seam every later capability crosses, which is why it
-   went first rather than a feature move. **Next:** a real plugin through the plugin host (markup/pins
-   is the cleanest candidate: already GlobalId-anchored, already outside `app.ts`). Then command-bus
-   undo, which `app.ts` currently has no general answer for.
+   went first rather than a feature move. ② shipped v0.3.717: markup as a real plugin through the
+   plugin host, chosen because `reloadModelPins` was awaited unguarded on the panel-build path — a
+   pins failure aborted the rest of the build silently. **Command-bus undo is NOT the next candidate:
+   checked, and we already have model-level undo via versioned source IFC, which is stronger for
+   authoring.** Pick ③ from a real pain, not from the kernel's feature list.
 2. **🔓 UN-VENDOR the kernel — needs the packages published where npm can reach them.** The reason for vendoring was that a
    public repo cannot install from a private one without a CI credential. That reason is gone, so the
    The private-repo blocker is gone and **all four upstream issues are closed (PR #5, v0.3.716)**, so

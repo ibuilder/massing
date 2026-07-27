@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.717 — pins that fail to load no longer take the rest of the panel with them
+
+Markup now runs as an isolated capability on the adopted kernel, and it was chosen for that over
+tidier candidates because of a real defect: loading pins was awaited without a guard while the
+project panels were being built. One unreachable request, one malformed record, and the failure
+escaped pin loading and abandoned everything queued behind it — with nothing on screen to say why.
+The visible result was a panel that came up half-built, which reads as a rendering bug rather than as
+a network error, so the symptom pointed away from the cause.
+
+Failure is now a reported outcome rather than an escape. You get told the pins did not load, and
+everything else still runs.
+
+**A count is carried through rather than discarded.** An overlay with no pins on it looks exactly the
+same whether the project genuinely has none or the request quietly returned nothing, and only one of
+those is worth anybody's attention — so the number placed is now part of the answer.
+
+**What was deliberately not done:** the pin overlay itself is untouched. It keeps its behaviour, its
+markers and its tests. The new layer owns only *when it runs and what happens when it fails*, which
+is what adopting an architecture over working code is supposed to look like — the alternative,
+rewriting a working feature to prove a point about structure, is how you lose the parts that were
+already right.
+
 ## v0.3.716 — the known gaps in the adopted kernel are closed, upstream
 
 Adopting the platform kernel four releases ago surfaced four defects, each recorded here at the time

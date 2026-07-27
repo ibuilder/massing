@@ -39,7 +39,11 @@ import { type LogisticsResource } from "../api/client";
 import { DraftProxyLayer } from "./draft/draftProxy";
 import { populate4dPanel } from "./fourD";
 import { TransformGizmo } from "./draft/transformGizmo";
+import { createTestHarness } from "@massingifc/plugin-sdk";
+
 import { modelIdMapFromRefs } from "../kernel/elementRef";
+import { markupPlugin, reloadMarkup } from "../kernel/markupPlugin";
+import type { ModulePin } from "../api/types";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type DisciplineTree, type ElementProps, type PropLayer, type PropMapRule, type Topic } from "../api/client";
 import { escapeHtml, fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
@@ -1189,13 +1193,36 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     host.appendChild(wrap);
   }
 
+  // KERNEL-ADOPT ②: markup runs as a kernel plugin. Lazily built because the pin overlay and the
+  // click handler only exist once the viewer has, and a kernel per viewer instance is correct —
+  // nothing here is global state.
+  let markupKernel: ReturnType<typeof createTestHarness> | null = null;
+  async function markupCommands() {
+    if (!markupKernel) {
+      markupKernel = createTestHarness();
+      await markupKernel.load(markupPlugin({
+        pins,
+        onPinClick: async (p: ModulePin) => {
+          if (p.element_guids?.[0]) await selectByGuid(p.element_guids[0], true);
+          setStatus(`${p.ref} · ${p.module_name} · ${p.status}`);
+        },
+      }));
+    }
+    return markupKernel.kernel.commands;
+  }
+
+  /**
+   * Reload pins, and REPORT a failure rather than propagating it.
+   *
+   * This used to `await pins.load(...)` bare, so one 503 or a single malformed record aborted
+   * whatever the caller had queued after it — the panel build, the issue refresh — with nothing on
+   * screen explaining why. Going through the kernel command bus turns that throw into a Result: the
+   * user is told the pins did not load, and the rest of the setup still runs.
+   */
   async function reloadModelPins() {
     if (!projectId) return;
-    await pins.load(projectId);
-    await pins.loadModulePins(projectId, async (pin) => {
-      if (pin.element_guids?.[0]) await selectByGuid(pin.element_guids[0], true);
-      setStatus(`${pin.ref} · ${pin.module_name} · ${pin.status}`);
-    });
+    const outcome = await reloadMarkup(await markupCommands(), projectId);
+    if (!outcome.ok) notify(`pins did not load — ${outcome.detail}`, "error");
   }
 
   /** Federation list: every loaded model with a visibility toggle + remove. Repopulates the
