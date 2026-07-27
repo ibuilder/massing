@@ -4,6 +4,33 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.719 — the licence rule is enforced by the build, and the new navigation is proven complete
+
+**The "no GPL/AGPL" rule now fails a build instead of relying on someone remembering.** The classifier
+and the audit had been sitting in the codebase with their own tests and nothing calling them — the
+same shape as the money helpers fixed last release: a mechanism written to enforce something,
+enforcing nothing. It is wired to the test suite now, and a dependency that arrives under a
+disallowed licence fails on the change that introduces it, naming the package.
+
+Building it produced one finding worth acting on. A GPL-licensed package ships in our dependency tree,
+arriving as a required component of a permissively-licensed library we do use — which is exactly why
+a check against the names in our own dependency file would have missed it, and did. **We do not need
+it:** the library we depend on is itself permissively licensed, we use only its validation half, and
+that half never loads the GPL component; our own handling of that file format is our own code. The
+remaining step is to leave it out of the packaged builds, which is a packaging change rather than a
+code one. Two guards hold the code side meanwhile.
+
+**The redesigned navigation is proven to have lost nothing.** With the five rooms now the default, a
+destination reachable in the old layout and in no room would be a feature that silently left the
+product. All 46 are placed, no workspace loses anything, every workspace now reaches the entire
+catalogue rather than its own slice, and no room is an empty heading. Written up in a document you can
+read against your own memory of the old layout, and held by a test proven to fail when a destination
+is orphaned.
+
+Two observations came out of it, both about shape rather than loss: the room most people land in is
+the thinnest, and two entries sit in a room that is arguable. Neither is worth changing on instinct —
+they want real usage data, and they are recorded rather than acted on.
+
 ## v0.3.718 — the new rail no longer disappears when a request fails, and a split total adds up
 
 **Fixed — the redesigned navigation silently reverted to the old one.** Its room layout is fetched

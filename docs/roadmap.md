@@ -13,8 +13,8 @@ the 5D/4D spine from R25, and the interaction surface from R26. **What is thin n
 the sheet is still handled as an image with text behind it rather than as data (📐 R27), and the
 structural carry-overs that keep the codebase workable are still outstanding.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**404** suites) · vitest **486** (incl. 152 vendored kernel tests) · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.718**.
+**Status:** CodeQL 0 open alerts · backend suite green (**405** suites) · vitest **500** (incl. 152 vendored kernel tests) · single-source version in
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.719**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
 reverts. R26 is otherwise complete — what gates making it the default is named in that section.
@@ -68,20 +68,34 @@ until the backlog of built-but-uncallable work is zero.
    calls — most are display rounding where drift is invisible. The ones worth finding are the other
    places that **split or prorate a total**; `project_budget.py:102` (`per = bud / len(months)`) and
    `resource_loading.py:98` are the next candidates.
-4. **🧹 supply_chain — the last declared gap.** Tested, imported by nothing, so whatever it checks is
-   not being checked. Wire it or delete it; leaving it is the third option and the worst one.
-5. **⚙ SPRINT B — PERF-WORKERS / PERF-RATE / PERF-THREADS.** Verified against the code, not adopted
+4. **🧭 LAYOUT-IA — the two findings the parity audit produced.** Parity itself is **DONE** and
+   asserted ([layout-parity.md](layout-parity.md), `shell/parity.test.ts`): 46 of 46 destinations
+   roomed, nothing lost in any of the 5 workspaces, no empty rooms. What it surfaced is *shape*, not
+   loss: **`work` holds 3 destinations against `model`'s 17**, and it is where most workspaces land —
+   three entries is a thin first impression. And two of `schedule`'s five (*Equipment*, *Resource
+   loading*) are arguably cost-side. Both are judgement calls that want **R26-V-TIMING** data rather
+   than another opinion, so they are recorded, not acted on.
+5. **⚖ LICENSE-BCF — exclude `bcf-client` (GPLv3) from the distributed artifact.** Wiring
+   `supply_chain` into a gate (v0.3.719) found GPLv3 in the shipped dependency closure, arriving as an
+   *unconditional* requirement of `ifctester`. **We do not need it**: `ifctester` is LGPLv3 (fine, same
+   as ifcopenshell), we import only `ifctester.ids`, and that loads zero bcf modules — bcf-client backs
+   ifctester's BCF *reporter*, which we never call; our BCF work is our own `bcf_io.py`. Two guards now
+   hold the code half (`test_license_gate`: first-party must never import it, and ifctester may only be
+   used through `ids`). **What remains is packaging**, not code: PyInstaller `--exclude-module` for the
+   desktop build and an uninstall step after `pip install` in the image. Owner's call because it
+   changes how binaries are built.
+6. **⚙ SPRINT B — PERF-WORKERS / PERF-RATE / PERF-THREADS.** Verified against the code, not adopted
    from the report: two of that report's headline fixes were backwards. PERF-RATE is the sharpest —
    a rate limit that logs `CRITICAL` that it is not working and then starts anyway.
-6. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** `rdflib` approved; `.mass` becomes a
+7. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** `rdflib` approved; `.mass` becomes a
    standards-conformant container. Pin the dependency in the change that first uses it.
-7. **🖼 Demo regeneration.** The captured `GET /modules` snapshot is stale since `expected_finish`
+8. **🖼 Demo regeneration.** The captured `GET /modules` snapshot is stale since `expected_finish`
    landed. A schema change *does* alter what the snapshot captures — an earlier judgement of mine that
    said otherwise was wrong.
-8. **📐 R27 tail** — LAYOUT ①(b) received-sheet detection · CLAIM-TYPE into the Inspector UI ·
+9. **📐 R27 tail** — LAYOUT ①(b) received-sheet detection · CLAIM-TYPE into the Inspector UI ·
    FIRM-MEMORY (org-scoped standards; sequenced last since it is data-scoping, not an engine) ·
    SKILL-GAP (reading, not building).
-9. **🧱 Decomposition & reliability carry-overs** — deferred longest, still real.
+10. **🧱 Decomposition & reliability carry-overs** — deferred longest, still real.
 
 **A standing gate for every sprint from here:** *what did we build that nothing calls?*
 `grep -rn <module> src/aec_api/routers/ src/aec_api/mcp_tools.py` before marking any item done. For a
