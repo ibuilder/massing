@@ -13,8 +13,8 @@ the 5D/4D spine from R25, and the interaction surface from R26. **What is thin n
 the sheet is still handled as an image with text behind it rather than as data (📐 R27), and the
 structural carry-overs that keep the codebase workable are still outstanding.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**402** suites) · vitest **472** (incl. 152 vendored kernel tests) · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.713**.
+**Status:** CodeQL 0 open alerts · backend suite green (**403** suites) · vitest **472** (incl. 152 vendored kernel tests) · single-source version in
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.714**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
 reverts. R26 is otherwise complete — what gates making it the default is named in that section.
@@ -51,18 +51,23 @@ until the backlog of built-but-uncallable work is zero.
    undo, which `app.ts` currently has no general answer for.
 2. **🏛 Flip the new look on.** R26 is complete and the audit passes under the spine. This is a product
    call now, not a technical one.
-3. **⚙ SPRINT B — PERF-WORKERS / PERF-RATE / PERF-THREADS.** Verified against the code, not adopted
+3. **💵 MONEY-WIRE — `money.py` has a test suite and zero importers.** Found by the new reachability
+   gate (v0.3.714). Decimal helpers written to stop float drift at the cent boundary, wired to
+   nothing, so every currency calculation still drifts. Wiring it is an audit of each call site, not
+   a one-liner — which is why it is tracked here rather than allowlisted away. `supply_chain` is the
+   same shape and smaller.
+4. **⚙ SPRINT B — PERF-WORKERS / PERF-RATE / PERF-THREADS.** Verified against the code, not adopted
    from the report: two of that report's headline fixes were backwards. PERF-RATE is the sharpest —
    a rate limit that logs `CRITICAL` that it is not working and then starts anyway.
-4. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** `rdflib` approved; `.mass` becomes a
+5. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** `rdflib` approved; `.mass` becomes a
    standards-conformant container. Pin the dependency in the change that first uses it.
-5. **🖼 Demo regeneration.** The captured `GET /modules` snapshot is stale since `expected_finish`
+6. **🖼 Demo regeneration.** The captured `GET /modules` snapshot is stale since `expected_finish`
    landed. A schema change *does* alter what the snapshot captures — an earlier judgement of mine that
    said otherwise was wrong.
-6. **📐 R27 tail** — LAYOUT ①(b) received-sheet detection · CLAIM-TYPE into the Inspector UI ·
+7. **📐 R27 tail** — LAYOUT ①(b) received-sheet detection · CLAIM-TYPE into the Inspector UI ·
    FIRM-MEMORY (org-scoped standards; sequenced last since it is data-scoping, not an engine) ·
    SKILL-GAP (reading, not building).
-7. **🧱 Decomposition & reliability carry-overs** — deferred longest, still real.
+8. **🧱 Decomposition & reliability carry-overs** — deferred longest, still real.
 
 **A standing gate for every sprint from here:** *what did we build that nothing calls?*
 `grep -rn <module> src/aec_api/routers/ src/aec_api/mcp_tools.py` before marking any item done. For a

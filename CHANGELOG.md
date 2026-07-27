@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.714 — an architectural claim that fails a build instead of ageing into fiction
+
+Two codebases were being built in parallel against shared assumptions, and **every assumption written
+down as prose had drifted** by the time anyone read the other's code: the project-file extension, the
+format identifier, the pinned pair of viewer libraries. Nothing caught any of it, because prose is not
+a gate. Parallel work did not create that drift — it only made it fast.
+
+**A check that a module nobody can call is a module nobody can call.** Across the previous ten
+releases, seven things shipped fully tested, CI-green and unreachable — no route, no tool, no caller.
+From the outside that is indistinguishable from a working feature, which is why it survived so long:
+every gate measures whether the code works, and none measured whether a request can arrive. That
+check was a note; it is now part of the test suite. It walks the import graph from every route, tool
+and entry point, and anything it cannot reach must be declared along with the reason. Declaring
+something is not a way to hide it — a declared gap that later becomes reachable fails too, so the
+list cannot quietly become a place where work is parked and forgotten.
+
+It found two more on its first run. **Decimal-precise currency helpers, with their own test suite and
+no callers at all** — so the rounding drift they exist to prevent is still present everywhere money
+is actually computed. And a set of supply-chain hardening checks that nothing invokes, meaning
+whatever they verify is not being verified.
+
+**Fixed — a weak identifier that looked exactly like a strong one.** The adopted kernel's id
+generator fell back to non-cryptographic randomness on hosts lacking the modern API, returning a
+predictable value shaped identically to a secure one. Reachable only on exotic platforms, but the
+contract was the problem: a general-purpose id generator cannot know whether a caller will use its
+output as an internal key or as a share link. It now uses cryptographic randomness, and refuses
+outright rather than quietly returning something weaker. Reported upstream.
+
 ## v0.3.713 — a selection that cannot find an element now says so
 
 The first capability to sit on the newly adopted kernel, and deliberately the identity one: every

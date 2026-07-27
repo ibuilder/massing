@@ -14,12 +14,19 @@ the build hermetic. (Same reasoning as the vendored Lucide icons.)
 
 ## Re-syncing
 
-## Local deviations from upstream — exactly one
+## Local deviations from upstream — two
 
 `core-kernel/commands.ts` line 4: the unused `ok` import is removed. It is genuinely dead upstream
 (every other `ok` in that file is `.ok` **property access** on a `Result`, not the constructor), and
 this project compiles with `noUnusedLocals` while upstream does not. Reported as upstream #4; delete
 this note when the fix lands and the next re-sync will be clean again.
+
+`plugin-sdk/runtime.ts`: `createUuidIdFactory`'s fallback used `Date.now()` + `Math.random()` when
+`crypto.randomUUID` is absent. CodeQL flags that as `js/insecure-randomness` at **high** severity,
+correctly — `Math.random()` is seeded, not cryptographic. The patch prefers `crypto.getRandomValues`
+and **throws** when neither API exists, rather than returning a predictable id. A general-purpose id
+factory cannot know whether a caller will use an id as a key or as a capability, and one that turns
+out to be a share token is unguessable only by accident. Reported as upstream #4.
 
 Upstream's own `*.test.ts` files are **excluded from `tsc`** (`exclude` in `tsconfig.json`) but are
 still **run by Vitest**. Eight of them fail our typecheck for a reason that is not a defect —

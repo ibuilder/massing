@@ -58,14 +58,32 @@ export function createCountingIdFactory(): IdFactory {
 export function createUuidIdFactory(): IdFactory {
   // Reached through `globalThis` rather than the bare `crypto` binding: this package targets
   // browsers, Node and workers alike, and only the DOM lib declares the global.
-  const host = globalThis as { crypto?: { randomUUID?: () => string } };
+  const host = globalThis as {
+    crypto?: { randomUUID?: () => string; getRandomValues?: (a: Uint8Array) => Uint8Array };
+  };
   return {
     next(prefix) {
       const randomUUID = host.crypto?.randomUUID;
-      const uuid = randomUUID
-        ? randomUUID.call(host.crypto)
-        : `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
-      return `${prefix}-${uuid}`;
+      if (randomUUID) return `${prefix}-${randomUUID.call(host.crypto)}`;
+
+      // LOCAL PATCH (see VENDOR.md): the fallback was `Date.now()` + `Math.random()`, which CodeQL
+      // flags as js/insecure-randomness at high severity — correctly. `Math.random()` is seeded, not
+      // cryptographic, so ids drawn from it are predictable. This is a general-purpose id factory:
+      // it cannot know whether a caller will use an id as a mere key or as a capability, and one
+      // that turns out to be a share token is unguessable only by accident.
+      const values = host.crypto?.getRandomValues;
+      if (values) {
+        const bytes = values.call(host.crypto, new Uint8Array(16));
+        return `${prefix}-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+      }
+
+      // Neither API present: REFUSE. Silently returning a weak id would be indistinguishable from a
+      // strong one at every call site, and would only be discovered by whatever it failed to protect.
+      throw new Error(
+        "createUuidIdFactory: no cryptographic randomness available (crypto.randomUUID and "
+        + "crypto.getRandomValues are both missing). Supply an explicit IdFactory — a predictable "
+        + "id is not a safe default.",
+      );
     },
   };
 }
