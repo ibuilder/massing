@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.726 — more lists appear at once; the ones that must not be cached, are not
+
+The journal-batch register, the concept-render grid and the capital-plan table now show their last
+known contents immediately and refresh behind you, each saying how old what you are looking at is.
+
+The more consequential half of this change is the four places that were left alone. A cached list is
+safe when a person reads it and can see it is a few minutes old. It is not safe when a *control*
+consumes it: the reference dropdown on a form you are about to submit could offer something already
+deleted, and the bid-package picker sits directly in front of sending real invitations to real
+companies. One screen reads its records and then creates a new one if the list looks empty — served
+a stale list, it would quietly make a duplicate. Another shows records beside a live figure in the
+same card, where caching one and not the other would put a current number next to an old one with
+nothing to distinguish them.
+
+So the rule is now written down where the code is: show-and-tell is for reading. Anything that
+writes, sends, or decides asks the server.
+
 ## v0.3.725 — your queued field work is yours, and stays yours
 
 The app holds two queues of work that has not reached the server yet: photos and observations

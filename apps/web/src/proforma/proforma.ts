@@ -570,10 +570,18 @@ export class ProformaUI {
 
     // --- capital plan (CIP) ---------------------------------------------------------------------
     try {
-      const cips = await this.api.moduleRecords(pid, "capital_plan");
+      // Served from cache when we have one. Deliberately NO `onFresh` re-render: this block appends
+      // into the shared panel host and has no container of its own to reset, so repainting it would
+      // duplicate the card. The background revalidation still runs and writes through, so the next
+      // open is current — and the age is shown meanwhile, which is the part that must not be skipped.
+      const { freshnessLabel } = await import("../api/recordCache");
+      const gotCips = await this.api.moduleRecordsCached(pid, "capital_plan");
+      const cips = gotCips.value;
+      const cipNote = freshnessLabel(gotCips);
       if (cips.length) {
         const card = document.createElement("div"); card.className = "fin-card"; card.style.marginTop = "10px";
         card.innerHTML = `<div class="section-title">Capital plan (CIP)</div>`
+          + (cipNote ? `<div class="meta" style="font-size:11px;color:var(--muted)">${cipNote}</div>` : "")
           + `<table class="fin-table"><tr><th style="text-align:left">Ref</th><th style="text-align:left">Item</th>`
           + `<th class="num">Year</th><th class="num">Cost</th><th>Priority</th><th>State</th></tr>`
           + cips.map((r) => {

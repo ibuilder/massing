@@ -225,8 +225,15 @@ export async function renderConceptRender(ctx: PanelContext) {
     const loadList = async () => {
       listWrap.innerHTML = `<div class="meta">loading renders…</div>`;
       try {
-        const recs = await ctx.host.api.moduleRecords(pid, "concept_render");
+        const { freshnessLabel } = await import("../../api/recordCache");
+        const got = await ctx.host.api.moduleRecordsCached(pid, "concept_render", () => void loadList());
+        const recs = got.value;
         listWrap.innerHTML = "";
+        const cachedNote = freshnessLabel(got);
+        if (cachedNote) {
+          listWrap.insertAdjacentHTML("beforeend",
+            `<div class="meta" style="font-size:11px;margin-bottom:6px;color:var(--muted)">${cachedNote} — refreshing…</div>`);
+        }
         if (!recs.length) { listWrap.innerHTML = `<div class="meta">No concept renders yet.</div>`; return; }
         const grid = el("div"); grid.style.cssText = "display:flex;gap:8px;flex-wrap:wrap";
         recs.slice(0, 24).forEach((r) => {

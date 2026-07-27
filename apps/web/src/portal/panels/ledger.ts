@@ -93,9 +93,20 @@ export async function renderLedger(ctx: PanelContext) {
       catch (e) { toast((e as Error).message, "error"); }
     };
     batches.append(newBtn);
-    let recs;
-    try { recs = await ctx.host.api.moduleRecords(pid, "journal_batch"); }
+    let recs; let cachedNote = "";
+    try {
+      // A register the user reopens constantly — show the last answer at once, revalidate behind.
+      const { freshnessLabel } = await import("../../api/recordCache");
+      const got = await ctx.host.api.moduleRecordsCached(pid, "journal_batch", () => void loadBatches());
+      recs = got.value; cachedNote = freshnessLabel(got);
+    }
     catch { batches.insertAdjacentHTML("beforeend", `<div class="meta">No batches yet.</div>`); return; }
+    if (cachedNote) {
+      const stale = el("div", "meta");
+      stale.style.cssText = "font-size:11px;margin-bottom:6px;color:var(--muted)";
+      stale.textContent = `${cachedNote} — refreshing…`;
+      batches.append(stale);
+    }
     if (!recs.length) { batches.insertAdjacentHTML("beforeend", `<div class="meta">No batches yet — freeze one to hand the books to accounting under an approval gate.</div>`); return; }
     for (const r of recs) {
       const d = r.data as Record<string, unknown>;

@@ -14,7 +14,7 @@ the sheet is still handled as an image with text behind it rather than as data (
 structural carry-overs that keep the codebase workable are still outstanding.
 
 **Status:** CodeQL 0 open alerts · backend suite green (**408** suites) · vitest **541** (incl. 152 vendored kernel tests) · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.725**.
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.726**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
 reverts. R26 is otherwise complete — what gates making it the default is named in that section.
@@ -58,12 +58,13 @@ recently true.
    (a) byte-bound both caches with an explicit budget [`cachetools`, MIT]; (b) share baked geometry
    across workers [`diskcache`, Apache-2.0]. Baking is the expensive half, so sharing it shrinks the
    unshareable model cache — affinity may end up not being worth doing.
-3. **🌐 CACHE-JSON ② — widen the consumers.** ① shipped v0.3.723: `recordCache.ts` (IndexedDB +
-   stale-while-revalidate, 10 tests) with `moduleRecordsCached` on the client and the work-order list
-   as the first real consumer, showing "cached N min ago — refreshing…". **Remaining:** the other
-   whole-list readers (`aiassist`, `design`, `ledger`, portal:1850). Deliberately NOT the paged
-   `moduleRecordsFiltered` register — every filter permutation is its own key and staleness matters
-   more when someone is narrowing a search.
+3. ~~**🌐 CACHE-JSON**~~ **DONE v0.3.723 + v0.3.726.** Three read views cached (ledger batches,
+   concept renders, proforma CIP) on top of the work-order list. **The earlier note here was wrong**:
+   it listed `aiassist` and `portal:1850` as consumers, and both are cases that must NEVER be cached.
+   Rule now in the code: SWR is for read views, never for the options of a control that writes or
+   sends. Four sites deliberately excluded — reference dropdowns (write path, no place for a label),
+   the bid-package picker (feeds real invitations), proforma listings (creates on empty → duplicate),
+   turnover certs (mixed freshness in one card).
 4. ~~**🔐 QUEUE-SCOPE**~~ **DONE v0.3.725.** Both offline queues (field captures, portal uploads)
    now tag each entry with its creator and filter reads to it. Legacy untagged entries stay visible
    and are never reassigned — the recommended default, taken. `identityScope` moved to `api/identity.ts`
