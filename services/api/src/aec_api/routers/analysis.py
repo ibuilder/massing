@@ -510,6 +510,84 @@ def estimate_diff_route(pid: str, body: dict = Body(default={}),
         raise HTTPException(422, f"could not diff these estimates: {e}") from None
 
 
+_PRESETS = ("key", "quad", "plan-pair")     # asserted against sheet_layout.presets in test_sheet_layout
+_PAGES = ("A1", "A3", "A4")                 # asserted against drawings.PAGES in test_sheet_layout
+
+# Exported as a constant so no response text is derived from a caught exception (py/stack-trace-exposure).
+_CONSTRAINT_REFUSED = ("constraint set refused: check that every entry is an object with a known "
+                       "`kind` (fix/equal/distance/offset/equal_spacing/min_clearance), that its "
+                       "variables exist, and that the set is within the size limits")
+
+
+@router.post("/projects/{pid}/constraints/solve")
+def constraints_solve(pid: str, body: dict = Body(default={}),
+                      _sec: str = Depends(require_role("viewer"))):
+    """W10-9 / R23-CONSTRAINTS — solve dimensional locks, or name what stopped them.
+
+    Body: `{variables: {name: value}, constraints: [{kind, a, b?, value?, distance?, offset?, vars?,
+    min?, strength?, id?}]}`. Kinds: `fix` · `equal` · `distance` · `offset` · `equal_spacing` ·
+    `min_clearance`. Strengths are **tiers, not weights** — `required` · `strong` · `medium` · `weak`
+    — each satisfied exactly and frozen before the next may move what is left, so a preference can
+    never bend a hard lock by a millimetre.
+
+    Three things it refuses to do quietly. An **over-constrained** system names the constraints that
+    cannot hold rather than satisfying whichever was reached first. An **under-constrained** one
+    reports its remaining degrees of freedom instead of silently picking one of infinitely many
+    solutions. And clearances are **checked, never enforced** — sliding geometry to satisfy a code
+    minimum would move something somebody placed on purpose.
+
+    Shipped as an engine in v0.3.701 and left unreachable until v0.3.711; it solved nothing in
+    between. Pure computation over caller-supplied values — it neither reads nor writes the model.
+    """
+    from aec_data import dim_constraints
+    try:
+        return dim_constraints.solve(body.get("variables") or {}, body.get("constraints") or [])
+    except dim_constraints.ConstraintError:
+        # A fixed message: nothing in the response derives from the caught exception. The refusal is
+        # what the caller needs to act on, and `conflicts` — the interesting case — comes back as a
+        # normal 200 result rather than an error.
+        raise HTTPException(422, _CONSTRAINT_REFUSED) from None
+
+
+@router.get("/projects/{pid}/drawings/sheet-regions")
+def sheet_regions_endpoint(pid: str, preset: str = "key", page: str = "A1",
+                           db: Session = Depends(get_db),
+                           _sec: str = Depends(require_role("viewer"))):
+    """R27-LAYOUT ①(a) — the sheet's **layout layer**: what occupies which rectangle, in page points.
+
+    This is the producer for the `layout` that `POST /takeoff/2d` accepts. Wiring the consumer without
+    it (v0.3.706) left that route asking for something no caller could obtain — the same one-way
+    asymmetry `R25-TASK-BIND` existed to close, reintroduced while closing a different instance of it.
+
+    Each region carries `basis: "authored"` — these **are** the numbers the sheet was drawn with, not a
+    recovery from rendered output — plus the exact page↔world affine, so a takeoff scoped to a viewport
+    needs no calibration step at all. A viewport with no geometry reports `to_page: null`: the mapping
+    is **unknown**, never an identity, since an identity would silently report page points as metres.
+    """
+    from aec_data import sheet_layout
+    from aec_data.drawings import bake, storey_elevations
+
+    # Validate the request BEFORE opening the model. `presets()` falls back to "key" for any
+    # unrecognised name — right for a library, wrong for a route, where a typo would return a
+    # DIFFERENT layout labelled as the one asked for and every page coordinate below it would be
+    # honest about the wrong sheet. Checking it first also means a bad preset reports ITSELF rather
+    # than whatever the model open happened to complain about.
+    if preset not in _PRESETS:
+        raise HTTPException(422, f"unknown viewport preset; known: {', '.join(_PRESETS)}")
+    # `compose_viewports` has the identical silent fallback on page size, and this route ECHOES the
+    # requested page back in its answer — so an unknown size would have returned A1 geometry stamped
+    # with the name of a page it does not fit.
+    if page not in _PAGES:
+        raise HTTPException(422, f"unknown page size; known: {', '.join(_PAGES)}")
+    model = open_source_ifc(db, pid)        # raises the project's own 404/409 when there is no model
+    vps = sheet_layout.presets(preset)
+    layout = sheet_layout.compose_viewports(bake(model), vps, page=page,
+                                            levels=storey_elevations(model))
+    out = sheet_layout.sheet_regions(layout)
+    out["preset"], out["page"] = preset, page
+    return out
+
+
 @router.post("/projects/{pid}/takeoff/2d")
 def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
                _sec: str = Depends(require_role("viewer"))):

@@ -1,8 +1,8 @@
 # Roadmap
 
 The single product roadmap — **open items only**, reconciled + re-prioritized **2026-07-26 at
-v0.3.702**. The 🏛 R26, 💵 R25, 🏢 R19, 🏛 R18 and 🏙 R20 rings and the whole 07-24 NOW list are
-**complete and archived**. Everything ever shipped lives in [roadmap-completed.md](roadmap-completed.md); per-release
+v0.3.711**. The 🏛 R26, 💵 R25, 🏢 R19, 🏛 R18 and 🏙 R20 rings and the whole 07-24 NOW list are
+**complete and archived**; 📐 R27 has shipped six of eight. Everything ever shipped lives in [roadmap-completed.md](roadmap-completed.md); per-release
 detail is in [CHANGELOG.md](../CHANGELOG.md). Supporting detail:
 [production-readiness.md](production-readiness.md) · [gc-portal.md](gc-portal.md) ·
 [ops-dr.md](ops-dr.md) · [mobile.md](mobile.md).
@@ -13,8 +13,8 @@ the 5D/4D spine from R25, and the interaction surface from R26. **What is thin n
 the sheet is still handled as an image with text behind it rather than as data (📐 R27), and the
 structural carry-overs that keep the codebase workable are still outstanding.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**397** suites) · vitest **269** · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-26 at v0.3.702**.
+**Status:** CodeQL 0 open alerts · backend suite green (**402** suites) · vitest **308** · single-source version in
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-26 at v0.3.711**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
 reverts. R26 is otherwise complete — what gates making it the default is named in that section.
@@ -27,26 +27,44 @@ non-gated work**.
 
 ## ▶ NOW — priority order (sprints of large chunks; one full-suite release per sprint)
 
-**Re-prioritized 2026-07-26 at v0.3.702.** Two rings closed (R26, R25) and R27 opened with its two
-cheapest items already shipped. The ordering below reflects what is now actually next — and the top of
-the list is deliberately *not* new capability, because the platform's depth has outrun the evidence
-that it renders:
+**Re-prioritized 2026-07-26 at v0.3.710, after a day that changed what the top of this list should
+be.** The lesson was not about features. Twice over, the thing that looked finished was not:
 
-1. **🏛 Flip the new look on** — the only code-shaped work left is re-running the render audit under
-   the spine and acting on any `compareShells()` regression. R26-ICONS and R26-V-TIMING do **not**
-   gate it (one is polish needing a source decision, the other is an *after* measurement).
-2. **📐 R27-LAYOUT ②③** — takeoff scoped to its viewport, notes attached to what they govern. ①(a)
-   shipped, so the exact scale and region are already available to build on.
-3. **📐 R27-CLAIM-TYPE** — intent / embodiment / evidence / inference as a field the fact spine
-   carries. Generalises what `element_facts` already does for one engine.
-4. **📐 R27-RISK-CALIBRATE** — schedule risk from the project's own baseline-vs-actual instead of a
-   three-point guess, and honest about `n` when there is not enough history.
-5. **🧱 Decomposition & reliability carry-overs** — interleave one per few releases; these have been
-   deferred longest.
-6. **📐 R27-FIRM-MEMORY** — org-scoped standards a project inherits and may override visibly.
+*Our evidence was measuring nothing.* A render audit that had never been pointed at the shell it was
+built for. The same audit scoring an empty-state placeholder as content — a false pass, which ships
+rather than getting investigated. A "browser limitation" that was five handlers blocking the event
+loop. A suite run that never started, indistinguishable from one that passed.
 
-Everything else below keeps its existing position.
+*Our capability was unreachable.* **Seven of eleven things built that day shipped with no route** —
+tested, CI-green, and impossible to call. Every gate here measures the module; none measures whether a
+request can arrive.
 
+So the ordering below puts **reachability and evidence above new capability**, and will stay that way
+until the backlog of built-but-uncallable work is zero.
+
+1. **🏛 Flip the new look on.** R26 is complete and the audit passes under the spine. This is a product
+   call now, not a technical one.
+2. **⚙ SPRINT B — PERF-WORKERS / PERF-RATE / PERF-THREADS.** Verified against the code, not adopted
+   from the report: two of that report's headline fixes were backwards. PERF-RATE is the sharpest —
+   a rate limit that logs `CRITICAL` that it is not working and then starts anyway.
+3. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** `rdflib` approved; `.mass` becomes a
+   standards-conformant container. Pin the dependency in the change that first uses it.
+4. **🖼 Demo regeneration.** The captured `GET /modules` snapshot is stale since `expected_finish`
+   landed. A schema change *does* alter what the snapshot captures — an earlier judgement of mine that
+   said otherwise was wrong.
+5. **📐 R27 tail** — LAYOUT ①(b) received-sheet detection · CLAIM-TYPE into the Inspector UI ·
+   FIRM-MEMORY (org-scoped standards; sequenced last since it is data-scoping, not an engine) ·
+   SKILL-GAP (reading, not building).
+6. **🧱 Decomposition & reliability carry-overs** — deferred longest, still real.
+
+**A standing gate for every sprint from here:** *what did we build that nothing calls?*
+`grep -rn <module> src/aec_api/routers/ src/aec_api/mcp_tools.py` before marking any item done. For a
+frontend module, grep the **view** that should render it, not its own test.
+
+**And one on cadence:** batch items into sprints — one release, one full suite, one CI watch, one code
+review per sprint. Twenty suite runs happened on 2026-07-26 and **seven produced no summary at all**
+(buffering loss, background teardown, a wrong working directory). Always `PYTHONUNBUFFERED=1`, and
+read the **summary line**, never the failure count — `grep -c "^FAIL"` returns 0 when nothing ran.
 
 0b. ◧ **🧱 FAMILY-COMPLETE — enough content to actually build a building** *(all six batches shipped
    v0.3.668–670; the completeness gate is green, depth-within-system continues)*.
@@ -399,39 +417,17 @@ MIT/BSD/Apache list)**, a new Rust binary wheel, and **99.9% agreement is not bi
 must never touch drawing generation, which has to stay deterministic. Would ship behind a flag with a
 per-GlobalId AABB cross-check against the ifcopenshell path.
 
-## 🏛 R26 — THE SPINE *(ring COMPLETE except two items; archived 2026-07-26 at v0.3.702)*
+## 🏛 R26 — THE SPINE *(ring COMPLETE, archived 2026-07-26 at v0.3.710)*
 
-Sprints A–E are **shipped and archived** — see
-[roadmap-completed.md](roadmap-completed.md#-session-v03684702-2026-0725/26--the-spine-the-5d4d-rings-and-the-drawing-layer).
-One health source · one canonical room per module across all 130 · the five-room rail · the Inspector
-strip **and its four tabs** · the ball-in-court work queue · 27 unlabeled glyphs replaced by labeled
-contextual verbs · the enforced colour contract · and all four verification gates.
+Every item shipped, R26-ICONS last (v0.3.708). The render audit **ran under the spine and passed** —
+7/7 workspaces, five rooms, 153 destinations — and it is trustworthy because the false-pass hole was
+closed first.
 
-**The new look is opt-in today** at `?shell=spine` (off by default; `?shell=classic` reverts). Making
-it the **default** is the remaining decision, and it is now gated on judgement rather than on code:
+**Flipping `?shell=spine` to the default is a product call, not a technical gate.** One item remains
+and cannot gate it:
 
-- ✅ **R26-ICONS** *(shipped v0.3.708)* — one monoline set at a single weight, **vendored**, replacing
-  coloured emoji. The backlog framed this as "hand-author ~100 SVGs, or take a licensed package"; that
-  was a false choice. An icon set *is* SVG files, so the 31 we use are copied into `ui/icons.ts` —
-  no npm package, no CDN (which the offline rule demands anyway), and none of the ~1,500 unused icons
-  in the bundle. Lucide, **ISC**; the copyright and permission notice travel in
-  [ATTRIBUTIONS.md](ATTRIBUTIONS.md), which is what ISC requires of copies.
-  **They carry no colour of their own** — every path strokes `currentColor` and fills nothing — so the
-  colour contract from v0.3.692 governs icons automatically and an icon is *structurally incapable* of
-  introducing another meaning for blue. Tests assert no hard-coded colour and no network reference
-  anywhere in the vendored data, that all 27 toolbar verbs resolve to a real icon, and that no icon
-  name is a typo — a typo renders nothing, and nothing looks exactly like "no icon yet".
-- **R26-V-TIMING** *(M — needs real users)* — instrument first-task completion per persona against
-  the audit's baseline, so the redesign's claim is **measured rather than asserted**. Deliberately
-  left open: it is an *after* measurement and cannot gate the thing it measures.
-
-**What the release gate actually was, and how it was found.** `liveAudit.ts` shipped in v0.3.695 with
-**zero references to the spine** — so its headline result, *all 7 workspaces ok, 0 problems, 0
-unknown*, was measured against the **classic** shell and then read as evidence for the redesign it had
-never touched. An audit that does not state its configuration produces results that migrate to the
-wrong claim. Fixed in v0.3.702: every report now carries `shell`, `auditRooms()` judges the five-room
-rail itself, and `compareShells()` names a **regression** — a pane that renders in classic and not
-under the spine — which is the actual gate on flipping the default.
+- **R26-V-TIMING** *(M — needs real users)* — instrument first-task completion per persona against the
+  audit's baseline. Deliberately open: an *after* measurement cannot gate what it measures.
 
 ---
 
@@ -518,21 +514,36 @@ in.** R24 is about making the engine's one real advantage visible.
   persona rather than showing all three to everyone.
 
 
-## 🔌 SPRINT A-2 — the last three engines nobody can call
+## ✅ SPRINT A-2 — the last three engines nobody can call — **SHIPPED v0.3.711**
 
 Sprint A wired four engines that had shipped tested and unreachable. Auditing for the rest found
-**three more**, one of them created during Sprint A itself:
+**three more**, one of them created during Sprint A itself. All three are now reachable, and
+`test_engine_routes` asserts it over real HTTP rather than by importing the module:
 
 * **A2-CONSTRAINTS** — `dim_constraints` (v0.3.701) has **no route and no MCP tool**. The solver is
   fully tested and nothing in the platform can reach it; that entire release is currently inert.
-  Needs `POST /projects/{pid}/constraints/solve`.
+  **Done:** `POST /projects/{pid}/constraints/solve`. A malformed constraint is refused with 422
+  rather than dropped — a lock nobody applied is worse than an error, because the model then looks
+  constrained and is not. (An MCP tool is still open; the route was the blocker.)
 * **A2-SHEET-REGIONS** — `sheet_layout.sheet_regions()` (v0.3.702) is **not exposed**, yet
   `POST /takeoff/2d` now *accepts* a `layout` object. The consumer was wired and the producer was
   not, so a caller has no way to obtain what the route asks for — the same one-way asymmetry
   R25-TASK-BIND existed to close, reintroduced while closing something else.
+  **Done:** `GET /projects/{pid}/drawings/sheet-regions`. One finding along the way — `presets()`
+  falls back to `key` for any unknown name, which is right for a library and wrong for a route, where
+  a typo would return a *different* layout labelled as the one asked for. The route keeps its own
+  whitelist, refuses before opening the model, and `test_sheet_layout` asserts the two lists cannot
+  drift.
 * **A2-ICON-RENDER** — `TOOL_ICON` + `iconFor()` (v0.3.708) are complete and tested, but
   `toolbarView.ts` **never calls them**. The mapping is done; the rendering was never wired, so
   nothing on screen changed. "All 27 verbs mapped" was true and misleading.
+  **Done:** `labelFor()` renders the vendored SVG, falling back to the original emoji glyph and
+  tagging the button `data-glyph-fallback` when a tool has no icon — half a bar of line icons beside
+  half a bar of emoji is ugly but readable, whereas a blank square is a tool the user cannot find.
+  Two traps here. The pre-existing test asserted the *emoji* survived, encoding the old behaviour
+  rather than its intent; it now asserts a mark of either kind. And the new tests passed while
+  silently using a `ToolContext` property that does not exist — **vitest does not typecheck**, so
+  `npm run typecheck` was the only gate that caught it.
 
 **The standing check this produces, to run every sprint:** *what did we build that nothing calls?*
 Of eleven things built on 2026-07-26, **seven were unreachable** — tests passing is not the same as a

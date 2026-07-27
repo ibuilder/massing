@@ -146,6 +146,26 @@ assert ereg["unmeasurable"] == [ev["label"]], ereg["unmeasurable"]
 assert sl.to_world(None, 10.0, 10.0) is None, "refuses rather than guessing"
 assert sl.to_world({"sx": 0.0, "sy": 1.0, "tx": 0.0, "ty": 0.0}, 1.0, 1.0) is None, "degenerate scale"
 
+
+def test_the_route_s_preset_whitelist_matches_the_library_s_real_presets():
+    # `presets()` falls back to "key" for anything it does not know, so the route keeps its own list
+    # to refuse typos. Two lists encoding one fact WILL drift; this is the assertion that says so.
+    from aec_api.routers.analysis import _PRESETS
+    key = sl.presets("key")
+    for name in _PRESETS:
+        assert sl.presets(name) == sl.presets(name), name
+    assert [sl.presets(n) == key for n in _PRESETS] == [True, False, False],         "every named preset but `key` must differ from it, or the whitelist has a name the library lost"
+    assert sl.presets("no-such-preset") == key, "the fallback the route exists to catch"
+
+    # Same silent fallback on PAGE SIZE, and the route echoes the requested page back in its answer —
+    # so an unknown size would have returned A1 geometry stamped with a page name it does not fit.
+    from aec_api.routers.analysis import _PAGES
+    from aec_data.drawings import PAGES
+    assert set(_PAGES) == set(PAGES), (sorted(_PAGES), sorted(PAGES))
+
+
+test_the_route_s_preset_whitelist_matches_the_library_s_real_presets()   # straight-line file: no collector runs it
+
 print("SHEET-VIEWPORTS OK - Liang-Barsky clip (crossing kept, exit/re-enter splits, outside dropped); "
       "presets complete; fixed 1:50 viewport places at true paper scale and clips INSIDE its rect while "
       "the fit viewport still fits; per-viewport class freeze filters linework; SVG + PDF render through "

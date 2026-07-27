@@ -10,7 +10,8 @@
  * under More, tagged — because a tool that quietly vanishes from a toolbar looks exactly like one
  * that was deliberately removed, and the next person to notice is a user who needed it.
  */
-import { GROUP_LABELS, type ToolContext, TOOLS, describe, primaryTitles, specFor, unlaidTitles } from "./toolbarLayout";
+import { icon } from "../ui/icons";
+import { GROUP_LABELS, type ToolContext, TOOLS, describe, iconFor, primaryTitles, specFor, unlaidTitles } from "./toolbarLayout";
 
 export interface ToolbarView {
   /** Re-lay the bar for a new context (selection gained/lost, capability changed). */
@@ -72,12 +73,28 @@ export function installToolbarView(host: HTMLElement): ToolbarView {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !menu.hidden) setOpen(false); });
 
   function labelFor(b: HTMLButtonElement, text: string | null) {
-    // The glyph stays: it is what a returning user recognises, and dropping it would make the
-    // relabelled bar unfamiliar to everyone who had learned the old one.
+    // A mark stays: it is what a returning user recognises, and dropping it would make the relabelled
+    // bar unfamiliar to everyone who had learned the old one. Which mark depends on what we have —
+    // the vendored line icon when `TOOL_ICON` names one, the original emoji glyph when it does not.
+    //
+    // The fallback is not a nicety. Half a bar of crisp line icons beside half a bar of emoji is
+    // ugly but READABLE; a blank square is a tool the user can no longer find. And R26-ICONS's own
+    // test asserts every laid-out label resolves, so the fallback should stay unreached — if it ever
+    // fires, `data-glyph-fallback` on the button says which tool fell through rather than leaving
+    // the mismatch to be noticed by eye.
     b.replaceChildren();
-    const g = document.createElement("span");
-    g.className = "vt-glyph"; g.textContent = b.dataset.glyph || "";
-    b.append(g);
+    const name = text ? iconFor(text) : null;
+    const svg = name ? icon(name, 16) : null;
+    if (svg) {
+      svg.classList.add("vt-icon");              // `icon()` already sets aria-hidden and currentColor
+      b.append(svg);
+      delete b.dataset.glyphFallback;
+    } else {
+      const g = document.createElement("span");
+      g.className = "vt-glyph"; g.textContent = b.dataset.glyph || "";
+      b.append(g);
+      if (text) b.dataset.glyphFallback = name ?? "unmapped";
+    }
     if (text) {
       const l = document.createElement("span");
       l.className = "vt-label"; l.textContent = text;

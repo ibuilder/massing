@@ -4,6 +4,44 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.711 — three engines that could not be called, and one that answered about the wrong sheet
+
+**Sprint A-2 — reachability.** Sprint A wired four engines that had shipped fully tested and with
+nothing that could reach them. Auditing for the rest found three more, one of them created during
+Sprint A itself. All three are now reachable.
+
+* **Dimensional constraints solve over HTTP.** `POST /projects/{pid}/constraints/solve`. The solver
+  shipped complete two weeks of releases ago with no route and no tool, so it solved nothing in the
+  interim. Required locks are satisfied and frozen before a weak preference may move what is left; an
+  over-constrained system names the constraints that cannot hold rather than satisfying whichever was
+  reached first; an under-constrained one reports its remaining degrees of freedom instead of picking
+  one of infinitely many answers; and clearances are checked, never enforced, because sliding geometry
+  to satisfy a code minimum would move something somebody placed on purpose. A malformed constraint is
+  refused rather than dropped — a lock nobody applied is worse than an error, since the model then
+  looks constrained and is not.
+* **Sheet regions are readable.** `GET /projects/{pid}/drawings/sheet-regions` reports what occupies
+  which rectangle on a sheet, in page points, with the exact page↔world affine. This is the producer
+  for the `layout` that the 2D takeoff was taught to accept last release — the consumer had been wired
+  and the producer had not, so that route was asking for something no caller could obtain. A takeoff
+  scoped to a viewport now needs no calibration step: the regions carry the numbers the sheet was
+  actually drawn with, not a recovery from rendered output.
+* **The toolbar renders its icons.** The icon map has been complete and tested since v0.3.708 and the
+  toolbar never read it, so "all 27 verbs mapped" was true and nothing on screen had changed. Buttons
+  now carry the vendored line icon (ISC-licensed, bundled, no network), inheriting the button's colour
+  so hover and disabled states cannot disagree with it. A tool with no icon keeps its original glyph
+  and is tagged in the DOM, because half a bar of icons beside half a bar of emoji is readable whereas
+  a blank square is a tool you cannot find.
+
+**Fixed — a sheet layout could answer about a different sheet.** The viewport-preset lookup falls back
+to the default arrangement for any name it does not recognise. That is right for a library and wrong
+for an endpoint: a typo would have returned a *different* layout labelled as the one requested, and
+every page coordinate derived from it would have been perfectly accurate about the wrong sheet. The
+route now refuses an unknown preset outright, and refuses it before opening the model so the bad
+preset reports itself rather than whatever the model open happened to complain about. Page size had
+the identical fallback, and mattered more because the route echoes the requested page back in its
+answer — an unknown size would have returned A1 geometry stamped with the name of a page it does not
+fit. Both lists are asserted against the library's own, so they cannot drift apart in silence.
+
 ## v0.3.710 — how late are we, how wrong is the plan, and can anything reach the answer
 
 Two questions a schedule could not previously answer, and one field it was missing to answer either.

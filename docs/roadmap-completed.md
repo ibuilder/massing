@@ -7,6 +7,39 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## 🗓 Session v0.3.703–710 (2026-07-26) — the stall, the container, the claims, and seven engines nobody could call
+
+The second half of 2026-07-26. **R26 THE SPINE completed** and **R27** shipped six of its eight items.
+But the durable output of this run was not features — it was discovering that most of our *evidence*
+was wrong, and then that most of our *capability was unreachable*.
+
+**Three cases where a green signal measured nothing.** The render audit had never once been pointed at
+the shell it was built to verify, then turned out to score an empty-state placeholder as content — a
+false pass, which ships rather than getting investigated. The weeks-old "preview stall", written into
+a skill as an inherent browser limitation, was five SSE handlers running DB polls on the event loop:
+>8s timeouts became ~20 ms. And a suite run that never started looked exactly like one that passed,
+because `grep -c "^FAIL"` returns 0 either way.
+
+**Then the bigger one.** Of eleven things built that day, **seven shipped with no route** — fully
+tested, CI-green, CodeQL-clean, and unreachable. Every gate in the repo measures the module; none
+measures whether a request can arrive. Sprint A wired four; three went to Sprint A-2.
+
+**Roughly ten premises checked, most of them false**, including three of mine: `sheet_layout` already
+existed, `.mmproj` already did everything `.mass` was asked to do, the `:8093` blocker had no process
+behind it, the CWICR dataset is CC BY-**NC** contrary to its own README, an external perf report's two
+headline fixes were backwards, and one release was called green from a truncated query.
+
+### 🏛 R26 remainder, completed v0.3.708
+
+R26-ICONS shipped: one monoline set (Lucide, ISC), **vendored** — an icon set *is* SVG files, so the
+31 used are copied in. No package, no CDN, and none of the ~1,500 unused ones in the bundle. They
+stroke `currentColor` and fill nothing, so the colour contract governs them automatically and an icon
+is *structurally incapable* of introducing another meaning for blue. The "decision" this waited on
+turned out to be a false choice between hand-authoring and taking a dependency.
+
+
+---
+
 ## 🗓 Session v0.3.684–702 (2026-07-25/26) — the spine, the 5D/4D rings, and the drawing layer
 
 Two rings closed end to end. **R26 THE SPINE** restructured the app around five rooms constant for

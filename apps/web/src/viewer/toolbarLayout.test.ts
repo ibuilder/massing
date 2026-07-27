@@ -115,7 +115,12 @@ describe("the layout pass moves tools, it cannot lose them", () => {
     installToolbarView(h).update(ctx(true));
     for (const b of h.querySelectorAll<HTMLButtonElement>(".vt-primary .tool-btn")) {
       expect(b.querySelector(".vt-label")?.textContent, b.title).toBeTruthy();
-      expect(b.querySelector(".vt-glyph")?.textContent, b.title).toBe("◆");
+      // A MARK survives beside the word — one or the other, never neither. Until v0.3.711 that mark
+      // was always the emoji this fixture supplies; now a mapped tool wears its vendored icon
+      // instead. Asserting "a mark, of either kind" keeps what this test was actually protecting
+      // (the bar does not become a wall of naked words) without pinning which kind it is.
+      const mark = b.querySelector("svg.vt-icon") ?? b.querySelector(".vt-glyph");
+      expect(mark, b.title).toBeTruthy();
     }
   });
 
@@ -186,5 +191,53 @@ describe("the icon map covers the toolbar and nothing else", () => {
   it("an unmapped label returns null rather than an inherited property", () => {
     expect(iconFor("constructor")).toBeNull();
     expect(iconFor("nope")).toBeNull();
+  });
+});
+
+// --- A2-ICON-RENDER (v0.3.711) — the map is READ ------------------------------------------------
+// `TOOL_ICON` shipped complete and tested at v0.3.708 and `toolbarView` never called `iconFor`, so
+// "all 27 verbs mapped" was true and nothing on screen changed. Asserting the table is not asserting
+// the render; this drives the real installer and looks at what it produced.
+describe("the toolbar renders the icons it maps", () => {
+  function bar(titles: string[]): HTMLElement {
+    const host = document.createElement("div");
+    for (const t of titles) {
+      const b = document.createElement("button");
+      b.className = "tool-btn"; b.title = t; b.textContent = "⚙";
+      host.append(b);
+    }
+    document.body.append(host);
+    return host;
+  }
+
+  it("puts an <svg>, not an emoji span, on a tool the map covers", () => {
+    const spec = TOOLS.find((t) => TOOL_ICON[t.label])!;
+    const host = bar([spec.title]);
+    installToolbarView(host).update(ctx(true));
+    const btn = host.querySelector<HTMLElement>(`[title="${spec.title}"]`)!;
+    expect(btn.querySelector("svg.vt-icon")).not.toBeNull();
+    expect(btn.querySelector(".vt-glyph")).toBeNull();
+    expect(btn.dataset.glyphFallback).toBeUndefined();
+    expect(btn.querySelector(".vt-label")?.textContent).toBe(spec.label);
+  });
+
+  it("falls back to the glyph and SAYS SO rather than rendering a blank", () => {
+    // An unlaid tool has no spec and so no mapped icon. It must still show something, and the
+    // fallback must be legible in the DOM — a silent blank is a tool the user cannot find.
+    const host = bar(["Not a tool this table describes"]);
+    installToolbarView(host).update(ctx(false));
+    const btn = host.querySelector<HTMLElement>('[title="Not a tool this table describes"]')!;
+    expect(btn.querySelector("svg")).toBeNull();
+    expect(btn.querySelector(".vt-glyph")?.textContent).toBe("⚙");
+    expect(btn.dataset.glyphFallback).toBe("unmapped");
+  });
+
+  it("renders an icon for EVERY laid-out tool, so the fallback is never reached in a real bar", () => {
+    const host = bar(TOOLS.map((t) => t.title));
+    installToolbarView(host).update(ctx(true));
+    const fell = [...host.querySelectorAll<HTMLElement>("[data-glyph-fallback]")]
+      .map((b) => b.getAttribute("title"));
+    expect(fell).toEqual([]);
+    expect(host.querySelectorAll("svg.vt-icon").length).toBe(TOOLS.length);
   });
 });

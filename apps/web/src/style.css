@@ -189,6 +189,10 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .vt-primary { display: flex; flex-wrap: wrap; gap: 4px; }
 #viewer-tools .tool-btn { display: inline-flex; align-items: center; gap: 5px; }
 .vt-glyph { font-size: 14px; line-height: 1; }
+/* R26-ICONS, rendered (v0.3.711). Sizing only — `icon()` sets stroke/fill to currentColor itself, so
+   the icon inherits the button's colour and every hover/active/disabled rule already written for text
+   applies to it unchanged. Repeating those here would be a second place for the same fact to drift. */
+.vt-icon { width: 16px; height: 16px; flex: 0 0 16px; display: block; }
 .vt-label { font-size: 12px; }
 .vt-more { font-size: 12px; }
 /* the overflow menu: label AND description, so the long tail is scannable as text rather than as a

@@ -1,6 +1,6 @@
-"""SPRINT A — the engines are reachable.
+"""SPRINT A / A-2 — the engines are reachable.
 
-Four engines shipped over v0.3.706–710 with full test coverage and **nothing that could call them**.
+Six engines shipped over v0.3.701–710 with full test coverage and **nothing that could call them**.
 A tested engine behind no route is a tested engine nobody can use, and it looks identical to a shipped
 feature from the outside — which is the same "capability outruns legibility" pattern that produced an
 undocumented shell flag, a project container nobody knew carried their data, and a lifecycle strip
@@ -135,7 +135,47 @@ with TestClient(app) as c:
     assert checks[1]["agrees"] is False, checks[1]                # the 1:20 detail disagrees
     assert "NOT substituted automatically" in checks[1]["detail"], checks[1]
 
-    print("SPRINT A OK - the engines are REACHABLE. Four of them shipped across v0.3.706-710 with full "
+    # --- A2-CONSTRAINTS: the solver answers over HTTP -----------------------------------------------
+    # Shipped v0.3.701 as an engine with no route and no MCP tool. It solved nothing for ten releases.
+    r = c.post(f"/projects/{pid}/constraints/solve", headers=H, json={
+        "variables": {"a": 0.0, "b": 5.0, "c": 12.0},
+        "constraints": [{"kind": "fix", "a": "a", "value": 0.0},
+                        {"kind": "distance", "a": "a", "b": "b", "distance": 3.0},
+                        {"kind": "distance", "a": "b", "b": "c", "distance": 4.0, "strength": "weak"}]})
+    assert r.status_code == 200, (r.status_code, r.text)
+    sol = r.json()
+    assert sol["solved"] is True and sol["conflicts"] == [], sol
+    assert abs(sol["values"]["a"] - 0.0) < 1e-9 and abs(sol["values"]["b"] - 3.0) < 1e-9, sol["values"]
+    # a WEAK preference may not bend a REQUIRED lock: b is pinned at 3, so c lands at 7
+    assert abs(sol["values"]["c"] - 7.0) < 1e-9, sol["values"]
+
+    # over-constrained NAMES what cannot hold rather than satisfying whichever was reached first
+    over = c.post(f"/projects/{pid}/constraints/solve", headers=H, json={
+        "variables": {"a": 0.0, "b": 1.0},
+        "constraints": [{"kind": "fix", "a": "a", "value": 0.0},
+                        {"kind": "fix", "a": "b", "value": 1.0},
+                        {"kind": "distance", "a": "a", "b": "b", "distance": 9.0}]}).json()
+    assert over["solved"] is False and over["conflicts"], over
+
+    # a malformed constraint is REFUSED, not dropped — a lock nobody applied is worse than an error
+    bad = c.post(f"/projects/{pid}/constraints/solve", headers=H,
+                 json={"variables": {"a": 0.0}, "constraints": ["not an object"]})
+    assert bad.status_code == 422, (bad.status_code, bad.text)
+
+
+    # --- A2-SHEET-REGIONS: the PRODUCER for the `layout` /takeoff/2d demands ------------------------
+    # v0.3.706 wired the consumer and left the producer unexposed, so that route asked for something
+    # no caller could obtain. This project has no source IFC, so the honest answer is a refusal.
+    r = c.get(f"/projects/{pid}/drawings/sheet-regions", headers=H)
+    assert r.status_code in (404, 409), (r.status_code, r.text)
+    # and a typo'd preset is REFUSED rather than silently served as the default layout
+    r = c.get(f"/projects/{pid}/drawings/sheet-regions?preset=quadd", headers=H)
+    assert r.status_code == 422 and "known:" in r.text, (r.status_code, r.text)
+    r = c.get(f"/projects/{pid}/drawings/sheet-regions?page=A0", headers=H)
+    assert r.status_code == 422 and "page size" in r.text, (r.status_code, r.text)
+
+
+    print("SPRINT A/A-2 OK - the engines are REACHABLE. SIX of them shipped across v0.3.706-710 with full "
           "test coverage and nothing that could call them, which from the outside is indistinguishable "
           "from a shipped feature - the same capability-outruns-legibility pattern that produced an "
           "undocumented shell flag, a project container nobody knew carried their data, and a lifecycle "
@@ -147,4 +187,15 @@ with TestClient(app) as c:
           "and how many finished activities backed it, with in-progress work excluded and counted. And "
           "the element lifecycle now reports what KIND of claim each fact makes, including `has_evidence` "
           "- whether anybody has actually looked. The crew's `expected_finish` rides through under P6's "
-          "own name, asserted NOT to leak the EVM-computed `forecast_finish` label onto a stated field.")
+          "own name, asserted NOT to leak the EVM-computed `forecast_finish` label onto a stated "
+          "field. A-2 closed the last two: POST /constraints/solve reaches the dimensional solver "
+          "that had sat inert since v0.3.701, satisfying REQUIRED locks before a WEAK preference may "
+          "move what is left, NAMING what cannot hold when the system is over-constrained, and "
+          "REFUSING a malformed constraint rather than dropping it - a lock nobody applied is worse "
+          "than an error, because the model then looks constrained and is not. And GET "
+          "/drawings/sheet-regions exposes the PRODUCER for the `layout` that /takeoff/2d was taught "
+          "to accept at v0.3.706 - wiring a consumer with no producer left that route asking for "
+          "something no caller could obtain, the same one-way asymmetry R25-TASK-BIND existed to "
+          "close, reintroduced while closing a different instance of it. A typo'd preset is REFUSED "
+          "rather than silently served as the default layout, and refused BEFORE the model is opened, "
+          "so the bad preset reports itself instead of whatever the open happened to complain about.")
