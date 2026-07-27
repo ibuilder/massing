@@ -7,6 +7,7 @@
  */
 
 export * from "./common.js";
+export * from "./geo.js";
 export * from "./project.js";
 export * from "./markup.js";
 export * from "./massing.js";

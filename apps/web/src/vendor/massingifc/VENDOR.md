@@ -1,7 +1,7 @@
 # Vendored: `MassingCloud/massingifc`
 
 `core-kernel`, `plugin-sdk` and `project-schema`, copied **verbatim** from
-`MassingCloud/massingifc` at commit `93606570374133ebea30e31405893929e0416e2e` (2026-07-27).
+`MassingCloud/massingifc` at commit `a581f064e153947d0cb023163711abdc99dd4daf` (2026-07-27).
 MIT licensed — see `LICENSE` in this directory.
 
 ## Why vendored rather than depended upon

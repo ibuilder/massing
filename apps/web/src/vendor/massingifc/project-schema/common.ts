@@ -8,7 +8,12 @@ export type IsoTimestamp = string;
 
 export type Vec3 = readonly [x: number, y: number, z: number];
 
-/** Row-major 4x4 transform, matching the convention used by three.js `Matrix4.toArray`. */
+/**
+ * Column-major 4x4 transform, matching `THREE.Matrix4.toArray` — translation at indices 12, 13, 14.
+ *
+ * Stated explicitly because the two conventions are indistinguishable at the type level and a
+ * transposed matrix does not fail, it just puts everything in the wrong place.
+ */
 export type Matrix4 = readonly number[];
 
 export interface Authored {

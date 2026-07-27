@@ -1,4 +1,5 @@
 import type { Id, IsoTimestamp, Matrix4, Provenance } from "./common.js";
+import type { GeoReference } from "./geo.js";
 
 export type ModelRole =
   /** Published, read-only reference from another discipline or consultant. */
@@ -29,6 +30,15 @@ export interface ModelRecord {
   readonly discipline?: string;
   /** Placement relative to the project origin, for models delivered on a different datum. */
   readonly transform?: Matrix4;
+  /**
+   * Where the model sits on Earth.
+   *
+   * Distinct from `transform`, and needed precisely in the case that comment describes: once a
+   * model arrives on a different datum, a matrix onto the project origin records where someone put
+   * it, not where it belongs. Only the georeference lets a discrepancy be settled against survey
+   * rather than argued about.
+   */
+  readonly geoReference?: GeoReference;
   readonly visible?: boolean;
   readonly loadByDefault?: boolean;
   readonly elementCount?: number;

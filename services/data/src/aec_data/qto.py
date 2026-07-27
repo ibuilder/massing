@@ -56,6 +56,58 @@ def _quantities(el) -> dict[str, float]:
     return out
 
 
+# How an estimator measures each class. A quantity surveyor prices a roof by the area you could
+# walk on and a wall by the face you could paint — never by the total skin of the solid, which is
+# what a mesh's surface area is. Getting this wrong does not fail; it just doubles the money.
+_PLAN_AREA = ("IfcSlab", "IfcRoof", "IfcPlate", "IfcCovering", "IfcFooting", "IfcPavement")
+_FACE_AREA = ("IfcWall", "IfcCurtainWall", "IfcWindow", "IfcDoor", "IfcPanel", "IfcMember")
+
+
+def _bbox_dims(geo) -> tuple[float, float, float] | None:
+    """(dx, dy, dz) of the meshed solid's axis-aligned bounding box, or None if it has no vertices.
+
+    Same lifetime rule as `_bbox_longest`: `geo.verts` is a view into the owning shape."""
+    try:
+        verts = _np.asarray(geo.verts, dtype=float).reshape(-1, 3)
+        if verts.size == 0:
+            return None
+        e = verts.max(axis=0) - verts.min(axis=0)
+        return float(e[0]), float(e[1]), float(e[2])
+    except Exception:   # noqa: BLE001 — a mesh we cannot measure is not an error, just unmeasured
+        return None
+
+
+def _measured_area(element, geo) -> float:
+    """The area an estimate should price, chosen by what the element IS.
+
+    **This is not the mesh's surface area, and that distinction is the whole point.**
+    `ifcopenshell.util.shape.get_area` sums every triangle — for a 12x8 roof slab it returns both
+    faces plus the edge band (202 m² for a 96 m² roof), and for four walls around that footprint it
+    returns all six faces of each (236 m² where the paintable face is 108). Priced per m², that is
+    roughly a doubling of every area line, silently, on models that carry no `Qto_*` base quantities —
+    which is precisely the models this application authors itself.
+
+    - **Plan-measured** (slabs, roofs, coverings, footings): the horizontal footprint, dx x dy.
+    - **Face-measured** (walls, curtain walls, doors, windows, panels): the elevation face — the
+      longer horizontal run x the height. One face, not two, and no edges.
+    - Anything else keeps the full surface area, which is the honest answer for a duct or a pipe
+      fitting where "the area" genuinely is its skin.
+
+    Falls back to the surface area whenever the bounding box cannot be read, because a slightly
+    wrong number beats no number in a takeoff — but the class-aware path is the one that runs.
+    """
+    surface = float(_shape.get_area(geo))
+    dims = _bbox_dims(geo)
+    if dims is None:
+        return surface
+    dx, dy, dz = dims
+    if element.is_a() in _PLAN_AREA or any(element.is_a(c) for c in _PLAN_AREA):
+        return dx * dy
+    if element.is_a() in _FACE_AREA or any(element.is_a(c) for c in _FACE_AREA):
+        return max(dx, dy) * dz
+    return surface
+
+
 def _bbox_longest(geo) -> float | None:
     """Longest bounding-box dimension of a meshed geometry — a robust length proxy for
     linear elements (a swept solid's run is its dominant extent). Works whether the run is
@@ -87,7 +139,7 @@ def _geom_quantities(element, settings) -> dict[str, float]:
         geo = shape.geometry  # keep `shape` alive: geo.verts is a view into it
         out = {
             "volume": float(_shape.get_volume(geo)),
-            "area": float(_shape.get_area(geo)),
+            "area": _measured_area(element, geo),
         }
         length = _bbox_longest(geo)
         if length is not None:
