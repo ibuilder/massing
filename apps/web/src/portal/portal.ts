@@ -9,7 +9,8 @@ import type { PanelContext } from "./panelContext";
 import { SECTIONS_BY_PERSONA, pushRecent, readCollapsedStages, readDensity, readFavs, readRecents, readRoomOpen, setDensity, setRoomOpen, setStageCollapsed, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
 import { ALL_DESTS, type Dest, stagesFor } from "../shell/destinations";
-import { type SpineState, destRoom, loadSpine, orderRooms, preselectedRoom, spineEnabled, unroomedDests } from "../shell/spine";
+import { FALLBACK_ROOMS, type SpineState, destRoom, loadSpine, orderRooms, preselectedRoom, spineEnabled, unroomedDests } from "../shell/spine";
+import type { RoomDef } from "../api/types";
 // PANEL-LAZY (PERF): the ~30 secondary portal panels are DYNAMICALLY imported at first render
 // (see the wrapper methods below), not eagerly bundled into the app shell — each panel file (and
 // its heavy deps: charts, tables, module-graph, etc.) becomes its own chunk fetched only when the
@@ -325,8 +326,14 @@ export class PortalUI {
    * is making something unreachable in a way that looks perfectly fine.
    */
   private buildRoomRail(nav: HTMLElement, dests: Record<string, () => unknown>) {
-    const rooms = this.spine?.alloc.rooms ?? [];
-    if (!rooms.length) { this.buildStageRail(nav, dests); return; }   // spine not loaded: no blank rail
+    // Degrade the BADGES, not the shell. `GET /rooms` supplies the allocation and the
+    // ball-in-your-court counts; the five rooms themselves are a fixed set both sides already agree
+    // on. Silently rebuilding the old rail when that request fails — which is what happened until
+    // v0.3.718 — hands somebody the previous shell with no explanation, and is indistinguishable
+    // from the redesign never having shipped.
+    const served = this.spine?.alloc.rooms ?? [];
+    const rooms: RoomDef[] = served.length ? served : [...FALLBACK_ROOMS];
+    nav.dataset.spineSource = served.length ? "server" : "fallback";
     const byRoom = new Map<string, Dest[]>();
     const shown = stagesFor(this.wsFilter, (k) => this.mods.some((x) => x.key === k))
       .flatMap(([, items]) => items);

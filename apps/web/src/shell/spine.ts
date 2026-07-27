@@ -88,6 +88,30 @@ export function roomBadge(room: RoomDef, inCourt: Record<string, number>): numbe
 export const ROOM_IDS = ["model", "cost", "schedule", "deal", "work"] as const;
 
 /**
+ * The rooms with no server behind them (v0.3.718).
+ *
+ * The spine's *allocation* — which modules sit in which room, and the ball-in-your-court badges —
+ * comes from `GET /rooms`. The rooms themselves are a fixed set that both sides already agree on, so
+ * losing the request should cost the badges, not the shell.
+ *
+ * Before this existed, a failed allocation silently rebuilt the OLD rail. That was a defensible
+ * trade while the spine was opt-in and a handful of people had chosen it; once it became the default
+ * at v0.3.715 it meant anyone whose request failed got the previous shell with no explanation — and
+ * from the outside that is indistinguishable from the redesign never having shipped. It is also how
+ * an offline-first product quietly stops being offline-first.
+ *
+ * `label` and `job` mirror `rooms.ROOMS`; `spine.test` asserts the ids match `ROOM_IDS` so the two
+ * lists cannot drift.
+ */
+export const FALLBACK_ROOMS: readonly RoomDef[] = [
+  { id: "model", label: "Model", job: "Author, coordinate and document the building", count: 0, modules: [] },
+  { id: "cost", label: "Cost", job: "Price it, buy it out, change it and pay for it", count: 0, modules: [] },
+  { id: "schedule", label: "Schedule", job: "Sequence it, run the field, and track what got built", count: 0, modules: [] },
+  { id: "deal", label: "Deal", job: "Underwrite it, fund it, lease it and dispose of it", count: 0, modules: [] },
+  { id: "work", label: "Work", job: "Whatever is in your court right now", count: 0, modules: [] },
+];
+
+/**
  * Destination `__key__` → room.
  *
  * The API already rooms every *module*, by section. First-class destinations are panels rather than

@@ -4,6 +4,36 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.718 — the new rail no longer disappears when a request fails, and a split total adds up
+
+**Fixed — the redesigned navigation silently reverted to the old one.** Its room layout is fetched
+from the server; when that request failed, the whole rail quietly rebuilt itself in the previous
+style. That was a reasonable trade while the new look was something you opted into and a handful of
+people had. Once it became the default three releases ago it meant anyone with a flaky connection —
+or working offline, which this product promises to support — was handed the old shell with no
+explanation, and from the outside that is indistinguishable from the redesign never having shipped.
+
+The five rooms are a fixed set both halves of the product already agree on, so only the **badges**
+depend on that request. They now degrade instead of the shell: the rail renders, the counts are
+absent rather than invented, and the answer records which of the two it is. A count nobody measured
+would say "nothing is in your court", which is a claim, and not one that can be supported.
+
+This was found by looking at the running application. The previous release had verified the setting
+that controls the rail — including in the shipped bundle — and stopped there, which established that
+the switch was flipped and never that anything appeared.
+
+**Fixed — money split between parties did not add up, and the shortfall always landed on the same
+person.** Splitting $100 three ways by rounding each share gives three lots of $33.33 and loses a
+penny. The code compensated by putting the leftover on the last row, which balanced the total but
+meant whoever happened to sort last absorbed every spare cent, on every capital call and every
+distribution. Small, systematic, arbitrary — and exactly the kind of thing an investor finds in a
+reconciliation that nobody can explain. Leftovers are now distributed by the standard method, to the
+shares with the largest fractional parts.
+
+The decimal-precise helpers that make this correct had been sitting in the codebase with their own
+tests and **nothing calling them** — found by the reachability check added two releases ago, which
+now refuses to let that entry linger once it is fixed.
+
 ## v0.3.717 — pins that fail to load no longer take the rest of the panel with them
 
 Markup now runs as an isolated capability on the adopted kernel, and it was chosen for that over

@@ -46,13 +46,11 @@ ENTRY_POINTS = {
 
 # Real gaps: tested, shipped, and callable by nothing. Each carries the date it was found so an entry
 # that lingers is visibly lingering. Fixing one means DELETING its line — the test enforces that.
+#
+# `money` was here from 2026-07-27 and is GONE as of v0.3.718: `capital.allocate` now uses it, so the
+# entry had to be removed or `test_the_known_gap_list_cannot_rot` fails. That is the mechanism doing
+# its job — the list describes the present, not the past.
 KNOWN_UNREACHABLE = {
-    "money": (
-        "2026-07-27 — decimal-precise money helpers (P6) with their own suite and ZERO importers. "
-        "The float-drift problems they were written to fix are therefore still present everywhere "
-        "money is computed. Wiring it is an audit of every currency calculation, not a one-liner, "
-        "so it is tracked on the roadmap rather than papered over here."
-    ),
     "supply_chain": (
         "2026-07-27 — SEC-SUPPLY hardening (R16 Tier-3), tested and imported by nothing. Whatever it "
         "checks is not being checked in the running system."

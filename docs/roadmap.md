@@ -13,8 +13,8 @@ the 5D/4D spine from R25, and the interaction surface from R26. **What is thin n
 the sheet is still handled as an image with text behind it rather than as data (📐 R27), and the
 structural carry-overs that keep the codebase workable are still outstanding.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**403** suites) · vitest **482** (incl. 152 vendored kernel tests) · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.717**.
+**Status:** CodeQL 0 open alerts · backend suite green (**404** suites) · vitest **486** (incl. 152 vendored kernel tests) · single-source version in
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.718**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
 reverts. R26 is otherwise complete — what gates making it the default is named in that section.
@@ -51,30 +51,37 @@ until the backlog of built-but-uncallable work is zero.
    pins failure aborted the rest of the build silently. **Command-bus undo is NOT the next candidate:
    checked, and we already have model-level undo via versioned source IFC, which is stronger for
    authoring.** Pick ③ from a real pain, not from the kernel's feature list.
-2. **🔓 UN-VENDOR the kernel — needs the packages published where npm can reach them.** The reason for vendoring was that a
+2. **🔓 UN-VENDOR — DECIDED: don't, for now.** The reason for vendoring was that a
    public repo cannot install from a private one without a CI credential. That reason is gone, so the
-   The private-repo blocker is gone and **all four upstream issues are closed (PR #5, v0.3.716)**, so
-   the vendored copy now has **zero local patches**. What remains is not a code change: npm cannot
-   install a workspace package out of a git monorepo, so this needs either a registry publish (a
-   decision, not a task) or a submodule (real CI cost). Genuinely optional — the vendored copy is
-   tested, hermetic and re-syncs with a copy. (Flipping the new look on: **DONE v0.3.715**.)
-3. **💵 MONEY-WIRE — `money.py` has a test suite and zero importers.** Found by the new reachability
-   gate (v0.3.714). Decimal helpers written to stop float drift at the cent boundary, wired to
-   nothing, so every currency calculation still drifts. Wiring it is an audit of each call site, not
-   a one-liner — which is why it is tracked here rather than allowlisted away. `supply_chain` is the
-   same shape and smaller.
-4. **⚙ SPRINT B — PERF-WORKERS / PERF-RATE / PERF-THREADS.** Verified against the code, not adopted
+   Both alternatives cost more than the problem. A **registry publish** means versioning and
+   releasing 22 packages, holding publish credentials, and making the build depend on registry
+   availability — to consume three packages with no runtime dependencies; it also loses the SHA
+   pinning that ties our copy to an exact upstream commit. A **submodule** changes checkout across
+   CI, Pages and Desktop, needs `--recurse-submodules` from every cloner, and worsens the offline
+   story. Vendoring costs ~5.3k lines and a `cp`, with **zero local patches** since v0.3.716; drift
+   is caught by `ties.test.ts` and upstream's own 152 tests run in our suite.
+   **Revisit only if** we adopt substantially more of the kernel, or a third consumer appears and the
+   copy stops being a copy and starts being a fork.
+3. **💵 MONEY-WIRE ② — the remaining split sites.** ① shipped v0.3.718: `capital.allocate` now uses
+   largest-remainder, so a split total adds up and the leftover cents stop landing on whoever sorts
+   last. `money` has left `KNOWN_UNREACHABLE`. **Not** a mandate to convert all 267 `round(x, 2)`
+   calls — most are display rounding where drift is invisible. The ones worth finding are the other
+   places that **split or prorate a total**; `project_budget.py:102` (`per = bud / len(months)`) and
+   `resource_loading.py:98` are the next candidates.
+4. **🧹 supply_chain — the last declared gap.** Tested, imported by nothing, so whatever it checks is
+   not being checked. Wire it or delete it; leaving it is the third option and the worst one.
+5. **⚙ SPRINT B — PERF-WORKERS / PERF-RATE / PERF-THREADS.** Verified against the code, not adopted
    from the report: two of that report's headline fixes were backwards. PERF-RATE is the sharpest —
    a rate limit that logs `CRITICAL` that it is not working and then starts anyway.
-5. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** `rdflib` approved; `.mass` becomes a
+6. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** `rdflib` approved; `.mass` becomes a
    standards-conformant container. Pin the dependency in the change that first uses it.
-6. **🖼 Demo regeneration.** The captured `GET /modules` snapshot is stale since `expected_finish`
+7. **🖼 Demo regeneration.** The captured `GET /modules` snapshot is stale since `expected_finish`
    landed. A schema change *does* alter what the snapshot captures — an earlier judgement of mine that
    said otherwise was wrong.
-7. **📐 R27 tail** — LAYOUT ①(b) received-sheet detection · CLAIM-TYPE into the Inspector UI ·
+8. **📐 R27 tail** — LAYOUT ①(b) received-sheet detection · CLAIM-TYPE into the Inspector UI ·
    FIRM-MEMORY (org-scoped standards; sequenced last since it is data-scoping, not an engine) ·
    SKILL-GAP (reading, not building).
-8. **🧱 Decomposition & reliability carry-overs** — deferred longest, still real.
+9. **🧱 Decomposition & reliability carry-overs** — deferred longest, still real.
 
 **A standing gate for every sprint from here:** *what did we build that nothing calls?*
 `grep -rn <module> src/aec_api/routers/ src/aec_api/mcp_tools.py` before marking any item done. For a

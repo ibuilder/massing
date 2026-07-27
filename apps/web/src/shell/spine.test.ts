@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { orderRooms, preselectedRoom, roomBadge, spineEnabled } from "./spine";
+import { FALLBACK_ROOMS, ROOM_IDS, orderRooms, preselectedRoom, roomBadge, spineEnabled } from "./spine";
 import type { RoomDef } from "../api/types";
 
 /**
@@ -90,5 +90,31 @@ describe("badges are ball-in-YOUR-court, not totals", () => {
 
   it("ignores counts for modules that are not in the room", () => {
     expect(roomBadge(ROOMS[1]!, { rfi: 99, budget: 2 })).toBe(2);
+  });
+});
+
+describe("the rail degrades its badges, not the whole shell (v0.3.718)", () => {
+  it("the fallback rooms are exactly the canonical five, in order", () => {
+    // Two lists encoding one fact WILL drift. This is the assertion that stops it.
+    expect(FALLBACK_ROOMS.map((r) => r.id)).toEqual([...ROOM_IDS]);
+  });
+
+  it("every fallback room carries a label and a job, so a degraded rail is still legible", () => {
+    for (const r of FALLBACK_ROOMS) {
+      expect(r.label.length, r.id).toBeGreaterThan(2);
+      expect(r.job.length, r.id).toBeGreaterThan(20);
+    }
+  });
+
+  it("fallback rooms carry NO counts — a badge nobody measured would be a lie", () => {
+    // The allocation is what `GET /rooms` supplies. Rendering a zero badge from a failed request
+    // would say "nothing is in your court", which is a claim, and one we cannot support.
+    expect(FALLBACK_ROOMS.every((r) => r.count === 0 && r.modules.length === 0)).toBe(true);
+  });
+
+  it("they order the same way server rooms do", () => {
+    const ordered = orderRooms([...FALLBACK_ROOMS], "construction");
+    expect(ordered[0]?.id).toBe(preselectedRoom("construction"));
+    expect(ordered).toHaveLength(FALLBACK_ROOMS.length);
   });
 });

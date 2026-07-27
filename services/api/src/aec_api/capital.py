@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import money
+
 
 def _num(v: Any) -> float:
     try:
@@ -94,15 +96,17 @@ def allocate(investors: list[dict], amount: float, kind: str = "call") -> dict[s
     """Allocate a capital call or distribution pro-rata by commitment. `kind`: call | distribution.
     Returns per-investor amounts that sum to `amount` (last row absorbs rounding)."""
     ct = cap_table(investors)
-    total = ct["total_commitment"]
     amt = _num(amount)
-    allocations, running = [], 0.0
-    for idx, r in enumerate(ct["rows"]):
-        share = (r["commitment"] / total) if total else 0.0
-        a = round(amt * share, 2)
-        if idx == len(ct["rows"]) - 1:                     # absorb rounding into the last row
-            a = round(amt - running, 2)
-        running += a
-        allocations.append({"id": r["id"], "ref": r["ref"], "investor": r["investor"],
-                            "ownership_pct": r["ownership_pct"], "amount": a})
-    return {"kind": kind, "amount": round(amt, 2), "allocations": allocations}
+    rows = ct["rows"]
+    # MONEY-WIRE (v0.3.718): largest-remainder allocation instead of "absorb the rounding into the
+    # last row". Both sum to the total, but the old rule put EVERY leftover cent on whichever
+    # investor happened to sort last — the same person each time, on every call and every
+    # distribution. With enough investors that is a systematic, arbitrary transfer, and it is the
+    # kind of thing an LP notices in a reconciliation and nobody can explain. Largest-remainder
+    # gives the spare cents to the shares with the biggest fractional parts, which is the standard
+    # method and defensible on a statement.
+    parts = money.allocate(amt, [float(r["commitment"]) for r in rows])
+    allocations = [{"id": r["id"], "ref": r["ref"], "investor": r["investor"],
+                    "ownership_pct": r["ownership_pct"], "amount": a}
+                   for r, a in zip(rows, parts)]
+    return {"kind": kind, "amount": money.q2(amt), "allocations": allocations}
