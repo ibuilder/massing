@@ -118,6 +118,29 @@ async def _autosync_loop() -> None:
             _log.warning("auto-sync tick failed: %s", e)
 
 
+def _worker_count() -> int:
+    """Configured worker count, defaulting to 1. A non-numeric value reads as 1 — the safe direction,
+    because it means we never CLAIM a limit is per-worker when we cannot actually tell."""
+    raw = os.environ.get("UVICORN_WORKERS") or os.environ.get("WEB_CONCURRENCY") or "1"
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 1
+
+
+def _rate_limit_is_per_worker() -> bool:
+    """True when a rate limit is configured but each of several workers counts it separately.
+
+    Without a shared store every worker keeps its own bucket, so the limit an operator configured is
+    silently multiplied by the worker count.
+    """
+    try:
+        rpm = int(os.environ.get("AEC_RATE_LIMIT_RPM", "0") or "0")
+    except ValueError:
+        return False
+    return rpm > 0 and _worker_count() > 1 and not os.environ.get("AEC_REDIS_URL", "").strip()
+
+
 def _production_guard() -> None:
     """Fail-fast on the misconfigurations that silently ship an open platform.
 
@@ -147,21 +170,27 @@ def _production_guard() -> None:
                 or os.environ.get("S3_SECRET_KEY", "minioadmin") == "minioadmin"):
             problems.append("S3_ENDPOINT is set but S3_ACCESS_KEY/S3_SECRET_KEY are the default "
                             "'minioadmin' — object storage would be world-accessible")
+        # PERF-RATE — a limit silently N x its configured value is worse than none, because the
+        # operator believes it is on. Until v0.3.721 this logged CRITICAL and then started anyway:
+        # the loudest possible message, followed by the exact behaviour it warned about. It belongs
+        # in `problems` with the rest — same refusal, same AEC_ALLOW_OPEN escape hatch, same
+        # production-only scope, so a dev box on SQLite is untouched.
+        if _rate_limit_is_per_worker():
+            n = _worker_count()
+            problems.append(
+                f"AEC_RATE_LIMIT_RPM is set with {n} workers and no AEC_REDIS_URL — each worker "
+                f"counts independently, so the effective limit is {n}x what you configured. Set "
+                "AEC_REDIS_URL for a shared counter, or run a single worker.")
         if problems:
             raise RuntimeError(
                 "refusing to start a production deployment with an unsafe configuration:\n  - "
                 + "\n  - ".join(problems)
                 + "\nSet the required env vars, or AEC_ALLOW_OPEN=1 to accept an open deployment.")
-    # multi-worker + rate limit without Redis: each worker counts independently → limit is per-worker
-    workers = os.environ.get("UVICORN_WORKERS") or os.environ.get("WEB_CONCURRENCY") or "1"
-    if (int(os.environ.get("AEC_RATE_LIMIT_RPM", "0") or "0") > 0
-            and not os.environ.get("AEC_REDIS_URL", "").strip()):
-        try:
-            if int(workers) > 1:
-                log.critical("SECURITY: AEC_RATE_LIMIT_RPM is set with %s workers but no "
-                             "AEC_REDIS_URL — the limit is per-worker, not global.", workers)
-        except ValueError:
-            pass
+    elif _rate_limit_is_per_worker():
+        # Outside a production deployment (or with AEC_ALLOW_OPEN=1) this is still worth saying,
+        # but a warning is the honest level: nobody is relying on it to hold back the internet.
+        log.warning("AEC_RATE_LIMIT_RPM is per-worker with %s workers and no AEC_REDIS_URL — the "
+                    "effective limit is %sx the configured one.", _worker_count(), _worker_count())
 
 
 @asynccontextmanager

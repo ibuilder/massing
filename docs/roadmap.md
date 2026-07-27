@@ -13,8 +13,8 @@ the 5D/4D spine from R25, and the interaction surface from R26. **What is thin n
 the sheet is still handled as an image with text behind it rather than as data (📐 R27), and the
 structural carry-overs that keep the codebase workable are still outstanding.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**405** suites) · vitest **500** (incl. 152 vendored kernel tests) · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.720**.
+**Status:** CodeQL 0 open alerts · backend suite green (**406** suites) · vitest **500** (incl. 152 vendored kernel tests) · single-source version in
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.721**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
 reverts. R26 is otherwise complete — what gates making it the default is named in that section.
@@ -84,9 +84,34 @@ until the backlog of built-but-uncallable work is zero.
    used through `ids`). **What remains is packaging**, not code: PyInstaller `--exclude-module` for the
    desktop build and an uninstall step after `pip install` in the image. Owner's call because it
    changes how binaries are built.
-6. **⚙ SPRINT B — PERF-WORKERS / PERF-RATE / PERF-THREADS.** Verified against the code, not adopted
-   from the report: two of that report's headline fixes were backwards. PERF-RATE is the sharpest —
-   a rate limit that logs `CRITICAL` that it is not working and then starts anyway.
+6. **⚙ SPRINT B tail — PERF-THREADS, then PERF-WORKERS.** ~~PERF-RATE~~ **DONE v0.3.721**: it now
+   refuses to start a production deployment instead of logging `CRITICAL` and starting anyway.
+   * **PERF-THREADS — bound concurrent MODEL work, not threads in general.** Verified: Starlette's
+     pool is 40 threads (not unbounded, as the report claimed), and ~80 `run_in_threadpool` calls are
+     mostly cheap I/O that should stay parallel. The real exposure is a handful of IFC paths where 40
+     concurrent opens at hundreds of MB each is an OOM. **Design:** one small `asyncio.Semaphore`
+     around the IFC/geometry sites only, env-tunable, defaulting low. Deliberately NOT a global cap —
+     that would throttle the cheap 70 to protect the expensive 10. Left unbuilt on purpose: it changes
+     request-path concurrency, so it wants a session with room to think about starvation and ordering
+     rather than being appended to a long one.
+   * **PERF-WORKERS — the cache story is BYTES, not count and not duplication.** Superseded by
+     [caching-research.md](caching-research.md): both caches bound a *count* (`maxsize=8` models,
+     `_BAKE_CACHE_MAX=4`), so with models spanning 8 MB to 2 GB the configured number cannot be
+     planned against. Sizing was never the lever — raising `maxsize` makes a byte-unbounded cache hold
+     more. Order: (a) byte-bound both caches with an explicit budget [needs `cachetools`, MIT];
+     (b) re-key the bake cache by content hash instead of `id(model)` — no dependency, and it removes
+     the `id()`-reuse fragility regardless; (c) share baked geometry across workers [needs `diskcache`,
+     Apache-2.0]. Baking is the expensive half, so sharing it shrinks the unshareable model cache —
+     which is why affinity may end up not being worth doing at all.
+   * **CACHE-JSON — records have no runtime cache.** 132 modules × projects × history is the larger
+     aggregate and every panel refetches it. `.frag`/WASM/bundles are already `CacheFirst` and correct.
+     The gap is JSON: IndexedDB + stale-while-revalidate, using the kernel's already-vendored
+     `storage-browser`. A cached view must SAY it is cached — stale-and-silent is the failure mode this
+     codebase has spent a cycle on.
+   * ~~PERF-WORKERS as originally written~~ Sizing is the wrong lever (raising
+     per-worker caches multiplies resident memory by the worker count — the report's own finding ③
+     contradicts its finding ①). The real options are a bounded **shared** cache or worker affinity,
+     both of which are architecture, not tuning. Sequence it after PERF-THREADS.
 7. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** `rdflib` approved; `.mass` becomes a
    standards-conformant container. Pin the dependency in the change that first uses it.
 8. **🖼 Demo regeneration.** The captured `GET /modules` snapshot is stale since `expected_finish`

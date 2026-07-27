@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.721 — a rate limit that cannot quietly be a fraction of itself
+
+**Fixed — a request limit could silently be several times what you configured.** Running more than one
+worker without a shared counter means each worker counts separately, so a limit of sixty requests a
+minute across four workers is really two hundred and forty. The code detected this exactly, wrote the
+most severe message it has, and then started anyway.
+
+That is worse than having no limit. A missing control is a known gap; one that announces it is broken
+and runs leaves you believing you are protected. A production deployment in that state now refuses to
+start and says how to fix it — point it at a shared counter, or run a single worker.
+
+It required no new machinery: the startup check already gathered configuration problems, refused once
+listing all of them, and offered an explicit override for deliberately-open internal deployments. This
+joins that list, so it inherits the override and the production-only scope. A developer's machine is
+untouched, and still just warns — requiring everyone to run extra infrastructure to use two workers
+locally would be a rule people work around, and a rule people work around protects nothing.
+
+**Also researched, not yet built: how this platform should cache.** The finding is that our model and
+geometry caches limit how *many* things they hold rather than how much memory those things occupy —
+which for building models ranging from a few megabytes to a couple of gigabytes means the configured
+number cannot be planned against. Written up with recommendations, including why reserving memory up
+front is the wrong shape and a ceiling that evicts is the right one.
+
 ## v0.3.720 — a spread that adds up, and nothing copyleft in the box
 
 **Fixed — spreading a total across periods did not add up.** A budget spread over months, and a
