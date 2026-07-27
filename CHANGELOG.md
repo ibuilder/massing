@@ -4,7 +4,7 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.3.710 — how late are we, and how wrong is the plan
+## v0.3.710 — how late are we, how wrong is the plan, and can anything reach the answer
 
 Two questions a schedule could not previously answer, and one field it was missing to answer either.
 
@@ -37,6 +37,18 @@ itself: the status engine judged an activity by whether its actual dates *existe
 they had happened yet — so a job evaluated as of January reported work finished in June as already
 complete. Dates in the future are now disregarded, and the fact that they were disregarded is stated
 rather than hidden.
+
+**And both are now reachable.** Four capabilities had shipped over recent releases fully tested with
+**nothing that could call them** — which from outside is indistinguishable from a working feature, and
+which survived every gate, because none of them asks whether a request can actually arrive. Schedule
+status, the calibrated spread, the kind-of-claim tagging and the drawing-scoped takeoff all have
+routes now, each exercised through a real request rather than only in isolation.
+
+The calibrated spread rides *alongside* the simulation rather than replacing its inputs, so you can
+see how many finished activities backed it. Drawing scoping is optional, leaving the single-drawing
+case untouched. Auditing for the rest found three more capabilities nobody can call, recorded for the
+next release — and a standing check worth more than any of them: *what did we build that nothing
+calls?*
 
 ## v0.3.709 — four ways to say a wall is fire-rated
 
