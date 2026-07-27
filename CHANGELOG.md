@@ -4,6 +4,37 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.712 — the platform kernel arrives, vendored, with its disagreements written down
+
+The kernel and plugin architecture developed alongside this product is now **in the build**. Three
+packages — the kernel itself, the plugin SDK and the persisted-record contracts — are vendored under
+`apps/web/src/vendor/massingifc` and compile, typecheck and test as part of the app. This is
+adoption, not replacement: the viewer keeps working exactly as it did, and capabilities can move out
+of the 4,528-line viewer module into isolated plugins one at a time, each behind a capability token.
+Nothing has moved yet.
+
+**Vendored rather than installed, deliberately.** The kernel lives in a private repository and this
+one is public, so an install would need a credential in CI — which breaks forks and contradicts the
+rule that the build stays offline and deterministic. All three packages have zero runtime
+dependencies, no Node built-ins and no browser globals, so copying the source costs nothing and
+keeps the build hermetic. The files are unmodified apart from one recorded line, the licence travels
+with them, and the upstream commit is written down so a refresh is a copy rather than a merge.
+
+**What the tests prove, beyond "it compiled".** A vendored library nobody exercises is a fork you
+have not noticed yet, so upstream's own 152 tests now run here, and a further nine assert the seams:
+the kernel boots in this environment; a plugin that throws on activation is quarantined instead of
+taking the host down; an element re-converted to a different runtime handle is still recognised as
+the same element, because identity is the IFC GlobalId and not the handle; and a capability that is
+absent is reported differently from one that is present but incompatible.
+
+**The disagreements are assertions, not notes.** The kernel's container adapter still expects the
+project-file extension this product replaced in v0.3.705, so a project written today would not be
+recognised by it. Rather than leave that to be rediscovered by somebody whose file will not open, a
+test pins the mismatch and fails when it is fixed — at which point the fix is to delete the test.
+Three issues are open upstream: that one, caret version ranges that cannot express the pinned viewer
+pair this project requires, and a takeoff-expression evaluator that resolves inherited property
+names and yields a silent `NaN` where it means to refuse.
+
 ## v0.3.711 — three engines that could not be called, and one that answered about the wrong sheet
 
 **Sprint A-2 — reachability.** Sprint A wired four engines that had shipped fully tested and with

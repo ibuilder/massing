@@ -5,7 +5,11 @@
     "target": "ES2022",
     "useDefineForClassFields": true,
     "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -17,7 +21,27 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "types": ["vite/client"]
+    "types": [
+      "vite/client"
+    ],
+    "paths": {
+      "@massingifc/core-kernel": [
+        "./src/vendor/massingifc/core-kernel/index.ts"
+      ],
+      "@massingifc/plugin-sdk": [
+        "./src/vendor/massingifc/plugin-sdk/index.ts"
+      ],
+      "@massingifc/project-schema": [
+        "./src/vendor/massingifc/project-schema/index.ts"
+      ]
+    },
+    "baseUrl": "."
   },
-  "include": ["src", "scripts"]
+  "include": [
+    "src",
+    "scripts"
+  ],
+  "exclude": [
+    "src/vendor/**/*.test.ts"
+  ]
 }

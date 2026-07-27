@@ -2,6 +2,8 @@ import { brotliCompressSync, gzipSync } from "node:zlib";
 import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+import { vendorAlias } from "./vendorAlias";
+
 // Emit .br + .gz siblings for every text asset so a self-hosted static server (nginx/caddy) or the
 // desktop app can serve pre-compressed bytes — no runtime compression, no extra dependency (Node's
 // zlib). Brotli is ~15-20% smaller than gzip for JS/CSS; both are written so a server can pick either.
@@ -98,6 +100,9 @@ return {
   // instanceof checks across the boundary.
   resolve: {
     dedupe: ["three"],
+    // The vendored massingifc kernel imports its siblings by package name; `vendorAlias` is the one
+    // definition of what those names mean (see vendorAlias.ts).
+    alias: { ...vendorAlias },
   },
   // web-ifc and the fragments worker ship their own WASM/worker assets; don't let
   // esbuild's dep pre-bundler rewrite them. `three` is excluded too: the @thatopen/*
