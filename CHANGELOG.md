@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.727 — a roof is priced by the roof, not by both sides of it
+
+A model-based estimate was measuring the wrong thing. Where a drawing carries no stated quantities,
+the takeoff works them out from the shape — and it was taking the **whole outer skin** of each
+element. For a roof that is the top, the underside and the edge all added together. For a wall it is
+both faces plus the ends.
+
+Priced by the square metre, that roughly doubled every area line. Authoring a 12 x 8 m house and
+checking by hand: the roof was measured at 202 m², and it is a 96 m² roof; the four walls came to
+236 m² where the face you would paint is 108. The estimate read $112,901. It should have read
+$70,110. Nothing looked broken — the numbers were simply about twice what the building is.
+
+Each element is now measured the way somebody pricing the work would measure it. Roofs, slabs,
+coverings and footings by the area you could walk on. Walls, doors, windows and panels by the face
+you see in elevation — one face, no edges. Ducts and pipes keep their full surface, because for
+those the skin genuinely is the quantity.
+
+This affected drawings that carry no quantities of their own, which is exactly the drawings this
+application creates. Files from other tools usually state their own quantities and were always
+priced from those. If you have an estimate from a model you built here, it was high; re-running it
+will now be lower, and right.
+
 ## v0.3.726 — more lists appear at once; the ones that must not be cached, are not
 
 The journal-batch register, the concept-render grid and the capital-plan table now show their last
