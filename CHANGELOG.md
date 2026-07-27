@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.722 — sign in with Autodesk, clear your cached data, and geometry that knows which file it came from
+
+**Sign in with Autodesk.** Google, Microsoft and Procore already worked; the missing one was the
+account most people in this industry already have — the identity behind Revit, ACC and BIM 360. The
+button appears as soon as the credentials are configured, and signing in this way puts you in exactly
+the same account and permission model as anyone who used a password.
+
+It asks for your identity and nothing else. Reading a project out of your Autodesk account is a
+separate permission with a separate consent screen, and asking for it behind a button that says "sign
+in" would be asking for far more than the button admits to. The optional Revit conversion bridge is
+unchanged and still authorised on its own.
+
+**Clear cached data, from Settings.** This app deliberately holds on to downloaded geometry, engine
+code and pages, because they never change once published. That is worth doing and it is exactly why
+there has to be a way out — otherwise one bad download becomes "clear your browser data", which nobody
+should be told to do to a working application.
+
+It keeps your sign-in, your chosen layout and your saved preferences. Those are not cache, they are
+choices, and a button that quietly destroys them is one people learn to fear — which makes it useless
+at the moment they actually need it. It also reports what it removed as counts rather than a
+reassurance, names anything it could not clear, and will not hang if another tab is holding data open.
+
+**Cached geometry now knows which file it came from.** It was previously remembered by a location in
+memory, which works inside one process and means nothing outside it — and needed a guard to stop that
+location being reused. It is now identified by the file itself, so republishing a model can never
+serve the previous revision, and the expensive part of drawing a model becomes shareable between
+processes rather than being recomputed by each one.
+
 ## v0.3.721 — a rate limit that cannot quietly be a fraction of itself
 
 **Fixed — a request limit could silently be several times what you configured.** Running more than one

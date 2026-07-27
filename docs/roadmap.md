@@ -13,8 +13,8 @@ the 5D/4D spine from R25, and the interaction surface from R26. **What is thin n
 the sheet is still handled as an image with text behind it rather than as data (📐 R27), and the
 structural carry-overs that keep the codebase workable are still outstanding.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**406** suites) · vitest **500** (incl. 152 vendored kernel tests) · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.721**.
+**Status:** CodeQL 0 open alerts · backend suite green (**408** suites) · vitest **510** (incl. 152 vendored kernel tests) · single-source version in
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.722**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
 reverts. R26 is otherwise complete — what gates making it the default is named in that section.
@@ -99,8 +99,7 @@ until the backlog of built-but-uncallable work is zero.
      `_BAKE_CACHE_MAX=4`), so with models spanning 8 MB to 2 GB the configured number cannot be
      planned against. Sizing was never the lever — raising `maxsize` makes a byte-unbounded cache hold
      more. Order: (a) byte-bound both caches with an explicit budget [needs `cachetools`, MIT];
-     (b) re-key the bake cache by content hash instead of `id(model)` — no dependency, and it removes
-     the `id()`-reuse fragility regardless; (c) share baked geometry across workers [needs `diskcache`,
+     ~~(b) re-key the bake cache by content~~ **DONE v0.3.722**; (c) share baked geometry across workers [needs `diskcache`,
      Apache-2.0]. Baking is the expensive half, so sharing it shrinks the unshareable model cache —
      which is why affinity may end up not being worth doing at all.
    * **CACHE-JSON — records have no runtime cache.** 132 modules × projects × history is the larger

@@ -56,25 +56,43 @@ def _world_settings(geom_mod):
 
 
 # PERF-2 (GEOM-CACHE): tessellation is the dominant per-request cost — every section/elevation/DXF/
-# sheet view re-baked the whole model. `open_model` is lru-cached, so the SAME model object is handed
-# back for an unchanged (path, mtime, size); we memoize the bake on that object's identity. A held
-# strong ref per entry prevents id() reuse while cached; the cache is small (meshes are large) and
-# entries fall out naturally when open_model evicts + GCs the model. A re-parsed file → new object →
-# fresh bake, so this can't serve stale geometry.
-_BAKE_CACHE: dict[int, tuple[Any, list[tuple[str, trimesh.Trimesh]]]] = {}
+# sheet view re-baked the whole model, so this memoizes the bake.
+#
+# CACHE-KEY (v0.3.722): keyed by the model's CONTENT identity (`__aec_content_key__`, stamped by
+# `ifc_loader.open_model` from path+mtime+size) rather than by `id(model)`.
+#
+# `id()` worked, but only inside one process and only with a strong ref held per entry to stop the
+# address being reused after a GC — a guard whose existence is the tell. It also made the cache
+# unshareable in principle: an address in one worker's heap means nothing in another, so the
+# expensive half of the work could never be reused across workers no matter how it was stored.
+#
+# A model opened directly (`ifcopenshell.open`, bypassing `open_model`) carries no key; those fall
+# back to identity, which is the previous behaviour and correct — an UNKNOWN identity must not
+# collide with a known one, so it is never given a shared key.
+_BAKE_CACHE: dict[Any, tuple[Any, list[tuple[str, trimesh.Trimesh]]]] = {}
 _BAKE_CACHE_MAX = 4
 
 
+def _bake_key(model: ifcopenshell.file) -> tuple[str, Any]:
+    """("content", key) when the file identity is known, else ("id", id(model))."""
+    key = getattr(model, "__aec_content_key__", None)
+    return ("content", key) if key else ("id", id(model))
+
+
 def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
-    """Bake every element's world-space mesh ONCE so many views can section the same set. Cached per
-    model object (see GEOM-CACHE note) — repeated views of one model tessellate only once."""
-    hit = _BAKE_CACHE.get(id(model))
-    if hit is not None and hit[0] is model:      # identity check guards against id() reuse
+    """Bake every element's world-space mesh ONCE so many views can section the same set. Cached by
+    the model's content identity (see CACHE-KEY) — repeated views of one file tessellate only once,
+    and a re-published file is a different key rather than a stale hit."""
+    key = _bake_key(model)
+    hit = _BAKE_CACHE.get(key)
+    if hit is not None and (key[0] == "content" or hit[0] is model):
+        # An id() key still needs the identity check — the address may have been reused. A content
+        # key does not: it names the file, so any model object opened from it is interchangeable.
         return hit[1]
     meshes = _bake_uncached(model)
     if len(_BAKE_CACHE) >= _BAKE_CACHE_MAX:
         _BAKE_CACHE.pop(next(iter(_BAKE_CACHE)))  # evict oldest (dict is insertion-ordered)
-    _BAKE_CACHE[id(model)] = (model, meshes)
+    _BAKE_CACHE[key] = (model, meshes)
     return meshes
 
 

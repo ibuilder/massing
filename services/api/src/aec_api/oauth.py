@@ -1,9 +1,11 @@
-"""OAuth2 / OIDC social login — Google, Microsoft (Entra), Procore. Stdlib only (urllib).
+"""OAuth2 / OIDC social login — Google, Microsoft (Entra), Procore, Autodesk. Stdlib only (urllib).
 
 A provider is *enabled* when its client id + secret are set in the environment:
   AEC_OAUTH_GOOGLE_CLIENT_ID / _SECRET
   AEC_OAUTH_MICROSOFT_CLIENT_ID / _SECRET   (+ optional AEC_OAUTH_MICROSOFT_TENANT, default "common")
   AEC_OAUTH_PROCORE_CLIENT_ID / _SECRET
+  AEC_OAUTH_AUTODESK_CLIENT_ID / _SECRET    (APS — sign-in only; NOT model access, which is a
+                                             separate consent with separate scopes)
 
 The flow: /auth/oauth/{provider}/login → provider consent → /auth/oauth/{provider}/callback,
 which exchanges the code, reads the verified email, find-or-creates the account, and mints the
@@ -36,6 +38,12 @@ def _procore_email(u: dict) -> str | None:
     return u.get("login") or u.get("email_address") or u.get("email")
 
 
+def _autodesk_email(u: dict) -> str | None:
+    # APS /userinfo is OIDC-shaped (`email`); `emailId` is the older profile field, kept as a
+    # fallback so an account created before the v2 endpoint still resolves to the same person.
+    return u.get("email") or u.get("emailId")
+
+
 PROVIDERS: dict[str, dict[str, Any]] = {
     "google": {
         "label": "Google",
@@ -60,6 +68,19 @@ PROVIDERS: dict[str, dict[str, Any]] = {
         "userinfo": "https://api.procore.com/rest/v1.0/me",
         "scope": "",
         "email": _procore_email,
+    },
+    # Autodesk Platform Services (APS) — the provider most of this product's users already have an
+    # account with, since it is the identity behind Revit, ACC and BIM 360. Sign-in only: this asks
+    # for the profile, NOT for model access. Reading someone's ACC hub is a separate consent with
+    # separate scopes, and bundling it into "sign in" would be asking for far more than the button
+    # says. The optional RVT bridge stays exactly what it is — opt-in, separately authorised.
+    "autodesk": {
+        "label": "Autodesk",
+        "authorize": "https://developer.api.autodesk.com/authentication/v2/authorize",
+        "token": "https://developer.api.autodesk.com/authentication/v2/token",
+        "userinfo": "https://developer.api.autodesk.com/userinfo",
+        "scope": "openid email profile",
+        "email": _autodesk_email,
     },
 }
 

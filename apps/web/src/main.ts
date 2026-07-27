@@ -1026,7 +1026,35 @@ function settingsModal() {
   const intWrap = document.createElement("div");
   intWrap.innerHTML = `<div class="section-title" style="margin-top:12px">Integrations &amp; API keys</div>`;
   const body = document.createElement("div"); body.className = "meta"; body.textContent = "loading…";
-  intWrap.appendChild(body); card.appendChild(intWrap); card.appendChild(msg);
+  intWrap.appendChild(body); card.appendChild(intWrap);
+
+  // CACHE-CLEAR — the way out of a bad cache. This app CacheFirsts the engine bundles, the WASM and
+  // .frag geometry because they are content-hashed and immutable; that is right, and it is exactly
+  // why an escape hatch has to exist. Without one, a half-written response or a badly-updated service
+  // worker becomes "clear your browser data", which nobody should have to be told.
+  const cacheWrap = document.createElement("div");
+  cacheWrap.innerHTML = '<div class="section-title" style="margin-top:12px">Local data</div>';
+  const cacheNote = document.createElement("div"); cacheNote.className = "meta";
+  cacheNote.style.cssText = "font-size:12px;margin-bottom:6px";
+  cacheNote.textContent = "Clears downloaded geometry, cached pages and offline data. Your sign-in "
+    + "and preferences are kept.";
+  const clearBtn = document.createElement("button");
+  clearBtn.className = "mini-btn"; clearBtn.textContent = "Clear cached data";
+  const cacheOut = document.createElement("div"); cacheOut.className = "meta";
+  cacheOut.style.cssText = "font-size:12px;margin-top:6px";
+  clearBtn.onclick = async () => {
+    clearBtn.disabled = true; clearBtn.textContent = "Clearing…";
+    const { clearCaches } = await import("./ui/clearCache");
+    const r = await clearCaches();
+    // Report the counts, not "Done!" — a number is checkable and a reassurance is not.
+    cacheOut.textContent = r.detail;
+    cacheOut.style.color = r.failed.length ? "var(--err)" : "var(--muted)";
+    clearBtn.textContent = "Reload to finish";
+    clearBtn.disabled = false;
+    clearBtn.onclick = () => location.reload();
+  };
+  cacheWrap.append(cacheNote, clearBtn, cacheOut);
+  card.appendChild(cacheWrap); card.appendChild(msg);
 
   void api.integrations().then(({ groups }) => {
     body.textContent = "";

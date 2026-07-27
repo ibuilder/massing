@@ -20,7 +20,30 @@ def open_model(path: str) -> ifcopenshell.file:
         key = (st.st_mtime_ns, st.st_size)
     except OSError:
         key = None
-    return _open_cached(path, key)
+    model = _open_cached(path, key)
+    # CACHE-KEY (v0.3.722) — stamp the CONTENT identity onto the model so derived caches can key on
+    # *which file this is* rather than on `id(model)`, which is process-local and reused after a GC.
+    # `(path, mtime, size)` is already the identity this cache uses, so nothing new is being decided
+    # here; it is being made available to the layers above. Prerequisite for sharing baked geometry
+    # across workers — a shared cache cannot be keyed on an address in one process's heap.
+    try:
+        model.__aec_content_key__ = content_key(path, key)
+    except AttributeError:                      # a future ifcopenshell may forbid it; not fatal
+        pass
+    return model
+
+
+def content_key(path: str, stat_key: tuple[int, int] | None) -> str:
+    """Stable identity for the FILE behind a model: absolute path + mtime + size.
+
+    Not a hash of the bytes — deliberately. Hashing a 2 GB IFC on every open would cost more than the
+    work being cached, and stat already distinguishes a re-written file, which is the case that
+    matters (a republish to the same `source.ifc`). `unknown:` when the file could not be stat'd, so a
+    missing key is never mistaken for a matching one.
+    """
+    if stat_key is None:
+        return f"unknown:{os.path.abspath(path)}"
+    return f"{os.path.abspath(path)}:{stat_key[0]}:{stat_key[1]}"
 
 
 @lru_cache(maxsize=8)
