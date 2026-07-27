@@ -593,7 +593,7 @@ you have thrown the vectors away; we mostly have not. Rasters fall back to "unkn
   keynote and a revision cloud each belong to a *view*, not to a page number. This is what makes
   `keynotes`/`DETAIL-REF` (R21) round-trip against received sheets rather than only our own.
 
-* **R27-CLAIM-TYPE — what kind of statement is this?** The representation handbook's one durable
+* ✅ **R27-CLAIM-TYPE** *(shipped v0.3.709)* — **what kind of statement is this?** The representation handbook's one durable
   idea: a record should say whether it is an **intent** (specified), an **embodiment** (built),
   an **evidence** (measured/observed) or an **inference** (derived). `element_facts.gather()` already
   states a `source` per fact and `verified()` already prefers an IFC stamp over a field record — this

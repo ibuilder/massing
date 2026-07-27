@@ -4,6 +4,35 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.709 — four ways to say a wall is fire-rated
+
+"This wall is fire-rated" can mean the specification requires it, the model asserts it, an inspector
+went and looked at it, or a rule worked it out from the wall type. Four different claims, rendered
+identically — and an estimator, an inspector and a lawyer each need a different one of them.
+
+Every fact about an element now says which kind it is: **specified**, **asserted by the model**,
+**observed**, or **derived**.
+
+The design turns on one thing: **the kind follows the source, not the fact.** A verification backed by
+a stamp in the model is the model asserting something; the same verification backed by a site record
+is somebody having looked. A table keyed on the name of the fact would have to pick one and would be
+wrong half the time.
+
+**The four are deliberately not ranked**, and resisting that was the harder call. It is tempting to
+say an observation beats a specification — but for *what should this be*, the specification is the
+authority and an observation is beside the point, while for *what is it*, the observation wins and the
+specification is a wish. Which question is being asked belongs to whoever is asking it, not to the
+layer underneath.
+
+A fact whose origin is not recognised is reported as **unknown** and listed separately, never quietly
+filed under one of the four: guessing "derived" invents the weakest possible claim and guessing
+"observed" the strongest. "Nobody recorded this" also stays distinct from "recorded, and we cannot
+tell what it is" — collapsing those loses the one worth acting on.
+
+The payoff is a question that could not be asked before: **has anybody actually looked?** An element
+that is specified, modelled, priced and scheduled but never observed is one nobody has seen — and
+until now that was indistinguishable from one that had been inspected.
+
 ## v0.3.708 — one set of icons, and they borrow their colour
 
 The interface wore coloured emoji: several visual languages at once, each at its own weight and fill,
