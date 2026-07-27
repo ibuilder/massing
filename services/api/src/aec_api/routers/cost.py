@@ -564,6 +564,12 @@ def element_lifecycle(pid: str, guid: str, db: Session = Depends(get_db),
     facts = element_facts.gather(db, pid, guid, model=model, element=el, priced=priced)
     out = lifecycle_strip.strip(el, **facts)
     out["evidence"] = {k: facts[k] for k in ("scheduled", "installed", "verified") if facts[k]}
+    # R27-CLAIM-TYPE: say what KIND of statement each fact is. "This wall is fire-rated" from a
+    # specification and from a site observation are different claims, and until this they rendered
+    # identically. `has_evidence` is the question nobody could ask before: an element specified,
+    # modelled, priced and scheduled but never observed is one nobody has SEEN.
+    from .. import claim_type
+    out["claims"] = claim_type.classify(facts)
     return out
 
 

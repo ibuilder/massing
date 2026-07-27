@@ -525,9 +525,30 @@ def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(ge
                                             float(cal.get("real_distance", 1.0)))
     if not scale or float(scale) <= 0:
         raise HTTPException(422, "a positive scale_units_per_px (or a valid calibration) is required")
-    return takeoff2d.quantify(body.get("regions") or [], float(scale),
-                              unit=str(body.get("unit") or "m"),
-                              overrides=body.get("overrides") or {})
+    regions = body.get("regions") or []
+    out = takeoff2d.quantify(regions, float(scale),
+                             unit=str(body.get("unit") or "m"),
+                             overrides=body.get("overrides") or {})
+    # R27-LAYOUT ②: when the caller supplies the sheet's layout, say which drawing each trace is on.
+    # One scale over a whole sheet is right for a sheet holding ONE drawing and quietly wrong for
+    # every other — a plan at 1:100 beside a detail at 1:20 prices the detail fivefold. Optional, so
+    # the single-drawing case is untouched; supplied, it reports which traces are unscoped (off any
+    # drawing — a quantity measured over a legend is not a quantity) or ambiguous (crossing two
+    # scales, where no single number is correct).
+    layout = body.get("layout")
+    if layout:
+        from .. import takeoff_scope
+        out["scope"] = takeoff_scope.scope(regions, layout,
+                                           px_per_point=body.get("px_per_point"))
+        # The calibration is checkable against a sheet WE drew: the scale is not something to
+        # measure but something already known. Disagreement is REPORTED, never substituted.
+        vps = [r for r in (layout.get("regions") or []) if r.get("kind") == "viewport"]
+        out["calibration_check"] = [
+            {"viewport": v.get("index"), "label": v.get("label"),
+             **takeoff_scope.check_calibration(float(scale), v.get("scale_denom"),
+                                               px_per_point=body.get("px_per_point"))}
+            for v in vps]
+    return out
 
 
 @router.get("/projects/{pid}/models/georeferencing")

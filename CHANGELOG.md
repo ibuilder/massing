@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.710 — how late are we, and how wrong is the plan
+
+Two questions a schedule could not previously answer, and one field it was missing to answer either.
+
+**How wrong is the plan?** Schedule risk already ran a Monte Carlo simulation and reported the spread
+of likely outcomes. What it multiplied was a three-point estimate — optimistic, likely, pessimistic —
+which on most jobs is one person's opinion entered three times. The percentiles were precise about an
+opinion. Every finished activity on the job is a measured comparison of planned duration against
+actual, so the spread now comes from **this project's own completed work, by these trades**.
+
+An activity that has *started but not finished* is deliberately excluded. Its measured duration is
+however far it has got, which is always shorter than the truth, and including it would drag every
+forecast optimistic — the direction of error that gets people hurt. When there is too little history
+the result falls back — trade, then project, then the supplied estimate — and **says which rung it
+landed on**, because a forecast whose provenance is invisible cannot be argued with. With no history
+and no estimate it refuses outright rather than returning "no change", which would read as "no risk".
+
+**How late are we?** A schedule with no *as-of* date is a plan, not a status report: an activity with
+no recorded start might be future work sitting comfortably ahead of its date, or work that should have
+begun three weeks ago, and nothing could tell them apart. With a data date, that distinction becomes
+trivial — and without one, **nothing is called late at all**, because assuming today would quietly
+paint a job that finished two years ago entirely red.
+
+An activity that **finished late is complete, not overdue** — its slip already happened, and putting
+it on a chase list helps nobody. And a **forecast finish** now exists as a field: the date whoever is
+doing the work expects to hit. That is a *claim about the future*, not a record of the past, so it is
+reported separately from actual slip and never added to it.
+
+A review of this release caught the sharpest possible version of that same principle turned on
+itself: the status engine judged an activity by whether its actual dates *existed* rather than whether
+they had happened yet — so a job evaluated as of January reported work finished in June as already
+complete. Dates in the future are now disregarded, and the fact that they were disregarded is stated
+rather than hidden.
+
 ## v0.3.709 — four ways to say a wall is fire-rated
 
 "This wall is fire-rated" can mean the specification requires it, the model asserts it, an inspector

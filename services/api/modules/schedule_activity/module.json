@@ -2,7 +2,7 @@
   "key": "schedule_activity",
   "name": "Schedule",
   "section": "Field",
-  "icon": "\u00e2\u2013\u00b8",
+  "icon": "â–¸",
   "ref_prefix": "ACT",
   "title_field": "name",
   "pinnable": true,
@@ -102,6 +102,13 @@
       "name": "actual_finish",
       "label": "Actual Finish",
       "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "expected_finish",
+      "label": "Expected finish",
+      "type": "date",
+      "help": "The finish whoever is doing the work now expects to hit — P6's Expected Finish. A CLAIM about the future, not a record of the past: reported separately from actual slip and never added to it. Distinct from the EVM `forecast_finish`, which is EXTRAPOLATED from IEAC(t) rather than stated by anyone. Blank means no expectation has been given; blank is not on-time.",
       "fieldset": "Dates"
     },
     {

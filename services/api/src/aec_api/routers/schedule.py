@@ -276,7 +276,49 @@ def schedule_risk_endpoint(pid: str, iterations: int = 1000, seed: int | None = 
             ppc_val = (board.get("metrics") or {}).get("ppc_pct")
         except Exception:  # noqa: BLE001 — no pull-plan data → uncalibrated defaults
             ppc_val = None
-    return schedule_risk.simulate(acts, iterations=iterations, seed=seed, ppc_pct=ppc_val)
+    # R27-RISK-CALIBRATE: the spread from THIS project's own finished work, where there is enough of
+    # it. `calibrated` rides alongside the simulation rather than silently replacing its inputs — a
+    # forecast whose provenance is invisible cannot be argued with, so the caller sees which rung the
+    # calibration landed on (trade / project / the supplied three-point) and how many finished
+    # activities backed it.
+    out = schedule_risk.simulate(acts, iterations=iterations, seed=seed, ppc_pct=ppc_val)
+    from .. import risk_calibrate
+    sample = risk_calibrate.samples(acts)
+    out["calibration"] = {
+        "n_finished": sample["n"],
+        "in_progress_excluded": len(sample["in_progress"]),
+        "outliers_excluded": sample["outliers"],
+        "by_trade": {t: risk_calibrate.calibrate(acts, trade=t)
+                     for t in sorted(sample["by_trade"])},
+        "note": ("Measured actual÷planned ratios from FINISHED activities only. Work that has started "
+                 "and not finished is excluded: its measured duration is however far it has got, "
+                 "always shorter than the truth, and including it would bias every forecast "
+                 "optimistic. A trade with fewer than the minimum sample falls back to the "
+                 "project-wide spread, and says so."),
+    }
+    return out
+
+
+@router.post("/projects/{pid}/schedule/status")
+def schedule_status_endpoint(pid: str, data_date: str | None = Body(default=None, embed=True),
+                             db: Session = Depends(get_db),
+                             _: str = Depends(require_role("viewer"))):
+    """SCHED-STATUS — what is late, as of a **data date**.
+
+    Body: `{data_date: "YYYY-MM-DD"}`. The data date is P6's: the line everything remaining is
+    measured from. **It is required to say anything about lateness** — without one every activity
+    comes back `unknown`, because an activity with no recorded start may be future work sitting
+    comfortably ahead of its date or work that should have begun three weeks ago, and assuming today
+    would quietly paint a job that finished two years ago entirely red.
+
+    Distinguishes *late to start* (should have begun, has not) from *overdue* (past its planned finish
+    and not complete). An activity that finished LATE is complete, not overdue — its slip already
+    happened. And `expected_finish`, the date whoever is doing the work expects to hit, is a **claim**
+    rather than a measurement, so forecast slip is reported separately and never added to actual slip.
+    """
+    from .. import schedule_status
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    return schedule_status.status(acts, data_date)
 
 
 @router.get("/projects/{pid}/schedule/resource-loading")

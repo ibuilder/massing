@@ -518,6 +518,29 @@ in.** R24 is about making the engine's one real advantage visible.
   persona rather than showing all three to everyone.
 
 
+## 🔌 SPRINT A-2 — the last three engines nobody can call
+
+Sprint A wired four engines that had shipped tested and unreachable. Auditing for the rest found
+**three more**, one of them created during Sprint A itself:
+
+* **A2-CONSTRAINTS** — `dim_constraints` (v0.3.701) has **no route and no MCP tool**. The solver is
+  fully tested and nothing in the platform can reach it; that entire release is currently inert.
+  Needs `POST /projects/{pid}/constraints/solve`.
+* **A2-SHEET-REGIONS** — `sheet_layout.sheet_regions()` (v0.3.702) is **not exposed**, yet
+  `POST /takeoff/2d` now *accepts* a `layout` object. The consumer was wired and the producer was
+  not, so a caller has no way to obtain what the route asks for — the same one-way asymmetry
+  R25-TASK-BIND existed to close, reintroduced while closing something else.
+* **A2-ICON-RENDER** — `TOOL_ICON` + `iconFor()` (v0.3.708) are complete and tested, but
+  `toolbarView.ts` **never calls them**. The mapping is done; the rendering was never wired, so
+  nothing on screen changed. "All 27 verbs mapped" was true and misleading.
+
+**The standing check this produces, to run every sprint:** *what did we build that nothing calls?*
+Of eleven things built on 2026-07-26, **seven were unreachable** — tests passing is not the same as a
+request being able to arrive. `grep` the new module name across `routers/` before calling an item
+done.
+
+---
+
 ## 📐 R27 — THE DRAWING IS DATA RING *(external research 2026-07-26: one paper + 16 sources)*
 
 **Where the evidence came from.** A peer-reviewed layout-analysis paper on construction drawings
@@ -626,7 +649,7 @@ you have thrown the vectors away; we mostly have not. Rasters fall back to "unkn
   not that the estimate was right) and is verified against **two independently-built accumulations** in
   the source.
 
-* **R27-RISK-CALIBRATE — the distribution comes from your own history, not a guess.**
+* ✅ **R27-RISK-CALIBRATE** *(shipped v0.3.710)* — **the distribution comes from your own history, not a guess.**
   [schedule_risk.py](../services/api/src/aec_api/schedule_risk.py) already runs Monte Carlo over the CPM
   network and reports P10/P50/P80/P90 — the *shape* is done. What it lacks is a defensible
   distribution: durations come from caller-supplied three-point estimates, i.e. somebody's opinion
