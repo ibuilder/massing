@@ -152,28 +152,6 @@ export function freshnessLabel(c: Cached<unknown>): string {
 }
 
 /**
- * A short, stable, non-reversible tag for the signed-in identity, derived from the session token.
- *
- * This exists because record lists are now the first thing in this product that **persists project
- * data on the device**, and the machine is often shared — a kiosk in a site trailer, a tablet passed
- * between trades. Keys are scoped by this tag so a cached entry written by one person can never be
- * *read* by the next, even before any network call has happened to authorize them.
- *
- * FNV-1a, not a cryptographic hash: the security boundary is the server, which authorizes every real
- * fetch. This is defence-in-depth for the offline read path, and the input is a high-entropy token,
- * so a digest in an enumerable key is not a second place the token can leak from.
- */
-export function identityScope(token: string): string {
-  if (!token) return "anon";
-  let h = 0x811c9dc5;
-  for (let i = 0; i < token.length; i++) {
-    h ^= token.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h.toString(36);
-}
-
-/**
  * Cache key for a module's record list.
  *
  * Scoped by project AND identity: two projects never share an entry, and neither do two people on

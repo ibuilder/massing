@@ -5,11 +5,12 @@
  * (and on load). Pairs with the PWA/Capacitor build so it's usable as an installed app in the field.
  */
 import type { ApiClient } from "../api/client";
+import { currentIdentity, ownedByMe } from "../api/identity";
 import { toast } from "./../ui/feedback";
 
 const QKEY = "aec-field-queue";
 
-interface QueuedCapture {
+export interface QueuedCapture {
   id: string;
   pid: string;
   module: string;
@@ -17,6 +18,7 @@ interface QueuedCapture {
   photo?: string;      // dataURL
   filename?: string;
   label?: string;      // human type label, for the queue-review list
+  owner?: string;      // who captured this; absent on entries from before scoping
 }
 
 interface GeoFix { lat: number; lon: number; acc: number; }
@@ -38,10 +40,27 @@ const TYPES: Record<string, { module: string; label: string; extra: Record<strin
   photo: { module: "photo", label: "Progress photo", extra: {} },
 };
 
-function loadQueue(): QueuedCapture[] {
+export function loadAll(): QueuedCapture[] {
   try { return JSON.parse(localStorage.getItem(QKEY) || "[]"); } catch { return []; }
 }
-function saveQueue(q: QueuedCapture[]): void { localStorage.setItem(QKEY, JSON.stringify(q)); }
+
+/** This session's captures, plus untagged ones from before scoping. Someone else's queued work is
+ *  invisible here — and still on disk, waiting for them. */
+export function loadQueue(): QueuedCapture[] {
+  const me = currentIdentity();
+  return loadAll().filter((c) => ownedByMe(c.owner, me));
+}
+
+/** Write back this session's queue, leaving everyone else's entries exactly as they were.
+ *
+ *  `q` is always a FILTERED view, so a plain overwrite here would silently delete the captures this
+ *  scoping exists to protect — someone's unsent jobsite photos, gone because a different person used
+ *  the tablet. The merge is the whole point of the write path. */
+export function saveQueue(q: QueuedCapture[]): void {
+  const me = currentIdentity();
+  const others = loadAll().filter((c) => !ownedByMe(c.owner, me));
+  localStorage.setItem(QKEY, JSON.stringify([...others, ...q]));
+}
 
 function dataUrlToFile(dataUrl: string, name: string): File {
   const [meta, b64] = dataUrl.split(",");
@@ -184,7 +203,7 @@ export class FieldCapture {
     // offline (or the request failed) → queue with the photo inlined as a dataURL
     const item: QueuedCapture = { id: crypto.randomUUID(), pid, module: t.module, data, filename, label: t.label };
     if (photo) item.photo = await fileToDataUrl(photo);
-    const q = loadQueue(); q.push(item); saveQueue(q);
+    const q = loadQueue(); q.push({ ...item, owner: currentIdentity() }); saveQueue(q);
     this.refreshBadge();
     toast(`${t.label} saved offline — will sync`, "info");
   }

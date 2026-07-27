@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { clearRecordCache, freshnessLabel, identityScope, recordsKey, swr } from "./recordCache";
+import { identityScope } from "./identity";
+import { clearRecordCache, freshnessLabel, recordsKey, swr } from "./recordCache";
 
 /** An in-memory stand-in for IndexedDB — enough of the surface that `swr` exercises its real paths. */
 function fakeIdb() {

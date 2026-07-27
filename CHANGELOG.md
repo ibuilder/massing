@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.725 — your queued field work is yours, and stays yours
+
+The app holds two queues of work that has not reached the server yet: photos and observations
+captured in the field, and files attached while offline. Both flush automatically when a connection
+comes back.
+
+Until now neither knew who created it. On a tablet shared between trades, the next person to sign in
+saw the previous person's pending captures and uploads — and flushing them filed that work under the
+wrong name. Wrong attribution on a punchlist item or a safety observation is a worse outcome than
+merely seeing it.
+
+Each queued item now records who created it, and you only see your own. Someone else's pending work
+is hidden from you, **not deleted** — it is still on the device, waiting for them to sign back in.
+That distinction is the entire design: this is unsent work, and losing a jobsite photo that exists
+nowhere else would be far worse than the problem being fixed. Clearing your own queue leaves everyone
+else's untouched.
+
+Items already queued before this update stay visible, because there is no way to know whose they are
+and stranding them would be its own kind of loss. They are never re-labelled with someone else's
+name, and the unlabelled set empties as those queues flush.
+
 ## v0.3.724 — signing out now clears what was cached, and no two people share a cache
 
 Yesterday's release started keeping record lists on the device so they appear instantly. That was the
