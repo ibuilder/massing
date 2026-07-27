@@ -49,7 +49,28 @@ already made, and things blocked on users reads as far more load than it is. Eve
 moved to [roadmap-completed.md](roadmap-completed.md); it is not listed here just because it was
 recently true.
 
-1. **🧩 KERNEL-ADOPT ③ — a capability onto the kernel.** *Build.* ① the identity boundary (v0.3.713)
+1. **📌 PIN-TO-DRAWING — a pin does not reach the generated drawing.** *Found by the 07-27 live
+   house test.* An anchored Topic appears correctly in `GET /pins`, but `plan.svg?pins=1` renders
+   **zero** pin markers — searched the output, nothing. The sheet generator never consumes pins. This
+   is the exact workflow "raise an RFI, pin it, see it on the drawing" and it stops at the last step.
+2. **🔗 RFI-PIN-DUALITY — two different objects are both called an RFI.** *Same test.* A register
+   record (`modules/rfi`, has the workflow, reaches `closed`) and a `Topic` with `type="rfi"` (has the
+   anchor, appears in `/pins`) are separate tables. Binding a register RFI to a wall via
+   `{rid}/elements` returns `count: 1` and produces **no pin**. So today you get workflow-to-closure
+   OR a pin, never both on one thing. Decide which is canonical and bridge it — probably: a register
+   record with element bindings should project an anchored Topic.
+3. **🔍 ELEMENTS-UNDERCOUNT — `/elements` returned 2 for a 7-element model.** *Same test.* QTO
+   reported `element_count: 7` on the same project while `GET /projects/{pid}/elements?limit=200`
+   returned 2 rows (1 wall of 4). One of the two is wrong; the takeoff is the one being trusted for
+   money, so this needs settling.
+4. **🌍 GEO-REF — we have no georeferencing of our own.** The kernel now ships `project-schema/geo.ts`
+   (CRS codes, linear units, `GeoReference`, `Extent`, accuracy). Our only georeferencing code is
+   inside ifcopenshell's own package. CLAUDE.md calls this out as a watch-out and nothing implements it.
+5. **📦 MASS-FILE — build the `.mass` container adapter.** The kernel ships the container *contract*
+   and one storage-backed reference adapter; there is no file writer (no zip lib in the tree at all).
+   Upstream issue [#6](https://github.com/MassingCloud/massingifc/issues/6) asks whether it belongs
+   there or here. A project package a user can save and send is ours to want.
+6. **🧩 KERNEL-ADOPT ③ — a capability onto the kernel.** *Build.* ① the identity boundary (v0.3.713)
    and ② markup through the plugin host (v0.3.717) both closed real defects; pick ③ from a real pain,
    not from the kernel's feature list. **Undo is not a candidate** — checked: model-level undo via
    versioned source IFC is stronger for authoring.
