@@ -15,21 +15,32 @@
  * 2. **Nothing is removed.** All 130+ modules stay reachable — from their room, from the element they
  *    are anchored to, from the work queue when it is your turn, and from ⌘K by name. The catalog
  *    survives as the fourth path rather than the only one.
- * 3. **It lives beside the current shell, not instead of it.** Behind a flag until it is demonstrably
- *    better, because replacing a working front door on the strength of a mock is how you lose the
- *    parts that were already right.
+ * 3. **It lived beside the old shell until it was demonstrably better** — behind a flag, because
+ *    replacing a working front door on the strength of a mock is how you lose the parts that were
+ *    already right. As of v0.3.715 it IS the front door: R26 is complete, and the live render audit
+ *    passes against the spine specifically rather than against the classic shell it was once
+ *    mistakenly run on. The flag survives inverted, as an opt-OUT, because a redesign nobody can
+ *    back out of is a redesign that has to be perfect on the first try.
  */
 import type { ApiClient } from "../api/client";
 import type { RoomAllocation, RoomDef } from "../api/types";
 
-/** Opt in with `?shell=spine`, or persistently via the stored preference. Off by default. */
+/**
+ * **On by default since v0.3.715.** `?shell=classic` opts out and the choice sticks; `?shell=spine`
+ * opts back in.
+ *
+ * The stored value is now explicit — `"1"` on, `"0"` off — rather than present/absent. That detail
+ * matters for the flip: under the old scheme "no preference" and "opted out" were the same absent
+ * key, so inverting the default would have silently overridden every deliberate opt-out. Anyone who
+ * had opted IN still has `"1"` and sees no change.
+ */
 export const SPINE_FLAG = "shell-spine";
 
 export function spineEnabled(search: string = location.search): boolean {
   const q = new URLSearchParams(search).get("shell");
   if (q === "spine") { localStorage.setItem(SPINE_FLAG, "1"); return true; }
-  if (q === "classic") { localStorage.removeItem(SPINE_FLAG); return false; }
-  return localStorage.getItem(SPINE_FLAG) === "1";
+  if (q === "classic") { localStorage.setItem(SPINE_FLAG, "0"); return false; }
+  return localStorage.getItem(SPINE_FLAG) !== "0";      // unset = the new default = on
 }
 
 /**

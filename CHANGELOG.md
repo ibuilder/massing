@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.715 — the new look is the front door
+
+The five-room spine — Work, Model, Schedule, Deal, Docs — is now what you get by default. It has been
+built and testable behind a flag since the R26 ring, deliberately beside the old shell rather than
+instead of it, because replacing a working front door on the strength of a mock is how you lose the
+parts that were already right. The ring is finished and the render audit passes against the spine
+specifically, so the flag has served its purpose.
+
+**The old shell is still one click away and the choice sticks.** `?shell=classic` returns you to the
+lifecycle-stage rail and remembers. A redesign nobody can back out of has to be perfect on the first
+try, and this one does not have to be.
+
+**The detail that made the flip safe.** The stored preference used to be present-or-absent, which
+made "never expressed a preference" and "deliberately chose the old shell" the same state. Inverting
+the default on that would have quietly dragged the one group who had already said no into the new
+shell. The preference is now explicitly on or off, so the two are distinguishable — anyone who opted
+out stays out, and anyone who opted in sees no change.
+
+The companion kernel repository is now public under MIT, which is what makes the architecture
+adopted in v0.3.712 inspectable rather than a black box arriving by copy.
+
 ## v0.3.714 — an architectural claim that fails a build instead of ageing into fiction
 
 Two codebases were being built in parallel against shared assumptions, and **every assumption written

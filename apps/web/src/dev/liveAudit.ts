@@ -249,7 +249,9 @@ export function auditRooms(expected: readonly string[] = ROOM_IDS): RoomAuditRep
     note: (shell === "spine"
       ? "Measured under the spine — the rail this ring introduced."
       : "Measured under the CLASSIC shell, where the room rail does not exist: every room reads as "
-        + "`missing` and that is correct, not a defect. Re-run with ?shell=spine to judge the rail."),
+        + "`missing` and that is correct, not a defect. The spine is the DEFAULT since v0.3.715, so "
+        + "landing here means something opted out — clear the `shell-spine` key or pass ?shell=spine "
+        + "before reading this run as a verdict on the rail."),
   };
 }
 

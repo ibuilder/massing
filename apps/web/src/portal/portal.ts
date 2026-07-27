@@ -201,9 +201,9 @@ export class PortalUI {
     home.onclick = () => { this.activeKey = null; void this.renderHome(); this.buildNav(); };
     nav.appendChild(home);
 
-    // The rail's upper half is either the lifecycle-stage grouping (journey-based IA: people think
-    // in project phases, not in a flat feature list) or — behind `?shell=spine` — the five-room
-    // spine. Both read the SAME destination catalog, so the two shells cannot drift on what exists.
+    // The rail's upper half is the five-room spine (the default since v0.3.715) or — for anyone who
+    // opted out with `?shell=classic` — the lifecycle-stage grouping. Both read the SAME destination
+    // catalog, so the two shells cannot drift on what exists.
     const dests = this.destDispatch();
     if (spineEnabled()) this.buildRoomRail(nav, dests);
     else this.buildStageRail(nav, dests);

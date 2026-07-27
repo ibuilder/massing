@@ -69,6 +69,18 @@
         "_prototypes"
       ],
       "port": 8901
+    },
+    {
+      "name": "web-dist",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8911",
+        "--directory",
+        "apps/web/dist"
+      ],
+      "port": 8911
     }
   ]
 }

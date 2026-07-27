@@ -44,22 +44,38 @@ describe("the spine is weighted by a workspace, never replaced", () => {
   });
 });
 
-describe("the flag — the new shell lives BESIDE the old one", () => {
+describe("the flag — the new shell is the front door, with a way back", () => {
   beforeEach(() => localStorage.clear());
 
-  it("is off by default, so nobody is moved without opting in", () => {
-    expect(spineEnabled("")).toBe(false);
+  it("is ON by default as of v0.3.715 — the redesign is the product now", () => {
+    expect(spineEnabled("")).toBe(true);
   });
 
-  it("?shell=spine turns it on and remembers", () => {
-    expect(spineEnabled("?shell=spine")).toBe(true);
-    expect(spineEnabled("")).toBe(true);          // persisted
-  });
-
-  it("?shell=classic is a way BACK — a flag you cannot leave is a migration", () => {
-    spineEnabled("?shell=spine");
+  it("?shell=classic is still a way BACK, and it STICKS", () => {
+    // A redesign nobody can back out of has to be perfect on the first try. This is the escape
+    // hatch, and it has to survive a reload or it is not one.
     expect(spineEnabled("?shell=classic")).toBe(false);
     expect(spineEnabled("")).toBe(false);
+  });
+
+  it("?shell=spine opts back in after an opt-out", () => {
+    spineEnabled("?shell=classic");
+    expect(spineEnabled("?shell=spine")).toBe(true);
+    expect(spineEnabled("")).toBe(true);
+  });
+
+  it("a deliberate opt-out is NOT overridden by the new default", () => {
+    // THE trap in flipping this. The old scheme stored presence/absence, so "never expressed a
+    // preference" and "chose classic" were the same absent key — inverting the default would have
+    // silently dragged every opted-out user into the new shell, which is the one group that had
+    // already said no. The value is explicit now, so the two states are distinguishable.
+    localStorage.setItem("shell-spine", "0");
+    expect(spineEnabled("")).toBe(false);
+  });
+
+  it("an existing opt-IN still reads as on", () => {
+    localStorage.setItem("shell-spine", "1");
+    expect(spineEnabled("")).toBe(true);
   });
 });
 
