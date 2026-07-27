@@ -39,6 +39,7 @@ import { type LogisticsResource } from "../api/client";
 import { DraftProxyLayer } from "./draft/draftProxy";
 import { populate4dPanel } from "./fourD";
 import { TransformGizmo } from "./draft/transformGizmo";
+import { modelIdMapFromRefs } from "../kernel/elementRef";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type DisciplineTree, type ElementProps, type PropLayer, type PropMapRule, type Topic } from "../api/client";
 import { escapeHtml, fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
@@ -352,7 +353,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const list = (guids || []).filter(Boolean);
     if (!list.length) return;
     selectedGuid = list[0]!;
-    await selectMap(await sets.fromGuids(list), { guid: list[0]!, fit });
+    // KERNEL-ADOPT ①: resolve reports what it could NOT find. Before v0.3.713 those GlobalIds were
+    // dropped, so a rule's 10 failing elements could highlight 7 with nothing said — and a short
+    // selection reads as "the model changed", not "3 of these are not in any loaded model".
+    const outcome = await sets.resolve(list);
+    await selectMap(modelIdMapFromRefs(outcome.refs), { guid: list[0]!, fit });
+    if (!outcome.complete) {
+      const n = outcome.unresolved.length;
+      setStatus(`${outcome.refs.length} of ${list.length} selected — ${n} `
+        + `GlobalId${n === 1 ? "" : "s"} not in any loaded model`);
+    }
   }
 
   $("props-close").addEventListener("click", () => void selectMap(null));

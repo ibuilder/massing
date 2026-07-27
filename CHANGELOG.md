@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.713 — a selection that cannot find an element now says so
+
+The first capability to sit on the newly adopted kernel, and deliberately the identity one: every
+other capability that moves out of the viewer module will cross this boundary, and a line drawn wrong
+once is drawn wrong everywhere above it.
+
+**Fixed — selecting elements silently returned fewer than you asked for.** Resolving IFC GlobalIds to
+the renderer's per-session handles discarded anything it could not find. Ask to select the ten
+elements a rule flagged, or the elements behind a clash, and if three of them are not in a loaded
+model you were shown seven with nothing said. The natural reading of a shorter selection is that the
+model changed — not that the lookup quietly failed — so the error pointed away from itself. The
+resolver now reports what it could not find, and the viewer says "7 of 10 selected — 3 GlobalIds not
+in any loaded model".
+
+Two related cases are now answered rather than guessed at. The same GlobalId present in two models of
+a federated project is reported as **ambiguous** instead of resolving to whichever model happened to
+be searched first — federation makes that normal, and a coin toss between two real elements is worse
+than saying there are two. And geometry that can be drawn but carries no GlobalId — generated content
+that was never in an IFC — is named rather than dropped, which is the difference between a clear
+message and a pin that never comes back.
+
+**Why this is the identity boundary.** A GlobalId is stable across re-issue and safe to store; the
+renderer's handle is valid for one load of one model in one session and is renumbered when the same
+file is converted again. Storing the wrong one looks correct for the rest of the session and only
+surfaces after somebody re-issues a model, as every pin, clash and cost line pointing at the wrong
+element. That rule now has one place to live, with a check that a reference is stripped of its
+session handle before it can be persisted.
+
 ## v0.3.712 — the platform kernel arrives, vendored, with its disagreements written down
 
 The kernel and plugin architecture developed alongside this product is now **in the build**. Three
