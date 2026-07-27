@@ -28,16 +28,42 @@ _STRONG_RE = re.compile(r"\ba?gpl|affero", re.I)   # GPL/AGPL — matches gplv3/
 
 
 def classify_license(text: str) -> str:
-    """permitted / copyleft / unknown for a declared license string. Copyleft wins ties (a GPL-with-linking
-    -exception is still surfaced for a human to confirm). Word-boundary matched to avoid prose false hits."""
+    """permitted / copyleft / unknown for a declared license string.
+
+    **A package offering a permitted licence AMONG SEVERAL is permitted** — that is what dual
+    licensing means: the recipient chooses, and we choose the permissive one. `odfpy` declares
+    "Apache **or** GPL **or** LGPL" and copyleft-wins-ties classified it as copyleft, which is simply
+    wrong; it would have had us excluding a dependency we are entitled to use under Apache.
+
+    The distinction that keeps this honest is *whether a permitted option is actually on offer*.
+    PyMuPDF declares "AGPL 3.0 **or** Artifex Commercial" — also a choice, but the only free option is
+    AGPL, and a commercial licence is not in the permitted set, so it stays copyleft. Correct in both
+    directions, which a blanket "any permitted mention wins" rule would not be.
+
+    Where no permitted alternative is offered, copyleft still wins the tie: a GPL-with-linking-exception
+    is surfaced for a human rather than quietly accepted. Word-boundary matched to avoid prose hits.
+    """
     t = (text or "").strip()
     if not t:
         return "unknown"
-    if _COPYLEFT_RE.search(t):
+    copyleft, permitted = bool(_COPYLEFT_RE.search(t)), bool(_PERMITTED_RE.search(t))
+    if copyleft and permitted:
+        return "permitted"          # a choice is offered and we take the permissive one
+    if copyleft:
         return "copyleft"
-    if _PERMITTED_RE.search(t):
+    if permitted:
         return "permitted"
     return "unknown"
+
+
+def is_dual_licensed(text: str) -> bool:
+    """True when both a permitted and a copyleft option are declared — reported, not hidden.
+
+    Worth surfacing separately from a plain permitted result: the classification depends on a choice
+    somebody made, and if the upstream ever drops the permissive option the answer changes silently.
+    """
+    t = (text or "").strip()
+    return bool(_COPYLEFT_RE.search(t)) and bool(_PERMITTED_RE.search(t))
 
 
 def is_strong_copyleft(text: str) -> bool:
@@ -60,6 +86,71 @@ def _license_of(dist) -> str:
     if expr:
         return expr
     return lic.splitlines()[0].strip() if lic else ""       # last resort: first line of the full text
+
+
+# ---------------------------------------------------------------------------------------------------
+# What must NOT ship, declared ONCE.
+#
+# A dependency can be necessary to *install* and still be something we must not distribute — a
+# permissively-licensed library can require a copyleft one it only uses on a path we never take.
+# Hard-coding the remedy in each build file solves exactly one package: the next transitive arrival
+# needs somebody to remember the PyInstaller specs and the Dockerfile all over again, and the failure
+# is silent because a shipped artifact does not announce what is inside it.
+#
+# So the list lives here and everything else derives from it:
+#   * `desktop.spec` / `sidecar.spec` read `excluded_import_names()` for PyInstaller's `excludes`;
+#   * the container runs `python -m aec_api.supply_chain --purge` after installing;
+#   * `test_license_gate` asserts every strong-copyleft package in the shipped closure is either in
+#     here or explicitly accepted, so finding one and forgetting to act on it fails a build.
+#
+# Adding an exclusion is one line. Keys are distribution names; `import_name` is what PyInstaller
+# needs (they differ — `bcf-client` installs the module `bcf`).
+SHIP_EXCLUDED: dict[str, dict[str, str]] = {
+    "bcf-client": {
+        "import_name": "bcf",
+        "why": "GPLv3. An unconditional requirement of `ifctester` (LGPLv3, which is fine and which "
+               "we do need), but it backs ifctester's BCF *reporter* and we import only "
+               "`ifctester.ids` — verified to load zero bcf modules. Our own BCF handling is "
+               "`bcf_io.py`. Installed so ifctester's metadata is satisfied; excluded from every "
+               "artifact so no GPLv3 is distributed.",
+    },
+}
+
+
+def excluded_import_names() -> list[str]:
+    """Module names the packagers must leave out. Read by `desktop.spec` and `sidecar.spec`."""
+    return sorted(v["import_name"] for v in SHIP_EXCLUDED.values())
+
+
+def excluded_distributions() -> list[str]:
+    """Distribution names the container removes after install. Read by `--purge`."""
+    return sorted(SHIP_EXCLUDED)
+
+
+def purge_excluded(*, dry_run: bool = False) -> dict[str, Any]:
+    """Uninstall everything in `SHIP_EXCLUDED`. Idempotent — absent is success, not an error.
+
+    Deliberately tolerant: the image may be rebuilt from a lock that no longer pins the package, and
+    a build that fails because there was nothing to remove would be a build failing for succeeding.
+    """
+    import subprocess
+
+    removed, absent = [], []
+    for dist in excluded_distributions():
+        try:
+            import importlib.metadata as im
+            im.distribution(dist)
+        except Exception:                                    # noqa: BLE001 — not installed is fine
+            absent.append(dist)
+            continue
+        if dry_run:
+            removed.append(dist)
+            continue
+        r = subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", dist],  # noqa: S603
+                           capture_output=True, text=True, check=False)
+        (removed if r.returncode == 0 else absent).append(dist)
+    return {"removed": removed, "absent": absent, "declared": excluded_distributions(),
+            "note": "Excluded from the shipped artifact — see SHIP_EXCLUDED for why each is listed."}
 
 
 def license_audit() -> dict[str, Any]:
@@ -197,6 +288,15 @@ def _main(argv: list[str] | None = None) -> int:
             print(f"  {f['severity'].upper():6} {f['tool']}.{f['where']} [{f['kind']}]: {f['snippet']!r}")
         highs = [f for f in r["findings"] if f["severity"] == "high"]
         return 1 if ("--gate" in argv and highs) else 0
+    if "--purge" in argv:
+        # Used by the container after `pip install`: remove what must not be distributed.
+        out = purge_excluded(dry_run="--dry-run" in argv)
+        for d in out["removed"]:
+            print(f"purged (excluded from artifact): {d}")
+        for d in out["absent"]:
+            print(f"not installed, nothing to purge: {d}")
+        return 0
+
     a = license_audit()
     print(f"SEC-SUPPLY license audit: {a['total']} components · {a['permitted']} permitted · "
           f"{a['copyleft_count']} copyleft ({a['strong_copyleft_count']} strong GPL/AGPL) · "

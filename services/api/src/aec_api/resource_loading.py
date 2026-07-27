@@ -18,7 +18,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from . import modules as me
-from . import schedule_cpm
+from . import money, schedule_cpm
 
 
 def _d(r: dict) -> dict:
@@ -95,8 +95,10 @@ def loading(db: Session, pid: str, cap: float | None = None) -> dict[str, Any]:
     weeks: dict[str, dict[str, Any]] = {}
     for ld in loads:
         wk_list = _weeks(ld["start"], ld["finish"])
-        cost_per_wk = ld["cost"] / len(wk_list) if wk_list else 0.0
-        for wk in wk_list:
+        # MONEY-WIRE ② — same reason as the budget spread: an even split rounded per week does not
+        # sum to the resource's cost, so the histogram and the total disagree by cents.
+        parts = money.allocate(ld["cost"], [1.0] * len(wk_list)) if wk_list else []
+        for wk, cost_per_wk in zip(wk_list, parts):
             b = weeks.setdefault(wk.isoformat(), {"units": 0.0, "cost": 0.0, "by_trade": {}, "by_type": {}})
             b["units"] += ld["units"]; b["cost"] += cost_per_wk
             b["by_trade"][ld["trade"]] = b["by_trade"].get(ld["trade"], 0.0) + ld["units"]

@@ -17,6 +17,7 @@ Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_license_gate.p
 from __future__ import annotations
 
 import os
+import re
 import sys
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_license_gate.db")
@@ -39,27 +40,14 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 RUNTIME_REQS = [os.path.join(_HERE, "..", "data", "requirements.txt")]
 DEV_ONLY = {"pyinstaller", "pyinstaller-hooks-contrib"}   # build the desktop binary; never shipped inside it
 
-# Strong copyleft that IS in the shipped closure and has not been ruled on. Listed, dated and
-# reasoned rather than quietly permitted: an allowlist without a reason is how a constraint stops
-# being one. These are NOT approved — they are known, and the decision belongs to the project owner.
-AWAITING_DECISION = {
-    "bcf-client": (
-        "2026-07-27 — GPLv3, an unconditional requirement of `ifctester`. INVESTIGATED: we do not need "
-        "it. `ifctester` itself is LGPLv3 (same as ifcopenshell, already accepted), we import only "
-        "`ifctester.ids`, and importing that loads ZERO bcf modules — bcf-client backs ifctester's BCF "
-        "*reporter*, which we never call. Our own BCF handling is `bcf_io.py`. RECOMMENDED: exclude it "
-        "from the distributed artifact (PyInstaller `--exclude-module`, or uninstall after pip in the "
-        "image) rather than ship GPLv3 we never execute. `test_first_party_never_imports_bcf_client` "
-        "below holds the 'never executed' half; the packaging half is a build change awaiting the "
-        "owner's call."
-    ),
-    "odfpy": (
-        "2026-07-27 — same route (unconditional requirement of `ifctester`). Classified copyleft from "
-        "its metadata, which declares no explicit License field — the classifier read a classifier "
-        "line. Worth confirming the actual licence before treating it as a finding."
-    ),
-}
-BANNED_IMPORTS = ("fitz", "pymupdf")                       # PyMuPDF is AGPL — see docs/pdf stack notes
+# Strong copyleft in the shipped closure must be EXCLUDED FROM THE ARTIFACT, and the exclusion list
+# lives in `supply_chain.SHIP_EXCLUDED` — one declaration read by both PyInstaller specs and by the
+# container's purge step. This closes the loop: finding a copyleft package and forgetting to act on it
+# now fails a build, rather than being recorded in a list nobody re-reads.
+EXCLUDED = {k.lower() for k in supply_chain.SHIP_EXCLUDED}
+# Import names first-party code must never reach for — derived from the same declaration, so adding
+# an exclusion automatically adds its import guard rather than needing a second edit here.
+BANNED_IMPORTS = tuple(e["import_name"] for e in supply_chain.SHIP_EXCLUDED.values()) + ("pymupdf", "fitz")
 
 
 def _declared() -> set[str]:
@@ -119,11 +107,13 @@ def test_no_UNKNOWN_strong_copyleft_in_the_shipped_closure():
     # over a judgement call, but a NEW one fails on the commit that introduces it.
     named = [f"{c['name']} {c['version']} ({c['license']})" for c in AUDIT["strong_copyleft"]
              if c["name"].lower() in CLOSURE
-             and c["name"].lower() not in AWAITING_DECISION
+             and c["name"].lower() not in EXCLUDED
              and c["name"].lower() not in DEV_ONLY]
     assert not named, (
-        "GPL/AGPL in the SHIPPED dependency closure — disallowed by a standing project "
-        "constraint:" + chr(10) + "  " + (chr(10) + "  ").join(named)
+        "GPL/AGPL in the SHIPPED dependency closure and NOT excluded from the artifact:"
+        + chr(10) + "  " + (chr(10) + "  ").join(named)
+        + chr(10) + "Either replace it, or add it to supply_chain.SHIP_EXCLUDED with a reason "
+        "(which excludes it from the binaries and the image automatically)."
     )
 
 
@@ -139,8 +129,11 @@ def test_our_SOURCE_never_imports_a_banned_module():
         for f in base.rglob("*.py"):
             text = f.read_text(encoding="utf-8", errors="ignore")
             for mod in BANNED_IMPORTS:
-                if f"import {mod}" in text:
-                    hits.append(f"{f}: import {mod}")
+                # WORD BOUNDARY, not substring: `import bcf` is a substring of `import bcf_io`,
+                # which is OUR module and the whole reason the name is confusing. Same trap the
+                # licence classifier already guards ("EXEMPLARY" contains "mpl").
+                if re.search(rf"^\s*(?:import|from)\s+{re.escape(mod)}", text, re.M):
+                    hits.append(f"{f}: imports {mod}")
     assert not hits, "AGPL module imported by first-party source:" + chr(10) + "  " + (chr(10) + "  ").join(hits)
 
 
@@ -200,10 +193,44 @@ def test_the_audit_actually_examined_something():
     assert len(CLOSURE) > len(DECLARED), "the closure is not wider than the declared set — walk broken"
 
 
-def test_the_awaiting_decision_list_states_a_reason_and_is_still_real():
-    for name, why in AWAITING_DECISION.items():
-        assert len(why) > 60, f"{name} needs a real reason, not a placeholder"
-        assert name in CLOSURE, f"{name} is no longer in the shipped closure — delete this entry"
+def test_every_exclusion_states_a_reason_and_is_still_needed():
+    for name, entry in supply_chain.SHIP_EXCLUDED.items():
+        assert len(entry["why"]) > 60, f"{name} needs a real reason, not a placeholder"
+        assert entry["import_name"], f"{name} needs the import name PyInstaller must exclude"
+        # An exclusion for something no longer installed is a rule describing the past.
+        assert name.lower() in CLOSURE, f"{name} left the closure — delete this exclusion"
+
+
+def test_a_dual_licensed_package_is_not_treated_as_copyleft():
+    # `odfpy` declares Apache OR GPL OR LGPL. Copyleft-wins-ties classified it as copyleft, which
+    # would have had us excluding a dependency we are entitled to use under Apache. A choice is a
+    # choice, and we take the permissive option.
+    assert supply_chain.classify_license(
+        "Apache Software License; GNU General Public License (GPL)") == "permitted"
+    assert supply_chain.is_dual_licensed("Apache Software License; GNU General Public License (GPL)")
+    # But a choice with no permissive option on offer is still disallowed: PyMuPDF is AGPL or
+    # COMMERCIAL, and a commercial licence is not permission.
+    assert supply_chain.classify_license(
+        "Dual Licensed - GNU AFFERO GPL 3.0 or Artifex Commercial License") == "copyleft"
+
+
+def test_the_excluded_package_is_genuinely_unused_by_our_import_path():
+    # The claim the exclusion rests on: blocking it must not break what we actually import. Asserted
+    # rather than trusted, because "we do not use it" is exactly the kind of belief that rots.
+    import importlib.abc
+
+    class _Block(importlib.abc.MetaPathFinder):
+        def find_spec(self, name, path=None, target=None):
+            if name.split(".")[0] in {e["import_name"] for e in supply_chain.SHIP_EXCLUDED.values()}:
+                raise ImportError(f"blocked: {name}")
+            return None
+
+    sys.meta_path.insert(0, _Block())
+    try:
+        from ifctester import ids  # noqa: F401
+        from aec_data import validate  # noqa: F401
+    finally:
+        sys.meta_path.pop(0)
 
 
 def test_weak_copyleft_is_surfaced_but_does_NOT_fail():
@@ -238,7 +265,8 @@ _not_shipped = sorted(c["name"] for c in AUDIT["strong_copyleft"] if c["name"].l
 
 print(f"SEC-SUPPLY GATE OK - {AUDIT['total']} distributions audited; {len(DECLARED)} declared "
       f"runtime deps expand to a shipped closure of {len(CLOSURE)}. Strong copyleft IN THE CLOSURE: "
-      f"{_shipped} (all recorded in AWAITING_DECISION - see this file). Strong copyleft installed "
+      f"{_shipped} - all declared in supply_chain.SHIP_EXCLUDED and therefore EXCLUDED from "
+      f"the binaries and the image. Strong copyleft installed "
       f"but NOT shipped: {_not_shipped} - pyinstaller builds the desktop binary and is not inside "
       "it, PyMuPDF is an optional ezdxf[draw] extra that nothing imports. The "
       "'MIT/BSD/Apache only, no GPL/AGPL' constraint was held by prose and by whoever remembered to "
@@ -251,4 +279,7 @@ print(f"SEC-SUPPLY GATE OK - {AUDIT['total']} distributions audited; {len(DECLAR
       "as money.py: a mechanism written to enforce something, enforcing nothing. Weak copyleft "
       "(LGPL/MPL - ifcopenshell, certifi) is REPORTED not failed, because collapsing 'disallowed' "
       "into 'worth a look' makes a gate either useless or permanently red, and a permanently red "
-      "gate gets switched off.")
+      "gate gets switched off. AND A FALSE POSITIVE WAS REMOVED: odfpy declares Apache OR GPL OR "
+      "LGPL, and copyleft-wins-ties classified it as copyleft - which would have had us excluding a "
+      "dependency we are entitled to use under Apache. A choice is a choice and we take the "
+      "permissive option; PyMuPDF, whose only free option is AGPL, is correctly still disallowed.")

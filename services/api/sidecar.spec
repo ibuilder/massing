@@ -7,6 +7,7 @@ import os
 import sys
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
+
 HERE = os.path.abspath(SPECPATH)                    # services/api
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 WEB_DIST = os.path.join(REPO, "apps", "web", "dist")
@@ -15,6 +16,14 @@ DATA_SRC = os.path.join(HERE, "..", "data", "src")
 for p in (os.path.join(HERE, "src"), os.path.abspath(DATA_SRC)):
     if p not in sys.path:
         sys.path.insert(0, p)
+
+# Packages that must NOT be distributed, declared once in aec_api.supply_chain.SHIP_EXCLUDED and read
+# here rather than repeated. A permissively-licensed dependency can require a copyleft one it only
+# uses on a path we never take; it has to be installed for metadata, and left out of the artifact.
+# Hard-coding a name here would fix one package and leave the next arrival to be noticed by nobody.
+from aec_api.supply_chain import excluded_import_names   # noqa: E402
+
+SHIP_EXCLUDES = excluded_import_names()
 
 datas, binaries, hiddenimports = [], [], []
 for pkg in ("ifcopenshell", "uvicorn", "aec_api"):
@@ -34,7 +43,7 @@ a = Analysis(
     ["desktop_entry.py"],
     pathex=["src", DATA_SRC],
     binaries=binaries, datas=datas, hiddenimports=hiddenimports,
-    excludes=["tkinter", "matplotlib", "PySide6", "PyQt5", "pytest"],
+    excludes=["tkinter", "matplotlib", "PySide6", "PyQt5", "pytest"] + SHIP_EXCLUDES,
 )
 pyz = PYZ(a.pure)
 

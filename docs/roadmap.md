@@ -14,7 +14,7 @@ the sheet is still handled as an image with text behind it rather than as data (
 structural carry-overs that keep the codebase workable are still outstanding.
 
 **Status:** CodeQL 0 open alerts · backend suite green (**405** suites) · vitest **500** (incl. 152 vendored kernel tests) · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.719**.
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.720**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
 reverts. R26 is otherwise complete — what gates making it the default is named in that section.
@@ -62,7 +62,7 @@ until the backlog of built-but-uncallable work is zero.
    is caught by `ties.test.ts` and upstream's own 152 tests run in our suite.
    **Revisit only if** we adopt substantially more of the kernel, or a third consumer appears and the
    copy stops being a copy and starts being a fork.
-3. **💵 MONEY-WIRE ② — the remaining split sites.** ① shipped v0.3.718: `capital.allocate` now uses
+3. **✅ ~~MONEY-WIRE ②~~ — DONE v0.3.720** (`project_budget`, `resource_loading`). ① shipped v0.3.718: `capital.allocate` now uses
    largest-remainder, so a split total adds up and the leftover cents stop landing on whoever sorts
    last. `money` has left `KNOWN_UNREACHABLE`. **Not** a mandate to convert all 267 `round(x, 2)`
    calls — most are display rounding where drift is invisible. The ones worth finding are the other
@@ -75,7 +75,7 @@ until the backlog of built-but-uncallable work is zero.
    three entries is a thin first impression. And two of `schedule`'s five (*Equipment*, *Resource
    loading*) are arguably cost-side. Both are judgement calls that want **R26-V-TIMING** data rather
    than another opinion, so they are recorded, not acted on.
-5. **⚖ LICENSE-BCF — exclude `bcf-client` (GPLv3) from the distributed artifact.** Wiring
+5. **✅ ~~LICENSE-BCF~~ — DONE v0.3.720.** Wiring
    `supply_chain` into a gate (v0.3.719) found GPLv3 in the shipped dependency closure, arriving as an
    *unconditional* requirement of `ifctester`. **We do not need it**: `ifctester` is LGPLv3 (fine, same
    as ifcopenshell), we import only `ifctester.ids`, and that loads zero bcf modules — bcf-client backs

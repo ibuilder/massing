@@ -23,6 +23,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from . import modules as me
+from . import money
 
 
 def _n(v: Any) -> float:
@@ -99,9 +100,11 @@ def cashflow(db: Session, pid: str) -> dict:
         if not bud or not s:
             continue
         months = _month_list(s, f)
-        per = bud / len(months)
-        for m in months:
-            buckets[m] = buckets.get(m, 0.0) + per
+        # MONEY-WIRE ② — a spread curve whose months do not sum to the budget is the first thing a
+        # PM notices when reconciling. `bud / len(months)` rounded per bucket loses (or gains) cents;
+        # largest-remainder allocation makes each line's spread sum EXACTLY to that line's budget.
+        for m, part in zip(months, money.allocate(bud, [1.0] * len(months))):
+            buckets[m] = buckets.get(m, 0.0) + part
         total += bud
         loaded += 1
     series, cum = [], 0.0

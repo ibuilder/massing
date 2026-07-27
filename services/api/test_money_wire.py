@@ -83,6 +83,40 @@ def test_capital_actually_imports_money_now():
     assert "money." in inspect.getsource(capital.allocate), "capital.allocate must use the helpers"
 
 
+
+# --- MONEY-WIRE ② — spreading a total across periods -----------------------------------------------
+def test_a_budget_spread_sums_to_the_budget():
+    # `bud / len(months)` rounded per bucket does not add up, and a spread curve whose months do not
+    # sum to the budget is the first thing a PM notices when reconciling. Checked at the helper level
+    # because the engine needs a DB; the engines call exactly this.
+    for total, n in ((100.0, 3), (1000.01, 7), (0.05, 4), (123456.78, 13)):
+        parts = money.allocate(total, [1.0] * n)
+        assert len(parts) == n, (total, n)
+        assert money.to_cents(sum(parts)) == money.to_cents(total), (total, n, parts)
+
+
+def test_an_even_spread_differs_by_at_most_a_cent_between_periods():
+    # Largest-remainder, not "dump it in the last bucket" — no single month absorbs the rounding.
+    parts = money.allocate(100.0, [1.0] * 3)
+    assert max(parts) - min(parts) <= 0.01 + 1e-9, parts
+
+
+def test_a_single_period_gets_the_whole_amount():
+    assert money.allocate(250.0, [1.0]) == [250.0]
+
+
+def test_zero_periods_allocates_nothing_rather_than_dividing_by_zero():
+    assert money.allocate(250.0, []) == []
+
+
+def test_the_engines_that_split_a_total_actually_call_the_helper():
+    # The reachability half — the engines had the same `/ len(...)` bug and would keep it otherwise.
+    import inspect
+
+    from aec_api import project_budget, resource_loading
+    assert "money.allocate" in inspect.getsource(project_budget), "budget spread must use the helper"
+    assert "money.allocate" in inspect.getsource(resource_loading), "resource loading must use it too"
+
 for _n, _f in sorted(list(globals().items())):
     if _n.startswith("test_") and callable(_f):
         _f()

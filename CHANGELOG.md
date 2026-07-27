@@ -4,6 +4,33 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.720 — a spread that adds up, and nothing copyleft in the box
+
+**Fixed — spreading a total across periods did not add up.** A budget spread over months, and a
+resource histogram over weeks, both divided the total and rounded each bucket, so the periods never
+quite summed to the figure they were spread from. That is the discrepancy somebody finds while
+reconciling, and it has no explanation because there is nothing wrong with any individual number. Both
+now use the penny-exact allocator, and the engines are asserted to call it rather than merely to have
+it available.
+
+**The GPL-licensed package we never execute is now excluded from what we ship.** It arrives as a
+required component of a permissively-licensed library we genuinely need, but the half of that library
+we use never loads it, which is verified by blocking it at import and confirming our validation path
+still works. It stays installed so the library's requirements resolve, and is left out of both the
+desktop builds and the container image.
+
+**That exclusion is declared once and read everywhere.** The name, the reason, and what each packager
+needs live in a single place; the desktop builds and the image both derive from it. Hard-coding the
+remedy in each build file would have solved exactly one package and left the next one to be noticed by
+nobody. The licence check now also *enforces* the list — finding a copyleft dependency and forgetting
+to act on it fails the build, instead of being recorded somewhere nobody re-reads.
+
+**Fixed — a licence classifier that was wrong about dual licensing.** A package offering "Apache or
+GPL or LGPL" was being classified as copyleft, which would have had us excluding a dependency we are
+entitled to use under Apache. Where a choice is offered we take the permissive option — while a
+package whose only free option is copyleft is still refused, since a commercial alternative is not
+permission. Correct in both directions, which the simpler rule was not.
+
 ## v0.3.719 — the licence rule is enforced by the build, and the new navigation is proven complete
 
 **The "no GPL/AGPL" rule now fails a build instead of relying on someone remembering.** The classifier

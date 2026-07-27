@@ -42,8 +42,9 @@ authoring, proforma maths) that a plugin should **call**, not contain.
 So the architecture is:
 
 ```
-free core            : viewer · IFC convert/load · projects & containers · auth/RBAC ·
-                       module engine (the 132) · work queue · documents · markup basics
+free core            : viewer · IFC convert/load · AUTHORING · coordination/clash/IDS/QA ·
+                       drawings · projects & containers · auth/RBAC ·
+                       module engine (the 132) · work queue · documents · markup
 capability plugins   : TS bundle + module.json set + entitlement, talking to generic APIs
                        and to specific engines through capability tokens
 premium engines      : stay server-side, gated by entitlement, exposed as capabilities
@@ -65,7 +66,7 @@ people arriving at the same seams is evidence the seams are real.
 | **Design & Drawings** | sheetgen · drawings_render · sections/keynotes/detail_refs · cover_sheet · view_templates | Studio-shaped. Heavy server engines, thin UI — a good test of "plugin calls engine". |
 | **Field Ops** | dailylog · safety · quality · itp · cx · punchlist · verified_progress · progress_rollup | Mobile-shaped, mostly the generic module engine already. Could be the *first* plugin because it needs almost no bespoke engine. |
 | **Facilities / Operations** | cmms · fca · reserve · asset_register · twin · energy_star | Post-turnover; a different buyer (owner/FM) from everyone above. |
-| **Coordination / QA** | clash · IDS validation · model_qa · norm_valid · model_ci · revision_delta | Arguably **core** rather than plugin — see the open question below. |
+| ~~Coordination / QA~~ | clash · IDS validation · model_qa · norm_valid · model_ci · revision_delta | **CORE, not a plugin** (decided 2026-07-27). Authoring without validation is half a tool. |
 | **PDF review** | already extracted → `MassingCloud/massing-pdf` | Proves the pattern; it is the reference implementation. |
 | **Family content** | already extracted → `MassingCloud/massing-families` | Content, not code — a different plugin *kind*, and worth naming as such. |
 
@@ -103,17 +104,47 @@ Two plugin **kinds** fall out of that last row, and the distinction matters for 
 * **The 60 bespoke routers are the ceiling.** Anything a plugin needs from them stays server-side and
   gated. Do not try to move IFC authoring or clash detection into a browser plugin.
 
-## Open questions — yours, not mine
+## DECIDED — authoring is free, and it is the core (2026-07-27)
 
-1. **Is Coordination/QA core or paid?** Clash and IDS validation are what makes this an openBIM tool
-   rather than a viewer. My instinct is core, because it is the reason someone chooses the product,
-   but it is also the most obviously valuable thing to charge for.
-2. **Does a free core include authoring, or only viewing?** The 2026-07 direction was that in-browser
-   authoring is a first-class goal. If authoring is free, the plugins are all workflow; if authoring
-   is paid, the split is quite different.
-3. **Server-side plugins ever?** My recommendation is no — third-party Python beside the database is
-   a different risk posture and would need a sandbox we do not have. Third parties get the client-side
-   host, the module schema, and documented APIs.
+**The free core includes full IFC authoring.** That is the differentiator: a browser tool that
+*creates* a model rather than displaying one. Everything below follows from it.
+
+**This settles the Coordination/QA question too: core, not paid.** Authoring without validation is
+half a tool — you can create a model and cannot find out whether it is any good. Clash, IDS
+validation and model QA are what make authoring trustworthy, so gating them would sell a differentiator
+with its safety catch removed. They join the free core.
+
+**So what is paid is the workflow and the data, not the tool.** That is a clean line and it matches
+how the model was described: download free, sign in, install what your business needs.
+
+| | free core | paid |
+|---|---|---|
+| create and edit an IFC model | ✅ | |
+| coordinate, validate, QA it | ✅ | |
+| drawings, documents, markup, the work queue | ✅ | |
+| **run a business process over it** — estimating, buyout, scheduling, field, facilities | | ✅ |
+| **underwrite a deal on it** — proforma, waterfall, capital, leasing | | ✅ |
+| **curated data** — cost databases, family libraries, code rule sets, templates | | ✅ |
+
+Two consequences worth stating before anyone builds:
+
+* **Content packs get more attractive, not less.** They add value without gating the tool, they carry
+  no security surface, and a cost database with a vintage is worth paying for in a way a button is
+  not. `massing-families` is already one.
+* **The plugin boundary is now a *business* boundary, not a technical one.** Precon, Purchasing,
+  CRE and Field Ops are separated by who does the job and who signs the cheque — which is a far more
+  stable seam than "which module directory is this in", and it means the cuts in the table above
+  should survive refactoring.
+
+**Still genuinely open: which paid plugins, at what price, in what bundles.** That is a pricing
+question and wants customers, not architecture. Nothing in this plan depends on answering it — the
+seams are the same either way, which is the point of settling the free/paid *line* first.
+
+## Open question that remains
+
+**Server-side plugins ever?** Recommendation: no. Third-party Python beside the database is a
+different risk posture and would need a sandbox we do not have. Third parties get the client-side
+host, the module schema, and documented APIs.
 
 ## Tracking across the four repos
 

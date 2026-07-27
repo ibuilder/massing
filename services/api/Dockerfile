@@ -29,6 +29,16 @@ COPY services/api/requirements.lock /tmp/req/requirements.lock
 # wholesale into the runtime stage.
 RUN pip install --prefix=/install --require-hashes -r /tmp/req/requirements.lock
 
+# Remove what must not be DISTRIBUTED, as opposed to what must not be installed. A permissively
+# licensed dependency can require a copyleft one it uses only on a path we never take: it has to be
+# in the lock for the resolve to succeed, and out of the image so nothing copyleft ships. The list
+# and the reason for each entry live in `aec_api.supply_chain.SHIP_EXCLUDED` — one place, read by
+# this stage and by both PyInstaller specs, so a future arrival is handled by editing one line.
+#
+# Copied in for this one step rather than pulling the whole source tree into the build stage.
+COPY services/api/src/aec_api/supply_chain.py /tmp/purge/aec_api/supply_chain.py
+RUN touch /tmp/purge/aec_api/__init__.py  && PYTHONPATH=/tmp/purge python -m aec_api.supply_chain --purge  && rm -rf /tmp/purge
+
 FROM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
 
 WORKDIR /app
