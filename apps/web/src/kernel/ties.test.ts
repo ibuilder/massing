@@ -120,24 +120,24 @@ describe("the container format the kernel writes vs the one this product writes"
 
   const adapter = new StorageContainerAdapter({} as never);
 
-  it("REGRESSION GUARD for upstream #2 — the extensions do not yet agree", () => {
-    // This asserts the CURRENT, WRONG state on purpose. `.mmproj` was superseded by `.mass` in this
-    // product at v0.3.705, and the kernel adapter still lists only the old one — so a container we
-    // write today is not recognised. Writing that down as a failing-when-fixed assertion is the
-    // difference between a known gap and a bug waiting to be rediscovered by a user whose project
-    // will not open.
-    //
-    // WHEN UPSTREAM #2 LANDS this test fails. That is the intended signal: delete this case, enable
-    // the one below, and drop the `.mass` disagreement from vendor/massingifc/VENDOR.md.
-    expect([...adapter.extensions]).toEqual(["mmproj"]);
-    expect([...adapter.extensions]).not.toContain("mass");
-    expect(adapter.formatId).toBe("massingifc.project");
-    expect(adapter.formatId).not.toBe(OURS.format);
+  it("the extensions now AGREE — upstream #2 landed (v0.3.716)", () => {
+    // This case replaces a deliberately-failing guard. Between v0.3.712 and v0.3.716 the kernel
+    // adapter listed only `.mmproj`, the extension this product replaced at v0.3.705, so a container
+    // written here would not open there. Rather than leave that as a note, it was pinned as an
+    // assertion of the WRONG state that would fail the moment it was fixed — and it did, on the
+    // first re-sync after the upstream merge. That is the whole argument for writing a known gap as
+    // a test: a note ages into fiction, a test tells you the day it stops being true.
+    expect([...adapter.extensions]).toEqual(["mass", "mmproj"]);
+    expect(adapter.extensions[0]).toBe(OURS.ext.replace(".", ""));   // `.mass` is native
+    expect([...adapter.extensions]).toContain(OURS.legacyExt.replace(".", ""));  // still readable
   });
 
-  it.skip("what it should be once #2 lands: .mass native, .mmproj still readable", () => {
-    expect([...adapter.extensions]).toEqual(["mass", "mmproj"]);
-    expect(adapter.extensions[0]).toBe(OURS.ext.replace(".", ""));
+  it("the FORMAT IDs still differ, and that is a real remaining difference", () => {
+    // Not a bug: the kernel's native container and this product's export format can legitimately be
+    // distinct formats behind one ContainerAdapter interface. Asserted so that if they are ever
+    // meant to converge, the change is deliberate rather than accidental.
+    expect(adapter.formatId).toBe("massingifc.project");
+    expect(OURS.format).toBe("massing.project");
   });
 
   it("our own format constants are the ones the docs and the API agree on", () => {

@@ -4,6 +4,37 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.716 — the known gaps in the adopted kernel are closed, upstream
+
+Adopting the platform kernel four releases ago surfaced four defects, each recorded here at the time
+as something we were carrying rather than something we had fixed. All four are now fixed **in the
+kernel itself** and this build carries them, so the two local modifications this repository was
+holding are gone and a future refresh is once again a plain copy.
+
+**A takeoff rule naming certain words produced a silent wrong number.** Because quantities were
+looked up on a plain object, a rule referring to a handful of reserved property names resolved to
+something that was not a quantity at all, slipped past the check meant to catch unknown names, and
+evaluated to a non-number that then flowed onward into the bill of quantities, the estimate and the
+cashflow — surfacing far from the rule that caused it. That check exists precisely to refuse an
+unknown quantity rather than treat it as zero, on the grounds that zero is a confident wrong
+measurement; a non-number is worse.
+
+**A project file written here would not open there.** The kernel's container reader still expected
+the file extension this product replaced several releases ago. It now treats the current extension as
+native and keeps reading the old one.
+
+**An identifier that was weak but looked strong.** The kernel's id generator fell back to
+non-cryptographic randomness on hosts lacking the modern API. It now refuses rather than quietly
+returning something predictable.
+
+**And the viewer libraries are pinned exactly**, because the two must be installed as a matching pair
+and a range cannot express that — a fresh install was free to pick a combination nobody had tested.
+
+The mechanism that made this land cleanly is worth naming: the extension mismatch had been written
+down not as a comment but as a **test asserting the broken state**, designed to fail the moment
+somebody fixed it. It did, on the first refresh after the upstream change — so the gap announced its
+own closure instead of quietly persisting in a list nobody re-reads.
+
 ## v0.3.715 — the new look is the front door
 
 The five-room spine — Work, Model, Schedule, Deal, Docs — is now what you get by default. It has been

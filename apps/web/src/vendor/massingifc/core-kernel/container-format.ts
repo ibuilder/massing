@@ -449,14 +449,17 @@ const ENTRY_KEY = (containerId: string, path: string): string => `container:${co
  * Reference container adapter backed by a `StorageAdapter`.
  *
  * Real enough to build and test against — it round-trips documents and blobs through whatever
- * key/value store the host supplies, including the in-memory one. A file-backed `.mmproj` adapter
- * and the ISO 21597 adapter implement the same interface; nothing above `ContainerAdapter` changes
- * when they arrive.
+ * key/value store the host supplies, including the in-memory one. A file-backed `.mass` adapter and
+ * the ISO 21597 adapter implement the same interface; nothing above `ContainerAdapter` changes when
+ * they arrive.
  */
 export class StorageContainerAdapter implements ContainerAdapter {
   readonly formatId = NATIVE_FORMAT_ID;
   readonly displayName = "MassingIFC project";
-  readonly extensions = ["mmproj"] as const;
+  // `.mass` is the current project-file extension; `.mmproj` is its predecessor and stays readable
+  // so containers written before the rename still open. Order matters — the first entry is what a
+  // host offers when saving.
+  readonly extensions = ["mass", "mmproj"] as const;
 
   readonly #storage: StorageAdapter | undefined;
 
@@ -466,7 +469,8 @@ export class StorageContainerAdapter implements ContainerAdapter {
 
   canOpen(source: ContainerSource): boolean {
     if (source.storage ?? this.#storage) {
-      return source.uri === undefined || source.uri.endsWith(".mmproj");
+      return source.uri === undefined
+        || this.extensions.some((ext) => source.uri!.endsWith(`.${ext}`));
     }
     return false;
   }

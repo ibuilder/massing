@@ -1,32 +1,27 @@
 # Vendored: `MassingCloud/massingifc`
 
 `core-kernel`, `plugin-sdk` and `project-schema`, copied **verbatim** from
-`MassingCloud/massingifc` at commit `3da57cb314641f2848f18ebc3dd155ad81096916` (2026-07-27).
+`MassingCloud/massingifc` at commit `93606570374133ebea30e31405893929e0416e2e` (2026-07-27).
 MIT licensed — see `LICENSE` in this directory.
 
 ## Why vendored rather than depended upon
 
-`massingifc` is a **private** repository and `ibuilder/massing` is **public**. An `npm install` from
-a private repo needs a token in CI, which breaks forks and contradicts the offline/deterministic
-build constraint this project holds. These three packages have **zero runtime dependencies**, no
-`node:` builtins and no DOM references, so vendoring the TypeScript source costs nothing and keeps
-the build hermetic. (Same reasoning as the vendored Lucide icons.)
+Originally because `massingifc` was **private** while this repo is public — installing from a private
+repo needs a token in CI, which breaks forks and contradicts the offline/deterministic build
+constraint. **That reason is gone: the kernel repo went public on 2026-07-27.** Vendoring continues
+for now because these three packages have **zero runtime dependencies**, no `node:` builtins and no
+DOM references, so the copy costs nothing and keeps the build hermetic without either a registry
+publish or a submodule. Moving to a real dependency is tracked on the roadmap — it needs the packages
+published somewhere npm can reach, which is a separate decision, not a code change.
 
 ## Re-syncing
 
-## Local deviations from upstream — two
+## Local deviations from upstream — NONE
 
-`core-kernel/commands.ts` line 4: the unused `ok` import is removed. It is genuinely dead upstream
-(every other `ok` in that file is `.ok` **property access** on a `Result`, not the constructor), and
-this project compiles with `noUnusedLocals` while upstream does not. Reported as upstream #4; delete
-this note when the fix lands and the next re-sync will be clean again.
-
-`plugin-sdk/runtime.ts`: `createUuidIdFactory`'s fallback used `Date.now()` + `Math.random()` when
-`crypto.randomUUID` is absent. CodeQL flags that as `js/insecure-randomness` at **high** severity,
-correctly — `Math.random()` is seeded, not cryptographic. The patch prefers `crypto.getRandomValues`
-and **throws** when neither API exists, rather than returning a predictable id. A general-purpose id
-factory cannot know whether a caller will use an id as a key or as a capability, and one that turns
-out to be a share token is unguessable only by accident. Reported as upstream #4.
+There were two, both reported and both now fixed upstream and dropped on the first re-sync:
+`commands.ts`'s dead `ok` import, and `createUuidIdFactory` falling back to `Math.random()`
+(CodeQL `js/insecure-randomness`, high). See
+[PR #5](https://github.com/MassingCloud/massingifc/pull/5).
 
 Upstream's own `*.test.ts` files are **excluded from `tsc`** (`exclude` in `tsconfig.json`) but are
 still **run by Vitest**. Eight of them fail our typecheck for a reason that is not a defect —
@@ -50,13 +45,12 @@ done
 Upstream's own test files are kept and run by our vitest. They are the check that the vendored copy
 still behaves — a vendored library nobody exercises is a fork you have not noticed yet.
 
-## Open upstream issues that affect us
+## Upstream issues — all four closed
 
-- [#1](https://github.com/MassingCloud/massingifc/issues/1) — `evaluateExpression` resolves inherited
-  property names and yields `NaN` instead of refusing. In `estimating-5d`, **not** vendored here.
-- [#2](https://github.com/MassingCloud/massingifc/issues/2) — the container adapter is coded against
-  `.mmproj`; we write `.mass` (see `services/api/src/aec_api/bundle.py`). Affects `core-kernel`,
-  which **is** vendored. `containerFormatTies` in `src/kernel/ties.test.ts` pins the disagreement so
-  it cannot be forgotten.
-- [#3](https://github.com/MassingCloud/massingifc/issues/3) — caret ranges on `@thatopen/*`. In
-  `viewer-thatopen`, not vendored; we keep our own pinned pair.
+[#1](https://github.com/MassingCloud/massingifc/issues/1) `evaluateExpression` inherited-property
+lookup · [#2](https://github.com/MassingCloud/massingifc/issues/2) container extension ·
+[#3](https://github.com/MassingCloud/massingifc/issues/3) caret ranges on `@thatopen/*` ·
+[#4](https://github.com/MassingCloud/massingifc/issues/4) the `Math.random()` id fallback plus a dead
+import. All fixed in [PR #5](https://github.com/MassingCloud/massingifc/pull/5) and carried in the
+commit pinned above. `src/kernel/ties.test.ts` pinned #2 as an assertion of the *wrong* state that
+would fail when it was fixed — and it did, on this re-sync, which is exactly what that pattern is for.

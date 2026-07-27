@@ -66,19 +66,20 @@ export function createUuidIdFactory(): IdFactory {
       const randomUUID = host.crypto?.randomUUID;
       if (randomUUID) return `${prefix}-${randomUUID.call(host.crypto)}`;
 
-      // LOCAL PATCH (see VENDOR.md): the fallback was `Date.now()` + `Math.random()`, which CodeQL
-      // flags as js/insecure-randomness at high severity — correctly. `Math.random()` is seeded, not
-      // cryptographic, so ids drawn from it are predictable. This is a general-purpose id factory:
-      // it cannot know whether a caller will use an id as a mere key or as a capability, and one
-      // that turns out to be a share token is unguessable only by accident.
+      // `Math.random()` is seeded, not cryptographic, and `Date.now()` narrows the search space
+      // rather than widening it — CodeQL reports the combination as js/insecure-randomness at high
+      // severity. This is a general-purpose id factory: it cannot know whether a caller will use an
+      // id as an internal key or as a capability (a share link, an invite, a container handle), and
+      // an id that turns out to be a token is unguessable only by accident.
       const values = host.crypto?.getRandomValues;
       if (values) {
         const bytes = values.call(host.crypto, new Uint8Array(16));
         return `${prefix}-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
       }
 
-      // Neither API present: REFUSE. Silently returning a weak id would be indistinguishable from a
-      // strong one at every call site, and would only be discovered by whatever it failed to protect.
+      // Neither API: REFUSE. A weak id is shaped exactly like a strong one, so degrading silently
+      // would be invisible at every call site and discovered only by whatever it failed to protect.
+      // `createCounterIdFactory` is there for anyone who genuinely wants deterministic ids.
       throw new Error(
         "createUuidIdFactory: no cryptographic randomness available (crypto.randomUUID and "
         + "crypto.getRandomValues are both missing). Supply an explicit IdFactory — a predictable "

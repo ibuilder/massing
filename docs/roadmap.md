@@ -13,8 +13,8 @@ the 5D/4D spine from R25, and the interaction surface from R26. **What is thin n
 the sheet is still handled as an image with text behind it rather than as data (📐 R27), and the
 structural carry-overs that keep the codebase workable are still outstanding.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**403** suites) · vitest **474** (incl. 152 vendored kernel tests) · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.715**.
+**Status:** CodeQL 0 open alerts · backend suite green (**403** suites) · vitest **475** (incl. 152 vendored kernel tests) · single-source version in
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.716**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
 reverts. R26 is otherwise complete — what gates making it the default is named in that section.
@@ -49,11 +49,13 @@ until the backlog of built-but-uncallable work is zero.
    went first rather than a feature move. **Next:** a real plugin through the plugin host (markup/pins
    is the cleanest candidate: already GlobalId-anchored, already outside `app.ts`). Then command-bus
    undo, which `app.ts` currently has no general answer for.
-2. **🔓 UN-VENDOR the kernel — `massingifc` is now PUBLIC (MIT).** The reason for vendoring was that a
+2. **🔓 UN-VENDOR the kernel — needs the packages published where npm can reach them.** The reason for vendoring was that a
    public repo cannot install from a private one without a CI credential. That reason is gone, so the
-   three packages can become a normal dependency and the two local patches can be dropped as their
-   upstream issues land. Not urgent — the vendored copy is tested and hermetic — but it removes a
-   standing re-sync cost. (Flipping the new look on: **DONE v0.3.715**.)
+   The private-repo blocker is gone and **all four upstream issues are closed (PR #5, v0.3.716)**, so
+   the vendored copy now has **zero local patches**. What remains is not a code change: npm cannot
+   install a workspace package out of a git monorepo, so this needs either a registry publish (a
+   decision, not a task) or a submodule (real CI cost). Genuinely optional — the vendored copy is
+   tested, hermetic and re-syncs with a copy. (Flipping the new look on: **DONE v0.3.715**.)
 3. **💵 MONEY-WIRE — `money.py` has a test suite and zero importers.** Found by the new reachability
    gate (v0.3.714). Decimal helpers written to stop float drift at the cent boundary, wired to
    nothing, so every currency calculation still drifts. Wiring it is an audit of each call site, not
