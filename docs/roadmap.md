@@ -410,11 +410,17 @@ contextual verbs · the enforced colour contract · and all four verification ga
 **The new look is opt-in today** at `?shell=spine` (off by default; `?shell=classic` reverts). Making
 it the **default** is the remaining decision, and it is now gated on judgement rather than on code:
 
-- **R26-ICONS** *(S — needs a decision from the user)* — one monoline icon set at a single weight,
-  state-tinted, replacing coloured emoji. **Blocked on a source**: hand-authoring ~100 inline SVGs is
-  a sprint of its own, and any licensed set is a new dependency needing an explicit OK (MIT/BSD/
-  Apache only). Explicitly **not** a release blocker — the emoji stopped being a legibility problem
-  once the toolbar carried words, so this is polish and should not jump the queue on that basis.
+- ✅ **R26-ICONS** *(shipped v0.3.708)* — one monoline set at a single weight, **vendored**, replacing
+  coloured emoji. The backlog framed this as "hand-author ~100 SVGs, or take a licensed package"; that
+  was a false choice. An icon set *is* SVG files, so the 31 we use are copied into `ui/icons.ts` —
+  no npm package, no CDN (which the offline rule demands anyway), and none of the ~1,500 unused icons
+  in the bundle. Lucide, **ISC**; the copyright and permission notice travel in
+  [ATTRIBUTIONS.md](ATTRIBUTIONS.md), which is what ISC requires of copies.
+  **They carry no colour of their own** — every path strokes `currentColor` and fills nothing — so the
+  colour contract from v0.3.692 governs icons automatically and an icon is *structurally incapable* of
+  introducing another meaning for blue. Tests assert no hard-coded colour and no network reference
+  anywhere in the vendored data, that all 27 toolbar verbs resolve to a real icon, and that no icon
+  name is a typo — a typo renders nothing, and nothing looks exactly like "no icon yet".
 - **R26-V-TIMING** *(M — needs real users)* — instrument first-task completion per persona against
   the audit's baseline, so the redesign's claim is **measured rather than asserted**. Deliberately
   left open: it is an *after* measurement and cannot gate the thing it measures.

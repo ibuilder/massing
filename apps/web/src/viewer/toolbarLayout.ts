@@ -147,3 +147,49 @@ export function describe(spec: ToolSpec): string {
   const i = spec.title.indexOf(" — ");
   return i > 0 ? spec.title.slice(i + 3) : "";
 }
+
+/**
+ * R26-ICONS — the icon each labelled verb wears, keyed by label.
+ *
+ * Keyed by LABEL rather than by title, because the label is the word already chosen for the button
+ * and the two must agree: an icon that disagrees with the word beside it is worse than no icon,
+ * since the reader now has two claims and no way to choose. `toolbarLayout.test` asserts every
+ * label here resolves to a vendored icon and that no label is missed, so a new verb cannot ship
+ * wearing a blank.
+ */
+export const TOOL_ICON: Record<string, string> = {
+  "Levels": "layers",
+  "Show all": "eye",
+  "Isolate": "focus",
+  "Colour": "palette",
+  "Section": "scissors",
+  "Section box": "box",
+  "Render": "sparkles",
+  "Sun": "sun",
+  // Two walk tools, deliberately the same icon: they ARE the same verb, and v0.3.691 established
+  // that the DUPLICATION is the finding. Giving them different icons would disguise it.
+  "Walk (drag)": "footprints",
+  "Walk (locked)": "footprints",
+  "Measure": "ruler",
+  "Area": "scan",
+  "Clear": "eraser",
+  "Edit in place": "pencil",
+  "Move": "move-3d",
+  "Copy": "copy",
+  "Rotate": "rotate-cw",
+  "Delete": "trash-2",
+  "Property": "info",
+  "Add door": "door-open",
+  "Add window": "panel-top",
+  "Script": "code",
+  "Ask": "message-circle-question-mark",
+  "Presence": "users",
+  "Share view": "share-2",
+  "QR": "qr-code",
+  "Capture": "camera",
+};
+
+/** The icon for a tool, or null when it has none — the caller falls back to its label. */
+export function iconFor(label: string): string | null {
+  return Object.prototype.hasOwnProperty.call(TOOL_ICON, label) ? TOOL_ICON[label]! : null;
+}

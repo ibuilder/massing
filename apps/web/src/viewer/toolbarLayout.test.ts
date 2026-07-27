@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { GROUP_LABELS, MAX_PRIMARY, TOOLS, describe as describeTool, primaryTitles, specFor, unlaidTitles } from "./toolbarLayout";
+import { hasIcon } from "../ui/icons";
+import { GROUP_LABELS, MAX_PRIMARY, TOOLS, TOOL_ICON, describe as describeTool, iconFor, primaryTitles, specFor, unlaidTitles } from "./toolbarLayout";
 import { installToolbarView } from "./toolbarView";
 
 /**
@@ -158,5 +159,32 @@ describe("the layout pass moves tools, it cannot lose them", () => {
     const seen = [...h.querySelectorAll<HTMLButtonElement>(".tool-btn")]
       .map((b) => b.title).filter((t) => t !== "More tools");
     expect(seen.length).toBe(ALL.length);
+  });
+});
+
+// --- R26-ICONS: every verb wears an icon, and every icon is one we actually vendored -------------
+describe("the icon map covers the toolbar and nothing else", () => {
+  it("every labelled tool has an icon — a new verb cannot ship wearing a blank", () => {
+    const missing = TOOLS.map((t) => t.label).filter((l) => !iconFor(l));
+    expect(missing).toEqual([]);
+  });
+  it("every icon named is one that was actually vendored", () => {
+    // The map is written by hand; the set is generated. A typo here would render nothing at all,
+    // and "nothing at all" looks identical to "this button has no icon yet".
+    const unknown = Object.values(TOOL_ICON).filter((n) => !hasIcon(n));
+    expect(unknown).toEqual([]);
+  });
+  it("maps no label that is not a real tool", () => {
+    const labels = new Set(TOOLS.map((t) => t.label));
+    expect(Object.keys(TOOL_ICON).filter((l) => !labels.has(l))).toEqual([]);
+  });
+  it("the two walk tools deliberately share one icon", () => {
+    // They are the same verb. v0.3.691 established the DUPLICATION is the finding; distinct icons
+    // would disguise it.
+    expect(iconFor("Walk (drag)")).toBe(iconFor("Walk (locked)"));
+  });
+  it("an unmapped label returns null rather than an inherited property", () => {
+    expect(iconFor("constructor")).toBeNull();
+    expect(iconFor("nope")).toBeNull();
   });
 });

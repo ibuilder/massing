@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.708 — one set of icons, and they borrow their colour
+
+The interface wore coloured emoji: several visual languages at once, each at its own weight and fill,
+each carrying a colour the platform did not choose. They are now one monoline set at a single stroke
+weight.
+
+**The icons carry no colour of their own.** Every one draws in the colour of the text beside it. That
+is the whole point rather than a detail — the rule established earlier that each colour means exactly
+one thing now governs icons automatically, and an icon is *unable* to introduce a new meaning for
+blue even by accident. Tests check that no colour is hard-coded anywhere in the artwork.
+
+**They are copied in, not depended on.** This was held up for a while as a choice between drawing a
+hundred icons by hand or taking on a licensed package. It was neither: an icon set is just drawings,
+so the thirty-one this app uses now live in the source. Nothing is fetched at runtime — which is what
+running offline requires anyway — and the fifteen hundred we do not use are simply not here. The
+licence notice travels with the copies, as that licence requires.
+
+Every labelled button in the model toolbar now has one, and a check makes sure a new button cannot
+ship without one — or with the name of an icon that does not exist, which would render nothing at
+all, and nothing looks exactly like "not done yet".
+
 ## v0.3.707 — a note belongs to the drawing it is about
 
 A general note about the floor plan and a note about the section sit centimetres apart on the same

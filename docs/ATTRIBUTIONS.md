@@ -3,6 +3,40 @@
 Massing is built on open-source work. This file records third-party code or formats we have
 re-implemented or adapted, beyond the dependencies pinned in `requirements.txt` / `package.json`.
 
+## Lucide icons — vendored (ISC License)
+
+The interface icon set is **[Lucide](https://lucide.dev)**. The icons this app uses are copied
+verbatim into `apps/web/src/ui/icons.ts` as SVG path data — **vendored, not depended on**: there is
+no npm package and no CDN, which is what the offline requirement needs, and none of the ~1,500 icons
+we do not use reaches the bundle. Path data is copied from upstream, never redrawn, because an icon
+redrawn from memory is a different icon wearing the same name.
+
+ISC requires that the copyright notice and the permission notice appear in all copies. They follow in
+full:
+
+```
+ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+```
+
+Lucide is a maintained fork of Feather (MIT). ISC is a permissive licence, functionally equivalent to
+MIT, and compatible with this project's MIT/BSD/Apache-only dependency rule. *(GitHub's licence
+detector reports `NOASSERTION` for the Lucide repository; the `LICENSE` file itself is ISC, which is
+why it was read rather than trusted to the summary.)*
+
 ## ISO 21597 (ICDD) container format — implemented from the published standard
 
 The project package (`.mmproj` today, an **ISO 21597-1** *Information Container for linked Document
